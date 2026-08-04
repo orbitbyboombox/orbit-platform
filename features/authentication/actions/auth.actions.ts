@@ -12,7 +12,14 @@ export async function signInAction(input: SignInInput): Promise<AuthActionResult
   const parsed = signInSchema.safeParse(input);
   if (!parsed.success) return { error: "Enter a valid email and password." };
   const { error } = await signIn(parsed.data);
-  if (error) return { error: "Unable to sign in with those credentials." };
+  if (error) {
+    console.error({
+      message: error.message,
+      code: error.code,
+      status: error.status,
+    });
+    return { error: error.message };
+  }
   redirect("/");
 }
 
