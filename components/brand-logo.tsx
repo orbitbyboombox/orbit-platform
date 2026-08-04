@@ -1,5 +1,9 @@
 import Image from "next/image";
 import { cn } from "@/lib/utils";
+import orbitIconDark from "@/public/brand/orbit-icon-dark.png";
+import orbitIconLight from "@/public/brand/orbit-icon-light.png";
+import orbitLogoDark from "@/public/brand/SIN FONDO NEGRO.png";
+import orbitLogoLight from "@/public/brand/orbit-logo-light.png";
 
 export interface BrandLogoProps {
   variant?: "horizontal" | "isotype";
@@ -19,15 +23,20 @@ const positionClasses = {
   },
 } as const;
 
+const brandSources = {
+  horizontal: { dark: orbitLogoDark, light: orbitLogoLight },
+  isotype: { dark: orbitIconDark, light: orbitIconLight },
+} as const;
+
 export function BrandLogo({ variant = "horizontal", surface = "auto", className, priority }: BrandLogoProps) {
   const showLight = surface === "light" || surface === "auto";
   const showDark = surface === "dark" || surface === "auto";
-  const sourcePrefix = variant === "horizontal" ? "logo" : "icon";
+  const sources = brandSources[variant];
 
   return (
     <span aria-label="ORBIT by BOOMBOX" className={cn("relative block shrink-0 overflow-hidden", variant === "horizontal" ? "aspect-[5/1]" : "aspect-square", className)} role="img">
-      {showLight && <Image alt="" className={cn("absolute h-auto max-w-none", positionClasses[variant].light, surface === "auto" && "dark:hidden")} height={887} priority={priority} src={`/brand/orbit-${sourcePrefix}-light.png`} unoptimized width={1774} />}
-      {showDark && <Image alt="" className={cn("absolute h-auto max-w-none", positionClasses[variant].dark, surface === "auto" && "hidden dark:block")} height={887} priority={priority} src={`/brand/orbit-${sourcePrefix}-dark.png`} unoptimized width={1774} />}
+      {showLight && <Image alt="" className={cn("absolute h-auto max-w-none", positionClasses[variant].light, surface === "auto" && "dark:hidden")} priority={priority} src={sources.light} />}
+      {showDark && <Image alt="" className={cn("absolute h-auto max-w-none", positionClasses[variant].dark, surface === "auto" && "hidden dark:block")} priority={priority} src={sources.dark} />}
     </span>
   );
 }
