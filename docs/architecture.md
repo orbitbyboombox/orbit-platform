@@ -23,7 +23,7 @@ DEV-003 keeps the same feature-first boundaries and adds the guarded application
 
 ## Authentication
 
-Supabase authentication remains server-side. Secrets remain server-only through `SUPABASE_URL` and `SUPABASE_ANON_KEY`. Middleware refreshes sessions, the platform route group verifies the current user, and unauthenticated requests return to `/login`.
+Supabase authentication remains server-side. Configuration remains server-only through `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`. Middleware refreshes sessions, the platform route group verifies the current user, and unauthenticated requests return to `/login`.
 
 ## Routing
 

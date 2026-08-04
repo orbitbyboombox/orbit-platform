@@ -5,7 +5,7 @@ import { getCurrentUser } from "@/services/auth.service";
 export const dynamic = "force-dynamic";
 
 export default async function LoginPage() {
-  if (process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) {
+  if (process.env.SUPABASE_URL && process.env.SUPABASE_PUBLISHABLE_KEY) {
     const user = await getCurrentUser();
     if (user) redirect("/");
   }

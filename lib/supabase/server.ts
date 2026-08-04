@@ -4,9 +4,9 @@ import { cookies } from "next/headers";
 export async function createSupabaseServerClient() {
   const cookieStore = await cookies();
   const url = process.env.SUPABASE_URL;
-  const anonKey = process.env.SUPABASE_ANON_KEY;
-  if (!url || !anonKey) throw new Error("Missing Supabase environment variables.");
-  return createServerClient(url, anonKey, {
+  const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY;
+  if (!url || !publishableKey) throw new Error("Missing Supabase environment variables.");
+  return createServerClient(url, publishableKey, {
     cookies: {
       getAll: () => cookieStore.getAll(),
       setAll: (items) => {
