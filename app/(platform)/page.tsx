@@ -1,6 +1,5 @@
-import { ModulePage } from "@/components/layout/module-page";
-import { modules } from "@/lib/modules";
+import { HomeExperience } from "@/features/dashboard/components/home-experience";
 
 export default function DashboardPage() {
-  return <ModulePage {...modules.Dashboard} />;
+  return <HomeExperience />;
 }

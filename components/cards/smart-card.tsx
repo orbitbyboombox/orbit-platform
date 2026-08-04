@@ -58,10 +58,10 @@ export function SmartCard({
       aria-busy={loading || undefined}
       data-disabled={disabled || undefined}
       className={cn(
-        "rounded-xl border bg-card p-5 shadow-[0_1px_2px_rgba(0,0,0,0.03)]",
+        "orbit-enter rounded-2xl border border-border/80 bg-card p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.025)] sm:p-6",
         (interactive || usesStructuredLayout) &&
           !disabled &&
-          "transition duration-200 hover:-translate-y-0.5 hover:shadow-md",
+          "transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:border-foreground/10 hover:shadow-[0_12px_30px_rgba(0,0,0,0.08)]",
         disabled && "opacity-60",
         className,
       )}
@@ -80,7 +80,7 @@ export function SmartCard({
                 {loading ? (
                   <div aria-hidden="true" className="h-5 w-28 animate-pulse rounded bg-accent" />
                 ) : (
-                  title && <h3 className="truncate font-medium">{title}</h3>
+                  title && <h3 className="truncate text-sm font-semibold tracking-tight">{title}</h3>
                 )}
                 {description && !loading && <p className="mt-1 text-sm text-muted">{description}</p>}
               </div>
@@ -124,7 +124,7 @@ export function SmartCard({
                   {expandable && (
                     <Button
                       aria-expanded={expanded}
-                      aria-label={expanded ? "Collapse card" : "Expand card"}
+                      aria-label={expanded ? "Contraer tarjeta" : "Expandir tarjeta"}
                       className="ml-auto"
                       disabled={disabled || !onExpandedChange}
                       onClick={() => onExpandedChange?.(!expanded)}
@@ -154,7 +154,7 @@ export function SmartCard({
                 </span>
               )}
               <div>
-                {title && <h3 className="font-medium">{title}</h3>}
+                {title && <h3 className="text-sm font-semibold tracking-tight">{title}</h3>}
                 {description && <p className="mt-1 text-sm text-muted">{description}</p>}
               </div>
             </header>

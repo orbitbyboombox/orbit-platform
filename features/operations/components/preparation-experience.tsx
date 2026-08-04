@@ -10,12 +10,12 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { ProjectStatus } from "@/features/projects/domain";
 
 const checklistItems = [
-  "Internet Connection",
-  "Printer Test",
-  "Camera Test",
-  "Paper Loaded",
-  "Template Approved",
-  "Staff Confirmed",
+  "Conexión a internet",
+  "Prueba de impresora",
+  "Prueba de cámara",
+  "Papel cargado",
+  "Plantilla aprobada",
+  "Equipo confirmado",
 ] as const;
 
 type ChecklistItem = (typeof checklistItems)[number];
@@ -60,41 +60,41 @@ export function PreparationExperience(props: PreparationExperienceProps) {
 
   const decision = !operatorAssigned
     ? {
-        recommendation: "Assign Operator",
-        reason: "No operator has been assigned.",
-        impact: "The event cannot move to Production.",
-        actionLabel: "Assign Operator",
+        recommendation: "Asignar operador",
+        reason: "Aún no se ha asignado un operador.",
+        impact: "El evento no puede avanzar a producción.",
+        actionLabel: "Asignar operador",
         action: () => setOperatorAssigned(true),
       }
     : !equipmentAssigned
       ? {
-          recommendation: "Assign Equipment",
-          reason: "The production kit is not assigned.",
-          impact: "Equipment readiness cannot be verified.",
-          actionLabel: "Assign Equipment",
+          recommendation: "Asignar equipamiento",
+          reason: "El kit de producción no está asignado.",
+          impact: "No se puede verificar la preparación del equipo.",
+          actionLabel: "Asignar equipamiento",
           action: () => setEquipmentAssigned(true),
         }
       : !vehicleAssigned
         ? {
-            recommendation: "Assign Vehicle",
-            reason: "Transport has not been assigned.",
-            impact: "The team cannot depart for the venue.",
-            actionLabel: "Assign Vehicle",
+            recommendation: "Asignar vehículo",
+            reason: "El transporte no está asignado.",
+            impact: "El equipo no puede salir hacia el lugar.",
+            actionLabel: "Asignar vehículo",
             action: () => setVehicleAssigned(true),
           }
         : nextChecklistItem
           ? {
               recommendation: `Complete ${nextChecklistItem}`,
               reason: `${nextChecklistItem} is still pending.`,
-              impact: "Preparation cannot be marked complete.",
-              actionLabel: "Mark Complete",
+              impact: "La preparación no puede marcarse como completa.",
+              actionLabel: "Marcar como completo",
               action: () => toggleChecklistItem(nextChecklistItem),
             }
           : {
-              recommendation: "Start Event",
-              reason: "All preparation requirements are complete.",
-              impact: "The project is ready for event execution.",
-              actionLabel: "Start Event",
+              recommendation: "Iniciar evento",
+              reason: "Todos los requisitos de preparación están completos.",
+              impact: "El proyecto está listo para ejecutar el evento.",
+              actionLabel: "Iniciar evento",
               action: () => undefined,
             };
 
@@ -103,10 +103,10 @@ export function PreparationExperience(props: PreparationExperienceProps) {
       bottomAction={
         <SmartCard
           icon={<CheckCircle2 aria-hidden="true" className="size-5" />}
-          primaryValue={preparationComplete ? "Project Preparation Complete" : "Preparation in progress"}
-          secondaryValue={preparationComplete ? "Next Recommended Experience · Start Event" : "Complete every preparation requirement."}
-          status={<StatusBadge label={preparationComplete ? "Ready for Production" : `${preparationScore}% ready`} variant={preparationComplete ? "success" : "info"} />}
-          title="Preparation status"
+          primaryValue={preparationComplete ? "Preparación del proyecto completa" : "Preparación en curso"}
+          secondaryValue={preparationComplete ? "Siguiente experiencia recomendada · Iniciar evento" : "Completa cada requisito de preparación."}
+          status={<StatusBadge label={preparationComplete ? "Listo para producción" : `${preparationScore}% listo`} variant={preparationComplete ? "success" : "info"} />}
+          title="Estado de preparación"
         />
       }
       copilot={
@@ -120,7 +120,7 @@ export function PreparationExperience(props: PreparationExperienceProps) {
           <SmartCard
             primaryValue={decision.reason}
             secondaryValue={decision.impact}
-            title="Decision context"
+            title="Contexto de la decisión"
           />
         </div>
       }
@@ -128,51 +128,51 @@ export function PreparationExperience(props: PreparationExperienceProps) {
       mainContent={
         <div className="grid gap-4 sm:grid-cols-2">
           <SmartCard
-            actionLabel={operatorAssigned ? undefined : "Assign Operator"}
+            actionLabel={operatorAssigned ? undefined : "Asignar operador"}
             icon={<UserRound aria-hidden="true" className="size-5" />}
             onAction={() => setOperatorAssigned(true)}
-            primaryValue={operatorAssigned ? "Valentina Rojas" : "Not assigned"}
-            secondaryValue={operatorAssigned ? "+56 9 5555 0128" : "Operator required"}
-            status={<StatusBadge label={operatorAssigned ? "Assigned" : "Pending"} variant={operatorAssigned ? "success" : "warning"} />}
-            title="Operator"
+            primaryValue={operatorAssigned ? "Valentina Rojas" : "Sin asignar"}
+            secondaryValue={operatorAssigned ? "+56 9 5555 0128" : "Operador requerido"}
+            status={<StatusBadge label={operatorAssigned ? "Asignado" : "Pendiente"} variant={operatorAssigned ? "success" : "warning"} />}
+            title="Operador"
           />
 
           <SmartCard
-            actionLabel={equipmentAssigned ? undefined : "Assign Equipment"}
+            actionLabel={equipmentAssigned ? undefined : "Asignar equipamiento"}
             icon={<Camera aria-hidden="true" className="size-5" />}
             onAction={() => setEquipmentAssigned(true)}
-            primaryValue={equipmentAssigned ? "Classic Booth" : "Not assigned"}
-            secondaryValue="Assigned booth"
-            status={<StatusBadge label={equipmentAssigned ? "Assigned" : "Pending"} variant={equipmentAssigned ? "success" : "warning"} />}
-            title="Equipment"
+            primaryValue={equipmentAssigned ? "Cabina Classic" : "Sin asignar"}
+            secondaryValue="Cabina asignada"
+            status={<StatusBadge label={equipmentAssigned ? "Asignado" : "Pendiente"} variant={equipmentAssigned ? "success" : "warning"} />}
+            title="Equipamiento"
           >
             <dl className="divide-y">
-              <DetailRow label="Camera" value={equipmentAssigned ? "Sony A7 IV" : "Pending"} />
-              <DetailRow label="Printer" value={equipmentAssigned ? "DNP RX1HS" : "Pending"} />
+              <DetailRow label="Cámara" value={equipmentAssigned ? "Sony A7 IV" : "Pendiente"} />
+              <DetailRow label="Impresora" value={equipmentAssigned ? "DNP RX1HS" : "Pendiente"} />
             </dl>
           </SmartCard>
 
           <SmartCard
-            actionLabel={vehicleAssigned ? undefined : "Assign Vehicle"}
+            actionLabel={vehicleAssigned ? undefined : "Asignar vehículo"}
             icon={<CarFront aria-hidden="true" className="size-5" />}
             onAction={() => setVehicleAssigned(true)}
-            primaryValue={vehicleAssigned ? "Ford Transit" : "Not assigned"}
-            secondaryValue="Production vehicle"
-            status={<StatusBadge label={vehicleAssigned ? "Assigned" : "Pending"} variant={vehicleAssigned ? "success" : "warning"} />}
-            title="Vehicle"
+            primaryValue={vehicleAssigned ? "Ford Transit" : "Sin asignar"}
+            secondaryValue="Vehículo de producción"
+            status={<StatusBadge label={vehicleAssigned ? "Asignado" : "Pendiente"} variant={vehicleAssigned ? "success" : "warning"} />}
+            title="Vehículo"
           >
             <dl className="divide-y">
-              <DetailRow label="Route" value={vehicleAssigned ? "CasaPiedra · Costanera Norte" : "Pending"} />
-              <DetailRow label="Departure time" value={vehicleAssigned ? "16:30" : "Pending"} />
+              <DetailRow label="Ruta" value={vehicleAssigned ? "CasaPiedra · Costanera Norte" : "Pendiente"} />
+              <DetailRow label="Hora de salida" value={vehicleAssigned ? "16:30" : "Pendiente"} />
             </dl>
           </SmartCard>
 
           <SmartCard
             icon={<PackageCheck aria-hidden="true" className="size-5" />}
             primaryValue={`${completedChecklistItems}/${checklistItems.length}`}
-            secondaryValue="Checklist items complete"
-            status={<StatusBadge label={checklistComplete ? "Complete" : "In progress"} variant={checklistComplete ? "success" : "info"} />}
-            title="Preparation Checklist"
+            secondaryValue="Elementos completados"
+            status={<StatusBadge label={checklistComplete ? "Completo" : "En curso"} variant={checklistComplete ? "success" : "info"} />}
+            title="Checklist de preparación"
           >
             <fieldset className="space-y-2">
               <legend className="sr-only">Preparation checklist items</legend>
@@ -194,9 +194,9 @@ export function PreparationExperience(props: PreparationExperienceProps) {
             className="sm:col-span-2"
             icon={<ClipboardCheck aria-hidden="true" className="size-5" />}
             primaryValue={`${preparationScore}%`}
-            secondaryValue={preparationComplete ? "Ready for Production" : "Preparation requirements pending"}
-            status={<StatusBadge label={preparationComplete ? "Ready" : "Preparing"} variant={preparationComplete ? "success" : "info"} />}
-            title="Preparation"
+            secondaryValue={preparationComplete ? "Listo para producción" : "Requisitos de preparación pendientes"}
+            status={<StatusBadge label={preparationComplete ? "Listo" : "Preparando"} variant={preparationComplete ? "success" : "info"} />}
+            title="Preparación"
           />
         </div>
       }

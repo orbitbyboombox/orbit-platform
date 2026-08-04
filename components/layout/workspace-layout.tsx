@@ -40,14 +40,14 @@ export function WorkspaceLayout({
 
       <div className="grid gap-6 md:gap-8 lg:grid-cols-[minmax(0,1fr)_20rem] xl:grid-cols-[minmax(0,1fr)_22rem]">
         <WorkspaceRegion
-          className="order-2 min-w-0 md:order-1 lg:row-span-2"
+          className="order-2 min-w-0 lg:order-1 lg:row-span-2"
           label="Main content"
         >
           {mainContent}
         </WorkspaceRegion>
 
         <WorkspaceRegion
-          className="order-1 md:hidden lg:order-2 lg:block"
+          className="order-1 lg:order-2 lg:block"
           label="ORBIT Copilot"
         >
           {copilot}

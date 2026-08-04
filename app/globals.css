@@ -16,6 +16,7 @@
   --danger-soft: #fee2e2;
   --info: #1d4ed8;
   --info-soft: #dbeafe;
+  --brand: #ff9500;
 }
 
 @theme inline {
@@ -35,6 +36,7 @@
   --color-danger-soft: var(--danger-soft);
   --color-info: var(--info);
   --color-info-soft: var(--info-soft);
+  --color-brand: var(--brand);
 }
 
 .dark {
@@ -60,9 +62,29 @@ body {
   color: var(--foreground);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
   margin: 0;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 * { border-color: var(--border); box-sizing: border-box; }
+::selection { background: color-mix(in srgb, var(--brand) 28%, transparent); }
 button, input { font: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: not-allowed; }
+
+@keyframes orbit-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.orbit-enter { animation: orbit-enter 320ms ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

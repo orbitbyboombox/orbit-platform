@@ -51,77 +51,77 @@ export function DeliveryExperience(props: DeliveryExperienceProps) {
 
   const decision = !gallerySent
     ? {
-        recommendation: "Send Gallery",
-        actionLabel: "Send Gallery",
+        recommendation: "Enviar galería",
+        actionLabel: "Enviar galería",
         action: () => setGallerySent(true),
-        estimatedTime: "30 seconds",
+        estimatedTime: "30 segundos",
       }
     : !qrDelivered
       ? {
-          recommendation: "Deliver the QR gallery to the client.",
-          actionLabel: "Send QR",
+          recommendation: "Enviar la galería QR al cliente.",
+          actionLabel: "Enviar QR",
           action: () => setQrDelivered(true),
-          estimatedTime: "20 seconds",
+          estimatedTime: "20 segundos",
         }
       : !backupDelivered
         ? {
-            recommendation: "Send the backup delivery.",
-            actionLabel: "Send Backup",
+            recommendation: "Enviar el respaldo.",
+            actionLabel: "Enviar respaldo",
             action: () => setBackupDelivered(true),
-            estimatedTime: "1 minute",
+            estimatedTime: "1 minuto",
           }
         : !clientDownloaded
           ? {
-              recommendation: "Confirm the client download.",
-              actionLabel: "Confirm Download",
+              recommendation: "Confirmar la descarga del cliente.",
+              actionLabel: "Confirmar descarga",
               action: () => setClientDownloaded(true),
-              estimatedTime: "15 seconds",
+              estimatedTime: "15 segundos",
             }
           : !balanceCollected
             ? {
-                recommendation: "Collect Remaining Balance",
-                actionLabel: "Collect Balance",
+                recommendation: "Cobrar saldo pendiente",
+                actionLabel: "Cobrar saldo",
                 action: () => setBalanceCollected(true),
-                estimatedTime: "30 seconds",
+                estimatedTime: "30 segundos",
               }
             : !operatorPaid
               ? {
-                  recommendation: "Register Operator Payment",
-                  actionLabel: "Pay Operator",
+                  recommendation: "Registrar pago al operador",
+                  actionLabel: "Pagar operador",
                   action: () => setOperatorPaid(true),
-                  estimatedTime: "30 seconds",
+                  estimatedTime: "30 segundos",
                 }
               : !archived
                 ? {
-                    recommendation: "Archive Project",
-                    actionLabel: "Archive Project",
+                    recommendation: "Archivar proyecto",
+                    actionLabel: "Archivar proyecto",
                     action: () => setArchived(true),
-                    estimatedTime: "20 seconds",
+                    estimatedTime: "20 segundos",
                   }
                 : !followUpScheduled
                   ? {
-                      recommendation: "Schedule Follow-up",
-                      actionLabel: "Schedule Follow-up",
+                      recommendation: "Programar seguimiento",
+                      actionLabel: "Programar seguimiento",
                       action: () => setFollowUpScheduled(true),
-                      estimatedTime: "30 seconds",
+                      estimatedTime: "30 segundos",
                     }
                   : {
-                      recommendation: "Customer ready for future opportunities.",
-                      actionLabel: "View Opportunities",
+                      recommendation: "Cliente listo para futuras oportunidades.",
+                      actionLabel: "Ver oportunidades",
                       action: () => undefined,
-                      estimatedTime: "Ready",
+                      estimatedTime: "Listo",
                     };
 
   return (
     <WorkspaceLayout
       bottomAction={
         <SmartCard
-          description={experienceDelivered ? "Customer Ready for Future Opportunities" : "Complete the remaining delivery requirements."}
+          description={experienceDelivered ? "Cliente listo para futuras oportunidades" : "Completa los requisitos de entrega pendientes."}
           icon={experienceDelivered ? <CheckCircle2 aria-hidden="true" className="size-5" /> : <Download aria-hidden="true" className="size-5" />}
-          primaryValue={experienceDelivered ? "Experience Delivered" : "Delivery in progress"}
-          secondaryValue={experienceDelivered ? "Project Archived" : "ORBIT is guiding the final project steps."}
-          status={<StatusBadge label={experienceDelivered ? "Project Archived" : "In progress"} variant={experienceDelivered ? "success" : "info"} />}
-          title="Delivery status"
+          primaryValue={experienceDelivered ? "Experiencia entregada" : "Entrega en curso"}
+          secondaryValue={experienceDelivered ? "Proyecto archivado" : "ORBIT está guiando los pasos finales del proyecto."}
+          status={<StatusBadge label={experienceDelivered ? "Proyecto archivado" : "En curso"} variant={experienceDelivered ? "success" : "info"} />}
+          title="Estado de entrega"
         />
       }
       copilot={
@@ -130,67 +130,67 @@ export function DeliveryExperience(props: DeliveryExperienceProps) {
           estimatedTime={decision.estimatedTime}
           onAction={decision.action}
           recommendation={decision.recommendation}
-          title="Delivery Recommendation"
+          title="Recomendación de entrega"
         />
       }
       header={<ProjectHeader {...props} status={archived ? ProjectStatus.ARCHIVED : ProjectStatus.DELIVERY} />}
       mainContent={
         <div className="grid gap-4 sm:grid-cols-2">
           <SmartCard
-            actionLabel="Open Gallery"
+            actionLabel="Abrir galería"
             icon={<Images aria-hidden="true" className="size-5" />}
             onAction={() => undefined}
-            primaryValue={gallerySent ? "Gallery Ready" : "Ready to send"}
-            secondaryValue="Final event gallery"
-            status={<StatusBadge label={gallerySent ? "Sent" : "Pending"} variant={gallerySent ? "success" : "warning"} />}
-            title="Gallery"
+            primaryValue={gallerySent ? "Galería lista" : "Lista para enviar"}
+            secondaryValue="Galería final del evento"
+            status={<StatusBadge label={gallerySent ? "Enviada" : "Pendiente"} variant={gallerySent ? "success" : "warning"} />}
+            title="Galería"
           >
             <dl className="divide-y">
-              <DetailRow label="Gallery Status" value={gallerySent ? "Delivered" : "Ready"} />
-              <DetailRow label="QR Gallery" value={qrDelivered ? "Delivered" : "Pending"} />
-              <DetailRow label="Backup Files" value={backupDelivered ? "Delivered" : "Pending"} />
+              <DetailRow label="Estado de galería" value={gallerySent ? "Entregada" : "Lista"} />
+              <DetailRow label="Galería QR" value={qrDelivered ? "Entregada" : "Pendiente"} />
+              <DetailRow label="Archivos de respaldo" value={backupDelivered ? "Entregados" : "Pendientes"} />
             </dl>
           </SmartCard>
 
           <SmartCard
             icon={<QrCode aria-hidden="true" className="size-5" />}
-            primaryValue={deliveryComplete ? "Delivery Complete" : "Digital delivery"}
-            secondaryValue="Client files and access"
-            status={<StatusBadge label={deliveryComplete ? "Complete" : "In progress"} variant={deliveryComplete ? "success" : "info"} />}
-            title="Digital Delivery"
+            primaryValue={deliveryComplete ? "Entrega completa" : "Entrega digital"}
+            secondaryValue="Archivos y acceso del cliente"
+            status={<StatusBadge label={deliveryComplete ? "Completa" : "En curso"} variant={deliveryComplete ? "success" : "info"} />}
+            title="Entrega digital"
           >
             <dl className="divide-y">
-              <DetailRow label="QR Delivery Status" value={qrDelivered ? "Delivered" : "Pending"} />
-              <DetailRow label="Backup Delivery Status" value={backupDelivered ? "Delivered" : "Pending"} />
-              <DetailRow label="Client Download Status" value={clientDownloaded ? "Downloaded" : "Awaiting download"} />
+              <DetailRow label="Estado de entrega QR" value={qrDelivered ? "Entregada" : "Pendiente"} />
+              <DetailRow label="Estado del respaldo" value={backupDelivered ? "Entregado" : "Pendiente"} />
+              <DetailRow label="Descarga del cliente" value={clientDownloaded ? "Descargada" : "Esperando descarga"} />
             </dl>
           </SmartCard>
 
           <SmartCard
             icon={<Banknote aria-hidden="true" className="size-5" />}
             primaryValue="$1,850,000 CLP"
-            secondaryValue="Total Sale"
-            status={<StatusBadge label={financialComplete ? "Closed" : "Pending"} variant={financialComplete ? "success" : "warning"} />}
-            title="Financial Closing"
+            secondaryValue="Venta total"
+            status={<StatusBadge label={financialComplete ? "Cerrado" : "Pendiente"} variant={financialComplete ? "success" : "warning"} />}
+            title="Cierre financiero"
           >
             <dl className="divide-y">
-              <DetailRow label="Remaining Balance" value={balanceCollected ? "$0 CLP" : "$350,000 CLP"} />
-              <DetailRow label="Operator Payment" value={operatorPaid ? "Paid" : "$120,000 CLP pending"} />
-              <DetailRow label="Financial Status" value={financialComplete ? "Closed" : "Action required"} />
+              <DetailRow label="Saldo pendiente" value={balanceCollected ? "$0 CLP" : "$350,000 CLP"} />
+              <DetailRow label="Pago al operador" value={operatorPaid ? "Pagado" : "$120,000 CLP pendientes"} />
+              <DetailRow label="Estado financiero" value={financialComplete ? "Cerrado" : "Requiere acción"} />
             </dl>
           </SmartCard>
 
           <SmartCard
             icon={<FolderArchive aria-hidden="true" className="size-5" />}
-            primaryValue={archived ? "Project Archived" : "Ready to archive"}
-            secondaryValue="September 15, 2027"
-            status={<StatusBadge label={archived ? "Archived" : "Pending"} variant={archived ? "success" : "neutral"} />}
-            title="Project Archive"
+            primaryValue={archived ? "Proyecto archivado" : "Listo para archivar"}
+            secondaryValue="15 de septiembre de 2027"
+            status={<StatusBadge label={archived ? "Archivado" : "Pendiente"} variant={archived ? "success" : "neutral"} />}
+            title="Archivo del proyecto"
           >
             <dl className="divide-y">
-              <DetailRow label="Archive Status" value={archived ? "Complete" : "Pending"} />
-              <DetailRow label="Completion Date" value="September 15, 2027" />
-              <DetailRow label="Project Score" value="96 / 100" />
+              <DetailRow label="Estado del archivo" value={archived ? "Completo" : "Pendiente"} />
+              <DetailRow label="Fecha de finalización" value="15 de septiembre de 2027" />
+              <DetailRow label="Puntaje del proyecto" value="96 / 100" />
             </dl>
           </SmartCard>
 
@@ -198,22 +198,22 @@ export function DeliveryExperience(props: DeliveryExperienceProps) {
             className="sm:col-span-2"
             icon={<Star aria-hidden="true" className="size-5" />}
             primaryValue="★★★★★"
-            secondaryValue="Customer Satisfaction"
-            status={<StatusBadge label={followUpScheduled ? "Scheduled" : "Follow-up pending"} variant={followUpScheduled ? "success" : "info"} />}
-            title="Customer Follow-up"
+            secondaryValue="Satisfacción del cliente"
+            status={<StatusBadge label={followUpScheduled ? "Programado" : "Seguimiento pendiente"} variant={followUpScheduled ? "success" : "info"} />}
+            title="Seguimiento del cliente"
           >
             <dl className="grid gap-5 sm:grid-cols-3">
               <div>
-                <dt className="text-sm text-muted">Internal Notes</dt>
-                <dd className="mt-2 text-sm font-medium">Excellent engagement</dd>
+                <dt className="text-sm text-muted">Notas internas</dt>
+                <dd className="mt-2 text-sm font-medium">Excelente participación</dd>
               </div>
               <div>
-                <dt className="text-sm text-muted">Future Opportunities</dt>
-                <dd className="mt-2 text-sm font-medium">Anniversary event</dd>
+                <dt className="text-sm text-muted">Oportunidades futuras</dt>
+                <dd className="mt-2 text-sm font-medium">Evento de aniversario</dd>
               </div>
               <div>
-                <dt className="text-sm text-muted">Next Follow-up Date</dt>
-                <dd className="mt-2 text-sm font-medium">{followUpScheduled ? "October 15, 2027" : "Not scheduled"}</dd>
+                <dt className="text-sm text-muted">Próxima fecha de seguimiento</dt>
+                <dd className="mt-2 text-sm font-medium">{followUpScheduled ? "15 de octubre de 2027" : "Sin programar"}</dd>
               </div>
             </dl>
           </SmartCard>
@@ -222,10 +222,10 @@ export function DeliveryExperience(props: DeliveryExperienceProps) {
             <SmartCard
               className="sm:col-span-2"
               icon={<Archive aria-hidden="true" className="size-5" />}
-              primaryValue="Experience Delivered"
-              secondaryValue="Project Archived · Customer Ready for Future Opportunities"
-              status={<StatusBadge label="MVP Flow Complete" variant="success" />}
-              title="ORBIT Project"
+              primaryValue="Experiencia entregada"
+              secondaryValue="Proyecto archivado · Cliente listo para futuras oportunidades"
+              status={<StatusBadge label="Flujo MVP completo" variant="success" />}
+              title="Proyecto ORBIT"
             />
           )}
 
@@ -233,9 +233,9 @@ export function DeliveryExperience(props: DeliveryExperienceProps) {
             <SmartCard
               className="sm:col-span-2"
               icon={<CalendarClock aria-hidden="true" className="size-5" />}
-              primaryValue="Future relationship scheduled"
-              secondaryValue="The customer journey is complete and the next opportunity is planned."
-              title="Customer relationship"
+              primaryValue="Relación futura programada"
+              secondaryValue="El recorrido del cliente está completo y la próxima oportunidad está planificada."
+              title="Relación con el cliente"
             />
           )}
         </div>

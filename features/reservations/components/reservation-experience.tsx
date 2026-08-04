@@ -34,76 +34,76 @@ export function ReservationExperience(props: ReservationExperienceProps) {
   const reservationComplete = budgetComplete && contractComplete && paymentComplete;
 
   const decision = !reservationStarted
-    ? { recommendation: "Prepare Reservation", actionLabel: "Prepare Reservation", action: () => setReservationStarted(true) }
+    ? { recommendation: "Preparar reserva", actionLabel: "Preparar reserva", action: () => setReservationStarted(true) }
     : !budgetComplete
-      ? { recommendation: "Review Budget", actionLabel: "Approve Budget", action: () => setBudgetComplete(true) }
+      ? { recommendation: "Revisar presupuesto", actionLabel: "Aprobar presupuesto", action: () => setBudgetComplete(true) }
       : !contractComplete
-        ? { recommendation: "Prepare Contract", actionLabel: "Open Contract", action: () => setContractComplete(true) }
+        ? { recommendation: "Preparar contrato", actionLabel: "Abrir contrato", action: () => setContractComplete(true) }
         : !paymentComplete
-          ? { recommendation: "Register Deposit", actionLabel: "Register Deposit", action: () => setPaymentComplete(true) }
-          : { recommendation: "Reservation Completed", actionLabel: "View Confirmation", action: () => undefined };
+          ? { recommendation: "Registrar abono", actionLabel: "Registrar abono", action: () => setPaymentComplete(true) }
+          : { recommendation: "Reserva completada", actionLabel: "Ver confirmación", action: () => undefined };
 
   const reservationCenter = reservationStarted ? (
     <div className="grid gap-4 sm:grid-cols-2">
       <SmartCard
-        actionLabel={budgetComplete ? undefined : "Approve Budget"}
+        actionLabel={budgetComplete ? undefined : "Aprobar presupuesto"}
         icon={<Banknote aria-hidden="true" className="size-5" />}
         onAction={() => setBudgetComplete(true)}
         primaryValue="$4,850"
-        secondaryValue="Current quotation"
-        status={<StatusBadge label={budgetComplete ? "Approved" : "Pending"} variant={budgetComplete ? "success" : "warning"} />}
-        title="Budget"
+        secondaryValue="Cotización actual"
+        status={<StatusBadge label={budgetComplete ? "Aprobado" : "Pendiente"} variant={budgetComplete ? "success" : "warning"} />}
+        title="Presupuesto"
       >
         <dl className="divide-y">
-          <DetailRow label="Services" value="$4,200" />
+          <DetailRow label="Servicios" value="$4,200" />
           <DetailRow label="Extras" value="$350" />
-          <DetailRow label="Transportation" value="$300" />
+          <DetailRow label="Transporte" value="$300" />
           <DetailRow label="Total" strong value="$4,850" />
         </dl>
       </SmartCard>
 
       <SmartCard
-        actionLabel={contractComplete ? undefined : "Open Contract"}
+        actionLabel={contractComplete ? undefined : "Abrir contrato"}
         icon={<FileSignature aria-hidden="true" className="size-5" />}
         onAction={() => setContractComplete(true)}
-        primaryValue={contractComplete ? "Signed" : "Pending"}
-        secondaryValue="Contract status"
-        status={<StatusBadge label={contractComplete ? "Signed" : "Pending"} variant={contractComplete ? "success" : "warning"} />}
-        title="Contract"
+        primaryValue={contractComplete ? "Firmado" : "Pendiente"}
+        secondaryValue="Estado del contrato"
+        status={<StatusBadge label={contractComplete ? "Firmado" : "Pendiente"} variant={contractComplete ? "success" : "warning"} />}
+        title="Contrato"
       />
 
       <SmartCard
-        actionLabel={paymentComplete ? undefined : "Register Deposit"}
+        actionLabel={paymentComplete ? undefined : "Registrar abono"}
         icon={<CreditCard aria-hidden="true" className="size-5" />}
         onAction={() => setPaymentComplete(true)}
         primaryValue="$1,500"
-        secondaryValue="Deposit"
-        status={<StatusBadge label={paymentComplete ? "Paid" : "Pending"} variant={paymentComplete ? "success" : "warning"} />}
-        title="Payment"
+        secondaryValue="Abono"
+        status={<StatusBadge label={paymentComplete ? "Pagado" : "Pendiente"} variant={paymentComplete ? "success" : "warning"} />}
+        title="Pago"
       >
         <dl className="divide-y">
-          <DetailRow label="Remaining balance" value="$3,350" />
-          <DetailRow label="Payment status" value={paymentComplete ? "Deposit paid" : "Awaiting deposit"} />
+          <DetailRow label="Saldo pendiente" value="$3,350" />
+          <DetailRow label="Estado del pago" value={paymentComplete ? "Abono pagado" : "Esperando abono"} />
         </dl>
       </SmartCard>
 
       <SmartCard
         icon={<ShieldCheck aria-hidden="true" className="size-5" />}
-        primaryValue={reservationComplete ? "Reservation Completed" : "In progress"}
-        secondaryValue={reservationComplete ? "Project Ready" : "Complete budget, contract, and payment"}
-        status={<StatusBadge label={reservationComplete ? "Confirmed" : "Pending"} variant={reservationComplete ? "success" : "neutral"} />}
-        title="Confirmation"
+        primaryValue={reservationComplete ? "Reserva completada" : "En curso"}
+        secondaryValue={reservationComplete ? "Proyecto listo" : "Completa presupuesto, contrato y pago"}
+        status={<StatusBadge label={reservationComplete ? "Confirmado" : "Pendiente"} variant={reservationComplete ? "success" : "neutral"} />}
+        title="Confirmación"
       />
     </div>
   ) : (
     <SmartCard
-      actionLabel="Prepare Reservation"
+      actionLabel="Preparar reserva"
       icon={<CalendarCheck2 aria-hidden="true" className="size-5" />}
       onAction={() => setReservationStarted(true)}
-      primaryValue="Reservation Center"
-      secondaryValue="Prepare the budget, contract, and deposit in one guided flow."
-      status={<StatusBadge label="Ready" variant="info" />}
-      title="Decision"
+      primaryValue="Centro de reservas"
+      secondaryValue="Prepara presupuesto, contrato y abono en un flujo guiado."
+      status={<StatusBadge label="Listo" variant="info" />}
+      title="Decisión"
     />
   );
 
@@ -112,16 +112,16 @@ export function ReservationExperience(props: ReservationExperienceProps) {
       bottomAction={
         <SmartCard
           icon={<ShieldCheck aria-hidden="true" className="size-5" />}
-          primaryValue={reservationComplete ? "Reservation Completed" : "Reservation in progress"}
-          secondaryValue={reservationComplete ? "Project Status · Confirmed" : "Complete all reservation requirements."}
-          status={<StatusBadge label={reservationComplete ? "Confirmed" : "In progress"} variant={reservationComplete ? "success" : "info"} />}
-          title="Reservation status"
+          primaryValue={reservationComplete ? "Reserva completada" : "Reserva en curso"}
+          secondaryValue={reservationComplete ? "Estado del proyecto · Confirmado" : "Completa todos los requisitos de la reserva."}
+          status={<StatusBadge label={reservationComplete ? "Confirmado" : "En curso"} variant={reservationComplete ? "success" : "info"} />}
+          title="Estado de la reserva"
         />
       }
       copilot={
         <OrbitCopilot
           actionLabel={decision.actionLabel}
-          estimatedTime="20 seconds"
+          estimatedTime="20 segundos"
           onAction={decision.action}
           recommendation={decision.recommendation}
         />

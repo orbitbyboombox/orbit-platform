@@ -6,8 +6,10 @@ export interface ModulePageProps {
   title: string;
   subtitle: string;
   icon: LucideIcon;
+  emptyTitle: string;
+  emptyDescription: string;
 }
 
-export function ModulePage({ title, subtitle, icon }: ModulePageProps) {
-  return <div className="space-y-6"><SectionTitle description={subtitle} title={title} /><EmptyState icon={icon} title="This module is under development." /></div>;
+export function ModulePage({ title, subtitle, icon, emptyTitle, emptyDescription }: ModulePageProps) {
+  return <div className="space-y-8"><SectionTitle description={subtitle} title={title} /><EmptyState description={emptyDescription} icon={icon} title={emptyTitle} /></div>;
 }

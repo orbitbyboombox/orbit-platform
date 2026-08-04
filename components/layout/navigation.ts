@@ -6,7 +6,6 @@ import {
   Gauge,
   Layers3,
   Settings,
-  UsersRound,
   type LucideIcon,
 } from "lucide-react";
 
@@ -21,18 +20,17 @@ export type NavigationLabel =
   | "Settings";
 
 export interface NavigationItem {
-  label: NavigationLabel;
+  label: string;
   href: string;
   icon: LucideIcon;
 }
 
 export const navigationItems: readonly NavigationItem[] = [
-  { label: "Dashboard", href: "/", icon: Gauge },
-  { label: "Projects", href: "/projects", icon: FolderKanban },
-  { label: "Leads", href: "/leads", icon: UsersRound },
-  { label: "Operations", href: "/operations", icon: BriefcaseBusiness },
-  { label: "Resources", href: "/resources", icon: Layers3 },
-  { label: "Finance", href: "/finance", icon: CircleDollarSign },
-  { label: "Reports", href: "/reports", icon: BarChart3 },
-  { label: "Settings", href: "/settings", icon: Settings },
+  { label: "Inicio", href: "/", icon: Gauge },
+  { label: "Proyectos", href: "/projects", icon: FolderKanban },
+  { label: "Operación", href: "/operations", icon: BriefcaseBusiness },
+  { label: "Recursos", href: "/resources", icon: Layers3 },
+  { label: "Finanzas", href: "/finance", icon: CircleDollarSign },
+  { label: "Reportes", href: "/reports", icon: BarChart3 },
+  { label: "Configuración", href: "/settings", icon: Settings },
 ];

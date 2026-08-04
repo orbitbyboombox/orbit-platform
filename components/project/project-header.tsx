@@ -8,12 +8,9 @@ import {
 } from "lucide-react";
 import { StatusBadge, type StatusBadgeProps } from "@/components/ui/status-badge";
 import {
-  PROJECT_HEALTH_LABELS,
-  PROJECT_STATUS_LABELS,
-  PROJECT_TYPE_LABELS,
   ProjectHealth,
   ProjectStatus,
-  type ProjectType,
+  ProjectType,
 } from "@/features/projects/domain";
 
 export interface ProjectHeaderProps {
@@ -26,7 +23,38 @@ export interface ProjectHeaderProps {
   services: readonly string[];
   status: ProjectStatus;
   health: ProjectHealth;
+  score?: number;
+  stageLabel?: string;
 }
+
+const projectTypeLabels: Readonly<Record<ProjectType, string>> = {
+  [ProjectType.WEDDING]: "Matrimonio",
+  [ProjectType.CORPORATE]: "Corporativo",
+  [ProjectType.BIRTHDAY]: "Cumpleaños",
+  [ProjectType.PRIVATE]: "Privado",
+  [ProjectType.OTHER]: "Otro",
+};
+
+const projectStatusLabels: Readonly<Record<ProjectStatus, string>> = {
+  [ProjectStatus.LEAD]: "Prospecto",
+  [ProjectStatus.INFORMATION_SENT]: "Información enviada",
+  [ProjectStatus.RESERVATION_READY]: "Reserva lista",
+  [ProjectStatus.CONTRACT_PENDING]: "Contrato pendiente",
+  [ProjectStatus.WAITING_DEPOSIT]: "Esperando abono",
+  [ProjectStatus.CONFIRMED]: "Confirmado",
+  [ProjectStatus.PRODUCTION]: "Producción",
+  [ProjectStatus.EVENT]: "Evento",
+  [ProjectStatus.DELIVERY]: "Entrega",
+  [ProjectStatus.CLOSED]: "Cerrado",
+  [ProjectStatus.ARCHIVED]: "Archivado",
+};
+
+const projectHealthLabels: Readonly<Record<ProjectHealth, string>> = {
+  [ProjectHealth.HEALTHY]: "Saludable",
+  [ProjectHealth.ATTENTION]: "Requiere atención",
+  [ProjectHealth.RISK]: "En riesgo",
+  [ProjectHealth.CRITICAL]: "Crítico",
+};
 
 const healthVariants: Record<ProjectHealth, StatusBadgeProps["variant"]> = {
   [ProjectHealth.HEALTHY]: "success",
@@ -65,12 +93,14 @@ export function ProjectHeader({
   services,
   status,
   health,
+  score,
+  stageLabel,
 }: ProjectHeaderProps) {
   const details: ProjectDetail[] = [
-    { label: "Event date", value: eventDate, icon: CalendarDays },
-    { label: "Event time", value: eventTime, icon: Clock3 },
-    { label: "Location", value: location, icon: MapPin },
-    { label: "Services", value: services.join(" + "), icon: Sparkles },
+    { label: "Fecha del evento", value: eventDate, icon: CalendarDays },
+    { label: "Hora", value: eventTime, icon: Clock3 },
+    { label: "Ubicación", value: location, icon: MapPin },
+    { label: "Servicios", value: services.join(" + "), icon: Sparkles },
   ];
 
   return (
@@ -78,21 +108,22 @@ export function ProjectHeader({
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Project</p>
-            <StatusBadge label={PROJECT_TYPE_LABELS[projectType]} variant="neutral" />
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Proyecto</p>
+            <StatusBadge label={projectTypeLabels[projectType]} variant="neutral" />
           </div>
           <h1 className="mt-4 text-2xl font-semibold tracking-tight sm:text-3xl lg:text-4xl">
             {projectName}
           </h1>
           <p className="mt-3 flex items-center gap-2 text-sm text-muted sm:text-base">
             <UserRound aria-hidden="true" className="size-4 shrink-0" />
-            <span><span className="sr-only">Client: </span>{clientName}</span>
+            <span><span className="sr-only">Cliente: </span>{clientName}</span>
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-          <StatusBadge label={PROJECT_STATUS_LABELS[status]} variant={statusVariants[status]} />
-          <StatusBadge label={PROJECT_HEALTH_LABELS[health]} variant={healthVariants[health]} />
+        <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 lg:min-w-[22rem] lg:justify-items-end">
+          <div><p className="mb-2 text-xs text-muted">Etapa actual</p><StatusBadge label={stageLabel ?? projectStatusLabels[status]} variant={statusVariants[status]} /></div>
+          <div><p className="mb-2 text-xs text-muted">Salud</p><StatusBadge label={projectHealthLabels[health]} variant={healthVariants[health]} /></div>
+          {typeof score === "number" && <div><p className="mb-1 text-xs text-muted">Puntuación</p><p className="text-2xl font-semibold tracking-tight">{score}<span className="text-sm font-normal text-muted"> / 100</span></p></div>}
         </div>
       </div>
 

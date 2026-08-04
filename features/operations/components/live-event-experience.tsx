@@ -41,9 +41,9 @@ function DetailRow({ label, value }: DetailRowProps) {
 }
 
 const statusPresentation: Record<LiveEventStatus, { label: string; variant: "success" | "warning" | "neutral" }> = {
-  running: { label: "Running", variant: "success" },
-  paused: { label: "Paused", variant: "warning" },
-  finished: { label: "Finished", variant: "neutral" },
+  running: { label: "En curso", variant: "success" },
+  paused: { label: "Pausado", variant: "warning" },
+  finished: { label: "Finalizado", variant: "neutral" },
 };
 
 export function LiveEventExperience(props: LiveEventExperienceProps) {
@@ -55,29 +55,29 @@ export function LiveEventExperience(props: LiveEventExperienceProps) {
 
   const recommendation = finished
     ? {
-        actionLabel: "Close Project",
-        estimatedTime: "2 minutes",
-        message: "Close Project",
+        actionLabel: "Cerrar proyecto",
+        estimatedTime: "2 minutos",
+        message: "Cerrar proyecto",
         action: () => undefined,
       }
     : incidentReported
       ? {
-          actionLabel: "Review Incident",
-          estimatedTime: "30 seconds",
-          message: "Review the reported incident.",
+          actionLabel: "Revisar incidente",
+          estimatedTime: "30 segundos",
+          message: "Revisar el incidente reportado.",
           action: () => setIncidentReported(false),
         }
       : paused
         ? {
-            actionLabel: "Resume Event",
-            estimatedTime: "5 seconds",
-            message: "Event is paused. Resume when the operator is ready.",
+            actionLabel: "Reanudar evento",
+            estimatedTime: "5 segundos",
+            message: "El evento está pausado. Reanúdalo cuando el operador esté listo.",
             action: () => setStatus("running"),
           }
         : {
-            actionLabel: "Continue Monitoring",
-            estimatedTime: "Live",
-            message: "Everything operating normally.",
+            actionLabel: "Continuar monitoreo",
+            estimatedTime: "En vivo",
+            message: "Todo está funcionando normalmente.",
             action: () => undefined,
           };
 
@@ -85,27 +85,27 @@ export function LiveEventExperience(props: LiveEventExperienceProps) {
     <WorkspaceLayout
       bottomAction={
         <SmartCard
-          description={finished ? "Next Recommended Experience · Close Project" : "Control the active production session."}
+          description={finished ? "Siguiente experiencia recomendada · Cerrar proyecto" : "Controla la sesión de producción activa."}
           icon={finished ? <CheckCircle2 aria-hidden="true" className="size-5" /> : <Gauge aria-hidden="true" className="size-5" />}
-          status={<StatusBadge label={finished ? "Event Completed" : currentStatus.label} variant={finished ? "success" : currentStatus.variant} />}
-          title={finished ? "Event Completed" : "Live Event Actions"}
+          status={<StatusBadge label={finished ? "Evento completado" : currentStatus.label} variant={finished ? "success" : currentStatus.variant} />}
+          title={finished ? "Evento completado" : "Acciones del evento"}
         >
           {finished ? (
-            <p className="text-2xl font-semibold tracking-tight">Next Recommended Experience · Close Project</p>
+            <p className="text-2xl font-semibold tracking-tight">Siguiente experiencia recomendada · Cerrar proyecto</p>
           ) : (
             <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
               {paused ? (
-                <ActionButton label="Resume Event" onClick={() => setStatus("running")} type="button" />
+                <ActionButton label="Reanudar evento" onClick={() => setStatus("running")} type="button" />
               ) : (
                 <Button className="gap-2" onClick={() => setStatus("paused")} type="button" variant="outline">
-                  <Pause aria-hidden="true" className="size-4" /> Pause Event
+                  <Pause aria-hidden="true" className="size-4" /> Pausar evento
                 </Button>
               )}
               <Button className="gap-2" onClick={() => setIncidentReported(true)} type="button" variant="outline">
-                <AlertTriangle aria-hidden="true" className="size-4" /> Report Incident
+                <AlertTriangle aria-hidden="true" className="size-4" /> Reportar incidente
               </Button>
               <Button className="gap-2 text-danger" onClick={() => setStatus("finished")} type="button" variant="outline">
-                <Square aria-hidden="true" className="size-4" /> Finish Event
+                <Square aria-hidden="true" className="size-4" /> Finalizar evento
               </Button>
             </div>
           )}
@@ -126,68 +126,68 @@ export function LiveEventExperience(props: LiveEventExperienceProps) {
           <SmartCard
             icon={finished ? <CheckCircle2 aria-hidden="true" className="size-5" /> : paused ? <Pause aria-hidden="true" className="size-5" /> : <Play aria-hidden="true" className="size-5" />}
             primaryValue={currentStatus.label}
-            secondaryValue={finished ? "Event production has ended" : paused ? "Production timer is paused" : "Live production in progress"}
+            secondaryValue={finished ? "La producción del evento terminó" : paused ? "El temporizador está pausado" : "Producción en vivo en curso"}
             status={<StatusBadge label={currentStatus.label} variant={currentStatus.variant} />}
-            title="Live Status"
+            title="Estado en vivo"
           />
 
           <SmartCard
             icon={<UserRound aria-hidden="true" className="size-5" />}
             primaryValue="Valentina Rojas"
             secondaryValue="+56 9 5555 0128"
-            status={<StatusBadge label={finished ? "Completed" : "On site"} variant="success" />}
-            title="Operator"
+            status={<StatusBadge label={finished ? "Completado" : "En terreno"} variant="success" />}
+            title="Operador"
           >
             <dl className="divide-y">
-              <DetailRow label="Arrival time" value="18:12" />
-              <DetailRow label="Status" value={finished ? "Shift completed" : "Operating"} />
+              <DetailRow label="Hora de llegada" value="18:12" />
+              <DetailRow label="Estado" value={finished ? "Turno completado" : "Operando"} />
             </dl>
           </SmartCard>
 
           <SmartCard
             icon={<Camera aria-hidden="true" className="size-5" />}
-            primaryValue="Classic Booth"
-            secondaryValue="Assigned production equipment"
-            status={<StatusBadge label={finished ? "Offline" : "Operational"} variant={finished ? "neutral" : "success"} />}
-            title="Equipment"
+            primaryValue="Cabina Classic"
+            secondaryValue="Equipamiento de producción asignado"
+            status={<StatusBadge label={finished ? "Desconectado" : "Operativo"} variant={finished ? "neutral" : "success"} />}
+            title="Equipamiento"
           >
             <dl className="divide-y">
-              <DetailRow label="Camera" value="Sony A7 IV" />
-              <DetailRow label="Printer" value="DNP RX1HS" />
-              <DetailRow label="Current status" value={finished ? "Session finished" : paused ? "Standby" : "Active"} />
+              <DetailRow label="Cámara" value="Sony A7 IV" />
+              <DetailRow label="Impresora" value="DNP RX1HS" />
+              <DetailRow label="Estado actual" value={finished ? "Sesión finalizada" : paused ? "En espera" : "Activo"} />
             </dl>
           </SmartCard>
 
           <SmartCard
             className="sm:row-span-2"
             icon={<Gauge aria-hidden="true" className="size-5" />}
-            primaryValue={finished ? "Event totals" : "Live metrics"}
-            secondaryValue="Temporary mock values"
-            status={<StatusBadge label={finished ? "Final" : "Live"} variant={finished ? "neutral" : "info"} />}
-            title="Event Metrics"
+            primaryValue={finished ? "Totales del evento" : "Métricas en vivo"}
+            secondaryValue="Valores temporales de demostración"
+            status={<StatusBadge label={finished ? "Final" : "En vivo"} variant={finished ? "neutral" : "info"} />}
+            title="Métricas del evento"
           >
             <dl className="divide-y">
-              <DetailRow label="Printed Photos" value="184" />
-              <DetailRow label="Digital Photos" value="247" />
-              <DetailRow label="Remaining Paper" value="316 sheets" />
-              <DetailRow label="Elapsed Time" value={finished ? "03:42:18" : paused ? "02:16:42 paused" : "02:16:42"} />
-              <DetailRow label="Guests Served" value="126" />
+              <DetailRow label="Fotos impresas" value="184" />
+              <DetailRow label="Fotos digitales" value="247" />
+              <DetailRow label="Papel restante" value="316 hojas" />
+              <DetailRow label="Tiempo transcurrido" value={finished ? "03:42:18" : paused ? "02:16:42 pausado" : "02:16:42"} />
+              <DetailRow label="Invitados atendidos" value="126" />
             </dl>
           </SmartCard>
 
           <SmartCard
             icon={<Printer aria-hidden="true" className="size-5" />}
-            primaryValue={incidentReported ? "Incident reported" : "Systems normal"}
-            secondaryValue={incidentReported ? "Awaiting operator review" : "Camera and printer are responding"}
-            status={<StatusBadge label={incidentReported ? "Attention" : "Healthy"} variant={incidentReported ? "warning" : "success"} />}
-            title="Production Health"
+            primaryValue={incidentReported ? "Incidente reportado" : "Sistemas normales"}
+            secondaryValue={incidentReported ? "Esperando revisión del operador" : "Cámara e impresora responden correctamente"}
+            status={<StatusBadge label={incidentReported ? "Atención" : "Saludable"} variant={incidentReported ? "warning" : "success"} />}
+            title="Salud de producción"
           />
 
           <SmartCard
             icon={<Clock3 aria-hidden="true" className="size-5" />}
             primaryValue="19:00"
-            secondaryValue="Production started on schedule"
-            title="Event Start"
+            secondaryValue="La producción comenzó a tiempo"
+            title="Inicio del evento"
           />
         </div>
       }

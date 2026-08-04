@@ -1,0 +1,3 @@
+export function PageSkeleton() {
+  return <div aria-label="Cargando contenido" aria-live="polite" className="space-y-8"><span className="sr-only">Cargando contenido</span><div aria-hidden="true" className="space-y-3"><div className="h-8 w-48 animate-pulse rounded-lg bg-accent" /><div className="h-4 w-80 max-w-full animate-pulse rounded bg-accent" /></div><div aria-hidden="true" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{Array.from({ length: 6 }, (_, index) => <div className="h-56 animate-pulse rounded-2xl border bg-card p-6" key={index}><div className="size-10 rounded-lg bg-accent" /><div className="mt-8 h-5 w-2/3 rounded bg-accent" /><div className="mt-3 h-4 w-1/2 rounded bg-accent" /></div>)}</div></div>;
+}

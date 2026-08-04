@@ -2,12 +2,16 @@ export const projectTypes = ["Wedding", "Corporate", "Birthday", "Private", "Oth
 export const projectServices = ["Classic", "Polaroid", "Black Studio", "360", "LightBox", "BoomBall"] as const;
 export const projectStatuses = ["Active", "Upcoming", "Completed", "Archived"] as const;
 export const projectHealthLevels = ["Healthy", "Attention", "Risk", "Critical"] as const;
+export const projectCommercialStages = ["New", "Contacted", "Quoting", "Waiting", "Reserved", "Confirmed", "Production", "Finished"] as const;
+export const projectOrigins = ["WhatsApp", "Instagram", "Google", "Website", "Referral", "FormerClient", "Other"] as const;
 
 export type ProjectType = (typeof projectTypes)[number];
 export type ProjectService = (typeof projectServices)[number];
 export type ProjectStatus = (typeof projectStatuses)[number];
 export type ProjectHealth = (typeof projectHealthLevels)[number];
-export type ProjectFilter = "All" | ProjectStatus;
+export type ProjectCommercialStage = (typeof projectCommercialStages)[number];
+export type ProjectOrigin = (typeof projectOrigins)[number];
+export type ProjectFilter = "All" | ProjectCommercialStage;
 
 export interface Project {
   id: string;
@@ -28,6 +32,11 @@ export interface Project {
   services: ProjectService[];
   status: ProjectStatus;
   health: ProjectHealth;
+  stage?: string;
+  score?: number;
+  commercialStage: ProjectCommercialStage;
+  origin?: ProjectOrigin;
+  notes?: string;
 }
 
 export interface ProjectDraft {
@@ -35,4 +44,6 @@ export interface ProjectDraft {
   client: Project["client"];
   event: Project["event"];
   services: ProjectService[];
+  origin?: ProjectOrigin;
+  notes: string;
 }

@@ -11,9 +11,9 @@ export function AppShell({ children, userEmail }: AppShellProps) {
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
-      <div className="md:pl-60">
+      <div className="md:pl-20 lg:pl-60">
         <Header userEmail={userEmail} />
-        <main className="min-h-[calc(100vh-3.75rem)]">
+        <main className="min-h-[calc(100vh-4rem)]">
           <PageContainer>{children}</PageContainer>
         </main>
       </div>
