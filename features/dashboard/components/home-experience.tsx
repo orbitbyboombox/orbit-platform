@@ -1,12 +1,26 @@
 "use client";
 
-import { ArrowRight, Banknote, CalendarDays, FilePlus2, FolderPlus, MapPin, UserRound } from "lucide-react";
+import { ArrowRight, Banknote, CalendarDays, ChevronLeft, ChevronRight, FilePlus2, FolderPlus, MapPin, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { SmartCard } from "@/components/cards/smart-card";
 import { OrbitCopilot } from "@/components/copilot/orbit-copilot";
 import { WorkspaceLayout } from "@/components/layout/workspace-layout";
 import { ActionButton } from "@/components/ui/action-button";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { Button } from "@/components/ui/button";
+
+const agendaEvents = [
+  { id: "evento-lumen", client: "Lumen Producciones", type: "Empresa", date: "2026-08-08", time: "19:30", location: "Centro Parque", status: "Confirmado" },
+  { id: "evento-vicente", client: "Cumpleaños Vicente", type: "Cumpleaños", date: "2026-08-13", time: "17:00", location: "Club de Polo", status: "Confirmado" },
+  { id: "evento-nova", client: "Nova Summit", type: "Empresa", date: "2026-08-19", time: "09:00", location: "Metropolitan Santiago", status: "Preparación" },
+  { id: "evento-isidora", client: "Isidora + Benjamín", type: "Matrimonio", date: "2026-08-24", time: "18:30", location: "Casa García-Huidobro", status: "Confirmado" },
+  { id: "evento-atlas", client: "Atlas Awards", type: "Empresa", date: "2026-09-01", time: "20:00", location: "Espacio Riesco", status: "Confirmado" },
+] as const;
+
+const agendaOrigin = new Date("2026-08-05T12:00:00Z");
+const addDays = (date: Date, days: number) => new Date(date.getTime() + days * 86_400_000);
+const formatDate = (date: Date, options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("es-CL", { ...options, timeZone: "UTC" }).format(date);
 
 const priorityProjects = [
   { id: "matrimonio-silva", name: "Matrimonio Silva", stage: "Preparación", score: "92 / 100", status: "En curso", variant: "success" as const },
@@ -22,7 +36,11 @@ const summary = [
 
 export function HomeExperience() {
   const router = useRouter();
+  const [agendaWindow, setAgendaWindow] = useState(0);
   const openProject = (id = "matrimonio-silva") => router.push(`/projects/${id}`);
+  const windowStart = addDays(agendaOrigin, agendaWindow * 15);
+  const windowEnd = addDays(windowStart, 15);
+  const visibleEvents = agendaEvents.filter((event) => { const date = new Date(`${event.date}T12:00:00Z`); return date >= windowStart && date < windowEnd; });
 
   return (
     <WorkspaceLayout
@@ -31,7 +49,7 @@ export function HomeExperience() {
         <section className="overflow-hidden rounded-2xl border bg-card px-5 py-7 sm:px-8 sm:py-9 lg:px-10 lg:py-10">
           <div className="flex flex-col gap-8 xl:flex-row xl:items-end xl:justify-between">
             <div>
-              <p className="text-sm font-medium text-muted">Martes, 4 de agosto</p>
+              <p className="text-sm font-medium text-muted">Miércoles, 5 de agosto</p>
               <h1 className="mt-3 text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">Buenos días, Matías <span aria-hidden="true">👋</span></h1>
               <p className="mt-3 max-w-xl text-sm leading-6 text-muted sm:text-base">Tu día está listo. ORBIT ordenó lo importante para que puedas avanzar con claridad.</p>
             </div>
@@ -49,14 +67,12 @@ export function HomeExperience() {
       }
       mainContent={
         <div className="space-y-10">
-          <section aria-labelledby="proximo-evento">
-            <div className="mb-4 flex items-end justify-between gap-4">
-              <div><p className="text-xs font-medium uppercase tracking-[0.16em] text-muted">Agenda</p><h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-2xl" id="proximo-evento">Próximo evento</h2></div>
-              <StatusBadge label="Confirmado" variant="success" />
+          <section aria-labelledby="agenda-eventos">
+            <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <div><p className="text-xs font-medium uppercase tracking-[0.16em] text-muted">Agenda</p><h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-2xl" id="agenda-eventos">Próximos 15 días</h2><p className="mt-2 text-sm text-muted">{formatDate(windowStart, { day: "numeric", month: "short" })} — {formatDate(addDays(windowEnd, -1), { day: "numeric", month: "short", year: "numeric" })}</p></div>
+              <div className="flex items-center gap-2"><Button aria-label="Ver 15 días anteriores" disabled={agendaWindow === 0} onClick={() => setAgendaWindow((current) => Math.max(0, current - 1))} size="icon" variant="outline"><ChevronLeft aria-hidden="true" className="size-4" /></Button><Button aria-label="Ver siguientes 15 días" onClick={() => setAgendaWindow((current) => current + 1)} size="icon" variant="outline"><ChevronRight aria-hidden="true" className="size-4" /></Button></div>
             </div>
-            <SmartCard actionLabel="Abrir proyecto" icon={<CalendarDays aria-hidden="true" className="size-5" />} onAction={() => openProject()} primaryValue="Camila Silva + Tomás Rojas" secondaryValue="Sábado, 17 de octubre de 2026 · 18:30" title="Matrimonio">
-              <div className="flex items-start gap-2 text-sm text-muted"><MapPin aria-hidden="true" className="mt-0.5 size-4 shrink-0" /><span>Casa García-Huidobro · Santiago</span></div>
-            </SmartCard>
+            {visibleEvents.length ? <div className="flex snap-x gap-4 overflow-x-auto pb-2">{visibleEvents.map((event) => <SmartCard actionLabel="Abrir proyecto" className="min-w-[17rem] flex-1 snap-start sm:min-w-[20rem]" icon={<CalendarDays aria-hidden="true" className="size-5" />} key={event.id} onAction={() => openProject(event.id)} primaryValue={event.client} secondaryValue={`${formatDate(new Date(`${event.date}T12:00:00Z`), { weekday: "long", day: "numeric", month: "long" })} · ${event.time}`} status={<StatusBadge label={event.status} variant={event.status === "Preparación" ? "info" : "success"} />} title={event.type}><div className="flex items-start gap-2 text-sm text-muted"><MapPin aria-hidden="true" className="mt-0.5 size-4 shrink-0" /><span>{event.location}</span></div></SmartCard>)}</div> : <SmartCard icon={<CalendarDays aria-hidden="true" className="size-5" />} primaryValue="Sin eventos programados" secondaryValue="No hay eventos en esta ventana de 15 días." title="Agenda libre" />}
           </section>
           <section aria-labelledby="proyectos-prioritarios">
             <div className="mb-4"><p className="text-xs font-medium uppercase tracking-[0.16em] text-muted">En foco</p><h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-2xl" id="proyectos-prioritarios">Proyectos prioritarios</h2></div>

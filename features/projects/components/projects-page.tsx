@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { SearchBar } from "@/components/forms/search-bar";
 import { SmartCard } from "@/components/cards/smart-card";
 import { OrbitCopilot } from "@/components/copilot/orbit-copilot";
+import { FloatingCopilot } from "@/components/copilot/floating-copilot";
 import { ActionButton } from "@/components/ui/action-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { initialProjects } from "../data/mock-projects";
@@ -62,7 +63,7 @@ export function ProjectsPage() {
         <SmartCard icon={<TrendingUp aria-hidden="true" className="size-5" />} primaryValue="38%" secondaryValue="Últimos 30 días · datos mock" title="Conversión mensual" />
       </section>
 
-      <OrbitCopilot actionLabel="Enviar catálogo" estimatedTime="20 segundos" impact="El cliente recibe la información oficial necesaria para avanzar." onAction={() => setSalesProject(projects.find((project) => project.id === "boreal-wedding") ?? null)} reason="Josefina + Nicolás corresponden al flujo social." recommendation="Enviar catálogo" title="Siguiente decisión comercial" />
+      <FloatingCopilot><OrbitCopilot actionLabel="Enviar catálogo" estimatedTime="20 segundos" impact="El cliente recibe la información oficial necesaria para avanzar." onAction={() => setSalesProject(projects.find((project) => project.id === "boreal-wedding") ?? null)} reason="Josefina + Nicolás corresponden al flujo social." recommendation="Enviar catálogo" title="Siguiente decisión comercial" /></FloatingCopilot>
 
       <section aria-label="Búsqueda y filtros" className="space-y-3">
         <SearchBar aria-label="Buscar proyectos" clearLabel="Limpiar búsqueda" className="h-11" onChange={(event) => setQuery(event.target.value)} onClear={() => setQuery("")} placeholder="Buscar por proyecto, cliente o ciudad..." value={query} />

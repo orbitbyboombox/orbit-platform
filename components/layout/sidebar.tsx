@@ -39,12 +39,12 @@ export function NavigationList({ onNavigate, compact }: NavigationListProps) {
 export function Sidebar() {
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-20 border-r bg-card transition-[width] md:flex md:flex-col lg:w-60">
-      <div className="flex h-16 items-center justify-center border-b bg-[#080808] px-4 lg:px-5">
+      <Link aria-label="Ir a Inicio" className="flex h-16 items-center justify-center border-b bg-[#080808] px-4 lg:px-5" href="/">
         <BrandLogo className="hidden w-full max-w-[10.5rem] lg:block" surface="dark" />
         <BrandLogo className="size-10 lg:hidden" surface="dark" variant="isotype" />
-      </div>
+      </Link>
       <div className="p-3"><NavigationList compact /></div>
-      <div className="mt-auto border-t p-4 text-center text-xs text-muted lg:text-left"><span className="hidden lg:inline">ORBIT by BOOMBOX</span><BrandLogo className="mx-auto size-7 lg:hidden" surface="auto" variant="isotype" /></div>
+      <div className="mt-auto border-t p-4 text-center text-xs text-muted lg:text-left"><Link aria-label="Ir a Inicio" href="/"><span className="hidden lg:inline">ORBIT by BOOMBOX</span><BrandLogo className="mx-auto size-7 lg:hidden" surface="dark" variant="isotype" /></Link></div>
     </aside>
   );
 }

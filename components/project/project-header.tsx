@@ -4,6 +4,7 @@ import {
   MapPin,
   Sparkles,
   UserRound,
+  Pencil,
   type LucideIcon,
 } from "lucide-react";
 import { StatusBadge, type StatusBadgeProps } from "@/components/ui/status-badge";
@@ -12,6 +13,8 @@ import {
   ProjectStatus,
   ProjectType,
 } from "@/features/projects/domain";
+import { ActionButton } from "@/components/ui/action-button";
+import { formatServiceSummary } from "@/lib/format-service-summary";
 
 export interface ProjectHeaderProps {
   projectName: string;
@@ -25,6 +28,7 @@ export interface ProjectHeaderProps {
   health: ProjectHealth;
   score?: number;
   stageLabel?: string;
+  onEdit?: () => void;
 }
 
 const projectTypeLabels: Readonly<Record<ProjectType, string>> = {
@@ -95,12 +99,13 @@ export function ProjectHeader({
   health,
   score,
   stageLabel,
+  onEdit,
 }: ProjectHeaderProps) {
   const details: ProjectDetail[] = [
     { label: "Fecha del evento", value: eventDate, icon: CalendarDays },
     { label: "Hora", value: eventTime, icon: Clock3 },
     { label: "Ubicación", value: location, icon: MapPin },
-    { label: "Servicios", value: services.join(" + "), icon: Sparkles },
+    { label: "Servicios", value: formatServiceSummary(services), icon: Sparkles },
   ];
 
   return (
@@ -118,6 +123,7 @@ export function ProjectHeader({
             <UserRound aria-hidden="true" className="size-4 shrink-0" />
             <span><span className="sr-only">Cliente: </span>{clientName}</span>
           </p>
+          {onEdit && <ActionButton className="mt-5" icon={Pencil} label="Editar" onClick={onEdit} variant="outline" />}
         </div>
 
         <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 lg:min-w-[22rem] lg:justify-items-end">

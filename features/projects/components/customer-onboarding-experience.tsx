@@ -8,6 +8,7 @@ import { WorkspaceLayout } from "@/components/layout/workspace-layout";
 import { ActionButton } from "@/components/ui/action-button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { cn } from "@/lib/utils";
+import { formatServiceSummary } from "@/lib/format-service-summary";
 import type { Project } from "../types/project";
 
 export interface CustomerOnboardingExperienceProps {
@@ -103,7 +104,7 @@ function EditableField({ label, value, onChange, type = "text" }: { label: strin
 }
 
 function ExperienceSummary({ project, qrIncluded, vatLabel }: { project: Project; qrIncluded: boolean; vatLabel: string }) {
-  const rows = [["Servicio", project.services.length ? project.services.join(" + ") : "Experiencia BOOMBOX"], ["Duración", "Según cotización aceptada"], ["Extras", qrIncluded ? "QR incluido" : "Según propuesta aceptada"], ["Traslado", `${project.event.city} · según cotización`], ["Total", `Según cotización aceptada · ${vatLabel}`]];
+  const rows = [["Servicio", project.services.length ? formatServiceSummary(project.services) : "Experiencia BOOMBOX"], ["Duración", "Según cotización aceptada"], ["Extras", qrIncluded ? "QR incluido" : "Según propuesta aceptada"], ["Traslado", `${project.event.city} · según cotización`], ["Total", `Según cotización aceptada · ${vatLabel}`]];
   return <div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Paso 3</p><h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Resumen de tu experiencia</h2><p className="mt-3 text-sm leading-6 text-muted">Una vista simple y final de lo que elegiste.</p><dl className="mt-8 divide-y rounded-2xl border bg-accent/25 px-5 sm:px-7">{rows.map(([label, value]) => <div className="grid gap-1 py-5 sm:grid-cols-[9rem_1fr] sm:items-center" key={label}><dt className="text-sm text-muted">{label}</dt><dd className="font-semibold sm:text-right">{value}</dd></div>)}</dl></div>;
 }
 

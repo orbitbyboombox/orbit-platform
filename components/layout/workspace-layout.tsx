@@ -1,6 +1,7 @@
 import { PageContainer } from "@/components/layout/page-container";
 import { SectionTitle } from "@/components/layout/section-title";
 import { cn } from "@/lib/utils";
+import { FloatingCopilot } from "@/components/copilot/floating-copilot";
 
 export interface WorkspaceLayoutProps {
   header: React.ReactNode;
@@ -38,28 +39,23 @@ export function WorkspaceLayout({
     <PageContainer className={cn("space-y-6 md:space-y-8", className)}>
       <WorkspaceRegion label="Workspace header">{header}</WorkspaceRegion>
 
-      <div className="grid gap-6 md:gap-8 lg:grid-cols-[minmax(0,1fr)_20rem] xl:grid-cols-[minmax(0,1fr)_22rem]">
+      <div className="grid gap-6 md:gap-8">
         <WorkspaceRegion
-          className="order-2 min-w-0 lg:order-1 lg:row-span-2"
+          className="min-w-0"
           label="Main content"
         >
           {mainContent}
         </WorkspaceRegion>
 
         <WorkspaceRegion
-          className="order-1 lg:order-2 lg:block"
-          label="ORBIT Copilot"
-        >
-          {copilot}
-        </WorkspaceRegion>
-
-        <WorkspaceRegion
-          className="order-3 min-w-0 lg:order-3"
+          className="min-w-0"
           label="Timeline"
         >
           {timeline}
         </WorkspaceRegion>
       </div>
+
+      <FloatingCopilot>{copilot}</FloatingCopilot>
 
       <WorkspaceRegion label="Workspace actions">{bottomAction}</WorkspaceRegion>
     </PageContainer>

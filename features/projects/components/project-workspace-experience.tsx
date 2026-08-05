@@ -55,7 +55,7 @@ export function ProjectWorkspaceExperience(props: ProjectWorkspaceExperienceProp
   return (
     <WorkspaceLayout
       className="max-w-none p-0"
-      header={<ProjectHeader {...props} score={props.score ?? 92} stageLabel="Preparación" status={ProjectStatus.CONFIRMED} />}
+      header={<ProjectHeader {...props} onEdit={() => undefined} score={props.score ?? 92} stageLabel="Preparación" status={ProjectStatus.CONFIRMED} />}
       copilot={
         <OrbitCopilot actionLabel="Completar checklist" ariaLabel="Recomendación de ORBIT Copilot" estimatedTime="2 minutos" impact="El proyecto no puede pasar a listo para producción." reason="Falta validar la plantilla antes del evento." recommendation="Completar checklist" title="Siguiente decisión" />
       }
@@ -64,8 +64,8 @@ export function ProjectWorkspaceExperience(props: ProjectWorkspaceExperienceProp
           <section aria-labelledby="resumen-proyecto">
             <div className="mb-5"><p className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Control del proyecto</p><h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-2xl" id="resumen-proyecto">Resumen</h2></div>
             <div className="grid gap-4 xl:grid-cols-2">
-              <SmartCard className="xl:col-span-2" icon={<Link2 aria-hidden="true" className="size-5" />} primaryValue={portalId} secondaryValue={portalUrl} status={<StatusBadge label={portalFeedback} variant={portalFeedback === "Enlace copiado" || portalFeedback === "Enlace reenviado" ? "success" : "info"} />} title="Portal del Cliente">
-                <dl className="grid gap-2 sm:grid-cols-2"><DetailRow label="Estado" value="Preparación" /><DetailRow label="Portal ID" value={portalId} /></dl>
+              <SmartCard className="xl:col-span-2" icon={<Link2 aria-hidden="true" className="size-5" />} primaryValue={portalId} secondaryValue="Portal ID permanente" status={<StatusBadge label="Preparación" variant="info" />} title="Portal del Cliente">
+                <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end"><div><p className="text-xs font-semibold uppercase tracking-wider text-muted">Enlace permanente</p><p className="mt-2 break-all text-sm font-medium sm:text-base">{portalUrl}</p></div><StatusBadge label={portalFeedback} variant={portalFeedback === "Enlace copiado" || portalFeedback === "Enlace reenviado" ? "success" : "neutral"} /></div>
                 <div className="mt-5 grid gap-2 border-t pt-5 sm:grid-cols-3"><ActionButton icon={Copy} label="Copiar enlace" onClick={copyPortalLink} variant="outline" /><ActionButton icon={ExternalLink} label="Abrir Portal" onClick={() => setPortalOpen(true)} /><ActionButton icon={Send} label="Reenviar enlace" onClick={() => setPortalFeedback("Enlace reenviado")} variant="outline" /></div>
               </SmartCard>
               <SmartCard icon={<Banknote aria-hidden="true" className="size-5" />} primaryValue="$4.850.000" secondaryValue="Venta total" status={<StatusBadge label="Saludable" variant="success" />} title="Presupuesto"><dl><DetailRow label="Saldo" value="$1.350.000" /><DetailRow label="Margen" value="38%" /></dl></SmartCard>
