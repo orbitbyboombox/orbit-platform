@@ -85,6 +85,15 @@ export async function loadGoogleWorkspaceConnection(): Promise<GoogleWorkspaceCo
   };
 }
 
+export async function loadGoogleWorkspaceAccessToken(): Promise<string> {
+  const connection = await loadGoogleWorkspaceConnection();
+  if (connection.connectionStatus !== "CONNECTED" || connection.tokenStatus !== "HEALTHY") throw new Error("Google Workspace requiere reconexión.");
+  const { data, error } = await createAdminClient().from("google_workspace_connections").select("access_token").eq("singleton_key", "PRIMARY").single<{ access_token: string | null }>();
+  if (error) throw error;
+  if (!data.access_token) throw new Error("Google Workspace no tiene un token activo.");
+  return data.access_token;
+}
+
 export async function disconnectGoogleWorkspace(actorId: string) {
   const admin = createAdminClient();
   const { data, error: readError } = await admin.from("google_workspace_connections").select("refresh_token,access_token").eq("singleton_key", "PRIMARY").maybeSingle<{ refresh_token: string | null; access_token: string | null }>();

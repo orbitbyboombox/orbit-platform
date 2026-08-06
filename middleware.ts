@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
 export async function middleware(request: NextRequest) {
-  if (request.nextUrl.pathname === "/login" || request.nextUrl.pathname === "/api/auth/session-expired") return NextResponse.next();
+  if (request.nextUrl.pathname === "/login" || request.nextUrl.pathname === "/api/auth/session-expired" || request.nextUrl.pathname.startsWith("/sign/") || request.nextUrl.pathname.startsWith("/api/signing/")) return NextResponse.next();
   return updateSession(request);
 }
 
