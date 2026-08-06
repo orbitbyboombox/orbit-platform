@@ -7,6 +7,10 @@ export interface StaffDraft {
   dailyEventRate: number; installationRate: number; removalRate: number;
   drivingLicense?: string; canDriveCompanyVehicle: boolean; availability: string;
   observations?: string;
+  status?: StaffMember["profile"]["status"];
+  classification?: StaffMember["employment"]["classification"];
+  capabilities?: StaffMember["employment"]["capabilities"];
+  specializations?: StaffMember["employment"]["specializations"];
 }
 
 export interface StaffUpdate extends Partial<StaffDraft> { staffId: string; expectedVersion: number; reason: string; }

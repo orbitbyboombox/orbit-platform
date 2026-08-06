@@ -1,6 +1,9 @@
 export type StaffType = "OPERATOR" | "INSTALLATION" | "REMOVAL" | "ADMINISTRATOR" | "FUTURE";
 
-export type StaffStatus = "AVAILABLE" | "ASSIGNED" | "UNAVAILABLE" | "INACTIVE";
+export type StaffStatus = "ACTIVE" | "VACATION" | "MEDICAL_LEAVE" | "INACTIVE";
+export type StaffClassification = "CALYPSO" | "GREEN";
+export type StaffCapability = "ASSEMBLY" | "OPERATOR" | "DISASSEMBLY";
+export type StaffSpecialization = "CLASSIC" | "POLAROID" | "BLACK_STUDIO" | "BBOX360" | "LIGHTBOX" | "BOOMBALL" | "HASHTAG" | "INSTABOX" | "VIDEO_LOUNGE";
 
 export type StaffResponseStatus = "PENDING" | "ACCEPTED" | "REJECTED" | "ASSISTANCE_REQUESTED";
 
@@ -26,6 +29,9 @@ export interface StaffProfile {
 
 export interface StaffEmploymentData {
   staffType: StaffType;
+  classification?: StaffClassification;
+  capabilities: readonly StaffCapability[];
+  specializations: readonly StaffSpecialization[];
   dailyEventRate: number;
   installationRate: number;
   removalRate: number;

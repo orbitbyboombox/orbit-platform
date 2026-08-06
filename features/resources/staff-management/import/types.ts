@@ -1,12 +1,13 @@
 export const STAFF_IMPORT_HEADERS = [
   "Employee Code", "First Name", "Last Name", "RUT", "Phone", "Email", "Status",
-  "Role Classification", "Capabilities", "Notes", "Bank", "Account Number", "Emergency Contact",
+  "Role Classification", "Capabilities", "Specializations", "Notes", "Bank", "Account Number", "Emergency Contact",
 ] as const;
 
 export type StaffImportHeader = typeof STAFF_IMPORT_HEADERS[number];
-export type StaffImportStatus = "ACTIVE" | "INACTIVE";
+export type StaffImportStatus = "ACTIVE" | "VACATION" | "MEDICAL_LEAVE" | "INACTIVE";
 export type StaffImportRole = "CALYPSO" | "GREEN";
 export type StaffImportCapability = "ASSEMBLY" | "OPERATOR" | "DISASSEMBLY";
+export type StaffImportSpecialization = "CLASSIC" | "POLAROID" | "BLACK_STUDIO" | "BBOX360" | "LIGHTBOX" | "BOOMBALL" | "HASHTAG" | "INSTABOX" | "VIDEO_LOUNGE";
 
 export interface StaffImportRow {
   readonly rowNumber: number;
@@ -19,6 +20,7 @@ export interface StaffImportRow {
   readonly status: StaffImportStatus;
   readonly roleClassification: StaffImportRole;
   readonly capabilities: readonly StaffImportCapability[];
+  readonly specializations: readonly StaffImportSpecialization[];
   readonly notes?: string;
   readonly bank?: string;
   readonly accountNumber?: string;

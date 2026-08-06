@@ -1,4 +1,4 @@
-import type { StaffImportCapability, StaffImportIssue, StaffImportPreview, StaffImportRole, StaffImportRow, StaffImportStatus } from "./types";
+import type { StaffImportCapability, StaffImportIssue, StaffImportPreview, StaffImportRole, StaffImportRow, StaffImportSpecialization, StaffImportStatus } from "./types";
 
 const CAPABILITIES: Readonly<Record<StaffImportRole, readonly StaffImportCapability[]>> = {
   CALYPSO: ["ASSEMBLY", "OPERATOR", "DISASSEMBLY"], GREEN: ["OPERATOR"],
@@ -22,6 +22,12 @@ function text(value: unknown): string { return typeof value === "string" || type
 function capabilities(value: unknown): StaffImportCapability[] {
   return text(value).split(/[,;|]/).map((item) => capabilityAliases[item.trim().toUpperCase()]).filter((item): item is StaffImportCapability => Boolean(item));
 }
+const specializationAliases: Readonly<Record<string, StaffImportSpecialization>> = {
+  CLASSIC: "CLASSIC", POLAROID: "POLAROID", "BLACK STUDIO": "BLACK_STUDIO", BLACK_STUDIO: "BLACK_STUDIO", BBOX360: "BBOX360", LIGHTBOX: "LIGHTBOX", BOOMBALL: "BOOMBALL", HASHTAG: "HASHTAG", INSTABOX: "INSTABOX", "VIDEO LOUNGE": "VIDEO_LOUNGE", VIDEO_LOUNGE: "VIDEO_LOUNGE",
+};
+function specializations(value: unknown): StaffImportSpecialization[] {
+  return text(value).split(/[,;|]/).map((item) => specializationAliases[item.trim().toUpperCase()]).filter((item): item is StaffImportSpecialization => Boolean(item));
+}
 
 export function validateStaffImportRows(rawRows: readonly Readonly<Record<string, unknown>>[]): StaffImportPreview {
   const issues: StaffImportIssue[] = []; const seen = new Map<string, number>(); const rows: StaffImportRow[] = [];
@@ -32,11 +38,10 @@ export function validateStaffImportRows(rawRows: readonly Readonly<Record<string
     required.forEach(([field, value]) => { if (!value) issues.push({ rowNumber, field, message: "Campo obligatorio." }); });
     if (rut && !isValidChileanRut(rut)) issues.push({ rowNumber, field: "RUT", message: "RUT inválido." });
     if (seen.has(rut)) issues.push({ rowNumber, field: "RUT", message: `RUT duplicado con la fila ${seen.get(rut)}.` }); else if (rut) seen.set(rut, rowNumber);
-    if (!(["ACTIVE", "INACTIVE"] as string[]).includes(status)) issues.push({ rowNumber, field: "Status", message: "Debe ser ACTIVE o INACTIVE." });
+    if (!(["ACTIVE", "VACATION", "MEDICAL_LEAVE", "INACTIVE"] as string[]).includes(status)) issues.push({ rowNumber, field: "Status", message: "Debe ser ACTIVE, VACATION, MEDICAL_LEAVE o INACTIVE." });
     if (!(["CALYPSO", "GREEN"] as string[]).includes(role)) issues.push({ rowNumber, field: "Role Classification", message: "Debe ser CALYPSO o GREEN." });
-    const expected = CAPABILITIES[role];
-    if (expected && (parsedCapabilities.length !== expected.length || expected.some((item) => !parsedCapabilities.includes(item)))) issues.push({ rowNumber, field: "Capabilities", message: `Las capacidades no corresponden a ${role}.` });
-    rows.push({ rowNumber, employeeCode: text(raw["Employee Code"]) || undefined, firstName, lastName, rut, phone, email: text(raw.Email) || undefined, status, roleClassification: role, capabilities: parsedCapabilities, notes: text(raw.Notes) || undefined, bank: text(raw.Bank) || undefined, accountNumber: text(raw["Account Number"]) || undefined, emergencyContact: text(raw["Emergency Contact"]) || undefined });
+    const resolvedCapabilities = parsedCapabilities.length ? parsedCapabilities : CAPABILITIES[role] ?? [];
+    rows.push({ rowNumber, employeeCode: text(raw["Employee Code"]) || undefined, firstName, lastName, rut, phone, email: text(raw.Email) || undefined, status, roleClassification: role, capabilities: resolvedCapabilities, specializations: specializations(raw.Specializations), notes: text(raw.Notes) || undefined, bank: text(raw.Bank) || undefined, accountNumber: text(raw["Account Number"]) || undefined, emergencyContact: text(raw["Emergency Contact"]) || undefined });
   });
   if (!rows.length) issues.push({ rowNumber: 1, field: "Archivo", message: "El archivo no contiene personas para importar." });
   return { rows, issues, valid: issues.length === 0 };

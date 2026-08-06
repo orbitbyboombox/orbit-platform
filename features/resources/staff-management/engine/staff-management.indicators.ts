@@ -15,7 +15,7 @@ function selectStaffRecommendation(input: StaffManagementInput): StaffRecommenda
   }
 
   const availableDriver = input.members.find(
-    ({ employment, profile }) => profile.status === "AVAILABLE" && employment.canDriveCompanyVehicle,
+    ({ employment, profile }) => profile.status === "ACTIVE" && employment.capabilities.includes("OPERATOR") && employment.canDriveCompanyVehicle,
   );
   if (availableDriver) {
     return {
@@ -33,10 +33,10 @@ function selectStaffRecommendation(input: StaffManagementInput): StaffRecommenda
 }
 
 export function createStaffManagementSnapshot(input: StaffManagementInput): StaffManagementSnapshot {
-  const availableStaff = input.members.filter(({ profile }) => profile.status === "AVAILABLE").length;
-  const assignedStaff = input.members.filter(({ profile }) => profile.status === "ASSIGNED").length;
+  const availableStaff = input.members.filter(({ profile }) => profile.status === "ACTIVE").length;
+  const assignedStaff = input.members.filter(({ history }) => history.currentAssignments > 0).length;
   const activeAlerts = input.members.filter(
-    ({ history, profile }) => history.lateArrivals > 0 || history.currentAssignments > 1 || profile.status === "UNAVAILABLE",
+    ({ history, profile }) => history.lateArrivals > 0 || history.currentAssignments > 1 || profile.status !== "ACTIVE",
   ).length;
 
   return {

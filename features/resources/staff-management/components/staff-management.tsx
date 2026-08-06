@@ -38,11 +38,14 @@ const STAFF_TYPE_LABEL: Record<StaffType, string> = {
 };
 
 const STAFF_STATUS: Record<StaffStatus, { label: string; variant: "success" | "warning" | "danger" | "neutral" }> = {
-  AVAILABLE: { label: "Disponible", variant: "success" },
-  ASSIGNED: { label: "Asignado", variant: "warning" },
-  UNAVAILABLE: { label: "No disponible", variant: "danger" },
+  ACTIVE: { label: "Activo", variant: "success" },
+  VACATION: { label: "Vacaciones", variant: "warning" },
+  MEDICAL_LEAVE: { label: "Licencia médica", variant: "danger" },
   INACTIVE: { label: "Inactivo", variant: "neutral" },
 };
+
+const CAPABILITY_LABEL = { ASSEMBLY: "Montaje", OPERATOR: "Operación", DISASSEMBLY: "Desmontaje" } as const;
+const SPECIALIZATION_LABEL = { CLASSIC: "Classic", POLAROID: "Polaroid", BLACK_STUDIO: "Black Studio", BBOX360: "BBOX360", LIGHTBOX: "LightBox", BOOMBALL: "BoomBall", HASHTAG: "Hashtag", INSTABOX: "Instabox", VIDEO_LOUNGE: "Video Lounge" } as const;
 
 const RESPONSE_STATUS: Record<StaffResponseStatus, { label: string; variant: "success" | "warning" | "danger" | "info" }> = {
   PENDING: { label: "Respuesta pendiente", variant: "warning" },
@@ -128,6 +131,13 @@ function StaffMemberCard({ member, onRespond, response }: StaffMemberCardProps) 
             <Definition label="Puede conducir vehículo BOOMBOX" value={employment.canDriveCompanyVehicle ? "Sí" : "No"} />
             <Definition label="Observaciones" value={employment.observations ?? "Sin observaciones"} />
           </dl>
+        </section>
+
+        <section aria-label="Capacidades operacionales" className="border-t pt-5">
+          <h4 className="text-sm font-semibold">Capacidades operacionales</h4>
+          <p className="mt-2 text-xs text-muted">Clasificación {employment.classification ?? "Sin clasificar"}. La asignación final siempre corresponde a Operaciones.</p>
+          <div className="mt-4 flex flex-wrap gap-2">{Object.entries(CAPABILITY_LABEL).map(([key, label]) => <StatusBadge key={key} label={label} variant={employment.capabilities.includes(key as keyof typeof CAPABILITY_LABEL) ? "success" : "neutral"} />)}</div>
+          <div className="mt-4 flex flex-wrap gap-2">{employment.specializations.length ? employment.specializations.map((item) => <StatusBadge key={item} label={SPECIALIZATION_LABEL[item]} variant="info" />) : <span className="text-sm text-muted">Sin especializaciones registradas.</span>}</div>
         </section>
 
         <section aria-label="Historial de eventos" className="border-t pt-5">

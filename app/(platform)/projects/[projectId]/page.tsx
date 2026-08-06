@@ -31,7 +31,7 @@ export default async function ProjectWorkspacePage({ params, searchParams }: Pro
     client.from("agreements").select("id,status,created_at").eq("project_id", projectId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     client.from("assignments").select("status,assignment_type,resources").eq("project_id", projectId).is("deleted_at", null),
     client.from("documents").select("document_type").eq("project_id", projectId).is("deleted_at", null),
-    client.from("quotations").select("id,quotation_number,status,grand_total,created_at,pdf_storage_path,drive_file_id,gmail_draft_id").eq("project_id", projectId).is("deleted_at", null).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    client.from("quotations").select("id,quotation_number,version,status,grand_total,official_price,final_customer_price,price_difference,created_at,pdf_storage_path,drive_file_id,gmail_draft_id").eq("project_id", projectId).is("deleted_at", null).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     client.from("operational_assets").select("id,asset_code,asset_type,status,usage_counter,qr_key").is("deleted_at", null).order("asset_code"),
     client.from("asset_assignments").select("id,project_id,asset_id,assignment_status,projects(name,event_date,event_time)").eq("assignment_status", "ASSIGNED").is("deleted_at", null),
     client.from("staff").select("id,first_name,last_name,status,operational_group,capabilities").is("deleted_at", null).order("last_name"),
@@ -39,8 +39,9 @@ export default async function ProjectWorkspacePage({ params, searchParams }: Pro
     client.from("calendar_sync").select("status,external_event_id,external_url").eq("project_id", projectId).maybeSingle(),
     client.from("drive_sync").select("id,status").eq("project_id", projectId).eq("status", "CREATED").limit(1),
     client.from("event_staff_payments").select("id,status").eq("project_id", projectId).is("deleted_at", null).limit(1),
-    client.from("profit_snapshots").select("id,status").eq("project_id", projectId).is("deleted_at", null).order("created_at", { ascending: false }).limit(1),
+    client.from("profit_snapshots").select("id,status,operational_cost").eq("project_id", projectId).is("deleted_at", null).order("created_at", { ascending: false }).limit(1),
   ]);
+  const { data: priceHistory } = quotation ? await client.from("quotation_price_history").select("id,final_price,reason,created_at").eq("quotation_id", quotation.id).order("created_at", { ascending: false }) : { data: [] };
   const services = query.services?.split(",").filter(Boolean) ?? project.services;
   const typeLabel = query.type ?? project.type;
   const date = query.date ?? project.event.date;
@@ -70,7 +71,7 @@ export default async function ProjectWorkspacePage({ params, searchParams }: Pro
   const equipment = {
     projectId, orbitEventId: rawProject?.orbit_event_id ?? `ORB-${projectId}`, projectType: typeLabel,
     assets: (assets ?? []).map((asset) => { const active = activeAssets.find((item) => item.asset_id === asset.id); return { id: asset.id, code: asset.asset_code, type: asset.asset_type, status: asset.status, usageCounter: asset.usage_counter, qrKey: asset.qr_key, current: active ? { assignmentId: active.id, projectName: active.project_id === projectId ? "Este evento" : active.projects.name, date: active.projects.event_date, time: active.projects.event_time?.slice(0, 5) ?? "Por confirmar", operator: operatorByProject.get(active.project_id) ?? "Sin asignar" } : undefined }; }),
-    staff: (staff ?? []).filter((member) => member.operational_group === "CALYPSO" || member.operational_group === "GREEN").map((member) => ({ id: member.id, name: `${member.first_name} ${member.last_name}`, group: member.operational_group as "CALYPSO" | "GREEN", capabilities: member.capabilities as ("ASSEMBLY" | "OPERATOR" | "DISASSEMBLY")[], status: member.status })),
+    staff: (staff ?? []).filter((member) => member.status === "ACTIVE" && (member.operational_group === "CALYPSO" || member.operational_group === "GREEN")).map((member) => ({ id: member.id, name: `${member.first_name} ${member.last_name}`, group: member.operational_group as "CALYPSO" | "GREEN", capabilities: member.capabilities as ("ASSEMBLY" | "OPERATOR" | "DISASSEMBLY")[], status: member.status })),
     currentStaff: productionAssignments.filter((item) => item.project_id === projectId && ["ASSEMBLY", "OPERATOR", "DISASSEMBLY"].includes(item.assignment_type)).map((item) => ({ id: item.id, staffId: item.staff_id, name: `${item.staff.first_name} ${item.staff.last_name}`, task: item.assignment_type, status: item.status })),
   };
   const portalStage = project.status === "Archived" ? "ARCHIVED" : project.status === "Completed" ? "GALLERY" : project.commercialStage === "Production" ? "LIVE_EVENT" : project.commercialStage === "Confirmed" ? "PREPARATION" : project.commercialStage === "Reserved" || project.commercialStage === "Waiting" ? "WAITING_PAYMENT" : project.commercialStage === "Quoting" ? "QUOTATION" : "COMMERCIAL_OPPORTUNITY";
@@ -82,7 +83,7 @@ export default async function ProjectWorkspacePage({ params, searchParams }: Pro
   const ready = (condition: boolean, yes: string, no: string, attention = false) => ({ state: condition ? "READY" as const : attention ? "ATTENTION" as const : "ACTION_REQUIRED" as const, detail: condition ? yes : no });
   const productionIntegration = {
     projectId,
-    quotation: quotation ? { id: quotation.id, status: quotation.status, pdfReady: Boolean(quotation.pdf_storage_path), driveReady: Boolean(quotation.drive_file_id), gmailDraftReady: Boolean(quotation.gmail_draft_id) } : undefined,
+    quotation: quotation ? (() => { const officialPrice=Number(quotation.official_price??quotation.grand_total); const finalCustomerPrice=Number(quotation.final_customer_price??quotation.grand_total); const difference=finalCustomerPrice-officialPrice; const operationalCost=Number(profit?.[0]?.operational_cost??0); const estimatedProfit=finalCustomerPrice-operationalCost; return { id: quotation.id, version: quotation.version, status: quotation.status, officialPrice, finalCustomerPrice, difference, discountPercentage:difference<0&&officialPrice>0?Math.abs(difference)/officialPrice*100:0, increasePercentage:difference>0&&officialPrice>0?difference/officialPrice*100:0, estimatedProfit, estimatedMarginPercentage:finalCustomerPrice===0?0:estimatedProfit/finalCustomerPrice*100, pdfReady: Boolean(quotation.pdf_storage_path), driveReady: Boolean(quotation.drive_file_id), gmailDraftReady: Boolean(quotation.gmail_draft_id), history:(priceHistory??[]).map((item)=>({id:item.id,finalPrice:Number(item.final_price),reason:item.reason??undefined,createdAt:item.created_at})) }; })() : undefined,
     calendar: { status: calendarSync?.status ?? "PENDING", googleEventId: calendarSync?.external_event_id ?? undefined, googleEventUrl: calendarSync?.external_url ?? undefined },
     readiness: [
       { label: "Cliente confirmado", ...ready(Boolean(project.client.name), "Cliente identificado.", "Falta información del cliente.") },
