@@ -5,7 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 export default async function OperationsPage() {
   const client = await createSupabaseServerClient();
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(new Date());
-  const [projects, assignmentsResult, staffResult, assetsResult, assetAssignmentsResult, agreementsResult, evidenceResult, quotationsResult, calendarResult, driveResult, documentsResult, payrollResult, profitResult, timelineResult, rawProjectsResult] = await Promise.all([
+  const [allProjects, assignmentsResult, staffResult, assetsResult, assetAssignmentsResult, agreementsResult, evidenceResult, quotationsResult, calendarResult, driveResult, documentsResult, payrollResult, profitResult, timelineResult, rawProjectsResult, customersResult] = await Promise.all([
     new SupabaseCustomerRepository(client).findAll(),
     client.from("assignments").select("id,project_id,staff_id,assignment_type,status,resources").is("deleted_at", null),
     client.from("staff").select("id,status,capabilities").eq("status", "ACTIVE").is("deleted_at", null),
@@ -20,10 +20,11 @@ export default async function OperationsPage() {
     client.from("event_staff_payments").select("project_id,status").is("deleted_at", null),
     client.from("profit_snapshots").select("project_id").is("deleted_at", null),
     client.from("timeline_events").select("project_id"),
-    client.from("projects").select("id,finance").is("deleted_at", null),
+    client.from("projects").select("id,customer_id,finance").is("deleted_at", null),
+    client.from("customers").select("id,metadata").is("deleted_at", null),
   ]);
 
-  const results = [assignmentsResult, staffResult, assetsResult, assetAssignmentsResult, agreementsResult, evidenceResult, quotationsResult, calendarResult, driveResult, documentsResult, payrollResult, profitResult, timelineResult, rawProjectsResult];
+  const results = [assignmentsResult, staffResult, assetsResult, assetAssignmentsResult, agreementsResult, evidenceResult, quotationsResult, calendarResult, driveResult, documentsResult, payrollResult, profitResult, timelineResult, rawProjectsResult, customersResult];
   const error = results.find((result) => result.error)?.error;
   if (error) throw error;
 
@@ -41,6 +42,12 @@ export default async function OperationsPage() {
   const profit = profitResult.data ?? [];
   const timeline = timelineResult.data ?? [];
   const financeByProject = new Map((rawProjectsResult.data ?? []).map((item) => [item.id, (item.finance ?? {}) as Record<string, unknown>]));
+  const certificationCustomers = new Set((customersResult.data ?? []).filter((item) => {
+    const metadata = (item.metadata ?? {}) as Record<string, unknown>;
+    return metadata.record_type === "SYSTEM_CERTIFICATION" || metadata.recordType === "QA_OPERATIONAL_CERTIFICATION" || typeof metadata.validation === "string";
+  }).map((item) => item.id));
+  const certificationProjects = new Set((rawProjectsResult.data ?? []).filter((item) => certificationCustomers.has(item.customer_id)).map((item) => item.id));
+  const projects = allProjects.filter((project) => !certificationProjects.has(project.id));
 
   const readiness: CommandCenterProjectReadiness[] = projects.filter((project) => project.status !== "Archived").map((project) => {
     const agreement = agreements.find((item) => item.project_id === project.id);
