@@ -62,9 +62,15 @@ export class ProfitEngine {
 
   getRecommendation(insights: ProfitInsights): ProfitRecommendation {
     const service = insights.services.find(({ service }) => service === insights.highestProfitabilityService);
+    if (!service) {
+      return {
+        title: "La rentabilidad aparecerá con el primer evento registrado.",
+        reason: "Aún no existe información operacional suficiente para recomendar una acción.",
+      };
+    }
     return {
       title: `${insights.highestProfitabilityService} entrega actualmente el mayor margen promedio.`,
-      reason: service ? `Margen bruto estimado de ${service.averageMarginPercentage.toFixed(1)}% en la muestra operacional.` : "Aún no existe información suficiente.",
+      reason: `Margen bruto estimado de ${service.averageMarginPercentage.toFixed(1)}% en la muestra operacional.`,
     };
   }
 }
