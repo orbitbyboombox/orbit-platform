@@ -1,2 +1,3 @@
 export { calculatePrice } from "./pricing.calculator";
-export { getServiceBasePrice, SERVICE_BASE_PRICES } from "./service-pricing";
+export { calculateAdditionalHourPrice, getServiceBasePrice, getServicePrice, SERVICE_BASE_PRICES, SERVICE_PRICE_MATRIX } from "./service-pricing";
+export type { QuotationDuration, ServicePriceRule } from "./service-pricing";

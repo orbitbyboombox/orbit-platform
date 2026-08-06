@@ -10,7 +10,7 @@ interface ProjectRow { id: string; name: string; project_type: string; orbit_eve
 const text = (value: unknown, fallback = ""): string => typeof value === "string" ? value : fallback;
 const number = (value: unknown): number => typeof value === "number" ? value : 0;
 const staffType = (value: string): StaffType => ["OPERATOR", "INSTALLATION", "REMOVAL", "ADMINISTRATOR", "FUTURE"].includes(value) ? value as StaffType : "FUTURE";
-const staffStatus = (value: string): StaffStatus => ["AVAILABLE", "ASSIGNED", "UNAVAILABLE", "INACTIVE"].includes(value) ? value as StaffStatus : "INACTIVE";
+const staffStatus = (value: string): StaffStatus => value === "ACTIVE" ? "AVAILABLE" : ["AVAILABLE", "ASSIGNED", "UNAVAILABLE", "INACTIVE"].includes(value) ? value as StaffStatus : "INACTIVE";
 const responseStatus = (value: string): StaffResponseStatus => ["PENDING", "ACCEPTED", "REJECTED", "ASSISTANCE_REQUESTED"].includes(value) ? value as StaffResponseStatus : "PENDING";
 
 export class SupabaseStaffRepository implements StaffRepository {
@@ -65,6 +65,13 @@ export class SupabaseStaffRepository implements StaffRepository {
     if (error) throw error;
     await this.timeline.append({ orbitEventId: project.orbit_event_id, actorId, actorLabel: "Administrador", source: "Administrator", action: "STAFF_ASSIGNED", entityType: "Assignment", entityId: data.id, projectId: input.projectId, staffId: input.staffId, humanMessage: "Colaborador asignado al evento.", correlationId: crypto.randomUUID(), newState: "PENDING" });
     return data.id;
+  }
+
+  async removeAssignment(assignmentId: string, reason: string): Promise<void> {
+    const assignment = await this.assignmentContext(assignmentId); const actorId = await this.actorId();
+    const { error } = await this.client.from("assignments").update({ deleted_at: new Date().toISOString(), reason, updated_by: actorId }).eq("id", assignmentId).is("deleted_at", null);
+    if (error) throw error;
+    await this.timeline.append({ orbitEventId: assignment.projects.orbit_event_id, actorId, actorLabel: "Administrador", source: "Administrator", action: "STAFF_REMOVED", entityType: "Assignment", entityId: assignmentId, projectId: assignment.project_id, staffId: assignment.staff_id, previousState: assignment.status, newState: "REMOVED", humanMessage: "Colaborador retirado de la asignación.", correlationId: crypto.randomUUID() });
   }
 
   async respondToAssignment(assignmentId: string, response: "ACCEPTED" | "REJECTED" | "ASSISTANCE_REQUESTED", reason?: string): Promise<void> {

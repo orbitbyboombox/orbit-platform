@@ -17,6 +17,7 @@ export interface StaffRepository {
   create(input: StaffDraft): Promise<string>;
   update(input: StaffUpdate): Promise<void>;
   assign(input: StaffAssignmentDraft): Promise<string>;
+  removeAssignment(assignmentId: string, reason: string): Promise<void>;
   respondToAssignment(assignmentId: string, response: "ACCEPTED" | "REJECTED" | "ASSISTANCE_REQUESTED", reason?: string): Promise<void>;
   updateAvailability(staffId: string, expectedVersion: number, availability: string, status: StaffMember["profile"]["status"], reason: string): Promise<void>;
   softDelete(staffId: string, expectedVersion: number, reason: string): Promise<void>;

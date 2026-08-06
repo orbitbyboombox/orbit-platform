@@ -10,15 +10,16 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { DataStateBadge } from "@/components/ui/data-state-badge";
 import { cn } from "@/lib/utils";
 import { formatServiceSummary } from "@/lib/format-service-summary";
+import { getServicePrice, type ServiceId } from "@/features/business-core";
 
 const steps = ["Tipo de evento", "Servicios", "Duración", "Extras", "Resumen", "Enviar cotización"] as const;
 const eventTypes = ["Matrimonio", "Empresa", "Cumpleaños", "Fiesta", "Otro"] as const;
-const servicePrices = { Classic: 420000, Polaroid: 360000, "Black Studio": 520000, "360": 480000, LightBox: 390000, BoomBall: 450000 } as const;
-const durationOptions = [{ label: "2 horas", value: 2, factor: 1 }, { label: "3 horas", value: 3, factor: 1.35 }, { label: "4 horas", value: 4, factor: 1.65 }] as const;
-const extraPrices = { QR: 45000, Libro: 85000, Imanes: 65000, Branding: 120000, Traslado: 70000, "Horas extra": 140000 } as const;
+const serviceCodes = { Classic: "CLASSIC", Polaroid: "POLAROID", "Black Studio": "BLACK_STUDIO", BBOX360: "BBOX360", Hashtag: "HASHTAG", LightBox: "LIGHTBOX", BoomBall: "BOOMBALL", Instabox: "INSTABOX", "Video Lounge": "VIDEO_LOUNGE" } as const satisfies Record<string, ServiceId>;
+const durationOptions = [{ label: "2 horas", value: 2 }, { label: "3 horas", value: 3 }, { label: "4 horas", value: 4 }] as const;
+const extraPrices = { "Imanes ilimitados": 65_000, "QR corporativo": 75_000, Branding: 75_000, Scrapbook: 55_000 } as const;
 
 type EventType = (typeof eventTypes)[number];
-type Service = keyof typeof servicePrices;
+type Service = keyof typeof serviceCodes;
 type Extra = keyof typeof extraPrices;
 
 export interface QuotationExperienceProps {
@@ -36,17 +37,18 @@ export function QuotationExperience({ onClose }: QuotationExperienceProps) {
   const [sent, setSent] = useState(false);
 
   const totals = useMemo(() => {
-    const factor = durationOptions.find((option) => option.value === duration)?.factor ?? 1;
-    const subtotal = Math.round(services.reduce((sum, service) => sum + servicePrices[service], 0) * factor);
+    const serviceValues = services.map((service) => getServicePrice(serviceCodes[service], duration as 2 | 3 | 4));
+    const blockers = serviceValues.flatMap((price, index) => price.status === "DEFINED" ? [] : [`${services[index]} requiere cotización`]);
+    const subtotal = serviceValues.reduce((sum, price) => sum + (price.status === "DEFINED" ? price.value.amount : 0), 0);
     const extrasTotal = extras.reduce((sum, extra) => sum + extraPrices[extra], 0);
     const total = subtotal + extrasTotal;
-    return { subtotal, extrasTotal, total, margin: Math.round(total * 0.42) };
+    return { subtotal, extrasTotal, total, blockers };
   }, [duration, extras, services]);
 
   const toggleService = (service: Service) => setServices((current) => current.includes(service) ? current.filter((item) => item !== service) : [...current, service]);
   const toggleExtra = (extra: Extra) => setExtras((current) => current.includes(extra) ? current.filter((item) => item !== extra) : [...current, extra]);
-  const canContinue = step === 0 ? Boolean(eventType) : step === 1 ? services.length > 0 : true;
-  const recommendation = step < 1 ? "Elegir tipo de evento" : step === 1 && !services.includes("Classic") ? "Agregar Classic" : step < 3 ? "Confirmar duración" : step === 3 && !extras.includes("QR") ? "Agregar QR" : step < 5 ? "Revisar cotización" : "Enviar cotización";
+  const canContinue = step === 0 ? Boolean(eventType) : step === 1 ? services.length > 0 && totals.blockers.length === 0 : true;
+  const recommendation = step < 1 ? "Elegir tipo de evento" : step === 1 && !services.includes("Classic") ? "Agregar Classic" : step < 3 ? "Confirmar duración" : step === 3 && !extras.includes("QR corporativo") ? "Agregar QR" : step < 5 ? "Revisar cotización" : "Enviar cotización";
   const nextStep = () => setStep((current) => Math.min(current + 1, steps.length - 1));
 
   return <WorkspaceLayout
@@ -69,12 +71,12 @@ interface StepContentProps {
   setDuration: (value: number) => void;
   extras: Extra[];
   toggleExtra: (value: Extra) => void;
-  totals: { subtotal: number; extrasTotal: number; total: number; margin: number };
+  totals: { subtotal: number; extrasTotal: number; total: number; blockers: string[] };
 }
 
 function StepContent(props: StepContentProps) {
   if (props.step === 0) return <OptionGrid options={eventTypes.map((label) => ({ label }))} selected={props.eventType ? [props.eventType] : []} onSelect={(value) => props.setEventType(value as EventType)} />;
-  if (props.step === 1) return <OptionGrid multiple options={(Object.entries(servicePrices) as [Service, number][]).map(([label, price]) => ({ label, caption: `Desde ${currency.format(price)}` }))} selected={props.services} onSelect={(value) => props.toggleService(value as Service)} />;
+  if (props.step === 1) return <OptionGrid multiple options={(Object.entries(serviceCodes) as [Service, ServiceId][]).map(([label, code]) => { const price = getServicePrice(code, props.duration as 2 | 3 | 4); return { label, caption: price.status === "DEFINED" ? currency.format(price.value.amount) : "Requiere cotización" }; })} selected={props.services} onSelect={(value) => props.toggleService(value as Service)} />;
   if (props.step === 2) return <OptionGrid options={durationOptions.map((option) => ({ label: option.label, value: String(option.value), caption: option.value === 2 ? "Duración esencial" : option.value === 3 ? "La opción más elegida" : "Experiencia extendida" }))} selected={[String(props.duration)]} onSelect={(value) => props.setDuration(Number(value))} />;
   if (props.step === 3) return <OptionGrid multiple options={(Object.entries(extraPrices) as [Extra, number][]).map(([label, price]) => ({ label, caption: `+ ${currency.format(price)}` }))} selected={props.extras} onSelect={(value) => props.toggleExtra(value as Extra)} />;
   return <Review eventType={props.eventType} services={props.services} duration={props.duration} extras={props.extras} totals={props.totals} readyToSend={props.step === 5} />;
@@ -85,7 +87,7 @@ function OptionGrid({ options, selected, onSelect, multiple }: { options: { labe
 }
 
 function Review({ eventType, services, duration, extras, totals, readyToSend }: { eventType?: EventType; services: Service[]; duration: number; extras: Extra[]; totals: StepContentProps["totals"]; readyToSend: boolean }) {
-  return <div className="space-y-6"><div className="rounded-xl bg-accent/60 p-5"><p className="text-xs font-semibold uppercase tracking-wider text-muted">Experiencia configurada</p><h3 className="mt-2 text-2xl font-semibold tracking-tight">{eventType ?? "Tipo por definir"}</h3><p className="mt-2 text-sm leading-6 text-muted">{formatServiceSummary(services, `${duration} horas`) || "Sin servicios"}{extras.length ? ` · ${extras.join(" + ")}` : ""}</p></div><dl className="divide-y rounded-xl border px-4"><PriceRow label="Subtotal" value={currency.format(totals.subtotal)} /><PriceRow label="Extras" value={currency.format(totals.extrasTotal)} /><PriceRow label="Total" strong value={currency.format(totals.total)} /><PriceRow label="Margen estimado" value={currency.format(totals.margin)} /></dl>{readyToSend && <div className="flex items-start gap-3 rounded-xl border border-success/20 bg-success-soft p-4 text-sm text-success"><Send aria-hidden="true" className="mt-0.5 size-4 shrink-0" /><p>La cotización está completa y lista para enviar al cliente.</p></div>}</div>;
+  return <div className="space-y-6"><div className="rounded-xl bg-accent/60 p-5"><p className="text-xs font-semibold uppercase tracking-wider text-muted">Experiencia configurada</p><h3 className="mt-2 text-2xl font-semibold tracking-tight">{eventType ?? "Tipo por definir"}</h3><p className="mt-2 text-sm leading-6 text-muted">{formatServiceSummary(services, `${duration} horas`) || "Sin servicios"}{extras.length ? ` · ${extras.join(" + ")}` : ""}</p></div><dl className="divide-y rounded-xl border px-4"><PriceRow label="Subtotal" value={currency.format(totals.subtotal)} /><PriceRow label="Extras" value={currency.format(totals.extrasTotal)} /><PriceRow label="Total" strong value={currency.format(totals.total)} /></dl>{totals.blockers.length > 0 && <p className="rounded-xl border border-warning/30 bg-warning-soft p-4 text-sm text-warning">{totals.blockers.join(" · ")}</p>}{readyToSend && totals.blockers.length === 0 && <div className="flex items-start gap-3 rounded-xl border border-success/20 bg-success-soft p-4 text-sm text-success"><Send aria-hidden="true" className="mt-0.5 size-4 shrink-0" /><p>La cotización está completa y lista para guardar.</p></div>}</div>;
 }
 
 function PriceRow({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
@@ -93,7 +95,7 @@ function PriceRow({ label, value, strong }: { label: string; value: string; stro
 }
 
 function QuotationSummary({ services, extras, duration, eventType, totals }: { services: Service[]; extras: Extra[]; duration: number; eventType?: EventType; totals: StepContentProps["totals"] }) {
-  return <section aria-label="Resumen en tiempo real" className="grid gap-3 sm:grid-cols-2"><SmartCard icon={<ReceiptText aria-hidden="true" className="size-5" />} primaryValue={eventType ?? "Sin configurar"} secondaryValue={`${duration} horas`} title="Resumen" /><SmartCard icon={<Layers3 aria-hidden="true" className="size-5" />} primaryValue={`${services.length}`} secondaryValue={services.length ? formatServiceSummary(services, `${duration} horas`) : "Aún no has elegido servicios"} title="Servicios" /><SmartCard icon={<Gift aria-hidden="true" className="size-5" />} primaryValue={`${extras.length}`} secondaryValue={extras.length ? extras.join(" · ") : "Sin extras seleccionados"} title="Extras" /><SmartCard icon={<Sparkles aria-hidden="true" className="size-5" />} primaryValue={currency.format(totals.total)} secondaryValue={`Subtotal ${currency.format(totals.subtotal)}`} title="Precio" /><SmartCard className="sm:col-span-2" icon={<Percent aria-hidden="true" className="size-5" />} primaryValue={currency.format(totals.margin)} secondaryValue="42% estimado · datos simulados" status={<DataStateBadge state="ESTIMATED" />} title="Margen estimado" /></section>;
+  return <section aria-label="Resumen en tiempo real" className="grid gap-3 sm:grid-cols-2"><SmartCard icon={<ReceiptText aria-hidden="true" className="size-5" />} primaryValue={eventType ?? "Sin configurar"} secondaryValue={`${duration} horas`} title="Resumen" /><SmartCard icon={<Layers3 aria-hidden="true" className="size-5" />} primaryValue={`${services.length}`} secondaryValue={services.length ? formatServiceSummary(services, `${duration} horas`) : "Aún no has elegido servicios"} title="Servicios" /><SmartCard icon={<Gift aria-hidden="true" className="size-5" />} primaryValue={`${extras.length}`} secondaryValue={extras.length ? extras.join(" · ") : "Sin extras seleccionados"} title="Extras" /><SmartCard icon={<Sparkles aria-hidden="true" className="size-5" />} primaryValue={totals.blockers.length ? "Revisión requerida" : currency.format(totals.total)} secondaryValue={totals.blockers.length ? totals.blockers.join(" · ") : `Subtotal ${currency.format(totals.subtotal)}`} title="Precio oficial" /><SmartCard className="sm:col-span-2" icon={<Percent aria-hidden="true" className="size-5" />} primaryValue="Profit Engine" secondaryValue="El margen se calcula al aceptar la cotización" status={<DataStateBadge state="PREPARED" />} title="Rentabilidad" /></section>;
 }
 
 function SentState() {

@@ -11,6 +11,7 @@ export type EventTypeId =
   | "BIRTHDAY"
   | "GRADUATION"
   | "PARTY"
+  | "PUBLIC_EVENT"
   | "OTHER";
 
 export type ServiceId =
@@ -20,7 +21,9 @@ export type ServiceId =
   | "BBOX360"
   | "LIGHTBOX"
   | "BOOMBALL"
-  | "HASHTAG";
+  | "HASHTAG"
+  | "INSTABOX"
+  | "VIDEO_LOUNGE";
 
 export type DurationHours = 2 | 3 | 4 | 5;
 export type DurationMode = "SELECTABLE" | "FIXED" | "SINGLE_SERVICE";

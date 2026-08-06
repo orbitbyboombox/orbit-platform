@@ -8,6 +8,8 @@ export const SERVICE_CATALOG = [
   { id: "LIGHTBOX", name: "LightBox", duration: { mode: "FIXED", availableHours: [5], fixedHours: 5, shouldRequestDuration: false } },
   { id: "BOOMBALL", name: "BoomBall", duration: { mode: "SINGLE_SERVICE", availableHours: [], shouldRequestDuration: false } },
   { id: "HASHTAG", name: "Hashtag", duration: { mode: "SELECTABLE", availableHours: [2, 3, 4], shouldRequestDuration: true } },
+  { id: "INSTABOX", name: "Instabox", duration: { mode: "SELECTABLE", availableHours: [2, 3, 4], shouldRequestDuration: true } },
+  { id: "VIDEO_LOUNGE", name: "Video Lounge", duration: { mode: "SELECTABLE", availableHours: [2, 3, 4], shouldRequestDuration: true } },
 ] as const satisfies readonly ServiceCatalogItem[];
 
 export const SERVICE_CATALOG_BY_ID: Readonly<Record<ServiceId, ServiceCatalogItem>> = Object.fromEntries(

@@ -1,6 +1,16 @@
 import type { CommercialValue, Money, TransportRate } from "../types";
 
-export const TRANSPORT_RATES: readonly TransportRate[] = [];
+const clp = (amount: number): CommercialValue<Money> => ({ status: "DEFINED", value: { amount, currency: "CLP" } });
+export const TRANSPORT_RATES: readonly TransportRate[] = [
+  { id: "santiago-province", origin: "Chicureo", destination: "Provincia de Santiago", price: clp(0) },
+  { id: "other-santiago-province", origin: "Chicureo", destination: "Otra provincia de Santiago", price: clp(35_000) },
+  { id: "chacabuco", origin: "Chicureo", destination: "Chacabuco", price: clp(55_000) },
+  { id: "cordillera", origin: "Chicureo", destination: "Cordillera", price: clp(70_000) },
+  { id: "maipo", origin: "Chicureo", destination: "Maipo", price: clp(60_000) },
+  { id: "melipilla", origin: "Chicureo", destination: "Melipilla", price: clp(75_000) },
+  { id: "talagante", origin: "Chicureo", destination: "Talagante", price: clp(80_000) },
+  { id: "interior-regions", origin: "Chicureo", destination: "Regiones interiores", price: clp(120_000) },
+];
 
 export const DEFAULT_TRANSPORT_RULE: CommercialValue<Money> = {
   status: "REQUIRES_QUOTE",

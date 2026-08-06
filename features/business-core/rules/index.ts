@@ -13,4 +13,6 @@ export {
   type PaymentMethodRule,
 } from "./payment.rules";
 export { DEFAULT_TRANSPORT_RULE, getTransportRate, TRANSPORT_RATES, TRANSPORT_TABLE } from "./transport.rules";
+export { getQuotationExtras, QUOTATION_EXTRA_RULES } from "./quotation-extra.rules";
+export type { QuotationExtraId, QuotationExtraRule } from "./quotation-extra.rules";
 export { CHILE_VAT_RATE, getVatRule, resolveVat, VAT_RULES } from "./vat.rules";

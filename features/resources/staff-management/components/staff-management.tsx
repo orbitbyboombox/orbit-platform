@@ -27,6 +27,7 @@ import type {
   StaffStatus,
   StaffType,
 } from "../types/staff-management.types";
+import { StaffImport } from "../import/staff-import";
 
 const STAFF_TYPE_LABEL: Record<StaffType, string> = {
   OPERATOR: "Operador",
@@ -244,6 +245,8 @@ export function StaffManagement({ snapshot }: StaffManagementProps) {
           {!visibleMembers.length && <SmartCard primaryValue="No encontramos colaboradores" secondaryValue="Prueba con otro nombre, rol o estado de disponibilidad para continuar." status={<DataStateBadge state="PENDING" />} title="Revisa tu búsqueda" />}
         </div>
       </section>
+
+      <StaffImport />
 
       <p aria-live="polite" className="sr-only">{announcement}</p>
     </div>

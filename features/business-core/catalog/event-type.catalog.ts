@@ -6,6 +6,7 @@ export const EVENT_TYPE_CATALOG = [
   { id: "BIRTHDAY", name: "Cumpleaños", category: "SOCIAL" },
   { id: "GRADUATION", name: "Graduación", category: "SOCIAL" },
   { id: "PARTY", name: "Fiesta", category: "SOCIAL" },
+  { id: "PUBLIC_EVENT", name: "Evento público", category: "CORPORATE" },
   { id: "OTHER", name: "Otro", category: "OTHER" },
 ] as const satisfies readonly EventTypeCatalogItem[];
 

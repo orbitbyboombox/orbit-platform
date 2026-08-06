@@ -11,13 +11,17 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { ProjectStatus } from "@/features/projects/domain";
 import { CustomerPortalExperience, type CustomerPortalStage } from "./customer-portal-experience";
 import { ORBIT_TIME_ENGINE } from "@/features/time-intelligence";
+import { EquipmentAssignmentPanel, type EquipmentAssignmentPanelProps } from "@/features/asset-management";
+import { AgreementSigningControl } from "@/features/projects/signing/agreement-signing-control";
 
 export type ProjectWorkspaceExperienceProps = Omit<ProjectHeaderProps, "status"> & {
   projectKey?: string;
   portalStage?: CustomerPortalStage;
   eventDateIso?: string;
   activities?: readonly { title: string; detail: string; time: string }[];
-  workspaceData: { sale: string; balance: string; margin: string; deposit: string; contractStatus: string; contractDate: string; checklist: string; operator: string; booth: string; gallery: string; backup: string; communication: string; commercialStage: string };
+  equipment: EquipmentAssignmentPanelProps;
+  signing: { agreementId?: string; status: string };
+  workspaceData: { sale: string; balance: string; margin: string; deposit: string; contractStatus: string; contractDate: string; checklist: string; operator: string; booth: string; gallery: string; backup: string; communication: string; commercialStage: string; lastQuotation: string };
 };
 
 interface DetailRowProps {
@@ -68,7 +72,7 @@ export function ProjectWorkspaceExperience(props: ProjectWorkspaceExperienceProp
               <div><dt className="text-muted">Cuenta regresiva</dt><dd className="mt-1 font-semibold text-brand">{eventIntelligence.countdown.label}</dd></div>
               <div><dt className="text-muted">Etapa comercial</dt><dd className="mt-1 font-semibold">{props.workspaceData.commercialStage}</dd></div>
               <div><dt className="text-muted">Última comunicación</dt><dd className="mt-1 font-semibold">{props.workspaceData.communication}</dd></div>
-              <div><dt className="text-muted">Última cotización</dt><dd className="mt-1 font-semibold">Sin registro</dd></div>
+              <div><dt className="text-muted">Última cotización</dt><dd className="mt-1 font-semibold">{props.workspaceData.lastQuotation}</dd></div>
               <div><dt className="text-muted">Último pago</dt><dd className="mt-1 font-semibold">{props.workspaceData.deposit}</dd></div>
               <div><dt className="text-muted">Portal</dt><dd className="mt-1 font-semibold">Activo · {portalId}</dd></div>
               <div><dt className="text-muted">Comunicación</dt><dd className="mt-1 font-semibold">{props.workspaceData.communication}</dd></div>
@@ -91,6 +95,10 @@ export function ProjectWorkspaceExperience(props: ProjectWorkspaceExperienceProp
               <SmartCard icon={<ImageIcon aria-hidden="true" className="size-5" />} primaryValue={props.workspaceData.gallery} secondaryValue="Estado de entrega" title="Entrega"><dl><DetailRow label="Galería" value={props.workspaceData.gallery} /><DetailRow label="Respaldo" value={props.workspaceData.backup} /><DetailRow label="Archivo" value="Sin registro" /></dl></SmartCard>
             </div>
           </section>
+
+          <EquipmentAssignmentPanel {...props.equipment} />
+
+          <AgreementSigningControl agreementId={props.signing.agreementId} projectId={props.projectKey ?? ""} status={props.signing.status} />
 
           <section aria-labelledby="actividad-reciente" className="rounded-xl border bg-card p-5 sm:p-6">
             <div className="mb-6"><p className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Últimos movimientos</p><h2 className="mt-2 text-xl font-semibold tracking-tight" id="actividad-reciente">Actividad reciente</h2></div>

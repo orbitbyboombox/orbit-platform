@@ -47,6 +47,9 @@ importers:
       react-hook-form:
         specifier: ^7.62.0
         version: 7.84.0(react@19.2.8)
+      read-excel-file:
+        specifier: ^9.3.5
+        version: 9.3.5
       tailwind-merge:
         specifier: ^3.3.1
         version: 3.6.0

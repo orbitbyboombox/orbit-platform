@@ -1,0 +1,1 @@
+../../database/migrations/0008_founders_beta_finalization.sql

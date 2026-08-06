@@ -8,6 +8,7 @@ export const VAT_RULES: Readonly<Record<EventTypeId, VatRule>> = {
   BIRTHDAY: { eventType: "BIRTHDAY", mode: "INCLUDED", rate: CHILE_VAT_RATE, invoiceRequestedAppliesVat: false, label: "IVA incluido" },
   GRADUATION: { eventType: "GRADUATION", mode: "INCLUDED", rate: CHILE_VAT_RATE, invoiceRequestedAppliesVat: false, label: "IVA incluido" },
   PARTY: { eventType: "PARTY", mode: "INCLUDED", rate: CHILE_VAT_RATE, invoiceRequestedAppliesVat: false, label: "IVA incluido" },
+  PUBLIC_EVENT: { eventType: "PUBLIC_EVENT", mode: "EXCLUSIVE", rate: CHILE_VAT_RATE, invoiceRequestedAppliesVat: true, label: "+ IVA" },
   OTHER: { eventType: "OTHER", mode: "REQUIRES_REVIEW", rate: CHILE_VAT_RATE, invoiceRequestedAppliesVat: false, label: "Requiere revisión comercial" },
 };
 
