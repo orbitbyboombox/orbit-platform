@@ -9,7 +9,7 @@ export default async function DashboardPage() {
     projects = await new SupabaseCustomerRepository(await createSupabaseServerClient()).findAll();
   } catch (error) {
     if (typeof error === "object" && error !== null && "code" in error && error.code === "PGRST303") {
-      redirect("/login?error=session-invalid");
+      redirect("/api/auth/session-expired");
     }
     throw error;
   }

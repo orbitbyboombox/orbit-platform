@@ -8,7 +8,11 @@ import { ActionButton } from "@/components/ui/action-button";
 import { signInAction } from "../actions/auth.actions";
 import { signInSchema, type SignInInput } from "../schemas/auth.schema";
 
-export function LoginForm() {
+interface LoginFormProps {
+  initialMessage?: string;
+}
+
+export function LoginForm({ initialMessage }: LoginFormProps) {
   const [serverError, setServerError] = useState<string>();
   const [isPending, startTransition] = useTransition();
   const { register, handleSubmit, formState: { errors } } = useForm<SignInInput>({ resolver: zodResolver(signInSchema), defaultValues: { email: "", password: "" } });
@@ -38,7 +42,7 @@ export function LoginForm() {
         </label>
         <a className="flex min-h-11 items-center font-medium text-brand underline-offset-4 transition-colors hover:text-brand/80 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60" href="mailto:admin@orbit.boom-box.cl?subject=Recuperar%20acceso%20a%20ORBIT">¿Olvidaste tu contraseña?</a>
       </div>
-      {serverError && <p aria-live="polite" className="rounded-lg border border-danger/20 bg-danger-soft p-3 text-sm text-danger" role="alert">{serverError}</p>}
+      {(serverError ?? initialMessage) && <p aria-live="polite" className="rounded-lg border border-danger/20 bg-danger-soft p-3 text-sm text-danger" role="alert">{serverError ?? initialMessage}</p>}
       <ActionButton className="mt-2 h-12 w-full" disabled={isPending} icon={LogIn} label={isPending ? "Iniciando sesión..." : "Iniciar sesión"} type="submit" />
     </form>
   );
