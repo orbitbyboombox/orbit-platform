@@ -39,7 +39,9 @@ export class SupabaseProfitRepository implements ProfitRepository {
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
     if (error) throw error;
-    return (data as ProfitRow[]).map((row) => this.toSnapshot(row));
+    return (data as ProfitRow[])
+      .filter((row) => row.basis.systemCertification !== true)
+      .map((row) => this.toSnapshot(row));
   }
 
   async create(input: ProfitSnapshotDraft): Promise<string> {
