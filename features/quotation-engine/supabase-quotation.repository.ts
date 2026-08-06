@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { calculateQuotation } from "./quotation-engine";
+import { calculateQuotation, type ConfiguredCommercialPrice } from "./quotation-engine";
 import type { CreateQuotationInput, QuotationCalculation, QuotationStatus } from "./types";
 
 export interface PersistedQuotation { readonly id: string; readonly quotationNumber: string; readonly status: QuotationStatus; readonly calculation: QuotationCalculation; }
@@ -8,7 +8,14 @@ export class SupabaseQuotationRepository {
   constructor(private readonly client: SupabaseClient) {}
 
   async create(input: CreateQuotationInput): Promise<PersistedQuotation> {
-    const calculation = calculateQuotation(input);
+    const [{ data: configuredPrices, error: configuredPricesError }, { data: vatEntry, error: vatError }] = await Promise.all([
+      this.client.from("commercial_prices").select("category,code,duration_hours,destination,unit_price,pricing_status").eq("enabled", true).is("deleted_at", null),
+      this.client.from("master_data_entries").select("configuration").eq("domain", "COMPANY").eq("code", "VAT").eq("enabled", true).single(),
+    ]);
+    if (configuredPricesError || vatError) throw configuredPricesError ?? vatError;
+    const catalog = (configuredPrices ?? []).map((item) => ({ category: item.category, code: item.code, durationHours: item.duration_hours, destination: item.destination, unitPrice: item.unit_price == null ? null : Number(item.unit_price), pricingStatus: item.pricing_status })) as ConfiguredCommercialPrice[];
+    const vatConfiguration = vatEntry.configuration as { percentage?: number };
+    const calculation = calculateQuotation(input, catalog, Number(vatConfiguration.percentage ?? 0));
     if (!calculation.ready) throw new Error(calculation.blockers.join(" "));
     const { data: auth, error: authError } = await this.client.auth.getUser();
     if (authError || !auth.user) throw authError ?? new Error("Sesión requerida para crear cotizaciones.");
