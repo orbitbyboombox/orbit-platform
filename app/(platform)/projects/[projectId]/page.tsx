@@ -26,16 +26,20 @@ export default async function ProjectWorkspacePage({ params, searchParams }: Pro
   const timeline = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(projectId)
     ? await new SupabaseTimelineRepository(client).findByProject(projectId)
     : [];
-  const [{ data: rawProject }, { data: agreement }, { data: assignments }, { data: documents }, { data: quotation }, { data: assets }, { data: assetAssignments }, { data: staff }, { data: operatorAssignments }] = await Promise.all([
+  const [{ data: rawProject }, { data: agreement }, { data: assignments }, { data: documents }, { data: quotation }, { data: assets }, { data: assetAssignments }, { data: staff }, { data: operatorAssignments }, { data: calendarSync }, { data: driveSync }, { data: payroll }, { data: profit }] = await Promise.all([
     client.from("projects").select("orbit_event_id,budget,contract,finance,operations,resources,status").eq("id", projectId).single(),
     client.from("agreements").select("id,status,created_at").eq("project_id", projectId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     client.from("assignments").select("status,assignment_type,resources").eq("project_id", projectId).is("deleted_at", null),
     client.from("documents").select("document_type").eq("project_id", projectId).is("deleted_at", null),
-    client.from("quotations").select("quotation_number,status,grand_total,created_at").eq("project_id", projectId).is("deleted_at", null).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    client.from("quotations").select("id,quotation_number,status,grand_total,created_at,pdf_storage_path,drive_file_id,gmail_draft_id").eq("project_id", projectId).is("deleted_at", null).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     client.from("operational_assets").select("id,asset_code,asset_type,status,usage_counter,qr_key").is("deleted_at", null).order("asset_code"),
     client.from("asset_assignments").select("id,project_id,asset_id,assignment_status,projects(name,event_date,event_time)").eq("assignment_status", "ASSIGNED").is("deleted_at", null),
     client.from("staff").select("id,first_name,last_name,status,operational_group,capabilities").is("deleted_at", null).order("last_name"),
     client.from("assignments").select("id,project_id,staff_id,assignment_type,status,staff(first_name,last_name)").is("deleted_at", null),
+    client.from("calendar_sync").select("status,external_event_id,external_url").eq("project_id", projectId).maybeSingle(),
+    client.from("drive_sync").select("id,status").eq("project_id", projectId).eq("status", "CREATED").limit(1),
+    client.from("event_staff_payments").select("id,status").eq("project_id", projectId).is("deleted_at", null).limit(1),
+    client.from("profit_snapshots").select("id,status").eq("project_id", projectId).is("deleted_at", null).order("created_at", { ascending: false }).limit(1),
   ]);
   const services = query.services?.split(",").filter(Boolean) ?? project.services;
   const typeLabel = query.type ?? project.type;
@@ -70,5 +74,30 @@ export default async function ProjectWorkspacePage({ params, searchParams }: Pro
     currentStaff: productionAssignments.filter((item) => item.project_id === projectId && ["ASSEMBLY", "OPERATOR", "DISASSEMBLY"].includes(item.assignment_type)).map((item) => ({ id: item.id, staffId: item.staff_id, name: `${item.staff.first_name} ${item.staff.last_name}`, task: item.assignment_type, status: item.status })),
   };
   const portalStage = project.status === "Archived" ? "ARCHIVED" : project.status === "Completed" ? "GALLERY" : project.commercialStage === "Production" ? "LIVE_EVENT" : project.commercialStage === "Confirmed" ? "PREPARATION" : project.commercialStage === "Reserved" || project.commercialStage === "Waiting" ? "WAITING_PAYMENT" : project.commercialStage === "Quoting" ? "QUOTATION" : "COMMERCIAL_OPPORTUNITY";
-  return <ProjectWorkspaceExperience {...experienceProps} activities={activities} equipment={equipment} eventDateIso={date} portalStage={portalStage} projectKey={projectId} score={project.score ?? 0} signing={{ agreementId: agreement?.id, status: agreement?.status ?? "PENDING" }} workspaceData={workspaceData} />;
+  const currentProjectAssets = activeAssets.filter((item) => item.project_id === projectId).map((item) => (assets ?? []).find((asset) => asset.id === item.asset_id)).filter(Boolean);
+  const operatorReady = productionAssignments.some((item) => item.project_id === projectId && item.assignment_type === "OPERATOR" && item.status !== "REJECTED");
+  const totemReady = currentProjectAssets.some((asset) => asset?.asset_type === "TOTEM");
+  const caseReady = currentProjectAssets.some((asset) => asset?.asset_type === "CASE");
+  const paymentReady = ["APPROVED", "CONFIRMED", "PAID"].includes(String(finance.status ?? finance.paymentStatus ?? "")) || Number(finance.deposit ?? 0) > 0;
+  const ready = (condition: boolean, yes: string, no: string, attention = false) => ({ state: condition ? "READY" as const : attention ? "ATTENTION" as const : "ACTION_REQUIRED" as const, detail: condition ? yes : no });
+  const productionIntegration = {
+    projectId,
+    quotation: quotation ? { id: quotation.id, status: quotation.status, pdfReady: Boolean(quotation.pdf_storage_path), driveReady: Boolean(quotation.drive_file_id), gmailDraftReady: Boolean(quotation.gmail_draft_id) } : undefined,
+    calendar: { status: calendarSync?.status ?? "PENDING", googleEventId: calendarSync?.external_event_id ?? undefined, googleEventUrl: calendarSync?.external_url ?? undefined },
+    readiness: [
+      { label: "Cliente confirmado", ...ready(Boolean(project.client.name), "Cliente identificado.", "Falta información del cliente.") },
+      { label: "Cotización aprobada", ...ready(quotation?.status === "ACCEPTED", "Cotización aprobada.", "La cotización requiere aprobación.") },
+      { label: "Acuerdo firmado", ...ready(agreement?.status === "SIGNED", "Acuerdo firmado y bloqueado.", "El acuerdo aún no está firmado.") },
+      { label: "Pago confirmado", ...ready(paymentReady, "Pago registrado.", "No existe un pago confirmado.") },
+      { label: "Google Calendar", ...ready(calendarSync?.status === "SYNCHRONIZED", "Evento sincronizado.", "El evento no está sincronizado.", true) },
+      { label: "Google Drive", ...ready(Boolean((driveSync ?? []).length || documents?.some((item) => item.document_type === "SIGNED_AGREEMENT" || item.document_type === "QUOTATION")), "Documentación disponible en Drive.", "Aún no existen documentos sincronizados.", true) },
+      { label: "Operador asignado", ...ready(operatorReady, "Operador asignado.", "Falta asignar operador.") },
+      { label: "Tótem asignado", ...ready(totemReady, "Tótem asignado.", "Falta asignar tótem.") },
+      { label: "Case asignado", ...ready(caseReady, "Case asignado.", "Falta asignar case.") },
+      { label: "Payroll listo", ...ready(Boolean((payroll ?? []).length), "Pago operacional calculado.", "Payroll pendiente.", true) },
+      { label: "Profit listo", ...ready(Boolean((profit ?? []).length), "Rentabilidad calculada.", "Profit pendiente.", true) },
+      { label: "Timeline listo", ...ready(timeline.length > 0, "Historial operacional activo.", "Aún no existe actividad registrada.", true) },
+    ],
+  };
+  return <ProjectWorkspaceExperience {...experienceProps} activities={activities} equipment={equipment} eventDateIso={date} portalStage={portalStage} productionIntegration={productionIntegration} projectKey={projectId} score={project.score ?? 0} signing={{ agreementId: agreement?.id, status: agreement?.status ?? "PENDING" }} workspaceData={workspaceData} />;
 }

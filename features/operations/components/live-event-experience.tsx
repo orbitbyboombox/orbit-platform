@@ -162,7 +162,7 @@ export function LiveEventExperience(props: LiveEventExperienceProps) {
             className="sm:row-span-2"
             icon={<Gauge aria-hidden="true" className="size-5" />}
             primaryValue={finished ? "Totales del evento" : "Métricas en vivo"}
-            secondaryValue="Valores temporales de demostración"
+            secondaryValue="Información no disponible"
             status={<StatusBadge label={finished ? "Final" : "En vivo"} variant={finished ? "neutral" : "info"} />}
             title="Métricas del evento"
           >

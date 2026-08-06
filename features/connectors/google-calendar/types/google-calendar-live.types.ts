@@ -5,6 +5,7 @@ export type GoogleCalendarSyncOperation = "UPSERT" | "CANCEL" | "RESTORE";
 export type OperatorPaymentOperationalStatus = "PENDING" | "CONFIRMED" | "NOT_APPLICABLE";
 
 export interface CalendarOperationalEventInput {
+  orbitEventId?: string;
   planId: string;
   planStatus: CalendarOperationalPlanStatus;
   sequence: number;

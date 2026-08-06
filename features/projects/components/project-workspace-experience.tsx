@@ -13,6 +13,7 @@ import { CustomerPortalExperience, type CustomerPortalStage } from "./customer-p
 import { ORBIT_TIME_ENGINE } from "@/features/time-intelligence";
 import { EquipmentAssignmentPanel, type EquipmentAssignmentPanelProps } from "@/features/asset-management";
 import { AgreementSigningControl } from "@/features/projects/signing/agreement-signing-control";
+import { ProductionIntegrationPanel, type ProductionIntegrationPanelProps } from "./production-integration-panel";
 
 export type ProjectWorkspaceExperienceProps = Omit<ProjectHeaderProps, "status"> & {
   projectKey?: string;
@@ -21,6 +22,7 @@ export type ProjectWorkspaceExperienceProps = Omit<ProjectHeaderProps, "status">
   activities?: readonly { title: string; detail: string; time: string }[];
   equipment: EquipmentAssignmentPanelProps;
   signing: { agreementId?: string; status: string };
+  productionIntegration: ProductionIntegrationPanelProps;
   workspaceData: { sale: string; balance: string; margin: string; deposit: string; contractStatus: string; contractDate: string; checklist: string; operator: string; booth: string; gallery: string; backup: string; communication: string; commercialStage: string; lastQuotation: string };
 };
 
@@ -97,6 +99,8 @@ export function ProjectWorkspaceExperience(props: ProjectWorkspaceExperienceProp
           </section>
 
           <EquipmentAssignmentPanel {...props.equipment} />
+
+          <ProductionIntegrationPanel {...props.productionIntegration} />
 
           <AgreementSigningControl agreementId={props.signing.agreementId} projectId={props.projectKey ?? ""} status={props.signing.status} />
 

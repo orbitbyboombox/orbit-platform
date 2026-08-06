@@ -20,16 +20,3 @@ export class SupabaseGoogleCalendarSyncRepository implements GoogleCalendarSyncR
     return record;
   }
 }
-
-export class InMemoryGoogleCalendarSyncRepository implements GoogleCalendarSyncRepository {
-  private readonly records = new Map<string, GoogleCalendarSyncRecord>();
-
-  async findByOrbitEventId(orbitEventId: string): Promise<GoogleCalendarSyncRecord | null> {
-    return this.records.get(orbitEventId) ?? null;
-  }
-
-  async save(record: GoogleCalendarSyncRecord): Promise<GoogleCalendarSyncRecord> {
-    this.records.set(record.orbitEventId, record);
-    return record;
-  }
-}

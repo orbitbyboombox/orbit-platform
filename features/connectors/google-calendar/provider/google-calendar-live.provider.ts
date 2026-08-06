@@ -10,34 +10,6 @@ export interface GoogleCalendarLiveProvider {
   restoreEvent(googleEventId: string, payload: GoogleCalendarEventPayload): Promise<GoogleCalendarEventReference>;
 }
 
-export class InMemoryGoogleCalendarLiveProvider implements GoogleCalendarLiveProvider {
-  private readonly events = new Map<string, GoogleCalendarEventPayload>();
-
-  private reference(googleEventId: string): GoogleCalendarEventReference {
-    return { googleEventId, googleEventUrl: `https://calendar.google.com/calendar/event?eid=${googleEventId}` };
-  }
-
-  async createEvent(payload: GoogleCalendarEventPayload): Promise<GoogleCalendarEventReference> {
-    const googleEventId = `gcal-${payload.orbitEventId.toLocaleLowerCase("en-US")}`;
-    this.events.set(googleEventId, payload);
-    return this.reference(googleEventId);
-  }
-
-  async updateEvent(googleEventId: string, payload: GoogleCalendarEventPayload): Promise<GoogleCalendarEventReference> {
-    this.events.set(googleEventId, payload);
-    return this.reference(googleEventId);
-  }
-
-  async cancelEvent(googleEventId: string): Promise<GoogleCalendarEventReference> {
-    return this.reference(googleEventId);
-  }
-
-  async restoreEvent(googleEventId: string, payload: GoogleCalendarEventPayload): Promise<GoogleCalendarEventReference> {
-    this.events.set(googleEventId, payload);
-    return this.reference(googleEventId);
-  }
-}
-
 interface GoogleCalendarApiEvent { id: string; htmlLink: string; }
 
 export class GoogleCalendarApiProvider implements GoogleCalendarLiveProvider {

@@ -59,7 +59,7 @@ export function buildCalendarDescription(input: CalendarOperationalEventInput, o
 }
 
 export function mapOperationalEventToCalendar(input: CalendarOperationalEventInput): GoogleCalendarEventPayload {
-  const orbitEventId = generateOrbitEventId(input.eventDate, input.sequence);
+  const orbitEventId = input.orbitEventId ?? generateOrbitEventId(input.eventDate, input.sequence);
   return {
     orbitEventId,
     title: `${GOOGLE_CALENDAR_EVENT_COLORS[input.eventType].label} | ${input.customerName}`,
@@ -80,7 +80,7 @@ function fingerprint(input: CalendarOperationalEventInput): string {
 
 function pendingRecord(input: CalendarOperationalEventInput): GoogleCalendarSyncRecord {
   return {
-    orbitEventId: generateOrbitEventId(input.eventDate, input.sequence),
+    orbitEventId: input.orbitEventId ?? generateOrbitEventId(input.eventDate, input.sequence),
     sourceEventId: input.eventId,
     planId: input.planId,
     status: "PENDING",
