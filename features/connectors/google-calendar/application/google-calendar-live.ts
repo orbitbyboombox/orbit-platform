@@ -133,7 +133,8 @@ export class GoogleCalendarLive {
       const reference = await this.provider.updateEvent(existing.googleEventId, payload);
       const record = await this.repository.save({ ...existing, status: "SYNCHRONIZED", googleEventUrl: reference.googleEventUrl, sourceFingerprint: fingerprint(input), lastSynchronization: input.updatedAt, errorMessage: undefined });
       return { ok: true, record, operation: "UPDATED" };
-    } catch {
+    } catch (error) {
+      console.error("Google Calendar synchronization failed", error);
       const record = await this.repository.save({ ...(existing ?? baseRecord), status: "ERROR", errorMessage: "Google Calendar no pudo completar la operación." });
       return { ok: false, record, error: { code: "PROVIDER_ERROR", message: record.errorMessage ?? "Error de proveedor.", retryable: true } };
     }
