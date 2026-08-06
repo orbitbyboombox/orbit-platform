@@ -38,7 +38,7 @@ export async function openSigningAgreement(token: string) {
   const admin = createAdminClient(); const hash = tokenHash(token); const now = new Date().toISOString();
   const { data: signing, error } = await admin.from("agreement_signing_tokens").select("id,agreement_id,expires_at,opened_at,consumed_at,revoked_at").eq("token_hash", hash).maybeSingle();
   if (error) throw error; if (!signing || signing.revoked_at || signing.consumed_at || signing.expires_at <= now) return null;
-  const { data: agreement, error: agreementError } = await admin.from("agreements").select("id,status,template_version,rendered_contract,project_id,projects!inner(name,event_date,event_time,location,city,customers!inner(first_name,last_name,email),project_services(service_name,duration_minutes,extras))").eq("id", signing.agreement_id).single();
+  const { data: agreement, error: agreementError } = await admin.from("agreements").select("id,status,template_version,rendered_contract,project_id,projects!inner(name,event_date,event_time,location,city,customers!inner(full_name,email),project_services(service_code,duration_hours,extras))").eq("id", signing.agreement_id).single();
   if (agreementError) throw agreementError; if (agreement.status === "SIGNED") return null;
   if (!signing.opened_at) { await admin.from("agreement_signing_tokens").update({ opened_at: now }).eq("id", signing.id).is("opened_at", null); await timeline(admin, { projectId: agreement.project_id, agreementId: agreement.id, action: "AGREEMENT_OPENED", message: "El cliente abrió el acuerdo.", actorId: null }); }
   return agreement;
