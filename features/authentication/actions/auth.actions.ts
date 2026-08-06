@@ -39,7 +39,7 @@ export async function signInAction(input: SignInInput): Promise<AuthActionResult
     console.error({ message: "Supabase session cookie was not persisted.", code: "SESSION_COOKIE_MISSING" });
     return { error: "Supabase session cookie was not persisted." };
   }
-  redirect("/");
+  redirect("/operations");
 }
 
 export async function signOutAction() {
