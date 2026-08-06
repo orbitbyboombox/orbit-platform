@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ProjectHealth, ProjectType } from "@/features/projects/domain";
 import { ProjectWorkspaceExperience } from "@/features/projects/components/project-workspace-experience";
 import { SupabaseCustomerRepository, SupabaseTimelineRepository } from "@/features/projects/infrastructure";
@@ -20,7 +20,15 @@ const projectTypeByLabel: Readonly<Record<string, ProjectType>> = {
 export default async function ProjectWorkspacePage({ params, searchParams }: ProjectWorkspacePageProps) {
   const [{ projectId }, query] = await Promise.all([params, searchParams]);
   const client = await createSupabaseServerClient();
-  const projects = await new SupabaseCustomerRepository(client).findAll();
+  let projects;
+  try {
+    projects = await new SupabaseCustomerRepository(client).findAll();
+  } catch (error) {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "PGRST303") {
+      redirect("/api/auth/session-expired");
+    }
+    throw error;
+  }
   const project = projects.find((candidate) => candidate.id === projectId);
   if (!project) notFound();
   const timeline = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(projectId)
