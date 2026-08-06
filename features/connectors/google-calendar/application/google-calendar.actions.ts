@@ -16,10 +16,10 @@ export async function synchronizeProjectCalendarAction(projectId: string, operat
     const client = await createSupabaseServerClient();
     const { data: auth, error: authError } = await client.auth.getUser();
     if (authError || !auth.user) throw authError ?? new Error("Inicia sesión para sincronizar el calendario.");
-    const { data, error } = await client.from("projects").select("id,name,status,orbit_event_id,event_type,event_date,event_time,location,city,updated_at,notes,customers!inner(full_name,phone,email),project_services(service_code,duration_hours,extras),quotations(status),agreements(status),assignments(staff_id,assignment_type,status,staff(first_name,last_name)),asset_assignments(assignment_status,operational_assets(asset_code,asset_type))").eq("id", projectId).single();
+    const { data, error } = await client.from("projects").select("id,name,status,orbit_event_id,project_type,event_date,event_time,location,city,updated_at,operations,customers!inner(full_name,phone,email),project_services(service_code,duration_hours,extras),quotations(status),agreements(status),assignments(staff_id,assignment_type,status,staff(first_name,last_name)),asset_assignments(assignment_status,operational_assets(asset_code,asset_type))").eq("id", projectId).single();
     if (error) throw error;
     const project = data as unknown as {
-      id:string; name:string; status:string; orbit_event_id:string; event_type:string; event_date:string; event_time:string; location:string|null; city:string|null; updated_at:string; notes:string|null;
+      id:string; name:string; status:string; orbit_event_id:string; project_type:string; event_date:string; event_time:string; location:string|null; city:string|null; updated_at:string; operations:Record<string,unknown>|null;
       customers:{full_name:string;phone:string|null;email:string}; project_services:Array<{service_code:string;duration_hours:number|null;extras:unknown}>;
       quotations:Array<{status:string}>; agreements:Array<{status:string}>;
       assignments:Array<{assignment_type:string;status:string;staff:{first_name:string;last_name:string}|null}>;
@@ -35,7 +35,7 @@ export async function synchronizeProjectCalendarAction(projectId: string, operat
     const operator = project.assignments.find((item) => item.assignment_type === "OPERATOR" && item.status !== "REJECTED")?.staff;
     const totem = project.asset_assignments.find((item) => item.assignment_status === "ASSIGNED" && item.operational_assets?.asset_type === "TOTEM")?.operational_assets?.asset_code;
     const assignedCase = project.asset_assignments.find((item) => item.assignment_status === "ASSIGNED" && item.operational_assets?.asset_type === "CASE")?.operational_assets?.asset_code;
-    const eventType: CalendarOperationalEventType = /WEDDING|MATRIMONIO/i.test(project.event_type) ? "WEDDING" : /CORPORATE|EMPRESA/i.test(project.event_type) ? "CORPORATE" : /BIRTHDAY|CUMPLE/i.test(project.event_type) ? "BIRTHDAY" : /GRAD/i.test(project.event_type) ? "GRADUATION" : "INTERNAL";
+    const eventType: CalendarOperationalEventType = /WEDDING|MATRIMONIO/i.test(project.project_type) ? "WEDDING" : /CORPORATE|EMPRESA/i.test(project.project_type) ? "CORPORATE" : /BIRTHDAY|CUMPLE/i.test(project.project_type) ? "BIRTHDAY" : /GRAD/i.test(project.project_type) ? "GRADUATION" : "INTERNAL";
     const extras = project.project_services.flatMap((item) => Array.isArray(item.extras) ? item.extras.filter((value): value is string => typeof value === "string") : []);
     const input: CalendarOperationalEventInput = {
       orbitEventId: project.orbit_event_id, planId: project.id, planStatus: "APPROVED", sequence: 1, eventId: project.id,
@@ -43,7 +43,7 @@ export async function synchronizeProjectCalendarAction(projectId: string, operat
       eventType, service: service?.service_code ?? "Servicio por confirmar", contractedHours: hours, eventDate: project.event_date,
       operator: operator ? `${operator.first_name} ${operator.last_name}` : "Pendiente de asignación", blackBox: totem ?? "Pendiente", booth: assignedCase ?? "Pendiente", assignedVehicle: "Pendiente",
       operatorCallTime: `${String((startHour + 23) % 24).padStart(2,"0")}:${String(startMinute).padStart(2,"0")}`, mountingWindow: "45 minutos", serviceStart: start, serviceEnd: end, dismantlingWindow: "30 minutos",
-      operationalNotes: project.notes ?? "Sin notas operacionales", extras, customerAddress: [project.location,project.city].filter(Boolean).join(", ") || "Dirección pendiente",
+      operationalNotes: typeof project.operations?.notes === "string" ? project.operations.notes : "Sin notas operacionales", extras, customerAddress: [project.location,project.city].filter(Boolean).join(", ") || "Dirección pendiente",
       portalUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://orbit-platform-v1.vercel.app"}/projects/${project.id}`, orbitProjectUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://orbit-platform-v1.vercel.app"}/projects/${project.id}`, updatedAt: project.updated_at,
     };
     const engine = new GoogleCalendarLive(await loadGoogleWorkspaceConnection(), new GoogleCalendarApiProvider(await loadGoogleWorkspaceAccessToken()), new SupabaseGoogleCalendarSyncRepository(client));
