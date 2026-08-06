@@ -7,6 +7,7 @@ import { OrbitCopilot } from "@/components/copilot/orbit-copilot";
 import { WorkspaceLayout } from "@/components/layout/workspace-layout";
 import { ActionButton } from "@/components/ui/action-button";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { DataStateBadge } from "@/components/ui/data-state-badge";
 import { cn } from "@/lib/utils";
 import { formatServiceSummary } from "@/lib/format-service-summary";
 
@@ -92,7 +93,7 @@ function PriceRow({ label, value, strong }: { label: string; value: string; stro
 }
 
 function QuotationSummary({ services, extras, duration, eventType, totals }: { services: Service[]; extras: Extra[]; duration: number; eventType?: EventType; totals: StepContentProps["totals"] }) {
-  return <section aria-label="Resumen en tiempo real" className="grid gap-3 sm:grid-cols-2"><SmartCard icon={<ReceiptText aria-hidden="true" className="size-5" />} primaryValue={eventType ?? "Sin configurar"} secondaryValue={`${duration} horas`} title="Resumen" /><SmartCard icon={<Layers3 aria-hidden="true" className="size-5" />} primaryValue={`${services.length}`} secondaryValue={services.length ? formatServiceSummary(services, `${duration} horas`) : "Aún no has elegido servicios"} title="Servicios" /><SmartCard icon={<Gift aria-hidden="true" className="size-5" />} primaryValue={`${extras.length}`} secondaryValue={extras.length ? extras.join(" · ") : "Sin extras seleccionados"} title="Extras" /><SmartCard icon={<Sparkles aria-hidden="true" className="size-5" />} primaryValue={currency.format(totals.total)} secondaryValue={`Subtotal ${currency.format(totals.subtotal)}`} title="Precio" /><SmartCard className="sm:col-span-2" icon={<Percent aria-hidden="true" className="size-5" />} primaryValue={currency.format(totals.margin)} secondaryValue="42% estimado · cálculo mock" status={<StatusBadge label="Margen saludable" variant="success" />} title="Margen" /></section>;
+  return <section aria-label="Resumen en tiempo real" className="grid gap-3 sm:grid-cols-2"><SmartCard icon={<ReceiptText aria-hidden="true" className="size-5" />} primaryValue={eventType ?? "Sin configurar"} secondaryValue={`${duration} horas`} title="Resumen" /><SmartCard icon={<Layers3 aria-hidden="true" className="size-5" />} primaryValue={`${services.length}`} secondaryValue={services.length ? formatServiceSummary(services, `${duration} horas`) : "Aún no has elegido servicios"} title="Servicios" /><SmartCard icon={<Gift aria-hidden="true" className="size-5" />} primaryValue={`${extras.length}`} secondaryValue={extras.length ? extras.join(" · ") : "Sin extras seleccionados"} title="Extras" /><SmartCard icon={<Sparkles aria-hidden="true" className="size-5" />} primaryValue={currency.format(totals.total)} secondaryValue={`Subtotal ${currency.format(totals.subtotal)}`} title="Precio" /><SmartCard className="sm:col-span-2" icon={<Percent aria-hidden="true" className="size-5" />} primaryValue={currency.format(totals.margin)} secondaryValue="42% estimado · datos simulados" status={<DataStateBadge state="ESTIMATED" />} title="Margen estimado" /></section>;
 }
 
 function SentState() {

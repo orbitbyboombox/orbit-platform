@@ -1,5 +1,7 @@
 import type { LucideIcon } from "lucide-react";
+import Link from "next/link";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Button } from "@/components/ui/button";
 import { SectionTitle } from "./section-title";
 
 export interface ModulePageProps {
@@ -11,5 +13,5 @@ export interface ModulePageProps {
 }
 
 export function ModulePage({ title, subtitle, icon, emptyTitle, emptyDescription }: ModulePageProps) {
-  return <div className="space-y-8"><SectionTitle description={subtitle} title={title} /><EmptyState description={emptyDescription} icon={icon} title={emptyTitle} /></div>;
+  return <div className="space-y-8"><SectionTitle description={subtitle} title={title} /><EmptyState action={<Button asChild><Link href="/projects">Abrir clientes</Link></Button>} description={emptyDescription} icon={icon} title={emptyTitle} /></div>;
 }

@@ -1,4 +1,5 @@
 import { getEventType } from "@/features/business-core";
+import { OFFICIAL_ORBIT_LOGO_PATH } from "@/lib/branding";
 import type { ContractPdfGeneratorInput, ContractPdfPreviewModel } from "./types";
 
 function describeTransport(input: ContractPdfGeneratorInput): string {
@@ -26,8 +27,10 @@ export function createContractPdfPreview(
       projectId: contract.projectId,
     },
     branding: {
-      applicationName: "ORBIT by BOOMBOX",
-      logoPath: "/brand/orbit-logo-light.png",
+      applicationName: "ORBIT v1.0",
+      logoPath: OFFICIAL_ORBIT_LOGO_PATH,
+      developedBy: "BOOMBOX",
+      poweredBy: "NOVA CORE",
     },
     heading: {
       title: project.name,
@@ -60,8 +63,8 @@ export function createContractPdfPreview(
     ],
     clauses: contract.clauses,
     signatures: [
-      { role: "CUSTOMER", label: "Firma del cliente", signerName: contract.customer.name },
-      { role: "BOOMBOX", label: "Firma BOOMBOX", signerName: "BOOMBOX" },
+      { role: "CUSTOMER", label: "Firma del cliente", signerName: contract.customer.name, embedded: Boolean(input.customerSignature), evidenceId: input.customerSignature?.evidenceId, signedAt: input.customerSignature?.signedAt, imageDataUrl: input.customerSignature?.imageDataUrl },
+      { role: "BOOMBOX", label: "Firma BOOMBOX", signerName: "BOOMBOX", embedded: false },
     ],
   };
 }

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { navigationItems } from "./navigation";
 import { BrandLogo } from "@/components/brand-logo";
+import { BrandSignature } from "@/components/brand-signature";
 
 export interface NavigationListProps {
   onNavigate?: () => void;
@@ -39,12 +40,12 @@ export function NavigationList({ onNavigate, compact }: NavigationListProps) {
 export function Sidebar() {
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-20 border-r bg-card transition-[width] md:flex md:flex-col lg:w-60">
-      <Link aria-label="Ir a Inicio" className="flex h-16 items-center justify-center border-b bg-[#080808] px-4 lg:px-5" href="/">
+      <Link aria-label="Ir a Inicio" className="flex h-20 items-center justify-center border-b bg-[#080808] px-1 lg:px-4" href="/">
         <BrandLogo className="hidden w-full max-w-[10.5rem] lg:block" surface="dark" />
-        <BrandLogo className="size-10 lg:hidden" surface="dark" variant="isotype" />
+        <BrandLogo className="w-full max-w-[3.625rem] lg:hidden" surface="dark" variant="isotype" />
       </Link>
-      <div className="p-3"><NavigationList compact /></div>
-      <div className="mt-auto border-t p-4 text-center text-xs text-muted lg:text-left"><Link aria-label="Ir a Inicio" href="/"><span className="hidden lg:inline">ORBIT by BOOMBOX</span><BrandLogo className="mx-auto size-7 lg:hidden" surface="dark" variant="isotype" /></Link></div>
+      <div className="px-3 pb-3 pt-1.5"><NavigationList compact /></div>
+      <div className="mt-auto border-t px-4 py-5 text-center lg:text-left"><Link aria-label="Ir a Inicio" href="/"><BrandSignature className="hidden lg:block" /><BrandLogo className="mx-auto size-7 lg:hidden" surface="dark" variant="isotype" /></Link></div>
     </aside>
   );
 }

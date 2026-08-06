@@ -37,6 +37,11 @@ export interface Project {
   commercialStage: ProjectCommercialStage;
   origin?: ProjectOrigin;
   notes?: string;
+  customerVersion?: number;
+  lastCommunication?: string;
+  salesOwner?: string;
+  nextAction?: string;
+  tags?: string[];
 }
 
 export interface ProjectDraft {

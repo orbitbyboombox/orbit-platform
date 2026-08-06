@@ -1,0 +1,53 @@
+import type {
+  GoogleCalendarEventPayload,
+  GoogleCalendarEventReference,
+} from "../types/google-calendar-live.types";
+
+export interface GoogleCalendarLiveProvider {
+  createEvent(payload: GoogleCalendarEventPayload): Promise<GoogleCalendarEventReference>;
+  updateEvent(googleEventId: string, payload: GoogleCalendarEventPayload): Promise<GoogleCalendarEventReference>;
+  cancelEvent(googleEventId: string): Promise<GoogleCalendarEventReference>;
+  restoreEvent(googleEventId: string, payload: GoogleCalendarEventPayload): Promise<GoogleCalendarEventReference>;
+}
+
+export class InMemoryGoogleCalendarLiveProvider implements GoogleCalendarLiveProvider {
+  private readonly events = new Map<string, GoogleCalendarEventPayload>();
+
+  private reference(googleEventId: string): GoogleCalendarEventReference {
+    return { googleEventId, googleEventUrl: `https://calendar.google.com/calendar/event?eid=${googleEventId}` };
+  }
+
+  async createEvent(payload: GoogleCalendarEventPayload): Promise<GoogleCalendarEventReference> {
+    const googleEventId = `gcal-${payload.orbitEventId.toLocaleLowerCase("en-US")}`;
+    this.events.set(googleEventId, payload);
+    return this.reference(googleEventId);
+  }
+
+  async updateEvent(googleEventId: string, payload: GoogleCalendarEventPayload): Promise<GoogleCalendarEventReference> {
+    this.events.set(googleEventId, payload);
+    return this.reference(googleEventId);
+  }
+
+  async cancelEvent(googleEventId: string): Promise<GoogleCalendarEventReference> {
+    return this.reference(googleEventId);
+  }
+
+  async restoreEvent(googleEventId: string, payload: GoogleCalendarEventPayload): Promise<GoogleCalendarEventReference> {
+    this.events.set(googleEventId, payload);
+    return this.reference(googleEventId);
+  }
+}
+
+interface GoogleCalendarApiEvent { id: string; htmlLink: string; }
+
+export class GoogleCalendarApiProvider implements GoogleCalendarLiveProvider {
+  constructor(private readonly accessToken: string, private readonly calendarId = "primary") {}
+  private endpoint(eventId?: string) { const base = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(this.calendarId)}/events`; return eventId ? `${base}/${encodeURIComponent(eventId)}` : base; }
+  private body(payload: GoogleCalendarEventPayload) { return { summary: payload.title, description: payload.description, location: payload.location, colorId: payload.color.googleColorId, start: { dateTime: `${payload.date}T${payload.startTime}:00` }, end: { dateTime: `${payload.date}T${payload.endTime}:00` }, extendedProperties: { private: { orbitEventId: payload.orbitEventId } } }; }
+  private async request(url: string, init: RequestInit): Promise<GoogleCalendarApiEvent> { const response = await fetch(url, { ...init, headers: { Authorization: `Bearer ${this.accessToken}`, "Content-Type": "application/json", ...init.headers } }); if (!response.ok) throw new Error(`Google Calendar request failed (${response.status}): ${await response.text()}`); return response.json() as Promise<GoogleCalendarApiEvent>; }
+  private reference(event: GoogleCalendarApiEvent) { return { googleEventId: event.id, googleEventUrl: event.htmlLink }; }
+  async createEvent(payload: GoogleCalendarEventPayload) { return this.reference(await this.request(this.endpoint(), { method: "POST", body: JSON.stringify(this.body(payload)) })); }
+  async updateEvent(id: string, payload: GoogleCalendarEventPayload) { return this.reference(await this.request(this.endpoint(id), { method: "PATCH", body: JSON.stringify(this.body(payload)) })); }
+  async cancelEvent(id: string) { return this.reference(await this.request(this.endpoint(id), { method: "PATCH", body: JSON.stringify({ status: "cancelled" }) })); }
+  async restoreEvent(id: string, payload: GoogleCalendarEventPayload) { return this.updateEvent(id, payload); }
+}

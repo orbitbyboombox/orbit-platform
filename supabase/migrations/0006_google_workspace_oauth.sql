@@ -1,0 +1,1 @@
+../../database/migrations/0006_google_workspace_oauth.sql

@@ -1,104 +1,148 @@
 "use client";
 
-import { ArrowRight, Banknote, CalendarDays, ChevronLeft, ChevronRight, FilePlus2, FolderPlus, MapPin, UserRound } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowRight,
+  CalendarClock,
+  CalendarDays,
+  Camera,
+  Check,
+  ChevronRight,
+  CircleAlert,
+  Cloud,
+  FilePlus2,
+  FolderPlus,
+  Mail,
+  MapPin,
+  Sparkles,
+  UserRound,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { SmartCard } from "@/components/cards/smart-card";
 import { OrbitCopilot } from "@/components/copilot/orbit-copilot";
 import { WorkspaceLayout } from "@/components/layout/workspace-layout";
 import { ActionButton } from "@/components/ui/action-button";
-import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { LiveExpenseCapture } from "@/features/expense-capture";
+import { ORBIT_TIME_ENGINE, type CountdownVisualState } from "@/features/time-intelligence";
+import type { Project } from "@/features/projects/types/project";
 
-const agendaEvents = [
-  { id: "evento-lumen", client: "Lumen Producciones", type: "Empresa", date: "2026-08-08", time: "19:30", location: "Centro Parque", status: "Confirmado" },
-  { id: "evento-vicente", client: "Cumpleaños Vicente", type: "Cumpleaños", date: "2026-08-13", time: "17:00", location: "Club de Polo", status: "Confirmado" },
-  { id: "evento-nova", client: "Nova Summit", type: "Empresa", date: "2026-08-19", time: "09:00", location: "Metropolitan Santiago", status: "Preparación" },
-  { id: "evento-isidora", client: "Isidora + Benjamín", type: "Matrimonio", date: "2026-08-24", time: "18:30", location: "Casa García-Huidobro", status: "Confirmado" },
-  { id: "evento-atlas", client: "Atlas Awards", type: "Empresa", date: "2026-09-01", time: "20:00", location: "Espacio Riesco", status: "Confirmado" },
+const COUNTDOWN_VARIANT: Record<CountdownVisualState, "success" | "warning" | "danger" | "info" | "neutral"> = {
+  GREEN: "success", YELLOW: "warning", ORANGE: "warning", RED: "danger", PRIMARY: "info", COMPLETED: "neutral", ARCHIVED: "neutral",
+};
+
+const executiveServices = [
+  { label: "Workspace", status: "Operativo", icon: Check, variant: "success" as const },
+  { label: "Calendar", status: "Conexión pendiente", icon: CalendarDays, variant: "warning" as const },
+  { label: "Drive", status: "Conexión pendiente", icon: Cloud, variant: "warning" as const },
+  { label: "Gmail", status: "Conexión pendiente", icon: Mail, variant: "warning" as const },
+  { label: "NOVA", status: "Disponible", icon: Sparkles, variant: "success" as const },
 ] as const;
 
-const agendaOrigin = new Date("2026-08-05T12:00:00Z");
-const addDays = (date: Date, days: number) => new Date(date.getTime() + days * 86_400_000);
-const formatDate = (date: Date, options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("es-CL", { ...options, timeZone: "UTC" }).format(date);
-
-const priorityProjects = [
-  { id: "matrimonio-silva", name: "Matrimonio Silva", stage: "Preparación", score: "92 / 100", status: "En curso", variant: "success" as const },
-  { id: "cumbre-northstar", name: "Cumbre Northstar", stage: "Reserva", score: "78 / 100", status: "Requiere atención", variant: "warning" as const },
-  { id: "cumpleanos-emilia", name: "Cumpleaños Emilia", stage: "Confirmado", score: "88 / 100", status: "Saludable", variant: "info" as const },
-] as const;
-
-const summary = [
-  { label: "Decisiones críticas", value: "2", dot: "bg-danger" },
-  { label: "Decisiones importantes", value: "4", dot: "bg-warning" },
-  { label: "Proyectos activos", value: "7", dot: "bg-success" },
-] as const;
-
-export function HomeExperience() {
+export function HomeExperience({ projects }: { projects: readonly Project[] }) {
   const router = useRouter();
-  const [agendaWindow, setAgendaWindow] = useState(0);
-  const openProject = (id = "matrimonio-silva") => router.push(`/projects/${id}`);
-  const windowStart = addDays(agendaOrigin, agendaWindow * 15);
-  const windowEnd = addDays(windowStart, 15);
-  const visibleEvents = agendaEvents.filter((event) => { const date = new Date(`${event.date}T12:00:00Z`); return date >= windowStart && date < windowEnd; });
+  const [expenseCaptureOpen, setExpenseCaptureOpen] = useState(false);
+  const timeContext = ORBIT_TIME_ENGINE.getCurrentContext("Matías");
+  const openProject = (id = "evento-lumen") => router.push(`/projects/${id}`);
+  const agendaEvents = projects.filter((project) => project.event.date).map((project) => ({ id: project.id, client: project.client.name, type: project.type, service: project.services.length ? project.services.join(" · ") : "Servicio por confirmar", date: project.event.date, time: project.event.time, location: [project.event.location, project.event.city].filter(Boolean).join(", ") || "Ubicación por confirmar", status: project.stage ?? project.status }));
+  const nextEvent = agendaEvents.find((event) => ORBIT_TIME_ENGINE.getCountdown({ eventDate: event.date }).state === "FUTURE") ?? agendaEvents[0] ?? { id: "", client: "Sin eventos confirmados", type: "", service: "Cuando exista un evento confirmado aparecerá aquí.", date: new Date().toISOString().slice(0, 10), time: "—", location: "Sin ubicación", status: "Sin eventos" };
+  const hasEvents = agendaEvents.length > 0;
+  const nextEventIntelligence = ORBIT_TIME_ENGINE.getEventIntelligence({ eventDate: nextEvent.date });
+  const today = new Date().toISOString().slice(0, 10);
+  const todayEvents = agendaEvents.filter((event) => event.date === today).length;
+  const critical = projects.filter((project) => project.health === "Critical" || project.health === "Risk").length;
+  const pending = projects.filter((project) => project.commercialStage === "Reserved" || project.commercialStage === "Waiting").length;
+  const nextFifteen = agendaEvents.filter((event) => { const days = Math.ceil((new Date(`${event.date}T12:00:00Z`).getTime() - Date.now()) / 86_400_000); return days >= 0 && days <= 15; }).length;
 
   return (
     <WorkspaceLayout
       className="max-w-none p-0"
       header={
-        <section className="overflow-hidden rounded-2xl border bg-card px-5 py-7 sm:px-8 sm:py-9 lg:px-10 lg:py-10">
-          <div className="flex flex-col gap-8 xl:flex-row xl:items-end xl:justify-between">
+        <section className="relative overflow-hidden rounded-2xl border bg-card px-5 py-7 sm:px-8 sm:py-9 lg:px-10">
+          <div aria-hidden="true" className="absolute -right-20 -top-24 size-72 rounded-full bg-brand/5 blur-3xl" />
+          <div className="relative grid gap-8 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
             <div>
-              <p className="text-sm font-medium text-muted">Miércoles, 5 de agosto</p>
-              <h1 className="mt-3 text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">Buenos días, Matías <span aria-hidden="true">👋</span></h1>
-              <p className="mt-3 max-w-xl text-sm leading-6 text-muted sm:text-base">Tu día está listo. ORBIT ordenó lo importante para que puedas avanzar con claridad.</p>
+              <div className="flex flex-wrap items-center gap-3 text-sm text-muted"><span>{timeContext.formattedDate}</span><span aria-hidden="true">·</span><span>{timeContext.localTime}</span></div>
+              <h1 className="mt-4 max-w-3xl text-3xl font-semibold tracking-[-0.04em] sm:text-4xl lg:text-[2.75rem]">{timeContext.greetingText}</h1>
+              <p className="mt-3 text-lg font-medium text-foreground/90 sm:text-xl">{hasEvents ? "Tu operación está actualizada." : "Aún no hay eventos confirmados."}</p>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">{hasEvents ? "Revisa la siguiente decisión antes del próximo evento." : "Crea o confirma un proyecto para comenzar la planificación."}</p>
             </div>
-            <ActionButton className="w-full sm:w-auto" icon={ArrowRight} iconPosition="end" label="Comenzar mi día" onClick={() => document.getElementById("decision-recomendada")?.scrollIntoView({ behavior: "smooth" })} />
+            <ActionButton className="min-h-12 w-full px-6 sm:w-auto" icon={ArrowRight} iconPosition="end" label="Revisar prioridades" onClick={() => document.getElementById("prioridad-del-dia")?.scrollIntoView({ behavior: "smooth" })} />
           </div>
-          <div className="mt-8 grid gap-3 border-t pt-6 sm:grid-cols-3">
-            {summary.map((item) => (
-              <div className="rounded-xl bg-accent/60 px-4 py-4" key={item.label}>
-                <div className="flex items-center gap-2 text-sm text-muted"><span aria-hidden="true" className={`size-2 rounded-full ${item.dot}`} /><span>{item.label}</span></div>
-                <p className="mt-2 text-2xl font-semibold tracking-tight">{item.value}</p>
-              </div>
-            ))}
-          </div>
+          <dl className="relative mt-8 grid grid-cols-2 gap-x-5 gap-y-5 border-t pt-6 lg:grid-cols-4">
+            {[{ value: todayEvents.toString(), label: "eventos hoy" }, { value: critical.toString(), label: "decisiones críticas" }, { value: pending.toString(), label: "aprobaciones pendientes" }, { value: nextFifteen.toString(), label: "eventos en 15 días" }].map((item) => <div key={item.label}><dd className="text-2xl font-semibold tracking-tight">{item.value}</dd><dt className="mt-1 text-xs text-muted sm:text-sm">{item.label}</dt></div>)}
+          </dl>
         </section>
       }
       mainContent={
-        <div className="space-y-10">
-          <section aria-labelledby="agenda-eventos">
-            <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-              <div><p className="text-xs font-medium uppercase tracking-[0.16em] text-muted">Agenda</p><h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-2xl" id="agenda-eventos">Próximos 15 días</h2><p className="mt-2 text-sm text-muted">{formatDate(windowStart, { day: "numeric", month: "short" })} — {formatDate(addDays(windowEnd, -1), { day: "numeric", month: "short", year: "numeric" })}</p></div>
-              <div className="flex items-center gap-2"><Button aria-label="Ver 15 días anteriores" disabled={agendaWindow === 0} onClick={() => setAgendaWindow((current) => Math.max(0, current - 1))} size="icon" variant="outline"><ChevronLeft aria-hidden="true" className="size-4" /></Button><Button aria-label="Ver siguientes 15 días" onClick={() => setAgendaWindow((current) => current + 1)} size="icon" variant="outline"><ChevronRight aria-hidden="true" className="size-4" /></Button></div>
-            </div>
-            {visibleEvents.length ? <div className="flex snap-x gap-4 overflow-x-auto pb-2">{visibleEvents.map((event) => <SmartCard actionLabel="Abrir proyecto" className="min-w-[17rem] flex-1 snap-start sm:min-w-[20rem]" icon={<CalendarDays aria-hidden="true" className="size-5" />} key={event.id} onAction={() => openProject(event.id)} primaryValue={event.client} secondaryValue={`${formatDate(new Date(`${event.date}T12:00:00Z`), { weekday: "long", day: "numeric", month: "long" })} · ${event.time}`} status={<StatusBadge label={event.status} variant={event.status === "Preparación" ? "info" : "success"} />} title={event.type}><div className="flex items-start gap-2 text-sm text-muted"><MapPin aria-hidden="true" className="mt-0.5 size-4 shrink-0" /><span>{event.location}</span></div></SmartCard>)}</div> : <SmartCard icon={<CalendarDays aria-hidden="true" className="size-5" />} primaryValue="Sin eventos programados" secondaryValue="No hay eventos en esta ventana de 15 días." title="Agenda libre" />}
+        <div className="space-y-8 lg:space-y-10">
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]" id="prioridad-del-dia">
+            <article className="rounded-2xl border border-warning/35 bg-[linear-gradient(145deg,hsl(var(--card)),hsl(var(--warning-soft)))] p-5 shadow-lg shadow-black/10 sm:p-7">
+              <div className="flex items-center justify-between gap-4"><p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-warning"><CircleAlert aria-hidden="true" className="size-4" />Prioridad del día</p><StatusBadge label="Crítica" variant="danger" /></div>
+              <h2 className="mt-8 text-2xl font-semibold tracking-[-0.03em] sm:text-3xl">{hasEvents ? nextEventIntelligence.timeline.nextAction : "Aún no hay una prioridad operacional"}</h2>
+              <p className="mt-2 text-sm text-muted">{hasEvents ? `${nextEvent.client} · ${nextEvent.status}` : "Confirma un proyecto para comenzar la planificación."}</p>
+              <ActionButton className="mt-7 min-h-12 w-full px-6 sm:w-auto" icon={ArrowRight} iconPosition="end" label={hasEvents ? "Resolver ahora" : "Abrir clientes"} onClick={() => hasEvents ? openProject(nextEvent.id) : router.push("/projects")} />
+            </article>
+
+            {hasEvents ? <SmartCard
+              actionLabel="Abrir evento"
+              icon={<CalendarClock aria-hidden="true" className="size-5" />}
+              onAction={() => hasEvents ? openProject(nextEvent.id) : router.push("/projects")}
+              primaryValue={nextEvent.client}
+              secondaryValue={`${nextEvent.service} · ${nextEvent.time}`}
+              status={<StatusBadge label={nextEventIntelligence.countdown.label} variant={COUNTDOWN_VARIANT[nextEventIntelligence.countdown.visualState]} />}
+              title="Próximo evento"
+            >
+              <dl className="grid gap-4 text-sm sm:grid-cols-3">
+                <div><dt className="text-muted">Ubicación</dt><dd className="mt-1 font-semibold">{nextEvent.location}</dd></div>
+                <div><dt className="text-muted">Fase operacional</dt><dd className="mt-1 font-semibold">{nextEventIntelligence.timeline.phaseLabel}</dd></div>
+                <div><dt className="text-muted">Próxima acción</dt><dd className="mt-1 font-semibold text-brand">{nextEventIntelligence.timeline.nextAction}</dd></div>
+              </dl>
+            </SmartCard> : <SmartCard actionLabel="Abrir clientes" icon={<CalendarClock aria-hidden="true" className="size-5" />} onAction={() => router.push("/projects")} primaryValue="Sin eventos confirmados" secondaryValue="Cuando confirmes un proyecto, aparecerá aquí con su cuenta regresiva y próxima acción." title="Próximo evento" />}
           </section>
-          <section aria-labelledby="proyectos-prioritarios">
-            <div className="mb-4"><p className="text-xs font-medium uppercase tracking-[0.16em] text-muted">En foco</p><h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-2xl" id="proyectos-prioritarios">Proyectos prioritarios</h2></div>
-            <div className="grid gap-4 xl:grid-cols-3">
-              {priorityProjects.map((project) => (
-                <SmartCard actionLabel="Abrir proyecto" key={project.id} onAction={() => openProject(project.id)} primaryValue={project.score} secondaryValue={`Etapa actual · ${project.stage}`} status={<StatusBadge label={project.status} variant={project.variant} />} title={project.name} />
-              ))}
+
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(19rem,0.9fr)]">
+            <SmartCard icon={<AlertTriangle aria-hidden="true" className="size-5" />} title="Centro de decisiones">
+              <div className="grid gap-2 sm:grid-cols-3">
+                {[{ label: "Críticas", value: critical.toString(), detail: "Resolver ahora", variant: "danger" as const }, { label: "Requieren atención", value: projects.filter((project) => project.health === "Attention").length.toString(), detail: "Revisar hoy", variant: "warning" as const }, { label: "Finalizadas", value: projects.filter((project) => project.status === "Completed" || project.status === "Archived").length.toString(), detail: "Ver actividad", variant: "success" as const }].map((decision) => (
+                  <Button className="h-auto justify-between rounded-xl px-4 py-4 text-left" key={decision.label} onClick={() => router.push("/operations")} variant="outline"><span><span className="block text-xs text-muted">{decision.label}</span><span className="mt-1 block text-2xl font-semibold">{decision.value}</span><span className="mt-2 block text-xs text-muted">{decision.detail}</span></span><ChevronRight aria-hidden="true" className="size-4" /></Button>
+                ))}
+              </div>
+            </SmartCard>
+            <SmartCard icon={<Check aria-hidden="true" className="size-5" />} title="Estado ejecutivo">
+              <div className="divide-y divide-border/70">
+                {executiveServices.map(({ label, status, icon: Icon, variant }) => <div className="flex items-center justify-between gap-4 py-2.5 first:pt-0 last:pb-0" key={label}><span className="flex items-center gap-2 text-sm"><Icon aria-hidden="true" className="size-4 text-muted" />{label}</span><StatusBadge label={status} variant={variant} /></div>)}
+              </div>
+            </SmartCard>
+          </section>
+
+          <section aria-labelledby="agenda-ejecutiva">
+            <div className="mb-5 flex items-end justify-between gap-4"><div><p className="text-xs font-medium uppercase tracking-[0.16em] text-muted">Agenda</p><h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-2xl" id="agenda-ejecutiva">Próximos movimientos</h2></div><Button onClick={() => router.push("/operations")} variant="ghost">Ver operación <ChevronRight aria-hidden="true" className="ml-1 size-4" /></Button></div>
+            <div className="overflow-hidden rounded-2xl border bg-card">
+              {agendaEvents.slice(0, 3).map((event, index) => { const intelligence = ORBIT_TIME_ENGINE.getEventIntelligence({ eventDate: event.date }); return <button className="grid w-full gap-3 border-b px-5 py-4 text-left transition-colors last:border-b-0 hover:bg-accent/50 sm:grid-cols-[7rem_minmax(0,1fr)_auto] sm:items-center sm:px-6" key={event.id} onClick={() => openProject(event.id)} type="button"><div><p className="text-xs font-semibold uppercase tracking-wide text-muted">{index === 0 ? "Próximo" : index === 1 ? "Siguiente" : "Futuro"}</p><p className="mt-1 text-sm font-medium">{event.time}</p></div><div><p className="font-semibold">{event.client}</p><p className="mt-1 flex items-center gap-1.5 text-sm text-muted"><MapPin aria-hidden="true" className="size-3.5" />{event.location} · {event.service}</p></div><div className="flex items-center justify-between gap-3 sm:justify-end"><StatusBadge label={intelligence.countdown.label} variant={COUNTDOWN_VARIANT[intelligence.countdown.visualState]} /><ChevronRight aria-hidden="true" className="size-4 text-muted" /></div></button>; })}
+              {!agendaEvents.length && <div className="px-6 py-10 text-center"><p className="font-medium">Aún no hay eventos confirmados.</p><p className="mt-2 text-sm text-muted">Los próximos eventos aparecerán aquí después de su confirmación.</p><ActionButton className="mt-5" label="Abrir clientes" onClick={() => router.push("/projects")} /></div>}
             </div>
+          </section>
+
+          <section aria-label="NOVA Executive Copilot">
+            {hasEvents && <OrbitCopilot actionLabel={nextEventIntelligence.timeline.nextAction} ariaLabel="Recomendación ejecutiva de NOVA" estimatedTime="30 segundos" impact="Mantiene el proyecto dentro de su fase operacional." onAction={() => openProject(nextEvent.id)} reason={`El proyecto ${nextEvent.client} requiere continuar con su siguiente etapa.`} recommendation={nextEventIntelligence.timeline.nextAction} title="NOVA · Recomendación ejecutiva" />}
           </section>
         </div>
       }
-      copilot={
-        <div id="decision-recomendada">
-          <OrbitCopilot actionLabel="Asignar operador" ariaLabel="Recomendación de ORBIT Copilot" estimatedTime="30 segundos" impact="La preparación no puede avanzar hasta completar esta decisión." onAction={() => openProject()} reason="El próximo evento aún no tiene operador asignado." recommendation="Asignar operador" title="Decisión recomendada" />
-        </div>
-      }
+      copilot={null}
       timeline={null}
       bottomAction={
-        <section aria-labelledby="acciones-rapidas" className="border-t pt-8">
-          <div className="mb-4"><p className="text-xs font-medium uppercase tracking-[0.16em] text-muted">Atajos</p><h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-2xl" id="acciones-rapidas">Acciones rápidas</h2></div>
+        <section aria-labelledby="acciones-rapidas" className="border-t pt-7">
+          <div className="mb-4"><p className="text-xs font-medium uppercase tracking-[0.16em] text-muted">Acciones rápidas</p><h2 className="sr-only" id="acciones-rapidas">Acciones rápidas</h2></div>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <ActionButton icon={FolderPlus} label="Nuevo proyecto" onClick={() => router.push("/projects")} variant="outline" />
-            <ActionButton icon={Banknote} label="Registrar pago" onClick={() => router.push("/finance")} variant="outline" />
-            <ActionButton icon={FilePlus2} label="Crear cotización" onClick={() => router.push("/projects")} variant="outline" />
-            <ActionButton icon={UserRound} label="Buscar cliente" onClick={() => router.push("/leads")} variant="outline" />
+            <ActionButton className="min-h-12" icon={Camera} label="Sube tu gasto aquí" onClick={() => setExpenseCaptureOpen(true)} />
+            <ActionButton icon={FolderPlus} label="Nuevo cliente" onClick={() => router.push("/projects")} variant="outline" />
+            <ActionButton disabled icon={FilePlus2} label="Cotización no configurada" variant="outline" />
+            <ActionButton icon={UserRound} label="Buscar cliente" onClick={() => router.push("/projects")} variant="outline" />
           </div>
+          <LiveExpenseCapture onClose={() => setExpenseCaptureOpen(false)} open={expenseCaptureOpen} />
         </section>
       }
     />

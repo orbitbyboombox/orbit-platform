@@ -37,27 +37,27 @@ export function WorkspaceLayout({
 }: WorkspaceLayoutProps) {
   return (
     <PageContainer className={cn("space-y-6 md:space-y-8", className)}>
-      <WorkspaceRegion label="Workspace header">{header}</WorkspaceRegion>
+      <WorkspaceRegion label="Encabezado del espacio de trabajo">{header}</WorkspaceRegion>
 
       <div className="grid gap-6 md:gap-8">
         <WorkspaceRegion
           className="min-w-0"
-          label="Main content"
+          label="Contenido principal"
         >
           {mainContent}
         </WorkspaceRegion>
 
         <WorkspaceRegion
           className="min-w-0"
-          label="Timeline"
+          label="Historial"
         >
           {timeline}
         </WorkspaceRegion>
       </div>
 
-      <FloatingCopilot>{copilot}</FloatingCopilot>
+      {copilot ? <FloatingCopilot>{copilot}</FloatingCopilot> : null}
 
-      <WorkspaceRegion label="Workspace actions">{bottomAction}</WorkspaceRegion>
+      <WorkspaceRegion label="Acciones del espacio de trabajo">{bottomAction}</WorkspaceRegion>
     </PageContainer>
   );
 }

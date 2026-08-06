@@ -1,17 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
 import { ArrowLeft, CalendarDays, Check, MapPin, PartyPopper, ShieldCheck, Sparkles, type LucideIcon } from "lucide-react";
 import { SmartCard } from "@/components/cards/smart-card";
+import { BrandLogo } from "@/components/brand-logo";
 import { ActionButton } from "@/components/ui/action-button";
 import { StatusBadge, type StatusBadgeProps } from "@/components/ui/status-badge";
 import { formatServiceSummary } from "@/lib/format-service-summary";
-import { createMockAgreement } from "../data/mock-agreement";
-import { AgreementExperience } from "./agreement-experience";
-import { CustomerReservationExperience } from "@/features/reservations/components/customer-reservation-experience";
-import { MOCK_RESERVATION } from "@/features/reservations/data/mock-reservation";
-import { CustomerPaymentExperience } from "@/features/finance/components/customer-payment-experience";
-import { MOCK_PAYMENT } from "@/features/finance/data/mock-payment";
 
 export type CustomerPortalStage = "COMMERCIAL_OPPORTUNITY" | "QUOTATION" | "BOOMBOX_EXPERIENCE" | "WAITING_SIGNATURE" | "WAITING_PAYMENT" | "CONFIRMED" | "PREPARATION" | "LIVE_EVENT" | "GALLERY" | "ARCHIVED";
 
@@ -51,26 +45,19 @@ const portalContent: Readonly<Record<CustomerPortalStage, PortalStageContent>> =
 };
 
 export function CustomerPortalExperience({ projectName, clientName, eventDate, location, services, portalId, portalUrl, stage, onClose }: CustomerPortalExperienceProps) {
-  const [agreementOpen, setAgreementOpen] = useState(false);
-  const [reservationOpen, setReservationOpen] = useState(false);
-  const [reservationCompleted, setReservationCompleted] = useState(false);
-  const [paymentOpen, setPaymentOpen] = useState(false);
   const content = portalContent[stage];
-  const agreement = useMemo(() => createMockAgreement({ projectId: portalId, projectName, clientName, eventDate, location, services }), [clientName, eventDate, location, portalId, projectName, services]);
-
-  if (agreementOpen) return <AgreementExperience agreement={agreement} onClose={() => setAgreementOpen(false)} />;
-  if (reservationOpen) return <CustomerReservationExperience eventDate={eventDate} onClose={() => setReservationOpen(false)} onComplete={() => { setReservationOpen(false); setReservationCompleted(true); setPaymentOpen(true); }} projectName={projectName} reservation={MOCK_RESERVATION} />;
-  if (paymentOpen) return <CustomerPaymentExperience onClose={() => setPaymentOpen(false)} payment={MOCK_PAYMENT} projectName={projectName} />;
+  const unavailable = stage === "WAITING_SIGNATURE" || stage === "WAITING_PAYMENT";
 
   return <div className="mx-auto max-w-6xl space-y-6 pb-10 sm:space-y-8">
     <header className="rounded-2xl border bg-card p-5 sm:p-8 lg:p-10">
+      <BrandLogo className="mb-4 h-20 w-52" priority surface="dark" />
       <button className="inline-flex items-center gap-2 text-sm font-medium text-muted transition hover:text-foreground" onClick={onClose} type="button"><ArrowLeft aria-hidden="true" className="size-4" />Volver al proyecto</button>
       <div className="mt-8 flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand">Portal del Cliente</p><h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] sm:text-4xl lg:text-5xl">{projectName}</h1><p className="mt-3 text-base text-muted">Hola, {clientName}</p></div><StatusBadge label={content.label} variant={content.badge} /></div>
       <div className="mt-8 flex flex-col gap-2 border-t pt-6 text-sm sm:flex-row sm:items-center sm:justify-between"><div><span className="text-muted">Portal ID</span><p className="mt-1 font-mono font-semibold tracking-wide">{portalId}</p></div><p className="break-all text-muted">{portalUrl}</p></div>
     </header>
 
     <SmartCard className="overflow-hidden border-brand/20 p-6 sm:p-10 lg:p-14">
-      <div className="mx-auto max-w-3xl text-center"><span className="mx-auto flex size-16 items-center justify-center rounded-2xl bg-brand/10 text-brand sm:size-20"><PartyPopper aria-hidden="true" className="size-8 sm:size-10" /></span><p className="mt-7 text-xs font-semibold uppercase tracking-[0.2em] text-brand">{content.eyebrow}</p><h2 className="mt-3 text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">{content.title}</h2><p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-muted sm:text-lg">{content.description}</p><ActionButton className="mt-8 w-full sm:w-auto" label={stage === "WAITING_PAYMENT" && reservationCompleted ? "Continuar al pago" : content.action} onClick={stage === "WAITING_SIGNATURE" ? () => setAgreementOpen(true) : stage === "WAITING_PAYMENT" ? reservationCompleted ? () => setPaymentOpen(true) : () => setReservationOpen(true) : undefined} /></div>
+      <div className="mx-auto max-w-3xl text-center"><span className="mx-auto flex size-16 items-center justify-center rounded-2xl bg-brand/10 text-brand sm:size-20"><PartyPopper aria-hidden="true" className="size-8 sm:size-10" /></span><p className="mt-7 text-xs font-semibold uppercase tracking-[0.2em] text-brand">{content.eyebrow}</p><h2 className="mt-3 text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">{content.title}</h2><p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-muted sm:text-lg">{content.description}</p><ActionButton className="mt-8 w-full sm:w-auto" disabled={unavailable} label={unavailable ? "Acción no configurada" : content.action} /></div>
     </SmartCard>
 
     <section aria-label="Información de tu evento" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

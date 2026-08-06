@@ -10,6 +10,13 @@ export interface ContractPdfProject {
 export interface ContractPdfGeneratorInput {
   contract: ContractDocument;
   project: ContractPdfProject;
+  customerSignature?: ContractPdfSignatureInput;
+}
+
+export interface ContractPdfSignatureInput {
+  evidenceId: string;
+  signedAt: string;
+  imageDataUrl: string;
 }
 
 export interface PdfTextField {
@@ -32,8 +39,10 @@ export interface ContractPdfPreviewModel {
     projectId: string;
   };
   branding: {
-    applicationName: "ORBIT by BOOMBOX";
-    logoPath: "/brand/orbit-logo-light.png";
+    applicationName: "ORBIT v1.0";
+    logoPath: "/branding/ORBIT%20V1-0%20SINFONDO.png";
+    developedBy: "BOOMBOX";
+    poweredBy: "NOVA CORE";
   };
   heading: {
     title: string;
@@ -51,7 +60,7 @@ export interface ContractPdfPreviewModel {
   commercialSummary: readonly PdfMoneyField[];
   clauses: ContractDocument["clauses"];
   signatures: readonly [
-    { role: "CUSTOMER"; label: string; signerName: string },
-    { role: "BOOMBOX"; label: string; signerName: "BOOMBOX" },
+    { role: "CUSTOMER"; label: string; signerName: string; embedded: boolean; evidenceId?: string; signedAt?: string; imageDataUrl?: string },
+    { role: "BOOMBOX"; label: string; signerName: "BOOMBOX"; embedded: false },
   ];
 }

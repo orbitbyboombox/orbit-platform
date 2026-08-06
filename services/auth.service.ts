@@ -1,13 +1,13 @@
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServerActionClient, createSupabaseServerClient } from "@/lib/supabase/server";
 import type { SignInInput } from "@/features/authentication/schemas/auth.schema";
 
 export async function signIn(credentials: SignInInput) {
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerActionClient();
   return supabase.auth.signInWithPassword(credentials);
 }
 
 export async function signOut() {
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerActionClient();
   return supabase.auth.signOut();
 }
 

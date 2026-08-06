@@ -1,112 +1,56 @@
 "use client";
 
-import { CalendarDays, MapPin, MoveUpRight } from "lucide-react";
+import { CalendarDays, ChevronRight, Clock3, FileText, FolderOpen, History, MessageCircle, MoveUpRight, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { SmartCard } from "@/components/cards/smart-card";
 import { ActionButton } from "@/components/ui/action-button";
+import { Button } from "@/components/ui/button";
 import { StatusBadge, type StatusBadgeProps } from "@/components/ui/status-badge";
-import type { Project, ProjectCommercialStage, ProjectHealth, ProjectStatus } from "../types/project";
+import { ORBIT_TIME_ENGINE } from "@/features/time-intelligence";
+import type { Project, ProjectCommercialStage } from "../types/project";
 
-const healthVariants: Record<ProjectHealth, StatusBadgeProps["variant"]> = {
-  Healthy: "success",
-  Attention: "warning",
-  Risk: "danger",
-  Critical: "danger",
-};
-
-const healthLabels: Record<ProjectHealth, string> = {
-  Healthy: "Saludable",
-  Attention: "Requiere atención",
-  Risk: "En riesgo",
-  Critical: "Crítico",
-};
-
-const statusLabels: Record<ProjectStatus, string> = {
-  Active: "Activo",
-  Upcoming: "Próximo",
-  Completed: "Completado",
-  Archived: "Archivado",
-};
-
-const typeLabels: Record<Project["type"], string> = {
-  Wedding: "Matrimonio",
-  Corporate: "Corporativo",
-  Birthday: "Cumpleaños",
-  Private: "Privado",
-  Other: "Otro",
-};
-
-const commercialLabels: Record<ProjectCommercialStage, string> = {
-  New: "Nuevo",
-  Contacted: "Primer contacto",
-  Quoting: "Cotizando",
-  Waiting: "Seguimiento",
-  Reserved: "Reservado",
-  Confirmed: "Confirmado",
-  Production: "En producción",
-  Finished: "Finalizado",
-};
-
-const commercialVariants: Record<ProjectCommercialStage, StatusBadgeProps["variant"]> = {
-  New: "info",
-  Contacted: "neutral",
-  Quoting: "warning",
-  Waiting: "warning",
-  Reserved: "info",
-  Confirmed: "success",
-  Production: "success",
-  Finished: "neutral",
-};
-
-export interface ProjectCardProps {
-  project: Project;
-  onOpen?: (project: Project) => void;
-}
+const typeLabels: Record<Project["type"], string> = { Wedding: "Matrimonio", Corporate: "Corporativo", Birthday: "Cumpleaños", Private: "Fiesta", Other: "Otro" };
+const commercialLabels: Record<ProjectCommercialStage, string> = { New: "Nuevo", Contacted: "Primer contacto", Quoting: "Cotizando", Waiting: "Seguimiento", Reserved: "Reservado", Confirmed: "Confirmado", Production: "Preparación", Finished: "Finalizado" };
+const commercialVariants: Record<ProjectCommercialStage, StatusBadgeProps["variant"]> = { New: "info", Contacted: "neutral", Quoting: "warning", Waiting: "warning", Reserved: "info", Confirmed: "success", Production: "success", Finished: "neutral" };
+export interface ProjectCardProps { project: Project; onOpen?: (project: Project) => void; }
 
 export function ProjectCard({ project, onOpen }: ProjectCardProps) {
   const router = useRouter();
-  const workspaceHref = `/projects/${project.id}?name=${encodeURIComponent(project.name)}&status=${encodeURIComponent(project.status)}`;
+  const href = `/projects/${project.id}`;
+  const context = { communication: project.lastCommunication ?? "Sin comunicaciones recientes", owner: project.salesOwner ?? "Sin asignar", action: project.nextAction ?? "Revisar relación", tags: project.tags?.length ? project.tags : [typeLabels[project.type]] };
+  const intelligence = ORBIT_TIME_ENGINE.getEventIntelligence({ eventDate: project.event.date });
 
   return (
-    <SmartCard className="flex h-full flex-col p-5 sm:p-6" interactive>
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted">{typeLabels[project.type]}</p>
-          <h2 className="mt-2 truncate text-xl font-semibold tracking-tight">{project.name}</h2>
-          <p className="mt-1 truncate text-sm text-muted">{project.client.name}</p>
+    <SmartCard className="group flex h-full flex-col overflow-hidden p-0" interactive>
+      <div className="p-5 sm:p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-semibold">{project.client.name.split(" ").map((word) => word[0]).slice(0, 2).join("")}</span>
+            <div className="min-w-0"><h2 className="truncate text-xl font-semibold tracking-tight">{project.client.name}</h2><p className="mt-1 truncate text-sm text-muted">{project.client.company ?? project.name}</p></div>
+          </div>
+          <StatusBadge label={intelligence.countdown.label} variant={intelligence.countdown.visualState === "RED" ? "danger" : intelligence.countdown.visualState === "ORANGE" || intelligence.countdown.visualState === "YELLOW" ? "warning" : "info"} />
         </div>
-        <StatusBadge label={commercialLabels[project.commercialStage]} variant={commercialVariants[project.commercialStage]} />
+
+        <div className="mt-5 flex flex-wrap gap-2">{context.tags.map((tag) => <span className="rounded-full border bg-accent/40 px-2.5 py-1 text-xs text-muted" key={tag}>{tag}</span>)}</div>
+
+        <dl className="mt-5 grid gap-x-6 gap-y-4 border-y py-5 text-sm sm:grid-cols-2">
+          <div><dt className="flex items-center gap-2 text-xs text-muted"><CalendarDays aria-hidden="true" className="size-3.5" />Próximo evento</dt><dd className="mt-1.5 font-medium">{typeLabels[project.type]} · {ORBIT_TIME_ENGINE.formatDate(new Date(`${project.event.date}T12:00:00Z`), { day: "numeric", month: "short", year: "numeric" })}</dd></div>
+          <div><dt className="flex items-center gap-2 text-xs text-muted"><Clock3 aria-hidden="true" className="size-3.5" />Etapa actual</dt><dd className="mt-1.5"><StatusBadge label={commercialLabels[project.commercialStage]} variant={commercialVariants[project.commercialStage]} /></dd></div>
+          <div><dt className="flex items-center gap-2 text-xs text-muted"><MessageCircle aria-hidden="true" className="size-3.5" />Última comunicación</dt><dd className="mt-1.5 font-medium">{context.communication}</dd></div>
+          <div><dt className="flex items-center gap-2 text-xs text-muted"><UserRound aria-hidden="true" className="size-3.5" />Responsable comercial</dt><dd className="mt-1.5 font-medium">{context.owner}</dd></div>
+        </dl>
+
+        <div className="mt-5 rounded-xl bg-accent/55 p-4"><p className="text-xs font-medium uppercase tracking-[0.14em] text-muted">Próxima acción recomendada</p><div className="mt-2 flex items-center justify-between gap-3"><p className="font-semibold text-brand">{context.action}</p><ChevronRight aria-hidden="true" className="size-4 shrink-0 text-brand" /></div></div>
       </div>
 
-      <dl className="mt-6 grid gap-4 border-y py-5 text-sm sm:grid-cols-2">
-        <div>
-          <dt className="flex items-center gap-2 text-xs text-muted"><CalendarDays aria-hidden="true" className="size-4" />Fecha del evento</dt>
-          <dd className="mt-2 font-medium">{new Intl.DateTimeFormat("es-CL", { day: "numeric", month: "long", year: "numeric" }).format(new Date(`${project.event.date}T12:00:00`))}</dd>
+      <div className="mt-auto border-t bg-accent/20 p-3 sm:p-4">
+        <div className="grid grid-cols-4 gap-1 sm:flex sm:items-center">
+          <ActionButton className="col-span-4 mb-1 sm:mb-0 sm:mr-auto" icon={MoveUpRight} iconPosition="end" label="Abrir cliente" onClick={() => onOpen ? onOpen(project) : router.push(href)} />
+          <Button aria-label="Abrir evento" onClick={() => router.push(href)} size="icon" title="Abrir evento" variant="ghost"><CalendarDays aria-hidden="true" className="size-4" /></Button>
+          <Button aria-label="Abrir portal" onClick={() => router.push(`${href}#portal-cliente`)} size="icon" title="Abrir portal" variant="ghost"><FolderOpen aria-hidden="true" className="size-4" /></Button>
+          <Button aria-label="Abrir historial" onClick={() => router.push(`${href}#actividad-reciente`)} size="icon" title="Abrir historial" variant="ghost"><History aria-hidden="true" className="size-4" /></Button>
+          <Button aria-label="Abrir documentos" onClick={() => router.push(`${href}#documentos`)} size="icon" title="Abrir documentos" variant="ghost"><FileText aria-hidden="true" className="size-4" /></Button>
         </div>
-        <div>
-          <dt className="flex items-center gap-2 text-xs text-muted"><MapPin aria-hidden="true" className="size-4" />Ciudad</dt>
-          <dd className="mt-2 font-medium">{project.event.city}</dd>
-        </div>
-      </dl>
-
-      <dl className="grid grid-cols-2 gap-4 py-5 sm:grid-cols-3">
-        <div>
-          <dt className="text-xs text-muted">Estado comercial</dt>
-          <dd className="mt-1 font-medium">{commercialLabels[project.commercialStage]}</dd>
-        </div>
-        <div>
-          <dt className="text-xs text-muted">Etapa</dt>
-          <dd className="mt-1 font-medium">{project.stage ?? statusLabels[project.status]}</dd>
-        </div>
-        <div className="col-span-2 sm:col-span-1 sm:text-right">
-          <dt className="text-xs text-muted">Puntuación del proyecto</dt>
-          <dd className="mt-1 text-2xl font-semibold tracking-tight">{project.score ?? 100}<span className="text-sm font-normal text-muted"> / 100</span></dd>
-        </div>
-      </dl>
-
-      <div className="mt-auto flex flex-col gap-4 border-t pt-5 sm:flex-row sm:items-center sm:justify-between">
-        <div><p className="mb-2 text-xs text-muted">Estado</p><div className="flex flex-wrap gap-2"><StatusBadge label={statusLabels[project.status]} variant={project.status === "Active" ? "info" : "neutral"} /><StatusBadge label={healthLabels[project.health]} variant={healthVariants[project.health]} /></div></div>
-        <ActionButton className="w-full sm:w-auto" icon={MoveUpRight} iconPosition="end" label="Abrir proyecto" onClick={() => onOpen ? onOpen(project) : router.push(workspaceHref)} />
       </div>
     </SmartCard>
   );

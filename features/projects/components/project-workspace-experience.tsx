@@ -10,10 +10,14 @@ import { ActionButton } from "@/components/ui/action-button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ProjectStatus } from "@/features/projects/domain";
 import { CustomerPortalExperience, type CustomerPortalStage } from "./customer-portal-experience";
+import { ORBIT_TIME_ENGINE } from "@/features/time-intelligence";
 
 export type ProjectWorkspaceExperienceProps = Omit<ProjectHeaderProps, "status"> & {
   projectKey?: string;
   portalStage?: CustomerPortalStage;
+  eventDateIso?: string;
+  activities?: readonly { title: string; detail: string; time: string }[];
+  workspaceData: { sale: string; balance: string; margin: string; deposit: string; contractStatus: string; contractDate: string; checklist: string; operator: string; booth: string; gallery: string; backup: string; communication: string; commercialStage: string };
 };
 
 interface DetailRowProps {
@@ -25,19 +29,12 @@ function DetailRow({ label, value }: DetailRowProps) {
   return <div className="flex items-center justify-between gap-4 py-1.5 text-sm"><dt className="text-muted">{label}</dt><dd className="text-right font-medium">{value}</dd></div>;
 }
 
-const activities = [
-  { title: "Checklist de preparación actualizado", detail: "Se completaron 5 de 6 tareas.", time: "Hoy · 09:42" },
-  { title: "Abono registrado", detail: "$1.500.000 ingresados al proyecto.", time: "Ayer · 16:18" },
-  { title: "Contrato firmado", detail: "Firma digital validada por el cliente.", time: "2 ago · 11:05" },
-  { title: "Operador asignado", detail: "Diego Morales confirmó disponibilidad.", time: "1 ago · 18:30" },
-  { title: "Proyecto confirmado", detail: "La reserva pasó a etapa de preparación.", time: "30 jul · 10:12" },
-] as const;
-
 export function ProjectWorkspaceExperience(props: ProjectWorkspaceExperienceProps) {
   const [portalOpen, setPortalOpen] = useState(false);
   const [portalFeedback, setPortalFeedback] = useState("Enlace disponible");
   const portalId = createPortalId(props.projectKey ?? props.projectName);
   const portalUrl = `https://orbit.boom-box.cl/p/${portalId}`;
+  const eventIntelligence = ORBIT_TIME_ENGINE.getEventIntelligence({ eventDate: props.eventDateIso ?? "2027-09-14" });
 
   const copyPortalLink = async () => {
     try {
@@ -61,25 +58,43 @@ export function ProjectWorkspaceExperience(props: ProjectWorkspaceExperienceProp
       }
       mainContent={
         <div className="space-y-10">
+          <section aria-labelledby="perfil-cliente" className="rounded-2xl border bg-card p-5 sm:p-7">
+            <div className="flex flex-col gap-5 border-b pb-6 sm:flex-row sm:items-start sm:justify-between">
+              <div><p className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Relación con el cliente</p><h2 className="mt-2 text-2xl font-semibold tracking-tight" id="perfil-cliente">{props.clientName}</h2><p className="mt-1 text-sm text-muted">{props.projectName}</p></div>
+              <div className="flex flex-wrap gap-2"><StatusBadge label={props.workspaceData.commercialStage} variant="info" /><StatusBadge label="Portal disponible" variant="success" /></div>
+            </div>
+            <dl className="grid gap-x-8 gap-y-5 py-6 text-sm sm:grid-cols-2 xl:grid-cols-4">
+              <div><dt className="text-muted">Próximo evento</dt><dd className="mt-1 font-semibold">{props.eventDate} · {props.eventTime}</dd></div>
+              <div><dt className="text-muted">Cuenta regresiva</dt><dd className="mt-1 font-semibold text-brand">{eventIntelligence.countdown.label}</dd></div>
+              <div><dt className="text-muted">Etapa comercial</dt><dd className="mt-1 font-semibold">{props.workspaceData.commercialStage}</dd></div>
+              <div><dt className="text-muted">Última comunicación</dt><dd className="mt-1 font-semibold">{props.workspaceData.communication}</dd></div>
+              <div><dt className="text-muted">Última cotización</dt><dd className="mt-1 font-semibold">Sin registro</dd></div>
+              <div><dt className="text-muted">Último pago</dt><dd className="mt-1 font-semibold">{props.workspaceData.deposit}</dd></div>
+              <div><dt className="text-muted">Portal</dt><dd className="mt-1 font-semibold">Activo · {portalId}</dd></div>
+              <div><dt className="text-muted">Comunicación</dt><dd className="mt-1 font-semibold">{props.workspaceData.communication}</dd></div>
+            </dl>
+            <div className="border-t pt-5"><p className="text-xs font-medium uppercase tracking-[0.16em] text-muted">Trayectoria unificada</p><ol className="mt-4 flex gap-2 overflow-x-auto pb-1">{["WhatsApp", "Cotización", "Portal", "Contrato", "Firma", "Pago", "Diseño", "Planificación", "Evento", "Entrega", "Seguimiento"].map((step, index) => <li className="flex shrink-0 items-center gap-2" key={step}><span className={index < 7 ? "rounded-full bg-success-soft px-3 py-1.5 text-xs font-medium text-success" : "rounded-full border px-3 py-1.5 text-xs text-muted"}>{step}</span>{index < 10 && <span aria-hidden="true" className="text-muted">→</span>}</li>)}</ol></div>
+            <div className="mt-5 flex flex-wrap gap-2 border-t pt-5"><ActionButton icon={FileCheck2} label="Contrato" variant="outline" /><ActionButton icon={WalletCards} label="Pagos" variant="outline" /><ActionButton icon={Link2} label="Portal" onClick={() => setPortalOpen(true)} variant="outline" /><ActionButton icon={ImageIcon} label="Documentos" variant="outline" /></div>
+          </section>
           <section aria-labelledby="resumen-proyecto">
-            <div className="mb-5"><p className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Control del proyecto</p><h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-2xl" id="resumen-proyecto">Resumen</h2></div>
+            <div className="mb-5"><p className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Control del proyecto</p><h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-2xl" id="resumen-proyecto">Resumen</h2><p className="mt-2 text-sm text-muted">Información disponible en los registros del proyecto.</p></div>
             <div className="grid gap-4 xl:grid-cols-2">
-              <SmartCard className="xl:col-span-2" icon={<Link2 aria-hidden="true" className="size-5" />} primaryValue={portalId} secondaryValue="Portal ID permanente" status={<StatusBadge label="Preparación" variant="info" />} title="Portal del Cliente">
+              <SmartCard className="xl:col-span-2" icon={<Link2 aria-hidden="true" className="size-5" />} id="portal-cliente" primaryValue={portalId} secondaryValue="Portal ID permanente" status={<StatusBadge label="Preparación" variant="info" />} title="Portal del Cliente">
                 <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end"><div><p className="text-xs font-semibold uppercase tracking-wider text-muted">Enlace permanente</p><p className="mt-2 break-all text-sm font-medium sm:text-base">{portalUrl}</p></div><StatusBadge label={portalFeedback} variant={portalFeedback === "Enlace copiado" || portalFeedback === "Enlace reenviado" ? "success" : "neutral"} /></div>
                 <div className="mt-5 grid gap-2 border-t pt-5 sm:grid-cols-3"><ActionButton icon={Copy} label="Copiar enlace" onClick={copyPortalLink} variant="outline" /><ActionButton icon={ExternalLink} label="Abrir Portal" onClick={() => setPortalOpen(true)} /><ActionButton icon={Send} label="Reenviar enlace" onClick={() => setPortalFeedback("Enlace reenviado")} variant="outline" /></div>
               </SmartCard>
-              <SmartCard icon={<Banknote aria-hidden="true" className="size-5" />} primaryValue="$4.850.000" secondaryValue="Venta total" status={<StatusBadge label="Saludable" variant="success" />} title="Presupuesto"><dl><DetailRow label="Saldo" value="$1.350.000" /><DetailRow label="Margen" value="38%" /></dl></SmartCard>
-              <SmartCard icon={<FileCheck2 aria-hidden="true" className="size-5" />} primaryValue="Firmado" secondaryValue="Estado del contrato" status={<StatusBadge label="Completo" variant="success" />} title="Contrato"><dl><DetailRow label="Fecha de firma" value="2 agosto 2026" /></dl></SmartCard>
-              <SmartCard icon={<Landmark aria-hidden="true" className="size-5" />} primaryValue="$1.500.000" secondaryValue="Abono registrado" status={<StatusBadge label="Al día" variant="success" />} title="Finanzas"><dl><DetailRow label="Saldo pendiente" value="$1.350.000" /></dl></SmartCard>
-              <SmartCard icon={<CheckSquare2 aria-hidden="true" className="size-5" />} primaryValue="5 de 6" secondaryValue="Checklist completado" status={<StatusBadge label="Atención" variant="warning" />} title="Preparación"><dl><DetailRow label="Operador" value="Diego Morales" /><DetailRow label="Cabina" value="Classic 02" /></dl></SmartCard>
-              <SmartCard icon={<CalendarClock aria-hidden="true" className="size-5" />} primaryValue="74 días" secondaryValue="Días restantes" status={<StatusBadge label="Confirmado" variant="info" />} title="Evento"><dl><DetailRow label="Estado" value="En calendario" /></dl></SmartCard>
-              <SmartCard icon={<ImageIcon aria-hidden="true" className="size-5" />} primaryValue="Pendiente" secondaryValue="Estado de entrega" status={<StatusBadge label="Sin riesgo" variant="neutral" />} title="Entrega"><dl><DetailRow label="Galería" value="Aún no disponible" /><DetailRow label="Respaldo" value="Programado" /><DetailRow label="Archivo" value="Pendiente" /></dl></SmartCard>
+              <SmartCard icon={<Banknote aria-hidden="true" className="size-5" />} primaryValue={props.workspaceData.sale} secondaryValue="Venta registrada" title="Presupuesto"><dl><DetailRow label="Saldo" value={props.workspaceData.balance} /><DetailRow label="Margen" value={props.workspaceData.margin} /></dl></SmartCard>
+              <SmartCard icon={<FileCheck2 aria-hidden="true" className="size-5" />} id="documentos" primaryValue={props.workspaceData.contractStatus} secondaryValue="Estado del acuerdo" title="Contrato"><dl><DetailRow label="Fecha" value={props.workspaceData.contractDate} /></dl></SmartCard>
+              <SmartCard icon={<Landmark aria-hidden="true" className="size-5" />} primaryValue={props.workspaceData.deposit} secondaryValue="Abono registrado" title="Finanzas"><dl><DetailRow label="Saldo" value={props.workspaceData.balance} /></dl></SmartCard>
+              <SmartCard icon={<CheckSquare2 aria-hidden="true" className="size-5" />} primaryValue={props.workspaceData.checklist} secondaryValue="Checklist registrado" title="Preparación"><dl><DetailRow label="Operador" value={props.workspaceData.operator} /><DetailRow label="Cabina" value={props.workspaceData.booth} /></dl></SmartCard>
+              <SmartCard icon={<CalendarClock aria-hidden="true" className="size-5" />} primaryValue={eventIntelligence.countdown.label} secondaryValue="Cuenta regresiva" status={<StatusBadge label={eventIntelligence.timeline.phaseLabel} variant="info" />} title="Evento"><dl><DetailRow label="Próxima acción" value={eventIntelligence.timeline.nextAction} /><DetailRow label="Estado" value="En calendario" /></dl></SmartCard>
+              <SmartCard icon={<ImageIcon aria-hidden="true" className="size-5" />} primaryValue={props.workspaceData.gallery} secondaryValue="Estado de entrega" title="Entrega"><dl><DetailRow label="Galería" value={props.workspaceData.gallery} /><DetailRow label="Respaldo" value={props.workspaceData.backup} /><DetailRow label="Archivo" value="Sin registro" /></dl></SmartCard>
             </div>
           </section>
 
           <section aria-labelledby="actividad-reciente" className="rounded-xl border bg-card p-5 sm:p-6">
             <div className="mb-6"><p className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Últimos movimientos</p><h2 className="mt-2 text-xl font-semibold tracking-tight" id="actividad-reciente">Actividad reciente</h2></div>
-            <ol className="divide-y">{activities.map((activity) => <li className="grid gap-1 py-4 first:pt-0 last:pb-0 sm:grid-cols-[1fr_auto] sm:gap-x-6" key={activity.title}><div><p className="text-sm font-medium">{activity.title}</p><p className="mt-1 text-sm text-muted">{activity.detail}</p></div><time className="text-xs text-muted">{activity.time}</time></li>)}</ol>
+            {props.activities?.length ? <ol className="divide-y">{props.activities.map((activity) => <li className="grid gap-1 py-4 first:pt-0 last:pb-0 sm:grid-cols-[1fr_auto] sm:gap-x-6" key={`${activity.title}-${activity.time}`}><div><p className="text-sm font-medium">{activity.title}</p><p className="mt-1 text-sm text-muted">{activity.detail}</p></div><time className="text-xs text-muted">{activity.time}</time></li>)}</ol> : <div className="rounded-xl border border-dashed px-5 py-8 text-center"><p className="text-sm font-medium">Aún no existe actividad para este proyecto.</p><p className="mt-1 text-sm text-muted">Los próximos movimientos aparecerán aquí automáticamente.</p></div>}
           </section>
         </div>
       }
