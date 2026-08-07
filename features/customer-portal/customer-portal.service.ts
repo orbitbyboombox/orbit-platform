@@ -3,7 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const portalTokenHash = (token: string) => createHash("sha256").update(token).digest("hex");
-const origin = () => process.env.NEXT_PUBLIC_APP_URL ?? process.env.APP_URL ?? "http://localhost:3000";
+const origin = () => process.env.NEXT_PUBLIC_APP_URL ?? process.env.APP_URL ?? (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "http://localhost:3000");
 
 export async function createCustomerPortalAccess(projectId: string, actorId: string) {
   const admin = createAdminClient();
