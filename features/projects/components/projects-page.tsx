@@ -20,7 +20,7 @@ export function ProjectsPage({ initialProjects }: { initialProjects: Project[] }
   const [drawerOpen, setDrawerOpen] = useState(false);
   useEffect(() => { if (new URLSearchParams(window.location.search).get("reservation") === "new") setDrawerOpen(true); }, []);
   const visibleProjects = useMemo(() => projects.filter((project) => {
-    const eventType = project.type === "Wedding" ? "Matrimonio" : project.type === "Corporate" ? "Corporativo Empresa" : project.type === "Birthday" ? "Cumpleaños" : project.type === "Private" ? "Fiesta Privado" : "Otro";
+    const eventType = project.type === "Wedding" ? "Matrimonio" : project.type === "Corporate" ? "Corporativo Empresa" : project.type === "Birthday" ? "Cumpleaños" : project.type === "Graduation" ? "Graduación" : project.type === "Private" ? "Fiesta Privado" : "Otro";
     return (filter === "All" || project.commercialStage === filter) && `${project.name} ${project.client.name} ${project.client.company ?? ""} ${project.client.phone} ${eventType} ${project.event.city}`.toLowerCase().includes(query.toLowerCase());
   }), [filter, projects, query]);
   const relationshipSummary = useMemo(() => {

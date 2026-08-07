@@ -11,7 +11,7 @@ interface TimelineRow { customer_id: string | null; project_id: string | null; h
 interface MemoryRow { customer_id: string; context: Record<string, unknown>; }
 
 const asString = (value: unknown, fallback = ""): string => typeof value === "string" ? value : fallback;
-const projectType = (value: string): ProjectType => ["Wedding", "Corporate", "Birthday", "Private", "Other"].includes(value) ? value as ProjectType : "Other";
+const projectType = (value: string): ProjectType => ["Wedding", "Corporate", "Birthday", "Graduation", "Private", "Other"].includes(value) ? value as ProjectType : "Other";
 const projectStatus = (value: string): ProjectStatus => ["Active", "Upcoming", "Completed", "Archived"].includes(value) ? value as ProjectStatus : "Upcoming";
 const projectHealth = (value: string): ProjectHealth => ["Healthy", "Attention", "Risk", "Critical"].includes(value) ? value as ProjectHealth : "Healthy";
 const commercialStage = (value: unknown): ProjectCommercialStage => ["New", "Contacted", "Quoting", "Waiting", "Reserved", "Confirmed", "Production", "Finished"].includes(asString(value)) ? value as ProjectCommercialStage : "New";

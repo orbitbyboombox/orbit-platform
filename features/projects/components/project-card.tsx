@@ -9,7 +9,7 @@ import { StatusBadge, type StatusBadgeProps } from "@/components/ui/status-badge
 import { ORBIT_TIME_ENGINE } from "@/features/time-intelligence";
 import type { Project, ProjectCommercialStage } from "../types/project";
 
-const typeLabels: Record<Project["type"], string> = { Wedding: "Matrimonio", Corporate: "Corporativo", Birthday: "Cumpleaños", Private: "Fiesta", Other: "Otro" };
+const typeLabels: Record<Project["type"], string> = { Wedding: "Matrimonio", Corporate: "Corporativo", Birthday: "Cumpleaños", Graduation: "Graduación", Private: "Fiesta", Other: "Otro" };
 const commercialLabels: Record<ProjectCommercialStage, string> = { New: "Nuevo", Contacted: "Primer contacto", Quoting: "Cotizando", Waiting: "Seguimiento", Reserved: "Reservado", Confirmed: "Confirmado", Production: "Preparación", Finished: "Finalizado" };
 const commercialVariants: Record<ProjectCommercialStage, StatusBadgeProps["variant"]> = { New: "info", Contacted: "neutral", Quoting: "warning", Waiting: "warning", Reserved: "info", Confirmed: "success", Production: "success", Finished: "neutral" };
 export interface ProjectCardProps { project: Project; onOpen?: (project: Project) => void; }

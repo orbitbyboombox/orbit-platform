@@ -1,6 +1,5 @@
 import {
   BarChart3,
-  BriefcaseBusiness,
   CircleDollarSign,
   FolderKanban,
   Gauge,
@@ -30,7 +29,6 @@ export interface NavigationItem {
 export const navigationItems: readonly NavigationItem[] = [
   { label: "Inicio", href: "/operations", icon: Gauge },
   { label: "Clientes", href: "/projects", icon: FolderKanban },
-  { label: "Centro de Comando", href: "/operations", icon: BriefcaseBusiness },
   { label: "Tareas", href: "/tasks", icon: ListChecks },
   { label: "Recursos", href: "/resources", icon: Layers3 },
   { label: "Finanzas", href: "/finance", icon: CircleDollarSign },
