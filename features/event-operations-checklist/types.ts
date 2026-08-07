@@ -1,0 +1,3 @@
+export type ChecklistCategory="EQUIPMENT"|"VEHICLE"|"EVENT"|"CUSTOMER"|"RETURN";export type OperationalMilestone="DEPARTURE"|"ARRIVAL"|"EVENT_STARTED"|"EVENT_FINISHED"|"EQUIPMENT_INCIDENT";
+export interface ChecklistItem{id:string;key:string;category:ChecklistCategory;label:string;position:number;mandatory:boolean;completed:boolean;completedAt:string|null}
+export interface EventOperationsChecklistData{id:string;status:string;items:readonly ChecklistItem[];milestones:readonly{milestone:OperationalMilestone;occurredAt:string;notes:string|null}[];completed:number;mandatory:number;progress:number}

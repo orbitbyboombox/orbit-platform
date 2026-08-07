@@ -1,0 +1,1 @@
+export function isInvalidSessionError(error:unknown){const value=error&&typeof error==="object"?error as{code?:string;message?:string}:{};const message=value.message??"";return value.code==="PGRST303"||/jwt|token.*expired|issued at future|invalid.*session|refresh token/i.test(message)}

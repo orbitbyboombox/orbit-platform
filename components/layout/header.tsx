@@ -12,15 +12,16 @@ import { BrandLogo } from "@/components/brand-logo";
 
 export interface HeaderProps {
   userEmail: string;
+  unreadNotifications: number;
 }
 
-export function Header({ userEmail }: HeaderProps) {
+export function Header({ userEmail, unreadNotifications }: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   return <><header className="sticky top-0 z-20 flex h-16 items-center gap-2 border-b bg-background/90 px-3 backdrop-blur sm:gap-3 sm:px-4 md:px-5 lg:px-6">
     <Button aria-expanded={menuOpen} aria-label={menuOpen ? "Cerrar navegación" : "Abrir navegación"} className="md:hidden" onClick={() => setMenuOpen((open) => !open)} size="icon" variant="ghost">{menuOpen ? <X className="size-4" /> : <Menu className="size-4" />}</Button>
     <Link aria-label="Ir a Inicio" className="flex h-9 w-32 items-center rounded-md bg-[#080808] px-2.5 lg:hidden" href="/"><BrandLogo className="w-full" surface="dark" /></Link>
     <SearchBar className="ml-auto hidden max-w-sm sm:flex" placeholder="Buscar proyectos, clientes o eventos..." />
-    <Button aria-label="Notificaciones" size="icon" variant="ghost"><Bell className="size-4" /></Button>
+    <Button aria-label={`${unreadNotifications} notificaciones sin leer`} asChild className="relative" size="icon" variant="ghost"><Link href="/notifications"><Bell className="size-4" />{unreadNotifications>0&&<span className="absolute right-0.5 top-0.5 flex min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[9px] font-bold leading-4 text-white">{unreadNotifications>99?"99+":unreadNotifications}</span>}</Link></Button>
     <div className="hidden min-w-0 text-right lg:block"><p className="truncate text-xs font-medium">Usuario actual</p><p className="max-w-40 truncate text-xs text-muted">{userEmail}</p></div>
     <Avatar initials={userEmail.slice(0, 2).toUpperCase()} />
     <form action={signOutAction}><Button aria-label="Cerrar sesión" size="icon" type="submit" variant="ghost"><LogOut className="size-4" /></Button></form>

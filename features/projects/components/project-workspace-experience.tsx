@@ -1,124 +1,104 @@
 "use client";
 
-import { useState } from "react";
-import { Banknote, CalendarClock, CheckSquare2, Copy, ExternalLink, FileCheck2, ImageIcon, Landmark, Link2, Send, WalletCards } from "lucide-react";
-import { SmartCard } from "@/components/cards/smart-card";
-import { OrbitCopilot } from "@/components/copilot/orbit-copilot";
+import { useState, useTransition, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import { AlertTriangle, Banknote, BriefcaseBusiness, CalendarDays, Check, CheckCircle2, ClipboardCheck, Clock3, Download, ExternalLink, FileText, FolderOpen, Gauge, History, Link2, ListChecks, MapPin, Package, Send, Sparkles, UserRound, UsersRound, WalletCards } from "lucide-react";
 import { WorkspaceLayout } from "@/components/layout/workspace-layout";
-import { ProjectHeader, type ProjectHeaderProps } from "@/components/project/project-header";
 import { ActionButton } from "@/components/ui/action-button";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { ProjectStatus } from "@/features/projects/domain";
-import type { CustomerPortalStage } from "./customer-portal-experience";
+import type { ProjectHeaderProps } from "@/components/project/project-header";
 import { createCustomerPortalAccessAction } from "@/features/customer-portal/admin.actions";
 import { ORBIT_TIME_ENGINE } from "@/features/time-intelligence";
 import { EquipmentAssignmentPanel, type EquipmentAssignmentPanelProps } from "@/features/asset-management";
 import { AgreementSigningControl } from "@/features/projects/signing/agreement-signing-control";
-import { ProductionIntegrationPanel, type ProductionIntegrationPanelProps } from "./production-integration-panel";
+import { ProductionIntegrationPanel, type ProductionIntegrationPanelProps, type ReadinessState } from "./production-integration-panel";
+import { updateOperationalTaskStatusAction } from "@/features/task-center/actions";
+import type { TaskPriority, TaskStatus } from "@/features/task-center/types";
+import type { CustomerPortalStage } from "./customer-portal-experience";
+import { ExperienceReviewEngine, type ExistingExperienceReview, type ExperienceKnowledgeItem } from "@/features/experience-review";
+import {EventOperationsChecklist,type EventOperationsChecklistData}from"@/features/event-operations-checklist";
 
-export type ProjectWorkspaceExperienceProps = Omit<ProjectHeaderProps, "status"> & {
-  projectKey?: string;
-  portalStage?: CustomerPortalStage;
-  eventDateIso?: string;
-  activities?: readonly { title: string; detail: string; time: string }[];
-  equipment: EquipmentAssignmentPanelProps;
-  signing: { agreementId?: string; status: string };
-  productionIntegration: ProductionIntegrationPanelProps;
-  workspaceData: { sale: string; balance: string; margin: string; deposit: string; contractStatus: string; contractDate: string; checklist: string; operator: string; booth: string; gallery: string; backup: string; communication: string; commercialStage: string; lastQuotation: string };
+type Event360Task={id:string;title:string;description:string|null;priority:TaskPriority;status:TaskStatus;due_at:string|null;created_at:string;completed_at:string|null;version:number;assignedUser?:string|null};
+type Event360Data={
+  orbitEventId:string; status:string;
+  customer:{phone:string;email:string;address:string;city:string;emergencyContact:string};
+  services:readonly {code:string;duration:string;extras:readonly string[]}[];
+  tasks:readonly Event360Task[];
+  timeline:readonly {id:string;message:string;actor:string;source:string;occurredAt:string}[];
+  documents:readonly {id:string;type:string;href?:string;createdAt:string}[];
+  google:{calendarStatus:string;calendarUrl?:string;driveStatus:string;driveUrl?:string;gmailStatus:string;gmailThread?:string};
+  payroll:readonly {staff:string;assembly:number;operator:number;disassembly:number;transport:number;parking:number;total:number;status:string}[];
+  profit?:{revenue:number;operationalCost:number;grossMargin:number;marginPercent:number;status:string};
+  receivable?:{invoiceNumber:string;amount:number;outstandingBalance:number;dueDate:string|null;paymentTerm:string;daysRemaining:number|null;status:string};
+  checklist:EventOperationsChecklistData;
+  experienceReview:{existing?:ExistingExperienceReview;knowledge:readonly ExperienceKnowledgeItem[]};
 };
 
-interface DetailRowProps {
-  label: string;
-  value: string;
+export type ProjectWorkspaceExperienceProps=Omit<ProjectHeaderProps,"status">&{
+  projectKey?:string; portalStage?:CustomerPortalStage; eventDateIso?:string; activities?:readonly {title:string;detail:string;time:string}[];
+  equipment:EquipmentAssignmentPanelProps; signing:{agreementId?:string;status:string}; productionIntegration:ProductionIntegrationPanelProps; event360:Event360Data;
+  workspaceData:{sale:string;balance:string;margin:string;deposit:string;contractStatus:string;contractDate:string;checklist:string;operator:string;booth:string;gallery:string;backup:string;communication:string;commercialStage:string;lastQuotation:string};
+};
+
+const money=(value:number)=>new Intl.NumberFormat("es-CL",{style:"currency",currency:"CLP",maximumFractionDigits:0}).format(value);
+const dateTime=(value:string)=>new Intl.DateTimeFormat("es-CL",{dateStyle:"medium",timeStyle:"short"}).format(new Date(value));
+const statePresentation:Record<ReadinessState,{label:string;variant:"success"|"warning"|"danger"}>={READY:{label:"Listo",variant:"success"},ATTENTION:{label:"Atención",variant:"warning"},ACTION_REQUIRED:{label:"Falta información",variant:"danger"}};
+
+function Section({id,eyebrow,title,icon,children,className=""}:{id:string;eyebrow:string;title:string;icon:ReactNode;children:ReactNode;className?:string}){
+  return <section className={`scroll-mt-24 rounded-2xl border bg-card p-5 sm:p-6 ${className}`} id={id}><header className="mb-5 flex items-start gap-3 border-b pb-4"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand">{icon}</span><div><p className="text-[11px] font-semibold uppercase tracking-[.18em] text-muted">{eyebrow}</p><h2 className="mt-1 text-xl font-semibold tracking-tight">{title}</h2></div></header>{children}</section>;
+}
+function Row({label,value}:{label:string;value:ReactNode}){return <div className="flex min-h-10 items-start justify-between gap-4 border-b py-2 last:border-0"><dt className="text-sm text-muted">{label}</dt><dd className="text-right text-sm font-medium">{value}</dd></div>}
+
+function TaskRow({task}:{task:Event360Task}){
+  const router=useRouter(); const [pending,startTransition]=useTransition(); const [error,setError]=useState(""); const complete=()=>startTransition(async()=>{const result=await updateOperationalTaskStatusAction({id:task.id,status:task.status==="COMPLETED"?"PENDING":"COMPLETED",expectedVersion:task.version});if(!result.ok)setError(result.error);else router.refresh();});
+  const overdue=Boolean(task.due_at&&new Date(task.due_at)<new Date()&&task.status!=="COMPLETED");
+  return <article className="rounded-xl border bg-background/30 p-4"><div className="flex items-start gap-3"><button aria-label={task.status==="COMPLETED"?"Reabrir tarea":"Completar tarea"} className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg border transition hover:border-brand disabled:opacity-50" disabled={pending} onClick={complete}>{task.status==="COMPLETED"?<Check className="size-4 text-success"/>:<span className="size-4 rounded border"/>}</button><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className={`font-medium ${task.status==="COMPLETED"?"text-muted line-through":""}`}>{task.title}</p><StatusBadge label={overdue?"Vencida":task.priority} variant={overdue?"danger":task.priority==="CRITICAL"?"warning":"neutral"}/></div>{task.description&&<p className="mt-1 text-sm leading-6 text-muted">{task.description}</p>}<p className="mt-2 text-xs text-muted">{task.due_at?`Vence ${dateTime(task.due_at)}`:"Sin vencimiento"}{task.assignedUser?` · ${task.assignedUser}`:""}</p>{error&&<p className="mt-2 text-xs text-danger">{error}</p>}</div></div></article>;
 }
 
-function DetailRow({ label, value }: DetailRowProps) {
-  return <div className="flex items-center justify-between gap-4 py-1.5 text-sm"><dt className="text-muted">{label}</dt><dd className="text-right font-medium">{value}</dd></div>;
+export function ProjectWorkspaceExperience(props:ProjectWorkspaceExperienceProps){
+  const router=useRouter(); const [portalUrl,setPortalUrl]=useState(""); const [portalFeedback,setPortalFeedback]=useState(""); const event=props.event360;
+  const intelligence=ORBIT_TIME_ENGINE.getEventIntelligence({eventDate:props.eventDateIso??""});
+  const readiness=props.productionIntegration.readiness; const missing=readiness.filter(x=>x.state==="ACTION_REQUIRED").length; const attention=readiness.filter(x=>x.state==="ATTENTION").length;
+  const overdueTasks=event.tasks.filter(x=>x.due_at&&new Date(x.due_at)<new Date()&&!['COMPLETED','CANCELLED'].includes(x.status)).length;
+  const checklistPenalty=Math.round((100-event.checklist.progress)*0.25);const health=Math.max(0,100-missing*12-attention*5-overdueTasks*5-checklistPenalty); const healthLabel=health>=90?"READY":health>=60?"ATTENTION":"BLOCKED"; const healthVariant=health>=90?"success":health>=60?"warning":"danger";
+  const currentAssets=props.equipment.assets.filter(a=>a.current?.projectName==="Este evento"); const totem=currentAssets.find(a=>a.type==="TOTEM"); const assetCase=currentAssets.find(a=>a.type==="CASE"); const operator=props.equipment.currentStaff.find(a=>a.task==="OPERATOR"); const assembly=props.equipment.currentStaff.find(a=>a.task==="ASSEMBLY"); const disassembly=props.equipment.currentStaff.find(a=>a.task==="DISASSEMBLY");
+  const generatePortal=async()=>{if(!props.projectKey)return;setPortalFeedback("Generando…");const result=await createCustomerPortalAccessAction(props.projectKey);if(result.ok){setPortalUrl(result.url);setPortalFeedback("Portal disponible");}else setPortalFeedback(result.error)};
+  const scroll=(id:string)=>document.getElementById(id)?.scrollIntoView({behavior:"smooth",block:"start"});
+  return <WorkspaceLayout className="max-w-none p-0" header={null} timeline={null} copilot={null} mainContent={<div className="space-y-6 pb-8">
+    <section className="overflow-hidden rounded-3xl border bg-card"><div className="grid gap-6 p-5 sm:p-7 lg:grid-cols-[1fr_auto] lg:items-end"><div><div className="flex flex-wrap gap-2"><StatusBadge label={event.status} variant="info"/><StatusBadge label={healthLabel} variant={healthVariant}/></div><p className="mt-5 text-xs font-semibold uppercase tracking-[.2em] text-brand">Event 360° · {event.orbitEventId}</p><h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{props.projectName}</h1><p className="mt-2 text-base text-muted">{props.projectType} · {props.clientName}</p></div><div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:min-w-[500px]"><HeroMetric label="Fecha" value={props.eventDate}/><HeroMetric label="Cuenta regresiva" value={intelligence.countdown.label}/><HeroMetric label="Fase" value={intelligence.timeline.phaseLabel}/><HeroMetric label="Salud" value={`${health}%`}/></div></div><nav aria-label="Secciones del evento" className="flex gap-2 overflow-x-auto border-t px-5 py-3 sm:px-7">{[["customer","Cliente"],["commercial","Comercial"],["operations","Operaciones"],["tasks","Tareas"],["timeline","Timeline"],["documents","Documentos"],["post-event","Cierre"]].map(([id,label])=><button className="shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium text-muted transition hover:border-brand hover:text-foreground" key={id} onClick={()=>scroll(id)}>{label}</button>)}</nav></section>
+
+    <section className="grid gap-6 xl:grid-cols-2">
+      <Section eyebrow="01 · Relación" icon={<UserRound className="size-5"/>} id="customer" title="Cliente"><dl><Row label="Cliente" value={props.clientName}/><Row label="Teléfono" value={event.customer.phone||"Sin registro"}/><Row label="Email" value={event.customer.email||"Sin registro"}/><Row label="Dirección" value={event.customer.address}/><Row label="Lugar" value={props.location}/><Row label="Comuna" value={event.customer.city}/><Row label="Google Maps" value={<a className="text-brand hover:underline" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(props.location)}`} rel="noreferrer" target="_blank">Abrir ubicación</a>}/><Row label="Contacto de emergencia" value={event.customer.emergencyContact}/></dl></Section>
+      <Section eyebrow="02 · Comercial" icon={<BriefcaseBusiness className="size-5"/>} id="commercial" title="Estado comercial"><dl><Row label="Cotización" value={props.workspaceData.lastQuotation}/><Row label="Acuerdo" value={props.workspaceData.contractStatus}/><Row label="Precio negociado" value={props.productionIntegration.quotation?money(props.productionIntegration.quotation.finalCustomerPrice):"Sin cotización"}/><Row label="Factura" value={event.receivable?.invoiceNumber??"Sin factura emitida"}/><Row label="Monto facturado" value={event.receivable?money(event.receivable.amount):"—"}/><Row label="Saldo pendiente" value={event.receivable?money(event.receivable.outstandingBalance):props.workspaceData.balance}/><Row label="Vencimiento" value={event.receivable?.dueDate?new Intl.DateTimeFormat("es-CL",{dateStyle:"medium",timeZone:"UTC"}).format(new Date(`${event.receivable.dueDate}T12:00:00Z`)):"Sin fecha"}/><Row label="Condición de pago" value={event.receivable?.paymentTerm??"Sin registro"}/><Row label="Días restantes" value={event.receivable?.daysRemaining===null||event.receivable?.daysRemaining===undefined?"—":event.receivable.daysRemaining<0?`${Math.abs(event.receivable.daysRemaining)} días vencidos`:`${event.receivable.daysRemaining} días`}/><Row label="Profit preview" value={event.profit?`${money(event.profit.grossMargin)} · ${event.profit.marginPercent.toFixed(1)}%`:"Pendiente de cálculo"}/><Row label="Último movimiento" value={event.timeline.find(x=>["Sales","Administrator"].includes(x.source))?.message??"Sin actividad comercial"}/></dl></Section>
+      <Section eyebrow="03 · Experiencia" icon={<Sparkles className="size-5"/>} id="service" title="Servicio contratado"><div className="space-y-3">{event.services.length?event.services.map(service=><article className="rounded-xl border p-4" key={service.code}><div className="flex items-center justify-between gap-3"><p className="font-semibold">{service.code}</p><StatusBadge label={service.duration} variant="info"/></div><p className="mt-3 text-sm text-muted">{service.extras.length?service.extras.join(" · "):"Sin extras registrados"}</p></article>):<Empty text="Cuando se agregue un servicio contratado, aparecerá aquí con su duración y extras."/>}</div><dl className="mt-4"><Row label="Branding" value="Según cotización"/><Row label="QR" value="Según servicio"/><Row label="Imanes" value="Según extras"/><Row label="Scrapbook" value="Según extras"/><Row label="Notas especiales" value={props.workspaceData.checklist}/></dl></Section>
+      <Section eyebrow="04 · Logística" icon={<Package className="size-5"/>} id="operations" title="Operación"><dl><Row label="Tótem asignado" value={totem?.code??"Sin asignar"}/><Row label="Case asignado" value={assetCase?.code??"Sin asignar"}/><Row label="Vehículo" value={currentAssets.find(a=>a.type==="VEHICLE")?.code??"Sin asignar"}/><Row label="Operador" value={operator?.name??"Sin asignar"}/><Row label="Montaje" value={assembly?.name??"Sin asignar"}/><Row label="Desmontaje" value={disassembly?.name??"Sin asignar"}/><Row label="Notas operacionales" value={props.workspaceData.checklist}/></dl></Section>
+    </section>
+
+    <EventOperationsChecklist data={event.checklist} projectId={props.projectKey??""}/>
+    <Section eyebrow="05 · Trabajo pendiente" icon={<ListChecks className="size-5"/>} id="tasks" title="Task Center"><div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4"><MiniMetric label="Pendientes" value={event.tasks.filter(x=>x.status==="PENDING").length}/><MiniMetric label="Hoy" value={event.tasks.filter(x=>x.due_at&&new Date(x.due_at).toDateString()===new Date().toDateString()).length}/><MiniMetric label="Vencidas" value={overdueTasks}/><MiniMetric label="Completadas" value={event.tasks.filter(x=>x.status==="COMPLETED").length}/></div><div className="grid gap-3 lg:grid-cols-2">{event.tasks.length?event.tasks.map(task=><TaskRow key={task.id} task={task}/>):<Empty text="No hay trabajo pendiente para este evento. Las tareas operacionales aparecerán aquí automáticamente."/>}</div></Section>
+
+    <section className="grid gap-6 xl:grid-cols-2">
+      <Section eyebrow="06 · Historial inmutable" icon={<History className="size-5"/>} id="timeline" title="Timeline completo"><ol className="max-h-[620px] space-y-0 overflow-y-auto pr-2">{event.timeline.length?event.timeline.map(item=><li className="relative border-l pb-6 pl-5 last:pb-0" key={item.id}><span className="absolute -left-1.5 top-1 size-3 rounded-full border-2 border-card bg-brand"/><p className="text-sm font-medium">{item.message}</p><p className="mt-1 text-xs text-muted">{item.actor} · {item.source} · {dateTime(item.occurredAt)}</p></li>):<Empty text="Las acciones comerciales, operacionales y del cliente aparecerán aquí."/>}</ol></Section>
+      <Section eyebrow="07 · Archivos" icon={<FolderOpen className="size-5"/>} id="documents" title="Documentos"><div className="space-y-3">{event.documents.length?event.documents.map(doc=><article className="flex items-center justify-between gap-3 rounded-xl border p-4" key={doc.id}><div className="flex min-w-0 items-center gap-3"><FileText className="size-5 shrink-0 text-brand"/><div><p className="font-medium">{humanDocument(doc.type)}</p><p className="text-xs text-muted">{dateTime(doc.createdAt)}</p></div></div>{doc.href?<a aria-label={`Descargar ${humanDocument(doc.type)}`} className="grid size-10 shrink-0 place-items-center rounded-lg border hover:border-brand" href={doc.href} rel="noreferrer" target="_blank"><Download className="size-4"/></a>:<StatusBadge label="Archivo protegido" variant="neutral"/>}</article>):<Empty text="Cotizaciones, acuerdos, comprobantes, diseños y galerías aparecerán aquí cuando estén disponibles."/>}</div></Section>
+      <Section eyebrow="08 · Integraciones" icon={<ExternalLink className="size-5"/>} id="google" title="Google Workspace"><dl><Row label="Calendar" value={<Connector status={event.google.calendarStatus} href={event.google.calendarUrl}/>}/><Row label="Drive" value={<Connector status={event.google.driveStatus} href={event.google.driveUrl}/>}/><Row label="Gmail" value={<Connector status={event.google.gmailStatus}/>}/><Row label="Thread" value={event.google.gmailThread??"Sin conversación"}/><Row label="Portal" value={portalUrl?<a className="text-brand hover:underline" href={portalUrl} rel="noreferrer" target="_blank">Abrir portal</a>:"Sin enlace activo"}/></dl></Section>
+      <Section eyebrow="09 · Costos de equipo" icon={<UsersRound className="size-5"/>} id="payroll" title="Payroll"><div className="space-y-3">{event.payroll.length?event.payroll.map((payment,index)=><article className="rounded-xl border p-4" key={`${payment.staff}-${index}`}><div className="flex justify-between gap-3"><p className="font-semibold">{payment.staff}</p><StatusBadge label={payment.status} variant="info"/></div><dl className="mt-3"><Row label="Montaje" value={money(payment.assembly)}/><Row label="Operación" value={money(payment.operator)}/><Row label="Desmontaje" value={money(payment.disassembly)}/><Row label="Transporte" value={money(payment.transport)}/><Row label="Estacionamiento" value={money(payment.parking)}/><Row label="Total" value={money(payment.total)}/></dl></article>):<Empty text="El cálculo de payroll aparecerá cuando exista Staff asignado al evento."/>}</div></Section>
+    </section>
+
+    <Section eyebrow="10 · Lectura ejecutiva" icon={<Gauge className="size-5"/>} id="health" title="Event Health"><div className="grid gap-6 lg:grid-cols-[220px_1fr]"><div className="grid place-items-center rounded-2xl border bg-background/30 p-6 text-center"><p className="text-5xl font-semibold tracking-tight">{health}%</p><StatusBadge label={healthLabel} variant={healthVariant}/><p className="mt-3 text-xs leading-5 text-muted">Indicador informativo. No bloquea la operación.</p></div><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{readiness.map(item=><div className="rounded-xl border p-4" key={item.label}><div className="flex items-start justify-between gap-3"><p className="text-sm font-medium">{item.label}</p><StatusBadge label={statePresentation[item.state].label} variant={statePresentation[item.state].variant}/></div><p className="mt-2 text-xs leading-5 text-muted">{item.detail}</p></div>)}</div></div></Section>
+
+    <Section eyebrow="11 · Decisiones" icon={<ClipboardCheck className="size-5"/>} id="quick-actions" title="Acciones rápidas"><div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"><ActionButton icon={FileText} label="Generar acuerdo" onClick={()=>scroll("agreement-control")}/><ActionButton icon={Send} label="Enviar acuerdo" onClick={()=>scroll("agreement-control")} variant="outline"/><ActionButton icon={Link2} label={portalUrl?"Abrir portal":"Generar portal"} onClick={portalUrl?()=>window.open(portalUrl,"_blank","noopener,noreferrer"):generatePortal} variant="outline"/><ActionButton icon={UserRound} label="Asignar operador" onClick={()=>scroll("equipment-assignment")} variant="outline"/><ActionButton icon={Package} label="Asignar equipo" onClick={()=>scroll("equipment-assignment")} variant="outline"/><ActionButton icon={CalendarDays} label="Generar Calendar" onClick={()=>scroll("event-readiness")} variant="outline"/><ActionButton icon={FolderOpen} label="Abrir Drive" disabled={!event.google.driveUrl} onClick={()=>event.google.driveUrl&&window.open(event.google.driveUrl,"_blank","noopener,noreferrer")} variant="outline"/><ActionButton icon={Download} label="Generar galería" onClick={()=>scroll("post-event")} variant="outline"/><ActionButton icon={CheckCircle2} label="Cerrar evento" onClick={()=>scroll("post-event")} variant="outline"/><ActionButton icon={ExternalLink} label="Duplicar evento" onClick={()=>router.push("/projects/new")} variant="outline"/></div>{portalFeedback&&<p aria-live="polite" className="mt-3 text-sm text-muted">{portalFeedback}</p>}</Section>
+
+    <Section eyebrow="12 · Post evento" icon={<CheckCircle2 className="size-5"/>} id="post-event" title="Cierre del evento"><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{[["Checklist",event.checklist.status==="COMPLETED"],["Galería cargada",props.workspaceData.gallery==="Disponible"],["Operador confirmado",Boolean(operator)],["Payroll calculado",event.payroll.length>0],["Profit calculado",Boolean(event.profit)],["Reseña solicitada",event.timeline.some(x=>x.message.toLowerCase().includes("reseña"))],["Evento archivado",event.status==="Archived"]].map(([label,done])=><div className="flex items-center gap-3 rounded-xl border p-4" key={String(label)}>{done?<CheckCircle2 className="size-5 text-success"/>:<Clock3 className="size-5 text-muted"/>}<span className="text-sm font-medium">{label}</span></div>)}</div></Section>
+    <ExperienceReviewEngine existing={event.experienceReview.existing} knowledge={event.experienceReview.knowledge} projectId={props.projectKey??""} staff={{operator:operator?.name,assembly:assembly?.name,disassembly:disassembly?.name}}/>
+
+    <div id="equipment-assignment"><EquipmentAssignmentPanel {...props.equipment}/></div>
+    <ProductionIntegrationPanel {...props.productionIntegration}/>
+    <div id="agreement-control"><AgreementSigningControl agreementId={props.signing.agreementId} projectId={props.projectKey??""} status={props.signing.status}/></div>
+  </div>} bottomAction={<div className="sticky bottom-3 z-10 rounded-xl border bg-card/95 p-3 shadow-lg backdrop-blur"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-semibold">{healthLabel} · {health}%</p><p className="text-xs text-muted">{intelligence.timeline.nextAction}</p></div><ActionButton icon={AlertTriangle} label={missing?`Resolver ${missing} pendientes`:"Evento listo"} onClick={()=>scroll("health")} variant={missing?"default":"outline"}/></div></div>}/>;
 }
 
-export function ProjectWorkspaceExperience(props: ProjectWorkspaceExperienceProps) {
-  const [portalUrl, setPortalUrl] = useState("");
-  const [portalFeedback, setPortalFeedback] = useState("Genera un enlace seguro");
-  const portalId = createPortalId(props.projectKey ?? props.projectName);
-  const eventIntelligence = ORBIT_TIME_ENGINE.getEventIntelligence({ eventDate: props.eventDateIso ?? "2027-09-14" });
-
-  const copyPortalLink = async () => {
-    if (!portalUrl) return;
-    try {
-      await navigator.clipboard.writeText(portalUrl);
-      setPortalFeedback("Enlace copiado");
-    } catch {
-      setPortalFeedback("Copia el enlace manualmente");
-    }
-  };
-  const generatePortalLink=async()=>{if(!props.projectKey)return;setPortalFeedback("Generando enlace…");const result=await createCustomerPortalAccessAction(props.projectKey);if(result.ok){setPortalUrl(result.url);setPortalFeedback("Enlace seguro creado");}else setPortalFeedback(result.error);};
-
-  return (
-    <WorkspaceLayout
-      className="max-w-none p-0"
-      header={<ProjectHeader {...props} onEdit={() => undefined} score={props.score ?? 92} stageLabel="Preparación" status={ProjectStatus.CONFIRMED} />}
-      copilot={
-        <OrbitCopilot actionLabel="Completar checklist" ariaLabel="Recomendación de ORBIT Copilot" estimatedTime="2 minutos" impact="El proyecto no puede pasar a listo para producción." reason="Falta validar la plantilla antes del evento." recommendation="Completar checklist" title="Siguiente decisión" />
-      }
-      mainContent={
-        <div className="space-y-10">
-          <section aria-labelledby="perfil-cliente" className="rounded-2xl border bg-card p-5 sm:p-7">
-            <div className="flex flex-col gap-5 border-b pb-6 sm:flex-row sm:items-start sm:justify-between">
-              <div><p className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Relación con el cliente</p><h2 className="mt-2 text-2xl font-semibold tracking-tight" id="perfil-cliente">{props.clientName}</h2><p className="mt-1 text-sm text-muted">{props.projectName}</p></div>
-              <div className="flex flex-wrap gap-2"><StatusBadge label={props.workspaceData.commercialStage} variant="info" /><StatusBadge label="Portal disponible" variant="success" /></div>
-            </div>
-            <dl className="grid gap-x-8 gap-y-5 py-6 text-sm sm:grid-cols-2 xl:grid-cols-4">
-              <div><dt className="text-muted">Próximo evento</dt><dd className="mt-1 font-semibold">{props.eventDate} · {props.eventTime}</dd></div>
-              <div><dt className="text-muted">Cuenta regresiva</dt><dd className="mt-1 font-semibold text-brand">{eventIntelligence.countdown.label}</dd></div>
-              <div><dt className="text-muted">Etapa comercial</dt><dd className="mt-1 font-semibold">{props.workspaceData.commercialStage}</dd></div>
-              <div><dt className="text-muted">Última comunicación</dt><dd className="mt-1 font-semibold">{props.workspaceData.communication}</dd></div>
-              <div><dt className="text-muted">Última cotización</dt><dd className="mt-1 font-semibold">{props.workspaceData.lastQuotation}</dd></div>
-              <div><dt className="text-muted">Último pago</dt><dd className="mt-1 font-semibold">{props.workspaceData.deposit}</dd></div>
-              <div><dt className="text-muted">Portal</dt><dd className="mt-1 font-semibold">Activo · {portalId}</dd></div>
-              <div><dt className="text-muted">Comunicación</dt><dd className="mt-1 font-semibold">{props.workspaceData.communication}</dd></div>
-            </dl>
-            <div className="border-t pt-5"><p className="text-xs font-medium uppercase tracking-[0.16em] text-muted">Trayectoria unificada</p><ol className="mt-4 flex gap-2 overflow-x-auto pb-1">{["WhatsApp", "Cotización", "Portal", "Contrato", "Firma", "Pago", "Diseño", "Planificación", "Evento", "Entrega", "Seguimiento"].map((step, index) => <li className="flex shrink-0 items-center gap-2" key={step}><span className={index < 7 ? "rounded-full bg-success-soft px-3 py-1.5 text-xs font-medium text-success" : "rounded-full border px-3 py-1.5 text-xs text-muted"}>{step}</span>{index < 10 && <span aria-hidden="true" className="text-muted">→</span>}</li>)}</ol></div>
-            <div className="mt-5 flex flex-wrap gap-2 border-t pt-5"><ActionButton icon={FileCheck2} label="Contrato" variant="outline" /><ActionButton icon={WalletCards} label="Pagos" variant="outline" /><ActionButton icon={Link2} label="Portal" onClick={generatePortalLink} variant="outline" /><ActionButton icon={ImageIcon} label="Documentos" variant="outline" /></div>
-          </section>
-          <section aria-labelledby="resumen-proyecto">
-            <div className="mb-5"><p className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Control del proyecto</p><h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-2xl" id="resumen-proyecto">Resumen</h2><p className="mt-2 text-sm text-muted">Información disponible en los registros del proyecto.</p></div>
-            <div className="grid gap-4 xl:grid-cols-2">
-              <SmartCard className="xl:col-span-2" icon={<Link2 aria-hidden="true" className="size-5" />} id="portal-cliente" primaryValue={portalId} secondaryValue="Portal ID permanente" status={<StatusBadge label="Preparación" variant="info" />} title="Portal del Cliente">
-                <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end"><div><p className="text-xs font-semibold uppercase tracking-wider text-muted">Enlace seguro · vence en 30 días</p><p className="mt-2 break-all text-sm font-medium sm:text-base">{portalUrl||"Aún no se ha generado un enlace de acceso."}</p></div><StatusBadge label={portalFeedback} variant={portalFeedback === "Enlace copiado" || portalFeedback === "Enlace seguro creado" ? "success" : "neutral"} /></div>
-                <div className="mt-5 grid gap-2 border-t pt-5 sm:grid-cols-3"><ActionButton icon={portalUrl?Copy:Link2} label={portalUrl?"Copiar enlace":"Generar enlace"} onClick={portalUrl?copyPortalLink:generatePortalLink} variant="outline" /><ActionButton disabled={!portalUrl} icon={ExternalLink} label="Abrir Portal" onClick={()=>portalUrl&&window.open(portalUrl,"_blank","noopener,noreferrer")} /><ActionButton disabled={!portalUrl} icon={Send} label="Preparar envío" onClick={() => setPortalFeedback("Listo para enviar al cliente")} variant="outline" /></div>
-              </SmartCard>
-              <SmartCard icon={<Banknote aria-hidden="true" className="size-5" />} primaryValue={props.workspaceData.sale} secondaryValue="Venta registrada" title="Presupuesto"><dl><DetailRow label="Saldo" value={props.workspaceData.balance} /><DetailRow label="Margen" value={props.workspaceData.margin} /></dl></SmartCard>
-              <SmartCard icon={<FileCheck2 aria-hidden="true" className="size-5" />} id="documentos" primaryValue={props.workspaceData.contractStatus} secondaryValue="Estado del acuerdo" title="Contrato"><dl><DetailRow label="Fecha" value={props.workspaceData.contractDate} /></dl></SmartCard>
-              <SmartCard icon={<Landmark aria-hidden="true" className="size-5" />} primaryValue={props.workspaceData.deposit} secondaryValue="Abono registrado" title="Finanzas"><dl><DetailRow label="Saldo" value={props.workspaceData.balance} /></dl></SmartCard>
-              <SmartCard icon={<CheckSquare2 aria-hidden="true" className="size-5" />} primaryValue={props.workspaceData.checklist} secondaryValue="Checklist registrado" title="Preparación"><dl><DetailRow label="Operador" value={props.workspaceData.operator} /><DetailRow label="Cabina" value={props.workspaceData.booth} /></dl></SmartCard>
-              <SmartCard icon={<CalendarClock aria-hidden="true" className="size-5" />} primaryValue={eventIntelligence.countdown.label} secondaryValue="Cuenta regresiva" status={<StatusBadge label={eventIntelligence.timeline.phaseLabel} variant="info" />} title="Evento"><dl><DetailRow label="Próxima acción" value={eventIntelligence.timeline.nextAction} /><DetailRow label="Estado" value="En calendario" /></dl></SmartCard>
-              <SmartCard icon={<ImageIcon aria-hidden="true" className="size-5" />} primaryValue={props.workspaceData.gallery} secondaryValue="Estado de entrega" title="Entrega"><dl><DetailRow label="Galería" value={props.workspaceData.gallery} /><DetailRow label="Respaldo" value={props.workspaceData.backup} /><DetailRow label="Archivo" value="Sin registro" /></dl></SmartCard>
-            </div>
-          </section>
-
-          <EquipmentAssignmentPanel {...props.equipment} />
-
-          <ProductionIntegrationPanel {...props.productionIntegration} />
-
-          <AgreementSigningControl agreementId={props.signing.agreementId} projectId={props.projectKey ?? ""} status={props.signing.status} />
-
-          <section aria-labelledby="actividad-reciente" className="rounded-xl border bg-card p-5 sm:p-6">
-            <div className="mb-6"><p className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Últimos movimientos</p><h2 className="mt-2 text-xl font-semibold tracking-tight" id="actividad-reciente">Actividad reciente</h2></div>
-            {props.activities?.length ? <ol className="divide-y">{props.activities.map((activity) => <li className="grid gap-1 py-4 first:pt-0 last:pb-0 sm:grid-cols-[1fr_auto] sm:gap-x-6" key={`${activity.title}-${activity.time}`}><div><p className="text-sm font-medium">{activity.title}</p><p className="mt-1 text-sm text-muted">{activity.detail}</p></div><time className="text-xs text-muted">{activity.time}</time></li>)}</ol> : <div className="rounded-xl border border-dashed px-5 py-8 text-center"><p className="text-sm font-medium">Aún no existe actividad para este proyecto.</p><p className="mt-1 text-sm text-muted">Los próximos movimientos aparecerán aquí automáticamente.</p></div>}
-          </section>
-        </div>
-      }
-      timeline={null}
-      bottomAction={
-        <div className="sticky bottom-3 z-10 rounded-xl border bg-card/95 p-3 shadow-lg backdrop-blur sm:p-4">
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4"><ActionButton icon={WalletCards} label="Registrar pago" variant="outline" /><ActionButton icon={FileCheck2} label="Abrir contrato" variant="outline" /><ActionButton icon={CheckSquare2} label="Preparación" variant="outline" /><ActionButton icon={CalendarClock} label="Iniciar evento" /></div>
-        </div>
-      }
-    />
-  );
-}
-
-function createPortalId(projectKey: string) {
-  const value = Array.from(projectKey).reduce((total, character) => (total * 31 + character.charCodeAt(0)) % 1_000_000, 124);
-  return `BBX-26-${value.toString().padStart(6, "0")}`;
-}
+function HeroMetric({label,value}:{label:string;value:string}){return <div className="rounded-xl border bg-background/30 p-3"><p className="text-[10px] font-semibold uppercase tracking-wider text-muted">{label}</p><p className="mt-1 line-clamp-2 text-sm font-semibold">{value}</p></div>}
+function MiniMetric({label,value}:{label:string;value:number}){return <div className="rounded-xl border bg-background/30 p-4"><p className="text-2xl font-semibold">{value}</p><p className="mt-1 text-xs text-muted">{label}</p></div>}
+function Empty({text}:{text:string}){return <div className="rounded-xl border border-dashed p-6 text-center"><p className="text-sm text-muted">{text}</p></div>}
+function Connector({status,href}:{status:string;href?:string}){return <span className="inline-flex items-center gap-2"><StatusBadge label={status} variant={["SYNCHRONIZED","CREATED","SENT","DELIVERED"].includes(status)?"success":"warning"}/>{href&&<a aria-label="Abrir integración" className="text-brand" href={href} rel="noreferrer" target="_blank"><ExternalLink className="size-4"/></a>}</span>}
+function humanDocument(type:string){return ({QUOTATION:"Cotización",AGREEMENT:"Acuerdo",SIGNED_AGREEMENT:"Acuerdo firmado",INVOICE:"Factura",PAYMENT_RECEIPT:"Comprobante de pago",DESIGN:"Archivo de diseño",GALLERY:"Galería"} as Record<string,string>)[type]??type.replaceAll("_"," ")}

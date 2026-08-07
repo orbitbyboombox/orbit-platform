@@ -1,0 +1,9 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { DEFAULT_COMPANY_SETTINGS, type CompanySettings } from "./types";
+
+const object=(value:unknown)=>value&&typeof value==="object"&&!Array.isArray(value)?value as Record<string,unknown>:{};
+export async function loadCompanySettings(client:SupabaseClient):Promise<CompanySettings>{
+  const {data,error}=await client.from("company_settings").select("*").eq("settings_key","PRIMARY").maybeSingle();
+  if(error||!data)return DEFAULT_COMPANY_SETTINGS;
+  return {id:data.id,companyName:data.company_name,legalName:data.legal_name,brandName:data.brand_name,productName:data.product_name,productVersion:data.product_version,developedBy:data.developed_by,poweredBy:data.powered_by,taxId:data.tax_id??"",taxName:data.tax_name,taxRate:Number(data.tax_rate),supportEmail:data.support_email??"",salesEmail:data.sales_email??"",operationsEmail:data.operations_email??"",phone:data.phone??"",website:data.website??"",address:data.address??"",city:data.city??"",country:data.country,locale:data.locale,currency:data.currency,timezone:data.timezone,googleWorkspaceDomain:data.google_workspace_domain??"",logoUrl:data.logo_url,isotypeUrl:data.isotype_url,documentLogoUrl:data.document_logo_url,portalLogoUrl:data.portal_logo_url,dashboardLogoUrl:data.dashboard_logo_url,emailLogoUrl:data.email_logo_url,primaryColor:data.primary_color,accentColor:data.accent_color,loginTagline:data.login_tagline,portalKicker:data.portal_kicker,portalWelcome:data.portal_welcome,emailSignature:data.email_signature,contractFooter:data.contract_footer,quotationFooter:data.quotation_footer,driveRootFolder:data.drive_root_folder,contractConfiguration:object(data.contract_configuration),pdfConfiguration:object(data.pdf_configuration),emailConfiguration:object(data.email_configuration),portalConfiguration:object(data.portal_configuration),dashboardConfiguration:object(data.dashboard_configuration),version:data.version};
+}

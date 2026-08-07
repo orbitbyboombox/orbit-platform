@@ -1,29 +1,21 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
+import { CompanySettingsProvider, loadCompanySettings } from "@/features/company-settings";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export const metadata: Metadata = {
-  title: "ORBIT v1.0",
-  description: "La plataforma operativa de BOOMBOX.",
-  icons: {
-    icon: [
-      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
-      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
-      { url: "/branding/orbit-isotype.png", sizes: "512x512", type: "image/png" },
-    ],
-    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
-  },
-};
+export async function generateMetadata():Promise<Metadata>{const settings=await loadCompanySettings(await createSupabaseServerClient());return{title:`${settings.productName} ${settings.productVersion}`,description:settings.loginTagline,icons:{icon:[{url:settings.isotypeUrl}],apple:[{url:settings.isotypeUrl}]}}}
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const settings=await loadCompanySettings(await createSupabaseServerClient());
   return (
     <html className="dark" lang="es" suppressHydrationWarning>
       <body className="antialiased">
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider><CompanySettingsProvider settings={settings}>{children}</CompanySettingsProvider></ThemeProvider>
       </body>
     </html>
   );

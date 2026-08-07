@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, CalendarDays, CheckCircle2, CircleDollarSign, FileSignature, PackageCheck, ShieldAlert, Sparkles, UserCheck } from "lucide-react";
+import { AlertTriangle, CalendarDays, CheckCircle2, CircleDollarSign, Clock3, FileSignature, ListChecks, PackageCheck, ShieldAlert, Sparkles, UserCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { SectionTitle } from "@/components/layout/section-title";
 import { Button } from "@/components/ui/button";
@@ -53,7 +53,7 @@ function Metric({ label, value, icon:Icon, tone="neutral" }: { label:string; val
   return <article className="rounded-2xl border bg-card p-4 sm:p-5"><div className="flex items-center justify-between"><Icon aria-hidden="true" className={`size-4 ${toneClass}`} /><span className="text-2xl font-semibold tabular-nums">{value}</span></div><p className="mt-3 text-xs leading-5 text-muted sm:text-sm">{label}</p></article>;
 }
 
-export function CommandCenter({ readiness, availableOperators, availableTotems, availableCases }: { readiness:readonly CommandCenterProjectReadiness[]; availableOperators:number; availableTotems:number; availableCases:number }) {
+export function CommandCenter({ readiness, availableOperators, availableTotems, availableCases, taskSummary }: { readiness:readonly CommandCenterProjectReadiness[]; availableOperators:number; availableTotems:number; availableCases:number; taskSummary:{pending:number;critical:number;overdue:number;today:number} }) {
   const router = useRouter();
   const context = ORBIT_TIME_ENGINE.getCurrentContext("Matías");
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(new Date());
@@ -78,7 +78,13 @@ export function CommandCenter({ readiness, availableOperators, availableTotems, 
       <Metric icon={AlertTriangle} label="Alertas operacionales" tone={alerts.length ? "danger" : "success"} value={alerts.length} />
       <Metric icon={CheckCircle2} label="Eventos ready" tone="success" value={readyEvents} />
       <Metric icon={ShieldAlert} label="Eventos bloqueados" tone={blockedEvents ? "danger" : "success"} value={blockedEvents} />
+      <Metric icon={ListChecks} label="Tareas pendientes" tone={taskSummary.pending ? "warning" : "success"} value={taskSummary.pending} />
+      <Metric icon={AlertTriangle} label="Tareas críticas" tone={taskSummary.critical ? "danger" : "success"} value={taskSummary.critical} />
+      <Metric icon={Clock3} label="Tareas vencidas" tone={taskSummary.overdue ? "danger" : "success"} value={taskSummary.overdue} />
+      <Metric icon={CalendarDays} label="Tareas de hoy" tone={taskSummary.today ? "warning" : "success"} value={taskSummary.today} />
     </section>
+
+    <section className="rounded-2xl border bg-card p-5 sm:p-6"><div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand">Trabajo pendiente</p><p className="mt-2 text-lg font-semibold">{taskSummary.pending ? `${taskSummary.pending} tareas requieren seguimiento.` : "No hay tareas pendientes."}</p><p className="mt-1 text-sm text-muted">El Centro de Tareas organiza el trabajo futuro; Timeline conserva el historial.</p></div><Button onClick={() => router.push("/tasks")} variant="outline">Abrir tareas</Button></div></section>
 
     {firstAlert ? <section className="rounded-2xl border border-brand/25 bg-card p-5 sm:p-6"><div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between"><div className="flex gap-3"><Sparkles aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-brand" /><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand">ORBIT NOVA · recomendación operacional</p><p className="mt-2 text-lg font-semibold">Revisar preparación de {firstAlert.customerName}.</p><p className="mt-1 text-sm text-muted">Existe información pendiente antes del evento.</p></div></div><Button onClick={() => router.push(`/projects/${firstAlert.projectId}#event-readiness`)}>Resolver ahora</Button></div></section> : <section className="rounded-2xl border bg-card p-5 sm:p-6"><p className="font-semibold">Todo está listo para operar.</p><p className="mt-1 text-sm text-muted">No existen alertas operacionales pendientes.</p></section>}
 

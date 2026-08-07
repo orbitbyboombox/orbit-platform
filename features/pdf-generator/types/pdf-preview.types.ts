@@ -34,15 +34,15 @@ export interface ContractPdfPreviewModel {
   metadata: {
     title: string;
     subject: string;
-    language: "es-CL";
+    language: string;
     contractId: string;
     projectId: string;
   };
   branding: {
-    applicationName: "ORBIT v1.0";
-    logoPath: "/branding/ORBIT%20V1-0%20SINFONDO.png";
-    developedBy: "BOOMBOX";
-    poweredBy: "NOVA CORE";
+    applicationName: string;
+    logoPath: string;
+    developedBy: string;
+    poweredBy: string;
   };
   heading: {
     title: string;
@@ -61,6 +61,6 @@ export interface ContractPdfPreviewModel {
   clauses: ContractDocument["clauses"];
   signatures: readonly [
     { role: "CUSTOMER"; label: string; signerName: string; embedded: boolean; evidenceId?: string; signedAt?: string; imageDataUrl?: string },
-    { role: "BOOMBOX"; label: string; signerName: "BOOMBOX"; embedded: false },
+    { role: "BOOMBOX"; label: string; signerName: string; embedded: false },
   ];
 }

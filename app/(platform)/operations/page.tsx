@@ -4,8 +4,10 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export default async function OperationsPage() {
   const client = await createSupabaseServerClient();
+  const { error: taskMaterializationError } = await client.rpc("materialize_scheduled_event_tasks");
+  if (taskMaterializationError) throw taskMaterializationError;
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(new Date());
-  const [allProjects, assignmentsResult, staffResult, assetsResult, assetAssignmentsResult, agreementsResult, evidenceResult, quotationsResult, calendarResult, driveResult, documentsResult, payrollResult, profitResult, timelineResult, rawProjectsResult, customersResult] = await Promise.all([
+  const [allProjects, assignmentsResult, staffResult, assetsResult, assetAssignmentsResult, agreementsResult, evidenceResult, quotationsResult, calendarResult, driveResult, documentsResult, payrollResult, profitResult, timelineResult, rawProjectsResult, customersResult, tasksResult] = await Promise.all([
     new SupabaseCustomerRepository(client).findAll(),
     client.from("assignments").select("id,project_id,staff_id,assignment_type,status,resources").is("deleted_at", null),
     client.from("staff").select("id,status,capabilities").eq("status", "ACTIVE").is("deleted_at", null),
@@ -22,9 +24,10 @@ export default async function OperationsPage() {
     client.from("timeline_events").select("project_id"),
     client.from("projects").select("id,customer_id,finance").is("deleted_at", null),
     client.from("customers").select("id,metadata").is("deleted_at", null),
+    client.from("tasks").select("priority,status,due_at").is("deleted_at",null),
   ]);
 
-  const results = [assignmentsResult, staffResult, assetsResult, assetAssignmentsResult, agreementsResult, evidenceResult, quotationsResult, calendarResult, driveResult, documentsResult, payrollResult, profitResult, timelineResult, rawProjectsResult, customersResult];
+  const results = [assignmentsResult, staffResult, assetsResult, assetAssignmentsResult, agreementsResult, evidenceResult, quotationsResult, calendarResult, driveResult, documentsResult, payrollResult, profitResult, timelineResult, rawProjectsResult, customersResult, tasksResult];
   const error = results.find((result) => result.error)?.error;
   if (error) throw error;
 
@@ -85,6 +88,13 @@ export default async function OperationsPage() {
   const availableOperators = staff.filter((member) => Array.isArray(member.capabilities) && member.capabilities.includes("OPERATOR") && !assignedToday.has(member.id)).length;
   const availableTotems = assets.filter((asset) => asset.asset_type === "TOTEM" && asset.status === "AVAILABLE").length;
   const availableCases = assets.filter((asset) => asset.asset_type === "CASE" && asset.status === "AVAILABLE").length;
+  const openTasks=(tasksResult.data??[]).filter((task)=>!["COMPLETED","CANCELLED"].includes(task.status));
+  const taskSummary={
+    pending:openTasks.length,
+    critical:openTasks.filter((task)=>task.priority==="CRITICAL").length,
+    overdue:openTasks.filter((task)=>task.due_at&&new Intl.DateTimeFormat("en-CA",{timeZone:"America/Santiago"}).format(new Date(task.due_at))<today).length,
+    today:openTasks.filter((task)=>task.due_at&&new Intl.DateTimeFormat("en-CA",{timeZone:"America/Santiago"}).format(new Date(task.due_at))===today).length,
+  };
 
-  return <CommandCenter availableCases={availableCases} availableOperators={availableOperators} availableTotems={availableTotems} readiness={readiness} />;
+  return <CommandCenter availableCases={availableCases} availableOperators={availableOperators} availableTotems={availableTotems} readiness={readiness} taskSummary={taskSummary} />;
 }

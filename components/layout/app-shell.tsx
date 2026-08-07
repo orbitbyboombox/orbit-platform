@@ -7,14 +7,15 @@ import { BrandLogo } from "@/components/brand-logo";
 export interface AppShellProps {
   children: React.ReactNode;
   userEmail: string;
+  unreadNotifications: number;
 }
 
-export function AppShell({ children, userEmail }: AppShellProps) {
+export function AppShell({ children, userEmail, unreadNotifications }: AppShellProps) {
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
       <div className="md:pl-20 lg:pl-60">
-        <Header userEmail={userEmail} />
+        <Header unreadNotifications={unreadNotifications} userEmail={userEmail} />
         <main className="min-h-[calc(100vh-4rem)] pb-20 sm:pb-24 md:pb-0">
           <PageContainer>{children}</PageContainer>
         </main>

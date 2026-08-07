@@ -4,21 +4,35 @@ import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 export interface SignedAgreementPdfInput {
   quotationNumber: string; customer: string; event: string; services: string; hours: string; extras: string;
   venue: string; address: string; finalCustomerPrice: number; signaturePng: Uint8Array; signedAt: string; agreementVersion: string;
+  portalUrl: string;
+  branding:{productName:string;productVersion:string;brandName:string;poweredBy:string;footer:string;currency:string;locale:string;timezone:string};
 }
 
 export async function createSignedAgreementPdf(input: SignedAgreementPdfInput): Promise<Uint8Array> {
   const pdf = await PDFDocument.create(); const page = pdf.addPage([595.28, 841.89]); const font = await pdf.embedFont(StandardFonts.Helvetica); const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
   const orange = rgb(0.96, 0.55, 0.12); const dark = rgb(0.08, 0.09, 0.11); const muted = rgb(0.35, 0.37, 0.42);
-  page.drawRectangle({ x: 0, y: 760, width: 595.28, height: 81.89, color: dark }); page.drawText("ORBIT by BOOMBOX", { x: 42, y: 795, size: 20, font: bold, color: orange }); page.drawText("Acuerdo digital firmado", { x: 42, y: 774, size: 10, font, color: rgb(0.9,0.9,0.9) });
+  page.drawRectangle({ x: 0, y: 760, width: 595.28, height: 81.89, color: dark }); page.drawText(safe(`${input.branding.productName} by ${input.branding.brandName}`), { x: 42, y: 795, size: 20, font: bold, color: orange }); page.drawText("Acuerdo digital firmado", { x: 42, y: 774, size: 10, font, color: rgb(0.9,0.9,0.9) });
   page.drawText(`Cotización ${safe(input.quotationNumber)}`, { x: 42, y: 718, size: 18, font: bold, color: dark });
-  let y = 680; const rows: Array<[string,string]> = [["Cliente",input.customer],["Evento",input.event],["Servicios",input.services],["Duración",input.hours],["Extras",input.extras],["Precio final",new Intl.NumberFormat("es-CL",{style:"currency",currency:"CLP",maximumFractionDigits:0}).format(input.finalCustomerPrice)],["Lugar",input.venue],["Dirección",input.address],["Versión del acuerdo",input.agreementVersion]];
+  let y = 680; const rows: Array<[string,string]> = [["Cliente",input.customer],["Evento",input.event],["Servicios",input.services],["Duración",input.hours],["Extras",input.extras],["Precio final",new Intl.NumberFormat(input.branding.locale,{style:"currency",currency:input.branding.currency,maximumFractionDigits:0}).format(input.finalCustomerPrice)],["Lugar",input.venue],["Dirección",input.address],["Versión del acuerdo",input.agreementVersion]];
   for (const [label,value] of rows) { page.drawText(label.toUpperCase(), { x: 42, y, size: 8, font: bold, color: muted }); page.drawText(safe(value).slice(0,88), { x: 180, y, size: 10, font, color: dark }); y -= 32; }
   page.drawLine({ start: { x: 42, y: 392 }, end: { x: 553, y: 392 }, thickness: 0.8, color: rgb(0.82,0.83,0.85) });
   page.drawText("FIRMA DEL CLIENTE", { x: 42, y: 360, size: 8, font: bold, color: muted });
   const signature = await pdf.embedPng(input.signaturePng); const scaled = signature.scale(Math.min(1, 230 / signature.width, 100 / signature.height)); page.drawImage(signature, { x: 42, y: 235, width: scaled.width, height: scaled.height });
   page.drawLine({ start: { x: 42, y: 225 }, end: { x: 300, y: 225 }, thickness: 0.8, color: dark }); page.drawText(safe(input.customer), { x: 42, y: 208, size: 9, font, color: dark });
-  page.drawText(`Firmado: ${new Intl.DateTimeFormat("es-CL", { dateStyle: "long", timeStyle: "medium", timeZone: "America/Santiago" }).format(new Date(input.signedAt))}`, { x: 42, y: 178, size: 9, font, color: muted });
-  page.drawText("Documento generado por ORBIT v1.0 · Powered by NOVA CORE", { x: 42, y: 48, size: 8, font, color: muted });
+  page.drawText(`Firmado: ${new Intl.DateTimeFormat(input.branding.locale, { dateStyle: "long", timeStyle: "medium", timeZone: input.branding.timezone }).format(new Date(input.signedAt))}`, { x: 42, y: 178, size: 9, font, color: muted });
+  page.drawText(safe(input.branding.footer||`Documento generado por ${input.branding.productName} ${input.branding.productVersion} · Powered by ${input.branding.poweredBy}`), { x: 42, y: 48, size: 8, font, color: muted });
+  const portalPage=pdf.addPage([595.28,841.89]);
+  portalPage.drawRectangle({x:0,y:0,width:595.28,height:841.89,color:rgb(0.97,0.97,0.98)});
+  portalPage.drawRectangle({x:42,y:250,width:511,height:342,color:rgb(1,1,1),borderColor:rgb(0.86,0.87,0.89),borderWidth:1});
+  portalPage.drawText(safe(`${input.branding.brandName} CUSTOMER PORTAL`),{x:72,y:542,size:12,font:bold,color:orange});
+  portalPage.drawText("Accede a tu evento cuando lo necesites.",{x:72,y:505,size:20,font:bold,color:dark});
+  portalPage.drawText(safe(input.portalUrl),{x:72,y:457,size:13,font:bold,color:orange});
+  portalPage.drawText("ACCEDE CON",{x:72,y:404,size:8,font:bold,color:muted});
+  portalPage.drawText("Tu RUT",{x:72,y:370,size:15,font:bold,color:dark});
+  portalPage.drawText("+",{x:72,y:339,size:14,font:bold,color:orange});
+  portalPage.drawText("La fecha de tu evento",{x:72,y:306,size:15,font:bold,color:dark});
+  portalPage.drawText("Sin cuenta. Sin contraseña. Sin registro.",{x:72,y:274,size:9,font,color:muted});
+  portalPage.drawText(safe(input.branding.footer),{x:42,y:48,size:8,font,color:muted});
   return pdf.save();
 }
 

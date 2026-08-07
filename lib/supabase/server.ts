@@ -9,6 +9,8 @@ async function getSupabaseServerConfig() {
   return { cookieStore, publishableKey, url };
 }
 
+const authCookieOptions={httpOnly:true,path:"/",sameSite:"lax" as const,secure:process.env.NODE_ENV==="production"};
+
 export async function createSupabaseServerClient() {
   const { cookieStore, publishableKey, url } = await getSupabaseServerConfig();
   return createServerClient(url, publishableKey, {
@@ -21,16 +23,11 @@ export async function createSupabaseServerClient() {
 export async function createSupabaseServerActionClient() {
   const { cookieStore, publishableKey, url } = await getSupabaseServerConfig();
   return createServerClient(url, publishableKey, {
-    cookieOptions: {
-      httpOnly: true,
-      path: "/",
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-    },
+    cookieOptions: authCookieOptions,
     cookies: {
       getAll: () => cookieStore.getAll(),
       setAll: (items) => {
-        items.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
+        items.forEach(({ name, value, options }) => cookieStore.set(name,value,{...authCookieOptions,...options}));
       },
     },
   });

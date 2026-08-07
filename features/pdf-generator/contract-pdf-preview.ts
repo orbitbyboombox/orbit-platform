@@ -1,5 +1,5 @@
 import { getEventType } from "@/features/business-core";
-import { OFFICIAL_ORBIT_LOGO_PATH } from "@/lib/branding";
+import { DEFAULT_COMPANY_SETTINGS, type CompanySettings } from "@/features/company-settings";
 import type { ContractPdfGeneratorInput, ContractPdfPreviewModel } from "./types";
 
 function describeTransport(input: ContractPdfGeneratorInput): string {
@@ -14,6 +14,7 @@ function describeTransport(input: ContractPdfGeneratorInput): string {
 
 export function createContractPdfPreview(
   input: ContractPdfGeneratorInput,
+  company:CompanySettings=DEFAULT_COMPANY_SETTINGS,
 ): ContractPdfPreviewModel {
   const { contract, project } = input;
   const pricing = contract.priceBreakdown;
@@ -22,15 +23,15 @@ export function createContractPdfPreview(
     metadata: {
       title: `${contract.templateName} - ${project.name}`,
       subject: `Contrato ${contract.id}`,
-      language: "es-CL",
+      language: company.locale,
       contractId: contract.id,
       projectId: contract.projectId,
     },
     branding: {
-      applicationName: "ORBIT v1.0",
-      logoPath: OFFICIAL_ORBIT_LOGO_PATH,
-      developedBy: "BOOMBOX",
-      poweredBy: "NOVA CORE",
+      applicationName: `${company.productName} ${company.productVersion}`,
+      logoPath: company.documentLogoUrl,
+      developedBy: company.developedBy,
+      poweredBy: company.poweredBy,
     },
     heading: {
       title: project.name,
@@ -64,7 +65,7 @@ export function createContractPdfPreview(
     clauses: contract.clauses,
     signatures: [
       { role: "CUSTOMER", label: "Firma del cliente", signerName: contract.customer.name, embedded: Boolean(input.customerSignature), evidenceId: input.customerSignature?.evidenceId, signedAt: input.customerSignature?.signedAt, imageDataUrl: input.customerSignature?.imageDataUrl },
-      { role: "BOOMBOX", label: "Firma BOOMBOX", signerName: "BOOMBOX", embedded: false },
+      { role: "BOOMBOX", label: `Firma ${company.brandName}`, signerName: company.legalName, embedded: false },
     ],
   };
 }

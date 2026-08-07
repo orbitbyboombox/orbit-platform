@@ -1,0 +1,3 @@
+begin;
+update public.internal_notifications set category=case when notification_type in('MESSAGE','QUESTION','ADDITIONAL_SERVICE','DESIGN_COMMENT','DESIGN_UPLOAD') then 'CUSTOMER' else category end,priority=case when notification_type in('ADDITIONAL_SERVICE','DESIGN_UPLOAD') then 'HIGH' when notification_type in('MESSAGE','QUESTION','DESIGN_COMMENT') then 'NORMAL' else priority end,action_required=case when notification_type in('MESSAGE','QUESTION','ADDITIONAL_SERVICE','DESIGN_COMMENT','DESIGN_UPLOAD') then true else action_required end,related_href=coalesce(related_href,case when project_id is not null then '/projects/'||project_id else null end) where notification_type in('MESSAGE','QUESTION','ADDITIONAL_SERVICE','DESIGN_COMMENT','DESIGN_UPLOAD');
+commit;
