@@ -8,7 +8,7 @@ export type AccessType = "CUSTOMER" | "STAFF" | "ADMIN";
 const options = [
   { id: "CUSTOMER" as const, label: "CLIENTES" },
   { id: "STAFF" as const, label: "STAFF" },
-  { id: "ADMIN" as const, label: "ADMINISTRACIÓN" },
+  { id: "ADMIN" as const, label: "ADMIN" },
 ];
 
 export function UnifiedAccess({ initialMessage, initialAccess = "ADMIN" }: { initialMessage?: string; initialAccess?: AccessType }) {
