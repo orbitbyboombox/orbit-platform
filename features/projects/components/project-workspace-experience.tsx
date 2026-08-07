@@ -9,7 +9,8 @@ import { ProjectHeader, type ProjectHeaderProps } from "@/components/project/pro
 import { ActionButton } from "@/components/ui/action-button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ProjectStatus } from "@/features/projects/domain";
-import { CustomerPortalExperience, type CustomerPortalStage } from "./customer-portal-experience";
+import type { CustomerPortalStage } from "./customer-portal-experience";
+import { createCustomerPortalAccessAction } from "@/features/customer-portal/admin.actions";
 import { ORBIT_TIME_ENGINE } from "@/features/time-intelligence";
 import { EquipmentAssignmentPanel, type EquipmentAssignmentPanelProps } from "@/features/asset-management";
 import { AgreementSigningControl } from "@/features/projects/signing/agreement-signing-control";
@@ -36,13 +37,13 @@ function DetailRow({ label, value }: DetailRowProps) {
 }
 
 export function ProjectWorkspaceExperience(props: ProjectWorkspaceExperienceProps) {
-  const [portalOpen, setPortalOpen] = useState(false);
-  const [portalFeedback, setPortalFeedback] = useState("Enlace disponible");
+  const [portalUrl, setPortalUrl] = useState("");
+  const [portalFeedback, setPortalFeedback] = useState("Genera un enlace seguro");
   const portalId = createPortalId(props.projectKey ?? props.projectName);
-  const portalUrl = `https://orbit.boom-box.cl/p/${portalId}`;
   const eventIntelligence = ORBIT_TIME_ENGINE.getEventIntelligence({ eventDate: props.eventDateIso ?? "2027-09-14" });
 
   const copyPortalLink = async () => {
+    if (!portalUrl) return;
     try {
       await navigator.clipboard.writeText(portalUrl);
       setPortalFeedback("Enlace copiado");
@@ -50,10 +51,7 @@ export function ProjectWorkspaceExperience(props: ProjectWorkspaceExperienceProp
       setPortalFeedback("Copia el enlace manualmente");
     }
   };
-
-  if (portalOpen) {
-    return <CustomerPortalExperience clientName={props.clientName} eventDate={props.eventDate} location={props.location} onClose={() => setPortalOpen(false)} portalId={portalId} portalUrl={portalUrl} projectName={props.projectName} services={props.services} stage={props.portalStage ?? "PREPARATION"} />;
-  }
+  const generatePortalLink=async()=>{if(!props.projectKey)return;setPortalFeedback("Generando enlace…");const result=await createCustomerPortalAccessAction(props.projectKey);if(result.ok){setPortalUrl(result.url);setPortalFeedback("Enlace seguro creado");}else setPortalFeedback(result.error);};
 
   return (
     <WorkspaceLayout
@@ -80,14 +78,14 @@ export function ProjectWorkspaceExperience(props: ProjectWorkspaceExperienceProp
               <div><dt className="text-muted">Comunicación</dt><dd className="mt-1 font-semibold">{props.workspaceData.communication}</dd></div>
             </dl>
             <div className="border-t pt-5"><p className="text-xs font-medium uppercase tracking-[0.16em] text-muted">Trayectoria unificada</p><ol className="mt-4 flex gap-2 overflow-x-auto pb-1">{["WhatsApp", "Cotización", "Portal", "Contrato", "Firma", "Pago", "Diseño", "Planificación", "Evento", "Entrega", "Seguimiento"].map((step, index) => <li className="flex shrink-0 items-center gap-2" key={step}><span className={index < 7 ? "rounded-full bg-success-soft px-3 py-1.5 text-xs font-medium text-success" : "rounded-full border px-3 py-1.5 text-xs text-muted"}>{step}</span>{index < 10 && <span aria-hidden="true" className="text-muted">→</span>}</li>)}</ol></div>
-            <div className="mt-5 flex flex-wrap gap-2 border-t pt-5"><ActionButton icon={FileCheck2} label="Contrato" variant="outline" /><ActionButton icon={WalletCards} label="Pagos" variant="outline" /><ActionButton icon={Link2} label="Portal" onClick={() => setPortalOpen(true)} variant="outline" /><ActionButton icon={ImageIcon} label="Documentos" variant="outline" /></div>
+            <div className="mt-5 flex flex-wrap gap-2 border-t pt-5"><ActionButton icon={FileCheck2} label="Contrato" variant="outline" /><ActionButton icon={WalletCards} label="Pagos" variant="outline" /><ActionButton icon={Link2} label="Portal" onClick={generatePortalLink} variant="outline" /><ActionButton icon={ImageIcon} label="Documentos" variant="outline" /></div>
           </section>
           <section aria-labelledby="resumen-proyecto">
             <div className="mb-5"><p className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Control del proyecto</p><h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-2xl" id="resumen-proyecto">Resumen</h2><p className="mt-2 text-sm text-muted">Información disponible en los registros del proyecto.</p></div>
             <div className="grid gap-4 xl:grid-cols-2">
               <SmartCard className="xl:col-span-2" icon={<Link2 aria-hidden="true" className="size-5" />} id="portal-cliente" primaryValue={portalId} secondaryValue="Portal ID permanente" status={<StatusBadge label="Preparación" variant="info" />} title="Portal del Cliente">
-                <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end"><div><p className="text-xs font-semibold uppercase tracking-wider text-muted">Enlace permanente</p><p className="mt-2 break-all text-sm font-medium sm:text-base">{portalUrl}</p></div><StatusBadge label={portalFeedback} variant={portalFeedback === "Enlace copiado" || portalFeedback === "Enlace reenviado" ? "success" : "neutral"} /></div>
-                <div className="mt-5 grid gap-2 border-t pt-5 sm:grid-cols-3"><ActionButton icon={Copy} label="Copiar enlace" onClick={copyPortalLink} variant="outline" /><ActionButton icon={ExternalLink} label="Abrir Portal" onClick={() => setPortalOpen(true)} /><ActionButton icon={Send} label="Reenviar enlace" onClick={() => setPortalFeedback("Enlace reenviado")} variant="outline" /></div>
+                <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end"><div><p className="text-xs font-semibold uppercase tracking-wider text-muted">Enlace seguro · vence en 30 días</p><p className="mt-2 break-all text-sm font-medium sm:text-base">{portalUrl||"Aún no se ha generado un enlace de acceso."}</p></div><StatusBadge label={portalFeedback} variant={portalFeedback === "Enlace copiado" || portalFeedback === "Enlace seguro creado" ? "success" : "neutral"} /></div>
+                <div className="mt-5 grid gap-2 border-t pt-5 sm:grid-cols-3"><ActionButton icon={portalUrl?Copy:Link2} label={portalUrl?"Copiar enlace":"Generar enlace"} onClick={portalUrl?copyPortalLink:generatePortalLink} variant="outline" /><ActionButton disabled={!portalUrl} icon={ExternalLink} label="Abrir Portal" onClick={()=>portalUrl&&window.open(portalUrl,"_blank","noopener,noreferrer")} /><ActionButton disabled={!portalUrl} icon={Send} label="Preparar envío" onClick={() => setPortalFeedback("Listo para enviar al cliente")} variant="outline" /></div>
               </SmartCard>
               <SmartCard icon={<Banknote aria-hidden="true" className="size-5" />} primaryValue={props.workspaceData.sale} secondaryValue="Venta registrada" title="Presupuesto"><dl><DetailRow label="Saldo" value={props.workspaceData.balance} /><DetailRow label="Margen" value={props.workspaceData.margin} /></dl></SmartCard>
               <SmartCard icon={<FileCheck2 aria-hidden="true" className="size-5" />} id="documentos" primaryValue={props.workspaceData.contractStatus} secondaryValue="Estado del acuerdo" title="Contrato"><dl><DetailRow label="Fecha" value={props.workspaceData.contractDate} /></dl></SmartCard>
