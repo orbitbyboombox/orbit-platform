@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
 export async function middleware(request: NextRequest) {
-  if (request.nextUrl.pathname === "/login" || request.nextUrl.pathname === "/portal" || request.nextUrl.pathname === "/portal/login" || request.nextUrl.pathname === "/staff/login" || request.nextUrl.pathname.startsWith("/staff-portal") || request.nextUrl.pathname === "/api/auth/session-expired" || request.nextUrl.pathname.startsWith("/sign/") || request.nextUrl.pathname.startsWith("/api/signing/") || request.nextUrl.pathname.startsWith("/p/") || request.nextUrl.pathname.startsWith("/api/portal/")) return NextResponse.next();
+  if (request.nextUrl.pathname === "/" || request.nextUrl.pathname === "/login" || request.nextUrl.pathname === "/portal" || request.nextUrl.pathname === "/portal/login" || request.nextUrl.pathname === "/staff/login" || request.nextUrl.pathname.startsWith("/staff-portal") || request.nextUrl.pathname === "/api/auth/session-expired" || request.nextUrl.pathname.startsWith("/sign/") || request.nextUrl.pathname.startsWith("/api/signing/") || request.nextUrl.pathname.startsWith("/p/") || request.nextUrl.pathname.startsWith("/api/portal/")) return NextResponse.next();
   return updateSession(request);
 }
 

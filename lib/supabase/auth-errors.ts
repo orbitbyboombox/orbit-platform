@@ -1,1 +1,2 @@
-export function isInvalidSessionError(error:unknown){const value=error&&typeof error==="object"?error as{code?:string;message?:string}:{};const message=value.message??"";return value.code==="PGRST303"||/auth session missing|jwt|token.*expired|issued at future|invalid.*session|refresh token/i.test(message)}
+export function isMissingSessionError(error:unknown){const value=error&&typeof error==="object"?error as{message?:string}:{};return /auth session missing/i.test(value.message??"")}
+export function isInvalidSessionError(error:unknown){const value=error&&typeof error==="object"?error as{code?:string;message?:string}:{};const message=value.message??"";return value.code==="PGRST303"||/jwt|token.*expired|issued at future|invalid.*session|refresh token/i.test(message)}
