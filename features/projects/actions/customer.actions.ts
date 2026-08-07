@@ -38,3 +38,15 @@ export async function restoreCustomerAction(customerId: string, expectedVersion:
   try { await (await customerRepository()).restore(customerId, expectedVersion, reason); revalidatePath("/projects"); return { ok: true }; }
   catch (error) { return { ok: false, error: error instanceof Error ? error.message : "No fue posible restaurar el cliente." }; }
 }
+
+export async function softDeleteCustomerByProjectAction(projectId: string, reason: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const client = await createSupabaseServerClient();
+    const { data, error } = await client.from("projects").select("customer_id,customers!inner(version)").eq("id", projectId).single();
+    if (error || !data) throw error ?? new Error("No encontramos el cliente del evento.");
+    const customer = Array.isArray(data.customers) ? data.customers[0] : data.customers;
+    await new SupabaseCustomerRepository(client).softDelete(data.customer_id, Number(customer?.version ?? 0), reason);
+    revalidatePath("/projects");
+    return { ok: true };
+  } catch (error) { return { ok: false, error: error instanceof Error ? error.message : "No fue posible eliminar el cliente." }; }
+}

@@ -7,7 +7,7 @@ export default async function OperationsPage() {
   const { error: taskMaterializationError } = await client.rpc("materialize_scheduled_event_tasks");
   if (taskMaterializationError) throw taskMaterializationError;
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(new Date());
-  const [allProjects, assignmentsResult, staffResult, assetsResult, assetAssignmentsResult, agreementsResult, evidenceResult, quotationsResult, calendarResult, driveResult, documentsResult, payrollResult, profitResult, timelineResult, rawProjectsResult, customersResult, tasksResult] = await Promise.all([
+  const [allProjects, assignmentsResult, staffResult, assetsResult, assetAssignmentsResult, agreementsResult, evidenceResult, quotationsResult, calendarResult, driveResult, documentsResult, payrollResult, profitResult, timelineResult, rawProjectsResult, customersResult, tasksResult, receivablesResult] = await Promise.all([
     new SupabaseCustomerRepository(client).findAll(),
     client.from("assignments").select("id,project_id,staff_id,assignment_type,status,resources").is("deleted_at", null),
     client.from("staff").select("id,status,capabilities").eq("status", "ACTIVE").is("deleted_at", null),
@@ -20,14 +20,15 @@ export default async function OperationsPage() {
     client.from("drive_sync").select("project_id,status"),
     client.from("documents").select("project_id,document_type").is("deleted_at", null),
     client.from("event_staff_payments").select("project_id,status").is("deleted_at", null),
-    client.from("profit_snapshots").select("project_id").is("deleted_at", null),
+    client.from("profit_snapshots").select("project_id,revenue").is("deleted_at", null),
     client.from("timeline_events").select("project_id"),
     client.from("projects").select("id,customer_id,finance").is("deleted_at", null),
     client.from("customers").select("id,metadata").is("deleted_at", null),
     client.from("tasks").select("priority,status,due_at").is("deleted_at",null),
+    client.from("accounts_receivable_projection").select("outstanding_balance,effective_status"),
   ]);
 
-  const results = [assignmentsResult, staffResult, assetsResult, assetAssignmentsResult, agreementsResult, evidenceResult, quotationsResult, calendarResult, driveResult, documentsResult, payrollResult, profitResult, timelineResult, rawProjectsResult, customersResult, tasksResult];
+  const results = [assignmentsResult, staffResult, assetsResult, assetAssignmentsResult, agreementsResult, evidenceResult, quotationsResult, calendarResult, driveResult, documentsResult, payrollResult, profitResult, timelineResult, rawProjectsResult, customersResult, tasksResult, receivablesResult];
   const error = results.find((result) => result.error)?.error;
   if (error) throw error;
 
@@ -95,6 +96,10 @@ export default async function OperationsPage() {
     overdue:openTasks.filter((task)=>task.due_at&&new Intl.DateTimeFormat("en-CA",{timeZone:"America/Santiago"}).format(new Date(task.due_at))<today).length,
     today:openTasks.filter((task)=>task.due_at&&new Intl.DateTimeFormat("en-CA",{timeZone:"America/Santiago"}).format(new Date(task.due_at))===today).length,
   };
+  const next15Events=projects.filter((project)=>{if(!project.event.date)return false;const days=Math.ceil((new Date(`${project.event.date}T12:00:00Z`).getTime()-Date.now())/86_400_000);return days>=0&&days<=15;}).length;
+  const accountsReceivable=(receivablesResult.data??[]).filter((item)=>!["PAID","CANCELLED"].includes(item.effective_status)).reduce((sum,item)=>sum+Number(item.outstanding_balance??0),0);
+  const monthKey=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Santiago",year:"numeric",month:"2-digit"}).format(new Date()).slice(0,7);
+  const monthlyRevenue=(profitResult.data??[]).filter((item)=>projects.find((project)=>project.id===item.project_id)?.event.date.startsWith(monthKey)).reduce((sum,item)=>sum+Number((item as {revenue?:number|string}).revenue??0),0);
 
-  return <CommandCenter availableCases={availableCases} availableOperators={availableOperators} availableTotems={availableTotems} readiness={readiness} taskSummary={taskSummary} />;
+  return <CommandCenter availableCases={availableCases} availableOperators={availableOperators} availableTotems={availableTotems} executive={{next15Events,accountsReceivable,monthlyRevenue,monthlyGoal:0}} readiness={readiness} taskSummary={taskSummary} />;
 }

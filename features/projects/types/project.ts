@@ -22,12 +22,16 @@ export interface Project {
     email: string;
     phone: string;
     company?: string;
+    rut?: string;
+    address?: string;
   };
   event: {
     date: string;
     time: string;
     location: string;
     city: string;
+    durationHours?: number;
+    extras?: string[];
   };
   services: ProjectService[];
   status: ProjectStatus;

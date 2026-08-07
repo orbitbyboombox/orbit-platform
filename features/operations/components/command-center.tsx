@@ -1,11 +1,13 @@
 "use client";
 
-import { AlertTriangle, CalendarDays, CheckCircle2, CircleDollarSign, Clock3, FileSignature, ListChecks, PackageCheck, ShieldAlert, Sparkles, UserCheck } from "lucide-react";
+import { AlertTriangle, CalendarDays, Camera, CheckCircle2, CircleDollarSign, Clock3, FileSignature, ListChecks, PackageCheck, Plus, ShieldAlert, Sparkles, UserCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { SectionTitle } from "@/components/layout/section-title";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ORBIT_TIME_ENGINE } from "@/features/time-intelligence";
+import { LiveExpenseCapture } from "@/features/expense-capture";
+import { useState } from "react";
 
 export interface ProductionAssignment {
   id: string;
@@ -53,8 +55,9 @@ function Metric({ label, value, icon:Icon, tone="neutral" }: { label:string; val
   return <article className="rounded-2xl border bg-card p-4 sm:p-5"><div className="flex items-center justify-between"><Icon aria-hidden="true" className={`size-4 ${toneClass}`} /><span className="text-2xl font-semibold tabular-nums">{value}</span></div><p className="mt-3 text-xs leading-5 text-muted sm:text-sm">{label}</p></article>;
 }
 
-export function CommandCenter({ readiness, availableOperators, availableTotems, availableCases, taskSummary }: { readiness:readonly CommandCenterProjectReadiness[]; availableOperators:number; availableTotems:number; availableCases:number; taskSummary:{pending:number;critical:number;overdue:number;today:number} }) {
+export function CommandCenter({ readiness, availableOperators, availableTotems, availableCases, taskSummary, executive }: { readiness:readonly CommandCenterProjectReadiness[]; availableOperators:number; availableTotems:number; availableCases:number; taskSummary:{pending:number;critical:number;overdue:number;today:number}; executive:{next15Events:number;accountsReceivable:number;monthlyRevenue:number;monthlyGoal:number} }) {
   const router = useRouter();
+  const [expenseOpen,setExpenseOpen]=useState(false);
   const context = ORBIT_TIME_ENGINE.getCurrentContext("Matías");
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(new Date());
   const todayEvents = readiness.filter((item) => item.eventDate === today);
@@ -66,7 +69,11 @@ export function CommandCenter({ readiness, availableOperators, availableTotems, 
   const firstAlert = alerts[0];
 
   return <div className="space-y-9 lg:space-y-11">
-    <section className="overflow-hidden rounded-2xl border bg-card px-5 py-7 sm:px-8 sm:py-9 lg:px-10"><p className="text-sm font-medium text-muted">{context.formattedDate} · {context.localTime}</p><h1 className="mt-3 text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">Centro de Comando</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-muted sm:text-base">Decisiones, disponibilidad y preparación operacional en un solo lugar.</p></section>
+    <section className="overflow-hidden rounded-2xl border bg-card px-5 py-7 sm:px-8 sm:py-9 lg:px-10"><p className="text-sm font-medium text-muted">{context.formattedDate} · {context.localTime}</p><h1 className="mt-3 text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">{context.greetingText}</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-muted sm:text-base">Este es tu centro de control diario: revisa primero las alertas, abre el evento que requiere atención y ejecuta su siguiente acción desde un solo lugar.</p><p className="mt-2 max-w-2xl text-sm text-muted">Existe para convertir información operacional en decisiones claras, sin recorrer módulo por módulo.</p></section>
+
+    <section aria-label="Acciones principales" className="grid gap-3 sm:grid-cols-2"><Button className="min-h-14 text-base font-semibold" onClick={()=>router.push("/projects?reservation=new")}><Plus className="mr-2 size-5"/>Nueva reserva</Button><Button className="min-h-14 text-base font-semibold" onClick={()=>setExpenseOpen(true)} variant="outline"><Camera className="mr-2 size-5"/>Subir gasto</Button></section><LiveExpenseCapture onClose={()=>setExpenseOpen(false)} open={expenseOpen}/>
+
+    <section aria-label="Resumen ejecutivo" className="grid grid-cols-2 gap-3 lg:grid-cols-4"><button className="rounded-2xl border bg-card p-5 text-left transition hover:border-brand" onClick={()=>router.push("/projects")}><p className="text-2xl font-semibold">{executive.next15Events}</p><p className="mt-1 text-sm font-medium">Próximos 15 eventos</p></button><button className="rounded-2xl border bg-card p-5 text-left transition hover:border-brand" onClick={()=>router.push("/finance/receivables")}><p className="text-2xl font-semibold">{executive.accountsReceivable.toLocaleString("es-CL",{style:"currency",currency:"CLP",maximumFractionDigits:0})}</p><p className="mt-1 text-sm font-medium">Cuentas por cobrar</p></button><button className="rounded-2xl border bg-card p-5 text-left transition hover:border-brand" onClick={()=>router.push("/finance")}><p className="text-2xl font-semibold">{executive.monthlyRevenue.toLocaleString("es-CL",{style:"currency",currency:"CLP",maximumFractionDigits:0})}</p><p className="mt-1 text-sm font-medium">Ingresos del mes</p></button><button className="rounded-2xl border bg-card p-5 text-left transition hover:border-brand" onClick={()=>router.push("/settings#master-data")}><p className="text-2xl font-semibold">{executive.monthlyGoal?executive.monthlyGoal.toLocaleString("es-CL",{style:"currency",currency:"CLP",maximumFractionDigits:0}):"Sin definir"}</p><p className="mt-1 text-sm font-medium">Meta mensual</p></button></section>
 
     <section aria-label="Resumen operacional" className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
       <Metric icon={CalendarDays} label="Eventos de hoy" value={todayEvents.length} />

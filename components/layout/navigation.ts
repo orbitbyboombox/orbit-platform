@@ -28,7 +28,7 @@ export interface NavigationItem {
 }
 
 export const navigationItems: readonly NavigationItem[] = [
-  { label: "Inicio", href: "/", icon: Gauge },
+  { label: "Inicio", href: "/operations", icon: Gauge },
   { label: "Clientes", href: "/projects", icon: FolderKanban },
   { label: "Centro de Comando", href: "/operations", icon: BriefcaseBusiness },
   { label: "Tareas", href: "/tasks", icon: ListChecks },

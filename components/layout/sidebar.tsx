@@ -40,12 +40,12 @@ export function NavigationList({ onNavigate, compact }: NavigationListProps) {
 export function Sidebar() {
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-20 border-r bg-card transition-[width] md:flex md:flex-col lg:w-60">
-      <Link aria-label="Ir a Inicio" className="flex h-20 items-center justify-center border-b bg-[#080808] px-1 lg:px-4" href="/">
+      <Link aria-label="Ir al Dashboard" className="flex h-20 items-center justify-center border-b bg-[#080808] px-1 lg:px-4" href="/operations">
         <BrandLogo className="hidden w-full max-w-[10.5rem] lg:block" surface="dark" />
         <BrandLogo className="w-full max-w-[3.625rem] lg:hidden" surface="dark" variant="isotype" />
       </Link>
       <div className="px-3 pb-3 pt-1.5"><NavigationList compact /></div>
-      <div className="mt-auto border-t px-4 py-5 text-center lg:text-left"><Link aria-label="Ir a Inicio" href="/"><BrandSignature className="hidden lg:block" /><BrandLogo className="mx-auto size-7 lg:hidden" surface="dark" variant="isotype" /></Link></div>
+      <div className="mt-auto border-t px-4 py-5 text-center lg:text-left"><Link aria-label="Ir al Dashboard" href="/operations"><BrandSignature className="hidden lg:block" /><BrandLogo className="mx-auto size-7 lg:hidden" surface="dark" variant="isotype" /></Link></div>
     </aside>
   );
 }

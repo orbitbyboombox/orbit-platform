@@ -2,7 +2,7 @@
 
 import { ArrowRight, CircleDollarSign, Clock3, FolderKanban, Plus, TrendingUp, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SearchBar } from "@/components/forms/search-bar";
 import { ActionButton } from "@/components/ui/action-button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -18,6 +18,7 @@ export function ProjectsPage({ initialProjects }: { initialProjects: Project[] }
   const [filter, setFilter] = useState<ProjectFilter>("All");
   const [query, setQuery] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
+  useEffect(() => { if (new URLSearchParams(window.location.search).get("reservation") === "new") setDrawerOpen(true); }, []);
   const visibleProjects = useMemo(() => projects.filter((project) => {
     const eventType = project.type === "Wedding" ? "Matrimonio" : project.type === "Corporate" ? "Corporativo Empresa" : project.type === "Birthday" ? "Cumpleaños" : project.type === "Private" ? "Fiesta Privado" : "Otro";
     return (filter === "All" || project.commercialStage === filter) && `${project.name} ${project.client.name} ${project.client.company ?? ""} ${project.client.phone} ${eventType} ${project.event.city}`.toLowerCase().includes(query.toLowerCase());
@@ -52,7 +53,7 @@ export function ProjectsPage({ initialProjects }: { initialProjects: Project[] }
           <div className="mt-2 flex flex-wrap items-center gap-3"><h1 className="text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">Clientes</h1><span className="rounded-full bg-accent px-3 py-1 text-xs font-medium text-muted">{projects.length} relaciones activas</span></div>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-muted sm:text-base">Cada conversación, evento y documento reunido en una sola relación continua.</p>
         </div>
-        <ActionButton className="w-full sm:w-auto" icon={Plus} label="Nuevo cliente" onClick={() => setDrawerOpen(true)} />
+        <ActionButton className="w-full sm:w-auto" icon={Plus} label="Nueva reserva" onClick={() => setDrawerOpen(true)} />
       </section>
 
       <section aria-label="Resumen de relaciones" className="hidden overflow-hidden rounded-2xl border bg-card sm:grid sm:grid-cols-2 xl:grid-cols-4">
@@ -72,7 +73,7 @@ export function ProjectsPage({ initialProjects }: { initialProjects: Project[] }
           {visibleProjects.map((project) => <ProjectCard key={project.id} onOpen={openProject} project={project} />)}
         </section>
       ) : (
-        <EmptyState action={<ActionButton icon={Plus} label="Nuevo cliente" onClick={() => setDrawerOpen(true)} />} className="py-20" description={query ? "Prueba con un nombre, proyecto, ciudad, teléfono o tipo de evento." : "Crea la primera relación para comenzar."} icon={FolderKanban} title={query ? "No encontramos clientes" : "Aún no tienes relaciones comerciales"} />
+        <EmptyState action={<ActionButton icon={Plus} label="Nueva reserva" onClick={() => setDrawerOpen(true)} />} className="py-20" description={query ? "Prueba con un nombre, proyecto, ciudad, teléfono o tipo de evento." : "Crea la primera reserva para comenzar."} icon={FolderKanban} title={query ? "No encontramos clientes" : "Aún no tienes reservas"} />
       )}
 
       <NewProjectDrawer onClose={() => setDrawerOpen(false)} onCreate={addProject} open={drawerOpen} />

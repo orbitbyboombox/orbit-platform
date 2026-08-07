@@ -71,16 +71,20 @@ export class SupabaseCustomerRepository implements CustomerRepository {
     const customerId = crypto.randomUUID();
     const projectId = crypto.randomUUID();
     const orbitEventId = generateOrbitEventId(draft.event.date, (Number.parseInt(projectId.replaceAll("-", "").slice(-8), 16) % 999999) + 1);
-    const { error: customerError } = await this.client.from("customers").insert({ id: customerId, full_name: draft.client.name, email: draft.client.email, phone: draft.client.phone, company: draft.client.company ?? null, city: draft.event.city, metadata: {}, created_by: actorId, updated_by: actorId });
+    const { error: customerError } = await this.client.from("customers").insert({ id: customerId, full_name: draft.client.name, email: draft.client.email, phone: draft.client.phone, company: draft.client.company ?? null, rut: draft.client.rut ?? null, city: draft.event.city, metadata: { address: draft.client.address ?? "" }, created_by: actorId, updated_by: actorId });
     if (customerError) throw customerError;
-    const operations = { stage: "Primer contacto", commercialStage: "New", origin: draft.origin, notes: draft.notes, score: 60 };
+    const operations = { stage: "Primer contacto", commercialStage: "New", origin: draft.origin, notes: draft.notes, score: 60, durationHours: draft.event.durationHours, extras: draft.event.extras ?? [], reservationMethod: "MANUAL" };
     const { error: projectError } = await this.client.from("projects").insert({ id: projectId, customer_id: customerId, orbit_event_id: orbitEventId, name: draft.client.company || draft.client.name, project_type: draft.type, status: "Upcoming", health: "Healthy", event_date: draft.event.date, event_time: draft.event.time, location: draft.event.location, city: draft.event.city, operations, created_by: actorId, updated_by: actorId });
     if (projectError) { await this.client.from("customers").delete().eq("id", customerId); throw projectError; }
+    if (draft.services.length) {
+      const { error: serviceError } = await this.client.from("project_services").insert(draft.services.map((service) => ({ project_id: projectId, service_code: service, duration_hours: draft.event.durationHours ?? 2, extras: draft.event.extras ?? [] })));
+      if (serviceError) throw serviceError;
+    }
     await Promise.all([
       this.timeline.append({ orbitEventId, actorId, actorLabel: "Administrador", source: "Administrator", action: "CUSTOMER_CREATED", entityType: "Customer", entityId: customerId, customerId, projectId, humanMessage: "Cliente creado correctamente.", correlationId: crypto.randomUUID(), newState: "ACTIVE" }),
       this.client.from("customer_memory").insert({ customer_id: customerId, context: { customerName: draft.client.name, eventType: draft.type, eventDate: draft.event.date, eventLocation: draft.event.city, currentTimelineStage: "Nuevo", nextRecommendedAction: "Realizar primer contacto" }, created_by: actorId, updated_by: actorId }),
     ]);
-    return { id: projectId, name: draft.client.company || draft.client.name, type: draft.type, client: draft.client, event: draft.event, services: [], status: "Upcoming", health: "Healthy", stage: "Primer contacto", score: 60, commercialStage: "New", origin: draft.origin, notes: draft.notes, customerVersion: 1, lastCommunication: "Relación creada · hoy", salesOwner: "Sin asignar", nextAction: "Realizar primer contacto", tags: [] };
+    return { id: projectId, name: draft.client.company || draft.client.name, type: draft.type, client: draft.client, event: draft.event, services: draft.services, status: "Upcoming", health: "Healthy", stage: "Primer contacto", score: 60, commercialStage: "New", origin: draft.origin, notes: draft.notes, customerVersion: 1, lastCommunication: "Relación creada · hoy", salesOwner: "Sin asignar", nextAction: "Realizar primer contacto", tags: [] };
   }
 
   async update(input: CustomerMutationInput): Promise<void> {

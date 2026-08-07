@@ -138,7 +138,7 @@ export function HomeExperience({ projects }: { projects: readonly Project[] }) {
           <div className="mb-4"><p className="text-xs font-medium uppercase tracking-[0.16em] text-muted">Acciones rápidas</p><h2 className="sr-only" id="acciones-rapidas">Acciones rápidas</h2></div>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <ActionButton className="min-h-12" icon={Camera} label="Sube tu gasto aquí" onClick={() => setExpenseCaptureOpen(true)} />
-            <ActionButton icon={FolderPlus} label="Nuevo cliente" onClick={() => router.push("/projects")} variant="outline" />
+            <ActionButton icon={FolderPlus} label="Nueva reserva" onClick={() => router.push("/projects?reservation=new")} variant="outline" />
             <ActionButton disabled icon={FilePlus2} label="Cotización no configurada" variant="outline" />
             <ActionButton icon={UserRound} label="Buscar cliente" onClick={() => router.push("/projects")} variant="outline" />
           </div>
