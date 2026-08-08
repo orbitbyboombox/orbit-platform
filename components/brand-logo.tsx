@@ -14,8 +14,8 @@ export interface BrandLogoProps {
 export function BrandLogo({ variant = "horizontal", surface = "auto", className, priority }: BrandLogoProps) {
   const settings=useCompanySettings();
   const isIsotype = variant === "isotype";
-  const configuredSource=isIsotype?settings.isotypeUrl:settings.logoUrl;
-  const fallbackSource=isIsotype?"/branding/orbit-isotype.png":"/branding/ORBIT%20V1-0%20SINFONDO.png";
+  const configuredSource=(isIsotype?settings.isotypeUrl:settings.logoUrl).replaceAll("%20"," ");
+  const fallbackSource=isIsotype?"/branding/orbit-isotype.png":"/branding/ORBIT V1-0 SINFONDO.png";
   const [source,setSource]=useState(configuredSource||fallbackSource);
   useEffect(()=>setSource(configuredSource||fallbackSource),[configuredSource,fallbackSource]);
   return (
