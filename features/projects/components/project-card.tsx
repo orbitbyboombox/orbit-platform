@@ -46,10 +46,10 @@ export function ProjectCard({ project, onOpen, onDeleted }: ProjectCardProps) {
       </div>
 
       <div className="mt-auto border-t bg-accent/20 p-3 sm:p-4">
-        <div className="grid grid-cols-4 gap-1 sm:flex sm:items-center">
+        <div className="grid grid-cols-4 gap-1 sm:flex sm:flex-wrap sm:items-center">
           <ActionButton className="col-span-4 mb-1 sm:mb-0 sm:mr-auto" icon={MoveUpRight} iconPosition="end" label="Abrir cliente" onClick={() => onOpen ? onOpen(project) : router.push(href)} />
-          <Button aria-label="Editar cliente" onClick={() => router.push(`${href}#customer`)} size="icon" title="Editar" variant="ghost"><Pencil aria-hidden="true" className="size-4" /></Button>
-          <Button aria-label="Eliminar cliente" onClick={() => void remove()} size="icon" title="Eliminar" variant="ghost"><Trash2 aria-hidden="true" className="size-4" /></Button>
+          <Button aria-label="Editar cliente" className="col-span-2 gap-2 px-3 sm:col-auto" onClick={() => router.push(`${href}#customer`)} title="Editar" variant="ghost"><Pencil aria-hidden="true" className="size-4" />Editar</Button>
+          <Button aria-label="Eliminar cliente" className="col-span-2 gap-2 px-3 text-danger sm:col-auto" onClick={() => void remove()} title="Eliminar" variant="ghost"><Trash2 aria-hidden="true" className="size-4" />Eliminar</Button>
           <Button aria-label="Abrir evento" onClick={() => router.push(href)} size="icon" title="Abrir evento" variant="ghost"><CalendarDays aria-hidden="true" className="size-4" /></Button>
           <Button aria-label="Abrir portal" onClick={() => router.push(`${href}#portal-cliente`)} size="icon" title="Abrir portal" variant="ghost"><FolderOpen aria-hidden="true" className="size-4" /></Button>
           <Button aria-label="Abrir historial" onClick={() => router.push(`${href}#actividad-reciente`)} size="icon" title="Abrir historial" variant="ghost"><History aria-hidden="true" className="size-4" /></Button>
