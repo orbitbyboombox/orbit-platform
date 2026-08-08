@@ -24,7 +24,7 @@ export function LoginForm({ initialMessage }: LoginFormProps) {
   });
 
   return (
-    <form className="space-y-5" noValidate onSubmit={handleSubmit(onSubmit)}>
+    <form className="space-y-3" noValidate onSubmit={handleSubmit(onSubmit)}>
       <div>
         <label className="mb-2 block text-sm font-medium" htmlFor="email">Correo electrónico</label>
         <input aria-describedby={errors.email ? "email-error" : undefined} aria-invalid={Boolean(errors.email)} autoComplete="email" className="h-12 w-full rounded-lg border bg-background px-3.5 text-sm outline-none transition-colors focus:border-brand/70 focus:ring-2 focus:ring-brand/30" id="email" type="email" {...register("email")} />

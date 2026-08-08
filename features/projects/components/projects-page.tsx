@@ -8,11 +8,11 @@ import { ActionButton } from "@/components/ui/action-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { Project, ProjectFilter } from "../types/project";
 import { createCustomerProjectAction } from "../actions/customer.actions";
-import { NewProjectDrawer } from "./new-project-drawer";
+import { NewProjectDrawer, type ReservationCommercialPrice } from "./new-project-drawer";
 import { ProjectCard } from "./project-card";
 import { ProjectFilters } from "./project-filters";
 
-export function ProjectsPage({ initialProjects }: { initialProjects: Project[] }) {
+export function ProjectsPage({ commercialPrices, initialProjects }: { commercialPrices: ReservationCommercialPrice[]; initialProjects: Project[] }) {
   const router = useRouter();
   const [projects, setProjects] = useState<Project[]>(initialProjects);
   const [filter, setFilter] = useState<ProjectFilter>("All");
@@ -70,13 +70,13 @@ export function ProjectsPage({ initialProjects }: { initialProjects: Project[] }
 
       {visibleProjects.length > 0 ? (
         <section aria-label="Lista de clientes" className="grid gap-5 xl:grid-cols-2">
-          {visibleProjects.map((project) => <ProjectCard key={project.id} onOpen={openProject} project={project} />)}
+          {visibleProjects.map((project) => <ProjectCard key={project.id} onDeleted={(projectId)=>setProjects(current=>current.filter(item=>item.id!==projectId))} onOpen={openProject} project={project} />)}
         </section>
       ) : (
         <EmptyState action={<ActionButton icon={Plus} label="Nueva reserva" onClick={() => setDrawerOpen(true)} />} className="py-20" description={query ? "Prueba con un nombre, proyecto, ciudad, teléfono o tipo de evento." : "Crea la primera reserva para comenzar."} icon={FolderKanban} title={query ? "No encontramos clientes" : "Aún no tienes reservas"} />
       )}
 
-      <NewProjectDrawer onClose={() => setDrawerOpen(false)} onCreate={addProject} open={drawerOpen} />
+      <NewProjectDrawer commercialPrices={commercialPrices} onClose={() => setDrawerOpen(false)} onCreate={addProject} open={drawerOpen} />
     </div>
   );
 }

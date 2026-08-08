@@ -5,7 +5,7 @@ import type { GmailCommunicationType, GmailRenderedTemplate, GmailTemplateContex
 const TEMPLATE_COPY: Record<GmailCommunicationType, { subject: string; headline: string; message: string }> = {
   QUOTATION: { subject: "Tu cotización", headline: "Tu experiencia está lista para revisar", message: "Preparamos la cotización de tu evento con toda la información conversada." },
   CONTRACT: { subject: "Acuerdo de tu experiencia", headline: "Revisa tu acuerdo", message: "Tu acuerdo está disponible para revisar antes de continuar con la reserva." },
-  RESERVATION_CONFIRMATION: { subject: "Tu fecha está reservada", headline: "Reserva confirmada", message: "Confirmamos oficialmente la reserva de tu evento." },
+  RESERVATION_CONFIRMATION: { subject: "Tu reserva está confirmada", headline: "¡Reserva confirmada!", message: "Bienvenido a BOOMBOX. Tu reserva ha sido confirmada correctamente. En los próximos minutos recibirás una copia de tu contrato firmado en tu correo electrónico." },
   PAYMENT_CONFIRMATION: { subject: "Pago validado", headline: "Pago confirmado", message: "Recibimos y validamos correctamente tu pago." },
   REMINDER: { subject: "Recordatorio de tu experiencia", headline: "Tu evento se acerca", message: "Queremos ayudarte a completar el siguiente paso de tu experiencia." },
   FINAL_CONFIRMATION: { subject: "Todo listo para tu evento", headline: "Experiencia confirmada", message: "La información operacional de tu evento está confirmada." },

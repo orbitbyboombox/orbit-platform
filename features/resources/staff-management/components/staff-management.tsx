@@ -2,6 +2,7 @@
 
 import {
   BadgeCheck,
+  Camera,
   CalendarClock,
   CircleAlert,
   Clock3,
@@ -28,6 +29,7 @@ import type {
   StaffType,
 } from "../types/staff-management.types";
 import { StaffImport } from "../import/staff-import";
+import { LiveExpenseCapture } from "@/features/expense-capture/components/live-expense-capture";
 
 const STAFF_TYPE_LABEL: Record<StaffType, string> = {
   OPERATOR: "Operador",
@@ -176,6 +178,7 @@ export function StaffManagement({ snapshot }: StaffManagementProps) {
   const [responses, setResponses] = useState<Record<string, StaffResponseStatus>>({});
   const [announcement, setAnnouncement] = useState("");
   const [query, setQuery] = useState("");
+  const [expenseOpen, setExpenseOpen] = useState(false);
   const { indicators, recommendation } = snapshot;
   const visibleMembers = snapshot.members.filter(({ employment, profile }) => `${profile.firstName} ${profile.lastName} ${STAFF_TYPE_LABEL[employment.staffType]} ${employment.availability}`.toLocaleLowerCase("es-CL").includes(query.toLocaleLowerCase("es-CL")));
 
@@ -199,7 +202,8 @@ export function StaffManagement({ snapshot }: StaffManagementProps) {
         <p className="text-sm font-medium text-brand">RECURSOS · EQUIPO</p>
         <h1 className="mt-3 text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">Gestión de Staff</h1>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-muted sm:text-base">Perfiles, disponibilidad y respuesta operacional de todos los colaboradores BOOMBOX.</p>
-        <div className="mt-7 flex gap-2 overflow-x-auto pb-1">
+        <ActionButton className="mt-6" icon={Camera} label="Subir gasto" onClick={()=>setExpenseOpen(true)} />
+        <div className="mt-5 flex gap-2 overflow-x-auto pb-1">
           {Object.values(STAFF_TYPE_LABEL).map((label) => <StatusBadge key={label} label={label} variant="neutral" />)}
         </div>
       </header>
@@ -257,6 +261,7 @@ export function StaffManagement({ snapshot }: StaffManagementProps) {
       </section>
 
       <StaffImport />
+      <LiveExpenseCapture onClose={()=>setExpenseOpen(false)} open={expenseOpen}/>
 
       <p aria-live="polite" className="sr-only">{announcement}</p>
     </div>

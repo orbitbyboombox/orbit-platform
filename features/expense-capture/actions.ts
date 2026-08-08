@@ -21,6 +21,9 @@ export async function uploadExpenseReceiptAction(formData: FormData): Promise<{ 
     const occurredOn = String(formData.get("occurredOn") ?? "");
     if (!occurredOn) throw new Error("Ingresa la fecha del gasto.");
     const category = String(formData.get("category") ?? "OTHER") as ExpenseCategory;
+    const submittedBy = `${String(formData.get("firstName") ?? "").trim()} ${String(formData.get("lastName") ?? "").trim()}`.trim();
+    if (!submittedBy) throw new Error("Ingresa el nombre de quien registra el gasto.");
+    const comment = String(formData.get("comment") ?? "").trim();
     const extension = file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "bin";
     const path = `${data.user.id}/${occurredOn}/${crypto.randomUUID()}.${extension}`;
     const { error: uploadError } = await client.storage.from("orbit-expenses").upload(path, file, { contentType: file.type, upsert: false });
@@ -31,9 +34,9 @@ export async function uploadExpenseReceiptAction(formData: FormData): Promise<{ 
         occurredOn,
         total,
         currency: "CLP",
-        supplier: String(formData.get("supplier") ?? "").trim() || undefined,
+        supplier: String(formData.get("supplier") ?? "").trim() || submittedBy,
         receiptPath: path,
-        reason: "Comprobante original cargado manualmente",
+        reason: ["Comprobante original cargado manualmente", `Registrado por ${submittedBy}`, comment].filter(Boolean).join(" · "),
       });
     } catch (error) {
       await client.storage.from("orbit-expenses").remove([path]);

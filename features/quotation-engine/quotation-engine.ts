@@ -3,6 +3,7 @@ import type { Money } from "@/features/business-core";
 import type { CreateQuotationInput, QuotationCalculation, QuotationLine } from "./types";
 
 const clp = (amount: number): Money => ({ amount: Math.round(amount), currency: "CLP" });
+const ADDITIONAL_HOUR_PRICE: Partial<Record<string, number>> = { CLASSIC: 100_000, BLACK_STUDIO: 150_000, POLAROID: 150_000, HASHTAG: 100_000, BBOX360: 130_000 };
 
 export interface ConfiguredCommercialPrice {
   readonly category: "SERVICE" | "EXTRA" | "TRANSPORT";
@@ -27,7 +28,8 @@ export function calculateQuotation(input: CreateQuotationInput, catalog: readonl
     if (price.status !== "DEFINED") { blockers.push(`${service.name} requiere cotización comercial.`); continue; }
     lines.push({ code: selected.serviceId, label: `${service.name} · ${selected.duration} horas`, quantity: 1, unitPrice: price.value, total: price.value });
     if ((selected.additionalHours ?? 0) > 0) {
-      const hourly = configured?.pricingStatus === "DEFINED" && configured.unitPrice != null ? { status: "DEFINED" as const, value: clp(configured.unitPrice / selected.duration) } : { status: "REQUIRES_QUOTE" as const };
+      const additionalHourPrice = ADDITIONAL_HOUR_PRICE[selected.serviceId];
+      const hourly = additionalHourPrice != null ? { status: "DEFINED" as const, value: clp(additionalHourPrice) } : { status: "REQUIRES_QUOTE" as const };
       if (hourly.status !== "DEFINED") blockers.push(`La hora adicional de ${service.name} requiere cotización comercial.`);
       else lines.push({ code: `${selected.serviceId}_ADDITIONAL_HOUR`, label: `Hora adicional · ${service.name}`, quantity: selected.additionalHours ?? 0, unitPrice: hourly.value, total: clp(hourly.value.amount * (selected.additionalHours ?? 0)) });
     }
@@ -39,7 +41,8 @@ export function calculateQuotation(input: CreateQuotationInput, catalog: readonl
     const rule = QUOTATION_EXTRA_RULES[selected.extraId];
     const configured = configuredPrice(catalog, "EXTRA", selected.extraId);
     const quantity = Math.max(selected.quantity ?? 1, rule.minimumQuantity ?? 1);
-    const extraPrice = configured?.pricingStatus === "DEFINED" && configured.unitPrice != null ? { status: "DEFINED" as const, value: clp(configured.unitPrice) } : { status: "REQUIRES_QUOTE" as const };
+    const rulePrice = rule.included || selected.extraId === "SCRAPBOOK" ? rule.price : undefined;
+    const extraPrice = rulePrice?.status === "DEFINED" ? rulePrice : configured?.pricingStatus === "DEFINED" && configured.unitPrice != null ? { status: "DEFINED" as const, value: clp(configured.unitPrice) } : { status: "REQUIRES_QUOTE" as const };
     if (extraPrice.status !== "DEFINED") { blockers.push(`${rule.label} requiere cotización comercial.`); continue; }
     lines.push({ code: selected.extraId, label: rule.label, quantity, unitPrice: extraPrice.value, total: clp(extraPrice.value.amount * quantity) });
   }

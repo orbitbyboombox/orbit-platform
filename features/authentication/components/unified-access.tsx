@@ -19,9 +19,9 @@ export function UnifiedAccess({ initialMessage, initialAccess = "ADMIN" }: { ini
         {label}
       </button>)}
     </div>
-    <div className="orbit-enter mt-7" key={selected} role="tabpanel">
+    <div className="orbit-enter mt-4" key={selected} role="tabpanel">
       {selected === "CUSTOMER" ? <PortalLoginForm embedded type="CUSTOMER" /> : selected === "STAFF" ? <PortalLoginForm embedded type="STAFF" /> : <div>
-        <div className="mb-6 text-center"><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Acceso administrativo</p><h2 className="mt-2 text-2xl font-semibold">Administración</h2><p className="mt-2 text-sm text-muted">Control total de BOOMBOX desde un solo lugar.</p></div>
+        <div className="mb-4 text-center"><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Acceso administrativo</p><h2 className="mt-1 text-2xl font-semibold">Administración</h2><p className="mt-1 text-sm text-muted">Control total de BOOMBOX desde un solo lugar.</p></div>
         <LoginForm initialMessage={initialMessage} />
       </div>}
     </div>

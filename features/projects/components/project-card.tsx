@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, ChevronRight, Clock3, FileText, FolderOpen, History, MessageCircle, MoveUpRight, UserRound } from "lucide-react";
+import { CalendarDays, ChevronRight, Clock3, FileText, FolderOpen, History, MessageCircle, MoveUpRight, Pencil, Trash2, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { SmartCard } from "@/components/cards/smart-card";
 import { ActionButton } from "@/components/ui/action-button";
@@ -8,17 +8,19 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge, type StatusBadgeProps } from "@/components/ui/status-badge";
 import { ORBIT_TIME_ENGINE } from "@/features/time-intelligence";
 import type { Project, ProjectCommercialStage } from "../types/project";
+import { softDeleteCustomerByProjectAction } from "../actions/customer.actions";
 
 const typeLabels: Record<Project["type"], string> = { Wedding: "Matrimonio", Corporate: "Corporativo", Birthday: "Cumpleaños", Graduation: "Graduación", Private: "Fiesta", Other: "Otro" };
 const commercialLabels: Record<ProjectCommercialStage, string> = { New: "Nuevo", Contacted: "Primer contacto", Quoting: "Cotizando", Waiting: "Seguimiento", Reserved: "Reservado", Confirmed: "Confirmado", Production: "Preparación", Finished: "Finalizado" };
 const commercialVariants: Record<ProjectCommercialStage, StatusBadgeProps["variant"]> = { New: "info", Contacted: "neutral", Quoting: "warning", Waiting: "warning", Reserved: "info", Confirmed: "success", Production: "success", Finished: "neutral" };
-export interface ProjectCardProps { project: Project; onOpen?: (project: Project) => void; }
+export interface ProjectCardProps { project: Project; onOpen?: (project: Project) => void; onDeleted?: (projectId: string) => void; }
 
-export function ProjectCard({ project, onOpen }: ProjectCardProps) {
+export function ProjectCard({ project, onOpen, onDeleted }: ProjectCardProps) {
   const router = useRouter();
   const href = `/projects/${project.id}`;
   const context = { communication: project.lastCommunication ?? "Sin comunicaciones recientes", owner: project.salesOwner ?? "Sin asignar", action: project.nextAction ?? "Revisar relación", tags: project.tags?.length ? project.tags : [typeLabels[project.type]] };
   const intelligence = ORBIT_TIME_ENGINE.getEventIntelligence({ eventDate: project.event.date });
+  const remove=async()=>{if(!window.confirm(`¿Eliminar a ${project.client.name}? El cliente quedará archivado y conservará su historial.`))return;const result=await softDeleteCustomerByProjectAction(project.id,"Eliminación confirmada desde Clientes");if(result.ok)onDeleted?.(project.id);else window.alert(result.error??"No fue posible eliminar el cliente.");};
 
   return (
     <SmartCard className="group flex h-full flex-col overflow-hidden p-0" interactive>
@@ -46,6 +48,8 @@ export function ProjectCard({ project, onOpen }: ProjectCardProps) {
       <div className="mt-auto border-t bg-accent/20 p-3 sm:p-4">
         <div className="grid grid-cols-4 gap-1 sm:flex sm:items-center">
           <ActionButton className="col-span-4 mb-1 sm:mb-0 sm:mr-auto" icon={MoveUpRight} iconPosition="end" label="Abrir cliente" onClick={() => onOpen ? onOpen(project) : router.push(href)} />
+          <Button aria-label="Editar cliente" onClick={() => router.push(`${href}#customer`)} size="icon" title="Editar" variant="ghost"><Pencil aria-hidden="true" className="size-4" /></Button>
+          <Button aria-label="Eliminar cliente" onClick={() => void remove()} size="icon" title="Eliminar" variant="ghost"><Trash2 aria-hidden="true" className="size-4" /></Button>
           <Button aria-label="Abrir evento" onClick={() => router.push(href)} size="icon" title="Abrir evento" variant="ghost"><CalendarDays aria-hidden="true" className="size-4" /></Button>
           <Button aria-label="Abrir portal" onClick={() => router.push(`${href}#portal-cliente`)} size="icon" title="Abrir portal" variant="ghost"><FolderOpen aria-hidden="true" className="size-4" /></Button>
           <Button aria-label="Abrir historial" onClick={() => router.push(`${href}#actividad-reciente`)} size="icon" title="Abrir historial" variant="ghost"><History aria-hidden="true" className="size-4" /></Button>

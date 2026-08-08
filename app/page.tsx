@@ -19,16 +19,16 @@ export default async function OrbitHomePage({ searchParams }: { searchParams: Pr
   const initialAccess: AccessType = access === "customer" ? "CUSTOMER" : access === "staff" ? "STAFF" : "ADMIN";
   const message = error === "session-expired" ? "Tu sesión expiró. Vuelve a iniciar sesión." : error === "access-denied" ? "Este acceso no tiene permisos administrativos." : undefined;
 
-  return <main className="dark flex min-h-screen w-full items-center justify-center overflow-x-hidden bg-background p-4 text-foreground sm:p-6">
-    <section className="w-full max-w-2xl rounded-[2rem] border bg-card p-5 shadow-xl shadow-black/20 sm:p-8">
+  return <main className="dark flex min-h-screen w-full items-center justify-center overflow-x-hidden bg-background p-3 text-foreground sm:p-4">
+    <section className="w-full max-w-2xl rounded-[2rem] border bg-card p-4 shadow-xl shadow-black/20 sm:p-6">
       <Link className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-medium text-muted transition hover:bg-accent hover:text-foreground" href="https://www.boom-box.cl">
         <ArrowLeft className="size-4" />Volver a BOOMBOX
       </Link>
-      <div className="mb-7 text-center">
-        <div className="mx-auto flex h-28 items-center justify-center rounded-xl px-3 sm:h-32"><BrandLogo className="w-full max-w-[18rem] sm:max-w-[20rem]" priority surface="dark" /></div>
+      <div className="mb-4 text-center">
+        <div className="mx-auto flex h-20 items-center justify-center rounded-xl px-3 sm:h-24"><BrandLogo className="w-full max-w-[16rem] sm:max-w-[18rem]" priority surface="dark" /></div>
       </div>
       <UnifiedAccess initialAccess={initialAccess} initialMessage={message} />
-      <BrandSignature className="mt-8 border-t pt-5 text-center" />
+      <BrandSignature className="mt-5 border-t pt-4 text-center" />
     </section>
   </main>;
 }
