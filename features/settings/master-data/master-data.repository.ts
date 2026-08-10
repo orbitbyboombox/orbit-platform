@@ -35,10 +35,10 @@ export async function loadMasterData(client: SupabaseClient): Promise<MasterData
       basePrice: base?.unit_price == null ? null : Number(base.unit_price),
       minimumHours: Number(config.minimumHours ?? config.defaultDuration ?? base?.duration_hours ?? 2),
       maximumHours: Number(config.maximumHours ?? config.minimumHours ?? config.defaultDuration ?? base?.duration_hours ?? 4),
-      additionalHourPrice: config.additionalHourPrice == null ? null : Number(config.additionalHourPrice),
+      additionalHourPrice: config.additionalHourPrice == null ? (base?.rules as Record<string,unknown>|null)?.additionalHourPrice == null ? null : Number((base?.rules as Record<string,unknown>).additionalHourPrice) : Number(config.additionalHourPrice),
       enabled: row.enabled && serviceRows.every((price) => price.enabled), displayOrder: row.display_order,
-      description: String(config.description ?? ""), compatibleExtras: extras(config.compatibleExtras), defaultExtras: extras(config.defaultExtras),
-      behavior: String(config.behavior ?? "SELECTABLE"), version: row.version, priceVersion: base?.version ?? null,
+      description: String(config.description ?? ""), compatibleExtras: extras(config.compatibleExtras ?? (base?.rules as Record<string,unknown>|null)?.compatibleExtras), defaultExtras: extras(config.defaultExtras ?? (base?.rules as Record<string,unknown>|null)?.defaultExtras),
+      behavior: String(config.behavior ?? (base?.rules as Record<string,unknown>|null)?.behavior ?? "SELECTABLE"), version: row.version, priceVersion: base?.version ?? null,
     };
   });
   const venueMaster = (entries.data ?? []).find((row) => row.domain === "SYSTEM_PARAMETERS" && row.code === "EVENT_VENUES") ?? null;
