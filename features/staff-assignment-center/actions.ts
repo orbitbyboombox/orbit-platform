@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerActionClient } from "@/lib/supabase/server";
+import { synchronizeConfirmedReservationCalendar } from "@/features/connectors/google-calendar/application/google-calendar-sync.service";
 
 export type StaffAssignmentMutation={id?:string;projectId:string;staffId:string;role:string;arrivalTime:string;startTime:string;finishTime:string;vehicleId:string;observations:string;replaceId?:string};
 type Result={ok:true}|{ok:false;error:string};
@@ -42,6 +43,7 @@ export async function saveStaffAssignmentAction(input:StaffAssignmentMutation):P
     const{data:created,error}=await ctx.client.from("assignments").insert({...payload,created_by:ctx.user.id}).select("id").single();if(error)throw error;
     await timeline(ctx,created.id,input.replaceId?"STAFF_REPLACED":"STAFF_ASSIGNED",input.replaceId?"Staff reemplazado en el evento.":"Staff asignado al evento.",input.staffId);
   }
+  await synchronizeConfirmedReservationCalendar({client:ctx.client,projectId:input.projectId,actorId:ctx.user.id,onlyExisting:true});
   revalidatePath(`/projects/${input.projectId}`);revalidatePath("/resources/staff");return{ok:true};
 }catch(error){return{ok:false,error:friendly(error,"No fue posible guardar la asignación.")};}}
 
@@ -51,5 +53,6 @@ export async function updateStaffAssignmentStatusAction(input:{id:string;project
   const{data:item,error}=await ctx.client.from("assignments").update({status:input.status,accepted_at:input.status==="CONFIRMED"?new Date().toISOString():undefined,response_at:["CONFIRMED","CANCELLED"].includes(input.status)?new Date().toISOString():undefined,updated_by:ctx.user.id}).eq("id",input.id).eq("project_id",input.projectId).is("deleted_at",null).select("staff_id").single();if(error)throw error;
   const map:Record<string,[string,string]>={CONFIRMED:["STAFF_CONFIRMED","Asignación de Staff confirmada."],COMPLETED:["STAFF_COMPLETED","Asignación de Staff completada."],CANCELLED:["STAFF_REMOVED","Staff removido del evento."],ASSIGNED:["STAFF_ASSIGNED","Staff asignado al evento."],PENDING_CONFIRMATION:["STAFF_CONFIRMATION_PENDING","Confirmación de Staff pendiente."]};
   const[action,message]=map[input.status];await timeline(ctx,input.id,action,message,item.staff_id);
+  await synchronizeConfirmedReservationCalendar({client:ctx.client,projectId:input.projectId,actorId:ctx.user.id,onlyExisting:true});
   revalidatePath(`/projects/${input.projectId}`);revalidatePath("/resources/staff");return{ok:true};
 }catch(error){return{ok:false,error:friendly(error,"No fue posible actualizar la asignación.")};}}

@@ -80,7 +80,9 @@ export function mapOperationalEventToCalendar(input: CalendarOperationalEventInp
 }
 
 function fingerprint(input: CalendarOperationalEventInput): string {
-  return JSON.stringify(input);
+  const calendarState: Partial<CalendarOperationalEventInput> = { ...input };
+  delete calendarState.updatedAt;
+  return JSON.stringify(calendarState);
 }
 
 function pendingRecord(input: CalendarOperationalEventInput): GoogleCalendarSyncRecord {
