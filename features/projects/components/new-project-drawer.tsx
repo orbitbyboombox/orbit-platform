@@ -8,34 +8,108 @@ import { cn } from "@/lib/utils";
 import { projectOrigins, projectServices, projectTypes, type Project, type ProjectDraft, type ProjectOrigin, type ProjectService, type ProjectType } from "../types/project";
 
 const steps = ["Método", "Cliente", "Evento", "Servicio + extras", "Contrato", "Pago", "Confirmación"] as const;
-const initialDraft: ProjectDraft = { client: { name: "", email: "", phone: "", rut: "", address: "" }, event: { date: "", time: "", location: "", city: "", durationHours: 2, extras: [] }, services: [], notes: "" };
-const typeLabels: Record<ProjectType, string> = { Wedding: "Matrimonio", Corporate: "Corporativo", Birthday: "Cumpleaños", Graduation: "Graduación", Private: "Privado", Other: "Otro" };
-const originLabels: Record<ProjectOrigin, string> = { WhatsApp: "WhatsApp", Instagram: "Instagram", Google: "Google", Website: "Página Web", Referral: "Referido", FormerClient: "Cliente antiguo", Other: "Otro" };
-const serviceLabels: Record<ProjectService, string> = { Classic: "Classic", Polaroid: "Polaroid", "Black Studio": "Black Studio", "360": "BBOX360", LightBox: "LightBox", BoomBall: "BoomBall", Hashtag: "Hashtag" };
-const serviceCodes: Record<ProjectService, string> = { Classic: "CLASSIC", Polaroid: "POLAROID", "Black Studio": "BLACK_STUDIO", "360": "BBOX360", LightBox: "LIGHTBOX", BoomBall: "BOOMBALL", Hashtag: "HASHTAG" };
-const additionalHourRates: Record<ProjectService, number> = { Classic: 100_000, Polaroid: 150_000, "Black Studio": 150_000, "360": 130_000, LightBox: 0, BoomBall: 0, Hashtag: 100_000 };
-const extraCodes = { Branding: "BRANDING", QR: "QR", Imanes: "UNLIMITED_MAGNETS" } as const;
+const initialDraft: ProjectDraft = {
+  client: { name: "", email: "", phone: "", rut: "", address: "" },
+  event: {
+    date: "",
+    time: "",
+    location: "",
+    city: "",
+    durationHours: 2,
+    extras: [],
+  },
+  services: [],
+  notes: "",
+};
+const typeLabels: Record<ProjectType, string> = {
+  Wedding: "Matrimonio",
+  Corporate: "Corporativo",
+  Birthday: "Cumpleaños",
+  Graduation: "Graduación",
+  Private: "Privado",
+  Other: "Otro",
+};
+const originLabels: Record<ProjectOrigin, string> = {
+  WhatsApp: "WhatsApp",
+  Instagram: "Instagram",
+  Google: "Google",
+  Website: "Página Web",
+  Referral: "Referido",
+  FormerClient: "Cliente antiguo",
+  Other: "Otro",
+};
+const serviceLabels: Record<ProjectService, string> = {
+  Classic: "Classic",
+  Polaroid: "Polaroid",
+  "Black Studio": "Black Studio",
+  "360": "BBOX360",
+  LightBox: "LightBox",
+  BoomBall: "BoomBall",
+  Hashtag: "Hashtag",
+};
+const serviceCodes: Record<ProjectService, string> = {
+  Classic: "CLASSIC",
+  Polaroid: "POLAROID",
+  "Black Studio": "BLACK_STUDIO",
+  "360": "BBOX360",
+  LightBox: "LIGHTBOX",
+  BoomBall: "BOOMBALL",
+  Hashtag: "HASHTAG",
+};
+const additionalHourRates: Record<ProjectService, number> = {
+  Classic: 100_000,
+  Polaroid: 150_000,
+  "Black Studio": 150_000,
+  "360": 130_000,
+  LightBox: 0,
+  BoomBall: 0,
+  Hashtag: 100_000,
+};
+const extraCodes = {
+  Branding: "BRANDING",
+  QR: "QR",
+  Imanes: "UNLIMITED_MAGNETS",
+} as const;
 const selectableExtras = ["Branding", "QR", "Imanes", "Scrapbook"] as const;
 type ServiceExtra = (typeof selectableExtras)[number];
 const serviceExtraCompatibility: Readonly<Record<ProjectService, readonly ServiceExtra[]>> = {
   Classic: selectableExtras,
   Polaroid: selectableExtras,
   "Black Studio": ["Branding", "QR"],
-  "360": ["Branding", "QR"],
+  "360": ["Branding"],
   LightBox: [],
   BoomBall: [],
   Hashtag: ["Branding", "QR"],
 };
-type ServiceConfiguration = { hours: 2 | 3 | 4; additionalHours: number; extras: ServiceExtra[]; brandingQuantity: number };
+type ServiceConfiguration = {
+  hours: 2 | 3 | 4 | 5;
+  additionalHours: number;
+  extras: ServiceExtra[];
+  brandingQuantity: number;
+};
 type CreditTerm = "CASH" | "15" | "30" | "45" | "60" | "90" | "CUSTOM";
-const initialService = (): ServiceConfiguration => ({ hours: 2, additionalHours: 0, extras: [], brandingQuantity: 2 });
-const currency = new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 });
+const initialService = (service: ProjectService): ServiceConfiguration => ({
+  hours: service === "LightBox" ? 5 : 2,
+  additionalHours: 0,
+  extras: [],
+  brandingQuantity: 2,
+});
+const currency = new Intl.NumberFormat("es-CL", {
+  style: "currency",
+  currency: "CLP",
+  maximumFractionDigits: 0,
+});
 const reservationProcessingTimeoutMs = 60_000;
 
 async function withReservationTimeout<T>(operation: Promise<T>) {
   let timeoutId = 0;
   try {
-    return await Promise.race([operation, new Promise<never>((_, reject) => { timeoutId = window.setTimeout(() => reject(new Error("La reserva está tardando más de lo esperado. Inténtalo nuevamente.")), reservationProcessingTimeoutMs); })]);
+    return await Promise.race([
+      operation,
+      new Promise<never>((_, reject) => {
+        timeoutId = window.setTimeout(() => reject(new Error("La reserva está tardando más de lo esperado. Inténtalo nuevamente.")), reservationProcessingTimeoutMs);
+      }),
+    ]);
   } finally {
     window.clearTimeout(timeoutId);
   }
@@ -50,7 +124,14 @@ const provinceMunicipalities = {
   Talagante: ["Talagante", "El Monte", "Isla de Maipo", "Padre Hurtado", "Peñaflor"],
 } as const;
 type Province = keyof typeof provinceMunicipalities;
-const transportCode: Record<Province, string> = { Santiago: "SANTIAGO_PROVINCE", Chacabuco: "CHACABUCO", Cordillera: "CORDILLERA", Maipo: "MAIPO", Melipilla: "MELIPILLA", Talagante: "TALAGANTE" };
+const transportCode: Record<Province, string> = {
+  Santiago: "SANTIAGO_PROVINCE",
+  Chacabuco: "CHACABUCO",
+  Cordillera: "CORDILLERA",
+  Maipo: "MAIPO",
+  Melipilla: "MELIPILLA",
+  Talagante: "TALAGANTE",
+};
 
 const boomboxTerms = [
   ["Reserva y pago", "La fecha quedará reservada una vez firmado el contrato y abonado el 50% del valor total. El saldo restante deberá pagarse durante la semana previa al evento. La reserva no es reembolsable, pues bloquea exclusivamente la fecha y horario seleccionados."],
@@ -65,17 +146,41 @@ const boomboxTerms = [
   ["Fuerza mayor", "Si el servicio no puede realizarse por hechos imprevisibles o ajenos a las partes, estas procurarán reprogramarlo de común acuerdo."],
 ] as const;
 
-export interface ReservationCommercialPrice { category: "SERVICE" | "EXTRA" | "TRANSPORT"; code: string; label: string; durationHours: number | null; destination: string | null; unitPrice: number | null; pricingStatus: "DEFINED" | "REQUIRES_QUOTE"; rules?: Record<string, unknown>; }
-export interface NewProjectDrawerProps { commercialPrices: ReservationCommercialPrice[]; open: boolean; onClose: () => void; onCreate: (draft: ProjectDraft) => Promise<Project>; }
+export interface ReservationCommercialPrice {
+  category: "SERVICE" | "EXTRA" | "TRANSPORT";
+  code: string;
+  label: string;
+  durationHours: number | null;
+  destination: string | null;
+  unitPrice: number | null;
+  pricingStatus: "DEFINED" | "REQUIRES_QUOTE";
+  rules?: Record<string, unknown>;
+}
+export interface NewProjectDrawerProps {
+  commercialPrices: ReservationCommercialPrice[];
+  open: boolean;
+  onClose: () => void;
+  onCreate: (draft: ProjectDraft) => Promise<Project>;
+}
 
 function Field({ label, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { label: string }) {
   const id = useId();
-  return <label className="block text-sm font-medium" htmlFor={id}>{label}<input className="mt-2 h-11 w-full rounded-lg border bg-background px-3 text-sm outline-none transition focus:ring-2 focus:ring-brand/40" id={id} {...props}/></label>;
+  return (
+    <label className="block text-sm font-medium" htmlFor={id}>
+      {label}
+      <input className="mt-2 h-11 w-full rounded-lg border bg-background px-3 text-sm outline-none transition focus:ring-2 focus:ring-brand/40" id={id} {...props} />
+    </label>
+  );
 }
 
 function TextArea({ label, ...props }: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { label: string }) {
   const id = useId();
-  return <label className="block text-sm font-medium" htmlFor={id}>{label}<textarea className="mt-2 min-h-24 w-full rounded-lg border bg-background px-3 py-3 text-sm outline-none transition focus:ring-2 focus:ring-brand/40" id={id} {...props}/></label>;
+  return (
+    <label className="block text-sm font-medium" htmlFor={id}>
+      {label}
+      <textarea className="mt-2 min-h-24 w-full rounded-lg border bg-background px-3 py-3 text-sm outline-none transition focus:ring-2 focus:ring-brand/40" id={id} {...props} />
+    </label>
+  );
 }
 
 function SignaturePad({ disabled, onConfirmed }: { disabled: boolean; onConfirmed: (confirmed: boolean) => void }) {
@@ -86,21 +191,132 @@ function SignaturePad({ disabled, onConfirmed }: { disabled: boolean; onConfirme
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const resize = () => { const rect = canvas.getBoundingClientRect(); const ratio = window.devicePixelRatio || 1; canvas.width = Math.max(1, Math.round(rect.width * ratio)); canvas.height = Math.max(1, Math.round(rect.height * ratio)); const context = canvas.getContext("2d"); if (context) { context.lineCap = "round"; context.lineJoin = "round"; context.lineWidth = 2.5 * ratio; context.strokeStyle = "#f59e0b"; } };
-    resize(); const observer = new ResizeObserver(resize); observer.observe(canvas); return () => observer.disconnect();
+    const resize = () => {
+      const rect = canvas.getBoundingClientRect();
+      const ratio = window.devicePixelRatio || 1;
+      canvas.width = Math.max(1, Math.round(rect.width * ratio));
+      canvas.height = Math.max(1, Math.round(rect.height * ratio));
+      const context = canvas.getContext("2d");
+      if (context) {
+        context.lineCap = "round";
+        context.lineJoin = "round";
+        context.lineWidth = 2.5 * ratio;
+        context.strokeStyle = "#f59e0b";
+      }
+    };
+    resize();
+    const observer = new ResizeObserver(resize);
+    observer.observe(canvas);
+    return () => observer.disconnect();
   }, []);
-  const point = (event: ReactPointerEvent<HTMLCanvasElement>) => { const canvas = event.currentTarget; const rect = canvas.getBoundingClientRect(); return { x: (event.clientX - rect.left) * (canvas.width / rect.width), y: (event.clientY - rect.top) * (canvas.height / rect.height) }; };
-  const start = (event: ReactPointerEvent<HTMLCanvasElement>) => { if (disabled || confirmed) return; event.currentTarget.setPointerCapture(event.pointerId); drawing.current = true; const context = event.currentTarget.getContext("2d"); const current = point(event); context?.beginPath(); context?.moveTo(current.x, current.y); };
-  const draw = (event: ReactPointerEvent<HTMLCanvasElement>) => { if (!drawing.current || disabled || confirmed) return; const context = event.currentTarget.getContext("2d"); const current = point(event); context?.lineTo(current.x, current.y); context?.stroke(); setInk(true); };
-  const stop = () => { drawing.current = false; };
-  const clear = () => { const canvas = canvasRef.current; if (canvas) canvas.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height); setInk(false); setConfirmed(false); onConfirmed(false); };
-  const confirm = () => { if (!ink) return; setConfirmed(true); onConfirmed(true); };
-  return <section className="rounded-2xl border bg-background/30 p-5"><div className="flex items-center gap-3"><ShieldCheck className="size-5 text-brand"/><div><h3 className="font-semibold">Firma</h3><p className="mt-1 text-sm text-muted">Firma con mouse, dedo o lápiz.</p></div></div><canvas aria-label="Área para firmar" className="mt-5 h-56 w-full touch-none rounded-xl border border-dashed bg-background" onPointerCancel={stop} onPointerDown={start} onPointerLeave={stop} onPointerMove={draw} onPointerUp={stop} ref={canvasRef}/><div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-between"><ActionButton disabled={!ink || confirmed} icon={RotateCcw} label="Limpiar firma" onClick={clear} variant="outline"/><ActionButton disabled={!ink || confirmed} label={confirmed ? "Firma confirmada" : "Confirmar firma"} onClick={confirm}/></div></section>;
+  const point = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    const canvas = event.currentTarget;
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (event.clientX - rect.left) * (canvas.width / rect.width),
+      y: (event.clientY - rect.top) * (canvas.height / rect.height),
+    };
+  };
+  const start = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (disabled || confirmed) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    drawing.current = true;
+    const context = event.currentTarget.getContext("2d");
+    const current = point(event);
+    context?.beginPath();
+    context?.moveTo(current.x, current.y);
+  };
+  const draw = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (!drawing.current || disabled || confirmed) return;
+    const context = event.currentTarget.getContext("2d");
+    const current = point(event);
+    context?.lineTo(current.x, current.y);
+    context?.stroke();
+    setInk(true);
+  };
+  const stop = () => {
+    drawing.current = false;
+  };
+  const clear = () => {
+    const canvas = canvasRef.current;
+    if (canvas) canvas.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
+    setInk(false);
+    setConfirmed(false);
+    onConfirmed(false);
+  };
+  const confirm = () => {
+    if (!ink) return;
+    setConfirmed(true);
+    onConfirmed(true);
+  };
+  return (
+    <section className="rounded-2xl border bg-background/30 p-5">
+      <div className="flex items-center gap-3">
+        <ShieldCheck className="size-5 text-brand" />
+        <div>
+          <h3 className="font-semibold">Firma</h3>
+          <p className="mt-1 text-sm text-muted">Firma con mouse, dedo o lápiz.</p>
+        </div>
+      </div>
+      <canvas aria-label="Área para firmar" className="mt-5 h-56 w-full touch-none rounded-xl border border-dashed bg-background" onPointerCancel={stop} onPointerDown={start} onPointerLeave={stop} onPointerMove={draw} onPointerUp={stop} ref={canvasRef} />
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-between">
+        <ActionButton disabled={!ink || confirmed} icon={RotateCcw} label="Limpiar firma" onClick={clear} variant="outline" />
+        <ActionButton disabled={!ink || confirmed} label={confirmed ? "Firma confirmada" : "Confirmar firma"} onClick={confirm} />
+      </div>
+    </section>
+  );
 }
 
 function CommercialSummary({ balance, breakdown, configurations, extras, reservation, total, transport, transportProvince }: { balance: number; breakdown?: Array<{ label: string; value: string }>; configurations: Partial<Record<ProjectService, ServiceConfiguration>>; extras: string; reservation: number; total: number; transport: number | null; transportProvince: string | null }) {
   const selected = Object.entries(configurations) as Array<[ProjectService, ServiceConfiguration]>;
-  return <section aria-live="polite" className="reservation-summary-panel rounded-2xl border bg-card p-5 shadow-sm"><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Resumen de reserva</p><dl className="mt-4 space-y-3 text-sm"><div><dt className="text-muted">Servicios y horas</dt><dd className="mt-1 space-y-1 font-medium">{selected.length ? selected.map(([service, configuration]) => <span className="block" key={service}>{serviceLabels[service]} · {configuration.hours + configuration.additionalHours} h</span>) : "Servicio pendiente"}</dd></div>{breakdown ? breakdown.map((item) => <div className="flex justify-between gap-3" key={item.label}><dt className="text-muted">{item.label}</dt><dd className="text-right font-medium">{item.value}</dd></div>) : <div><dt className="text-muted">Extras</dt><dd className="mt-1 font-medium">{extras}</dd></div>}<div className="flex justify-between gap-3"><dt className="text-muted">Transporte{transportProvince ? ` · ${transportProvince}` : ""}</dt><dd className="font-medium">{transport == null ? "Selecciona comuna" : currency.format(transport)}</dd></div><div className="flex justify-between gap-3"><dt className="text-muted">Reserva</dt><dd className="font-medium">{currency.format(reservation)}</dd></div><div className="flex justify-between gap-3"><dt className="text-muted">Saldo restante</dt><dd className="font-medium">{currency.format(balance)}</dd></div><div className="flex justify-between gap-3 border-t pt-3"><dt className="font-semibold">TOTAL</dt><dd className="text-xl font-semibold text-brand">{currency.format(total)}</dd></div></dl></section>;
+  return (
+    <section aria-live="polite" className="reservation-summary-panel rounded-2xl border bg-card p-5 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Resumen de reserva</p>
+      <dl className="mt-4 space-y-3 text-sm">
+        <div>
+          <dt className="text-muted">Servicios y horas</dt>
+          <dd className="mt-1 space-y-1 font-medium">
+            {selected.length
+              ? selected.map(([service, configuration]) => (
+                  <span className="block" key={service}>
+                    {serviceLabels[service]} · {configuration.hours + configuration.additionalHours} h
+                  </span>
+                ))
+              : "Servicio pendiente"}
+          </dd>
+        </div>
+        {breakdown ? (
+          breakdown.map((item) => (
+            <div className="flex justify-between gap-3" key={item.label}>
+              <dt className="text-muted">{item.label}</dt>
+              <dd className="text-right font-medium">{item.value}</dd>
+            </div>
+          ))
+        ) : (
+          <div>
+            <dt className="text-muted">Extras</dt>
+            <dd className="mt-1 font-medium">{extras}</dd>
+          </div>
+        )}
+        <div className="flex justify-between gap-3">
+          <dt className="text-muted">Transporte{transportProvince ? ` · ${transportProvince}` : ""}</dt>
+          <dd className="font-medium">{transport == null ? "Selecciona comuna" : currency.format(transport)}</dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="text-muted">Reserva</dt>
+          <dd className="font-medium">{currency.format(reservation)}</dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="text-muted">Saldo restante</dt>
+          <dd className="font-medium">{currency.format(balance)}</dd>
+        </div>
+        <div className="flex justify-between gap-3 border-t pt-3">
+          <dt className="font-semibold">TOTAL</dt>
+          <dd className="text-xl font-semibold text-brand">{currency.format(total)}</dd>
+        </div>
+      </dl>
+    </section>
+  );
 }
 
 export function NewProjectDrawer({ commercialPrices, open, onClose, onCreate }: NewProjectDrawerProps) {
@@ -129,8 +345,25 @@ export function NewProjectDrawer({ commercialPrices, open, onClose, onCreate }: 
   const [createdProject, setCreatedProject] = useState<Project | null>(null);
   const [portalMessage, setPortalMessage] = useState("");
 
-  const municipalityGroups = Object.entries(provinceMunicipalities).map(([province, defaults]) => { const price = commercialPrices.find((item) => item.category === "TRANSPORT" && item.code === transportCode[province as Province]); const configured = price?.rules?.municipalities; return { province, municipalities: Array.isArray(configured) && configured.every((item) => typeof item === "string") ? configured as string[] : [...defaults], price }; });
-  const selectedMunicipality = municipalityGroups.flatMap(({ province, municipalities, price }) => municipalities.map((municipality) => ({ municipality, province, price }))).find((item) => item.municipality === draft.event.city) ?? null;
+  const municipalityGroups = Object.entries(provinceMunicipalities).map(([province, defaults]) => {
+    const price = commercialPrices.find((item) => item.category === "TRANSPORT" && item.code === transportCode[province as Province]);
+    const configured = price?.rules?.municipalities;
+    return {
+      province,
+      municipalities: Array.isArray(configured) && configured.every((item) => typeof item === "string") ? (configured as string[]) : [...defaults],
+      price,
+    };
+  });
+  const selectedMunicipality =
+    municipalityGroups
+      .flatMap(({ province, municipalities, price }) =>
+        municipalities.map((municipality) => ({
+          municipality,
+          province,
+          price,
+        })),
+      )
+      .find((item) => item.municipality === draft.event.city) ?? null;
   const transportPrice = selectedMunicipality?.price;
   const transportTotal = selectedMunicipality && transportPrice?.pricingStatus === "DEFINED" ? Number(transportPrice.unitPrice ?? 0) : null;
   const includedExtras: ServiceExtra[] = draft.type === "Wedding" ? ["QR", "Scrapbook"] : draft.type === "Birthday" || draft.type === "Graduation" ? ["QR"] : [];
@@ -138,73 +371,717 @@ export function NewProjectDrawer({ commercialPrices, open, onClose, onCreate }: 
   const brandingPrice = priceFor("EXTRA", extraCodes.Branding);
   const brandingMinimum = Math.max(2, Number(brandingPrice?.rules?.minimumQuantity ?? 2));
   const brandingMaximum = Math.min(4, Math.max(brandingMinimum, Number(brandingPrice?.rules?.maximumQuantity ?? 4)));
-  const extraUnitPrice = (extra: ServiceExtra) => { if (includedExtras.includes(extra)) return 0; if (extra === "Scrapbook" && draft.type === "Corporate") return 50_000; const code = extraCodes[extra as keyof typeof extraCodes]; return code ? priceFor("EXTRA", code)?.unitPrice ?? 0 : 0; };
+  const extraUnitPrice = (extra: ServiceExtra) => {
+    if (includedExtras.includes(extra)) return 0;
+    if (extra === "Scrapbook" && draft.type === "Corporate") return 50_000;
+    const code = extraCodes[extra as keyof typeof extraCodes];
+    return code ? (priceFor("EXTRA", code)?.unitPrice ?? 0) : 0;
+  };
   const compatibleIncludedExtras = (service: ProjectService) => includedExtras.filter((extra) => serviceExtraCompatibility[service].includes(extra));
-  const serviceTotal = (service: ProjectService, configuration: ServiceConfiguration) => { const base = Number(priceFor("SERVICE", serviceCodes[service], configuration.hours)?.unitPrice ?? 0); const extras = Array.from(new Set([...configuration.extras, ...compatibleIncludedExtras(service)])).reduce((sum, extra) => sum + (extra === "Branding" ? Number(extraUnitPrice(extra)) * configuration.brandingQuantity : Number(extraUnitPrice(extra))), 0); return base + configuration.additionalHours * additionalHourRates[service] + extras; };
+  const serviceTotal = (service: ProjectService, configuration: ServiceConfiguration) => {
+    const base = Number(priceFor("SERVICE", serviceCodes[service], configuration.hours)?.unitPrice ?? 0);
+    const extras = Array.from(new Set([...configuration.extras, ...compatibleIncludedExtras(service)])).reduce((sum, extra) => sum + (extra === "Branding" ? Number(extraUnitPrice(extra)) * configuration.brandingQuantity : Number(extraUnitPrice(extra))), 0);
+    return base + configuration.additionalHours * additionalHourRates[service] + extras;
+  };
   const servicesTotal = (Object.entries(configurations) as Array<[ProjectService, ServiceConfiguration]>).reduce((sum, [service, configuration]) => sum + serviceTotal(service, configuration), 0);
   const commercialTotal = servicesTotal + Number(transportTotal ?? 0);
   const payableTotal = Math.round(commercialTotal * (paymentMethod === "MERCADO_PAGO" ? 1.05 : 1));
   const reservationTotal = Math.round(payableTotal * 0.5);
   const balanceTotal = payableTotal - reservationTotal;
   const compatibleIncludedExtrasSelected = (Object.keys(configurations) as ProjectService[]).flatMap(compatibleIncludedExtras);
-  const consolidatedExtras = Array.from(new Set([...(Object.values(configurations) as ServiceConfiguration[]).flatMap((configuration) => configuration.extras), ...compatibleIncludedExtrasSelected])).map((extra) => extra === "Branding" ? `Branding (${Math.max(...(Object.values(configurations) as ServiceConfiguration[]).map((configuration) => configuration.extras.includes("Branding") ? configuration.brandingQuantity : 0))} caras)` : extra).join(" · ") || "Sin extras";
+  const consolidatedExtras =
+    Array.from(new Set([...(Object.values(configurations) as ServiceConfiguration[]).flatMap((configuration) => configuration.extras), ...compatibleIncludedExtrasSelected]))
+      .map((extra) => (extra === "Branding" ? `Branding (${Math.max(...(Object.values(configurations) as ServiceConfiguration[]).map((configuration) => (configuration.extras.includes("Branding") ? configuration.brandingQuantity : 0)))} caras)` : extra))
+      .join(" · ") || "Sin extras";
   const selectedConfigurations = Object.values(configurations) as ServiceConfiguration[];
   const extraSelected = (extra: ServiceExtra) => compatibleIncludedExtrasSelected.includes(extra) || selectedConfigurations.some((configuration) => configuration.extras.includes(extra));
   const extraSubtotal = (extra: ServiceExtra) => selectedConfigurations.reduce((sum, configuration) => sum + (configuration.extras.includes(extra) ? Number(extraUnitPrice(extra)) * (extra === "Branding" ? configuration.brandingQuantity : 1) : 0), 0);
   const brandingQuantityTotal = selectedConfigurations.reduce((sum, configuration) => sum + (configuration.extras.includes("Branding") ? configuration.brandingQuantity : 0), 0);
   const serviceBreakdown = [
-    { label: "Branding", value: brandingQuantityTotal ? `${brandingQuantityTotal} caras · ${currency.format(extraSubtotal("Branding"))}` : "No incluido" },
-    { label: "QR", value: compatibleIncludedExtrasSelected.includes("QR") ? "Incluido · $0" : extraSelected("QR") ? currency.format(extraSubtotal("QR")) : "No incluido" },
-    { label: "Imanes", value: extraSelected("Imanes") ? currency.format(extraSubtotal("Imanes")) : "No incluido" },
-    { label: "Scrapbook", value: compatibleIncludedExtrasSelected.includes("Scrapbook") ? "Incluido · $0" : extraSelected("Scrapbook") ? currency.format(extraSubtotal("Scrapbook")) : "No incluido" },
+    {
+      label: "Branding",
+      value: brandingQuantityTotal ? `${brandingQuantityTotal} caras · ${currency.format(extraSubtotal("Branding"))}` : "No incluido",
+    },
+    {
+      label: "QR",
+      value: compatibleIncludedExtrasSelected.includes("QR") ? "Incluido · $0" : extraSelected("QR") ? currency.format(extraSubtotal("QR")) : "No incluido",
+    },
+    {
+      label: "Imanes",
+      value: extraSelected("Imanes") ? currency.format(extraSubtotal("Imanes")) : "No incluido",
+    },
+    {
+      label: "Scrapbook",
+      value: compatibleIncludedExtrasSelected.includes("Scrapbook") ? "Incluido · $0" : extraSelected("Scrapbook") ? currency.format(extraSubtotal("Scrapbook")) : "No incluido",
+    },
   ];
   const isCorporateCustomer = draft.type === "Corporate";
-  const paymentDueDate = (() => { const base = isCorporateCustomer ? new Date() : draft.event.date ? new Date(`${draft.event.date}T12:00:00`) : null; if (!base || Number.isNaN(base.getTime())) return null; const days = isCorporateCustomer ? creditTerm === "CUSTOM" ? customCreditDays : Number(creditTerm === "CASH" ? 0 : creditTerm) : -7; base.setDate(base.getDate() + days); return base; })();
+  const paymentDueDate = (() => {
+    const base = isCorporateCustomer ? new Date() : draft.event.date ? new Date(`${draft.event.date}T12:00:00`) : null;
+    if (!base || Number.isNaN(base.getTime())) return null;
+    const days = isCorporateCustomer ? (creditTerm === "CUSTOM" ? customCreditDays : Number(creditTerm === "CASH" ? 0 : creditTerm)) : -7;
+    base.setDate(base.getDate() + days);
+    return base;
+  })();
   const formattedDueDate = paymentDueDate ? new Intl.DateTimeFormat("es-CL", { dateStyle: "long" }).format(paymentDueDate) : "Pendiente de fecha del evento";
   const mercadoPagoCommission = payableTotal - commercialTotal;
-  const paymentBreakdown = [...serviceBreakdown, ...(paymentMethod === "MERCADO_PAGO" ? [{ label: "Comisión Mercado Pago", value: currency.format(mercadoPagoCommission) }] : [])];
+  const paymentBreakdown = [
+    ...serviceBreakdown,
+    ...(paymentMethod === "MERCADO_PAGO"
+      ? [
+          {
+            label: "Comisión Mercado Pago",
+            value: currency.format(mercadoPagoCommission),
+          },
+        ]
+      : []),
+  ];
 
   if (!open) return null;
-  const client = (field: keyof ProjectDraft["client"], value: string) => setDraft((current) => ({ ...current, client: { ...current.client, [field]: value } }));
-  const event = (field: keyof ProjectDraft["event"], value: string | number | string[]) => setDraft((current) => ({ ...current, event: { ...current.event, [field]: value } }));
-  const reset = () => { setStep(0); setMethod("MANUAL"); setDraft(initialDraft); setConfigurations({}); setEventAddress(""); setOperationalContact(""); setOperationalPhone("+569"); setMainContact(""); setBride(""); setGroom(""); setSpecialRequests(""); setCommercialNotes(""); setTermsRead(false); setTermsAccepted(false); setSignatureConfirmed(false); setPaymentMethod("TRANSFER"); setCreditTerm("CASH"); setCustomCreditDays(0); setPurchaseOrder(""); setReceipt(""); setSubmitting(false); setError(""); setCreatedProject(null); setPortalMessage(""); onClose(); };
-  const toggleService = (service: ProjectService) => { setConfigurations((current) => { const next = { ...current }; if (next[service]) delete next[service]; else next[service] = initialService(); return next; }); setDraft((current) => ({ ...current, services: current.services.includes(service) ? current.services.filter((item) => item !== service) : [...current.services, service] })); };
-  const updateService = (service: ProjectService, update: Partial<ServiceConfiguration>) => setConfigurations((current) => ({ ...current, [service]: { ...(current[service] ?? initialService()), ...update } }));
-  const toggleServiceExtra = (service: ProjectService, extra: ServiceExtra) => { const configuration = configurations[service] ?? initialService(); updateService(service, { extras: configuration.extras.includes(extra) ? configuration.extras.filter((item) => item !== extra) : [...configuration.extras, extra] }); };
+  const client = (field: keyof ProjectDraft["client"], value: string) =>
+    setDraft((current) => ({
+      ...current,
+      client: { ...current.client, [field]: value },
+    }));
+  const event = (field: keyof ProjectDraft["event"], value: string | number | string[]) =>
+    setDraft((current) => ({
+      ...current,
+      event: { ...current.event, [field]: value },
+    }));
+  const reset = () => {
+    setStep(0);
+    setMethod("MANUAL");
+    setDraft(initialDraft);
+    setConfigurations({});
+    setEventAddress("");
+    setOperationalContact("");
+    setOperationalPhone("+569");
+    setMainContact("");
+    setBride("");
+    setGroom("");
+    setSpecialRequests("");
+    setCommercialNotes("");
+    setTermsRead(false);
+    setTermsAccepted(false);
+    setSignatureConfirmed(false);
+    setPaymentMethod("TRANSFER");
+    setCreditTerm("CASH");
+    setCustomCreditDays(0);
+    setPurchaseOrder("");
+    setReceipt("");
+    setSubmitting(false);
+    setError("");
+    setCreatedProject(null);
+    setPortalMessage("");
+    onClose();
+  };
+  const toggleService = (service: ProjectService) => {
+    setConfigurations((current) => {
+      const next = { ...current };
+      if (next[service]) delete next[service];
+      else next[service] = initialService(service);
+      return next;
+    });
+    setDraft((current) => ({
+      ...current,
+      services: current.services.includes(service) ? current.services.filter((item) => item !== service) : [...current.services, service],
+    }));
+  };
+  const updateService = (service: ProjectService, update: Partial<ServiceConfiguration>) =>
+    setConfigurations((current) => ({
+      ...current,
+      [service]: {
+        ...(current[service] ?? initialService(service)),
+        ...update,
+      },
+    }));
+  const toggleServiceExtra = (service: ProjectService, extra: ServiceExtra) => {
+    const configuration = configurations[service] ?? initialService(service);
+    updateService(service, {
+      extras: configuration.extras.includes(extra) ? configuration.extras.filter((item) => item !== extra) : [...configuration.extras, extra],
+    });
+  };
   const customerValid = Boolean((draft.client.name ?? "").trim() && /^[0-9]{7,8}-[0-9K]$/.test(draft.client.rut ?? "") && (draft.client.phone ?? "").length === 12 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.client.email ?? ""));
-  const valid = step === 0 ? method === "MANUAL" : step === 1 ? customerValid : step === 2 ? Boolean(draft.type && draft.event.location && eventAddress && draft.event.city && draft.event.time && operationalContact && operationalPhone.length === 12 && (draft.type === "Wedding" ? bride && groom : mainContact)) : step === 3 ? draft.services.length > 0 : step === 4 ? termsAccepted && signatureConfirmed : step === 5 ? paymentMethod === "MERCADO_PAGO" || Boolean(receipt) : true;
-  const create = async () => { if (!valid) return; setSubmitting(true); setError(""); try { const serviceDetails = (Object.entries(configurations) as Array<[ProjectService, ServiceConfiguration]>).map(([service, configuration]) => `${serviceLabels[service]}: ${configuration.hours} h + ${configuration.additionalHours} h adicionales · ${Array.from(new Set([...configuration.extras, ...compatibleIncludedExtras(service)])).join(", ") || "sin extras"}`).join("\n"); const maximumHours = Math.max(2, ...(Object.values(configurations) as ServiceConfiguration[]).map((configuration) => configuration.hours + configuration.additionalHours)); const project = await withReservationTimeout(onCreate({ ...draft, event: { ...draft.event, durationHours: maximumHours, extras: [...Array.from(new Set([...(Object.values(configurations) as ServiceConfiguration[]).flatMap((configuration) => configuration.extras), ...compatibleIncludedExtrasSelected])), ...(transportTotal !== null ? ["Transporte"] : [])] }, notes: [draft.notes, `Dirección evento: ${eventAddress}`, `Provincia: ${selectedMunicipality?.province ?? "Por confirmar"}`, `Contacto operacional: ${operationalContact} · ${operationalPhone}`, draft.type === "Wedding" ? `Novia: ${bride} · Novio: ${groom}` : `Contacto principal: ${mainContact}`, serviceDetails, specialRequests && `Solicitudes especiales: ${specialRequests}`, commercialNotes && `Notas comerciales: ${commercialNotes}`, "Términos BOOMBOX aceptados", "Firma manuscrita confirmada", `Total comercial: ${currency.format(payableTotal)}`, `Método de pago: ${paymentMethod}`, `Estado de pago: Pendiente`, `Vencimiento: ${formattedDueDate}`, isCorporateCustomer && `Condición de pago: ${creditTerm === "CUSTOM" ? `${customCreditDays} días` : creditTerm === "CASH" ? "Contado" : `${creditTerm} días`}`, purchaseOrder && `Orden de compra: ${purchaseOrder}`, receipt && `Comprobante vinculado: ${receipt}`].filter(Boolean).join("\n") })); setCreatedProject(project); setStep(6); } catch (cause) { setError(cause instanceof Error ? cause.message : "No fue posible crear la reserva."); } finally { setSubmitting(false); } };
+  const valid = step === 0 ? method === "MANUAL" : step === 1 ? customerValid : step === 2 ? Boolean(draft.type && draft.event.location && eventAddress && draft.event.city && draft.event.date && draft.event.time && operationalContact && operationalPhone.length === 12 && (draft.type === "Wedding" ? bride && groom : mainContact)) : step === 3 ? draft.services.length > 0 : step === 4 ? termsAccepted && signatureConfirmed : step === 5 ? paymentMethod === "MERCADO_PAGO" || Boolean(receipt) : true;
+  const create = async () => {
+    if (!valid) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      const serviceDetails = (Object.entries(configurations) as Array<[ProjectService, ServiceConfiguration]>).map(([service, configuration]) => `${serviceLabels[service]}: ${configuration.hours} h + ${configuration.additionalHours} h adicionales · ${Array.from(new Set([...configuration.extras, ...compatibleIncludedExtras(service)])).join(", ") || "sin extras"}`).join("\n");
+      const maximumHours = Math.max(2, ...(Object.values(configurations) as ServiceConfiguration[]).map((configuration) => configuration.hours + configuration.additionalHours));
+      const project = await withReservationTimeout(
+        onCreate({
+          ...draft,
+          event: {
+            ...draft.event,
+            durationHours: maximumHours,
+            extras: [...Array.from(new Set([...(Object.values(configurations) as ServiceConfiguration[]).flatMap((configuration) => configuration.extras), ...compatibleIncludedExtrasSelected])), ...(transportTotal !== null ? ["Transporte"] : [])],
+          },
+          notes: [draft.notes, `Dirección evento: ${eventAddress}`, `Provincia: ${selectedMunicipality?.province ?? "Por confirmar"}`, `Contacto operacional: ${operationalContact} · ${operationalPhone}`, draft.type === "Wedding" ? `Novia: ${bride} · Novio: ${groom}` : `Contacto principal: ${mainContact}`, serviceDetails, specialRequests && `Solicitudes especiales: ${specialRequests}`, commercialNotes && `Notas comerciales: ${commercialNotes}`, "Términos BOOMBOX aceptados", "Firma manuscrita confirmada", `Total comercial: ${currency.format(payableTotal)}`, `Método de pago: ${paymentMethod}`, `Estado de pago: Pendiente`, `Vencimiento: ${formattedDueDate}`, isCorporateCustomer && `Condición de pago: ${creditTerm === "CUSTOM" ? `${customCreditDays} días` : creditTerm === "CASH" ? "Contado" : `${creditTerm} días`}`, purchaseOrder && `Orden de compra: ${purchaseOrder}`, receipt && `Comprobante vinculado: ${receipt}`].filter(Boolean).join("\n"),
+        }),
+      );
+      setCreatedProject(project);
+      setStep(6);
+    } catch (cause) {
+      console.error("[ORBIT][RESERVATION_CONFIRMATION_FAILED]", cause);
+      setError("No pudimos confirmar la reserva. Revisa los datos e inténtalo nuevamente. Si el problema continúa, contacta al administrador de ORBIT.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
   const portalUrl = createdProject ? `${window.location.origin}/projects/${createdProject.id}#portal-cliente` : "";
-  const confirmationEmailBody = createdProject ? [
-    `Hola ${createdProject.client.name},`,
-    "¡Reserva confirmada! Bienvenido a BOOMBOX.",
-    "Resumen comercial",
-    ...(Object.entries(configurations) as Array<[ProjectService, ServiceConfiguration]>).map(([service, configuration]) => `${serviceLabels[service]} · ${configuration.hours + configuration.additionalHours} horas · ${currency.format(serviceTotal(service, configuration))}`),
-    `Extras: ${consolidatedExtras}`,
-    `Transporte: ${currency.format(Number(transportTotal ?? 0))}`,
-    `Reserva: ${currency.format(reservationTotal)}`,
-    `Saldo restante: ${currency.format(balanceTotal)}`,
-    `TOTAL: ${currency.format(payableTotal)}`,
-    "Portal BOOMBOX",
-    portalUrl,
-    "Accede utilizando tu RUT y la fecha de tu evento.",
-  ].join("\n\n") : "";
+  const confirmationEmailBody = createdProject ? [`Hola ${createdProject.client.name},`, "¡Reserva confirmada! Bienvenido a BOOMBOX.", "Resumen comercial", ...(Object.entries(configurations) as Array<[ProjectService, ServiceConfiguration]>).map(([service, configuration]) => `${serviceLabels[service]} · ${configuration.hours + configuration.additionalHours} horas · ${currency.format(serviceTotal(service, configuration))}`), `Extras: ${consolidatedExtras}`, `Transporte: ${currency.format(Number(transportTotal ?? 0))}`, `Reserva: ${currency.format(reservationTotal)}`, `Saldo restante: ${currency.format(balanceTotal)}`, `TOTAL: ${currency.format(payableTotal)}`, "Portal BOOMBOX", portalUrl, "Accede utilizando tu RUT y la fecha de tu evento."].join("\n\n") : "";
 
-  const summary = <CommercialSummary balance={balanceTotal} breakdown={step === 5 ? paymentBreakdown : step === 3 || step === 4 || step === 6 ? serviceBreakdown : undefined} configurations={configurations} extras={consolidatedExtras} reservation={reservationTotal} total={payableTotal} transport={transportTotal} transportProvince={selectedMunicipality?.province ?? null}/>;
+  const summary = <CommercialSummary balance={balanceTotal} breakdown={step === 5 ? paymentBreakdown : step === 3 || step === 4 || step === 6 ? serviceBreakdown : undefined} configurations={configurations} extras={consolidatedExtras} reservation={reservationTotal} total={payableTotal} transport={transportTotal} transportProvince={selectedMunicipality?.province ?? null} />;
 
-  return <><button aria-label="Cerrar nueva reserva" className="fixed inset-0 z-40 cursor-default bg-black/45 backdrop-blur-[2px]" onClick={reset}/><aside aria-label="Nueva reserva" className="fixed inset-y-0 right-0 z-50 flex w-full max-w-5xl flex-col border-l bg-card shadow-2xl">
-    <header className="flex items-start justify-between border-b p-5 sm:p-7"><div><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Nueva reserva · Paso {step + 1} de {steps.length}</p><h2 className="mt-2 text-2xl font-semibold tracking-tight">{steps[step]}</h2></div><Button aria-label="Cerrar" onClick={reset} size="icon" variant="ghost"><X className="size-4"/></Button></header>
-    <div className="flex gap-1.5 border-b px-5 py-4 sm:px-7">{steps.map((label, index) => <span aria-label={label} className={cn("h-1.5 flex-1 rounded-full bg-accent", index <= step && "bg-brand")} key={label}/>)}</div>
-    <div className="flex-1 overflow-y-auto p-5 sm:p-7">
-      {step === 0 && <div className="mx-auto max-w-xl space-y-4"><h3 className="text-xl font-semibold">¿Cómo deseas crear esta reserva?</h3><button className={cn("flex w-full items-start gap-4 rounded-2xl border p-5 text-left", method === "MANUAL" && "border-brand bg-brand/5")} onClick={() => setMethod("MANUAL")}><span className={cn("mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border", method === "MANUAL" && "border-brand")}><span className={cn("size-2.5 rounded-full", method === "MANUAL" && "bg-brand")}/></span><span><PenLine className="size-5 text-brand"/><span className="mt-3 block font-semibold">Manual</span><span className="mt-1 block text-sm text-muted">Completa toda la reserva dentro de ORBIT.</span></span></button><div aria-disabled="true" className="flex gap-4 rounded-2xl border p-5 opacity-60"><span className="mt-0.5 size-5 shrink-0 rounded-full border"/><span className="min-w-0 flex-1"><span className="flex items-center justify-between"><Sparkles className="size-5"/><span className="rounded-full border px-3 py-1 text-xs font-semibold">Próximamente</span></span><span className="mt-3 block font-semibold">Automática</span></span></div></div>}
-      {step === 1 && <div className="mx-auto max-w-3xl space-y-5"><div className="grid gap-5 sm:grid-cols-2"><Field autoComplete="name" label="Nombre y Apellido" onChange={(e) => client("name", e.target.value)} required value={draft.client.name}/><Field autoComplete="off" inputMode="text" label="RUT" onChange={(e) => { const raw = e.target.value.replace(/[^0-9kK]/g, "").toUpperCase().slice(0, 9); client("rut", raw.length > 1 ? `${raw.slice(0, -1)}-${raw.slice(-1)}` : raw); }} placeholder="12345678-9" required value={draft.client.rut}/><Field autoComplete="tel" inputMode="tel" label="Teléfono" onChange={(e) => client("phone", `+569${e.target.value.replace(/\D/g, "").replace(/^569/, "").slice(0, 8)}`)} required value={draft.client.phone || "+569"}/><Field autoComplete="email" label="Correo" onChange={(e) => client("email", e.target.value)} required type="email" value={draft.client.email}/></div><Field autoComplete="street-address" label="Dirección" onChange={(e) => client("address", e.target.value)} value={draft.client.address}/><label className="block text-sm font-medium">Origen del contacto<select className="mt-2 h-11 w-full rounded-lg border bg-background px-3" onChange={(e) => setDraft((current) => ({ ...current, origin: e.target.value as ProjectOrigin }))} value={draft.origin ?? ""}><option value="">Selecciona un origen</option>{projectOrigins.map((origin) => <option key={origin} value={origin}>{originLabels[origin]}</option>)}</select></label><div className="flex gap-2"><Button className="gap-2" onClick={() => document.querySelector<HTMLInputElement>('input[autocomplete="name"]')?.focus()} variant="outline"><PenLine className="size-4"/>Editar</Button><Button className="gap-2 text-danger" onClick={() => { if (window.confirm("¿Eliminar los datos ingresados?")) setDraft((current) => ({ ...current, client: initialDraft.client, origin: undefined })); }} variant="outline"><Trash2 className="size-4"/>Eliminar</Button></div></div>}
-      {step === 2 && <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]"><div className="space-y-6"><div><p className="mb-3 text-sm font-medium">Tipo de evento</p><div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{projectTypes.map((type) => <button className={cn("min-h-12 rounded-xl border p-3 text-left text-sm", draft.type === type && "border-brand bg-brand/5")} key={type} onClick={() => setDraft((current) => ({ ...current, type }))}>{typeLabels[type]}</button>)}</div></div><div className="grid gap-5 sm:grid-cols-2"><Field label="Lugar" onChange={(e) => event("location", e.target.value)} value={draft.event.location}/><Field label="Dirección del evento" onChange={(e) => setEventAddress(e.target.value)} value={eventAddress}/><label className="block text-sm font-medium">Comuna<select className="mt-2 h-11 w-full rounded-lg border bg-background px-3" onChange={(e) => event("city", e.target.value)} value={draft.event.city}><option value="">Selecciona una comuna</option>{municipalityGroups.map(({ province, municipalities }) => <optgroup key={province} label={province}>{municipalities.map((municipality) => <option key={municipality}>{municipality}</option>)}</optgroup>)}</select></label><Field label="Inicio del servicio BOOMBOX" onChange={(e) => event("time", e.target.value)} type="time" value={draft.event.time}/><Field label="Contacto operacional" onChange={(e) => setOperationalContact(e.target.value)} value={operationalContact}/><Field inputMode="tel" label="Teléfono del contacto operacional" onChange={(e) => setOperationalPhone(`+569${e.target.value.replace(/\D/g, "").replace(/^569/, "").slice(0, 8)}`)} value={operationalPhone}/>{draft.type === "Wedding" ? <><Field label="Nombre de la novia" onChange={(e) => setBride(e.target.value)} value={bride}/><Field label="Nombre del novio" onChange={(e) => setGroom(e.target.value)} value={groom}/></> : draft.type ? <Field label="Contacto principal" onChange={(e) => setMainContact(e.target.value)} value={mainContact}/> : null}</div>{selectedMunicipality && <div className="rounded-2xl border border-success/30 bg-success/5 p-4"><p className="font-semibold text-success">Transporte calculado automáticamente</p><p className="mt-1 text-sm text-muted">{selectedMunicipality.municipality} · Provincia {selectedMunicipality.province}</p><p className="mt-2 text-lg font-semibold">{transportTotal == null ? "Precio por confirmar" : currency.format(transportTotal)}</p></div>}<p className="text-xs text-muted">La hora de término se calcula automáticamente según las horas contratadas.</p></div><aside className="h-fit max-lg:sticky max-lg:bottom-0 lg:sticky lg:top-0">{summary}</aside></div>}
-      {step === 3 && <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]"><div className="space-y-5"><div><p className="mb-3 text-sm font-medium">Servicio principal y servicios adicionales</p><div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{projectServices.map((service) => <button className={cn("min-h-12 rounded-xl border p-3 text-left text-sm", configurations[service] && "border-brand bg-brand/5")} key={service} onClick={() => toggleService(service)}><span className="block font-medium">{serviceLabels[service]}</span>{draft.services[0] === service && <span className="mt-1 block text-xs text-brand">Servicio principal</span>}</button>)}</div></div>{(Object.entries(configurations) as Array<[ProjectService, ServiceConfiguration]>).map(([service, configuration]) => <section className="rounded-2xl border p-5" key={service}><div className="flex items-center justify-between gap-3"><h3 className="font-semibold">{serviceLabels[service]}</h3><strong className="text-brand">{currency.format(serviceTotal(service, configuration))}</strong></div><div className="mt-4 grid gap-4 sm:grid-cols-2"><label className="text-sm font-medium">Horas<select className="mt-2 h-11 w-full rounded-lg border bg-background px-3" onChange={(e) => updateService(service, { hours: Number(e.target.value) as 2 | 3 | 4 })} value={configuration.hours}>{[2, 3, 4].map((hours) => <option key={hours} value={hours}>{hours} horas</option>)}</select></label><Field label={`Horas adicionales · ${currency.format(additionalHourRates[service])} c/u`} min="0" onChange={(e) => updateService(service, { additionalHours: Math.max(0, Number(e.target.value)) })} type="number" value={configuration.additionalHours}/></div><div className="mt-4 grid gap-2 sm:grid-cols-2">{serviceExtraCompatibility[service].map((extra) => { const included = compatibleIncludedExtras(service).includes(extra); const selected = included || configuration.extras.includes(extra); const unit = extraUnitPrice(extra); if (extra === "Branding") return <label className={cn("rounded-xl border p-3 text-sm", selected && "border-brand bg-brand/5")} key={extra}><span className="font-semibold">Branding</span><span className="mt-1 block text-xs text-muted">{currency.format(Number(unit))} por cara · mínimo {brandingMinimum}</span><select className="mt-3 h-10 w-full rounded-lg border bg-background px-3" onChange={(e) => { const quantity = Number(e.target.value); const hasBranding = configuration.extras.includes("Branding"); if (quantity === 0 && hasBranding) toggleServiceExtra(service, "Branding"); else if (quantity > 0) { if (!hasBranding) toggleServiceExtra(service, "Branding"); updateService(service, { brandingQuantity: quantity }); } }} value={configuration.extras.includes("Branding") ? configuration.brandingQuantity : 0}><option value={0}>Sin Branding</option>{Array.from({ length: brandingMaximum - brandingMinimum + 1 }, (_, index) => brandingMinimum + index).map((quantity) => <option key={quantity} value={quantity}>{quantity} caras</option>)}</select></label>; return <div className={cn("rounded-xl border p-3", selected && "border-brand bg-brand/5")} key={extra}><label className="flex items-start gap-3 text-sm"><input checked={selected} disabled={included} onChange={() => toggleServiceExtra(service, extra)} type="checkbox"/><span><strong>{extra === "QR" ? "QR Instantáneo" : extra}</strong><span className="mt-1 block text-xs text-muted">{included ? "Incluido · $0 · Bloqueado" : `+${currency.format(Number(unit))}`}</span></span></label></div>; })}</div></section>)}<TextArea label="Solicitudes especiales" onChange={(e) => setSpecialRequests(e.target.value)} value={specialRequests}/><TextArea label="Notas comerciales" onChange={(e) => setCommercialNotes(e.target.value)} value={commercialNotes}/></div><aside className="h-fit max-lg:sticky max-lg:bottom-0 lg:sticky lg:top-0">{summary}</aside></div>}
-      {step === 4 && <div className="mx-auto max-w-4xl space-y-6"><div className="flex items-center gap-3"><FileSignature className="size-6 text-brand"/><div><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">CONTRATO</p><h3 className="mt-1 text-2xl font-semibold">Resumen, condiciones y firma</h3></div></div>{summary}<section className="rounded-2xl border p-5 sm:p-6"><h3 className="text-xl font-semibold">Términos y Condiciones BOOMBOX</h3><p className="mt-2 text-sm text-muted">Desplázate hasta el final para continuar.</p><div className="mt-5 max-h-80 space-y-5 overflow-y-auto rounded-xl border bg-background/30 p-5" onScroll={(e) => { const element = e.currentTarget; if (element.scrollHeight - element.scrollTop - element.clientHeight < 12) setTermsRead(true); }} tabIndex={0}>{boomboxTerms.map(([title, content]) => <section key={title}><h4 className="font-semibold">{title}</h4><p className="mt-2 text-sm leading-6 text-muted">{content}</p></section>)}</div><label className={cn("mt-5 flex items-start gap-3 rounded-xl border p-4", !termsRead && "cursor-not-allowed opacity-60")}><input checked={termsAccepted} className="mt-1 size-5" disabled={!termsRead} onChange={(e) => { setTermsAccepted(e.target.checked); if (!e.target.checked) setSignatureConfirmed(false); }} required type="checkbox"/><span><strong>He leído y acepto los Términos y Condiciones.</strong><span className="mt-1 block text-sm text-muted">{termsRead ? "La firma se habilitará inmediatamente." : "Lee el contrato completo para continuar."}</span></span></label></section>{termsAccepted && <SignaturePad disabled={!termsAccepted} onConfirmed={(confirmed) => { setSignatureConfirmed(confirmed); if (confirmed) setStep(5); }}/>}</div>}
-      {step === 5 && <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]"><div className="space-y-5"><section className="rounded-2xl border p-5"><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">{isCorporateCustomer ? "Cliente corporativo" : "Cliente particular"}</p>{isCorporateCustomer ? <div className="mt-4 space-y-5"><fieldset><legend className="text-sm font-semibold">Condición de pago</legend><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">{([['CASH','Contado'],['15','15 días'],['30','30 días'],['45','45 días'],['60','60 días'],['90','90 días'],['CUSTOM','Personalizado']] as Array<[CreditTerm,string]>).map(([value,label]) => <label className={cn("flex min-h-11 items-center gap-2 rounded-xl border px-3 text-sm", creditTerm === value && "border-brand bg-brand/5")} key={value}><input checked={creditTerm === value} name="credit-term" onChange={() => setCreditTerm(value)} type="radio"/>{label}</label>)}</div></fieldset>{creditTerm === "CUSTOM" && <Field label="Días de crédito" min="0" onChange={(e) => setCustomCreditDays(Math.max(0, Number(e.target.value)))} type="number" value={customCreditDays}/>}<Field label="Orden de compra (opcional)" onChange={(e) => setPurchaseOrder(e.target.value)} value={purchaseOrder}/><dl className="grid gap-3 rounded-xl bg-background/40 p-4 text-sm sm:grid-cols-2"><div><dt className="text-muted">Factura</dt><dd className="mt-1 font-semibold">Se generará al confirmar</dd></div><div><dt className="text-muted">Saldo pendiente</dt><dd className="mt-1 font-semibold">{currency.format(payableTotal)}</dd></div><div><dt className="text-muted">Vencimiento</dt><dd className="mt-1 font-semibold">{formattedDueDate}</dd></div><div><dt className="text-muted">Estado</dt><dd className="mt-1 font-semibold">Crédito corporativo</dd></div></dl></div> : <dl className="mt-4 grid gap-3 rounded-xl bg-background/40 p-4 text-sm sm:grid-cols-3"><div><dt className="text-muted">Reserva · 50%</dt><dd className="mt-1 text-lg font-semibold">{currency.format(reservationTotal)}</dd></div><div><dt className="text-muted">Saldo restante · 50%</dt><dd className="mt-1 text-lg font-semibold">{currency.format(balanceTotal)}</dd></div><div><dt className="text-muted">Vencimiento del saldo</dt><dd className="mt-1 font-semibold">{formattedDueDate}</dd><p className="mt-1 text-xs text-muted">Una semana antes del evento.</p></div></dl>}</section><section><p className="mb-3 text-sm font-semibold">Método de pago</p><div className="grid grid-cols-2 gap-2"><Button onClick={() => setPaymentMethod("TRANSFER")} variant={paymentMethod === "TRANSFER" ? "default" : "outline"}>Transferencia</Button><Button onClick={() => setPaymentMethod("MERCADO_PAGO")} variant={paymentMethod === "MERCADO_PAGO" ? "default" : "outline"}>Mercado Pago +5%</Button></div></section>{paymentMethod === "TRANSFER" ? <div className="rounded-2xl border p-5 text-sm"><p className="font-semibold">PRODUCCIONES BOOMBOX COMPANY SPA</p><dl className="mt-4 grid gap-3 sm:grid-cols-2"><div><dt className="text-muted">RUT</dt><dd className="font-medium">76.565.272-3</dd></div><div><dt className="text-muted">Banco</dt><dd className="font-medium">BCI</dd></div><div><dt className="text-muted">Cuenta Corriente</dt><dd className="font-medium">52093409</dd></div><div><dt className="text-muted">Correo</dt><dd className="font-medium">contabilidad@boom-box.cl</dd></div></dl><label className="mt-5 block font-medium">Comprobante<input accept="image/jpeg,image/png,image/webp,application/pdf" className="mt-2 block w-full rounded-xl border p-3" onChange={(e) => setReceipt(e.target.files?.[0]?.name ?? "")} required type="file"/><span className="mt-2 block text-xs text-muted">JPG, PNG, WEBP o PDF. {receipt ? `Vinculado: ${receipt}` : "Obligatorio para continuar."}</span></label></div> : <div className="rounded-xl border border-brand/25 bg-brand/5 p-4 text-sm"><p className="font-semibold">Comisión Mercado Pago</p><p className="mt-1 text-muted">5% · {currency.format(mercadoPagoCommission)}</p><p className="mt-3 font-medium">El total, la reserva y el saldo se actualizaron automáticamente.</p></div>}<section><p className="mb-3 text-sm font-semibold">Estado de pago</p><div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{["Pendiente","Reserva recibida","Pagado","Crédito corporativo"].map((status,index) => <div className={cn("rounded-xl border p-3 text-center text-xs font-medium", index === 0 && "border-brand bg-brand/5 text-brand")} key={status}>{status}</div>)}</div></section></div><aside className="h-fit max-lg:sticky max-lg:bottom-0 lg:sticky lg:top-0">{summary}</aside></div>}
-      {step === 6 && createdProject && <div className="mx-auto max-w-3xl space-y-6 text-center"><div aria-hidden="true" className="text-5xl">🎉</div><div><h3 className="text-3xl font-semibold">¡Reserva Confirmada!</h3><p className="mt-3 text-lg font-medium">Bienvenido a BOOMBOX</p></div><div className="grid gap-3 text-left sm:grid-cols-2">{["Contrato Firmado", "Reserva Confirmada", "Portal Disponible", "Correo Enviado"].map((label) => <div className="flex items-center gap-3 rounded-xl border p-4" key={label}><Check className="size-5 text-success"/><span className="font-medium">{label}</span></div>)}</div>{summary}<div className="grid gap-3 sm:grid-cols-3"><a className="inline-flex min-h-11 items-center justify-center rounded-xl bg-brand px-4 text-sm font-semibold text-brand-foreground" href={portalUrl}>Abrir Portal</a><Button onClick={() => { void navigator.clipboard.writeText(portalUrl); setPortalMessage("Enlace copiado."); }} variant="outline"><Copy className="mr-2 size-4"/>Copiar Enlace</Button><a className="inline-flex min-h-11 items-center justify-center rounded-xl border px-4 text-sm font-semibold" href={`mailto:${encodeURIComponent(createdProject.client.email)}?subject=${encodeURIComponent("¡Tu reserva BOOMBOX está confirmada!")}&body=${encodeURIComponent(confirmationEmailBody)}`}><Send className="mr-2 size-4"/>Enviar Acceso</a></div>{portalMessage && <p className="text-sm text-success">{portalMessage}</p>}<section className="rounded-2xl border p-5 text-left sm:p-6"><p className="leading-7">En los próximos minutos recibirás una copia del contrato firmado en tu correo electrónico.</p><p className="mt-5 font-semibold">Desde ahora podrás acceder al Portal BOOMBOX utilizando:</p><ul className="mt-3 list-inside list-disc space-y-1 text-muted"><li>RUT</li><li>Fecha del Evento</li></ul><p className="mt-5 font-semibold">Desde el Portal podrás:</p><ul className="mt-3 list-inside list-disc space-y-1 text-muted"><li>Ver tu contrato</li><li>Revisar tu evento</li><li>Descargar documentos</li><li>Ver el estado de tu reserva</li><li>Contactar a BOOMBOX</li></ul></section></div>}
-      {error && <p className="mt-4 text-sm text-danger">{error}</p>}
-    </div>
-    <footer className="flex items-center justify-between gap-3 border-t p-5 sm:p-7">{step > 0 && step < 6 ? <ActionButton disabled={submitting} icon={ChevronLeft} label="Atrás" onClick={() => setStep((current) => current - 1)} variant="outline"/> : <span/>}{step < 5 ? <ActionButton disabled={!valid} icon={ChevronRight} iconPosition="end" label="Continuar" onClick={() => setStep((current) => current + 1)}/> : step === 5 ? <Button aria-live="polite" disabled={!valid || submitting} onClick={() => void create()}>{submitting && <LoaderCircle aria-hidden="true" className="size-4 animate-spin"/>}{submitting ? "Procesando reserva..." : "Confirmar reserva"}</Button> : <ActionButton icon={Link2} label="Cerrar" onClick={reset}/>}</footer>
-  </aside></>;
+  return (
+    <>
+      <button aria-label="Cerrar nueva reserva" className="fixed inset-0 z-40 cursor-default bg-black/45 backdrop-blur-[2px]" onClick={reset} />
+      <aside aria-label="Nueva reserva" className="fixed inset-y-0 right-0 z-50 flex w-full max-w-5xl flex-col border-l bg-card shadow-2xl">
+        <header className="flex items-start justify-between border-b p-5 sm:p-7">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">
+              Nueva reserva · Paso {step + 1} de {steps.length}
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight">{steps[step]}</h2>
+          </div>
+          <Button aria-label="Cerrar" onClick={reset} size="icon" variant="ghost">
+            <X className="size-4" />
+          </Button>
+        </header>
+        <div className="flex gap-1.5 border-b px-5 py-4 sm:px-7">
+          {steps.map((label, index) => (
+            <span aria-label={label} className={cn("h-1.5 flex-1 rounded-full bg-accent", index <= step && "bg-brand")} key={label} />
+          ))}
+        </div>
+        <div className="flex-1 overflow-y-auto p-5 sm:p-7">
+          {step === 0 && (
+            <div className="mx-auto max-w-xl space-y-4">
+              <h3 className="text-xl font-semibold">¿Cómo deseas crear esta reserva?</h3>
+              <button className={cn("flex w-full items-start gap-4 rounded-2xl border p-5 text-left", method === "MANUAL" && "border-brand bg-brand/5")} onClick={() => setMethod("MANUAL")}>
+                <span className={cn("mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border", method === "MANUAL" && "border-brand")}>
+                  <span className={cn("size-2.5 rounded-full", method === "MANUAL" && "bg-brand")} />
+                </span>
+                <span>
+                  <PenLine className="size-5 text-brand" />
+                  <span className="mt-3 block font-semibold">Manual</span>
+                  <span className="mt-1 block text-sm text-muted">Completa toda la reserva dentro de ORBIT.</span>
+                </span>
+              </button>
+              <div aria-disabled="true" className="flex gap-4 rounded-2xl border p-5 opacity-60">
+                <span className="mt-0.5 size-5 shrink-0 rounded-full border" />
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center justify-between">
+                    <Sparkles className="size-5" />
+                    <span className="rounded-full border px-3 py-1 text-xs font-semibold">Próximamente</span>
+                  </span>
+                  <span className="mt-3 block font-semibold">Automática</span>
+                </span>
+              </div>
+            </div>
+          )}
+          {step === 1 && (
+            <div className="mx-auto max-w-3xl space-y-5">
+              <div className="grid gap-5 sm:grid-cols-2">
+                <Field autoComplete="name" label="Nombre y Apellido" onChange={(e) => client("name", e.target.value)} required value={draft.client.name} />
+                <Field
+                  autoComplete="off"
+                  inputMode="text"
+                  label="RUT"
+                  onChange={(e) => {
+                    const raw = e.target.value
+                      .replace(/[^0-9kK]/g, "")
+                      .toUpperCase()
+                      .slice(0, 9);
+                    client("rut", raw.length > 1 ? `${raw.slice(0, -1)}-${raw.slice(-1)}` : raw);
+                  }}
+                  placeholder="12345678-9"
+                  required
+                  value={draft.client.rut}
+                />
+                <Field autoComplete="tel" inputMode="tel" label="Teléfono" onChange={(e) => client("phone", `+569${e.target.value.replace(/\D/g, "").replace(/^569/, "").slice(0, 8)}`)} required value={draft.client.phone || "+569"} />
+                <Field autoComplete="email" label="Correo" onChange={(e) => client("email", e.target.value)} required type="email" value={draft.client.email} />
+              </div>
+              <Field autoComplete="street-address" label="Dirección" onChange={(e) => client("address", e.target.value)} value={draft.client.address} />
+              <label className="block text-sm font-medium">
+                Origen del contacto
+                <select
+                  className="mt-2 h-11 w-full rounded-lg border bg-background px-3"
+                  onChange={(e) =>
+                    setDraft((current) => ({
+                      ...current,
+                      origin: e.target.value as ProjectOrigin,
+                    }))
+                  }
+                  value={draft.origin ?? ""}
+                >
+                  <option value="">Selecciona un origen</option>
+                  {projectOrigins.map((origin) => (
+                    <option key={origin} value={origin}>
+                      {originLabels[origin]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="flex gap-2">
+                <Button className="gap-2" onClick={() => document.querySelector<HTMLInputElement>('input[autocomplete="name"]')?.focus()} variant="outline">
+                  <PenLine className="size-4" />
+                  Editar
+                </Button>
+                <Button
+                  className="gap-2 text-danger"
+                  onClick={() => {
+                    if (window.confirm("¿Eliminar los datos ingresados?"))
+                      setDraft((current) => ({
+                        ...current,
+                        client: initialDraft.client,
+                        origin: undefined,
+                      }));
+                  }}
+                  variant="outline"
+                >
+                  <Trash2 className="size-4" />
+                  Eliminar
+                </Button>
+              </div>
+            </div>
+          )}
+          {step === 2 && (
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+              <div className="space-y-6">
+                <div>
+                  <p className="mb-3 text-sm font-medium">Tipo de evento</p>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {projectTypes.map((type) => (
+                      <button className={cn("min-h-12 rounded-xl border p-3 text-left text-sm", draft.type === type && "border-brand bg-brand/5")} key={type} onClick={() => setDraft((current) => ({ ...current, type }))}>
+                        {typeLabels[type]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <Field label="Lugar" onChange={(e) => event("location", e.target.value)} value={draft.event.location} />
+                  <Field label="Dirección del evento" onChange={(e) => setEventAddress(e.target.value)} value={eventAddress} />
+                  <label className="block text-sm font-medium">
+                    Comuna
+                    <select className="mt-2 h-11 w-full rounded-lg border bg-background px-3" onChange={(e) => event("city", e.target.value)} value={draft.event.city}>
+                      <option value="">Selecciona una comuna</option>
+                      {municipalityGroups.map(({ province, municipalities }) => (
+                        <optgroup key={province} label={province}>
+                          {municipalities.map((municipality) => (
+                            <option key={municipality}>{municipality}</option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                  </label>
+                  <Field label="Fecha del evento" onChange={(e) => event("date", e.target.value)} required type="date" value={draft.event.date} />
+                  <Field label="Inicio del servicio BOOMBOX" onChange={(e) => event("time", e.target.value)} type="time" value={draft.event.time} />
+                  <Field label="Contacto operacional" onChange={(e) => setOperationalContact(e.target.value)} value={operationalContact} />
+                  <Field inputMode="tel" label="Teléfono del contacto operacional" onChange={(e) => setOperationalPhone(`+569${e.target.value.replace(/\D/g, "").replace(/^569/, "").slice(0, 8)}`)} value={operationalPhone} />
+                  {draft.type === "Wedding" ? (
+                    <>
+                      <Field label="Nombre de la novia" onChange={(e) => setBride(e.target.value)} value={bride} />
+                      <Field label="Nombre del novio" onChange={(e) => setGroom(e.target.value)} value={groom} />
+                    </>
+                  ) : draft.type ? (
+                    <Field label="Contacto principal" onChange={(e) => setMainContact(e.target.value)} value={mainContact} />
+                  ) : null}
+                </div>
+                {selectedMunicipality && (
+                  <div className="rounded-2xl border border-success/30 bg-success/5 p-4">
+                    <p className="font-semibold text-success">Transporte calculado automáticamente</p>
+                    <p className="mt-1 text-sm text-muted">
+                      {selectedMunicipality.municipality} · Provincia {selectedMunicipality.province}
+                    </p>
+                    <p className="mt-2 text-lg font-semibold">{transportTotal == null ? "Precio por confirmar" : currency.format(transportTotal)}</p>
+                  </div>
+                )}
+                <p className="text-xs text-muted">La hora de término se calcula automáticamente según las horas contratadas.</p>
+              </div>
+              <aside className="h-fit max-lg:sticky max-lg:bottom-0 lg:sticky lg:top-0">{summary}</aside>
+            </div>
+          )}
+          {step === 3 && (
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+              <div className="space-y-5">
+                <div>
+                  <p className="mb-3 text-sm font-medium">Servicio principal y servicios adicionales</p>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {projectServices.map((service) => (
+                      <button className={cn("min-h-12 rounded-xl border p-3 text-left text-sm", configurations[service] && "border-brand bg-brand/5")} key={service} onClick={() => toggleService(service)}>
+                        <span className="block font-medium">{serviceLabels[service]}</span>
+                        {draft.services[0] === service && <span className="mt-1 block text-xs text-brand">Servicio principal</span>}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {(Object.entries(configurations) as Array<[ProjectService, ServiceConfiguration]>).map(([service, configuration]) => (
+                  <section className="rounded-2xl border p-5" key={service}>
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="font-semibold">{serviceLabels[service]}</h3>
+                      <strong className="text-brand">{currency.format(serviceTotal(service, configuration))}</strong>
+                    </div>
+                    {service === "BoomBall" || service === "LightBox" ? (
+                      <div className="mt-4 rounded-xl border bg-background/40 p-4">
+                        <p className="text-xs font-medium uppercase tracking-[.14em] text-muted">Duración fija</p>
+                        <p className="mt-1 text-lg font-semibold">{service === "LightBox" ? "5 Horas" : "2 Horas"}</p>
+                      </div>
+                    ) : (
+                      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                        <label className="text-sm font-medium">
+                          Horas
+                          <select
+                            className="mt-2 h-11 w-full rounded-lg border bg-background px-3"
+                            onChange={(e) =>
+                              updateService(service, {
+                                hours: Number(e.target.value) as 2 | 3 | 4,
+                              })
+                            }
+                            value={configuration.hours}
+                          >
+                            {[2, 3, 4].map((hours) => (
+                              <option key={hours} value={hours}>
+                                {hours} horas
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <Field
+                          label={`Horas adicionales · ${currency.format(additionalHourRates[service])} c/u`}
+                          min="0"
+                          onChange={(e) =>
+                            updateService(service, {
+                              additionalHours: Math.max(0, Number(e.target.value)),
+                            })
+                          }
+                          type="number"
+                          value={configuration.additionalHours}
+                        />
+                      </div>
+                    )}
+                    <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                      {serviceExtraCompatibility[service].map((extra) => {
+                        const included = compatibleIncludedExtras(service).includes(extra);
+                        const selected = included || configuration.extras.includes(extra);
+                        const unit = extraUnitPrice(extra);
+                        if (extra === "Branding")
+                          return (
+                            <label className={cn("rounded-xl border p-3 text-sm", selected && "border-brand bg-brand/5")} key={extra}>
+                              <span className="font-semibold">Branding</span>
+                              <span className="mt-1 block text-xs text-muted">
+                                {currency.format(Number(unit))} por cara · mínimo {brandingMinimum}
+                              </span>
+                              <select
+                                className="mt-3 h-10 w-full rounded-lg border bg-background px-3"
+                                onChange={(e) => {
+                                  const quantity = Number(e.target.value);
+                                  const hasBranding = configuration.extras.includes("Branding");
+                                  if (quantity === 0 && hasBranding) toggleServiceExtra(service, "Branding");
+                                  else if (quantity > 0) {
+                                    if (!hasBranding) toggleServiceExtra(service, "Branding");
+                                    updateService(service, {
+                                      brandingQuantity: quantity,
+                                    });
+                                  }
+                                }}
+                                value={configuration.extras.includes("Branding") ? configuration.brandingQuantity : 0}
+                              >
+                                <option value={0}>Sin Branding</option>
+                                {Array.from(
+                                  {
+                                    length: brandingMaximum - brandingMinimum + 1,
+                                  },
+                                  (_, index) => brandingMinimum + index,
+                                ).map((quantity) => (
+                                  <option key={quantity} value={quantity}>
+                                    {quantity} caras
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          );
+                        return (
+                          <div className={cn("rounded-xl border p-3", selected && "border-brand bg-brand/5")} key={extra}>
+                            <label className="flex items-start gap-3 text-sm">
+                              <input checked={selected} disabled={included} onChange={() => toggleServiceExtra(service, extra)} type="checkbox" />
+                              <span>
+                                <strong>{extra === "QR" ? "QR Instantáneo" : extra}</strong>
+                                <span className="mt-1 block text-xs text-muted">{included ? "Incluido · $0 · Bloqueado" : `+${currency.format(Number(unit))}`}</span>
+                              </span>
+                            </label>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </section>
+                ))}
+                <TextArea label="Solicitudes especiales" onChange={(e) => setSpecialRequests(e.target.value)} value={specialRequests} />
+                <TextArea label="Notas comerciales" onChange={(e) => setCommercialNotes(e.target.value)} value={commercialNotes} />
+              </div>
+              <aside className="h-fit max-lg:sticky max-lg:bottom-0 lg:sticky lg:top-0">{summary}</aside>
+            </div>
+          )}
+          {step === 4 && (
+            <div className="mx-auto max-w-4xl space-y-6">
+              <div className="flex items-center gap-3">
+                <FileSignature className="size-6 text-brand" />
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">CONTRATO</p>
+                  <h3 className="mt-1 text-2xl font-semibold">Resumen, condiciones y firma</h3>
+                </div>
+              </div>
+              {summary}
+              <section className="rounded-2xl border p-5 sm:p-6">
+                <h3 className="text-xl font-semibold">Términos y Condiciones BOOMBOX</h3>
+                <p className="mt-2 text-sm text-muted">Desplázate hasta el final para continuar.</p>
+                <div
+                  className="mt-5 max-h-80 space-y-5 overflow-y-auto rounded-xl border bg-background/30 p-5"
+                  onScroll={(e) => {
+                    const element = e.currentTarget;
+                    if (element.scrollHeight - element.scrollTop - element.clientHeight < 12) setTermsRead(true);
+                  }}
+                  tabIndex={0}
+                >
+                  {boomboxTerms.map(([title, content]) => (
+                    <section key={title}>
+                      <h4 className="font-semibold">{title}</h4>
+                      <p className="mt-2 text-sm leading-6 text-muted">{content}</p>
+                    </section>
+                  ))}
+                </div>
+                <label className={cn("mt-5 flex items-start gap-3 rounded-xl border p-4", !termsRead && "cursor-not-allowed opacity-60")}>
+                  <input
+                    checked={termsAccepted}
+                    className="mt-1 size-5"
+                    disabled={!termsRead}
+                    onChange={(e) => {
+                      setTermsAccepted(e.target.checked);
+                      if (!e.target.checked) setSignatureConfirmed(false);
+                    }}
+                    required
+                    type="checkbox"
+                  />
+                  <span>
+                    <strong>He leído y acepto los Términos y Condiciones.</strong>
+                    <span className="mt-1 block text-sm text-muted">{termsRead ? "La firma se habilitará inmediatamente." : "Lee el contrato completo para continuar."}</span>
+                  </span>
+                </label>
+              </section>
+              {termsAccepted && (
+                <SignaturePad
+                  disabled={!termsAccepted}
+                  onConfirmed={(confirmed) => {
+                    setSignatureConfirmed(confirmed);
+                    if (confirmed) setStep(5);
+                  }}
+                />
+              )}
+            </div>
+          )}
+          {step === 5 && (
+            <div className="mx-auto max-w-4xl space-y-5">
+              <section>
+                <p className="mb-3 text-xs font-semibold uppercase tracking-[.16em] text-brand">Resumen de reserva</p>
+                {summary}
+              </section>
+              <div className="space-y-5">
+                <section className="rounded-2xl border p-5">
+                  <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Cliente</p>
+                  <h3 className="mt-2 text-lg font-semibold">{isCorporateCustomer ? "Empresa" : "Cliente Particular"}</h3>
+                  {isCorporateCustomer ? (
+                    <div className="mt-4 space-y-5">
+                      <fieldset>
+                        <legend className="text-sm font-semibold">Condición de pago</legend>
+                        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                          {(
+                            [
+                              ["CASH", "Contado"],
+                              ["15", "15 días"],
+                              ["30", "30 días"],
+                              ["45", "45 días"],
+                              ["60", "60 días"],
+                              ["90", "90 días"],
+                              ["CUSTOM", "Personalizado"],
+                            ] as Array<[CreditTerm, string]>
+                          ).map(([value, label]) => (
+                            <label className={cn("flex min-h-11 items-center gap-2 rounded-xl border px-3 text-sm", creditTerm === value && "border-brand bg-brand/5")} key={value}>
+                              <input checked={creditTerm === value} name="credit-term" onChange={() => setCreditTerm(value)} type="radio" />
+                              {label}
+                            </label>
+                          ))}
+                        </div>
+                      </fieldset>
+                      {creditTerm === "CUSTOM" && <Field label="Días de crédito" min="0" onChange={(e) => setCustomCreditDays(Math.max(0, Number(e.target.value)))} type="number" value={customCreditDays} />}
+                      <Field label="Orden de compra (opcional)" onChange={(e) => setPurchaseOrder(e.target.value)} value={purchaseOrder} />
+                      <dl className="grid gap-3 rounded-xl bg-background/40 p-4 text-sm sm:grid-cols-2">
+                        <div>
+                          <dt className="text-muted">Factura</dt>
+                          <dd className="mt-1 font-semibold">Se generará al confirmar</dd>
+                        </div>
+                        <div>
+                          <dt className="text-muted">Saldo pendiente</dt>
+                          <dd className="mt-1 font-semibold">{currency.format(payableTotal)}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-muted">Vencimiento</dt>
+                          <dd className="mt-1 font-semibold">{formattedDueDate}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-muted">Estado</dt>
+                          <dd className="mt-1 font-semibold">Crédito corporativo</dd>
+                        </div>
+                      </dl>
+                    </div>
+                  ) : (
+                    <dl className="mt-4 grid gap-3 rounded-xl bg-background/40 p-4 text-sm sm:grid-cols-3">
+                      <div>
+                        <dt className="text-muted">Reserva · 50%</dt>
+                        <dd className="mt-1 text-lg font-semibold">{currency.format(reservationTotal)}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted">Saldo restante · 50%</dt>
+                        <dd className="mt-1 text-lg font-semibold">{currency.format(balanceTotal)}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted">Vencimiento del saldo</dt>
+                        <dd className="mt-1 font-semibold">{formattedDueDate}</dd>
+                        <p className="mt-1 text-xs text-muted">Una semana antes del evento.</p>
+                      </div>
+                    </dl>
+                  )}
+                </section>
+                <section>
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-[.16em] text-brand">Método de pago</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button onClick={() => setPaymentMethod("TRANSFER")} variant={paymentMethod === "TRANSFER" ? "default" : "outline"}>
+                      Transferencia
+                    </Button>
+                    <Button onClick={() => setPaymentMethod("MERCADO_PAGO")} variant={paymentMethod === "MERCADO_PAGO" ? "default" : "outline"}>
+                      Mercado Pago +5%
+                    </Button>
+                  </div>
+                </section>
+                {paymentMethod === "TRANSFER" ? (
+                  <div className="rounded-2xl border p-5 text-sm">
+                    <p className="font-semibold">PRODUCCIONES BOOMBOX COMPANY SPA</p>
+                    <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <dt className="text-muted">RUT</dt>
+                        <dd className="font-medium">76.565.272-3</dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted">Banco</dt>
+                        <dd className="font-medium">BCI</dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted">Cuenta Corriente</dt>
+                        <dd className="font-medium">52093409</dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted">Correo</dt>
+                        <dd className="font-medium">contabilidad@boom-box.cl</dd>
+                      </div>
+                    </dl>
+                    <label className="mt-5 block font-medium">
+                      Comprobante
+                      <input accept="image/jpeg,image/png,image/webp,application/pdf" className="mt-2 block w-full rounded-xl border p-3" onChange={(e) => setReceipt(e.target.files?.[0]?.name ?? "")} required type="file" />
+                      <span className="mt-2 block text-xs text-muted">JPG, PNG, WEBP o PDF. {receipt ? `Vinculado: ${receipt}` : "Obligatorio para continuar."}</span>
+                    </label>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-brand/25 bg-brand/5 p-4 text-sm">
+                    <p className="font-semibold">Comisión Mercado Pago</p>
+                    <p className="mt-1 text-muted">5% · {currency.format(mercadoPagoCommission)}</p>
+                    <p className="mt-3 font-medium">El total, la reserva y el saldo se actualizaron automáticamente.</p>
+                  </div>
+                )}
+                <section>
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-[.16em] text-brand">Estado del pago</p>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {["Pendiente", "Reserva recibida", "Pagado", "Crédito corporativo"].map((status, index) => (
+                      <div className={cn("rounded-xl border p-3 text-center text-xs font-medium", index === 0 && "border-brand bg-brand/5 text-brand")} key={status}>
+                        {status}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              </div>
+            </div>
+          )}
+          {step === 6 && createdProject && (
+            <div className="mx-auto max-w-3xl space-y-6 text-center">
+              <div aria-hidden="true" className="text-5xl">
+                🎉
+              </div>
+              <div>
+                <h3 className="text-3xl font-semibold">¡Reserva Confirmada!</h3>
+                <p className="mt-3 text-lg font-medium">Bienvenido a BOOMBOX</p>
+              </div>
+              <div className="grid gap-3 text-left sm:grid-cols-2">
+                {["Contrato Firmado", "Reserva Confirmada", "Portal Disponible", "Correo Enviado"].map((label) => (
+                  <div className="flex items-center gap-3 rounded-xl border p-4" key={label}>
+                    <Check className="size-5 text-success" />
+                    <span className="font-medium">{label}</span>
+                  </div>
+                ))}
+              </div>
+              {summary}
+              <div className="grid gap-3 sm:grid-cols-3">
+                <a className="inline-flex min-h-11 items-center justify-center rounded-xl bg-brand px-4 text-sm font-semibold text-brand-foreground" href={portalUrl}>
+                  Abrir Portal
+                </a>
+                <Button
+                  onClick={() => {
+                    void navigator.clipboard.writeText(portalUrl);
+                    setPortalMessage("Enlace copiado.");
+                  }}
+                  variant="outline"
+                >
+                  <Copy className="mr-2 size-4" />
+                  Copiar Enlace
+                </Button>
+                <a className="inline-flex min-h-11 items-center justify-center rounded-xl border px-4 text-sm font-semibold" href={`mailto:${encodeURIComponent(createdProject.client.email)}?subject=${encodeURIComponent("¡Tu reserva BOOMBOX está confirmada!")}&body=${encodeURIComponent(confirmationEmailBody)}`}>
+                  <Send className="mr-2 size-4" />
+                  Enviar Acceso
+                </a>
+              </div>
+              {portalMessage && <p className="text-sm text-success">{portalMessage}</p>}
+              <section className="rounded-2xl border p-5 text-left sm:p-6">
+                <p className="leading-7">En los próximos minutos recibirás una copia del contrato firmado en tu correo electrónico.</p>
+                <p className="mt-5 font-semibold">Desde ahora podrás acceder al Portal BOOMBOX utilizando:</p>
+                <ul className="mt-3 list-inside list-disc space-y-1 text-muted">
+                  <li>RUT</li>
+                  <li>Fecha del Evento</li>
+                </ul>
+                <p className="mt-5 font-semibold">Desde el Portal podrás:</p>
+                <ul className="mt-3 list-inside list-disc space-y-1 text-muted">
+                  <li>Ver tu contrato</li>
+                  <li>Revisar tu evento</li>
+                  <li>Descargar documentos</li>
+                  <li>Ver el estado de tu reserva</li>
+                  <li>Contactar a BOOMBOX</li>
+                </ul>
+              </section>
+            </div>
+          )}
+          {error && <p className="mt-4 text-sm text-danger">{error}</p>}
+        </div>
+        <footer className="flex items-center justify-between gap-3 border-t p-5 sm:p-7">
+          {step > 0 && step < 6 ? <ActionButton disabled={submitting} icon={ChevronLeft} label="Atrás" onClick={() => setStep((current) => current - 1)} variant="outline" /> : <span />}
+          {step < 5 ? (
+            <ActionButton disabled={!valid} icon={ChevronRight} iconPosition="end" label="Continuar" onClick={() => setStep((current) => current + 1)} />
+          ) : step === 5 ? (
+            <Button aria-live="polite" disabled={!valid || submitting} onClick={() => void create()}>
+              {submitting && <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />}
+              {submitting ? "Procesando reserva..." : "Confirmar reserva"}
+            </Button>
+          ) : (
+            <ActionButton icon={Link2} label="Cerrar" onClick={reset} />
+          )}
+        </footer>
+      </aside>
+    </>
+  );
 }
