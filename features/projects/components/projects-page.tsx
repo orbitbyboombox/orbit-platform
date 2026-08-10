@@ -39,8 +39,7 @@ export function ProjectsPage({ commercialPrices, initialProjects }: { commercial
     setProjects((current) => [project, ...current]);
     setFilter("All");
     setQuery("");
-    const workspaceQuery = new URLSearchParams({ name: project.name, client: project.client.name, type: project.type, date: project.event.date, time: project.event.time, venue: project.event.location, city: project.event.city, services: project.services.join(",") });
-    router.push(`/projects/${project.id}?${workspaceQuery.toString()}`);
+    return project;
   };
 
   const openProject = (project: Project) => router.push(`/projects/${project.id}`);
