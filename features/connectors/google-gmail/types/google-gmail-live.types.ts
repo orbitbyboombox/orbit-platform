@@ -19,6 +19,7 @@ export interface GmailTemplateContext {
   eventTypeId?: EventTypeId;
   serviceId?: ServiceId;
   portalUrl?: string;
+  commercialSummary?: readonly string[];
   staffName?: string;
   operationalMessage?: string;
 }

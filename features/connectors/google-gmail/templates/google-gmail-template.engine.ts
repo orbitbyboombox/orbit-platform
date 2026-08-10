@@ -25,14 +25,15 @@ export class GoogleGmailTemplateEngine {
     const countdown = context.timeIntelligence?.countdown.label;
     const operationalMessage = context.operationalMessage ?? copy.message;
     const details = [eventType, service, countdown].filter(Boolean).join(" · ");
+    const commercialSummary = type === "RESERVATION_CONFIRMATION" ? context.commercialSummary ?? [] : [];
     const portal = context.portalUrl ? `Continúa tu experiencia ${this.company.brandName}. Gestiona todo lo relacionado con tu evento en ${context.portalUrl}. Accede usando tu RUT y la fecha de tu evento. No necesitas cuenta ni contraseña.` : "";
     const subject=`${copy.subject} · ${this.company.brandName}`;
-    const textBody = [`Hola ${recipient},`, operationalMessage, details, portal, this.company.emailSignature].filter(Boolean).join("\n\n");
+    const textBody = [`Hola ${recipient},`, operationalMessage, details, commercialSummary.length ? `Resumen comercial\n${commercialSummary.join("\n")}` : "", portal, this.company.emailSignature].filter(Boolean).join("\n\n");
     return {
       type,
       subject,
       textBody,
-      htmlBody: `<main><img src="${this.company.emailLogoUrl}" alt="${escapeHtml(`${this.company.productName} ${this.company.productVersion}`)}" width="320" /><p>Hola ${escapeHtml(recipient)},</p><h1>${escapeHtml(copy.headline)}</h1><p>${escapeHtml(operationalMessage)}</p>${details ? `<p>${escapeHtml(details)}</p>` : ""}${context.portalUrl ? `<section><h2>Continúa tu experiencia ${escapeHtml(this.company.brandName)}</h2><p>Puedes gestionar todo lo relacionado con tu evento en:</p><p><a href="${escapeHtml(context.portalUrl)}">${escapeHtml(context.portalUrl)}</a></p><p>Accede usando:</p><p><strong>Tu RUT + la fecha de tu evento</strong></p><p>Sin cuenta. Sin contraseña. Sin registro.</p></section>` : ""}<p>${escapeHtml(this.company.emailSignature)}</p></main>`,
+      htmlBody: `<main><img src="${this.company.emailLogoUrl}" alt="${escapeHtml(`${this.company.productName} ${this.company.productVersion}`)}" width="320" /><p>Hola ${escapeHtml(recipient)},</p><h1>${escapeHtml(copy.headline)}</h1><p>${escapeHtml(operationalMessage)}</p>${details ? `<p>${escapeHtml(details)}</p>` : ""}${commercialSummary.length ? `<section><h2>Resumen comercial</h2><ul>${commercialSummary.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul></section>` : ""}${context.portalUrl ? `<section><h2>Continúa tu experiencia ${escapeHtml(this.company.brandName)}</h2><p>Puedes gestionar todo lo relacionado con tu evento en:</p><p><a href="${escapeHtml(context.portalUrl)}">${escapeHtml(context.portalUrl)}</a></p><p>Accede usando:</p><p><strong>Tu RUT + la fecha de tu evento</strong></p><p>Sin cuenta. Sin contraseña. Sin registro.</p></section>` : ""}<p>${escapeHtml(this.company.emailSignature)}</p></main>`,
     };
   }
 }
