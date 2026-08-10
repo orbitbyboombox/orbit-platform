@@ -25,7 +25,7 @@ export default async function ProjectsRoute() {
     rules: (price.rules ?? {}) as Record<string, unknown>,
   }));
   const configuration = (venuesResult.data?.configuration ?? {}) as { venues?: Array<{ name?: unknown; municipality?: unknown; province?: unknown; surcharge?: unknown }> };
-  const venues = (configuration.venues ?? []).flatMap((venue) => typeof venue.name === "string" && typeof venue.municipality === "string" && typeof venue.province === "string" ? [{ name: venue.name, municipality: venue.municipality, province: venue.province, surcharge: Number(venue.surcharge ?? 0) }] : []);
+  const venues = (configuration.venues ?? []).flatMap((venue) => typeof venue.name === "string" && typeof venue.municipality === "string" && typeof venue.province === "string" && (venue as { enabled?: unknown }).enabled !== false ? [{ name: venue.name, municipality: venue.municipality, province: venue.province, surcharge: Number(venue.surcharge ?? 0) }] : []);
   const services = (servicesResult.data ?? []).map((service) => {
     const config = (service.configuration ?? {}) as Record<string, unknown>;
     const basePrice = commercialPrices.find((price) => price.category === "SERVICE" && price.code === service.code);

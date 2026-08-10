@@ -1,4 +1,4 @@
-export type MasterDataDomain = "SERVICES" | "OFFICIAL_PRICING" | "EVENT_TYPES" | "EXTRAS" | "TRANSPORT" | "STAFF" | "EQUIPMENT" | "PAYROLL" | "COMPANY" | "DOCUMENT_TEMPLATES" | "GOOGLE_WORKSPACE" | "SYSTEM_PARAMETERS";
+export type MasterDataDomain = "SERVICES" | "EVENT_VENUES" | "OFFICIAL_PRICING" | "EVENT_TYPES" | "EXTRAS" | "TRANSPORT" | "STAFF" | "EQUIPMENT" | "PAYROLL" | "COMPANY" | "DOCUMENT_TEMPLATES" | "GOOGLE_WORKSPACE" | "SYSTEM_PARAMETERS";
 
 export interface MasterDataRecord {
   readonly id: string;
@@ -22,6 +22,24 @@ export interface MasterDataProjection {
   readonly staffCount: number;
   readonly equipmentCount: number;
   readonly services: readonly ServiceAdministrationRecord[];
+  readonly venues: VenueAdministrationProjection;
+}
+
+export interface VenueAdministrationRecord {
+  readonly code: string;
+  readonly name: string;
+  readonly municipality: string;
+  readonly province: string;
+  readonly surcharge: number;
+  readonly notes: string;
+  readonly enabled: boolean;
+  readonly displayOrder: number;
+}
+
+export interface VenueAdministrationProjection {
+  readonly masterId: string | null;
+  readonly version: number | null;
+  readonly records: readonly VenueAdministrationRecord[];
 }
 
 export type ServiceExtraCode = "QR" | "UNLIMITED_MAGNETS" | "SCRAPBOOK" | "BRANDING" | "TRANSPORT" | "ADDITIONAL_HOURS";

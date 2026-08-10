@@ -89,6 +89,45 @@ export async function deleteServiceAction(input: { id:string; code:string; expec
   } catch (error) { return { ok:false as const, error:error instanceof Error ? error.message : "No fue posible eliminar el servicio." }; }
 }
 
+type VenueInput = { code?: string; name: string; municipality: string; province: string; surcharge: number; notes: string; enabled: boolean; displayOrder: number };
+
+const venueCode = (name: string) => name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase().replace(/[^A-Z0-9]+/g,"_").replace(/^_|_$/g,"");
+
+export async function mutateEventVenueAction(input: { operation: "CREATE" | "UPDATE" | "DELETE"; venue: VenueInput; expectedVersion: number | null; reason: string }) {
+  try {
+    if (!input.reason.trim()) throw new Error("La razón del cambio es obligatoria.");
+    const { client, userId } = await administratorContext();
+    const master = await client.from("master_data_entries").select("id,configuration,version").eq("domain","SYSTEM_PARAMETERS").eq("code","EVENT_VENUES").maybeSingle();
+    if (master.error) throw master.error;
+    if (!master.data) throw new Error("La configuración de sedes no está disponible.");
+    if (input.expectedVersion !== master.data.version) throw new Error("Las sedes cambiaron en otra sesión. Recarga antes de continuar.");
+    const configuration = (master.data.configuration ?? {}) as { venues?: unknown };
+    const current = Array.isArray(configuration.venues) ? configuration.venues.filter((venue): venue is Record<string, unknown> => Boolean(venue) && typeof venue === "object") : [];
+    const normalized = { code: input.venue.code || venueCode(input.venue.name), name: input.venue.name.trim(), municipality: input.venue.municipality.trim(), province: input.venue.province.trim(), surcharge: Math.max(0, Number(input.venue.surcharge)), notes: input.venue.notes.trim(), enabled: input.venue.enabled, displayOrder: Math.max(0, Number(input.venue.displayOrder)) };
+    if (!normalized.name || !normalized.municipality || !normalized.province || !normalized.code) throw new Error("Completa nombre, comuna y provincia.");
+    const codeOf = (venue: Record<string, unknown>) => typeof venue.code === "string" ? venue.code : venueCode(String(venue.name ?? ""));
+    let venues: Record<string, unknown>[];
+    if (input.operation === "CREATE") {
+      if (current.some((venue) => codeOf(venue) === normalized.code || String(venue.name).localeCompare(normalized.name,"es",{sensitivity:"base"}) === 0)) throw new Error("Esta sede ya existe.");
+      venues = [...current, normalized];
+    } else if (input.operation === "DELETE") {
+      venues = current.filter((venue) => codeOf(venue) !== input.venue.code);
+      if (venues.length === current.length) throw new Error("La sede ya no existe.");
+    } else {
+      let found = false;
+      venues = current.map((venue) => { if (codeOf(venue) !== input.venue.code) return venue; found = true; return { ...normalized, code: input.venue.code }; });
+      if (!found) throw new Error("La sede ya no existe.");
+      if (venues.some((venue) => codeOf(venue) !== input.venue.code && String(venue.name).localeCompare(normalized.name,"es",{sensitivity:"base"}) === 0)) throw new Error("Ya existe otra sede con ese nombre.");
+    }
+    venues.sort((a,b) => Number(a.displayOrder ?? 0) - Number(b.displayOrder ?? 0));
+    const update = await client.from("master_data_entries").update({ configuration:{ ...configuration, venues }, approval_reason:input.reason.trim(), updated_by:userId }).eq("id",master.data.id).eq("version",master.data.version).select("id").maybeSingle();
+    if (update.error) throw update.error;
+    if (!update.data) throw new Error("Las sedes cambiaron en otra sesión. Recarga antes de continuar.");
+    revalidatePath("/settings"); revalidatePath("/projects");
+    return { ok:true as const };
+  } catch (error) { return { ok:false as const, error:error instanceof Error ? error.message : "No fue posible actualizar la sede." }; }
+}
+
 export async function updateMasterDataAction(input: { id: string; source: "MASTER" | "COMMERCIAL"; enabled: boolean; displayOrder: number; price?: number | null; configuration?: string; reason: string; expectedVersion: number }) {
   try {
     if (!input.reason.trim()) throw new Error("La razón del cambio es obligatoria.");

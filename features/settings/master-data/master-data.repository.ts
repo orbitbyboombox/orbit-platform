@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { MasterDataProjection, MasterDataRecord, ServiceAdministrationRecord, ServiceExtraCode } from "./types";
+import type { MasterDataProjection, MasterDataRecord, ServiceAdministrationRecord, ServiceExtraCode, VenueAdministrationRecord } from "./types";
 
 const money = (value: number | string | null) => value == null ? "Precio por definir" : new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(Number(value));
 
@@ -41,5 +41,14 @@ export async function loadMasterData(client: SupabaseClient): Promise<MasterData
       behavior: String(config.behavior ?? "SELECTABLE"), version: row.version, priceVersion: base?.version ?? null,
     };
   });
-  return { canEdit: role === "CEO" || role === "ADMINISTRATOR", role, records, services, staffCount: staff.count ?? 0, equipmentCount: equipment.count ?? 0 };
+  const venueMaster = (entries.data ?? []).find((row) => row.domain === "SYSTEM_PARAMETERS" && row.code === "EVENT_VENUES") ?? null;
+  const venueConfiguration = (venueMaster?.configuration ?? {}) as { venues?: unknown };
+  const venues: VenueAdministrationRecord[] = Array.isArray(venueConfiguration.venues) ? venueConfiguration.venues.flatMap((value, index) => {
+    if (!value || typeof value !== "object") return [];
+    const venue = value as Record<string, unknown>;
+    if (typeof venue.name !== "string" || typeof venue.municipality !== "string" || typeof venue.province !== "string") return [];
+    const code = typeof venue.code === "string" ? venue.code : venue.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "");
+    return [{ code, name: venue.name, municipality: venue.municipality, province: venue.province, surcharge: Number(venue.surcharge ?? 0), notes: typeof venue.notes === "string" ? venue.notes : "", enabled: venue.enabled !== false, displayOrder: Number(venue.displayOrder ?? (index + 1) * 10) }];
+  }) : [];
+  return { canEdit: role === "CEO" || role === "ADMINISTRATOR", role, records, services, venues: { masterId: venueMaster?.id ?? null, version: venueMaster?.version ?? null, records: venues.sort((a,b) => a.displayOrder - b.displayOrder) }, staffCount: staff.count ?? 0, equipmentCount: equipment.count ?? 0 };
 }
