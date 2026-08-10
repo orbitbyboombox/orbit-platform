@@ -7,11 +7,13 @@ import { ResourceCenter } from "@/features/resources/resource-center";
 import type { OperationalResource, ResourceCategory } from "@/features/resources/resource-center.actions";
 import { FleetCenter } from "@/features/resources/fleet-center";
 import type { FleetVehicle, FuelLog } from "@/features/resources/fleet-center.actions";
+import { RouteCostCenter } from "@/features/resources/route-cost-center";
+import type { OperationalRoute } from "@/features/resources/route-cost.actions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export default async function ResourcesPage() {
   const client = await createSupabaseServerClient();
-  const [{ data: staff, error: staffError }, { data: assignments, error: assignmentError }, { data: projects, error: projectError }, { data: assets, error: assetError }, { data: assetHistory, error: historyError }, { data: supplies, error: supplyError }, { data: vehicleProfiles, error: vehicleError }, { data: fuelLogs, error: fuelError }] = await Promise.all([
+  const [{ data: staff, error: staffError }, { data: assignments, error: assignmentError }, { data: projects, error: projectError }, { data: assets, error: assetError }, { data: assetHistory, error: historyError }, { data: supplies, error: supplyError }, { data: vehicleProfiles, error: vehicleError }, { data: fuelLogs, error: fuelError }, { data: vehicleRoutes, error: routeError }] = await Promise.all([
     client.from("staff").select("id,first_name,last_name,rut,role,availability,status,version").is("deleted_at", null),
     client.from("assignments").select("id,project_id,staff_id,status,resources").is("deleted_at", null),
     client.from("projects").select("id,name,event_date").is("deleted_at", null),
@@ -20,6 +22,7 @@ export default async function ResourcesPage() {
     client.from("supplies").select("id,catalog_code,name,status,version").is("deleted_at", null).order("name"),
     client.from("vehicle_profiles").select("asset_id,nickname,model,plate,fuel_type,current_mileage,insurance_expiration,technical_inspection_expiration,operational_status,notes,version,operational_assets!inner(asset_code,status,deleted_at)").is("operational_assets.deleted_at", null).order("model"),
     client.from("vehicle_fuel_logs").select("id,asset_id,fuel_date,fuel_type,litres,total_amount,gas_station,receipt_path").order("fuel_date", { ascending: false }),
+    client.from("vehicle_routes").select("id,asset_id,route_date,driver_staff_id,distance,notes,version,fuel:vehicle_fuel_logs!vehicle_routes_fuel_log_id_fkey(total_amount,receipt_path),events:vehicle_route_events(project_id,allocated_fuel_cost)").is("deleted_at", null).eq("status", "ACTIVE").order("route_date", { ascending: false }),
   ]);
   if (staffError) throw staffError;
   if (assignmentError) throw assignmentError;
@@ -29,6 +32,7 @@ export default async function ResourcesPage() {
   if (supplyError) throw supplyError;
   if (vehicleError) throw vehicleError;
   if (fuelError) throw fuelError;
+  if (routeError) throw routeError;
   const projectMap = new Map((projects ?? []).map((project) => [project.id, project.name]));
   const status = (value: string): ResourceStatus => value === "APPROVED" || value === "ACCEPTED" ? "RESERVED" : value === "ACTIVE" ? "IN_USE" : "AVAILABLE";
   const resourceValues = (key: string) => [...new Set((assignments ?? []).map((item) => (item.resources as Record<string, unknown> | null)?.[key]).filter((value): value is string => typeof value === "string" && value.length > 0))];
@@ -68,5 +72,6 @@ export default async function ResourcesPage() {
   const fleet: FleetVehicle[] = (vehicleProfiles ?? []).map((profile) => { const linked = Array.isArray(profile.operational_assets) ? profile.operational_assets[0] : profile.operational_assets; return { id: profile.asset_id, code: linked.asset_code, nickname: profile.nickname ?? "", model: profile.model, plate: profile.plate ?? "", fuelType: profile.fuel_type as FleetVehicle["fuelType"], currentMileage: profile.current_mileage === null ? null : Number(profile.current_mileage), insuranceExpiration: profile.insurance_expiration ?? "", technicalInspectionExpiration: profile.technical_inspection_expiration ?? "", operationalStatus: profile.operational_status as FleetVehicle["operationalStatus"], notes: profile.notes ?? "", enabled: linked.status !== "OUT_OF_SERVICE", version: profile.version, fuelTotal: fuelTotals.get(profile.asset_id) ?? 0 }; });
   const projectOptions = (projects ?? []).map((project) => ({ id: project.id, label: `${project.name} · ${project.event_date}` }));
   const driverOptions = (staff ?? []).filter((member) => member.status === "ACTIVE").map((member) => ({ id: member.id, label: `${member.first_name} ${member.last_name}` }));
-  return <div className="space-y-12"><ResourceCenter initialItems={resources} /><FleetCenter initialVehicles={fleet} initialFuelLogs={fuelEntries} projects={projectOptions} drivers={driverOptions} /><details className="rounded-2xl border bg-card p-5"><summary className="cursor-pointer font-semibold">Gestión detallada e historial de equipamiento</summary><div className="mt-6"><EquipmentOperationCenter initialItems={equipment} historyEntries={equipmentHistory} /></div></details><OperationsBoard snapshot={createOperationsBoardSnapshot(input)} /></div>;
+  const routes: OperationalRoute[] = (vehicleRoutes ?? []).map((route) => { const fuel = Array.isArray(route.fuel) ? route.fuel[0] : route.fuel; const events = route.events ?? []; const amount = Number(fuel?.total_amount ?? 0); return { id: route.id, vehicleId: route.asset_id, date: route.route_date, driverId: route.driver_staff_id ?? "", eventIds: events.map((event) => event.project_id), fuelAmount: amount, distance: route.distance === null ? null : Number(route.distance), notes: route.notes ?? "", receiptPath: fuel?.receipt_path ?? "", version: route.version, allocatedPerEvent: events.length ? amount / events.length : 0 }; });
+  return <div className="space-y-12"><ResourceCenter initialItems={resources} /><FleetCenter initialVehicles={fleet} initialFuelLogs={fuelEntries} projects={projectOptions} drivers={driverOptions} /><RouteCostCenter initialRoutes={routes} vehicles={fleet} projects={projectOptions} drivers={driverOptions} /><details className="rounded-2xl border bg-card p-5"><summary className="cursor-pointer font-semibold">Gestión detallada e historial de equipamiento</summary><div className="mt-6"><EquipmentOperationCenter initialItems={equipment} historyEntries={equipmentHistory} /></div></details><OperationsBoard snapshot={createOperationsBoardSnapshot(input)} /></div>;
 }
