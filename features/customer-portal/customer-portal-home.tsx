@@ -12,6 +12,7 @@ import { CustomerEventExperience } from "./customer-event-experience";
 import { CustomerDesignExperience } from "./customer-design-experience";
 import { CustomerGalleryExperience } from "./customer-gallery-experience";
 import { CustomerDocumentsExperience } from "./customer-documents-experience";
+import { CustomerCommunicationCenter } from "./customer-communication-center";
 
 type PortalData = Awaited<ReturnType<typeof import("./customer-portal.service").loadCustomerPortal>> & {};
 type PortalProject = NonNullable<PortalData>["project"] & {
@@ -43,7 +44,7 @@ export function CustomerPortalHome({ data, token }: { data: NonNullable<PortalDa
   const quickAccess: Array<{ icon: ComponentType<{ className?: string }>; label: string; href: string }> = [
     { icon: FileText, label: "Contrato", href: "#contract" }, { icon: CreditCard, label: "Pagos", href: "#payments" },
     { icon: Palette, label: "Diseños", href: "#design" }, { icon: FolderOpen, label: "Documentos", href: "#documents" },
-    { icon: Images, label: "Galería", href: "#gallery" }, { icon: MessageCircle, label: "Mensajes", href: "#messages" },
+    { icon: Images, label: "Galería", href: "#gallery" }, { icon: MessageCircle, label: "Comunicaciones", href: "#communications" },
   ];
 
   return <main className="min-h-screen bg-background text-foreground"><div className="mx-auto max-w-7xl space-y-6 px-4 py-5 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
@@ -66,6 +67,8 @@ export function CustomerPortalHome({ data, token }: { data: NonNullable<PortalDa
     <CustomerDocumentsExperience data={data} token={token}/>
 
     <CustomerGalleryExperience data={data} token={token}/>
+
+    <CustomerCommunicationCenter data={data}/>
 
     <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,.85fr)]"><div className="min-w-0 space-y-6">
       <Panel id="design-files" title="Tus archivos para diseño" description="Comparte logos, imágenes, instrucciones y referencias con nuestro equipo."><form action={`/api/portal/${encodeURIComponent(token)}/upload`} className="grid min-w-0 gap-3" encType="multipart/form-data" method="post"><input accept="image/*,.pdf,.ai,.eps,.svg" className="min-h-12 min-w-0 max-w-full overflow-hidden rounded-xl border border-dashed border-border bg-background p-3 text-sm" name="file" required type="file"/><textarea className="min-h-24 min-w-0 max-w-full rounded-xl border border-border bg-background p-3 text-sm" name="instructions" placeholder="Instrucciones o comentarios para el diseño"/><ActionButton className="min-w-0 max-w-full" icon={Upload} label="Compartir archivo" type="submit"/></form>{data.uploads.length > 0 && <ul className="mt-4 space-y-2">{data.uploads.map((file) => <li className="text-sm text-muted" key={file.id}>✓ {file.file_name}</li>)}</ul>}</Panel>

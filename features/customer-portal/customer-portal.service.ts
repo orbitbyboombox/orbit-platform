@@ -29,7 +29,7 @@ export async function loadCustomerPortal(token: string) {
 
 export async function loadCustomerPortalProject(access: {id:string;project_id:string;customer_id:string;expires_at:string}) {
   const admin = createAdminClient();
-  const [project, quotation, agreement, evidence, documents, requests, payments, uploads, contractTimeline, contractFolder, invoice, designTimeline] = await Promise.all([
+  const [project, quotation, agreement, evidence, documents, requests, payments, uploads, contractTimeline, contractFolder, invoice, designTimeline, communications, communicationTimeline] = await Promise.all([
     admin.from("projects").select("id,orbit_event_id,name,project_type,status,event_date,event_time,location,city,finance,operations,customers!inner(full_name,email,phone,metadata),project_services(service_code,duration_hours,extras)").eq("id", access.project_id).single(),
     admin.from("quotations").select("id,status,quotation_number,subtotal,transport_total,discount_total,grand_total,final_customer_price,expiration_date,pdf_storage_path,drive_file_id").eq("project_id", access.project_id).is("deleted_at", null).order("created_at",{ascending:false}).limit(1).maybeSingle(),
     admin.from("agreements").select("id,status,signed_pdf_path,drive_file_id,created_at,updated_at,signed_at").eq("project_id", access.project_id).order("created_at",{ascending:false}).limit(1).maybeSingle(),
@@ -42,8 +42,10 @@ export async function loadCustomerPortalProject(access: {id:string;project_id:st
     admin.from("drive_sync").select("external_folder_id,last_synced_at").eq("project_id",access.project_id).like("destination_key","%/01_Contrato").not("external_folder_id","is",null).limit(1).maybeSingle(),
     admin.from("invoices").select("id,status,amount,paid_amount,due_date,payment_term,invoice_payments(id,amount,paid_at,method,reference)").eq("project_id",access.project_id).is("deleted_at",null).order("created_at",{ascending:false}).limit(1).maybeSingle(),
     admin.from("timeline_events").select("id,action,title,description,occurred_at").eq("project_id",access.project_id).in("action",["DESIGN_APPROVED","DESIGN_CHANGES_REQUESTED","DESIGN_UPLOADED","DESIGN_UPDATED","CUSTOMER_DESIGN_UPLOADED"]).order("occurred_at",{ascending:false}),
+    admin.from("communications").select("id,communication_type,subject,body,status,external_message_id,occurred_at,created_at").eq("project_id",access.project_id).eq("channel","GMAIL").order("occurred_at",{ascending:false}),
+    admin.from("timeline_events").select("id,communication_id,action,title,description,occurred_at").eq("project_id",access.project_id).in("action",["RESERVATION_CREATED","AUTOMATIC_BOOKING_INVITATION_SENT","RESERVATION_COMPLETED","RESERVATION_CONFIRMED","AGREEMENT_SENT","AGREEMENT_SIGNED","PAYMENT_REMINDER_SENT","PAYMENT_RECEIVED","DESIGN_SENT","DESIGN_APPROVED","EVENT_REMINDER_SENT","GALLERY_AVAILABLE","THANK_YOU_SENT","RESERVATION_CONFIRMATION_SENT"]).order("occurred_at",{ascending:false}),
   ]);
-  const failure = [project,quotation,agreement,evidence,documents,requests,payments,uploads,contractTimeline,contractFolder,invoice,designTimeline].find((result)=>result.error);
+  const failure = [project,quotation,agreement,evidence,documents,requests,payments,uploads,contractTimeline,contractFolder,invoice,designTimeline,communications,communicationTimeline].find((result)=>result.error);
   if (failure?.error) throw failure.error;
   const finance=project.data?.finance as Record<string,unknown>|null;const operations=project.data?.operations as Record<string,unknown>|null;
   const notes=String(operations?.notes??"");const note=(label:string)=>notes.match(new RegExp(`${label}:\\s*([^\\n]+)`,"i"))?.[1]?.trim();const contactParts=(note("Contacto operacional")??"").split("·").map(value=>value.trim());
@@ -52,5 +54,5 @@ export async function loadCustomerPortalProject(access: {id:string;project_id:st
     loadCustomerGallery(access.project_id),
     loadCustomerDocuments(access.project_id),
   ]);
-  return { access, project: portalProject, quotation: quotation.data, agreement: agreement.data, evidence: evidence.data, documents: documents.data ?? [], requests: requests.data ?? [], payments: payments.data ?? [], uploads: uploads.data ?? [], contractTimeline: contractTimeline.data ?? [], contractFolder: contractFolder.data, invoice: invoice.data, designTimeline: designTimeline.data ?? [], gallery, customerDocuments };
+  return { access, project: portalProject, quotation: quotation.data, agreement: agreement.data, evidence: evidence.data, documents: documents.data ?? [], requests: requests.data ?? [], payments: payments.data ?? [], uploads: uploads.data ?? [], contractTimeline: contractTimeline.data ?? [], contractFolder: contractFolder.data, invoice: invoice.data, designTimeline: designTimeline.data ?? [], communications: communications.data ?? [], communicationTimeline: communicationTimeline.data ?? [], gallery, customerDocuments };
 }
