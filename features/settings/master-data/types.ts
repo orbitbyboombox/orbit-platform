@@ -21,4 +21,27 @@ export interface MasterDataProjection {
   readonly records: readonly MasterDataRecord[];
   readonly staffCount: number;
   readonly equipmentCount: number;
+  readonly services: readonly ServiceAdministrationRecord[];
+}
+
+export type ServiceExtraCode = "QR" | "UNLIMITED_MAGNETS" | "SCRAPBOOK" | "BRANDING" | "TRANSPORT" | "ADDITIONAL_HOURS";
+
+export interface ServiceAdministrationRecord {
+  readonly id: string;
+  readonly priceId: string | null;
+  readonly code: string;
+  readonly name: string;
+  readonly category: string;
+  readonly basePrice: number | null;
+  readonly minimumHours: number;
+  readonly maximumHours: number;
+  readonly additionalHourPrice: number | null;
+  readonly enabled: boolean;
+  readonly displayOrder: number;
+  readonly description: string;
+  readonly compatibleExtras: readonly ServiceExtraCode[];
+  readonly defaultExtras: readonly ServiceExtraCode[];
+  readonly behavior: string;
+  readonly version: number;
+  readonly priceVersion: number | null;
 }
