@@ -7,6 +7,7 @@ export interface GoogleDriveUploadedFile { id: string; name: string; }
 export interface GoogleDriveLiveProvider {
   findFolder(input: { name: string; parentFolderId?: string }): Promise<GoogleDriveCreatedFolder | null>;
   createFolder(input: { name: string; parentFolderId?: string }): Promise<GoogleDriveCreatedFolder>;
+  updateFolder(input: { id: string; name: string; parentFolderId?: string; previousParentFolderId?: string }): Promise<GoogleDriveCreatedFolder>;
   uploadFile(input: { name: string; mimeType: string; bytes: Uint8Array; parentFolderId?: string }): Promise<GoogleDriveUploadedFile>;
 }
 
@@ -18,6 +19,7 @@ export class InMemoryGoogleDriveLiveProvider implements GoogleDriveLiveProvider 
     const scope = input.parentFolderId ? `${input.parentFolderId}-${input.name}` : input.name;
     const created={ id: `gdrive-${scope.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`, name: input.name };this.folders.set(`${input.parentFolderId ?? "root"}/${input.name}`,created);return created;
   }
+  async updateFolder(input: { id: string; name: string; parentFolderId?: string; previousParentFolderId?: string }) { return { id: input.id, name: input.name }; }
   async uploadFile(input: { name: string }) { return { id: `gdrive-file-${input.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, name: input.name }; }
 }
 
@@ -34,6 +36,15 @@ export class GoogleDriveApiProvider implements GoogleDriveLiveProvider {
     const existing=await this.findFolder(input);if(existing)return existing;
     const response = await fetch("https://www.googleapis.com/drive/v3/files?fields=id,name", { method: "POST", headers: { Authorization: `Bearer ${this.accessToken}`, "Content-Type": "application/json" }, body: JSON.stringify({ name: input.name, mimeType: "application/vnd.google-apps.folder", parents: input.parentFolderId ? [input.parentFolderId] : undefined }) });
     if (!response.ok) throw new Error(`Google Drive request failed (${response.status}): ${await response.text()}`);
+    return response.json() as Promise<GoogleDriveCreatedFolder>;
+  }
+  async updateFolder(input: { id: string; name: string; parentFolderId?: string; previousParentFolderId?: string }): Promise<GoogleDriveCreatedFolder> {
+    const url = new URL(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(input.id)}`);
+    url.searchParams.set("fields", "id,name");
+    if (input.parentFolderId && input.parentFolderId !== input.previousParentFolderId) url.searchParams.set("addParents", input.parentFolderId);
+    if (input.previousParentFolderId && input.parentFolderId !== input.previousParentFolderId) url.searchParams.set("removeParents", input.previousParentFolderId);
+    const response = await fetch(url, { method: "PATCH", headers: { Authorization: `Bearer ${this.accessToken}`, "Content-Type": "application/json" }, body: JSON.stringify({ name: input.name }) });
+    if (!response.ok) throw new Error(`Google Drive folder update failed (${response.status}): ${await response.text()}`);
     return response.json() as Promise<GoogleDriveCreatedFolder>;
   }
   async uploadFile(input: { name: string; mimeType: string; bytes: Uint8Array; parentFolderId?: string }): Promise<GoogleDriveUploadedFile> {

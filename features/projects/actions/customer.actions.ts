@@ -104,7 +104,7 @@ async function customerRepository() {
 }
 
 export async function updateCustomerAction(input: CustomerMutationInput): Promise<{ ok: boolean; error?: string }> {
-  try { await (await customerRepository()).update(input); revalidatePath("/projects"); return { ok: true }; }
+  try { const client=await createSupabaseServerClient();const{data:auth}=await client.auth.getUser();if(!auth.user)throw new Error("Sesión requerida.");await new SupabaseCustomerRepository(client).update(input);if(input.fullName!==undefined){const{data:projects,error}=await client.from("projects").select("id").eq("customer_id",input.customerId).is("deleted_at",null);if(error)throw error;await Promise.all((projects??[]).map(project=>synchronizeConfirmedReservationDrive({client,projectId:project.id,actorId:auth.user.id})));} revalidatePath("/projects"); return { ok: true }; }
   catch (error) { return { ok: false, error: error instanceof Error ? error.message : "No fue posible actualizar el cliente." }; }
 }
 

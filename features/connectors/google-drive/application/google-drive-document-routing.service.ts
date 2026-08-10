@@ -8,6 +8,7 @@ import { SupabaseGoogleDriveFolderRepository } from "../repository/google-drive-
 import type { GoogleDriveDocumentKind } from "../types/google-drive-live.types";
 import { buildCustomerFolderPlan, buildRootFolderPlan, resolveAutomaticDestination } from "./google-drive-folder-strategy";
 import { GoogleDriveLive } from "./google-drive-live";
+import { synchronizeConfirmedReservationDrive } from "./google-drive-sync.service";
 
 interface ReservationDocumentContext {
   client: SupabaseClient;
@@ -18,6 +19,7 @@ interface ReservationDocumentContext {
 }
 
 export async function resolveReservationDocumentFolder(input: ReservationDocumentContext) {
+  await synchronizeConfirmedReservationDrive({ client: input.client, projectId: input.projectId, recordTimeline: false });
   const [company, accessToken, connection] = await Promise.all([
     loadCompanySettings(input.client),
     loadGoogleWorkspaceAccessToken(),
