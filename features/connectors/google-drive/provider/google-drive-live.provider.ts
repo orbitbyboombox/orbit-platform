@@ -5,21 +5,33 @@ export interface GoogleDriveCreatedFolder {
 export interface GoogleDriveUploadedFile { id: string; name: string; }
 
 export interface GoogleDriveLiveProvider {
+  findFolder(input: { name: string; parentFolderId?: string }): Promise<GoogleDriveCreatedFolder | null>;
   createFolder(input: { name: string; parentFolderId?: string }): Promise<GoogleDriveCreatedFolder>;
   uploadFile(input: { name: string; mimeType: string; bytes: Uint8Array; parentFolderId?: string }): Promise<GoogleDriveUploadedFile>;
 }
 
 export class InMemoryGoogleDriveLiveProvider implements GoogleDriveLiveProvider {
+  private readonly folders = new Map<string, GoogleDriveCreatedFolder>();
+  async findFolder(input: { name: string; parentFolderId?: string }) { return this.folders.get(`${input.parentFolderId ?? "root"}/${input.name}`) ?? null; }
   async createFolder(input: { name: string; parentFolderId?: string }) {
+    const existing = await this.findFolder(input); if (existing) return existing;
     const scope = input.parentFolderId ? `${input.parentFolderId}-${input.name}` : input.name;
-    return { id: `gdrive-${scope.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`, name: input.name };
+    const created={ id: `gdrive-${scope.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`, name: input.name };this.folders.set(`${input.parentFolderId ?? "root"}/${input.name}`,created);return created;
   }
   async uploadFile(input: { name: string }) { return { id: `gdrive-file-${input.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, name: input.name }; }
 }
 
 export class GoogleDriveApiProvider implements GoogleDriveLiveProvider {
   constructor(private readonly accessToken: string) {}
+  async findFolder(input: { name: string; parentFolderId?: string }): Promise<GoogleDriveCreatedFolder | null> {
+    const escape=(value:string)=>value.replace(/\\/g,"\\\\").replace(/'/g,"\\'");
+    const parent=input.parentFolderId?`'${escape(input.parentFolderId)}' in parents`:"'root' in parents";
+    const query=["mimeType = 'application/vnd.google-apps.folder'",`name = '${escape(input.name)}'`,"trashed = false",parent].join(" and ");
+    const url=new URL("https://www.googleapis.com/drive/v3/files");url.searchParams.set("q",query);url.searchParams.set("fields","files(id,name)");url.searchParams.set("pageSize","1");
+    const response=await fetch(url,{headers:{Authorization:`Bearer ${this.accessToken}`}});if(!response.ok)throw new Error(`Google Drive lookup failed (${response.status}): ${await response.text()}`);const body=await response.json() as {files?:GoogleDriveCreatedFolder[]};return body.files?.[0]??null;
+  }
   async createFolder(input: { name: string; parentFolderId?: string }): Promise<GoogleDriveCreatedFolder> {
+    const existing=await this.findFolder(input);if(existing)return existing;
     const response = await fetch("https://www.googleapis.com/drive/v3/files?fields=id,name", { method: "POST", headers: { Authorization: `Bearer ${this.accessToken}`, "Content-Type": "application/json" }, body: JSON.stringify({ name: input.name, mimeType: "application/vnd.google-apps.folder", parents: input.parentFolderId ? [input.parentFolderId] : undefined }) });
     if (!response.ok) throw new Error(`Google Drive request failed (${response.status}): ${await response.text()}`);
     return response.json() as Promise<GoogleDriveCreatedFolder>;

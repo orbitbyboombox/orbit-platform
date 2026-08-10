@@ -62,7 +62,7 @@ export async function approveQuotationAction(quotationId:string, reason="Aprobad
     const drive=new GoogleDriveLive(connection,new GoogleDriveApiProvider(token),new SupabaseGoogleDriveFolderRepository(admin,data.project_id));
     const timestamp=new Date().toISOString(); const root=await drive.synchronizeFolderPlan(buildRootFolderPlan(company.driveRootFolder),timestamp); if(!root.ok) throw new Error(root.error.message);
     const folderSync=await drive.synchronizeFolderPlan(buildCustomerFolderPlan(data.customers.full_name,data.projects.event_date,company.driveRootFolder),timestamp); if(!folderSync.ok) throw new Error(folderSync.error.message);
-    const quotationFolder=folderSync.folders.find((folder)=>folder.path.endsWith("/02 Cotizaciones")); if(!quotationFolder?.driveFolderId) throw new Error("No fue posible resolver la carpeta de cotizaciones.");
+    const quotationFolder=folderSync.folders.find((folder)=>folder.path.endsWith("/03_Cotizaciones")); if(!quotationFolder?.driveFolderId) throw new Error("No fue posible resolver la carpeta de cotizaciones.");
     let driveFileId=data.drive_file_id as string|null;
     if(!driveFileId) driveFileId=(await new GoogleDriveApiProvider(token).uploadFile({name:`${data.quotation_number} - ${data.customers.full_name}.pdf`,mimeType:"application/pdf",bytes:pdf,parentFolderId:quotationFolder.driveFolderId})).id;
     let draftId=data.gmail_draft_id as string|null; let messageId:string|undefined; let threadId:string|undefined;

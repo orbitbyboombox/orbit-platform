@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { SupabaseCustomerRepository } from "../infrastructure";
 import { synchronizeConfirmedReservationCalendar } from "@/features/connectors/google-calendar/application/google-calendar-sync.service";
+import { synchronizeConfirmedReservationDrive } from "@/features/connectors/google-drive/application/google-drive-sync.service";
 import type { Project, ProjectDraft } from "../types/project";
 import type { CustomerMutationInput } from "../infrastructure";
 
@@ -84,7 +85,10 @@ export async function createCustomerProjectAction(draft: ProjectDraft): Promise<
         if (timelineError) throw timelineError;
       }
     }
-    await synchronizeConfirmedReservationCalendar({ client, projectId: project.id, actorId: auth.user.id });
+    await Promise.all([
+      synchronizeConfirmedReservationCalendar({ client, projectId: project.id, actorId: auth.user.id }),
+      synchronizeConfirmedReservationDrive({ client, projectId: project.id, actorId: auth.user.id }),
+    ]);
     revalidatePath("/projects");
     return { ok: true, project };
   } catch (error) {
