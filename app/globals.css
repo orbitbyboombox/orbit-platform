@@ -81,12 +81,12 @@ button:disabled { cursor: not-allowed; }
 .orbit-enter { animation: orbit-enter 320ms ease-out both; }
 
 /* Reservation summaries remain part of the wizard flow at every breakpoint. */
-aside:has(> .reservation-summary-panel) {
+aside[aria-label="Nueva reserva"] aside {
   min-width: 0;
 }
 
 @media (max-width: 47.99rem) {
-  aside:has(> .reservation-summary-panel) {
+  aside[aria-label="Nueva reserva"] aside {
     position: static !important;
     inset: auto !important;
     margin-top: 1.5rem;
@@ -94,7 +94,7 @@ aside:has(> .reservation-summary-panel) {
 }
 
 @media (min-width: 48rem) and (max-width: 63.99rem) {
-  aside:has(> .reservation-summary-panel) {
+  aside[aria-label="Nueva reserva"] aside {
     position: sticky !important;
     z-index: 5;
     bottom: 0;
@@ -104,7 +104,7 @@ aside:has(> .reservation-summary-panel) {
 }
 
 @media (min-width: 64rem) {
-  aside:has(> .reservation-summary-panel) {
+  aside[aria-label="Nueva reserva"] aside {
     position: sticky !important;
     top: 1rem;
   }
