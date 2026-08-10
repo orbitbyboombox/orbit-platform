@@ -55,4 +55,10 @@ export interface ProjectDraft {
   services: ProjectService[];
   origin?: ProjectOrigin;
   notes: string;
+  commercialAdjustment?: {
+    type: "FIXED" | "PERCENT";
+    value: number;
+    reason: string;
+    subtotal: number;
+  };
 }

@@ -274,7 +274,7 @@ function SignaturePad({ disabled, onConfirmed }: { disabled: boolean; onConfirme
   );
 }
 
-function CommercialSummary({ balance, extras, plan, reservation, subtotal, total }: { balance: number; extras: Array<{ label: string; value: string }>; plan: { service: ProjectService; hours: number; price: number } | null; reservation: number; subtotal: number; total: number }) {
+function CommercialSummary({ balance, discount, extras, plan, reservation, subtotal, total }: { balance: number; discount: number; extras: Array<{ label: string; value: string }>; plan: { service: ProjectService; hours: number; price: number } | null; reservation: number; subtotal: number; total: number }) {
   return (
     <section aria-live="polite" className="reservation-summary-panel rounded-2xl border bg-card p-5 shadow-sm">
       <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Resumen de reserva</p>
@@ -295,6 +295,7 @@ function CommercialSummary({ balance, extras, plan, reservation, subtotal, total
           <dt className="font-semibold">SUBTOTAL</dt>
           <dd className="font-semibold">{currency.format(subtotal)}</dd>
         </div>
+        {discount > 0 && <div className="flex justify-between gap-3"><dt className="text-muted">Descuento comercial</dt><dd className="font-semibold text-success">−{currency.format(discount)}</dd></div>}
         <div className="flex justify-between gap-3">
           <dt className="text-muted">Reserva</dt>
           <dd className="font-medium">{currency.format(reservation)}</dd>
@@ -337,6 +338,9 @@ export function NewProjectDrawer({ commercialPrices, venues, open, onClose, onCr
   const [error, setError] = useState("");
   const [createdProject, setCreatedProject] = useState<Project | null>(null);
   const [portalMessage, setPortalMessage] = useState("");
+  const [adjustmentType, setAdjustmentType] = useState<"FIXED" | "PERCENT">("FIXED");
+  const [adjustmentValue, setAdjustmentValue] = useState(0);
+  const [adjustmentReason, setAdjustmentReason] = useState("");
 
   const municipalityGroups = Object.entries(provinceMunicipalities).map(([province, defaults]) => {
     const price = commercialPrices.find((item) => item.category === "TRANSPORT" && item.code === transportCode[province as Province]);
@@ -381,7 +385,9 @@ export function NewProjectDrawer({ commercialPrices, venues, open, onClose, onCr
   };
   const servicesTotal = (Object.entries(configurations) as Array<[ProjectService, ServiceConfiguration]>).reduce((sum, [service, configuration]) => sum + serviceTotal(service, configuration), 0);
   const commercialTotal = servicesTotal + Number(transportTotal ?? 0) + venueSurcharge;
-  const payableTotal = Math.round(commercialTotal * (paymentMethod === "MERCADO_PAGO" ? 1.05 : 1));
+  const discountTotal = Math.min(commercialTotal, Math.max(0, adjustmentType === "PERCENT" ? Math.round(commercialTotal * Math.min(adjustmentValue, 100) / 100) : adjustmentValue));
+  const adjustedSubtotal = commercialTotal - discountTotal;
+  const payableTotal = Math.round(adjustedSubtotal * (paymentMethod === "MERCADO_PAGO" ? 1.05 : 1));
   const reservationTotal = Math.round(payableTotal * 0.5);
   const balanceTotal = payableTotal - reservationTotal;
   const compatibleIncludedExtrasSelected = (Object.keys(configurations) as ProjectService[]).flatMap(compatibleIncludedExtras);
@@ -414,7 +420,7 @@ export function NewProjectDrawer({ commercialPrices, venues, open, onClose, onCr
     return base;
   })();
   const formattedDueDate = paymentDueDate ? new Intl.DateTimeFormat("es-CL", { dateStyle: "long" }).format(paymentDueDate) : "Pendiente de fecha del evento";
-  const mercadoPagoCommission = payableTotal - commercialTotal;
+  const mercadoPagoCommission = payableTotal - adjustedSubtotal;
   const summaryExtras = [...commercialExtras, ...(paymentMethod === "MERCADO_PAGO" ? [{ label: "Comisión Mercado Pago", value: `+${currency.format(mercadoPagoCommission)}` }] : [])];
 
   if (!open) return null;
@@ -453,6 +459,9 @@ export function NewProjectDrawer({ commercialPrices, venues, open, onClose, onCr
     setError("");
     setCreatedProject(null);
     setPortalMessage("");
+    setAdjustmentType("FIXED");
+    setAdjustmentValue(0);
+    setAdjustmentReason("");
     onClose();
   };
   const toggleService = (service: ProjectService) => {
@@ -482,7 +491,7 @@ export function NewProjectDrawer({ commercialPrices, venues, open, onClose, onCr
     });
   };
   const customerValid = Boolean((draft.client.name ?? "").trim() && /^[0-9]{7,8}-[0-9K]$/.test(draft.client.rut ?? "") && (draft.client.phone ?? "").length === 12 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.client.email ?? ""));
-  const valid = step === 0 ? method === "MANUAL" : step === 1 ? customerValid : step === 2 ? Boolean(draft.type && draft.event.location && eventAddress && draft.event.city && draft.event.date && draft.event.time && operationalContact && operationalPhone.length === 12 && (draft.type === "Wedding" ? bride && groom : mainContact)) : step === 3 ? draft.services.length > 0 : step === 4 ? termsAccepted && signatureConfirmed : step === 5 ? paymentMethod === "MERCADO_PAGO" || Boolean(receipt) : true;
+  const valid = step === 0 ? method === "MANUAL" : step === 1 ? customerValid : step === 2 ? Boolean(draft.type && draft.event.location && eventAddress && draft.event.city && draft.event.date && draft.event.time && operationalContact && operationalPhone.length === 12 && (draft.type === "Wedding" ? bride && groom : mainContact)) : step === 3 ? draft.services.length > 0 && (discountTotal === 0 || Boolean(adjustmentReason.trim())) : step === 4 ? termsAccepted && signatureConfirmed : step === 5 ? paymentMethod === "MERCADO_PAGO" || Boolean(receipt) : true;
   const create = async () => {
     if (!valid) return;
     setSubmitting(true);
@@ -493,6 +502,7 @@ export function NewProjectDrawer({ commercialPrices, venues, open, onClose, onCr
       const project = await withReservationTimeout(
         onCreate({
           ...draft,
+          commercialAdjustment: discountTotal > 0 ? { type: adjustmentType, value: adjustmentValue, reason: adjustmentReason.trim(), subtotal: commercialTotal } : undefined,
           event: {
             ...draft.event,
             durationHours: maximumHours,
@@ -513,7 +523,7 @@ export function NewProjectDrawer({ commercialPrices, venues, open, onClose, onCr
   const portalUrl = createdProject ? `${window.location.origin}/projects/${createdProject.id}#portal-cliente` : "";
   const confirmationEmailBody = createdProject ? [`Hola ${createdProject.client.name},`, "¡Reserva confirmada! Bienvenido a BOOMBOX.", "Resumen comercial", ...(Object.entries(configurations) as Array<[ProjectService, ServiceConfiguration]>).map(([service, configuration]) => `${serviceLabels[service]} · ${configuration.hours + configuration.additionalHours} horas · ${currency.format(serviceTotal(service, configuration))}`), `Extras: ${consolidatedExtras}`, `Transporte: ${currency.format(Number(transportTotal ?? 0))}`, `Reserva: ${currency.format(reservationTotal)}`, `Saldo restante: ${currency.format(balanceTotal)}`, `TOTAL: ${currency.format(payableTotal)}`, "Portal BOOMBOX", portalUrl, "Accede utilizando tu RUT y la fecha de tu evento."].join("\n\n") : "";
 
-  const summary = <CommercialSummary balance={balanceTotal} extras={summaryExtras} plan={plan} reservation={reservationTotal} subtotal={commercialTotal} total={payableTotal} />;
+  const summary = <CommercialSummary balance={balanceTotal} discount={discountTotal} extras={summaryExtras} plan={plan} reservation={reservationTotal} subtotal={commercialTotal} total={payableTotal} />;
 
   return (
     <>
@@ -791,6 +801,19 @@ export function NewProjectDrawer({ commercialPrices, venues, open, onClose, onCr
                 ))}
                 <TextArea label="Solicitudes especiales" onChange={(e) => setSpecialRequests(e.target.value)} value={specialRequests} />
                 <TextArea label="Notas comerciales" onChange={(e) => setCommercialNotes(e.target.value)} value={commercialNotes} />
+                <section className="rounded-2xl border border-brand/25 bg-brand/5 p-5">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Solo administración</p>
+                    <h3 className="mt-1 text-lg font-semibold">Ajustes comerciales</h3>
+                    <p className="mt-1 text-sm text-muted">Aplica un descuento antes de generar el Contrato.</p>
+                  </div>
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    <label className="text-sm font-medium">Tipo de descuento<select className="mt-2 h-11 w-full rounded-lg border bg-background px-3" onChange={(event) => setAdjustmentType(event.target.value as "FIXED" | "PERCENT")} value={adjustmentType}><option value="FIXED">Monto fijo</option><option value="PERCENT">Porcentaje</option></select></label>
+                    <Field label={adjustmentType === "PERCENT" ? "Porcentaje" : "Monto"} max={adjustmentType === "PERCENT" ? 100 : undefined} min="0" onChange={(event) => setAdjustmentValue(Math.max(0, Number(event.target.value)))} type="number" value={adjustmentValue || ""} />
+                  </div>
+                  <div className="mt-4"><Field label="Motivo del descuento" onChange={(event) => setAdjustmentReason(event.target.value)} placeholder="Obligatorio al aplicar un descuento" required={discountTotal > 0} value={adjustmentReason} /></div>
+                  {discountTotal > 0 && <p className="mt-3 text-sm font-medium text-success">Descuento aplicado: −{currency.format(discountTotal)}</p>}
+                </section>
               </div>
               <aside className="h-fit max-lg:sticky max-lg:bottom-0 lg:sticky lg:top-0">{summary}</aside>
             </div>
