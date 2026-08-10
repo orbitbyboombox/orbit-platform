@@ -89,6 +89,8 @@ export default async function OperationsPage() {
   const availableOperators = staff.filter((member) => Array.isArray(member.capabilities) && member.capabilities.includes("OPERATOR") && !assignedToday.has(member.id)).length;
   const availableTotems = assets.filter((asset) => asset.asset_type === "TOTEM" && asset.status === "AVAILABLE").length;
   const availableCases = assets.filter((asset) => asset.asset_type === "CASE" && asset.status === "AVAILABLE").length;
+  const availablePrinters = assets.filter((asset) => asset.asset_type === "PRINTER" && asset.status === "AVAILABLE").length;
+  const availableCameras = assets.filter((asset) => asset.asset_type === "CAMERA" && asset.status === "AVAILABLE").length;
   const openTasks=(tasksResult.data??[]).filter((task)=>!["COMPLETED","CANCELLED"].includes(task.status));
   const taskSummary={
     pending:openTasks.length,
@@ -101,5 +103,5 @@ export default async function OperationsPage() {
   const monthKey=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Santiago",year:"numeric",month:"2-digit"}).format(new Date()).slice(0,7);
   const monthlyRevenue=(profitResult.data??[]).filter((item)=>projects.find((project)=>project.id===item.project_id)?.event.date.startsWith(monthKey)).reduce((sum,item)=>sum+Number((item as {revenue?:number|string}).revenue??0),0);
 
-  return <CommandCenter availableCases={availableCases} availableOperators={availableOperators} availableTotems={availableTotems} executive={{next15Events,accountsReceivable,monthlyRevenue,monthlyGoal:0}} readiness={readiness} taskSummary={taskSummary} />;
+  return <CommandCenter availableCameras={availableCameras} availableCases={availableCases} availableOperators={availableOperators} availablePrinters={availablePrinters} availableTotems={availableTotems} executive={{next15Events,accountsReceivable,monthlyRevenue,monthlyGoal:0}} readiness={readiness} taskSummary={taskSummary} />;
 }

@@ -56,7 +56,12 @@ function Metric({ href, label, value, icon:Icon, tone="neutral" }: { href:string
   return <button aria-label={`Abrir ${label}`} className="rounded-2xl border bg-card p-4 text-left transition hover:border-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 sm:p-5" onClick={()=>router.push(href)}><div className="flex items-center justify-between"><Icon aria-hidden="true" className={`size-4 ${toneClass}`} /><span className="text-2xl font-semibold tabular-nums">{value}</span></div><p className="mt-3 text-xs leading-5 text-muted sm:text-sm">{label}</p></button>;
 }
 
-export function CommandCenter({ readiness, availableOperators, availableTotems, availableCases, taskSummary, executive }: { readiness:readonly CommandCenterProjectReadiness[]; availableOperators:number; availableTotems:number; availableCases:number; taskSummary:{pending:number;critical:number;overdue:number;today:number}; executive:{next15Events:number;accountsReceivable:number;monthlyRevenue:number;monthlyGoal:number} }) {
+function EquipmentMetric({ cases, cameras, printers, totems }: { cases:number; cameras:number; printers:number; totems:number }) {
+  const router = useRouter();
+  return <button aria-label="Abrir Equipamiento disponible" className="rounded-2xl border bg-card p-4 text-left transition hover:border-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 sm:p-5" onClick={() => router.push("/resources")}><div className="flex items-center justify-between"><PackageCheck aria-hidden="true" className="size-4 text-success"/><span className="text-2xl font-semibold tabular-nums">{totems + cases + printers + cameras}</span></div><p className="mt-3 text-xs leading-5 text-muted sm:text-sm">Equipamiento disponible</p><p className="mt-2 text-[0.6875rem] leading-5 text-muted">{totems} tótems · {cases} cases<br/>{printers} impresoras · {cameras} cámaras</p></button>;
+}
+
+export function CommandCenter({ readiness, availableOperators, availableTotems, availableCases, availablePrinters, availableCameras, taskSummary, executive }: { readiness:readonly CommandCenterProjectReadiness[]; availableOperators:number; availableTotems:number; availableCases:number; availablePrinters:number; availableCameras:number; taskSummary:{pending:number;critical:number;overdue:number;today:number}; executive:{next15Events:number;accountsReceivable:number;monthlyRevenue:number;monthlyGoal:number} }) {
   const router = useRouter();
   const [expenseOpen,setExpenseOpen]=useState(false);
   const context = ORBIT_TIME_ENGINE.getCurrentContext("Matías");
@@ -80,7 +85,7 @@ export function CommandCenter({ readiness, availableOperators, availableTotems, 
       <Metric href="/projects" icon={CalendarDays} label="Eventos de hoy" value={todayEvents.length} />
       <Metric href="/projects" icon={FileSignature} label="Contratos pendientes" tone="warning" value={pendingContracts} />
       <Metric href="/finance/receivables" icon={CircleDollarSign} label="Cuentas por cobrar" tone="warning" value={pendingPayments} />
-      <Metric href="/resources" icon={PackageCheck} label="Equipamiento disponible" tone="success" value={availableTotems + availableCases} />
+      <EquipmentMetric cameras={availableCameras} cases={availableCases} printers={availablePrinters} totems={availableTotems} />
       <Metric href="/resources/staff" icon={UserCheck} label="Staff disponible" tone="success" value={availableOperators} />
       <Metric href="/notifications" icon={AlertTriangle} label="Notificaciones" tone={alerts.length ? "danger" : "success"} value={alerts.length} />
       <Metric href="/projects" icon={CheckCircle2} label="Eventos ready" tone="success" value={readyEvents} />
