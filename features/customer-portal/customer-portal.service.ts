@@ -28,7 +28,7 @@ export async function loadCustomerPortal(token: string) {
 export async function loadCustomerPortalProject(access: {id:string;project_id:string;customer_id:string;expires_at:string}) {
   const admin = createAdminClient();
   const [project, quotation, agreement, evidence, documents, requests, payments, uploads] = await Promise.all([
-    admin.from("projects").select("id,orbit_event_id,name,project_type,status,event_date,event_time,location,city,finance,operations,customers!inner(full_name,email,phone)").eq("id", access.project_id).single(),
+    admin.from("projects").select("id,orbit_event_id,name,project_type,status,event_date,event_time,location,city,finance,operations,customers!inner(full_name,email,phone,metadata),project_services(service_code,duration_hours,extras)").eq("id", access.project_id).single(),
     admin.from("quotations").select("id,status,quotation_number,grand_total,final_customer_price,expiration_date,pdf_storage_path,drive_file_id").eq("project_id", access.project_id).is("deleted_at", null).order("created_at",{ascending:false}).limit(1).maybeSingle(),
     admin.from("agreements").select("id,status,signed_pdf_path,drive_file_id").eq("project_id", access.project_id).order("created_at",{ascending:false}).limit(1).maybeSingle(),
     admin.from("agreement_evidence").select("id,signed_at").eq("agreement_id", (await admin.from("agreements").select("id").eq("project_id",access.project_id).order("created_at",{ascending:false}).limit(1).maybeSingle()).data?.id ?? crypto.randomUUID()).maybeSingle(),
