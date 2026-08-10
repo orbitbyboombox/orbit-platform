@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { completeAutomaticBooking, type AutomaticBookingSubmission } from "@/features/automatic-booking/complete-automatic-booking.service";
+import { AutomaticBookingConfirmationError, completeAutomaticBooking, type AutomaticBookingSubmission } from "@/features/automatic-booking/complete-automatic-booking.service";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +11,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {
     console.error("[ORBIT][AUTO_BOOKING_CONFIRMATION]", error);
-    return NextResponse.json({ ok: false, message: "No pudimos completar tu reserva. Tus datos siguen disponibles; inténtalo nuevamente o contacta a BOOMBOX." }, { status: 400 });
+    const failure = error instanceof AutomaticBookingConfirmationError ? error : new AutomaticBookingConfirmationError("VALIDATION", "pending", error);
+    return NextResponse.json({ ok: false, message: failure.message, module: failure.module, reservationId: failure.reservationId }, { status: 400 });
   }
 }
