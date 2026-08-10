@@ -38,8 +38,14 @@ export async function createCustomerProjectAction(draft: ProjectDraft): Promise<
       if (projectError) throw projectError;
       const today = new Date();
       const expiration = new Date(today); expiration.setDate(expiration.getDate() + 7);
-      const { data: quotation, error: quotationError } = await client.from("quotations").insert({
-        quotation_number: `COT-${today.getFullYear()}-${project.id.replaceAll("-", "").slice(0, 8).toUpperCase()}`,
+      const quotationNumber = `COT-${today.getFullYear()}-${project.id.replaceAll("-", "").slice(0, 8).toUpperCase()}`;
+      const { data: existingQuotation, error: quotationLookupError } = await client.from("quotations").select("id").eq("quotation_number", quotationNumber).maybeSingle();
+      if (quotationLookupError) throw quotationLookupError;
+      let quotation = existingQuotation;
+      let quotationCreated = false;
+      if (!quotation) {
+        const { data, error: quotationError } = await client.from("quotations").insert({
+        quotation_number: quotationNumber,
         customer_id: persistedProject.customer_id,
         project_id: project.id,
         orbit_event_id: persistedProject.orbit_event_id,
@@ -66,11 +72,16 @@ export async function createCustomerProjectAction(draft: ProjectDraft): Promise<
         created_by: auth.user.id,
         updated_by: auth.user.id,
         approval_reason: adjustment.reason.trim(),
-      }).select("id").single();
-      if (quotationError) throw quotationError;
-      const message = `Descuento comercial de ${new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(discount)} aplicado. Motivo: ${adjustment.reason.trim()}`;
-      const { error: timelineError } = await client.from("timeline_events").insert({ orbit_event_id: persistedProject.orbit_event_id, project_id: project.id, customer_id: persistedProject.customer_id, event_type: "QUOTATION_UPDATED", title: message, description: message, actor_id: auth.user.id, actor_label: "Administrador", source: "Administrator", action: "QUOTATION_UPDATED", entity_type: "Quotation", entity_id: quotation.id, human_message: message, correlation_id: crypto.randomUUID(), reason: adjustment.reason.trim(), created_by: auth.user.id });
-      if (timelineError) throw timelineError;
+        }).select("id").single();
+        if (quotationError) throw quotationError;
+        quotation = data;
+        quotationCreated = true;
+      }
+      if (quotationCreated && quotation) {
+        const message = `Descuento comercial de ${new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(discount)} aplicado. Motivo: ${adjustment.reason.trim()}`;
+        const { error: timelineError } = await client.from("timeline_events").insert({ orbit_event_id: persistedProject.orbit_event_id, project_id: project.id, customer_id: persistedProject.customer_id, event_type: "QUOTATION_UPDATED", title: message, description: message, actor_id: auth.user.id, actor_label: "Administrador", source: "Administrator", action: "QUOTATION_UPDATED", entity_type: "Quotation", entity_id: quotation.id, human_message: message, correlation_id: crypto.randomUUID(), reason: adjustment.reason.trim(), created_by: auth.user.id });
+        if (timelineError) throw timelineError;
+      }
     }
     revalidatePath("/projects");
     return { ok: true, project };
