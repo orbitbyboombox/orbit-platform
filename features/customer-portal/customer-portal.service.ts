@@ -27,21 +27,22 @@ export async function loadCustomerPortal(token: string) {
 
 export async function loadCustomerPortalProject(access: {id:string;project_id:string;customer_id:string;expires_at:string}) {
   const admin = createAdminClient();
-  const [project, quotation, agreement, evidence, documents, requests, payments, uploads, contractTimeline, contractFolder] = await Promise.all([
+  const [project, quotation, agreement, evidence, documents, requests, payments, uploads, contractTimeline, contractFolder, invoice] = await Promise.all([
     admin.from("projects").select("id,orbit_event_id,name,project_type,status,event_date,event_time,location,city,finance,operations,customers!inner(full_name,email,phone,metadata),project_services(service_code,duration_hours,extras)").eq("id", access.project_id).single(),
     admin.from("quotations").select("id,status,quotation_number,subtotal,transport_total,discount_total,grand_total,final_customer_price,expiration_date,pdf_storage_path,drive_file_id").eq("project_id", access.project_id).is("deleted_at", null).order("created_at",{ascending:false}).limit(1).maybeSingle(),
     admin.from("agreements").select("id,status,signed_pdf_path,drive_file_id,created_at,updated_at,signed_at").eq("project_id", access.project_id).order("created_at",{ascending:false}).limit(1).maybeSingle(),
     admin.from("agreement_evidence").select("id,signer_name,signature_path,signed_at").eq("agreement_id", (await admin.from("agreements").select("id").eq("project_id",access.project_id).order("created_at",{ascending:false}).limit(1).maybeSingle()).data?.id ?? crypto.randomUUID()).maybeSingle(),
-    admin.from("documents").select("id,document_type,drive_file_id,created_at").eq("project_id", access.project_id).is("deleted_at", null),
+    admin.from("documents").select("id,document_type,storage_bucket,storage_path,drive_file_id,created_at").eq("project_id", access.project_id).is("deleted_at", null),
     admin.from("customer_portal_requests").select("id,request_type,subject,message,status,created_at").eq("project_id",access.project_id).order("created_at",{ascending:false}),
     admin.from("communications").select("id,subject,status,occurred_at").eq("project_id",access.project_id).eq("communication_type","PAYMENT").order("occurred_at",{ascending:false}),
     admin.from("customer_portal_uploads").select("id,file_name,drive_file_id,created_at").eq("project_id",access.project_id).order("created_at",{ascending:false}),
     admin.from("timeline_events").select("id,action,title,occurred_at").eq("project_id",access.project_id).in("action",["AGREEMENT_SENT","AGREEMENT_SIGNED"]).order("occurred_at",{ascending:true}),
     admin.from("drive_sync").select("external_folder_id,last_synced_at").eq("project_id",access.project_id).like("destination_key","%/01_Contrato").not("external_folder_id","is",null).limit(1).maybeSingle(),
+    admin.from("invoices").select("id,status,amount,paid_amount,due_date,payment_term,invoice_payments(id,amount,paid_at,method,reference)").eq("project_id",access.project_id).is("deleted_at",null).order("created_at",{ascending:false}).limit(1).maybeSingle(),
   ]);
-  const failure = [project,quotation,agreement,evidence,documents,requests,payments,uploads,contractTimeline,contractFolder].find((result)=>result.error);
+  const failure = [project,quotation,agreement,evidence,documents,requests,payments,uploads,contractTimeline,contractFolder,invoice].find((result)=>result.error);
   if (failure?.error) throw failure.error;
   const finance=project.data?.finance as Record<string,unknown>|null;const operations=project.data?.operations as Record<string,unknown>|null;
-  const portalProject={...project.data!,finance:{status:finance?.status,paymentStatus:finance?.paymentStatus},operations:{status:operations?.status}};
-  return { access, project: portalProject, quotation: quotation.data, agreement: agreement.data, evidence: evidence.data, documents: documents.data ?? [], requests: requests.data ?? [], payments: payments.data ?? [], uploads: uploads.data ?? [], contractTimeline: contractTimeline.data ?? [], contractFolder: contractFolder.data };
+  const portalProject={...project.data!,finance:{status:finance?.status,paymentStatus:finance?.paymentStatus,reservationAmount:finance?.reservationAmount,remainingBalance:finance?.remainingBalance,totalPaid:finance?.totalPaid,paymentMethod:finance?.paymentMethod,dueDate:finance?.dueDate},operations:{status:operations?.status}};
+  return { access, project: portalProject, quotation: quotation.data, agreement: agreement.data, evidence: evidence.data, documents: documents.data ?? [], requests: requests.data ?? [], payments: payments.data ?? [], uploads: uploads.data ?? [], contractTimeline: contractTimeline.data ?? [], contractFolder: contractFolder.data, invoice: invoice.data };
 }
