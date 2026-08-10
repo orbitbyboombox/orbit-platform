@@ -23,6 +23,18 @@ export interface MasterDataProjection {
   readonly equipmentCount: number;
   readonly services: readonly ServiceAdministrationRecord[];
   readonly venues: VenueAdministrationProjection;
+  readonly transportZones: readonly TransportZoneAdministrationRecord[];
+}
+
+export interface TransportZoneAdministrationRecord {
+  readonly id: string;
+  readonly code: string;
+  readonly province: string;
+  readonly transportValue: number | null;
+  readonly enabled: boolean;
+  readonly displayOrder: number;
+  readonly municipalities: readonly string[];
+  readonly version: number;
 }
 
 export interface VenueAdministrationRecord {

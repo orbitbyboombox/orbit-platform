@@ -78,24 +78,6 @@ async function withReservationTimeout<T>(operation: Promise<T>) {
   }
 }
 
-const provinceMunicipalities = {
-  Santiago: ["Santiago", "Cerrillos", "Cerro Navia", "Conchalí", "El Bosque", "Estación Central", "Huechuraba", "Independencia", "La Cisterna", "La Florida", "La Granja", "La Pintana", "La Reina", "Las Condes", "Lo Barnechea", "Lo Espejo", "Lo Prado", "Macul", "Maipú", "Ñuñoa", "Pedro Aguirre Cerda", "Peñalolén", "Providencia", "Pudahuel", "Quilicura", "Quinta Normal", "Recoleta", "Renca", "San Joaquín", "San Miguel", "San Ramón", "Vitacura"],
-  Chacabuco: ["Colina", "Lampa", "Tiltil"],
-  Cordillera: ["Puente Alto", "Pirque", "San José de Maipo"],
-  Maipo: ["San Bernardo", "Buin", "Calera de Tango", "Paine"],
-  Melipilla: ["Melipilla", "Alhué", "Curacaví", "María Pinto", "San Pedro"],
-  Talagante: ["Talagante", "El Monte", "Isla de Maipo", "Padre Hurtado", "Peñaflor"],
-} as const;
-type Province = keyof typeof provinceMunicipalities;
-const transportCode: Record<Province, string> = {
-  Santiago: "SANTIAGO_PROVINCE",
-  Chacabuco: "CHACABUCO",
-  Cordillera: "CORDILLERA",
-  Maipo: "MAIPO",
-  Melipilla: "MELIPILLA",
-  Talagante: "TALAGANTE",
-};
-
 const boomboxTerms = [
   ["Reserva y pago", "La fecha quedará reservada una vez firmado el contrato y abonado el 50% del valor total. El saldo restante deberá pagarse durante la semana previa al evento. La reserva no es reembolsable, pues bloquea exclusivamente la fecha y horario seleccionados."],
   ["Reprogramación", "El cliente podrá solicitar un cambio de fecha, sujeto a disponibilidad de BOOMBOX. Los valores podrán actualizarse si la nueva fecha corresponde a otra temporada, ubicación o condición de servicio. La reserva podrá cederse a otra persona previa autorización escrita."],
@@ -322,12 +304,11 @@ export function NewProjectDrawer({ commercialPrices, services, venues, open, onC
   const additionalHourRate = (service: ProjectService) => serviceByCode.get(service)?.additionalHourPrice ?? 0;
   const compatibleExtras = (service: ProjectService) => (serviceByCode.get(service)?.compatibleExtras ?? []).map(masterExtraToReservation).filter((extra): extra is ServiceExtra => extra !== null);
 
-  const municipalityGroups = Object.entries(provinceMunicipalities).map(([province, defaults]) => {
-    const price = commercialPrices.find((item) => item.category === "TRANSPORT" && item.code === transportCode[province as Province]);
+  const municipalityGroups = commercialPrices.filter((item) => item.category === "TRANSPORT").map((price) => {
     const configured = price?.rules?.municipalities;
     return {
-      province,
-      municipalities: Array.isArray(configured) && configured.every((item) => typeof item === "string") ? (configured as string[]) : [...defaults],
+      province: price.destination ?? price.label,
+      municipalities: Array.isArray(configured) && configured.every((item) => typeof item === "string") ? (configured as string[]) : [],
       price,
     };
   });

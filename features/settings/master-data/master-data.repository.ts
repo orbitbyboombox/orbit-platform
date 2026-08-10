@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { MasterDataProjection, MasterDataRecord, ServiceAdministrationRecord, ServiceExtraCode, VenueAdministrationRecord } from "./types";
+import type { MasterDataProjection, MasterDataRecord, ServiceAdministrationRecord, ServiceExtraCode, TransportZoneAdministrationRecord, VenueAdministrationRecord } from "./types";
 
 const money = (value: number | string | null) => value == null ? "Precio por definir" : new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(Number(value));
 
@@ -7,7 +7,7 @@ export async function loadMasterData(client: SupabaseClient): Promise<MasterData
   const [{ data: auth }, entries, prices, staff, equipment] = await Promise.all([
     client.auth.getUser(),
     client.from("master_data_entries").select("id,domain,code,label,enabled,display_order,configuration,version").order("display_order").order("label"),
-    client.from("commercial_prices").select("id,category,code,label,duration_hours,destination,unit_price,pricing_status,enabled,display_order,version").is("deleted_at", null).order("category").order("display_order").order("label"),
+    client.from("commercial_prices").select("id,category,code,label,duration_hours,destination,unit_price,pricing_status,enabled,display_order,rules,version").is("deleted_at", null).order("category").order("display_order").order("label"),
     client.from("staff").select("id", { count: "exact", head: true }).is("deleted_at", null),
     client.from("operational_assets").select("id", { count: "exact", head: true }).is("deleted_at", null),
   ]);
@@ -50,5 +50,10 @@ export async function loadMasterData(client: SupabaseClient): Promise<MasterData
     const code = typeof venue.code === "string" ? venue.code : venue.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "");
     return [{ code, name: venue.name, municipality: venue.municipality, province: venue.province, surcharge: Number(venue.surcharge ?? 0), notes: typeof venue.notes === "string" ? venue.notes : "", enabled: venue.enabled !== false, displayOrder: Number(venue.displayOrder ?? (index + 1) * 10) }];
   }) : [];
-  return { canEdit: role === "CEO" || role === "ADMINISTRATOR", role, records, services, venues: { masterId: venueMaster?.id ?? null, version: venueMaster?.version ?? null, records: venues.sort((a,b) => a.displayOrder - b.displayOrder) }, staffCount: staff.count ?? 0, equipmentCount: equipment.count ?? 0 };
+  const transportZones: TransportZoneAdministrationRecord[] = (prices.data ?? []).filter((row) => row.category === "TRANSPORT").map((row) => {
+    const rules = (row.rules ?? {}) as Record<string, unknown>;
+    const municipalities = Array.isArray(rules.municipalities) ? rules.municipalities.filter((item): item is string => typeof item === "string") : [];
+    return { id:row.id, code:row.code, province:row.destination ?? row.label, transportValue:row.unit_price == null ? null : Number(row.unit_price), enabled:row.enabled, displayOrder:row.display_order, municipalities, version:row.version };
+  });
+  return { canEdit: role === "CEO" || role === "ADMINISTRATOR", role, records, services, transportZones, venues: { masterId: venueMaster?.id ?? null, version: venueMaster?.version ?? null, records: venues.sort((a,b) => a.displayOrder - b.displayOrder) }, staffCount: staff.count ?? 0, equipmentCount: equipment.count ?? 0 };
 }

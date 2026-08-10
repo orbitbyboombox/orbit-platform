@@ -128,6 +128,36 @@ export async function mutateEventVenueAction(input: { operation: "CREATE" | "UPD
   } catch (error) { return { ok:false as const, error:error instanceof Error ? error.message : "No fue posible actualizar la sede." }; }
 }
 
+type TransportZoneInput = { id?: string; code?: string; province: string; transportValue: number | null; enabled: boolean; displayOrder: number; municipalities: readonly string[]; expectedVersion?: number };
+
+export async function mutateTransportZoneAction(input: { operation: "CREATE" | "UPDATE" | "DELETE"; zone: TransportZoneInput; reason: string }) {
+  try {
+    if (!input.reason.trim()) throw new Error("La razón del cambio es obligatoria.");
+    const { client, userId } = await administratorContext();
+    const code = input.zone.code || venueCode(input.zone.province);
+    const municipalities = Array.from(new Set(input.zone.municipalities.map((item)=>item.trim()).filter(Boolean))).sort((a,b)=>a.localeCompare(b,"es"));
+    if (!code || !input.zone.province.trim()) throw new Error("La provincia es obligatoria.");
+    if (input.zone.transportValue !== null && input.zone.transportValue < 0) throw new Error("El valor de transporte no puede ser negativo.");
+    if (input.operation === "CREATE") {
+      const existing = await client.from("commercial_prices").select("id").eq("category","TRANSPORT").eq("code",code).is("deleted_at",null).maybeSingle();
+      if (existing.error) throw existing.error; if (existing.data) throw new Error("Esta provincia ya existe.");
+      const created = await client.from("commercial_prices").insert({category:"TRANSPORT",code,label:input.zone.province.trim(),destination:input.zone.province.trim(),unit_price:input.zone.transportValue,pricing_status:input.zone.transportValue===null?"REQUIRES_QUOTE":"DEFINED",enabled:input.zone.enabled,display_order:input.zone.displayOrder,rules:{municipalities},approval_reason:input.reason.trim(),created_by:userId,updated_by:userId});
+      if (created.error) throw created.error;
+    } else {
+      if (!input.zone.id || input.zone.expectedVersion == null) throw new Error("Provincia inválida.");
+      if (input.operation === "DELETE") {
+        const deleted = await client.from("commercial_prices").update({enabled:false,deleted_at:new Date().toISOString(),deleted_by:userId,approval_reason:input.reason.trim(),updated_by:userId}).eq("id",input.zone.id).eq("version",input.zone.expectedVersion).select("id").maybeSingle();
+        if (deleted.error) throw deleted.error; if (!deleted.data) throw new Error("La provincia cambió en otra sesión. Recarga antes de continuar.");
+      } else {
+        const updated = await client.from("commercial_prices").update({label:input.zone.province.trim(),destination:input.zone.province.trim(),unit_price:input.zone.transportValue,pricing_status:input.zone.transportValue===null?"REQUIRES_QUOTE":"DEFINED",enabled:input.zone.enabled,display_order:input.zone.displayOrder,rules:{municipalities},approval_reason:input.reason.trim(),updated_by:userId}).eq("id",input.zone.id).eq("version",input.zone.expectedVersion).select("id").maybeSingle();
+        if (updated.error) throw updated.error; if (!updated.data) throw new Error("La provincia cambió en otra sesión. Recarga antes de continuar.");
+      }
+    }
+    revalidatePath("/settings"); revalidatePath("/projects");
+    return {ok:true as const};
+  } catch(error) { return {ok:false as const,error:error instanceof Error?error.message:"No fue posible actualizar el transporte."}; }
+}
+
 export async function updateMasterDataAction(input: { id: string; source: "MASTER" | "COMMERCIAL"; enabled: boolean; displayOrder: number; price?: number | null; configuration?: string; reason: string; expectedVersion: number }) {
   try {
     if (!input.reason.trim()) throw new Error("La razón del cambio es obligatoria.");
