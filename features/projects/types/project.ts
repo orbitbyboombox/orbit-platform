@@ -1,5 +1,5 @@
 export const projectTypes = ["Wedding", "Corporate", "Birthday", "Graduation", "Private", "Other"] as const;
-export const projectServices = ["Classic", "Polaroid", "Black Studio", "360", "LightBox", "BoomBall"] as const;
+export const projectServices = ["Classic", "Polaroid", "Black Studio", "360", "LightBox", "BoomBall", "Hashtag"] as const;
 export const projectStatuses = ["Active", "Upcoming", "Completed", "Archived"] as const;
 export const projectHealthLevels = ["Healthy", "Attention", "Risk", "Critical"] as const;
 export const projectCommercialStages = ["New", "Contacted", "Quoting", "Waiting", "Reserved", "Confirmed", "Production", "Finished"] as const;
