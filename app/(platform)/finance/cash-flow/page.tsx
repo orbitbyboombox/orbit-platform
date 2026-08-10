@@ -5,16 +5,17 @@ function relation<T>(value:unknown):T|undefined{return Array.isArray(value)?valu
 
 export default async function CashFlowPage(){
   const client=await createSupabaseServerClient();
-  const[paymentsResult,invoicesResult,expensesResult,staffMonthsResult,staffAdvancesResult,staffEventsResult,fuelResult]=await Promise.all([
+  const[paymentsResult,invoicesResult,expensesResult,staffMonthsResult,staffAdvancesResult,staffEventsResult,fuelResult,vehiclesResult]=await Promise.all([
     client.from("invoice_payments").select("id,invoice_id,amount,paid_at,method,reference").order("paid_at",{ascending:false}),
     client.from("accounts_receivable_projection").select("id,invoice_number,project_id,customer_id,customer_type,due_date,amount,paid_amount,outstanding_balance,effective_status,customers(full_name),projects(name)"),
     client.from("expenses").select("id,occurred_on,category,supplier,total,status,receipt_path,approval_reason").is("deleted_at",null).order("occurred_on",{ascending:false}),
     client.from("staff_payment_months").select("id,staff_id,month,advances,paid_amount,status,updated_at,staff(first_name,last_name)"),
     client.from("staff_payment_advances").select("id,payment_month_id,amount,created_at"),
     client.from("event_staff_payments").select("id,staff_id,total_internal_payment,status,projects!inner(event_date),staff(first_name,last_name)").is("deleted_at",null).neq("status","CANCELLED"),
-    client.from("vehicle_fuel_logs").select("id,fuel_date,total_amount,receipt_path,gas_station,vehicle_profiles!inner(model)"),
+    client.from("vehicle_fuel_logs").select("id,asset_id,fuel_date,total_amount,receipt_path,gas_station"),
+    client.from("vehicle_profiles").select("asset_id,model"),
   ]);
-  const error=paymentsResult.error??invoicesResult.error??expensesResult.error??staffMonthsResult.error??staffAdvancesResult.error??staffEventsResult.error??fuelResult.error;if(error)throw error;
+  const error=paymentsResult.error??invoicesResult.error??expensesResult.error??staffMonthsResult.error??staffAdvancesResult.error??staffEventsResult.error??fuelResult.error??vehiclesResult.error;if(error)throw error;
   const transactions:CashFlowTransaction[]=[];const invoices=new Map((invoicesResult.data??[]).map(item=>[item.id,item]));
   for(const payment of paymentsResult.data??[]){const invoice=invoices.get(payment.invoice_id);const customer=relation<{full_name?:string}>(invoice?.customers);const project=relation<{name?:string}>(invoice?.projects);transactions.push({id:payment.id,kind:"INCOMING",date:payment.paid_at.slice(0,10),amount:Number(payment.amount),title:invoice?.customer_type==="CORPORATE"?"Pago corporativo":"Pago de reserva",detail:[invoice?.invoice_number,customer?.full_name,project?.name].filter(Boolean).join(" · ")||"Ingreso registrado",href:"/finance/receivables",source:payment.method||"Ingreso manual"});}
   const expenseReceipts=new Set((expensesResult.data??[]).map(item=>item.receipt_path).filter(Boolean));
@@ -25,7 +26,8 @@ export default async function CashFlowPage(){
   const staffCommitments=new Map<string,{staffId:string;month:string;dueDate:string;name:string;gross:number}>();
   for(const payment of staffEventsResult.data??[]){const project=relation<{event_date?:string}>(payment.projects);if(!project?.event_date)continue;const member=relation<{first_name?:string;last_name?:string}>(payment.staff);const month=project.event_date.slice(0,7);const key=`${payment.staff_id}:${month}`;const existing=staffCommitments.get(key);staffCommitments.set(key,{staffId:payment.staff_id,month,dueDate:existing&&existing.dueDate>project.event_date?existing.dueDate:project.event_date,name:`${member?.first_name??""} ${member?.last_name??""}`.trim(),gross:(existing?.gross??0)+Number(payment.total_internal_payment)});}
   for(const commitment of staffCommitments.values()){const record=(staffMonthsResult.data??[]).find(item=>item.staff_id===commitment.staffId&&item.month.startsWith(commitment.month));const outstanding=Math.max(0,commitment.gross-Number(record?.advances??0)-Number(record?.paid_amount??0));if(outstanding>0)transactions.push({id:`staff-pending-${commitment.staffId}-${commitment.month}`,kind:"PENDING_PAYMENT",date:commitment.dueDate,amount:outstanding,title:"Pago pendiente de Staff",detail:`${commitment.name||"Staff BOOMBOX"} · ${commitment.month}`,href:"/resources/staff",source:"Staff"});}
-  for(const fuel of fuelResult.data??[]){if(expenseReceipts.has(fuel.receipt_path))continue;const vehicle=relation<{model?:string}>(fuel.vehicle_profiles);transactions.push({id:fuel.id,kind:"OUTGOING",date:fuel.fuel_date,amount:Number(fuel.total_amount),title:"Combustible",detail:`${vehicle?.model??"Vehículo"} · ${fuel.gas_station}`,href:"/resources",source:"Flota"});}
+  const vehicles=new Map((vehiclesResult.data??[]).map(item=>[item.asset_id,item.model]));
+  for(const fuel of fuelResult.data??[]){if(expenseReceipts.has(fuel.receipt_path))continue;transactions.push({id:fuel.id,kind:"OUTGOING",date:fuel.fuel_date,amount:Number(fuel.total_amount),title:"Combustible",detail:`${vehicles.get(fuel.asset_id)??"Vehículo"} · ${fuel.gas_station}`,href:"/resources",source:"Flota"});}
   const today=new Date().toLocaleDateString("en-CA",{timeZone:"America/Santiago"});
   for(const invoice of invoicesResult.data??[]){if(!["PENDING","PARTIALLY_PAID","OVERDUE"].includes(invoice.effective_status)||Number(invoice.outstanding_balance)<=0)continue;const customer=relation<{full_name?:string}>(invoice.customers);transactions.push({id:invoice.id,kind:"PENDING_COLLECTION",date:invoice.due_date??today,amount:Number(invoice.outstanding_balance),title:invoice.invoice_number,detail:customer?.full_name??"Cliente BOOMBOX",href:`/finance/receivables?invoice=${invoice.id}`,source:invoice.customer_type==="CORPORATE"?"Cobranza corporativa":"Saldo de reserva",overdue:Boolean(invoice.due_date&&invoice.due_date<today)});}
   return <CashFlowCenter data={{generatedAt:new Date().toISOString(),transactions}}/>;
