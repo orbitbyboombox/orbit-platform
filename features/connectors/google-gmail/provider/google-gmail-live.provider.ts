@@ -9,6 +9,8 @@ export interface GoogleGmailProviderMessage {
 }
 
 const utf8Base64Url = (value: string) => btoa(unescape(encodeURIComponent(value))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const utf8Base64 = (value: string) => btoa(unescape(encodeURIComponent(value)));
+const encodedSubject = (value: string) => `=?UTF-8?B?${utf8Base64(value)}?=`;
 const bytesBase64 = (value: ArrayBuffer) => {
   const bytes = new Uint8Array(value); let binary = "";
   for (let index = 0; index < bytes.length; index += 8192) binary += String.fromCharCode(...bytes.subarray(index, index + 8192));
@@ -30,7 +32,7 @@ export class InMemoryGoogleGmailLiveProvider implements GoogleGmailLiveProvider 
 export class GoogleGmailApiProvider implements GoogleGmailLiveProvider {
   constructor(private readonly accessToken: string, private readonly userId = "me") {}
   private async raw(message: GoogleGmailProviderMessage): Promise<string> {
-    const headers = [`To: ${message.to}`, `Subject: ${message.subject}`, "MIME-Version: 1.0", "Content-Type: text/html; charset=UTF-8"];
+    const headers = [`To: ${message.to}`, `Subject: ${encodedSubject(message.subject)}`, "MIME-Version: 1.0", "Content-Type: text/html; charset=UTF-8"];
     if (message.replyToMessageId) headers.push(`In-Reply-To: ${message.replyToMessageId}`, `References: ${message.replyToMessageId}`);
     if (!message.driveFileIds.length) return utf8Base64Url(`${headers.join("\r\n")}\r\n\r\n${message.htmlBody}`);
     const boundary = `orbit-${crypto.randomUUID()}`;

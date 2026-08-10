@@ -6,7 +6,6 @@ import { synchronizeConfirmedReservationCalendar } from "@/features/connectors/g
 import { uploadReservationDocumentToDrive } from "@/features/connectors/google-drive/application/google-drive-document-routing.service";
 import { synchronizeConfirmedReservationDrive } from "@/features/connectors/google-drive/application/google-drive-sync.service";
 import { confirmDigitalSignature } from "@/features/projects/signing/digital-signature.service";
-import { createCustomerPortalAccess } from "@/features/customer-portal/customer-portal.service";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { automaticBookingTokenHash } from "./automatic-booking.service";
 
@@ -30,14 +29,21 @@ export async function completeAutomaticBooking(input: { token: string; submissio
   try {
     validate(input.submission);
     const actorId = invitation.created_by;
-    const customerId = randomUUID();
+    const normalizedRut = input.submission.customer.rut.replace(/[^0-9K]/gi, "").toUpperCase();
+    const { data: customerCandidates, error: customerLookupError } = await admin.from("customers").select("id,rut").is("deleted_at", null);
+    if (customerLookupError) throw customerLookupError;
+    const existingCustomer = (customerCandidates ?? []).find((customer) => String(customer.rut ?? "").replace(/[^0-9K]/gi, "").toUpperCase() === normalizedRut);
+    const customerId = existingCustomer?.id ?? randomUUID();
     const projectId = randomUUID();
     const orbitEventId = generateOrbitEventId(input.submission.event.date, (Number.parseInt(projectId.replaceAll("-", "").slice(-8), 16) % 999999) + 1);
     const pricing = await calculatePricing(admin, input.submission);
     const receiptBytes = Uint8Array.from(Buffer.from(input.submission.payment.receiptBase64, "base64"));
     if (receiptBytes.length < 20 || receiptBytes.length > 10_000_000) throw new Error("El comprobante no tiene un tamaño válido.");
 
-    const { error: customerError } = await admin.from("customers").insert({ id: customerId, full_name: input.submission.customer.name.trim(), email: invitation.customer_email, phone: input.submission.customer.phone, rut: input.submission.customer.rut, city: input.submission.event.municipality, metadata: { address: input.submission.customer.address }, created_by: actorId, updated_by: actorId });
+    const customerValues = { full_name: input.submission.customer.name.trim(), email: invitation.customer_email, phone: input.submission.customer.phone, rut: input.submission.customer.rut, city: input.submission.event.municipality, metadata: { address: input.submission.customer.address }, updated_by: actorId };
+    const { error: customerError } = existingCustomer
+      ? await admin.from("customers").update(customerValues).eq("id", customerId)
+      : await admin.from("customers").insert({ id: customerId, ...customerValues, created_by: actorId });
     if (customerError) throw customerError;
     const notes = [`Dirección evento: ${input.submission.event.address}`, `Contacto operacional: ${input.submission.event.operationalContact} · ${input.submission.event.operationalPhone}`, "Reserva automática completada por el cliente.", "Términos BOOMBOX aceptados."].join("\n");
     const finance = { total: pricing.total, reservationAmount: Math.round(pricing.total / 2), remainingBalance: pricing.total - Math.round(pricing.total / 2), paymentMethod: input.submission.payment.method, paymentStatus: "RESERVATION_RECEIVED" };
@@ -53,7 +59,9 @@ export async function completeAutomaticBooking(input: { token: string; submissio
     const agreementId = randomUUID();
     const { error: agreementError } = await admin.from("agreements").insert({ id: agreementId, project_id: projectId, status: "SENT", template_version: "1.0", rendered_contract: { quotationNumber, termsAccepted: true, commercialSummary: pricing }, created_by: actorId, updated_by: actorId });
     if (agreementError) throw agreementError;
-    await admin.from("customer_memory").insert({ customer_id: customerId, context: { customerName: input.submission.customer.name, eventType: input.submission.event.type, eventDate: input.submission.event.date, currentTimelineStage: "Reserva confirmada", nextRecommendedAction: "Preparar operación" }, created_by: actorId, updated_by: actorId });
+    const memory = { customer_id: customerId, context: { customerName: input.submission.customer.name, eventType: input.submission.event.type, eventDate: input.submission.event.date, currentTimelineStage: "Reserva confirmada", nextRecommendedAction: "Preparar operación" }, created_by: actorId, updated_by: actorId };
+    const { error: memoryError } = await admin.from("customer_memory").upsert(memory, { onConflict: "customer_id" });
+    if (memoryError) throw memoryError;
     await admin.from("timeline_events").insert({ customer_id: customerId, project_id: projectId, event_type: "AUTOMATIC_RESERVATION_CREATED", title: "Reserva automática creada.", description: "El cliente completó la reserva desde la invitación segura.", orbit_event_id: orbitEventId, actor_label: "Cliente", source: "Customer", action: "AUTOMATIC_RESERVATION_CREATED", entity_type: "Project", entity_id: projectId, human_message: "Reserva automática creada y confirmada por el cliente.", correlation_id: `automatic-booking:${invitation.id}`, created_by: actorId });
 
     await synchronizeConfirmedReservationDrive({ client: admin, projectId, actorId });
@@ -64,12 +72,11 @@ export async function completeAutomaticBooking(input: { token: string; submissio
 
     const signingToken = randomBytes(32).toString("base64url");
     await admin.from("agreement_signing_tokens").insert({ agreement_id: agreementId, token_hash: automaticBookingTokenHash(signingToken), expires_at: new Date(Date.now() + 15 * 60_000).toISOString(), created_by: actorId });
-    await confirmDigitalSignature({ token: signingToken, signatureDataUrl: input.submission.signatureDataUrl, ipAddress: input.ipAddress, userAgent: input.userAgent });
+    const signatureResult = await confirmDigitalSignature({ token: signingToken, signatureDataUrl: input.submission.signatureDataUrl, ipAddress: input.ipAddress, userAgent: input.userAgent });
     await synchronizeConfirmedReservationCalendar({ client: admin, projectId, actorId, requireCommercialReadiness: true });
-    const portal = await createCustomerPortalAccess(projectId, actorId);
     await admin.from("internal_notifications").insert({ project_id: projectId, customer_id: customerId, notification_type: "AUTOMATIC_RESERVATION_CONFIRMED", title: "🎉 Nueva Reserva Confirmada", message: `${input.submission.customer.name} · ${input.submission.service.code} · ${input.submission.event.date} · ${pricing.total}`, status: "UNREAD", correlation_id: `automatic-booking-confirmed:${invitation.id}`, category: "COMMERCIAL", priority: "HIGH", action_required: false, entity_type: "Project", entity_id: projectId, related_href: `/projects/${projectId}` });
     await admin.from("automatic_booking_invitations").update({ status: "COMPLETED", consumed_at: new Date().toISOString(), processing_at: null, project_id: projectId, payload: { service: input.submission.service.code, eventDate: input.submission.event.date, total: pricing.total } }).eq("id", invitation.id);
-    return { projectId, portalUrl: portal.url, total: pricing.total };
+    return { projectId, portalUrl: signatureResult.portalUrl, total: pricing.total };
   } catch (error) {
     await admin.from("automatic_booking_invitations").update({ status: "OPENED", processing_at: null }).eq("id", invitation.id).is("consumed_at", null);
     throw error;

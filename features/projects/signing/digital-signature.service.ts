@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { uploadReservationDocumentToDrive } from "@/features/connectors/google-drive/application/google-drive-document-routing.service";
 import { GoogleGmailApiProvider } from "@/features/connectors/google-gmail/provider/google-gmail-live.provider";
 import { deliverConfirmedReservationEmail } from "@/features/connectors/google-gmail/application/google-gmail-delivery.service";
+import { createCustomerPortalAccess } from "@/features/customer-portal/customer-portal.service";
 import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import { createSignedAgreementPdf } from "./signed-agreement-pdf";
 import { loadCompanySettings } from "@/features/company-settings";
@@ -65,8 +66,10 @@ export async function confirmDigitalSignature(input: { token: string; signatureD
     await admin.from("agreement_signing_tokens").update({ consumed_at: signedAt, processing_at: null }).eq("id", claim.id);
     await Promise.all([timeline(admin, { projectId: agreement.project_id, agreementId: agreement.id, action: "AGREEMENT_SIGNED", message: "Acuerdo firmado por el cliente.", actorId: null }), timeline(admin, { projectId: agreement.project_id, agreementId: agreement.id, action: "AGREEMENT_LOCKED", message: "Acuerdo bloqueado para edición.", actorId: null }), timeline(admin, { projectId: agreement.project_id, agreementId: agreement.id, action: "PDF_UPLOADED", message: "PDF firmado almacenado en Google Drive.", actorId: null })]);
     const deliveryActorId = agreement.created_by ?? agreement.projects.created_by;
-    if (deliveryActorId) await deliverConfirmedReservationEmail({ projectId: agreement.project_id, actorId: deliveryActorId });
-    return { signedAt };
+    if (!deliveryActorId) throw new Error("El contrato no tiene un responsable interno asociado.");
+    const portal = await createCustomerPortalAccess(agreement.project_id, deliveryActorId);
+    await deliverConfirmedReservationEmail({ projectId: agreement.project_id, actorId: deliveryActorId, portal });
+    return { signedAt, portalUrl: portal.url };
   } catch (error) { await admin.from("agreement_signing_tokens").update({ processing_at: null }).eq("id", claim.id).is("consumed_at", null); throw error; }
 }
 
