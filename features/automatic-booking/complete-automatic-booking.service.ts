@@ -21,7 +21,9 @@ export interface AutomaticBookingSubmission {
 export async function completeAutomaticBooking(input: { token: string; submission: AutomaticBookingSubmission; ipAddress: string; userAgent: string }) {
   const admin = createAdminClient();
   const now = new Date().toISOString();
-  const { data: invitation, error: claimError } = await admin.from("automatic_booking_invitations").update({ status: "PROCESSING", processing_at: now }).eq("token_hash", automaticBookingTokenHash(input.token)).eq("customer_email", input.submission.customer.email.trim().toLowerCase()).gt("expires_at", now).is("consumed_at", null).in("status", ["SENT", "OPENED"]).select("id,created_by,customer_email").maybeSingle();
+  const submittedEmail = input.submission?.customer?.email;
+  if (typeof submittedEmail !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(submittedEmail)) throw new Error("La información enviada no es válida.");
+  const { data: invitation, error: claimError } = await admin.from("automatic_booking_invitations").update({ status: "PROCESSING", processing_at: now }).eq("token_hash", automaticBookingTokenHash(input.token)).eq("customer_email", submittedEmail.trim().toLowerCase()).gt("expires_at", now).is("consumed_at", null).in("status", ["SENT", "OPENED"]).select("id,created_by,customer_email").maybeSingle();
   if (claimError) throw claimError;
   if (!invitation) throw new Error("La invitación ya no está disponible.");
 
