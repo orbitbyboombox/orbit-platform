@@ -1,4 +1,4 @@
-import { ProfitEngine, ProfitabilityExperience, SupabaseProfitRepository } from "@/features/profit-engine";
+import { ProfitEngine, ProfitabilityExperience, refreshRealEventCosts, SupabaseProfitRepository } from "@/features/profit-engine";
 import { SupplyEngine, SupabaseSupplyRepository } from "@/features/supply-engine";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import Link from "next/link";
@@ -7,6 +7,7 @@ import { FinancialDashboard } from "@/features/finance/components/financial-dash
 
 export default async function FinancePage() {
   const client = await createSupabaseServerClient();
+  await refreshRealEventCosts(client);
   const profitRepository = new SupabaseProfitRepository(client);
   const supplyRepository = new SupabaseSupplyRepository(client);
   const [events, supplies, expensesResult, receivablesResult, quotationsResult] = await Promise.all([

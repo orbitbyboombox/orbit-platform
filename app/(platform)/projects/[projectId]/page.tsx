@@ -3,6 +3,7 @@ import { ProjectHealth, ProjectType } from "@/features/projects/domain";
 import { ProjectWorkspaceExperience } from "@/features/projects/components/project-workspace-experience";
 import { SupabaseCustomerRepository, SupabaseTimelineRepository } from "@/features/projects/infrastructure";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { calculateAndPersistRealEventCost } from "@/features/profit-engine";
 
 export interface ProjectWorkspacePageProps {
   params: Promise<{ projectId: string }>;
@@ -32,6 +33,7 @@ export default async function ProjectWorkspacePage({ params, searchParams }: Pro
   }
   const project = projects.find((candidate) => candidate.id === projectId);
   if (!project) notFound();
+  const realCost = await calculateAndPersistRealEventCost(client,projectId);
   const timeline = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(projectId)
     ? await new SupabaseTimelineRepository(client).findByProject(projectId)
     : [];
@@ -136,7 +138,7 @@ export default async function ProjectWorkspacePage({ params, searchParams }: Pro
     documents: (documents ?? []).map((item) => ({ id: item.id, type: item.document_type, href: item.drive_file_id ? `https://drive.google.com/open?id=${item.drive_file_id}` : undefined, createdAt: item.created_at })),
     google: { calendarStatus: calendarSync?.status ?? "PENDING", calendarUrl: calendarSync?.external_url ?? undefined, driveStatus: (driveSync ?? []).length ? "CREATED" : "PENDING", driveUrl: (documents ?? []).find((item) => item.drive_file_id)?.drive_file_id ? `https://drive.google.com/open?id=${(documents ?? []).find((item) => item.drive_file_id)?.drive_file_id}` : undefined, gmailStatus: communications?.find((item) => item.channel === "GMAIL")?.status ?? "PENDING", gmailThread: communications?.find((item) => item.channel === "GMAIL")?.thread_key },
     payroll: (payroll ?? []).map((item) => ({ staff: Array.isArray(item.staff) ? `${item.staff[0]?.first_name ?? ""} ${item.staff[0]?.last_name ?? ""}`.trim() : "Staff", assembly: Number(item.assembly_payment), operator: Number(item.operator_payment), disassembly: Number(item.disassembly_payment), transport: Number(item.transport_bonus), parking: Number(item.parking_payment), total: Number(item.total_internal_payment), status: item.status })),
-    profit: profit?.[0] ? { revenue: Number(profit[0].revenue), operationalCost: Number(profit[0].operational_cost), grossMargin: Number(profit[0].gross_margin), marginPercent: Number(profit[0].gross_margin_percent), status: profit[0].status } : undefined,
+    profit: realCost,
     receivable: invoice ? { invoiceNumber: invoice.invoice_number, amount: Number(invoice.amount), outstandingBalance: Number(invoice.outstanding_balance), dueDate: invoice.due_date, paymentTerm: invoice.payment_term, daysRemaining: invoice.days_remaining, status: invoice.effective_status } : undefined,
     checklist: (()=>{const items=(checklist?.event_checklist_items??[]).sort((a,b)=>a.category.localeCompare(b.category)||a.position-b.position);const mandatory=items.filter(x=>x.mandatory).length;const completed=items.filter(x=>x.mandatory&&x.completed).length;return{id:checklist?.id??"",status:checklist?.status??"IN_PROGRESS",items:items.map(x=>({id:x.id,key:x.item_key,category:x.category,label:x.label,position:x.position,mandatory:x.mandatory,completed:x.completed,completedAt:x.completed_at})),milestones:(checklist?.event_operational_milestones??[]).map(x=>({milestone:x.milestone,occurredAt:x.occurred_at,notes:x.notes})),completed,mandatory,progress:mandatory?Math.round(completed/mandatory*100):0}})(),
     experienceReview: {

@@ -1,9 +1,11 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { BusinessIntelligenceCenter, type BusinessIntelligenceDataset } from "@/features/business-intelligence";
+import { refreshRealEventCosts } from "@/features/profit-engine";
 
 export default async function ReportsPage(){
   const client=await createSupabaseServerClient(); const {data:auth,error:authError}=await client.auth.getUser(); if(authError||!auth.user)redirect("/login");
+  await refreshRealEventCosts(client);
   const [customers,projects,services,quotations,quotationItems,profits,assignments,payroll,staff,assets,assetAssignments,assetHistory,reviews,reviewStaff,profiles,receivables]=await Promise.all([
     client.from("customers").select("id,full_name,city,metadata,created_at").is("deleted_at",null),
     client.from("projects").select("id,customer_id,name,project_type,status,event_date,city,location,created_at").is("deleted_at",null),
