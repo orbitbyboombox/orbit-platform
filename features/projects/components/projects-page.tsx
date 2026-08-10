@@ -8,11 +8,11 @@ import { ActionButton } from "@/components/ui/action-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { Project, ProjectFilter } from "../types/project";
 import { createCustomerProjectAction } from "../actions/customer.actions";
-import { NewProjectDrawer, type ReservationCommercialPrice } from "./new-project-drawer";
+import { NewProjectDrawer, type ReservationCommercialPrice, type ReservationVenue } from "./new-project-drawer";
 import { ProjectCard } from "./project-card";
 import { ProjectFilters } from "./project-filters";
 
-export function ProjectsPage({ commercialPrices, initialProjects }: { commercialPrices: ReservationCommercialPrice[]; initialProjects: Project[] }) {
+export function ProjectsPage({ commercialPrices, initialProjects, venues }: { commercialPrices: ReservationCommercialPrice[]; initialProjects: Project[]; venues: ReservationVenue[] }) {
   const router = useRouter();
   const [projects, setProjects] = useState<Project[]>(initialProjects);
   const [filter, setFilter] = useState<ProjectFilter>("All");
@@ -75,7 +75,7 @@ export function ProjectsPage({ commercialPrices, initialProjects }: { commercial
         <EmptyState action={<ActionButton icon={Plus} label="Nueva reserva" onClick={() => setDrawerOpen(true)} />} className="py-20" description={query ? "Prueba con un nombre, proyecto, ciudad, teléfono o tipo de evento." : "Crea la primera reserva para comenzar."} icon={FolderKanban} title={query ? "No encontramos clientes" : "Aún no tienes reservas"} />
       )}
 
-      <NewProjectDrawer commercialPrices={commercialPrices} onClose={() => setDrawerOpen(false)} onCreate={addProject} open={drawerOpen} />
+      <NewProjectDrawer commercialPrices={commercialPrices} onClose={() => setDrawerOpen(false)} onCreate={addProject} open={drawerOpen} venues={venues} />
     </div>
   );
 }

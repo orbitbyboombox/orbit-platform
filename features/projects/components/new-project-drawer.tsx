@@ -156,8 +156,15 @@ export interface ReservationCommercialPrice {
   pricingStatus: "DEFINED" | "REQUIRES_QUOTE";
   rules?: Record<string, unknown>;
 }
+export interface ReservationVenue {
+  name: string;
+  municipality: string;
+  province: string;
+  surcharge: number;
+}
 export interface NewProjectDrawerProps {
   commercialPrices: ReservationCommercialPrice[];
+  venues: ReservationVenue[];
   open: boolean;
   onClose: () => void;
   onCreate: (draft: ProjectDraft) => Promise<Project>;
@@ -267,40 +274,26 @@ function SignaturePad({ disabled, onConfirmed }: { disabled: boolean; onConfirme
   );
 }
 
-function CommercialSummary({ balance, breakdown, extras, reservation, serviceLines, total, transport, transportProvince }: { balance: number; breakdown?: Array<{ label: string; value: string }>; extras: string; reservation: number; serviceLines: Array<{ service: ProjectService; hours: number; total: number }>; total: number; transport: number | null; transportProvince: string | null }) {
+function CommercialSummary({ balance, extras, plan, reservation, subtotal, total }: { balance: number; extras: Array<{ label: string; value: string }>; plan: { service: ProjectService; hours: number; price: number } | null; reservation: number; subtotal: number; total: number }) {
   return (
     <section aria-live="polite" className="reservation-summary-panel rounded-2xl border bg-card p-5 shadow-sm">
       <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Resumen de reserva</p>
       <dl className="mt-4 space-y-3 text-sm">
-        <div>
-          <dt className="text-muted">Servicios y horas</dt>
+        <div className="rounded-xl border bg-background/40 p-3">
+          <dt className="text-xs font-semibold uppercase tracking-[.14em] text-muted">Plan contratado</dt>
           <dd className="mt-1 space-y-1 font-medium">
-            {serviceLines.length
-              ? serviceLines.map((line) => (
-                  <span className="flex items-start justify-between gap-3" key={line.service}>
-                    <span>{serviceLabels[line.service]} · {line.hours} horas</span>
-                    <strong className="shrink-0 text-brand">{currency.format(line.total)}</strong>
-                  </span>
-                ))
-              : "Servicio pendiente"}
+            {plan ? <span className="flex items-start justify-between gap-3"><span><strong className="block">{serviceLabels[plan.service]}</strong>{plan.hours} Horas</span><strong className="shrink-0 text-brand">{currency.format(plan.price)}</strong></span> : "Servicio pendiente"}
           </dd>
         </div>
-        {breakdown ? (
-          breakdown.map((item) => (
-            <div className="flex justify-between gap-3" key={item.label}>
-              <dt className="text-muted">{item.label}</dt>
-              <dd className="text-right font-medium">{item.value}</dd>
-            </div>
-          ))
-        ) : (
-          <div>
-            <dt className="text-muted">Extras</dt>
-            <dd className="mt-1 font-medium">{extras}</dd>
-          </div>
-        )}
-        <div className="flex justify-between gap-3">
-          <dt className="text-muted">Transporte{transportProvince ? ` · ${transportProvince}` : ""}</dt>
-          <dd className="font-medium">{transport == null ? "Selecciona comuna" : currency.format(transport)}</dd>
+        <div>
+          <dt className="text-xs font-semibold uppercase tracking-[.14em] text-muted">Extras</dt>
+          <dd className="mt-2 space-y-2">
+            {extras.length ? extras.map((item) => <span className="flex justify-between gap-3" key={item.label}><span className="text-muted">{item.label}</span><strong className="text-right font-medium">{item.value}</strong></span>) : <span className="text-muted">Sin extras</span>}
+          </dd>
+        </div>
+        <div className="flex justify-between gap-3 border-t pt-3">
+          <dt className="font-semibold">SUBTOTAL</dt>
+          <dd className="font-semibold">{currency.format(subtotal)}</dd>
         </div>
         <div className="flex justify-between gap-3">
           <dt className="text-muted">Reserva</dt>
@@ -319,7 +312,7 @@ function CommercialSummary({ balance, breakdown, extras, reservation, serviceLin
   );
 }
 
-export function NewProjectDrawer({ commercialPrices, open, onClose, onCreate }: NewProjectDrawerProps) {
+export function NewProjectDrawer({ commercialPrices, venues, open, onClose, onCreate }: NewProjectDrawerProps) {
   const [step, setStep] = useState(0);
   const [method, setMethod] = useState<"MANUAL">("MANUAL");
   const [draft, setDraft] = useState<ProjectDraft>(initialDraft);
@@ -364,8 +357,10 @@ export function NewProjectDrawer({ commercialPrices, open, onClose, onCreate }: 
         })),
       )
       .find((item) => item.municipality === draft.event.city) ?? null;
+  const selectedVenue = venues.find((venue) => venue.name.localeCompare(draft.event.location.trim(), "es", { sensitivity: "base" }) === 0) ?? null;
   const transportPrice = selectedMunicipality?.price;
   const transportTotal = selectedMunicipality && transportPrice?.pricingStatus === "DEFINED" ? Number(transportPrice.unitPrice ?? 0) : null;
+  const venueSurcharge = Number(selectedVenue?.surcharge ?? 0);
   const includedExtras: ServiceExtra[] = draft.type === "Wedding" ? ["QR", "Scrapbook"] : draft.type === "Birthday" || draft.type === "Graduation" ? ["QR"] : [];
   const priceFor = (category: ReservationCommercialPrice["category"], code: string, durationHours?: number) => commercialPrices.find((price) => price.category === category && price.code === code && (category !== "SERVICE" || price.durationHours === durationHours || price.durationHours === null));
   const brandingPrice = priceFor("EXTRA", extraCodes.Branding);
@@ -378,13 +373,14 @@ export function NewProjectDrawer({ commercialPrices, open, onClose, onCreate }: 
     return code ? (priceFor("EXTRA", code)?.unitPrice ?? 0) : 0;
   };
   const compatibleIncludedExtras = (service: ProjectService) => includedExtras.filter((extra) => serviceExtraCompatibility[service].includes(extra));
+  const serviceBasePrice = (service: ProjectService, configuration: ServiceConfiguration) => Number(priceFor("SERVICE", serviceCodes[service], configuration.hours)?.unitPrice ?? 0);
   const serviceTotal = (service: ProjectService, configuration: ServiceConfiguration) => {
-    const base = Number(priceFor("SERVICE", serviceCodes[service], configuration.hours)?.unitPrice ?? 0);
+    const base = serviceBasePrice(service, configuration);
     const extras = Array.from(new Set([...configuration.extras, ...compatibleIncludedExtras(service)])).reduce((sum, extra) => sum + (extra === "Branding" ? Number(extraUnitPrice(extra)) * configuration.brandingQuantity : Number(extraUnitPrice(extra))), 0);
     return base + configuration.additionalHours * additionalHourRates[service] + extras;
   };
   const servicesTotal = (Object.entries(configurations) as Array<[ProjectService, ServiceConfiguration]>).reduce((sum, [service, configuration]) => sum + serviceTotal(service, configuration), 0);
-  const commercialTotal = servicesTotal + Number(transportTotal ?? 0);
+  const commercialTotal = servicesTotal + Number(transportTotal ?? 0) + venueSurcharge;
   const payableTotal = Math.round(commercialTotal * (paymentMethod === "MERCADO_PAGO" ? 1.05 : 1));
   const reservationTotal = Math.round(payableTotal * 0.5);
   const balanceTotal = payableTotal - reservationTotal;
@@ -397,24 +393,18 @@ export function NewProjectDrawer({ commercialPrices, open, onClose, onCreate }: 
   const extraSelected = (extra: ServiceExtra) => compatibleIncludedExtrasSelected.includes(extra) || selectedConfigurations.some((configuration) => configuration.extras.includes(extra));
   const extraSubtotal = (extra: ServiceExtra) => selectedConfigurations.reduce((sum, configuration) => sum + (configuration.extras.includes(extra) ? Number(extraUnitPrice(extra)) * (extra === "Branding" ? configuration.brandingQuantity : 1) : 0), 0);
   const brandingQuantityTotal = selectedConfigurations.reduce((sum, configuration) => sum + (configuration.extras.includes("Branding") ? configuration.brandingQuantity : 0), 0);
-  const serviceBreakdown = [
-    {
-      label: "Branding",
-      value: brandingQuantityTotal ? `${brandingQuantityTotal} caras · ${currency.format(extraSubtotal("Branding"))}` : "No incluido",
-    },
-    {
-      label: "QR",
-      value: compatibleIncludedExtrasSelected.includes("QR") ? "Incluido · $0" : extraSelected("QR") ? currency.format(extraSubtotal("QR")) : "No incluido",
-    },
-    {
-      label: "Imanes",
-      value: extraSelected("Imanes") ? currency.format(extraSubtotal("Imanes")) : "No incluido",
-    },
-    {
-      label: "Scrapbook",
-      value: compatibleIncludedExtrasSelected.includes("Scrapbook") ? "Incluido · $0" : extraSelected("Scrapbook") ? currency.format(extraSubtotal("Scrapbook")) : "No incluido",
-    },
-  ];
+  const primaryService = draft.services[0] ?? null;
+  const primaryConfiguration = primaryService ? configurations[primaryService] ?? null : null;
+  const plan = primaryService && primaryConfiguration ? { service: primaryService, hours: primaryConfiguration.hours, price: serviceBasePrice(primaryService, primaryConfiguration) } : null;
+  const commercialExtras: Array<{ label: string; value: string }> = [];
+  draft.services.slice(1).forEach((service) => { const configuration = configurations[service]; if (configuration) commercialExtras.push({ label: `${serviceLabels[service]} · ${configuration.hours} horas`, value: `+${currency.format(serviceBasePrice(service, configuration))}` }); });
+  (Object.entries(configurations) as Array<[ProjectService, ServiceConfiguration]>).forEach(([service, configuration]) => { if (configuration.additionalHours > 0) commercialExtras.push({ label: `${serviceLabels[service]} · ${configuration.additionalHours} h adicional${configuration.additionalHours > 1 ? "es" : ""}`, value: `+${currency.format(configuration.additionalHours * additionalHourRates[service])}` }); });
+  if (brandingQuantityTotal) commercialExtras.push({ label: `Branding · ${brandingQuantityTotal} caras`, value: `+${currency.format(extraSubtotal("Branding"))}` });
+  if (compatibleIncludedExtrasSelected.includes("QR")) commercialExtras.push({ label: "QR", value: "Incluido" }); else if (extraSelected("QR")) commercialExtras.push({ label: "QR", value: `+${currency.format(extraSubtotal("QR"))}` });
+  if (extraSelected("Imanes")) commercialExtras.push({ label: "Imanes", value: `+${currency.format(extraSubtotal("Imanes"))}` });
+  if (compatibleIncludedExtrasSelected.includes("Scrapbook")) commercialExtras.push({ label: "Scrapbook", value: "Incluido" }); else if (extraSelected("Scrapbook")) commercialExtras.push({ label: "Scrapbook", value: `+${currency.format(extraSubtotal("Scrapbook"))}` });
+  if (selectedMunicipality && transportTotal !== null) commercialExtras.push({ label: `Transporte · ${selectedMunicipality.province}`, value: transportTotal ? `+${currency.format(transportTotal)}` : "Incluido" });
+  if (venueSurcharge > 0) commercialExtras.push({ label: `Recargo sede · ${selectedVenue?.name}`, value: `+${currency.format(venueSurcharge)}` });
   const isCorporateCustomer = draft.type === "Corporate";
   const paymentDueDate = (() => {
     const base = isCorporateCustomer ? new Date() : draft.event.date ? new Date(`${draft.event.date}T12:00:00`) : null;
@@ -425,17 +415,7 @@ export function NewProjectDrawer({ commercialPrices, open, onClose, onCreate }: 
   })();
   const formattedDueDate = paymentDueDate ? new Intl.DateTimeFormat("es-CL", { dateStyle: "long" }).format(paymentDueDate) : "Pendiente de fecha del evento";
   const mercadoPagoCommission = payableTotal - commercialTotal;
-  const paymentBreakdown = [
-    ...serviceBreakdown,
-    ...(paymentMethod === "MERCADO_PAGO"
-      ? [
-          {
-            label: "Comisión Mercado Pago",
-            value: currency.format(mercadoPagoCommission),
-          },
-        ]
-      : []),
-  ];
+  const summaryExtras = [...commercialExtras, ...(paymentMethod === "MERCADO_PAGO" ? [{ label: "Comisión Mercado Pago", value: `+${currency.format(mercadoPagoCommission)}` }] : [])];
 
   if (!open) return null;
   const client = (field: keyof ProjectDraft["client"], value: string) =>
@@ -533,7 +513,7 @@ export function NewProjectDrawer({ commercialPrices, open, onClose, onCreate }: 
   const portalUrl = createdProject ? `${window.location.origin}/projects/${createdProject.id}#portal-cliente` : "";
   const confirmationEmailBody = createdProject ? [`Hola ${createdProject.client.name},`, "¡Reserva confirmada! Bienvenido a BOOMBOX.", "Resumen comercial", ...(Object.entries(configurations) as Array<[ProjectService, ServiceConfiguration]>).map(([service, configuration]) => `${serviceLabels[service]} · ${configuration.hours + configuration.additionalHours} horas · ${currency.format(serviceTotal(service, configuration))}`), `Extras: ${consolidatedExtras}`, `Transporte: ${currency.format(Number(transportTotal ?? 0))}`, `Reserva: ${currency.format(reservationTotal)}`, `Saldo restante: ${currency.format(balanceTotal)}`, `TOTAL: ${currency.format(payableTotal)}`, "Portal BOOMBOX", portalUrl, "Accede utilizando tu RUT y la fecha de tu evento."].join("\n\n") : "";
 
-  const summary = <CommercialSummary balance={balanceTotal} breakdown={step === 5 ? paymentBreakdown : step === 3 || step === 4 || step === 6 ? serviceBreakdown : undefined} extras={consolidatedExtras} reservation={reservationTotal} serviceLines={draft.services.flatMap((service) => { const configuration = configurations[service]; return configuration ? [{ service, hours: configuration.hours + configuration.additionalHours, total: serviceTotal(service, configuration) }] : []; })} total={payableTotal} transport={transportTotal} transportProvince={selectedMunicipality?.province ?? null} />;
+  const summary = <CommercialSummary balance={balanceTotal} extras={summaryExtras} plan={plan} reservation={reservationTotal} subtotal={commercialTotal} total={payableTotal} />;
 
   return (
     <>
@@ -661,21 +641,12 @@ export function NewProjectDrawer({ commercialPrices, open, onClose, onCreate }: 
                   </div>
                 </div>
                 <div className="grid gap-5 sm:grid-cols-2">
-                  <Field label="Lugar" onChange={(e) => event("location", e.target.value)} value={draft.event.location} />
+                  <div>
+                    <Field autoComplete="off" label="Lugar" list="orbit-event-venues" onChange={(e) => { const value = e.target.value; const venue = venues.find((item) => item.name.localeCompare(value.trim(), "es", { sensitivity: "base" }) === 0); setDraft((current) => ({ ...current, event: { ...current.event, location: value, city: venue?.municipality ?? "" } })); }} placeholder="Escribe el nombre de la sede" value={draft.event.location} />
+                    <datalist id="orbit-event-venues">{venues.map((venue) => <option key={venue.name} value={venue.name}>{venue.municipality}</option>)}</datalist>
+                    {draft.event.location && !selectedVenue && <p className="mt-2 text-xs text-muted">Selecciona una sede configurada en las sugerencias.</p>}
+                  </div>
                   <Field label="Dirección del evento" onChange={(e) => setEventAddress(e.target.value)} value={eventAddress} />
-                  <label className="block text-sm font-medium">
-                    Comuna
-                    <select className="mt-2 h-11 w-full rounded-lg border bg-background px-3" onChange={(e) => event("city", e.target.value)} value={draft.event.city}>
-                      <option value="">Selecciona una comuna</option>
-                      {municipalityGroups.map(({ province, municipalities }) => (
-                        <optgroup key={province} label={province}>
-                          {municipalities.map((municipality) => (
-                            <option key={municipality}>{municipality}</option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
-                  </label>
                   <Field label="Fecha del evento" onChange={(e) => event("date", e.target.value)} required type="date" value={draft.event.date} />
                   <Field label="Inicio del servicio BOOMBOX" onChange={(e) => event("time", e.target.value)} type="time" value={draft.event.time} />
                   <Field label="Contacto operacional" onChange={(e) => setOperationalContact(e.target.value)} value={operationalContact} />
@@ -689,13 +660,14 @@ export function NewProjectDrawer({ commercialPrices, open, onClose, onCreate }: 
                     <Field label="Contacto principal" onChange={(e) => setMainContact(e.target.value)} value={mainContact} />
                   ) : null}
                 </div>
-                {selectedMunicipality && (
+                {selectedVenue && selectedMunicipality && (
                   <div className="rounded-2xl border border-success/30 bg-success/5 p-4">
                     <p className="font-semibold text-success">Transporte calculado automáticamente</p>
                     <p className="mt-1 text-sm text-muted">
-                      {selectedMunicipality.municipality} · Provincia {selectedMunicipality.province}
+                      {selectedVenue.name} · {selectedVenue.municipality} · Provincia {selectedVenue.province}
                     </p>
                     <p className="mt-2 text-lg font-semibold">{transportTotal == null ? "Precio por confirmar" : currency.format(transportTotal)}</p>
+                    {venueSurcharge > 0 && <p className="mt-1 text-sm font-medium">Recargo especial de sede: {currency.format(venueSurcharge)}</p>}
                   </div>
                 )}
                 <p className="text-xs text-muted">La hora de término se calcula automáticamente según las horas contratadas.</p>
