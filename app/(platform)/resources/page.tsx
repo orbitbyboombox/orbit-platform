@@ -59,7 +59,7 @@ export default async function ResourcesPage() {
     return "EQUIPMENT";
   };
   const resources: OperationalResource[] = [
-    ...(assets ?? []).map((asset) => { const metadata = (asset.metadata ?? {}) as Record<string, unknown>; return { id: asset.id, source: "ASSET" as const, category: assetCategory(asset, metadata), name: typeof metadata.name === "string" ? metadata.name : asset.asset_code, code: asset.asset_code, status: asset.status, enabled: asset.status !== "OUT_OF_SERVICE", version: asset.version }; }),
+    ...(assets ?? []).filter((asset) => asset.asset_type !== "VEHICLE").map((asset) => { const metadata = (asset.metadata ?? {}) as Record<string, unknown>; return { id: asset.id, source: "ASSET" as const, category: assetCategory(asset, metadata), name: typeof metadata.name === "string" ? metadata.name : asset.asset_code, code: asset.asset_code, status: asset.status, enabled: asset.status !== "OUT_OF_SERVICE", version: asset.version }; }),
     ...(supplies ?? []).map((supply) => ({ id: supply.id, source: "SUPPLY" as const, category: "CONSUMABLES" as const, name: supply.name, code: supply.catalog_code, status: supply.status, enabled: supply.status !== "INACTIVE", version: supply.version })),
     ...(staff ?? []).filter((member) => ["OPERATOR", "INSTALLATION", "REMOVAL"].includes(member.role)).map((member) => ({ id: member.id, source: "STAFF" as const, category: member.role === "OPERATOR" ? "OPERATORS" as const : "ASSISTANTS" as const, name: `${member.first_name} ${member.last_name}`, code: member.rut ?? member.id, status: member.status, enabled: member.status === "ACTIVE", version: member.version })),
   ];

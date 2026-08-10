@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { createResourceAction, deleteResourceAction, setResourceEnabledAction, updateResourceAction, type OperationalResource, type ResourceCategory } from "./resource-center.actions";
 
 const categories:readonly{value:ResourceCategory;label:string}[]=[
-  {value:"EQUIPMENT",label:"Equipamiento"},{value:"VEHICLES",label:"Vehículos"},{value:"CONSUMABLES",label:"Consumibles"},{value:"OPERATORS",label:"Operadores"},{value:"ASSISTANTS",label:"Asistentes"},{value:"ACCESSORIES",label:"Accesorios"},
+  {value:"EQUIPMENT",label:"Equipamiento"},{value:"CONSUMABLES",label:"Consumibles"},{value:"OPERATORS",label:"Operadores"},{value:"ASSISTANTS",label:"Asistentes"},{value:"ACCESSORIES",label:"Accesorios"},
 ];
 const label=(category:ResourceCategory)=>categories.find((item)=>item.value===category)?.label??category;
 type Panel={mode:"create"}|{mode:"edit";item:OperationalResource}|null;
