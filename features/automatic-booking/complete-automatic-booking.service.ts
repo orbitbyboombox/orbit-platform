@@ -134,16 +134,29 @@ function validate(input: AutomaticBookingSubmission) {
 }
 
 async function calculatePricing(admin: ReturnType<typeof createAdminClient>, input: AutomaticBookingSubmission) {
-  const { data: prices, error } = await admin.from("commercial_prices").select("category,code,duration_hours,destination,unit_price,rules").eq("enabled", true).is("deleted_at", null);
-  if (error) throw error;
-  const serviceRows = (prices ?? []).filter((price) => price.category === "SERVICE" && price.code === input.service.code);
-  const exact = serviceRows.find((price) => Number(price.duration_hours) === input.service.hours) ?? serviceRows[0];
+  const [pricesResult, serviceResult, venuesResult] = await Promise.all([
+    admin.from("commercial_prices").select("category,code,duration_hours,destination,unit_price,rules").eq("enabled", true).is("deleted_at", null),
+    admin.from("master_data_entries").select("code,configuration").eq("domain", "SERVICES").eq("code", input.service.code).eq("enabled", true).maybeSingle(),
+    admin.from("master_data_entries").select("configuration").eq("domain", "SYSTEM_PARAMETERS").eq("code", "EVENT_VENUES").eq("enabled", true).maybeSingle(),
+  ]);
+  if (pricesResult.error || serviceResult.error || venuesResult.error) throw pricesResult.error ?? serviceResult.error ?? venuesResult.error;
+  if (!serviceResult.data) throw new Error("El servicio seleccionado ya no se encuentra disponible.");
+  const prices = pricesResult.data ?? [];
+  const serviceRows = prices.filter((price) => price.category === "SERVICE" && price.code === input.service.code);
+  const serviceConfiguration = (serviceResult.data.configuration ?? {}) as Record<string, unknown>;
+  const fixedHours = Number(serviceConfiguration.minimumHours ?? serviceConfiguration.defaultDuration ?? 0);
+  const exact = serviceRows.find((price) => Number(price.duration_hours) === input.service.hours) ?? (input.service.hours === fixedHours ? serviceRows.find((price) => price.duration_hours === null) : undefined);
   if (!exact?.unit_price) throw new Error("El servicio seleccionado no tiene precio aprobado.");
   const extraCodes: Record<string, string> = { QR: "QR", Branding: "BRANDING", Imanes: "UNLIMITED_MAGNETS", Scrapbook: "SCRAPBOOK" };
-  const extras = input.service.extras.reduce((sum, extra) => { const row = (prices ?? []).find((price) => price.category === "EXTRA" && price.code === extraCodes[extra]); return sum + Number(row?.unit_price ?? (extra === "Scrapbook" ? 50_000 : 0)) * (extra === "Branding" ? Math.max(2, input.service.brandingQuantity) : 1); }, 0);
-  const transportRow = (prices ?? []).find((price) => price.category === "TRANSPORT" && Array.isArray((price.rules as { municipalities?: unknown })?.municipalities) && ((price.rules as { municipalities: string[] }).municipalities).includes(input.event.municipality));
+  const extras = input.service.extras.reduce((sum, extra) => { const row = prices.find((price) => price.category === "EXTRA" && price.code === extraCodes[extra]); return sum + Number(row?.unit_price ?? 0) * (extra === "Branding" ? Math.max(2, input.service.brandingQuantity) : 1); }, 0);
+  const municipality = input.event.municipality.trim().toLocaleLowerCase("es-CL");
+  const transportRow = prices.find((price) => price.category === "TRANSPORT" && Array.isArray((price.rules as { municipalities?: unknown })?.municipalities) && ((price.rules as { municipalities: string[] }).municipalities).some((item) => item.trim().toLocaleLowerCase("es-CL") === municipality));
+  if (!transportRow) throw new Error("La comuna seleccionada no tiene una configuración de transporte vigente.");
   const transport = Number(transportRow?.unit_price ?? 0);
-  const subtotal = Number(exact.unit_price) + extras + transport;
+  const venues = ((venuesResult.data?.configuration as { venues?: Array<Record<string, unknown>> } | null)?.venues ?? []);
+  const venue = venues.find((item) => String(item.name ?? "").localeCompare(input.event.venue.trim(), "es", { sensitivity: "base" }) === 0);
+  const venueSurcharge = Number(venue?.surcharge ?? 0);
+  const subtotal = Number(exact.unit_price) + extras + transport + venueSurcharge;
   const total = Math.round(subtotal * (input.payment.method === "MERCADO_PAGO" ? 1.05 : 1));
-  return { service: Number(exact.unit_price), extras, transport, subtotal, paymentCommission: total - subtotal, total };
+  return { service: Number(exact.unit_price), extras, transport, venueSurcharge, subtotal, paymentCommission: total - subtotal, total };
 }

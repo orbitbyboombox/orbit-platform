@@ -12,7 +12,7 @@ export default async function AutomaticBookingPage({ params }: { params: Promise
   const admin = createAdminClient();
   const [servicesResult, pricesResult, venuesResult] = await Promise.all([
     admin.from("master_data_entries").select("code,label,configuration").eq("domain", "SERVICES").eq("enabled", true).order("display_order"),
-    admin.from("commercial_prices").select("category,code,duration_hours,unit_price,rules").eq("enabled", true).is("deleted_at", null),
+    admin.from("commercial_prices").select("category,code,duration_hours,destination,unit_price,rules").eq("enabled", true).is("deleted_at", null),
     admin.from("master_data_entries").select("configuration").eq("domain", "SYSTEM_PARAMETERS").eq("code", "EVENT_VENUES").eq("enabled", true).maybeSingle(),
   ]);
   if (servicesResult.error || pricesResult.error || venuesResult.error) throw servicesResult.error ?? pricesResult.error ?? venuesResult.error;
@@ -26,6 +26,7 @@ export default async function AutomaticBookingPage({ params }: { params: Promise
     const configuredHours = Array.from({ length: Math.max(1, maximum - minimum + 1) }, (_, index) => minimum + index);
     return { code: item.code, name: item.label, configuration, availableHours: Array.from(new Set(pricedHours.length ? pricedHours : configuredHours)).sort((a, b) => a - b) };
   });
-  const venues = (venuesConfig.venues ?? []).filter((item) => typeof item.name === "string" && (item.enabled ?? true) !== false).map((item) => ({ name: String(item.name), municipality: String(item.municipality ?? ""), province: String(item.province ?? "") }));
-  return <AutomaticBookingExperience email={invitation.customer_email} prices={prices} services={services} token={token} venues={venues}/>;
+  const venues = (venuesConfig.venues ?? []).filter((item) => typeof item.name === "string" && (item.enabled ?? true) !== false).map((item) => ({ name: String(item.name), municipality: String(item.municipality ?? ""), province: String(item.province ?? ""), surcharge: Number(item.surcharge ?? 0) }));
+  const municipalities = prices.filter((price) => price.category === "TRANSPORT" && Array.isArray(price.rules.municipalities)).flatMap((price) => (price.rules.municipalities as unknown[]).filter((item): item is string => typeof item === "string").map((name) => ({ name, province: String(price.destination ?? price.code), transport: Number(price.unit_price ?? 0) })));
+  return <AutomaticBookingExperience email={invitation.customer_email} municipalities={municipalities} prices={prices} services={services} token={token} venues={venues}/>;
 }
