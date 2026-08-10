@@ -4,7 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type StaffOperationalRole="OPERATOR"|"SETUP_TEARDOWN"|"PHOTOGRAPHER"|"DRIVER"|"SUPERVISOR"|"ASSISTANT"|"ADMINISTRATOR";
 export type StaffStoredStatus="ACTIVE"|"VACATION"|"MEDICAL_LEAVE"|"INACTIVE"|"DISABLED";
-export interface StaffAssignmentView{id:string;projectId:string;eventName:string;service:string;date:string;vehicle:string;role:string;status:string;}
+export interface StaffAssignmentView{id:string;projectId:string;eventName:string;service:string;date:string;vehicle:string;role:string;status:string;arrivalTime:string;startTime:string;finishTime:string;}
 export interface StaffHistoryView{id:string;message:string;occurredAt:string;}
 export interface StaffOperationalRecord{id:string;version:number;firstName:string;lastName:string;rut:string;phone:string;email:string;role:StaffOperationalRole;status:StaffStoredStatus;bank:string;accountType:string;accountNumber:string;emergencyName:string;emergencyPhone:string;assignments:StaffAssignmentView[];history:StaffHistoryView[];}
 type Result={ok:true;staff:StaffOperationalRecord}|{ok:false;error:string};
