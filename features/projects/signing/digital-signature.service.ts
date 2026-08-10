@@ -3,6 +3,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { uploadReservationDocumentToDrive } from "@/features/connectors/google-drive/application/google-drive-document-routing.service";
 import { GoogleGmailApiProvider } from "@/features/connectors/google-gmail/provider/google-gmail-live.provider";
+import { deliverConfirmedReservationEmail } from "@/features/connectors/google-gmail/application/google-gmail-delivery.service";
 import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import { createSignedAgreementPdf } from "./signed-agreement-pdf";
 import { loadCompanySettings } from "@/features/company-settings";
@@ -63,13 +64,15 @@ export async function confirmDigitalSignature(input: { token: string; signatureD
     const { error: agreementUpdateError } = await admin.from("agreements").update({ status: "SIGNED", signed_pdf_path: pdfPath, drive_file_id: uploaded.id, signed_at: signedAt, locked_at: signedAt, updated_at: signedAt }).eq("id", agreement.id).neq("status", "SIGNED"); if (agreementUpdateError) throw agreementUpdateError;
     await admin.from("agreement_signing_tokens").update({ consumed_at: signedAt, processing_at: null }).eq("id", claim.id);
     await Promise.all([timeline(admin, { projectId: agreement.project_id, agreementId: agreement.id, action: "AGREEMENT_SIGNED", message: "Acuerdo firmado por el cliente.", actorId: null }), timeline(admin, { projectId: agreement.project_id, agreementId: agreement.id, action: "AGREEMENT_LOCKED", message: "Acuerdo bloqueado para edición.", actorId: null }), timeline(admin, { projectId: agreement.project_id, agreementId: agreement.id, action: "PDF_UPLOADED", message: "PDF firmado almacenado en Google Drive.", actorId: null })]);
+    const deliveryActorId = agreement.created_by ?? agreement.projects.created_by;
+    if (deliveryActorId) await deliverConfirmedReservationEmail({ projectId: agreement.project_id, actorId: deliveryActorId });
     return { signedAt };
   } catch (error) { await admin.from("agreement_signing_tokens").update({ processing_at: null }).eq("id", claim.id).is("consumed_at", null); throw error; }
 }
 
 async function openAgreementForSigning(admin: ReturnType<typeof createAdminClient>, agreementId: string) {
-  const { data, error } = await admin.from("agreements").select("id,status,template_version,project_id,projects!inner(id,name,customer_id,event_date,event_time,location,city,customers!inner(full_name,email),project_services(service_code,duration_hours,extras),quotations(quotation_number,status,final_customer_price))").eq("id", agreementId).single();
-  if (error) throw error; if (data.status === "SIGNED") throw new Error("El acuerdo ya está firmado."); return data as unknown as { id:string; status:string; template_version:string; project_id:string; projects:{ id:string; name:string; customer_id:string; event_date:string; event_time:string; location:string|null; city:string|null; customers:{full_name:string;email:string}; project_services:Array<{service_code:string;duration_hours:number|null;extras:unknown}>; quotations?:Array<{quotation_number:string;status:string;final_customer_price:number}> } };
+  const { data, error } = await admin.from("agreements").select("id,status,template_version,project_id,created_by,projects!inner(id,name,customer_id,created_by,event_date,event_time,location,city,customers!inner(full_name,email),project_services(service_code,duration_hours,extras),quotations(quotation_number,status,final_customer_price))").eq("id", agreementId).single();
+  if (error) throw error; if (data.status === "SIGNED") throw new Error("El acuerdo ya está firmado."); return data as unknown as { id:string; status:string; template_version:string; project_id:string; created_by:string|null; projects:{ id:string; name:string; customer_id:string; created_by:string|null; event_date:string; event_time:string; location:string|null; city:string|null; customers:{full_name:string;email:string}; project_services:Array<{service_code:string;duration_hours:number|null;extras:unknown}>; quotations?:Array<{quotation_number:string;status:string;final_customer_price:number}> } };
 }
 
 async function timeline(admin: ReturnType<typeof createAdminClient>, input: { projectId: string; agreementId: string; action: string; message: string; actorId: string | null }) { const correlation = randomUUID(); const { error } = await admin.from("timeline_events").insert({ project_id: input.projectId, agreement_id: input.agreementId, event_type: input.action, title: input.message, description: input.message, orbit_event_id: `ORB-AGREEMENT-${correlation}`, actor_id: input.actorId, actor_label: input.actorId ? "Administrador" : "Cliente", source: input.actorId ? "Administrator" : "Customer", action: input.action, entity_type: "Agreement", entity_id: input.agreementId, human_message: input.message, correlation_id: correlation, created_by: input.actorId }); if (error) throw error; }

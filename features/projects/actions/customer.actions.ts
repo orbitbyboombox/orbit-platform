@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { SupabaseCustomerRepository } from "../infrastructure";
 import { synchronizeConfirmedReservationCalendar } from "@/features/connectors/google-calendar/application/google-calendar-sync.service";
 import { synchronizeConfirmedReservationDrive } from "@/features/connectors/google-drive/application/google-drive-sync.service";
+import { deliverConfirmedReservationEmail } from "@/features/connectors/google-gmail/application/google-gmail-delivery.service";
 import type { Project, ProjectDraft } from "../types/project";
 import type { CustomerMutationInput } from "../infrastructure";
 
@@ -89,6 +90,7 @@ export async function createCustomerProjectAction(draft: ProjectDraft): Promise<
       synchronizeConfirmedReservationCalendar({ client, projectId: project.id, actorId: auth.user.id }),
       synchronizeConfirmedReservationDrive({ client, projectId: project.id, actorId: auth.user.id }),
     ]);
+    await deliverConfirmedReservationEmail({ projectId: project.id, actorId: auth.user.id });
     revalidatePath("/projects");
     return { ok: true, project };
   } catch (error) {
