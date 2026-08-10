@@ -4,12 +4,9 @@ import { createHash, randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { buildCustomerFolderPlan, buildRootFolderPlan } from "@/features/connectors/google-drive";
-import { GoogleDriveLive } from "@/features/connectors/google-drive/application/google-drive-live";
-import { GoogleDriveApiProvider } from "@/features/connectors/google-drive/provider/google-drive-live.provider";
-import { SupabaseGoogleDriveFolderRepository } from "@/features/connectors/google-drive/repository/google-drive-folder.repository";
+import { uploadReservationDocumentToDrive } from "@/features/connectors/google-drive/application/google-drive-document-routing.service";
 import { GoogleGmailApiProvider } from "@/features/connectors/google-gmail/provider/google-gmail-live.provider";
-import { loadGoogleWorkspaceAccessToken, loadGoogleWorkspaceConnection } from "@/features/connectors/google-workspace/application/google-workspace.repository";
+import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import { createQuotationPdf } from "./quotation-pdf";
 import type { QuotationNegotiationInput } from "./types";
 import { loadCompanySettings } from "@/features/company-settings";
@@ -58,17 +55,16 @@ export async function approveQuotationAction(quotationId:string, reason="Aprobad
     const pdf=await createQuotationPdf({quotationNumber:data.quotation_number,issueDate:data.issue_date,expirationDate:data.expiration_date,customer:data.customers.full_name,project:data.projects.name,eventDate:data.projects.event_date,location:[data.projects.location,data.projects.city].filter(Boolean).join(", ")||"Por confirmar",subtotal:visibleSubtotal,transport:visibleTransport,taxes:visibleTaxes,total:finalTotal,items:customerItems.map((item)=>({label:item.label,quantity:Number(item.quantity),total:Number(item.final_total)})),branding:{productName:company.productName,productVersion:company.productVersion,brandName:company.brandName,developedBy:company.developedBy,poweredBy:company.poweredBy,footer:company.quotationFooter,currency:company.currency,locale:company.locale}});
     const pdfPath=`${data.project_id}/quotations/${data.quotation_number}.pdf`; const checksum=createHash("sha256").update(pdf).digest("hex");
     const storageResult=await admin.storage.from("orbit-documents").upload(pdfPath,pdf,{contentType:"application/pdf",upsert:true}); if(storageResult.error) throw storageResult.error;
-    const token=await loadGoogleWorkspaceAccessToken(); const connection=await loadGoogleWorkspaceConnection();
-    const drive=new GoogleDriveLive(connection,new GoogleDriveApiProvider(token),new SupabaseGoogleDriveFolderRepository(admin,data.project_id));
-    const timestamp=new Date().toISOString(); const root=await drive.synchronizeFolderPlan(buildRootFolderPlan(company.driveRootFolder),timestamp); if(!root.ok) throw new Error(root.error.message);
-    const folderSync=await drive.synchronizeFolderPlan(buildCustomerFolderPlan(data.customers.full_name,data.projects.event_date,company.driveRootFolder),timestamp); if(!folderSync.ok) throw new Error(folderSync.error.message);
-    const quotationFolder=folderSync.folders.find((folder)=>folder.path.endsWith("/03_Cotizaciones")); if(!quotationFolder?.driveFolderId) throw new Error("No fue posible resolver la carpeta de cotizaciones.");
+    const timestamp=new Date().toISOString();
     let driveFileId=data.drive_file_id as string|null;
-    if(!driveFileId) driveFileId=(await new GoogleDriveApiProvider(token).uploadFile({name:`${data.quotation_number} - ${data.customers.full_name}.pdf`,mimeType:"application/pdf",bytes:pdf,parentFolderId:quotationFolder.driveFolderId})).id;
+    let driveFolderId=data.drive_folder_id as string|null;
+    if(!driveFileId){const uploaded=await uploadReservationDocumentToDrive({client:admin,projectId:data.project_id,customerName:data.customers.full_name,eventDate:data.projects.event_date,kind:"QUOTATION",name:`${data.quotation_number} - ${data.customers.full_name}.pdf`,mimeType:"application/pdf",bytes:pdf});driveFileId=uploaded.id;driveFolderId=uploaded.folderId;}
+    if(!driveFolderId)throw new Error("No fue posible resolver la carpeta de cotizaciones.");
+    const token=await loadGoogleWorkspaceAccessToken();
     let draftId=data.gmail_draft_id as string|null; let messageId:string|undefined; let threadId:string|undefined;
     const quotationSubject=`Cotización ${data.quotation_number} · ${company.brandName}`;
     if(!draftId){const draft=await new GoogleGmailApiProvider(token).createDraft({to:data.customers.email,subject:quotationSubject,textBody:`Tu cotización ${company.brandName} está lista.`,htmlBody:`<p>Hola ${escapeHtml(data.customers.full_name)},</p><p>Tu cotización <strong>${escapeHtml(data.quotation_number)}</strong> está lista para revisión.</p><p>${escapeHtml(company.emailSignature)} confirmará el envío desde ${escapeHtml(company.productName)}.</p>`,driveFileIds:[driveFileId]});draftId=draft.draftId;messageId=draft.messageId;threadId=draft.threadId;}
-    const {error:updateError}=await admin.from("quotations").update({status:"ACCEPTED",pdf_storage_path:pdfPath,drive_folder_id:quotationFolder.driveFolderId,drive_file_id:driveFileId,gmail_draft_id:draftId,approved_by:auth.user.id,approved_at:timestamp,approval_reason:reason,updated_by:auth.user.id}).eq("id",quotationId); if(updateError) throw updateError;
+    const {error:updateError}=await admin.from("quotations").update({status:"ACCEPTED",pdf_storage_path:pdfPath,drive_folder_id:driveFolderId,drive_file_id:driveFileId,gmail_draft_id:draftId,approved_by:auth.user.id,approved_at:timestamp,approval_reason:reason,updated_by:auth.user.id}).eq("id",quotationId); if(updateError) throw updateError;
     const {data:profit}=await admin.from("profit_snapshots").select("id,operational_cost").eq("project_id",data.project_id).is("deleted_at",null).order("created_at",{ascending:false}).limit(1).maybeSingle();
     if(profit){const operationalCost=Number(profit.operational_cost);const grossMargin=finalTotal-operationalCost;const {error:profitError}=await admin.from("profit_snapshots").update({revenue:finalTotal,gross_margin:grossMargin,gross_margin_percent:finalTotal===0?0:grossMargin/finalTotal*100,approval_reason:"Cotización aceptada · precio final cliente",updated_by:auth.user.id}).eq("id",profit.id);if(profitError)throw profitError;}
     const { error: documentError } = await admin.from("documents").upsert({project_id:data.project_id,customer_id:data.customer_id,document_type:"QUOTATION",storage_bucket:"orbit-documents",storage_path:pdfPath,checksum,drive_file_id:driveFileId,created_by:auth.user.id},{onConflict:"storage_path"}); if(documentError) throw documentError;
