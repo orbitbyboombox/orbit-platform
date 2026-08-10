@@ -86,7 +86,7 @@ function CommercialSummary({ balance, configurations, extras, reservation, total
 
 export function NewProjectDrawer({ commercialPrices, open, onClose, onCreate }: NewProjectDrawerProps) {
   const [step, setStep] = useState(0);
-  const [method, setMethod] = useState<"MANUAL" | null>(null);
+  const [method, setMethod] = useState<"MANUAL">("MANUAL");
   const [draft, setDraft] = useState<ProjectDraft>(initialDraft);
   const [configurations, setConfigurations] = useState<Partial<Record<ProjectService, ServiceConfiguration>>>({});
   const [eventAddress, setEventAddress] = useState("");
@@ -126,7 +126,7 @@ export function NewProjectDrawer({ commercialPrices, open, onClose, onCreate }: 
   if (!open) return null;
   const client = (field: keyof ProjectDraft["client"], value: string) => setDraft((current) => ({ ...current, client: { ...current.client, [field]: value } }));
   const event = (field: keyof ProjectDraft["event"], value: string | number | string[]) => setDraft((current) => ({ ...current, event: { ...current.event, [field]: value } }));
-  const reset = () => { setStep(0); setMethod(null); setDraft(initialDraft); setConfigurations({}); setEventAddress(""); setOperationalContact(""); setOperationalPhone("+569"); setBride(""); setGroom(""); setSpecialRequests(""); setCommercialNotes(""); setTermsRead(false); setTermsAccepted(false); setSignatureConfirmed(false); setPaymentMethod("TRANSFER"); setReceipt(""); setSubmitting(false); setError(""); setCreatedProject(null); setPortalMessage(""); onClose(); };
+  const reset = () => { setStep(0); setMethod("MANUAL"); setDraft(initialDraft); setConfigurations({}); setEventAddress(""); setOperationalContact(""); setOperationalPhone("+569"); setBride(""); setGroom(""); setSpecialRequests(""); setCommercialNotes(""); setTermsRead(false); setTermsAccepted(false); setSignatureConfirmed(false); setPaymentMethod("TRANSFER"); setReceipt(""); setSubmitting(false); setError(""); setCreatedProject(null); setPortalMessage(""); onClose(); };
   const toggleService = (service: ProjectService) => { setConfigurations((current) => { const next = { ...current }; if (next[service]) delete next[service]; else next[service] = initialService(); return next; }); setDraft((current) => ({ ...current, services: current.services.includes(service) ? current.services.filter((item) => item !== service) : [...current.services, service] })); };
   const updateService = (service: ProjectService, update: Partial<ServiceConfiguration>) => setConfigurations((current) => ({ ...current, [service]: { ...(current[service] ?? initialService()), ...update } }));
   const toggleServiceExtra = (service: ProjectService, extra: ServiceExtra) => { const configuration = configurations[service] ?? initialService(); updateService(service, { extras: configuration.extras.includes(extra) ? configuration.extras.filter((item) => item !== extra) : [...configuration.extras, extra] }); };
