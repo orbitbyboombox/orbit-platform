@@ -5,7 +5,7 @@ import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEv
 import { ActionButton } from "@/components/ui/action-button";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { projectOrigins, projectServices, projectTypes, type Project, type ProjectDraft, type ProjectOrigin, type ProjectService, type ProjectType } from "../types/project";
+import { projectOrigins, projectTypes, type Project, type ProjectDraft, type ProjectOrigin, type ProjectService, type ProjectType } from "../types/project";
 
 const steps = ["Método", "Cliente", "Evento", "Servicio + extras", "Contrato", "Pago", "Confirmación"] as const;
 const initialDraft: ProjectDraft = {
@@ -38,60 +38,23 @@ const originLabels: Record<ProjectOrigin, string> = {
   FormerClient: "Cliente antiguo",
   Other: "Otro",
 };
-const serviceLabels: Record<ProjectService, string> = {
-  Classic: "Classic",
-  Polaroid: "Polaroid",
-  "Black Studio": "Black Studio",
-  "360": "BBOX360",
-  LightBox: "LightBox",
-  BoomBall: "BoomBall",
-  Hashtag: "Hashtag",
-};
-const serviceCodes: Record<ProjectService, string> = {
-  Classic: "CLASSIC",
-  Polaroid: "POLAROID",
-  "Black Studio": "BLACK_STUDIO",
-  "360": "BBOX360",
-  LightBox: "LIGHTBOX",
-  BoomBall: "BOOMBALL",
-  Hashtag: "HASHTAG",
-};
-const additionalHourRates: Record<ProjectService, number> = {
-  Classic: 100_000,
-  Polaroid: 150_000,
-  "Black Studio": 150_000,
-  "360": 130_000,
-  LightBox: 0,
-  BoomBall: 0,
-  Hashtag: 100_000,
-};
 const extraCodes = {
   Branding: "BRANDING",
   QR: "QR",
   Imanes: "UNLIMITED_MAGNETS",
 } as const;
-const selectableExtras = ["Branding", "QR", "Imanes", "Scrapbook"] as const;
-type ServiceExtra = (typeof selectableExtras)[number];
-const serviceExtraCompatibility: Readonly<Record<ProjectService, readonly ServiceExtra[]>> = {
-  Classic: selectableExtras,
-  Polaroid: selectableExtras,
-  "Black Studio": ["Branding", "QR", "Imanes"],
-  "360": ["Branding"],
-  LightBox: [],
-  BoomBall: [],
-  Hashtag: ["Branding", "QR", "Imanes"],
-};
+type ServiceExtra = "Branding" | "QR" | "Imanes" | "Scrapbook";
 type ServiceConfiguration = {
-  hours: 2 | 3 | 4 | 5;
+  hours: number;
   additionalHours: number;
   extras: ServiceExtra[];
   brandingQuantity: number;
 };
 type CreditTerm = "CASH" | "15" | "30" | "45" | "60" | "90" | "CUSTOM";
-const initialService = (service: ProjectService): ServiceConfiguration => ({
-  hours: service === "LightBox" ? 5 : 2,
+const initialService = (service: ReservationService): ServiceConfiguration => ({
+  hours: service.minimumHours as ServiceConfiguration["hours"],
   additionalHours: 0,
-  extras: [],
+  extras: service.defaultExtras.map(masterExtraToReservation).filter((extra): extra is ServiceExtra => extra !== null),
   brandingQuantity: 2,
 });
 const currency = new Intl.NumberFormat("es-CL", {
@@ -162,8 +125,21 @@ export interface ReservationVenue {
   province: string;
   surcharge: number;
 }
+export interface ReservationService {
+  code: string;
+  name: string;
+  displayOrder: number;
+  minimumHours: number;
+  maximumHours: number;
+  additionalHourPrice: number;
+  compatibleExtras: string[];
+  defaultExtras: string[];
+  behavior: string;
+}
+const masterExtraToReservation = (code: string): ServiceExtra | null => code === "BRANDING" ? "Branding" : code === "QR" ? "QR" : code === "UNLIMITED_MAGNETS" ? "Imanes" : code === "SCRAPBOOK" ? "Scrapbook" : null;
 export interface NewProjectDrawerProps {
   commercialPrices: ReservationCommercialPrice[];
+  services: ReservationService[];
   venues: ReservationVenue[];
   open: boolean;
   onClose: () => void;
@@ -274,7 +250,7 @@ function SignaturePad({ disabled, onConfirmed }: { disabled: boolean; onConfirme
   );
 }
 
-function CommercialSummary({ balance, discount, extras, plan, reservation, subtotal, total }: { balance: number; discount: number; extras: Array<{ label: string; value: string }>; plan: { service: ProjectService; hours: number; price: number } | null; reservation: number; subtotal: number; total: number }) {
+function CommercialSummary({ balance, discount, extras, plan, reservation, subtotal, total }: { balance: number; discount: number; extras: Array<{ label: string; value: string }>; plan: { name: string; hours: number; price: number } | null; reservation: number; subtotal: number; total: number }) {
   return (
     <section aria-live="polite" className="reservation-summary-panel rounded-2xl border bg-card p-5 shadow-sm">
       <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Resumen de reserva</p>
@@ -282,7 +258,7 @@ function CommercialSummary({ balance, discount, extras, plan, reservation, subto
         <div className="rounded-xl border bg-background/40 p-3">
           <dt className="text-xs font-semibold uppercase tracking-[.14em] text-muted">Plan contratado</dt>
           <dd className="mt-1 space-y-1 font-medium">
-            {plan ? <span className="flex items-start justify-between gap-3"><span><strong className="block">{serviceLabels[plan.service]}</strong>{plan.hours} Horas</span><strong className="shrink-0 text-brand">{currency.format(plan.price)}</strong></span> : "Servicio pendiente"}
+            {plan ? <span className="flex items-start justify-between gap-3"><span><strong className="block">{plan.name}</strong>{plan.hours} Horas</span><strong className="shrink-0 text-brand">{currency.format(plan.price)}</strong></span> : "Servicio pendiente"}
           </dd>
         </div>
         <div>
@@ -313,7 +289,7 @@ function CommercialSummary({ balance, discount, extras, plan, reservation, subto
   );
 }
 
-export function NewProjectDrawer({ commercialPrices, venues, open, onClose, onCreate }: NewProjectDrawerProps) {
+export function NewProjectDrawer({ commercialPrices, services, venues, open, onClose, onCreate }: NewProjectDrawerProps) {
   const [step, setStep] = useState(0);
   const [method, setMethod] = useState<"MANUAL">("MANUAL");
   const [draft, setDraft] = useState<ProjectDraft>(initialDraft);
@@ -341,6 +317,10 @@ export function NewProjectDrawer({ commercialPrices, venues, open, onClose, onCr
   const [adjustmentType, setAdjustmentType] = useState<"FIXED" | "PERCENT">("FIXED");
   const [adjustmentValue, setAdjustmentValue] = useState(0);
   const [adjustmentReason, setAdjustmentReason] = useState("");
+  const serviceByCode = new Map(services.map((service) => [service.code, service]));
+  const serviceLabel = (service: ProjectService) => serviceByCode.get(service)?.name ?? service;
+  const additionalHourRate = (service: ProjectService) => serviceByCode.get(service)?.additionalHourPrice ?? 0;
+  const compatibleExtras = (service: ProjectService) => (serviceByCode.get(service)?.compatibleExtras ?? []).map(masterExtraToReservation).filter((extra): extra is ServiceExtra => extra !== null);
 
   const municipalityGroups = Object.entries(provinceMunicipalities).map(([province, defaults]) => {
     const price = commercialPrices.find((item) => item.category === "TRANSPORT" && item.code === transportCode[province as Province]);
@@ -376,12 +356,18 @@ export function NewProjectDrawer({ commercialPrices, venues, open, onClose, onCr
     const code = extraCodes[extra as keyof typeof extraCodes];
     return code ? (priceFor("EXTRA", code)?.unitPrice ?? 0) : 0;
   };
-  const compatibleIncludedExtras = (service: ProjectService) => includedExtras.filter((extra) => serviceExtraCompatibility[service].includes(extra));
-  const serviceBasePrice = (service: ProjectService, configuration: ServiceConfiguration) => Number(priceFor("SERVICE", serviceCodes[service], configuration.hours)?.unitPrice ?? 0);
+  const compatibleIncludedExtras = (service: ProjectService) => includedExtras.filter((extra) => compatibleExtras(service).includes(extra));
+  const serviceBasePrice = (service: ProjectService, configuration: ServiceConfiguration) => {
+    const definition = serviceByCode.get(service);
+    const exact = priceFor("SERVICE", service, configuration.hours)?.unitPrice;
+    const base = priceFor("SERVICE", service, definition?.minimumHours)?.unitPrice;
+    if (exact != null) return Number(exact);
+    return Number(base ?? 0) + Math.max(0, configuration.hours - (definition?.minimumHours ?? configuration.hours)) * additionalHourRate(service);
+  };
   const serviceTotal = (service: ProjectService, configuration: ServiceConfiguration) => {
     const base = serviceBasePrice(service, configuration);
     const extras = Array.from(new Set([...configuration.extras, ...compatibleIncludedExtras(service)])).reduce((sum, extra) => sum + (extra === "Branding" ? Number(extraUnitPrice(extra)) * configuration.brandingQuantity : Number(extraUnitPrice(extra))), 0);
-    return base + configuration.additionalHours * additionalHourRates[service] + extras;
+    return base + configuration.additionalHours * additionalHourRate(service) + extras;
   };
   const servicesTotal = (Object.entries(configurations) as Array<[ProjectService, ServiceConfiguration]>).reduce((sum, [service, configuration]) => sum + serviceTotal(service, configuration), 0);
   const commercialTotal = servicesTotal + Number(transportTotal ?? 0) + venueSurcharge;
@@ -401,10 +387,10 @@ export function NewProjectDrawer({ commercialPrices, venues, open, onClose, onCr
   const brandingQuantityTotal = selectedConfigurations.reduce((sum, configuration) => sum + (configuration.extras.includes("Branding") ? configuration.brandingQuantity : 0), 0);
   const primaryService = draft.services[0] ?? null;
   const primaryConfiguration = primaryService ? configurations[primaryService] ?? null : null;
-  const plan = primaryService && primaryConfiguration ? { service: primaryService, hours: primaryConfiguration.hours, price: serviceBasePrice(primaryService, primaryConfiguration) } : null;
+  const plan = primaryService && primaryConfiguration ? { name: serviceLabel(primaryService), hours: primaryConfiguration.hours, price: serviceBasePrice(primaryService, primaryConfiguration) } : null;
   const commercialExtras: Array<{ label: string; value: string }> = [];
-  draft.services.slice(1).forEach((service) => { const configuration = configurations[service]; if (configuration) commercialExtras.push({ label: `${serviceLabels[service]} · ${configuration.hours} horas`, value: `+${currency.format(serviceBasePrice(service, configuration))}` }); });
-  (Object.entries(configurations) as Array<[ProjectService, ServiceConfiguration]>).forEach(([service, configuration]) => { if (configuration.additionalHours > 0) commercialExtras.push({ label: `${serviceLabels[service]} · ${configuration.additionalHours} h adicional${configuration.additionalHours > 1 ? "es" : ""}`, value: `+${currency.format(configuration.additionalHours * additionalHourRates[service])}` }); });
+  draft.services.slice(1).forEach((service) => { const configuration = configurations[service]; if (configuration) commercialExtras.push({ label: `${serviceLabel(service)} · ${configuration.hours} horas`, value: `+${currency.format(serviceBasePrice(service, configuration))}` }); });
+  (Object.entries(configurations) as Array<[ProjectService, ServiceConfiguration]>).forEach(([service, configuration]) => { if (configuration.additionalHours > 0) commercialExtras.push({ label: `${serviceLabel(service)} · ${configuration.additionalHours} h adicional${configuration.additionalHours > 1 ? "es" : ""}`, value: `+${currency.format(configuration.additionalHours * additionalHourRate(service))}` }); });
   if (brandingQuantityTotal) commercialExtras.push({ label: `Branding · ${brandingQuantityTotal} caras`, value: `+${currency.format(extraSubtotal("Branding"))}` });
   if (compatibleIncludedExtrasSelected.includes("QR")) commercialExtras.push({ label: "QR", value: "Incluido" }); else if (extraSelected("QR")) commercialExtras.push({ label: "QR", value: `+${currency.format(extraSubtotal("QR"))}` });
   if (extraSelected("Imanes")) commercialExtras.push({ label: "Imanes", value: `+${currency.format(extraSubtotal("Imanes"))}` });
@@ -465,10 +451,12 @@ export function NewProjectDrawer({ commercialPrices, venues, open, onClose, onCr
     onClose();
   };
   const toggleService = (service: ProjectService) => {
+    const definition = serviceByCode.get(service);
+    if (!definition) return;
     setConfigurations((current) => {
       const next = { ...current };
       if (next[service]) delete next[service];
-      else next[service] = initialService(service);
+      else next[service] = initialService(definition);
       return next;
     });
     setDraft((current) => ({
@@ -480,12 +468,14 @@ export function NewProjectDrawer({ commercialPrices, venues, open, onClose, onCr
     setConfigurations((current) => ({
       ...current,
       [service]: {
-        ...(current[service] ?? initialService(service)),
+        ...(current[service] ?? initialService(serviceByCode.get(service)!)),
         ...update,
       },
     }));
   const toggleServiceExtra = (service: ProjectService, extra: ServiceExtra) => {
-    const configuration = configurations[service] ?? initialService(service);
+    const definition = serviceByCode.get(service);
+    if (!definition) return;
+    const configuration = configurations[service] ?? initialService(definition);
     updateService(service, {
       extras: configuration.extras.includes(extra) ? configuration.extras.filter((item) => item !== extra) : [...configuration.extras, extra],
     });
@@ -497,7 +487,7 @@ export function NewProjectDrawer({ commercialPrices, venues, open, onClose, onCr
     setSubmitting(true);
     setError("");
     try {
-      const serviceDetails = (Object.entries(configurations) as Array<[ProjectService, ServiceConfiguration]>).map(([service, configuration]) => `${serviceLabels[service]}: ${configuration.hours} h + ${configuration.additionalHours} h adicionales · ${Array.from(new Set([...configuration.extras, ...compatibleIncludedExtras(service)])).join(", ") || "sin extras"}`).join("\n");
+      const serviceDetails = (Object.entries(configurations) as Array<[ProjectService, ServiceConfiguration]>).map(([service, configuration]) => `${serviceLabel(service)}: ${configuration.hours} h + ${configuration.additionalHours} h adicionales · ${Array.from(new Set([...configuration.extras, ...compatibleIncludedExtras(service)])).join(", ") || "sin extras"}`).join("\n");
       const maximumHours = Math.max(2, ...(Object.values(configurations) as ServiceConfiguration[]).map((configuration) => configuration.hours + configuration.additionalHours));
       const project = await withReservationTimeout(
         onCreate({
@@ -521,7 +511,7 @@ export function NewProjectDrawer({ commercialPrices, venues, open, onClose, onCr
     }
   };
   const portalUrl = createdProject ? `${window.location.origin}/projects/${createdProject.id}#portal-cliente` : "";
-  const confirmationEmailBody = createdProject ? [`Hola ${createdProject.client.name},`, "¡Reserva confirmada! Bienvenido a BOOMBOX.", "Resumen comercial", ...(Object.entries(configurations) as Array<[ProjectService, ServiceConfiguration]>).map(([service, configuration]) => `${serviceLabels[service]} · ${configuration.hours + configuration.additionalHours} horas · ${currency.format(serviceTotal(service, configuration))}`), `Extras: ${consolidatedExtras}`, `Transporte: ${currency.format(Number(transportTotal ?? 0))}`, `Reserva: ${currency.format(reservationTotal)}`, `Saldo restante: ${currency.format(balanceTotal)}`, `TOTAL: ${currency.format(payableTotal)}`, "Portal BOOMBOX", portalUrl, "Accede utilizando tu RUT y la fecha de tu evento."].join("\n\n") : "";
+  const confirmationEmailBody = createdProject ? [`Hola ${createdProject.client.name},`, "¡Reserva confirmada! Bienvenido a BOOMBOX.", "Resumen comercial", ...(Object.entries(configurations) as Array<[ProjectService, ServiceConfiguration]>).map(([service, configuration]) => `${serviceLabel(service)} · ${configuration.hours + configuration.additionalHours} horas · ${currency.format(serviceTotal(service, configuration))}`), `Extras: ${consolidatedExtras}`, `Transporte: ${currency.format(Number(transportTotal ?? 0))}`, `Reserva: ${currency.format(reservationTotal)}`, `Saldo restante: ${currency.format(balanceTotal)}`, `TOTAL: ${currency.format(payableTotal)}`, "Portal BOOMBOX", portalUrl, "Accede utilizando tu RUT y la fecha de tu evento."].join("\n\n") : "";
 
   const summary = <CommercialSummary balance={balanceTotal} discount={discountTotal} extras={summaryExtras} plan={plan} reservation={reservationTotal} subtotal={commercialTotal} total={payableTotal} />;
 
@@ -691,10 +681,10 @@ export function NewProjectDrawer({ commercialPrices, venues, open, onClose, onCr
                 <div>
                   <p className="mb-3 text-sm font-medium">Servicio principal y servicios adicionales</p>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    {projectServices.map((service) => (
-                      <button className={cn("min-h-12 rounded-xl border p-3 text-left text-sm", configurations[service] && "border-brand bg-brand/5")} key={service} onClick={() => toggleService(service)}>
-                        <span className="block font-medium">{serviceLabels[service]}</span>
-                        {draft.services[0] === service && <span className="mt-1 block text-xs text-brand">Servicio principal</span>}
+                    {services.map((service) => (
+                      <button className={cn("min-h-12 rounded-xl border p-3 text-left text-sm", configurations[service.code] && "border-brand bg-brand/5")} key={service.code} onClick={() => toggleService(service.code)}>
+                        <span className="block font-medium">{service.name}</span>
+                        {draft.services[0] === service.code && <span className="mt-1 block text-xs text-brand">Servicio principal</span>}
                       </button>
                     ))}
                   </div>
@@ -702,13 +692,13 @@ export function NewProjectDrawer({ commercialPrices, venues, open, onClose, onCr
                 {(Object.entries(configurations) as Array<[ProjectService, ServiceConfiguration]>).map(([service, configuration]) => (
                   <section className="rounded-2xl border p-5" key={service}>
                     <div className="flex items-center justify-between gap-3">
-                      <h3 className="font-semibold">{serviceLabels[service]}</h3>
+                      <h3 className="font-semibold">{serviceLabel(service)}</h3>
                       <strong className="text-brand">{currency.format(serviceTotal(service, configuration))}</strong>
                     </div>
-                    {service === "BoomBall" || service === "LightBox" ? (
+                    {serviceByCode.get(service)?.behavior === "FIXED" ? (
                       <div className="mt-4 rounded-xl border bg-background/40 p-4">
                         <p className="text-xs font-medium uppercase tracking-[.14em] text-muted">Duración fija</p>
-                        <p className="mt-1 text-lg font-semibold">{service === "LightBox" ? "5 Horas" : "2 Horas"}</p>
+                        <p className="mt-1 text-lg font-semibold">{configuration.hours} Horas</p>
                       </div>
                     ) : (
                       <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -718,20 +708,20 @@ export function NewProjectDrawer({ commercialPrices, venues, open, onClose, onCr
                             className="mt-2 h-11 w-full rounded-lg border bg-background px-3"
                             onChange={(e) =>
                               updateService(service, {
-                                hours: Number(e.target.value) as 2 | 3 | 4,
+                                hours: Number(e.target.value),
                               })
                             }
                             value={configuration.hours}
                           >
-                            {[2, 3, 4].map((hours) => (
+                            {Array.from({ length: Math.max(1, (serviceByCode.get(service)?.maximumHours ?? configuration.hours) - (serviceByCode.get(service)?.minimumHours ?? configuration.hours) + 1) }, (_, index) => (serviceByCode.get(service)?.minimumHours ?? configuration.hours) + index).map((hours) => (
                               <option key={hours} value={hours}>
                                 {hours} horas
                               </option>
                             ))}
                           </select>
                         </label>
-                        <Field
-                          label={`Horas adicionales · ${currency.format(additionalHourRates[service])} c/u`}
+                        {serviceByCode.get(service)?.compatibleExtras.includes("ADDITIONAL_HOURS") && <Field
+                          label={`Horas adicionales · ${currency.format(additionalHourRate(service))} c/u`}
                           min="0"
                           onChange={(e) =>
                             updateService(service, {
@@ -740,11 +730,11 @@ export function NewProjectDrawer({ commercialPrices, venues, open, onClose, onCr
                           }
                           type="number"
                           value={configuration.additionalHours}
-                        />
+                        />}
                       </div>
                     )}
                     <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                      {serviceExtraCompatibility[service].map((extra) => {
+                      {compatibleExtras(service).map((extra) => {
                         const included = compatibleIncludedExtras(service).includes(extra);
                         const selected = included || configuration.extras.includes(extra);
                         const unit = extraUnitPrice(extra);

@@ -36,7 +36,7 @@ export class SupabaseCustomerRepository implements CustomerRepository {
     const serviceMap = new Map<string, ProjectService[]>();
     for (const row of services as ServiceRow[]) {
       const values = serviceMap.get(row.project_id) ?? [];
-      if (["Classic", "Polaroid", "Black Studio", "360", "LightBox", "BoomBall"].includes(row.service_code)) values.push(row.service_code as ProjectService);
+      if (row.service_code) values.push(row.service_code);
       serviceMap.set(row.project_id, values);
     }
     const memoryMap = new Map((memories as MemoryRow[]).map((row) => [row.customer_id, row.context]));

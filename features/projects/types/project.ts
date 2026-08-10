@@ -1,12 +1,11 @@
 export const projectTypes = ["Wedding", "Corporate", "Birthday", "Graduation", "Private", "Other"] as const;
-export const projectServices = ["Classic", "Polaroid", "Black Studio", "360", "LightBox", "BoomBall", "Hashtag"] as const;
 export const projectStatuses = ["Active", "Upcoming", "Completed", "Archived"] as const;
 export const projectHealthLevels = ["Healthy", "Attention", "Risk", "Critical"] as const;
 export const projectCommercialStages = ["New", "Contacted", "Quoting", "Waiting", "Reserved", "Confirmed", "Production", "Finished"] as const;
 export const projectOrigins = ["WhatsApp", "Instagram", "Google", "Website", "Referral", "FormerClient", "Other"] as const;
 
 export type ProjectType = (typeof projectTypes)[number];
-export type ProjectService = (typeof projectServices)[number];
+export type ProjectService = string;
 export type ProjectStatus = (typeof projectStatuses)[number];
 export type ProjectHealth = (typeof projectHealthLevels)[number];
 export type ProjectCommercialStage = (typeof projectCommercialStages)[number];
