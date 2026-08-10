@@ -75,11 +75,11 @@ type ServiceExtra = (typeof selectableExtras)[number];
 const serviceExtraCompatibility: Readonly<Record<ProjectService, readonly ServiceExtra[]>> = {
   Classic: selectableExtras,
   Polaroid: selectableExtras,
-  "Black Studio": ["Branding", "QR"],
+  "Black Studio": ["Branding", "QR", "Imanes"],
   "360": ["Branding"],
   LightBox: [],
   BoomBall: [],
-  Hashtag: ["Branding", "QR"],
+  Hashtag: ["Branding", "QR", "Imanes"],
 };
 type ServiceConfiguration = {
   hours: 2 | 3 | 4 | 5;
@@ -267,8 +267,7 @@ function SignaturePad({ disabled, onConfirmed }: { disabled: boolean; onConfirme
   );
 }
 
-function CommercialSummary({ balance, breakdown, configurations, extras, reservation, total, transport, transportProvince }: { balance: number; breakdown?: Array<{ label: string; value: string }>; configurations: Partial<Record<ProjectService, ServiceConfiguration>>; extras: string; reservation: number; total: number; transport: number | null; transportProvince: string | null }) {
-  const selected = Object.entries(configurations) as Array<[ProjectService, ServiceConfiguration]>;
+function CommercialSummary({ balance, breakdown, extras, reservation, serviceLines, total, transport, transportProvince }: { balance: number; breakdown?: Array<{ label: string; value: string }>; extras: string; reservation: number; serviceLines: Array<{ service: ProjectService; hours: number; total: number }>; total: number; transport: number | null; transportProvince: string | null }) {
   return (
     <section aria-live="polite" className="reservation-summary-panel rounded-2xl border bg-card p-5 shadow-sm">
       <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Resumen de reserva</p>
@@ -276,10 +275,11 @@ function CommercialSummary({ balance, breakdown, configurations, extras, reserva
         <div>
           <dt className="text-muted">Servicios y horas</dt>
           <dd className="mt-1 space-y-1 font-medium">
-            {selected.length
-              ? selected.map(([service, configuration]) => (
-                  <span className="block" key={service}>
-                    {serviceLabels[service]} · {configuration.hours + configuration.additionalHours} h
+            {serviceLines.length
+              ? serviceLines.map((line) => (
+                  <span className="flex items-start justify-between gap-3" key={line.service}>
+                    <span>{serviceLabels[line.service]} · {line.hours} horas</span>
+                    <strong className="shrink-0 text-brand">{currency.format(line.total)}</strong>
                   </span>
                 ))
               : "Servicio pendiente"}
@@ -533,7 +533,7 @@ export function NewProjectDrawer({ commercialPrices, open, onClose, onCreate }: 
   const portalUrl = createdProject ? `${window.location.origin}/projects/${createdProject.id}#portal-cliente` : "";
   const confirmationEmailBody = createdProject ? [`Hola ${createdProject.client.name},`, "¡Reserva confirmada! Bienvenido a BOOMBOX.", "Resumen comercial", ...(Object.entries(configurations) as Array<[ProjectService, ServiceConfiguration]>).map(([service, configuration]) => `${serviceLabels[service]} · ${configuration.hours + configuration.additionalHours} horas · ${currency.format(serviceTotal(service, configuration))}`), `Extras: ${consolidatedExtras}`, `Transporte: ${currency.format(Number(transportTotal ?? 0))}`, `Reserva: ${currency.format(reservationTotal)}`, `Saldo restante: ${currency.format(balanceTotal)}`, `TOTAL: ${currency.format(payableTotal)}`, "Portal BOOMBOX", portalUrl, "Accede utilizando tu RUT y la fecha de tu evento."].join("\n\n") : "";
 
-  const summary = <CommercialSummary balance={balanceTotal} breakdown={step === 5 ? paymentBreakdown : step === 3 || step === 4 || step === 6 ? serviceBreakdown : undefined} configurations={configurations} extras={consolidatedExtras} reservation={reservationTotal} total={payableTotal} transport={transportTotal} transportProvince={selectedMunicipality?.province ?? null} />;
+  const summary = <CommercialSummary balance={balanceTotal} breakdown={step === 5 ? paymentBreakdown : step === 3 || step === 4 || step === 6 ? serviceBreakdown : undefined} extras={consolidatedExtras} reservation={reservationTotal} serviceLines={draft.services.flatMap((service) => { const configuration = configurations[service]; return configuration ? [{ service, hours: configuration.hours + configuration.additionalHours, total: serviceTotal(service, configuration) }] : []; })} total={payableTotal} transport={transportTotal} transportProvince={selectedMunicipality?.province ?? null} />;
 
   return (
     <>

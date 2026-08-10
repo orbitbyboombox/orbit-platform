@@ -8,6 +8,15 @@ import type { CustomerMutationInput } from "../infrastructure";
 
 export type CreateCustomerResult = { ok: true; project: Project } | { ok: false; error: string };
 
+function reservationErrorDetails(error: unknown) {
+  if (error instanceof Error) return { name: error.name, message: error.message, stack: error.stack };
+  if (error && typeof error === "object") {
+    const value = error as Record<string, unknown>;
+    return { code: value.code, message: value.message, details: value.details, hint: value.hint };
+  }
+  return { message: String(error) };
+}
+
 export async function createCustomerProjectAction(draft: ProjectDraft): Promise<CreateCustomerResult> {
   try {
     const repository = new SupabaseCustomerRepository(await createSupabaseServerClient());
@@ -15,8 +24,8 @@ export async function createCustomerProjectAction(draft: ProjectDraft): Promise<
     revalidatePath("/projects");
     return { ok: true, project };
   } catch (error) {
-    console.error(JSON.stringify({ level: "error", event: "customer.create.failed", message: error instanceof Error ? error.message : "Unknown error", timestamp: new Date().toISOString() }));
-    return { ok: false, error: error instanceof Error ? error.message : "No fue posible crear el cliente." };
+    console.error(JSON.stringify({ level: "error", event: "reservation.confirmation.failed", error: reservationErrorDetails(error), timestamp: new Date().toISOString() }));
+    return { ok: false, error: "No pudimos confirmar la reserva. Revisa los datos e inténtalo nuevamente. Si el problema continúa, contacta al administrador de ORBIT." };
   }
 }
 
