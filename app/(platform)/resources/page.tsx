@@ -3,22 +3,26 @@ import type { OperationsBoardInput, ResourceStatus } from "@/features/resources"
 import { EquipmentOperationCenter } from "@/features/resources/equipment-operation-center";
 import type { EquipmentHistoryEntry } from "@/features/resources/equipment-operation-center";
 import type { EquipmentItem } from "@/features/resources/equipment-operation-center.actions";
+import { ResourceCenter } from "@/features/resources/resource-center";
+import type { OperationalResource, ResourceCategory } from "@/features/resources/resource-center.actions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export default async function ResourcesPage() {
   const client = await createSupabaseServerClient();
-  const [{ data: staff, error: staffError }, { data: assignments, error: assignmentError }, { data: projects, error: projectError }, { data: assets, error: assetError }, { data: assetHistory, error: historyError }] = await Promise.all([
-    client.from("staff").select("id,first_name,last_name,availability,status").is("deleted_at", null),
+  const [{ data: staff, error: staffError }, { data: assignments, error: assignmentError }, { data: projects, error: projectError }, { data: assets, error: assetError }, { data: assetHistory, error: historyError }, { data: supplies, error: supplyError }] = await Promise.all([
+    client.from("staff").select("id,first_name,last_name,rut,role,availability,status,version").is("deleted_at", null),
     client.from("assignments").select("id,project_id,staff_id,status,resources").is("deleted_at", null),
     client.from("projects").select("id,name,event_date").is("deleted_at", null),
     client.from("operational_assets").select("id,asset_code,asset_type,status,usage_counter,version,metadata").is("deleted_at", null).order("asset_code"),
     client.from("asset_history").select("id,asset_id,message,occurred_at").order("occurred_at", { ascending: false }).limit(500),
+    client.from("supplies").select("id,catalog_code,name,status,version").is("deleted_at", null).order("name"),
   ]);
   if (staffError) throw staffError;
   if (assignmentError) throw assignmentError;
   if (projectError) throw projectError;
   if (assetError) throw assetError;
   if (historyError) throw historyError;
+  if (supplyError) throw supplyError;
   const projectMap = new Map((projects ?? []).map((project) => [project.id, project.name]));
   const status = (value: string): ResourceStatus => value === "APPROVED" || value === "ACCEPTED" ? "RESERVED" : value === "ACTIVE" ? "IN_USE" : "AVAILABLE";
   const resourceValues = (key: string) => [...new Set((assignments ?? []).map((item) => (item.resources as Record<string, unknown> | null)?.[key]).filter((value): value is string => typeof value === "string" && value.length > 0))];
@@ -42,5 +46,16 @@ export default async function ResourcesPage() {
     };
   });
   const equipmentHistory = (assetHistory ?? []).map((entry): EquipmentHistoryEntry => ({ id: entry.id, assetId: entry.asset_id, message: entry.message, occurredAt: entry.occurred_at }));
-  return <div className="space-y-12"><EquipmentOperationCenter initialItems={equipment} historyEntries={equipmentHistory} /><OperationsBoard snapshot={createOperationsBoardSnapshot(input)} /></div>;
+  const assetCategory = (asset: { asset_type: string }, metadata: Record<string, unknown>): ResourceCategory => {
+    if (["EQUIPMENT", "VEHICLES", "ACCESSORIES"].includes(String(metadata.resourceCategory))) return metadata.resourceCategory as ResourceCategory;
+    if (asset.asset_type === "VEHICLE") return "VEHICLES";
+    if (asset.asset_type === "ACCESSORY") return "ACCESSORIES";
+    return "EQUIPMENT";
+  };
+  const resources: OperationalResource[] = [
+    ...(assets ?? []).map((asset) => { const metadata = (asset.metadata ?? {}) as Record<string, unknown>; return { id: asset.id, source: "ASSET" as const, category: assetCategory(asset, metadata), name: typeof metadata.name === "string" ? metadata.name : asset.asset_code, code: asset.asset_code, status: asset.status, enabled: asset.status !== "OUT_OF_SERVICE", version: asset.version }; }),
+    ...(supplies ?? []).map((supply) => ({ id: supply.id, source: "SUPPLY" as const, category: "CONSUMABLES" as const, name: supply.name, code: supply.catalog_code, status: supply.status, enabled: supply.status !== "INACTIVE", version: supply.version })),
+    ...(staff ?? []).filter((member) => ["OPERATOR", "INSTALLATION", "REMOVAL"].includes(member.role)).map((member) => ({ id: member.id, source: "STAFF" as const, category: member.role === "OPERATOR" ? "OPERATORS" as const : "ASSISTANTS" as const, name: `${member.first_name} ${member.last_name}`, code: member.rut ?? member.id, status: member.status, enabled: member.status === "ACTIVE", version: member.version })),
+  ];
+  return <div className="space-y-12"><ResourceCenter initialItems={resources} /><details className="rounded-2xl border bg-card p-5"><summary className="cursor-pointer font-semibold">Gestión detallada e historial de equipamiento</summary><div className="mt-6"><EquipmentOperationCenter initialItems={equipment} historyEntries={equipmentHistory} /></div></details><OperationsBoard snapshot={createOperationsBoardSnapshot(input)} /></div>;
 }
