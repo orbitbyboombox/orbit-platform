@@ -5,6 +5,7 @@ import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEv
 import { ActionButton } from "@/components/ui/action-button";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { sendAutomaticBookingInvitationAction } from "@/features/automatic-booking/actions";
 import { projectOrigins, projectTypes, type Project, type ProjectDraft, type ProjectOrigin, type ProjectService, type ProjectType } from "../types/project";
 
 const steps = ["Método", "Cliente", "Evento", "Servicio + extras", "Contrato", "Pago", "Confirmación"] as const;
@@ -273,7 +274,10 @@ function CommercialSummary({ balance, discount, extras, plan, reservation, subto
 
 export function NewProjectDrawer({ commercialPrices, services, venues, open, onClose, onCreate }: NewProjectDrawerProps) {
   const [step, setStep] = useState(0);
-  const [method, setMethod] = useState<"MANUAL">("MANUAL");
+  const [method, setMethod] = useState<"MANUAL" | "AUTOMATIC">("MANUAL");
+  const [invitationEmail, setInvitationEmail] = useState("");
+  const [invitationFeedback, setInvitationFeedback] = useState("");
+  const [invitationPending, setInvitationPending] = useState(false);
   const [draft, setDraft] = useState<ProjectDraft>(initialDraft);
   const [configurations, setConfigurations] = useState<Partial<Record<ProjectService, ServiceConfiguration>>>({});
   const [eventAddress, setEventAddress] = useState("");
@@ -404,6 +408,9 @@ export function NewProjectDrawer({ commercialPrices, services, venues, open, onC
   const reset = () => {
     setStep(0);
     setMethod("MANUAL");
+    setInvitationEmail("");
+    setInvitationFeedback("");
+    setInvitationPending(false);
     setDraft(initialDraft);
     setConfigurations({});
     setEventAddress("");
@@ -530,16 +537,18 @@ export function NewProjectDrawer({ commercialPrices, services, venues, open, onC
                   <span className="mt-1 block text-sm text-muted">Completa toda la reserva dentro de ORBIT.</span>
                 </span>
               </button>
-              <div aria-disabled="true" className="flex gap-4 rounded-2xl border p-5 opacity-60">
+              <button className={cn("flex w-full gap-4 rounded-2xl border p-5 text-left", method === "AUTOMATIC" && "border-brand bg-brand/5")} onClick={() => { setMethod("AUTOMATIC"); setInvitationFeedback(""); }} type="button">
                 <span className="mt-0.5 size-5 shrink-0 rounded-full border" />
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center justify-between">
                     <Sparkles className="size-5" />
-                    <span className="rounded-full border px-3 py-1 text-xs font-semibold">Próximamente</span>
+                    <span className="rounded-full border border-brand/30 px-3 py-1 text-xs font-semibold text-brand">Disponible</span>
                   </span>
                   <span className="mt-3 block font-semibold">Automática</span>
+                  <span className="mt-1 block text-sm text-muted">Ingresa solo el correo. El cliente completa el proceso.</span>
                 </span>
-              </div>
+              </button>
+              {method === "AUTOMATIC" && <section className="rounded-2xl border border-brand/30 bg-brand/5 p-5"><p className="text-sm font-semibold">Correo del cliente</p><input autoComplete="email" className="mt-3 h-12 w-full rounded-xl border bg-background px-4" onChange={(event) => setInvitationEmail(event.target.value)} placeholder="cliente@correo.cl" type="email" value={invitationEmail}/><Button className="mt-4 w-full" disabled={invitationPending || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(invitationEmail)} onClick={async()=>{setInvitationPending(true);setInvitationFeedback("");const result=await sendAutomaticBookingInvitationAction(invitationEmail);setInvitationFeedback(result.message);setInvitationPending(false);}}><Send className="size-4"/>{invitationPending?"Enviando invitación…":"Enviar invitación"}</Button>{invitationFeedback&&<p className="mt-3 text-sm" role="status">{invitationFeedback}</p>}</section>}
             </div>
           )}
           {step === 1 && (
@@ -1036,7 +1045,7 @@ export function NewProjectDrawer({ commercialPrices, services, venues, open, onC
         </div>
         <footer className="flex items-center justify-between gap-3 border-t p-5 sm:p-7">
           {step > 0 && step < 6 ? <ActionButton disabled={submitting} icon={ChevronLeft} label="Atrás" onClick={() => setStep((current) => current - 1)} variant="outline" /> : <span />}
-          {step < 5 ? (
+          {step === 0 && method === "AUTOMATIC" ? <span /> : step < 5 ? (
             <ActionButton disabled={!valid} icon={ChevronRight} iconPosition="end" label="Continuar" onClick={() => setStep((current) => current + 1)} />
           ) : step === 5 ? (
             <Button aria-live="polite" disabled={!valid || submitting} onClick={() => void create()}>
