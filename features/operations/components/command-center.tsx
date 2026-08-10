@@ -50,9 +50,10 @@ function EventReadinessCard({ item }: { item:CommandCenterProjectReadiness }) {
   </article>;
 }
 
-function Metric({ label, value, icon:Icon, tone="neutral" }: { label:string; value:number; icon:typeof CalendarDays; tone?:"neutral"|"success"|"warning"|"danger" }) {
+function Metric({ href, label, value, icon:Icon, tone="neutral" }: { href:string; label:string; value:number; icon:typeof CalendarDays; tone?:"neutral"|"success"|"warning"|"danger" }) {
+  const router = useRouter();
   const toneClass = tone === "success" ? "text-success" : tone === "warning" ? "text-warning" : tone === "danger" ? "text-danger" : "text-brand";
-  return <article className="rounded-2xl border bg-card p-4 sm:p-5"><div className="flex items-center justify-between"><Icon aria-hidden="true" className={`size-4 ${toneClass}`} /><span className="text-2xl font-semibold tabular-nums">{value}</span></div><p className="mt-3 text-xs leading-5 text-muted sm:text-sm">{label}</p></article>;
+  return <button aria-label={`Abrir ${label}`} className="rounded-2xl border bg-card p-4 text-left transition hover:border-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 sm:p-5" onClick={()=>router.push(href)}><div className="flex items-center justify-between"><Icon aria-hidden="true" className={`size-4 ${toneClass}`} /><span className="text-2xl font-semibold tabular-nums">{value}</span></div><p className="mt-3 text-xs leading-5 text-muted sm:text-sm">{label}</p></button>;
 }
 
 export function CommandCenter({ readiness, availableOperators, availableTotems, availableCases, taskSummary, executive }: { readiness:readonly CommandCenterProjectReadiness[]; availableOperators:number; availableTotems:number; availableCases:number; taskSummary:{pending:number;critical:number;overdue:number;today:number}; executive:{next15Events:number;accountsReceivable:number;monthlyRevenue:number;monthlyGoal:number} }) {
@@ -76,19 +77,19 @@ export function CommandCenter({ readiness, availableOperators, availableTotems, 
     <section aria-label="Resumen ejecutivo" className="grid grid-cols-2 gap-3 lg:grid-cols-4"><button className="rounded-2xl border bg-card p-5 text-left transition hover:border-brand" onClick={()=>router.push("/projects")}><p className="text-2xl font-semibold">{executive.next15Events}</p><p className="mt-1 text-sm font-medium">Próximos 15 eventos</p></button><button className="rounded-2xl border bg-card p-5 text-left transition hover:border-brand" onClick={()=>router.push("/finance/receivables")}><p className="text-2xl font-semibold">{executive.accountsReceivable.toLocaleString("es-CL",{style:"currency",currency:"CLP",maximumFractionDigits:0})}</p><p className="mt-1 text-sm font-medium">Cuentas por cobrar</p></button><button className="rounded-2xl border bg-card p-5 text-left transition hover:border-brand" onClick={()=>router.push("/finance")}><p className="text-2xl font-semibold">{executive.monthlyRevenue.toLocaleString("es-CL",{style:"currency",currency:"CLP",maximumFractionDigits:0})}</p><p className="mt-1 text-sm font-medium">Ingresos del mes</p></button><button className="rounded-2xl border bg-card p-5 text-left transition hover:border-brand" onClick={()=>router.push("/settings#master-data")}><p className="text-2xl font-semibold">{executive.monthlyGoal?executive.monthlyGoal.toLocaleString("es-CL",{style:"currency",currency:"CLP",maximumFractionDigits:0}):"Sin definir"}</p><p className="mt-1 text-sm font-medium">Meta mensual</p></button></section>
 
     <section aria-label="Resumen operacional" className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-      <Metric icon={CalendarDays} label="Eventos de hoy" value={todayEvents.length} />
-      <Metric icon={FileSignature} label="Contratos pendientes" tone="warning" value={pendingContracts} />
-      <Metric icon={CircleDollarSign} label="Pagos pendientes" tone="warning" value={pendingPayments} />
-      <Metric icon={UserCheck} label="Operadores disponibles" tone="success" value={availableOperators} />
-      <Metric icon={PackageCheck} label="Tótems disponibles" tone="success" value={availableTotems} />
-      <Metric icon={PackageCheck} label="Cases disponibles" tone="success" value={availableCases} />
-      <Metric icon={AlertTriangle} label="Alertas operacionales" tone={alerts.length ? "danger" : "success"} value={alerts.length} />
-      <Metric icon={CheckCircle2} label="Eventos ready" tone="success" value={readyEvents} />
-      <Metric icon={ShieldAlert} label="Eventos bloqueados" tone={blockedEvents ? "danger" : "success"} value={blockedEvents} />
-      <Metric icon={ListChecks} label="Tareas pendientes" tone={taskSummary.pending ? "warning" : "success"} value={taskSummary.pending} />
-      <Metric icon={AlertTriangle} label="Tareas críticas" tone={taskSummary.critical ? "danger" : "success"} value={taskSummary.critical} />
-      <Metric icon={Clock3} label="Tareas vencidas" tone={taskSummary.overdue ? "danger" : "success"} value={taskSummary.overdue} />
-      <Metric icon={CalendarDays} label="Tareas de hoy" tone={taskSummary.today ? "warning" : "success"} value={taskSummary.today} />
+      <Metric href="/projects" icon={CalendarDays} label="Eventos de hoy" value={todayEvents.length} />
+      <Metric href="/projects" icon={FileSignature} label="Contratos pendientes" tone="warning" value={pendingContracts} />
+      <Metric href="/finance/receivables" icon={CircleDollarSign} label="Pagos pendientes" tone="warning" value={pendingPayments} />
+      <Metric href="/resources/staff" icon={UserCheck} label="Operadores disponibles" tone="success" value={availableOperators} />
+      <Metric href="/reports" icon={PackageCheck} label="Tótems disponibles" tone="success" value={availableTotems} />
+      <Metric href="/reports" icon={PackageCheck} label="Cases disponibles" tone="success" value={availableCases} />
+      <Metric href="/notifications" icon={AlertTriangle} label="Alertas operacionales" tone={alerts.length ? "danger" : "success"} value={alerts.length} />
+      <Metric href="/projects" icon={CheckCircle2} label="Eventos ready" tone="success" value={readyEvents} />
+      <Metric href="/projects" icon={ShieldAlert} label="Eventos bloqueados" tone={blockedEvents ? "danger" : "success"} value={blockedEvents} />
+      <Metric href="/tasks" icon={ListChecks} label="Tareas pendientes" tone={taskSummary.pending ? "warning" : "success"} value={taskSummary.pending} />
+      <Metric href="/tasks" icon={AlertTriangle} label="Tareas críticas" tone={taskSummary.critical ? "danger" : "success"} value={taskSummary.critical} />
+      <Metric href="/tasks" icon={Clock3} label="Tareas vencidas" tone={taskSummary.overdue ? "danger" : "success"} value={taskSummary.overdue} />
+      <Metric href="/tasks" icon={CalendarDays} label="Tareas de hoy" tone={taskSummary.today ? "warning" : "success"} value={taskSummary.today} />
     </section>
 
     <section className="rounded-2xl border bg-card p-5 sm:p-6"><div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand">Trabajo pendiente</p><p className="mt-2 text-lg font-semibold">{taskSummary.pending ? `${taskSummary.pending} tareas requieren seguimiento.` : "No hay tareas pendientes."}</p><p className="mt-1 text-sm text-muted">El Centro de Tareas organiza el trabajo futuro; Timeline conserva el historial.</p></div><Button onClick={() => router.push("/tasks")} variant="outline">Abrir tareas</Button></div></section>
