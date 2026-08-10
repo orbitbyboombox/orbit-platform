@@ -80,6 +80,36 @@ button:disabled { cursor: not-allowed; }
 
 .orbit-enter { animation: orbit-enter 320ms ease-out both; }
 
+/* Reservation summaries remain part of the wizard flow at every breakpoint. */
+aside:has(> .reservation-summary-panel) {
+  min-width: 0;
+}
+
+@media (max-width: 47.99rem) {
+  aside:has(> .reservation-summary-panel) {
+    position: static !important;
+    inset: auto !important;
+    margin-top: 1.5rem;
+  }
+}
+
+@media (min-width: 48rem) and (max-width: 63.99rem) {
+  aside:has(> .reservation-summary-panel) {
+    position: sticky !important;
+    z-index: 5;
+    bottom: 0;
+    padding-top: 0.75rem;
+    background: var(--card);
+  }
+}
+
+@media (min-width: 64rem) {
+  aside:has(> .reservation-summary-panel) {
+    position: sticky !important;
+    top: 1rem;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     scroll-behavior: auto !important;
