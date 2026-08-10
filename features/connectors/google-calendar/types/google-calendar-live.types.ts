@@ -25,12 +25,18 @@ export interface CalendarOperationalEventInput {
   mountingWindow: string;
   serviceStart: string;
   serviceEnd: string;
+  serviceEndDate?: string;
   dismantlingWindow: string;
   operationalNotes: string;
   extras: readonly string[];
   includeOperatorPaymentStatus?: boolean;
   operatorPaymentStatus?: OperatorPaymentOperationalStatus;
   customerAddress: string;
+  venue?: string;
+  municipality?: string;
+  operationalContact?: string;
+  assignedStaff?: readonly string[];
+  commercialNotes?: string;
   portalUrl: string;
   orbitProjectUrl: string;
   updatedAt: string;
@@ -49,6 +55,7 @@ export interface GoogleCalendarEventPayload {
   date: string;
   startTime: string;
   endTime: string;
+  endDate: string;
   location: string;
   googleMapsLink: string;
   portalUrl: string;

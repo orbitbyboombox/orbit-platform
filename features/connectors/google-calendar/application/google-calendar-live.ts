@@ -43,10 +43,13 @@ export function buildCalendarDescription(input: CalendarOperationalEventInput, o
     `Fin del servicio: ${input.serviceEnd}`,
     `Horario de desmontaje: ${input.dismantlingWindow}`,
     `Dirección: ${input.customerAddress}`,
+    `Recinto: ${input.venue ?? "Por confirmar"}`,
+    `Comuna: ${input.municipality ?? "Por confirmar"}`,
     `Google Maps: ${buildGoogleMapsLink(input.customerAddress)}`,
-    `Contacto del evento: ${input.customerPhone} · ${input.customerEmail}`,
+    `Contacto del evento: ${input.operationalContact ?? `${input.customerPhone} · ${input.customerEmail}`}`,
     `Black Box asignada: ${input.blackBox}`,
     `Cabina asignada: ${input.booth}`,
+    `Staff asignado: ${input.assignedStaff?.join(", ") || input.operator}`,
     `Vehículo asignado: ${input.assignedVehicle}`,
     `Extras: ${input.extras.join(", ") || "Sin extras"}`,
     ...(input.includeOperatorPaymentStatus ? [`Pago del operador: ${operatorPaymentStatus}`] : []),
@@ -54,6 +57,7 @@ export function buildCalendarDescription(input: CalendarOperationalEventInput, o
     `Abrir ORBIT: ${input.orbitProjectUrl}`,
     `Operador: ${input.operator}`,
     `Notas operacionales: ${input.operationalNotes}`,
+    `Notas comerciales: ${input.commercialNotes ?? "Sin notas comerciales"}`,
     `Portal ORBIT: ${input.portalUrl}`,
   ].join("\n");
 }
@@ -62,11 +66,12 @@ export function mapOperationalEventToCalendar(input: CalendarOperationalEventInp
   const orbitEventId = input.orbitEventId ?? generateOrbitEventId(input.eventDate, input.sequence);
   return {
     orbitEventId,
-    title: `${GOOGLE_CALENDAR_EVENT_COLORS[input.eventType].label} | ${input.customerName}`,
+    title: `${input.customerName} | ${input.service} | ${GOOGLE_CALENDAR_EVENT_COLORS[input.eventType].label}`,
     description: buildCalendarDescription(input, orbitEventId),
     date: input.eventDate,
     startTime: input.serviceStart,
     endTime: input.serviceEnd,
+    endDate: input.serviceEndDate ?? input.eventDate,
     location: input.customerAddress,
     googleMapsLink: buildGoogleMapsLink(input.customerAddress),
     portalUrl: input.portalUrl,
