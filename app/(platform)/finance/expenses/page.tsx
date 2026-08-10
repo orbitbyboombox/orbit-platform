@@ -1,0 +1,18 @@
+import { ExpenseCenter } from "@/features/expense-center/expense-center";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+
+export default async function ExpenseCenterPage({searchParams}:{searchParams:Promise<{create?:string}>}){
+  const client=await createSupabaseServerClient();
+  const[expensesResult,projectsResult,staffResult,assetsResult,suppliesResult]=await Promise.all([
+    client.from("expenses").select("id,occurred_on,category,supplier,document_number,subtotal,vat,total,status,project_id,vehicle_id,supply_id,receipt_path,approval_reason,version").is("deleted_at",null).order("occurred_on",{ascending:false}).order("created_at",{ascending:false}),
+    client.from("projects").select("id,name,orbit_event_id").is("deleted_at",null).order("event_date",{ascending:false}),
+    client.from("staff").select("id,first_name,last_name").is("deleted_at",null).order("first_name"),
+    client.from("operational_assets").select("id,asset_code,asset_type,metadata").is("deleted_at",null).order("asset_code"),
+    client.from("supplies").select("id,name").is("deleted_at",null).order("name"),
+  ]);
+  const error=expensesResult.error??projectsResult.error??staffResult.error??assetsResult.error??suppliesResult.error;if(error)throw error;
+  const projects=new Map((projectsResult.data??[]).map(item=>[item.id,`${item.orbit_event_id} · ${item.name}`]));const staff=new Map((staffResult.data??[]).map(item=>[item.id,`${item.first_name} ${item.last_name}`]));const assets=new Map((assetsResult.data??[]).map(item=>[item.id,item.asset_code]));const supplies=new Map((suppliesResult.data??[]).map(item=>[item.id,item.name]));
+  const expenses=(expensesResult.data??[]).map(item=>{let metadata:Record<string,unknown>={};try{metadata=JSON.parse(item.approval_reason??"{}");}catch{}const associationType=String(metadata.associationType??"");const associationId=String(metadata.associationId??"");const staffId=associationType==="STAFF"?associationId:"";const equipmentId=associationType==="EQUIPMENT"?associationId:"";const resourceId=associationType==="RESOURCE"?(item.supply_id??associationId):"";const associationLabel=item.project_id?projects.get(item.project_id):item.vehicle_id?assets.get(item.vehicle_id):staffId?staff.get(staffId):equipmentId?assets.get(equipmentId):resourceId?supplies.get(resourceId):"";return{id:item.id,occurredOn:item.occurred_on,category:item.category,supplier:item.supplier??"Proveedor sin identificar",supplierRut:String(metadata.supplierRut??""),documentType:String(metadata.documentType??"OTHER"),documentNumber:item.document_number??"",description:String(metadata.description??""),subtotal:Number(item.subtotal??0),vat:Number(item.vat??0),exempt:Number(metadata.exempt??0),total:Number(item.total??0),paymentMethod:String(metadata.paymentMethod??"TRANSFER"),status:item.status,projectId:item.project_id??"",vehicleId:item.vehicle_id??"",staffId,equipmentId,resourceId,receiptPath:item.receipt_path??"",associationLabel:associationLabel??"",version:item.version};});
+  const options=(items:Iterable<[string,string]>)=>Array.from(items,([id,label])=>({id,label}));const vehicles=(assetsResult.data??[]).filter(item=>item.asset_type==="VEHICLE").map(item=>({id:item.id,label:item.asset_code}));const equipment=(assetsResult.data??[]).filter(item=>item.asset_type!=="VEHICLE").map(item=>({id:item.id,label:item.asset_code}));
+  return <ExpenseCenter equipment={equipment} events={options(projects)} expenses={expenses} openCreate={(await searchParams).create==="1"} resources={options(supplies)} staff={options(staff)} vehicles={vehicles}/>;
+}
