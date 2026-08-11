@@ -57,6 +57,7 @@ type ServiceConfiguration = {
 };
 type CreditTerm = "CASH" | "15" | "30" | "45" | "60" | "90" | "CUSTOM";
 type PaymentCondition = "FIFTY_FIFTY" | "CASH" | "CORPORATE_CREDIT";
+type NegotiationMode = "OFFICIAL" | "NEGOTIATED";
 type DiscountReason = "FREQUENT_CUSTOMER" | "CORPORATE_AGREEMENT" | "PROMOTION" | "COURTESY" | "FOUNDER_APPROVAL" | "OTHER";
 type CourtesyCode = "QR" | "SCRAPBOOK" | "MAGNETS" | "TRANSPORT" | "EXTRA_HOUR";
 const initialService = (service: ReservationService): ServiceConfiguration => ({
@@ -322,6 +323,10 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, crmCustomers,
   const [portalMessage, setPortalMessage] = useState("");
   const [confirmationPreview,setConfirmationPreview]=useState(false);
   const [confirmationSending,setConfirmationSending]=useState(false);
+  const [negotiationMode, setNegotiationMode] = useState<NegotiationMode>("OFFICIAL");
+  const [negotiatedServicePrice, setNegotiatedServicePrice] = useState<number | null>(null);
+  const [negotiatedExtrasPrice, setNegotiatedExtrasPrice] = useState<number | null>(null);
+  const [negotiationNotes, setNegotiationNotes] = useState("");
   const [discountAmount, setDiscountAmount] = useState(0);
   const [discountReason, setDiscountReason] = useState<DiscountReason>("FREQUENT_CUSTOMER");
   const [discountReasonDetail, setDiscountReasonDetail] = useState("");
@@ -370,7 +375,6 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, crmCustomers,
   const officialServicePrice = (Object.entries(configurations) as Array<[ProjectService, ServiceConfiguration]>).reduce((sum, [service, configuration]) => sum + serviceBasePrice(service, configuration) + configuration.additionalHours * additionalHourRate(service), 0);
   const officialExtras = Math.max(0, servicesTotal - officialServicePrice);
   const officialTransport = Number(transportTotal ?? 0);
-  const commercialTotal = servicesTotal + officialTransport + venueSurcharge;
   const selectedConfigurationsForCourtesy = Object.values(configurations) as ServiceConfiguration[];
   const courtesyDefinitions: Array<{ code: CourtesyCode; label: string; officialValue: number; alreadyPurchased: boolean }> = [
     { code: "QR", label: "QR incluido", officialValue: Number(priceFor("EXTRA", extraCodes.QR)?.unitPrice ?? 0), alreadyPurchased: selectedConfigurationsForCourtesy.some((configuration) => configuration.extras.includes("QR")) || includedExtras.includes("QR") },
@@ -382,11 +386,16 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, crmCustomers,
   const appliedCourtesies = courtesyDefinitions.filter((courtesy) => courtesies.includes(courtesy.code) && courtesy.officialValue > 0);
   const courtesyAddedOfficial = appliedCourtesies.filter((courtesy) => !courtesy.alreadyPurchased).reduce((sum, courtesy) => sum + courtesy.officialValue, 0);
   const courtesyValue = appliedCourtesies.reduce((sum, courtesy) => sum + courtesy.officialValue, 0);
-  const appliedTransport = courtesies.includes("TRANSPORT") ? 0 : Math.max(0, transportOverride ?? officialTransport);
-  const transportAdjustment = appliedTransport - officialTransport;
-  const negotiatedOfficialTotal = commercialTotal + courtesyAddedOfficial;
-  const discountTotal = Math.min(negotiatedOfficialTotal + Math.max(0, transportAdjustment) + commercialCharge, Math.max(0, discountAmount));
-  const adjustedSubtotal = Math.max(0, negotiatedOfficialTotal + transportAdjustment + commercialCharge - discountTotal - courtesyValue);
+  const officialExtrasTotal = officialExtras + venueSurcharge;
+  const appliedServicePrice = negotiationMode === "NEGOTIATED" ? Math.max(0, negotiatedServicePrice ?? officialServicePrice) : officialServicePrice;
+  const appliedExtrasPrice = negotiationMode === "NEGOTIATED" ? Math.max(0, negotiatedExtrasPrice ?? officialExtrasTotal) : officialExtrasTotal;
+  const appliedTransport = negotiationMode === "NEGOTIATED" ? Math.max(0, transportOverride ?? officialTransport) : officialTransport;
+  const officialTotal = officialServicePrice + officialExtrasTotal + officialTransport;
+  const negotiatedOfficialTotal = appliedServicePrice + appliedExtrasPrice + appliedTransport + courtesyAddedOfficial;
+  const discountTotal = negotiationMode === "NEGOTIATED" ? Math.min(negotiatedOfficialTotal + commercialCharge, Math.max(0, discountAmount)) : 0;
+  const adjustedSubtotal = Math.max(0, negotiatedOfficialTotal + (negotiationMode === "NEGOTIATED" ? commercialCharge - discountTotal - courtesyValue : 0));
+  const negotiationDifference = adjustedSubtotal - officialTotal;
+  const negotiationDifferencePercentage = officialTotal > 0 ? negotiationDifference / officialTotal * 100 : 0;
   const vatAmount = draft.type === "Corporate" && corporateVatApplied ? Math.round(adjustedSubtotal * 0.19) : 0;
   const payableTotal = Math.round((adjustedSubtotal + vatAmount) * (paymentMethod === "MERCADO_PAGO" ? 1.05 : 1));
   const reservationTotal = paymentCondition === "CASH" ? payableTotal : paymentCondition === "CORPORATE_CREDIT" ? 0 : Math.round(payableTotal * 0.5);
@@ -444,6 +453,11 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, crmCustomers,
       if (typeof value.commercialNotes === "string") setCommercialNotes(value.commercialNotes);
       if (typeof value.discountAmount === "number") setDiscountAmount(value.discountAmount);
       if (typeof value.commercialCharge === "number") setCommercialCharge(value.commercialCharge);
+      if (value.negotiationMode === "OFFICIAL" || value.negotiationMode === "NEGOTIATED") setNegotiationMode(value.negotiationMode);
+      if (typeof value.negotiatedServicePrice === "number") setNegotiatedServicePrice(value.negotiatedServicePrice);
+      if (typeof value.negotiatedExtrasPrice === "number") setNegotiatedExtrasPrice(value.negotiatedExtrasPrice);
+      if (typeof value.transportOverride === "number") setTransportOverride(value.transportOverride);
+      if (typeof value.negotiationNotes === "string") setNegotiationNotes(value.negotiationNotes);
       if (typeof value.paymentCondition === "string") setPaymentCondition(value.paymentCondition as PaymentCondition);
       if (typeof value.paymentMethod === "string") setPaymentMethod(value.paymentMethod as "TRANSFER" | "MERCADO_PAGO");
       if (typeof value.corporateCreditApproved === "boolean") setCorporateCreditApproved(value.corporateCreditApproved);
@@ -452,7 +466,7 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, crmCustomers,
   }, [open]);
   useEffect(() => {
     if (!open || createdProject || method !== "MANUAL") return;
-    window.localStorage.setItem(manualReservationDraftKey, JSON.stringify({draft,configurations,step,eventAddress,operationalContact,operationalPhone,mainContact,specialRequests,commercialNotes,discountAmount,commercialCharge,paymentCondition,paymentMethod,corporateCreditApproved,corporateVatApplied}));
+    window.localStorage.setItem(manualReservationDraftKey, JSON.stringify({draft,configurations,step,eventAddress,operationalContact,operationalPhone,mainContact,specialRequests,commercialNotes,negotiationMode,negotiatedServicePrice,negotiatedExtrasPrice,transportOverride,negotiationNotes,discountAmount,commercialCharge,paymentCondition,paymentMethod,corporateCreditApproved,corporateVatApplied}));
   });
 
   if (!open) return null;
@@ -505,6 +519,10 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, crmCustomers,
     setError("");
     setCreatedProject(null);
     setPortalMessage("");
+    setNegotiationMode("OFFICIAL");
+    setNegotiatedServicePrice(null);
+    setNegotiatedExtrasPrice(null);
+    setNegotiationNotes("");
     setDiscountAmount(0);
     setDiscountReason("FREQUENT_CUSTOMER");
     setDiscountReasonDetail("");
@@ -552,7 +570,7 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, crmCustomers,
   const negotiationReason = discountReason === "OTHER" ? discountReasonDetail.trim() : discountReasonLabel;
   const paymentTermDays = paymentCondition === "CORPORATE_CREDIT" ? (creditTerm === "CUSTOM" ? customCreditDays : Number(creditTerm === "CASH" ? 0 : creditTerm)) : 0;
   const paymentClause = paymentCondition === "CASH" ? "El pago deberá realizarse al contado." : paymentCondition === "CORPORATE_CREDIT" ? `El pago deberá realizarse dentro de los ${paymentTermDays} días posteriores a la emisión de la factura.` : "La reserva corresponde al 50% del valor total y el saldo deberá pagarse antes del evento.";
-  const negotiationValid = (!discountTotal || Boolean(negotiationReason)) && (!commercialCharge || Boolean(commercialChargeDescription.trim())) && (discountReason !== "OTHER" || !discountTotal || Boolean(discountReasonDetail.trim()));
+  const negotiationValid = negotiationMode === "OFFICIAL" || (canNegotiate && Boolean(negotiationReason) && (!commercialCharge || Boolean(commercialChargeDescription.trim())) && (discountReason !== "OTHER" || Boolean(discountReasonDetail.trim())));
   const requiresSignature = commercialFormalization === "CONTRACT_INVOICE";
   const receiptSatisfied = paymentMethod === "MERCADO_PAGO" || !paymentReceiptRequired || Boolean(receipt);
   const valid = step === 0 ? method === "MANUAL" : step === 1 ? customerValid : step === 2 ? Boolean(draft.type && draft.event.location && eventAddress && draft.event.city && draft.event.date && draft.event.time && operationalContact && operationalPhone.length === 12 && (draft.type === "Wedding" ? bride && groom : mainContact)) : step === 3 ? draft.services.length > 0 && negotiationValid : step === 4 ? (!requiresSignature || (termsAccepted && signatureConfirmed && Boolean(signatureDataUrl))) : step === 5 ? receiptSatisfied && (paymentCondition !== "CORPORATE_CREDIT" || corporateCreditApproved) : true;
@@ -567,15 +585,24 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, crmCustomers,
         onCreate({
           ...draft,
           commercialFormalization: { type: commercialFormalization, requiresSignature, documentType: requiresSignature ? "SIGNED_CONTRACT" : "COMMERCIAL_DOCUMENT", signatureDataUrl: requiresSignature ? signatureDataUrl : undefined },
-          commercialAdjustment: canNegotiate ? {
+          commercialAdjustment: {
             type: "COMMERCIAL_NEGOTIATION",
+            mode: negotiationMode,
             value: discountAmount,
-            reason: negotiationReason || "Precio oficial",
-            subtotal: negotiatedOfficialTotal,
+            reason: negotiationMode === "OFFICIAL" ? "Uso de precios oficiales" : negotiationReason,
+            internalNotes: negotiationNotes.trim() || undefined,
+            subtotal: officialTotal,
+            officialTotal,
             officialServicePrice,
             officialExtras,
             officialTransport,
             officialVenueSurcharge: venueSurcharge,
+            negotiatedServicePrice: appliedServicePrice,
+            negotiatedExtras: appliedExtrasPrice,
+            negotiatedTransport: appliedTransport,
+            negotiatedTotal: adjustedSubtotal,
+            difference: negotiationDifference,
+            differencePercentage: negotiationDifferencePercentage,
             discountAmount: discountTotal,
             discountReason,
             discountReasonDetail: discountReasonDetail.trim() || undefined,
@@ -592,7 +619,7 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, crmCustomers,
             netAmount: adjustedSubtotal,
             vatAmount,
             finalPrice: payableTotal,
-          } : undefined,
+          },
           event: {
             ...draft.event,
             durationHours: maximumHours,
@@ -613,7 +640,7 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, crmCustomers,
   };
   const portalUrl = createdProject ? `${window.location.origin}/projects/${createdProject.id}#portal-cliente` : "";
 
-  const summarySubtotal = negotiatedOfficialTotal + transportAdjustment + commercialCharge;
+  const summarySubtotal = negotiatedOfficialTotal + (negotiationMode === "NEGOTIATED" ? commercialCharge : 0);
   const summary = <CommercialSummary balance={balanceTotal} discount={discountTotal + courtesyValue} extras={summaryExtras} plan={plan} reservation={reservationTotal} subtotal={summarySubtotal} total={payableTotal} />;
 
   return (
@@ -919,32 +946,42 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, crmCustomers,
                 <section className="rounded-2xl border border-brand/25 bg-brand/5 p-5">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">💼 Negociación comercial</p>
-                    <h3 className="mt-1 text-lg font-semibold">Propuesta manual</h3>
-                    <p className="mt-1 text-sm text-muted">Los valores oficiales permanecen inmutables. Solo Administración y Comercial pueden negociar.</p>
+                    <h3 className="mt-1 text-lg font-semibold">Negociación Comercial</h3>
+                    <p className="mt-1 text-sm text-muted">Los precios oficiales provienen de Master Data y nunca se modifican. Cualquier ajuste pertenece exclusivamente a esta reserva.</p>
                   </div>
-                  <dl className="mt-4 grid gap-3 rounded-xl border bg-background/40 p-4 text-sm sm:grid-cols-3">
+                  <dl className="mt-4 grid gap-3 rounded-xl border bg-background/40 p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
                     <div><dt className="text-muted">Servicio oficial</dt><dd className="mt-1 font-semibold">{currency.format(officialServicePrice)}</dd></div>
-                    <div><dt className="text-muted">Extras oficiales</dt><dd className="mt-1 font-semibold">{currency.format(officialExtras + venueSurcharge)}</dd></div>
+                    <div><dt className="text-muted">Extras oficiales</dt><dd className="mt-1 font-semibold">{currency.format(officialExtrasTotal)}</dd></div>
                     <div><dt className="text-muted">Transporte oficial</dt><dd className="mt-1 font-semibold">{currency.format(officialTransport)}</dd></div>
+                    <div><dt className="text-muted">Total oficial</dt><dd className="mt-1 font-semibold text-brand">{currency.format(officialTotal)}</dd></div>
                   </dl>
                   {!canNegotiate && <p className="mt-4 rounded-xl border p-3 text-sm text-muted">Tu perfil puede consultar los precios oficiales, pero no aplicar ajustes.</p>}
+                  <div className="mt-5 grid gap-2 sm:grid-cols-2">
+                    <label className={cn("flex min-h-12 items-center gap-3 rounded-xl border bg-background/40 px-4 text-sm", negotiationMode === "OFFICIAL" && "border-brand bg-brand/10")}><input checked={negotiationMode === "OFFICIAL"} name="negotiation-mode" onChange={() => { setNegotiationMode("OFFICIAL"); setDiscountAmount(0); setCommercialCharge(0); setCourtesies([]); }} type="radio"/><span><strong className="block">Usar precios oficiales</strong><span className="text-xs text-muted">Continúa exactamente con Master Data.</span></span></label>
+                    <label className={cn("flex min-h-12 items-center gap-3 rounded-xl border bg-background/40 px-4 text-sm", negotiationMode === "NEGOTIATED" && "border-brand bg-brand/10", !canNegotiate && "cursor-not-allowed opacity-50")}><input checked={negotiationMode === "NEGOTIATED"} disabled={!canNegotiate} name="negotiation-mode" onChange={() => { setNegotiationMode("NEGOTIATED"); setNegotiatedServicePrice(officialServicePrice); setNegotiatedExtrasPrice(officialExtrasTotal); setTransportOverride(officialTransport); }} type="radio"/><span><strong className="block">Negociar esta reserva</strong><span className="text-xs text-muted">No altera la lista oficial.</span></span></label>
+                  </div>
                   <fieldset className="mt-5 space-y-5" disabled={!canNegotiate}>
+                    {negotiationMode === "NEGOTIATED" && <><div className="grid gap-4 sm:grid-cols-3">
+                      <Field label="Servicio negociado" min="0" onChange={(event) => setNegotiatedServicePrice(Math.max(0, Number(event.target.value)))} type="number" value={negotiatedServicePrice ?? officialServicePrice} />
+                      <Field label="Extras negociados" min="0" onChange={(event) => setNegotiatedExtrasPrice(Math.max(0, Number(event.target.value)))} type="number" value={negotiatedExtrasPrice ?? officialExtrasTotal} />
+                      <Field label="Transporte negociado" min="0" onChange={(event) => setTransportOverride(Math.max(0, Number(event.target.value)))} type="number" value={transportOverride ?? officialTransport} />
+                    </div>
                     <div className="grid gap-4 sm:grid-cols-2">
                       <Field label="Descuento comercial" min="0" onChange={(event) => setDiscountAmount(Math.max(0, Number(event.target.value)))} type="number" value={discountAmount || ""} />
-                      <label className="text-sm font-medium">Motivo<select className="mt-2 h-11 w-full rounded-lg border bg-background px-3" onChange={(event) => setDiscountReason(event.target.value as DiscountReason)} value={discountReason}><option value="FREQUENT_CUSTOMER">Cliente frecuente</option><option value="CORPORATE_AGREEMENT">Acuerdo corporativo</option><option value="PROMOTION">Promoción</option><option value="COURTESY">Cortesía</option><option value="FOUNDER_APPROVAL">Aprobación Founder</option><option value="OTHER">Otro</option></select></label>
+                      <label className="text-sm font-medium">Motivo obligatorio<select className="mt-2 h-11 w-full rounded-lg border bg-background px-3" onChange={(event) => setDiscountReason(event.target.value as DiscountReason)} value={discountReason}><option value="FREQUENT_CUSTOMER">Cliente histórico</option><option value="CORPORATE_AGREEMENT">Acuerdo corporativo</option><option value="COURTESY">Acuerdo BOOMBOX</option><option value="FOUNDER_APPROVAL">Decisión comercial</option><option value="PROMOTION">Campaña especial</option><option value="OTHER">Otro</option></select></label>
                     </div>
-                    {discountReason === "OTHER" && <Field label="Detalle del motivo" onChange={(event) => setDiscountReasonDetail(event.target.value)} required={discountTotal > 0} value={discountReasonDetail} />}
+                    {discountReason === "OTHER" && <Field label="Detalle del motivo" onChange={(event) => setDiscountReasonDetail(event.target.value)} required value={discountReasonDetail} />}
                     <div className="grid gap-4 sm:grid-cols-2">
                       <Field label="Cargo comercial adicional" min="0" onChange={(event) => setCommercialCharge(Math.max(0, Number(event.target.value)))} type="number" value={commercialCharge || ""} />
-                      <Field label="Descripción del cargo" onChange={(event) => setCommercialChargeDescription(event.target.value)} placeholder="Montaje especial, branding especial…" required={commercialCharge > 0} value={commercialChargeDescription} />
+                      <Field label="Descripción del cargo" onChange={(event) => setCommercialChargeDescription(event.target.value)} placeholder="Montaje especial, servicio express…" required={commercialCharge > 0} value={commercialChargeDescription} />
                     </div>
-                    <Field label="Transporte aplicado" min="0" onChange={(event) => setTransportOverride(event.target.value === "" ? null : Math.max(0, Number(event.target.value)))} type="number" value={transportOverride ?? ""} />
+                    <TextArea label="Notas internas de negociación" onChange={(event) => setNegotiationNotes(event.target.value)} value={negotiationNotes} />
                     <div>
                       <p className="text-sm font-semibold">Cortesías</p>
                       <div className="mt-3 grid gap-2 sm:grid-cols-2">
                         {courtesyDefinitions.map((courtesy) => <label className={cn("flex items-start gap-3 rounded-xl border bg-background/40 p-3 text-sm", courtesy.officialValue <= 0 && "opacity-50")} key={courtesy.code}><input checked={courtesies.includes(courtesy.code)} disabled={courtesy.officialValue <= 0} onChange={() => setCourtesies((current) => current.includes(courtesy.code) ? current.filter((code) => code !== courtesy.code) : [...current, courtesy.code])} type="checkbox"/><span><strong className="block">{courtesy.label}</strong><span className="text-xs text-muted">Oficial {currency.format(courtesy.officialValue)} · Aplicado $0 · Beneficio BOOMBOX</span></span></label>)}
                       </div>
-                    </div>
+                    </div></>}
                     <div>
                       <p className="text-sm font-semibold">💳 Condición de pago</p>
                       <div className="mt-3 grid gap-2 sm:grid-cols-3">
@@ -954,12 +991,13 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, crmCustomers,
                       {paymentCondition === "CORPORATE_CREDIT" && creditTerm === "CUSTOM" && <div className="mt-3"><Field label="Días de crédito" min="0" onChange={(event) => setCustomCreditDays(Math.max(0, Number(event.target.value)))} type="number" value={customCreditDays || ""}/></div>}
                     </div>
                   </fieldset>
-                  <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 border-t pt-4 text-sm">
-                    {discountTotal > 0 && <span className="font-medium text-success">Descuento −{currency.format(discountTotal)}</span>}
-                    {courtesyValue > 0 && <span className="font-medium text-success">Cortesías −{currency.format(courtesyValue)}</span>}
-                    {commercialCharge > 0 && <span className="font-medium">Cargo +{currency.format(commercialCharge)}</span>}
-                    <span className="font-semibold">Precio final {currency.format(adjustedSubtotal)}</span>
-                  </div>
+                  <dl className="mt-4 grid gap-3 border-t pt-4 text-sm sm:grid-cols-2 lg:grid-cols-5">
+                    <div><dt className="text-muted">Total oficial</dt><dd className="font-semibold">{currency.format(officialTotal)}</dd></div>
+                    <div><dt className="text-muted">Total negociado</dt><dd className="font-semibold text-brand">{currency.format(adjustedSubtotal)}</dd></div>
+                    <div><dt className="text-muted">Diferencia</dt><dd className="font-semibold">{negotiationDifference >= 0 ? "+" : ""}{currency.format(negotiationDifference)}</dd></div>
+                    <div><dt className="text-muted">Diferencia %</dt><dd className="font-semibold">{negotiationDifferencePercentage >= 0 ? "+" : ""}{negotiationDifferencePercentage.toFixed(1)}%</dd></div>
+                    <div><dt className="text-muted">Margen Founder</dt><dd className="font-semibold">{officialTotal > 0 ? ((adjustedSubtotal - officialTotal) / officialTotal * 100).toFixed(1) : "0.0"}%</dd></div>
+                  </dl>
                 </section>
               </div>
               <aside className="h-fit max-lg:sticky max-lg:bottom-0 lg:sticky lg:top-0">{summary}</aside>

@@ -63,13 +63,22 @@ export interface ProjectDraft {
   };
   commercialAdjustment?: {
     type: "COMMERCIAL_NEGOTIATION";
+    mode: "OFFICIAL" | "NEGOTIATED";
     value: number;
     reason: string;
+    internalNotes?: string;
     subtotal: number;
+    officialTotal: number;
     officialServicePrice: number;
     officialExtras: number;
     officialTransport: number;
     officialVenueSurcharge: number;
+    negotiatedServicePrice: number;
+    negotiatedExtras: number;
+    negotiatedTransport: number;
+    negotiatedTotal: number;
+    difference: number;
+    differencePercentage: number;
     discountAmount: number;
     discountReason: "FREQUENT_CUSTOMER" | "CORPORATE_AGREEMENT" | "PROMOTION" | "COURTESY" | "FOUNDER_APPROVAL" | "OTHER";
     discountReasonDetail?: string;

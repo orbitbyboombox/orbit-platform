@@ -39,8 +39,9 @@ export async function createCustomerProjectAction(draft: ProjectDraft): Promise<
     const { data: profile, error: profileError } = await client.from("profiles").select("role").eq("id", auth.user.id).single();
     if (profileError) throw profileError;
     const adjustment = draft.commercialAdjustment;
-    if (adjustment && !["CEO", "ADMINISTRATOR", "SALES"].includes(profile.role)) throw new Error("Solo Administración o Comercial puede aplicar ajustes comerciales.");
-    if (adjustment && adjustment.discountAmount > 0 && !adjustment.reason.trim()) throw new Error("El motivo del descuento es obligatorio.");
+    const isNegotiated = adjustment?.mode === "NEGOTIATED";
+    if (isNegotiated && !["CEO", "ADMINISTRATOR", "SALES"].includes(profile.role)) throw new Error("Solo Administración o Comercial puede aplicar ajustes comerciales.");
+    if (isNegotiated && !adjustment.reason.trim()) throw new Error("El motivo de la negociación es obligatorio.");
     const repository = new SupabaseCustomerRepository(client);
     const project = await repository.createWithProject(draft);
     projectId=project.id;for(const label of reservationExecutionSteps.slice(0,5)){mark(label,"PASS");log(label,"PASS",{projectId})}currentStep="Accounts Receivable";
@@ -79,12 +80,12 @@ export async function createCustomerProjectAction(draft: ProjectDraft): Promise<
         official_price: subtotal,
         final_customer_price: finalTotal,
         price_difference: priceDifference,
-        negotiation_method: "MANUAL",
+        negotiation_method: adjustment.mode === "NEGOTIATED" ? "MANUAL" : "RESTORE",
         negotiation_value: finalTotal,
         negotiation_reason: adjustment.reason.trim(),
         negotiated_by: auth.user.id,
         negotiated_at: new Date().toISOString(),
-        pricing_snapshot: { commercialNegotiation: adjustment, officialPrice: subtotal, discount, commercialCharges: charges, courtesyValue, finalTotal, paymentCondition: adjustment.paymentCondition, paymentTermDays: adjustment.paymentTermDays },
+        pricing_snapshot: { commercialNegotiation: adjustment, officialPrice: subtotal, officialServicePrice: adjustment.officialServicePrice, officialExtras: adjustment.officialExtras + adjustment.officialVenueSurcharge, officialTransport: adjustment.officialTransport, negotiatedServicePrice: adjustment.negotiatedServicePrice, negotiatedExtras: adjustment.negotiatedExtras, negotiatedTransport: adjustment.negotiatedTransport, negotiatedTotal: adjustment.negotiatedTotal, difference: adjustment.difference, differencePercentage: adjustment.differencePercentage, discount, commercialCharges: charges, courtesyValue, finalTotal, paymentCondition: adjustment.paymentCondition, paymentTermDays: adjustment.paymentTermDays },
         blockers: [],
         created_by: auth.user.id,
         updated_by: auth.user.id,
@@ -100,12 +101,36 @@ export async function createCustomerProjectAction(draft: ProjectDraft): Promise<
         const { error: timelineError } = await client.from("timeline_events").insert({ orbit_event_id: persistedProject.orbit_event_id, project_id: project.id, customer_id: persistedProject.customer_id, event_type: "QUOTATION_UPDATED", title: message, description: message, actor_id: auth.user.id, actor_label: "Administrador", source: "Administrator", action: "QUOTATION_UPDATED", entity_type: "Quotation", entity_id: quotation.id, human_message: message, correlation_id: crypto.randomUUID(), reason: adjustment.reason.trim(), created_by: auth.user.id });
         if (timelineError) throw timelineError;
       }
+      if (quotationCreated && quotation && adjustment.mode === "NEGOTIATED") {
+        const { error: negotiationAuditError } = await client.from("reservation_commercial_negotiations").insert({
+          project_id: project.id,
+          customer_id: persistedProject.customer_id,
+          quotation_id: quotation.id,
+          orbit_event_id: persistedProject.orbit_event_id,
+          official_service_price: adjustment.officialServicePrice,
+          official_extras_price: adjustment.officialExtras + adjustment.officialVenueSurcharge,
+          official_transport_price: adjustment.officialTransport,
+          negotiated_service_price: adjustment.negotiatedServicePrice,
+          negotiated_extras_price: adjustment.negotiatedExtras,
+          negotiated_transport_price: adjustment.negotiatedTransport,
+          commercial_charges: adjustment.commercialCharge,
+          commercial_discounts: adjustment.discountAmount + adjustment.courtesyValue,
+          official_total: adjustment.officialTotal,
+          negotiated_total: adjustment.negotiatedTotal,
+          difference: adjustment.difference,
+          difference_percentage: adjustment.differencePercentage,
+          reason: adjustment.reason,
+          internal_notes: adjustment.internalNotes ?? null,
+          created_by: auth.user.id,
+        });
+        if (negotiationAuditError) throw negotiationAuditError;
+      }
       const { data: currentProject, error: currentProjectError } = await client.from("projects").select("finance,operations").eq("id", project.id).single();
       if (currentProjectError) throw currentProjectError;
       const currentFinance = currentProject.finance && typeof currentProject.finance === "object" ? currentProject.finance as Record<string, unknown> : {};
       const currentOperations = currentProject.operations && typeof currentProject.operations === "object" ? currentProject.operations as Record<string, unknown> : {};
       const negotiatedAt = new Date().toISOString();
-      const negotiation = { officialPrice: subtotal, commercialDiscount: discount, commercialCharges: charges, courtesyValue, finalPrice: finalTotal, paymentCondition: adjustment.paymentCondition, paymentTermDays: adjustment.paymentTermDays, paymentReceiptRequired: adjustment.paymentReceiptRequired, corporateCreditApproved: adjustment.corporateCreditApproved, corporateVatApplied: adjustment.corporateVatApplied, netAmount: adjustment.netAmount, vatAmount: adjustment.vatAmount, negotiationReason: adjustment.reason, negotiatedBy: auth.user.id, negotiatedAt };
+      const negotiation = { negotiationMode: adjustment.mode, officialPrice: subtotal, officialServicePrice: adjustment.officialServicePrice, officialExtras: adjustment.officialExtras + adjustment.officialVenueSurcharge, officialTransport: adjustment.officialTransport, negotiatedServicePrice: adjustment.negotiatedServicePrice, negotiatedExtras: adjustment.negotiatedExtras, negotiatedTransport: adjustment.negotiatedTransport, negotiatedTotal: adjustment.negotiatedTotal, commercialDifference: adjustment.difference, commercialDifferencePercentage: adjustment.differencePercentage, commercialDiscount: discount, commercialCharges: charges, courtesyValue, finalPrice: finalTotal, paymentCondition: adjustment.paymentCondition, paymentTermDays: adjustment.paymentTermDays, paymentReceiptRequired: adjustment.paymentReceiptRequired, corporateCreditApproved: adjustment.corporateCreditApproved, corporateVatApplied: adjustment.corporateVatApplied, netAmount: adjustment.netAmount, vatAmount: adjustment.vatAmount, negotiationReason: adjustment.reason, negotiationInternalNotes: adjustment.internalNotes, negotiatedBy: auth.user.id, negotiatedAt };
       const { error: financeError } = await client.from("projects").update({ finance: { ...currentFinance, ...negotiation }, operations: { ...currentOperations, commercialNegotiation: adjustment, paymentClause: adjustment.paymentCondition === "CASH" ? "Pago al contado." : adjustment.paymentCondition === "CORPORATE_CREDIT" ? `Pago a ${adjustment.paymentTermDays} días desde la emisión de la factura.` : "Reserva 50% y saldo antes del evento." }, updated_by: auth.user.id }).eq("id", project.id);
       if (financeError) throw financeError;
     }
