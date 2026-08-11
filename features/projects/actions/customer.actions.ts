@@ -15,7 +15,10 @@ import {
 import { formalizeManualReservation } from "../signing/manual-reservation-formalization.service";
 import type { Project, ProjectDraft } from "../types/project";
 import type { CustomerMutationInput } from "../infrastructure";
-import { runConfirmedReservationOperationalPipeline } from "../operations/confirmed-reservation-pipeline.service";
+import {
+  confirmPersistedReservation,
+  type ConfirmationStage,
+} from "../operations/confirmed-reservation-orchestrator.service";
 
 export type CreateCustomerResult =
   | { ok: true; project: Project }
@@ -29,10 +32,14 @@ const reservationExecutionSteps = [
   "Event Create",
   "Timeline",
   "Accounts Receivable",
+  "Reservation Records",
   "Business Engine",
   "Portal",
   "Google Calendar",
   "Google Drive",
+  "Customer Email",
+  "Founder Email",
+  "Dashboard",
   "Confirmation",
 ] as const;
 type ReservationStep = (typeof reservationExecutionSteps)[number];
@@ -195,6 +202,7 @@ export async function createCustomerProjectAction(
       revalidatePath("/projects");
       return { ok: true, project: { ...project, reservationResumed: true } };
     }
+    let preparedPortal: { url: string; expiresAt: string } | undefined;
     projectId = project.id;
     for (const label of reservationExecutionSteps.slice(0, 5)) {
       mark(label, "PASS");
@@ -416,12 +424,17 @@ export async function createCustomerProjectAction(
           .select("id", { count: "exact", head: true })
           .eq("project_id", project.id);
       if (agreementLookupError) throw agreementLookupError;
-      if (!existingAgreementCount)
-        await formalizeManualReservation({
+      if (!existingAgreementCount) {
+        const result = await formalizeManualReservation({
           projectId: project.id,
           actorId: auth.user.id,
           formalization: draft.commercialFormalization,
         });
+        preparedPortal = {
+          url: "url" in result ? result.url : result.portalUrl,
+          expiresAt: "expiresAt" in result ? result.expiresAt : "",
+        };
+      }
       const { data: persisted, error: persistedError } = await client
         .from("projects")
         .select(
@@ -507,26 +520,43 @@ export async function createCustomerProjectAction(
     log("Accounts Receivable", "PASS", { projectId });
     if (!completedSteps.has("Accounts Receivable"))
       await checkpoint("Accounts Receivable", "PASS");
-    const completedStages = new Set<
-      "BUSINESS_ENGINE" | "GOOGLE_CALENDAR" | "GOOGLE_DRIVE"
-    >();
+    const completedStages = new Set<ConfirmationStage>();
     if (completedSteps.has("Business Engine"))
       completedStages.add("BUSINESS_ENGINE");
     if (completedSteps.has("Google Calendar"))
       completedStages.add("GOOGLE_CALENDAR");
     if (completedSteps.has("Google Drive")) completedStages.add("GOOGLE_DRIVE");
-    await runConfirmedReservationOperationalPipeline({
+    if (completedSteps.has("Portal")) completedStages.add("PORTAL");
+    if (completedSteps.has("Customer Email"))
+      completedStages.add("CUSTOMER_EMAIL");
+    if (completedSteps.has("Founder Email"))
+      completedStages.add("FOUNDER_EMAIL");
+    if (completedSteps.has("Dashboard")) completedStages.add("DASHBOARD");
+    if (completedSteps.has("Reservation Records"))
+      completedStages.add("RECORDS");
+    await confirmPersistedReservation({
       client,
       projectId: project.id,
       actorId: auth.user.id,
+      portal: preparedPortal,
       completedStages,
       onStage: async (stage, status) => {
         const label =
-          stage === "BUSINESS_ENGINE"
+          stage === "RECORDS"
+            ? "Reservation Records"
+            : stage === "BUSINESS_ENGINE"
             ? "Business Engine"
             : stage === "GOOGLE_CALENDAR"
               ? "Google Calendar"
-              : "Google Drive";
+              : stage === "GOOGLE_DRIVE"
+                ? "Google Drive"
+                : stage === "PORTAL"
+                  ? "Portal"
+                  : stage === "CUSTOMER_EMAIL"
+                    ? "Customer Email"
+                    : stage === "FOUNDER_EMAIL"
+                      ? "Founder Email"
+                      : "Dashboard";
         currentStep = label;
         if (status === "PASS") {
           mark(label, "PASS");
@@ -535,10 +565,6 @@ export async function createCustomerProjectAction(
         }
       },
     });
-    currentStep = "Portal";
-    mark("Portal", "PASS");
-    log("Portal", "PASS", { projectId });
-    if (!completedSteps.has("Portal")) await checkpoint("Portal", "PASS");
     currentStep = "Confirmation";
     mark("Confirmation", "PASS");
     log("Confirmation", "PASS", { projectId });

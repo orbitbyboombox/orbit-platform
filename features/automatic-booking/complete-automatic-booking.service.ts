@@ -1,15 +1,13 @@
 import "server-only";
 
 import { randomBytes, randomUUID } from "node:crypto";
-import { after } from "next/server";
 import { generateOrbitEventId } from "@/features/connectors/google-calendar";
 import { uploadReservationDocumentToDrive } from "@/features/connectors/google-drive/application/google-drive-document-routing.service";
-import { deliverFounderReservationNotification } from "@/features/connectors/google-gmail/application/google-gmail-delivery.service";
 import { confirmDigitalSignature } from "@/features/projects/signing/digital-signature.service";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadActiveMunicipalities } from "@/features/settings/master-data/municipality-master-data";
 import { automaticBookingTokenHash } from "./automatic-booking.service";
-import{runConfirmedReservationOperationalPipeline}from"@/features/projects/operations/confirmed-reservation-pipeline.service";
+import { confirmPersistedReservation } from "@/features/projects/operations/confirmed-reservation-orchestrator.service";
 
 export interface AutomaticBookingSubmission {
   customer: { name: string; rut: string; phone: string; email: string; address: string };
@@ -116,23 +114,21 @@ export async function completeAutomaticBooking(input: { token: string; submissio
     const { error: signingTokenError } = await admin.from("agreement_signing_tokens").insert({ agreement_id: agreementId, token_hash: automaticBookingTokenHash(signingToken), expires_at: new Date(Date.now() + 15 * 60_000).toISOString(), created_by: actorId });
     if (signingTokenError) throw signingTokenError;
     currentModule = "SIGNATURE_AND_DOCUMENT_DELIVERY";
-    const signatureResult = await measured("contract_and_signature", () => confirmDigitalSignature({ token: signingToken, signatureDataUrl: input.submission.signatureDataUrl, ipAddress: input.ipAddress, userAgent: input.userAgent }));
+    const signatureResult = await measured("contract_and_signature", () => confirmDigitalSignature({ token: signingToken, signatureDataUrl: input.submission.signatureDataUrl, ipAddress: input.ipAddress, userAgent: input.userAgent, suppressCustomerDelivery: true }));
+    const portalToken = signatureResult.portalUrl.split("/p/")[1];
+    if (!portalToken) throw new Error("El enlace del Portal no tiene un token válido.");
+    currentModule = "UNIFIED_CONFIRMATION_PIPELINE";
+    await measured("unified_confirmation_pipeline", () =>
+      confirmPersistedReservation({
+        client: admin,
+        projectId,
+        actorId,
+        portal: { url: signatureResult.portalUrl, expiresAt: "" },
+      }),
+    );
     currentModule = "RESERVATION";
     const { error: completionError } = await admin.from("automatic_booking_invitations").update({ status: "COMPLETED", consumed_at: new Date().toISOString(), processing_at: null, project_id: projectId, payload: { service: input.submission.service.code, eventDate: input.submission.event.date, total: pricing.total } }).eq("id", invitation.id);
     if (completionError) throw completionError;
-    const portalToken = signatureResult.portalUrl.split("/p/")[1];
-    if (!portalToken) throw new Error("El enlace del Portal no tiene un token válido.");
-    after(async () => {
-      const backgroundStartedAt = performance.now();
-      const operations = await Promise.allSettled([
-        deliverFounderReservationNotification({ projectId, actorId }),
-        runConfirmedReservationOperationalPipeline({client:admin,projectId,actorId}),
-        admin.from("internal_notifications").insert({ project_id: projectId, customer_id: customerId, notification_type: "AUTOMATIC_RESERVATION_CONFIRMED", title: "🎉 Nueva Reserva Confirmada", message: `${input.submission.customer.name} · ${input.submission.service.code} · ${input.submission.event.date} · ${pricing.total}`, status: "UNREAD", correlation_id: `automatic-booking-confirmed:${invitation.id}`, category: "COMMERCIAL", priority: "HIGH", action_required: false, entity_type: "Project", entity_id: projectId, related_href: `/projects/${projectId}` }).throwOnError(),
-      ]);
-      const modules = ["FOUNDER_EMAIL", "OPERATION_PIPELINE", "DASHBOARD"];
-      operations.forEach((result, index) => { if (result.status === "rejected") console.error(JSON.stringify({ level: "error", event: "automatic_booking.background_operation_failed", module: modules[index], projectId, error: result.reason instanceof Error ? result.reason.message : String(result.reason) })); });
-      console.info(JSON.stringify({ level: "info", event: "automatic_booking.background_timing", projectId, durationMs: Math.round(performance.now() - backgroundStartedAt) }));
-    });
     console.info(JSON.stringify({ level: "info", event: "automatic_booking.confirmation_timing", projectId, durationMs: Math.round(performance.now() - confirmationStartedAt), stages: timings }));
     return { projectId, portalUrl: signatureResult.portalUrl, contractUrl: `/api/portal/${encodeURIComponent(portalToken)}/contract?download=1`, reservationNumber: quotationNumber, eventDate: input.submission.event.date, service: input.submission.service.code, reservation: finance.reservationAmount, balance: finance.remainingBalance, total: pricing.total };
   } catch (error) {
