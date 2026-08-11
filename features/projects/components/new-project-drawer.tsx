@@ -4,6 +4,8 @@ import { Check, ChevronLeft, ChevronRight, Copy, FileSignature, Link2, LoaderCir
 import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { ActionButton } from "@/components/ui/action-button";
 import { Button } from "@/components/ui/button";
+import { MunicipalityCombobox } from "@/components/forms/municipality-combobox";
+import type { ActiveMunicipality } from "@/features/settings/master-data/municipality-master-data";
 import { cn } from "@/lib/utils";
 import { sendAutomaticBookingInvitationAction } from "@/features/automatic-booking/actions";
 import { projectOrigins, projectTypes, type Project, type ProjectDraft, type ProjectOrigin, type ProjectService, type ProjectType } from "../types/project";
@@ -122,6 +124,7 @@ export interface ReservationService {
 const masterExtraToReservation = (code: string): ServiceExtra | null => code === "BRANDING" ? "Branding" : code === "QR" ? "QR" : code === "UNLIMITED_MAGNETS" ? "Imanes" : code === "SCRAPBOOK" ? "Scrapbook" : null;
 export interface NewProjectDrawerProps {
   commercialPrices: ReservationCommercialPrice[];
+  municipalities: ActiveMunicipality[];
   services: ReservationService[];
   venues: ReservationVenue[];
   open: boolean;
@@ -272,7 +275,7 @@ function CommercialSummary({ balance, discount, extras, plan, reservation, subto
   );
 }
 
-export function NewProjectDrawer({ commercialPrices, services, venues, open, onClose, onCreate }: NewProjectDrawerProps) {
+export function NewProjectDrawer({ commercialPrices, municipalities, services, venues, open, onClose, onCreate }: NewProjectDrawerProps) {
   const [step, setStep] = useState(0);
   const [method, setMethod] = useState<"MANUAL" | "AUTOMATIC">("MANUAL");
   const [invitationEmail, setInvitationEmail] = useState("");
@@ -308,27 +311,9 @@ export function NewProjectDrawer({ commercialPrices, services, venues, open, onC
   const additionalHourRate = (service: ProjectService) => serviceByCode.get(service)?.additionalHourPrice ?? 0;
   const compatibleExtras = (service: ProjectService) => (serviceByCode.get(service)?.compatibleExtras ?? []).map(masterExtraToReservation).filter((extra): extra is ServiceExtra => extra !== null);
 
-  const municipalityGroups = commercialPrices.filter((item) => item.category === "TRANSPORT").map((price) => {
-    const configured = price?.rules?.municipalities;
-    return {
-      province: price.destination ?? price.label,
-      municipalities: Array.isArray(configured) && configured.every((item) => typeof item === "string") ? (configured as string[]) : [],
-      price,
-    };
-  });
-  const selectedMunicipality =
-    municipalityGroups
-      .flatMap(({ province, municipalities, price }) =>
-        municipalities.map((municipality) => ({
-          municipality,
-          province,
-          price,
-        })),
-      )
-      .find((item) => item.municipality === draft.event.city) ?? null;
+  const selectedMunicipality = municipalities.find((item) => item.name === draft.event.city) ?? null;
   const selectedVenue = venues.find((venue) => venue.name.localeCompare(draft.event.location.trim(), "es", { sensitivity: "base" }) === 0) ?? null;
-  const transportPrice = selectedMunicipality?.price;
-  const transportTotal = selectedMunicipality && transportPrice?.pricingStatus === "DEFINED" ? Number(transportPrice.unitPrice ?? 0) : null;
+  const transportTotal = selectedMunicipality?.pricingStatus === "DEFINED" ? selectedMunicipality.transport : null;
   const venueSurcharge = Number(selectedVenue?.surcharge ?? 0);
   const includedExtras: ServiceExtra[] = draft.type === "Wedding" ? ["QR", "Scrapbook"] : draft.type === "Birthday" || draft.type === "Graduation" ? ["QR"] : [];
   const priceFor = (category: ReservationCommercialPrice["category"], code: string, durationHours?: number) => commercialPrices.find((price) => price.category === category && price.code === code && (category !== "SERVICE" || price.durationHours === durationHours || price.durationHours === null));
@@ -637,6 +622,7 @@ export function NewProjectDrawer({ commercialPrices, services, venues, open, onC
                     {draft.event.location && !selectedVenue && <p className="mt-2 text-xs text-muted">Selecciona una sede configurada en las sugerencias.</p>}
                   </div>
                   <Field label="Dirección del evento" onChange={(e) => setEventAddress(e.target.value)} value={eventAddress} />
+                  <MunicipalityCombobox items={municipalities} onChange={(value) => event("city", value)} value={draft.event.city} />
                   <Field label="Fecha del evento" onChange={(e) => event("date", e.target.value)} required type="date" value={draft.event.date} />
                   <Field label="Inicio del servicio BOOMBOX" onChange={(e) => event("time", e.target.value)} type="time" value={draft.event.time} />
                   <Field label="Contacto operacional" onChange={(e) => setOperationalContact(e.target.value)} value={operationalContact} />

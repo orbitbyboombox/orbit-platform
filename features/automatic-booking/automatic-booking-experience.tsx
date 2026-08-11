@@ -5,11 +5,12 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight, LoaderCircle, Sparkles } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { Button } from "@/components/ui/button";
+import { MunicipalityCombobox } from "@/components/forms/municipality-combobox";
+import type { ActiveMunicipality } from "@/features/settings/master-data/municipality-master-data";
 
 type Service = { code: string; name: string; configuration: Record<string, unknown>; availableHours: number[] };
 type Price = { category: string; code: string; duration_hours: number | null; unit_price: number; rules: Record<string, unknown> };
 type Venue = { name: string; municipality: string; province: string; surcharge: number };
-type Municipality = { name: string; province: string; transport: number };
 const money = (value: number) => new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(value);
 const terms = [
   ["Reserva y pago", "La fecha quedará reservada una vez firmado el contrato y abonado el 50% del valor total. El saldo restante deberá pagarse durante la semana previa al evento. La reserva no es reembolsable, pues bloquea exclusivamente la fecha y horario seleccionados."],
@@ -25,7 +26,7 @@ const terms = [
 ] as const;
 const eventTypeOptions = [{ value: "Wedding", label: "Matrimonio" }, { value: "Corporate", label: "Corporativo" }, { value: "Birthday", label: "Cumpleaños" }, { value: "Graduation", label: "Graduación" }, { value: "Private", label: "Evento privado" }, { value: "Other", label: "Otro" }];
 
-export function AutomaticBookingExperience({ email, municipalities, prices, services, token, venues }: { email: string; municipalities: Municipality[]; prices: Price[]; services: Service[]; token: string; venues: Venue[] }) {
+export function AutomaticBookingExperience({ email, municipalities, prices, services, token, venues }: { email: string; municipalities: ActiveMunicipality[]; prices: Price[]; services: Service[]; token: string; venues: Venue[] }) {
   const [step, setStep] = useState(0); const [pending, setPending] = useState(false); const [error, setError] = useState(""); const [result, setResult] = useState<{ portalUrl: string; contractUrl: string; reservationNumber: string; eventDate: string; service: string; reservation: number; balance: number; total: number } | null>(null);
   const [progressIndex, setProgressIndex] = useState(0);
   const [customer, setCustomer] = useState({ name: "", rut: "", phone: "+569", email, address: "" });
@@ -64,13 +65,6 @@ export function AutomaticBookingExperience({ email, municipalities, prices, serv
 function Step({title,children}:{title:string;children:React.ReactNode}){return <div><h2 className="mb-6 text-2xl font-semibold">{title}</h2>{children}</div>}
 function Field({label,value,onChange,type="text",...props}:{label:string;value:string;onChange:(value:string)=>void;type?:string}&Omit<React.InputHTMLAttributes<HTMLInputElement>,"value"|"onChange"|"type">){return <label className="block text-sm font-medium">{label}<input className="mt-2 h-12 w-full rounded-xl border bg-background px-4" onChange={event=>onChange(event.target.value)} type={type} value={value} {...props}/></label>}
 function Select({label,value,onChange,options}:{label:string;value:string;onChange:(value:string)=>void;options:Array<string|{value:string;label:string}>}){return <label className="mt-4 block text-sm font-medium">{label}<select className="mt-2 h-12 w-full rounded-xl border bg-background px-4" onChange={event=>onChange(event.target.value)} value={value}>{options.map(item=>{const option=typeof item==="string"?{value:item,label:item}:item;return <option key={option.value} value={option.value}>{option.label}</option>})}</select></label>}
-function MunicipalityCombobox({items,onChange,value}:{items:Municipality[];onChange:(value:string)=>void;value:string}){
-  const [query,setQuery]=useState(value);const [open,setOpen]=useState(false);
-  useEffect(()=>setQuery(value),[value]);
-  const filtered=useMemo(()=>{const normalized=query.trim().toLocaleLowerCase("es-CL");return items.filter((item)=>!normalized||item.name.toLocaleLowerCase("es-CL").includes(normalized)).sort((a,b)=>a.name.localeCompare(b.name,"es")).slice(0,50)},[items,query]);
-  const selected=items.find((item)=>item.name===value);
-  return <div className="relative"><label className="block text-sm font-medium" htmlFor="booking-municipality">Comuna</label><input aria-autocomplete="list" aria-controls="booking-municipality-options" aria-expanded={open} autoComplete="off" className="mt-2 h-12 w-full rounded-xl border bg-background px-4" id="booking-municipality" onBlur={()=>setTimeout(()=>setOpen(false),100)} onChange={event=>{setQuery(event.target.value);onChange("");setOpen(true)}} onFocus={()=>setOpen(true)} placeholder="Busca y selecciona una comuna" role="combobox" value={query}/>{open&&<div className="absolute z-30 mt-2 max-h-64 w-full overflow-y-auto rounded-xl border bg-card p-1 shadow-xl" id="booking-municipality-options" role="listbox">{filtered.map((item)=><button aria-selected={item.name===value} className="flex w-full items-center justify-between rounded-lg px-3 py-3 text-left text-sm hover:bg-accent focus:bg-accent" key={`${item.province}-${item.name}`} onMouseDown={event=>event.preventDefault()} onClick={()=>{setQuery(item.name);onChange(item.name);setOpen(false)}} role="option" type="button"><span className="font-medium">{item.name}</span><span className="text-xs text-muted">{item.province}</span></button>)}{!filtered.length&&<p className="px-3 py-4 text-sm text-muted">No hay comunas activas que coincidan.</p>}</div>}{query&&!selected&&<p className="mt-2 text-xs text-danger">Selecciona una comuna de la lista.</p>}{selected&&<p className="mt-2 text-xs text-muted">Provincia {selected.province} · Transporte {selected.transport?money(selected.transport):"incluido"}</p>}</div>
-}
 function SmartExtras({compatible,eventType,magnetsMode,onMagnetsMode,prices,selected,toggle}:{compatible:string[];eventType:string;magnetsMode:"NONE"|"PAID"|"BENEFIT";onMagnetsMode:(value:"NONE"|"PAID"|"BENEFIT")=>void;prices:Price[];selected:string[];toggle:(extra:string)=>void}){
   const extraPrice=(code:string)=>prices.find((item)=>item.category==="EXTRA"&&item.code===code)?.unit_price??0;
   const qrIncluded=["Wedding","Birthday","Graduation"].includes(eventType);

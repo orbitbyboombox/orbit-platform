@@ -8,6 +8,7 @@ import { uploadReservationDocumentToDrive } from "@/features/connectors/google-d
 import { deliverFounderReservationNotification } from "@/features/connectors/google-gmail/application/google-gmail-delivery.service";
 import { confirmDigitalSignature } from "@/features/projects/signing/digital-signature.service";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { loadActiveMunicipalities } from "@/features/settings/master-data/municipality-master-data";
 import { automaticBookingTokenHash } from "./automatic-booking.service";
 
 export interface AutomaticBookingSubmission {
@@ -148,10 +149,11 @@ function validate(input: AutomaticBookingSubmission) {
 }
 
 async function calculatePricing(admin: ReturnType<typeof createAdminClient>, input: AutomaticBookingSubmission) {
-  const [pricesResult, serviceResult, venuesResult] = await Promise.all([
+  const [pricesResult, serviceResult, venuesResult, municipalities] = await Promise.all([
     admin.from("commercial_prices").select("category,code,duration_hours,destination,unit_price,rules").eq("enabled", true).is("deleted_at", null),
     admin.from("master_data_entries").select("code,configuration").eq("domain", "SERVICES").eq("code", input.service.code).eq("enabled", true).maybeSingle(),
     admin.from("master_data_entries").select("configuration").eq("domain", "SYSTEM_PARAMETERS").eq("code", "EVENT_VENUES").eq("enabled", true).maybeSingle(),
+    loadActiveMunicipalities(admin),
   ]);
   if (pricesResult.error || serviceResult.error || venuesResult.error) throw pricesResult.error ?? serviceResult.error ?? venuesResult.error;
   if (!serviceResult.data) throw new Error("El servicio seleccionado ya no se encuentra disponible.");
@@ -163,10 +165,9 @@ async function calculatePricing(admin: ReturnType<typeof createAdminClient>, inp
   if (!exact?.unit_price) throw new Error("El servicio seleccionado no tiene precio aprobado.");
   const extraCodes: Record<string, string> = { QR: "QR", Branding: "BRANDING", Imanes: "UNLIMITED_MAGNETS", Scrapbook: "SCRAPBOOK" };
   const extras = input.service.extras.reduce((sum, extra) => { const row = prices.find((price) => price.category === "EXTRA" && price.code === extraCodes[extra]); return sum + Number(row?.unit_price ?? 0) * (extra === "Branding" ? Math.max(2, input.service.brandingQuantity) : 1); }, 0);
-  const municipality = input.event.municipality.trim().toLocaleLowerCase("es-CL");
-  const transportRow = prices.find((price) => price.category === "TRANSPORT" && Array.isArray((price.rules as { municipalities?: unknown })?.municipalities) && ((price.rules as { municipalities: string[] }).municipalities).some((item) => item.trim().toLocaleLowerCase("es-CL") === municipality));
-  if (!transportRow) throw new Error("La comuna seleccionada no tiene una configuración de transporte vigente.");
-  const transport = Number(transportRow?.unit_price ?? 0);
+  const municipality = municipalities.find((item) => item.name.localeCompare(input.event.municipality.trim(), "es", { sensitivity: "base" }) === 0);
+  if (!municipality) throw new Error("La comuna seleccionada no tiene una configuración de transporte vigente.");
+  const transport = municipality.transport;
   const venues = ((venuesResult.data?.configuration as { venues?: Array<Record<string, unknown>> } | null)?.venues ?? []);
   const venue = venues.find((item) => String(item.name ?? "").localeCompare(input.event.venue.trim(), "es", { sensitivity: "base" }) === 0);
   const venueSurcharge = Number(venue?.surcharge ?? 0);

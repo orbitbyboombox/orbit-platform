@@ -1,15 +1,17 @@
 import { ProjectsPage } from "@/features/projects/components/projects-page";
 import { SupabaseCustomerRepository } from "@/features/projects/infrastructure";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { loadActiveMunicipalities } from "@/features/settings/master-data/municipality-master-data";
 
 export default async function ProjectsRoute() {
   const client = await createSupabaseServerClient();
   const repository = new SupabaseCustomerRepository(client);
-  const [projects, commercialPricesResult, servicesResult, venuesResult] = await Promise.all([
+  const [projects, commercialPricesResult, servicesResult, venuesResult, municipalities] = await Promise.all([
     repository.findAll(),
     client.from("commercial_prices").select("category,code,label,duration_hours,destination,unit_price,pricing_status,rules").eq("enabled", true).is("deleted_at", null),
     client.from("master_data_entries").select("code,label,display_order,configuration").eq("domain", "SERVICES").eq("enabled", true).order("display_order"),
     client.from("master_data_entries").select("configuration").eq("domain", "SYSTEM_PARAMETERS").eq("code", "EVENT_VENUES").eq("enabled", true).maybeSingle(),
+    loadActiveMunicipalities(client),
   ]);
   if (commercialPricesResult.error) throw commercialPricesResult.error;
   if (servicesResult.error) throw servicesResult.error;
@@ -42,5 +44,5 @@ export default async function ProjectsRoute() {
       behavior: String(config.behavior ?? basePrice?.rules?.behavior ?? "SELECTABLE"),
     };
   });
-  return <ProjectsPage commercialPrices={commercialPrices} initialProjects={projects} services={services} venues={venues} />;
+  return <ProjectsPage commercialPrices={commercialPrices} initialProjects={projects} municipalities={municipalities} services={services} venues={venues} />;
 }

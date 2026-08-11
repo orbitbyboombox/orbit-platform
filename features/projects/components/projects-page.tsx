@@ -4,6 +4,7 @@ import { ArrowRight, CircleDollarSign, Clock3, FolderKanban, Plus, TrendingUp, U
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { SearchBar } from "@/components/forms/search-bar";
+import type { ActiveMunicipality } from "@/features/settings/master-data/municipality-master-data";
 import { ActionButton } from "@/components/ui/action-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { Project, ProjectFilter } from "../types/project";
@@ -12,7 +13,7 @@ import { NewProjectDrawer, type ReservationCommercialPrice, type ReservationServ
 import { ProjectCard } from "./project-card";
 import { ProjectFilters } from "./project-filters";
 
-export function ProjectsPage({ commercialPrices, initialProjects, services, venues }: { commercialPrices: ReservationCommercialPrice[]; initialProjects: Project[]; services: ReservationService[]; venues: ReservationVenue[] }) {
+export function ProjectsPage({ commercialPrices, initialProjects, municipalities, services, venues }: { commercialPrices: ReservationCommercialPrice[]; initialProjects: Project[]; municipalities: ActiveMunicipality[]; services: ReservationService[]; venues: ReservationVenue[] }) {
   const router = useRouter();
   const [projects, setProjects] = useState<Project[]>(initialProjects);
   const [filter, setFilter] = useState<ProjectFilter>("All");
@@ -75,7 +76,7 @@ export function ProjectsPage({ commercialPrices, initialProjects, services, venu
         <EmptyState action={<ActionButton icon={Plus} label="Nueva reserva" onClick={() => setDrawerOpen(true)} />} className="py-20" description={query ? "Prueba con un nombre, proyecto, ciudad, teléfono o tipo de evento." : "Crea la primera reserva para comenzar."} icon={FolderKanban} title={query ? "No encontramos clientes" : "Aún no tienes reservas"} />
       )}
 
-      <NewProjectDrawer commercialPrices={commercialPrices} onClose={() => setDrawerOpen(false)} onCreate={addProject} open={drawerOpen} services={services} venues={venues} />
+      <NewProjectDrawer commercialPrices={commercialPrices} municipalities={municipalities} onClose={() => setDrawerOpen(false)} onCreate={addProject} open={drawerOpen} services={services} venues={venues} />
     </div>
   );
 }
