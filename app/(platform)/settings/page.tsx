@@ -9,6 +9,7 @@ import { Activity, ArrowRight } from "lucide-react";
 import { ModuleManagerCenter } from "@/features/module-manager";
 import { loadModuleStates } from "@/features/module-manager/repository";
 import {ProfitabilitySettings}from"@/features/settings/profitability-settings";
+import {ProductionInitializationCenter}from"@/features/settings/production-initialization/production-initialization-center";
 
 export default async function SettingsPage() {
   const client = await createSupabaseServerClient();
@@ -27,6 +28,7 @@ export default async function SettingsPage() {
       {integrity&&<FinancialIntegrityStatus data={integrity}/>}
       <ModuleManagerCenter initialStates={modules}/>
       <ProfitabilitySettings high={Number(profitabilitySettings?.high_margin_threshold??40)} normal={Number(profitabilitySettings?.normal_margin_threshold??20)}/>
+      <ProductionInitializationCenter/>
       <MasterDataCenter {...masterData} />
       <div id="connections">
       <ConnectionCenter googleConfigured={googleConfigured} googleConnection={googleConnection} />
