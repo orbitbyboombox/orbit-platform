@@ -111,7 +111,9 @@ export async function loadCrmCustomerProfile(
       .eq("invoices.customer_id", customerId),
     client
       .from("invoices")
-      .select("id,amount,paid_amount,status")
+      .select(
+        "id,amount,paid_amount,status,financial_record_state,record_origin",
+      )
       .eq("customer_id", customerId)
       .is("deleted_at", null),
     client
@@ -286,9 +288,14 @@ export async function loadCrmCustomerProfile(
     amount: number | null;
     paid_amount: number | null;
     status: string;
+    financial_record_state: string | null;
+    record_origin: string | null;
   }>;
   const financialInvoices = invoiceRows.filter(
-    (invoice) => invoice.status !== "CANCELLED",
+    (invoice) =>
+      invoice.status !== "CANCELLED" &&
+      (invoice.financial_record_state ?? "ACTIVE") === "ACTIVE" &&
+      (invoice.record_origin ?? "PRODUCTION") === "PRODUCTION",
   );
   const totalRevenue = financialInvoices.reduce(
     (sum, invoice) => sum + Number(invoice.amount ?? 0),

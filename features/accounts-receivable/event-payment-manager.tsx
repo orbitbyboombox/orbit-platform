@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
+  Archive,
   Banknote,
   CheckCircle2,
   History,
@@ -46,6 +47,7 @@ const labels: Record<ReceivableMovementAction, string> = {
   PARTIAL_PAYMENT: "Registrar Pago Parcial",
   FULL_PAYMENT: "Registrar Pago Total",
   RETURN_PENDING: "Volver a Pendiente",
+  ARCHIVE: "Archivar Cuenta por Cobrar",
   CANCEL: "Cancelar Cuenta por Cobrar",
   DELETE: "Eliminar Cuenta por Cobrar",
 };
@@ -143,6 +145,11 @@ export function EventPaymentManager({
                   onClick={() => setAction("RETURN_PENDING")}
                 />
               )}
+              <Action
+                label="Archivar Cuenta"
+                icon={<Archive />}
+                onClick={() => setAction("ARCHIVE")}
+              />
               <Action
                 label="Cancelar Cuenta"
                 icon={<X />}

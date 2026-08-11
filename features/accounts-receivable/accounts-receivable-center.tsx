@@ -1,14 +1,18 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
+  Archive,
   CalendarClock,
   Download,
   FileSpreadsheet,
   FileText,
   Landmark,
+  MoreVertical,
   ReceiptText,
   Search,
   TriangleAlert,
+  Trash2,
   WalletCards,
 } from "lucide-react";
 import { WorkspaceLayout } from "@/components/layout/workspace-layout";
@@ -19,6 +23,12 @@ import type {
   ReceivableDataset,
   ReceivableInvoice,
 } from "./types";
+import {
+  applyReceivableMovementAction,
+  auditReceivableIntegrityAction,
+  cleanupReceivableIntegrityAction,
+  type ReceivableMovementAction,
+} from "./actions";
 const money = (n: number) =>
   new Intl.NumberFormat("es-CL", {
     style: "currency",
@@ -46,6 +56,8 @@ const statuses: Record<
   PAID: { label: "Pagada", variant: "success" },
   OVERDUE: { label: "Vencida", variant: "danger" },
   CANCELLED: { label: "Anulada", variant: "neutral" },
+  ARCHIVED: { label: "Archivada", variant: "neutral" },
+  DELETED: { label: "Eliminada", variant: "neutral" },
 };
 const terms: readonly [PaymentTerm, string][] = [
   ["CASH", "Contado"],
@@ -63,16 +75,20 @@ export function AccountsReceivableCenter({
 }) {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("ALL");
+  const [view, setView] = useState<"ACTIVE" | "HISTORY">("ACTIVE");
+  const [integrity, setIntegrity] = useState("");
+  const [pending, startTransition] = useTransition();
+  const source = view === "ACTIVE" ? dataset.invoices : dataset.historyInvoices;
   const invoices = useMemo(
     () =>
-      dataset.invoices.filter(
+      source.filter(
         (x) =>
           (status === "ALL" || x.status === status) &&
           `${x.invoiceNumber} ${x.customerName} ${x.projectName} ${x.orbitEventId}`
             .toLowerCase()
             .includes(query.toLowerCase()),
       ),
-    [dataset.invoices, query, status],
+    [source, query, status],
   );
   const rows = [
     [
@@ -115,9 +131,8 @@ export function AccountsReceivableCenter({
                   Cuentas por Cobrar
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-                  Vista de consulta para facturas, saldos, movimientos y
-                  vencimientos. La gestión de pagos se realiza dentro de cada
-                  Evento.
+                  Administra movimientos, vigencia e historial. Sólo las cuentas
+                  activas alimentan los totales financieros de ORBIT.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2 print:hidden">
@@ -180,6 +195,20 @@ export function AccountsReceivableCenter({
           <section className="grid gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(330px,.75fr)]">
             <div className="space-y-5">
               <div className="rounded-2xl border bg-card p-4 sm:p-5">
+                <div className="mb-4 flex gap-2" role="tablist">
+                  <Button
+                    variant={view === "ACTIVE" ? "default" : "outline"}
+                    onClick={() => setView("ACTIVE")}
+                  >
+                    Activas
+                  </Button>
+                  <Button
+                    variant={view === "HISTORY" ? "default" : "outline"}
+                    onClick={() => setView("HISTORY")}
+                  >
+                    Historial
+                  </Button>
+                </div>
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <label className="relative flex-1">
                     <Search className="absolute left-3 top-3.5 size-4 text-muted" />
@@ -228,16 +257,60 @@ export function AccountsReceivableCenter({
             <aside className="space-y-6">
               <section className="rounded-2xl border border-brand/20 bg-brand/5 p-5">
                 <p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">
-                  Solo consulta
+                  Integridad financiera
                 </p>
                 <h2 className="mt-2 text-lg font-semibold">
-                  Gestión desde el Evento
+                  Auditoría de cuentas
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-muted">
-                  Abre el Evento correspondiente para registrar reservas, pagos
-                  parciales, pagos totales, reversas o cancelaciones. Finance se
-                  actualiza automáticamente.
+                  Detecta cuentas QA, duplicadas, rotas o huérfanas. La limpieza
+                  archiva de forma auditable y nunca elimina clientes ni
+                  eventos.
                 </p>
+                <Button
+                  className="mt-4 w-full"
+                  disabled={pending}
+                  variant="outline"
+                  onClick={() =>
+                    startTransition(async () => {
+                      const result = await auditReceivableIntegrityAction();
+                      setIntegrity(
+                        result.ok
+                          ? `${result.summary.total} hallazgo(s): ${result.summary.qa} QA, ${result.summary.duplicates} duplicado(s), ${result.summary.broken} roto(s).`
+                          : result.error,
+                      );
+                    })
+                  }
+                >
+                  Auditar Producción
+                </Button>
+                {integrity && (
+                  <p className="mt-3 text-sm text-muted">{integrity}</p>
+                )}
+                {integrity.startsWith("0 ") ? null : integrity ? (
+                  <Button
+                    className="mt-3 w-full"
+                    disabled={pending}
+                    onClick={() => {
+                      const reason = window.prompt(
+                        "Motivo de la limpieza financiera:",
+                      );
+                      if (!reason) return;
+                      startTransition(async () => {
+                        const result =
+                          await cleanupReceivableIntegrityAction(reason);
+                        setIntegrity(
+                          result.ok
+                            ? "Limpieza completada y totales reconstruidos."
+                            : result.error,
+                        );
+                        if (result.ok) window.location.reload();
+                      });
+                    }}
+                  >
+                    Limpiar automáticamente
+                  </Button>
+                ) : null}
               </section>
               <section className="rounded-2xl border bg-card p-5">
                 <p className="text-xs font-semibold uppercase tracking-[.18em] text-muted">
@@ -342,6 +415,12 @@ function InvoiceCard({ invoice }: { invoice: ReceivableInvoice }) {
               }
               variant="neutral"
             />
+            {invoice.recordState && invoice.recordState !== "ACTIVE" && (
+              <StatusBadge label={invoice.recordState} variant="neutral" />
+            )}
+            {invoice.recordOrigin === "QA" && (
+              <StatusBadge label="QA" variant="warning" />
+            )}
           </div>
           <p className="mt-2 text-sm">
             {invoice.customerName} · {invoice.projectName}
@@ -376,13 +455,72 @@ function InvoiceCard({ invoice }: { invoice: ReceivableInvoice }) {
           }
         />
       </div>
-      <a
-        className="mt-4 inline-flex min-h-10 items-center rounded-lg border px-3 text-sm font-medium hover:border-brand"
-        href={`/projects/${invoice.projectId}#payment-management`}
-      >
-        Gestionar desde el Evento
-      </a>
+      <ReceivableActions invoice={invoice} />
     </article>
+  );
+}
+function ReceivableActions({ invoice }: { invoice: ReceivableInvoice }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const execute = (action: ReceivableMovementAction) => {
+    const reason = window.prompt("Motivo obligatorio:");
+    if (!reason) return;
+    const formData = new FormData();
+    formData.set("invoiceId", invoice.id);
+    formData.set("projectId", invoice.projectId);
+    formData.set("movementAction", action);
+    formData.set("reason", reason);
+    startTransition(async () => {
+      const result = await applyReceivableMovementAction(formData);
+      if (!result.ok) window.alert(result.error);
+      else router.refresh();
+    });
+  };
+  return (
+    <details className="relative mt-4 inline-block">
+      <summary className="inline-flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-lg border px-3 text-sm font-medium hover:border-brand">
+        <MoreVertical className="size-4" /> Acciones financieras
+      </summary>
+      <div className="mt-2 grid min-w-64 gap-1 rounded-xl border bg-card p-2 shadow-xl">
+        <a
+          className="rounded-lg px-3 py-2 text-sm hover:bg-background"
+          href={`/projects/${invoice.projectId}`}
+        >
+          Abrir Evento
+        </a>
+        <a
+          className="rounded-lg px-3 py-2 text-sm hover:bg-background"
+          href={`/projects/${invoice.projectId}#payment-management`}
+        >
+          Editar / Registrar pagos
+        </a>
+        {invoice.recordState === "ACTIVE" || !invoice.recordState ? (
+          <>
+            <button
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-background"
+              disabled={pending}
+              onClick={() => execute("ARCHIVE")}
+            >
+              <Archive className="size-4" /> Archivar
+            </button>
+            <button
+              className="rounded-lg px-3 py-2 text-left text-sm hover:bg-background"
+              disabled={pending}
+              onClick={() => execute("CANCEL")}
+            >
+              Cancelar
+            </button>
+          </>
+        ) : null}
+        <button
+          className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-danger hover:bg-danger/10"
+          disabled={pending}
+          onClick={() => execute("DELETE")}
+        >
+          <Trash2 className="size-4" /> Eliminar sólo la cuenta
+        </button>
+      </div>
+    </details>
   );
 }
 function Kpi({

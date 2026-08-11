@@ -8,9 +8,10 @@ export type ReceivableMovementAction =
   | "PARTIAL_PAYMENT"
   | "FULL_PAYMENT"
   | "RETURN_PENDING"
+  | "ARCHIVE"
   | "CANCEL"
   | "DELETE";
-const fail = (error: unknown): Result => ({
+const fail = (error: unknown): { ok: false; error: string } => ({
   ok: false,
   error:
     error instanceof Error
@@ -130,6 +131,50 @@ export async function applyReceivableMovementAction(
     if (error) throw error;
     revalidate();
     if (projectId) revalidatePath(`/projects/${projectId}`);
+    return { ok: true };
+  } catch (error) {
+    return fail(error);
+  }
+}
+export async function auditReceivableIntegrityAction(): Promise<
+  | {
+      ok: true;
+      summary: {
+        qa: number;
+        duplicates: number;
+        broken: number;
+        total: number;
+      };
+    }
+  | { ok: false; error: string }
+> {
+  try {
+    const client = await createSupabaseServerActionClient();
+    const { data, error } = await client.rpc("audit_receivable_integrity");
+    if (error) throw error;
+    return {
+      ok: true,
+      summary: data as {
+        qa: number;
+        duplicates: number;
+        broken: number;
+        total: number;
+      },
+    };
+  } catch (error) {
+    return { ok: false, error: fail(error).error };
+  }
+}
+export async function cleanupReceivableIntegrityAction(
+  reason: string,
+): Promise<Result> {
+  try {
+    const client = await createSupabaseServerActionClient();
+    const { error } = await client.rpc("cleanup_receivable_integrity", {
+      p_reason: reason,
+    });
+    if (error) throw error;
+    revalidate();
     return { ok: true };
   } catch (error) {
     return fail(error);

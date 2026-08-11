@@ -35,6 +35,8 @@ export interface ReceivableInvoice {
   daysRemaining: number | null;
   agingBucket: string;
   version: number;
+  recordState?: "ACTIVE" | "ARCHIVED" | "CANCELLED" | "DELETED";
+  recordOrigin?: "PRODUCTION" | "QA";
 }
 export interface ReceivableCustomer {
   id: string;
@@ -48,6 +50,7 @@ export interface ReceivableCustomer {
 export interface ReceivableDataset {
   generatedAt: string;
   invoices: readonly ReceivableInvoice[];
+  historyInvoices: readonly ReceivableInvoice[];
   customers: readonly ReceivableCustomer[];
   projects: readonly {
     id: string;

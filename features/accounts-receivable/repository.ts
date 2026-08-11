@@ -10,6 +10,7 @@ export async function loadAccountsReceivable(
   await client.rpc("refresh_receivable_notifications");
   const [
     invoicesResult,
+    historyResult,
     customersResult,
     projectsResult,
     quotesResult,
@@ -22,6 +23,12 @@ export async function loadAccountsReceivable(
         "id,invoice_number,customer_id,project_id,orbit_event_id,customer_type,status,effective_status,amount,paid_amount,outstanding_balance,issue_date,due_date,payment_term,custom_term_days,purchase_order,days_remaining,aging_bucket,version,customers(full_name),projects(name)",
       )
       .order("due_date", { ascending: true, nullsFirst: false }),
+    client
+      .from("accounts_receivable_history")
+      .select(
+        "id,invoice_number,customer_id,project_id,orbit_event_id,customer_type,status,effective_status,financial_record_state,record_origin,amount,paid_amount,outstanding_balance,issue_date,due_date,payment_term,custom_term_days,purchase_order,days_remaining,aging_bucket,version,customers(full_name),projects(name)",
+      )
+      .order("created_at", { ascending: false }),
     client
       .from("customers")
       .select("id,full_name,metadata")
@@ -48,6 +55,7 @@ export async function loadAccountsReceivable(
   ]);
   const failure = [
     invoicesResult,
+    historyResult,
     customersResult,
     projectsResult,
     quotesResult,
@@ -84,6 +92,40 @@ export async function loadAccountsReceivable(
         daysRemaining: row.days_remaining,
         agingBucket: row.aging_bucket,
         version: row.version,
+      };
+    },
+  );
+  const historyInvoices: ReceivableInvoice[] = (historyResult.data ?? []).map(
+    (row) => {
+      const customer = Array.isArray(row.customers)
+        ? row.customers[0]
+        : row.customers;
+      const project = Array.isArray(row.projects)
+        ? row.projects[0]
+        : row.projects;
+      return {
+        id: row.id,
+        invoiceNumber: row.invoice_number,
+        customerId: row.customer_id,
+        customerName: customer?.full_name ?? "Cliente",
+        projectId: row.project_id,
+        projectName: project?.name ?? "Evento",
+        orbitEventId: row.orbit_event_id,
+        customerType: row.customer_type,
+        status: row.effective_status,
+        amount: Number(row.amount),
+        paidAmount: Number(row.paid_amount),
+        outstandingBalance: Number(row.outstanding_balance),
+        issueDate: row.issue_date,
+        dueDate: row.due_date,
+        paymentTerm: row.payment_term,
+        customTermDays: row.custom_term_days,
+        purchaseOrder: row.purchase_order,
+        daysRemaining: row.days_remaining,
+        agingBucket: row.aging_bucket,
+        version: row.version,
+        recordState: row.financial_record_state,
+        recordOrigin: row.record_origin,
       };
     },
   );
@@ -183,6 +225,7 @@ export async function loadAccountsReceivable(
   return {
     generatedAt: new Date().toISOString(),
     invoices,
+    historyInvoices,
     customers,
     projects,
     metrics: {
