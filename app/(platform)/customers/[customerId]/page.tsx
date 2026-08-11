@@ -1,2 +1,14 @@
-import{notFound}from"next/navigation";import{CustomerProfile,loadCrmCustomerProfile}from"@/features/crm";import{createSupabaseServerClient}from"@/lib/supabase/server";
-export default async function CustomerProfilePage({params}:{params:Promise<{customerId:string}>}){const{customerId}=await params;const client=await createSupabaseServerClient();const customer=await loadCrmCustomerProfile(client,customerId);if(!customer)notFound();return<CustomerProfile customer={customer}/>}
+import { notFound } from "next/navigation";
+import { CustomerProfile, loadCrmCustomerProfile } from "@/features/crm";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+export default async function CustomerProfilePage({
+  params,
+}: {
+  params: Promise<{ customerId: string }>;
+}) {
+  const { customerId } = await params;
+  const client = await createSupabaseServerClient();
+  const customer = await loadCrmCustomerProfile(client, customerId);
+  if (!customer) notFound();
+  return <CustomerProfile customer={customer} />;
+}
