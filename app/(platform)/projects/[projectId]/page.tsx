@@ -179,7 +179,7 @@ export default async function ProjectWorkspacePage({
     client
       .from("accounts_receivable_projection")
       .select(
-        "invoice_number,amount,outstanding_balance,due_date,payment_term,days_remaining,effective_status",
+        "id,invoice_number,amount,paid_amount,outstanding_balance,due_date,payment_term,days_remaining,effective_status,payment_history",
       )
       .eq("project_id", projectId)
       .order("created_at", { ascending: false })
@@ -274,16 +274,14 @@ export default async function ProjectWorkspacePage({
     services,
   };
 
-  const activities = timeline
-    .slice(0, 5)
-    .map((event) => ({
-      title: event.humanMessage,
-      detail: `${event.actorLabel} · ${event.source}`,
-      time: new Intl.DateTimeFormat("es-CL", {
-        dateStyle: "medium",
-        timeStyle: "short",
-      }).format(new Date(event.occurredAt)),
-    }));
+  const activities = timeline.slice(0, 5).map((event) => ({
+    title: event.humanMessage,
+    detail: `${event.actorLabel} · ${event.source}`,
+    time: new Intl.DateTimeFormat("es-CL", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(event.occurredAt)),
+  }));
   const budget = (rawProject?.budget ?? {}) as Record<string, unknown>;
   const finance = (rawProject?.finance ?? {}) as Record<string, unknown>;
   const operations = (rawProject?.operations ?? {}) as Record<string, unknown>;
@@ -877,13 +875,29 @@ export default async function ProjectWorkspacePage({
       : undefined,
     receivable: invoice
       ? {
+          id: invoice.id,
           invoiceNumber: invoice.invoice_number,
           amount: Number(invoice.amount),
+          paidAmount: Number(invoice.paid_amount),
           outstandingBalance: Number(invoice.outstanding_balance),
           dueDate: invoice.due_date,
           paymentTerm: invoice.payment_term,
           daysRemaining: invoice.days_remaining,
           status: invoice.effective_status,
+          movements: (Array.isArray(invoice.payment_history)
+            ? invoice.payment_history
+            : []
+          ).map((movement) => ({
+            id: String(movement.id),
+            amount: Number(movement.amount),
+            paidAt: String(movement.paidAt),
+            method: String(movement.method ?? ""),
+            reason: String(movement.reason ?? ""),
+            type: String(movement.type ?? "PAYMENT"),
+            receiptPath: movement.receiptPath
+              ? String(movement.receiptPath)
+              : null,
+          })),
         }
       : undefined,
     checklist: (() => {

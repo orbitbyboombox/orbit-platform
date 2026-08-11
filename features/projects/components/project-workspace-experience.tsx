@@ -79,6 +79,10 @@ import type {
   EventModuleKey,
   FounderWorkspacePreferences,
 } from "@/features/founder-workspace/catalog";
+import {
+  EventPaymentManager,
+  type EventReceivable,
+} from "@/features/accounts-receivable";
 
 type Event360Task = {
   id: string;
@@ -159,14 +163,10 @@ type Event360Data = {
   };
   realCosts?: RealCostData;
   profitability?: EventProfitabilityData;
-  receivable?: {
-    invoiceNumber: string;
-    amount: number;
-    outstandingBalance: number;
+  receivable?: EventReceivable & {
     dueDate: string | null;
     paymentTerm: string;
     daysRemaining: number | null;
-    status: string;
   };
   checklist: EventOperationsChecklistData;
   experienceReview: {
@@ -814,6 +814,13 @@ export function ProjectWorkspaceExperience(
               </OptionalModule>
             )}
           </section>
+
+          {moduleVisible("FINANCIAL_SUMMARY") && event.receivable && (
+            <EventPaymentManager
+              projectId={props.projectKey ?? ""}
+              receivable={event.receivable}
+            />
+          )}
 
           {moduleVisible("FINANCIAL_SUMMARY") && (
             <Section

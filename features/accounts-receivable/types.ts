@@ -1,5 +1,70 @@
-export type InvoiceStatus="DRAFT"|"ISSUED"|"PENDING"|"PARTIALLY_PAID"|"PAID"|"OVERDUE"|"CANCELLED";
-export type PaymentTerm="CASH"|"DAYS_15"|"DAYS_30"|"DAYS_45"|"DAYS_60"|"DAYS_90"|"CUSTOM";
-export interface ReceivableInvoice{id:string;invoiceNumber:string;customerId:string;customerName:string;projectId:string;projectName:string;orbitEventId:string;customerType:"PRIVATE"|"CORPORATE";status:InvoiceStatus;amount:number;paidAmount:number;outstandingBalance:number;issueDate:string|null;dueDate:string|null;paymentTerm:PaymentTerm;customTermDays:number|null;purchaseOrder:string|null;daysRemaining:number|null;agingBucket:string;version:number}
-export interface ReceivableCustomer{id:string;name:string;totalInvoiced:number;outstandingBalance:number;overdueInvoices:number;averagePaymentDays:number|null;creditHistory:"AL_DIA"|"CON_ATRASO"|"SIN_HISTORIAL"}
-export interface ReceivableDataset{generatedAt:string;invoices:readonly ReceivableInvoice[];customers:readonly ReceivableCustomer[];projects:readonly {id:string;name:string;orbitEventId:string;customerId:string;customerName:string;customerType:"PRIVATE"|"CORPORATE";quotationId:string|null;agreementId:string|null;amount:number}[];metrics:{accountsReceivable:number;outstandingBalance:number;overdueBalance:number;averageCollectionDays:number|null;aging:Record<string,number>}}
+export type InvoiceStatus =
+  | "DRAFT"
+  | "ISSUED"
+  | "PENDING"
+  | "PARTIALLY_PAID"
+  | "PAID"
+  | "OVERDUE"
+  | "CANCELLED";
+export type PaymentTerm =
+  | "CASH"
+  | "DAYS_15"
+  | "DAYS_30"
+  | "DAYS_45"
+  | "DAYS_60"
+  | "DAYS_90"
+  | "CUSTOM";
+export interface ReceivableInvoice {
+  id: string;
+  invoiceNumber: string;
+  customerId: string;
+  customerName: string;
+  projectId: string;
+  projectName: string;
+  orbitEventId: string;
+  customerType: "PRIVATE" | "CORPORATE";
+  status: InvoiceStatus;
+  amount: number;
+  paidAmount: number;
+  outstandingBalance: number;
+  issueDate: string | null;
+  dueDate: string | null;
+  paymentTerm: PaymentTerm;
+  customTermDays: number | null;
+  purchaseOrder: string | null;
+  daysRemaining: number | null;
+  agingBucket: string;
+  version: number;
+}
+export interface ReceivableCustomer {
+  id: string;
+  name: string;
+  totalInvoiced: number;
+  outstandingBalance: number;
+  overdueInvoices: number;
+  averagePaymentDays: number | null;
+  creditHistory: "AL_DIA" | "CON_ATRASO" | "SIN_HISTORIAL";
+}
+export interface ReceivableDataset {
+  generatedAt: string;
+  invoices: readonly ReceivableInvoice[];
+  customers: readonly ReceivableCustomer[];
+  projects: readonly {
+    id: string;
+    name: string;
+    orbitEventId: string;
+    customerId: string;
+    customerName: string;
+    customerType: "PRIVATE" | "CORPORATE";
+    quotationId: string | null;
+    agreementId: string | null;
+    amount: number;
+  }[];
+  metrics: {
+    accountsReceivable: number;
+    outstandingBalance: number;
+    overdueBalance: number;
+    averageCollectionDays: number | null;
+    aging: Record<string, number>;
+  };
+}

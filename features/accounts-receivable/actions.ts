@@ -1,7 +1,144 @@
 "use server";
-import{revalidatePath}from"next/cache";import{createSupabaseServerActionClient}from"@/lib/supabase/server";import type{PaymentTerm}from"./types";
-type Result={ok:true}|{ok:false;error:string};const fail=(error:unknown):Result=>({ok:false,error:error instanceof Error?error.message:"No fue posible completar la operación."});
-export async function createInvoiceAction(formData:FormData):Promise<Result>{try{const client=await createSupabaseServerActionClient();const{data:auth}=await client.auth.getUser();if(!auth.user)throw new Error("Sesión requerida.");const projectId=String(formData.get("projectId")??"");const term=String(formData.get("paymentTerm")??"CASH") as PaymentTerm;const custom=Number(formData.get("customTermDays")||0)||null;const{data:project,error}=await client.from("projects").select("id,customer_id,orbit_event_id,customers(company),quotations(id,status,grand_total,final_customer_price),agreements(id)").eq("id",projectId).single();if(error)throw error;const quotes=(project.quotations??[]).filter((q:{status:string})=>q.status==="ACCEPTED");const quote=quotes.at(-1);if(!quote)throw new Error("El evento necesita una cotización aprobada.");const customer=Array.isArray(project.customers)?project.customers[0]:project.customers;const customerType=customer?.company?"CORPORATE":"PRIVATE";if(customerType==="PRIVATE"&&term!=="CASH")throw new Error("Los clientes privados no admiten crédito.");const year=new Date().getFullYear();const{count}=await client.from("invoices").select("id",{count:"exact",head:true}).gte("created_at",`${year}-01-01`).lt("created_at",`${year+1}-01-01`);const invoiceNumber=`FAC-${year}-${String((count??0)+1).padStart(6,"0")}`;const{error:insert}=await client.from("invoices").insert({invoice_number:invoiceNumber,customer_id:project.customer_id,project_id:project.id,quotation_id:quote.id,agreement_id:project.agreements?.at(-1)?.id??null,orbit_event_id:project.orbit_event_id,customer_type:customerType,status:String(formData.get("status"))==="ISSUED"?"ISSUED":"DRAFT",issue_date:String(formData.get("status"))==="ISSUED"?new Date().toISOString().slice(0,10):null,payment_term:term,custom_term_days:custom,purchase_order:String(formData.get("purchaseOrder")??"").trim()||null,amount:Number(quote.final_customer_price??quote.grand_total),notes:String(formData.get("notes")??"").trim()||null,issued_by:String(formData.get("status"))==="ISSUED"?auth.user.id:null,issued_at:String(formData.get("status"))==="ISSUED"?new Date().toISOString():null,created_by:auth.user.id,updated_by:auth.user.id});if(insert)throw insert;revalidate();return{ok:true}}catch(error){return fail(error)}}
-export async function registerInvoicePaymentAction(formData:FormData):Promise<Result>{try{const client=await createSupabaseServerActionClient();const{error}=await client.rpc("record_invoice_payment",{p_invoice_id:String(formData.get("invoiceId")),p_amount:Number(formData.get("amount")),p_method:String(formData.get("method")??"TRANSFER"),p_reference:String(formData.get("reference")??"")||null,p_reason:"Pago registrado desde Cuentas por Cobrar"});if(error)throw error;revalidate();return{ok:true}}catch(error){return fail(error)}}
-export async function updateReceivableStatusAction(formData:FormData):Promise<Result>{try{const client=await createSupabaseServerActionClient();const{data:auth}=await client.auth.getUser();if(!auth.user)throw new Error("Sesión requerida.");const invoiceId=String(formData.get("invoiceId"));const action=String(formData.get("receivableAction"));const{data:invoice,error:lookup}=await client.from("invoices").select("amount,paid_amount,notes").eq("id",invoiceId).single();if(lookup)throw lookup;const mapping:Record<string,string>={PENDING:"PENDING",PAYMENT_CONFIRMED:"PAID",PARTIAL_PAYMENT:"PARTIALLY_PAID",CORPORATE_CREDIT:"PENDING",CANCELLED:"CANCELLED"};const next=mapping[action];if(!next)throw new Error("Selecciona una acción de cobranza válida.");const notes=[invoice.notes,action==="CORPORATE_CREDIT"?"Crédito corporativo aprobado":`Estado operacional: ${action}`].filter(Boolean).join("\n");const payload:Record<string,unknown>={status:next,notes,updated_by:auth.user.id};if(action==="PAYMENT_CONFIRMED")payload.paid_amount=Number(invoice.amount);const{error}=await client.from("invoices").update(payload).eq("id",invoiceId);if(error)throw error;revalidate();return{ok:true}}catch(error){return fail(error)}}
-function revalidate(){revalidatePath("/finance/receivables");revalidatePath("/finance");revalidatePath("/reports");revalidatePath("/notifications");revalidatePath("/projects","layout")}
+import { revalidatePath } from "next/cache";
+import { createSupabaseServerActionClient } from "@/lib/supabase/server";
+import type { PaymentTerm } from "./types";
+type Result = { ok: true } | { ok: false; error: string };
+export type ReceivableMovementAction =
+  | "DEPOSIT"
+  | "PARTIAL_PAYMENT"
+  | "FULL_PAYMENT"
+  | "RETURN_PENDING"
+  | "CANCEL"
+  | "DELETE";
+const fail = (error: unknown): Result => ({
+  ok: false,
+  error:
+    error instanceof Error
+      ? error.message
+      : "No fue posible completar la operación.",
+});
+export async function createInvoiceAction(formData: FormData): Promise<Result> {
+  try {
+    const client = await createSupabaseServerActionClient();
+    const { data: auth } = await client.auth.getUser();
+    if (!auth.user) throw new Error("Sesión requerida.");
+    const projectId = String(formData.get("projectId") ?? "");
+    const term = String(formData.get("paymentTerm") ?? "CASH") as PaymentTerm;
+    const custom = Number(formData.get("customTermDays") || 0) || null;
+    const { data: project, error } = await client
+      .from("projects")
+      .select(
+        "id,customer_id,orbit_event_id,customers(company),quotations(id,status,grand_total,final_customer_price),agreements(id)",
+      )
+      .eq("id", projectId)
+      .single();
+    if (error) throw error;
+    const quotes = (project.quotations ?? []).filter(
+      (q: { status: string }) => q.status === "ACCEPTED",
+    );
+    const quote = quotes.at(-1);
+    if (!quote) throw new Error("El evento necesita una cotización aprobada.");
+    const customer = Array.isArray(project.customers)
+      ? project.customers[0]
+      : project.customers;
+    const customerType = customer?.company ? "CORPORATE" : "PRIVATE";
+    if (customerType === "PRIVATE" && term !== "CASH")
+      throw new Error("Los clientes privados no admiten crédito.");
+    const year = new Date().getFullYear();
+    const { count } = await client
+      .from("invoices")
+      .select("id", { count: "exact", head: true })
+      .gte("created_at", `${year}-01-01`)
+      .lt("created_at", `${year + 1}-01-01`);
+    const invoiceNumber = `FAC-${year}-${String((count ?? 0) + 1).padStart(6, "0")}`;
+    const { error: insert } = await client.from("invoices").insert({
+      invoice_number: invoiceNumber,
+      customer_id: project.customer_id,
+      project_id: project.id,
+      quotation_id: quote.id,
+      agreement_id: project.agreements?.at(-1)?.id ?? null,
+      orbit_event_id: project.orbit_event_id,
+      customer_type: customerType,
+      status: String(formData.get("status")) === "ISSUED" ? "ISSUED" : "DRAFT",
+      issue_date:
+        String(formData.get("status")) === "ISSUED"
+          ? new Date().toISOString().slice(0, 10)
+          : null,
+      payment_term: term,
+      custom_term_days: custom,
+      purchase_order:
+        String(formData.get("purchaseOrder") ?? "").trim() || null,
+      amount: Number(quote.final_customer_price ?? quote.grand_total),
+      notes: String(formData.get("notes") ?? "").trim() || null,
+      issued_by:
+        String(formData.get("status")) === "ISSUED" ? auth.user.id : null,
+      issued_at:
+        String(formData.get("status")) === "ISSUED"
+          ? new Date().toISOString()
+          : null,
+      created_by: auth.user.id,
+      updated_by: auth.user.id,
+    });
+    if (insert) throw insert;
+    revalidate();
+    return { ok: true };
+  } catch (error) {
+    return fail(error);
+  }
+}
+export async function applyReceivableMovementAction(
+  formData: FormData,
+): Promise<Result> {
+  try {
+    const client = await createSupabaseServerActionClient();
+    const { data: auth } = await client.auth.getUser();
+    if (!auth.user) throw new Error("Sesión requerida.");
+    const invoiceId = String(formData.get("invoiceId"));
+    const projectId = String(formData.get("projectId"));
+    const action = String(
+      formData.get("movementAction"),
+    ) as ReceivableMovementAction;
+    const receipt = formData.get("receipt");
+    let receiptPath: string | null = null;
+    if (receipt instanceof File && receipt.size > 0) {
+      if (receipt.size > 15 * 1024 * 1024)
+        throw new Error("El comprobante no puede superar 15 MB.");
+      const extension = receipt.name.split(".").pop()?.toLowerCase() || "bin";
+      receiptPath = `receivables/${invoiceId}/${crypto.randomUUID()}.${extension}`;
+      const { error: uploadError } = await client.storage
+        .from("orbit-documents")
+        .upload(receiptPath, receipt, {
+          contentType: receipt.type,
+          upsert: false,
+        });
+      if (uploadError) throw uploadError;
+    }
+    const occurredOn = String(
+      formData.get("occurredOn") || new Date().toISOString().slice(0, 10),
+    );
+    const { error } = await client.rpc("apply_receivable_movement", {
+      p_invoice_id: invoiceId,
+      p_action: action,
+      p_amount: Number(formData.get("amount") || 0),
+      p_occurred_at: `${occurredOn}T12:00:00-04:00`,
+      p_method: String(formData.get("method") || "TRANSFER"),
+      p_receipt_path: receiptPath,
+      p_reason: String(
+        formData.get("reason") || "Movimiento registrado por Founder",
+      ),
+    });
+    if (error) throw error;
+    revalidate();
+    if (projectId) revalidatePath(`/projects/${projectId}`);
+    return { ok: true };
+  } catch (error) {
+    return fail(error);
+  }
+}
+function revalidate() {
+  revalidatePath("/finance/receivables");
+  revalidatePath("/finance");
+  revalidatePath("/reports");
+  revalidatePath("/notifications");
+  revalidatePath("/projects", "layout");
+}
