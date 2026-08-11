@@ -10,7 +10,7 @@ export default async function OperationsPage() {
   const [allProjects, assignmentsResult, staffResult, assetsResult, assetAssignmentsResult, agreementsResult, evidenceResult, quotationsResult, calendarResult, driveResult, documentsResult, payrollResult, profitResult, timelineResult, rawProjectsResult, customersResult, tasksResult, receivablesResult, expensesResult] = await Promise.all([
     new SupabaseCustomerRepository(client).findAll(),
     client.from("assignments").select("id,project_id,staff_id,assignment_type,status,resources").is("deleted_at", null),
-    client.from("staff").select("id,status,capabilities").eq("status", "ACTIVE").is("deleted_at", null),
+    client.from("staff").select("id,first_name,last_name,status,capabilities").eq("status", "ACTIVE").is("deleted_at", null),
     client.from("operational_assets").select("id,asset_type,status").is("deleted_at", null),
     client.from("asset_assignments").select("project_id,asset_id,assignment_status,operational_assets(asset_type)").eq("assignment_status", "ASSIGNED").is("deleted_at", null),
     client.from("agreements").select("id,project_id,status,created_at").order("created_at", { ascending: false }),
@@ -19,7 +19,7 @@ export default async function OperationsPage() {
     client.from("calendar_sync").select("project_id,status"),
     client.from("drive_sync").select("project_id,status"),
     client.from("documents").select("project_id,document_type").is("deleted_at", null),
-    client.from("event_staff_payments").select("project_id,status").is("deleted_at", null),
+    client.from("event_staff_payments").select("project_id,staff_id,total_internal_payment,status").is("deleted_at", null),
     client.from("profit_snapshots").select("project_id,revenue").is("deleted_at", null),
     client.from("timeline_events").select("project_id"),
     client.from("projects").select("id,customer_id,finance").is("deleted_at", null),
@@ -105,6 +105,12 @@ export default async function OperationsPage() {
   const monthlyRevenue=(profitResult.data??[]).filter((item)=>projects.find((project)=>project.id===item.project_id)?.event.date.startsWith(monthKey)).reduce((sum,item)=>sum+Number((item as {revenue?:number|string}).revenue??0),0);
   const monthlyExpenses=(expensesResult.data??[]).filter((item)=>item.occurred_on?.startsWith(monthKey)).reduce((sum,item)=>sum+Number(item.total??0),0);
   const availableVehicles=assets.filter((asset)=>asset.asset_type==="VEHICLE"&&asset.status==="AVAILABLE").length;
+  const activeAssignments=assignments.filter(item=>!["CANCELLED","REJECTED","COMPLETED"].includes(item.status));
+  const countBySkill=(skill:string)=>staff.map(member=>({member,count:assignments.filter(item=>item.staffId===member.id&&item.type===skill&&item.status==="COMPLETED").length})).sort((a,b)=>b.count-a.count)[0];
+  const topOperator=countBySkill("OPERATOR"),topAssembly=countBySkill("ASSEMBLY");
+  const totalStaffCost=payroll.filter(item=>item.status!=="CANCELLED").reduce((sum,item)=>sum+Number(item.total_internal_payment),0);
+  const paidProjects=new Set(payroll.filter(item=>item.status!=="CANCELLED").map(item=>item.project_id));
+  const staffIntelligence={mostActiveOperator:topOperator?.count?`${topOperator.member.first_name} ${topOperator.member.last_name}`:"Sin datos",mostActiveAssembly:topAssembly?.count?`${topAssembly.member.first_name} ${topAssembly.member.last_name}`:"Sin datos",totalStaffCost,averageCostPerEvent:paidProjects.size?totalStaffCost/paidProjects.size:0,upcomingAssignments:activeAssignments.length};
 
-  return <CommandCenter availableCameras={availableCameras} availableCases={availableCases} availableOperators={availableOperators} availablePrinters={availablePrinters} availableTotems={availableTotems} executive={{next15Events,accountsReceivable,monthlyRevenue,monthlyExpenses,availableVehicles,projectCount:projects.length,monthlyGoal:0}} readiness={readiness} taskSummary={taskSummary} />;
+  return <CommandCenter availableCameras={availableCameras} availableCases={availableCases} availableOperators={availableOperators} availablePrinters={availablePrinters} availableTotems={availableTotems} executive={{next15Events,accountsReceivable,monthlyRevenue,monthlyExpenses,availableVehicles,projectCount:projects.length,monthlyGoal:0}} readiness={readiness} staffIntelligence={staffIntelligence} taskSummary={taskSummary} />;
 }

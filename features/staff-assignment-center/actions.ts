@@ -7,7 +7,7 @@ import { synchronizeConfirmedReservationCalendar } from "@/features/connectors/g
 export type StaffAssignmentMutation={id?:string;projectId:string;staffId:string;role:string;arrivalTime:string;startTime:string;finishTime:string;vehicleId:string;observations:string;replaceId?:string};
 type Result={ok:true}|{ok:false;error:string};
 
-const allowedRoles=["OPERATOR","SETUP_TEARDOWN","DRIVER","SUPERVISOR","ASSISTANT","PHOTOGRAPHER"];
+const allowedRoles=["OPERATOR","ASSEMBLY","DISASSEMBLY","DRIVER","COORDINATOR","TECHNICIAN","PHOTOGRAPHER"];
 const allowedStatuses=["ASSIGNED","PENDING_CONFIRMATION","CONFIRMED","COMPLETED","CANCELLED"];
 const value=(input:string)=>input.trim()||null;
 const friendly=(error:unknown,fallback:string)=>error instanceof Error&&error.message&&!/invalid|violates|constraint|uuid|postgres|supabase/i.test(error.message)?error.message:fallback;
