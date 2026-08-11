@@ -1,17 +1,18 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { MasterDataProjection, MasterDataRecord, ServiceAdministrationRecord, ServiceExtraCode, TransportZoneAdministrationRecord, VenueAdministrationRecord } from "./types";
+import type { CostMasterCategory, MasterDataProjection, MasterDataRecord, ServiceAdministrationRecord, ServiceExtraCode, TransportZoneAdministrationRecord, VenueAdministrationRecord } from "./types";
 
 const money = (value: number | string | null) => value == null ? "Precio por definir" : new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(Number(value));
 
 export async function loadMasterData(client: SupabaseClient): Promise<MasterDataProjection> {
-  const [{ data: auth }, entries, prices, staff, equipment] = await Promise.all([
+  const [{ data: auth }, entries, prices, staff, equipment, costs] = await Promise.all([
     client.auth.getUser(),
     client.from("master_data_entries").select("id,domain,code,label,enabled,display_order,configuration,version").order("display_order").order("label"),
     client.from("commercial_prices").select("id,category,code,label,duration_hours,destination,unit_price,pricing_status,enabled,display_order,rules,version").is("deleted_at", null).order("category").order("display_order").order("label"),
     client.from("staff").select("id", { count: "exact", head: true }).is("deleted_at", null),
     client.from("operational_assets").select("id", { count: "exact", head: true }).is("deleted_at", null),
+    client.from("cost_master_entries").select("id,category,code,label,amount,quantity,unit,enabled,display_order,version,updated_at").is("deleted_at",null).order("display_order").order("label"),
   ]);
-  const error = entries.error ?? prices.error ?? staff.error ?? equipment.error;
+  const error = entries.error ?? prices.error ?? staff.error ?? equipment.error ?? costs.error;
   if (error) throw error;
   const profile = auth.user ? await client.from("profiles").select("role").eq("id", auth.user.id).maybeSingle() : { data: null };
   const role = profile.data?.role ?? "READONLY";
@@ -55,5 +56,6 @@ export async function loadMasterData(client: SupabaseClient): Promise<MasterData
     const municipalities = Array.isArray(rules.municipalities) ? rules.municipalities.filter((item): item is string => typeof item === "string") : [];
     return { id:row.id, code:row.code, province:row.destination ?? row.label, transportValue:row.unit_price == null ? null : Number(row.unit_price), enabled:row.enabled, displayOrder:row.display_order, municipalities, version:row.version };
   });
-  return { canEdit: role === "CEO" || role === "ADMINISTRATOR", role, records, services, transportZones, venues: { masterId: venueMaster?.id ?? null, version: venueMaster?.version ?? null, records: venues.sort((a,b) => a.displayOrder - b.displayOrder) }, staffCount: staff.count ?? 0, equipmentCount: equipment.count ?? 0 };
+  const costMaster = (costs.data ?? []).map((row) => ({ id:row.id, category:row.category as CostMasterCategory, code:row.code, label:row.label, amount:row.amount == null ? null : Number(row.amount), quantity:row.quantity == null ? null : Number(row.quantity), unit:row.unit, enabled:row.enabled, displayOrder:row.display_order, version:row.version, updatedAt:row.updated_at }));
+  return { canEdit: role === "CEO" || role === "ADMINISTRATOR", role, records, services, transportZones, costMaster, venues: { masterId: venueMaster?.id ?? null, version: venueMaster?.version ?? null, records: venues.sort((a,b) => a.displayOrder - b.displayOrder) }, staffCount: staff.count ?? 0, equipmentCount: equipment.count ?? 0 };
 }

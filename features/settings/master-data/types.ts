@@ -1,4 +1,20 @@
-export type MasterDataDomain = "SERVICES" | "EVENT_VENUES" | "OFFICIAL_PRICING" | "EVENT_TYPES" | "EXTRAS" | "TRANSPORT" | "STAFF" | "EQUIPMENT" | "PAYROLL" | "COMPANY" | "DOCUMENT_TEMPLATES" | "GOOGLE_WORKSPACE" | "SYSTEM_PARAMETERS";
+export type MasterDataDomain = "SERVICES" | "EVENT_VENUES" | "OFFICIAL_PRICING" | "EVENT_TYPES" | "EXTRAS" | "TRANSPORT" | "COSTS" | "STAFF" | "EQUIPMENT" | "PAYROLL" | "COMPANY" | "DOCUMENT_TEMPLATES" | "GOOGLE_WORKSPACE" | "SYSTEM_PARAMETERS";
+
+export type CostMasterCategory = "PAPER" | "PHOTO_PRODUCTION" | "OPERATOR" | "ASSEMBLY" | "FUEL" | "TRANSPORT_OVERRIDE" | "OTHER";
+
+export interface CostMasterRecord {
+  readonly id: string;
+  readonly category: CostMasterCategory;
+  readonly code: string;
+  readonly label: string;
+  readonly amount: number | null;
+  readonly quantity: number | null;
+  readonly unit: string;
+  readonly enabled: boolean;
+  readonly displayOrder: number;
+  readonly version: number;
+  readonly updatedAt: string;
+}
 
 export interface MasterDataRecord {
   readonly id: string;
@@ -24,6 +40,7 @@ export interface MasterDataProjection {
   readonly services: readonly ServiceAdministrationRecord[];
   readonly venues: VenueAdministrationProjection;
   readonly transportZones: readonly TransportZoneAdministrationRecord[];
+  readonly costMaster: readonly CostMasterRecord[];
 }
 
 export interface TransportZoneAdministrationRecord {
