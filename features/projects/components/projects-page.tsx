@@ -76,7 +76,7 @@ export function ProjectsPage({ canNegotiate, commercialPrices, initialProjects, 
         <EmptyState action={<ActionButton icon={Plus} label="Nueva reserva" onClick={() => setDrawerOpen(true)} />} className="py-20" description={query ? "Prueba con un nombre, proyecto, ciudad, teléfono o tipo de evento." : "Crea la primera reserva para comenzar."} icon={FolderKanban} title={query ? "No encontramos clientes" : "Aún no tienes reservas"} />
       )}
 
-      <NewProjectDrawer canNegotiate={canNegotiate} commercialPrices={commercialPrices} municipalities={municipalities} onClose={() => setDrawerOpen(false)} onCreate={addProject} open={drawerOpen} services={services} venues={venues} />
+      <NewProjectDrawer canNegotiate={canNegotiate} commercialPrices={commercialPrices} existingCustomers={projects.map(({client})=>client)} municipalities={municipalities} onClose={() => setDrawerOpen(false)} onCreate={addProject} open={drawerOpen} services={services} venues={venues} />
     </div>
   );
 }

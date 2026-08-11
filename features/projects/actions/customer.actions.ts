@@ -63,7 +63,7 @@ export async function createCustomerProjectAction(draft: ProjectDraft): Promise<
         subtotal,
         transport_total: 0,
         discount_total: discount + courtesyValue,
-        tax_total: 0,
+        tax_total: adjustment.vatAmount,
         grand_total: finalTotal,
         official_price: subtotal,
         final_customer_price: finalTotal,
@@ -94,7 +94,7 @@ export async function createCustomerProjectAction(draft: ProjectDraft): Promise<
       const currentFinance = currentProject.finance && typeof currentProject.finance === "object" ? currentProject.finance as Record<string, unknown> : {};
       const currentOperations = currentProject.operations && typeof currentProject.operations === "object" ? currentProject.operations as Record<string, unknown> : {};
       const negotiatedAt = new Date().toISOString();
-      const negotiation = { officialPrice: subtotal, commercialDiscount: discount, commercialCharges: charges, courtesyValue, finalPrice: finalTotal, paymentCondition: adjustment.paymentCondition, paymentTermDays: adjustment.paymentTermDays, negotiationReason: adjustment.reason, negotiatedBy: auth.user.id, negotiatedAt };
+      const negotiation = { officialPrice: subtotal, commercialDiscount: discount, commercialCharges: charges, courtesyValue, finalPrice: finalTotal, paymentCondition: adjustment.paymentCondition, paymentTermDays: adjustment.paymentTermDays, paymentReceiptRequired: adjustment.paymentReceiptRequired, corporateCreditApproved: adjustment.corporateCreditApproved, corporateVatApplied: adjustment.corporateVatApplied, netAmount: adjustment.netAmount, vatAmount: adjustment.vatAmount, negotiationReason: adjustment.reason, negotiatedBy: auth.user.id, negotiatedAt };
       const { error: financeError } = await client.from("projects").update({ finance: { ...currentFinance, ...negotiation }, operations: { ...currentOperations, commercialNegotiation: adjustment, paymentClause: adjustment.paymentCondition === "CASH" ? "Pago al contado." : adjustment.paymentCondition === "CORPORATE_CREDIT" ? `Pago a ${adjustment.paymentTermDays} días desde la emisión de la factura.` : "Reserva 50% y saldo antes del evento." }, updated_by: auth.user.id }).eq("id", project.id);
       if (financeError) throw financeError;
     }
@@ -125,7 +125,9 @@ export async function createCustomerProjectAction(draft: ProjectDraft): Promise<
     return { ok: true, project };
   } catch (error) {
     console.error(JSON.stringify({ level: "error", event: "reservation.confirmation.failed", error: reservationErrorDetails(error), timestamp: new Date().toISOString() }));
-    return { ok: false, error: "No pudimos confirmar la reserva. Revisa los datos e inténtalo nuevamente. Si el problema continúa, contacta al administrador de ORBIT." };
+    const details = reservationErrorDetails(error);
+    const reference = crypto.randomUUID().slice(0, 8).toUpperCase();
+    return { ok: false, error: `Reserva no confirmada en la operación ${String(details.code ?? details.name ?? "RESERVATION")}: ${String(details.message ?? "error sin detalle")} · Referencia ${reference}` };
   }
 }
 

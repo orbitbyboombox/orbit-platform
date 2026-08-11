@@ -85,6 +85,11 @@ export interface ProjectDraft {
     }>;
     paymentCondition: "FIFTY_FIFTY" | "CASH" | "CORPORATE_CREDIT";
     paymentTermDays: number;
+    paymentReceiptRequired: boolean;
+    corporateCreditApproved: boolean;
+    corporateVatApplied: boolean;
+    netAmount: number;
+    vatAmount: number;
     finalPrice: number;
   };
 }

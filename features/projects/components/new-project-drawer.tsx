@@ -129,6 +129,7 @@ const masterExtraToReservation = (code: string): ServiceExtra | null => code ===
 export interface NewProjectDrawerProps {
   canNegotiate: boolean;
   commercialPrices: ReservationCommercialPrice[];
+  existingCustomers: Project["client"][];
   municipalities: ActiveMunicipality[];
   services: ReservationService[];
   venues: ReservationVenue[];
@@ -280,7 +281,7 @@ function CommercialSummary({ balance, discount, extras, plan, reservation, subto
   );
 }
 
-export function NewProjectDrawer({ canNegotiate, commercialPrices, municipalities, services, venues, open, onClose, onCreate }: NewProjectDrawerProps) {
+export function NewProjectDrawer({ canNegotiate, commercialPrices, existingCustomers, municipalities, services, venues, open, onClose, onCreate }: NewProjectDrawerProps) {
   const [step, setStep] = useState(0);
   const [method, setMethod] = useState<"MANUAL" | "AUTOMATIC">("MANUAL");
   const [invitationEmail, setInvitationEmail] = useState("");
@@ -318,6 +319,9 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, municipalitie
   const [transportOverride, setTransportOverride] = useState<number | null>(null);
   const [courtesies, setCourtesies] = useState<CourtesyCode[]>([]);
   const [paymentCondition, setPaymentCondition] = useState<PaymentCondition>("FIFTY_FIFTY");
+  const [paymentReceiptRequired, setPaymentReceiptRequired] = useState(true);
+  const [corporateCreditApproved, setCorporateCreditApproved] = useState(false);
+  const [corporateVatApplied, setCorporateVatApplied] = useState(false);
   const serviceByCode = new Map(services.map((service) => [service.code, service]));
   const serviceLabel = (service: ProjectService) => serviceByCode.get(service)?.name ?? service;
   const additionalHourRate = (service: ProjectService) => serviceByCode.get(service)?.additionalHourPrice ?? 0;
@@ -371,7 +375,8 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, municipalitie
   const negotiatedOfficialTotal = commercialTotal + courtesyAddedOfficial;
   const discountTotal = Math.min(negotiatedOfficialTotal + Math.max(0, transportAdjustment) + commercialCharge, Math.max(0, discountAmount));
   const adjustedSubtotal = Math.max(0, negotiatedOfficialTotal + transportAdjustment + commercialCharge - discountTotal - courtesyValue);
-  const payableTotal = Math.round(adjustedSubtotal * (paymentMethod === "MERCADO_PAGO" ? 1.05 : 1));
+  const vatAmount = draft.type === "Corporate" && corporateVatApplied ? Math.round(adjustedSubtotal * 0.19) : 0;
+  const payableTotal = Math.round((adjustedSubtotal + vatAmount) * (paymentMethod === "MERCADO_PAGO" ? 1.05 : 1));
   const reservationTotal = paymentCondition === "CASH" ? payableTotal : paymentCondition === "CORPORATE_CREDIT" ? 0 : Math.round(payableTotal * 0.5);
   const balanceTotal = payableTotal - reservationTotal;
   const compatibleIncludedExtrasSelected = (Object.keys(configurations) as ProjectService[]).flatMap(compatibleIncludedExtras);
@@ -415,6 +420,13 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, municipalitie
       ...current,
       client: { ...current.client, [field]: value },
     }));
+  const reuseCustomer = (value: string) => {
+    const normalized = value.trim().toLocaleLowerCase("es-CL");
+    const found = existingCustomers.find((customer) =>
+      [customer.rut, customer.name, customer.company].some((candidate) => candidate?.trim().toLocaleLowerCase("es-CL") === normalized),
+    );
+    if (normalized && found) setDraft((current) => ({ ...current, client: { ...current.client, ...found } }));
+  };
   const event = (field: keyof ProjectDraft["event"], value: string | number | string[]) =>
     setDraft((current) => ({
       ...current,
@@ -499,7 +511,8 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, municipalitie
   const paymentClause = paymentCondition === "CASH" ? "El pago deberá realizarse al contado." : paymentCondition === "CORPORATE_CREDIT" ? `El pago deberá realizarse dentro de los ${paymentTermDays} días posteriores a la emisión de la factura.` : "La reserva corresponde al 50% del valor total y el saldo deberá pagarse antes del evento.";
   const negotiationValid = (!discountTotal || Boolean(negotiationReason)) && (!commercialCharge || Boolean(commercialChargeDescription.trim())) && (discountReason !== "OTHER" || !discountTotal || Boolean(discountReasonDetail.trim()));
   const requiresSignature = commercialFormalization === "CONTRACT_INVOICE";
-  const valid = step === 0 ? method === "MANUAL" : step === 1 ? customerValid : step === 2 ? Boolean(draft.type && draft.event.location && eventAddress && draft.event.city && draft.event.date && draft.event.time && operationalContact && operationalPhone.length === 12 && (draft.type === "Wedding" ? bride && groom : mainContact)) : step === 3 ? draft.services.length > 0 && negotiationValid : step === 4 ? (!requiresSignature || (termsAccepted && signatureConfirmed && Boolean(signatureDataUrl))) : step === 5 ? paymentMethod === "MERCADO_PAGO" || Boolean(receipt) : true;
+  const receiptSatisfied = paymentMethod === "MERCADO_PAGO" || !paymentReceiptRequired || Boolean(receipt);
+  const valid = step === 0 ? method === "MANUAL" : step === 1 ? customerValid : step === 2 ? Boolean(draft.type && draft.event.location && eventAddress && draft.event.city && draft.event.date && draft.event.time && operationalContact && operationalPhone.length === 12 && (draft.type === "Wedding" ? bride && groom : mainContact)) : step === 3 ? draft.services.length > 0 && negotiationValid : step === 4 ? (!requiresSignature || (termsAccepted && signatureConfirmed && Boolean(signatureDataUrl))) : step === 5 ? receiptSatisfied && (paymentCondition !== "CORPORATE_CREDIT" || corporateCreditApproved) : true;
   const create = async () => {
     if (!valid) return;
     setSubmitting(true);
@@ -530,7 +543,12 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, municipalitie
             courtesies: appliedCourtesies.map((courtesy) => ({ code: courtesy.code, label: courtesy.label, officialValue: courtesy.officialValue, appliedValue: 0, reason: "Beneficio BOOMBOX" })),
             paymentCondition,
             paymentTermDays,
-            finalPrice: adjustedSubtotal,
+            paymentReceiptRequired,
+            corporateCreditApproved,
+            corporateVatApplied,
+            netAmount: adjustedSubtotal,
+            vatAmount,
+            finalPrice: payableTotal,
           } : undefined,
           event: {
             ...draft.event,
@@ -544,7 +562,7 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, municipalitie
       setStep(6);
     } catch (cause) {
       console.error("[ORBIT][RESERVATION_CONFIRMATION_FAILED]", cause);
-      setError("No pudimos confirmar la reserva. Revisa los datos e inténtalo nuevamente. Si el problema continúa, contacta al administrador de ORBIT.");
+      setError(cause instanceof Error ? `No fue posible completar la reserva: ${cause.message}` : "No fue posible completar la reserva. Revisa el registro técnico en ORBIT.");
     } finally {
       setSubmitting(false);
     }
@@ -559,6 +577,7 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, municipalitie
     <>
       <button aria-label="Cerrar nueva reserva" className="fixed inset-0 z-40 cursor-default bg-black/45 backdrop-blur-[2px]" onClick={reset} />
       <aside aria-label="Nueva reserva" className="fixed inset-y-0 right-0 z-50 flex w-full max-w-5xl flex-col border-l bg-card shadow-2xl">
+        {submitting && <div className="absolute inset-0 z-20 grid place-items-center bg-card p-6 text-center"><div className="max-w-lg"><LoaderCircle className="mx-auto size-12 animate-spin text-brand"/><h2 className="mt-6 text-3xl font-semibold">Preparando tu experiencia BOOMBOX...</h2><p className="mt-3 leading-7 text-muted">Estamos creando la reserva, contrato, Portal, Calendar, Drive y correo. Tiempo estimado: 60–90 segundos.</p><ol className="mt-6 grid gap-2 text-left text-sm sm:grid-cols-2">{["Reserva","Contrato","Portal","Calendar","Drive","Correo"].map((item)=><li className="rounded-xl border p-3" key={item}>⏳ {item}</li>)}</ol></div></div>}
         <header className="flex items-start justify-between border-b p-5 sm:p-7">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">
@@ -606,7 +625,7 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, municipalitie
           {step === 1 && (
             <div className="mx-auto max-w-3xl space-y-5">
               <div className="grid gap-5 sm:grid-cols-2">
-                <Field autoComplete="name" label="Nombre y Apellido" onChange={(e) => client("name", e.target.value)} required value={draft.client.name} />
+                <Field autoComplete="name" label="Nombre y Apellido o Empresa" onBlur={(e)=>reuseCustomer(e.target.value)} onChange={(e) => client("name", e.target.value)} required value={draft.client.name} />
                 <Field
                   autoComplete="off"
                   inputMode="text"
@@ -620,8 +639,10 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, municipalitie
                   }}
                   placeholder="12345678-9"
                   required
+                  onBlur={(e)=>reuseCustomer(e.target.value)}
                   value={draft.client.rut}
                 />
+                <Field label="Empresa (opcional)" onBlur={(e)=>reuseCustomer(e.target.value)} onChange={(e)=>client("company",e.target.value)} value={draft.client.company??""}/>
                 <Field autoComplete="tel" inputMode="tel" label="Teléfono" onChange={(e) => client("phone", `+569${e.target.value.replace(/\D/g, "").replace(/^569/, "").slice(0, 8)}`)} required value={draft.client.phone || "+569"} />
                 <Field autoComplete="email" label="Correo" onChange={(e) => client("email", e.target.value)} required type="email" value={draft.client.email} />
               </div>
@@ -985,6 +1006,10 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, municipalitie
                           <dd className="mt-1 font-semibold">Crédito corporativo</dd>
                         </div>
                       </dl>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <label className="flex min-h-12 items-center gap-3 rounded-xl border p-3 text-sm"><input checked={paymentReceiptRequired} onChange={(e)=>setPaymentReceiptRequired(e.target.checked)} type="checkbox"/>Comprobante de pago requerido</label>
+                        <label className="flex min-h-12 items-center gap-3 rounded-xl border p-3 text-sm"><input checked={corporateCreditApproved} onChange={(e)=>setCorporateCreditApproved(e.target.checked)} type="checkbox"/>Crédito corporativo aprobado</label>
+                      </div>
                     </div>
                   ) : (
                     <dl className="mt-4 grid gap-3 rounded-xl bg-background/40 p-4 text-sm sm:grid-cols-3">
@@ -1006,6 +1031,7 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, municipalitie
                 </section>
                 <section>
                   <p className="mb-3 text-xs font-semibold uppercase tracking-[.16em] text-brand">Método de pago</p>
+                  {isCorporateCustomer && <div className="mb-4 rounded-xl border p-4"><p className="font-semibold">Tratamiento tributario</p><div className="mt-3 grid grid-cols-2 gap-2"><Button onClick={()=>setCorporateVatApplied(false)} variant={!corporateVatApplied?"default":"outline"}>Valor NETO</Button><Button onClick={()=>setCorporateVatApplied(true)} variant={corporateVatApplied?"default":"outline"}>+ IVA</Button></div>{corporateVatApplied&&<dl className="mt-3 grid grid-cols-3 gap-2 text-sm"><div><dt className="text-muted">Neto</dt><dd>{currency.format(adjustedSubtotal)}</dd></div><div><dt className="text-muted">IVA</dt><dd>{currency.format(vatAmount)}</dd></div><div><dt className="text-muted">Total</dt><dd className="font-semibold">{currency.format(adjustedSubtotal+vatAmount)}</dd></div></dl>}</div>}
                   <div className="grid grid-cols-2 gap-2">
                     <Button onClick={() => setPaymentMethod("TRANSFER")} variant={paymentMethod === "TRANSFER" ? "default" : "outline"}>
                       Transferencia
@@ -1038,8 +1064,8 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, municipalitie
                     </dl>
                     <label className="mt-5 block font-medium">
                       Comprobante
-                      <input accept="image/jpeg,image/png,image/webp,application/pdf" className="mt-2 block w-full rounded-xl border p-3" onChange={(e) => setReceipt(e.target.files?.[0]?.name ?? "")} required type="file" />
-                      <span className="mt-2 block text-xs text-muted">JPG, PNG, WEBP o PDF. {receipt ? `Vinculado: ${receipt}` : "Obligatorio para continuar."}</span>
+                      <input accept="image/jpeg,image/png,image/webp,application/pdf" className="mt-2 block w-full rounded-xl border p-3" onChange={(e) => setReceipt(e.target.files?.[0]?.name ?? "")} required={paymentReceiptRequired} type="file" />
+                      <span className="mt-2 block text-xs text-muted">JPG, PNG, WEBP o PDF. {receipt ? `Vinculado: ${receipt}` : paymentReceiptRequired ? "Obligatorio para continuar." : "Opcional para este crédito corporativo."}</span>
                     </label>
                   </div>
                 ) : (

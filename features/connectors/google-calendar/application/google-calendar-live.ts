@@ -32,33 +32,18 @@ export function buildGoogleMapsLink(address: string): string {
 }
 
 export function buildCalendarDescription(input: CalendarOperationalEventInput, orbitEventId: string): string {
-  const operatorPaymentStatus = input.operatorPaymentStatus === "CONFIRMED" ? "Confirmado" : input.operatorPaymentStatus === "NOT_APPLICABLE" ? "No aplica" : "Pendiente";
   return [
-    `Novios / Cliente: ${input.customerName}`,
     `Servicio: ${input.service}`,
     `Duración: ${input.contractedHours} horas`,
-    `Hora de llamado del operador: ${input.operatorCallTime}`,
-    `Horario de montaje: ${input.mountingWindow}`,
-    `Inicio del servicio: ${input.serviceStart}`,
-    `Fin del servicio: ${input.serviceEnd}`,
-    `Horario de desmontaje: ${input.dismantlingWindow}`,
-    `Dirección: ${input.customerAddress}`,
-    `Recinto: ${input.venue ?? "Por confirmar"}`,
-    `Comuna: ${input.municipality ?? "Por confirmar"}`,
-    `Google Maps: ${buildGoogleMapsLink(input.customerAddress)}`,
-    `Contacto del evento: ${input.operationalContact ?? `${input.customerPhone} · ${input.customerEmail}`}`,
-    `Black Box asignada: ${input.blackBox}`,
-    `Cabina asignada: ${input.booth}`,
-    `Staff asignado: ${input.assignedStaff?.join(", ") || input.operator}`,
-    `Vehículo asignado: ${input.assignedVehicle}`,
     `Extras: ${input.extras.join(", ") || "Sin extras"}`,
-    ...(input.includeOperatorPaymentStatus ? [`Pago del operador: ${operatorPaymentStatus}`] : []),
+    `Cliente: ${input.customerName}`,
+    `Fecha: ${input.eventDate}`,
+    `Horario: ${input.serviceStart}–${input.serviceEnd}`,
+    `Dirección: ${input.customerAddress}`,
+    `Teléfonos cliente: ${input.customerPhone}`,
+    `Contacto producción: ${input.operationalContact ?? input.operator}`,
+    `Google Maps: ${buildGoogleMapsLink(input.customerAddress)}`,
     `ORBIT Event ID: ${orbitEventId}`,
-    `Abrir ORBIT: ${input.orbitProjectUrl}`,
-    `Operador: ${input.operator}`,
-    `Notas operacionales: ${input.operationalNotes}`,
-    `Notas comerciales: ${input.commercialNotes ?? "Sin notas comerciales"}`,
-    `Portal ORBIT: ${input.portalUrl}`,
   ].join("\n");
 }
 

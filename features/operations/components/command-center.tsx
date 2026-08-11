@@ -253,7 +253,7 @@ export function CommandCenter({
   const router = useRouter();
   const [expenseOpen, setExpenseOpen] = useState(false);
   const { isEnabled } = useModuleManager();
-  const context = ORBIT_TIME_ENGINE.getCurrentContext("Matías");
+  const context = ORBIT_TIME_ENGINE.getCurrentContext("Founder");
   const today = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Santiago",
   }).format(new Date());
@@ -322,7 +322,7 @@ export function CommandCenter({
 
       <section
         aria-label="Acciones principales"
-        className="grid gap-3 sm:grid-cols-2"
+        className="grid gap-3 sm:grid-cols-3"
       >
         {isEnabled("BOOKING_EXPERIENCE") && isEnabled("PROJECTS") && (
           <Button
@@ -341,6 +341,11 @@ export function CommandCenter({
           >
             <Camera className="mr-2 size-5" />
             Subir gasto
+          </Button>
+        )}
+        {isEnabled("STAFF") && (
+          <Button className="min-h-14 text-base font-semibold" onClick={()=>router.push("/resources/staff?action=new")} variant="outline">
+            <UserCheck className="mr-2 size-5"/>Nuevo Staff
           </Button>
         )}
       </section>
