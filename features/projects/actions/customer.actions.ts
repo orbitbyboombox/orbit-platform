@@ -3,12 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { SupabaseCustomerRepository } from "../infrastructure";
-import { removeCancelledReservationCalendar, synchronizeConfirmedReservationCalendar } from "@/features/connectors/google-calendar/application/google-calendar-sync.service";
+import { removeCancelledReservationCalendar } from "@/features/connectors/google-calendar/application/google-calendar-sync.service";
 import { archiveCancelledReservationDrive, synchronizeConfirmedReservationDrive } from "@/features/connectors/google-drive/application/google-drive-sync.service";
 import { deliverConfirmedReservationEmail,deliverFounderReservationNotification } from "@/features/connectors/google-gmail/application/google-gmail-delivery.service";
 import { formalizeManualReservation } from "../signing/manual-reservation-formalization.service";
 import type { Project, ProjectDraft } from "../types/project";
 import type { CustomerMutationInput } from "../infrastructure";
+import{runConfirmedReservationOperationalPipeline}from"../operations/confirmed-reservation-pipeline.service";
 
 export type CreateCustomerResult = { ok: true; project: Project } | { ok: false; error: string };
 const safeReservationReference=()=>crypto.randomUUID().replaceAll("-","").slice(0,6).toUpperCase();
@@ -127,10 +128,8 @@ export async function createCustomerProjectAction(draft: ProjectDraft): Promise<
       }
     }
     const{data:projectIdentity,error:projectIdentityError}=await client.from("projects").select("customer_id").eq("id",project.id).single();if(projectIdentityError)throw projectIdentityError;customerId=projectIdentity.customer_id;mark("Accounts Receivable","PASS");log("Accounts Receivable","PASS",{projectId});
-    currentStep="Business Engine";const{error:businessError}=await client.rpc("sync_financial_event",{p_project_id:project.id});if(businessError)throw businessError;mark("Business Engine","PASS");log("Business Engine","PASS",{projectId});
+    await runConfirmedReservationOperationalPipeline({client,projectId:project.id,actorId:auth.user.id,onStage:(stage,status)=>{const label=stage==="BUSINESS_ENGINE"?"Business Engine":stage==="GOOGLE_CALENDAR"?"Google Calendar":"Google Drive";currentStep=label;if(status==="PASS"){mark(label,"PASS");log(label,"PASS",{projectId})}}});
     currentStep="Portal";mark("Portal","PASS");log("Portal","PASS",{projectId});
-    currentStep="Google Calendar";await synchronizeConfirmedReservationCalendar({ client, projectId: project.id, actorId: auth.user.id });mark("Google Calendar","PASS");log("Google Calendar","PASS",{projectId});
-    currentStep="Google Drive";await synchronizeConfirmedReservationDrive({ client, projectId: project.id, actorId: auth.user.id });mark("Google Drive","PASS");log("Google Drive","PASS",{projectId});
     currentStep="Confirmation";mark("Confirmation","PASS");log("Confirmation","PASS",{projectId});await persistDiagnostic("PASS");
     revalidatePath("/projects");
     revalidatePath("/settings");
