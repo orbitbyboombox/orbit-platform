@@ -21,6 +21,7 @@ import { transitionReservationLifecycleAction, type ReservationLifecycleAction }
 import {StaffAssignmentCenter,type StaffAssignmentCenterProps}from"@/features/staff-assignment-center";
 import type { RealEventCostSummary } from "@/features/profit-engine";
 import {RealCostOverridePanel,type RealCostData}from"./real-cost-override-panel";
+import {EventProfitabilityPanel,type EventProfitabilityData}from"./event-profitability-panel";
 
 type Event360Task={id:string;title:string;description:string|null;priority:TaskPriority;status:TaskStatus;due_at:string|null;created_at:string;completed_at:string|null;version:number;assignedUser?:string|null};
 type Event360Data={
@@ -35,6 +36,7 @@ type Event360Data={
   profit?:RealEventCostSummary;
   estimatedCosts?:{status:string;paper:number;operator:number;assembly:number;disassembly:number;fuel:number;transport:number;scrapbook:number;magnets:number;pens:number;doubleSidedTape:number;other:number;total:number;calculatedAt:string};
   realCosts?:RealCostData;
+  profitability?:EventProfitabilityData;
   receivable?:{invoiceNumber:string;amount:number;outstandingBalance:number;dueDate:string|null;paymentTerm:string;daysRemaining:number|null;status:string};
   checklist:EventOperationsChecklistData;
   experienceReview:{existing?:ExistingExperienceReview;knowledge:readonly ExperienceKnowledgeItem[]};
@@ -83,7 +85,7 @@ export function ProjectWorkspaceExperience(props:ProjectWorkspaceExperienceProps
     </section>
 
     <Section eyebrow="05 · Costos automáticos" icon={<Gauge className="size-5"/>} id="estimated-costs" title="Estimated Costs">{event.estimatedCosts?<div className="space-y-4"><dl><Row label="Papel" value={money(event.estimatedCosts.paper)}/><Row label="Operador" value={money(event.estimatedCosts.operator)}/><Row label="Montaje" value={money(event.estimatedCosts.assembly)}/><Row label="Desmontaje" value={money(event.estimatedCosts.disassembly)}/><Row label="Combustible" value={money(event.estimatedCosts.fuel)}/><Row label="Transporte" value={money(event.estimatedCosts.transport)}/><Row label="Scrapbook" value={money(event.estimatedCosts.scrapbook)}/><Row label="Imanes" value={money(event.estimatedCosts.magnets)}/><Row label="Lápices" value={money(event.estimatedCosts.pens)}/><Row label="Cinta doble contacto" value={money(event.estimatedCosts.doubleSidedTape)}/>{event.estimatedCosts.other>0&&<Row label="Otros configurados" value={money(event.estimatedCosts.other)}/>}<Row label="Costo total estimado" value={money(event.estimatedCosts.total)}/></dl><p className="border-t pt-3 text-xs text-muted">{event.estimatedCosts.status} · calculado automáticamente desde Cost Master y Master Data · {dateTime(event.estimatedCosts.calculatedAt)}</p></div>:<Empty text="La hoja se creará automáticamente cuando la reserva esté confirmada."/>}</Section>
-    {event.realCosts&&<RealCostOverridePanel data={event.realCosts} projectId={props.projectKey??""}/>}<EventOperationsChecklist data={event.checklist} projectId={props.projectKey??""}/>
+    {event.realCosts&&<RealCostOverridePanel data={event.realCosts} projectId={props.projectKey??""}/>} {event.profitability&&<EventProfitabilityPanel data={event.profitability}/>}<EventOperationsChecklist data={event.checklist} projectId={props.projectKey??""}/>
     <StaffAssignmentCenter {...event.staffAssignments}/>
     <Section eyebrow="05 · Trabajo pendiente" icon={<ListChecks className="size-5"/>} id="tasks" title="Task Center"><div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4"><MiniMetric label="Pendientes" value={event.tasks.filter(x=>x.status==="PENDING").length}/><MiniMetric label="Hoy" value={event.tasks.filter(x=>x.due_at&&new Date(x.due_at).toDateString()===new Date().toDateString()).length}/><MiniMetric label="Vencidas" value={overdueTasks}/><MiniMetric label="Completadas" value={event.tasks.filter(x=>x.status==="COMPLETED").length}/></div><div className="grid gap-3 lg:grid-cols-2">{event.tasks.length?event.tasks.map(task=><TaskRow key={task.id} task={task}/>):<Empty text="No hay trabajo pendiente para este evento. Las tareas operacionales aparecerán aquí automáticamente."/>}</div></Section>
 

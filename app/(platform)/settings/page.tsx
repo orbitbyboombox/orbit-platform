@@ -8,10 +8,11 @@ import Link from "next/link";
 import { Activity, ArrowRight } from "lucide-react";
 import { ModuleManagerCenter } from "@/features/module-manager";
 import { loadModuleStates } from "@/features/module-manager/repository";
+import {ProfitabilitySettings}from"@/features/settings/profitability-settings";
 
 export default async function SettingsPage() {
   const client = await createSupabaseServerClient();
-  const [communication, masterData, companySettings,modules] = await Promise.all([loadCommunicationHubProjection(client), loadMasterData(client),loadCompanySettings(client),loadModuleStates(client)]);
+  const [communication, masterData, companySettings,modules,{data:profitabilitySettings}] = await Promise.all([loadCommunicationHubProjection(client), loadMasterData(client),loadCompanySettings(client),loadModuleStates(client),client.from("profitability_settings").select("high_margin_threshold,normal_margin_threshold").eq("settings_key","PRIMARY").single()]);
   const googleConfigured = Boolean(process.env.GOOGLE_WORKSPACE_CLIENT_ID && process.env.GOOGLE_WORKSPACE_CLIENT_SECRET && process.env.GOOGLE_WORKSPACE_REDIRECT_URI);
   const googleConnection = googleConfigured
     ? await loadGoogleWorkspaceConnection().catch(() => createDisconnectedGoogleWorkspaceConnection("AUTHENTICATION_ERROR"))
@@ -23,6 +24,7 @@ export default async function SettingsPage() {
       </Link>
       <CompanySettingsCenter settings={companySettings}/>
       <ModuleManagerCenter initialStates={modules}/>
+      <ProfitabilitySettings high={Number(profitabilitySettings?.high_margin_threshold??40)} normal={Number(profitabilitySettings?.normal_margin_threshold??20)}/>
       <MasterDataCenter {...masterData} />
       <div id="connections">
       <ConnectionCenter googleConfigured={googleConfigured} googleConnection={googleConnection} />
