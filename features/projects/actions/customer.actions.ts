@@ -11,6 +11,7 @@ import type { Project, ProjectDraft } from "../types/project";
 import type { CustomerMutationInput } from "../infrastructure";
 
 export type CreateCustomerResult = { ok: true; project: Project } | { ok: false; error: string };
+const safeReservationReference=()=>crypto.randomUUID().replaceAll("-","").slice(0,6).toUpperCase();
 
 function reservationErrorDetails(error: unknown) {
   if (error instanceof Error) return { name: error.name, message: error.message, stack: error.stack };
@@ -125,9 +126,7 @@ export async function createCustomerProjectAction(draft: ProjectDraft): Promise<
     return { ok: true, project };
   } catch (error) {
     console.error(JSON.stringify({ level: "error", event: "reservation.confirmation.failed", error: reservationErrorDetails(error), timestamp: new Date().toISOString() }));
-    const details = reservationErrorDetails(error);
-    const reference = crypto.randomUUID().slice(0, 8).toUpperCase();
-    return { ok: false, error: `Reserva no confirmada en la operación ${String(details.code ?? details.name ?? "RESERVATION")}: ${String(details.message ?? "error sin detalle")} · Referencia ${reference}` };
+    return { ok: false, error: `No se pudo completar la reserva. Tu información fue preservada de forma segura. Inténtalo nuevamente. Referencia ${safeReservationReference()}` };
   }
 }
 

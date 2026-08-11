@@ -70,6 +70,7 @@ const currency = new Intl.NumberFormat("es-CL", {
   maximumFractionDigits: 0,
 });
 const reservationProcessingTimeoutMs = 60_000;
+const manualReservationDraftKey = "orbit:manual-reservation-draft:v1";
 
 async function withReservationTimeout<T>(operation: Promise<T>) {
   let timeoutId = 0;
@@ -322,6 +323,7 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, existingCusto
   const [paymentReceiptRequired, setPaymentReceiptRequired] = useState(true);
   const [corporateCreditApproved, setCorporateCreditApproved] = useState(false);
   const [corporateVatApplied, setCorporateVatApplied] = useState(false);
+  const recoveryChecked = useRef(false);
   const serviceByCode = new Map(services.map((service) => [service.code, service]));
   const serviceLabel = (service: ProjectService) => serviceByCode.get(service)?.name ?? service;
   const additionalHourRate = (service: ProjectService) => serviceByCode.get(service)?.additionalHourPrice ?? 0;
@@ -414,6 +416,39 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, existingCusto
   const mercadoPagoCommission = payableTotal - adjustedSubtotal;
   const summaryExtras = [...commercialExtras, ...(paymentMethod === "MERCADO_PAGO" ? [{ label: "Comisión Mercado Pago", value: `+${currency.format(mercadoPagoCommission)}` }] : [])];
 
+  useEffect(() => {
+    if (!open || recoveryChecked.current) return;
+    recoveryChecked.current = true;
+    const saved = window.localStorage.getItem(manualReservationDraftKey);
+    if (!saved) return;
+    if (!window.confirm("Encontramos una reserva sin terminar. ¿Deseas reanudar el borrador?")) {
+      window.localStorage.removeItem(manualReservationDraftKey);
+      return;
+    }
+    try {
+      const value = JSON.parse(saved) as Record<string, unknown>;
+      if (value.draft) setDraft(value.draft as ProjectDraft);
+      if (value.configurations) setConfigurations(value.configurations as Partial<Record<ProjectService, ServiceConfiguration>>);
+      if (typeof value.step === "number") setStep(value.step);
+      if (typeof value.eventAddress === "string") setEventAddress(value.eventAddress);
+      if (typeof value.operationalContact === "string") setOperationalContact(value.operationalContact);
+      if (typeof value.operationalPhone === "string") setOperationalPhone(value.operationalPhone);
+      if (typeof value.mainContact === "string") setMainContact(value.mainContact);
+      if (typeof value.specialRequests === "string") setSpecialRequests(value.specialRequests);
+      if (typeof value.commercialNotes === "string") setCommercialNotes(value.commercialNotes);
+      if (typeof value.discountAmount === "number") setDiscountAmount(value.discountAmount);
+      if (typeof value.commercialCharge === "number") setCommercialCharge(value.commercialCharge);
+      if (typeof value.paymentCondition === "string") setPaymentCondition(value.paymentCondition as PaymentCondition);
+      if (typeof value.paymentMethod === "string") setPaymentMethod(value.paymentMethod as "TRANSFER" | "MERCADO_PAGO");
+      if (typeof value.corporateCreditApproved === "boolean") setCorporateCreditApproved(value.corporateCreditApproved);
+      if (typeof value.corporateVatApplied === "boolean") setCorporateVatApplied(value.corporateVatApplied);
+    } catch { window.localStorage.removeItem(manualReservationDraftKey); }
+  }, [open]);
+  useEffect(() => {
+    if (!open || createdProject || method !== "MANUAL") return;
+    window.localStorage.setItem(manualReservationDraftKey, JSON.stringify({draft,configurations,step,eventAddress,operationalContact,operationalPhone,mainContact,specialRequests,commercialNotes,discountAmount,commercialCharge,paymentCondition,paymentMethod,corporateCreditApproved,corporateVatApplied}));
+  });
+
   if (!open) return null;
   const client = (field: keyof ProjectDraft["client"], value: string) =>
     setDraft((current) => ({
@@ -433,6 +468,8 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, existingCusto
       event: { ...current.event, [field]: value },
     }));
   const reset = () => {
+    window.localStorage.removeItem(manualReservationDraftKey);
+    recoveryChecked.current = false;
     setStep(0);
     setMethod("MANUAL");
     setInvitationEmail("");
@@ -559,6 +596,7 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, existingCusto
         }),
       );
       setCreatedProject(project);
+      window.localStorage.removeItem(manualReservationDraftKey);
       setStep(6);
     } catch (cause) {
       console.error("[ORBIT][RESERVATION_CONFIRMATION_FAILED]", cause);

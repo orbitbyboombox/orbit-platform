@@ -13,7 +13,7 @@ const sha256=(value:string|Uint8Array)=>createHash("sha256").update(value).diges
 
 export async function formalizeManualReservation(input:{projectId:string;actorId:string;formalization:NonNullable<ProjectDraft["commercialFormalization"]>}){
   const admin=createAdminClient();
-  const {data:project,error}=await admin.from("projects").select("id,name,customer_id,event_date,event_time,location,city,operations,customers!inner(full_name,email,rut,phone),project_services(service_code,duration_hours,extras),quotations(quotation_number,final_customer_price)").eq("id",input.projectId).single();
+  const {data:project,error}=await admin.from("projects").select("id,name,customer_id,orbit_event_id,event_date,event_time,location,city,operations,customers!inner(full_name,email,rut,phone),project_services(service_code,duration_hours,extras),quotations(quotation_number,final_customer_price)").eq("id",input.projectId).single();
   if(error)throw error;
   const customer=Array.isArray(project.customers)?project.customers[0]:project.customers;
   const quotation=Array.isArray(project.quotations)?project.quotations[0]:project.quotations;
@@ -40,7 +40,7 @@ export async function formalizeManualReservation(input:{projectId:string;actorId
   const [agreementWrite,documentWrite,timelineWrite]=await Promise.all([
     admin.from("agreements").update({status:"COMMERCIAL_DOCUMENT",signed_pdf_path:path,drive_file_id:drive.id,locked_at:new Date().toISOString(),updated_by:input.actorId}).eq("id",agreementId),
     admin.from("documents").insert({project_id:project.id,customer_id:project.customer_id,document_type:"COMMERCIAL_DOCUMENT",storage_bucket:"orbit-documents",storage_path:path,checksum:sha256(pdf),drive_file_id:drive.id,created_by:input.actorId}),
-    admin.from("timeline_events").insert({customer_id:project.customer_id,project_id:project.id,event_type:"COMMERCIAL_DOCUMENT_GENERATED",title:"Documento comercial oficial generado.",description:`Formalización ${input.formalization.type} sin firma.`,actor_id:input.actorId,actor_label:"Administrador",source:"Administrator",action:"COMMERCIAL_DOCUMENT_GENERATED",entity_type:"Agreement",entity_id:agreementId,human_message:"Documento con Factura generado y almacenado.",correlation_id:`commercial-document:${agreementId}`,created_by:input.actorId}),
+    admin.from("timeline_events").insert({customer_id:project.customer_id,project_id:project.id,orbit_event_id:project.orbit_event_id,event_type:"COMMERCIAL_DOCUMENT_GENERATED",title:"Documento comercial oficial generado.",description:`Formalización ${input.formalization.type} sin firma.`,actor_id:input.actorId,actor_label:"Administrador",source:"Administrator",action:"COMMERCIAL_DOCUMENT_GENERATED",entity_type:"Agreement",entity_id:agreementId,human_message:"Documento con Factura generado y almacenado.",correlation_id:`commercial-document:${agreementId}`,created_by:input.actorId}),
   ]);
   for(const result of [agreementWrite,documentWrite,timelineWrite])if(result.error)throw result.error;
   return portal;

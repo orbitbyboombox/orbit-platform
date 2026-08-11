@@ -1,5 +1,4 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { generateOrbitEventId } from "@/features/connectors/google-calendar";
 import type { CustomerMutationInput, CustomerRepository } from "./customer.repository";
 import { SupabaseTimelineRepository } from "./supabase-timeline.repository";
 import type { Project, ProjectCommercialStage, ProjectDraft, ProjectHealth, ProjectOrigin, ProjectService, ProjectStatus, ProjectType } from "../types/project";
@@ -65,42 +64,11 @@ export class SupabaseCustomerRepository implements CustomerRepository {
 
   async createWithProject(draft: ProjectDraft): Promise<Project> {
     if (!draft.type || !draft.origin) throw new Error("Datos incompletos para crear el cliente.");
-    const { data: authData, error: authError } = await this.client.auth.getUser();
-    if (authError || !authData.user) throw authError ?? new Error("Sesión requerida para crear clientes.");
-    const actorId = authData.user.id;
-    const normalizeRut = (value: string | null | undefined) => (value ?? "").replace(/[^0-9K]/gi, "").toUpperCase();
-    const { data: matchingCustomers, error: customerLookupError } = await this.client.from("customers").select("id,rut").is("deleted_at", null);
-    if (customerLookupError) throw customerLookupError;
-    const existingCustomer = (matchingCustomers ?? []).find((customer) => normalizeRut(customer.rut) === normalizeRut(draft.client.rut));
-    const customerId = existingCustomer?.id ?? crypto.randomUUID();
-    if (existingCustomer) {
-      const { error: customerUpdateError } = await this.client.from("customers").update({ full_name: draft.client.name, email: draft.client.email, phone: draft.client.phone, company: draft.client.company ?? null, city: draft.event.city, metadata: { address: draft.client.address ?? "" }, updated_by: actorId }).eq("id", customerId);
-      if (customerUpdateError) throw customerUpdateError;
-    } else {
-      const { error: customerError } = await this.client.from("customers").insert({ id: customerId, full_name: draft.client.name, email: draft.client.email, phone: draft.client.phone, company: draft.client.company ?? null, rut: draft.client.rut ?? null, city: draft.event.city, metadata: { address: draft.client.address ?? "" }, created_by: actorId, updated_by: actorId });
-      if (customerError) throw customerError;
-    }
-    const { data: existingProject, error: projectLookupError } = await this.client.from("projects").select("id,orbit_event_id").eq("customer_id", customerId).eq("event_date", draft.event.date).eq("event_time", draft.event.time).eq("location", draft.event.location).is("deleted_at", null).maybeSingle();
-    if (projectLookupError) throw projectLookupError;
-    const projectId = existingProject?.id ?? crypto.randomUUID();
-    const orbitEventId = existingProject?.orbit_event_id ?? generateOrbitEventId(draft.event.date, (Number.parseInt(projectId.replaceAll("-", "").slice(-8), 16) % 999999) + 1);
-    const operations = { stage: "Primer contacto", commercialStage: "New", origin: draft.origin, notes: draft.notes, score: 60, durationHours: draft.event.durationHours, extras: draft.event.extras ?? [], reservationMethod: "MANUAL" };
-    if (existingProject) {
-      const { error: projectUpdateError } = await this.client.from("projects").update({ name: draft.client.company || draft.client.name, project_type: draft.type, event_date: draft.event.date, event_time: draft.event.time, location: draft.event.location, city: draft.event.city, operations, updated_by: actorId }).eq("id", projectId);
-      if (projectUpdateError) throw projectUpdateError;
-    } else {
-      const { error: projectError } = await this.client.from("projects").insert({ id: projectId, customer_id: customerId, orbit_event_id: orbitEventId, name: draft.client.company || draft.client.name, project_type: draft.type, status: "Upcoming", health: "Healthy", event_date: draft.event.date, event_time: draft.event.time, location: draft.event.location, city: draft.event.city, operations, created_by: actorId, updated_by: actorId });
-      if (projectError) { if (!existingCustomer) await this.client.from("customers").delete().eq("id", customerId); throw projectError; }
-    }
-    if (draft.services.length) {
-      const { error: serviceError } = await this.client.from("project_services").upsert(draft.services.map((service) => ({ project_id: projectId, service_code: service, duration_hours: draft.event.durationHours ?? 2, extras: draft.event.extras ?? [] })), { onConflict: "project_id,service_code" });
-      if (serviceError) throw serviceError;
-    }
-    if (!existingProject) await this.timeline.append({ orbitEventId, actorId, actorLabel: "Administrador", source: "Administrator", action: "CUSTOMER_CREATED", entityType: "Customer", entityId: customerId, customerId, projectId, humanMessage: existingCustomer ? "Nueva reserva creada para cliente existente." : "Cliente creado correctamente.", correlationId: crypto.randomUUID(), newState: "ACTIVE" });
-    if (!existingCustomer) {
-      const { error: memoryError } = await this.client.from("customer_memory").insert({ customer_id: customerId, context: { customerName: draft.client.name, eventType: draft.type, eventDate: draft.event.date, eventLocation: draft.event.city, currentTimelineStage: "Nuevo", nextRecommendedAction: "Realizar primer contacto" }, created_by: actorId, updated_by: actorId });
-      if (memoryError) throw memoryError;
-    }
+    const {data,error}=await this.client.rpc("create_manual_reservation_atomic",{p_draft:draft});
+    if(error)throw error;
+    const row=Array.isArray(data)?data[0]:data;
+    if(!row?.project_id||!row?.orbit_event_id)throw new Error("La transacción no devolvió el identificador del evento.");
+    const projectId=String(row.project_id);
     return { id: projectId, name: draft.client.company || draft.client.name, type: draft.type, client: draft.client, event: draft.event, services: draft.services, status: "Upcoming", health: "Healthy", stage: "Primer contacto", score: 60, commercialStage: "New", origin: draft.origin, notes: draft.notes, customerVersion: 1, lastCommunication: "Relación creada · hoy", salesOwner: "Sin asignar", nextAction: "Realizar primer contacto", tags: [] };
   }
 
