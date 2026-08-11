@@ -1,6 +1,6 @@
 export type CalendarOperationalPlanStatus = "DRAFT" | "APPROVED";
 export type CalendarOperationalEventType = "WEDDING" | "CORPORATE" | "BIRTHDAY" | "GRADUATION" | "INTERNAL";
-export type GoogleCalendarSyncStatus = "PENDING" | "SYNCHRONIZED" | "UPDATE_REQUIRED" | "ERROR" | "CANCELLED";
+export type GoogleCalendarSyncStatus = "PENDING" | "SYNCHRONIZED" | "UPDATE_REQUIRED" | "ERROR" | "CANCELLED" | "DELETED";
 export type GoogleCalendarSyncOperation = "UPSERT" | "CANCEL" | "RESTORE";
 export type OperatorPaymentOperationalStatus = "PENDING" | "CONFIRMED" | "NOT_APPLICABLE";
 

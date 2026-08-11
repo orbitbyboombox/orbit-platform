@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { SupabaseCustomerRepository } from "../infrastructure";
-import { synchronizeConfirmedReservationCalendar } from "@/features/connectors/google-calendar/application/google-calendar-sync.service";
-import { synchronizeConfirmedReservationDrive } from "@/features/connectors/google-drive/application/google-drive-sync.service";
+import { removeCancelledReservationCalendar, synchronizeConfirmedReservationCalendar } from "@/features/connectors/google-calendar/application/google-calendar-sync.service";
+import { archiveCancelledReservationDrive, synchronizeConfirmedReservationDrive } from "@/features/connectors/google-drive/application/google-drive-sync.service";
 import { deliverConfirmedReservationEmail } from "@/features/connectors/google-gmail/application/google-gmail-delivery.service";
 import type { Project, ProjectDraft } from "../types/project";
 import type { CustomerMutationInput } from "../infrastructure";
@@ -118,14 +118,40 @@ export async function restoreCustomerAction(customerId: string, expectedVersion:
   catch (error) { return { ok: false, error: error instanceof Error ? error.message : "No fue posible restaurar el cliente." }; }
 }
 
-export async function softDeleteCustomerByProjectAction(projectId: string, reason: string): Promise<{ ok: boolean; error?: string }> {
+export async function softDeleteCustomerByProjectAction(projectId: string, reason: string): Promise<{ ok: boolean; error?: string; message?: string }> {
   try {
     const client = await createSupabaseServerClient();
-    const { data, error } = await client.from("projects").select("customer_id,customers!inner(version)").eq("id", projectId).single();
+    const { data: auth } = await client.auth.getUser();
+    if (!auth.user) throw new Error("Sesión requerida.");
+    const { data, error } = await client.from("projects").select("customer_id,orbit_event_id,finance").eq("id", projectId).is("deleted_at", null).single();
     if (error || !data) throw error ?? new Error("No encontramos el cliente del evento.");
-    const customer = Array.isArray(data.customers) ? data.customers[0] : data.customers;
-    await new SupabaseCustomerRepository(client).softDelete(data.customer_id, Number(customer?.version ?? 0), reason);
-    revalidatePath("/projects");
-    return { ok: true };
+    await Promise.all([
+      removeCancelledReservationCalendar({ client, projectId, actorId: auth.user.id }),
+      archiveCancelledReservationDrive({ client, projectId, actorId: auth.user.id }),
+    ]);
+    const cancelledAt = new Date().toISOString();
+    const finance = data.finance && typeof data.finance === "object" ? data.finance as Record<string, unknown> : {};
+    const [projectUpdate, portalUpdate, quotationUpdate, invoiceUpdate, otherProjects] = await Promise.all([
+      client.from("projects").update({ status: "CANCELLED", health: "BLOCKED", finance: { ...finance, status: "CANCELLED", cancelledAt }, approval_reason: reason, deleted_at: cancelledAt, deleted_by: auth.user.id, updated_by: auth.user.id }).eq("id", projectId),
+      client.from("customer_portal_tokens").update({ revoked_at: cancelledAt, updated_by: auth.user.id }).eq("project_id", projectId).is("revoked_at", null),
+      client.from("quotations").update({ approval_reason: reason, deleted_at: cancelledAt, deleted_by: auth.user.id, updated_by: auth.user.id }).eq("project_id", projectId).is("deleted_at", null),
+      client.from("invoices").update({ status: "CANCELLED", approval_reason: reason, updated_by: auth.user.id }).eq("project_id", projectId).is("deleted_at", null).neq("status", "PAID"),
+      client.from("projects").select("id", { count: "exact", head: true }).eq("customer_id", data.customer_id).neq("id", projectId).is("deleted_at", null),
+    ]);
+    if (projectUpdate.error) throw projectUpdate.error;
+    if (portalUpdate.error) throw portalUpdate.error;
+    if (quotationUpdate.error) throw quotationUpdate.error;
+    if (invoiceUpdate.error) throw invoiceUpdate.error;
+    if (otherProjects.error) throw otherProjects.error;
+    const message = "Reserva cancelada y sincronizada: Calendar eliminado, Drive archivado, Portal desactivado y estados operacionales actualizados.";
+    const { error: timelineError } = await client.from("timeline_events").insert({ customer_id: data.customer_id, project_id: projectId, orbit_event_id: data.orbit_event_id, event_type: "RESERVATION_CANCELLED_AND_SYNCHRONIZED", title: "Reserva cancelada y sincronizada", description: message, actor_id: auth.user.id, actor_label: "Administrador", source: "Administrator", action: "RESERVATION_CANCELLED", entity_type: "Project", entity_id: projectId, human_message: message, correlation_id: `reservation:${data.orbit_event_id}:cancelled:${crypto.randomUUID()}`, reason, created_by: auth.user.id });
+    if (timelineError) throw timelineError;
+    if ((otherProjects.count ?? 0) === 0) {
+      const { data: currentCustomer, error: currentCustomerError } = await client.from("customers").select("version").eq("id", data.customer_id).single();
+      if (currentCustomerError) throw currentCustomerError;
+      await new SupabaseCustomerRepository(client).softDelete(data.customer_id, Number(currentCustomer.version), reason);
+    }
+    ["/projects", "/operations", "/finance", "/finance/receivables", "/reports", "/notifications"].forEach(path => revalidatePath(path));
+    return { ok: true, message };
   } catch (error) { return { ok: false, error: error instanceof Error ? error.message : "No fue posible eliminar el cliente." }; }
 }

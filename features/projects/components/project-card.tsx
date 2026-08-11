@@ -20,7 +20,7 @@ export function ProjectCard({ project, onOpen, onDeleted }: ProjectCardProps) {
   const href = `/projects/${project.id}`;
   const context = { communication: project.lastCommunication ?? "Sin comunicaciones recientes", owner: project.salesOwner ?? "Sin asignar", action: project.nextAction ?? "Revisar relación", tags: project.tags?.length ? project.tags : [typeLabels[project.type]] };
   const intelligence = ORBIT_TIME_ENGINE.getEventIntelligence({ eventDate: project.event.date });
-  const remove=async()=>{if(!window.confirm(`¿Eliminar a ${project.client.name}? El cliente quedará archivado y conservará su historial.`))return;const result=await softDeleteCustomerByProjectAction(project.id,"Eliminación confirmada desde Clientes");if(result.ok)onDeleted?.(project.id);else window.alert(result.error??"No fue posible eliminar el cliente.");};
+  const remove=async()=>{if(!window.confirm(`¿Cancelar la reserva de ${project.client.name}? Calendar se eliminará, Drive se archivará y el Portal quedará desactivado.`))return;const result=await softDeleteCustomerByProjectAction(project.id,"Cancelación confirmada desde Clientes");if(result.ok){window.alert(result.message??"Reserva cancelada correctamente.");onDeleted?.(project.id);}else window.alert(result.error??"No fue posible cancelar la reserva.");};
 
   return (
     <SmartCard className="group flex h-full flex-col overflow-hidden p-0" interactive>

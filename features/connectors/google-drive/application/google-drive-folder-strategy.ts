@@ -5,6 +5,7 @@ export const GOOGLE_DRIVE_ROOT_FOLDERS = ["CLIENTES", "CONTABILIDAD", "STAFF", "
 export const CUSTOMER_FOLDERS = ["01_Contrato", "02_Comprobantes", "03_Cotizaciones", "04_Diseños", "05_Fotografías", "06_Videos", "07_Facturación", "08_Honorarios", "09_Documentos"] as const;
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"] as const;
+const SPANISH_MONTHS = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"] as const;
 
 function folder(name: string, parentPath: string | null): GoogleDriveFolderPlanItem {
   return { name, parentPath, path: parentPath ? `${parentPath}/${name}` : name };
@@ -35,6 +36,11 @@ export function buildCustomerFolderPlan(customerName: string, eventDate: string,
   const monthFolder = folder(month, yearFolder.path);
   const customerFolder = folder(`${displayDate} - ${cleanName(customerName)}`, monthFolder.path);
   return [yearFolder, monthFolder, customerFolder, ...CUSTOMER_FOLDERS.map((name) => folder(name, customerFolder.path))];
+}
+
+export function buildCancelledReservationFolderPlan(eventDate:string,rootName=DEFAULT_GOOGLE_DRIVE_ROOT):readonly GoogleDriveFolderPlanItem[]{
+  const match=/^(\d{4})-(\d{2})-(\d{2})$/.exec(eventDate);if(!match)throw new Error("La fecha del evento debe usar el formato YYYY-MM-DD.");
+  const archive=folder("Reservas Canceladas",rootName);const year=folder(match[1],archive.path);const month=folder(SPANISH_MONTHS[Number(match[2])-1],year.path);return[archive,year,month];
 }
 
 export function buildAccountingFolderPlan(documentDate: string, category: string,rootName=DEFAULT_GOOGLE_DRIVE_ROOT): readonly GoogleDriveFolderPlanItem[] {

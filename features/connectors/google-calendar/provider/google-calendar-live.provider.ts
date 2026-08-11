@@ -7,6 +7,7 @@ export interface GoogleCalendarLiveProvider {
   createEvent(payload: GoogleCalendarEventPayload): Promise<GoogleCalendarEventReference>;
   updateEvent(googleEventId: string, payload: GoogleCalendarEventPayload): Promise<GoogleCalendarEventReference>;
   cancelEvent(googleEventId: string): Promise<GoogleCalendarEventReference>;
+  deleteEvent(googleEventId: string): Promise<void>;
   restoreEvent(googleEventId: string, payload: GoogleCalendarEventPayload): Promise<GoogleCalendarEventReference>;
 }
 
@@ -21,5 +22,6 @@ export class GoogleCalendarApiProvider implements GoogleCalendarLiveProvider {
   async createEvent(payload: GoogleCalendarEventPayload) { return this.reference(await this.request(this.endpoint(), { method: "POST", body: JSON.stringify(this.body(payload)) })); }
   async updateEvent(id: string, payload: GoogleCalendarEventPayload) { return this.reference(await this.request(this.endpoint(id), { method: "PATCH", body: JSON.stringify(this.body(payload)) })); }
   async cancelEvent(id: string) { return this.reference(await this.request(this.endpoint(id), { method: "PATCH", body: JSON.stringify({ status: "cancelled" }) })); }
+  async deleteEvent(id: string) { const response=await fetch(this.endpoint(id),{method:"DELETE",headers:{Authorization:`Bearer ${this.accessToken}`}});if(!response.ok&&response.status!==404)throw new Error(`Google Calendar delete failed (${response.status}): ${await response.text()}`); }
   async restoreEvent(id: string, payload: GoogleCalendarEventPayload) { return this.updateEvent(id, payload); }
 }
