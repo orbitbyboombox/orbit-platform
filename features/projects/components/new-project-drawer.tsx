@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronLeft, ChevronRight, Copy, FileSignature, Link2, LoaderCircle, PenLine, RotateCcw, Send, ShieldCheck, Sparkles, Trash2, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, FileSignature, Link2, LoaderCircle, PenLine, RotateCcw, Send, ShieldCheck, Sparkles, Trash2, X } from "lucide-react";
 import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { ActionButton } from "@/components/ui/action-button";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { MunicipalityCombobox } from "@/components/forms/municipality-combobox";
 import type { ActiveMunicipality } from "@/features/settings/master-data/municipality-master-data";
 import { cn } from "@/lib/utils";
 import { sendAutomaticBookingInvitationAction } from "@/features/automatic-booking/actions";
+import { sendManualReservationConfirmationAction } from "../actions/customer.actions";
 import { projectOrigins, projectTypes, type Project, type ProjectDraft, type ProjectOrigin, type ProjectService, type ProjectType } from "../types/project";
 
 const steps = ["Método", "Cliente", "Evento", "Servicio + extras", "Contrato", "Pago", "Confirmación"] as const;
@@ -312,6 +313,8 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, existingCusto
   const [error, setError] = useState("");
   const [createdProject, setCreatedProject] = useState<Project | null>(null);
   const [portalMessage, setPortalMessage] = useState("");
+  const [confirmationPreview,setConfirmationPreview]=useState(false);
+  const [confirmationSending,setConfirmationSending]=useState(false);
   const [discountAmount, setDiscountAmount] = useState(0);
   const [discountReason, setDiscountReason] = useState<DiscountReason>("FREQUENT_CUSTOMER");
   const [discountReasonDetail, setDiscountReasonDetail] = useState("");
@@ -382,10 +385,6 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, existingCusto
   const reservationTotal = paymentCondition === "CASH" ? payableTotal : paymentCondition === "CORPORATE_CREDIT" ? 0 : Math.round(payableTotal * 0.5);
   const balanceTotal = payableTotal - reservationTotal;
   const compatibleIncludedExtrasSelected = (Object.keys(configurations) as ProjectService[]).flatMap(compatibleIncludedExtras);
-  const consolidatedExtras =
-    Array.from(new Set([...(Object.values(configurations) as ServiceConfiguration[]).flatMap((configuration) => configuration.extras), ...compatibleIncludedExtrasSelected]))
-      .map((extra) => (extra === "Branding" ? `Branding (${Math.max(...(Object.values(configurations) as ServiceConfiguration[]).map((configuration) => (configuration.extras.includes("Branding") ? configuration.brandingQuantity : 0)))} caras)` : extra))
-      .join(" · ") || "Sin extras";
   const selectedConfigurations = Object.values(configurations) as ServiceConfiguration[];
   const extraSelected = (extra: ServiceExtra) => compatibleIncludedExtrasSelected.includes(extra) || selectedConfigurations.some((configuration) => configuration.extras.includes(extra));
   const extraSubtotal = (extra: ServiceExtra) => selectedConfigurations.reduce((sum, configuration) => sum + (configuration.extras.includes(extra) ? Number(extraUnitPrice(extra)) * (extra === "Branding" ? configuration.brandingQuantity : 1) : 0), 0);
@@ -606,7 +605,6 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, existingCusto
     }
   };
   const portalUrl = createdProject ? `${window.location.origin}/projects/${createdProject.id}#portal-cliente` : "";
-  const confirmationEmailBody = createdProject ? [`Hola ${createdProject.client.name},`, "¡Reserva confirmada! Bienvenido a BOOMBOX.", "Resumen comercial", ...(Object.entries(configurations) as Array<[ProjectService, ServiceConfiguration]>).map(([service, configuration]) => `${serviceLabel(service)} · ${configuration.hours + configuration.additionalHours} horas · ${currency.format(serviceTotal(service, configuration))}`), `Extras: ${consolidatedExtras}`, `Transporte: ${currency.format(Number(transportTotal ?? 0))}`, `Reserva: ${currency.format(reservationTotal)}`, `Saldo restante: ${currency.format(balanceTotal)}`, `TOTAL: ${currency.format(payableTotal)}`, "Portal BOOMBOX", portalUrl, "Accede utilizando tu RUT y la fecha de tu evento."].join("\n\n") : "";
 
   const summarySubtotal = negotiatedOfficialTotal + transportAdjustment + commercialCharge;
   const summary = <CommercialSummary balance={balanceTotal} discount={discountTotal + courtesyValue} extras={summaryExtras} plan={plan} reservation={reservationTotal} subtotal={summarySubtotal} total={payableTotal} />;
@@ -1132,11 +1130,11 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, existingCusto
                 🎉
               </div>
               <div>
-                <h3 className="text-3xl font-semibold">¡Reserva Confirmada!</h3>
-                <p className="mt-3 text-lg font-medium">Bienvenido a BOOMBOX</p>
+                <h3 className="text-3xl font-semibold">Reserva creada correctamente.</h3>
+                <p className="mt-3 text-lg font-medium">El Founder decide cuándo comunicarla al cliente.</p>
               </div>
               <div className="grid gap-3 text-left sm:grid-cols-2">
-                {["Contrato Firmado", "Reserva Confirmada", "Portal Disponible", "Correo Enviado"].map((label) => (
+                {["Documento oficial preparado", "Reserva registrada", "Portal disponible", "Correo pendiente de decisión"].map((label) => (
                   <div className="flex items-center gap-3 rounded-xl border p-4" key={label}>
                     <Check className="size-5 text-success" />
                     <span className="font-medium">{label}</span>
@@ -1144,28 +1142,11 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, existingCusto
                 ))}
               </div>
               {summary}
-              <div className="grid gap-3 sm:grid-cols-3">
-                <a className="inline-flex min-h-11 items-center justify-center rounded-xl bg-brand px-4 text-sm font-semibold text-brand-foreground" href={portalUrl}>
-                  Abrir Portal
-                </a>
-                <Button
-                  onClick={() => {
-                    void navigator.clipboard.writeText(portalUrl);
-                    setPortalMessage("Enlace copiado.");
-                  }}
-                  variant="outline"
-                >
-                  <Copy className="mr-2 size-4" />
-                  Copiar Enlace
-                </Button>
-                <a className="inline-flex min-h-11 items-center justify-center rounded-xl border px-4 text-sm font-semibold" href={`mailto:${encodeURIComponent(createdProject.client.email)}?subject=${encodeURIComponent("¡Tu reserva BOOMBOX está confirmada!")}&body=${encodeURIComponent(confirmationEmailBody)}`}>
-                  <Send className="mr-2 size-4" />
-                  Enviar Acceso
-                </a>
-              </div>
+              <section className="rounded-2xl border p-5 text-left"><h4 className="text-lg font-semibold">¿Qué deseas hacer?</h4><div className="mt-4 grid gap-2 sm:grid-cols-3"><Button onClick={()=>setConfirmationPreview(true)}><Send className="size-4"/>Enviar confirmación al cliente</Button><Button onClick={reset} variant="outline">Enviar más tarde</Button><Button onClick={()=>window.location.assign(`/projects/${createdProject.id}`)} variant="outline">Volver al evento</Button></div></section>
+              {confirmationPreview&&<section className="rounded-2xl border border-brand/30 bg-brand/5 p-5 text-left"><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Vista previa antes de enviar</p><dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2"><div><dt className="text-muted">Cliente</dt><dd className="font-semibold">{createdProject.client.name}</dd></div><div><dt className="text-muted">Destino</dt><dd className="font-semibold">{createdProject.client.email}</dd></div><div><dt className="text-muted">Servicio</dt><dd>{createdProject.services.map(serviceLabel).join(" + ")}</dd></div><div><dt className="text-muted">Documento</dt><dd>{requiresSignature?"Contrato firmado":"Documento comercial"}</dd></div><div><dt className="text-muted">Negociación</dt><dd>{discountTotal?`Descuento ${currency.format(discountTotal)}`:"Precio oficial"}</dd></div><div><dt className="text-muted">IVA</dt><dd>{corporateVatApplied?currency.format(vatAmount):"No aplicado"}</dd></div><div><dt className="text-muted">Portal</dt><dd className="truncate">{portalUrl}</dd></div><div><dt className="text-muted">Total</dt><dd className="font-semibold">{currency.format(payableTotal)}</dd></div></dl><div className="mt-5 flex gap-2"><Button disabled={confirmationSending} onClick={async()=>{setConfirmationSending(true);const result=await sendManualReservationConfirmationAction(createdProject.id);setPortalMessage(result.message);if(result.ok)setConfirmationPreview(false);setConfirmationSending(false)}}>{confirmationSending?<LoaderCircle className="size-4 animate-spin"/>:<Send className="size-4"/>}Enviar</Button><Button disabled={confirmationSending} onClick={()=>setConfirmationPreview(false)} variant="outline">Cancelar</Button></div></section>}
               {portalMessage && <p className="text-sm text-success">{portalMessage}</p>}
               <section className="rounded-2xl border p-5 text-left sm:p-6">
-                <p className="leading-7">En los próximos minutos recibirás una copia del contrato firmado en tu correo electrónico.</p>
+                <p className="leading-7">No se enviará ninguna comunicación hasta que el Founder confirme el envío.</p>
                 <p className="mt-5 font-semibold">Desde ahora podrás acceder al Portal BOOMBOX utilizando:</p>
                 <ul className="mt-3 list-inside list-disc space-y-1 text-muted">
                   <li>RUT</li>

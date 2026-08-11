@@ -46,7 +46,7 @@ export async function openSigningAgreement(token: string) {
   return agreement;
 }
 
-export async function confirmDigitalSignature(input: { token: string; signatureDataUrl: string; ipAddress: string; userAgent: string }) {
+export async function confirmDigitalSignature(input: { token: string; signatureDataUrl: string; ipAddress: string; userAgent: string; suppressCustomerDelivery?: boolean }) {
   const confirmationStartedAt = performance.now();
   const timings: Record<string, number> = {};
   const measured = async <T>(stage: string, operation: () => Promise<T>) => {
@@ -88,7 +88,7 @@ export async function confirmDigitalSignature(input: { token: string; signatureD
     const deliveryActorId = agreement.created_by ?? agreement.projects.created_by;
     if (!deliveryActorId) throw new Error("El contrato no tiene un responsable interno asociado.");
     const portal = await measured("portal", () => createCustomerPortalAccess(agreement.project_id, deliveryActorId));
-    after(async () => {
+    if (!input.suppressCustomerDelivery) after(async () => {
       const startedAt = performance.now();
       try { await deliverConfirmedReservationEmail({ projectId: agreement.project_id, actorId: deliveryActorId, portal }); }
       catch (error) { console.error(JSON.stringify({ level: "error", event: "automatic_booking.background_email_failed", projectId: agreement.project_id, error: error instanceof Error ? error.message : String(error) })); }

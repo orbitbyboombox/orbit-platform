@@ -121,7 +121,6 @@ export async function createCustomerProjectAction(draft: ProjectDraft): Promise<
       synchronizeConfirmedReservationCalendar({ client, projectId: project.id, actorId: auth.user.id }),
       synchronizeConfirmedReservationDrive({ client, projectId: project.id, actorId: auth.user.id }),
     ]);
-    await deliverConfirmedReservationEmail({ projectId: project.id, actorId: auth.user.id });
     revalidatePath("/projects");
     return { ok: true, project };
   } catch (error) {
@@ -129,6 +128,9 @@ export async function createCustomerProjectAction(draft: ProjectDraft): Promise<
     return { ok: false, error: `No se pudo completar la reserva. Tu información fue preservada de forma segura. Inténtalo nuevamente. Referencia ${safeReservationReference()}` };
   }
 }
+
+export async function sendManualReservationConfirmationAction(projectId:string):Promise<{ok:boolean;message:string}>{try{const client=await createSupabaseServerClient();const{data:auth,error}=await client.auth.getUser();if(error||!auth.user)throw error??new Error("Sesión requerida.");const result=await deliverConfirmedReservationEmail({projectId,actorId:auth.user.id});revalidatePath(`/projects/${projectId}`);return{ok:true,message:result.status==="SENT"?"Confirmación enviada al cliente.":"El documento aún no está listo para enviar."};}catch(error){console.error(JSON.stringify({level:"error",event:"manual_reservation.confirmation_send_failed",projectId,error:reservationErrorDetails(error),timestamp:new Date().toISOString()}));return{ok:false,message:`No fue posible enviar la confirmación. Referencia ${safeReservationReference()}`};}}
+export async function getManualConfirmationPreviewAction(projectId:string){try{const client=await createSupabaseServerClient();const{data:auth}=await client.auth.getUser();if(!auth.user)throw new Error("Sesión requerida.");const{data,error}=await client.from("projects").select("finance,customers!inner(full_name,email),project_services(service_code),agreements(status),customer_portal_tokens(id)").eq("id",projectId).single();if(error)throw error;const customer=Array.isArray(data.customers)?data.customers[0]:data.customers;const agreement=Array.isArray(data.agreements)?data.agreements.at(-1):data.agreements;const finance=data.finance&&typeof data.finance==="object"?data.finance as Record<string,unknown>:{};return{ok:true as const,preview:{customer:customer.full_name,email:customer.email??"Sin correo",services:(data.project_services??[]).map(item=>item.service_code).join(" + ")||"Sin servicio",negotiation:Number(finance.commercialDiscount??0)>0?`Descuento ${Number(finance.commercialDiscount).toLocaleString("es-CL")}`:"Precio oficial",vat:Number(finance.vatAmount??0),document:agreement?.status==="SIGNED"?"Contrato firmado":"Documento comercial",portal:(data.customer_portal_tokens??[]).length>0?"Portal disponible":"Portal pendiente"}};}catch{return{ok:false as const,message:`No fue posible preparar la vista previa. Referencia ${safeReservationReference()}`};}}
 
 async function customerRepository() {
   return new SupabaseCustomerRepository(await createSupabaseServerClient());

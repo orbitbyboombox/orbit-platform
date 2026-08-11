@@ -27,7 +27,7 @@ export async function formalizeManualReservation(input:{projectId:string;actorId
     const token=randomBytes(32).toString("base64url");
     const {error:tokenError}=await admin.from("agreement_signing_tokens").insert({agreement_id:agreementId,token_hash:sha256(token),expires_at:new Date(Date.now()+15*60_000).toISOString(),created_by:input.actorId});
     if(tokenError)throw tokenError;
-    return confirmDigitalSignature({token,signatureDataUrl:input.formalization.signatureDataUrl,ipAddress:"internal-manual-reservation",userAgent:"ORBIT Manual Reservation"});
+    return confirmDigitalSignature({token,signatureDataUrl:input.formalization.signatureDataUrl,ipAddress:"internal-manual-reservation",userAgent:"ORBIT Manual Reservation",suppressCustomerDelivery:true});
   }
 
   const [company,portal]=await Promise.all([loadCompanySettings(admin),createCustomerPortalAccess(project.id,input.actorId)]);

@@ -253,7 +253,7 @@ export function CommandCenter({
   const router = useRouter();
   const [expenseOpen, setExpenseOpen] = useState(false);
   const { isEnabled } = useModuleManager();
-  const context = ORBIT_TIME_ENGINE.getCurrentContext("Founder");
+  const context = ORBIT_TIME_ENGINE.getCurrentContext("Matías");
   const today = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Santiago",
   }).format(new Date());
