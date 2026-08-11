@@ -157,7 +157,7 @@ function TextArea({ label, ...props }: React.TextareaHTMLAttributes<HTMLTextArea
   );
 }
 
-function SignaturePad({ disabled, onConfirmed }: { disabled: boolean; onConfirmed: (confirmed: boolean) => void }) {
+function SignaturePad({ disabled, onConfirmed }: { disabled: boolean; onConfirmed: (confirmed: boolean, signatureDataUrl?: string) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
   const [ink, setInk] = useState(false);
@@ -221,7 +221,7 @@ function SignaturePad({ disabled, onConfirmed }: { disabled: boolean; onConfirme
   const confirm = () => {
     if (!ink) return;
     setConfirmed(true);
-    onConfirmed(true);
+        onConfirmed(true, canvasRef.current?.toDataURL("image/png"));
   };
   return (
     <section className="rounded-2xl border bg-background/30 p-5">
@@ -299,6 +299,8 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, municipalitie
   const [termsRead, setTermsRead] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [signatureConfirmed, setSignatureConfirmed] = useState(false);
+  const [signatureDataUrl, setSignatureDataUrl] = useState("");
+  const [commercialFormalization, setCommercialFormalization] = useState<NonNullable<ProjectDraft["commercialFormalization"]>["type"]>("CONTRACT_INVOICE");
   const [paymentMethod, setPaymentMethod] = useState<"TRANSFER" | "MERCADO_PAGO">("TRANSFER");
   const [creditTerm, setCreditTerm] = useState<CreditTerm>("CASH");
   const [customCreditDays, setCustomCreditDays] = useState(0);
@@ -437,6 +439,8 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, municipalitie
     setTermsRead(false);
     setTermsAccepted(false);
     setSignatureConfirmed(false);
+    setSignatureDataUrl("");
+    setCommercialFormalization("CONTRACT_INVOICE");
     setPaymentMethod("TRANSFER");
     setCreditTerm("CASH");
     setCustomCreditDays(0);
@@ -494,7 +498,8 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, municipalitie
   const paymentTermDays = paymentCondition === "CORPORATE_CREDIT" ? (creditTerm === "CUSTOM" ? customCreditDays : Number(creditTerm === "CASH" ? 0 : creditTerm)) : 0;
   const paymentClause = paymentCondition === "CASH" ? "El pago deberá realizarse al contado." : paymentCondition === "CORPORATE_CREDIT" ? `El pago deberá realizarse dentro de los ${paymentTermDays} días posteriores a la emisión de la factura.` : "La reserva corresponde al 50% del valor total y el saldo deberá pagarse antes del evento.";
   const negotiationValid = (!discountTotal || Boolean(negotiationReason)) && (!commercialCharge || Boolean(commercialChargeDescription.trim())) && (discountReason !== "OTHER" || !discountTotal || Boolean(discountReasonDetail.trim()));
-  const valid = step === 0 ? method === "MANUAL" : step === 1 ? customerValid : step === 2 ? Boolean(draft.type && draft.event.location && eventAddress && draft.event.city && draft.event.date && draft.event.time && operationalContact && operationalPhone.length === 12 && (draft.type === "Wedding" ? bride && groom : mainContact)) : step === 3 ? draft.services.length > 0 && negotiationValid : step === 4 ? termsAccepted && signatureConfirmed : step === 5 ? paymentMethod === "MERCADO_PAGO" || Boolean(receipt) : true;
+  const requiresSignature = commercialFormalization === "CONTRACT_INVOICE";
+  const valid = step === 0 ? method === "MANUAL" : step === 1 ? customerValid : step === 2 ? Boolean(draft.type && draft.event.location && eventAddress && draft.event.city && draft.event.date && draft.event.time && operationalContact && operationalPhone.length === 12 && (draft.type === "Wedding" ? bride && groom : mainContact)) : step === 3 ? draft.services.length > 0 && negotiationValid : step === 4 ? (!requiresSignature || (termsAccepted && signatureConfirmed && Boolean(signatureDataUrl))) : step === 5 ? paymentMethod === "MERCADO_PAGO" || Boolean(receipt) : true;
   const create = async () => {
     if (!valid) return;
     setSubmitting(true);
@@ -505,6 +510,7 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, municipalitie
       const project = await withReservationTimeout(
         onCreate({
           ...draft,
+          commercialFormalization: { type: commercialFormalization, requiresSignature, documentType: requiresSignature ? "SIGNED_CONTRACT" : "COMMERCIAL_DOCUMENT", signatureDataUrl: requiresSignature ? signatureDataUrl : undefined },
           commercialAdjustment: canNegotiate ? {
             type: "COMMERCIAL_NEGOTIATION",
             value: discountAmount,
@@ -531,7 +537,7 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, municipalitie
             durationHours: maximumHours,
             extras: [...Array.from(new Set([...(Object.values(configurations) as ServiceConfiguration[]).flatMap((configuration) => configuration.extras), ...compatibleIncludedExtrasSelected])), ...(transportTotal !== null ? ["Transporte"] : [])],
           },
-          notes: [draft.notes, `Dirección evento: ${eventAddress}`, `Provincia: ${selectedMunicipality?.province ?? "Por confirmar"}`, `Contacto operacional: ${operationalContact} · ${operationalPhone}`, draft.type === "Wedding" ? `Novia: ${bride} · Novio: ${groom}` : `Contacto principal: ${mainContact}`, serviceDetails, specialRequests && `Solicitudes especiales: ${specialRequests}`, commercialNotes && `Notas comerciales: ${commercialNotes}`, "Términos BOOMBOX aceptados", "Firma manuscrita confirmada", paymentClause, `Total comercial: ${currency.format(payableTotal)}`, `Método de pago: ${paymentMethod}`, `Estado de pago: Pendiente`, `Vencimiento: ${formattedDueDate}`, purchaseOrder && `Orden de compra: ${purchaseOrder}`, receipt && `Comprobante vinculado: ${receipt}`].filter(Boolean).join("\n"),
+          notes: [draft.notes, `Formalización comercial: ${commercialFormalization}`, `Dirección evento: ${eventAddress}`, `Provincia: ${selectedMunicipality?.province ?? "Por confirmar"}`, `Contacto operacional: ${operationalContact} · ${operationalPhone}`, draft.type === "Wedding" ? `Novia: ${bride} · Novio: ${groom}` : `Contacto principal: ${mainContact}`, serviceDetails, specialRequests && `Solicitudes especiales: ${specialRequests}`, commercialNotes && `Notas comerciales: ${commercialNotes}`, requiresSignature && "Términos BOOMBOX aceptados", requiresSignature && "Firma manuscrita confirmada", paymentClause, `Total comercial: ${currency.format(payableTotal)}`, `Método de pago: ${paymentMethod}`, `Estado de pago: Pendiente`, `Vencimiento: ${formattedDueDate}`, purchaseOrder && `Orden de compra: ${purchaseOrder}`, receipt && `Comprobante vinculado: ${receipt}`].filter(Boolean).join("\n"),
         }),
       );
       setCreatedProject(project);
@@ -828,6 +834,19 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, municipalitie
                 ))}
                 <TextArea label="Solicitudes especiales" onChange={(e) => setSpecialRequests(e.target.value)} value={specialRequests} />
                 <TextArea label="Notas comerciales" onChange={(e) => setCommercialNotes(e.target.value)} value={commercialNotes} />
+                <section className="rounded-2xl border p-5">
+                  <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Formalización comercial</p>
+                  <p className="mt-2 text-sm text-muted">Define el documento oficial y si la reserva requiere firma.</p>
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                    {([['CONTRACT_INVOICE','Contrato + Factura'],['INVOICE_ONLY','Solo Factura'],['PURCHASE_ORDER','Orden de Compra'],['BOOMBOX_AGREEMENT','Acuerdo BOOMBOX'],['NO_CONTRACT','Sin Contrato']] as const).map(([value,label]) => (
+                      <label className={cn("flex min-h-11 items-center gap-3 rounded-xl border px-3 text-sm", commercialFormalization === value && "border-brand bg-brand/10")} key={value}>
+                        <input checked={commercialFormalization === value} name="commercial-formalization" onChange={() => { setCommercialFormalization(value); setTermsAccepted(false); setSignatureConfirmed(false); setSignatureDataUrl(""); }} type="radio" />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                  <p className="mt-3 text-xs text-muted">{commercialFormalization === "CONTRACT_INVOICE" ? "Requiere aceptación y firma del cliente." : "Genera Documento con Factura sin sección de firma."}</p>
+                </section>
                 <section className="rounded-2xl border border-brand/25 bg-brand/5 p-5">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">💼 Negociación comercial</p>
@@ -882,8 +901,8 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, municipalitie
               <div className="flex items-center gap-3">
                 <FileSignature className="size-6 text-brand" />
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">CONTRATO</p>
-                  <h3 className="mt-1 text-2xl font-semibold">Resumen, condiciones y firma</h3>
+                  <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">{requiresSignature ? "CONTRATO" : "DOCUMENTO CON FACTURA"}</p>
+                  <h3 className="mt-1 text-2xl font-semibold">{requiresSignature ? "Resumen, condiciones y firma" : "Resumen y condiciones comerciales"}</h3>
                 </div>
               </div>
               {summary}
@@ -905,7 +924,7 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, municipalitie
                     </section>
                   ))}
                 </div>
-                <label className={cn("mt-5 flex items-start gap-3 rounded-xl border p-4", !termsRead && "cursor-not-allowed opacity-60")}>
+                {requiresSignature ? <label className={cn("mt-5 flex items-start gap-3 rounded-xl border p-4", !termsRead && "cursor-not-allowed opacity-60")}>
                   <input
                     checked={termsAccepted}
                     className="mt-1 size-5"
@@ -921,14 +940,14 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, municipalitie
                     <strong>He leído y acepto los Términos y Condiciones.</strong>
                     <span className="mt-1 block text-sm text-muted">{termsRead ? "La firma se habilitará inmediatamente." : "Lee el contrato completo para continuar."}</span>
                   </span>
-                </label>
+                </label> : <p className="mt-5 rounded-xl border border-brand/25 bg-brand/5 p-4 text-sm">Se emitirá un documento comercial oficial sin firma. Las condiciones comerciales y del evento permanecerán visibles.</p>}
               </section>
-              {termsAccepted && (
+              {requiresSignature && termsAccepted && (
                 <SignaturePad
                   disabled={!termsAccepted}
-                  onConfirmed={(confirmed) => {
+                  onConfirmed={(confirmed, dataUrl) => {
                     setSignatureConfirmed(confirmed);
-                    if (confirmed) setStep(5);
+                    setSignatureDataUrl(dataUrl ?? "");
                   }}
                 />
               )}

@@ -83,6 +83,8 @@ export interface ServiceAdministrationRecord {
   readonly minimumHours: number;
   readonly maximumHours: number;
   readonly additionalHourPrice: number | null;
+  readonly estimatedPhotosPerHour: number | null;
+  readonly paperConsumption: number | null;
   readonly enabled: boolean;
   readonly displayOrder: number;
   readonly description: string;

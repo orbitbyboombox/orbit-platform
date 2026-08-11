@@ -6,6 +6,7 @@ import { SupabaseCustomerRepository } from "../infrastructure";
 import { removeCancelledReservationCalendar, synchronizeConfirmedReservationCalendar } from "@/features/connectors/google-calendar/application/google-calendar-sync.service";
 import { archiveCancelledReservationDrive, synchronizeConfirmedReservationDrive } from "@/features/connectors/google-drive/application/google-drive-sync.service";
 import { deliverConfirmedReservationEmail } from "@/features/connectors/google-gmail/application/google-gmail-delivery.service";
+import { formalizeManualReservation } from "../signing/manual-reservation-formalization.service";
 import type { Project, ProjectDraft } from "../types/project";
 import type { CustomerMutationInput } from "../infrastructure";
 
@@ -96,6 +97,24 @@ export async function createCustomerProjectAction(draft: ProjectDraft): Promise<
       const negotiation = { officialPrice: subtotal, commercialDiscount: discount, commercialCharges: charges, courtesyValue, finalPrice: finalTotal, paymentCondition: adjustment.paymentCondition, paymentTermDays: adjustment.paymentTermDays, negotiationReason: adjustment.reason, negotiatedBy: auth.user.id, negotiatedAt };
       const { error: financeError } = await client.from("projects").update({ finance: { ...currentFinance, ...negotiation }, operations: { ...currentOperations, commercialNegotiation: adjustment, paymentClause: adjustment.paymentCondition === "CASH" ? "Pago al contado." : adjustment.paymentCondition === "CORPORATE_CREDIT" ? `Pago a ${adjustment.paymentTermDays} días desde la emisión de la factura.` : "Reserva 50% y saldo antes del evento." }, updated_by: auth.user.id }).eq("id", project.id);
       if (financeError) throw financeError;
+    }
+    if (draft.commercialFormalization) {
+      await formalizeManualReservation({ projectId: project.id, actorId: auth.user.id, formalization: draft.commercialFormalization });
+      const { data: persisted, error: persistedError } = await client.from("projects").select("customer_id,orbit_event_id,finance,quotations(id,final_customer_price)").eq("id", project.id).single();
+      if (persistedError) throw persistedError;
+      const finance = persisted.finance && typeof persisted.finance === "object" ? persisted.finance as Record<string, unknown> : {};
+      const formalization = draft.commercialFormalization.type;
+      const invoiceRequired = ["CONTRACT_INVOICE", "INVOICE_ONLY", "PURCHASE_ORDER"].includes(formalization);
+      const { error: financeUpdateError } = await client.from("projects").update({ finance: { ...finance, commercialFormalization: formalization, documentType: draft.commercialFormalization.documentType, signatureRequired: draft.commercialFormalization.requiresSignature, invoiceRequired }, updated_by: auth.user.id }).eq("id", project.id);
+      if (financeUpdateError) throw financeUpdateError;
+      if (invoiceRequired) {
+        const quotation = Array.isArray(persisted.quotations) ? persisted.quotations[0] : persisted.quotations;
+        const termDays = adjustment?.paymentTermDays ?? 0;
+        const paymentTerm = termDays === 15 ? "DAYS_15" : termDays === 30 ? "DAYS_30" : termDays === 45 ? "DAYS_45" : termDays === 60 ? "DAYS_60" : "CASH";
+        const invoiceNumber = `FAC-${new Date().getFullYear()}-${project.id.replaceAll("-", "").slice(0, 8).toUpperCase()}`;
+        const { error: invoiceError } = await client.from("invoices").upsert({ invoice_number: invoiceNumber, customer_id: persisted.customer_id, project_id: project.id, quotation_id: quotation?.id ?? null, orbit_event_id: persisted.orbit_event_id, customer_type: draft.type === "Corporate" ? "CORPORATE" : "PRIVATE", status: "DRAFT", payment_term: draft.type === "Corporate" ? paymentTerm : "CASH", purchase_order: formalization === "PURCHASE_ORDER" ? "Pendiente de recepción" : null, amount: Number(quotation?.final_customer_price ?? adjustment?.finalPrice ?? 0), notes: `Formalización comercial: ${formalization}`, created_by: auth.user.id, updated_by: auth.user.id }, { onConflict: "invoice_number" });
+        if (invoiceError) throw invoiceError;
+      }
     }
     await Promise.all([
       synchronizeConfirmedReservationCalendar({ client, projectId: project.id, actorId: auth.user.id }),

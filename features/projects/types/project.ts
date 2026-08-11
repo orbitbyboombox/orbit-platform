@@ -54,6 +54,12 @@ export interface ProjectDraft {
   services: ProjectService[];
   origin?: ProjectOrigin;
   notes: string;
+  commercialFormalization?: {
+    type: "CONTRACT_INVOICE" | "INVOICE_ONLY" | "PURCHASE_ORDER" | "BOOMBOX_AGREEMENT" | "NO_CONTRACT";
+    requiresSignature: boolean;
+    documentType: "SIGNED_CONTRACT" | "COMMERCIAL_DOCUMENT";
+    signatureDataUrl?: string;
+  };
   commercialAdjustment?: {
     type: "COMMERCIAL_NEGOTIATION";
     value: number;

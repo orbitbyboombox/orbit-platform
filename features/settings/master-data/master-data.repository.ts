@@ -37,6 +37,8 @@ export async function loadMasterData(client: SupabaseClient): Promise<MasterData
       minimumHours: Number(config.minimumHours ?? config.defaultDuration ?? base?.duration_hours ?? 2),
       maximumHours: Number(config.maximumHours ?? config.minimumHours ?? config.defaultDuration ?? base?.duration_hours ?? 4),
       additionalHourPrice: config.additionalHourPrice == null ? (base?.rules as Record<string,unknown>|null)?.additionalHourPrice == null ? null : Number((base?.rules as Record<string,unknown>).additionalHourPrice) : Number(config.additionalHourPrice),
+      estimatedPhotosPerHour: config.estimatedPhotosPerHour == null ? null : Number(config.estimatedPhotosPerHour),
+      paperConsumption: config.paperConsumption == null ? null : Number(config.paperConsumption),
       enabled: row.enabled && serviceRows.every((price) => price.enabled), displayOrder: row.display_order,
       description: String(config.description ?? ""), compatibleExtras: extras(config.compatibleExtras ?? (base?.rules as Record<string,unknown>|null)?.compatibleExtras), defaultExtras: extras(config.defaultExtras ?? (base?.rules as Record<string,unknown>|null)?.defaultExtras),
       behavior: String(config.behavior ?? (base?.rules as Record<string,unknown>|null)?.behavior ?? "SELECTABLE"), version: row.version, priceVersion: base?.version ?? null,

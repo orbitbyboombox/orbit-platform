@@ -9,7 +9,7 @@ const SERVICE_EXTRAS: readonly ServiceExtraCode[] = ["QR","UNLIMITED_MAGNETS","S
 type ServiceInput = {
   id?: string; priceId?: string | null; expectedVersion?: number; expectedPriceVersion?: number | null;
   code: string; name: string; category: string; basePrice: number | null; minimumHours: number; maximumHours: number;
-  additionalHourPrice: number | null; enabled: boolean; displayOrder: number; description: string;
+  additionalHourPrice: number | null; estimatedPhotosPerHour: number | null; paperConsumption: number | null; enabled: boolean; displayOrder: number; description: string;
   compatibleExtras: ServiceExtraCode[]; defaultExtras: ServiceExtraCode[]; behavior: string; reason: string;
 };
 
@@ -32,11 +32,13 @@ function normalized(input: ServiceInput) {
   if (!input.reason.trim()) throw new Error("La razón del cambio es obligatoria.");
   const compatibleExtras = input.compatibleExtras.filter((item) => SERVICE_EXTRAS.includes(item));
   const defaultExtras = input.defaultExtras.filter((item) => compatibleExtras.includes(item));
+  if (input.estimatedPhotosPerHour !== null && input.estimatedPhotosPerHour < 0) throw new Error("La producción estimada no puede ser negativa.");
+  if (input.paperConsumption !== null && input.paperConsumption < 0) throw new Error("El consumo de papel no puede ser negativo.");
   return { ...input, code, compatibleExtras, defaultExtras };
 }
 
 function serviceConfiguration(input: ReturnType<typeof normalized>) {
-  return { category: input.category.trim(), description: input.description.trim(), minimumHours: input.minimumHours, maximumHours: input.maximumHours, additionalHourPrice: input.additionalHourPrice, compatibleExtras: input.compatibleExtras, defaultExtras: input.defaultExtras, behavior: input.behavior };
+  return { category: input.category.trim(), description: input.description.trim(), minimumHours: input.minimumHours, maximumHours: input.maximumHours, additionalHourPrice: input.additionalHourPrice, estimatedPhotosPerHour: input.estimatedPhotosPerHour, paperConsumption: input.paperConsumption, compatibleExtras: input.compatibleExtras, defaultExtras: input.defaultExtras, behavior: input.behavior };
 }
 
 export async function createServiceAction(raw: ServiceInput) {

@@ -6,7 +6,8 @@ export interface SignedAgreementPdfInput {
   quotationNumber: string; customer: string; customerRut: string; customerEmail: string; customerPhone: string;
   event: string; eventDate: string; eventTime: string; services: string; hours: string; extras: string;
   venue: string; address: string; operationalContact: string; finalCustomerPrice: number;
-  signaturePng: Uint8Array; signedAt: string; agreementVersion: string; verificationCode: string; portalUrl: string;
+  signaturePng?: Uint8Array; signedAt?: string; agreementVersion: string; verificationCode: string; portalUrl: string;
+  documentMode?: "SIGNED_CONTRACT" | "COMMERCIAL_DOCUMENT";
   branding:{productName:string;productVersion:string;brandName:string;poweredBy:string;footer:string;currency:string;locale:string;timezone:string};
 }
 
@@ -27,11 +28,12 @@ const terms = [
 
 export async function createSignedAgreementPdf(input: SignedAgreementPdfInput): Promise<Uint8Array> {
   const pdf=await PDFDocument.create(); const font=await pdf.embedFont(StandardFonts.Helvetica); const bold=await pdf.embedFont(StandardFonts.HelveticaBold);
-  pdf.setTitle(`Contrato BOOMBOX ${input.quotationNumber}`); pdf.setAuthor(input.branding.brandName); pdf.setSubject("Contrato oficial firmado digitalmente");
+  const commercialDocument=input.documentMode==="COMMERCIAL_DOCUMENT";
+  pdf.setTitle(`${commercialDocument?"Documento comercial":"Contrato"} BOOMBOX ${input.quotationNumber}`); pdf.setAuthor(input.branding.brandName); pdf.setSubject(commercialDocument?"Documento comercial oficial":"Contrato oficial firmado digitalmente");
   const money=(value:number)=>new Intl.NumberFormat(input.branding.locale,{style:"currency",currency:input.branding.currency,maximumFractionDigits:0}).format(value);
 
   const cover=pdf.addPage(PAGE); cover.drawRectangle({x:0,y:0,width:PAGE[0],height:PAGE[1],color:dark}); cover.drawRectangle({x:42,y:690,width:72,height:6,color:orange});
-  cover.drawText(safe(input.branding.brandName).toUpperCase(),{x:42,y:735,size:13,font:bold,color:orange}); cover.drawText("CONTRATO OFICIAL",{x:42,y:605,size:34,font:bold,color:rgb(1,1,1)}); cover.drawText("EXPERIENCIA BOOMBOX",{x:42,y:565,size:22,font,color:rgb(.82,.83,.86)});
+  cover.drawText(safe(input.branding.brandName).toUpperCase(),{x:42,y:735,size:13,font:bold,color:orange}); cover.drawText(commercialDocument?"DOCUMENTO CON FACTURA":"CONTRATO OFICIAL",{x:42,y:605,size:commercialDocument?27:34,font:bold,color:rgb(1,1,1)}); cover.drawText("EXPERIENCIA BOOMBOX",{x:42,y:565,size:22,font,color:rgb(.82,.83,.86)});
   cover.drawText(safe(input.customer),{x:42,y:455,size:18,font:bold,color:rgb(1,1,1)}); cover.drawText(safe(input.eventDate),{x:42,y:425,size:12,font,color:rgb(.75,.76,.8)}); cover.drawText(safe(input.quotationNumber),{x:42,y:92,size:10,font:bold,color:orange}); cover.drawText(`Versión ${safe(input.agreementVersion)}`,{x:42,y:72,size:9,font,color:rgb(.65,.67,.7)});
 
   const info=addPage(pdf,font,bold,input,"Información de la reserva");
@@ -52,10 +54,10 @@ export async function createSignedAgreementPdf(input: SignedAgreementPdfInput): 
     }
   }
 
-  const signed=addPage(pdf,font,bold,input,"Firmas y verificación"); sectionTitle(signed,bold,"FIRMA DEL CLIENTE",692);
+  if(!commercialDocument&&input.signaturePng&&input.signedAt){const signed=addPage(pdf,font,bold,input,"Firmas y verificación"); sectionTitle(signed,bold,"FIRMA DEL CLIENTE",692);
   const signature=await pdf.embedPng(input.signaturePng); const scaled=signature.scale(Math.min(1,250/signature.width,110/signature.height)); signed.drawRectangle({x:42,y:515,width:280,height:130,color:pale,borderColor:rgb(.82,.83,.85),borderWidth:1}); signed.drawImage(signature,{x:56,y:528,width:scaled.width,height:scaled.height}); signed.drawLine({start:{x:42,y:490},end:{x:322,y:490},thickness:1,color:ink}); signed.drawText(safe(input.customer),{x:42,y:472,size:10,font:bold,color:ink});
   sectionTitle(signed,bold,"FIRMA BOOMBOX",402); signed.drawText(safe(input.branding.brandName),{x:42,y:350,size:20,font:bold,color:orange}); signed.drawText("Firma electrónica institucional",{x:42,y:326,size:9,font,color:muted}); signed.drawLine({start:{x:42,y:306},end:{x:322,y:306},thickness:1,color:ink});
-  sectionTitle(signed,bold,"VERIFICACIÓN DIGITAL",246); drawRows(signed,font,bold,[["Fecha de firma",new Intl.DateTimeFormat(input.branding.locale,{dateStyle:"long",timeStyle:"medium",timeZone:input.branding.timezone}).format(new Date(input.signedAt))],["Código de verificación",input.verificationCode],["Versión contractual",input.agreementVersion]],214);
+  sectionTitle(signed,bold,"VERIFICACIÓN DIGITAL",246); drawRows(signed,font,bold,[["Fecha de firma",new Intl.DateTimeFormat(input.branding.locale,{dateStyle:"long",timeStyle:"medium",timeZone:input.branding.timezone}).format(new Date(input.signedAt))],["Código de verificación",input.verificationCode],["Versión contractual",input.agreementVersion]],214);}
 
   const finalPage=pdf.addPage(PAGE); finalPage.drawRectangle({x:0,y:0,width:PAGE[0],height:PAGE[1],color:dark}); finalPage.drawText("MI EVENTO",{x:42,y:736,size:13,font:bold,color:orange}); finalPage.drawText("Tu experiencia BOOMBOX",{x:42,y:674,size:30,font:bold,color:rgb(1,1,1)}); finalPage.drawText("continúa aquí.",{x:42,y:638,size:30,font:bold,color:rgb(1,1,1)});
   const qrDataUrl=await QRCode.toDataURL(input.portalUrl,{margin:1,width:320,color:{dark:"#111111",light:"#FFFFFF"}}); const qr=await pdf.embedPng(Uint8Array.from(Buffer.from(qrDataUrl.split(",")[1],"base64"))); finalPage.drawRectangle({x:42,y:320,width:220,height:220,color:rgb(1,1,1)}); finalPage.drawImage(qr,{x:52,y:330,width:200,height:200});
