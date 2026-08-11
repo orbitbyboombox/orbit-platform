@@ -9,7 +9,6 @@ export interface FinancialTruthRecord {
 
 const number=(value:unknown)=>Number(value??0);
 export async function loadFinancialTruth(client:SupabaseClient):Promise<FinancialTruthRecord[]>{
-  const refresh=await client.rpc("refresh_financial_truth");if(refresh.error&&refresh.error.code!=="PGRST202")throw refresh.error;
   const{data,error}=await client.from("financial_event_records").select("project_id,customer_id,quotation_id,invoice_id,orbit_event_id,event_date,status,revenue,estimated_cost,real_cost,gross_profit,gross_margin,net_profit,net_margin,invoiced_amount,paid_amount,outstanding_balance,cost_breakdown,traceability,calculated_at").order("event_date",{ascending:false,nullsFirst:false});
   if(error){if(error.code==="42P01")return[];throw error;}
   return(data??[]).map(row=>({projectId:row.project_id,customerId:row.customer_id,quotationId:row.quotation_id,invoiceId:row.invoice_id,orbitEventId:row.orbit_event_id,eventDate:row.event_date,status:row.status,revenue:number(row.revenue),estimatedCost:number(row.estimated_cost),realCost:number(row.real_cost),grossProfit:number(row.gross_profit),grossMargin:number(row.gross_margin),netProfit:number(row.net_profit),netMargin:number(row.net_margin),invoicedAmount:number(row.invoiced_amount),paidAmount:number(row.paid_amount),outstandingBalance:number(row.outstanding_balance),costBreakdown:(row.cost_breakdown??{}) as Record<string,number>,traceability:(row.traceability??{}) as Record<string,unknown>,calculatedAt:row.calculated_at}));

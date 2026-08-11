@@ -1,4 +1,4 @@
-import { ConnectionCenter, loadMasterData, MasterDataCenter } from "@/features/settings";
+import { ConnectionCenter,FinancialIntegrityStatus, loadMasterData, MasterDataCenter } from "@/features/settings";
 import { CommunicationHub, loadCommunicationHubProjection } from "@/features/communication-hub";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createDisconnectedGoogleWorkspaceConnection } from "@/features/connectors";
@@ -12,7 +12,8 @@ import {ProfitabilitySettings}from"@/features/settings/profitability-settings";
 
 export default async function SettingsPage() {
   const client = await createSupabaseServerClient();
-  const [communication, masterData, companySettings,modules,{data:profitabilitySettings}] = await Promise.all([loadCommunicationHubProjection(client), loadMasterData(client),loadCompanySettings(client),loadModuleStates(client),client.from("profitability_settings").select("high_margin_threshold,normal_margin_threshold").eq("settings_key","PRIMARY").single()]);
+  await client.rpc("validate_financial_integrity");
+  const [communication, masterData, companySettings,modules,{data:profitabilitySettings},{data:integrity}] = await Promise.all([loadCommunicationHubProjection(client), loadMasterData(client),loadCompanySettings(client),loadModuleStates(client),client.from("profitability_settings").select("high_margin_threshold,normal_margin_threshold").eq("settings_key","PRIMARY").single(),client.from("financial_integrity_status").select("integrity_percent,reservation_sync,finance_sync,dashboard_sync,business_intelligence_sync,reports_sync,affected_records,checked_at").eq("status_key","PRIMARY").single()]);
   const googleConfigured = Boolean(process.env.GOOGLE_WORKSPACE_CLIENT_ID && process.env.GOOGLE_WORKSPACE_CLIENT_SECRET && process.env.GOOGLE_WORKSPACE_REDIRECT_URI);
   const googleConnection = googleConfigured
     ? await loadGoogleWorkspaceConnection().catch(() => createDisconnectedGoogleWorkspaceConnection("AUTHENTICATION_ERROR"))
@@ -23,6 +24,7 @@ export default async function SettingsPage() {
         <div className="flex items-start gap-4"><span className="rounded-2xl border bg-background p-3 text-brand"><Activity className="size-5"/></span><div><p className="font-semibold">System Health Center</p><p className="mt-1 text-sm text-muted">Estado ejecutivo de ORBIT, infraestructura, Google y seguridad.</p></div></div><ArrowRight className="size-5 shrink-0 text-muted transition group-hover:translate-x-1 group-hover:text-brand"/>
       </Link>
       <CompanySettingsCenter settings={companySettings}/>
+      {integrity&&<FinancialIntegrityStatus data={integrity}/>}
       <ModuleManagerCenter initialStates={modules}/>
       <ProfitabilitySettings high={Number(profitabilitySettings?.high_margin_threshold??40)} normal={Number(profitabilitySettings?.normal_margin_threshold??20)}/>
       <MasterDataCenter {...masterData} />
