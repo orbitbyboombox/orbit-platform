@@ -1,5 +1,6 @@
 import "server-only";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { uploadReservationDocumentToDrive } from "@/features/connectors/google-drive/application/google-drive-document-routing.service";
 import { GoogleGmailApiProvider } from "@/features/connectors/google-gmail/provider/google-gmail-live.provider";
@@ -46,6 +47,13 @@ export async function openSigningAgreement(token: string) {
 }
 
 export async function confirmDigitalSignature(input: { token: string; signatureDataUrl: string; ipAddress: string; userAgent: string }) {
+  const confirmationStartedAt = performance.now();
+  const timings: Record<string, number> = {};
+  const measured = async <T>(stage: string, operation: () => Promise<T>) => {
+    const startedAt = performance.now();
+    try { return await operation(); }
+    finally { timings[stage] = Math.round(performance.now() - startedAt); }
+  };
   const admin = createAdminClient(); const hash = tokenHash(input.token); const now = new Date().toISOString();
   if (!input.signatureDataUrl.startsWith("data:image/png;base64,")) throw new Error("La firma no tiene un formato válido.");
   const signature = Uint8Array.from(Buffer.from(input.signatureDataUrl.slice(input.signatureDataUrl.indexOf(",") + 1), "base64"));
@@ -53,22 +61,39 @@ export async function confirmDigitalSignature(input: { token: string; signatureD
   const { data: claim, error: claimError } = await admin.from("agreement_signing_tokens").update({ processing_at: now }).eq("token_hash", hash).gt("expires_at", now).is("consumed_at", null).is("revoked_at", null).is("processing_at", null).select("id,agreement_id").maybeSingle();
   if (claimError) throw claimError; if (!claim) throw new Error("Este enlace ya no está disponible.");
   try {
-    const agreement = await openAgreementForSigning(admin, claim.agreement_id); const company=await loadCompanySettings(admin); const signedAt = new Date().toISOString(); const customer = agreement.projects.customers; const quotation = agreement.projects.quotations?.[0]; const services = agreement.projects.project_services ?? [];
-    const signaturePath = `${agreement.project_id}/${agreement.id}/signature.png`; const { error: signatureError } = await admin.storage.from("orbit-signatures").upload(signaturePath, signature, { contentType: "image/png", upsert: false }); if (signatureError) throw signatureError;
-    const pdfBytes = await createSignedAgreementPdf({ quotationNumber: quotation?.quotation_number ?? "Sin cotización", customer: customer.full_name, event: `${agreement.projects.name} · ${agreement.projects.event_date}`, services: services.map((item) => item.service_code).join(", ") || "Por confirmar", hours: services.map((item) => item.duration_hours ? `${item.duration_hours} horas` : "").filter(Boolean).join(", ") || "Por confirmar", extras: services.flatMap((item) => Array.isArray(item.extras) ? item.extras : []).join(", ") || "Sin extras", finalCustomerPrice: Number(quotation?.final_customer_price ?? 0), venue: agreement.projects.location ?? "Por confirmar", address: agreement.projects.city ?? "Por confirmar", signaturePng: signature, signedAt, agreementVersion: agreement.template_version,portalUrl:"https://orbit.boom-box.cl/portal",branding:{productName:company.productName,productVersion:company.productVersion,brandName:company.brandName,poweredBy:company.poweredBy,footer:company.contractFooter,currency:company.currency,locale:company.locale,timezone:company.timezone} });
-    const pdfPath = `${agreement.project_id}/${agreement.id}/agreement-signed.pdf`; const checksum = sha256(pdfBytes); const { error: pdfError } = await admin.storage.from("orbit-documents").upload(pdfPath, pdfBytes, { contentType: "application/pdf", upsert: false }); if (pdfError) throw pdfError;
+    const [agreement, company] = await measured("agreement_context", () => Promise.all([openAgreementForSigning(admin, claim.agreement_id), loadCompanySettings(admin)])); const signedAt = new Date().toISOString(); const customer = agreement.projects.customers; const quotation = agreement.projects.quotations?.[0]; const services = agreement.projects.project_services ?? [];
+    const signaturePath = `${agreement.project_id}/${agreement.id}/signature.png`;
+    const [signatureUpload, pdfBytes] = await measured("signature_and_pdf", () => Promise.all([
+      admin.storage.from("orbit-signatures").upload(signaturePath, signature, { contentType: "image/png", upsert: false }),
+      createSignedAgreementPdf({ quotationNumber: quotation?.quotation_number ?? "Sin cotización", customer: customer.full_name, event: `${agreement.projects.name} · ${agreement.projects.event_date}`, services: services.map((item) => item.service_code).join(", ") || "Por confirmar", hours: services.map((item) => item.duration_hours ? `${item.duration_hours} horas` : "").filter(Boolean).join(", ") || "Por confirmar", extras: services.flatMap((item) => Array.isArray(item.extras) ? item.extras : []).join(", ") || "Sin extras", finalCustomerPrice: Number(quotation?.final_customer_price ?? 0), venue: agreement.projects.location ?? "Por confirmar", address: agreement.projects.city ?? "Por confirmar", signaturePng: signature, signedAt, agreementVersion: agreement.template_version,portalUrl:"https://orbit.boom-box.cl/portal",branding:{productName:company.productName,productVersion:company.productVersion,brandName:company.brandName,poweredBy:company.poweredBy,footer:company.contractFooter,currency:company.currency,locale:company.locale,timezone:company.timezone} }),
+    ]));
+    if (signatureUpload.error) throw signatureUpload.error;
+    const pdfPath = `${agreement.project_id}/${agreement.id}/agreement-signed.pdf`; const checksum = sha256(pdfBytes);
+    const [pdfUpload, uploaded] = await measured("contract_storage", () => Promise.all([
+      admin.storage.from("orbit-documents").upload(pdfPath, pdfBytes, { contentType: "application/pdf", upsert: false }),
+      uploadReservationDocumentToDrive({ client: admin, projectId: agreement.project_id, customerName: customer.full_name, eventDate: agreement.projects.event_date, kind: "CONTRACT", name: `Acuerdo firmado - ${agreement.projects.name}.pdf`, mimeType: "application/pdf", bytes: pdfBytes }),
+    ]));
+    if (pdfUpload.error) throw pdfUpload.error;
     await timeline(admin, { projectId: agreement.project_id, agreementId: agreement.id, action: "PDF_GENERATED", message: "PDF firmado generado correctamente.", actorId: null });
-    const uploaded = await uploadReservationDocumentToDrive({ client: admin, projectId: agreement.project_id, customerName: customer.full_name, eventDate: agreement.projects.event_date, kind: "CONTRACT", name: `Acuerdo firmado - ${agreement.projects.name}.pdf`, mimeType: "application/pdf", bytes: pdfBytes });
     const evidenceHash = sha256(`${agreement.id}:${signedAt}:${checksum}:${sha256(signature)}`); const device = deviceInfo(input.userAgent);
-    const { error: evidenceError } = await admin.from("agreement_evidence").insert({ agreement_id: agreement.id, signer_name: customer.full_name, signer_email: customer.email, signature_path: signaturePath, accepted_terms_version: agreement.template_version, agreement_version: agreement.template_version, ip_hash: sha256(input.ipAddress), user_agent: input.userAgent.slice(0, 1000), device_type: device.device, browser_name: device.browser, signed_at: signedAt, evidence_hash: evidenceHash }); if (evidenceError) throw evidenceError;
-    const { error: documentError } = await admin.from("documents").insert({ project_id: agreement.project_id, customer_id: agreement.projects.customer_id, document_type: "SIGNED_AGREEMENT", storage_bucket: "orbit-documents", storage_path: pdfPath, checksum, drive_file_id: uploaded.id }); if (documentError) throw documentError;
-    const { error: agreementUpdateError } = await admin.from("agreements").update({ status: "SIGNED", signed_pdf_path: pdfPath, drive_file_id: uploaded.id, signed_at: signedAt, locked_at: signedAt, updated_at: signedAt }).eq("id", agreement.id).neq("status", "SIGNED"); if (agreementUpdateError) throw agreementUpdateError;
+    const [evidenceWrite, documentWrite, agreementWrite] = await measured("signature_persistence", () => Promise.all([
+      admin.from("agreement_evidence").insert({ agreement_id: agreement.id, signer_name: customer.full_name, signer_email: customer.email, signature_path: signaturePath, accepted_terms_version: agreement.template_version, agreement_version: agreement.template_version, ip_hash: sha256(input.ipAddress), user_agent: input.userAgent.slice(0, 1000), device_type: device.device, browser_name: device.browser, signed_at: signedAt, evidence_hash: evidenceHash }),
+      admin.from("documents").insert({ project_id: agreement.project_id, customer_id: agreement.projects.customer_id, document_type: "SIGNED_AGREEMENT", storage_bucket: "orbit-documents", storage_path: pdfPath, checksum, drive_file_id: uploaded.id }),
+      admin.from("agreements").update({ status: "SIGNED", signed_pdf_path: pdfPath, drive_file_id: uploaded.id, signed_at: signedAt, locked_at: signedAt, updated_at: signedAt }).eq("id", agreement.id).neq("status", "SIGNED"),
+    ]));
+    if (evidenceWrite.error) throw evidenceWrite.error; if (documentWrite.error) throw documentWrite.error; if (agreementWrite.error) throw agreementWrite.error;
     await admin.from("agreement_signing_tokens").update({ consumed_at: signedAt, processing_at: null }).eq("id", claim.id);
     await Promise.all([timeline(admin, { projectId: agreement.project_id, agreementId: agreement.id, action: "AGREEMENT_SIGNED", message: "Acuerdo firmado por el cliente.", actorId: null }), timeline(admin, { projectId: agreement.project_id, agreementId: agreement.id, action: "AGREEMENT_LOCKED", message: "Acuerdo bloqueado para edición.", actorId: null }), timeline(admin, { projectId: agreement.project_id, agreementId: agreement.id, action: "PDF_UPLOADED", message: "PDF firmado almacenado en Google Drive.", actorId: null })]);
     const deliveryActorId = agreement.created_by ?? agreement.projects.created_by;
     if (!deliveryActorId) throw new Error("El contrato no tiene un responsable interno asociado.");
-    const portal = await createCustomerPortalAccess(agreement.project_id, deliveryActorId);
-    await deliverConfirmedReservationEmail({ projectId: agreement.project_id, actorId: deliveryActorId, portal });
+    const portal = await measured("portal", () => createCustomerPortalAccess(agreement.project_id, deliveryActorId));
+    after(async () => {
+      const startedAt = performance.now();
+      try { await deliverConfirmedReservationEmail({ projectId: agreement.project_id, actorId: deliveryActorId, portal }); }
+      catch (error) { console.error(JSON.stringify({ level: "error", event: "automatic_booking.background_email_failed", projectId: agreement.project_id, error: error instanceof Error ? error.message : String(error) })); }
+      finally { console.info(JSON.stringify({ level: "info", event: "automatic_booking.background_email_timing", projectId: agreement.project_id, durationMs: Math.round(performance.now() - startedAt) })); }
+    });
+    console.info(JSON.stringify({ level: "info", event: "automatic_booking.signature_timing", projectId: agreement.project_id, durationMs: Math.round(performance.now() - confirmationStartedAt), stages: timings }));
     return { signedAt, portalUrl: portal.url };
   } catch (error) { await admin.from("agreement_signing_tokens").update({ processing_at: null }).eq("id", claim.id).is("consumed_at", null); throw error; }
 }

@@ -1,10 +1,10 @@
 import "server-only";
 
 import { randomBytes, randomUUID } from "node:crypto";
+import { after } from "next/server";
 import { generateOrbitEventId } from "@/features/connectors/google-calendar";
 import { synchronizeConfirmedReservationCalendar } from "@/features/connectors/google-calendar/application/google-calendar-sync.service";
 import { uploadReservationDocumentToDrive } from "@/features/connectors/google-drive/application/google-drive-document-routing.service";
-import { synchronizeConfirmedReservationDrive } from "@/features/connectors/google-drive/application/google-drive-sync.service";
 import { confirmDigitalSignature } from "@/features/projects/signing/digital-signature.service";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { automaticBookingTokenHash } from "./automatic-booking.service";
@@ -38,6 +38,13 @@ function friendlyConfirmationMessage(module: string) {
 
 export async function completeAutomaticBooking(input: { token: string; submission: AutomaticBookingSubmission; ipAddress: string; userAgent: string }) {
   const admin = createAdminClient();
+  const confirmationStartedAt = performance.now();
+  const timings: Record<string, number> = {};
+  const measured = async <T>(stage: string, operation: () => Promise<T>) => {
+    const startedAt = performance.now();
+    try { return await operation(); }
+    finally { timings[stage] = Math.round(performance.now() - startedAt); }
+  };
   const now = new Date().toISOString();
   const submittedEmail = input.submission?.customer?.email;
   if (typeof submittedEmail !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(submittedEmail)) throw new Error("La información enviada no es válida.");
@@ -51,7 +58,10 @@ export async function completeAutomaticBooking(input: { token: string; submissio
     validate(input.submission);
     const actorId = invitation.created_by;
     const normalizedRut = input.submission.customer.rut.replace(/[^0-9K]/gi, "").toUpperCase();
-    const { data: customerCandidates, error: customerLookupError } = await admin.from("customers").select("id,rut").is("deleted_at", null);
+    const [{ data: customerCandidates, error: customerLookupError }, pricing] = await measured("validation_and_pricing", () => Promise.all([
+      admin.from("customers").select("id,rut").is("deleted_at", null),
+      calculatePricing(admin, input.submission),
+    ]));
     if (customerLookupError) throw customerLookupError;
     const existingCustomer = (customerCandidates ?? []).find((customer) => String(customer.rut ?? "").replace(/[^0-9K]/gi, "").toUpperCase() === normalizedRut);
     const customerId = existingCustomer?.id ?? randomUUID();
@@ -59,45 +69,42 @@ export async function completeAutomaticBooking(input: { token: string; submissio
     reservationId = projectId;
     const orbitEventId = generateOrbitEventId(input.submission.event.date, (Number.parseInt(projectId.replaceAll("-", "").slice(-8), 16) % 999999) + 1);
     currentModule = "FINANCE";
-    const pricing = await calculatePricing(admin, input.submission);
     const receiptBytes = Uint8Array.from(Buffer.from(input.submission.payment.receiptBase64, "base64"));
     if (receiptBytes.length < 20 || receiptBytes.length > 10_000_000) throw new Error("El comprobante no tiene un tamaño válido.");
 
     const customerValues = { full_name: input.submission.customer.name.trim(), email: invitation.customer_email, phone: input.submission.customer.phone, rut: input.submission.customer.rut, city: input.submission.event.municipality, metadata: { address: input.submission.customer.address }, updated_by: actorId };
     currentModule = "CUSTOMER";
-    const { error: customerError } = existingCustomer
+    const { error: customerError } = await measured("customer", async () => existingCustomer
       ? await admin.from("customers").update(customerValues).eq("id", customerId)
-      : await admin.from("customers").insert({ id: customerId, ...customerValues, created_by: actorId });
+      : await admin.from("customers").insert({ id: customerId, ...customerValues, created_by: actorId }));
     if (customerError) throw customerError;
     const notes = [`Dirección evento: ${input.submission.event.address}`, `Contacto operacional: ${input.submission.event.operationalContact} · ${input.submission.event.operationalPhone}`, "Reserva automática completada por el cliente.", "Términos BOOMBOX aceptados."].join("\n");
     const finance = { total: pricing.total, reservationAmount: Math.round(pricing.total / 2), remainingBalance: pricing.total - Math.round(pricing.total / 2), paymentMethod: input.submission.payment.method, paymentStatus: "RESERVATION_RECEIVED" };
     currentModule = "PROJECT_AND_EVENT360";
-    const { error: projectError } = await admin.from("projects").insert({ id: projectId, customer_id: customerId, orbit_event_id: orbitEventId, name: input.submission.customer.name.trim(), project_type: input.submission.event.type, status: "Upcoming", health: "Healthy", event_date: input.submission.event.date, event_time: input.submission.event.time, location: input.submission.event.venue, city: input.submission.event.municipality, operations: { stage: "Reserva confirmada", commercialStage: "Confirmed", reservationMethod: "AUTOMATIC", notes, durationHours: input.submission.service.hours, extras: input.submission.service.extras }, finance, created_by: actorId, updated_by: actorId });
+    const { error: projectError } = await measured("project_and_event360", async () => await admin.from("projects").insert({ id: projectId, customer_id: customerId, orbit_event_id: orbitEventId, name: input.submission.customer.name.trim(), project_type: input.submission.event.type, status: "Upcoming", health: "Healthy", event_date: input.submission.event.date, event_time: input.submission.event.time, location: input.submission.event.venue, city: input.submission.event.municipality, operations: { stage: "Reserva confirmada", commercialStage: "Confirmed", reservationMethod: "AUTOMATIC", notes, durationHours: input.submission.service.hours, extras: input.submission.service.extras }, finance, created_by: actorId, updated_by: actorId }));
     if (projectError) throw projectError;
-    const { error: serviceError } = await admin.from("project_services").insert({ project_id: projectId, service_code: input.submission.service.code, duration_hours: input.submission.service.hours, extras: input.submission.service.extras });
-    if (serviceError) throw serviceError;
-
     currentModule = "RESERVATION_AND_CONTRACT";
     const quotationId = randomUUID();
     const quotationNumber = `COT-AUTO-${input.submission.event.date.replaceAll("-", "")}-${projectId.slice(0, 6).toUpperCase()}`;
-    const { error: quotationError } = await admin.from("quotations").insert({ id: quotationId, quotation_number: quotationNumber, customer_id: customerId, project_id: projectId, orbit_event_id: orbitEventId, status: "ACCEPTED", customer_type: input.submission.event.type === "Corporate" ? "COMPANY" : "PRIVATE", event_type: input.submission.event.type, issue_date: now.slice(0, 10), expiration_date: input.submission.event.date, subtotal: pricing.subtotal, transport_total: pricing.transport, discount_total: 0, tax_total: 0, grand_total: pricing.total, official_price: pricing.total, final_customer_price: pricing.total, price_difference: 0, pricing_snapshot: pricing, blockers: [], created_by: actorId, updated_by: actorId });
-    if (quotationError) throw quotationError;
     const agreementId = randomUUID();
-    const { error: agreementError } = await admin.from("agreements").insert({ id: agreementId, project_id: projectId, status: "SENT", template_version: "1.0", rendered_contract: { quotationNumber, termsAccepted: true, commercialSummary: pricing }, created_by: actorId, updated_by: actorId });
-    if (agreementError) throw agreementError;
     const memory = { customer_id: customerId, context: { customerName: input.submission.customer.name, eventType: input.submission.event.type, eventDate: input.submission.event.date, currentTimelineStage: "Reserva confirmada", nextRecommendedAction: "Preparar operación" }, created_by: actorId, updated_by: actorId };
     currentModule = "TIMELINE";
-    const { error: memoryError } = await admin.from("customer_memory").upsert(memory, { onConflict: "customer_id" });
-    if (memoryError) throw memoryError;
-    const { error: timelineError } = await admin.from("timeline_events").insert({ customer_id: customerId, project_id: projectId, event_type: "AUTOMATIC_RESERVATION_CREATED", title: "Reserva automática creada.", description: "El cliente completó la reserva desde la invitación segura.", orbit_event_id: orbitEventId, actor_label: "Cliente", source: "Customer", action: "AUTOMATIC_RESERVATION_CREATED", entity_type: "Project", entity_id: projectId, human_message: "Reserva automática creada y confirmada por el cliente.", correlation_id: `automatic-booking:${invitation.id}`, created_by: actorId });
-    if (timelineError) throw timelineError;
+    const [serviceWrite, quotationWrite, agreementWrite, memoryWrite, timelineWrite] = await measured("reservation_records", () => Promise.all([
+      admin.from("project_services").insert({ project_id: projectId, service_code: input.submission.service.code, duration_hours: input.submission.service.hours, extras: input.submission.service.extras }),
+      admin.from("quotations").insert({ id: quotationId, quotation_number: quotationNumber, customer_id: customerId, project_id: projectId, orbit_event_id: orbitEventId, status: "ACCEPTED", customer_type: input.submission.event.type === "Corporate" ? "COMPANY" : "PRIVATE", event_type: input.submission.event.type, issue_date: now.slice(0, 10), expiration_date: input.submission.event.date, subtotal: pricing.subtotal, transport_total: pricing.transport, discount_total: 0, tax_total: 0, grand_total: pricing.total, official_price: pricing.total, final_customer_price: pricing.total, price_difference: 0, pricing_snapshot: pricing, blockers: [], created_by: actorId, updated_by: actorId }),
+      admin.from("agreements").insert({ id: agreementId, project_id: projectId, status: "SENT", template_version: "1.0", rendered_contract: { quotationNumber, termsAccepted: true, commercialSummary: pricing }, created_by: actorId, updated_by: actorId }),
+      admin.from("customer_memory").upsert(memory, { onConflict: "customer_id" }),
+      admin.from("timeline_events").insert({ customer_id: customerId, project_id: projectId, event_type: "AUTOMATIC_RESERVATION_CREATED", title: "Reserva automática creada.", description: "El cliente completó la reserva desde la invitación segura.", orbit_event_id: orbitEventId, actor_label: "Cliente", source: "Customer", action: "AUTOMATIC_RESERVATION_CREATED", entity_type: "Project", entity_id: projectId, human_message: "Reserva automática creada y confirmada por el cliente.", correlation_id: `automatic-booking:${invitation.id}`, created_by: actorId }),
+    ]));
+    for (const result of [serviceWrite, quotationWrite, agreementWrite, memoryWrite, timelineWrite]) if (result.error) throw result.error;
 
-    currentModule = "GOOGLE_DRIVE";
-    await synchronizeConfirmedReservationDrive({ client: admin, projectId, actorId });
     currentModule = "PAYMENT_RECEIPT";
-    const uploadedReceipt = await uploadReservationDocumentToDrive({ client: admin, projectId, customerName: input.submission.customer.name, eventDate: input.submission.event.date, kind: "PAYMENT_PROOF", name: input.submission.payment.receiptName, mimeType: input.submission.payment.receiptType, bytes: receiptBytes });
     const receiptPath = `${projectId}/${randomUUID()}-${input.submission.payment.receiptName.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
-    const { error: receiptUploadError } = await admin.storage.from("orbit-documents").upload(receiptPath, receiptBytes, { contentType: input.submission.payment.receiptType });
+    const [uploadedReceipt, receiptStorage] = await measured("payment_receipt", () => Promise.all([
+      uploadReservationDocumentToDrive({ client: admin, projectId, customerName: input.submission.customer.name, eventDate: input.submission.event.date, kind: "PAYMENT_PROOF", name: input.submission.payment.receiptName, mimeType: input.submission.payment.receiptType, bytes: receiptBytes }),
+      admin.storage.from("orbit-documents").upload(receiptPath, receiptBytes, { contentType: input.submission.payment.receiptType }),
+    ]));
+    const receiptUploadError = receiptStorage.error;
     if (receiptUploadError) throw receiptUploadError;
     const { error: receiptDocumentError } = await admin.from("documents").insert({ project_id: projectId, customer_id: customerId, document_type: "PAYMENT_RECEIPT", storage_bucket: "orbit-documents", storage_path: receiptPath, checksum: automaticBookingTokenHash(input.submission.payment.receiptBase64), drive_file_id: uploadedReceipt.id, created_by: actorId });
     if (receiptDocumentError) throw receiptDocumentError;
@@ -107,21 +114,26 @@ export async function completeAutomaticBooking(input: { token: string; submissio
     const { error: signingTokenError } = await admin.from("agreement_signing_tokens").insert({ agreement_id: agreementId, token_hash: automaticBookingTokenHash(signingToken), expires_at: new Date(Date.now() + 15 * 60_000).toISOString(), created_by: actorId });
     if (signingTokenError) throw signingTokenError;
     currentModule = "SIGNATURE_AND_DOCUMENT_DELIVERY";
-    const signatureResult = await confirmDigitalSignature({ token: signingToken, signatureDataUrl: input.submission.signatureDataUrl, ipAddress: input.ipAddress, userAgent: input.userAgent });
-    currentModule = "GOOGLE_CALENDAR";
-    await synchronizeConfirmedReservationCalendar({ client: admin, projectId, actorId, requireCommercialReadiness: true });
-    currentModule = "DASHBOARD";
-    const { error: notificationError } = await admin.from("internal_notifications").insert({ project_id: projectId, customer_id: customerId, notification_type: "AUTOMATIC_RESERVATION_CONFIRMED", title: "🎉 Nueva Reserva Confirmada", message: `${input.submission.customer.name} · ${input.submission.service.code} · ${input.submission.event.date} · ${pricing.total}`, status: "UNREAD", correlation_id: `automatic-booking-confirmed:${invitation.id}`, category: "COMMERCIAL", priority: "HIGH", action_required: false, entity_type: "Project", entity_id: projectId, related_href: `/projects/${projectId}` });
-    if (notificationError) throw notificationError;
+    const signatureResult = await measured("contract_and_signature", () => confirmDigitalSignature({ token: signingToken, signatureDataUrl: input.submission.signatureDataUrl, ipAddress: input.ipAddress, userAgent: input.userAgent }));
     currentModule = "RESERVATION";
     const { error: completionError } = await admin.from("automatic_booking_invitations").update({ status: "COMPLETED", consumed_at: new Date().toISOString(), processing_at: null, project_id: projectId, payload: { service: input.submission.service.code, eventDate: input.submission.event.date, total: pricing.total } }).eq("id", invitation.id);
     if (completionError) throw completionError;
     const portalToken = signatureResult.portalUrl.split("/p/")[1];
     if (!portalToken) throw new Error("El enlace del Portal no tiene un token válido.");
+    after(async () => {
+      const backgroundStartedAt = performance.now();
+      const operations = await Promise.allSettled([
+        synchronizeConfirmedReservationCalendar({ client: admin, projectId, actorId, requireCommercialReadiness: true }),
+        admin.from("internal_notifications").insert({ project_id: projectId, customer_id: customerId, notification_type: "AUTOMATIC_RESERVATION_CONFIRMED", title: "🎉 Nueva Reserva Confirmada", message: `${input.submission.customer.name} · ${input.submission.service.code} · ${input.submission.event.date} · ${pricing.total}`, status: "UNREAD", correlation_id: `automatic-booking-confirmed:${invitation.id}`, category: "COMMERCIAL", priority: "HIGH", action_required: false, entity_type: "Project", entity_id: projectId, related_href: `/projects/${projectId}` }).throwOnError(),
+      ]);
+      operations.forEach((result, index) => { if (result.status === "rejected") console.error(JSON.stringify({ level: "error", event: "automatic_booking.background_operation_failed", module: index === 0 ? "GOOGLE_CALENDAR" : "DASHBOARD", projectId, error: result.reason instanceof Error ? result.reason.message : String(result.reason) })); });
+      console.info(JSON.stringify({ level: "info", event: "automatic_booking.background_timing", projectId, durationMs: Math.round(performance.now() - backgroundStartedAt) }));
+    });
+    console.info(JSON.stringify({ level: "info", event: "automatic_booking.confirmation_timing", projectId, durationMs: Math.round(performance.now() - confirmationStartedAt), stages: timings }));
     return { projectId, portalUrl: signatureResult.portalUrl, contractUrl: `/api/portal/${encodeURIComponent(portalToken)}/contract?download=1`, reservationNumber: quotationNumber, eventDate: input.submission.event.date, service: input.submission.service.code, reservation: finance.reservationAmount, balance: finance.remainingBalance, total: pricing.total };
   } catch (error) {
     await admin.from("automatic_booking_invitations").update({ status: "OPENED", processing_at: null }).eq("id", invitation.id).is("consumed_at", null);
-    console.error(JSON.stringify({ level: "error", event: "automatic_booking.transaction_failed", module: currentModule, reservationId, timestamp: new Date().toISOString(), exception: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : String(error) }));
+    console.error(JSON.stringify({ level: "error", event: "automatic_booking.transaction_failed", module: currentModule, reservationId, timestamp: new Date().toISOString(), durationMs: Math.round(performance.now() - confirmationStartedAt), stages: timings, exception: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : String(error) }));
     throw new AutomaticBookingConfirmationError(currentModule, reservationId, error);
   }
 }
