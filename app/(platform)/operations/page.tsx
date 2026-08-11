@@ -1,11 +1,13 @@
 import { CommandCenter, type CommandCenterProjectReadiness, type ProductionAssignment } from "@/features/operations/components";
 import { SupabaseCustomerRepository } from "@/features/projects/infrastructure";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { loadFinancialTruth } from "@/features/business-engine";
 
 export default async function OperationsPage() {
   const client = await createSupabaseServerClient();
   const { error: taskMaterializationError } = await client.rpc("materialize_scheduled_event_tasks");
   if (taskMaterializationError) throw taskMaterializationError;
+  const financialTruth = await loadFinancialTruth(client);
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(new Date());
   const [allProjects, assignmentsResult, staffResult, assetsResult, assetAssignmentsResult, agreementsResult, evidenceResult, quotationsResult, calendarResult, driveResult, documentsResult, payrollResult, profitResult, timelineResult, rawProjectsResult, customersResult, tasksResult, receivablesResult, expensesResult] = await Promise.all([
     new SupabaseCustomerRepository(client).findAll(),
@@ -20,7 +22,7 @@ export default async function OperationsPage() {
     client.from("drive_sync").select("project_id,status"),
     client.from("documents").select("project_id,document_type").is("deleted_at", null),
     client.from("event_staff_payments").select("project_id,staff_id,total_internal_payment,status").is("deleted_at", null),
-    client.from("profit_snapshots").select("project_id,revenue").is("deleted_at", null),
+    Promise.resolve({data:financialTruth,error:null}),
     client.from("timeline_events").select("project_id"),
     client.from("projects").select("id,customer_id,finance").is("deleted_at", null),
     client.from("customers").select("id,metadata").is("deleted_at", null),
@@ -44,7 +46,7 @@ export default async function OperationsPage() {
   const drive = driveResult.data ?? [];
   const documents = documentsResult.data ?? [];
   const payroll = payrollResult.data ?? [];
-  const profit = profitResult.data ?? [];
+  const profit = financialTruth;
   const timeline = timelineResult.data ?? [];
   const financeByProject = new Map((rawProjectsResult.data ?? []).map((item) => [item.id, (item.finance ?? {}) as Record<string, unknown>]));
   const certificationCustomers = new Set((customersResult.data ?? []).filter((item) => {
@@ -78,7 +80,7 @@ export default async function OperationsPage() {
         { label: "Tótem", state: state(projectAssets.some((item) => item.operational_assets?.asset_type === "TOTEM")) },
         { label: "Case", state: state(projectAssets.some((item) => item.operational_assets?.asset_type === "CASE")) },
         { label: "Payroll", state: state(payroll.some((item) => item.project_id === project.id), true) },
-        { label: "Profit", state: state(profit.some((item) => item.project_id === project.id), true) },
+        { label: "Profit", state: state(profit.some((item) => item.projectId === project.id), true) },
         { label: "Timeline", state: state(timeline.some((item) => item.project_id === project.id), true) },
       ],
       paymentReady,
@@ -102,7 +104,7 @@ export default async function OperationsPage() {
   const next15Events=projects.filter((project)=>{if(!project.event.date)return false;const days=Math.ceil((new Date(`${project.event.date}T12:00:00Z`).getTime()-Date.now())/86_400_000);return days>=0&&days<=15;}).length;
   const accountsReceivable=(receivablesResult.data??[]).filter((item)=>!["PAID","CANCELLED"].includes(item.effective_status)).reduce((sum,item)=>sum+Number(item.outstanding_balance??0),0);
   const monthKey=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Santiago",year:"numeric",month:"2-digit"}).format(new Date()).slice(0,7);
-  const monthlyRevenue=(profitResult.data??[]).filter((item)=>projects.find((project)=>project.id===item.project_id)?.event.date.startsWith(monthKey)).reduce((sum,item)=>sum+Number((item as {revenue?:number|string}).revenue??0),0);
+  const monthlyRevenue=financialTruth.filter((item)=>item.status==="CONFIRMED"&&item.eventDate?.startsWith(monthKey)).reduce((sum,item)=>sum+item.revenue,0);
   const monthlyExpenses=(expensesResult.data??[]).filter((item)=>item.occurred_on?.startsWith(monthKey)).reduce((sum,item)=>sum+Number(item.total??0),0);
   const availableVehicles=assets.filter((asset)=>asset.asset_type==="VEHICLE"&&asset.status==="AVAILABLE").length;
   const activeAssignments=assignments.filter(item=>!["CANCELLED","REJECTED","COMPLETED"].includes(item.status));

@@ -1,5 +1,6 @@
 export interface BusinessIntelligenceDataset{
   generatedAt:string;
+  financialEvents:readonly {project_id:string;customer_id:string;status:string;event_date:string|null;revenue:number;real_cost:number;gross_profit:number;gross_margin:number;outstanding_balance:number}[];
   customers:readonly {id:string;full_name:string;city:string|null;metadata:Record<string,unknown>;created_at:string}[];
   projects:readonly {id:string;customer_id:string;name:string;project_type:string;status:string;event_date:string|null;city:string|null;location:string|null;created_at:string}[];
   services:readonly {project_id:string;service_code:string;duration_hours:number|null}[];
