@@ -5,6 +5,7 @@ import { after } from "next/server";
 import { generateOrbitEventId } from "@/features/connectors/google-calendar";
 import { synchronizeConfirmedReservationCalendar } from "@/features/connectors/google-calendar/application/google-calendar-sync.service";
 import { uploadReservationDocumentToDrive } from "@/features/connectors/google-drive/application/google-drive-document-routing.service";
+import { deliverFounderReservationNotification } from "@/features/connectors/google-gmail/application/google-gmail-delivery.service";
 import { confirmDigitalSignature } from "@/features/projects/signing/digital-signature.service";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { automaticBookingTokenHash } from "./automatic-booking.service";
@@ -123,10 +124,11 @@ export async function completeAutomaticBooking(input: { token: string; submissio
     after(async () => {
       const backgroundStartedAt = performance.now();
       const operations = await Promise.allSettled([
-        synchronizeConfirmedReservationCalendar({ client: admin, projectId, actorId, requireCommercialReadiness: true }),
+        synchronizeConfirmedReservationCalendar({ client: admin, projectId, actorId, requireCommercialReadiness: true }).then(() => deliverFounderReservationNotification({ projectId, actorId })),
         admin.from("internal_notifications").insert({ project_id: projectId, customer_id: customerId, notification_type: "AUTOMATIC_RESERVATION_CONFIRMED", title: "🎉 Nueva Reserva Confirmada", message: `${input.submission.customer.name} · ${input.submission.service.code} · ${input.submission.event.date} · ${pricing.total}`, status: "UNREAD", correlation_id: `automatic-booking-confirmed:${invitation.id}`, category: "COMMERCIAL", priority: "HIGH", action_required: false, entity_type: "Project", entity_id: projectId, related_href: `/projects/${projectId}` }).throwOnError(),
       ]);
-      operations.forEach((result, index) => { if (result.status === "rejected") console.error(JSON.stringify({ level: "error", event: "automatic_booking.background_operation_failed", module: index === 0 ? "GOOGLE_CALENDAR" : "DASHBOARD", projectId, error: result.reason instanceof Error ? result.reason.message : String(result.reason) })); });
+      const modules = ["GOOGLE_CALENDAR_AND_FOUNDER_EMAIL", "DASHBOARD"];
+      operations.forEach((result, index) => { if (result.status === "rejected") console.error(JSON.stringify({ level: "error", event: "automatic_booking.background_operation_failed", module: modules[index], projectId, error: result.reason instanceof Error ? result.reason.message : String(result.reason) })); });
       console.info(JSON.stringify({ level: "info", event: "automatic_booking.background_timing", projectId, durationMs: Math.round(performance.now() - backgroundStartedAt) }));
     });
     console.info(JSON.stringify({ level: "info", event: "automatic_booking.confirmation_timing", projectId, durationMs: Math.round(performance.now() - confirmationStartedAt), stages: timings }));
