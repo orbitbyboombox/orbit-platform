@@ -60,13 +60,13 @@ export async function deliverConfirmedReservationEmail(input: { projectId: strin
   }
 }
 
-export async function deliverFounderReservationNotification(input: { projectId: string; actorId: string }): Promise<{ status: "SENT" | "SKIPPED"; messageId?: string }> {
+export async function deliverFounderReservationNotification(input: { projectId: string; actorId: string }): Promise<{ status: "SENT" | "SKIPPED" | "FAILED"; messageId?: string }> {
   const admin = createAdminClient();
-  const { data: existing, error: existingError } = await admin.from("communications").select("id,status,external_message_id").eq("project_id", input.projectId).eq("channel", "GMAIL").eq("communication_type", "INTERNAL_NOTIFICATION").eq("thread_key", `founder-reservation:${input.projectId}`).maybeSingle();
+  const { data: existing, error: existingError } = await admin.from("communications").select("id,status,external_message_id").eq("project_id", input.projectId).eq("channel", "GMAIL").eq("communication_type", "INTERNAL_NOTIFICATION").eq("thread_key", `founder-reservation:${input.projectId}`).order("created_at",{ascending:false}).limit(1).maybeSingle();
   if (existingError) throw existingError;
   if (existing?.status === "SENT") return { status: "SKIPPED", messageId: existing.external_message_id ?? undefined };
   const [{ data: project, error: projectError }, { data: calendar }, { count: portalCount }, company] = await Promise.all([
-    admin.from("projects").select("id,customer_id,orbit_event_id,name,event_date,finance,operations,customers!inner(full_name),project_services(service_code),agreements(status,drive_file_id),quotations(quotation_number,final_customer_price)").eq("id", input.projectId).is("deleted_at", null).single(),
+    admin.from("projects").select("id,customer_id,orbit_event_id,name,project_type,event_date,finance,operations,customers!inner(full_name),project_services(service_code,duration_hours),agreements(status,drive_file_id),quotations(quotation_number,final_customer_price,customer_type)").eq("id", input.projectId).is("deleted_at", null).single(),
     admin.from("calendar_sync").select("external_event_id").eq("project_id", input.projectId).maybeSingle(),
     admin.from("customer_portal_tokens").select("id", { count: "exact", head: true }).eq("project_id", input.projectId).is("revoked_at", null),
     loadCompanySettings(admin),
@@ -86,15 +86,24 @@ export async function deliverFounderReservationNotification(input: { projectId: 
     ["Google Calendar", Boolean(calendar?.external_event_id)], ["Google Drive", Boolean(drive.folderId)], ["Portal", Boolean(portalCount)],
     ["Finance", amount > 0], ["Dashboard", true], ["Contract", agreement?.status === "SIGNED" && Boolean(agreement.drive_file_id)],
   ] as const;
-  const subject = `🎉 Nueva reserva confirmada · ${quotation?.quotation_number ?? project.orbit_event_id}`;
-  const rows = [["Cliente", customer?.full_name ?? "Sin cliente"], ["Servicio", (project.project_services ?? []).map((item) => item.service_code).join(" + ") || "Sin servicio"], ["Fecha", project.event_date], ["Reserva", quotation?.quotation_number ?? project.orbit_event_id], ["Monto", currency(amount)]];
-  const htmlBody = `<main style="font-family:Arial,sans-serif;color:#171717"><h1>Reserva completada</h1><table style="border-collapse:collapse">${rows.map(([label,value])=>`<tr><td style="padding:7px 12px;color:#666">${escapeHtml(String(label))}</td><td style="padding:7px 12px;font-weight:700">${escapeHtml(String(value))}</td></tr>`).join("")}</table><h2>Verificación</h2><ul>${verification.map(([label,ready])=>`<li>${ready?"✅":"⚠️"} ${escapeHtml(label)}</li>`).join("")}</ul><p><a href="${appProjectUrl(project.id)}">Abrir Event360</a></p></main>`;
+  const finance=project.finance&&typeof project.finance==="object"?project.finance as Record<string,unknown>:{};
+  const paymentStatus=String(finance.paymentStatus??finance.status??"Pendiente");
+  const customerType=quotation?.customer_type==="COMPANY"||project.project_type==="Corporate"?"Empresa":"Particular";
+  const subject = "🎉 Nueva Reserva Confirmada – BOOMBOX";
+  const rows = [["Cliente", customer?.full_name ?? "Sin cliente"], ["Número de reserva", quotation?.quotation_number ?? project.orbit_event_id], ["Servicio", (project.project_services ?? []).map((item) => item.service_code).join(" + ") || "Sin servicio"], ["Horas", (project.project_services ?? []).map((item)=>`${Number(item.duration_hours??0)} h`).join(" + ")||"—"], ["Fecha del evento", project.event_date], ["Monto", currency(amount)],["Estado de pago",paymentStatus],["Tipo de cliente",customerType]];
+  const htmlBody = `<main style="font-family:Arial,sans-serif;color:#171717"><h1>🎉 Nueva Reserva Confirmada</h1><table style="border-collapse:collapse">${rows.map(([label,value])=>`<tr><td style="padding:7px 12px;color:#666">${escapeHtml(String(label))}</td><td style="padding:7px 12px;font-weight:700">${escapeHtml(String(value))}</td></tr>`).join("")}</table><h2>Verificación</h2><ul>${verification.map(([label,ready])=>`<li>${ready?"✅":"⚠️"} ${escapeHtml(label)}</li>`).join("")}</ul><p><a href="${appProjectUrl(project.id)}" style="display:inline-block;background:#F78900;color:#111;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:10px">Abrir Evento en ORBIT</a></p></main>`;
   const textBody = ["Reserva completada", ...rows.map(([label,value])=>`${label}: ${value}`), "Verificación", ...verification.map(([label,ready])=>`${ready?"OK":"PENDIENTE"} · ${label}`), appProjectUrl(project.id)].join("\n");
-  const result = await new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken()).send({ to: recipient, subject, textBody, htmlBody, driveFileIds: [] });
-  const record = { customer_id: project.customer_id, project_id: project.id, channel: "GMAIL", direction: "OUTBOUND", communication_type: "INTERNAL_NOTIFICATION", thread_key: `founder-reservation:${project.id}`, subject, body: textBody, status: "SENT", external_message_id: result.messageId, occurred_at: new Date().toISOString(), created_by: input.actorId };
-  const { error: writeError } = existing?.id ? await admin.from("communications").update(record).eq("id", existing.id) : await admin.from("communications").insert(record);
-  if (writeError) throw writeError;
-  return { status: "SENT", messageId: result.messageId };
+  let lastError="";
+  for(let attempt=1;attempt<=3;attempt++)try{
+    const result = await new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken()).send({ to: recipient, subject, textBody, htmlBody, driveFileIds: [] });
+    const record = { customer_id: project.customer_id, project_id: project.id, channel: "GMAIL", direction: "OUTBOUND", communication_type: "INTERNAL_NOTIFICATION", thread_key: `founder-reservation:${project.id}`, subject, body: textBody, status: "SENT", external_message_id: result.messageId, occurred_at: new Date().toISOString(), created_by: input.actorId };
+    const communicationWrite = existing?.id ? await admin.from("communications").update(record).eq("id", existing.id) : await admin.from("communications").insert(record);
+    const auditWrite=await admin.from("founder_notification_deliveries").upsert({project_id:project.id,customer_id:project.customer_id,recipient,attempt_number:attempt,status:"SENT",provider_response:{messageId:result.messageId,threadId:result.threadId,accepted:true},failure_reason:null,created_by:input.actorId},{onConflict:"project_id,attempt_number"});
+    if(communicationWrite.error||auditWrite.error)console.error(JSON.stringify({level:"error",event:"founder_notification.audit_write_failed",projectId:project.id,messageId:result.messageId,error:communicationWrite.error?.message??auditWrite.error?.message,timestamp:new Date().toISOString()}));
+    return { status: "SENT", messageId: result.messageId };
+  }catch(error){lastError=error instanceof Error?error.message:String(error);await admin.from("founder_notification_deliveries").upsert({project_id:project.id,customer_id:project.customer_id,recipient,attempt_number:attempt,status:"FAILED",provider_response:{provider:"GMAIL",accepted:false},failure_reason:lastError,created_by:input.actorId},{onConflict:"project_id,attempt_number"});console.error(JSON.stringify({level:"error",event:"founder_notification.attempt_failed",projectId:project.id,attempt,recipient,error:lastError,timestamp:new Date().toISOString()}));}
+  await admin.from("internal_notifications").upsert({project_id:project.id,customer_id:project.customer_id,notification_type:"FOUNDER_NOTIFICATION_FAILED",title:"Founder Notification Failed",message:`No fue posible notificar la reserva ${quotation?.quotation_number??project.orbit_event_id} después de 3 intentos.`,status:"UNREAD",correlation_id:`founder-notification-failed:${project.id}`,category:"SYSTEM",priority:"CRITICAL",action_required:true,entity_type:"Project",entity_id:project.id,related_href:"/settings#founder-notifications",metadata:{recipient,reason:lastError,attempts:3}},{onConflict:"correlation_id"});
+  return{status:"FAILED"};
 }
 
 function appProjectUrl(projectId: string) {
