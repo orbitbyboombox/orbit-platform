@@ -13,13 +13,14 @@ import {ProductionInitializationCenter}from"@/features/settings/production-initi
 import{FounderWorkspaceSettings,loadFounderWorkspace}from"@/features/founder-workspace";
 import{ReservationDiagnostics,type ReservationDiagnostic}from"@/features/settings/reservation-diagnostics";
 import{FounderNotificationDiagnostics,type FounderNotificationDelivery}from"@/features/settings/founder-notification-diagnostics";
+import{CrmDiagnostics,type CrmDiagnostic}from"@/features/settings/crm-diagnostics";
 
 export default async function SettingsPage() {
   const client = await createSupabaseServerClient();
   const{data:auth,error:authError}=await client.auth.getUser();if(authError||!auth.user)throw authError??new Error("Sesión requerida.");
   await client.rpc("validate_financial_integrity");
-  const [communication, masterData, companySettings,modules,founderWorkspace,{data:profitabilitySettings},{data:integrity},{data:diagnostics,error:diagnosticsError},{data:founderDeliveries,error:founderDeliveryError}] = await Promise.all([loadCommunicationHubProjection(client), loadMasterData(client),loadCompanySettings(client),loadModuleStates(client),loadFounderWorkspace(client,auth.user.id),client.from("profitability_settings").select("high_margin_threshold,normal_margin_threshold").eq("settings_key","PRIMARY").single(),client.from("financial_integrity_status").select("integrity_percent,reservation_sync,finance_sync,dashboard_sync,business_intelligence_sync,reports_sync,affected_records,checked_at").eq("status_key","PRIMARY").single(),client.from("reservation_execution_diagnostics").select("reference,status,failed_step,exception_message,affected_record,suggested_fix,steps,created_at").order("created_at",{ascending:false}).limit(10),client.from("founder_notification_deliveries").select("id,project_id,recipient,attempt_number,status,provider_response,failure_reason,attempted_at,projects(name,orbit_event_id),customers(full_name)").order("attempted_at",{ascending:false}).limit(30)]);
-  if(diagnosticsError||founderDeliveryError)throw diagnosticsError??founderDeliveryError;
+  const [communication, masterData, companySettings,modules,founderWorkspace,{data:profitabilitySettings},{data:integrity},{data:diagnostics,error:diagnosticsError},{data:founderDeliveries,error:founderDeliveryError},{data:crmDiagnostics,error:crmDiagnosticsError}] = await Promise.all([loadCommunicationHubProjection(client), loadMasterData(client),loadCompanySettings(client),loadModuleStates(client),loadFounderWorkspace(client,auth.user.id),client.from("profitability_settings").select("high_margin_threshold,normal_margin_threshold").eq("settings_key","PRIMARY").single(),client.from("financial_integrity_status").select("integrity_percent,reservation_sync,finance_sync,dashboard_sync,business_intelligence_sync,reports_sync,affected_records,checked_at").eq("status_key","PRIMARY").single(),client.from("reservation_execution_diagnostics").select("reference,status,failed_step,exception_message,affected_record,suggested_fix,steps,created_at").order("created_at",{ascending:false}).limit(10),client.from("founder_notification_deliveries").select("id,project_id,recipient,attempt_number,status,provider_response,failure_reason,attempted_at,projects(name,orbit_event_id),customers(full_name)").order("attempted_at",{ascending:false}).limit(30),client.from("crm_profile_diagnostics").select("id,customer_name,module,failed_component,exception,suggested_cause,created_at").order("created_at",{ascending:false}).limit(20)]);
+  if(diagnosticsError||founderDeliveryError||crmDiagnosticsError)throw diagnosticsError??founderDeliveryError??crmDiagnosticsError;
   const googleConfigured = Boolean(process.env.GOOGLE_WORKSPACE_CLIENT_ID && process.env.GOOGLE_WORKSPACE_CLIENT_SECRET && process.env.GOOGLE_WORKSPACE_REDIRECT_URI);
   const googleConnection = googleConfigured
     ? await loadGoogleWorkspaceConnection().catch(() => createDisconnectedGoogleWorkspaceConnection("AUTHENTICATION_ERROR"))
@@ -32,6 +33,7 @@ export default async function SettingsPage() {
       <CompanySettingsCenter settings={companySettings}/>
       <ReservationDiagnostics diagnostics={(diagnostics??[])as ReservationDiagnostic[]}/>
       <FounderNotificationDiagnostics deliveries={(founderDeliveries??[])as unknown as FounderNotificationDelivery[]}/>
+      <CrmDiagnostics diagnostics={(crmDiagnostics??[])as CrmDiagnostic[]}/>
       {integrity&&<FinancialIntegrityStatus data={integrity}/>}
       <ModuleManagerCenter initialStates={modules}/>
       <FounderWorkspaceSettings initialPreferences={founderWorkspace}/>
