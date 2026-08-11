@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { navigationItems } from "./navigation";
 import { BrandLogo } from "@/components/brand-logo";
 import { BrandSignature } from "@/components/brand-signature";
+import { useModuleManager } from "@/features/module-manager";
 
 export interface NavigationListProps {
   onNavigate?: () => void;
@@ -14,9 +15,10 @@ export interface NavigationListProps {
 
 export function NavigationList({ onNavigate, compact }: NavigationListProps) {
   const pathname = usePathname();
+  const {isEnabled}=useModuleManager();
   return (
     <nav aria-label="Navegación principal" className="space-y-1">
-      {navigationItems.map(({ label, href, icon: Icon }) => {
+      {navigationItems.filter(item=>item.href==="/settings"||isEnabled(item.module)).map(({ label, href, icon: Icon }) => {
         const isActive = href === "/" ? pathname === href : pathname.startsWith(href);
         return <Link
           aria-current={isActive ? "page" : undefined}

@@ -6,10 +6,12 @@ import { loadGoogleWorkspaceConnection } from "@/features/connectors/google-work
 import { CompanySettingsCenter, loadCompanySettings } from "@/features/company-settings";
 import Link from "next/link";
 import { Activity, ArrowRight } from "lucide-react";
+import { ModuleManagerCenter } from "@/features/module-manager";
+import { loadModuleStates } from "@/features/module-manager/repository";
 
 export default async function SettingsPage() {
   const client = await createSupabaseServerClient();
-  const [communication, masterData, companySettings] = await Promise.all([loadCommunicationHubProjection(client), loadMasterData(client),loadCompanySettings(client)]);
+  const [communication, masterData, companySettings,modules] = await Promise.all([loadCommunicationHubProjection(client), loadMasterData(client),loadCompanySettings(client),loadModuleStates(client)]);
   const googleConfigured = Boolean(process.env.GOOGLE_WORKSPACE_CLIENT_ID && process.env.GOOGLE_WORKSPACE_CLIENT_SECRET && process.env.GOOGLE_WORKSPACE_REDIRECT_URI);
   const googleConnection = googleConfigured
     ? await loadGoogleWorkspaceConnection().catch(() => createDisconnectedGoogleWorkspaceConnection("AUTHENTICATION_ERROR"))
@@ -20,6 +22,7 @@ export default async function SettingsPage() {
         <div className="flex items-start gap-4"><span className="rounded-2xl border bg-background p-3 text-brand"><Activity className="size-5"/></span><div><p className="font-semibold">System Health Center</p><p className="mt-1 text-sm text-muted">Estado ejecutivo de ORBIT, infraestructura, Google y seguridad.</p></div></div><ArrowRight className="size-5 shrink-0 text-muted transition group-hover:translate-x-1 group-hover:text-brand"/>
       </Link>
       <CompanySettingsCenter settings={companySettings}/>
+      <ModuleManagerCenter initialStates={modules}/>
       <MasterDataCenter {...masterData} />
       <div id="connections">
       <ConnectionCenter googleConfigured={googleConfigured} googleConnection={googleConnection} />

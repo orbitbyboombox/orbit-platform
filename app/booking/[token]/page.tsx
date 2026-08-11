@@ -3,14 +3,17 @@ import { AutomaticBookingExperience } from "@/features/automatic-booking/automat
 import { loadAutomaticBookingInvitation } from "@/features/automatic-booking/automatic-booking.service";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadActiveMunicipalities } from "@/features/settings/master-data/municipality-master-data";
+import { loadModuleStates } from "@/features/module-manager/repository";
 
 export const dynamic = "force-dynamic";
 
 export default async function AutomaticBookingPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
+  const admin = createAdminClient();
+  const modules = await loadModuleStates(admin);
+  if (!modules.BOOKING_EXPERIENCE) notFound();
   const invitation = await loadAutomaticBookingInvitation(token);
   if (!invitation) notFound();
-  const admin = createAdminClient();
   const [servicesResult, pricesResult, venuesResult, municipalities] = await Promise.all([
     admin.from("master_data_entries").select("code,label,configuration").eq("domain", "SERVICES").eq("enabled", true).order("display_order"),
     admin.from("commercial_prices").select("category,code,duration_hours,destination,unit_price,rules").eq("enabled", true).is("deleted_at", null),
