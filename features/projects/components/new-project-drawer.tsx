@@ -91,6 +91,7 @@ type ServiceConfiguration = {
   hours: number;
   additionalHours: number;
   extras: ServiceExtra[];
+  magnetsMode: "NONE" | "PAID" | "BENEFIT";
   brandingQuantity: number;
 };
 type CreditTerm = "CASH" | "15" | "30" | "45" | "60" | "90" | "CUSTOM";
@@ -102,6 +103,9 @@ const initialService = (service: ReservationService): ServiceConfiguration => ({
   extras: service.defaultExtras
     .map(masterExtraToReservation)
     .filter((extra): extra is ServiceExtra => extra !== null),
+  magnetsMode: service.defaultExtras.includes("UNLIMITED_MAGNETS")
+    ? "PAID"
+    : "NONE",
   brandingQuantity: 2,
 });
 const currency = new Intl.NumberFormat("es-CL", {
@@ -614,7 +618,9 @@ export function NewProjectDrawer({
     ).reduce(
       (sum, extra) =>
         sum +
-        (extra === "Branding"
+        (extra === "Imanes" && configuration.magnetsMode === "BENEFIT"
+          ? 0
+          : extra === "Branding"
           ? Number(extraUnitPrice(extra)) * configuration.brandingQuantity
           : Number(extraUnitPrice(extra))),
       0,
@@ -1044,7 +1050,7 @@ export function NewProjectDrawer({
       )
         .map(
           ([service, configuration]) =>
-            `${serviceLabel(service)}: ${configuration.hours} h + ${configuration.additionalHours} h adicionales · ${Array.from(new Set([...configuration.extras, ...compatibleIncludedExtras(service)])).join(", ") || "sin extras"}`,
+            `${serviceLabel(service)}: ${configuration.hours} h + ${configuration.additionalHours} h adicionales · ${Array.from(new Set([...configuration.extras.map((extra) => extra === "Imanes" && configuration.magnetsMode === "BENEFIT" ? "Imanes · Beneficio BOOMBOX · Incluido $0" : extra), ...compatibleIncludedExtras(service)])).join(", ") || "sin extras"}`,
         )
         .join("\n");
       const maximumHours = Math.max(
@@ -1113,7 +1119,14 @@ export function NewProjectDrawer({
                 new Set([
                   ...(
                     Object.values(configurations) as ServiceConfiguration[]
-                  ).flatMap((configuration) => configuration.extras),
+                  ).flatMap((configuration) =>
+                    configuration.extras.map((extra) =>
+                      extra === "Imanes" &&
+                      configuration.magnetsMode === "BENEFIT"
+                        ? "Imanes · Beneficio BOOMBOX · Incluido $0"
+                        : extra,
+                    ),
+                  ),
                   ...compatibleIncludedExtrasSelected,
                 ]),
               ),
@@ -1931,6 +1944,57 @@ export function NewProjectDrawer({
                                     {quantity} caras
                                   </option>
                                 ))}
+                              </select>
+                            </label>
+                          );
+                        if (extra === "Imanes")
+                          return (
+                            <label
+                              className={cn(
+                                "rounded-xl border p-3 text-sm",
+                                selected && "border-brand bg-brand/5",
+                              )}
+                              key={extra}
+                            >
+                              <span className="font-semibold">Imanes</span>
+                              <span className="mt-1 block text-xs text-muted">
+                                Precio oficial {currency.format(Number(unit))}
+                              </span>
+                              <select
+                                className="mt-3 h-10 w-full rounded-lg border bg-background px-3"
+                                onChange={(event) => {
+                                  const magnetsMode = event.target.value as
+                                    | "NONE"
+                                    | "PAID"
+                                    | "BENEFIT";
+                                  updateService(service, {
+                                    magnetsMode,
+                                    extras:
+                                      magnetsMode === "NONE"
+                                        ? configuration.extras.filter(
+                                            (item) => item !== "Imanes",
+                                          )
+                                        : Array.from(
+                                            new Set([
+                                              ...configuration.extras,
+                                              "Imanes" as ServiceExtra,
+                                            ]),
+                                          ),
+                                  });
+                                }}
+                                value={
+                                  configuration.extras.includes("Imanes")
+                                    ? (configuration.magnetsMode ?? "PAID")
+                                    : "NONE"
+                                }
+                              >
+                                <option value="NONE">No incluidos</option>
+                                <option value="PAID">
+                                  +{currency.format(Number(unit))}
+                                </option>
+                                <option value="BENEFIT">
+                                  Incluido · Beneficio BOOMBOX · $0
+                                </option>
                               </select>
                             </label>
                           );
