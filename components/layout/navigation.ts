@@ -30,7 +30,7 @@ export interface NavigationItem {
 
 export const navigationItems: readonly NavigationItem[] = [
   { label: "Inicio", href: "/operations", icon: Gauge, module:"DASHBOARD" },
-  { label: "Clientes", href: "/projects", icon: FolderKanban, module:"PROJECTS" },
+  { label: "Clientes", href: "/customers", icon: FolderKanban, module:"PROJECTS" },
   { label: "Tareas", href: "/tasks", icon: ListChecks, module:"OPERATIONS" },
   { label: "Recursos", href: "/resources", icon: Layers3, module:"RESOURCES" },
   { label: "Finanzas", href: "/finance", icon: CircleDollarSign, module:"FINANCE" },

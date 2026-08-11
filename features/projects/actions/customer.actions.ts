@@ -179,11 +179,7 @@ export async function softDeleteCustomerByProjectAction(projectId: string, reaso
     const message = "Reserva cancelada y sincronizada: Calendar eliminado, Drive archivado, Portal desactivado y estados operacionales actualizados.";
     const { error: timelineError } = await client.from("timeline_events").insert({ customer_id: data.customer_id, project_id: projectId, orbit_event_id: data.orbit_event_id, event_type: "RESERVATION_CANCELLED_AND_SYNCHRONIZED", title: "Reserva cancelada y sincronizada", description: message, actor_id: auth.user.id, actor_label: "Administrador", source: "Administrator", action: "RESERVATION_CANCELLED", entity_type: "Project", entity_id: projectId, human_message: message, correlation_id: `reservation:${data.orbit_event_id}:cancelled:${crypto.randomUUID()}`, reason, created_by: auth.user.id });
     if (timelineError) throw timelineError;
-    if ((otherProjects.count ?? 0) === 0) {
-      const { data: currentCustomer, error: currentCustomerError } = await client.from("customers").select("version").eq("id", data.customer_id).single();
-      if (currentCustomerError) throw currentCustomerError;
-      await new SupabaseCustomerRepository(client).softDelete(data.customer_id, Number(currentCustomer.version), reason);
-    }
+    // El evento puede terminar, pero la relación CRM del cliente permanece.
     ["/projects", "/operations", "/finance", "/finance/receivables", "/reports", "/notifications"].forEach(path => revalidatePath(path));
     return { ok: true, message };
   } catch (error) { return { ok: false, error: error instanceof Error ? error.message : "No fue posible eliminar el cliente." }; }

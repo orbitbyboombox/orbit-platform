@@ -3,7 +3,7 @@ import{BarChart3,CalendarDays,Car,ChartNoAxesCombined,CircleDollarSign,Clock3,Co
 
 export const QUICK_ACTIONS=[
   {key:"NEW_RESERVATION",label:"Nueva Reserva",href:"/projects?reservation=new",icon:FilePlus2,module:"BOOKING_EXPERIENCE"},
-  {key:"CUSTOMERS",label:"Clientes",href:"/projects?view=customers",icon:Contact,module:"PROJECTS"},
+  {key:"CUSTOMERS",label:"Clientes",href:"/customers",icon:Contact,module:"PROJECTS"},
   {key:"STAFF",label:"Staff",href:"/resources/staff",icon:UsersRound,module:"STAFF"},
   {key:"CALENDAR",label:"Calendario",href:"/projects?view=calendar",icon:CalendarDays,module:"PROJECTS"},
   {key:"NEW_EXPENSE",label:"Nuevo Gasto",href:"/finance/expenses?action=new",icon:ReceiptText,module:"FINANCE"},
