@@ -1,10 +1,13 @@
-import { CommandCenter,ExecutiveControlCenter,type ExecutiveControlData, type CommandCenterProjectReadiness, type ProductionAssignment } from "@/features/operations/components";
+import {type ExecutiveControlData,type CommandCenterProjectReadiness,type ProductionAssignment} from "@/features/operations/components";
 import { SupabaseCustomerRepository } from "@/features/projects/infrastructure";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { loadFinancialTruth } from "@/features/business-engine";
+import {FounderWorkspaceExperience,loadFounderWorkspace,type WorkspaceValues} from "@/features/founder-workspace";
 
 export default async function OperationsPage() {
   const client = await createSupabaseServerClient();
+  const{data:auth,error:authError}=await client.auth.getUser();if(authError||!auth.user)throw authError??new Error("Sesión requerida.");
+  const founderWorkspace=await loadFounderWorkspace(client,auth.user.id);
   const { error: taskMaterializationError } = await client.rpc("materialize_scheduled_event_tasks");
   if (taskMaterializationError) throw taskMaterializationError;
   const financialTruth = await loadFinancialTruth(client);
@@ -96,6 +99,7 @@ export default async function OperationsPage() {
   const availableCases = assets.filter((asset) => asset.asset_type === "CASE" && asset.status === "AVAILABLE").length;
   const availablePrinters = assets.filter((asset) => asset.asset_type === "PRINTER" && asset.status === "AVAILABLE").length;
   const availableCameras = assets.filter((asset) => asset.asset_type === "CAMERA" && asset.status === "AVAILABLE").length;
+  void [availableTotems,availableCases,availablePrinters,availableCameras];
   const openTasks=(tasksResult.data??[]).filter((task)=>!["COMPLETED","CANCELLED"].includes(task.status));
   const taskSummary={
     pending:openTasks.length,
@@ -131,5 +135,7 @@ export default async function OperationsPage() {
     metric("Margen",pct(netMargin),"Motor financiero único","/projects?view=profitability"),
   );
 
-  return <div className="space-y-8"><ExecutiveControlCenter data={controlData}/><CommandCenter availableCameras={availableCameras} availableCases={availableCases} availableOperators={availableOperators} availablePrinters={availablePrinters} availableTotems={availableTotems} executive={{next15Events,accountsReceivable,monthlyRevenue,monthlyExpenses,availableVehicles,projectCount:projects.length,monthlyGoal:0}} readiness={readiness} staffIntelligence={staffIntelligence} taskSummary={taskSummary}/></div>;
+  const workspaceValues:WorkspaceValues={TODAY_EVENTS:{value:String(projects.filter(project=>project.event.date===today).length),detail:"Agenda operacional de hoy"},UPCOMING_EVENTS:{value:String(next15Events),detail:"Próximos 15 días"},ACCOUNTS_RECEIVABLE:{value:money(accountsReceivable),detail:`${activeInvoices.length} documentos abiertos`},ACCOUNTS_PAYABLE:{value:money(accountsPayable),detail:`${money(monthlyExpenses)} en gastos del mes`},MONTHLY_REVENUE:{value:money(monthlyRevenue),detail:"Reservas confirmadas del mes"},OPERATIONAL_COST:{value:money(monthlyTotalOperationalCost),detail:"Personal + recursos operacionales"},PROFITABILITY:{value:money(realProfit),detail:`Margen ${pct(netMargin)}`},BUSINESS_INTELLIGENCE:{value:"Abrir",detail:"Indicadores productivos"},FUEL:{value:money(costSum("fuel")),detail:"Costo asignado a eventos"},PAPER_CONSUMPTION:{value:money(costSum("paper")),detail:"Consumo valorizado"},STAFF:{value:String(activeAssignments.length),detail:`${availableOperators} operadores disponibles`},FLEET:{value:String(availableVehicles),detail:"Vehículos disponibles"},NOTIFICATIONS:{value:String(controlData.alerts.length),detail:`${readiness.length} eventos supervisados`}};
+  const currentDate=new Intl.DateTimeFormat("es-CL",{dateStyle:"full",timeZone:"America/Santiago"}).format(new Date());
+  return <FounderWorkspaceExperience currentDate={currentDate} founderName="Matías" initialPreferences={founderWorkspace} pendingTasks={taskSummary.pending} todayEvents={projects.filter(project=>project.event.date===today).length} values={workspaceValues}/>;
 }

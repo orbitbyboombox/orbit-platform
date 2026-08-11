@@ -10,11 +10,13 @@ import { ModuleManagerCenter } from "@/features/module-manager";
 import { loadModuleStates } from "@/features/module-manager/repository";
 import {ProfitabilitySettings}from"@/features/settings/profitability-settings";
 import {ProductionInitializationCenter}from"@/features/settings/production-initialization/production-initialization-center";
+import{FounderWorkspaceSettings,loadFounderWorkspace}from"@/features/founder-workspace";
 
 export default async function SettingsPage() {
   const client = await createSupabaseServerClient();
+  const{data:auth,error:authError}=await client.auth.getUser();if(authError||!auth.user)throw authError??new Error("Sesión requerida.");
   await client.rpc("validate_financial_integrity");
-  const [communication, masterData, companySettings,modules,{data:profitabilitySettings},{data:integrity}] = await Promise.all([loadCommunicationHubProjection(client), loadMasterData(client),loadCompanySettings(client),loadModuleStates(client),client.from("profitability_settings").select("high_margin_threshold,normal_margin_threshold").eq("settings_key","PRIMARY").single(),client.from("financial_integrity_status").select("integrity_percent,reservation_sync,finance_sync,dashboard_sync,business_intelligence_sync,reports_sync,affected_records,checked_at").eq("status_key","PRIMARY").single()]);
+  const [communication, masterData, companySettings,modules,founderWorkspace,{data:profitabilitySettings},{data:integrity}] = await Promise.all([loadCommunicationHubProjection(client), loadMasterData(client),loadCompanySettings(client),loadModuleStates(client),loadFounderWorkspace(client,auth.user.id),client.from("profitability_settings").select("high_margin_threshold,normal_margin_threshold").eq("settings_key","PRIMARY").single(),client.from("financial_integrity_status").select("integrity_percent,reservation_sync,finance_sync,dashboard_sync,business_intelligence_sync,reports_sync,affected_records,checked_at").eq("status_key","PRIMARY").single()]);
   const googleConfigured = Boolean(process.env.GOOGLE_WORKSPACE_CLIENT_ID && process.env.GOOGLE_WORKSPACE_CLIENT_SECRET && process.env.GOOGLE_WORKSPACE_REDIRECT_URI);
   const googleConnection = googleConfigured
     ? await loadGoogleWorkspaceConnection().catch(() => createDisconnectedGoogleWorkspaceConnection("AUTHENTICATION_ERROR"))
@@ -27,6 +29,7 @@ export default async function SettingsPage() {
       <CompanySettingsCenter settings={companySettings}/>
       {integrity&&<FinancialIntegrityStatus data={integrity}/>}
       <ModuleManagerCenter initialStates={modules}/>
+      <FounderWorkspaceSettings initialPreferences={founderWorkspace}/>
       <ProfitabilitySettings high={Number(profitabilitySettings?.high_margin_threshold??40)} normal={Number(profitabilitySettings?.normal_margin_threshold??20)}/>
       <ProductionInitializationCenter/>
       <MasterDataCenter {...masterData} />
