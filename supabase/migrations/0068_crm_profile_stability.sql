@@ -45,9 +45,13 @@ from public.projects p where e.project_id=p.id and e.customer_id is distinct fro
 update public.crm_reservations r set customer_id=e.customer_id,updated_at=now()
 from public.crm_events e where r.event_id=e.id and r.customer_id is distinct from e.customer_id;
 
-update public.timeline_events t set customer_id=p.customer_id,crm_event_id=e.id
-from public.projects p left join public.crm_events e on e.project_id=p.id
-where t.project_id=p.id and (t.customer_id is distinct from p.customer_id or (t.crm_event_id is null and e.id is not null));
+-- Timeline is append-only by design. Preserve legacy history and surface links
+-- that cannot be repaired without mutating an audit record.
+insert into public.crm_data_integrity_issues(issue_type,entity_type,entity_id,related_ids,details,status)
+select 'LEGACY_TIMELINE_LINK','Timeline',t.id,array[p.id],jsonb_build_object('projectId',p.id,'expectedCustomerId',p.customer_id,'currentCustomerId',t.customer_id,'crmEventId',t.crm_event_id),'OPEN'
+from public.timeline_events t join public.projects p on p.id=t.project_id left join public.crm_events e on e.project_id=p.id
+where t.customer_id is distinct from p.customer_id or (t.crm_event_id is null and e.id is not null)
+on conflict(issue_type,entity_type,entity_id) do update set details=excluded.details,status='OPEN',detected_at=now();
 
 update public.quotations q set customer_id=p.customer_id,updated_at=now()
 from public.projects p where q.project_id=p.id and q.customer_id is distinct from p.customer_id;
