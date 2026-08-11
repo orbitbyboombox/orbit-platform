@@ -1,8 +1,42 @@
-export const projectTypes = ["Wedding", "Corporate", "Birthday", "Graduation", "Private", "Other"] as const;
-export const projectStatuses = ["Active", "Upcoming", "Completed", "Archived"] as const;
-export const projectHealthLevels = ["Healthy", "Attention", "Risk", "Critical"] as const;
-export const projectCommercialStages = ["New", "Contacted", "Quoting", "Waiting", "Reserved", "Confirmed", "Production", "Finished"] as const;
-export const projectOrigins = ["WhatsApp", "Instagram", "Google", "Website", "Referral", "FormerClient", "Other"] as const;
+export const projectTypes = [
+  "Wedding",
+  "Corporate",
+  "Birthday",
+  "Graduation",
+  "Private",
+  "Other",
+] as const;
+export const projectStatuses = [
+  "Active",
+  "Upcoming",
+  "Completed",
+  "Archived",
+] as const;
+export const projectHealthLevels = [
+  "Healthy",
+  "Attention",
+  "Risk",
+  "Critical",
+] as const;
+export const projectCommercialStages = [
+  "New",
+  "Contacted",
+  "Quoting",
+  "Waiting",
+  "Reserved",
+  "Confirmed",
+  "Production",
+  "Finished",
+] as const;
+export const projectOrigins = [
+  "WhatsApp",
+  "Instagram",
+  "Google",
+  "Website",
+  "Referral",
+  "FormerClient",
+  "Other",
+] as const;
 
 export type ProjectType = (typeof projectTypes)[number];
 export type ProjectService = string;
@@ -45,9 +79,12 @@ export interface Project {
   salesOwner?: string;
   nextAction?: string;
   tags?: string[];
+  reservationTransactionId?: string;
+  reservationResumed?: boolean;
 }
 
 export interface ProjectDraft {
+  reservationTransactionId?: string;
   crmCustomerId?: string;
   type?: ProjectType;
   client: Project["client"];
@@ -56,7 +93,12 @@ export interface ProjectDraft {
   origin?: ProjectOrigin;
   notes: string;
   commercialFormalization?: {
-    type: "CONTRACT_INVOICE" | "INVOICE_ONLY" | "PURCHASE_ORDER" | "BOOMBOX_AGREEMENT" | "NO_CONTRACT";
+    type:
+      | "CONTRACT_INVOICE"
+      | "INVOICE_ONLY"
+      | "PURCHASE_ORDER"
+      | "BOOMBOX_AGREEMENT"
+      | "NO_CONTRACT";
     requiresSignature: boolean;
     documentType: "SIGNED_CONTRACT" | "COMMERCIAL_DOCUMENT";
     signatureDataUrl?: string;
@@ -80,7 +122,13 @@ export interface ProjectDraft {
     difference: number;
     differencePercentage: number;
     discountAmount: number;
-    discountReason: "FREQUENT_CUSTOMER" | "CORPORATE_AGREEMENT" | "PROMOTION" | "COURTESY" | "FOUNDER_APPROVAL" | "OTHER";
+    discountReason:
+      | "FREQUENT_CUSTOMER"
+      | "CORPORATE_AGREEMENT"
+      | "PROMOTION"
+      | "COURTESY"
+      | "FOUNDER_APPROVAL"
+      | "OTHER";
     discountReasonDetail?: string;
     commercialCharge: number;
     commercialChargeDescription?: string;
