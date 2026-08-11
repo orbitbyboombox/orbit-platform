@@ -6,12 +6,14 @@ import { loadActiveMunicipalities } from "@/features/settings/master-data/munici
 export default async function ProjectsRoute() {
   const client = await createSupabaseServerClient();
   const repository = new SupabaseCustomerRepository(client);
-  const [projects, commercialPricesResult, servicesResult, venuesResult, municipalities] = await Promise.all([
+  const { data: auth } = await client.auth.getUser();
+  const [projects, commercialPricesResult, servicesResult, venuesResult, municipalities, profileResult] = await Promise.all([
     repository.findAll(),
     client.from("commercial_prices").select("category,code,label,duration_hours,destination,unit_price,pricing_status,rules").eq("enabled", true).is("deleted_at", null),
     client.from("master_data_entries").select("code,label,display_order,configuration").eq("domain", "SERVICES").eq("enabled", true).order("display_order"),
     client.from("master_data_entries").select("configuration").eq("domain", "SYSTEM_PARAMETERS").eq("code", "EVENT_VENUES").eq("enabled", true).maybeSingle(),
     loadActiveMunicipalities(client),
+    auth.user ? client.from("profiles").select("role").eq("id", auth.user.id).single() : Promise.resolve({ data: null, error: null }),
   ]);
   if (commercialPricesResult.error) throw commercialPricesResult.error;
   if (servicesResult.error) throw servicesResult.error;
@@ -44,5 +46,6 @@ export default async function ProjectsRoute() {
       behavior: String(config.behavior ?? basePrice?.rules?.behavior ?? "SELECTABLE"),
     };
   });
-  return <ProjectsPage commercialPrices={commercialPrices} initialProjects={projects} municipalities={municipalities} services={services} venues={venues} />;
+  const canNegotiate = ["CEO", "ADMINISTRATOR", "SALES"].includes(profileResult.data?.role ?? "");
+  return <ProjectsPage canNegotiate={canNegotiate} commercialPrices={commercialPrices} initialProjects={projects} municipalities={municipalities} services={services} venues={venues} />;
 }

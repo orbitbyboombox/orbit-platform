@@ -3,7 +3,7 @@ export interface BusinessIntelligenceDataset{
   customers:readonly {id:string;full_name:string;city:string|null;metadata:Record<string,unknown>;created_at:string}[];
   projects:readonly {id:string;customer_id:string;name:string;project_type:string;status:string;event_date:string|null;city:string|null;location:string|null;created_at:string}[];
   services:readonly {project_id:string;service_code:string;duration_hours:number|null}[];
-  quotations:readonly {id:string;project_id:string;customer_id:string;status:string;final_customer_price:number|null;grand_total:number;approved_by:string|null;created_by:string|null;created_at:string;approved_at:string|null}[];
+  quotations:readonly {id:string;project_id:string;customer_id:string;status:string;official_price:number;final_customer_price:number|null;grand_total:number;discount_total:number;pricing_snapshot:Record<string,unknown>|null;approved_by:string|null;created_by:string|null;created_at:string;approved_at:string|null}[];
   quotationItems:readonly {quotation_id:string;item_type:string;code:string;label:string;total:number}[];
   profits:readonly {id:string;project_id:string;revenue:number;operational_cost:number;gross_margin:number;gross_margin_percent:number;created_at:string;status?:string}[];
   assignments:readonly {id:string;project_id:string;staff_id:string;assignment_type:string;status:string;created_at:string}[];

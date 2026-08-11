@@ -28,15 +28,17 @@ export async function createCustomerProjectAction(draft: ProjectDraft): Promise<
     const { data: profile, error: profileError } = await client.from("profiles").select("role").eq("id", auth.user.id).single();
     if (profileError) throw profileError;
     const adjustment = draft.commercialAdjustment;
-    if (adjustment && !["CEO", "ADMINISTRATOR"].includes(profile.role)) throw new Error("Solo Administración puede aplicar ajustes comerciales.");
-    if (adjustment && !adjustment.reason.trim()) throw new Error("El motivo del descuento es obligatorio.");
+    if (adjustment && !["CEO", "ADMINISTRATOR", "SALES"].includes(profile.role)) throw new Error("Solo Administración o Comercial puede aplicar ajustes comerciales.");
+    if (adjustment && adjustment.discountAmount > 0 && !adjustment.reason.trim()) throw new Error("El motivo del descuento es obligatorio.");
     const repository = new SupabaseCustomerRepository(client);
     const project = await repository.createWithProject(draft);
     if (adjustment) {
       const subtotal = Math.max(0, Number(adjustment.subtotal));
-      const value = Math.max(0, Number(adjustment.value));
-      const discount = Math.min(subtotal, adjustment.type === "PERCENT" ? Math.round(subtotal * Math.min(value, 100) / 100) : value);
-      const finalTotal = subtotal - discount;
+      const discount = Math.max(0, Number(adjustment.discountAmount));
+      const charges = Math.max(0, Number(adjustment.commercialCharge));
+      const courtesyValue = Math.max(0, Number(adjustment.courtesyValue));
+      const finalTotal = Math.max(0, Number(adjustment.finalPrice));
+      const priceDifference = finalTotal - subtotal;
       const { data: persistedProject, error: projectError } = await client.from("projects").select("id,customer_id,orbit_event_id").eq("id", project.id).single();
       if (projectError) throw projectError;
       const today = new Date();
@@ -59,18 +61,18 @@ export async function createCustomerProjectAction(draft: ProjectDraft): Promise<
         expiration_date: expiration.toISOString().slice(0, 10),
         subtotal,
         transport_total: 0,
-        discount_total: discount,
+        discount_total: discount + courtesyValue,
         tax_total: 0,
         grand_total: finalTotal,
         official_price: subtotal,
         final_customer_price: finalTotal,
-        price_difference: -discount,
-        negotiation_method: adjustment.type === "PERCENT" ? "PERCENT_DISCOUNT" : "FIXED_DISCOUNT",
-        negotiation_value: value,
+        price_difference: priceDifference,
+        negotiation_method: "MANUAL",
+        negotiation_value: finalTotal,
         negotiation_reason: adjustment.reason.trim(),
         negotiated_by: auth.user.id,
         negotiated_at: new Date().toISOString(),
-        pricing_snapshot: { commercialAdjustment: adjustment, discount, finalTotal },
+        pricing_snapshot: { commercialNegotiation: adjustment, officialPrice: subtotal, discount, commercialCharges: charges, courtesyValue, finalTotal, paymentCondition: adjustment.paymentCondition, paymentTermDays: adjustment.paymentTermDays },
         blockers: [],
         created_by: auth.user.id,
         updated_by: auth.user.id,
@@ -81,10 +83,19 @@ export async function createCustomerProjectAction(draft: ProjectDraft): Promise<
         quotationCreated = true;
       }
       if (quotationCreated && quotation) {
-        const message = `Descuento comercial de ${new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(discount)} aplicado. Motivo: ${adjustment.reason.trim()}`;
+        const format = new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 });
+        const message = `Negociación comercial registrada. Precio oficial ${format.format(subtotal)} · descuento ${format.format(discount)} · cargos ${format.format(charges)} · cortesías ${format.format(courtesyValue)} · precio final ${format.format(finalTotal)} · condición ${adjustment.paymentCondition} · plazo ${adjustment.paymentTermDays} días.`;
         const { error: timelineError } = await client.from("timeline_events").insert({ orbit_event_id: persistedProject.orbit_event_id, project_id: project.id, customer_id: persistedProject.customer_id, event_type: "QUOTATION_UPDATED", title: message, description: message, actor_id: auth.user.id, actor_label: "Administrador", source: "Administrator", action: "QUOTATION_UPDATED", entity_type: "Quotation", entity_id: quotation.id, human_message: message, correlation_id: crypto.randomUUID(), reason: adjustment.reason.trim(), created_by: auth.user.id });
         if (timelineError) throw timelineError;
       }
+      const { data: currentProject, error: currentProjectError } = await client.from("projects").select("finance,operations").eq("id", project.id).single();
+      if (currentProjectError) throw currentProjectError;
+      const currentFinance = currentProject.finance && typeof currentProject.finance === "object" ? currentProject.finance as Record<string, unknown> : {};
+      const currentOperations = currentProject.operations && typeof currentProject.operations === "object" ? currentProject.operations as Record<string, unknown> : {};
+      const negotiatedAt = new Date().toISOString();
+      const negotiation = { officialPrice: subtotal, commercialDiscount: discount, commercialCharges: charges, courtesyValue, finalPrice: finalTotal, paymentCondition: adjustment.paymentCondition, paymentTermDays: adjustment.paymentTermDays, negotiationReason: adjustment.reason, negotiatedBy: auth.user.id, negotiatedAt };
+      const { error: financeError } = await client.from("projects").update({ finance: { ...currentFinance, ...negotiation }, operations: { ...currentOperations, commercialNegotiation: adjustment, paymentClause: adjustment.paymentCondition === "CASH" ? "Pago al contado." : adjustment.paymentCondition === "CORPORATE_CREDIT" ? `Pago a ${adjustment.paymentTermDays} días desde la emisión de la factura.` : "Reserva 50% y saldo antes del evento." }, updated_by: auth.user.id }).eq("id", project.id);
+      if (financeError) throw financeError;
     }
     await Promise.all([
       synchronizeConfirmedReservationCalendar({ client, projectId: project.id, actorId: auth.user.id }),

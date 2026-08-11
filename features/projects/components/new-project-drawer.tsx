@@ -45,6 +45,7 @@ const extraCodes = {
   Branding: "BRANDING",
   QR: "QR",
   Imanes: "UNLIMITED_MAGNETS",
+  Scrapbook: "SCRAPBOOK",
 } as const;
 type ServiceExtra = "Branding" | "QR" | "Imanes" | "Scrapbook";
 type ServiceConfiguration = {
@@ -54,6 +55,9 @@ type ServiceConfiguration = {
   brandingQuantity: number;
 };
 type CreditTerm = "CASH" | "15" | "30" | "45" | "60" | "90" | "CUSTOM";
+type PaymentCondition = "FIFTY_FIFTY" | "CASH" | "CORPORATE_CREDIT";
+type DiscountReason = "FREQUENT_CUSTOMER" | "CORPORATE_AGREEMENT" | "PROMOTION" | "COURTESY" | "FOUNDER_APPROVAL" | "OTHER";
+type CourtesyCode = "QR" | "SCRAPBOOK" | "MAGNETS" | "TRANSPORT" | "EXTRA_HOUR";
 const initialService = (service: ReservationService): ServiceConfiguration => ({
   hours: service.minimumHours as ServiceConfiguration["hours"],
   additionalHours: 0,
@@ -123,6 +127,7 @@ export interface ReservationService {
 }
 const masterExtraToReservation = (code: string): ServiceExtra | null => code === "BRANDING" ? "Branding" : code === "QR" ? "QR" : code === "UNLIMITED_MAGNETS" ? "Imanes" : code === "SCRAPBOOK" ? "Scrapbook" : null;
 export interface NewProjectDrawerProps {
+  canNegotiate: boolean;
   commercialPrices: ReservationCommercialPrice[];
   municipalities: ActiveMunicipality[];
   services: ReservationService[];
@@ -275,7 +280,7 @@ function CommercialSummary({ balance, discount, extras, plan, reservation, subto
   );
 }
 
-export function NewProjectDrawer({ commercialPrices, municipalities, services, venues, open, onClose, onCreate }: NewProjectDrawerProps) {
+export function NewProjectDrawer({ canNegotiate, commercialPrices, municipalities, services, venues, open, onClose, onCreate }: NewProjectDrawerProps) {
   const [step, setStep] = useState(0);
   const [method, setMethod] = useState<"MANUAL" | "AUTOMATIC">("MANUAL");
   const [invitationEmail, setInvitationEmail] = useState("");
@@ -303,9 +308,14 @@ export function NewProjectDrawer({ commercialPrices, municipalities, services, v
   const [error, setError] = useState("");
   const [createdProject, setCreatedProject] = useState<Project | null>(null);
   const [portalMessage, setPortalMessage] = useState("");
-  const [adjustmentType, setAdjustmentType] = useState<"FIXED" | "PERCENT">("FIXED");
-  const [adjustmentValue, setAdjustmentValue] = useState(0);
-  const [adjustmentReason, setAdjustmentReason] = useState("");
+  const [discountAmount, setDiscountAmount] = useState(0);
+  const [discountReason, setDiscountReason] = useState<DiscountReason>("FREQUENT_CUSTOMER");
+  const [discountReasonDetail, setDiscountReasonDetail] = useState("");
+  const [commercialCharge, setCommercialCharge] = useState(0);
+  const [commercialChargeDescription, setCommercialChargeDescription] = useState("");
+  const [transportOverride, setTransportOverride] = useState<number | null>(null);
+  const [courtesies, setCourtesies] = useState<CourtesyCode[]>([]);
+  const [paymentCondition, setPaymentCondition] = useState<PaymentCondition>("FIFTY_FIFTY");
   const serviceByCode = new Map(services.map((service) => [service.code, service]));
   const serviceLabel = (service: ProjectService) => serviceByCode.get(service)?.name ?? service;
   const additionalHourRate = (service: ProjectService) => serviceByCode.get(service)?.additionalHourPrice ?? 0;
@@ -322,7 +332,6 @@ export function NewProjectDrawer({ commercialPrices, municipalities, services, v
   const brandingMaximum = Math.min(4, Math.max(brandingMinimum, Number(brandingPrice?.rules?.maximumQuantity ?? 4)));
   const extraUnitPrice = (extra: ServiceExtra) => {
     if (includedExtras.includes(extra)) return 0;
-    if (extra === "Scrapbook" && draft.type === "Corporate") return 50_000;
     const code = extraCodes[extra as keyof typeof extraCodes];
     return code ? (priceFor("EXTRA", code)?.unitPrice ?? 0) : 0;
   };
@@ -340,11 +349,28 @@ export function NewProjectDrawer({ commercialPrices, municipalities, services, v
     return base + configuration.additionalHours * additionalHourRate(service) + extras;
   };
   const servicesTotal = (Object.entries(configurations) as Array<[ProjectService, ServiceConfiguration]>).reduce((sum, [service, configuration]) => sum + serviceTotal(service, configuration), 0);
-  const commercialTotal = servicesTotal + Number(transportTotal ?? 0) + venueSurcharge;
-  const discountTotal = Math.min(commercialTotal, Math.max(0, adjustmentType === "PERCENT" ? Math.round(commercialTotal * Math.min(adjustmentValue, 100) / 100) : adjustmentValue));
-  const adjustedSubtotal = commercialTotal - discountTotal;
+  const officialServicePrice = (Object.entries(configurations) as Array<[ProjectService, ServiceConfiguration]>).reduce((sum, [service, configuration]) => sum + serviceBasePrice(service, configuration) + configuration.additionalHours * additionalHourRate(service), 0);
+  const officialExtras = Math.max(0, servicesTotal - officialServicePrice);
+  const officialTransport = Number(transportTotal ?? 0);
+  const commercialTotal = servicesTotal + officialTransport + venueSurcharge;
+  const selectedConfigurationsForCourtesy = Object.values(configurations) as ServiceConfiguration[];
+  const courtesyDefinitions: Array<{ code: CourtesyCode; label: string; officialValue: number; alreadyPurchased: boolean }> = [
+    { code: "QR", label: "QR incluido", officialValue: Number(priceFor("EXTRA", extraCodes.QR)?.unitPrice ?? 0), alreadyPurchased: selectedConfigurationsForCourtesy.some((configuration) => configuration.extras.includes("QR")) || includedExtras.includes("QR") },
+    { code: "SCRAPBOOK", label: "Scrapbook incluido", officialValue: Number(priceFor("EXTRA", extraCodes.Scrapbook)?.unitPrice ?? 0), alreadyPurchased: selectedConfigurationsForCourtesy.some((configuration) => configuration.extras.includes("Scrapbook")) || includedExtras.includes("Scrapbook") },
+    { code: "MAGNETS", label: "Imanes incluidos", officialValue: Number(priceFor("EXTRA", extraCodes.Imanes)?.unitPrice ?? 0), alreadyPurchased: selectedConfigurationsForCourtesy.some((configuration) => configuration.extras.includes("Imanes")) },
+    { code: "TRANSPORT", label: "Transporte incluido", officialValue: officialTransport, alreadyPurchased: officialTransport > 0 },
+    { code: "EXTRA_HOUR", label: "Hora extra incluida", officialValue: (Object.entries(configurations) as Array<[ProjectService, ServiceConfiguration]>).reduce((sum, [service, configuration]) => sum + configuration.additionalHours * additionalHourRate(service), 0), alreadyPurchased: selectedConfigurationsForCourtesy.some((configuration) => configuration.additionalHours > 0) },
+  ];
+  const appliedCourtesies = courtesyDefinitions.filter((courtesy) => courtesies.includes(courtesy.code) && courtesy.officialValue > 0);
+  const courtesyAddedOfficial = appliedCourtesies.filter((courtesy) => !courtesy.alreadyPurchased).reduce((sum, courtesy) => sum + courtesy.officialValue, 0);
+  const courtesyValue = appliedCourtesies.reduce((sum, courtesy) => sum + courtesy.officialValue, 0);
+  const appliedTransport = courtesies.includes("TRANSPORT") ? 0 : Math.max(0, transportOverride ?? officialTransport);
+  const transportAdjustment = appliedTransport - officialTransport;
+  const negotiatedOfficialTotal = commercialTotal + courtesyAddedOfficial;
+  const discountTotal = Math.min(negotiatedOfficialTotal + Math.max(0, transportAdjustment) + commercialCharge, Math.max(0, discountAmount));
+  const adjustedSubtotal = Math.max(0, negotiatedOfficialTotal + transportAdjustment + commercialCharge - discountTotal - courtesyValue);
   const payableTotal = Math.round(adjustedSubtotal * (paymentMethod === "MERCADO_PAGO" ? 1.05 : 1));
-  const reservationTotal = Math.round(payableTotal * 0.5);
+  const reservationTotal = paymentCondition === "CASH" ? payableTotal : paymentCondition === "CORPORATE_CREDIT" ? 0 : Math.round(payableTotal * 0.5);
   const balanceTotal = payableTotal - reservationTotal;
   const compatibleIncludedExtrasSelected = (Object.keys(configurations) as ProjectService[]).flatMap(compatibleIncludedExtras);
   const consolidatedExtras =
@@ -365,13 +391,15 @@ export function NewProjectDrawer({ commercialPrices, municipalities, services, v
   if (compatibleIncludedExtrasSelected.includes("QR")) commercialExtras.push({ label: "QR", value: "Incluido" }); else if (extraSelected("QR")) commercialExtras.push({ label: "QR", value: `+${currency.format(extraSubtotal("QR"))}` });
   if (extraSelected("Imanes")) commercialExtras.push({ label: "Imanes", value: `+${currency.format(extraSubtotal("Imanes"))}` });
   if (compatibleIncludedExtrasSelected.includes("Scrapbook")) commercialExtras.push({ label: "Scrapbook", value: "Incluido" }); else if (extraSelected("Scrapbook")) commercialExtras.push({ label: "Scrapbook", value: `+${currency.format(extraSubtotal("Scrapbook"))}` });
-  if (selectedMunicipality && transportTotal !== null) commercialExtras.push({ label: `Transporte · ${selectedMunicipality.province}`, value: transportTotal ? `+${currency.format(transportTotal)}` : "Incluido" });
+  if (selectedMunicipality && transportTotal !== null) commercialExtras.push({ label: `Transporte · ${selectedMunicipality.province}`, value: appliedTransport ? `+${currency.format(appliedTransport)}` : "Incluido" });
   if (venueSurcharge > 0) commercialExtras.push({ label: `Recargo sede · ${selectedVenue?.name}`, value: `+${currency.format(venueSurcharge)}` });
+  appliedCourtesies.forEach((courtesy) => commercialExtras.push({ label: courtesy.label, value: "Beneficio BOOMBOX · $0" }));
+  if (commercialCharge > 0) commercialExtras.push({ label: commercialChargeDescription.trim() || "Cargo comercial", value: `+${currency.format(commercialCharge)}` });
   const isCorporateCustomer = draft.type === "Corporate";
   const paymentDueDate = (() => {
-    const base = isCorporateCustomer ? new Date() : draft.event.date ? new Date(`${draft.event.date}T12:00:00`) : null;
+    const base = paymentCondition === "CORPORATE_CREDIT" ? new Date() : draft.event.date ? new Date(`${draft.event.date}T12:00:00`) : null;
     if (!base || Number.isNaN(base.getTime())) return null;
-    const days = isCorporateCustomer ? (creditTerm === "CUSTOM" ? customCreditDays : Number(creditTerm === "CASH" ? 0 : creditTerm)) : -7;
+    const days = paymentCondition === "CORPORATE_CREDIT" ? (creditTerm === "CUSTOM" ? customCreditDays : Number(creditTerm === "CASH" ? 0 : creditTerm)) : paymentCondition === "CASH" ? 0 : -7;
     base.setDate(base.getDate() + days);
     return base;
   })();
@@ -418,9 +446,16 @@ export function NewProjectDrawer({ commercialPrices, municipalities, services, v
     setError("");
     setCreatedProject(null);
     setPortalMessage("");
-    setAdjustmentType("FIXED");
-    setAdjustmentValue(0);
-    setAdjustmentReason("");
+    setDiscountAmount(0);
+    setDiscountReason("FREQUENT_CUSTOMER");
+    setDiscountReasonDetail("");
+    setCommercialCharge(0);
+    setCommercialChargeDescription("");
+    setTransportOverride(null);
+    setCourtesies([]);
+    setPaymentCondition("FIFTY_FIFTY");
+    setCreditTerm("CASH");
+    setCustomCreditDays(0);
     onClose();
   };
   const toggleService = (service: ProjectService) => {
@@ -454,7 +489,12 @@ export function NewProjectDrawer({ commercialPrices, municipalities, services, v
     });
   };
   const customerValid = Boolean((draft.client.name ?? "").trim() && /^[0-9]{7,8}-[0-9K]$/.test(draft.client.rut ?? "") && (draft.client.phone ?? "").length === 12 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.client.email ?? ""));
-  const valid = step === 0 ? method === "MANUAL" : step === 1 ? customerValid : step === 2 ? Boolean(draft.type && draft.event.location && eventAddress && draft.event.city && draft.event.date && draft.event.time && operationalContact && operationalPhone.length === 12 && (draft.type === "Wedding" ? bride && groom : mainContact)) : step === 3 ? draft.services.length > 0 && (discountTotal === 0 || Boolean(adjustmentReason.trim())) : step === 4 ? termsAccepted && signatureConfirmed : step === 5 ? paymentMethod === "MERCADO_PAGO" || Boolean(receipt) : true;
+  const discountReasonLabel = ({ FREQUENT_CUSTOMER: "Cliente frecuente", CORPORATE_AGREEMENT: "Acuerdo corporativo", PROMOTION: "Promoción", COURTESY: "Cortesía", FOUNDER_APPROVAL: "Aprobación Founder", OTHER: "Otro" } satisfies Record<DiscountReason, string>)[discountReason];
+  const negotiationReason = discountReason === "OTHER" ? discountReasonDetail.trim() : discountReasonLabel;
+  const paymentTermDays = paymentCondition === "CORPORATE_CREDIT" ? (creditTerm === "CUSTOM" ? customCreditDays : Number(creditTerm === "CASH" ? 0 : creditTerm)) : 0;
+  const paymentClause = paymentCondition === "CASH" ? "El pago deberá realizarse al contado." : paymentCondition === "CORPORATE_CREDIT" ? `El pago deberá realizarse dentro de los ${paymentTermDays} días posteriores a la emisión de la factura.` : "La reserva corresponde al 50% del valor total y el saldo deberá pagarse antes del evento.";
+  const negotiationValid = (!discountTotal || Boolean(negotiationReason)) && (!commercialCharge || Boolean(commercialChargeDescription.trim())) && (discountReason !== "OTHER" || !discountTotal || Boolean(discountReasonDetail.trim()));
+  const valid = step === 0 ? method === "MANUAL" : step === 1 ? customerValid : step === 2 ? Boolean(draft.type && draft.event.location && eventAddress && draft.event.city && draft.event.date && draft.event.time && operationalContact && operationalPhone.length === 12 && (draft.type === "Wedding" ? bride && groom : mainContact)) : step === 3 ? draft.services.length > 0 && negotiationValid : step === 4 ? termsAccepted && signatureConfirmed : step === 5 ? paymentMethod === "MERCADO_PAGO" || Boolean(receipt) : true;
   const create = async () => {
     if (!valid) return;
     setSubmitting(true);
@@ -465,13 +505,33 @@ export function NewProjectDrawer({ commercialPrices, municipalities, services, v
       const project = await withReservationTimeout(
         onCreate({
           ...draft,
-          commercialAdjustment: discountTotal > 0 ? { type: adjustmentType, value: adjustmentValue, reason: adjustmentReason.trim(), subtotal: commercialTotal } : undefined,
+          commercialAdjustment: canNegotiate ? {
+            type: "COMMERCIAL_NEGOTIATION",
+            value: discountAmount,
+            reason: negotiationReason || "Precio oficial",
+            subtotal: negotiatedOfficialTotal,
+            officialServicePrice,
+            officialExtras,
+            officialTransport,
+            officialVenueSurcharge: venueSurcharge,
+            discountAmount: discountTotal,
+            discountReason,
+            discountReasonDetail: discountReasonDetail.trim() || undefined,
+            commercialCharge,
+            commercialChargeDescription: commercialChargeDescription.trim() || undefined,
+            appliedTransport,
+            courtesyValue,
+            courtesies: appliedCourtesies.map((courtesy) => ({ code: courtesy.code, label: courtesy.label, officialValue: courtesy.officialValue, appliedValue: 0, reason: "Beneficio BOOMBOX" })),
+            paymentCondition,
+            paymentTermDays,
+            finalPrice: adjustedSubtotal,
+          } : undefined,
           event: {
             ...draft.event,
             durationHours: maximumHours,
             extras: [...Array.from(new Set([...(Object.values(configurations) as ServiceConfiguration[]).flatMap((configuration) => configuration.extras), ...compatibleIncludedExtrasSelected])), ...(transportTotal !== null ? ["Transporte"] : [])],
           },
-          notes: [draft.notes, `Dirección evento: ${eventAddress}`, `Provincia: ${selectedMunicipality?.province ?? "Por confirmar"}`, `Contacto operacional: ${operationalContact} · ${operationalPhone}`, draft.type === "Wedding" ? `Novia: ${bride} · Novio: ${groom}` : `Contacto principal: ${mainContact}`, serviceDetails, specialRequests && `Solicitudes especiales: ${specialRequests}`, commercialNotes && `Notas comerciales: ${commercialNotes}`, "Términos BOOMBOX aceptados", "Firma manuscrita confirmada", `Total comercial: ${currency.format(payableTotal)}`, `Método de pago: ${paymentMethod}`, `Estado de pago: Pendiente`, `Vencimiento: ${formattedDueDate}`, isCorporateCustomer && `Condición de pago: ${creditTerm === "CUSTOM" ? `${customCreditDays} días` : creditTerm === "CASH" ? "Contado" : `${creditTerm} días`}`, purchaseOrder && `Orden de compra: ${purchaseOrder}`, receipt && `Comprobante vinculado: ${receipt}`].filter(Boolean).join("\n"),
+          notes: [draft.notes, `Dirección evento: ${eventAddress}`, `Provincia: ${selectedMunicipality?.province ?? "Por confirmar"}`, `Contacto operacional: ${operationalContact} · ${operationalPhone}`, draft.type === "Wedding" ? `Novia: ${bride} · Novio: ${groom}` : `Contacto principal: ${mainContact}`, serviceDetails, specialRequests && `Solicitudes especiales: ${specialRequests}`, commercialNotes && `Notas comerciales: ${commercialNotes}`, "Términos BOOMBOX aceptados", "Firma manuscrita confirmada", paymentClause, `Total comercial: ${currency.format(payableTotal)}`, `Método de pago: ${paymentMethod}`, `Estado de pago: Pendiente`, `Vencimiento: ${formattedDueDate}`, purchaseOrder && `Orden de compra: ${purchaseOrder}`, receipt && `Comprobante vinculado: ${receipt}`].filter(Boolean).join("\n"),
         }),
       );
       setCreatedProject(project);
@@ -486,7 +546,8 @@ export function NewProjectDrawer({ commercialPrices, municipalities, services, v
   const portalUrl = createdProject ? `${window.location.origin}/projects/${createdProject.id}#portal-cliente` : "";
   const confirmationEmailBody = createdProject ? [`Hola ${createdProject.client.name},`, "¡Reserva confirmada! Bienvenido a BOOMBOX.", "Resumen comercial", ...(Object.entries(configurations) as Array<[ProjectService, ServiceConfiguration]>).map(([service, configuration]) => `${serviceLabel(service)} · ${configuration.hours + configuration.additionalHours} horas · ${currency.format(serviceTotal(service, configuration))}`), `Extras: ${consolidatedExtras}`, `Transporte: ${currency.format(Number(transportTotal ?? 0))}`, `Reserva: ${currency.format(reservationTotal)}`, `Saldo restante: ${currency.format(balanceTotal)}`, `TOTAL: ${currency.format(payableTotal)}`, "Portal BOOMBOX", portalUrl, "Accede utilizando tu RUT y la fecha de tu evento."].join("\n\n") : "";
 
-  const summary = <CommercialSummary balance={balanceTotal} discount={discountTotal} extras={summaryExtras} plan={plan} reservation={reservationTotal} subtotal={commercialTotal} total={payableTotal} />;
+  const summarySubtotal = negotiatedOfficialTotal + transportAdjustment + commercialCharge;
+  const summary = <CommercialSummary balance={balanceTotal} discount={discountTotal + courtesyValue} extras={summaryExtras} plan={plan} reservation={reservationTotal} subtotal={summarySubtotal} total={payableTotal} />;
 
   return (
     <>
@@ -769,16 +830,48 @@ export function NewProjectDrawer({ commercialPrices, municipalities, services, v
                 <TextArea label="Notas comerciales" onChange={(e) => setCommercialNotes(e.target.value)} value={commercialNotes} />
                 <section className="rounded-2xl border border-brand/25 bg-brand/5 p-5">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Solo administración</p>
-                    <h3 className="mt-1 text-lg font-semibold">Ajustes comerciales</h3>
-                    <p className="mt-1 text-sm text-muted">Aplica un descuento antes de generar el Contrato.</p>
+                    <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">💼 Negociación comercial</p>
+                    <h3 className="mt-1 text-lg font-semibold">Propuesta manual</h3>
+                    <p className="mt-1 text-sm text-muted">Los valores oficiales permanecen inmutables. Solo Administración y Comercial pueden negociar.</p>
                   </div>
-                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                    <label className="text-sm font-medium">Tipo de descuento<select className="mt-2 h-11 w-full rounded-lg border bg-background px-3" onChange={(event) => setAdjustmentType(event.target.value as "FIXED" | "PERCENT")} value={adjustmentType}><option value="FIXED">Monto fijo</option><option value="PERCENT">Porcentaje</option></select></label>
-                    <Field label={adjustmentType === "PERCENT" ? "Porcentaje" : "Monto"} max={adjustmentType === "PERCENT" ? 100 : undefined} min="0" onChange={(event) => setAdjustmentValue(Math.max(0, Number(event.target.value)))} type="number" value={adjustmentValue || ""} />
+                  <dl className="mt-4 grid gap-3 rounded-xl border bg-background/40 p-4 text-sm sm:grid-cols-3">
+                    <div><dt className="text-muted">Servicio oficial</dt><dd className="mt-1 font-semibold">{currency.format(officialServicePrice)}</dd></div>
+                    <div><dt className="text-muted">Extras oficiales</dt><dd className="mt-1 font-semibold">{currency.format(officialExtras + venueSurcharge)}</dd></div>
+                    <div><dt className="text-muted">Transporte oficial</dt><dd className="mt-1 font-semibold">{currency.format(officialTransport)}</dd></div>
+                  </dl>
+                  {!canNegotiate && <p className="mt-4 rounded-xl border p-3 text-sm text-muted">Tu perfil puede consultar los precios oficiales, pero no aplicar ajustes.</p>}
+                  <fieldset className="mt-5 space-y-5" disabled={!canNegotiate}>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Field label="Descuento comercial" min="0" onChange={(event) => setDiscountAmount(Math.max(0, Number(event.target.value)))} type="number" value={discountAmount || ""} />
+                      <label className="text-sm font-medium">Motivo<select className="mt-2 h-11 w-full rounded-lg border bg-background px-3" onChange={(event) => setDiscountReason(event.target.value as DiscountReason)} value={discountReason}><option value="FREQUENT_CUSTOMER">Cliente frecuente</option><option value="CORPORATE_AGREEMENT">Acuerdo corporativo</option><option value="PROMOTION">Promoción</option><option value="COURTESY">Cortesía</option><option value="FOUNDER_APPROVAL">Aprobación Founder</option><option value="OTHER">Otro</option></select></label>
+                    </div>
+                    {discountReason === "OTHER" && <Field label="Detalle del motivo" onChange={(event) => setDiscountReasonDetail(event.target.value)} required={discountTotal > 0} value={discountReasonDetail} />}
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Field label="Cargo comercial adicional" min="0" onChange={(event) => setCommercialCharge(Math.max(0, Number(event.target.value)))} type="number" value={commercialCharge || ""} />
+                      <Field label="Descripción del cargo" onChange={(event) => setCommercialChargeDescription(event.target.value)} placeholder="Montaje especial, branding especial…" required={commercialCharge > 0} value={commercialChargeDescription} />
+                    </div>
+                    <Field label="Transporte aplicado" min="0" onChange={(event) => setTransportOverride(event.target.value === "" ? null : Math.max(0, Number(event.target.value)))} type="number" value={transportOverride ?? ""} />
+                    <div>
+                      <p className="text-sm font-semibold">Cortesías</p>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        {courtesyDefinitions.map((courtesy) => <label className={cn("flex items-start gap-3 rounded-xl border bg-background/40 p-3 text-sm", courtesy.officialValue <= 0 && "opacity-50")} key={courtesy.code}><input checked={courtesies.includes(courtesy.code)} disabled={courtesy.officialValue <= 0} onChange={() => setCourtesies((current) => current.includes(courtesy.code) ? current.filter((code) => code !== courtesy.code) : [...current, courtesy.code])} type="checkbox"/><span><strong className="block">{courtesy.label}</strong><span className="text-xs text-muted">Oficial {currency.format(courtesy.officialValue)} · Aplicado $0 · Beneficio BOOMBOX</span></span></label>)}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold">💳 Condición de pago</p>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                        {([["FIFTY_FIFTY", "Reserva 50% + saldo"], ["CASH", "Pago al contado"], ["CORPORATE_CREDIT", "Crédito Empresa"]] as Array<[PaymentCondition, string]>).map(([value, label]) => <label className={cn("flex min-h-11 items-center gap-2 rounded-xl border bg-background/40 px-3 text-sm", paymentCondition === value && "border-brand bg-brand/10")} key={value}><input checked={paymentCondition === value} name="payment-condition" onChange={() => setPaymentCondition(value)} type="radio"/>{label}</label>)}
+                      </div>
+                      {paymentCondition === "CORPORATE_CREDIT" && <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-6">{([['CASH','Al día'],['15','15 días'],['30','30 días'],['45','45 días'],['60','60 días'],['CUSTOM','Otro']] as Array<[CreditTerm,string]>).map(([value,label]) => <label className={cn("flex min-h-11 items-center gap-2 rounded-xl border bg-background/40 px-3 text-xs", creditTerm === value && "border-brand bg-brand/10")} key={value}><input checked={creditTerm === value} name="commercial-credit-term" onChange={() => setCreditTerm(value)} type="radio"/>{label}</label>)}</div>}
+                      {paymentCondition === "CORPORATE_CREDIT" && creditTerm === "CUSTOM" && <div className="mt-3"><Field label="Días de crédito" min="0" onChange={(event) => setCustomCreditDays(Math.max(0, Number(event.target.value)))} type="number" value={customCreditDays || ""}/></div>}
+                    </div>
+                  </fieldset>
+                  <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 border-t pt-4 text-sm">
+                    {discountTotal > 0 && <span className="font-medium text-success">Descuento −{currency.format(discountTotal)}</span>}
+                    {courtesyValue > 0 && <span className="font-medium text-success">Cortesías −{currency.format(courtesyValue)}</span>}
+                    {commercialCharge > 0 && <span className="font-medium">Cargo +{currency.format(commercialCharge)}</span>}
+                    <span className="font-semibold">Precio final {currency.format(adjustedSubtotal)}</span>
                   </div>
-                  <div className="mt-4"><Field label="Motivo del descuento" onChange={(event) => setAdjustmentReason(event.target.value)} placeholder="Obligatorio al aplicar un descuento" required={discountTotal > 0} value={adjustmentReason} /></div>
-                  {discountTotal > 0 && <p className="mt-3 text-sm font-medium text-success">Descuento aplicado: −{currency.format(discountTotal)}</p>}
                 </section>
               </div>
               <aside className="h-fit max-lg:sticky max-lg:bottom-0 lg:sticky lg:top-0">{summary}</aside>
@@ -805,7 +898,7 @@ export function NewProjectDrawer({ commercialPrices, municipalities, services, v
                   }}
                   tabIndex={0}
                 >
-                  {boomboxTerms.map(([title, content]) => (
+                  {([["Condición de pago", paymentClause], ...boomboxTerms] as ReadonlyArray<readonly [string, string]>).map(([title, content]) => (
                     <section key={title}>
                       <h4 className="font-semibold">{title}</h4>
                       <p className="mt-2 text-sm leading-6 text-muted">{content}</p>
@@ -851,30 +944,9 @@ export function NewProjectDrawer({ commercialPrices, municipalities, services, v
                 <section className="rounded-2xl border p-5">
                   <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Cliente</p>
                   <h3 className="mt-2 text-lg font-semibold">{isCorporateCustomer ? "Empresa" : "Cliente Particular"}</h3>
-                  {isCorporateCustomer ? (
+                  {paymentCondition === "CORPORATE_CREDIT" ? (
                     <div className="mt-4 space-y-5">
-                      <fieldset>
-                        <legend className="text-sm font-semibold">Condición de pago</legend>
-                        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                          {(
-                            [
-                              ["CASH", "Contado"],
-                              ["15", "15 días"],
-                              ["30", "30 días"],
-                              ["45", "45 días"],
-                              ["60", "60 días"],
-                              ["90", "90 días"],
-                              ["CUSTOM", "Personalizado"],
-                            ] as Array<[CreditTerm, string]>
-                          ).map(([value, label]) => (
-                            <label className={cn("flex min-h-11 items-center gap-2 rounded-xl border px-3 text-sm", creditTerm === value && "border-brand bg-brand/5")} key={value}>
-                              <input checked={creditTerm === value} name="credit-term" onChange={() => setCreditTerm(value)} type="radio" />
-                              {label}
-                            </label>
-                          ))}
-                        </div>
-                      </fieldset>
-                      {creditTerm === "CUSTOM" && <Field label="Días de crédito" min="0" onChange={(e) => setCustomCreditDays(Math.max(0, Number(e.target.value)))} type="number" value={customCreditDays} />}
+                      <p className="rounded-xl border bg-background/40 p-4 text-sm"><span className="block text-muted">Condición acordada</span><strong className="mt-1 block">Crédito Empresa · {paymentTermDays === 0 ? "Pago al día" : `${paymentTermDays} días`}</strong></p>
                       <Field label="Orden de compra (opcional)" onChange={(e) => setPurchaseOrder(e.target.value)} value={purchaseOrder} />
                       <dl className="grid gap-3 rounded-xl bg-background/40 p-4 text-sm sm:grid-cols-2">
                         <div>
@@ -898,17 +970,17 @@ export function NewProjectDrawer({ commercialPrices, municipalities, services, v
                   ) : (
                     <dl className="mt-4 grid gap-3 rounded-xl bg-background/40 p-4 text-sm sm:grid-cols-3">
                       <div>
-                        <dt className="text-muted">Reserva · 50%</dt>
+                        <dt className="text-muted">{paymentCondition === "CASH" ? "Pago al contado" : "Reserva · 50%"}</dt>
                         <dd className="mt-1 text-lg font-semibold">{currency.format(reservationTotal)}</dd>
                       </div>
                       <div>
-                        <dt className="text-muted">Saldo restante · 50%</dt>
+                        <dt className="text-muted">{paymentCondition === "CASH" ? "Saldo restante" : "Saldo restante · 50%"}</dt>
                         <dd className="mt-1 text-lg font-semibold">{currency.format(balanceTotal)}</dd>
                       </div>
                       <div>
                         <dt className="text-muted">Vencimiento del saldo</dt>
                         <dd className="mt-1 font-semibold">{formattedDueDate}</dd>
-                        <p className="mt-1 text-xs text-muted">Una semana antes del evento.</p>
+                        <p className="mt-1 text-xs text-muted">{paymentCondition === "CASH" ? "Pago total acordado." : "Una semana antes del evento."}</p>
                       </div>
                     </dl>
                   )}

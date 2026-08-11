@@ -55,9 +55,30 @@ export interface ProjectDraft {
   origin?: ProjectOrigin;
   notes: string;
   commercialAdjustment?: {
-    type: "FIXED" | "PERCENT";
+    type: "COMMERCIAL_NEGOTIATION";
     value: number;
     reason: string;
     subtotal: number;
+    officialServicePrice: number;
+    officialExtras: number;
+    officialTransport: number;
+    officialVenueSurcharge: number;
+    discountAmount: number;
+    discountReason: "FREQUENT_CUSTOMER" | "CORPORATE_AGREEMENT" | "PROMOTION" | "COURTESY" | "FOUNDER_APPROVAL" | "OTHER";
+    discountReasonDetail?: string;
+    commercialCharge: number;
+    commercialChargeDescription?: string;
+    appliedTransport: number;
+    courtesyValue: number;
+    courtesies: Array<{
+      code: "QR" | "SCRAPBOOK" | "MAGNETS" | "TRANSPORT" | "EXTRA_HOUR";
+      label: string;
+      officialValue: number;
+      appliedValue: 0;
+      reason: "Beneficio BOOMBOX";
+    }>;
+    paymentCondition: "FIFTY_FIFTY" | "CASH" | "CORPORATE_CREDIT";
+    paymentTermDays: number;
+    finalPrice: number;
   };
 }
