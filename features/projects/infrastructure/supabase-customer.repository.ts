@@ -63,7 +63,7 @@ export class SupabaseCustomerRepository implements CustomerRepository {
   }
 
   async createWithProject(draft: ProjectDraft): Promise<Project> {
-    if (!draft.type || !draft.origin) throw new Error("Datos incompletos para crear el cliente.");
+    if (!draft.type || (!draft.crmCustomerId && !draft.origin)) throw new Error("Selecciona el tipo de evento y el origen del nuevo cliente.");
     const {data,error}=await this.client.rpc("create_manual_reservation_atomic",{p_draft:draft});
     if(error)throw error;
     const row=Array.isArray(data)?data[0]:data;

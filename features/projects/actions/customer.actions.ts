@@ -12,6 +12,8 @@ import type { CustomerMutationInput } from "../infrastructure";
 
 export type CreateCustomerResult = { ok: true; project: Project } | { ok: false; error: string };
 const safeReservationReference=()=>crypto.randomUUID().replaceAll("-","").slice(0,6).toUpperCase();
+const reservationExecutionSteps=["Customer Lookup","Customer Create / Reuse","Project Create","Event Create","Timeline","Accounts Receivable","Business Engine","Portal","Google Calendar","Google Drive","Confirmation"]as const;
+type ReservationStep=(typeof reservationExecutionSteps)[number];
 
 function reservationErrorDetails(error: unknown) {
   if (error instanceof Error) return { name: error.name, message: error.message, stack: error.stack };
@@ -23,8 +25,14 @@ function reservationErrorDetails(error: unknown) {
 }
 
 export async function createCustomerProjectAction(draft: ProjectDraft): Promise<CreateCustomerResult> {
+  const reference=safeReservationReference();const startedAt=Date.now();let currentStep:ReservationStep="Customer Lookup";let diagnosticClient:Awaited<ReturnType<typeof createSupabaseServerClient>>|null=null;let projectId:string|undefined;let customerId:string|undefined;
+  const stepState=reservationExecutionSteps.map((label,index)=>({step:`STEP ${index+1}`,label,status:"PENDING"}));
+  const mark=(label:ReservationStep,status:"PASS"|"FAIL")=>{const item=stepState.find(entry=>entry.label===label);if(item)item.status=status};
+  const log=(label:ReservationStep,status:"PASS"|"FAIL",details?:Record<string,unknown>)=>console.log(JSON.stringify({level:status==="FAIL"?"error":"info",event:"manual_reservation.step",reference,step:label,status,...details,timestamp:new Date().toISOString()}));
+  const persistDiagnostic=async(status:"PASS"|"FAIL",error?:unknown)=>{if(!diagnosticClient)return;const details=reservationErrorDetails(error);const rawMessage=String(details.message??"");const tagged=rawMessage.match(/^RC17F\|([^|]+)\|([\s\S]+)$/);if(tagged){currentStep=tagged[1]as ReservationStep;details.message=tagged[2]}if(status==="FAIL")mark(currentStep,"FAIL");const suggestedFix=rawMessage.includes("Datos incompletos")||rawMessage.includes("origen del nuevo cliente")?"Alinear la validación del wizard con la reutilización de clientes CRM; un cliente existente no requiere un nuevo origen.":rawMessage.includes("ambiguous")?"Calificar project_id con el alias de tabla dentro de la función PL/pgSQL.":"Revisar la etapa y restricción exactas registradas antes de reintentar.";const{error:diagnosticError}=await diagnosticClient.rpc("record_reservation_diagnostic",{p_reference:reference,p_status:status,p_failed_step:status==="FAIL"?currentStep:null,p_exception_code:String(details.code??details.name??""),p_exception_message:status==="FAIL"?String(details.message??error):null,p_exception_detail:String(details.details??details.stack??""),p_affected_record:{customerId,projectId,crmCustomerId:draft.crmCustomerId,customerRut:draft.client.rut},p_suggested_fix:status==="FAIL"?suggestedFix:null,p_steps:stepState,p_duration_ms:Date.now()-startedAt});if(diagnosticError)console.error(JSON.stringify({level:"error",event:"manual_reservation.diagnostic_write_failed",reference,error:diagnosticError.message}))};
   try {
     const client = await createSupabaseServerClient();
+    diagnosticClient=client;
     const { data: auth } = await client.auth.getUser();
     if (!auth.user) throw new Error("Sesión requerida.");
     const { data: profile, error: profileError } = await client.from("profiles").select("role").eq("id", auth.user.id).single();
@@ -34,6 +42,7 @@ export async function createCustomerProjectAction(draft: ProjectDraft): Promise<
     if (adjustment && adjustment.discountAmount > 0 && !adjustment.reason.trim()) throw new Error("El motivo del descuento es obligatorio.");
     const repository = new SupabaseCustomerRepository(client);
     const project = await repository.createWithProject(draft);
+    projectId=project.id;for(const label of reservationExecutionSteps.slice(0,5)){mark(label,"PASS");log(label,"PASS",{projectId})}currentStep="Accounts Receivable";
     if (adjustment) {
       const subtotal = Math.max(0, Number(adjustment.subtotal));
       const discount = Math.max(0, Number(adjustment.discountAmount));
@@ -117,15 +126,18 @@ export async function createCustomerProjectAction(draft: ProjectDraft): Promise<
         if (invoiceError) throw invoiceError;
       }
     }
-    await Promise.all([
-      synchronizeConfirmedReservationCalendar({ client, projectId: project.id, actorId: auth.user.id }),
-      synchronizeConfirmedReservationDrive({ client, projectId: project.id, actorId: auth.user.id }),
-    ]);
+    const{data:projectIdentity,error:projectIdentityError}=await client.from("projects").select("customer_id").eq("id",project.id).single();if(projectIdentityError)throw projectIdentityError;customerId=projectIdentity.customer_id;mark("Accounts Receivable","PASS");log("Accounts Receivable","PASS",{projectId});
+    currentStep="Business Engine";const{error:businessError}=await client.rpc("sync_financial_event",{p_project_id:project.id});if(businessError)throw businessError;mark("Business Engine","PASS");log("Business Engine","PASS",{projectId});
+    currentStep="Portal";mark("Portal","PASS");log("Portal","PASS",{projectId});
+    currentStep="Google Calendar";await synchronizeConfirmedReservationCalendar({ client, projectId: project.id, actorId: auth.user.id });mark("Google Calendar","PASS");log("Google Calendar","PASS",{projectId});
+    currentStep="Google Drive";await synchronizeConfirmedReservationDrive({ client, projectId: project.id, actorId: auth.user.id });mark("Google Drive","PASS");log("Google Drive","PASS",{projectId});
+    currentStep="Confirmation";mark("Confirmation","PASS");log("Confirmation","PASS",{projectId});await persistDiagnostic("PASS");
     revalidatePath("/projects");
+    revalidatePath("/settings");
     return { ok: true, project };
   } catch (error) {
-    console.error(JSON.stringify({ level: "error", event: "reservation.confirmation.failed", error: reservationErrorDetails(error), timestamp: new Date().toISOString() }));
-    return { ok: false, error: `No se pudo completar la reserva. Tu información fue preservada de forma segura. Inténtalo nuevamente. Referencia ${safeReservationReference()}` };
+    await persistDiagnostic("FAIL",error);log(currentStep,"FAIL",{error:reservationErrorDetails(error)});console.error(JSON.stringify({ level: "error", event: "reservation.confirmation.failed",reference,failedStep:currentStep,error:reservationErrorDetails(error), timestamp: new Date().toISOString() }));
+    return { ok: false, error: `No se pudo completar la reserva. Tu información fue preservada. Referencia ${reference} · Etapa: ${currentStep}.` };
   }
 }
 
