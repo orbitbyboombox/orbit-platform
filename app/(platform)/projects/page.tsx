@@ -7,17 +7,21 @@ export default async function ProjectsRoute() {
   const client = await createSupabaseServerClient();
   const repository = new SupabaseCustomerRepository(client);
   const { data: auth } = await client.auth.getUser();
-  const [projects, commercialPricesResult, servicesResult, venuesResult, municipalities, profileResult] = await Promise.all([
+  const [projects, commercialPricesResult, servicesResult, venuesResult, municipalities, profileResult, crmCustomersResult, crmEventsResult] = await Promise.all([
     repository.findAll(),
     client.from("commercial_prices").select("category,code,label,duration_hours,destination,unit_price,pricing_status,rules").eq("enabled", true).is("deleted_at", null),
     client.from("master_data_entries").select("code,label,display_order,configuration").eq("domain", "SERVICES").eq("enabled", true).order("display_order"),
     client.from("master_data_entries").select("configuration").eq("domain", "SYSTEM_PARAMETERS").eq("code", "EVENT_VENUES").eq("enabled", true).maybeSingle(),
     loadActiveMunicipalities(client),
     auth.user ? client.from("profiles").select("role").eq("id", auth.user.id).single() : Promise.resolve({ data: null, error: null }),
+    client.from("customers").select("id,full_name,rut,email,phone,company,address,city,metadata").is("deleted_at",null).order("updated_at",{ascending:false}),
+    client.from("crm_events").select("id,customer_id,event_type,event_date,status,project_id").order("event_date",{ascending:false}),
   ]);
   if (commercialPricesResult.error) throw commercialPricesResult.error;
   if (servicesResult.error) throw servicesResult.error;
   if (venuesResult.error) throw venuesResult.error;
+  if (crmCustomersResult.error) throw crmCustomersResult.error;
+  if (crmEventsResult.error) throw crmEventsResult.error;
   const commercialPrices = (commercialPricesResult.data ?? []).map((price) => ({
     category: price.category as "SERVICE" | "EXTRA" | "TRANSPORT",
     code: price.code,
@@ -47,5 +51,6 @@ export default async function ProjectsRoute() {
     };
   });
   const canNegotiate = ["CEO", "ADMINISTRATOR", "SALES"].includes(profileResult.data?.role ?? "");
-  return <ProjectsPage canNegotiate={canNegotiate} commercialPrices={commercialPrices} initialProjects={projects} municipalities={municipalities} services={services} venues={venues} />;
+  const crmCustomers=(crmCustomersResult.data??[]).map(customer=>{const metadata=(customer.metadata??{})as Record<string,unknown>;const contacts=Array.isArray(metadata.contacts)?metadata.contacts.filter((item):item is Record<string,unknown>=>Boolean(item)&&typeof item==="object").map(item=>({name:String(item.name??item.fullName??"Contacto"),email:String(item.email??""),phone:String(item.phone??"")})):[];return{id:customer.id,name:customer.full_name,rut:customer.rut??"",email:customer.email??"",phone:customer.phone??"",company:customer.company??"",address:customer.address??"",city:customer.city??"",commercialNotes:typeof metadata.commercialNotes==="string"?metadata.commercialNotes:"",contacts,previousEvents:(crmEventsResult.data??[]).filter(event=>event.customer_id===customer.id).map(event=>({id:event.id,projectId:event.project_id,type:event.event_type,date:event.event_date,status:event.status}))}});
+  return <ProjectsPage canNegotiate={canNegotiate} commercialPrices={commercialPrices} crmCustomers={crmCustomers} initialProjects={projects} municipalities={municipalities} services={services} venues={venues} />;
 }

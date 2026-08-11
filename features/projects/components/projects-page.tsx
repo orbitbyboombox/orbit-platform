@@ -9,11 +9,11 @@ import { ActionButton } from "@/components/ui/action-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { Project, ProjectFilter } from "../types/project";
 import { createCustomerProjectAction } from "../actions/customer.actions";
-import { NewProjectDrawer, type ReservationCommercialPrice, type ReservationService, type ReservationVenue } from "./new-project-drawer";
+import { NewProjectDrawer, type ReservationCommercialPrice, type ReservationCrmCustomer, type ReservationService, type ReservationVenue } from "./new-project-drawer";
 import { ProjectCard } from "./project-card";
 import { ProjectFilters } from "./project-filters";
 
-export function ProjectsPage({ canNegotiate, commercialPrices, initialProjects, municipalities, services, venues }: { canNegotiate: boolean; commercialPrices: ReservationCommercialPrice[]; initialProjects: Project[]; municipalities: ActiveMunicipality[]; services: ReservationService[]; venues: ReservationVenue[] }) {
+export function ProjectsPage({ canNegotiate, commercialPrices, crmCustomers, initialProjects, municipalities, services, venues }: { canNegotiate: boolean; commercialPrices: ReservationCommercialPrice[]; crmCustomers:ReservationCrmCustomer[]; initialProjects: Project[]; municipalities: ActiveMunicipality[]; services: ReservationService[]; venues: ReservationVenue[] }) {
   const router = useRouter();
   const [projects, setProjects] = useState<Project[]>(initialProjects);
   const [filter, setFilter] = useState<ProjectFilter>("All");
@@ -76,7 +76,7 @@ export function ProjectsPage({ canNegotiate, commercialPrices, initialProjects, 
         <EmptyState action={<ActionButton icon={Plus} label="Nueva reserva" onClick={() => setDrawerOpen(true)} />} className="py-20" description={query ? "Prueba con un nombre, proyecto, ciudad, teléfono o tipo de evento." : "Crea la primera reserva para comenzar."} icon={FolderKanban} title={query ? "No encontramos clientes" : "Aún no tienes reservas"} />
       )}
 
-      <NewProjectDrawer canNegotiate={canNegotiate} commercialPrices={commercialPrices} existingCustomers={projects.map(({client})=>client)} municipalities={municipalities} onClose={() => setDrawerOpen(false)} onCreate={addProject} open={drawerOpen} services={services} venues={venues} />
+      <NewProjectDrawer canNegotiate={canNegotiate} commercialPrices={commercialPrices} crmCustomers={crmCustomers} municipalities={municipalities} onClose={() => setDrawerOpen(false)} onCreate={addProject} open={drawerOpen} services={services} venues={venues} />
     </div>
   );
 }

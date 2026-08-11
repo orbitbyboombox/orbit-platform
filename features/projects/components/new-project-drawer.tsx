@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronLeft, ChevronRight, FileSignature, Link2, LoaderCircle, PenLine, RotateCcw, Send, ShieldCheck, Sparkles, Trash2, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, FileSignature, Link2, LoaderCircle, PenLine, RotateCcw, Search, Send, ShieldCheck, Sparkles, Trash2, UserCheck, X } from "lucide-react";
 import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { ActionButton } from "@/components/ui/action-button";
 import { Button } from "@/components/ui/button";
@@ -127,11 +127,16 @@ export interface ReservationService {
   defaultExtras: string[];
   behavior: string;
 }
+export interface ReservationCrmCustomer {
+  id:string;name:string;rut:string;email:string;phone:string;company:string;address:string;city:string;commercialNotes:string;
+  contacts:Array<{name:string;email:string;phone:string}>;
+  previousEvents:Array<{id:string;projectId:string;type:string;date:string|null;status:string}>;
+}
 const masterExtraToReservation = (code: string): ServiceExtra | null => code === "BRANDING" ? "Branding" : code === "QR" ? "QR" : code === "UNLIMITED_MAGNETS" ? "Imanes" : code === "SCRAPBOOK" ? "Scrapbook" : null;
 export interface NewProjectDrawerProps {
   canNegotiate: boolean;
   commercialPrices: ReservationCommercialPrice[];
-  existingCustomers: Project["client"][];
+  crmCustomers: ReservationCrmCustomer[];
   municipalities: ActiveMunicipality[];
   services: ReservationService[];
   venues: ReservationVenue[];
@@ -283,13 +288,15 @@ function CommercialSummary({ balance, discount, extras, plan, reservation, subto
   );
 }
 
-export function NewProjectDrawer({ canNegotiate, commercialPrices, existingCustomers, municipalities, services, venues, open, onClose, onCreate }: NewProjectDrawerProps) {
+export function NewProjectDrawer({ canNegotiate, commercialPrices, crmCustomers, municipalities, services, venues, open, onClose, onCreate }: NewProjectDrawerProps) {
   const [step, setStep] = useState(0);
   const [method, setMethod] = useState<"MANUAL" | "AUTOMATIC">("MANUAL");
   const [invitationEmail, setInvitationEmail] = useState("");
   const [invitationFeedback, setInvitationFeedback] = useState("");
   const [invitationPending, setInvitationPending] = useState(false);
   const [draft, setDraft] = useState<ProjectDraft>(initialDraft);
+  const [customerSearch,setCustomerSearch]=useState("");
+  const [selectedCustomerId,setSelectedCustomerId]=useState<string|null>(null);
   const [configurations, setConfigurations] = useState<Partial<Record<ProjectService, ServiceConfiguration>>>({});
   const [eventAddress, setEventAddress] = useState("");
   const [operationalContact, setOperationalContact] = useState("");
@@ -426,7 +433,7 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, existingCusto
     }
     try {
       const value = JSON.parse(saved) as Record<string, unknown>;
-      if (value.draft) setDraft(value.draft as ProjectDraft);
+      if (value.draft) { const recovered=value.draft as ProjectDraft;setDraft(recovered);setSelectedCustomerId(recovered.crmCustomerId??null); }
       if (value.configurations) setConfigurations(value.configurations as Partial<Record<ProjectService, ServiceConfiguration>>);
       if (typeof value.step === "number") setStep(value.step);
       if (typeof value.eventAddress === "string") setEventAddress(value.eventAddress);
@@ -454,13 +461,11 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, existingCusto
       ...current,
       client: { ...current.client, [field]: value },
     }));
-  const reuseCustomer = (value: string) => {
-    const normalized = value.trim().toLocaleLowerCase("es-CL");
-    const found = existingCustomers.find((customer) =>
-      [customer.rut, customer.name, customer.company].some((candidate) => candidate?.trim().toLocaleLowerCase("es-CL") === normalized),
-    );
-    if (normalized && found) setDraft((current) => ({ ...current, client: { ...current.client, ...found } }));
-  };
+  const normalizeCustomerSearch=(value:string)=>value.normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z0-9@]/g,"").toLocaleLowerCase("es-CL");
+  const customerMatches=customerSearch.trim().length>=2?crmCustomers.filter(customer=>{const needle=normalizeCustomerSearch(customerSearch);return[customer.rut,customer.name,customer.company,customer.phone,customer.email].some(value=>normalizeCustomerSearch(value).includes(needle))}).slice(0,8):[];
+  const selectedCustomer=selectedCustomerId?crmCustomers.find(customer=>customer.id===selectedCustomerId)??null:null;
+  const selectCrmCustomer=(customer:ReservationCrmCustomer)=>{setSelectedCustomerId(customer.id);setCustomerSearch("");setCommercialNotes(customer.commercialNotes);setDraft(current=>({...current,crmCustomerId:customer.id,client:{name:customer.name,rut:customer.rut,email:customer.email,phone:customer.phone,company:customer.company||undefined,address:customer.address}}))};
+  const clearCrmCustomer=()=>{setSelectedCustomerId(null);setCustomerSearch("");setCommercialNotes("");setDraft(current=>({...current,crmCustomerId:undefined,client:initialDraft.client}))};
   const event = (field: keyof ProjectDraft["event"], value: string | number | string[]) =>
     setDraft((current) => ({
       ...current,
@@ -475,6 +480,8 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, existingCusto
     setInvitationFeedback("");
     setInvitationPending(false);
     setDraft(initialDraft);
+    setCustomerSearch("");
+    setSelectedCustomerId(null);
     setConfigurations({});
     setEventAddress("");
     setOperationalContact("");
@@ -660,8 +667,10 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, existingCusto
           )}
           {step === 1 && (
             <div className="mx-auto max-w-3xl space-y-5">
+              {!selectedCustomer&&<section className="relative rounded-2xl border bg-background/30 p-5"><div className="flex items-center gap-3"><Search className="size-5 text-brand"/><div><h3 className="font-semibold">Buscar cliente en CRM</h3><p className="mt-1 text-sm text-muted">RUT, empresa, nombre, teléfono o email.</p></div></div><input autoComplete="off" autoFocus className="mt-4 h-12 w-full rounded-xl border bg-background px-4 outline-none focus:ring-2 focus:ring-brand/40" onChange={event=>setCustomerSearch(event.target.value)} placeholder="Ej. 76.626.167-1 o Soledad Provens" value={customerSearch}/>{customerMatches.length>0&&<div className="absolute inset-x-5 top-full z-10 mt-2 overflow-hidden rounded-xl border bg-card shadow-xl">{customerMatches.map(customer=><button className="flex w-full items-center justify-between border-b p-4 text-left last:border-0 hover:bg-accent" key={customer.id} onClick={()=>selectCrmCustomer(customer)} type="button"><span><strong className="block">{customer.name}</strong><span className="mt-1 block text-xs text-muted">{customer.company||"Cliente particular"} · {customer.rut} · {customer.email||customer.phone}</span></span><span className="text-xs text-brand">Seleccionar</span></button>)}</div>}{customerSearch.trim().length>=2&&customerMatches.length===0&&<div className="mt-4 rounded-xl border border-dashed p-4"><p className="font-medium">Cliente no encontrado.</p><p className="mt-1 text-sm text-muted">Completa los datos para crear un nuevo cliente CRM.</p></div>}</section>}
+              {selectedCustomer&&<section className="rounded-2xl border border-emerald-500/40 bg-emerald-500/5 p-5"><div className="flex items-start justify-between gap-4"><div className="flex gap-3"><UserCheck className="mt-0.5 size-5 text-emerald-400"/><div><h3 className="font-semibold text-emerald-300">Cliente existente encontrado</h3><p className="mt-1 text-sm">{selectedCustomer.name} · {selectedCustomer.rut}</p><p className="mt-1 text-sm text-muted">Se utilizará la ficha maestra del CRM. Sólo se creará un nuevo Evento, Proyecto y Reserva.</p></div></div><Button onClick={clearCrmCustomer} size="sm" variant="outline">Cambiar</Button></div><div className="mt-4 grid gap-3 rounded-xl border bg-card/60 p-4 text-sm sm:grid-cols-2"><p><span className="text-muted">Empresa:</span> {selectedCustomer.company||"Cliente particular"}</p><p><span className="text-muted">Email:</span> {selectedCustomer.email||"Sin email"}</p><p><span className="text-muted">Teléfono:</span> {selectedCustomer.phone||"Sin teléfono"}</p><p><span className="text-muted">Dirección:</span> {selectedCustomer.address||"Sin dirección"}</p>{selectedCustomer.commercialNotes&&<p className="sm:col-span-2"><span className="text-muted">Notas comerciales:</span> {selectedCustomer.commercialNotes}</p>}{selectedCustomer.contacts.length>0&&<div className="sm:col-span-2"><p className="text-muted">Contactos</p>{selectedCustomer.contacts.map((contact,index)=><p className="mt-1" key={`${contact.name}-${index}`}>{contact.name} · {contact.phone||contact.email}</p>)}</div>}</div><div className="mt-4"><p className="text-xs font-semibold uppercase tracking-[.14em] text-muted">Eventos anteriores</p>{selectedCustomer.previousEvents.length?<div className="mt-2 flex flex-wrap gap-2">{selectedCustomer.previousEvents.slice(0,6).map(event=><span className="rounded-full border px-3 py-1.5 text-xs" key={event.id}>{event.type} · {event.date?new Date(`${event.date}T12:00:00Z`).toLocaleDateString("es-CL"):"Sin fecha"}</span>)}</div>:<p className="mt-2 text-sm text-muted">Sin eventos anteriores.</p>}<p className="mt-4 font-medium text-brand">Crear nuevo evento →</p></div></section>}
               <div className="grid gap-5 sm:grid-cols-2">
-                <Field autoComplete="name" label="Nombre y Apellido o Empresa" onBlur={(e)=>reuseCustomer(e.target.value)} onChange={(e) => client("name", e.target.value)} required value={draft.client.name} />
+                <Field autoComplete="name" disabled={Boolean(selectedCustomer)} label="Nombre y Apellido o Empresa" onChange={(e) => client("name", e.target.value)} required value={draft.client.name} />
                 <Field
                   autoComplete="off"
                   inputMode="text"
@@ -675,14 +684,14 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, existingCusto
                   }}
                   placeholder="12345678-9"
                   required
-                  onBlur={(e)=>reuseCustomer(e.target.value)}
+                  disabled={Boolean(selectedCustomer)}
                   value={draft.client.rut}
                 />
-                <Field label="Empresa (opcional)" onBlur={(e)=>reuseCustomer(e.target.value)} onChange={(e)=>client("company",e.target.value)} value={draft.client.company??""}/>
-                <Field autoComplete="tel" inputMode="tel" label="Teléfono" onChange={(e) => client("phone", `+569${e.target.value.replace(/\D/g, "").replace(/^569/, "").slice(0, 8)}`)} required value={draft.client.phone || "+569"} />
-                <Field autoComplete="email" label="Correo" onChange={(e) => client("email", e.target.value)} required type="email" value={draft.client.email} />
+                <Field disabled={Boolean(selectedCustomer)} label="Empresa (opcional)" onChange={(e)=>client("company",e.target.value)} value={draft.client.company??""}/>
+                <Field autoComplete="tel" disabled={Boolean(selectedCustomer)} inputMode="tel" label="Teléfono" onChange={(e) => client("phone", `+569${e.target.value.replace(/\D/g, "").replace(/^569/, "").slice(0, 8)}`)} required value={draft.client.phone || "+569"} />
+                <Field autoComplete="email" disabled={Boolean(selectedCustomer)} label="Correo" onChange={(e) => client("email", e.target.value)} required type="email" value={draft.client.email} />
               </div>
-              <Field autoComplete="street-address" label="Dirección" onChange={(e) => client("address", e.target.value)} value={draft.client.address} />
+              <Field autoComplete="street-address" disabled={Boolean(selectedCustomer)} label="Dirección" onChange={(e) => client("address", e.target.value)} value={draft.client.address} />
               <label className="block text-sm font-medium">
                 Origen del contacto
                 <select
@@ -711,12 +720,15 @@ export function NewProjectDrawer({ canNegotiate, commercialPrices, existingCusto
                 <Button
                   className="gap-2 text-danger"
                   onClick={() => {
-                    if (window.confirm("¿Eliminar los datos ingresados?"))
+                    if (window.confirm("¿Eliminar los datos ingresados?")) {
+                      setSelectedCustomerId(null);
                       setDraft((current) => ({
                         ...current,
+                        crmCustomerId:undefined,
                         client: initialDraft.client,
                         origin: undefined,
                       }));
+                    }
                   }}
                   variant="outline"
                 >

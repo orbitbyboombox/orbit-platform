@@ -48,6 +48,7 @@ export interface Project {
 }
 
 export interface ProjectDraft {
+  crmCustomerId?: string;
   type?: ProjectType;
   client: Project["client"];
   event: Project["event"];
