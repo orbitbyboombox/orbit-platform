@@ -1,10 +1,13 @@
 "use server";
 import { cookies,headers } from "next/headers";
 import { redirect } from "next/navigation";
+import {revalidatePath} from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerActionClient } from "@/lib/supabase/server";
 import { CUSTOMER_SESSION_COOKIE,STAFF_SESSION_COOKIE,requestEvidence,revokePortalSession } from "./portal-auth.service";
 import { portalTokenHash } from "@/features/customer-portal/customer-portal.service";
+import {GoogleGmailApiProvider} from "@/features/connectors/google-gmail/provider/google-gmail-live.provider";
+import {loadGoogleWorkspaceAccessToken} from "@/features/connectors/google-workspace/application/google-workspace.repository";
 
 const FAILURE="No fue posible validar la información ingresada.";
 type Result={ok:false;error:string};
@@ -22,3 +25,5 @@ export async function staffPortalLoginAction(_:Result|undefined,form:FormData):P
 }
 export async function portalLogoutAction(type:"CUSTOMER"|"STAFF"){await revokePortalSession(type);redirect(type==="CUSTOMER"?"/login?access=customer":"/login?access=staff");}
 export async function resetStaffPinAction(form:FormData){const client=await createSupabaseServerActionClient();const staffId=String(form.get("staffId")??"");const pin=String(form.get("pin")??"");const reason=String(form.get("reason")??"");const{error}=await client.rpc("set_staff_portal_pin",{p_staff_id:staffId,p_pin:pin,p_reason:reason});return error?{ok:false,error:error.message}:{ok:true,message:`PIN ${pin} generado. El colaborador deberá crear su contraseña al ingresar.`};}
+export async function setStaffPortalActivationAction(staffId:string,enabled:boolean){const client=await createSupabaseServerActionClient();const{error}=await client.rpc("set_staff_portal_activation",{p_staff_id:staffId,p_enabled:enabled,p_reason:enabled?"Activación desde perfil de Staff":"Desactivación desde perfil de Staff"});if(!error)revalidatePath("/resources/staff");return error?{ok:false,error:error.message}:{ok:true,message:enabled?"Portal Staff activado.":"Portal Staff desactivado."};}
+export async function sendStaffPortalInvitationAction(form:FormData){const client=await createSupabaseServerActionClient(),staffId=String(form.get("staffId")??""),pin=String(form.get("pin")??"");const{data:member,error}=await client.from("staff").select("first_name,last_name,rut,email,portal_enabled").eq("id",staffId).single();if(error||!member?.email)return{ok:false,error:error?.message??"El colaborador no tiene correo registrado."};if(!member.portal_enabled)return{ok:false,error:"Activa el Portal Staff antes de enviar la invitación."};if(!/^\d{4}$/.test(pin))return{ok:false,error:"Genera un PIN antes de enviar la invitación."};try{const url=`${process.env.NEXT_PUBLIC_APP_URL??"https://orbit.boom-box.cl"}/login?access=staff`;await new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken()).send({to:member.email,subject:"Tu acceso al Portal Staff BOOMBOX",textBody:`Hola ${member.first_name}. Ingresa en ${url} con tu RUT ${member.rut} y PIN temporal ${pin}. Deberás crear una contraseña en tu primer ingreso.`,htmlBody:`<main style="font-family:Arial,sans-serif;color:#171717"><h1>Portal Staff BOOMBOX</h1><p>Hola ${member.first_name}, tu acceso operacional está activo.</p><p><strong>RUT:</strong> ${member.rut}<br><strong>PIN temporal:</strong> ${pin}</p><p>Al ingresar deberás crear tu contraseña personal.</p><p><a href="${url}" style="display:inline-block;background:#F78900;color:#111;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:10px">Ingresar al Portal Staff</a></p></main>`,driveFileIds:[]});const{error:markError}=await client.rpc("mark_staff_portal_invitation_sent",{p_staff_id:staffId});if(markError)throw markError;return{ok:true,message:`Invitación enviada a ${member.email}.`};}catch(error){return{ok:false,error:error instanceof Error?error.message:"No fue posible enviar la invitación."};}}

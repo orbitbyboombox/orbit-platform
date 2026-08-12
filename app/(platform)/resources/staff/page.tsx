@@ -11,7 +11,7 @@ export default async function StaffManagementPage() {
   const repository = new SupabaseStaffRepository(client);
   const members = await repository.findAll();
   const [{data:staff,error:staffError},{data:assignments,error:assignmentError},{data:history,error:historyError},{data:audit,error:auditError},{data:vehicles,error:vehicleError},{data:projects,error:projectError}]=await Promise.all([
-    client.from("staff").select("id,version,first_name,last_name,rut,phone,email,role,capabilities,status,bank,account_type,account_number,emergency_contact").is("deleted_at",null).order("last_name"),
+    client.from("staff").select("id,version,first_name,last_name,rut,phone,email,role,capabilities,status,bank,account_type,account_number,emergency_contact,portal_enabled,pin_updated_at,portal_password_change_required,portal_invitation_sent_at").is("deleted_at",null).order("last_name"),
     client.from("assignments").select("id,staff_id,project_id,assignment_type,status,resources,arrival_time,start_time,finish_time,assigned_vehicle,projects!inner(name,project_type,event_date),operational_assets(asset_code)").is("deleted_at",null).order("created_at",{ascending:false}),
     client.from("timeline_events").select("id,staff_id,human_message,occurred_at").not("staff_id","is",null).order("occurred_at",{ascending:false}).limit(500),
     client.from("audit_events").select("id,entity_id,action,occurred_at").eq("entity_type","staff").order("occurred_at",{ascending:false}).limit(500),
@@ -33,7 +33,7 @@ export default async function StaffManagementPage() {
   return <PersonalWorkspaceSections moduleKey="STAFF" sections={[
     {key:"STAFF_CENTER",label:"Gestión de Staff",content:<StaffOperationCenter initialStaff={operationalStaff} projects={projectOptions} vehicles={vehicleOptions}/>},
     {key:"STAFF_PAYMENTS",label:"Pagos de Staff",content:<StaffPaymentsCenter staff={operationalStaff.map(member=>({id:member.id,name:`${member.firstName} ${member.lastName}`,rut:member.rut}))} events={paymentEvents} months={monthlyRecords}/>},
-    {key:"STAFF_ACCESS",label:"Accesos de Staff",content:<StaffPinReset members={members.map(member=>({id:member.profile.id,name:`${member.profile.firstName} ${member.profile.lastName}`}))}/>},
+    {key:"STAFF_ACCESS",label:"Accesos de Staff",content:<StaffPinReset members={(staff??[]).map(member=>({id:member.id,name:`${member.first_name} ${member.last_name}`,rut:member.rut??"",email:member.email??"",enabled:Boolean(member.portal_enabled),hasPin:Boolean(member.pin_updated_at),firstLoginPending:Boolean(member.portal_password_change_required),invitationSentAt:member.portal_invitation_sent_at??null}))}/>},
     {key:"STAFF_AVAILABILITY",label:"Disponibilidad detallada",content:<details className="rounded-2xl border bg-card p-5"><summary className="cursor-pointer font-semibold">Vista operacional detallada y disponibilidad</summary><div className="mt-6"><StaffManagement snapshot={createStaffManagementSnapshot({ members })} /></div></details>},
   ]}/>;
 }
