@@ -14,7 +14,7 @@ import {
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { CrmCustomerEventOperations, CrmCustomerProfile, CrmEventSummary } from "./types";
 import { CustomerEventOperations } from "./customer-event-operations";
@@ -38,7 +38,14 @@ export function CustomerProfile({
   );
   const [error, setError] = useState("");
   const [managedEvent, setManagedEvent] = useState<string | null>(null);
+  const eventEditorRef = useRef<HTMLFormElement>(null);
   const [pending, startTransition] = useTransition();
+  const beginEventEdit = (event: CrmEventSummary) => {
+    setEditingEvent(event);
+    requestAnimationFrame(() =>
+      eventEditorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+    );
+  };
   const submit = (form: FormData) =>
     startTransition(async () => {
       const result = await updateCrmCustomerAction({
@@ -108,6 +115,7 @@ export function CustomerProfile({
         time: String(form.get("time")),
         type: String(form.get("type")),
         location: String(form.get("location")),
+        eventAddress: String(form.get("eventAddress")),
         municipality: String(form.get("municipality")),
         service: String(form.get("service")),
         duration: String(form.get("duration")),
@@ -287,6 +295,7 @@ export function CustomerProfile({
         <form
           action={submitEvent}
           className="grid gap-4 rounded-2xl border border-brand/30 bg-card p-5 sm:grid-cols-2"
+          ref={eventEditorRef}
         >
           <div className="sm:col-span-2">
             <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">
@@ -299,6 +308,12 @@ export function CustomerProfile({
             ["time", "Hora", editingEvent.time?.slice(0, 5) ?? "", "time"],
             ["type", "Tipo", editingEvent.type, "text"],
             ["location", "Lugar", editingEvent.location ?? "", "text"],
+            [
+              "eventAddress",
+              "Dirección del Evento",
+              editingEvent.eventAddress ?? "",
+              "text",
+            ],
             ["municipality", "Comuna", editingEvent.municipality ?? "", "text"],
             ["service", "Servicio", editingEvent.service, "text"],
             [
@@ -409,7 +424,7 @@ export function CustomerProfile({
                     </button>
                     <button
                       className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent"
-                      onClick={() => setEditingEvent(event)}
+                      onClick={() => beginEventEdit(event)}
                     >
                       <Save className="size-4" />
                       Editar Evento
@@ -442,7 +457,7 @@ export function CustomerProfile({
               {managedEvent === event.projectId && (
                 <CustomerEventOperations
                   event={event}
-                  onEditEvent={() => setEditingEvent(event)}
+                  onEditEvent={() => beginEventEdit(event)}
                   operations={operations.find(
                     (item) => item.projectId === event.projectId,
                   )}

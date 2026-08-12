@@ -7,8 +7,7 @@ import { Button } from "@/components/ui/button";
 import { EventPaymentManager } from "@/features/accounts-receivable/event-payment-manager";
 import { StaffAssignmentCenter } from "@/features/staff-assignment-center/staff-assignment-center";
 import { AgreementSigningControl } from "@/features/projects/signing/agreement-signing-control";
-import { createCustomerPortalAccessAction } from "@/features/customer-portal/admin.actions";
-import { getCrmDocumentUrlAction, replaceCrmDocumentAction } from "./actions";
+import { getCrmDocumentUrlAction, openCrmCustomerPortalAction, replaceCrmDocumentAction } from "./actions";
 import type { CrmCustomerEventOperations, CrmEventSummary } from "./types";
 
 export function CustomerEventOperations({ event, operations, onEditEvent }: { event: CrmEventSummary; operations?: CrmCustomerEventOperations; onEditEvent: () => void }) {
@@ -19,7 +18,7 @@ export function CustomerEventOperations({ event, operations, onEditEvent }: { ev
   const [pending, startTransition] = useTransition();
   if (!operations) return <p className="rounded-xl border border-dashed p-5 text-sm text-muted">La información operativa de este Evento no está disponible.</p>;
   const openPortal = () => startTransition(async () => {
-    const result = await createCustomerPortalAccessAction(event.projectId);
+    const result = await openCrmCustomerPortalAction(event.projectId);
     if (!result.ok) return setMessage(result.error);
     setPortalUrl(result.url);
     window.open(result.url, "_blank", "noopener,noreferrer");

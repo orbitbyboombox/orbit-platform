@@ -11,6 +11,7 @@ import { synchronizeConfirmedReservationCalendar } from "@/features/connectors/g
 import { synchronizeConfirmedReservationDrive } from "@/features/connectors/google-drive/application/google-drive-sync.service";
 import { uploadReservationDocumentToDrive } from "@/features/connectors/google-drive/application/google-drive-document-routing.service";
 import type { GoogleDriveDocumentKind } from "@/features/connectors/google-drive/types/google-drive-live.types";
+import { createCustomerPortalAccess } from "@/features/customer-portal/customer-portal.service";
 const message = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
 async function founderClient() {
@@ -144,6 +145,23 @@ export async function getCrmDocumentUrlAction(documentId: string) {
   }
 }
 
+export async function openCrmCustomerPortalAction(projectId: string) {
+  try {
+    const { user } = await founderClient();
+    return {
+      ok: true as const,
+      ...(await createCustomerPortalAccess(projectId, user.id, {
+        preserveExisting: true,
+      })),
+    };
+  } catch (error) {
+    return {
+      ok: false as const,
+      error: message(error, "No fue posible abrir el Portal Cliente."),
+    };
+  }
+}
+
 export async function replaceCrmDocumentAction(formData: FormData) {
   try {
     const { client } = await founderClient();
@@ -266,6 +284,7 @@ export async function updateCrmEventAction(input: {
   time: string;
   type: string;
   location: string;
+  eventAddress?: string;
   municipality: string;
   service: string;
   duration: string;
@@ -277,13 +296,16 @@ export async function updateCrmEventAction(input: {
 }) {
   try {
     const { client, user } = await founderClient();
-    const { error } = await client.rpc("update_crm_event", {
+    const { error } = await client.rpc("update_crm_event_from_customer_profile", {
       p_project_id: input.projectId,
       p_changes: {
         date: input.date,
         time: input.time,
         type: input.type,
         location: input.location,
+        ...(input.eventAddress !== undefined
+          ? { eventAddress: input.eventAddress }
+          : {}),
         municipality: input.municipality,
         service: input.service,
         duration: input.duration,

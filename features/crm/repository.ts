@@ -227,6 +227,10 @@ export async function loadCrmCustomerProfile(
       status: item.status,
       name: project?.name ?? "Evento BOOMBOX",
       location: project?.location ?? null,
+      eventAddress:
+        typeof project.operations?.eventAddress === "string"
+          ? project.operations.eventAddress
+          : null,
       municipality: project?.city ?? null,
       service: service?.service_code ?? "",
       duration: service?.duration_hours ?? null,

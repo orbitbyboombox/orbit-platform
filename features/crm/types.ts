@@ -23,6 +23,7 @@ export interface CrmEventSummary {
   status: string;
   name: string;
   location: string | null;
+  eventAddress?: string | null;
   municipality: string | null;
   service: string;
   duration: number | null;

@@ -7,11 +7,11 @@ import { loadCustomerDocuments } from "./customer-documents.service";
 export const portalTokenHash = (token: string) => createHash("sha256").update(token).digest("hex");
 const origin = () => process.env.NEXT_PUBLIC_APP_URL ?? process.env.APP_URL ?? (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "http://localhost:3000");
 
-export async function createCustomerPortalAccess(projectId: string, actorId: string) {
+export async function createCustomerPortalAccess(projectId: string, actorId: string, options: { preserveExisting?: boolean } = {}) {
   const admin = createAdminClient();
   const { data: project, error } = await admin.from("projects").select("id,customer_id").eq("id", projectId).is("deleted_at", null).single();
   if (error) throw error;
-  await admin.from("customer_portal_tokens").update({ revoked_at: new Date().toISOString(), updated_by: actorId }).eq("project_id", projectId).is("revoked_at", null);
+  if (!options.preserveExisting) await admin.from("customer_portal_tokens").update({ revoked_at: new Date().toISOString(), updated_by: actorId }).eq("project_id", projectId).is("revoked_at", null);
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + 30 * 86_400_000).toISOString();
   const { error: insertError } = await admin.from("customer_portal_tokens").insert({ project_id: project.id, customer_id: project.customer_id, token_hash: portalTokenHash(token), expires_at: expiresAt, created_by: actorId, updated_by: actorId });
