@@ -1,11 +1,16 @@
 "use server";
+import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   transitionReservationLifecycleAction,
   type ReservationLifecycleAction,
 } from "@/features/projects/actions/reservation-lifecycle.actions";
 import { synchronizeConfirmedReservationCalendar } from "@/features/connectors/google-calendar/application/google-calendar-sync.service";
+import { synchronizeConfirmedReservationDrive } from "@/features/connectors/google-drive/application/google-drive-sync.service";
+import { uploadReservationDocumentToDrive } from "@/features/connectors/google-drive/application/google-drive-document-routing.service";
+import type { GoogleDriveDocumentKind } from "@/features/connectors/google-drive/types/google-drive-live.types";
 const message = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
 async function founderClient() {
@@ -84,7 +89,7 @@ export async function updateCrmCustomerAction(input: {
     if (!input.reason.trim()) throw new Error("Registra el motivo del cambio.");
     const { data: current, error: readError } = await client
       .from("customers")
-      .select("metadata")
+      .select("metadata,projects(id,status,deleted_at)")
       .eq("id", input.id)
       .single();
     if (readError) throw readError;
@@ -107,6 +112,11 @@ export async function updateCrmCustomerAction(input: {
       .eq("id", input.id)
       .is("deleted_at", null);
     if (error) throw error;
+    const projectIds = (current.projects ?? []).filter((project) => !project.deleted_at && !["CANCELLED", "CANCELED", "ARCHIVED"].includes(String(project.status).toUpperCase())).map((project) => project.id);
+    await Promise.all(projectIds.flatMap((projectId) => [
+      synchronizeConfirmedReservationCalendar({ client, projectId, actorId: user.id, operation: "UPSERT", requireCommercialReadiness: false }),
+      synchronizeConfirmedReservationDrive({ client, projectId, actorId: user.id, recordTimeline: true }),
+    ]));
     revalidatePath(`/customers/${input.id}`);
     revalidatePath("/customers");
     return { ok: true as const };
@@ -130,6 +140,46 @@ export async function getCrmDocumentUrlAction(documentId: string) {
   } catch (error) {
     return { ok: false as const, error: message(error, "No fue posible abrir el documento.") };
   }
+}
+
+export async function replaceCrmDocumentAction(formData: FormData) {
+  try {
+    const { client } = await founderClient();
+    const documentId = String(formData.get("documentId"));
+    const projectId = String(formData.get("projectId"));
+    const reason = String(formData.get("reason") || "").trim();
+    const file = formData.get("file");
+    if (!(file instanceof File) || file.size === 0) throw new Error("Selecciona el documento de reemplazo.");
+    if (file.size > 20 * 1024 * 1024) throw new Error("El documento no puede superar 20 MB.");
+    if (!reason) throw new Error("El motivo es obligatorio.");
+    const admin = createAdminClient();
+    const { data: document, error } = await admin.from("documents").select("document_type,projects!inner(id,event_date,customers!inner(full_name))").eq("id", documentId).eq("project_id", projectId).is("deleted_at", null).single();
+    if (error) throw error;
+    const project = Array.isArray(document.projects) ? document.projects[0] : document.projects;
+    const customer = Array.isArray(project.customers) ? project.customers[0] : project.customers;
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const extension = file.name.split(".").pop()?.toLowerCase() || "bin";
+    const storagePath = `${projectId}/crm-documents/${crypto.randomUUID()}.${extension}`;
+    const { error: storageError } = await admin.storage.from("orbit-documents").upload(storagePath, bytes, { contentType: file.type || "application/octet-stream", upsert: false });
+    if (storageError) throw storageError;
+    const kind = documentKind(document.document_type);
+    const drive = await uploadReservationDocumentToDrive({ client: admin, projectId, customerName: customer.full_name, eventDate: project.event_date, kind, name: file.name, mimeType: file.type || "application/octet-stream", bytes });
+    const { error: replaceError } = await client.rpc("replace_crm_document", { p_document_id: documentId, p_storage_path: storagePath, p_checksum: createHash("sha256").update(bytes).digest("hex"), p_drive_file_id: drive.id, p_reason: reason });
+    if (replaceError) throw replaceError;
+    revalidateCustomerSurfaces(projectId);
+    return { ok: true as const };
+  } catch (error) { return { ok: false as const, error: message(error, "No fue posible reemplazar el documento.") }; }
+}
+
+function documentKind(type: string): GoogleDriveDocumentKind {
+  if (type === "QUOTATION") return "QUOTATION";
+  if (["SIGNED_AGREEMENT", "COMMERCIAL_DOCUMENT"].includes(type)) return "CONTRACT";
+  if (type === "PAYMENT_RECEIPT") return "PAYMENT_PROOF";
+  return "OTHER_DOCUMENT";
+}
+function revalidateCustomerSurfaces(projectId: string) {
+  revalidatePath(`/projects/${projectId}`);
+  ["/customers", "/events", "/finance", "/finance/receivables", "/reports", "/notifications"].forEach((path) => revalidatePath(path));
 }
 export async function archiveCrmCustomerAction(id: string, reason: string) {
   try {
@@ -241,17 +291,15 @@ export async function updateCrmEventAction(input: {
       p_reason: input.reason,
     });
     if (error) throw error;
-    await synchronizeConfirmedReservationCalendar({
-      client,
-      projectId: input.projectId,
-      actorId: user.id,
-      operation: "UPSERT",
-      requireCommercialReadiness: false,
-    });
+    await Promise.all([
+      synchronizeConfirmedReservationCalendar({ client, projectId: input.projectId, actorId: user.id, operation: "UPSERT", requireCommercialReadiness: false }),
+      synchronizeConfirmedReservationDrive({ client, projectId: input.projectId, actorId: user.id, recordTimeline: true }),
+    ]);
     revalidatePath(`/customers/${input.customerId}`);
     revalidatePath(`/projects/${input.projectId}`);
     revalidatePath("/projects");
     revalidatePath("/events");
+    revalidateCustomerSurfaces(input.projectId);
     return { ok: true as const };
   } catch (error) {
     return {

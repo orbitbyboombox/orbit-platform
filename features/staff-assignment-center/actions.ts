@@ -44,7 +44,7 @@ export async function saveStaffAssignmentAction(input:StaffAssignmentMutation):P
     await timeline(ctx,created.id,input.replaceId?"STAFF_REPLACED":"STAFF_ASSIGNED",input.replaceId?"Staff reemplazado en el evento.":"Staff asignado al evento.",input.staffId);
   }
   await synchronizeConfirmedReservationCalendar({client:ctx.client,projectId:input.projectId,actorId:ctx.user.id,onlyExisting:true});
-  revalidatePath(`/projects/${input.projectId}`);revalidatePath("/resources/staff");return{ok:true};
+  revalidatePath(`/projects/${input.projectId}`);revalidatePath("/resources/staff");revalidatePath("/customers","layout");revalidatePath("/finance");revalidatePath("/reports");return{ok:true};
 }catch(error){return{ok:false,error:friendly(error,"No fue posible guardar la asignación.")};}}
 
 export async function updateStaffAssignmentStatusAction(input:{id:string;projectId:string;status:string}):Promise<Result>{try{
@@ -54,5 +54,5 @@ export async function updateStaffAssignmentStatusAction(input:{id:string;project
   const map:Record<string,[string,string]>={CONFIRMED:["STAFF_CONFIRMED","Asignación de Staff confirmada."],COMPLETED:["STAFF_COMPLETED","Asignación de Staff completada."],CANCELLED:["STAFF_REMOVED","Staff removido del evento."],ASSIGNED:["STAFF_ASSIGNED","Staff asignado al evento."],PENDING_CONFIRMATION:["STAFF_CONFIRMATION_PENDING","Confirmación de Staff pendiente."]};
   const[action,message]=map[input.status];await timeline(ctx,input.id,action,message,item.staff_id);
   await synchronizeConfirmedReservationCalendar({client:ctx.client,projectId:input.projectId,actorId:ctx.user.id,onlyExisting:true});
-  revalidatePath(`/projects/${input.projectId}`);revalidatePath("/resources/staff");return{ok:true};
+  revalidatePath(`/projects/${input.projectId}`);revalidatePath("/resources/staff");revalidatePath("/customers","layout");revalidatePath("/finance");revalidatePath("/reports");return{ok:true};
 }catch(error){return{ok:false,error:friendly(error,"No fue posible actualizar la asignación.")};}}
