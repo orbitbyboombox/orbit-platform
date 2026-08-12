@@ -3,6 +3,7 @@ import { SupabaseCustomerRepository } from "@/features/projects/infrastructure";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { loadFinancialTruth } from "@/features/business-engine";
 import {FounderWorkspaceExperience,loadFounderWorkspace,type WorkspaceValues} from "@/features/founder-workspace";
+import {OperationsPlanningBoard,type PlanningEvent} from "@/features/operations/operations-planning-board";
 
 export default async function OperationsPage() {
   const client = await createSupabaseServerClient();
@@ -14,7 +15,7 @@ export default async function OperationsPage() {
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(new Date());
   const [allProjects, assignmentsResult, staffResult, assetsResult, assetAssignmentsResult, agreementsResult, evidenceResult, quotationsResult, calendarResult, driveResult, documentsResult, payrollResult, profitResult, timelineResult, rawProjectsResult, customersResult, tasksResult, receivablesResult, expensesResult,portalResult,vehicleEventsResult] = await Promise.all([
     new SupabaseCustomerRepository(client).findAll(),
-    client.from("assignments").select("id,project_id,staff_id,assignment_type,status,resources").is("deleted_at", null),
+    client.from("assignments").select("id,project_id,staff_id,assignment_type,status,resources,staff(first_name,last_name)").is("deleted_at", null),
     client.from("staff").select("id,first_name,last_name,status,capabilities").eq("status", "ACTIVE").is("deleted_at", null),
     client.from("operational_assets").select("id,asset_type,status").is("deleted_at", null),
     client.from("asset_assignments").select("project_id,asset_id,assignment_status,operational_assets(asset_type)").eq("assignment_status", "ASSIGNED").is("deleted_at", null),
@@ -24,7 +25,7 @@ export default async function OperationsPage() {
     client.from("calendar_sync").select("project_id,status"),
     client.from("drive_sync").select("project_id,status"),
     client.from("documents").select("project_id,document_type").is("deleted_at", null),
-    client.from("event_staff_payments").select("project_id,staff_id,total_internal_payment,status").is("deleted_at", null),
+    client.from("event_staff_payments").select("project_id,staff_id,total_internal_payment,operator_payment,assembly_payment,disassembly_payment,status").is("deleted_at", null),
     Promise.resolve({data:financialTruth,error:null}),
     client.from("timeline_events").select("project_id"),
     client.from("projects").select("id,customer_id,finance").is("deleted_at", null),
@@ -137,5 +138,7 @@ export default async function OperationsPage() {
 
   const workspaceValues:WorkspaceValues={TODAY_EVENTS:{value:String(projects.filter(project=>project.event.date===today).length),detail:"Agenda operacional de hoy"},UPCOMING_EVENTS:{value:String(next15Events),detail:"Próximos 15 días"},ACCOUNTS_RECEIVABLE:{value:money(accountsReceivable),detail:`${activeInvoices.length} documentos abiertos`},ACCOUNTS_PAYABLE:{value:money(accountsPayable),detail:`${money(monthlyExpenses)} en gastos del mes`},MONTHLY_REVENUE:{value:money(monthlyRevenue),detail:"Reservas confirmadas del mes"},OPERATIONAL_COST:{value:money(monthlyTotalOperationalCost),detail:"Personal + recursos operacionales"},PROFITABILITY:{value:money(realProfit),detail:`Margen ${pct(netMargin)}`},BUSINESS_INTELLIGENCE:{value:"Abrir",detail:"Indicadores productivos"},FUEL:{value:money(costSum("fuel")),detail:"Costo asignado a eventos"},PAPER_CONSUMPTION:{value:money(costSum("paper")),detail:"Consumo valorizado"},STAFF:{value:String(activeAssignments.length),detail:`${availableOperators} operadores disponibles`},FLEET:{value:String(availableVehicles),detail:"Vehículos disponibles"},NOTIFICATIONS:{value:String(controlData.alerts.length),detail:`${readiness.length} eventos supervisados`}};
   const currentDate=new Intl.DateTimeFormat("es-CL",{dateStyle:"full",timeZone:"America/Santiago"}).format(new Date());
-  return <FounderWorkspaceExperience currentDate={currentDate} founderName="Matías" initialPreferences={founderWorkspace} pendingTasks={taskSummary.pending} todayEvents={projects.filter(project=>project.event.date===today).length} values={workspaceValues}/>;
+  const planningEndDate=new Date(`${today}T12:00:00Z`);planningEndDate.setUTCDate(planningEndDate.getUTCDate()+15);const planningEnd=planningEndDate.toISOString().slice(0,10);
+  const planningEvents:PlanningEvent[]=projects.filter(project=>Boolean(project.event.date&&project.event.date>=today&&project.event.date<=planningEnd)).map(project=>{const projectAssignments=(assignmentsResult.data??[]).filter(item=>item.project_id===project.id&&!['CANCELLED','REJECTED'].includes(item.status));const findRole=(code:string)=>{const assignment=projectAssignments.find(item=>item.assignment_type===code);const person=assignment?.staff?(Array.isArray(assignment.staff)?assignment.staff[0]:assignment.staff):null;const payment=(payrollResult.data??[]).find(item=>item.project_id===project.id&&item.staff_id===assignment?.staff_id);const pay=code==='OPERATOR'?payment?.operator_payment:code==='ASSEMBLY'?payment?.assembly_payment:payment?.disassembly_payment;return{label:code,pay:Number(pay??0),assignee:person?`${person.first_name} ${person.last_name}`:null,status:assignment?.status??'UNASSIGNED'}};const finance=financeByProject.get(project.id)??{};return{id:project.id,date:project.event.date,customer:project.client.name,eventType:project.type,service:project.services.join(' + ')||'Servicio BOOMBOX',hours:Number(project.event.durationHours??4),address:project.event.location,district:project.event.city,venue:String(finance.venue??project.event.location),booths:Number(finance.booths??1),roles:{operator:findRole('OPERATOR'),assembly:findRole('ASSEMBLY'),disassembly:findRole('DISASSEMBLY')},status:project.status}});
+  return <div className="space-y-6"><OperationsPlanningBoard events={planningEvents}/><FounderWorkspaceExperience currentDate={currentDate} founderName="Matías" initialPreferences={founderWorkspace} pendingTasks={taskSummary.pending} todayEvents={projects.filter(project=>project.event.date===today).length} values={workspaceValues}/></div>;
 }
