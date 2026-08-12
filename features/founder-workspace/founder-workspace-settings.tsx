@@ -4,8 +4,8 @@ import { ArrowDown, ArrowUp, Eye, EyeOff, RotateCcw, Settings2, Star } from "luc
 import { Button } from "@/components/ui/button";
 import {
   resetFounderWorkspaceAction,
-  saveFounderWorkspaceAction,
 } from "./actions";
+import { usePersonalWorkspace } from "./personal-workspace";
 import {
   DEFAULT_WORKSPACE,
   QUICK_ACTIONS,
@@ -19,23 +19,19 @@ export function FounderWorkspaceSettings({
 }: {
   initialPreferences: FounderWorkspacePreferences;
 }) {
-  const [prefs, setPrefs] = useState(initialPreferences);
+  const workspace = usePersonalWorkspace();
+  const prefs = workspace.preferences ?? initialPreferences;
   const [pending, start] = useTransition();
   const [message, setMessage] = useState("");
   const save = (next: FounderWorkspacePreferences) => {
-    setPrefs(next);
-    start(async () => {
-      const result = await saveFounderWorkspaceAction(next);
-      setMessage(
-        result.ok ? "Cambio guardado para esta cuenta." : result.error,
-      );
-    });
+    workspace.update(next);
+    setMessage("Cambio guardado para esta cuenta.");
   };
   const reset = () =>
     start(async () => {
       const result = await resetFounderWorkspaceAction();
       if (result.ok) {
-        setPrefs(structuredClone(DEFAULT_WORKSPACE));
+        workspace.update(structuredClone(DEFAULT_WORKSPACE));
         setMessage("Escritorio predeterminado restaurado.");
       } else setMessage(result.error);
     });

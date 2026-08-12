@@ -10,7 +10,7 @@ import { ModuleManagerCenter } from "@/features/module-manager";
 import { loadModuleStates } from "@/features/module-manager/repository";
 import {ProfitabilitySettings}from"@/features/settings/profitability-settings";
 import {ProductionInitializationCenter}from"@/features/settings/production-initialization/production-initialization-center";
-import{FounderWorkspaceSettings,loadFounderWorkspace}from"@/features/founder-workspace";
+import{FounderWorkspaceSettings,loadFounderWorkspace,PersonalWorkspaceSections}from"@/features/founder-workspace";
 import{ReservationDiagnostics,type ReservationDiagnostic}from"@/features/settings/reservation-diagnostics";
 import{FounderNotificationDiagnostics,type FounderNotificationDelivery}from"@/features/settings/founder-notification-diagnostics";
 import{CrmDiagnostics,type CrmDiagnostic}from"@/features/settings/crm-diagnostics";
@@ -25,25 +25,21 @@ export default async function SettingsPage() {
   const googleConnection = googleConfigured
     ? await loadGoogleWorkspaceConnection().catch(() => createDisconnectedGoogleWorkspaceConnection("AUTHENTICATION_ERROR"))
     : createDisconnectedGoogleWorkspaceConnection();
-  return (
-    <div className="space-y-10 lg:space-y-12">
-      <Link className="group flex items-center justify-between gap-5 rounded-3xl border bg-card p-5 transition hover:border-brand/35 hover:bg-brand/[.03] sm:p-7" href="/settings/health">
+  return <PersonalWorkspaceSections moduleKey="SETTINGS" sections={[
+    {key:"SYSTEM_HEALTH",label:"System Health",content:<Link className="group flex items-center justify-between gap-5 rounded-3xl border bg-card p-5 transition hover:border-brand/35 hover:bg-brand/[.03] sm:p-7" href="/settings/health">
         <div className="flex items-start gap-4"><span className="rounded-2xl border bg-background p-3 text-brand"><Activity className="size-5"/></span><div><p className="font-semibold">System Health Center</p><p className="mt-1 text-sm text-muted">Estado ejecutivo de ORBIT, infraestructura, Google y seguridad.</p></div></div><ArrowRight className="size-5 shrink-0 text-muted transition group-hover:translate-x-1 group-hover:text-brand"/>
-      </Link>
-      <CompanySettingsCenter settings={companySettings}/>
-      <ReservationDiagnostics diagnostics={(diagnostics??[])as ReservationDiagnostic[]}/>
-      <FounderNotificationDiagnostics deliveries={(founderDeliveries??[])as unknown as FounderNotificationDelivery[]}/>
-      <CrmDiagnostics diagnostics={(crmDiagnostics??[])as CrmDiagnostic[]}/>
-      {integrity&&<FinancialIntegrityStatus data={integrity}/>}
-      <ModuleManagerCenter initialStates={modules}/>
-      <FounderWorkspaceSettings initialPreferences={founderWorkspace}/>
-      <ProfitabilitySettings high={Number(profitabilitySettings?.high_margin_threshold??40)} normal={Number(profitabilitySettings?.normal_margin_threshold??20)}/>
-      <ProductionInitializationCenter/>
-      <MasterDataCenter {...masterData} />
-      <div id="connections">
-      <ConnectionCenter googleConfigured={googleConfigured} googleConnection={googleConnection} />
-      </div>
-      <CommunicationHub {...communication} />
-    </div>
-  );
+      </Link>},
+    {key:"COMPANY_SETTINGS",label:"Configuración de Empresa",content:<CompanySettingsCenter settings={companySettings}/>},
+    {key:"RESERVATION_DIAGNOSTICS",label:"Diagnóstico de Reservas",content:<ReservationDiagnostics diagnostics={(diagnostics??[])as ReservationDiagnostic[]}/>},
+    {key:"FOUNDER_NOTIFICATIONS",label:"Notificaciones del Founder",content:<FounderNotificationDiagnostics deliveries={(founderDeliveries??[])as unknown as FounderNotificationDelivery[]}/>},
+    {key:"CRM_DIAGNOSTICS",label:"Diagnóstico CRM",content:<CrmDiagnostics diagnostics={(crmDiagnostics??[])as CrmDiagnostic[]}/>},
+    ...(integrity?[{key:"FINANCIAL_INTEGRITY",label:"Integridad Financiera",content:<FinancialIntegrityStatus data={integrity}/>}]:[]),
+    {key:"MODULE_MANAGER",label:"Module Manager",content:<ModuleManagerCenter initialStates={modules}/>},
+    {key:"FOUNDER_WORKSPACE",label:"Founder Workspace",content:<FounderWorkspaceSettings initialPreferences={founderWorkspace}/>},
+    {key:"PROFITABILITY_SETTINGS",label:"Configuración de Rentabilidad",content:<ProfitabilitySettings high={Number(profitabilitySettings?.high_margin_threshold??40)} normal={Number(profitabilitySettings?.normal_margin_threshold??20)}/>},
+    {key:"PRODUCTION_INITIALIZATION",label:"Inicialización de Producción",content:<ProductionInitializationCenter/>},
+    {key:"MASTER_DATA",label:"Master Data",content:<MasterDataCenter {...masterData}/>},
+    {key:"CONNECTIONS",label:"Conexiones",content:<div id="connections"><ConnectionCenter googleConfigured={googleConfigured} googleConnection={googleConnection}/></div>},
+    {key:"COMMUNICATION_HUB",label:"Communication Hub",content:<CommunicationHub {...communication}/>},
+  ]}/>;
 }

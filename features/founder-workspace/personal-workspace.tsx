@@ -33,15 +33,16 @@ function WorkspaceSectionMenu({ label, moduleKey, sectionKey }: { label: string;
 export function PersonalWorkspaceSections({ moduleKey, sections }: { moduleKey: ModuleWorkspaceKey; sections: WorkspaceSection[] }) {
   const context = useContext(WorkspaceContext);
   const [dragged, setDragged] = useState<string | null>(null);
-  if (!context) return <>{sections.map((section) => <div key={section.key}>{section.content}</div>)}</>;
-  const config = context.preferences.moduleWorkspaces[moduleKey];
+  const config = context?.preferences.moduleWorkspaces[moduleKey];
+  useEffect(()=>{if(!context||!config)return;const missing=sections.filter(section=>!config.sectionOrder.includes(section.key));const labels=Object.fromEntries(sections.map(section=>[section.key,section.label]));if(!missing.length&&Object.entries(labels).every(([key,label])=>config.sectionLabels?.[key]===label))return;context.update({...context.preferences,moduleWorkspaces:{...context.preferences.moduleWorkspaces,[moduleKey]:{...config,sectionOrder:[...config.sectionOrder,...missing.map(section=>section.key)],hiddenSections:[...config.hiddenSections,...missing.map(section=>section.key)],sectionLabels:{...config.sectionLabels,...labels}}}})},[config,context,moduleKey,sections]);
+  if (!context||!config) return <>{sections.map((section) => <div key={section.key}>{section.content}</div>)}</>;
   const known = sections.map((section) => section.key);
   const orderedKeys = [...config.sectionOrder.filter((key) => known.includes(key)), ...known.filter((key) => !config.sectionOrder.includes(key))];
   const visible = orderedKeys.filter((key) => !config.hiddenSections.includes(key));
   const byKey = new Map(sections.map((section) => [section.key, section]));
   const saveConfig = (sectionOrder: string[], hiddenSections = config.hiddenSections) => context.update({
     ...context.preferences,
-    moduleWorkspaces: { ...context.preferences.moduleWorkspaces, [moduleKey]: { sectionOrder, hiddenSections } },
+    moduleWorkspaces: { ...context.preferences.moduleWorkspaces, [moduleKey]: { ...config, sectionOrder, hiddenSections } },
   });
   const drop = (target: string) => {
     if (!dragged || dragged === target) return;

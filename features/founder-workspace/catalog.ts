@@ -247,14 +247,30 @@ export const MODULE_WORKSPACES = {
   REPORTS: [
     { key: "BUSINESS_INTELLIGENCE", label: "Business Intelligence", defaultVisible: true },
   ],
+  SETTINGS: [
+    { key: "SYSTEM_HEALTH", label: "System Health", defaultVisible: true },
+    { key: "COMPANY_SETTINGS", label: "Configuración de Empresa", defaultVisible: true },
+    { key: "RESERVATION_DIAGNOSTICS", label: "Diagnóstico de Reservas", defaultVisible: true },
+    { key: "FOUNDER_NOTIFICATIONS", label: "Notificaciones del Founder", defaultVisible: true },
+    { key: "CRM_DIAGNOSTICS", label: "Diagnóstico CRM", defaultVisible: true },
+    { key: "FINANCIAL_INTEGRITY", label: "Integridad Financiera", defaultVisible: true },
+    { key: "MODULE_MANAGER", label: "Module Manager", defaultVisible: true },
+    { key: "FOUNDER_WORKSPACE", label: "Founder Workspace", defaultVisible: true },
+    { key: "PROFITABILITY_SETTINGS", label: "Configuración de Rentabilidad", defaultVisible: true },
+    { key: "PRODUCTION_INITIALIZATION", label: "Inicialización de Producción", defaultVisible: false },
+    { key: "MASTER_DATA", label: "Master Data", defaultVisible: true },
+    { key: "CONNECTIONS", label: "Conexiones", defaultVisible: true },
+    { key: "COMMUNICATION_HUB", label: "Communication Hub", defaultVisible: true },
+  ],
 } as const;
 export type ModuleWorkspaceKey = keyof typeof MODULE_WORKSPACES;
-export type ModuleWorkspacePreference = { sectionOrder: string[]; hiddenSections: string[] };
+export type ModuleWorkspacePreference = { sectionOrder: string[]; hiddenSections: string[]; sectionLabels?: Record<string,string> };
 
 export function defaultModuleWorkspaces(): Record<ModuleWorkspaceKey, ModuleWorkspacePreference> {
   return Object.fromEntries(Object.entries(MODULE_WORKSPACES).map(([moduleKey, sections]) => [moduleKey, {
     sectionOrder: sections.map((section) => section.key),
     hiddenSections: sections.filter((section) => !section.defaultVisible).map((section) => section.key),
+    sectionLabels: Object.fromEntries(sections.map((section)=>[section.key,section.label])),
   }])) as Record<ModuleWorkspaceKey, ModuleWorkspacePreference>;
 }
 export type FounderWorkspacePreferences = {
