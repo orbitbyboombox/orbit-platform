@@ -136,6 +136,52 @@ export async function applyReceivableMovementAction(
     return fail(error);
   }
 }
+export async function registerReceivablePaymentAction(formData: FormData): Promise<Result> {
+  try {
+    const client = await createSupabaseServerActionClient();
+    const { data: auth } = await client.auth.getUser();
+    if (!auth.user) throw new Error("Sesión requerida.");
+    const invoiceId = String(formData.get("invoiceId"));
+    const projectId = String(formData.get("projectId"));
+    const receipt = formData.get("receipt");
+    let receiptPath: string | null = null;
+    let receiptName: string | null = null;
+    if (receipt instanceof File && receipt.size > 0) {
+      if (receipt.size > 15 * 1024 * 1024) throw new Error("El comprobante no puede superar 15 MB.");
+      receiptName = receipt.name;
+      const extension = receipt.name.split(".").pop()?.toLowerCase() || "bin";
+      receiptPath = `receivables/${invoiceId}/${crypto.randomUUID()}.${extension}`;
+      const { error: uploadError } = await client.storage.from("orbit-documents").upload(receiptPath, receipt, { contentType: receipt.type, upsert: false });
+      if (uploadError) throw uploadError;
+    }
+    const paidOn = String(formData.get("paidOn"));
+    const { error } = await client.rpc("register_receivable_payment", {
+      p_invoice_id: invoiceId,
+      p_amount: Number(formData.get("amount")),
+      p_paid_at: `${paidOn}T12:00:00-04:00`,
+      p_method: String(formData.get("method") || "TRANSFER"),
+      p_receipt_path: receiptPath,
+      p_receipt_name: receiptName,
+      p_observation: String(formData.get("observation") || ""),
+    });
+    if (error) throw error;
+    revalidate();
+    if (projectId) revalidatePath(`/projects/${projectId}`);
+    return { ok: true };
+  } catch (error) { return fail(error); }
+}
+
+export async function getReceivableReceiptUrlAction(path: string) {
+  try {
+    const client = await createSupabaseServerActionClient();
+    const { data: auth } = await client.auth.getUser();
+    if (!auth.user) throw new Error("Sesión requerida.");
+    if (!path.startsWith("receivables/")) throw new Error("Ruta de comprobante inválida.");
+    const { data, error } = await client.storage.from("orbit-documents").createSignedUrl(path, 300);
+    if (error) throw error;
+    return { ok: true as const, url: data.signedUrl };
+  } catch (error) { return { ok: false as const, error: fail(error).error }; }
+}
 export async function updateReceivableDatesAction(formData: FormData): Promise<Result> {
   try {
     const client = await createSupabaseServerActionClient();

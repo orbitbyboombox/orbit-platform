@@ -48,6 +48,9 @@ export interface CrmCustomerEventOperations {
       reason: string;
       type: string;
       receiptPath: string | null;
+      receiptName: string | null;
+      createdBy: string | null;
+      createdAt: string;
     }>;
   } | null;
   staffAssignments: {

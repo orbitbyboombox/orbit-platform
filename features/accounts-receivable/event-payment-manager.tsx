@@ -4,20 +4,23 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Archive,
-  Banknote,
   CheckCircle2,
   History,
   RotateCcw,
   Trash2,
   CalendarClock,
+  FileDown,
   Pencil,
+  Plus,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
   applyReceivableMovementAction,
+  getReceivableReceiptUrlAction,
   manageReceivablePaymentAction,
+  registerReceivablePaymentAction,
   updateReceivableDatesAction,
   type ReceivableMovementAction,
 } from "./actions";
@@ -30,6 +33,9 @@ type Movement = {
   reason: string;
   type: string;
   receiptPath: string | null;
+  receiptName?: string | null;
+  createdBy?: string | null;
+  createdAt?: string;
 };
 export type EventReceivable = {
   id: string;
@@ -67,6 +73,7 @@ export function EventPaymentManager({
   const router = useRouter();
   const [action, setAction] = useState<ReceivableMovementAction | null>(null);
   const [feedback, setFeedback] = useState("");
+  const [newPayment, setNewPayment] = useState(false);
   const [dateEditor, setDateEditor] = useState(false);
   const [movementEditor, setMovementEditor] = useState<{ mode: "EDIT" | "DELETE"; item: Movement } | null>(null);
   const [pending, startTransition] = useTransition();
@@ -94,7 +101,7 @@ export function EventPaymentManager({
           <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">
             Gestión financiera del Evento
           </p>
-          <h2 className="mt-1 text-xl font-semibold">Movimientos de pago</h2>
+          <h2 className="mt-1 text-xl font-semibold">Payment Ledger</h2>
           <p className="mt-1 text-sm text-muted">{receivable.invoiceNumber}</p>
         </div>
         <StatusBadge
@@ -110,7 +117,7 @@ export function EventPaymentManager({
       </header>
       <div className="mt-5 grid gap-3 sm:grid-cols-4">
         <Metric label="Valor del Evento" value={receivable.amount} />
-        <Metric label="Monto recibido" value={receivable.paidAmount} />
+        <Metric label="Total recibido" value={receivable.paidAmount} />
         <Metric label="Saldo pendiente" value={receivable.outstandingBalance} />
         <div className="rounded-xl border bg-background/30 p-4">
           <p className="text-xs text-muted">Estado de pago</p>
@@ -123,6 +130,12 @@ export function EventPaymentManager({
           </p>
         </div>
       </div>
+      {receivable.status !== "CANCELLED" && receivable.outstandingBalance > 0 && (
+        <Button className="mt-5" onClick={() => setNewPayment(true)}>
+          <Plus className="size-4" />
+          Registrar nuevo pago
+        </Button>
+      )}
       <details className="mt-5 rounded-xl border">
         <summary className="cursor-pointer list-none px-4 py-3 font-medium">
           Gestionar pago
@@ -130,16 +143,6 @@ export function EventPaymentManager({
         <div className="grid gap-2 border-t p-3 sm:grid-cols-2 lg:grid-cols-3">
           {receivable.status !== "CANCELLED" && (
             <>
-              <Action
-                label="Registrar Reserva"
-                icon={<Banknote />}
-                onClick={() => setAction("DEPOSIT")}
-              />
-              <Action
-                label="Registrar Pago Parcial"
-                icon={<Banknote />}
-                onClick={() => setAction("PARTIAL_PAYMENT")}
-              />
               <Action
                 label="Registrar Pago Total"
                 icon={<CheckCircle2 />}
@@ -181,7 +184,7 @@ export function EventPaymentManager({
         <div className="mt-5">
           <p className="flex items-center gap-2 text-sm font-semibold">
             <History className="size-4" />
-            Historial de movimientos
+            Historial de pagos
           </p>
           <div className="mt-3 space-y-2">
             {receivable.movements.map((item) => (
@@ -194,9 +197,11 @@ export function EventPaymentManager({
                     {item.type.replaceAll("_", " ")}
                   </p>
                   <p className="text-xs text-muted">
-                    {new Date(item.paidAt).toLocaleString("es-CL")} ·{" "}
-                    {item.method || "Sin método"} · {item.reason}
+                    {new Date(item.paidAt).toLocaleDateString("es-CL")} ·{" "}
+                    {paymentMethod(item.method)}
                   </p>
+                  {item.reason && <p className="mt-1 text-xs text-muted">{item.reason}</p>}
+                  {item.receiptPath && <button className="mt-2 inline-flex items-center gap-1 text-xs text-brand" onClick={() => startTransition(async () => { const result = await getReceivableReceiptUrlAction(item.receiptPath!); if (result.ok) window.open(result.url, "_blank", "noopener,noreferrer"); else setFeedback(result.error); })} type="button"><FileDown className="size-3"/>{item.receiptName || "Abrir comprobante"}</button>}
                 </div>
                 <strong
                   className={item.amount < 0 ? "text-danger" : "text-success"}
@@ -302,6 +307,25 @@ export function EventPaymentManager({
           </div>
         </div>
       )}
+      {newPayment && (
+        <NewPaymentDialog
+          invoiceId={receivable.id}
+          maxAmount={receivable.outstandingBalance}
+          onClose={() => setNewPayment(false)}
+          onSubmit={(data) =>
+            startTransition(async () => {
+              const result = await registerReceivablePaymentAction(data);
+              if (result.ok) {
+                setNewPayment(false);
+                setFeedback("Nuevo pago registrado y saldos recalculados.");
+                router.refresh();
+              } else setFeedback(result.error);
+            })
+          }
+          pending={pending}
+          projectId={projectId}
+        />
+      )}
       {dateEditor && <div aria-modal="true" className="fixed inset-0 z-50 flex items-end justify-center bg-black/65 sm:items-center sm:p-6" role="dialog"><div className="w-full rounded-t-2xl border bg-card p-5 sm:max-w-lg sm:rounded-2xl"><div className="flex items-center justify-between"><h3 className="text-xl font-semibold">Editar fecha de vencimiento</h3><button aria-label="Cerrar" className="rounded-lg border p-2" onClick={() => setDateEditor(false)}><X className="size-4"/></button></div><form action={(data) => { data.set("invoiceId", receivable.id); startTransition(async () => { const result = await updateReceivableDatesAction(data); if (result.ok) { setDateEditor(false); setFeedback("Fecha actualizada y proyecciones sincronizadas."); router.refresh(); } else setFeedback(result.error); }); }} className="mt-5 space-y-4"><Field label="Fecha de vencimiento"><input defaultValue={receivable.dueDate ?? ""} name="dueDate" required type="date"/></Field><Field label="Motivo"><input name="reason" required/></Field><Button className="w-full" disabled={pending}>Guardar y recalcular</Button></form></div></div>}
       {movementEditor && (
         <MovementEditor
@@ -330,6 +354,10 @@ export function EventPaymentManager({
     </section>
   );
 }
+function NewPaymentDialog({ invoiceId, maxAmount, pending, projectId, onClose, onSubmit }: { invoiceId: string; maxAmount: number; pending: boolean; projectId: string; onClose: () => void; onSubmit: (data: FormData) => void }) {
+  return <div aria-modal="true" className="fixed inset-0 z-50 flex items-end justify-center bg-black/65 sm:items-center sm:p-6" role="dialog"><div className="w-full rounded-t-2xl border bg-card p-5 sm:max-w-lg sm:rounded-2xl"><div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-wide text-brand">Payment Ledger</p><h3 className="mt-1 text-xl font-semibold">Registrar nuevo pago</h3><p className="mt-1 text-sm text-muted">Este pago se agregará como un movimiento independiente.</p></div><button aria-label="Cerrar" className="rounded-lg border p-2" onClick={onClose}><X className="size-4"/></button></div><form action={(data) => { data.set("invoiceId", invoiceId); data.set("projectId", projectId); onSubmit(data); }} className="mt-5 space-y-4"><Field label="Monto"><input max={maxAmount} min="1" name="amount" required type="number"/></Field><Field label="Fecha"><input defaultValue={new Date().toISOString().slice(0, 10)} name="paidOn" required type="date"/></Field><Field label="Método de pago"><select defaultValue="TRANSFER" name="method"><option value="TRANSFER">Transferencia</option><option value="CARD">Tarjeta</option><option value="CASH">Efectivo</option><option value="OTHER">Otro</option></select></Field><Field label="Comprobante"><input accept="image/jpeg,image/png,image/webp,application/pdf" name="receipt" type="file"/></Field><Field label="Observación (opcional)"><input name="observation"/></Field><Button className="w-full" disabled={pending}>{pending ? "Registrando…" : "Guardar nuevo pago"}</Button></form></div></div>;
+}
+function paymentMethod(method: string) { return ({ TRANSFER: "Transferencia", CARD: "Tarjeta", CASH: "Efectivo", OTHER: "Otro" } as Record<string, string>)[method] ?? method; }
 function MovementEditor({ invoiceId, movement, mode, pending, projectId, onClose, onSubmit }: { invoiceId: string; movement: Movement; mode: "EDIT" | "DELETE"; pending: boolean; projectId: string; onClose: () => void; onSubmit: (data: FormData) => void }) {
   return <div aria-modal="true" className="fixed inset-0 z-50 flex items-end justify-center bg-black/65 sm:items-center sm:p-6" role="dialog"><div className="w-full rounded-t-2xl border bg-card p-5 sm:max-w-lg sm:rounded-2xl"><div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-wide text-brand">Movimiento financiero</p><h3 className="mt-1 text-xl font-semibold">{mode === "EDIT" ? "Editar movimiento" : "Eliminar movimiento"}</h3></div><button aria-label="Cerrar" className="rounded-lg border p-2" onClick={onClose}><X className="size-4"/></button></div><form action={(data) => { data.set("invoiceId", invoiceId); data.set("paymentId", movement.id); data.set("projectId", projectId); data.set("paymentAction", mode); onSubmit(data); }} className="mt-5 space-y-4">{mode === "EDIT" ? <><Field label="Monto"><input defaultValue={Math.abs(movement.amount)} min="1" name="amount" required type="number"/></Field><Field label="Fecha"><input defaultValue={movement.paidAt.slice(0, 10)} name="paidOn" required type="date"/></Field><Field label="Método de pago"><select defaultValue={movement.method || "TRANSFER"} name="method"><option value="TRANSFER">Transferencia</option><option value="CARD">Tarjeta</option><option value="CASH">Efectivo</option><option value="OTHER">Otro</option></select></Field><Field label="Reemplazar comprobante (opcional)"><input accept="image/jpeg,image/png,image/webp,application/pdf" name="receipt" type="file"/></Field></> : <p className="rounded-xl border border-danger/30 bg-danger/5 p-4 text-sm">Se eliminará únicamente este movimiento por <strong>{money(Math.abs(movement.amount))}</strong>. El Cliente, Evento y cuenta por cobrar permanecen intactos.</p>}<Field label="Motivo obligatorio"><input name="reason" required/></Field><Button className="w-full" disabled={pending} variant={mode === "DELETE" ? "destructive" : "default"}>{pending ? "Guardando…" : mode === "EDIT" ? "Guardar y recalcular" : "Eliminar movimiento"}</Button></form></div></div>;
 }
