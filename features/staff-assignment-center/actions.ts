@@ -7,7 +7,7 @@ import { synchronizeConfirmedReservationCalendar } from "@/features/connectors/g
 export type StaffAssignmentMutation={id?:string;projectId:string;staffId:string;role:string;arrivalTime:string;startTime:string;finishTime:string;vehicleId:string;observations:string;replaceId?:string};
 type Result={ok:true}|{ok:false;error:string};
 
-const allowedRoles=["OPERATOR","ASSEMBLY","DISASSEMBLY","DRIVER","COORDINATOR","TECHNICIAN","PHOTOGRAPHER"];
+const allowedRoles=["OPERATOR","ASSEMBLY","DISASSEMBLY"];
 const allowedStatuses=["ASSIGNED","PENDING_CONFIRMATION","CONFIRMED","COMPLETED","CANCELLED"];
 const value=(input:string)=>input.trim()||null;
 const friendly=(error:unknown,fallback:string)=>error instanceof Error&&error.message&&!/invalid|violates|constraint|uuid|postgres|supabase/i.test(error.message)?error.message:fallback;
@@ -18,7 +18,7 @@ async function context(projectId:string){
   if(!data.user)throw new Error("Tu sesión expiró. Vuelve a iniciar sesión.");
   const{data:profile}=await client.from("profiles").select("role").eq("id",data.user.id).single();
   if(!profile||!["CEO","ADMINISTRATOR"].includes(profile.role))throw new Error("Solo Administración puede gestionar asignaciones.");
-  const{data:project,error}=await client.from("projects").select("id,customer_id,orbit_event_id,name").eq("id",projectId).is("deleted_at",null).single();
+  const{data:project,error}=await client.from("projects").select("id,customer_id,orbit_event_id,name,event_time,project_services(duration_hours)").eq("id",projectId).is("deleted_at",null).single();
   if(error)throw error;
   return{client,user:data.user,project};
 }
@@ -31,7 +31,8 @@ async function timeline(ctx:Awaited<ReturnType<typeof context>>,assignmentId:str
 export async function saveStaffAssignmentAction(input:StaffAssignmentMutation):Promise<Result>{try{
   if(!allowedRoles.includes(input.role)||!input.staffId||!input.projectId)throw new Error("Selecciona Staff, rol y evento.");
   const ctx=await context(input.projectId);
-  const payload={project_id:input.projectId,staff_id:input.staffId,assignment_type:input.role,status:"ASSIGNED",arrival_time:value(input.arrivalTime),start_time:value(input.startTime),finish_time:value(input.finishTime),assigned_vehicle:value(input.vehicleId),observations:value(input.observations),resources:{vehicle:value(input.vehicleId)},reason:value(input.observations)??"Asignación operacional",updated_by:ctx.user.id};
+  const eventStart=ctx.project.event_time?.slice(0,5)??"";const service=Array.isArray(ctx.project.project_services)?ctx.project.project_services[0]:ctx.project.project_services;const duration=Math.max(0,Number(service?.duration_hours??0));const clock=(base:string,minutes:number)=>{if(!base)return null;const[h,m]=base.split(":").map(Number);const total=(h*60+m+minutes+1440)%1440;return`${String(Math.floor(total/60)).padStart(2,"0")}:${String(total%60).padStart(2,"0")}`};const automaticArrival=input.role==="OPERATOR"?clock(eventStart,-90):null;const automaticFinish=clock(eventStart,duration*60);
+  const payload={project_id:input.projectId,staff_id:input.staffId,assignment_type:input.role,status:"ASSIGNED",arrival_time:value(input.arrivalTime)??automaticArrival,start_time:value(input.startTime)??value(eventStart),finish_time:value(input.finishTime)??automaticFinish,assigned_vehicle:value(input.vehicleId),observations:value(input.observations),resources:{vehicle:value(input.vehicleId)},reason:value(input.observations)??"Asignación operacional",updated_by:ctx.user.id};
   if(input.replaceId){
     const{data:old,error:oldError}=await ctx.client.from("assignments").update({status:"CANCELLED",deleted_at:new Date().toISOString(),updated_by:ctx.user.id,reason:"Staff reemplazado"}).eq("id",input.replaceId).eq("project_id",input.projectId).is("deleted_at",null).select("id,staff_id").single();if(oldError)throw oldError;
     await timeline(ctx,old.id,"STAFF_REMOVED","Staff anterior removido por reemplazo.",old.staff_id);
