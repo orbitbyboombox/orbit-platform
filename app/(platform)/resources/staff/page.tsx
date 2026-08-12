@@ -1,6 +1,5 @@
 import { StaffManagement, SupabaseStaffRepository, createStaffManagementSnapshot } from "@/features/resources";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { StaffPinReset } from "@/features/portal-authentication";
 import { StaffOperationCenter } from "@/features/resources/staff-operation-center";
 import type { StaffOperationalRecord } from "@/features/resources/staff-operation-center.actions";
 import {StaffPaymentsCenter,type StaffPaymentEvent,type StaffPaymentMonth}from"@/features/staff-payments";
@@ -30,10 +29,10 @@ export default async function StaffManagementPage() {
   const vehicleOptions=(vehicles??[]).map((vehicle)=>({id:vehicle.asset_id,label:vehicle.model}));
   const paymentEvents:StaffPaymentEvent[]=(paymentRows??[]).flatMap(row=>{const project=Array.isArray(row.projects)?row.projects[0]:row.projects;if(!project)return[];const customer=Array.isArray(project.customers)?project.customers[0]:project.customers;const service=Array.isArray(project.project_services)?project.project_services[0]:project.project_services;return[{id:row.id,staffId:row.staff_id,projectId:project.id,eventName:project.name,eventDate:project.event_date,customer:customer?.full_name??"Sin cliente",service:service?.service_code??project.project_type,durationHours:Number(service?.duration_hours??0),roles:row.tasks??[],amount:Number(row.total_internal_payment),operator:Number(row.operator_payment),assembly:Number(row.assembly_payment),disassembly:Number(row.disassembly_payment),overrideReason:row.override_reason??"",status:row.status,settlementStatus:row.settlement_status,paidAmount:Number(row.paid_amount),paidAt:row.paid_at??"",receiptStatus:row.sii_receipt_status}]});
   const monthlyRecords:StaffPaymentMonth[]=(paymentMonths??[]).map(row=>({id:row.id,staffId:row.staff_id,month:row.month,tax:Number(row.tax_amount),advances:Number(row.advances),paid:Number(row.paid_amount),status:row.status,documents:(row.staff_payment_documents??[]).map(document=>({id:document.id,type:document.document_type,name:document.file_name,createdAt:document.created_at}))}));
+  const portalAccess=(staff??[]).map(member=>({id:member.id,name:`${member.first_name} ${member.last_name}`,rut:member.rut??"",email:member.email??"",enabled:Boolean(member.portal_enabled),hasPin:Boolean(member.pin_updated_at),firstLoginPending:Boolean(member.portal_password_change_required),invitationSentAt:member.portal_invitation_sent_at??null}));
   return <PersonalWorkspaceSections moduleKey="STAFF" sections={[
-    {key:"STAFF_CENTER",label:"Gestión de Staff",content:<StaffOperationCenter initialStaff={operationalStaff} projects={projectOptions} vehicles={vehicleOptions}/>},
+    {key:"STAFF_CENTER",label:"Gestión de Staff",content:<StaffOperationCenter initialStaff={operationalStaff} portalAccess={portalAccess} projects={projectOptions} vehicles={vehicleOptions}/>},
     {key:"STAFF_PAYMENTS",label:"Pagos de Staff",content:<StaffPaymentsCenter staff={operationalStaff.map(member=>({id:member.id,name:`${member.firstName} ${member.lastName}`,rut:member.rut}))} events={paymentEvents} months={monthlyRecords}/>},
-    {key:"STAFF_ACCESS",label:"Accesos de Staff",content:<StaffPinReset members={(staff??[]).map(member=>({id:member.id,name:`${member.first_name} ${member.last_name}`,rut:member.rut??"",email:member.email??"",enabled:Boolean(member.portal_enabled),hasPin:Boolean(member.pin_updated_at),firstLoginPending:Boolean(member.portal_password_change_required),invitationSentAt:member.portal_invitation_sent_at??null}))}/>},
     {key:"STAFF_AVAILABILITY",label:"Disponibilidad detallada",content:<details className="rounded-2xl border bg-card p-5"><summary className="cursor-pointer font-semibold">Vista operacional detallada y disponibilidad</summary><div className="mt-6"><StaffManagement snapshot={createStaffManagementSnapshot({ members })} /></div></details>},
   ]}/>;
 }
