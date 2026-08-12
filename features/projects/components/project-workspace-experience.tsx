@@ -14,7 +14,6 @@ import {
   Clock3,
   Download,
   ExternalLink,
-  EyeOff,
   FileText,
   FolderOpen,
   Gauge,
@@ -75,13 +74,11 @@ import {
   type EventProfitabilityData,
 } from "./event-profitability-panel";
 import { saveFounderWorkspaceAction } from "@/features/founder-workspace/actions";
-import { DomWorkspaceControls } from "@/features/founder-workspace/personal-workspace";
 import type {
   EventModuleKey,
   FounderWorkspacePreferences,
 } from "@/features/founder-workspace/catalog";
 
-const EVENT_WORKSPACE_SELECTORS:Record<string,string>={GENERAL_INFORMATION:"#customer",FINANCIAL_SUMMARY:"#event-finance",STAFF:"#staff-assignment",DOCUMENTS:"#documents",CUSTOMER_PORTAL:"#customer-portal",GOOGLE_CALENDAR:"#google-calendar",TIMELINE:"#timeline",EVENT_HEALTH:"#health",CHECKLIST:"#operations-checklist",MILESTONES:"#post-event",GOOGLE_WORKSPACE:"#google",PAYROLL:"#payroll",OPERATIONAL_CONTROL:"#operations",TASK_CENTER:"#tasks",COMMERCIAL_NEGOTIATION:"#commercial"};
 import {
   EventPaymentManager,
   type EventReceivable,
@@ -286,19 +283,8 @@ function OptionalModule({
   onHide: (key: EventModuleKey) => void;
   children: ReactNode;
 }) {
-  return (
-    <div className="relative">
-      <button
-        className="mb-2 ml-auto flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium text-muted transition hover:border-brand hover:text-foreground"
-        onClick={() => onHide(moduleKey)}
-        type="button"
-      >
-        <EyeOff className="size-3.5" />
-        Ocultar de Mi Escritorio
-      </button>
-      {children}
-    </div>
-  );
+  void moduleKey;void onHide;
+  return <div className="relative">{children}</div>;
 }
 
 function TaskRow({ task }: { task: Event360Task }) {
@@ -534,6 +520,7 @@ export function ProjectWorkspaceExperience(
       module: "MILESTONES" as EventModuleKey,
     },
   ].filter((item) => moduleVisible(item.module));
+  const showLegacyDuplicatedEventSections = false;
   return (
     <WorkspaceLayout
       className="max-w-none p-0"
@@ -541,7 +528,7 @@ export function ProjectWorkspaceExperience(
       timeline={null}
       copilot={null}
       mainContent={
-        <div className="space-y-6 pb-8"><DomWorkspaceControls moduleKey="EVENTS" selectors={EVENT_WORKSPACE_SELECTORS}/>
+        <div className="space-y-6 pb-8">
           <section className="overflow-hidden rounded-3xl border bg-card">
             <div className="grid gap-6 p-5 sm:p-7 lg:grid-cols-[1fr_auto] lg:items-end">
               <div>
@@ -825,15 +812,21 @@ export function ProjectWorkspaceExperience(
             <div className="mb-3"><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Centro operativo</p><h2 className="mt-1 text-2xl font-semibold">Gestión completa del Evento</h2><p className="mt-1 text-sm text-muted">Pagos, costos, Staff, documentos, Portal y Calendar pertenecen a este Evento.</p></div>
             <CustomerEventOperations event={props.eventControl.event} onEditEvent={() => scroll("commercial")} operations={props.eventControl.operations}/>
           </section>
+          {moduleVisible("FINANCIAL_SUMMARY") && event.realCosts && (
+            <details className="rounded-2xl border bg-card p-5" id="real-cost-adjustments">
+              <summary className="cursor-pointer font-semibold text-brand">Detalle financiero y ajustes de costos reales</summary>
+              <div className="mt-5"><RealCostOverridePanel data={event.realCosts} projectId={props.projectKey ?? ""}/></div>
+            </details>
+          )}
 
-          {moduleVisible("FINANCIAL_SUMMARY") && event.receivable && (
+          {showLegacyDuplicatedEventSections && moduleVisible("FINANCIAL_SUMMARY") && event.receivable && (
             <EventPaymentManager
               projectId={props.projectKey ?? ""}
               receivable={event.receivable}
             />
           )}
 
-          {moduleVisible("FINANCIAL_SUMMARY") && (
+          {showLegacyDuplicatedEventSections && moduleVisible("FINANCIAL_SUMMARY") && (
             <Section
               eyebrow="05 · Costos automáticos"
               icon={<Gauge className="size-5" />}
@@ -905,7 +898,7 @@ export function ProjectWorkspaceExperience(
               )}
             </Section>
           )}
-          {moduleVisible("FINANCIAL_SUMMARY") && (
+          {showLegacyDuplicatedEventSections && moduleVisible("FINANCIAL_SUMMARY") && (
             <>
               {event.realCosts && (
                 <RealCostOverridePanel
@@ -926,7 +919,7 @@ export function ProjectWorkspaceExperience(
               />
             </OptionalModule>
           )}
-          {moduleVisible("STAFF") && (
+          {showLegacyDuplicatedEventSections && moduleVisible("STAFF") && (
             <StaffAssignmentCenter {...event.staffAssignments} />
           )}
           {moduleVisible("TASK_CENTER") && (
@@ -1007,7 +1000,7 @@ export function ProjectWorkspaceExperience(
                 </Section>
               </OptionalModule>
             )}
-            {moduleVisible("DOCUMENTS") && (
+            {showLegacyDuplicatedEventSections && moduleVisible("DOCUMENTS") && (
               <Section
                 eyebrow="07 · Archivos"
                 icon={<FolderOpen className="size-5" />}
@@ -1056,7 +1049,7 @@ export function ProjectWorkspaceExperience(
                 </div>
               </Section>
             )}
-            {moduleVisible("GOOGLE_CALENDAR") && (
+            {showLegacyDuplicatedEventSections && moduleVisible("GOOGLE_CALENDAR") && (
               <Section
                 eyebrow="08 · Agenda"
                 icon={<CalendarDays className="size-5" />}
@@ -1076,7 +1069,7 @@ export function ProjectWorkspaceExperience(
                 </dl>
               </Section>
             )}
-            {moduleVisible("CUSTOMER_PORTAL") && (
+            {showLegacyDuplicatedEventSections && moduleVisible("CUSTOMER_PORTAL") && (
               <Section
                 eyebrow="09 · Cliente"
                 icon={<Link2 className="size-5" />}
@@ -1149,7 +1142,7 @@ export function ProjectWorkspaceExperience(
                 </Section>
               </OptionalModule>
             )}
-            {moduleVisible("FINANCIAL_SUMMARY") && (
+            {showLegacyDuplicatedEventSections && moduleVisible("FINANCIAL_SUMMARY") && (
               <Section
                 eyebrow="09 · Rentabilidad real"
                 icon={<Gauge className="size-5" />}
@@ -1565,7 +1558,7 @@ export function ProjectWorkspaceExperience(
               <ProductionIntegrationPanel {...props.productionIntegration} />
             </OptionalModule>
           )}
-          {moduleVisible("DOCUMENTS") && (
+          {showLegacyDuplicatedEventSections && moduleVisible("DOCUMENTS") && (
             <div id="agreement-control">
               <AgreementSigningControl
                 agreementId={props.signing.agreementId}
