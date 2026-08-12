@@ -8,6 +8,7 @@ import {
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { calculateAndPersistRealEventCost } from "@/features/profit-engine";
 import { loadFounderWorkspace } from "@/features/founder-workspace";
+import { loadCrmCustomerOperations } from "@/features/crm/customer-operations.repository";
 
 export interface ProjectWorkspacePageProps {
   params: Promise<{ projectId: string }>;
@@ -119,7 +120,7 @@ export default async function ProjectWorkspacePage({
     client
       .from("quotations")
       .select(
-        "id,quotation_number,version,status,grand_total,official_price,final_customer_price,price_difference,created_at,pdf_storage_path,drive_file_id,gmail_draft_id",
+        "id,quotation_number,version,status,grand_total,transport_total,official_price,final_customer_price,price_difference,created_at,pdf_storage_path,drive_file_id,gmail_draft_id",
       )
       .eq("project_id", projectId)
       .is("deleted_at", null)
@@ -985,12 +986,38 @@ export default async function ProjectWorkspacePage({
         .map((asset) => ({ id: asset.id, name: asset.asset_code })),
     },
   };
+  const eventControlOperations = (await loadCrmCustomerOperations(client, [projectId]))[0];
+  if (!eventControlOperations) notFound();
+  const primaryService = (serviceRows ?? [])[0];
+  const eventControl = {
+    event: {
+      id: projectId,
+      projectId,
+      orbitEventId: rawProject?.orbit_event_id ?? `ORB-${projectId}`,
+      type: typeLabel,
+      date,
+      time: experienceProps.eventTime,
+      status: rawProject?.status ?? project.status,
+      name: experienceProps.projectName,
+      location: project.event.location,
+      eventAddress: typeof operations.eventAddress === "string" ? operations.eventAddress : null,
+      municipality: project.event.city,
+      service: primaryService?.service_code ?? "",
+      duration: primaryService?.duration_hours ?? null,
+      boothQuantity: Number(operations.boothQuantity ?? 1),
+      transport: Number(quotation?.transport_total ?? 0),
+      extras: Array.isArray(primaryService?.extras) ? primaryService.extras.map(String) : [],
+      appliedPrice: Number(quotation?.final_customer_price ?? quotation?.grand_total ?? 0),
+    },
+    operations: eventControlOperations,
+  };
   return (
     <ProjectWorkspaceExperience
       {...experienceProps}
       activities={activities}
       equipment={equipment}
       event360={event360}
+      eventControl={eventControl}
       eventDateIso={date}
       portalStage={portalStage}
       productionIntegration={productionIntegration}

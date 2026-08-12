@@ -83,6 +83,8 @@ import {
   EventPaymentManager,
   type EventReceivable,
 } from "@/features/accounts-receivable";
+import { CustomerEventOperations } from "@/features/crm/customer-event-operations";
+import type { CrmCustomerEventOperations, CrmEventSummary } from "@/features/crm/types";
 
 type Event360Task = {
   id: string;
@@ -188,6 +190,7 @@ export type ProjectWorkspaceExperienceProps = Omit<
   signing: { agreementId?: string; status: string };
   productionIntegration: ProductionIntegrationPanelProps;
   event360: Event360Data;
+  eventControl: { event: CrmEventSummary; operations: CrmCustomerEventOperations };
   workspacePreferences: FounderWorkspacePreferences;
   workspaceData: {
     sale: string;
@@ -813,6 +816,11 @@ export function ProjectWorkspaceExperience(
                 </Section>
               </OptionalModule>
             )}
+          </section>
+
+          <section className="scroll-mt-24" id="event-control-center">
+            <div className="mb-3"><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Centro operativo</p><h2 className="mt-1 text-2xl font-semibold">Gestión completa del Evento</h2><p className="mt-1 text-sm text-muted">Pagos, costos, Staff, documentos, Portal y Calendar pertenecen a este Evento.</p></div>
+            <CustomerEventOperations event={props.eventControl.event} onEditEvent={() => scroll("commercial")} operations={props.eventControl.operations}/>
           </section>
 
           {moduleVisible("FINANCIAL_SUMMARY") && event.receivable && (
