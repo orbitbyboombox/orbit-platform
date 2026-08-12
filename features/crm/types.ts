@@ -93,6 +93,12 @@ export interface CrmCustomerEventOperations {
     personnelCost: number;
     operationalCost: number;
     totalCost: number;
+    costBreakdown: Array<{
+      key: string;
+      label: string;
+      group: "PERSONNEL" | "OPERATIONAL";
+      amount: number;
+    }>;
     profit: number;
     margin: number;
     classification: string;

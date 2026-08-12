@@ -10,7 +10,7 @@ export async function loadCrmCustomerOperations(
   projectIds: string[],
 ): Promise<CrmCustomerEventOperations[]> {
   if (!projectIds.length) return [];
-  const [receivables, assignments, staff, assets, agreements, documents, calendars, portals, invoices, profitability] =
+  const [receivables, assignments, staff, assets, agreements, documents, calendars, portals, invoices, profitability, financialTruth] =
     await Promise.all([
       client.from("accounts_receivable_projection").select("id,project_id,invoice_number,amount,paid_amount,outstanding_balance,due_date,effective_status,payment_history").in("project_id", projectIds),
       client.from("assignments").select("id,project_id,staff_id,assignment_type,status,arrival_time,start_time,finish_time,assigned_vehicle,observations,staff(first_name,last_name),operational_assets(asset_code)").in("project_id", projectIds).is("deleted_at", null),
@@ -22,8 +22,9 @@ export async function loadCrmCustomerOperations(
       client.from("customer_portal_tokens").select("project_id").in("project_id", projectIds).is("revoked_at", null),
       client.from("invoices").select("id,project_id,invoice_number,status,amount,due_date").in("project_id", projectIds).is("deleted_at", null).order("created_at", { ascending: false }),
       client.from("event_profitability_statements").select("project_id,real_costs,profitability,classification,created_at").in("project_id", projectIds).order("created_at", { ascending: false }),
+      client.from("financial_event_records").select("project_id,revenue,personnel_cost,operational_resources_cost,total_operational_cost,net_profit,net_margin,cost_breakdown,calculated_at").in("project_id", projectIds),
     ]);
-  const failures = [receivables, assignments, staff, assets, agreements, documents, calendars, portals, invoices, profitability].filter((result) => result.error);
+  const failures = [receivables, assignments, staff, assets, agreements, documents, calendars, portals, invoices, profitability, financialTruth].filter((result) => result.error);
   if (failures.length) throw failures[0].error;
   const activeStaff = (staff.data ?? []).filter((member) => member.status === "ACTIVE").map((member) => ({
     id: member.id,
@@ -37,8 +38,23 @@ export async function loadCrmCustomerOperations(
     const agreement = (agreements.data ?? []).find((item) => item.project_id === projectId);
     const calendar = (calendars.data ?? []).find((item) => item.project_id === projectId);
     const profit = (profitability.data ?? []).find((item) => item.project_id === projectId);
+    const truth = (financialTruth.data ?? []).find((item) => item.project_id === projectId);
     const realCosts = (profit?.real_costs ?? {}) as Record<string, unknown>;
     const profitValues = (profit?.profitability ?? {}) as Record<string, unknown>;
+    const costValues = (truth?.cost_breakdown ?? realCosts) as Record<string, unknown>;
+    const costBreakdown = [
+      ["operator", "Operador", "PERSONNEL"],
+      ["assembly", "Montaje", "PERSONNEL"],
+      ["disassembly", "Desmontaje", "PERSONNEL"],
+      ["paper", "Papel", "OPERATIONAL"],
+      ["fuel", "Combustible", "OPERATIONAL"],
+      ["transport", "Transporte", "OPERATIONAL"],
+      ["scrapbook", "Scrapbook", "OPERATIONAL"],
+      ["magnets", "Imanes", "OPERATIONAL"],
+      ["pens", "Lápices", "OPERATIONAL"],
+      ["doubleSidedTape", "Cinta doble contacto", "OPERATIONAL"],
+      ["other", "Otros costos operacionales", "OPERATIONAL"],
+    ].map(([key, label, group]) => ({ key, label, group: group as "PERSONNEL" | "OPERATIONAL", amount: Number(costValues[key] ?? 0) }));
     return {
       projectId,
       receivable: invoice ? {
@@ -83,15 +99,16 @@ export async function loadCrmCustomerOperations(
       calendar: calendar ? { status: calendar.status, externalUrl: calendar.external_url, externalEventId: calendar.external_event_id } : null,
       portalActive: (portals.data ?? []).some((item) => item.project_id === projectId),
       invoices: (invoices.data ?? []).filter((item) => item.project_id === projectId).map((item) => ({ id: item.id, number: item.invoice_number, status: item.status, amount: Number(item.amount ?? 0), dueDate: item.due_date })),
-      profitability: profit ? {
-        revenue: Number(profitValues.grossRevenue ?? 0),
-        personnelCost: Number(realCosts.personnelCost ?? 0),
-        operationalCost: Number(realCosts.operationalResourcesCost ?? 0),
-        totalCost: Number(realCosts.totalOperationalCost ?? realCosts.total ?? 0),
-        profit: Number(profitValues.netProfit ?? 0),
-        margin: Number(profitValues.margin ?? 0),
-        classification: profit.classification,
-        calculatedAt: profit.created_at,
+      profitability: profit || truth ? {
+        revenue: Number(truth?.revenue ?? profitValues.grossRevenue ?? 0),
+        personnelCost: Number(truth?.personnel_cost ?? realCosts.personnelCost ?? 0),
+        operationalCost: Number(truth?.operational_resources_cost ?? realCosts.operationalResourcesCost ?? 0),
+        totalCost: Number(truth?.total_operational_cost ?? realCosts.totalOperationalCost ?? realCosts.total ?? 0),
+        costBreakdown,
+        profit: Number(truth?.net_profit ?? profitValues.netProfit ?? 0),
+        margin: Number(truth?.net_margin ?? profitValues.margin ?? 0),
+        classification: profit?.classification ?? "NORMAL",
+        calculatedAt: truth?.calculated_at ?? profit?.created_at ?? new Date().toISOString(),
       } : null,
     };
   });
