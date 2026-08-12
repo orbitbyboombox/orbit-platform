@@ -212,6 +212,7 @@ export const MODULE_WORKSPACES = {
     { key: "DASHBOARD_WIDGETS", label: "Widgets", defaultVisible: true },
   ],
   CUSTOMERS: [
+    { key: "CUSTOMER_METRICS", label: "Indicadores del cliente", defaultVisible: true },
     { key: "CUSTOMER_INFORMATION", label: "Información del cliente", defaultVisible: true },
     { key: "CUSTOMER_EVENTS", label: "Eventos del cliente", defaultVisible: true },
     { key: "CUSTOMER_DOCUMENTS", label: "Documentos y Portal", defaultVisible: true },

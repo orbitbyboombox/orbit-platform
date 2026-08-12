@@ -6,21 +6,16 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { CrmCustomerProfile } from "./types";
 import { updateCrmCustomerAction } from "./actions";
-import { usePersonalWorkspace } from "@/features/founder-workspace/personal-workspace";
+import { DomWorkspaceControls, usePersonalWorkspace } from "@/features/founder-workspace/personal-workspace";
+
+const CUSTOMER_WORKSPACE_SELECTORS: Record<string,string>={CUSTOMER_METRICS:"#customer-workspace > section:nth-of-type(1)",CUSTOMER_INFORMATION:"#customer-workspace > section:nth-of-type(2)",CUSTOMER_EVENTS:"#customer-events",CUSTOMER_DOCUMENTS:"#customer-documents",CUSTOMER_COMMERCIAL_HISTORY:"#customer-commercial-history",CUSTOMER_TIMELINE:"#customer-workspace > section:nth-of-type(6)"};
 
 const money = (value: number) => new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(value);
 
 export function CustomerProfile({ customer }: { customer: CrmCustomerProfile }) {
   const { preferences } = usePersonalWorkspace();
   const workspace = preferences.moduleWorkspaces.CUSTOMERS;
-  const selectors: Record<string, string> = {
-    CUSTOMER_INFORMATION: "#customer-workspace > section:nth-of-type(2)",
-    CUSTOMER_EVENTS: "#customer-events",
-    CUSTOMER_DOCUMENTS: "#customer-documents",
-    CUSTOMER_COMMERCIAL_HISTORY: "#customer-commercial-history",
-    CUSTOMER_TIMELINE: "#customer-workspace > section:nth-of-type(6)",
-  };
-  const workspaceCss = workspace.sectionOrder.map((key, index) => `${selectors[key]}{order:${index + 10};${workspace.hiddenSections.includes(key) ? "display:none;" : ""}}`).join("");
+  const workspaceCss = workspace.sectionOrder.map((key, index) => `${CUSTOMER_WORKSPACE_SELECTORS[key]}{order:${index + 10};${workspace.hiddenSections.includes(key) ? "display:none;" : ""}}`).join("");
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState("");
@@ -30,7 +25,7 @@ export function CustomerProfile({ customer }: { customer: CrmCustomerProfile }) 
     if (!result.ok) return setError(result.error);
     setEditing(false); router.refresh();
   });
-  return <div className="flex flex-col gap-7" id="customer-workspace"><style>{workspaceCss}</style>
+  return <div className="flex flex-col gap-7" id="customer-workspace"><style>{workspaceCss}</style><DomWorkspaceControls moduleKey="CUSTOMERS" selectors={CUSTOMER_WORKSPACE_SELECTORS}/>
     <header><Link className="inline-flex items-center gap-2 text-sm text-muted" href="/customers"><ArrowLeft className="size-4"/>Volver a Clientes</Link><div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs uppercase tracking-[.18em] text-muted">Relación comercial</p><h1 className="mt-2 text-3xl font-semibold">{customer.fullName}</h1><p className="mt-2 text-sm text-muted">{customer.company || "Cliente particular"} · {customer.rut}</p></div><button className="rounded-xl bg-primary px-4 py-2.5 text-sm text-primary-foreground" onClick={() => setEditing((value) => !value)} type="button">✏ Editar cliente</button></div></header>
     <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{[
       [CalendarDays, "Eventos activos", String(customer.activeEvents), "#customer-events"],

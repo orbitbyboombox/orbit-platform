@@ -75,10 +75,13 @@ import {
   type EventProfitabilityData,
 } from "./event-profitability-panel";
 import { saveFounderWorkspaceAction } from "@/features/founder-workspace/actions";
+import { DomWorkspaceControls } from "@/features/founder-workspace/personal-workspace";
 import type {
   EventModuleKey,
   FounderWorkspacePreferences,
 } from "@/features/founder-workspace/catalog";
+
+const EVENT_WORKSPACE_SELECTORS:Record<string,string>={GENERAL_INFORMATION:"#customer",FINANCIAL_SUMMARY:"#event-finance",STAFF:"#staff-assignment",DOCUMENTS:"#documents",CUSTOMER_PORTAL:"#customer-portal",GOOGLE_CALENDAR:"#google-calendar",TIMELINE:"#timeline",EVENT_HEALTH:"#health",CHECKLIST:"#operations-checklist",MILESTONES:"#post-event",GOOGLE_WORKSPACE:"#google",PAYROLL:"#payroll",OPERATIONAL_CONTROL:"#operations",TASK_CENTER:"#tasks",COMMERCIAL_NEGOTIATION:"#commercial"};
 import {
   EventPaymentManager,
   type EventReceivable,
@@ -538,7 +541,7 @@ export function ProjectWorkspaceExperience(
       timeline={null}
       copilot={null}
       mainContent={
-        <div className="space-y-6 pb-8">
+        <div className="space-y-6 pb-8"><DomWorkspaceControls moduleKey="EVENTS" selectors={EVENT_WORKSPACE_SELECTORS}/>
           <section className="overflow-hidden rounded-3xl border bg-card">
             <div className="grid gap-6 p-5 sm:p-7 lg:grid-cols-[1fr_auto] lg:items-end">
               <div>

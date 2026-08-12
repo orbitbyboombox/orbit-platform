@@ -29,7 +29,8 @@ import {
   cleanupReceivableIntegrityAction,
   type ReceivableMovementAction,
 } from "./actions";
-import { usePersonalWorkspace } from "@/features/founder-workspace/personal-workspace";
+import { DomWorkspaceControls, usePersonalWorkspace } from "@/features/founder-workspace/personal-workspace";
+const RECEIVABLE_WORKSPACE_SELECTORS:Record<string,string>={RECEIVABLES_HEADER:"#receivables-workspace > section:nth-of-type(1)",RECEIVABLES_KPIS:"#receivables-workspace > section:nth-of-type(2)",RECEIVABLES_MANAGEMENT:"#receivables-workspace > section:nth-of-type(3)",RECEIVABLES_INTEGRITY:"#receivables-workspace > section:nth-of-type(4)"};
 const money = (n: number) =>
   new Intl.NumberFormat("es-CL", {
     style: "currency",
@@ -76,8 +77,7 @@ export function AccountsReceivableCenter({
 }) {
   const { preferences } = usePersonalWorkspace();
   const workspace = preferences.moduleWorkspaces.RECEIVABLES;
-  const selectors: Record<string,string> = { RECEIVABLES_HEADER: "#receivables-workspace > section:nth-of-type(1)", RECEIVABLES_KPIS: "#receivables-workspace > section:nth-of-type(2)", RECEIVABLES_MANAGEMENT: "#receivables-workspace > section:nth-of-type(3)", RECEIVABLES_INTEGRITY: "#receivables-workspace > section:nth-of-type(4)" };
-  const workspaceCss = workspace.sectionOrder.map((key,index)=>`${selectors[key]}{order:${index};${workspace.hiddenSections.includes(key)?"display:none;":""}}`).join("");
+  const workspaceCss = workspace.sectionOrder.map((key,index)=>`${RECEIVABLE_WORKSPACE_SELECTORS[key]}{order:${index};${workspace.hiddenSections.includes(key)?"display:none;":""}}`).join("");
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("ALL");
   const [view, setView] = useState<"ACTIVE" | "HISTORY">("ACTIVE");
@@ -124,7 +124,7 @@ export function AccountsReceivableCenter({
       copilot={null}
       className="max-w-none p-0"
       mainContent={
-        <main className="flex flex-col gap-6 pb-10" id="receivables-workspace"><style>{workspaceCss}</style>
+        <main className="flex flex-col gap-6 pb-10" id="receivables-workspace"><style>{workspaceCss}</style><DomWorkspaceControls moduleKey="RECEIVABLES" selectors={RECEIVABLE_WORKSPACE_SELECTORS}/>
           <section className="rounded-3xl border bg-card p-5 sm:p-7">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
               <div>
