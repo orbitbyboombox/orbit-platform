@@ -206,6 +206,11 @@ export const EVENT_MODULES = [
 ] as const;
 export type EventModuleKey = (typeof EVENT_MODULES)[number]["key"];
 export const MODULE_WORKSPACES = {
+  DASHBOARD: [
+    { key: "DASHBOARD_HEADER", label: "Encabezado", defaultVisible: true },
+    { key: "DASHBOARD_QUICK_ACTIONS", label: "Acciones rápidas", defaultVisible: true },
+    { key: "DASHBOARD_WIDGETS", label: "Widgets", defaultVisible: true },
+  ],
   CUSTOMERS: [
     { key: "CUSTOMER_INFORMATION", label: "Información del cliente", defaultVisible: true },
     { key: "CUSTOMER_EVENTS", label: "Eventos del cliente", defaultVisible: true },
@@ -219,17 +224,26 @@ export const MODULE_WORKSPACES = {
     { key: "ACCOUNTS_RECEIVABLE", label: "Cuentas por cobrar", defaultVisible: true },
     { key: "EVENT_PROFITABILITY", label: "Rentabilidad de eventos", defaultVisible: true },
   ],
-  OPERATIONS: [
-    { key: "OPERATIONS_OVERVIEW", label: "Resumen operacional", defaultVisible: true },
-    { key: "OPERATIONS_ALERTS", label: "Alertas operacionales", defaultVisible: true },
+  RECEIVABLES: [
+    { key: "RECEIVABLES_HEADER", label: "Encabezado y exportación", defaultVisible: true },
+    { key: "RECEIVABLES_KPIS", label: "Indicadores de cobranza", defaultVisible: true },
+    { key: "RECEIVABLES_MANAGEMENT", label: "Gestión y movimientos", defaultVisible: true },
+    { key: "RECEIVABLES_INTEGRITY", label: "Integridad financiera", defaultVisible: false },
+  ],
+  STAFF: [
+    { key: "STAFF_CENTER", label: "Gestión de Staff", defaultVisible: true },
+    { key: "STAFF_PAYMENTS", label: "Pagos de Staff", defaultVisible: true },
+    { key: "STAFF_ACCESS", label: "Accesos de Staff", defaultVisible: false },
+    { key: "STAFF_AVAILABILITY", label: "Disponibilidad detallada", defaultVisible: false },
   ],
   RESOURCES: [
-    { key: "STAFF", label: "Staff", defaultVisible: true },
+    { key: "RESOURCE_CENTER", label: "Centro de Recursos", defaultVisible: true },
     { key: "FLEET", label: "Flota", defaultVisible: true },
     { key: "EQUIPMENT", label: "Equipamiento", defaultVisible: true },
+    { key: "ROUTE_COSTS", label: "Costos de Ruta", defaultVisible: false },
+    { key: "INVENTORY", label: "Inventario operacional", defaultVisible: false },
   ],
   REPORTS: [
-    { key: "REPORTS_OVERVIEW", label: "Resumen de reportes", defaultVisible: true },
     { key: "BUSINESS_INTELLIGENCE", label: "Business Intelligence", defaultVisible: true },
   ],
 } as const;

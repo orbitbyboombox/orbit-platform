@@ -4,6 +4,7 @@ import { StaffPinReset } from "@/features/portal-authentication";
 import { StaffOperationCenter } from "@/features/resources/staff-operation-center";
 import type { StaffOperationalRecord } from "@/features/resources/staff-operation-center.actions";
 import {StaffPaymentsCenter,type StaffPaymentEvent,type StaffPaymentMonth}from"@/features/staff-payments";
+import { PersonalWorkspaceSections } from "@/features/founder-workspace";
 
 export default async function StaffManagementPage() {
   const client = await createSupabaseServerClient();
@@ -29,5 +30,10 @@ export default async function StaffManagementPage() {
   const vehicleOptions=(vehicles??[]).map((vehicle)=>({id:vehicle.asset_id,label:vehicle.model}));
   const paymentEvents:StaffPaymentEvent[]=(paymentRows??[]).flatMap(row=>{const project=Array.isArray(row.projects)?row.projects[0]:row.projects;return project?[{id:row.id,staffId:row.staff_id,eventName:project.name,eventDate:project.event_date,amount:Number(row.total_internal_payment),operator:Number(row.operator_payment),assembly:Number(row.assembly_payment),disassembly:Number(row.disassembly_payment),overrideReason:row.override_reason??"",status:row.status}]:[]});
   const monthlyRecords:StaffPaymentMonth[]=(paymentMonths??[]).map(row=>({id:row.id,staffId:row.staff_id,month:row.month,tax:Number(row.tax_amount),advances:Number(row.advances),paid:Number(row.paid_amount),status:row.status,documents:(row.staff_payment_documents??[]).map(document=>({id:document.id,type:document.document_type,name:document.file_name,createdAt:document.created_at}))}));
-  return <div className="space-y-8"><StaffOperationCenter initialStaff={operationalStaff} projects={projectOptions} vehicles={vehicleOptions}/><StaffPaymentsCenter staff={operationalStaff.map(member=>({id:member.id,name:`${member.firstName} ${member.lastName}`,rut:member.rut}))} events={paymentEvents} months={monthlyRecords}/><StaffPinReset members={members.map(member=>({id:member.profile.id,name:`${member.profile.firstName} ${member.profile.lastName}`}))}/><details className="rounded-2xl border bg-card p-5"><summary className="cursor-pointer font-semibold">Vista operacional detallada y disponibilidad</summary><div className="mt-6"><StaffManagement snapshot={createStaffManagementSnapshot({ members })} /></div></details></div>;
+  return <PersonalWorkspaceSections moduleKey="STAFF" sections={[
+    {key:"STAFF_CENTER",label:"Gestión de Staff",content:<StaffOperationCenter initialStaff={operationalStaff} projects={projectOptions} vehicles={vehicleOptions}/>},
+    {key:"STAFF_PAYMENTS",label:"Pagos de Staff",content:<StaffPaymentsCenter staff={operationalStaff.map(member=>({id:member.id,name:`${member.firstName} ${member.lastName}`,rut:member.rut}))} events={paymentEvents} months={monthlyRecords}/>},
+    {key:"STAFF_ACCESS",label:"Accesos de Staff",content:<StaffPinReset members={members.map(member=>({id:member.profile.id,name:`${member.profile.firstName} ${member.profile.lastName}`}))}/>},
+    {key:"STAFF_AVAILABILITY",label:"Disponibilidad detallada",content:<details className="rounded-2xl border bg-card p-5"><summary className="cursor-pointer font-semibold">Vista operacional detallada y disponibilidad</summary><div className="mt-6"><StaffManagement snapshot={createStaffManagementSnapshot({ members })} /></div></details>},
+  ]}/>;
 }

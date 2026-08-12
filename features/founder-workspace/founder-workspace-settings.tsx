@@ -8,13 +8,12 @@ import {
 } from "./actions";
 import {
   DEFAULT_WORKSPACE,
-  EVENT_MODULES,
-  MODULE_WORKSPACES,
   QUICK_ACTIONS,
   WIDGETS,
   type FounderWorkspacePreferences,
 } from "./catalog";
 import { navigationItems } from "@/components/layout/navigation";
+import { ModuleWorkspaceSettings } from "./module-workspace-settings";
 export function FounderWorkspaceSettings({
   initialPreferences,
 }: {
@@ -70,41 +69,6 @@ export function FounderWorkspaceSettings({
       </Group>
       <Group title="Menú oculto">
         {prefs.navigationOrder.filter((key)=>prefs.hiddenNavigation.includes(key)).map((key)=>{const item=navigationItems.find(candidate=>candidate.key===key);return item?<Item hidden key={key} label={item.label} onToggle={()=>save({...prefs,hiddenNavigation:prefs.hiddenNavigation.filter(candidate=>candidate!==key)})}/>:null})}
-      </Group>
-      <Group title="Módulos visibles en Eventos">
-        {EVENT_MODULES.filter(
-          (x) => !prefs.hiddenEventModules.includes(x.key),
-        ).map((x) => (
-          <Item
-            key={x.key}
-            label={x.label}
-            onToggle={() =>
-              save({
-                ...prefs,
-                hiddenEventModules: [...prefs.hiddenEventModules, x.key],
-              })
-            }
-          />
-        ))}
-      </Group>
-      <Group title="Módulos ocultos en Eventos">
-        {EVENT_MODULES.filter((x) =>
-          prefs.hiddenEventModules.includes(x.key),
-        ).map((x) => (
-          <Item
-            hidden
-            key={x.key}
-            label={x.label}
-            onToggle={() =>
-              save({
-                ...prefs,
-                hiddenEventModules: prefs.hiddenEventModules.filter(
-                  (k) => k !== x.key,
-                ),
-              })
-            }
-          />
-        ))}
       </Group>
       <Group title="Acciones visibles">
         {QUICK_ACTIONS.filter(
@@ -181,22 +145,7 @@ export function FounderWorkspaceSettings({
           />
         ))}
       </Group>
-      <div className="space-y-5 rounded-2xl border p-4 sm:p-5">
-        <div><h3 className="font-semibold">Secciones por módulo</h3><p className="mt-1 text-sm text-muted">Ordena, oculta o restaura secciones de cada espacio. La configuración pertenece solo a esta cuenta.</p></div>
-        {Object.entries(MODULE_WORKSPACES).map(([moduleKey, sections]) => {
-          const key = moduleKey as keyof typeof prefs.moduleWorkspaces;
-          const config = prefs.moduleWorkspaces[key];
-          const move = (sectionKey: string, offset: number) => {
-            const order = [...config.sectionOrder]; const index = order.indexOf(sectionKey); const target = index + offset;
-            if (index < 0 || target < 0 || target >= order.length) return;
-            [order[index], order[target]] = [order[target], order[index]];
-            save({ ...prefs, moduleWorkspaces: { ...prefs.moduleWorkspaces, [key]: { ...config, sectionOrder: order } } });
-          };
-          return <section className="rounded-xl border bg-background/20 p-4" key={moduleKey}><h4 className="mb-3 text-sm font-semibold">{moduleLabel(moduleKey)}</h4><div className="grid gap-2 sm:grid-cols-2">
-            {config.sectionOrder.map((sectionKey) => { const section = sections.find((candidate) => candidate.key === sectionKey); if (!section) return null; const hidden = config.hiddenSections.includes(sectionKey); return <Item hidden={hidden} key={sectionKey} label={section.label} onMoveDown={() => move(sectionKey, 1)} onMoveUp={() => move(sectionKey, -1)} onToggle={() => save({ ...prefs, moduleWorkspaces: { ...prefs.moduleWorkspaces, [key]: { ...config, hiddenSections: hidden ? config.hiddenSections.filter((candidate) => candidate !== sectionKey) : [...config.hiddenSections, sectionKey] } } })}/>; })}
-          </div></section>;
-        })}
-      </div>
+      <ModuleWorkspaceSettings onChange={save} preferences={prefs} />
       <div className="flex flex-col gap-3 border-t pt-5 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted">
           {pending
@@ -211,7 +160,6 @@ export function FounderWorkspaceSettings({
     </section>
   );
 }
-function moduleLabel(key: string) { return ({ CUSTOMERS: "Clientes", EVENTS: "Eventos", FINANCE: "Finanzas", OPERATIONS: "Operaciones", RESOURCES: "Recursos", REPORTS: "Reportes" } as Record<string,string>)[key] ?? key; }
 function Group({
   children,
   title,

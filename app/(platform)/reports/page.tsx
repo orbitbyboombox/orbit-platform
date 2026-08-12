@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { BusinessIntelligenceCenter, type BusinessIntelligenceDataset } from "@/features/business-intelligence";
 import { loadFinancialTruth } from "@/features/business-engine";
+import { PersonalWorkspaceSections } from "@/features/founder-workspace";
 
 export default async function ReportsPage(){
   const client=await createSupabaseServerClient(); const {data:auth,error:authError}=await client.auth.getUser(); if(authError||!auth.user)redirect("/login");
@@ -35,5 +36,5 @@ export default async function ReportsPage(){
     reviews:(reviews.data??[]).filter(item=>projectIds.has(item.project_id)),reviewStaff:reviewStaff.data??[],profiles:profiles.data??[],
     receivables:(receivables.data??[]).filter(item=>projectIds.has(item.project_id)),
   };
-  return <BusinessIntelligenceCenter dataset={dataset}/>;
+  return <PersonalWorkspaceSections moduleKey="REPORTS" sections={[{key:"BUSINESS_INTELLIGENCE",label:"Business Intelligence",content:<BusinessIntelligenceCenter dataset={dataset}/>} ]}/>;
 }

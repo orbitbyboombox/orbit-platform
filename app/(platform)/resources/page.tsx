@@ -11,6 +11,7 @@ import { RouteCostCenter } from "@/features/resources/route-cost-center";
 import type { OperationalRoute } from "@/features/resources/route-cost.actions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { loadModuleStates } from "@/features/module-manager/repository";
+import { PersonalWorkspaceSections } from "@/features/founder-workspace";
 
 export default async function ResourcesPage() {
   const client = await createSupabaseServerClient();
@@ -75,5 +76,11 @@ export default async function ResourcesPage() {
   const projectOptions = (projects ?? []).map((project) => ({ id: project.id, label: `${project.name} · ${project.event_date}` }));
   const driverOptions = (staff ?? []).filter((member) => member.status === "ACTIVE").map((member) => ({ id: member.id, label: `${member.first_name} ${member.last_name}` }));
   const routes: OperationalRoute[] = (vehicleRoutes ?? []).map((route) => { const fuel = Array.isArray(route.fuel) ? route.fuel[0] : route.fuel; const events = route.events ?? []; const amount = Number(fuel?.total_amount ?? 0); return { id: route.id, vehicleId: route.asset_id, date: route.route_date, driverId: route.driver_staff_id ?? "", eventIds: events.map((event) => event.project_id), fuelAmount: amount, distance: route.distance === null ? null : Number(route.distance), notes: route.notes ?? "", receiptPath: fuel?.receipt_path ?? "", version: route.version, allocatedPerEvent: events.length ? amount / events.length : 0 }; });
-  return <div className="space-y-12"><ResourceCenter initialItems={resources} />{modules.FLEET&&<FleetCenter initialVehicles={fleet} initialFuelLogs={fuelEntries} projects={projectOptions} drivers={driverOptions} showFuelControl={modules.FUEL_CONTROL}/>} {modules.ROUTE_COSTS&&<RouteCostCenter initialRoutes={routes} vehicles={fleet} projects={projectOptions} drivers={driverOptions} />}{modules.EQUIPMENT&&<details className="rounded-2xl border bg-card p-5"><summary className="cursor-pointer font-semibold">Gestión detallada e historial de equipamiento</summary><div className="mt-6"><EquipmentOperationCenter initialItems={equipment} historyEntries={equipmentHistory} /></div></details>}{modules.INVENTORY&&<OperationsBoard snapshot={createOperationsBoardSnapshot(input)} />}</div>;
+  return <PersonalWorkspaceSections moduleKey="RESOURCES" sections={[
+    {key:"RESOURCE_CENTER",label:"Centro de Recursos",content:<ResourceCenter initialItems={resources}/>},
+    ...(modules.FLEET?[{key:"FLEET",label:"Flota",content:<FleetCenter initialVehicles={fleet} initialFuelLogs={fuelEntries} projects={projectOptions} drivers={driverOptions} showFuelControl={modules.FUEL_CONTROL}/>}]:[]),
+    ...(modules.ROUTE_COSTS?[{key:"ROUTE_COSTS",label:"Costos de Ruta",content:<RouteCostCenter initialRoutes={routes} vehicles={fleet} projects={projectOptions} drivers={driverOptions}/>}]:[]),
+    ...(modules.EQUIPMENT?[{key:"EQUIPMENT",label:"Equipamiento",content:<details className="rounded-2xl border bg-card p-5"><summary className="cursor-pointer font-semibold">Gestión detallada e historial de equipamiento</summary><div className="mt-6"><EquipmentOperationCenter initialItems={equipment} historyEntries={equipmentHistory}/></div></details>}]:[]),
+    ...(modules.INVENTORY?[{key:"INVENTORY",label:"Inventario operacional",content:<OperationsBoard snapshot={createOperationsBoardSnapshot(input)}/>}]:[]),
+  ]}/>;
 }
