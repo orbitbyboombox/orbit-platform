@@ -50,6 +50,7 @@ export function CustomerProfile({
         email: String(form.get("email")),
         address: String(form.get("address")),
         commercialNotes: String(form.get("commercialNotes")),
+        contacts: parseContacts(String(form.get("contacts"))),
         reason: String(form.get("reason")),
       });
       if (!result.ok) setError(result.error);
@@ -110,6 +111,7 @@ export function CustomerProfile({
         municipality: String(form.get("municipality")),
         service: String(form.get("service")),
         duration: String(form.get("duration")),
+        boothQuantity: String(form.get("boothQuantity")),
         transport: String(form.get("transport")),
         extras: String(form.get("extras")),
         appliedPrice: String(form.get("appliedPrice")),
@@ -239,6 +241,21 @@ export function CustomerProfile({
             </label>
           ))}
           <label className="text-sm sm:col-span-2">
+            <span className="mb-1.5 block text-muted">
+              Contactos adicionales (Nombre | Email | Teléfono)
+            </span>
+            <textarea
+              className="min-h-24 w-full rounded-xl border bg-background p-3"
+              defaultValue={customer.contacts
+                .map((contact) =>
+                  [contact.name, contact.email, contact.phone].join(" | "),
+                )
+                .join("\n")}
+              name="contacts"
+              placeholder="Producción | produccion@empresa.cl | +56 9 1234 5678"
+            />
+          </label>
+          <label className="text-sm sm:col-span-2">
             <span className="mb-1.5 block text-muted">Notas comerciales</span>
             <textarea
               className="min-h-24 w-full rounded-xl border bg-background p-3"
@@ -291,6 +308,12 @@ export function CustomerProfile({
               "number",
             ],
             [
+              "boothQuantity",
+              "Cantidad de cabinas",
+              (editingEvent.boothQuantity ?? 1).toString(),
+              "number",
+            ],
+            [
               "transport",
               "Transporte",
               editingEvent.transport.toString(),
@@ -304,6 +327,7 @@ export function CustomerProfile({
               <input
                 className="h-11 w-full rounded-xl border bg-background px-3"
                 defaultValue={value}
+                min={name === "boothQuantity" ? 1 : undefined}
                 name={name}
                 type={type}
               />
@@ -369,26 +393,26 @@ export function CustomerProfile({
                     <MoreVertical className="size-4" />
                   </summary>
                   <div className="absolute right-0 z-20 mt-2 w-56 rounded-xl border bg-card p-2 shadow-xl">
-                    <Link
+                    <button
                       className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-accent"
-                      href={`/projects/${event.projectId}`}
+                      onClick={() =>
+                        setManagedEvent((current) =>
+                          current === event.projectId ? null : event.projectId,
+                        )
+                      }
+                      type="button"
                     >
                       <ExternalLink className="size-4" />
-                      Abrir Evento
-                    </Link>
+                      {managedEvent === event.projectId
+                        ? "Cerrar Evento"
+                        : "Abrir Evento"}
+                    </button>
                     <button
                       className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent"
                       onClick={() => setEditingEvent(event)}
                     >
                       <Save className="size-4" />
                       Editar Evento
-                    </button>
-                    <button
-                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent"
-                      onClick={() => setManagedEvent((current) => current === event.projectId ? null : event.projectId)}
-                    >
-                      <ShieldCheck className="size-4" />
-                      Gestionar desde Cliente
                     </button>
                     <button
                       className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent"
@@ -415,7 +439,15 @@ export function CustomerProfile({
                 </details>
               </div>
               </div>
-              {managedEvent === event.projectId && <CustomerEventOperations event={event} operations={operations.find((item) => item.projectId === event.projectId)} />}
+              {managedEvent === event.projectId && (
+                <CustomerEventOperations
+                  event={event}
+                  onEditEvent={() => setEditingEvent(event)}
+                  operations={operations.find(
+                    (item) => item.projectId === event.projectId,
+                  )}
+                />
+              )}
             </article>
           ))}
           {customer.events.length === 0 && (
@@ -558,4 +590,12 @@ export function CustomerProfile({
       </section>
     </div>
   );
+}
+
+function parseContacts(value: string) {
+  return value
+    .split("\n")
+    .map((line) => line.split("|").map((part) => part.trim()))
+    .filter((parts) => parts.some(Boolean))
+    .map(([name = "", email = "", phone = ""]) => ({ name, email, phone }));
 }

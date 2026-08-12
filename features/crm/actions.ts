@@ -82,6 +82,7 @@ export async function updateCrmCustomerAction(input: {
   email: string;
   address: string;
   commercialNotes: string;
+  contacts: Array<{ name: string; email: string; phone: string }>;
   reason: string;
 }) {
   try {
@@ -105,6 +106,7 @@ export async function updateCrmCustomerAction(input: {
         metadata: {
           ...current.metadata,
           commercialNotes: input.commercialNotes,
+          contacts: input.contacts,
         },
         approval_reason: input.reason,
         updated_by: user.id,
@@ -267,6 +269,7 @@ export async function updateCrmEventAction(input: {
   municipality: string;
   service: string;
   duration: string;
+  boothQuantity?: string;
   transport: string;
   extras?: string;
   appliedPrice?: string;
@@ -284,6 +287,9 @@ export async function updateCrmEventAction(input: {
         municipality: input.municipality,
         service: input.service,
         duration: input.duration,
+        ...(input.boothQuantity !== undefined
+          ? { boothQuantity: input.boothQuantity }
+          : {}),
         transport: input.transport,
         ...(input.extras !== undefined ? { extras: input.extras.split(",").map((item) => item.trim()).filter(Boolean) } : {}),
         ...(input.appliedPrice !== undefined ? { appliedPrice: input.appliedPrice } : {}),

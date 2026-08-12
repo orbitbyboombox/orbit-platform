@@ -103,7 +103,7 @@ export async function loadCrmCustomerProfile(
     client
       .from("crm_events")
       .select(
-        "id,project_id,orbit_event_id,event_type,event_date,status,projects!inner(name,location,city,event_time,deleted_at,project_services(service_code,duration_hours,extras),quotations(transport_total,grand_total,final_customer_price,created_at))",
+        "id,project_id,orbit_event_id,event_type,event_date,status,projects!inner(name,location,city,event_time,operations,deleted_at,project_services(service_code,duration_hours,extras),quotations(transport_total,grand_total,final_customer_price,created_at))",
       )
       .eq("customer_id", customerId)
       .is("projects.deleted_at", null)
@@ -172,6 +172,7 @@ export async function loadCrmCustomerProfile(
           location: string | null;
           city: string | null;
           event_time: string | null;
+          operations: Record<string, unknown> | null;
           deleted_at: string | null;
           project_services: Array<{
             service_code: string;
@@ -190,6 +191,7 @@ export async function loadCrmCustomerProfile(
           location: string | null;
           city: string | null;
           event_time: string | null;
+          operations: Record<string, unknown> | null;
           deleted_at: string | null;
           project_services: Array<{
             service_code: string;
@@ -228,6 +230,7 @@ export async function loadCrmCustomerProfile(
       municipality: project?.city ?? null,
       service: service?.service_code ?? "",
       duration: service?.duration_hours ?? null,
+      boothQuantity: Math.max(1, Number(project.operations?.boothQuantity ?? 1)),
       transport: Number(latestQuotation?.transport_total ?? 0),
       extras: Array.isArray(service?.extras) ? service.extras.map(String) : [],
       appliedPrice: Number(latestQuotation?.final_customer_price ?? latestQuotation?.grand_total ?? 0),
@@ -363,6 +366,17 @@ export async function loadCrmCustomerProfile(
       typeof metadata.commercialNotes === "string"
         ? metadata.commercialNotes
         : "",
+    contacts: Array.isArray(metadata.contacts)
+      ? metadata.contacts
+          .filter((item): item is Record<string, unknown> =>
+            Boolean(item) && typeof item === "object",
+          )
+          .map((item) => ({
+            name: String(item.name ?? ""),
+            email: String(item.email ?? ""),
+            phone: String(item.phone ?? ""),
+          }))
+      : [],
     events: mapped,
     activeEvents,
     archivedEvents,

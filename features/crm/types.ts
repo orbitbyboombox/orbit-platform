@@ -26,6 +26,7 @@ export interface CrmEventSummary {
   municipality: string | null;
   service: string;
   duration: number | null;
+  boothQuantity?: number;
   transport: number;
   extras?: string[];
   appliedPrice?: number;
@@ -106,6 +107,7 @@ export interface CrmCommercialNegotiation {
 }
 export interface CrmCustomerProfile extends CrmCustomerSummary {
   commercialNotes: string;
+  contacts: Array<{ name: string; email: string; phone: string }>;
   events: CrmEventSummary[];
   activeEvents: number;
   archivedEvents: number;
