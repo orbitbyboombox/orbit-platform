@@ -34,6 +34,21 @@ export interface CrmEventSummary {
 }
 export interface CrmCustomerEventOperations {
   projectId: string;
+  commercialSummary: {
+    service: string;
+    duration: number;
+    branding: string;
+    qr: string;
+    magnets: string;
+    scrapbook: string;
+    transport: string;
+    additionalHours: string;
+  };
+  financialSummary: {
+    net: number;
+    vat: number;
+    total: number;
+  };
   receivable: {
     id: string;
     invoiceNumber: string;
@@ -88,6 +103,7 @@ export interface CrmCustomerEventOperations {
   } | null;
   portalActive: boolean;
   invoices: Array<{ id: string; number: string; status: string; amount: number; dueDate: string | null }>;
+  expenses: Array<{ id: string; date: string; category: string; description: string; total: number; status: string }>;
   profitability: {
     revenue: number;
     personnelCost: number;

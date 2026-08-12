@@ -10,7 +10,7 @@ export async function loadCrmCustomerOperations(
   projectIds: string[],
 ): Promise<CrmCustomerEventOperations[]> {
   if (!projectIds.length) return [];
-  const [receivables, assignments, staff, assets, agreements, documents, calendars, portals, invoices, profitability, financialTruth] =
+  const [receivables, assignments, staff, assets, agreements, documents, calendars, portals, invoices, profitability, financialTruth, quotations, expenses, services] =
     await Promise.all([
       client.from("accounts_receivable_projection").select("id,project_id,invoice_number,amount,paid_amount,outstanding_balance,due_date,effective_status,payment_history").in("project_id", projectIds),
       client.from("assignments").select("id,project_id,staff_id,assignment_type,status,arrival_time,start_time,finish_time,assigned_vehicle,observations,staff(first_name,last_name),operational_assets(asset_code)").in("project_id", projectIds).is("deleted_at", null),
@@ -23,8 +23,11 @@ export async function loadCrmCustomerOperations(
       client.from("invoices").select("id,project_id,invoice_number,status,amount,due_date").in("project_id", projectIds).is("deleted_at", null).order("created_at", { ascending: false }),
       client.from("event_profitability_statements").select("project_id,real_costs,profitability,classification,created_at").in("project_id", projectIds).order("created_at", { ascending: false }),
       client.from("financial_event_records").select("project_id,revenue,personnel_cost,operational_resources_cost,total_operational_cost,net_profit,net_margin,cost_breakdown,calculated_at").in("project_id", projectIds),
+      client.from("quotations").select("id,project_id,subtotal,transport_total,tax_total,grand_total,final_customer_price,pricing_snapshot,created_at,quotation_items(item_type,code,label,quantity,final_total,metadata)").in("project_id", projectIds).is("deleted_at", null).order("created_at", { ascending: false }),
+      client.from("expenses").select("id,project_id,occurred_on,category,approval_reason,total,status").in("project_id", projectIds).is("deleted_at", null).order("occurred_on", { ascending: false }),
+      client.from("project_services").select("project_id,service_code,duration_hours,extras").in("project_id", projectIds),
     ]);
-  const failures = [receivables, assignments, staff, assets, agreements, documents, calendars, portals, invoices, profitability, financialTruth].filter((result) => result.error);
+  const failures = [receivables, assignments, staff, assets, agreements, documents, calendars, portals, invoices, profitability, financialTruth, quotations, expenses, services].filter((result) => result.error);
   if (failures.length) throw failures[0].error;
   const activeStaff = (staff.data ?? []).filter((member) => member.status === "ACTIVE").map((member) => ({
     id: member.id,
@@ -39,6 +42,16 @@ export async function loadCrmCustomerOperations(
     const calendar = (calendars.data ?? []).find((item) => item.project_id === projectId);
     const profit = (profitability.data ?? []).find((item) => item.project_id === projectId);
     const truth = (financialTruth.data ?? []).find((item) => item.project_id === projectId);
+    const quotation = (quotations.data ?? []).find((item) => item.project_id === projectId);
+    const service = (services.data ?? []).find((item) => item.project_id === projectId);
+    const quoteItems = (quotation?.quotation_items ?? []) as Array<{ item_type: string; code: string; label: string; quantity: number; final_total: number; metadata: Record<string, unknown> | null }>;
+    const projectExtras = (Array.isArray(service?.extras) ? service.extras : []) as string[];
+    const extras: Array<{ item_type: string; code: string; label: string; quantity: number; final_total: number; metadata: Record<string, unknown> | null }> = [...quoteItems.filter((item) => item.item_type === "EXTRA"), ...projectExtras.map((label) => ({ item_type: "EXTRA", code: label, label, quantity: 1, final_total: 0, metadata: { source: "PROJECT" } }))];
+    const extraStatus = (needles: string[]) => {
+      const item = extras.find((entry) => needles.some((needle) => `${entry.code} ${entry.label}`.toUpperCase().includes(needle)));
+      if (!item) return "NO";
+      return Boolean(item.metadata?.included) || /INCLUID|BENEFICIO/.test(item.label.toUpperCase()) || (item.metadata?.source !== "PROJECT" && Number(item.final_total) === 0) ? "Incluido" : "SÍ";
+    };
     const realCosts = (profit?.real_costs ?? {}) as Record<string, unknown>;
     const profitValues = (profit?.profitability ?? {}) as Record<string, unknown>;
     const costValues = (truth?.cost_breakdown ?? realCosts) as Record<string, unknown>;
@@ -57,6 +70,21 @@ export async function loadCrmCustomerOperations(
     ].map(([key, label, group]) => ({ key, label, group: group as "PERSONNEL" | "OPERATIONAL", amount: Number(costValues[key] ?? 0) }));
     return {
       projectId,
+      commercialSummary: {
+        service: service?.service_code ?? "Por confirmar",
+        duration: Number(service?.duration_hours ?? 0),
+        branding: extraStatus(["BRANDING"]),
+        qr: extraStatus(["QR"]),
+        magnets: extraStatus(["MAGNET", "IMAN"]),
+        scrapbook: extraStatus(["SCRAPBOOK"]),
+        transport: Number(quotation?.transport_total ?? 0) > 0 || projectExtras.some((extra) => /TRANSPORT/i.test(extra)) ? "SÍ" : "NO",
+        additionalHours: extraStatus(["ADDITIONAL_HOUR", "HORA ADICIONAL"]),
+      },
+      financialSummary: {
+        net: Math.max(0, Number(quotation?.final_customer_price ?? quotation?.grand_total ?? 0) - Number(quotation?.tax_total ?? 0)),
+        vat: Number(quotation?.tax_total ?? 0),
+        total: Number(quotation?.final_customer_price ?? quotation?.grand_total ?? 0),
+      },
       receivable: invoice ? {
         id: invoice.id,
         invoiceNumber: invoice.invoice_number,
@@ -99,6 +127,11 @@ export async function loadCrmCustomerOperations(
       calendar: calendar ? { status: calendar.status, externalUrl: calendar.external_url, externalEventId: calendar.external_event_id } : null,
       portalActive: (portals.data ?? []).some((item) => item.project_id === projectId),
       invoices: (invoices.data ?? []).filter((item) => item.project_id === projectId).map((item) => ({ id: item.id, number: item.invoice_number, status: item.status, amount: Number(item.amount ?? 0), dueDate: item.due_date })),
+      expenses: (expenses.data ?? []).filter((item) => item.project_id === projectId).map((item) => {
+        let description = "Gasto operacional del Evento";
+        try { description = String(JSON.parse(item.approval_reason ?? "{}").description ?? description); } catch {}
+        return { id: item.id, date: item.occurred_on, category: item.category, description, total: Number(item.total ?? 0), status: item.status };
+      }),
       profitability: profit || truth ? {
         revenue: Number(truth?.revenue ?? profitValues.grossRevenue ?? 0),
         personnelCost: Number(truth?.personnel_cost ?? realCosts.personnelCost ?? 0),

@@ -6,9 +6,7 @@ import {
   Copy,
   ExternalLink,
   FileSignature,
-  Landmark,
   MoreVertical,
-  ReceiptText,
   Save,
   Trash2,
 } from "lucide-react";
@@ -203,46 +201,6 @@ export function CustomerProfile({
             label: "Eventos archivados",
             value: customer.archivedEvents,
             action: () => scrollTo("customer-events"),
-          },
-          {
-            icon: ReceiptText,
-            label: "Ingresos totales",
-            value: customer.totalRevenue.toLocaleString("es-CL", {
-              style: "currency",
-              currency: "CLP",
-              maximumFractionDigits: 0,
-            }),
-            action: () => openEventCenter("profitability"),
-          },
-          {
-            icon: Landmark,
-            label: "Total recibido",
-            value: customer.totalReceived.toLocaleString("es-CL", {
-              style: "currency",
-              currency: "CLP",
-              maximumFractionDigits: 0,
-            }),
-            action: () => openEventCenter("payments"),
-          },
-          {
-            icon: ReceiptText,
-            label: "Cuentas por cobrar",
-            value: customer.accountsReceivable.toLocaleString("es-CL", {
-              style: "currency",
-              currency: "CLP",
-              maximumFractionDigits: 0,
-            }),
-            action: () => openEventCenter("payments"),
-          },
-          {
-            icon: Landmark,
-            label: "Lifetime Value",
-            value: customer.lifetimeValue.toLocaleString("es-CL", {
-              style: "currency",
-              currency: "CLP",
-              maximumFractionDigits: 0,
-            }),
-            action: () => scrollTo("customer-commercial-history"),
           },
           {
             icon: FileSignature,
