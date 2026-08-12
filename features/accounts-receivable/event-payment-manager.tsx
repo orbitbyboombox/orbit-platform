@@ -9,12 +9,15 @@ import {
   History,
   RotateCcw,
   Trash2,
+  CalendarClock,
+  Pencil,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
   applyReceivableMovementAction,
+  updateReceivableDatesAction,
   type ReceivableMovementAction,
 } from "./actions";
 
@@ -34,6 +37,7 @@ export type EventReceivable = {
   paidAmount: number;
   outstandingBalance: number;
   status: string;
+  dueDate?: string | null;
   movements: Movement[];
 };
 const money = (value: number) =>
@@ -62,6 +66,7 @@ export function EventPaymentManager({
   const router = useRouter();
   const [action, setAction] = useState<ReceivableMovementAction | null>(null);
   const [feedback, setFeedback] = useState("");
+  const [dateEditor, setDateEditor] = useState<{ paymentId?: string; paymentDate?: string } | null>(null);
   const [pending, startTransition] = useTransition();
   const submit = (data: FormData) => {
     if (!action) return;
@@ -158,6 +163,11 @@ export function EventPaymentManager({
             </>
           )}
           <Action
+            label="Editar vencimiento"
+            icon={<CalendarClock />}
+            onClick={() => setDateEditor({})}
+          />
+          <Action
             danger
             label="Eliminar Cuenta"
             icon={<Trash2 />}
@@ -192,6 +202,7 @@ export function EventPaymentManager({
                   {item.amount < 0 ? "−" : "+"}
                   {money(Math.abs(item.amount))}
                 </strong>
+                <button className="mt-2 inline-flex items-center gap-1 text-xs text-brand sm:mt-0" onClick={() => setDateEditor({ paymentId: item.id, paymentDate: item.paidAt.slice(0, 10) })} type="button"><Pencil className="size-3"/>Editar fecha</button>
               </div>
             ))}
           </div>
@@ -289,6 +300,7 @@ export function EventPaymentManager({
           </div>
         </div>
       )}
+      {dateEditor && <div aria-modal="true" className="fixed inset-0 z-50 flex items-end justify-center bg-black/65 sm:items-center sm:p-6" role="dialog"><div className="w-full rounded-t-2xl border bg-card p-5 sm:max-w-lg sm:rounded-2xl"><div className="flex items-center justify-between"><h3 className="text-xl font-semibold">{dateEditor.paymentId ? "Editar fecha del pago" : "Editar fecha de vencimiento"}</h3><button aria-label="Cerrar" className="rounded-lg border p-2" onClick={() => setDateEditor(null)}><X className="size-4"/></button></div><form action={(data) => { data.set("invoiceId", receivable.id); startTransition(async () => { const result = await updateReceivableDatesAction(data); if (result.ok) { setDateEditor(null); setFeedback("Fecha actualizada y proyecciones sincronizadas."); router.refresh(); } else setFeedback(result.error); }); }} className="mt-5 space-y-4">{dateEditor.paymentId ? <><input name="paymentId" type="hidden" value={dateEditor.paymentId}/><Field label="Fecha del pago"><input defaultValue={dateEditor.paymentDate} name="paymentDate" required type="date"/></Field></> : <Field label="Fecha de vencimiento"><input defaultValue={receivable.dueDate ?? ""} name="dueDate" required type="date"/></Field>}<Field label="Motivo"><input name="reason" required/></Field><Button className="w-full" disabled={pending}>Guardar y recalcular</Button></form></div></div>}
     </section>
   );
 }

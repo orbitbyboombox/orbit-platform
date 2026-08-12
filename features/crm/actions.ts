@@ -117,6 +117,20 @@ export async function updateCrmCustomerAction(input: {
     };
   }
 }
+
+export async function getCrmDocumentUrlAction(documentId: string) {
+  try {
+    const { client } = await founderClient();
+    const { data, error } = await client.from("documents").select("storage_bucket,storage_path").eq("id", documentId).is("deleted_at", null).single();
+    if (error) throw error;
+    if (!data.storage_path) throw new Error("El documento todavía no tiene un archivo disponible.");
+    const { data: signed, error: signedError } = await client.storage.from(data.storage_bucket || "orbit-documents").createSignedUrl(data.storage_path, 300);
+    if (signedError) throw signedError;
+    return { ok: true as const, url: signed.signedUrl };
+  } catch (error) {
+    return { ok: false as const, error: message(error, "No fue posible abrir el documento.") };
+  }
+}
 export async function archiveCrmCustomerAction(id: string, reason: string) {
   try {
     const { client, user } = await founderClient();
@@ -204,6 +218,8 @@ export async function updateCrmEventAction(input: {
   service: string;
   duration: string;
   transport: string;
+  extras?: string;
+  appliedPrice?: string;
   reason: string;
 }) {
   try {
@@ -219,6 +235,8 @@ export async function updateCrmEventAction(input: {
         service: input.service,
         duration: input.duration,
         transport: input.transport,
+        ...(input.extras !== undefined ? { extras: input.extras.split(",").map((item) => item.trim()).filter(Boolean) } : {}),
+        ...(input.appliedPrice !== undefined ? { appliedPrice: input.appliedPrice } : {}),
       },
       p_reason: input.reason,
     });

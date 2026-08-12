@@ -27,6 +27,61 @@ export interface CrmEventSummary {
   service: string;
   duration: number | null;
   transport: number;
+  extras?: string[];
+  appliedPrice?: number;
+}
+export interface CrmCustomerEventOperations {
+  projectId: string;
+  receivable: {
+    id: string;
+    invoiceNumber: string;
+    amount: number;
+    paidAmount: number;
+    outstandingBalance: number;
+    status: string;
+    dueDate: string | null;
+    movements: Array<{
+      id: string;
+      amount: number;
+      paidAt: string;
+      method: string;
+      reason: string;
+      type: string;
+      receiptPath: string | null;
+    }>;
+  } | null;
+  staffAssignments: {
+    projectId: string;
+    assignments: Array<{
+      id: string;
+      staffId: string;
+      staffName: string;
+      role: string;
+      status: string;
+      arrivalTime: string;
+      startTime: string;
+      finishTime: string;
+      vehicleId: string;
+      vehicleName: string;
+      observations: string;
+    }>;
+    staff: Array<{ id: string; name: string; role: string; capabilities: string[] }>;
+    vehicles: Array<{ id: string; name: string }>;
+  };
+  agreement: { id: string; status: string } | null;
+  documents: Array<{
+    id: string;
+    type: string;
+    storagePath: string | null;
+    driveFileId: string | null;
+    createdAt: string;
+  }>;
+  calendar: {
+    status: string;
+    externalUrl: string | null;
+    externalEventId: string | null;
+  } | null;
+  portalActive: boolean;
 }
 export interface CrmOperationalEvent extends CrmEventSummary {
   customerId: string;

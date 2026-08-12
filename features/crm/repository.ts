@@ -100,7 +100,7 @@ export async function loadCrmCustomerProfile(
     client
       .from("crm_events")
       .select(
-        "id,project_id,orbit_event_id,event_type,event_date,status,projects!inner(name,location,city,event_time,deleted_at,project_services(service_code,duration_hours),quotations(transport_total,created_at))",
+        "id,project_id,orbit_event_id,event_type,event_date,status,projects!inner(name,location,city,event_time,deleted_at,project_services(service_code,duration_hours,extras),quotations(transport_total,grand_total,final_customer_price,created_at))",
       )
       .eq("customer_id", customerId)
       .is("projects.deleted_at", null)
@@ -173,9 +173,12 @@ export async function loadCrmCustomerProfile(
           project_services: Array<{
             service_code: string;
             duration_hours: number | null;
+            extras: unknown;
           }>;
           quotations: Array<{
             transport_total: number | null;
+            grand_total: number | null;
+            final_customer_price: number | null;
             created_at: string;
           }>;
         }
@@ -188,9 +191,12 @@ export async function loadCrmCustomerProfile(
           project_services: Array<{
             service_code: string;
             duration_hours: number | null;
+            extras: unknown;
           }>;
           quotations: Array<{
             transport_total: number | null;
+            grand_total: number | null;
+            final_customer_price: number | null;
             created_at: string;
           }>;
         }>;
@@ -220,6 +226,8 @@ export async function loadCrmCustomerProfile(
       service: service?.service_code ?? "",
       duration: service?.duration_hours ?? null,
       transport: Number(latestQuotation?.transport_total ?? 0),
+      extras: Array.isArray(service?.extras) ? service.extras.map(String) : [],
+      appliedPrice: Number(latestQuotation?.final_customer_price ?? latestQuotation?.grand_total ?? 0),
     });
   }
   const mapped = [...uniqueEvents.values()];

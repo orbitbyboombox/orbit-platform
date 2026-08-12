@@ -16,7 +16,8 @@ import {
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { CrmCustomerProfile, CrmEventSummary } from "./types";
+import type { CrmCustomerEventOperations, CrmCustomerProfile, CrmEventSummary } from "./types";
+import { CustomerEventOperations } from "./customer-event-operations";
 import {
   duplicateCrmEventAction,
   transitionCrmEventAction,
@@ -25,8 +26,10 @@ import {
 } from "./actions";
 export function CustomerProfile({
   customer,
+  operations,
 }: {
   customer: CrmCustomerProfile;
+  operations: CrmCustomerEventOperations[];
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -34,6 +37,7 @@ export function CustomerProfile({
     null,
   );
   const [error, setError] = useState("");
+  const [managedEvent, setManagedEvent] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const submit = (form: FormData) =>
     startTransition(async () => {
@@ -107,6 +111,8 @@ export function CustomerProfile({
         service: String(form.get("service")),
         duration: String(form.get("duration")),
         transport: String(form.get("transport")),
+        extras: String(form.get("extras")),
+        appliedPrice: String(form.get("appliedPrice")),
         reason: String(form.get("reason")),
       });
       if (!result.ok) setError(result.error);
@@ -290,6 +296,8 @@ export function CustomerProfile({
               editingEvent.transport.toString(),
               "number",
             ],
+            ["extras", "Extras (separados por coma)", (editingEvent.extras ?? []).join(", "), "text"],
+            ["appliedPrice", "Precio aplicado total", (editingEvent.appliedPrice ?? 0).toString(), "number"],
           ].map(([name, label, value, type]) => (
             <label className="text-sm" key={name}>
               <span className="mb-1.5 block text-muted">{label}</span>
@@ -331,9 +339,10 @@ export function CustomerProfile({
         <div className="mt-3 space-y-3">
           {customer.events.map((event) => (
             <article
-              className="flex items-center justify-between gap-4 rounded-2xl border bg-card p-4"
+              className="rounded-2xl border bg-card p-4"
               key={event.projectId}
             >
+              <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="font-medium">
                   {event.type} · {event.name}
@@ -376,6 +385,13 @@ export function CustomerProfile({
                     </button>
                     <button
                       className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent"
+                      onClick={() => setManagedEvent((current) => current === event.projectId ? null : event.projectId)}
+                    >
+                      <ShieldCheck className="size-4" />
+                      Gestionar desde Cliente
+                    </button>
+                    <button
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent"
                       onClick={() => duplicateEvent(event)}
                     >
                       <Copy className="size-4" />
@@ -398,6 +414,8 @@ export function CustomerProfile({
                   </div>
                 </details>
               </div>
+              </div>
+              {managedEvent === event.projectId && <CustomerEventOperations event={event} operations={operations.find((item) => item.projectId === event.projectId)} />}
             </article>
           ))}
           {customer.events.length === 0 && (

@@ -136,6 +136,23 @@ export async function applyReceivableMovementAction(
     return fail(error);
   }
 }
+export async function updateReceivableDatesAction(formData: FormData): Promise<Result> {
+  try {
+    const client = await createSupabaseServerActionClient();
+    const { data: auth } = await client.auth.getUser();
+    if (!auth.user) throw new Error("Sesión requerida.");
+    const { error } = await client.rpc("update_receivable_dates", {
+      p_invoice_id: String(formData.get("invoiceId")),
+      p_payment_id: String(formData.get("paymentId") || "") || null,
+      p_payment_date: String(formData.get("paymentDate") || "") || null,
+      p_due_date: String(formData.get("dueDate") || "") || null,
+      p_reason: String(formData.get("reason") || ""),
+    });
+    if (error) throw error;
+    revalidate();
+    return { ok: true };
+  } catch (error) { return fail(error); }
+}
 export async function auditReceivableIntegrityAction(): Promise<
   | {
       ok: true;
@@ -186,4 +203,5 @@ function revalidate() {
   revalidatePath("/reports");
   revalidatePath("/notifications");
   revalidatePath("/projects", "layout");
+  revalidatePath("/customers", "layout");
 }
