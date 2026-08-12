@@ -37,21 +37,22 @@ export async function loadFounderWorkspace(
   ];
   const defaults = defaultModuleWorkspaces();
   const storedModules = (data.module_workspaces ?? {}) as Record<string, { sectionOrder?: string[]; hiddenSections?: string[]; sectionLabels?: Record<string,string> }>;
-  const moduleWorkspaces = Object.fromEntries(Object.entries(MODULE_WORKSPACES).map(([moduleKey, sections]) => {
+  const knownModules = Object.fromEntries(Object.entries(MODULE_WORKSPACES).map(([moduleKey, sections]) => {
     const known: string[] = sections.map((section) => section.key);
     const storedModule = storedModules[moduleKey];
     if (!storedModule) {
       const fallback = defaults[moduleKey as keyof typeof defaults];
       return [moduleKey, moduleKey === "EVENTS" ? { ...fallback, hiddenSections: hidden } : fallback];
     }
-    const storedOrder = storedModule?.sectionOrder?.filter((key) => known.includes(key)) ?? [];
+    const storedOrder = storedModule?.sectionOrder ?? [];
     const newKeys = known.filter((key) => !storedOrder.includes(key));
     const hiddenSections = [
-      ...(storedModule?.hiddenSections ?? []).filter((key) => known.includes(key)),
+      ...(storedModule?.hiddenSections ?? []),
       ...newKeys,
     ];
     return [moduleKey, { sectionOrder: [...storedOrder, ...newKeys], hiddenSections: [...new Set(hiddenSections)], sectionLabels:{...defaults[moduleKey as keyof typeof defaults].sectionLabels,...storedModule.sectionLabels} }];
   })) as FounderWorkspacePreferences["moduleWorkspaces"];
+  const moduleWorkspaces={...storedModules,...knownModules} as FounderWorkspacePreferences["moduleWorkspaces"];
   return {
     navigationOrder: data.navigation_order ?? DEFAULT_WORKSPACE.navigationOrder,
     hiddenNavigation: data.hidden_navigation ?? [],

@@ -263,15 +263,15 @@ export const MODULE_WORKSPACES = {
     { key: "COMMUNICATION_HUB", label: "Communication Hub", defaultVisible: true },
   ],
 } as const;
-export type ModuleWorkspaceKey = keyof typeof MODULE_WORKSPACES;
+export type ModuleWorkspaceKey = string;
 export type ModuleWorkspacePreference = { sectionOrder: string[]; hiddenSections: string[]; sectionLabels?: Record<string,string> };
 
-export function defaultModuleWorkspaces(): Record<ModuleWorkspaceKey, ModuleWorkspacePreference> {
+export function defaultModuleWorkspaces(): Record<string, ModuleWorkspacePreference> {
   return Object.fromEntries(Object.entries(MODULE_WORKSPACES).map(([moduleKey, sections]) => [moduleKey, {
     sectionOrder: sections.map((section) => section.key),
     hiddenSections: sections.filter((section) => !section.defaultVisible).map((section) => section.key),
     sectionLabels: Object.fromEntries(sections.map((section)=>[section.key,section.label])),
-  }])) as Record<ModuleWorkspaceKey, ModuleWorkspacePreference>;
+  }])) as Record<string, ModuleWorkspacePreference>;
 }
 export type FounderWorkspacePreferences = {
   navigationOrder: NavigationKey[];
@@ -282,7 +282,7 @@ export type FounderWorkspacePreferences = {
   widgetOrder: WorkspaceWidgetKey[];
   hiddenWidgets: WorkspaceWidgetKey[];
   hiddenEventModules: EventModuleKey[];
-  moduleWorkspaces: Record<ModuleWorkspaceKey, ModuleWorkspacePreference>;
+  moduleWorkspaces: Record<string, ModuleWorkspacePreference>;
 };
 export const DEFAULT_WORKSPACE: FounderWorkspacePreferences = {
   navigationOrder: ["HOME","CUSTOMERS","EVENTS","STAFF","RESOURCES","FINANCE","RECEIVABLES","REPORTS","SETTINGS"],
