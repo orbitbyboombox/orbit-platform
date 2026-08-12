@@ -51,7 +51,7 @@ export async function loadCrmCustomerOperations(
           method: String(movement.method ?? ""),
           reason: String(movement.reason ?? "Movimiento de pago"),
           type: String(movement.type ?? "PAYMENT"),
-          receiptPath: typeof movement.receipt_path === "string" ? movement.receipt_path : null,
+          receiptPath: typeof movement.receiptPath === "string" ? movement.receiptPath : typeof movement.receipt_path === "string" ? movement.receipt_path : null,
         })),
       } : null,
       staffAssignments: {

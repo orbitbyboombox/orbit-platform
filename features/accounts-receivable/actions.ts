@@ -153,6 +153,41 @@ export async function updateReceivableDatesAction(formData: FormData): Promise<R
     return { ok: true };
   } catch (error) { return fail(error); }
 }
+export async function manageReceivablePaymentAction(formData: FormData): Promise<Result> {
+  try {
+    const client = await createSupabaseServerActionClient();
+    const { data: auth } = await client.auth.getUser();
+    if (!auth.user) throw new Error("Sesión requerida.");
+    const invoiceId = String(formData.get("invoiceId"));
+    const paymentId = String(formData.get("paymentId"));
+    const projectId = String(formData.get("projectId"));
+    const action = String(formData.get("paymentAction"));
+    const receipt = formData.get("receipt");
+    let receiptPath: string | null = null;
+    if (receipt instanceof File && receipt.size > 0) {
+      if (receipt.size > 15 * 1024 * 1024) throw new Error("El comprobante no puede superar 15 MB.");
+      const extension = receipt.name.split(".").pop()?.toLowerCase() || "bin";
+      receiptPath = `receivables/${invoiceId}/${crypto.randomUUID()}.${extension}`;
+      const { error: uploadError } = await client.storage.from("orbit-documents").upload(receiptPath, receipt, { contentType: receipt.type, upsert: false });
+      if (uploadError) throw uploadError;
+    }
+    const paidOn = String(formData.get("paidOn") || "");
+    const { error } = await client.rpc("manage_receivable_payment", {
+      p_invoice_id: invoiceId,
+      p_payment_id: paymentId,
+      p_action: action,
+      p_amount: action === "EDIT" ? Number(formData.get("amount")) : null,
+      p_paid_at: action === "EDIT" ? `${paidOn}T12:00:00-04:00` : null,
+      p_method: action === "EDIT" ? String(formData.get("method") || "") : null,
+      p_receipt_path: receiptPath,
+      p_reason: String(formData.get("reason") || ""),
+    });
+    if (error) throw error;
+    revalidate();
+    if (projectId) revalidatePath(`/projects/${projectId}`);
+    return { ok: true };
+  } catch (error) { return fail(error); }
+}
 export async function auditReceivableIntegrityAction(): Promise<
   | {
       ok: true;
