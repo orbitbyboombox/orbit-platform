@@ -13,13 +13,16 @@ export async function saveFounderWorkspaceAction(
       p_favorite_quick_actions: value.favoriteQuickActions,
       p_widget_order: value.widgetOrder,
       p_hidden_widgets: value.hiddenWidgets,
-      p_hidden_event_modules: value.hiddenEventModules,
+      p_hidden_event_modules: value.moduleWorkspaces.EVENTS.hiddenSections,
       p_navigation_order: value.navigationOrder,
       p_hidden_navigation: value.hiddenNavigation,
+      p_module_workspaces: value.moduleWorkspaces,
     });
     if (error) throw error;
     revalidatePath("/operations");
     revalidatePath("/projects/[projectId]", "page");
+    revalidatePath("/customers/[customerId]", "page");
+    revalidatePath("/finance");
     revalidatePath("/settings");
     return { ok: true as const };
   } catch (error) {

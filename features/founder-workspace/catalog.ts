@@ -205,6 +205,43 @@ export const EVENT_MODULES = [
   },
 ] as const;
 export type EventModuleKey = (typeof EVENT_MODULES)[number]["key"];
+export const MODULE_WORKSPACES = {
+  CUSTOMERS: [
+    { key: "CUSTOMER_INFORMATION", label: "Información del cliente", defaultVisible: true },
+    { key: "CUSTOMER_EVENTS", label: "Eventos del cliente", defaultVisible: true },
+    { key: "CUSTOMER_DOCUMENTS", label: "Documentos y Portal", defaultVisible: true },
+    { key: "CUSTOMER_COMMERCIAL_HISTORY", label: "Historial comercial", defaultVisible: true },
+    { key: "CUSTOMER_TIMELINE", label: "Timeline del cliente", defaultVisible: false },
+  ],
+  EVENTS: EVENT_MODULES.map((item) => ({ ...item })),
+  FINANCE: [
+    { key: "FINANCE_DASHBOARD", label: "Dashboard financiero", defaultVisible: true },
+    { key: "ACCOUNTS_RECEIVABLE", label: "Cuentas por cobrar", defaultVisible: true },
+    { key: "EVENT_PROFITABILITY", label: "Rentabilidad de eventos", defaultVisible: true },
+  ],
+  OPERATIONS: [
+    { key: "OPERATIONS_OVERVIEW", label: "Resumen operacional", defaultVisible: true },
+    { key: "OPERATIONS_ALERTS", label: "Alertas operacionales", defaultVisible: true },
+  ],
+  RESOURCES: [
+    { key: "STAFF", label: "Staff", defaultVisible: true },
+    { key: "FLEET", label: "Flota", defaultVisible: true },
+    { key: "EQUIPMENT", label: "Equipamiento", defaultVisible: true },
+  ],
+  REPORTS: [
+    { key: "REPORTS_OVERVIEW", label: "Resumen de reportes", defaultVisible: true },
+    { key: "BUSINESS_INTELLIGENCE", label: "Business Intelligence", defaultVisible: true },
+  ],
+} as const;
+export type ModuleWorkspaceKey = keyof typeof MODULE_WORKSPACES;
+export type ModuleWorkspacePreference = { sectionOrder: string[]; hiddenSections: string[] };
+
+export function defaultModuleWorkspaces(): Record<ModuleWorkspaceKey, ModuleWorkspacePreference> {
+  return Object.fromEntries(Object.entries(MODULE_WORKSPACES).map(([moduleKey, sections]) => [moduleKey, {
+    sectionOrder: sections.map((section) => section.key),
+    hiddenSections: sections.filter((section) => !section.defaultVisible).map((section) => section.key),
+  }])) as Record<ModuleWorkspaceKey, ModuleWorkspacePreference>;
+}
 export type FounderWorkspacePreferences = {
   navigationOrder: NavigationKey[];
   hiddenNavigation: NavigationKey[];
@@ -214,6 +251,7 @@ export type FounderWorkspacePreferences = {
   widgetOrder: WorkspaceWidgetKey[];
   hiddenWidgets: WorkspaceWidgetKey[];
   hiddenEventModules: EventModuleKey[];
+  moduleWorkspaces: Record<ModuleWorkspaceKey, ModuleWorkspacePreference>;
 };
 export const DEFAULT_WORKSPACE: FounderWorkspacePreferences = {
   navigationOrder: ["HOME","CUSTOMERS","EVENTS","STAFF","RESOURCES","FINANCE","RECEIVABLES","REPORTS","SETTINGS"],
@@ -226,4 +264,5 @@ export const DEFAULT_WORKSPACE: FounderWorkspacePreferences = {
   hiddenEventModules: EVENT_MODULES.filter((x) => !x.defaultVisible).map(
     (x) => x.key,
   ),
+  moduleWorkspaces: defaultModuleWorkspaces(),
 };

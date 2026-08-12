@@ -6,6 +6,7 @@ import { BrandLogo } from "@/components/brand-logo";
 import { ModuleAvailabilityGuard, ModuleManagerProvider } from "@/features/module-manager";
 import type { ModuleStateMap } from "@/features/module-manager/repository";
 import type { FounderWorkspacePreferences } from "@/features/founder-workspace";
+import { PersonalWorkspaceProvider } from "@/features/founder-workspace/personal-workspace";
 
 export interface AppShellProps {
   children: React.ReactNode;
@@ -17,7 +18,7 @@ export interface AppShellProps {
 
 export function AppShell({ children, userEmail, unreadNotifications, modules, workspace }: AppShellProps) {
   return (
-    <ModuleManagerProvider modules={modules}><div className="min-h-screen bg-background">
+    <ModuleManagerProvider modules={modules}><PersonalWorkspaceProvider initialPreferences={workspace}><div className="min-h-screen bg-background">
       <Sidebar hiddenNavigation={workspace.hiddenNavigation} navigationOrder={workspace.navigationOrder} />
       <div className="md:pl-20 lg:pl-60">
         <Header hiddenNavigation={workspace.hiddenNavigation} navigationOrder={workspace.navigationOrder} unreadNotifications={unreadNotifications} userEmail={userEmail} />
@@ -26,6 +27,6 @@ export function AppShell({ children, userEmail, unreadNotifications, modules, wo
         </main>
         <footer className="border-t px-5 py-6 sm:px-8"><div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><BrandLogo className="h-8 w-32" surface="dark" /><BrandSignature className="sm:text-right" /></div></footer>
       </div>
-    </div></ModuleManagerProvider>
+    </div></PersonalWorkspaceProvider></ModuleManagerProvider>
   );
 }
