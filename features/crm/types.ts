@@ -87,6 +87,17 @@ export interface CrmCustomerEventOperations {
     externalEventId: string | null;
   } | null;
   portalActive: boolean;
+  invoices: Array<{ id: string; number: string; status: string; amount: number; dueDate: string | null }>;
+  profitability: {
+    revenue: number;
+    personnelCost: number;
+    operationalCost: number;
+    totalCost: number;
+    profit: number;
+    margin: number;
+    classification: string;
+    calculatedAt: string;
+  } | null;
 }
 export interface CrmOperationalEvent extends CrmEventSummary {
   customerId: string;
@@ -109,6 +120,14 @@ export interface CrmCommercialNegotiation {
 export interface CrmCustomerProfile extends CrmCustomerSummary {
   commercialNotes: string;
   contacts: Array<{ name: string; email: string; phone: string }>;
+  commercialHistory: Array<{
+    id: string;
+    projectId: string;
+    type: string;
+    title: string;
+    detail: string;
+    date: string;
+  }>;
   events: CrmEventSummary[];
   activeEvents: number;
   archivedEvents: number;

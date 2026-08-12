@@ -10,7 +10,7 @@ export async function loadCrmCustomerOperations(
   projectIds: string[],
 ): Promise<CrmCustomerEventOperations[]> {
   if (!projectIds.length) return [];
-  const [receivables, assignments, staff, assets, agreements, documents, calendars, portals] =
+  const [receivables, assignments, staff, assets, agreements, documents, calendars, portals, invoices, profitability] =
     await Promise.all([
       client.from("accounts_receivable_projection").select("id,project_id,invoice_number,amount,paid_amount,outstanding_balance,due_date,effective_status,payment_history").in("project_id", projectIds),
       client.from("assignments").select("id,project_id,staff_id,assignment_type,status,arrival_time,start_time,finish_time,assigned_vehicle,observations,staff(first_name,last_name),operational_assets(asset_code)").in("project_id", projectIds).is("deleted_at", null),
@@ -20,8 +20,10 @@ export async function loadCrmCustomerOperations(
       client.from("documents").select("id,project_id,document_type,storage_path,drive_file_id,created_at").in("project_id", projectIds).is("deleted_at", null).order("created_at", { ascending: false }),
       client.from("calendar_sync").select("project_id,status,external_event_id,external_url").in("project_id", projectIds),
       client.from("customer_portal_tokens").select("project_id").in("project_id", projectIds).is("revoked_at", null),
+      client.from("invoices").select("id,project_id,invoice_number,status,amount,due_date").in("project_id", projectIds).is("deleted_at", null).order("created_at", { ascending: false }),
+      client.from("event_profitability_statements").select("project_id,real_costs,profitability,classification,created_at").in("project_id", projectIds).order("created_at", { ascending: false }),
     ]);
-  const failures = [receivables, assignments, staff, assets, agreements, documents, calendars, portals].filter((result) => result.error);
+  const failures = [receivables, assignments, staff, assets, agreements, documents, calendars, portals, invoices, profitability].filter((result) => result.error);
   if (failures.length) throw failures[0].error;
   const activeStaff = (staff.data ?? []).filter((member) => member.status === "ACTIVE").map((member) => ({
     id: member.id,
@@ -34,6 +36,9 @@ export async function loadCrmCustomerOperations(
     const invoice = (receivables.data ?? []).find((item) => item.project_id === projectId);
     const agreement = (agreements.data ?? []).find((item) => item.project_id === projectId);
     const calendar = (calendars.data ?? []).find((item) => item.project_id === projectId);
+    const profit = (profitability.data ?? []).find((item) => item.project_id === projectId);
+    const realCosts = (profit?.real_costs ?? {}) as Record<string, unknown>;
+    const profitValues = (profit?.profitability ?? {}) as Record<string, unknown>;
     return {
       projectId,
       receivable: invoice ? {
@@ -77,6 +82,17 @@ export async function loadCrmCustomerOperations(
       documents: (documents.data ?? []).filter((item) => item.project_id === projectId).map((item) => ({ id: item.id, type: item.document_type, storagePath: item.storage_path, driveFileId: item.drive_file_id, createdAt: item.created_at })),
       calendar: calendar ? { status: calendar.status, externalUrl: calendar.external_url, externalEventId: calendar.external_event_id } : null,
       portalActive: (portals.data ?? []).some((item) => item.project_id === projectId),
+      invoices: (invoices.data ?? []).filter((item) => item.project_id === projectId).map((item) => ({ id: item.id, number: item.invoice_number, status: item.status, amount: Number(item.amount ?? 0), dueDate: item.due_date })),
+      profitability: profit ? {
+        revenue: Number(profitValues.grossRevenue ?? 0),
+        personnelCost: Number(realCosts.personnelCost ?? 0),
+        operationalCost: Number(realCosts.operationalResourcesCost ?? 0),
+        totalCost: Number(realCosts.totalOperationalCost ?? realCosts.total ?? 0),
+        profit: Number(profitValues.netProfit ?? 0),
+        margin: Number(profitValues.margin ?? 0),
+        classification: profit.classification,
+        calculatedAt: profit.created_at,
+      } : null,
     };
   });
 }

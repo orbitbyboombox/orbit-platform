@@ -91,6 +91,7 @@ export async function loadCrmCustomerProfile(
     { data: invoices, error: invoiceError },
     { data: timeline, error: timelineError },
     { data: negotiations, error: negotiationError },
+    { data: quotations, error: quotationError },
   ] = await Promise.all([
     client
       .from("customers")
@@ -132,6 +133,12 @@ export async function loadCrmCustomerProfile(
       )
       .eq("customer_id", customerId)
       .order("created_at", { ascending: false }),
+    client
+      .from("quotations")
+      .select("id,project_id,quotation_number,status,final_customer_price,grand_total,created_at")
+      .eq("customer_id", customerId)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false }),
   ]);
   if (error) throw error;
   if (!customer) return null;
@@ -142,6 +149,7 @@ export async function loadCrmCustomerProfile(
     { component: "Invoices", error: invoiceError },
     { component: "Timeline", error: timelineError },
     { component: "Commercial History", error: negotiationError },
+    { component: "Quotations", error: quotationError },
   ].filter((item) => item.error);
   await Promise.all(
     optionalErrors.map((item) =>
@@ -381,6 +389,32 @@ export async function loadCrmCustomerProfile(
             phone: String(item.phone ?? ""),
           }))
       : [],
+    commercialHistory: [
+      ...(quotations ?? []).map((item) => ({
+        id: `quotation-${item.id}`,
+        projectId: item.project_id,
+        type: "Cotización",
+        title: item.quotation_number,
+        detail: `${item.status} · ${Number(item.final_customer_price ?? item.grand_total ?? 0).toLocaleString("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 })}`,
+        date: item.created_at,
+      })),
+      ...negotiationRows.map((item) => ({
+        id: `negotiation-${item.id}`,
+        projectId: item.project_id,
+        type: "Negociación",
+        title: item.reason ?? "Precio aplicado",
+        detail: `${Number(item.negotiated_total ?? 0).toLocaleString("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 })} · Diferencia ${Number(item.difference ?? 0).toLocaleString("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 })}`,
+        date: item.created_at,
+      })),
+      ...mapped.map((item) => ({
+        id: `reservation-${item.id}`,
+        projectId: item.projectId,
+        type: "Reserva / Evento",
+        title: item.name,
+        detail: `${item.service || "Servicio por confirmar"} · ${item.status}`,
+        date: item.date ?? row.updated_at,
+      })),
+    ].sort((a, b) => b.date.localeCompare(a.date)),
     events: mapped,
     activeEvents,
     archivedEvents,

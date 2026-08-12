@@ -10,11 +10,10 @@ import {
   MoreVertical,
   ReceiptText,
   Save,
-  ShieldCheck,
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { CrmCustomerEventOperations, CrmCustomerProfile, CrmEventSummary } from "./types";
 import { CustomerEventOperations } from "./customer-event-operations";
@@ -38,13 +37,44 @@ export function CustomerProfile({
   );
   const [error, setError] = useState("");
   const [managedEvent, setManagedEvent] = useState<string | null>(null);
+  const [pendingSection, setPendingSection] = useState<string | null>(null);
   const eventEditorRef = useRef<HTMLFormElement>(null);
   const [pending, startTransition] = useTransition();
+  useEffect(() => {
+    if (editingEvent) eventEditorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [editingEvent]);
+  useEffect(() => {
+    if (editing) document.getElementById("customer-general-information")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [editing]);
+  useEffect(() => {
+    if (!pendingSection) return;
+    const section = document.getElementById(pendingSection);
+    if (section) {
+      section.scrollIntoView({ behavior: "smooth", block: "start" });
+      setPendingSection(null);
+    }
+  }, [managedEvent, pendingSection]);
+  const scrollTo = (id: string) =>
+    requestAnimationFrame(() =>
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }),
+    );
+  const openEventCenter = (
+    section: "payments" | "contracts" | "documents" | "profitability",
+  ) => {
+    const target = customer.events.find((event) => {
+      const operational = operations.find((item) => item.projectId === event.projectId);
+      if (!operational) return false;
+      if (section === "payments") return Boolean(operational.receivable);
+      if (section === "contracts") return Boolean(operational.agreement);
+      if (section === "documents") return operational.documents.length > 0 || operational.invoices.length > 0;
+      return Boolean(operational.profitability);
+    }) ?? customer.events[0];
+    if (!target) return scrollTo("customer-events");
+    setManagedEvent(target.projectId);
+    setPendingSection(`${section}-${target.projectId}`);
+  };
   const beginEventEdit = (event: CrmEventSummary) => {
     setEditingEvent(event);
-    requestAnimationFrame(() =>
-      eventEditorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
-    );
   };
   const submit = (form: FormData) =>
     startTransition(async () => {
@@ -166,11 +196,13 @@ export function CustomerProfile({
             icon: CalendarDays,
             label: "Eventos activos",
             value: customer.activeEvents,
+            action: () => scrollTo("customer-events"),
           },
           {
             icon: Archive,
             label: "Eventos archivados",
             value: customer.archivedEvents,
+            action: () => scrollTo("customer-events"),
           },
           {
             icon: ReceiptText,
@@ -180,6 +212,7 @@ export function CustomerProfile({
               currency: "CLP",
               maximumFractionDigits: 0,
             }),
+            action: () => openEventCenter("profitability"),
           },
           {
             icon: Landmark,
@@ -189,6 +222,7 @@ export function CustomerProfile({
               currency: "CLP",
               maximumFractionDigits: 0,
             }),
+            action: () => openEventCenter("payments"),
           },
           {
             icon: ReceiptText,
@@ -198,6 +232,7 @@ export function CustomerProfile({
               currency: "CLP",
               maximumFractionDigits: 0,
             }),
+            action: () => openEventCenter("payments"),
           },
           {
             icon: Landmark,
@@ -207,29 +242,34 @@ export function CustomerProfile({
               currency: "CLP",
               maximumFractionDigits: 0,
             }),
+            action: () => scrollTo("customer-commercial-history"),
           },
           {
             icon: FileSignature,
             label: "Contratos",
             value: customer.contracts,
+            action: () => openEventCenter("contracts"),
           },
           {
             icon: CalendarDays,
             label: "Cancelados",
             value: customer.cancelledEvents,
+            action: () => scrollTo("customer-events"),
           },
         ].map((item) => (
-          <div className="rounded-2xl border bg-card p-4" key={item.label}>
+          <button className="group rounded-2xl border bg-card p-4 text-left transition hover:border-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand" key={item.label} onClick={item.action} type="button">
             <item.icon className="size-4 text-muted" />
             <p className="mt-4 text-2xl font-semibold">{item.value}</p>
             <p className="text-sm text-muted">{item.label}</p>
-          </div>
+            <p className="mt-3 text-xs font-semibold text-brand">Gestionar</p>
+          </button>
         ))}
       </section>
       {editing && (
         <form
           action={submit}
           className="grid gap-4 rounded-2xl border bg-card p-5 sm:grid-cols-2"
+          id="customer-general-information"
         >
           {[
             ["fullName", "Nombre y Apellido", customer.fullName],
@@ -373,8 +413,8 @@ export function CustomerProfile({
           </div>
         </form>
       )}
-      <section>
-        <h2 className="text-lg font-semibold">Todos los eventos</h2>
+      <section className="scroll-mt-24" id="customer-events">
+        <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-semibold">Todos los eventos</h2><p className="text-sm text-muted">Las reservas nuevas se crean desde el flujo único de Nueva Reserva y luego se administran completamente aquí.</p></div>
         <div className="mt-3 space-y-3">
           {customer.events.map((event) => (
             <article
@@ -472,119 +512,56 @@ export function CustomerProfile({
           )}
         </div>
       </section>
-      <section className="grid gap-3 sm:grid-cols-3">
-        <p className="rounded-2xl border border-dashed p-4 text-sm text-muted">
-          {customer.contracts
-            ? `${customer.contracts} contrato${customer.contracts === 1 ? "" : "s"} registrado${customer.contracts === 1 ? "" : "s"}.`
-            : "Sin contratos registrados."}
-        </p>
-        <p className="rounded-2xl border border-dashed p-4 text-sm text-muted">
-          {customer.invoices
-            ? `${customer.invoices} factura${customer.invoices === 1 ? "" : "s"} registrada${customer.invoices === 1 ? "" : "s"}.`
-            : "Sin facturas registradas."}
-        </p>
-        <p className="rounded-2xl border border-dashed p-4 text-sm text-muted">
-          {customer.portalActive ? "Portal activo." : "Sin Portal activo."}
-        </p>
-      </section>
       <section>
         <h2 className="text-lg font-semibold">Centro del Cliente</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {[
-            ["Información general", `${customer.phone || "Sin teléfono"} · ${customer.email || "Sin email"}`],
-            ["Eventos", `${customer.activeEvents} activos · ${customer.archivedEvents} archivados · ${customer.cancelledEvents} cancelados`],
-            ["Pagos", `${customer.payments} movimientos registrados`],
-            ["Contratos", customer.contracts ? `${customer.contracts} documentos` : "Sin contratos registrados"],
-            ["Documentos", customer.documents ? `${customer.documents} archivos` : "Sin documentos registrados"],
-            ["Historial comercial", customer.negotiations.length ? `${customer.negotiations.length} decisiones registradas` : "Sin historial comercial"],
-            ["Rentabilidad", customer.profitabilityRecords ? `${customer.profitabilityRecords} cálculos disponibles` : "Sin rentabilidad registrada"],
-          ].map(([title,detail])=><article className="rounded-2xl border bg-card p-4" key={title}><h3 className="font-semibold">{title}</h3><p className="mt-2 text-sm text-muted">{detail}</p></article>)}
+            ["Información general", `${customer.phone || "Sin teléfono"} · ${customer.email || "Sin email"}`, () => setEditing(true)],
+            ["Eventos", `${customer.activeEvents} activos · ${customer.archivedEvents} archivados · ${customer.cancelledEvents} cancelados`, () => scrollTo("customer-events")],
+            ["Pagos", `${customer.payments} movimientos registrados`, () => openEventCenter("payments")],
+            ["Contratos", customer.contracts ? `${customer.contracts} documentos` : "Sin contratos registrados", () => openEventCenter("contracts")],
+            ["Documentos", customer.documents ? `${customer.documents} archivos` : "Sin documentos registrados", () => openEventCenter("documents")],
+            ["Historial comercial", customer.commercialHistory.length ? `${customer.commercialHistory.length} registros cronológicos` : "Sin historial comercial", () => scrollTo("customer-commercial-history")],
+            ["Rentabilidad", customer.profitabilityRecords ? `${customer.profitabilityRecords} cálculos disponibles` : "Sin rentabilidad registrada", () => openEventCenter("profitability")],
+          ].map(([title, detail, action]) => <button className="group rounded-2xl border bg-card p-4 text-left transition hover:border-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand" key={String(title)} onClick={action as () => void} type="button"><span className="flex items-center justify-between gap-3"><span className="font-semibold">{String(title)}</span><ExternalLink className="size-4 text-muted transition group-hover:text-brand"/></span><span className="mt-2 block text-sm text-muted">{String(detail)}</span><span className="mt-4 block text-xs font-semibold text-brand">Abrir centro</span></button>)}
         </div>
       </section>
-      <section>
+      <section className="scroll-mt-24" id="customer-commercial-history">
         <h2 className="text-lg font-semibold">
-          Historial de precios aplicados
+          Historial comercial completo
         </h2>
         <div className="mt-3 space-y-3">
-          {customer.negotiations.map((item) => (
-            <Link
-              className="block rounded-2xl border bg-card p-4 hover:border-primary/50"
-              href={`/projects/${item.projectId}`}
+          {customer.commercialHistory.map((item) => (
+            <button
+              className="block w-full rounded-2xl border bg-card p-4 text-left hover:border-primary/50"
+              onClick={() => {
+                setManagedEvent(item.projectId);
+                setPendingSection(`documents-${item.projectId}`);
+              }}
               key={item.id}
+              type="button"
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="font-medium">
-                    {item.orbitEventId} · {item.reason}
-                  </p>
+                  <p className="font-medium">{item.type} · {item.title}</p>
                   <p className="mt-1 text-xs text-muted">
-                    {item.user} ·{" "}
-                    {new Date(item.timestamp).toLocaleString("es-CL")}
+                    {new Date(item.date).toLocaleString("es-CL")}
                   </p>
                 </div>
-                <span className="rounded-full border px-2.5 py-1 text-xs">
-                  {item.difference >= 0 ? "+" : ""}
-                  {item.differencePercentage.toFixed(1)}%
-                </span>
+                <span className="rounded-full border px-2.5 py-1 text-xs">{item.type}</span>
               </div>
-              <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
-                <div>
-                  <dt className="text-muted">Precio oficial</dt>
-                  <dd className="font-semibold">
-                    {item.officialPrice.toLocaleString("es-CL", {
-                      style: "currency",
-                      currency: "CLP",
-                      maximumFractionDigits: 0,
-                    })}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-muted">Precio aplicado</dt>
-                  <dd className="font-semibold text-brand">
-                    {item.negotiatedPrice.toLocaleString("es-CL", {
-                      style: "currency",
-                      currency: "CLP",
-                      maximumFractionDigits: 0,
-                    })}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-muted">Diferencia</dt>
-                  <dd className="font-semibold">
-                    {item.difference >= 0 ? "+" : ""}
-                    {item.difference.toLocaleString("es-CL", {
-                      style: "currency",
-                      currency: "CLP",
-                      maximumFractionDigits: 0,
-                    })}
-                  </dd>
-                </div>
-              </dl>
-            </Link>
+              <p className="mt-3 text-sm text-muted">{item.detail}</p>
+              <span className="mt-4 block text-xs font-semibold text-brand">Abrir gestión de este Evento</span>
+            </button>
           ))}
-          {customer.negotiations.length === 0 && (
+          {customer.commercialHistory.length === 0 && (
             <p className="rounded-2xl border border-dashed p-6 text-sm text-muted">
-              Sin precios aplicados por reserva registrados.
+              Sin historial comercial registrado.
             </p>
           )}
         </div>
       </section>
-      <section className="grid gap-5 lg:grid-cols-2">
-        <div>
-          <h2 className="text-lg font-semibold">Información y Portal</h2>
-          <div className="mt-3 rounded-2xl border bg-card p-5 text-sm">
-            <p>{customer.phone || "Sin teléfono"}</p>
-            <p className="mt-2">{customer.email || "Sin email"}</p>
-            <p className="mt-2">{customer.address || "Sin dirección"}</p>
-            <p className="mt-4 flex items-center gap-2 text-muted">
-              <ShieldCheck className="size-4" />
-              Portal {customer.portalActive ? "activo" : "sin activar"}
-            </p>
-            <p className="mt-4 whitespace-pre-wrap text-muted">
-              {customer.commercialNotes || "Sin notas comerciales."}
-            </p>
-          </div>
-        </div>
+      <section>
         <div>
           <h2 className="text-lg font-semibold">Timeline comercial</h2>
           <div className="mt-3 max-h-96 space-y-3 overflow-auto rounded-2xl border bg-card p-5">
