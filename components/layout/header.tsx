@@ -19,13 +19,16 @@ import { NavigationList } from "./sidebar";
 import { signOutAction } from "@/features/authentication/actions/auth.actions";
 import { BrandLogo } from "@/components/brand-logo";
 import { useModuleManager } from "@/features/module-manager";
+import type { NavigationKey } from "./navigation";
 
 export interface HeaderProps {
   userEmail: string;
   unreadNotifications: number;
+  navigationOrder: NavigationKey[];
+  hiddenNavigation: NavigationKey[];
 }
 
-export function Header({ userEmail, unreadNotifications }: HeaderProps) {
+export function Header({ userEmail, unreadNotifications, navigationOrder, hiddenNavigation }: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
@@ -82,7 +85,7 @@ export function Header({ userEmail, unreadNotifications }: HeaderProps) {
             </Link>
           </Button>}
           {isEnabled("PROJECTS") && <Button asChild className="min-h-9 px-3" variant="ghost">
-            <Link href="/projects">
+            <Link href="/customers">
               <FolderKanban className="mr-1 size-4" />
               Clientes
             </Link>
@@ -157,7 +160,7 @@ export function Header({ userEmail, unreadNotifications }: HeaderProps) {
           </Link>
         </Button>}
         {isEnabled("PROJECTS") && <Button asChild className="min-h-9 shrink-0 px-3" variant="ghost">
-          <Link href="/projects">
+          <Link href="/customers">
             <FolderKanban className="mr-1 size-4" />
             Clientes
           </Link>
@@ -170,7 +173,7 @@ export function Header({ userEmail, unreadNotifications }: HeaderProps) {
       </nav>
       {menuOpen && (
         <div className="fixed inset-x-3 top-[7.5rem] z-40 rounded-lg border bg-card p-2 shadow-lg md:hidden">
-          <NavigationList onNavigate={() => setMenuOpen(false)} />
+          <NavigationList hiddenNavigation={hiddenNavigation} navigationOrder={navigationOrder} onNavigate={() => setMenuOpen(false)} />
         </div>
       )}
     </>

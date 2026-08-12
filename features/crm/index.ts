@@ -1,1 +1,1 @@
-export{CustomerCenter}from"./customer-center";export{CustomerProfile}from"./customer-profile";export{loadCrmCustomers,loadCrmCustomerProfile}from"./repository";
+export{CustomerCenter}from"./customer-center";export{CustomerProfile}from"./customer-profile";export{EventCenter}from"./event-center";export{loadCrmCustomers,loadCrmCustomerProfile}from"./repository";export{loadCrmOperationalEvents}from"./events-repository";

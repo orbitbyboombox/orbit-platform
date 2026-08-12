@@ -28,6 +28,12 @@ export interface CrmEventSummary {
   duration: number | null;
   transport: number;
 }
+export interface CrmOperationalEvent extends CrmEventSummary {
+  customerId: string;
+  customerName: string;
+  company: string;
+  operator: string;
+}
 export interface CrmCommercialNegotiation {
   id: string;
   projectId: string;
@@ -54,6 +60,8 @@ export interface CrmCustomerProfile extends CrmCustomerSummary {
   accountsReceivable: number;
   lifetimeValue: number;
   portalActive: boolean;
+  documents: number;
+  profitabilityRecords: number;
   timeline: Array<{ id: string; title: string; message: string; date: string }>;
   negotiations: CrmCommercialNegotiation[];
 }

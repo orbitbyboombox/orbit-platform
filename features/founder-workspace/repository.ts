@@ -15,7 +15,7 @@ export async function loadFounderWorkspace(
   const { data, error } = await client
     .from("founder_workspace_preferences")
     .select(
-      "quick_action_order,hidden_quick_actions,favorite_quick_actions,widget_order,hidden_widgets,hidden_event_modules",
+      "navigation_order,hidden_navigation,quick_action_order,hidden_quick_actions,favorite_quick_actions,widget_order,hidden_widgets,hidden_event_modules",
     )
     .eq("user_id", userId)
     .maybeSingle();
@@ -34,6 +34,8 @@ export async function loadFounderWorkspace(
     ).map((item) => item.key),
   ];
   return {
+    navigationOrder: data.navigation_order ?? DEFAULT_WORKSPACE.navigationOrder,
+    hiddenNavigation: data.hidden_navigation ?? [],
     quickActionOrder: data.quick_action_order as QuickActionKey[],
     hiddenQuickActions: data.hidden_quick_actions as QuickActionKey[],
     favoriteQuickActions: data.favorite_quick_actions as QuickActionKey[],

@@ -227,6 +227,8 @@ export async function loadCrmCustomerProfile(
   const [
     { data: agreements, error: agreementError },
     { data: portals, error: portalError },
+    { data: documents, error: documentError },
+    { data: profitability, error: profitabilityError },
   ] = projectIds.length
     ? await Promise.all([
         client.from("agreements").select("id").in("project_id", projectIds),
@@ -235,8 +237,12 @@ export async function loadCrmCustomerProfile(
           .select("id")
           .in("project_id", projectIds)
           .is("revoked_at", null),
+        client.from("documents").select("id").in("project_id", projectIds),
+        client.from("event_profitability_statements").select("id").in("project_id",projectIds),
       ])
     : [
+        { data: [], error: null },
+        { data: [], error: null },
         { data: [], error: null },
         { data: [], error: null },
       ];
@@ -244,6 +250,8 @@ export async function loadCrmCustomerProfile(
     [
       { component: "Contracts", error: agreementError },
       { component: "Portal", error: portalError },
+      { component: "Documents", error: documentError },
+      { component: "Profitability", error: profitabilityError },
     ]
       .filter((item) => item.error)
       .map((item) =>
@@ -356,6 +364,8 @@ export async function loadCrmCustomerProfile(
     accountsReceivable,
     lifetimeValue: totalRevenue,
     portalActive: (portals?.length ?? 0) > 0,
+    documents: documents?.length ?? 0,
+    profitabilityRecords: profitability?.length ?? 0,
     timeline: (timeline ?? []).map((item) => ({
       id: item.id,
       title: item.title ?? "Actividad CRM",

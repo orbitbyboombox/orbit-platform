@@ -14,6 +14,8 @@ export async function saveFounderWorkspaceAction(
       p_widget_order: value.widgetOrder,
       p_hidden_widgets: value.hiddenWidgets,
       p_hidden_event_modules: value.hiddenEventModules,
+      p_navigation_order: value.navigationOrder,
+      p_hidden_navigation: value.hiddenNavigation,
     });
     if (error) throw error;
     revalidatePath("/operations");

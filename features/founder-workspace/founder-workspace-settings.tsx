@@ -1,6 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
-import { Eye, EyeOff, RotateCcw, Settings2, Star } from "lucide-react";
+import { ArrowDown, ArrowUp, Eye, EyeOff, RotateCcw, Settings2, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   resetFounderWorkspaceAction,
@@ -13,6 +13,7 @@ import {
   WIDGETS,
   type FounderWorkspacePreferences,
 } from "./catalog";
+import { navigationItems } from "@/components/layout/navigation";
 export function FounderWorkspaceSettings({
   initialPreferences,
 }: {
@@ -58,6 +59,17 @@ export function FounderWorkspaceSettings({
           </p>
         </div>
       </header>
+      <Group title="Menú visible">
+        {prefs.navigationOrder.filter((key)=>!prefs.hiddenNavigation.includes(key)).map((key)=>{
+          const item=navigationItems.find(candidate=>candidate.key===key);
+          if(!item)return null;
+          const move=(offset:number)=>{const next=[...prefs.navigationOrder];const index=next.indexOf(key);const target=index+offset;if(target<0||target>=next.length)return;[next[index],next[target]]=[next[target],next[index]];save({...prefs,navigationOrder:next});};
+          return <Item key={key} label={item.label} onMoveDown={()=>move(1)} onMoveUp={()=>move(-1)} onToggle={()=>save({...prefs,hiddenNavigation:[...prefs.hiddenNavigation,key]})}/>;
+        })}
+      </Group>
+      <Group title="Menú oculto">
+        {prefs.navigationOrder.filter((key)=>prefs.hiddenNavigation.includes(key)).map((key)=>{const item=navigationItems.find(candidate=>candidate.key===key);return item?<Item hidden key={key} label={item.label} onToggle={()=>save({...prefs,hiddenNavigation:prefs.hiddenNavigation.filter(candidate=>candidate!==key)})}/>:null})}
+      </Group>
       <Group title="Módulos visibles en Eventos">
         {EVENT_MODULES.filter(
           (x) => !prefs.hiddenEventModules.includes(x.key),
@@ -204,12 +216,16 @@ function Item({
   label,
   onFavorite,
   onToggle,
+  onMoveUp,
+  onMoveDown,
 }: {
   favorite?: boolean;
   hidden?: boolean;
   label: string;
   onFavorite?: () => void;
   onToggle: () => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
 }) {
   return (
     <article className="flex items-center gap-2 rounded-xl border bg-background/30 p-3">
@@ -223,6 +239,8 @@ function Item({
           <Star className="size-4" />
         </button>
       )}
+      {onMoveUp&&<button aria-label={`Mover arriba ${label}`} className="text-muted hover:text-foreground" onClick={onMoveUp}><ArrowUp className="size-4"/></button>}
+      {onMoveDown&&<button aria-label={`Mover abajo ${label}`} className="text-muted hover:text-foreground" onClick={onMoveDown}><ArrowDown className="size-4"/></button>}
       <button
         aria-label={`${hidden ? "Mostrar" : "Ocultar"} ${label}`}
         className="text-muted hover:text-foreground"

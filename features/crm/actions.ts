@@ -189,6 +189,7 @@ export async function transitionCrmEventAction(input: {
   );
   revalidatePath(`/customers/${input.customerId}`);
   revalidatePath("/customers");
+  revalidatePath("/events");
   return result;
 }
 
@@ -232,6 +233,7 @@ export async function updateCrmEventAction(input: {
     revalidatePath(`/customers/${input.customerId}`);
     revalidatePath(`/projects/${input.projectId}`);
     revalidatePath("/projects");
+    revalidatePath("/events");
     return { ok: true as const };
   } catch (error) {
     return {
@@ -257,6 +259,7 @@ export async function duplicateCrmEventAction(input: {
     if (error) throw error;
     revalidatePath(`/customers/${input.customerId}`);
     revalidatePath("/projects");
+    revalidatePath("/events");
     return { ok: true as const, projectId: String(data) };
   } catch (error) {
     return {

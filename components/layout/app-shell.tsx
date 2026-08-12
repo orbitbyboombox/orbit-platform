@@ -5,20 +5,22 @@ import { BrandSignature } from "@/components/brand-signature";
 import { BrandLogo } from "@/components/brand-logo";
 import { ModuleAvailabilityGuard, ModuleManagerProvider } from "@/features/module-manager";
 import type { ModuleStateMap } from "@/features/module-manager/repository";
+import type { FounderWorkspacePreferences } from "@/features/founder-workspace";
 
 export interface AppShellProps {
   children: React.ReactNode;
   userEmail: string;
   unreadNotifications: number;
   modules: ModuleStateMap;
+  workspace: FounderWorkspacePreferences;
 }
 
-export function AppShell({ children, userEmail, unreadNotifications, modules }: AppShellProps) {
+export function AppShell({ children, userEmail, unreadNotifications, modules, workspace }: AppShellProps) {
   return (
     <ModuleManagerProvider modules={modules}><div className="min-h-screen bg-background">
-      <Sidebar />
+      <Sidebar hiddenNavigation={workspace.hiddenNavigation} navigationOrder={workspace.navigationOrder} />
       <div className="md:pl-20 lg:pl-60">
-        <Header unreadNotifications={unreadNotifications} userEmail={userEmail} />
+        <Header hiddenNavigation={workspace.hiddenNavigation} navigationOrder={workspace.navigationOrder} unreadNotifications={unreadNotifications} userEmail={userEmail} />
         <main className="min-h-[calc(100vh-4rem)] pb-20 sm:pb-24 md:pb-0">
           <PageContainer><ModuleAvailabilityGuard>{children}</ModuleAvailabilityGuard></PageContainer>
         </main>

@@ -1,4 +1,5 @@
 import type { LucideIcon } from "lucide-react";
+import type { NavigationKey } from "@/components/layout/navigation";
 import {
   BarChart3,
   CalendarDays,
@@ -205,6 +206,8 @@ export const EVENT_MODULES = [
 ] as const;
 export type EventModuleKey = (typeof EVENT_MODULES)[number]["key"];
 export type FounderWorkspacePreferences = {
+  navigationOrder: NavigationKey[];
+  hiddenNavigation: NavigationKey[];
   quickActionOrder: QuickActionKey[];
   hiddenQuickActions: QuickActionKey[];
   favoriteQuickActions: QuickActionKey[];
@@ -213,6 +216,8 @@ export type FounderWorkspacePreferences = {
   hiddenEventModules: EventModuleKey[];
 };
 export const DEFAULT_WORKSPACE: FounderWorkspacePreferences = {
+  navigationOrder: ["HOME","CUSTOMERS","EVENTS","STAFF","RESOURCES","FINANCE","RECEIVABLES","REPORTS","SETTINGS"],
+  hiddenNavigation: [],
   quickActionOrder: QUICK_ACTIONS.map((x) => x.key),
   hiddenQuickActions: [],
   favoriteQuickActions: ["NEW_RESERVATION"],

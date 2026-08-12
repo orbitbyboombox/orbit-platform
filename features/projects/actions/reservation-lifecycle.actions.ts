@@ -6,7 +6,7 @@ import { removeCancelledReservationCalendar, synchronizeConfirmedReservationCale
 import { archiveCancelledReservationDrive, synchronizeConfirmedReservationDrive } from "@/features/connectors/google-drive/application/google-drive-sync.service";
 
 export type ReservationLifecycleAction="ARCHIVE"|"RESTORE"|"CANCEL"|"PERMANENT_DELETE";
-const paths=["/projects","/operations","/finance","/finance/receivables","/notifications"];
+const paths=["/projects","/events","/customers","/operations","/finance","/finance/receivables","/notifications"];
 
 export async function transitionReservationLifecycleAction(projectId:string,action:ReservationLifecycleAction,reason:string):Promise<{ok:boolean;message:string}>{
   try{

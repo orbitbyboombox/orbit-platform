@@ -423,6 +423,20 @@ export function CustomerProfile({
         </p>
       </section>
       <section>
+        <h2 className="text-lg font-semibold">Centro del Cliente</h2>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {[
+            ["Información general", `${customer.phone || "Sin teléfono"} · ${customer.email || "Sin email"}`],
+            ["Eventos", `${customer.activeEvents} activos · ${customer.archivedEvents} archivados · ${customer.cancelledEvents} cancelados`],
+            ["Pagos", `${customer.payments} movimientos registrados`],
+            ["Contratos", customer.contracts ? `${customer.contracts} documentos` : "Sin contratos registrados"],
+            ["Documentos", customer.documents ? `${customer.documents} archivos` : "Sin documentos registrados"],
+            ["Historial comercial", customer.negotiations.length ? `${customer.negotiations.length} decisiones registradas` : "Sin historial comercial"],
+            ["Rentabilidad", customer.profitabilityRecords ? `${customer.profitabilityRecords} cálculos disponibles` : "Sin rentabilidad registrada"],
+          ].map(([title,detail])=><article className="rounded-2xl border bg-card p-4" key={title}><h3 className="font-semibold">{title}</h3><p className="mt-2 text-sm text-muted">{detail}</p></article>)}
+        </div>
+      </section>
+      <section>
         <h2 className="text-lg font-semibold">
           Historial de precios aplicados
         </h2>
