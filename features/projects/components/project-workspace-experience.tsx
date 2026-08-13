@@ -157,6 +157,9 @@ type Event360Data = {
     transport: number;
     scrapbook: number;
     magnets: number;
+    branding: number;
+    brandingFaces: number;
+    brandingUnitCost: number;
     pens: number;
     doubleSidedTape: number;
     other: number;
@@ -869,6 +872,12 @@ export function ProjectWorkspaceExperience(
                       label="Imanes"
                       value={money(event.estimatedCosts.magnets)}
                     />
+                    {event.estimatedCosts.brandingFaces > 0 && (
+                      <Row
+                        label={`Branding · ${event.estimatedCosts.brandingFaces} caras`}
+                        value={`${money(event.estimatedCosts.branding)} · ${money(event.estimatedCosts.brandingUnitCost)} por cara`}
+                      />
+                    )}
                     <Row
                       label="Lápices"
                       value={money(event.estimatedCosts.pens)}

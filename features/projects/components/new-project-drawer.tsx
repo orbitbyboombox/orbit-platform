@@ -573,10 +573,7 @@ export function NewProjectDrawer({
           price.durationHours === null),
     );
   const brandingPrice = priceFor("EXTRA", extraCodes.Branding);
-  const brandingMinimum = Math.max(
-    2,
-    Number(brandingPrice?.rules?.minimumQuantity ?? 2),
-  );
+  const brandingMinimum = 1;
   const brandingMaximum = Math.min(
     4,
     Math.max(
@@ -1173,7 +1170,9 @@ export function NewProjectDrawer({
                       extra === "Imanes" &&
                       configuration.magnetsMode === "BENEFIT"
                         ? "Imanes · Beneficio BOOMBOX · Incluido $0"
-                        : extra,
+                        : extra === "Branding"
+                          ? `Branding · ${configuration.brandingQuantity} caras`
+                          : extra,
                     ),
                   ),
                   ...compatibleIncludedExtrasSelected,

@@ -64,6 +64,7 @@ export async function loadCrmCustomerOperations(
       ["transport", "Transporte", "OPERATIONAL"],
       ["scrapbook", "Scrapbook", "OPERATIONAL"],
       ["magnets", "Imanes", "OPERATIONAL"],
+      ["branding", `Branding · ${Number(costValues.brandingFaces ?? 0)} caras`, "OPERATIONAL"],
       ["pens", "Lápices", "OPERATIONAL"],
       ["doubleSidedTape", "Cinta doble contacto", "OPERATIONAL"],
       ["other", "Otros costos operacionales", "OPERATIONAL"],

@@ -63,6 +63,11 @@ const groups: ReadonlyArray<{
       "Tarifas vigentes desde Master Data y override operacional opcional.",
   },
   {
+    category: "BRANDING",
+    title: "Branding",
+    description: "Costo operacional neto por cada cara producida para el Evento.",
+  },
+  {
     category: "OTHER",
     title: "Otros costos",
     description: "Costos operacionales configurables sin límite.",
@@ -84,6 +89,7 @@ function CostEditor({
     record.quantity === null ? "" : String(record.quantity),
   );
   const [enabled, setEnabled] = useState(record.enabled);
+  const [description, setDescription] = useState(record.description);
   const [reason, setReason] = useState("");
   const [message, setMessage] = useState("");
   const [pending, startTransition] = useTransition();
@@ -152,6 +158,17 @@ function CostEditor({
         />
         Disponible
       </label>
+      {record.category === "BRANDING" && (
+        <label className="mt-3 block text-xs font-semibold text-muted">
+          Descripción
+          <textarea
+            className="mt-1 min-h-20 w-full rounded-xl border bg-background px-3 py-2 text-sm"
+            disabled={!canEdit}
+            onChange={(event) => setDescription(event.target.value)}
+            value={description}
+          />
+        </label>
+      )}
       {canEdit && (
         <>
           <label className="mt-3 block text-xs font-semibold text-muted">
@@ -175,6 +192,7 @@ function CostEditor({
                     amount: amount === "" ? null : Number(amount),
                     quantity: quantity === "" ? null : Number(quantity),
                     enabled,
+                    description,
                     reason,
                   });
                   setMessage(

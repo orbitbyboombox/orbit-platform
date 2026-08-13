@@ -10,7 +10,7 @@ export async function loadMasterData(client: SupabaseClient): Promise<MasterData
     client.from("commercial_prices").select("id,category,code,label,duration_hours,destination,unit_price,pricing_status,enabled,display_order,rules,version").is("deleted_at", null).order("category").order("display_order").order("label"),
     client.from("staff").select("id", { count: "exact", head: true }).is("deleted_at", null),
     client.from("operational_assets").select("id", { count: "exact", head: true }).is("deleted_at", null),
-    client.from("cost_master_entries").select("id,category,code,label,amount,quantity,unit,enabled,display_order,version,updated_at").is("deleted_at",null).order("display_order").order("label"),
+    client.from("cost_master_entries").select("id,category,code,label,amount,quantity,unit,enabled,display_order,version,updated_at,metadata").is("deleted_at",null).order("display_order").order("label"),
   ]);
   const error = entries.error ?? prices.error ?? staff.error ?? equipment.error ?? costs.error;
   if (error) throw error;
@@ -58,6 +58,6 @@ export async function loadMasterData(client: SupabaseClient): Promise<MasterData
     const municipalities = Array.isArray(rules.municipalities) ? rules.municipalities.filter((item): item is string => typeof item === "string") : [];
     return { id:row.id, code:row.code, province:row.destination ?? row.label, transportValue:row.unit_price == null ? null : Number(row.unit_price), enabled:row.enabled, displayOrder:row.display_order, municipalities, version:row.version };
   });
-  const costMaster = (costs.data ?? []).map((row) => ({ id:row.id, category:row.category as CostMasterCategory, code:row.code, label:row.label, amount:row.amount == null ? null : Number(row.amount), quantity:row.quantity == null ? null : Number(row.quantity), unit:row.unit, enabled:row.enabled, displayOrder:row.display_order, version:row.version, updatedAt:row.updated_at }));
+  const costMaster = (costs.data ?? []).map((row) => ({ id:row.id, category:row.category as CostMasterCategory, code:row.code, label:row.label, amount:row.amount == null ? null : Number(row.amount), quantity:row.quantity == null ? null : Number(row.quantity), unit:row.unit, enabled:row.enabled, displayOrder:row.display_order, version:row.version, updatedAt:row.updated_at, description:typeof row.metadata?.description==="string"?row.metadata.description:"" }));
   return { canEdit: role === "CEO" || role === "ADMINISTRATOR", role, records, services, transportZones, costMaster, venues: { masterId: venueMaster?.id ?? null, version: venueMaster?.version ?? null, records: venues.sort((a,b) => a.displayOrder - b.displayOrder) }, staffCount: staff.count ?? 0, equipmentCount: equipment.count ?? 0 };
 }

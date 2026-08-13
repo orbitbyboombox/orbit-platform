@@ -199,7 +199,7 @@ export default async function ProjectWorkspacePage({
     client
       .from("estimated_cost_sheets")
       .select(
-        "status,paper,operator,assembly,disassembly,fuel,transport,scrapbook,magnets,pens,double_sided_tape,other_configured,total,calculated_at",
+        "status,paper,operator,assembly,disassembly,fuel,transport,scrapbook,magnets,branding,branding_faces,branding_unit_cost,pens,double_sided_tape,other_configured,total,calculated_at",
       )
       .eq("project_id", projectId)
       .maybeSingle(),
@@ -832,6 +832,9 @@ export default async function ProjectWorkspacePage({
           transport: Number(estimatedCosts.transport),
           scrapbook: Number(estimatedCosts.scrapbook),
           magnets: Number(estimatedCosts.magnets),
+          branding: Number(estimatedCosts.branding),
+          brandingFaces: Number(estimatedCosts.branding_faces),
+          brandingUnitCost: Number(estimatedCosts.branding_unit_cost),
           pens: Number(estimatedCosts.pens),
           doubleSidedTape: Number(estimatedCosts.double_sided_tape),
           other: Number(estimatedCosts.other_configured),

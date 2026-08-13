@@ -16,16 +16,16 @@ async function administratorContext() {
 
 const validNumber=(value:number|null,name:string)=>{if(value!==null&&(!Number.isFinite(value)||value<0))throw new Error(`${name} debe ser un valor positivo.`);};
 
-export async function updateCostMasterAction(input:{id:string;expectedVersion:number;amount:number|null;quantity:number|null;enabled:boolean;reason:string}) {
+export async function updateCostMasterAction(input:{id:string;expectedVersion:number;amount:number|null;quantity:number|null;enabled:boolean;description:string;reason:string}) {
   try {
     if(!input.reason.trim())throw new Error("La razón del cambio es obligatoria.");
     validNumber(input.amount,"El costo");validNumber(input.quantity,"La cantidad");
     const {client,userId}=await administratorContext();
-    const current=await client.from("cost_master_entries").select("code").eq("id",input.id).eq("version",input.expectedVersion).is("deleted_at",null).maybeSingle();
+    const current=await client.from("cost_master_entries").select("code,metadata").eq("id",input.id).eq("version",input.expectedVersion).is("deleted_at",null).maybeSingle();
     if(current.error)throw current.error;if(!current.data)throw new Error("El costo cambió en otra sesión. Recarga la página.");
     if(current.data.code==="PAPER_BOX_COST"&&(!input.amount||!input.quantity))throw new Error("El costo de caja y las fotos por caja deben ser mayores que cero.");
     const paperAmount=input.amount;const paperQuantity=input.quantity;
-    const update=await client.from("cost_master_entries").update({amount:input.amount,quantity:input.quantity,enabled:input.enabled,approval_reason:input.reason.trim(),updated_by:userId}).eq("id",input.id).eq("version",input.expectedVersion).is("deleted_at",null).select("code").maybeSingle();
+    const update=await client.from("cost_master_entries").update({amount:input.amount,quantity:input.quantity,enabled:input.enabled,metadata:{...(current.data.metadata??{}),description:input.description.trim()},approval_reason:input.reason.trim(),updated_by:userId}).eq("id",input.id).eq("version",input.expectedVersion).is("deleted_at",null).select("code").maybeSingle();
     if(update.error)throw update.error;if(!update.data)throw new Error("El costo cambió en otra sesión. Recarga la página.");
     if(update.data.code==="PAPER_BOX_COST"){
       if(paperAmount===null||paperQuantity===null)throw new Error("No fue posible recalcular el costo por foto.");

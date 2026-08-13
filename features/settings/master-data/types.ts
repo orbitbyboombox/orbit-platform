@@ -1,6 +1,6 @@
 export type MasterDataDomain = "SERVICES" | "EVENT_VENUES" | "OFFICIAL_PRICING" | "EVENT_TYPES" | "EXTRAS" | "TRANSPORT" | "COSTS" | "STAFF" | "EQUIPMENT" | "PAYROLL" | "COMPANY" | "DOCUMENT_TEMPLATES" | "GOOGLE_WORKSPACE" | "SYSTEM_PARAMETERS";
 
-export type CostMasterCategory = "PAPER" | "PHOTO_PRODUCTION" | "OPERATOR" | "ASSEMBLY" | "FUEL" | "TRANSPORT_OVERRIDE" | "OTHER";
+export type CostMasterCategory = "PAPER" | "PHOTO_PRODUCTION" | "OPERATOR" | "ASSEMBLY" | "FUEL" | "TRANSPORT_OVERRIDE" | "BRANDING" | "OTHER";
 
 export interface CostMasterRecord {
   readonly id: string;
@@ -14,6 +14,7 @@ export interface CostMasterRecord {
   readonly displayOrder: number;
   readonly version: number;
   readonly updatedAt: string;
+  readonly description: string;
 }
 
 export interface MasterDataRecord {
