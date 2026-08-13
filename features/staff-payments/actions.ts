@@ -1,20 +1,67 @@
 "use server";
 
-import{revalidatePath}from"next/cache";
-import{createSupabaseServerActionClient}from"@/lib/supabase/server";
+import { revalidatePath } from "next/cache";
+import { createSupabaseServerActionClient } from "@/lib/supabase/server";
 
-type Result={ok:true}|{ok:false;error:string};
-const allowedFiles=["application/pdf","image/jpeg","image/png","image/webp"];
-const text=(data:FormData,key:string)=>String(data.get(key)??"").trim();
-const friendly=(error:unknown,fallback:string)=>error instanceof Error&&!/violates|constraint|postgres|supabase|invalid input/i.test(error.message)?error.message:fallback;
-async function context(){const client=await createSupabaseServerActionClient();const{data}=await client.auth.getUser();if(!data.user)throw new Error("Tu sesión expiró. Vuelve a iniciar sesión.");const{data:profile}=await client.from("profiles").select("role").eq("id",data.user.id).single();if(!profile||!["CEO","ADMINISTRATOR"].includes(profile.role))throw new Error("Solo Administración puede gestionar pagos de Staff.");return{client,userId:data.user.id};}
-async function ensureMonth(client:Awaited<ReturnType<typeof context>>["client"],userId:string,staffId:string,month:string){const normalized=`${month.slice(0,7)}-01`;const{data,error}=await client.from("staff_payment_months").upsert({staff_id:staffId,month:normalized,created_by:userId,updated_by:userId},{onConflict:"staff_id,month",ignoreDuplicates:true}).select("id,advances,tax_amount,paid_amount").maybeSingle();if(error)throw error;if(data)return data;const{data:existing,error:existingError}=await client.from("staff_payment_months").select("id,advances,tax_amount,paid_amount").eq("staff_id",staffId).eq("month",normalized).single();if(existingError)throw existingError;return existing;}
-async function upload(client:Awaited<ReturnType<typeof context>>["client"],file:File,path:string){if(file.size>20_971_520)throw new Error("El archivo supera 20 MB.");if(!allowedFiles.includes(file.type))throw new Error("Usa PDF, JPG, PNG o WEBP.");const{error}=await client.storage.from("orbit-documents").upload(path,await file.arrayBuffer(),{contentType:file.type,upsert:false});if(error)throw error;}
-async function document(client:Awaited<ReturnType<typeof context>>["client"],userId:string,monthId:string,type:"HONORARIOS"|"PAYMENT_PROOF"|"ADVANCE_PROOF",file:File,staffId:string,month:string){const ext=file.name.split(".").pop()?.toLowerCase()||"bin";const path=`staff-payments/${staffId}/${month.slice(0,7)}/${type.toLowerCase()}-${crypto.randomUUID()}.${ext}`;await upload(client,file,path);const{error}=await client.from("staff_payment_documents").insert({payment_month_id:monthId,document_type:type,storage_path:path,file_name:file.name,mime_type:file.type,created_by:userId});if(error){await client.storage.from("orbit-documents").remove([path]);throw error;}}
-async function grossForMonth(client:Awaited<ReturnType<typeof context>>["client"],staffId:string,month:string){const start=`${month.slice(0,7)}-01`;const endDate=new Date(`${start}T12:00:00Z`);endDate.setUTCMonth(endDate.getUTCMonth()+1);const end=endDate.toISOString().slice(0,10);const{data,error}=await client.from("event_staff_payments").select("total_internal_payment,projects!inner(event_date)").eq("staff_id",staffId).gte("projects.event_date",start).lt("projects.event_date",end).is("deleted_at",null);if(error)throw error;return(data??[]).reduce((sum,item)=>sum+Number(item.total_internal_payment),0);}
+type Result = { ok: true } | { ok: false; error: string };
+const text = (data: FormData, key: string) => String(data.get(key) ?? "").trim();
+const friendly = (error: unknown, fallback: string) => error instanceof Error && !/violates|constraint|postgres|supabase|invalid input/i.test(error.message) ? error.message : fallback;
 
-export async function registerStaffAdvanceAction(data:FormData):Promise<Result>{try{const{client,userId}=await context();const staffId=text(data,"staffId"),month=text(data,"month"),amount=Number(data.get("amount"));if(!staffId||!month||amount<=0)throw new Error("Completa mes y monto del anticipo.");const record=await ensureMonth(client,userId,staffId,month);const{error}=await client.from("staff_payment_advances").insert({payment_month_id:record.id,amount,notes:text(data,"notes")||null,created_by:userId});if(error)throw error;const{error:update}=await client.from("staff_payment_months").update({advances:Number(record.advances)+amount,status:"PARTIALLY_PAID",updated_by:userId}).eq("id",record.id);if(update)throw update;const proof=data.get("proof");if(proof instanceof File&&proof.size)await document(client,userId,record.id,"ADVANCE_PROOF",proof,staffId,month);revalidatePath("/resources/staff");return{ok:true};}catch(error){return{ok:false,error:friendly(error,"No fue posible registrar el anticipo.")};}}
-export async function attachHonorariosAction(data:FormData):Promise<Result>{try{const{client,userId}=await context();const staffId=text(data,"staffId"),month=text(data,"month"),file=data.get("file");if(!(file instanceof File)||!file.size||file.type!=="application/pdf")throw new Error("Adjunta el PDF de honorarios.");const record=await ensureMonth(client,userId,staffId,month);await document(client,userId,record.id,"HONORARIOS",file,staffId,month);revalidatePath("/resources/staff");return{ok:true};}catch(error){return{ok:false,error:friendly(error,"No fue posible adjuntar el PDF de honorarios.")};}}
-export async function markStaffMonthPaidAction(data:FormData):Promise<Result>{try{const{client,userId}=await context();const staffId=text(data,"staffId"),month=text(data,"month");const proof=data.get("proof");if(!(proof instanceof File)||!proof.size)throw new Error("Adjunta el comprobante de pago.");const record=await ensureMonth(client,userId,staffId,month);const net=await grossForMonth(client,staffId,month);const tax=Math.round(net/(1-.1525)-net);const paid=Math.max(0,net-Number(record.advances));await document(client,userId,record.id,"PAYMENT_PROOF",proof,staffId,month);const{error}=await client.from("staff_payment_months").update({tax_amount:tax,paid_amount:paid,status:"PAID",updated_by:userId}).eq("id",record.id);if(error)throw error;revalidatePath("/resources/staff");return{ok:true};}catch(error){return{ok:false,error:friendly(error,"No fue posible marcar el mes como pagado.")};}}
-export async function overrideStaffEventPaymentAction(data:FormData):Promise<Result>{try{const{client}=await context();const paymentId=text(data,"paymentId"),reason=text(data,"reason"),target=Math.max(0,Number(data.get("eventNet")));if(!paymentId||!reason||!Number.isFinite(target))throw new Error("Ingresa el neto del Evento y el motivo.");const{data:payment,error:readError}=await client.from("event_staff_payments").select("project_id,operator_payment,assembly_payment,disassembly_payment").eq("id",paymentId).is("deleted_at",null).single();if(readError)throw readError;let operator=Number(payment.operator_payment),assembly=Number(payment.assembly_payment),disassembly=Number(payment.disassembly_payment);const current=operator+assembly+disassembly;if(current===0){operator=target;}else if(operator>0){operator=Math.max(0,target-assembly-disassembly);}else if(assembly>0){assembly=Math.max(0,target-disassembly);}else{disassembly=target;}const{error}=await client.rpc("set_staff_payment_override",{p_payment_id:paymentId,p_operator:operator,p_assembly:assembly,p_disassembly:disassembly,p_reason:reason});if(error)throw error;revalidatePath(`/projects/${payment.project_id}`);revalidatePath("/resources/staff");revalidatePath("/finance");revalidatePath("/reports");return{ok:true};}catch(error){return{ok:false,error:friendly(error,"No fue posible ajustar el pago operacional.")};}}
-export async function updateStaffEventSettlementAction(data:FormData):Promise<Result>{try{const{client}=await context();const paymentId=text(data,"paymentId"),status=text(data,"status"),receiptStatus=text(data,"receiptStatus");const paidAmount=Math.max(0,Number(data.get("paidAmount")));if(!paymentId)throw new Error("Pago operacional no encontrado.");const{data:payment,error:readError}=await client.from("event_staff_payments").select("project_id").eq("id",paymentId).is("deleted_at",null).single();if(readError)throw readError;const{error}=await client.rpc("update_staff_event_settlement",{p_payment_id:paymentId,p_status:status,p_paid_amount:paidAmount,p_paid_at:text(data,"paidAt")||null,p_receipt_status:receiptStatus});if(error)throw error;revalidatePath(`/projects/${payment.project_id}`);revalidatePath("/resources/staff");revalidatePath("/operations");revalidatePath("/finance");revalidatePath("/reports");return{ok:true};}catch(error){return{ok:false,error:friendly(error,"No fue posible actualizar el pago del evento.")};}}
+async function context() {
+  const client = await createSupabaseServerActionClient();
+  const { data } = await client.auth.getUser();
+  if (!data.user) throw new Error("Tu sesión expiró. Vuelve a iniciar sesión.");
+  const { data: profile } = await client.from("profiles").select("role").eq("id", data.user.id).single();
+  if (!profile || !["CEO", "ADMINISTRATOR"].includes(profile.role)) throw new Error("Solo Administración puede gestionar pagos de Staff.");
+  return { client };
+}
+
+function revalidateSettlement(projectId: string) {
+  revalidatePath(`/projects/${projectId}`);
+  revalidatePath("/resources/staff");
+  revalidatePath("/operations");
+  revalidatePath("/staff-portal");
+  revalidatePath("/finance");
+  revalidatePath("/finance/cash-flow");
+  revalidatePath("/reports");
+  revalidatePath("/");
+}
+
+export async function overrideStaffEventPaymentAction(data: FormData): Promise<Result> {
+  try {
+    const { client } = await context();
+    const paymentId = text(data, "paymentId");
+    const reason = text(data, "reason");
+    const target = Math.max(0, Number(data.get("eventNet")));
+    if (!paymentId || !reason || !Number.isFinite(target)) throw new Error("Ingresa el neto del Evento y el motivo.");
+    const { data: payment, error: readError } = await client.from("event_staff_payments").select("project_id,operator_payment,assembly_payment,disassembly_payment").eq("id", paymentId).is("deleted_at", null).single();
+    if (readError) throw readError;
+    let operator = Number(payment.operator_payment), assembly = Number(payment.assembly_payment), disassembly = Number(payment.disassembly_payment);
+    if (operator > 0) operator = Math.max(0, target - assembly - disassembly);
+    else if (assembly > 0) assembly = Math.max(0, target - disassembly);
+    else disassembly = target;
+    const { error } = await client.rpc("set_staff_payment_override", { p_payment_id: paymentId, p_operator: operator, p_assembly: assembly, p_disassembly: disassembly, p_reason: reason });
+    if (error) throw error;
+    revalidateSettlement(payment.project_id);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: friendly(error, "No fue posible ajustar el pago operacional.") };
+  }
+}
+
+export async function updateStaffEventSettlementAction(data: FormData): Promise<Result> {
+  try {
+    const { client } = await context();
+    const paymentId = text(data, "paymentId"), status = text(data, "status"), receiptStatus = text(data, "receiptStatus");
+    const paidAmount = Math.max(0, Number(data.get("paidAmount")));
+    if (!paymentId) throw new Error("Pago operacional no encontrado.");
+    const { data: payment, error: readError } = await client.from("event_staff_payments").select("project_id").eq("id", paymentId).is("deleted_at", null).single();
+    if (readError) throw readError;
+    const { error } = await client.rpc("update_staff_event_settlement", { p_payment_id: paymentId, p_status: status, p_paid_amount: paidAmount, p_paid_at: text(data, "paidAt") || null, p_receipt_status: receiptStatus });
+    if (error) throw error;
+    revalidateSettlement(payment.project_id);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: friendly(error, "No fue posible actualizar el pago del evento.") };
+  }
+}
