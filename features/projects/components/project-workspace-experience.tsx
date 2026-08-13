@@ -1404,12 +1404,14 @@ export function ProjectWorkspaceExperience(
                 }
                 variant="outline"
               />
-              <ActionButton
-                icon={UserRound}
-                label="Asignar Staff"
-                onClick={() => scroll("staff-assignment")}
-                variant="outline"
-              />
+              {!event.staffAssignments.hasPendingRequest ? (
+                <ActionButton
+                  icon={UserRound}
+                  label="Asignar Staff"
+                  onClick={() => scroll("staff-assignment")}
+                  variant="outline"
+                />
+              ) : null}
               <ActionButton
                 icon={Package}
                 label="Asignar equipo"

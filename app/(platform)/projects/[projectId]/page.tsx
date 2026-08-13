@@ -217,12 +217,10 @@ export default async function ProjectWorkspacePage({
       .maybeSingle(),
     client
       .from("staff_assignment_requests")
-      .select(
-        "id,responsibility,status,requested_at,staff(first_name,last_name)",
-      )
+      .select("id")
       .eq("project_id", projectId)
       .eq("status", "PENDING")
-      .order("requested_at"),
+      .limit(1),
     client
       .from("staff_event_publications")
       .select("published")
@@ -403,8 +401,18 @@ export default async function ProjectWorkspacePage({
   };
   const activeAssets = (assetAssignments ??
     []) as unknown as ActiveAssetAssignment[];
-  const productionAssignments = (operatorAssignments ??
-    []) as unknown as StaffAssignment[];
+  const confirmedAssignmentStatuses = new Set([
+    "CONFIRMED",
+    "ACCEPTED",
+    "EN_ROUTE",
+    "ARRIVED",
+    "EVENT_STARTED",
+    "EVENT_FINISHED",
+    "COMPLETED",
+  ]);
+  const productionAssignments = (
+    (operatorAssignments ?? []) as unknown as StaffAssignment[]
+  ).filter((item) => confirmedAssignmentStatuses.has(item.status));
   const operatorByProject = new Map(
     productionAssignments
       .filter((item) => item.assignment_type === "OPERATOR")
@@ -1118,19 +1126,7 @@ export default async function ProjectWorkspacePage({
             })),
           };
         }),
-      requests: (staffRequests ?? []).map((request) => {
-        const member = Array.isArray(request.staff)
-          ? request.staff[0]
-          : request.staff;
-        return {
-          id: request.id,
-          staffName: member
-            ? `${member.first_name} ${member.last_name}`
-            : "Staff",
-          responsibility: request.responsibility,
-          requestedAt: request.requested_at,
-        };
-      }),
+      hasPendingRequest: Boolean(staffRequests?.length),
       assignments: productionAssignments
         .filter((item) => item.project_id === projectId)
         .map((item) => ({

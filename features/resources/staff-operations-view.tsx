@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { setStaffEventPublicationAction } from "@/features/operations/operations-planning.actions";
+import { reviewStaffRequestAction, setStaffEventPublicationAction } from "@/features/operations/operations-planning.actions";
 
 export type StaffOperationsEvent = {
   id: string;
@@ -80,6 +80,17 @@ export function StaffOperationsView({
       data.set("projectId", event.id);
       data.set("published", String(published));
       const result = await setStaffEventPublicationAction(data);
+      setPendingId(null);
+      if (!result.ok) window.alert(result.message);
+      else router.refresh();
+    });
+  const review = (requestId: string, decision: "approve" | "reject") =>
+    start(async () => {
+      setPendingId(requestId);
+      const data = new FormData();
+      data.set("requestId", requestId);
+      data.set("decision", decision);
+      const result = await reviewStaffRequestAction(data);
       setPendingId(null);
       if (!result.ok) window.alert(result.message);
       else router.refresh();
@@ -165,9 +176,17 @@ export function StaffOperationsView({
               <article className="rounded-xl border p-4" key={request.id}>
                 <p className="font-semibold">{request.staff} · {request.responsibility}</p>
                 <p className="mt-1 text-sm text-muted">{request.event} · {request.date}</p>
-                <Link className="mt-3 inline-block text-sm font-semibold text-brand" href={`/projects/${request.projectId}#staff-assignment`}>
-                  Aprobar o rechazar en el Evento
-                </Link>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button className="rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-brand-foreground disabled:opacity-50" disabled={pending} onClick={() => review(request.id, "approve")}>
+                    {pending && pendingId === request.id ? "Procesando…" : "Aprobar"}
+                  </button>
+                  <button className="rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-50" disabled={pending} onClick={() => review(request.id, "reject")}>
+                    Rechazar
+                  </button>
+                  <Link className="px-2 py-2 text-sm font-semibold text-brand" href={`/projects/${request.projectId}`}>
+                    Ver Evento
+                  </Link>
+                </div>
               </article>
             ))}
             {!requests.length ? <p className="rounded-xl border border-dashed p-6 text-sm text-muted">No hay solicitudes pendientes.</p> : null}

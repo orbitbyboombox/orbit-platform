@@ -20,7 +20,6 @@ import {
   updateStaffAssignmentStatusAction,
   type StaffAssignmentMutation,
 } from "./actions";
-import { reviewStaffRequestAction } from "@/features/operations/operations-planning.actions";
 import {
   addStaffSettlementAdjustmentAction,
   addStaffSettlementReimbursementAction,
@@ -48,12 +47,6 @@ export type AssignmentStaffOption = {
   capabilities: string[];
 };
 export type AssignmentVehicleOption = { id: string; name: string };
-export type StaffAssignmentRequest = {
-  id: string;
-  staffName: string;
-  responsibility: string;
-  requestedAt: string;
-};
 export type EventStaffSettlementAdjustment = {
   id: string;
   reason: string;
@@ -105,7 +98,7 @@ export type StaffAssignmentCenterProps = {
   assignments: OperationalAssignment[];
   staff: AssignmentStaffOption[];
   vehicles: AssignmentVehicleOption[];
-  requests?: StaffAssignmentRequest[];
+  hasPendingRequest?: boolean;
   published?: boolean;
   settlements?: EventStaffSettlement[];
 };
@@ -156,7 +149,7 @@ export function StaffAssignmentCenter({
   assignments,
   staff,
   vehicles,
-  requests = [],
+  hasPendingRequest = false,
   settlements = [],
 }: StaffAssignmentCenterProps) {
   const router = useRouter();
@@ -188,15 +181,6 @@ export function StaffAssignmentCenter({
     mutate(() =>
       updateStaffAssignmentStatusAction({ id: item.id, projectId, status }),
     );
-  const review = (requestId: string, decision: "approve" | "reject") =>
-    startTransition(async () => {
-      const data = new FormData();
-      data.set("requestId", requestId);
-      data.set("decision", decision);
-      const result = await reviewStaffRequestAction(data);
-      setMessage(result.message);
-      if (result.ok) router.refresh();
-    });
   const cancelAssignment = (
     item: OperationalAssignment,
     reasonCategory: string,
@@ -257,10 +241,12 @@ export function StaffAssignmentCenter({
             </p>
           </div>
         </div>
-        <Button onClick={() => setPanel({ mode: "create" })}>
-          <Plus className="size-4" />
-          Asignar Staff
-        </Button>
+        {!hasPendingRequest ? (
+          <Button onClick={() => setPanel({ mode: "create" })}>
+            <Plus className="size-4" />
+            Asignar Staff
+          </Button>
+        ) : null}
       </header>
       {message && (
         <p
@@ -270,45 +256,6 @@ export function StaffAssignmentCenter({
           {message}
         </p>
       )}
-      {requests.length ? (
-        <section className="mb-5 rounded-xl border border-brand/30 bg-brand/5 p-4">
-          <h3 className="font-semibold">
-            Solicitudes pendientes para este Evento
-          </h3>
-          <div className="mt-3 space-y-2">
-            {requests.map((request) => (
-              <article
-                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-3"
-                key={request.id}
-              >
-                <div>
-                  <p className="font-semibold">{request.staffName}</p>
-                  <p className="text-sm text-muted">
-                    {roleLabel(request.responsibility)} ·{" "}
-                    {new Date(request.requestedAt).toLocaleString("es-CL")}
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    className="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-brand-foreground"
-                    disabled={pending}
-                    onClick={() => review(request.id, "approve")}
-                  >
-                    Aprobar
-                  </button>
-                  <button
-                    className="rounded-lg border px-3 py-2 text-xs font-semibold"
-                    disabled={pending}
-                    onClick={() => review(request.id, "reject")}
-                  >
-                    Rechazar
-                  </button>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-      ) : null}
       <div className="grid gap-3 lg:grid-cols-2">
         {assignments.map((item) => (
           <article className="rounded-xl border p-4" key={item.id}>
@@ -389,9 +336,11 @@ export function StaffAssignmentCenter({
         ))}
         {!assignments.length && (
           <div className="rounded-xl border border-dashed p-7 text-center lg:col-span-2">
-            <p className="font-semibold">Sin Staff asignado</p>
+            <p className="font-semibold">Sin asignaciones confirmadas</p>
             <p className="mt-1 text-sm text-muted">
-              Asigna el equipo operacional directamente desde este evento.
+              {hasPendingRequest
+                ? "La solicitud se revisa desde Dashboard o Staff Operations."
+                : "Aún no existe una asignación operacional confirmada."}
             </p>
           </div>
         )}
