@@ -63,8 +63,8 @@ export async function deliverAssignmentCancellationEmail(
   const company = await loadCompanySettings(client),
     configured = company.emailConfiguration.founderNotificationEmail,
     founderRecipient =
-      (typeof configured === "string" ? configured : "") ||
       company.operationsEmail ||
+      (typeof configured === "string" ? configured : "") ||
       company.salesEmail ||
       company.supportEmail,
     recipients = [
@@ -104,7 +104,9 @@ export async function deliverAssignmentCancellationEmail(
     failures: string[] = [];
   for (const recipient of recipients) {
     const subject = recipient.founder
-        ? "🚨 URGENT · Staff Assignment Cancelled"
+        ? cancellation.responsibility === "OPERATOR"
+          ? "🚨 OPERADOR CANCELÓ EVENTO"
+          : "🚨 STAFF CANCELÓ EVENTO"
         : "Tu asignación BOOMBOX fue cancelada",
       heading = recipient.founder
         ? "URGENTE · Asignación de Staff cancelada"

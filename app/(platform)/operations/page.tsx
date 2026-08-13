@@ -1384,12 +1384,16 @@ export default async function OperationsPage() {
       href: item.project_id ? `/projects/${item.project_id}` : "/notifications",
     };
   });
-  const cancellationAlerts: CommandCenterItem[] = (cancellationAlertsResult.data ?? []).map((alert) => {
+  const cancellationAlertIds=(cancellationAlertsResult.data??[]).map((alert)=>alert.id);
+  const {data:cancellationAlertStates,error:cancellationAlertStatesError}=cancellationAlertIds.length?await client.from("notification_user_states").select("notification_id,read_at,archived_at,dismissed_at").eq("user_id",auth.user.id).in("notification_id",cancellationAlertIds):{data:[],error:null};
+  if(cancellationAlertStatesError)throw cancellationAlertStatesError;
+  const acknowledgedCancellationAlerts=new Set((cancellationAlertStates??[]).filter((state)=>state.read_at||state.archived_at||state.dismissed_at).map((state)=>state.notification_id));
+  const cancellationAlerts: CommandCenterItem[] = (cancellationAlertsResult.data ?? []).filter((alert)=>!acknowledgedCancellationAlerts.has(alert.id)).map((alert) => {
     const staffMember=Array.isArray(alert.staff)?alert.staff[0]:alert.staff;
     const project=Array.isArray(alert.projects)?alert.projects[0]:alert.projects;
     const metadata=(alert.metadata??{}) as Record<string,unknown>;
     const schedule=[project?.event_date,project?.event_time?.slice(0,5)].filter(Boolean).join(" · ");
-    return {id:alert.id,title:"Staff canceló una asignación",detail:[`${staffMember?.first_name??"Staff"} ${staffMember?.last_name??""}`.trim(),String(metadata.responsibility??"Rol por confirmar"),project?.name,schedule,alert.message].filter(Boolean).join(" · "),href:alert.project_id?`/projects/${alert.project_id}#staff-assignment`:"/notifications",tone:"danger" as const};
+    return {id:alert.id,title:"Staff canceló una asignación",detail:[`${staffMember?.first_name??"Staff"} ${staffMember?.last_name??""}`.trim(),String(metadata.responsibility??"Rol por confirmar"),project?.name,schedule,alert.message].filter(Boolean).join(" · "),href:alert.project_id?`/projects/${alert.project_id}#staff-assignment`:"/notifications",tone:"danger" as const,acknowledgeable:true};
   });
   const commandCenterAlerts: CommandCenterItem[] = [...cancellationAlerts,...controlData.alerts.map(
     (alert, index) => ({

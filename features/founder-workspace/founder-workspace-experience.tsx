@@ -12,6 +12,7 @@ import {
   UsersRound,
   WalletCards,
   Wrench,
+  Check,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -20,6 +21,7 @@ import type { LucideIcon } from "lucide-react";
 import type { FinanceDashboardReadModel, FinanceMetric } from "@/features/finance/finance-read-model";
 import { PersonalWorkspaceSections } from "./personal-workspace";
 import { reviewStaffRequestAction } from "@/features/operations/operations-planning.actions";
+import { markNotificationReadAction } from "@/features/notification-center/actions";
 
 export type CommandCenterItem = {
   id: string;
@@ -28,6 +30,7 @@ export type CommandCenterItem = {
   href: string;
   time?: string;
   tone?: "default" | "success" | "info" | "warning" | "danger";
+  acknowledgeable?: boolean;
 };
 
 export type CommandCenterEvent = CommandCenterItem & {
@@ -79,7 +82,15 @@ export function FounderWorkspaceExperience({ currentDate, finance, founderName, 
 }) {
   const router = useRouter();
   const [resolvedApprovalIds, setResolvedApprovalIds] = useState<Set<string>>(() => new Set());
+  const [acknowledgedAlertIds, setAcknowledgedAlertIds] = useState<Set<string>>(() => new Set());
+  const [alertPending, startAlertTransition] = useTransition();
   const staffApprovalItems = pendingStaffApprovals.filter((item) => !resolvedApprovalIds.has(item.id));
+  const visibleOperationalAlerts = operationalAlerts.filter((item) => !acknowledgedAlertIds.has(item.id));
+  const acknowledgeAlert = (id: string) => startAlertTransition(async () => {
+    await markNotificationReadAction(id);
+    setAcknowledgedAlertIds((current) => new Set(current).add(id));
+    router.refresh();
+  });
   const headline = (label: string) => finance.headline.find(item => item.label === label);
   const fallback = (label: string, href: string): FinanceMetric => ({ label, value: 0, format: "money", detail: "Sin movimientos canónicos.", href });
   const kpis: Array<{ metric: FinanceMetric; icon: LucideIcon; tone: keyof typeof toneStyle }> = [
@@ -134,9 +145,20 @@ export function FounderWorkspaceExperience({ currentDate, finance, founderName, 
     <div className="mt-4 space-y-4">{recentActivity.slice(0, 6).map((item, index) => <Link className="group flex items-start gap-3" href={item.href} key={item.id}><span className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded-full text-[10px] ${index % 3 === 0 ? toneStyle.success : index % 3 === 1 ? toneStyle.info : toneStyle.warning}`}>•</span><span className="min-w-0 flex-1"><strong className="block truncate text-xs font-medium">{item.title}</strong><span className="mt-1 block truncate text-[11px] text-muted">{item.detail}</span></span><ArrowRight className="mt-1 size-3.5 text-muted opacity-0 transition group-hover:opacity-100" /></Link>)}{!recentActivity.length ? <Empty label="Sin actividad reciente." /> : null}</div>
   </section>;
 
+  const alertItems: CommandCenterItem[] = [
+    ...visibleOperationalAlerts.slice(0, 2),
+    ...finance.risks.slice(0, 3).map((risk) => ({
+      id: risk.key,
+      title: risk.label,
+      detail: `${risk.count} pendientes · ${money(risk.amount)}`,
+      href: risk.href,
+      tone: risk.severity,
+      acknowledgeable: false,
+    })),
+  ].slice(0, 3);
   const alerts = <section data-command-card aria-labelledby="founder-alerts-title" className="rounded-2xl border p-5 sm:p-6"><PanelTitle id="founder-alerts-title" label="Alertas y pendientes" /><div className="mt-4 grid gap-3 md:grid-cols-3">{
-    [...operationalAlerts.slice(0, 2), ...finance.risks.slice(0, 3).map(risk => ({ id: risk.key, title: risk.label, detail: `${risk.count} pendientes · ${money(risk.amount)}`, href: risk.href, tone: risk.severity }))].slice(0, 3).map(alert => <Link className="group rounded-xl border bg-background/30 p-4 transition hover:border-brand/35" href={alert.href} key={alert.id}><span className="flex items-start gap-3"><span className={`grid size-9 shrink-0 place-items-center rounded-xl ${alert.tone === "danger" ? toneStyle.danger : toneStyle.warning}`}><AlertTriangle className="size-4" /></span><span><strong className="block text-sm">{alert.title}</strong><span className="mt-1 block text-xs text-muted">{alert.detail}</span></span></span><span className="mt-3 block text-xs font-semibold text-brand">Ver detalles</span></Link>)
-  }</div>{!operationalAlerts.length && !finance.risks.length ? <Empty label="No hay alertas accionables." /> : null}</section>;
+    alertItems.map(alert => <article className="rounded-xl border bg-background/30 p-4 transition hover:border-brand/35" key={alert.id}><span className="flex items-start gap-3"><span className={`grid size-9 shrink-0 place-items-center rounded-xl ${alert.tone === "danger" ? toneStyle.danger : toneStyle.warning}`}><AlertTriangle className="size-4" /></span><span><strong className="block text-sm">{alert.title}</strong><span className="mt-1 block text-xs text-muted">{alert.detail}</span></span></span><span className="mt-3 flex flex-wrap items-center gap-2"><Link className="inline-flex min-h-9 items-center rounded-lg border border-brand/25 px-3 text-xs font-semibold text-brand" href={alert.href}>{alert.acknowledgeable ? "Abrir Evento / Cobertura Staff" : "Ver detalles"}</Link>{alert.acknowledgeable ? <button className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold disabled:opacity-50" disabled={alertPending} onClick={() => acknowledgeAlert(alert.id)}><Check className="size-3.5" />OK, visto</button> : null}</span></article>)
+  }</div>{!visibleOperationalAlerts.length && !finance.risks.length ? <Empty label="No hay alertas accionables." /> : null}</section>;
 
   const commandGrid = <section aria-label="Jornada operacional" className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.58fr)_minmax(19rem,.92fr)]"><div className="space-y-5">{today}{alerts}</div><div className="space-y-5">{upcoming}</div></section>;
 
