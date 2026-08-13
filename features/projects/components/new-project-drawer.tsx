@@ -260,6 +260,9 @@ function Field({
       {label}
       <input
         className="mt-2 h-11 w-full rounded-lg border bg-background px-3 text-sm outline-none transition focus:ring-2 focus:ring-brand/40"
+        data-1p-ignore
+        data-form-type="other"
+        data-lpignore="true"
         id={id}
         {...props}
       />
@@ -812,6 +815,43 @@ export function NewProjectDrawer({
       }),
     );
   });
+  useEffect(() => {
+    if (!selectedCustomerId) return;
+    const canonical = crmCustomers.find(
+      (customer) => customer.id === selectedCustomerId,
+    );
+    if (!canonical) {
+      setSelectedCustomerId(null);
+      setDraft((current) => ({ ...current, crmCustomerId: undefined }));
+      return;
+    }
+    setCommercialNotes(canonical.commercialNotes);
+    setDraft((current) => {
+      const canonicalClient: ProjectDraft["client"] = {
+        name: canonical.name,
+        rut: canonical.rut,
+        email: canonical.email,
+        phone: canonical.phone,
+        company: canonical.company || undefined,
+        address: canonical.address,
+      };
+      if (
+        current.crmCustomerId === canonical.id &&
+        current.client.name === canonicalClient.name &&
+        current.client.rut === canonicalClient.rut &&
+        current.client.email === canonicalClient.email &&
+        current.client.phone === canonicalClient.phone &&
+        current.client.company === canonicalClient.company &&
+        current.client.address === canonicalClient.address
+      )
+        return current;
+      return {
+        ...current,
+        crmCustomerId: canonical.id,
+        client: canonicalClient,
+      };
+    });
+  }, [crmCustomers, selectedCustomerId]);
 
   if (!open) return null;
   const client = (field: keyof ProjectDraft["client"], value: string) =>
@@ -959,12 +999,20 @@ export function NewProjectDrawer({
         : [...configuration.extras, extra],
     });
   };
-  const customerValid = Boolean(
-    (draft.client.name ?? "").trim() &&
+  const existingCustomerValid = Boolean(
+    selectedCustomer && draft.crmCustomerId === selectedCustomer.id,
+  );
+  const newCustomerValid = Boolean(
+    !selectedCustomer &&
+      (draft.client.name ?? "").trim() &&
       isValidChileanRut(draft.client.rut ?? "") &&
       (draft.client.phone ?? "").length === 12 &&
-      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.client.email ?? ""),
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+        (draft.client.email ?? "").trim(),
+      ) &&
+      draft.origin,
   );
+  const customerValid = existingCustomerValid || newCustomerValid;
   const paymentTermDays =
     paymentCondition === "CORPORATE_CREDIT"
       ? creditTerm === "CUSTOM"
@@ -1512,7 +1560,7 @@ export function NewProjectDrawer({
               )}
               <div className="grid gap-5 sm:grid-cols-2">
                 <Field
-                  autoComplete="name"
+                  autoComplete="off"
                   disabled={Boolean(selectedCustomer)}
                   label="Nombre y Apellido o Empresa"
                   onChange={(e) => client("name", e.target.value)}
@@ -1532,13 +1580,14 @@ export function NewProjectDrawer({
                   value={draft.client.rut}
                 />
                 <Field
+                  autoComplete="off"
                   disabled={Boolean(selectedCustomer)}
                   label="Empresa (opcional)"
                   onChange={(e) => client("company", e.target.value)}
                   value={draft.client.company ?? ""}
                 />
                 <Field
-                  autoComplete="tel"
+                  autoComplete="off"
                   disabled={Boolean(selectedCustomer)}
                   inputMode="tel"
                   label="Teléfono"
@@ -1552,7 +1601,7 @@ export function NewProjectDrawer({
                   value={draft.client.phone || "+569"}
                 />
                 <Field
-                  autoComplete="email"
+                  autoComplete="off"
                   disabled={Boolean(selectedCustomer)}
                   label="Correo"
                   onChange={(e) => client("email", e.target.value)}
@@ -1562,7 +1611,7 @@ export function NewProjectDrawer({
                 />
               </div>
               <Field
-                autoComplete="street-address"
+                autoComplete="off"
                 disabled={Boolean(selectedCustomer)}
                 label="Dirección"
                 onChange={(e) => client("address", e.target.value)}
@@ -1572,6 +1621,7 @@ export function NewProjectDrawer({
                 Origen del contacto
                 <select
                   className="mt-2 h-11 w-full rounded-lg border bg-background px-3"
+                  disabled={Boolean(selectedCustomer)}
                   onChange={(e) =>
                     setDraft((current) => ({
                       ...current,
@@ -1580,7 +1630,11 @@ export function NewProjectDrawer({
                   }
                   value={draft.origin ?? ""}
                 >
-                  <option value="">Selecciona un origen</option>
+                  <option value="">
+                    {selectedCustomer
+                      ? "Origen registrado en CRM"
+                      : "Selecciona un origen"}
+                  </option>
                   {projectOrigins.map((origin) => (
                     <option key={origin} value={origin}>
                       {originLabels[origin]}

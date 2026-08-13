@@ -229,11 +229,26 @@ export class SupabaseCustomerRepository implements CustomerRepository {
         "La transacción no devolvió el identificador del evento.",
       );
     const projectId = String(row.project_id);
+    const { data: canonicalCustomer, error: canonicalCustomerError } =
+      await this.client
+        .from("customers")
+        .select("full_name,email,phone,company,rut,address")
+        .eq("id", String(row.customer_id))
+        .is("deleted_at", null)
+        .single();
+    if (canonicalCustomerError) throw canonicalCustomerError;
     return {
       id: projectId,
-      name: draft.client.company || draft.client.name,
+      name: canonicalCustomer.company || canonicalCustomer.full_name,
       type: draft.type,
-      client: draft.client,
+      client: {
+        name: canonicalCustomer.full_name,
+        email: canonicalCustomer.email ?? "",
+        phone: canonicalCustomer.phone ?? "",
+        company: canonicalCustomer.company ?? undefined,
+        rut: canonicalCustomer.rut ?? undefined,
+        address: canonicalCustomer.address ?? undefined,
+      },
       event: draft.event,
       services: draft.services,
       status: "Upcoming",
