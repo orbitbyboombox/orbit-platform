@@ -29,7 +29,7 @@ export default async function OperationsPage() {
     client.from("calendar_sync").select("project_id,status"),
     client.from("drive_sync").select("project_id,status"),
     client.from("documents").select("project_id,document_type").is("deleted_at", null),
-    client.from("event_staff_payments").select("id,project_id,staff_id,total_internal_payment,paid_amount,settlement_status,operator_payment,assembly_payment,disassembly_payment,status,staff(first_name,last_name)").is("deleted_at", null),
+    client.from("event_staff_payments").select("id,project_id,staff_id,total_internal_payment,paid_amount,settlement_status,operator_payment,assembly_payment,disassembly_payment,status,staff(first_name,last_name)").is("deleted_at", null).eq("status","CONFIRMED").gt("total_internal_payment",0),
     Promise.resolve({data:financialTruth,error:null}),
     client.from("timeline_events").select("project_id"),
     client.from("projects").select("id,customer_id,name,project_type,event_date,event_time,location,city,operations,finance,customers(full_name),project_services(service_code,duration_hours)").is("deleted_at", null),

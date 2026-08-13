@@ -9,7 +9,7 @@ export default async function CashFlowPage(){
     client.from("invoice_payments").select("id,invoice_id,amount,paid_at,method,reference").order("paid_at",{ascending:false}),
     client.from("accounts_receivable_projection").select("id,invoice_number,project_id,customer_id,customer_type,due_date,amount,paid_amount,outstanding_balance,effective_status,customers(full_name),projects(name)"),
     client.from("expenses").select("id,occurred_on,category,supplier,total,status,receipt_path,approval_reason").is("deleted_at",null).order("occurred_on",{ascending:false}),
-    client.from("event_staff_payments").select("id,project_id,staff_id,total_internal_payment,paid_amount,paid_at,settlement_status,status,projects!inner(event_date),staff(first_name,last_name)").is("deleted_at",null).neq("status","CANCELLED"),
+    client.from("event_staff_payments").select("id,project_id,staff_id,total_internal_payment,paid_amount,paid_at,settlement_status,status,projects!inner(event_date),staff(first_name,last_name)").is("deleted_at",null).eq("status","CONFIRMED").gt("total_internal_payment",0),
     client.from("vehicle_fuel_logs").select("id,asset_id,fuel_date,total_amount,receipt_path,gas_station"),
     client.from("vehicle_profiles").select("asset_id,model"),
   ]);

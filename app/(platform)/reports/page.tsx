@@ -15,7 +15,7 @@ export default async function ReportsPage(){
     client.from("quotation_items").select("quotation_id,item_type,code,label,total"),
     client.from("profit_snapshots").select("id,project_id,revenue,operational_cost,gross_margin,gross_margin_percent,created_at").is("deleted_at",null).order("created_at",{ascending:false}),
     client.from("assignments").select("id,project_id,staff_id,assignment_type,status,created_at").is("deleted_at",null),
-    client.from("event_staff_payments").select("project_id,staff_id,total_internal_payment,status").is("deleted_at",null),
+    client.from("event_staff_payments").select("project_id,staff_id,total_internal_payment,status").is("deleted_at",null).eq("status","CONFIRMED").gt("total_internal_payment",0),
     client.from("staff").select("id,first_name,last_name,status").is("deleted_at",null),
     client.from("operational_assets").select("id,asset_code,asset_type,status,usage_counter").is("deleted_at",null),
     client.from("asset_assignments").select("asset_id,project_id,assignment_status").is("deleted_at",null),
