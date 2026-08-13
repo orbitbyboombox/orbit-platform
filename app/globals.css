@@ -44,12 +44,12 @@
 }
 
 .dark {
-  --background: #080a0d;
-  --foreground: #f5f6f8;
-  --card: #0f1217;
-  --border: #242a34;
-  --muted: #9299a6;
-  --accent: #171c24;
+  --background: #07090d;
+  --foreground: #f7f7f8;
+  --card: #0d1117;
+  --border: #222832;
+  --muted: #949ba8;
+  --accent: #151a22;
   --accent-foreground: #fafafa;
   --success: #86efac;
   --success-soft: #143222;
@@ -59,15 +59,15 @@
   --danger-soft: #3b1717;
   --info: #93c5fd;
   --info-soft: #172554;
-  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.025), 0 18px 48px rgb(0 0 0 / 0.16);
-  --shadow-card-hover: 0 1px 0 rgb(255 255 255 / 0.04), 0 24px 64px rgb(0 0 0 / 0.28);
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.025), 0 20px 56px rgb(0 0 0 / 0.2);
+  --shadow-card-hover: 0 1px 0 rgb(255 255 255 / 0.05), 0 26px 72px rgb(0 0 0 / 0.32);
 }
 
 body {
   background: var(--background);
   background-image:
-    radial-gradient(circle at 48% -10%, rgb(255 149 0 / 0.035), transparent 28rem),
-    linear-gradient(180deg, #080a0d 0%, #090b0f 100%);
+    radial-gradient(circle at 48% -12%, rgb(255 149 0 / 0.045), transparent 31rem),
+    linear-gradient(180deg, #07090d 0%, #090b10 100%);
   background-attachment: fixed;
   color: var(--foreground);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
@@ -104,6 +104,62 @@ button:disabled { cursor: not-allowed; }
 
 #platform-workspace-content :where(.border.bg-card, .border[class*="bg-card/"]) {
   box-shadow: var(--shadow-card);
+}
+
+#platform-workspace-content :where(.border.bg-card, .border[class*="bg-card/"], [data-command-card]) {
+  border-color: color-mix(in srgb, var(--border) 88%, white 12%);
+}
+
+body :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  border: 1px solid var(--border);
+  border-radius: .75rem;
+  background: color-mix(in srgb, var(--background) 72%, var(--card));
+  color: var(--foreground);
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+
+body :where(input:not([type="checkbox"]):not([type="radio"]), select) {
+  min-height: 2.75rem;
+}
+
+body :where(input, select, textarea):focus {
+  border-color: color-mix(in srgb, var(--brand) 60%, var(--border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 12%, transparent);
+  outline: none;
+}
+
+body :where(table) {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+body :where(th) {
+  color: var(--muted);
+  font-size: .6875rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+body :where(th, td) {
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  padding: .9rem 1rem;
+  text-align: left;
+}
+
+body :where(tbody tr) {
+  transition: background-color 160ms ease;
+}
+
+body :where(tbody tr:hover) {
+  background: color-mix(in srgb, var(--accent) 65%, transparent);
+}
+
+body :where([role="dialog"]) > :where(div, form, article) {
+  border-color: color-mix(in srgb, var(--border) 82%, white 18%);
+  box-shadow: 0 32px 100px rgb(0 0 0 / .55);
 }
 
 #platform-workspace-content :where(article, section, details, a, button) {
@@ -162,6 +218,19 @@ button:disabled { cursor: not-allowed; }
   font-weight: 700;
   letter-spacing: .12em;
   text-transform: uppercase;
+}
+
+.orbit-panel-header {
+  align-items: flex-start;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+@media (max-width: 47.99rem) {
+  #platform-workspace-content { padding-inline: 1rem; }
+  #platform-workspace-content :where(th, td) { padding: .75rem; }
 }
 
 /* Reservation summaries remain part of the wizard flow at every breakpoint. */

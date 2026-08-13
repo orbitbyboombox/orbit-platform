@@ -27,7 +27,7 @@ export function AppShell({ children, userEmail, userName, userRole, unreadNotifi
         <main className="min-h-[calc(100vh-4rem)] pb-20 sm:pb-24 md:pb-0">
           <PageContainer id="platform-workspace-content"><GlobalLayoutEngine/><ModuleAvailabilityGuard>{children}</ModuleAvailabilityGuard></PageContainer>
         </main>
-        <footer className="px-5 py-5 sm:px-8"><div className="mx-auto flex max-w-[1600px] flex-col gap-3 rounded-2xl border border-border/70 bg-card/45 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"><BrandLogo className="h-7 w-28" surface="dark" /><BrandSignature className="sm:text-right" /></div></footer>
+        <footer className="px-5 py-5 sm:px-8"><div className="mx-auto flex max-w-[1600px] flex-col gap-2 border-t border-border/60 px-1 pt-4 sm:flex-row sm:items-center sm:justify-between"><BrandLogo className="h-6 w-24 opacity-80" surface="dark" /><BrandSignature className="sm:text-right" /></div></footer>
       </div>
     </div></PersonalWorkspaceProvider></ModuleManagerProvider>
   );

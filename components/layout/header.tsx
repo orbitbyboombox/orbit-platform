@@ -2,6 +2,7 @@
 
 import {
   Bell,
+  ChevronDown,
   LogOut,
   Menu,
   Settings2,
@@ -32,7 +33,7 @@ export function Header({ userEmail, userName, userRole, unreadNotifications, nav
   const { isEnabled } = useModuleManager();
   return (
     <>
-      <header className="sticky top-0 z-20 flex h-[4.5rem] items-center gap-2 border-b border-border/70 bg-background/88 px-3 backdrop-blur-xl sm:gap-3 sm:px-4 md:px-6 lg:px-8">
+      <header className="sticky top-0 z-20 flex h-[4.5rem] items-center gap-2 border-b border-border/70 bg-background/86 px-3 shadow-[0_10px_32px_rgba(0,0,0,.08)] backdrop-blur-xl sm:gap-3 sm:px-4 md:px-6 lg:px-8">
         <Button
           aria-expanded={menuOpen}
           aria-label={menuOpen ? "Cerrar navegación" : "Abrir navegación"}
@@ -53,6 +54,7 @@ export function Header({ userEmail, userName, userRole, unreadNotifications, nav
         <SearchBar
           className="ml-auto hidden max-w-[18rem] border-border/80 bg-card/75 md:flex lg:max-w-[22rem] xl:max-w-[24rem]"
           placeholder="Buscar proyectos, clientes o eventos..."
+          shortcut="⌘K"
         />
         {isEnabled("OPERATIONS") && <Button
           aria-label={`${unreadNotifications} notificaciones sin leer`}
@@ -89,6 +91,7 @@ export function Header({ userEmail, userName, userRole, unreadNotifications, nav
           <p className="max-w-40 truncate text-xs font-medium">{userName}</p>
           <p className="max-w-40 truncate text-[10px] text-muted">{userRole}</p>
         </div>
+        <ChevronDown aria-hidden="true" className="hidden size-3.5 text-muted lg:block" />
         <form action={signOutAction}>
           <Button
             aria-label="Cerrar sesión"

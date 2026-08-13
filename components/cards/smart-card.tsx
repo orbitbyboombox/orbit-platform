@@ -58,7 +58,7 @@ export function SmartCard({
       aria-busy={loading || undefined}
       data-disabled={disabled || undefined}
       className={cn(
-        "orbit-enter rounded-2xl border border-border/80 bg-card p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.025)] sm:p-6",
+        "orbit-enter rounded-2xl border border-border/80 bg-card p-5 shadow-[var(--shadow-card)] sm:p-6",
         (interactive || usesStructuredLayout) &&
           !disabled &&
           "transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:border-foreground/10 hover:shadow-[0_12px_30px_rgba(0,0,0,0.08)]",

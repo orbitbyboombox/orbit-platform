@@ -5,7 +5,6 @@ import {
   ArrowRight,
   CalendarDays,
   CircleDollarSign,
-  Contact,
   FilePlus2,
   ReceiptText,
   Settings2,
@@ -38,7 +37,6 @@ export type CommandCenterEvent = CommandCenterItem & {
 };
 
 const quickActions = [
-  { label: "Clientes", href: "/customers", icon: Contact },
   { label: "Nuevo Evento", href: "/projects?reservation=new", icon: FilePlus2 },
   { label: "Calendario", href: "/projects?view=calendar", icon: CalendarDays },
   { label: "Staff", href: "/resources/staff", icon: UsersRound },
@@ -126,17 +124,18 @@ export function FounderWorkspaceExperience({ currentDate, finance, founderName, 
     [...operationalAlerts.slice(0, 2), ...finance.risks.slice(0, 3).map(risk => ({ id: risk.key, title: risk.label, detail: `${risk.count} pendientes · ${money(risk.amount)}`, href: risk.href, tone: risk.severity }))].slice(0, 3).map(alert => <Link className="group rounded-xl border bg-background/30 p-4 transition hover:border-brand/35" href={alert.href} key={alert.id}><span className="flex items-start gap-3"><span className={`grid size-9 shrink-0 place-items-center rounded-xl ${alert.tone === "danger" ? toneStyle.danger : toneStyle.warning}`}><AlertTriangle className="size-4" /></span><span><strong className="block text-sm">{alert.title}</strong><span className="mt-1 block text-xs text-muted">{alert.detail}</span></span></span><span className="mt-3 block text-xs font-semibold text-brand">Ver detalles</span></Link>)
   }</div>{!operationalAlerts.length && !finance.risks.length ? <Empty label="No hay alertas accionables." /> : null}</section>;
 
-  const commandGrid = <section aria-label="Jornada operacional" className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.58fr)_minmax(19rem,.92fr)]"><div className="space-y-5">{today}{alerts}</div><div className="space-y-5">{upcoming}{activity}</div></section>;
+  const commandGrid = <section aria-label="Jornada operacional" className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.58fr)_minmax(19rem,.92fr)]"><div className="space-y-5">{today}{alerts}</div><div className="space-y-5">{upcoming}</div></section>;
 
-  const actions = <section aria-labelledby="quick-actions-title"><PanelTitle id="quick-actions-title" label="Acciones rápidas" /><div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">{quickActions.map(action => { const Icon = action.icon; return <Link data-command-card className="group flex min-h-[4.75rem] items-center gap-3 rounded-2xl border p-4 transition hover:-translate-y-0.5" href={action.href} key={action.label}><span className="grid size-9 place-items-center rounded-xl bg-brand/10 text-brand"><Icon className="size-4" /></span><span className="text-xs font-semibold">{action.label}</span></Link>; })}</div></section>;
+  const actions = <section aria-labelledby="quick-actions-title"><PanelTitle id="quick-actions-title" label="Acciones rápidas" /><div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">{quickActions.map(action => { const Icon = action.icon; return <Link data-command-card className="group flex min-h-[4.75rem] items-center gap-3 rounded-2xl border p-4 transition hover:-translate-y-0.5" href={action.href} key={action.label}><span className="grid size-9 place-items-center rounded-xl bg-brand/10 text-brand"><Icon className="size-4" /></span><span className="text-xs font-semibold">{action.label}</span></Link>; })}</div></section>;
 
   const settings = <section className="flex flex-col gap-4 rounded-2xl border bg-card p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between"><div><PanelTitle id="workspace-settings-title" label="Founder Workspace" /><p className="mt-2 text-xs text-muted">Mueve, oculta y restaura cada bloque. Tu configuración permanece guardada.</p></div><Link className="inline-flex min-h-10 items-center justify-center rounded-xl border px-4 text-xs font-semibold hover:border-brand/40 hover:text-brand" href="/settings#founder-workspace"><Settings2 className="mr-2 size-4" />Configurar espacio</Link></section>;
 
   return <main className="orbit-command-center" id="founder-workspace"><PersonalWorkspaceSections moduleKey="DASHBOARD" sections={[
     { key: "DASHBOARD_HEADER", label: "Bienvenida", content: welcome },
     { key: "DASHBOARD_WIDGETS", label: "KPIs del Founder", content: founderKpis },
-    { key: "DASHBOARD_TODAY", label: "Jornada operacional", content: commandGrid },
     { key: "DASHBOARD_QUICK_ACTIONS", label: "Acciones rápidas", content: actions },
+    { key: "DASHBOARD_TODAY", label: "Jornada operacional", content: commandGrid },
+    { key: "DASHBOARD_RECENT_ACTIVITY", label: "Actividad reciente", content: activity },
     ...(publicationConsole ? [{ key: "PUBLICATION_CONSOLE", label: "Consola de publicación", content: publicationConsole }] : []),
     { key: "DASHBOARD_WORKSPACE_SETTINGS", label: "Configuración del Workspace", content: settings },
   ]} /></main>;

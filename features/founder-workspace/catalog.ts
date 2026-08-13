@@ -214,14 +214,19 @@ export const MODULE_WORKSPACES = {
       defaultVisible: true,
     },
     {
+      key: "DASHBOARD_QUICK_ACTIONS",
+      label: "Acciones rápidas",
+      defaultVisible: true,
+    },
+    {
       key: "DASHBOARD_TODAY",
       label: "Jornada operacional",
       defaultVisible: true,
     },
     {
-      key: "DASHBOARD_QUICK_ACTIONS",
-      label: "Acciones rápidas",
-      defaultVisible: true,
+      key: "DASHBOARD_RECENT_ACTIVITY",
+      label: "Actividad reciente",
+      defaultVisible: false,
     },
     {
       key: "PUBLICATION_CONSOLE",
