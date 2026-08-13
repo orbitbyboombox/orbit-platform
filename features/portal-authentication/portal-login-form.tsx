@@ -16,5 +16,5 @@ export function PortalLoginForm({ type, embedded = false }: { type: "CUSTOMER" |
     <div className="mt-6 flex items-center justify-center gap-2 text-xs text-muted"><ShieldCheck className="size-4"/>Acceso privado y auditado</div>
   </>;
   if (embedded) return <div>{content}</div>;
-  return <main className="grid min-h-screen place-items-center bg-background px-4 py-10 text-foreground"><section className="w-full max-w-md rounded-3xl border bg-card p-6 shadow-2xl sm:p-9"><BrandLogo className="mx-auto h-24 w-72" priority/>{content}</section></main>;
+  return <main className="grid min-h-screen min-w-0 place-items-center bg-background px-4 py-10 text-foreground"><section className="min-w-0 w-full max-w-md rounded-3xl border bg-card p-6 shadow-2xl sm:p-9"><BrandLogo className="mx-auto h-24 w-full max-w-72" priority/>{content}</section></main>;
 }

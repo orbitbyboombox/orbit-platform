@@ -124,6 +124,7 @@ export async function completeAutomaticBooking(input: { token: string; submissio
         client: admin,
         projectId,
         actorId,
+        sendCustomerCommunication:true,
         portal: { url: signatureResult.portalUrl, expiresAt: "" },
       }),
     );
