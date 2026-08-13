@@ -441,6 +441,12 @@ export default async function StaffManagementPage() {
           services.map((item) => item.service_code).join(" + ") ||
           project.project_type,
         published: publicationMap.get(project.id) ?? false,
+        ready: Boolean(
+          project.event_date &&
+            (customer?.full_name ?? project.name) &&
+            (services.some((item) => Boolean(item.service_code)) ||
+              project.project_type),
+        ),
         assignments: eventAssignments,
         settlements,
         eventStatus: project.status,

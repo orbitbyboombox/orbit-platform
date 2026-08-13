@@ -1205,6 +1205,15 @@ export default async function OperationsPage() {
         customer: event.customer,
         service: `${event.service} · ${event.hours} horas`,
         published: event.published,
+        ready: Boolean(
+          event.date &&
+            event.customer &&
+            event.service &&
+            event.hours > 0 &&
+            event.address &&
+            event.district &&
+            event.venue,
+        ),
         assignments: [
           event.roles.operator,
           event.roles.assembly,

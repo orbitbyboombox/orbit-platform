@@ -14,7 +14,7 @@ export async function StaffPortal({staffId}:{staffId:string}){const admin=create
   admin.from("documents").select("id,project_id,document_type").is("deleted_at",null),
   admin.from("staff_event_checkins").select("project_id,status").eq("staff_id",staffId),
   admin.from("internal_notifications").select("id,title,message,created_at").eq("staff_id",staffId).in("category",["OPERATIONS","STAFF"]).order("created_at",{ascending:false}).limit(12),
-  admin.from("staff_event_publications").select("project_id,projects!inner(id,name,event_date,event_time,location,city,operations,customers(full_name),project_services(service_code,duration_hours))").eq("published",true).gte("projects.event_date",start).lte("projects.event_date",end),
+  admin.from("staff_event_publications").select("project_id,projects!inner(id,name,status,event_date,event_time,location,city,operations,customers(full_name),project_services(service_code,duration_hours))").eq("published",true).not("projects.status","in",'(COMPLETED,COMPLETED_EVENT,CLOSED,ARCHIVED,CANCELLED,Completed,Archived,Cancelled)').gte("projects.event_date",start).lte("projects.event_date",end),
   admin.from("assignments").select("project_id,assignment_type,status").is("deleted_at",null).not("status","in",'(CANCELLED,REJECTED)'),
   admin.from("staff_assignment_requests").select("id,project_id,responsibility,status,requested_at,projects(name,customers(full_name))").eq("staff_id",staffId).order("requested_at",{ascending:false}).limit(30),
 ]);const error=staffResult.error??assignmentsResult.error??paymentsResult.error??documentsResult.error??checkinsResult.error??notificationsResult.error??publicationsResult.error??allAssignmentsResult.error??requestsResult.error;if(error)throw error;
