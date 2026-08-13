@@ -90,6 +90,7 @@ export default async function OperationsPage() {
     publicationsResult,
     staffRequestsResult,
     staffRatesResult,
+    cancellationAlertsResult,
   ] = await Promise.all([
     new SupabaseCustomerRepository(client).findAll(),
     client
@@ -182,6 +183,13 @@ export default async function OperationsPage() {
       .select("code,amount")
       .eq("enabled", true)
       .is("deleted_at", null),
+    client
+      .from("internal_notifications")
+      .select("id,project_id,title,message,metadata,created_at,staff(first_name,last_name),projects(name,event_date,event_time)")
+      .in("notification_type", ["STAFF_ASSIGNMENT_CANCELLED", "STAFF_ASSIGNMENT_CANCELLED_BY_FOUNDER"])
+      .eq("priority", "CRITICAL")
+      .eq("status", "UNREAD")
+      .order("created_at", { ascending: false }),
   ]);
 
   const results = [
@@ -208,6 +216,7 @@ export default async function OperationsPage() {
     publicationsResult,
     staffRequestsResult,
     staffRatesResult,
+    cancellationAlertsResult,
   ];
   const error = results.find((result) => result.error)?.error;
   if (error) throw error;
@@ -1375,7 +1384,14 @@ export default async function OperationsPage() {
       href: item.project_id ? `/projects/${item.project_id}` : "/notifications",
     };
   });
-  const commandCenterAlerts: CommandCenterItem[] = controlData.alerts.map(
+  const cancellationAlerts: CommandCenterItem[] = (cancellationAlertsResult.data ?? []).map((alert) => {
+    const staffMember=Array.isArray(alert.staff)?alert.staff[0]:alert.staff;
+    const project=Array.isArray(alert.projects)?alert.projects[0]:alert.projects;
+    const metadata=(alert.metadata??{}) as Record<string,unknown>;
+    const schedule=[project?.event_date,project?.event_time?.slice(0,5)].filter(Boolean).join(" · ");
+    return {id:alert.id,title:"Staff canceló una asignación",detail:[`${staffMember?.first_name??"Staff"} ${staffMember?.last_name??""}`.trim(),String(metadata.responsibility??"Rol por confirmar"),project?.name,schedule,alert.message].filter(Boolean).join(" · "),href:alert.project_id?`/projects/${alert.project_id}#staff-assignment`:"/notifications",tone:"danger" as const};
+  });
+  const commandCenterAlerts: CommandCenterItem[] = [...cancellationAlerts,...controlData.alerts.map(
     (alert, index) => ({
       id: `operational-alert-${index}`,
       title: alert.label,
@@ -1386,7 +1402,7 @@ export default async function OperationsPage() {
           ? ("danger" as const)
           : ("warning" as const),
     }),
-  );
+  )];
   return (
     <FounderWorkspaceExperience
       currentDate={currentDate}

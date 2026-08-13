@@ -60,17 +60,24 @@ export async function deliverAssignmentCancellationEmail(
       .join(" · "),
     eventUrl = `${appUrl()}/projects/${cancellation.project_id}`;
 
-  let recipient = staff?.email ?? "";
-  if (cancellation.initiated_by === "STAFF") {
-    const company = await loadCompanySettings(client),
-      configured = company.emailConfiguration.founderNotificationEmail;
-    recipient =
+  const company = await loadCompanySettings(client),
+    configured = company.emailConfiguration.founderNotificationEmail,
+    founderRecipient =
       (typeof configured === "string" ? configured : "") ||
       company.operationsEmail ||
       company.salesEmail ||
-      company.supportEmail;
-  }
-  if (!recipient) {
+      company.supportEmail,
+    recipients = [
+      { email: founderRecipient, founder: true },
+      ...(cancellation.initiated_by === "FOUNDER"
+        ? [{ email: staff?.email ?? "", founder: false }]
+        : []),
+    ].filter(
+      (item, index, all) =>
+        Boolean(item.email) &&
+        all.findIndex((candidate) => candidate.email === item.email) === index,
+    );
+  if (!recipients.length) {
     await client
       .from("staff_assignment_cancellations")
       .update({
@@ -81,14 +88,7 @@ export async function deliverAssignmentCancellationEmail(
     return { status: "NOT_CONFIGURED" as const };
   }
 
-  const founder = cancellation.initiated_by === "STAFF",
-    subject = founder
-      ? "URGENT · Staff cancelled an Event"
-      : "Tu asignación BOOMBOX fue cancelada",
-    heading = founder
-      ? "URGENTE · Staff canceló un Evento"
-      : "Asignación cancelada por BOOMBOX",
-    rows = [
+  const rows = [
       ["Evento", project?.name ?? "Evento BOOMBOX"],
       ["Cliente", customer?.full_name ?? "Sin cliente"],
       ["Servicio", service],
@@ -97,44 +97,47 @@ export async function deliverAssignmentCancellationEmail(
       ["Responsabilidad", role(cancellation.responsibility)],
       ["Staff", `${staff?.first_name ?? ""} ${staff?.last_name ?? ""}`.trim()],
       ["Motivo", reason],
-    ],
-    textBody = [
-      heading,
-      ...rows.map(([label, value]) => `${label}: ${value}`),
-      eventUrl,
-    ].join("\n"),
-    htmlBody = `<main style="font-family:Arial,sans-serif;color:#171717;line-height:1.6"><h1>${escapeHtml(heading)}</h1><table style="border-collapse:collapse">${rows.map(([label, value]) => `<tr><td style="padding:7px 12px;color:#666">${escapeHtml(label)}</td><td style="padding:7px 12px;font-weight:700">${escapeHtml(value)}</td></tr>`).join("")}</table><p><a href="${eventUrl}" style="display:inline-block;background:#F78900;color:#111;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:10px">Abrir ORBIT</a></p></main>`;
-  let lastError = "";
-  for (let attempt = 1; attempt <= 3; attempt += 1) {
-    try {
-      const sent = await new GoogleGmailApiProvider(
-        await loadGoogleWorkspaceAccessToken(),
-      ).send({ to: recipient, subject, textBody, htmlBody, driveFileIds: [] });
-      await client
-        .from("staff_assignment_cancellations")
-        .update({
-          email_recipient: recipient,
-          email_status: "SENT",
-          email_message_id: sent.messageId,
-          email_error: null,
-          email_sent_at: new Date().toISOString(),
-        })
-        .eq("id", cancellationId);
-      return { status: "SENT" as const, messageId: sent.messageId };
-    } catch (emailError) {
-      lastError =
-        emailError instanceof Error ? emailError.message : String(emailError);
+    ];
+  const accessToken = await loadGoogleWorkspaceAccessToken(),
+    provider = new GoogleGmailApiProvider(accessToken),
+    sentIds: string[] = [],
+    failures: string[] = [];
+  for (const recipient of recipients) {
+    const subject = recipient.founder
+        ? "🚨 URGENT · Staff Assignment Cancelled"
+        : "Tu asignación BOOMBOX fue cancelada",
+      heading = recipient.founder
+        ? "URGENTE · Asignación de Staff cancelada"
+        : "Asignación cancelada por BOOMBOX",
+      textBody = [heading,...rows.map(([label,value])=>`${label}: ${value}`),eventUrl].join("\n"),
+      htmlBody = `<main style="font-family:Arial,sans-serif;color:#171717;line-height:1.6"><h1>${escapeHtml(heading)}</h1><table style="border-collapse:collapse">${rows.map(([label,value])=>`<tr><td style="padding:7px 12px;color:#666">${escapeHtml(label)}</td><td style="padding:7px 12px;font-weight:700">${escapeHtml(value)}</td></tr>`).join("")}</table><p><a href="${eventUrl}" style="display:inline-block;background:#F78900;color:#111;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:10px">Abrir Evento en ORBIT</a></p></main>`;
+    let delivered = false,
+      lastError = "";
+    for (let attempt=1;attempt<=3;attempt+=1) {
+      try {
+        const sent=await provider.send({to:recipient.email,subject,textBody,htmlBody,driveFileIds:[]});
+        sentIds.push(sent.messageId);
+        delivered=true;
+        break;
+      } catch(emailError) {
+        lastError=emailError instanceof Error?emailError.message:String(emailError);
+      }
     }
+    if(!delivered) failures.push(`${recipient.email}: ${lastError}`);
   }
   await client
     .from("staff_assignment_cancellations")
     .update({
-      email_recipient: recipient,
-      email_status: "FAILED",
-      email_error: lastError,
+      email_recipient: recipients.map((item)=>item.email).join(", "),
+      email_status: failures.length ? "FAILED" : "SENT",
+      email_message_id: sentIds.join(","),
+      email_error: failures.length ? failures.join(" | ") : null,
+      email_sent_at: sentIds.length ? new Date().toISOString() : null,
     })
     .eq("id", cancellationId);
-  return { status: "FAILED" as const };
+  return failures.length
+    ? { status: "FAILED" as const }
+    : { status: "SENT" as const, messageId: sentIds.join(",") };
 }
 
 type BoundaryStage = "portal" | "timeline" | "notification" | "email";
@@ -155,7 +158,7 @@ export async function deliverAssignmentCancellationBoundary(
   const { data: cancellation, error } = await client
     .from("staff_assignment_cancellations")
     .select(
-      "id,project_id,staff_id,responsibility,initiated_by,reason_category,reason_detail,cancelled_by,projects(customer_id,orbit_event_id)",
+      "id,project_id,staff_id,responsibility,initiated_by,reason_category,reason_detail,cancelled_by,republish_allowed,projects(customer_id,orbit_event_id)",
     )
     .eq("id", cancellationId)
     .single();
@@ -188,6 +191,7 @@ export async function deliverAssignmentCancellationBoundary(
   };
 
   await run("portal", async () => {
+    if (!cancellation.republish_allowed) return;
     const { error: portalError } = await client
       .from("staff_event_publications")
       .upsert(
@@ -255,7 +259,7 @@ export async function deliverAssignmentCancellationBoundary(
           status: "UNREAD",
           correlation_id: `staff-assignment-cancellation-alert:${cancellation.id}`,
           category: founderInitiated ? "STAFF" : "OPERATIONS",
-          priority: founderInitiated ? "HIGH" : "CRITICAL",
+          priority: "CRITICAL",
           action_required: true,
           entity_type: "StaffAssignmentCancellation",
           entity_id: cancellation.id,
@@ -264,7 +268,7 @@ export async function deliverAssignmentCancellationBoundary(
             : `/projects/${cancellation.project_id}`,
           metadata: {
             responsibility: cancellation.responsibility,
-            republished: completed.includes("portal"),
+            republished: Boolean(cancellation.republish_allowed && completed.includes("portal")),
           },
         },
         { onConflict: "correlation_id" },

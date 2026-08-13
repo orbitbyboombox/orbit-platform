@@ -1,9 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { createSupabaseServerActionClient } from "@/lib/supabase/server";
 import { synchronizeConfirmedReservationCalendar } from "@/features/connectors/google-calendar/application/google-calendar-sync.service";
 import { deliverAssignmentCancellationBoundary } from "@/features/operations/staff-assignment-cancellation.service";
+import { requestEvidence } from "@/features/portal-authentication/portal-auth.service";
 
 export type StaffAssignmentMutation = {
   id?: string;
@@ -268,6 +270,7 @@ export async function cancelStaffAssignmentByFounderAction(input: {
 }): Promise<Result> {
   try {
     const ctx = await context(input.projectId);
+    const evidence = requestEvidence(await headers());
     if (!input.reasonCategory)
       throw new Error("Selecciona el motivo de cancelación.");
     const { data: cancellationId, error } = await ctx.client.rpc(
@@ -276,6 +279,9 @@ export async function cancelStaffAssignmentByFounderAction(input: {
         p_assignment_id: input.id,
         p_reason_category: input.reasonCategory,
         p_reason_detail: input.reasonDetail.trim(),
+        p_device: evidence.device,
+        p_ip_hash: evidence.ipHash,
+        p_user_agent: evidence.userAgent,
       },
     );
     if (error || !cancellationId)

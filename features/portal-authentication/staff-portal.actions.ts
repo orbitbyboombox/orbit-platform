@@ -224,6 +224,7 @@ export async function cancelStaffAssignmentAction(form: FormData) {
       message: "Selecciona la asignación y el motivo de cancelación.",
     };
   const admin = createAdminClient(),
+    evidence = requestEvidence(await headers()),
     { data: cancellationId, error } = await admin.rpc(
       "cancel_staff_assignment_from_portal",
       {
@@ -232,6 +233,9 @@ export async function cancelStaffAssignmentAction(form: FormData) {
         p_responsibility: responsibility,
         p_reason_category: reasonCategory,
         p_reason_detail: reasonDetail,
+        p_device: evidence.device,
+        p_ip_hash: evidence.ipHash,
+        p_user_agent: evidence.userAgent,
       },
     );
   if (error || !cancellationId)
