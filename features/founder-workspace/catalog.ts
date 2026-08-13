@@ -208,70 +208,200 @@ export type EventModuleKey = (typeof EVENT_MODULES)[number]["key"];
 export const MODULE_WORKSPACES = {
   DASHBOARD: [
     { key: "DASHBOARD_HEADER", label: "Encabezado", defaultVisible: true },
-    { key: "DASHBOARD_QUICK_ACTIONS", label: "Acciones rápidas", defaultVisible: true },
+    {
+      key: "PUBLICATION_CONSOLE",
+      label: "Consola de publicación",
+      defaultVisible: true,
+    },
+    {
+      key: "DASHBOARD_QUICK_ACTIONS",
+      label: "Acciones rápidas",
+      defaultVisible: true,
+    },
     { key: "DASHBOARD_WIDGETS", label: "Widgets", defaultVisible: true },
+    {
+      key: "DASHBOARD_WORKSPACE_SETTINGS",
+      label: "Configuración del Workspace",
+      defaultVisible: true,
+    },
   ],
   CUSTOMERS: [
-    { key: "CUSTOMER_METRICS", label: "Indicadores del cliente", defaultVisible: true },
-    { key: "CUSTOMER_INFORMATION", label: "Información del cliente", defaultVisible: true },
-    { key: "CUSTOMER_EVENTS", label: "Eventos del cliente", defaultVisible: true },
-    { key: "CUSTOMER_DOCUMENTS", label: "Documentos y Portal", defaultVisible: true },
-    { key: "CUSTOMER_COMMERCIAL_HISTORY", label: "Historial comercial", defaultVisible: true },
-    { key: "CUSTOMER_TIMELINE", label: "Timeline del cliente", defaultVisible: false },
+    {
+      key: "CUSTOMER_METRICS",
+      label: "Indicadores del cliente",
+      defaultVisible: true,
+    },
+    {
+      key: "CUSTOMER_INFORMATION",
+      label: "Información del cliente",
+      defaultVisible: true,
+    },
+    {
+      key: "CUSTOMER_EVENTS",
+      label: "Eventos del cliente",
+      defaultVisible: true,
+    },
+    {
+      key: "CUSTOMER_DOCUMENTS",
+      label: "Documentos y Portal",
+      defaultVisible: true,
+    },
+    {
+      key: "CUSTOMER_COMMERCIAL_HISTORY",
+      label: "Historial comercial",
+      defaultVisible: true,
+    },
+    {
+      key: "CUSTOMER_TIMELINE",
+      label: "Timeline del cliente",
+      defaultVisible: false,
+    },
   ],
   EVENTS: EVENT_MODULES.map((item) => ({ ...item })),
   FINANCE: [
-    { key: "FINANCE_DASHBOARD", label: "Dashboard financiero", defaultVisible: true },
-    { key: "ACCOUNTS_RECEIVABLE", label: "Cuentas por cobrar", defaultVisible: true },
-    { key: "EVENT_PROFITABILITY", label: "Rentabilidad de eventos", defaultVisible: true },
+    {
+      key: "FINANCE_DASHBOARD",
+      label: "Dashboard financiero",
+      defaultVisible: true,
+    },
+    {
+      key: "ACCOUNTS_RECEIVABLE",
+      label: "Cuentas por cobrar",
+      defaultVisible: true,
+    },
+    {
+      key: "EVENT_PROFITABILITY",
+      label: "Rentabilidad de eventos",
+      defaultVisible: true,
+    },
   ],
   RECEIVABLES: [
-    { key: "RECEIVABLES_HEADER", label: "Encabezado y exportación", defaultVisible: true },
-    { key: "RECEIVABLES_KPIS", label: "Indicadores de cobranza", defaultVisible: true },
-    { key: "RECEIVABLES_MANAGEMENT", label: "Gestión y movimientos", defaultVisible: true },
-    { key: "RECEIVABLES_INTEGRITY", label: "Integridad financiera", defaultVisible: false },
+    {
+      key: "RECEIVABLES_HEADER",
+      label: "Encabezado y exportación",
+      defaultVisible: true,
+    },
+    {
+      key: "RECEIVABLES_KPIS",
+      label: "Indicadores de cobranza",
+      defaultVisible: true,
+    },
+    {
+      key: "RECEIVABLES_MANAGEMENT",
+      label: "Gestión y movimientos",
+      defaultVisible: true,
+    },
+    {
+      key: "RECEIVABLES_INTEGRITY",
+      label: "Integridad financiera",
+      defaultVisible: false,
+    },
   ],
   STAFF: [
     { key: "STAFF_CENTER", label: "Gestión de Staff", defaultVisible: true },
     { key: "STAFF_PAYMENTS", label: "Pagos de Staff", defaultVisible: true },
     { key: "STAFF_ACCESS", label: "Accesos de Staff", defaultVisible: false },
-    { key: "STAFF_AVAILABILITY", label: "Disponibilidad detallada", defaultVisible: false },
+    {
+      key: "STAFF_AVAILABILITY",
+      label: "Disponibilidad detallada",
+      defaultVisible: false,
+    },
   ],
   RESOURCES: [
-    { key: "RESOURCE_CENTER", label: "Centro de Recursos", defaultVisible: true },
+    {
+      key: "RESOURCE_CENTER",
+      label: "Centro de Recursos",
+      defaultVisible: true,
+    },
     { key: "FLEET", label: "Flota", defaultVisible: true },
     { key: "EQUIPMENT", label: "Equipamiento", defaultVisible: true },
     { key: "ROUTE_COSTS", label: "Costos de Ruta", defaultVisible: false },
-    { key: "INVENTORY", label: "Inventario operacional", defaultVisible: false },
+    {
+      key: "INVENTORY",
+      label: "Inventario operacional",
+      defaultVisible: false,
+    },
   ],
   REPORTS: [
-    { key: "BUSINESS_INTELLIGENCE", label: "Business Intelligence", defaultVisible: true },
+    {
+      key: "BUSINESS_INTELLIGENCE",
+      label: "Business Intelligence",
+      defaultVisible: true,
+    },
   ],
   SETTINGS: [
     { key: "SYSTEM_HEALTH", label: "System Health", defaultVisible: true },
-    { key: "COMPANY_SETTINGS", label: "Configuración de Empresa", defaultVisible: true },
-    { key: "RESERVATION_DIAGNOSTICS", label: "Diagnóstico de Reservas", defaultVisible: true },
-    { key: "FOUNDER_NOTIFICATIONS", label: "Notificaciones del Founder", defaultVisible: true },
+    {
+      key: "COMPANY_SETTINGS",
+      label: "Configuración de Empresa",
+      defaultVisible: true,
+    },
+    {
+      key: "RESERVATION_DIAGNOSTICS",
+      label: "Diagnóstico de Reservas",
+      defaultVisible: true,
+    },
+    {
+      key: "FOUNDER_NOTIFICATIONS",
+      label: "Notificaciones del Founder",
+      defaultVisible: true,
+    },
     { key: "CRM_DIAGNOSTICS", label: "Diagnóstico CRM", defaultVisible: true },
-    { key: "FINANCIAL_INTEGRITY", label: "Integridad Financiera", defaultVisible: true },
+    {
+      key: "FINANCIAL_INTEGRITY",
+      label: "Integridad Financiera",
+      defaultVisible: true,
+    },
     { key: "MODULE_MANAGER", label: "Module Manager", defaultVisible: true },
-    { key: "FOUNDER_WORKSPACE", label: "Founder Workspace", defaultVisible: true },
-    { key: "PROFITABILITY_SETTINGS", label: "Configuración de Rentabilidad", defaultVisible: true },
-    { key: "PRODUCTION_INITIALIZATION", label: "Inicialización de Producción", defaultVisible: false },
+    {
+      key: "FOUNDER_WORKSPACE",
+      label: "Founder Workspace",
+      defaultVisible: true,
+    },
+    {
+      key: "PROFITABILITY_SETTINGS",
+      label: "Configuración de Rentabilidad",
+      defaultVisible: true,
+    },
+    {
+      key: "PRODUCTION_INITIALIZATION",
+      label: "Inicialización de Producción",
+      defaultVisible: false,
+    },
     { key: "MASTER_DATA", label: "Master Data", defaultVisible: true },
     { key: "CONNECTIONS", label: "Conexiones", defaultVisible: true },
-    { key: "COMMUNICATION_HUB", label: "Communication Hub", defaultVisible: true },
+    {
+      key: "COMMUNICATION_HUB",
+      label: "Communication Hub",
+      defaultVisible: true,
+    },
   ],
 } as const;
 export type ModuleWorkspaceKey = string;
-export type ModuleWorkspacePreference = { sectionOrder: string[]; hiddenSections: string[]; sectionLabels?: Record<string,string> };
+export type ModuleWorkspacePreference = {
+  sectionOrder: string[];
+  hiddenSections: string[];
+  sectionLabels?: Record<string, string>;
+};
 
-export function defaultModuleWorkspaces(): Record<string, ModuleWorkspacePreference> {
-  return Object.fromEntries(Object.entries(MODULE_WORKSPACES).map(([moduleKey, sections]) => [moduleKey, {
-    sectionOrder: sections.map((section) => section.key),
-    hiddenSections: sections.filter((section) => !section.defaultVisible).map((section) => section.key),
-    sectionLabels: Object.fromEntries(sections.map((section)=>[section.key,section.label])),
-  }])) as Record<string, ModuleWorkspacePreference>;
+export function defaultModuleWorkspaces(): Record<
+  string,
+  ModuleWorkspacePreference
+> {
+  return Object.fromEntries(
+    Object.entries(MODULE_WORKSPACES).map(([moduleKey, sections]) => [
+      moduleKey,
+      {
+        sectionOrder: sections.map((section) => section.key),
+        hiddenSections: sections
+          .filter((section) => !section.defaultVisible)
+          .map((section) => section.key),
+        sectionLabels: Object.fromEntries(
+          sections.map((section) => [section.key, section.label]),
+        ),
+      },
+    ]),
+  ) as Record<string, ModuleWorkspacePreference>;
 }
 export type FounderWorkspacePreferences = {
   navigationOrder: NavigationKey[];
@@ -285,7 +415,17 @@ export type FounderWorkspacePreferences = {
   moduleWorkspaces: Record<string, ModuleWorkspacePreference>;
 };
 export const DEFAULT_WORKSPACE: FounderWorkspacePreferences = {
-  navigationOrder: ["HOME","CUSTOMERS","EVENTS","STAFF","RESOURCES","FINANCE","RECEIVABLES","REPORTS","SETTINGS"],
+  navigationOrder: [
+    "HOME",
+    "CUSTOMERS",
+    "EVENTS",
+    "STAFF",
+    "RESOURCES",
+    "FINANCE",
+    "RECEIVABLES",
+    "REPORTS",
+    "SETTINGS",
+  ],
   hiddenNavigation: [],
   quickActionOrder: QUICK_ACTIONS.map((x) => x.key),
   hiddenQuickActions: [],
