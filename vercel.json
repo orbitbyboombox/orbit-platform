@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/staff-assignment-reminders",
+      "schedule": "0 * * * *"
+    }
+  ]
+}
