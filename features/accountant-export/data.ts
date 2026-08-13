@@ -6,12 +6,13 @@ const relation=<T>(value:unknown):T|undefined=>Array.isArray(value)?value[0] as 
 const metadata=(value:unknown):Record<string,unknown>=>{if(value&&typeof value==="object")return value as Record<string,unknown>;try{return JSON.parse(String(value??"{}"))}catch{return{}}};
 
 export async function loadAccountantExportData(client:SupabaseClient,from:string,to:string):Promise<AccountantExportData>{
+  const fromAccountingMonth=`${from.slice(0,7)}-01`,toAccountingMonth=`${to.slice(0,7)}-01`;
   const [companyResult,invoicesResult,paymentsResult,expensesResult,staffEventsResult,fuelResult,vehiclesResult,profitsResult]=await Promise.all([
     client.from("company_settings").select("legal_name,tax_id,currency").eq("settings_key","PRIMARY").maybeSingle(),
     client.from("accounts_receivable_projection").select("id,invoice_number,quotation_id,customer_type,status,effective_status,issue_date,due_date,payment_term,amount,paid_amount,outstanding_balance,customers(full_name,metadata),quotations(subtotal,tax_total,grand_total,final_customer_price)").lte("issue_date",to).order("issue_date"),
     client.from("invoice_payments").select("id,invoice_id,amount,paid_at,method,reference,invoices(invoice_number,customer_id,customers(full_name))").gte("paid_at",`${from}T00:00:00`).lte("paid_at",`${to}T23:59:59.999`).order("paid_at"),
     client.from("expenses").select("id,occurred_on,category,supplier,document_number,subtotal,vat,total,status,receipt_path,approval_reason").is("deleted_at",null).gte("occurred_on",from).lte("occurred_on",to).order("occurred_on"),
-    client.from("event_staff_payments").select("id,project_id,total_internal_payment,paid_amount,paid_at,settlement_status,status,staff(first_name,last_name,bank,account_number),projects!inner(name,event_date)").is("deleted_at",null).eq("status","CONFIRMED").gt("total_internal_payment",0).gte("projects.event_date",from).lte("projects.event_date",to).order("paid_at"),
+    client.from("event_staff_payments").select("id,project_id,total_internal_payment,paid_amount,paid_at,accounting_month,settlement_status,status,staff(first_name,last_name,bank,account_number),projects!inner(name,event_date)").is("deleted_at",null).eq("status","CONFIRMED").gt("total_internal_payment",0).gte("accounting_month",fromAccountingMonth).lte("accounting_month",toAccountingMonth).order("paid_at"),
     client.from("vehicle_fuel_logs").select("id,asset_id,fuel_date,total_amount,receipt_path,gas_station").gte("fuel_date",from).lte("fuel_date",to).order("fuel_date"),
     client.from("vehicle_profiles").select("asset_id,model"),
     client.from("profit_snapshots").select("id,project_id,revenue,operational_cost,gross_margin,gross_margin_percent,created_at,projects!inner(event_date)").is("deleted_at",null).gte("projects.event_date",from).lte("projects.event_date",to).order("created_at",{ascending:false}),
