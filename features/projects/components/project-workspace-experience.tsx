@@ -191,6 +191,7 @@ export type ProjectWorkspaceExperienceProps = Omit<
   productionIntegration: ProductionIntegrationPanelProps;
   event360: Event360Data;
   eventControl: { event: CrmEventSummary; operations: CrmCustomerEventOperations };
+  reconciliationId?: string;
   workspacePreferences: FounderWorkspacePreferences;
   workspaceData: {
     sale: string;
@@ -810,7 +811,7 @@ export function ProjectWorkspaceExperience(
 
           <section className="scroll-mt-24" id="event-control-center">
             <div className="mb-3"><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Centro operativo</p><h2 className="mt-1 text-2xl font-semibold">Gestión completa del Evento</h2><p className="mt-1 text-sm text-muted">Pagos, costos, Staff, documentos, Portal y Calendar pertenecen a este Evento.</p></div>
-            <CustomerEventOperations event={props.eventControl.event} onEditEvent={() => scroll("commercial")} operations={props.eventControl.operations}/>
+            <CustomerEventOperations event={props.eventControl.event} onEditEvent={() => scroll("commercial")} operations={props.eventControl.operations} reconciliationId={props.reconciliationId}/>
           </section>
           {moduleVisible("FINANCIAL_SUMMARY") && event.realCosts && (
             <details className="rounded-2xl border bg-card p-5" id="real-cost-adjustments">

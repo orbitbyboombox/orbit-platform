@@ -6,6 +6,9 @@ import {
 } from "@/features/finance/components/financial-dashboard";
 import { loadFinanceDashboardReadModel } from "@/features/finance/finance-read-model";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import Link from "next/link";
+import { Landmark } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default async function FinancePage() {
   const client = await createSupabaseServerClient();
@@ -13,6 +16,7 @@ export default async function FinancePage() {
 
   return <div className="space-y-7">
     <FinancialDashboardHeader data={data} />
+    <div className="flex justify-end"><Button asChild variant="outline"><Link href="/finance/banking"><Landmark className="size-4"/>Bancos y conciliación</Link></Button></div>
     <AvailableCashSection data={data.cash} />
     <PeriodMetricsSection eyebrow="Sección 02" title="Hoy" description="Actividad financiera registrada durante la jornada." metrics={data.today} workspaceKey="FINANCE_TODAY" />
     <PeriodMetricsSection eyebrow="Sección 03" title={`Este mes · ${data.periodLabel}`} description="Resultado consolidado del período en curso." metrics={data.month} workspaceKey="FINANCE_MONTH" />

@@ -22,6 +22,7 @@ export interface ProjectWorkspacePageProps {
     city?: string;
     services?: string;
     experience?: string;
+    reconciliation?: string;
   }>;
 }
 
@@ -1196,6 +1197,7 @@ export default async function ProjectWorkspacePage({
   };
   return (
     <ProjectWorkspaceExperience
+      reconciliationId={query.reconciliation}
       {...experienceProps}
       activities={activities}
       equipment={equipment}

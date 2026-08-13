@@ -1,0 +1,6 @@
+export type BankAccount = { id:string; code:string; name:string; accountKind:string; accountType:string|null; bankName:string|null; primary:boolean; active:boolean };
+export type ReconciliationCandidate = { invoiceId:string; projectId:string; customerId:string; customer:string; event:string; invoiceNumber:string; outstanding:number; score:number; reasons:string[] };
+export type ReconciliationImport = { id:string; fileName:string; status:string; transferDate:string|null; transferTime:string|null; amount:number|null; originBank:string|null; holder:string|null; reference:string|null; destination:string|null; confidence:number|null; candidate:ReconciliationCandidate|null; createdAt:string };
+export type RecurringExpenseRule = { id:string; name:string; category:string; amount:number; frequency:string; dueDay:number; nextDueDate:string; active:boolean; bankAccountId:string|null };
+export type MercadoPagoSummary = { currentBalance:number; pendingTransfers:number; transferredAmount:number; fees:number; netAmount:number; associatedEvents:number };
+export type BankingReadModel = { accounts:BankAccount[]; imports:ReconciliationImport[]; recurringRules:RecurringExpenseRule[]; mercadoPago:MercadoPagoSummary };

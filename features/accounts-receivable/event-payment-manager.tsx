@@ -21,6 +21,7 @@ import {
   getReceivableReceiptUrlAction,
   manageReceivablePaymentAction,
   registerReceivablePaymentAction,
+  confirmReconciledPaymentAction,
   updateReceivableDatesAction,
   type ReceivableMovementAction,
 } from "./actions";
@@ -66,9 +67,11 @@ const labels: Record<ReceivableMovementAction, string> = {
 export function EventPaymentManager({
   projectId,
   receivable,
+  reconciliationId,
 }: {
   projectId: string;
   receivable: EventReceivable;
+  reconciliationId?: string;
 }) {
   const router = useRouter();
   const [action, setAction] = useState<ReceivableMovementAction | null>(null);
@@ -130,6 +133,7 @@ export function EventPaymentManager({
           </p>
         </div>
       </div>
+      {reconciliationId&&<div className="mt-5 rounded-xl border border-brand/30 bg-brand/[.05] p-4"><p className="font-semibold">Conciliación bancaria sugerida</p><p className="mt-1 text-sm text-muted">Confirma aquí para crear un único movimiento en este Payment Ledger. La importación no afecta saldos antes de esta acción.</p><Button className="mt-3" disabled={pending} onClick={()=>startTransition(async()=>{const data=new FormData();data.set("reconciliationId",reconciliationId);data.set("invoiceId",receivable.id);data.set("projectId",projectId);const result=await confirmReconciledPaymentAction(data);setFeedback(result.ok?"Pago conciliado y proyecciones actualizadas.":result.error);if(result.ok)router.refresh();})}>{pending?"Confirmando…":"Confirmar pago conciliado"}</Button></div>}
       {receivable.status !== "CANCELLED" && receivable.outstandingBalance > 0 && (
         <Button className="mt-5" onClick={() => setNewPayment(true)}>
           <Plus className="size-4" />

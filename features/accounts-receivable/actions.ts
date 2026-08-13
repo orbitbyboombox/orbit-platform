@@ -170,6 +170,14 @@ export async function registerReceivablePaymentAction(formData: FormData): Promi
     return { ok: true };
   } catch (error) { return fail(error); }
 }
+export async function confirmReconciledPaymentAction(formData:FormData):Promise<Result>{
+  try{
+    const client=await createSupabaseServerActionClient();const{data:auth}=await client.auth.getUser();if(!auth.user)throw new Error("Sesión requerida.");
+    const importId=String(formData.get("reconciliationId")||"");const invoiceId=String(formData.get("invoiceId")||"");const projectId=String(formData.get("projectId")||"");
+    const{error}=await client.rpc("confirm_bank_reconciliation",{p_import_id:importId,p_invoice_id:invoiceId});if(error)throw error;
+    revalidate();if(projectId)revalidatePath(`/projects/${projectId}`);revalidatePath("/finance/banking");return{ok:true};
+  }catch(error){return fail(error);}
+}
 
 export async function getReceivableReceiptUrlAction(path: string) {
   try {

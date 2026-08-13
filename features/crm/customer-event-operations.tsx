@@ -11,7 +11,7 @@ import { associateEventExpenseStaffAction, saveExpenseAction } from "@/features/
 import { getCrmDocumentUrlAction, openCrmCustomerPortalAction, replaceCrmDocumentAction } from "./actions";
 import type { CrmCustomerEventOperations, CrmEventSummary } from "./types";
 
-export function CustomerEventOperations({ event, operations, onEditEvent }: { event: CrmEventSummary; operations?: CrmCustomerEventOperations; onEditEvent: () => void }) {
+export function CustomerEventOperations({ event, operations, onEditEvent, reconciliationId }: { event: CrmEventSummary; operations?: CrmCustomerEventOperations; onEditEvent: () => void; reconciliationId?:string }) {
   const router = useRouter();
   const [portalUrl, setPortalUrl] = useState("");
   const [message, setMessage] = useState("");
@@ -42,7 +42,7 @@ export function CustomerEventOperations({ event, operations, onEditEvent }: { ev
   return <div className="mt-4 space-y-5 border-t pt-5">
     <CommercialSummary summary={operations.commercialSummary}/>
     <ExecutiveFinancialSummary operations={operations} onCostDetail={() => setCostDetailOpen((open) => !open)} open={costDetailOpen}/>
-    <div id={`payments-${event.projectId}`}>{operations.receivable ? <EventPaymentManager projectId={event.projectId} receivable={operations.receivable} /> : <Empty text="Este Evento no tiene una cuenta por cobrar activa." />}</div>
+    <div id={`payments-${event.projectId}`}>{operations.receivable ? <EventPaymentManager projectId={event.projectId} receivable={operations.receivable} reconciliationId={reconciliationId} /> : <Empty text="Este Evento no tiene una cuenta por cobrar activa." />}</div>
     <div id={`staff-${event.projectId}`}><StaffAssignmentCenter {...operations.staffAssignments} /></div>
     <section className="rounded-2xl border bg-card p-5 sm:p-6"><header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center"><div className="flex items-start gap-3"><ReceiptText className="mt-0.5 size-5 text-brand"/><div><h3 className="font-semibold">Gastos adicionales del Evento</h3><p className="mt-1 text-sm text-muted">Alimentación, estacionamiento, combustible extra, hotel o compras imprevistas. No modifica Cost Master.</p></div></div><Button onClick={() => setExpenseOpen(true)}><Plus className="size-4"/>Nuevo gasto del Evento</Button></header><div className="mt-4 divide-y rounded-xl border">{operations.expenses.map((expense) => <div className="grid grid-cols-[1fr_auto] gap-3 p-3 text-sm" key={expense.id}><div><strong>{expense.description}</strong><p className="mt-1 text-xs text-muted">{expense.date} · {expense.category} · {expense.status}</p></div><strong>{money(expense.total)}</strong></div>)}{!operations.expenses.length && <p className="p-4 text-sm text-muted">Sin gastos adicionales registrados.</p>}</div></section>
     <ExpenseResponsibility expenses={operations.expenses} projectId={event.projectId} staff={operations.staffAssignments.staff}/>
