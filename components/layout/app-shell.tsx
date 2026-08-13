@@ -11,17 +11,19 @@ import { GlobalLayoutEngine, PersonalWorkspaceProvider } from "@/features/founde
 export interface AppShellProps {
   children: React.ReactNode;
   userEmail: string;
+  userName: string;
+  userRole: string;
   unreadNotifications: number;
   modules: ModuleStateMap;
   workspace: FounderWorkspacePreferences;
 }
 
-export function AppShell({ children, userEmail, unreadNotifications, modules, workspace }: AppShellProps) {
+export function AppShell({ children, userEmail, userName, userRole, unreadNotifications, modules, workspace }: AppShellProps) {
   return (
     <ModuleManagerProvider modules={modules}><PersonalWorkspaceProvider initialPreferences={workspace}><div className="min-h-screen bg-background">
       <Sidebar hiddenNavigation={workspace.hiddenNavigation} navigationOrder={workspace.navigationOrder} />
       <div className="transition-[padding] duration-200 md:pl-20 lg:pl-60 peer-data-[collapsed=true]:lg:pl-20">
-        <Header hiddenNavigation={workspace.hiddenNavigation} navigationOrder={workspace.navigationOrder} unreadNotifications={unreadNotifications} userEmail={userEmail} />
+        <Header hiddenNavigation={workspace.hiddenNavigation} navigationOrder={workspace.navigationOrder} unreadNotifications={unreadNotifications} userEmail={userEmail} userName={userName} userRole={userRole} />
         <main className="min-h-[calc(100vh-4rem)] pb-20 sm:pb-24 md:pb-0">
           <PageContainer id="platform-workspace-content"><GlobalLayoutEngine/><ModuleAvailabilityGuard>{children}</ModuleAvailabilityGuard></PageContainer>
         </main>

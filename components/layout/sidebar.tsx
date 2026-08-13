@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, CircleDollarSign, Contact, PlusCircle } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -58,6 +58,12 @@ export function Sidebar({ navigationOrder, hiddenNavigation }: Pick<NavigationLi
       <button aria-label={collapsed ? "Expandir navegación" : "Contraer navegación"} className="absolute -right-3 top-1/2 hidden size-7 -translate-y-1/2 place-items-center rounded-full border bg-card text-muted shadow-md transition hover:border-brand/40 hover:text-brand lg:grid" onClick={() => setCollapsed(value => !value)} type="button">{collapsed ? <ChevronRight className="size-3.5" /> : <ChevronLeft className="size-3.5" />}</button>
       </div>
       <div className="px-3 pb-3 pt-4"><NavigationList compact hiddenNavigation={hiddenNavigation} iconOnly={collapsed} navigationOrder={navigationOrder} /></div>
+      <div className={cn("mx-3 mt-3 border-t pt-4", collapsed && "lg:hidden")}>
+        <p className="mb-2 px-2 text-[9px] font-semibold uppercase tracking-[.12em] text-muted">Accesos rápidos</p>
+        <nav aria-label="Accesos rápidos" className="space-y-1">
+          {[{label:"Nuevo Evento",href:"/projects?reservation=new",icon:PlusCircle},{label:"Buscar Cliente",href:"/customers",icon:Contact},{label:"Calendario",href:"/projects?view=calendar",icon:CalendarDays},{label:"Cobros pendientes",href:"/finance/receivables",icon:CircleDollarSign}].map(item=><Link className="group flex min-h-9 items-center gap-3 rounded-xl px-2 text-xs text-muted transition hover:bg-accent/70 hover:text-foreground" href={item.href} key={item.label}><item.icon className="size-4 transition group-hover:text-brand"/><span>{item.label}</span></Link>)}
+        </nav>
+      </div>
       <div className="mt-auto border-t px-4 py-5 text-center lg:text-left"><Link aria-label="Ir al Dashboard" href="/operations">{collapsed ? <BrandLogo className="mx-auto size-7" surface="dark" variant="isotype" /> : <><BrandSignature className="hidden lg:block" /><BrandLogo className="mx-auto size-7 lg:hidden" surface="dark" variant="isotype" /></>}</Link></div>
     </aside>
   );

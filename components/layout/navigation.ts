@@ -43,7 +43,7 @@ export type NavigationKey =
   | "SETTINGS";
 
 export const navigationItems: readonly NavigationItem[] = [
-  { key: "HOME", label: "Inicio", href: "/operations", icon: Gauge, module:"DASHBOARD" },
+  { key: "HOME", label: "Mi Jornada", href: "/operations", icon: Gauge, module:"DASHBOARD" },
   { key: "CUSTOMERS", label: "Clientes", href: "/customers", icon: FolderKanban, module:"PROJECTS" },
   { key: "EVENTS", label: "Eventos", href: "/events", icon: CalendarDays, module:"PROJECTS" },
   { key: "STAFF", label: "Staff", href: "/resources/staff", icon: UsersRound, module:"STAFF" },

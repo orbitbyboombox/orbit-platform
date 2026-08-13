@@ -1,10 +1,7 @@
 "use client";
 
 import {
-  ArrowLeft,
   Bell,
-  FolderKanban,
-  Gauge,
   LogOut,
   Menu,
   Settings2,
@@ -12,7 +9,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { SearchBar } from "@/components/forms/search-bar";
@@ -24,20 +20,16 @@ import type { NavigationKey } from "./navigation";
 
 export interface HeaderProps {
   userEmail: string;
+  userName: string;
+  userRole: string;
   unreadNotifications: number;
   navigationOrder: NavigationKey[];
   hiddenNavigation: NavigationKey[];
 }
 
-export function Header({ userEmail, unreadNotifications, navigationOrder, hiddenNavigation }: HeaderProps) {
+export function Header({ userEmail, userName, userRole, unreadNotifications, navigationOrder, hiddenNavigation }: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const { isEnabled } = useModuleManager();
-  const openedFromDashboard =
-    searchParams.get("from") === "dashboard" && pathname !== "/operations";
-  const eventHref = pathname.startsWith("/projects/") ? pathname : undefined;
   return (
     <>
       <header className="sticky top-0 z-20 flex h-16 items-center gap-2 border-b border-border/70 bg-background/82 px-3 shadow-[0_1px_18px_rgba(0,0,0,.06)] backdrop-blur-xl sm:gap-3 sm:px-4 md:px-5 lg:px-6">
@@ -58,45 +50,6 @@ export function Header({ userEmail, unreadNotifications, navigationOrder, hidden
         >
           <BrandLogo className="w-full" surface="dark" />
         </Link>
-        <nav
-          aria-label="Navegación contextual"
-          className="ml-1 hidden items-center gap-0.5 xl:flex"
-        >
-          {isEnabled("DASHBOARD") && (openedFromDashboard ? (
-            <Button asChild className="min-h-9 px-3" variant="ghost">
-              <Link href="/operations">
-                <ArrowLeft className="mr-1 size-4" />
-                Volver al Dashboard
-              </Link>
-            </Button>
-          ) : (
-            <Button
-              className="min-h-9 px-3"
-              onClick={() => router.back()}
-              variant="ghost"
-            >
-              <ArrowLeft className="mr-1 size-4" />
-              Atrás
-            </Button>
-          ))}
-          {isEnabled("DASHBOARD") && <Button asChild className="min-h-9 px-3" variant="ghost">
-            <Link href="/operations">
-              <Gauge className="mr-1 size-4" />
-              Dashboard
-            </Link>
-          </Button>}
-          {isEnabled("PROJECTS") && <Button asChild className="min-h-9 px-3" variant="ghost">
-            <Link href="/customers">
-              <FolderKanban className="mr-1 size-4" />
-              Clientes
-            </Link>
-          </Button>}
-          {eventHref && isEnabled("PROJECTS") && (
-            <Button asChild className="min-h-9 px-3" variant="ghost">
-              <Link href={eventHref}>Evento</Link>
-            </Button>
-          )}
-        </nav>
         <SearchBar
           className="ml-auto hidden max-w-md sm:flex"
           placeholder="Buscar proyectos, clientes o eventos..."
@@ -129,8 +82,8 @@ export function Header({ userEmail, unreadNotifications, navigationOrder, hidden
           </Link>
         </Button>
         <div className="hidden min-w-0 border-l pl-3 text-right lg:block">
-          <p className="truncate text-xs font-medium">Founder</p>
-          <p className="max-w-40 truncate text-xs text-muted">{userEmail}</p>
+          <p className="max-w-40 truncate text-xs font-medium">{userName}</p>
+          <p className="max-w-40 truncate text-[10px] text-muted">{userRole}</p>
         </div>
         <Link aria-label="Abrir perfil del Founder" href="/settings?section=profile">
           <Avatar initials={userEmail.slice(0, 2).toUpperCase()} />
@@ -146,47 +99,8 @@ export function Header({ userEmail, unreadNotifications, navigationOrder, hidden
           </Button>
         </form>
       </header>
-      <nav
-        aria-label="Navegación contextual móvil"
-        className="sticky top-16 z-10 flex gap-1 overflow-x-auto border-b border-border/70 bg-background/92 px-3 py-2 backdrop-blur-xl xl:hidden"
-      >
-        {isEnabled("DASHBOARD") && (openedFromDashboard ? (
-          <Button asChild className="min-h-9 shrink-0 px-3" variant="ghost">
-            <Link href="/operations">
-              <ArrowLeft className="mr-1 size-4" />
-              Volver al Dashboard
-            </Link>
-          </Button>
-        ) : (
-          <Button
-            className="min-h-9 shrink-0 px-3"
-            onClick={() => router.back()}
-            variant="ghost"
-          >
-            <ArrowLeft className="mr-1 size-4" />
-            Atrás
-          </Button>
-        ))}
-        {isEnabled("DASHBOARD") && <Button asChild className="min-h-9 shrink-0 px-3" variant="ghost">
-          <Link href="/operations">
-            <Gauge className="mr-1 size-4" />
-            Dashboard
-          </Link>
-        </Button>}
-        {isEnabled("PROJECTS") && <Button asChild className="min-h-9 shrink-0 px-3" variant="ghost">
-          <Link href="/customers">
-            <FolderKanban className="mr-1 size-4" />
-            Clientes
-          </Link>
-        </Button>}
-        {eventHref && isEnabled("PROJECTS") && (
-          <Button asChild className="min-h-9 shrink-0 px-3" variant="ghost">
-            <Link href={eventHref}>Evento</Link>
-          </Button>
-        )}
-      </nav>
       {menuOpen && (
-        <div className="fixed inset-x-3 top-[7.5rem] z-40 rounded-2xl border bg-card/95 p-2 shadow-2xl backdrop-blur-xl md:hidden">
+        <div className="fixed inset-x-3 top-[4.75rem] z-40 rounded-2xl border bg-card/95 p-2 shadow-2xl backdrop-blur-xl md:hidden">
           <NavigationList hiddenNavigation={hiddenNavigation} navigationOrder={navigationOrder} onNavigate={() => setMenuOpen(false)} />
         </div>
       )}

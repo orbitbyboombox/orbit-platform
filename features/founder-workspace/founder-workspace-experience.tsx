@@ -2,21 +2,21 @@
 
 import {
   AlertTriangle,
-  ArrowUpRight,
+  ArrowRight,
   CalendarDays,
   CircleDollarSign,
-  Clock3,
   Contact,
   FilePlus2,
   ReceiptText,
   Settings2,
-  Sparkles,
   TrendingUp,
   UsersRound,
   WalletCards,
+  Wrench,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import type { LucideIcon } from "lucide-react";
 import type { FinanceDashboardReadModel, FinanceMetric } from "@/features/finance/finance-read-model";
 import { PersonalWorkspaceSections } from "./personal-workspace";
 
@@ -38,43 +38,29 @@ export type CommandCenterEvent = CommandCenterItem & {
 };
 
 const quickActions = [
-  { label: "Nuevo Evento", href: "/projects?reservation=new", icon: FilePlus2 },
   { label: "Clientes", href: "/customers", icon: Contact },
-  { label: "Staff", href: "/resources/staff", icon: UsersRound },
+  { label: "Nuevo Evento", href: "/projects?reservation=new", icon: FilePlus2 },
   { label: "Calendario", href: "/projects?view=calendar", icon: CalendarDays },
+  { label: "Staff", href: "/resources/staff", icon: UsersRound },
   { label: "Registrar Gasto", href: "/finance/expenses?action=new", icon: ReceiptText },
 ] as const;
 
-const money = (value: number) =>
-  new Intl.NumberFormat("es-CL", {
-    style: "currency",
-    currency: "CLP",
-    maximumFractionDigits: 0,
-  }).format(value);
+const money = (value: number) => new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(value);
+const formatMetric = (metric: FinanceMetric) => metric.format === "money" ? money(metric.value) : metric.format === "percent" ? `${metric.value.toFixed(1)}%` : new Intl.NumberFormat("es-CL").format(metric.value);
+const toneStyle = {
+  default: "bg-accent text-muted",
+  success: "bg-success-soft text-success",
+  info: "bg-info-soft text-info",
+  warning: "bg-warning-soft text-warning",
+  danger: "bg-danger-soft text-danger",
+} as const;
 
-const formatMetric = (metric: FinanceMetric) => {
-  if (metric.format === "money") return money(metric.value);
-  if (metric.format === "percent") return `${metric.value.toFixed(1)}%`;
-  return new Intl.NumberFormat("es-CL").format(metric.value);
-};
-
-export function FounderWorkspaceExperience({
-  currentDate,
-  finance,
-  founderName,
-  pendingTasks,
-  operationalAlerts,
-  publicationConsole,
-  recentActivity,
-  todayEvents,
-  todayOperation,
-  upcomingEvents,
-}: {
+export function FounderWorkspaceExperience({ currentDate, finance, founderName, operationalAlerts, pendingTasks, publicationConsole, recentActivity, todayEvents, todayOperation, upcomingEvents }: {
   currentDate: string;
   finance: FinanceDashboardReadModel;
   founderName: string;
-  pendingTasks: number;
   operationalAlerts: CommandCenterItem[];
+  pendingTasks: number;
   publicationConsole?: React.ReactNode;
   recentActivity: CommandCenterItem[];
   todayEvents: number;
@@ -82,230 +68,80 @@ export function FounderWorkspaceExperience({
   upcomingEvents: CommandCenterEvent[];
 }) {
   const router = useRouter();
-  const findHeadline = (label: string) =>
-    finance.headline.find((item) => item.label === label);
-  const findForecast = (label: string) =>
-    finance.forecast.find((item) => item.label === label);
-  const fallback = (label: string, href: string): FinanceMetric => ({
-    label,
-    value: 0,
-    format: "money",
-    detail: "Sin movimientos canónicos en el período.",
-    href,
-  });
-  const kpis = [
-    findHeadline("Caja disponible") ?? fallback("Caja disponible", "/finance/cash-flow"),
-    findHeadline("Por cobrar") ?? fallback("Cobros pendientes", "/finance/receivables"),
-    {
-      label: "Eventos de hoy",
-      value: todayEvents,
-      format: "count" as const,
-      detail: "Agenda operacional del día.",
-      href: "/projects?date=today",
-    },
-    findHeadline("Profit neto") ?? fallback("Profit actual", "/projects?view=profitability"),
-    findForecast("Pagos proyectados") ?? fallback("Pagos próximos", "/finance/payables"),
-    findHeadline("Nómina") ?? fallback("Próxima nómina", "/resources/staff?workspace=payroll"),
+  const headline = (label: string) => finance.headline.find(item => item.label === label);
+  const fallback = (label: string, href: string): FinanceMetric => ({ label, value: 0, format: "money", detail: "Sin movimientos canónicos.", href });
+  const kpis: Array<{ metric: FinanceMetric; icon: LucideIcon; tone: keyof typeof toneStyle }> = [
+    { metric: headline("Caja disponible") ?? fallback("Caja disponible", "/finance/cash-flow"), icon: WalletCards, tone: "info" },
+    { metric: headline("Ventas") ?? fallback("Ventas del mes", "/projects?period=month"), icon: TrendingUp, tone: "success" },
+    { metric: headline("Por cobrar") ?? fallback("Cobros pendientes", "/finance/receivables"), icon: CircleDollarSign, tone: "warning" },
+    { metric: { label: "Eventos hoy", value: todayEvents, format: "count", detail: "Agenda operacional de hoy.", href: "/projects?date=today" }, icon: CalendarDays, tone: "default" },
+    { metric: { label: "Producción activa", value: todayOperation.length, format: "count", detail: "Eventos y prioridades activas.", href: "/operations" }, icon: Wrench, tone: "danger" },
+    { metric: headline("Margen") ?? { label: "Rentabilidad", value: 0, format: "percent", detail: "Margen neto del mes.", href: "/projects?view=profitability" }, icon: TrendingUp, tone: "info" },
   ];
 
-  const welcome = (
-    <header className="overflow-hidden rounded-[2rem] border bg-card px-6 py-7 shadow-sm sm:px-8 sm:py-9 lg:px-10">
-      <div className="max-w-4xl">
-        <p className="text-xs font-semibold uppercase tracking-[.2em] text-brand">Founder Command Center</p>
-        <h1 className="mt-4 text-4xl font-semibold tracking-[-.04em] sm:text-5xl lg:text-6xl">
-          Buenos días, {founderName} <span aria-hidden>👋</span>
-        </h1>
-        <p className="mt-3 text-sm capitalize text-muted sm:text-base">{currentDate}</p>
-        <p className="mt-7 max-w-2xl text-lg leading-8 text-foreground/80">
-          Tienes <strong className="text-foreground">{todayEvents} eventos hoy</strong> y{" "}
-          <strong className="text-foreground">{pendingTasks} prioridades operacionales</strong> pendientes.
-        </p>
-      </div>
-    </header>
-  );
+  const welcome = <header className="py-1 sm:py-2">
+    <p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Founder Command Center</p>
+    <h1 className="mt-3 text-3xl font-semibold tracking-[-.045em] sm:text-4xl">Buenos días, {founderName} <span aria-hidden>👋</span></h1>
+    <p className="mt-2 text-sm capitalize text-muted">{currentDate}</p>
+    <p className="mt-3 text-sm text-muted">{todayEvents} eventos hoy · {pendingTasks} prioridades pendientes</p>
+  </header>;
 
-  const founderKpis = (
-    <section aria-labelledby="founder-kpis-title">
-      <SectionHeading eyebrow="Estado de BOOMBOX" id="founder-kpis-title" title="Lo esencial, ahora" />
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-6">
-        {kpis.map((metric, index) => (
-          <button
-            className="group min-h-40 rounded-2xl border bg-card p-4 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-md sm:p-5"
-            key={`${metric.label}-${index}`}
-            onClick={() => router.push(metric.href)}
-          >
-            <span className="flex items-start justify-between gap-3">
-              <KpiIcon index={index} />
-              <ArrowUpRight className="size-4 text-muted transition group-hover:text-brand" />
-            </span>
-            <strong className="orbit-counter mt-7 block text-2xl tracking-[-.03em] sm:text-3xl">{formatMetric(metric)}</strong>
-            <span className="mt-2 block text-xs font-semibold uppercase tracking-[.08em] text-muted">{metric.label}</span>
-          </button>
-        ))}
-      </div>
-    </section>
-  );
+  const founderKpis = <section aria-label="Indicadores principales" className="grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-6">
+    {kpis.map(({ metric, icon: Icon, tone }) => <button className="group min-h-32 rounded-2xl border bg-card p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-brand/35 hover:shadow-md" key={metric.label} onClick={() => router.push(metric.href)}>
+      <span className="flex items-center gap-3"><span className={`grid size-10 shrink-0 place-items-center rounded-xl ${toneStyle[tone]}`}><Icon className="size-[18px]" /></span><span className="text-xs font-medium text-muted">{metric.label}</span></span>
+      <strong className="orbit-counter mt-4 block text-2xl tracking-[-.035em] sm:text-[1.7rem]">{formatMetric(metric)}</strong>
+      <span className="mt-2 block truncate text-[11px] text-muted">{metric.detail}</span>
+    </button>)}
+  </section>;
 
-  const today = (
-    <section className="rounded-[1.75rem] border bg-card p-5 shadow-sm sm:p-7" aria-labelledby="today-operation-title">
-      <SectionHeading eyebrow="Ahora" id="today-operation-title" title="Operación de hoy" />
-      <div className="mt-5 divide-y">
-        {todayOperation.map((item) => (
-          <Link className="group grid grid-cols-[3.5rem_1fr_auto] items-center gap-3 py-4 first:pt-0 last:pb-0" href={item.href} key={item.id}>
-            <time className="font-mono text-sm font-semibold text-brand">{item.time ?? "Ahora"}</time>
-            <span className="min-w-0">
-              <strong className="block truncate text-sm">{item.title}</strong>
-              <span className="mt-1 block truncate text-xs text-muted">{item.detail}</span>
-            </span>
-            <span className="flex items-center gap-2">
-              <span className={`hidden rounded-full px-2 py-1 text-[9px] font-semibold uppercase tracking-[.08em] sm:inline-flex ${item.tone === "danger" ? "bg-danger/10 text-danger" : item.tone === "warning" ? "bg-warning/10 text-warning" : "bg-info/10 text-info"}`}>
-                {item.tone === "danger" ? "Crítico" : item.tone === "warning" ? "Prioridad" : "Evento"}
-              </span>
-              <ArrowUpRight className="size-4 text-muted group-hover:text-brand" />
-            </span>
-          </Link>
-        ))}
-        {!todayOperation.length && <EmptyState label="No hay prioridades operacionales para hoy." />}
-      </div>
-    </section>
-  );
+  const today = <section aria-labelledby="today-operation-title" className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
+    <PanelTitle id="today-operation-title" label="Centro operacional · Hoy" />
+    <div className="relative mt-5 before:absolute before:bottom-5 before:left-[4.1rem] before:top-5 before:w-px before:bg-border">
+      {todayOperation.slice(0, 6).map(item => <Link className="group relative grid grid-cols-[3.25rem_1rem_1fr_auto] items-center gap-3 border-b py-4 first:pt-1 last:border-0 last:pb-1" href={item.href} key={item.id}>
+        <time className="font-mono text-xs font-semibold text-foreground">{item.time ?? "Ahora"}</time>
+        <span className={`relative z-10 size-2.5 rounded-full ring-4 ring-card ${item.tone === "danger" ? "bg-danger" : item.tone === "warning" ? "bg-warning" : "bg-brand"}`} />
+        <span className="min-w-0"><strong className="block truncate text-sm">{item.title}</strong><span className="mt-1 block truncate text-xs text-muted">{item.detail}</span></span>
+        <span className="flex items-center gap-3"><StatusPill tone={item.tone} /><span className="grid size-8 place-items-center rounded-lg border text-muted transition group-hover:border-brand/40 group-hover:text-brand"><ArrowRight className="size-4" /></span></span>
+      </Link>)}
+      {!todayOperation.length ? <Empty label="No hay prioridades operacionales para hoy." /> : null}
+    </div>
+  </section>;
 
-  const alerts = (
-    <section className="rounded-[1.75rem] border bg-card p-5 shadow-sm sm:p-7" aria-labelledby="founder-alerts-title">
-      <SectionHeading eyebrow="Atención" id="founder-alerts-title" title="Alertas accionables" />
-      <div className="mt-5 space-y-2">
-        {operationalAlerts.slice(0, 3).map((alert) => (
-          <Link className="group flex items-center gap-3 rounded-xl border bg-background/35 p-3.5 transition hover:border-brand/40" href={alert.href} key={alert.id}>
-            <span className={`grid size-9 shrink-0 place-items-center rounded-full ${alert.tone === "danger" ? "bg-danger/10 text-danger" : "bg-warning/10 text-warning"}`}>
-              <AlertTriangle className="size-4" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <strong className="block text-sm">{alert.title}</strong>
-              <span className="mt-0.5 block truncate text-xs text-muted">{alert.detail}</span>
-            </span>
-            <ArrowUpRight className="size-4 text-muted group-hover:text-brand" />
-          </Link>
-        ))}
-        {finance.risks.slice(0, Math.max(3, 6 - operationalAlerts.length)).map((risk) => (
-          <Link className="group flex items-center gap-3 rounded-xl border bg-background/35 p-3.5 transition hover:border-brand/40" href={risk.href} key={risk.key}>
-            <span className={`grid size-9 shrink-0 place-items-center rounded-full ${risk.severity === "danger" ? "bg-danger/10 text-danger" : "bg-warning/10 text-warning"}`}>
-              <AlertTriangle className="size-4" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <strong className="block text-sm">{risk.label}</strong>
-              <span className="mt-0.5 block truncate text-xs text-muted">{risk.count} pendientes · {money(risk.amount)}</span>
-            </span>
-            <ArrowUpRight className="size-4 text-muted group-hover:text-brand" />
-          </Link>
-        ))}
-        {!finance.risks.length && !operationalAlerts.length && <EmptyState label="No hay alertas accionables." />}
-      </div>
-    </section>
-  );
+  const upcoming = <section aria-labelledby="upcoming-events-title" className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
+    <div className="flex items-center justify-between gap-3"><PanelTitle id="upcoming-events-title" label="Próximos eventos" /><Link className="text-xs text-muted transition hover:text-brand" href="/projects?view=calendar">Ver calendario</Link></div>
+    <div className="mt-4 divide-y">{upcomingEvents.slice(0, 4).map(event => <Link className="group grid grid-cols-[3.25rem_1fr_auto] gap-3 py-3.5 first:pt-0 last:pb-0" href={event.href} key={event.id}>
+      <span className="grid min-h-14 place-items-center rounded-xl border bg-background/50 text-center"><strong className="block text-lg leading-none">{event.date.split(" ")[0]}</strong><span className="text-[9px] font-semibold uppercase text-muted">{event.date.split(" ").slice(1).join(" ")}</span></span>
+      <span className="min-w-0"><strong className="block truncate text-sm">{event.title}</strong><span className="mt-1 block truncate text-xs text-muted">{event.service}</span><span className="mt-1 block truncate text-[11px] text-muted">{event.location || "Ubicación pendiente"} · {event.staff}</span></span>
+      <span className="self-start rounded-lg bg-info-soft px-2 py-1 text-[9px] font-semibold uppercase text-info">{event.status}</span>
+    </Link>)}{!upcomingEvents.length ? <Empty label="No hay eventos próximos." /> : null}</div>
+    <Link className="mt-5 flex items-center justify-center gap-2 border-t pt-4 text-xs font-semibold text-brand" href="/events">Ver todos los eventos <ArrowRight className="size-3.5" /></Link>
+  </section>;
 
-  const upcoming = (
-    <section aria-labelledby="upcoming-events-title">
-      <SectionHeading eyebrow="Próximos 15 días" id="upcoming-events-title" title="Eventos próximos" />
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {upcomingEvents.slice(0, 6).map((event) => (
-          <Link className="group rounded-2xl border bg-card p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-md" href={event.href} key={event.id}>
-            <div className="flex items-start justify-between gap-4">
-              <span className="text-xs font-semibold uppercase tracking-[.1em] text-brand">{event.date}</span>
-              <span className="rounded-full bg-info/10 px-2.5 py-1 text-[10px] font-semibold text-info">{event.status}</span>
-            </div>
-            <h3 className="mt-5 truncate text-lg font-semibold">{event.title}</h3>
-            <p className="mt-1 truncate text-sm text-muted">{event.service}</p>
-            <div className="mt-5 space-y-2 text-xs text-muted">
-              <p className="flex items-center gap-2"><CalendarDays className="size-3.5 text-brand" />{event.location || "Ubicación pendiente"}</p>
-              <p className="flex items-center gap-2"><UsersRound className="size-3.5 text-brand" />{event.staff}</p>
-            </div>
-          </Link>
-        ))}
-        {!upcomingEvents.length && <EmptyState label="No hay eventos próximos registrados." />}
-      </div>
-    </section>
-  );
+  const activity = <section aria-labelledby="recent-activity-title" className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
+    <div className="flex items-center justify-between"><PanelTitle id="recent-activity-title" label="Actividad reciente" /><Link className="text-xs text-muted hover:text-brand" href="/notifications">Ver todo</Link></div>
+    <div className="mt-4 space-y-4">{recentActivity.slice(0, 6).map((item, index) => <Link className="group flex items-start gap-3" href={item.href} key={item.id}><span className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded-full text-[10px] ${index % 3 === 0 ? toneStyle.success : index % 3 === 1 ? toneStyle.info : toneStyle.warning}`}>•</span><span className="min-w-0 flex-1"><strong className="block truncate text-xs font-medium">{item.title}</strong><span className="mt-1 block truncate text-[11px] text-muted">{item.detail}</span></span><ArrowRight className="mt-1 size-3.5 text-muted opacity-0 transition group-hover:opacity-100" /></Link>)}{!recentActivity.length ? <Empty label="Sin actividad reciente." /> : null}</div>
+  </section>;
 
-  const activity = (
-    <section className="rounded-[1.75rem] border bg-card p-5 shadow-sm sm:p-7" aria-labelledby="recent-activity-title">
-      <SectionHeading eyebrow="En vivo" id="recent-activity-title" title="Actividad reciente" />
-      <div className="mt-5 space-y-4">
-        {recentActivity.slice(0, 7).map((item) => (
-          <Link className="group flex gap-3" href={item.href} key={item.id}>
-            <span className="mt-1.5 size-2 shrink-0 rounded-full bg-success" />
-            <span className="min-w-0 flex-1">
-              <strong className="block truncate text-sm">{item.title}</strong>
-              <span className="mt-1 block truncate text-xs text-muted">{item.detail}</span>
-            </span>
-            <ArrowUpRight className="size-4 shrink-0 text-muted group-hover:text-brand" />
-          </Link>
-        ))}
-        {!recentActivity.length && <EmptyState label="Todavía no hay actividad operacional reciente." />}
-      </div>
-    </section>
-  );
+  const alerts = <section aria-labelledby="founder-alerts-title" className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6"><PanelTitle id="founder-alerts-title" label="Alertas y pendientes" /><div className="mt-4 grid gap-3 md:grid-cols-3">{
+    [...operationalAlerts.slice(0, 2), ...finance.risks.slice(0, 3).map(risk => ({ id: risk.key, title: risk.label, detail: `${risk.count} pendientes · ${money(risk.amount)}`, href: risk.href, tone: risk.severity }))].slice(0, 3).map(alert => <Link className="group rounded-xl border bg-background/30 p-4 transition hover:border-brand/35" href={alert.href} key={alert.id}><span className="flex items-start gap-3"><span className={`grid size-9 shrink-0 place-items-center rounded-xl ${alert.tone === "danger" ? toneStyle.danger : toneStyle.warning}`}><AlertTriangle className="size-4" /></span><span><strong className="block text-sm">{alert.title}</strong><span className="mt-1 block text-xs text-muted">{alert.detail}</span></span></span><span className="mt-3 block text-xs font-semibold text-brand">Ver detalles</span></Link>)
+  }</div>{!operationalAlerts.length && !finance.risks.length ? <Empty label="No hay alertas accionables." /> : null}</section>;
 
-  const actions = (
-    <section aria-labelledby="quick-actions-title">
-      <SectionHeading eyebrow="Resolver" id="quick-actions-title" title="Acciones rápidas" />
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        {quickActions.map((action) => {
-          const Icon = action.icon;
-          return (
-            <Link className="group flex min-h-24 items-center gap-3 rounded-2xl border bg-card p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-md" href={action.href} key={action.label}>
-              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand"><Icon className="size-4" /></span>
-              <span className="text-sm font-semibold">{action.label}</span>
-            </Link>
-          );
-        })}
-      </div>
-    </section>
-  );
+  const commandGrid = <section aria-label="Jornada operacional" className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.55fr)_minmax(20rem,.95fr)]"><div className="space-y-5">{today}{alerts}</div><div className="space-y-5">{upcoming}{activity}</div></section>;
 
-  const workspaceSettings = (
-    <section className="rounded-2xl border bg-card p-5 shadow-sm" aria-labelledby="workspace-settings-title">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Tu espacio</p>
-          <h2 className="mt-2 text-xl font-semibold" id="workspace-settings-title">Founder Workspace</h2>
-          <p className="mt-1 text-sm text-muted">Mueve, oculta o restaura cada bloque. Tu configuración permanece guardada.</p>
-        </div>
-        <Link className="inline-flex min-h-10 items-center justify-center rounded-xl border px-4 text-sm font-semibold transition hover:border-brand hover:text-brand" href="/settings#founder-workspace">
-          <Settings2 className="mr-2 size-4" /> Configurar espacio
-        </Link>
-      </div>
-    </section>
-  );
+  const actions = <section aria-labelledby="quick-actions-title"><PanelTitle id="quick-actions-title" label="Acciones rápidas" /><div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">{quickActions.map(action => { const Icon = action.icon; return <Link className="group flex min-h-20 items-center gap-3 rounded-2xl border bg-card p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-brand/35" href={action.href} key={action.label}><span className="grid size-9 place-items-center rounded-xl bg-brand/10 text-brand"><Icon className="size-4" /></span><span className="text-xs font-semibold">{action.label}</span></Link>; })}</div></section>;
 
-  return (
-    <main id="founder-workspace">
-      <PersonalWorkspaceSections
-        moduleKey="DASHBOARD"
-        sections={[
-          { key: "DASHBOARD_HEADER", label: "Bienvenida", content: welcome },
-          { key: "DASHBOARD_WIDGETS", label: "KPIs del Founder", content: founderKpis },
-          { key: "DASHBOARD_TODAY", label: "Operación de hoy", content: <div className="grid gap-5 xl:grid-cols-[1.25fr_.75fr]">{today}{alerts}</div> },
-          { key: "DASHBOARD_UPCOMING", label: "Próximos eventos", content: upcoming },
-          { key: "DASHBOARD_ACTIVITY", label: "Actividad reciente", content: activity },
-          { key: "DASHBOARD_QUICK_ACTIONS", label: "Acciones rápidas", content: actions },
-          ...(publicationConsole ? [{ key: "PUBLICATION_CONSOLE", label: "Consola de publicación", content: publicationConsole }] : []),
-          { key: "DASHBOARD_WORKSPACE_SETTINGS", label: "Configuración del Workspace", content: workspaceSettings },
-        ]}
-      />
-    </main>
-  );
+  const settings = <section className="flex flex-col gap-4 rounded-2xl border bg-card p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between"><div><PanelTitle id="workspace-settings-title" label="Founder Workspace" /><p className="mt-2 text-xs text-muted">Mueve, oculta y restaura cada bloque. Tu configuración permanece guardada.</p></div><Link className="inline-flex min-h-10 items-center justify-center rounded-xl border px-4 text-xs font-semibold hover:border-brand/40 hover:text-brand" href="/settings#founder-workspace"><Settings2 className="mr-2 size-4" />Configurar espacio</Link></section>;
+
+  return <main id="founder-workspace"><PersonalWorkspaceSections moduleKey="DASHBOARD" sections={[
+    { key: "DASHBOARD_HEADER", label: "Bienvenida", content: welcome },
+    { key: "DASHBOARD_WIDGETS", label: "KPIs del Founder", content: founderKpis },
+    { key: "DASHBOARD_TODAY", label: "Jornada operacional", content: commandGrid },
+    { key: "DASHBOARD_QUICK_ACTIONS", label: "Acciones rápidas", content: actions },
+    ...(publicationConsole ? [{ key: "PUBLICATION_CONSOLE", label: "Consola de publicación", content: publicationConsole }] : []),
+    { key: "DASHBOARD_WORKSPACE_SETTINGS", label: "Configuración del Workspace", content: settings },
+  ]} /></main>;
 }
 
-function SectionHeading({ eyebrow, id, title }: { eyebrow: string; id: string; title: string }) {
-  return <header><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">{eyebrow}</p><h2 className="mt-2 text-2xl font-semibold tracking-[-.025em]" id={id}>{title}</h2></header>;
-}
-
-function KpiIcon({ index }: { index: number }) {
-  const icons = [WalletCards, CircleDollarSign, CalendarDays, TrendingUp, ReceiptText, Clock3];
-  const Icon = icons[index] ?? Sparkles;
-  return <span className="grid size-9 place-items-center rounded-xl bg-brand/10 text-brand"><Icon className="size-4" /></span>;
-}
-
-function EmptyState({ label }: { label: string }) {
-  return <p className="rounded-xl border border-dashed p-4 text-sm text-muted">{label}</p>;
-}
+function PanelTitle({ id, label }: { id: string; label: string }) { return <h2 className="text-xs font-semibold uppercase tracking-[.1em] text-brand" id={id}>{label}</h2>; }
+function StatusPill({ tone = "info" }: { tone?: CommandCenterItem["tone"] }) { const resolved = tone ?? "info"; return <span className={`hidden rounded-lg px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[.06em] sm:inline-flex ${toneStyle[resolved]}`}>{resolved === "danger" ? "Crítico" : resolved === "warning" ? "Pendiente" : "Activo"}</span>; }
+function Empty({ label }: { label: string }) { return <p className="rounded-xl border border-dashed p-4 text-xs text-muted">{label}</p>; }
