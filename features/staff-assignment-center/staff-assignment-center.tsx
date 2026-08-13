@@ -39,6 +39,7 @@ export type OperationalAssignment = {
   vehicleId: string;
   vehicleName: string;
   observations: string;
+  packageStatus?: Record<string, string>;
 };
 export type AssignmentStaffOption = {
   id: string;
@@ -328,6 +329,14 @@ export function StaffAssignmentCenter({
               <Time label="Inicio" value={item.startTime} />
               <Time label="Término" value={item.finishTime} />
             </dl>
+            {item.packageStatus ? (
+              <dl className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                <Time label="Portal" value={item.packageStatus.portal === "ACCEPTED" ? "Aceptado" : item.packageStatus.portal || "Pendiente"} />
+                <Time label="Email" value={item.packageStatus.email === "SENT" ? "Enviado" : item.packageStatus.email || "Pendiente"} />
+                <Time label="Calendario" value={item.packageStatus.calendar === "SENT" ? "Enviado" : item.packageStatus.calendar || "Pendiente"} />
+                <Time label="Checklist" value={item.packageStatus.checklist === "PENDING" ? "Pendiente" : item.packageStatus.checklist || "Pendiente"} />
+              </dl>
+            ) : null}
             {item.observations && (
               <p className="mt-3 rounded-lg bg-background/50 p-3 text-sm text-muted">
                 {item.observations}

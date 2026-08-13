@@ -152,7 +152,7 @@ export default async function ProjectWorkspacePage({
     client
       .from("assignments")
       .select(
-        "id,project_id,staff_id,assignment_type,status,arrival_time,start_time,finish_time,assigned_vehicle,observations,staff(first_name,last_name),operational_assets(asset_code)",
+        "id,project_id,staff_id,assignment_type,status,arrival_time,start_time,finish_time,assigned_vehicle,observations,resources,staff(first_name,last_name),operational_assets(asset_code)",
       )
       .is("deleted_at", null),
     client
@@ -397,6 +397,7 @@ export default async function ProjectWorkspacePage({
     finish_time: string | null;
     assigned_vehicle: string | null;
     observations: string | null;
+    resources: Record<string, unknown> | null;
     staff: { first_name: string; last_name: string };
     operational_assets: { asset_code: string } | null;
   };
@@ -1144,6 +1145,7 @@ export default async function ProjectWorkspacePage({
           vehicleId: item.assigned_vehicle ?? "",
           vehicleName: item.operational_assets?.asset_code ?? "",
           observations: item.observations ?? "",
+          packageStatus: ((item.resources?.smartAssignment ?? {}) as Record<string, string>),
         })),
       staff: (staff ?? [])
         .filter((member) => member.status === "ACTIVE")

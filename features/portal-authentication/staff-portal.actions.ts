@@ -179,6 +179,38 @@ export async function requestStaffResponsibilityAction(
   return { ok: true, message: "Solicitud enviada al Founder." };
 }
 
+export async function declineStaffResponsibilityAction(form: FormData) {
+  const session = await loadPortalSession("STAFF");
+  if (!session?.staff_id) return { ok: false, message: "Tu sesión expiró." };
+  const projectId = String(form.get("projectId") ?? ""),
+    responsibility = String(form.get("responsibility") ?? ""),
+    reason = String(form.get("reason") ?? ""),
+    detail = String(form.get("detail") ?? "").trim();
+  if (!projectId || !responsibility || !reason)
+    return { ok: false, message: "Selecciona responsabilidad y motivo." };
+  if (reason === "OTHER" && !detail)
+    return { ok: false, message: "Describe el motivo del rechazo." };
+  const { error } = await createAdminClient().rpc(
+    "decline_staff_responsibility",
+    {
+      p_staff_id: session.staff_id,
+      p_project_id: projectId,
+      p_responsibility: responsibility,
+      p_reason: reason,
+      p_detail: detail,
+    },
+  );
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/staff-portal");
+  revalidatePath("/operations");
+  revalidatePath(`/projects/${projectId}`);
+  revalidatePath("/");
+  return {
+    ok: true,
+    message: "Evento rechazado. El Founder fue notificado inmediatamente.",
+  };
+}
+
 export async function cancelStaffAssignmentAction(form: FormData) {
   const session = await loadPortalSession("STAFF");
   if (!session?.staff_id) return { ok: false, message: "Tu sesión expiró." };

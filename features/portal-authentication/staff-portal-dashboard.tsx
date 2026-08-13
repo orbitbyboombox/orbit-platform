@@ -16,6 +16,7 @@ import {
   cancelStaffAssignmentAction,
   changeStaffPasswordAction,
   completeStaffChecklistItemAction,
+  declineStaffResponsibilityAction,
   recordStaffCheckInAction,
   requestStaffResponsibilityAction,
 } from "./staff-portal.actions";
@@ -55,14 +56,30 @@ export type StaffPortalPayment = {
 };
 export type AvailableStaffEvent = {
   id: string;
+  orbitEventId: string;
+  eventType: string;
   customer: string;
+  clientPhone: string;
+  productionContact: string;
+  productionPhone: string;
   service: string;
+  duration: number;
   date: string;
   start: string;
+  finish: string;
   address: string;
   district: string;
   venue: string;
+  vehicle: string;
+  equipment: string[];
   available: string[];
+  payments: {
+    operator: number;
+    assembly: number;
+    disassembly: number;
+    combined: number;
+    transportationBonus: number;
+  };
 };
 export type StaffRequest = {
   id: string;
@@ -347,6 +364,7 @@ function AvailableEvents({
 }) {
   const [pending, start] = useTransition();
   const [message, setMessage] = useState("");
+  const [selected, setSelected] = useState<AvailableStaffEvent | null>(null);
   const request = (projectId: string, role: string) =>
     start(async () => {
       const result = await requestStaffResponsibilityAction(projectId, role);
@@ -367,7 +385,7 @@ function AvailableEvents({
       ) : null}
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
         {events.map((event) => (
-          <article className="rounded-2xl border p-4" key={event.id}>
+          <button className="rounded-2xl border p-4 text-left transition hover:border-brand/50" key={event.id} onClick={() => setSelected(event)}>
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="font-semibold">{event.customer}</p>
@@ -381,32 +399,8 @@ function AvailableEvents({
               <MapPin className="mr-2 inline size-4 text-brand" />
               {event.address}, {event.district} · {event.venue}
             </p>
-            <div className="mt-4 grid gap-2 sm:grid-cols-2">
-              {event.available.map((role) => (
-                <button
-                  className="min-h-11 rounded-xl border px-3 text-left text-sm transition hover:border-brand disabled:opacity-50"
-                  disabled={
-                    pending ||
-                    requests.some(
-                      (req) =>
-                        req.projectId === event.id &&
-                        req.responsibility === role &&
-                        req.status === "PENDING",
-                    )
-                  }
-                  key={role}
-                  onClick={() => request(event.id, role)}
-                >
-                  <span className="block font-semibold">
-                    Solicitar {ROLE[role]}
-                  </span>
-                  <span className="text-muted">
-                    El neto se mostrará al aprobar la liquidación del Evento.
-                  </span>
-                </button>
-              ))}
-            </div>
-          </article>
+            <span className="mt-4 inline-flex min-h-10 items-center rounded-xl border px-3 text-sm font-semibold text-brand">Ver resumen y pago</span>
+          </button>
         ))}
         {events.length === 0 ? (
           <p className="py-6 text-sm text-muted">
@@ -414,6 +408,7 @@ function AvailableEvents({
           </p>
         ) : null}
       </div>
+      {selected ? <AvailableEventPreview event={selected} requests={requests} pending={pending} close={() => setSelected(null)} request={request} setMessage={setMessage} /> : null}
       <h3 className="mt-7 font-semibold">Mis solicitudes</h3>
       <div className="mt-3 space-y-2">
         {requests.map((item) => (
@@ -444,6 +439,19 @@ function AvailableEvents({
       </div>
     </section>
   );
+}
+
+function AvailableEventPreview({event,requests,pending,close,request,setMessage}:{event:AvailableStaffEvent;requests:StaffRequest[];pending:boolean;close:()=>void;request:(projectId:string,role:string)=>void;setMessage:(message:string)=>void}) {
+  const [role,setRole]=useState(event.available[0]??"");
+  const [declining,setDeclining]=useState(false);
+  const [reason,setReason]=useState("ILLNESS");
+  const [detail,setDetail]=useState("");
+  const [declinePending,startDecline]=useTransition();
+  const maps=`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${event.address}, ${event.district}`)}`;
+  const roleNet=role==="OPERATOR"?event.payments.operator:role==="ASSEMBLY"?event.payments.assembly:role==="DISASSEMBLY"?event.payments.disassembly:event.payments.combined;
+  const alreadyRequested=requests.some(item=>item.projectId===event.id&&item.responsibility===role&&item.status==="PENDING");
+  const decline=()=>startDecline(async()=>{const form=new FormData();form.set("projectId",event.id);form.set("responsibility",role);form.set("reason",reason);form.set("detail",detail);const result=await declineStaffResponsibilityAction(form);setMessage(result.message);if(result.ok)close()});
+  return <div aria-modal="true" className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 sm:items-center sm:p-6" role="dialog"><article className="max-h-[94dvh] w-full overflow-y-auto rounded-t-3xl border bg-card p-5 sm:max-w-4xl sm:rounded-3xl sm:p-7"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Antes de aceptar</p><h3 className="mt-2 text-2xl font-semibold">Resumen operacional completo</h3><p className="mt-1 text-sm text-muted">Revisa exactamente qué Evento, responsabilidad y pago estás aceptando.</p></div><button aria-label="Cerrar" className="rounded-lg border p-2" onClick={close}><X className="size-4"/></button></div><div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><Small label="Servicio" value={event.service}/><Small label="Cliente" value={event.customer}/><Small label="Fecha" value={event.date}/><Small label="Horario" value={`${event.start}–${event.finish}`}/><Small label="Duración" value={`${event.duration} horas`}/><Small label="Comuna" value={event.district}/><Small label="Dirección" value={event.address}/><Small label="Contacto cliente" value={event.clientPhone}/><Small label="Producción" value={`${event.productionContact} · ${event.productionPhone}`}/><Small label="Vehículo" value={event.vehicle}/><Small label="Equipamiento" value={event.equipment.join(" · ")||"No asignado"}/><Small label="ORBIT Event ID" value={event.orbitEventId}/></div><a className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold text-brand" href={maps} rel="noreferrer" target="_blank"><Navigation className="size-4"/>Google Maps</a><section className="mt-6 rounded-2xl border border-brand/30 bg-brand/5 p-4"><h4 className="font-semibold">Pago estimado de la asignación</h4><p className="mt-1 text-sm text-muted">Este es el pago estimado para esta asignación. Solo el Founder puede modificar estos valores.</p><div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><Small label="Operador" value={money(event.payments.operator)}/><Small label="Montaje" value={money(event.payments.assembly)}/><Small label="Desmontaje" value={money(event.payments.disassembly)}/><Small label="Montaje + Desmontaje" value={money(event.payments.combined)}/><Small label="Bono transporte" value={money(event.payments.transportationBonus)}/><Small label="Reembolsos" value="Pendientes"/><Small label="Total estimado" value={money(roleNet+event.payments.transportationBonus)}/></div></section><section className="mt-6 rounded-2xl border p-4"><label className="grid gap-2 text-sm font-medium">Responsabilidad<select className="min-h-11 rounded-xl border bg-background px-3" value={role} onChange={e=>setRole(e.target.value)}>{event.available.map(value=><option key={value} value={value}>{ROLE[value]??value}</option>)}</select></label><div className="mt-4 flex flex-wrap gap-2"><button className="min-h-11 rounded-xl bg-brand px-4 text-sm font-semibold text-brand-foreground disabled:opacity-50" disabled={pending||alreadyRequested||!role} onClick={()=>request(event.id,role)}>{alreadyRequested?"Solicitud pendiente":pending?"Enviando…":"Aceptar Evento"}</button><button className="min-h-11 rounded-xl border px-4 text-sm font-semibold text-danger" disabled={pending} onClick={()=>setDeclining(value=>!value)}>Rechazar</button></div>{declining?<div className="mt-4 grid gap-3 border-t pt-4"><label className="grid gap-2 text-sm font-medium">Motivo<select className="min-h-11 rounded-xl border bg-background px-3" value={reason} onChange={e=>setReason(e.target.value)}><option value="ILLNESS">Enfermedad</option><option value="EMERGENCY">Emergencia</option><option value="UNAVAILABLE">No disponible</option><option value="DISTANCE">Distancia</option><option value="OTHER">Otro</option></select></label><label className="grid gap-2 text-sm font-medium">Detalle<textarea className="min-h-24 rounded-xl border bg-background p-3" required={reason==="OTHER"} value={detail} onChange={e=>setDetail(e.target.value)}/></label><button className="min-h-11 rounded-xl bg-red-600 px-4 text-sm font-semibold text-white disabled:opacity-50" disabled={declinePending||(reason==="OTHER"&&!detail.trim())} onClick={decline}>{declinePending?"Notificando…":"Confirmar rechazo"}</button></div>:null}</section></article></div>
 }
 function Metric({
   label,
