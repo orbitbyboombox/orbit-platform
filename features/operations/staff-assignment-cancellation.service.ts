@@ -63,8 +63,8 @@ export async function deliverAssignmentCancellationEmail(
   const company = await loadCompanySettings(client),
     configured = company.emailConfiguration.founderNotificationEmail,
     founderRecipient =
-      company.operationsEmail ||
       (typeof configured === "string" ? configured : "") ||
+      company.operationsEmail ||
       company.salesEmail ||
       company.supportEmail,
     recipients = [
