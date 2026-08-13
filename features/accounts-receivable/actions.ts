@@ -186,6 +186,28 @@ export async function sendReceivableReminderAction(invoiceId:string):Promise<Res
 const htmlBody=`<main style="font-family:Arial,sans-serif;color:#171717;line-height:1.6"><p>Hola ${escapeHtml(customer.full_name)},</p><p>Te recordamos que el Evento <strong>${escapeHtml(project?.name??"BOOMBOX")}</strong> mantiene un saldo pendiente de <strong>${escapeHtml(amount)}</strong>${data.due_date?` con vencimiento ${escapeHtml(data.due_date)}`:""}.</p><p>Si ya realizaste el pago, puedes responder este correo con el comprobante.</p><p>BOOMBOX</p></main>`;const sent=await new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken()).send({to:customer.email,subject,textBody,htmlBody,driveFileIds:[]});const{data:communication,error:communicationError}=await client.from("communications").insert({customer_id:data.customer_id,project_id:data.project_id,channel:"GMAIL",direction:"OUTBOUND",communication_type:"PAYMENT_REMINDER",thread_key:sent.threadId,subject,body:textBody,status:"SENT",external_message_id:sent.messageId,occurred_at:new Date().toISOString(),created_by:auth.user.id}).select("id").single();if(communicationError)throw communicationError;const timeline=await client.from("timeline_events").insert({customer_id:data.customer_id,project_id:data.project_id,orbit_event_id:data.orbit_event_id,event_type:"PAYMENT_REMINDER_SENT",title:"Recordatorio de pago enviado",description:`Recordatorio explícitamente enviado por Founder por ${amount}.`,actor_id:auth.user.id,actor_label:"Founder",source:"Gmail",action:"PAYMENT_REMINDER_SENT",entity_type:"Communication",entity_id:communication.id,human_message:"Recordatorio de pago enviado al cliente.",correlation_id:`payment-reminder:${communication.id}`,communication_id:communication.id,created_by:auth.user.id});if(timeline.error)throw timeline.error;revalidatePath("/finance/receivables");revalidatePath(`/projects/${data.project_id}`);void eventUrl;return{ok:true};}catch(error){return fail(error);}}
 const escapeHtml=(value:string)=>value.replace(/[&<>"']/g,(char)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[char]!);
 
+export type CollectionContactChannel="WHATSAPP"|"EMAIL"|"PHONE";
+export async function recordCollectionContactAction(invoiceId:string,channel:CollectionContactChannel):Promise<Result>{
+  try{
+    const client=await createSupabaseServerActionClient();
+    const{data:auth}=await client.auth.getUser();
+    if(!auth.user)throw new Error("Sesión requerida.");
+    const{data,error}=await client.from("accounts_receivable_projection").select("id,invoice_number,customer_id,project_id,orbit_event_id,outstanding_balance,customers(full_name)").eq("id",invoiceId).single();
+    if(error)throw error;
+    if(Number(data.outstanding_balance)<=0)throw new Error("Esta cuenta no tiene saldo pendiente.");
+    const customer=Array.isArray(data.customers)?data.customers[0]:data.customers;
+    const occurredAt=new Date().toISOString();
+    const communicationType=`COLLECTION_${channel}_OPENED`;
+    const subject=`Gestión de cobranza ${channel} · ${data.invoice_number}`;
+    const{data:communication,error:communicationError}=await client.from("communications").insert({customer_id:data.customer_id,project_id:data.project_id,channel,direction:"OUTBOUND",communication_type:communicationType,thread_key:`collection-action:${crypto.randomUUID()}`,subject,body:`Founder inició contacto de cobranza con ${customer?.full_name??"Cliente"}.`,status:"INITIATED",occurred_at:occurredAt,created_by:auth.user.id}).select("id").single();
+    if(communicationError)throw communicationError;
+    const{error:timelineError}=await client.from("timeline_events").insert({customer_id:data.customer_id,project_id:data.project_id,orbit_event_id:data.orbit_event_id,event_type:communicationType,title:"Acción de cobranza iniciada",description:`Founder abrió ${channel} para gestionar el saldo pendiente.`,actor_id:auth.user.id,actor_label:"Founder",source:"Accounts Receivable",action:communicationType,entity_type:"Communication",entity_id:communication.id,human_message:`Acción de cobranza por ${channel} iniciada explícitamente por Founder.`,correlation_id:`collection-action:${communication.id}`,communication_id:communication.id,created_by:auth.user.id});
+    if(timelineError)throw timelineError;
+    revalidatePath("/finance/receivables");
+    return{ok:true};
+  }catch(error){return fail(error);}
+}
+
 export async function getReceivableReceiptUrlAction(path: string) {
   try {
     const client = await createSupabaseServerActionClient();

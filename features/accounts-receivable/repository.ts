@@ -17,7 +17,7 @@ export async function loadAccountsReceivable(
     agreementsResult,
     paymentsResult,
     profilesResult,
-    remindersResult,
+    collectionActionsResult,
   ] = await Promise.all([
     client
       .from("accounts_receivable_projection")
@@ -55,7 +55,7 @@ export async function loadAccountsReceivable(
       .order("created_at", { ascending: false }),
     client.from("invoice_payments").select("id,invoice_id,amount,paid_at,method,reason,created_at").is("deleted_at",null).order("paid_at",{ascending:false}),
     client.from("profiles").select("id,display_name"),
-    client.from("communications").select("id,project_id,subject,status,occurred_at").eq("communication_type","PAYMENT_REMINDER").order("occurred_at",{ascending:false}),
+    client.from("communications").select("id,project_id,communication_type,channel,subject,status,occurred_at").in("communication_type",["PAYMENT_REMINDER","COLLECTION_WHATSAPP_OPENED","COLLECTION_EMAIL_OPENED","COLLECTION_PHONE_OPENED"]).order("occurred_at",{ascending:false}),
   ]);
   const failure = [
     invoicesResult,
@@ -66,12 +66,12 @@ export async function loadAccountsReceivable(
     agreementsResult,
     paymentsResult,
     profilesResult,
-    remindersResult,
+    collectionActionsResult,
   ].find((x) => x.error)?.error;
   if (failure) throw failure;
   const profiles=new Map((profilesResult.data??[]).map(row=>[row.id,row.display_name]));
-  const remindersByProject=new Map<string,Array<{id:string;subject:string;status:string;occurredAt:string}>>();
-  for(const row of remindersResult.data??[]){const list=remindersByProject.get(row.project_id??"")??[];list.push({id:row.id,subject:row.subject??"Recordatorio de pago",status:row.status,occurredAt:row.occurred_at});remindersByProject.set(row.project_id??"",list);}
+  const actionsByProject=new Map<string,Array<{id:string;type:string;channel:string;subject:string;status:string;occurredAt:string}>>();
+  for(const row of collectionActionsResult.data??[]){const list=actionsByProject.get(row.project_id??"")??[];list.push({id:row.id,type:row.communication_type,channel:row.channel,subject:row.subject??"Acción de cobranza",status:row.status,occurredAt:row.occurred_at});actionsByProject.set(row.project_id??"",list);}
   const invoices: ReceivableInvoice[] = (invoicesResult.data ?? []).map(
     (row) => {
       const customer = Array.isArray(row.customers)
@@ -112,7 +112,7 @@ export async function loadAccountsReceivable(
         contractAvailable:Boolean(agreement?.signed_pdf_path),
         collectorId:row.issued_by??row.created_by??null,
         collectorName:profiles.get(row.issued_by??row.created_by??"")??"Sin asignar",
-        reminders:remindersByProject.get(row.project_id)??[],
+        collectionActions:actionsByProject.get(row.project_id)??[],
         paymentHistory:history.map((item)=>({id:String(item.id),amount:Number(item.amount),paidAt:String(item.paidAt),method:String(item.method??"—"),observation:String(item.observation??"")})),
         lastPayment:history[0]?{id:String(history[0].id),amount:Number(history[0].amount),paidAt:String(history[0].paidAt),method:String(history[0].method??"—")}:null,
       };
@@ -158,7 +158,7 @@ export async function loadAccountsReceivable(
         contractAvailable:Boolean(agreement?.signed_pdf_path),
         collectorId:row.issued_by??row.created_by??null,
         collectorName:profiles.get(row.issued_by??row.created_by??"")??"Sin asignar",
-        reminders:remindersByProject.get(row.project_id)??[],
+        collectionActions:actionsByProject.get(row.project_id)??[],
         paymentHistory:history.map(item=>({id:item.id,amount:Number(item.amount),paidAt:item.paid_at,method:item.method??"—",observation:item.reason??""})),
         lastPayment:history[0]?{id:history[0].id,amount:Number(history[0].amount),paidAt:history[0].paid_at,method:history[0].method??"—"}:null,
         recordState: row.financial_record_state,
