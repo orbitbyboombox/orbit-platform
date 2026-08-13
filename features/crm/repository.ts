@@ -4,6 +4,7 @@ import type {
   CrmCustomerSummary,
   CrmEventSummary,
 } from "./types";
+import { formatChileanPhone, formatChileanRut } from "@/lib/chile/rut";
 
 type CustomerRow = {
   id: string;
@@ -54,9 +55,9 @@ export async function loadCrmCustomers(
     return {
       id: row.id,
       fullName: row.full_name,
-      rut: text(row.rut),
+      rut: formatChileanRut(text(row.rut)),
       company: text(row.company),
-      phone: text(row.phone),
+      phone: formatChileanPhone(text(row.phone)),
       email: text(row.email),
       address: text(row.address),
       city: text(row.city),
@@ -360,9 +361,9 @@ export async function loadCrmCustomerProfile(
   return {
     id: row.id,
     fullName: row.full_name,
-    rut: text(row.rut),
+    rut: formatChileanRut(text(row.rut)),
     company: text(row.company),
-    phone: text(row.phone),
+    phone: formatChileanPhone(text(row.phone)),
     email: text(row.email),
     address: text(row.address),
     city: text(row.city),

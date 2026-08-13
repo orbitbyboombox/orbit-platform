@@ -15,6 +15,12 @@ const allowedMimeTypes = new Set([
   "application/pdf",
 ]);
 const maxFileSize = 10_485_760;
+const publicMessage = (error: unknown) => {
+  const message = error instanceof Error ? error.message : "";
+  return /coerce|json object|pgrst|schema|constraint|violates|column/i.test(message)
+    ? "No fue posible iniciar la carga. Inténtalo nuevamente."
+    : message || "No fue posible iniciar la carga del documento.";
+};
 
 async function findInvitation(token: string) {
   const admin = createAdminClient();
@@ -74,10 +80,7 @@ export async function POST(request: Request) {
     console.error("staff_onboarding.upload_authorization_failed", error);
     return NextResponse.json(
       {
-        message:
-          error instanceof Error
-            ? error.message
-            : "No fue posible iniciar la carga del documento.",
+        message: publicMessage(error),
       },
       { status: 400 },
     );

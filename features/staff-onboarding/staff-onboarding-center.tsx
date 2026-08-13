@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Eye, MailPlus, Pencil, RotateCw, Trash2, UserRoundCheck, X } from "lucide-react";
 import {
@@ -8,6 +8,7 @@ import {
   manageStaffInvitationAction,
   reviewStaffOnboardingAction,
 } from "./staff-onboarding.actions";
+import { formatChileanPhone } from "@/lib/chile/rut";
 
 export type StaffOnboardingInvitation = {
   id: string;
@@ -34,6 +35,10 @@ export function StaffOnboardingCenter({
   const [editing, setEditing] = useState<StaffOnboardingInvitation | null>(null);
   const [pending, start] = useTransition();
   const [message, setMessage] = useState("");
+  useEffect(() => {
+    const timer = window.setInterval(() => router.refresh(), 10_000);
+    return () => window.clearInterval(timer);
+  }, [router]);
   const submitInvite = (form: FormData) =>
     start(async () => {
       const result = await inviteStaffAction(form);
@@ -98,7 +103,7 @@ export function StaffOnboardingCenter({
                     {item.firstName} {item.lastName}
                   </h3>
                   <p className="mt-1 text-xs text-muted">
-                    {item.email} · {item.mobile}
+                    {item.email} · {formatChileanPhone(item.mobile)}
                   </p>
                 </div>
                 <span className="rounded-full bg-brand/10 px-2.5 py-1 text-xs font-semibold text-brand">

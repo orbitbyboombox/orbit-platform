@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { staffOnboardingTokenHash } from "@/features/staff-onboarding/staff-onboarding.service";
+import { requireValidChileanRut } from "@/lib/chile/rut";
 
 const documentTypes = new Set([
   "IDENTITY_FRONT",
@@ -13,6 +14,12 @@ type UploadedDocument = {
   path: string;
   fileName: string;
   mimeType: string;
+};
+const publicMessage = (error: unknown) => {
+  const message = error instanceof Error ? error.message : "";
+  return /coerce|json object|pgrst|schema|constraint|violates|column/i.test(message)
+    ? "No fue posible guardar la solicitud. Tus datos siguen disponibles para reintentar."
+    : message || "No fue posible enviar el registro.";
 };
 
 export async function POST(request: Request) {
@@ -66,6 +73,7 @@ export async function POST(request: Request) {
         { message: "Completa toda la información solicitada." },
         { status: 400 },
       );
+    payload.rut = requireValidChileanRut(String(payload.rut));
     const requiresLicense =
       Boolean(payload.canDrive) ||
       (payload.capabilities as string[]).some(
@@ -172,10 +180,7 @@ export async function POST(request: Request) {
     console.error("staff_onboarding.submission_failed", error);
     return NextResponse.json(
       {
-        message:
-          error instanceof Error
-            ? error.message
-            : "No fue posible enviar el registro.",
+        message: publicMessage(error),
       },
       { status: 400 },
     );

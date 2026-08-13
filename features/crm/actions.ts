@@ -12,8 +12,9 @@ import { synchronizeConfirmedReservationDrive } from "@/features/connectors/goog
 import { uploadReservationDocumentToDrive } from "@/features/connectors/google-drive/application/google-drive-document-routing.service";
 import type { GoogleDriveDocumentKind } from "@/features/connectors/google-drive/types/google-drive-live.types";
 import { createCustomerPortalAccess } from "@/features/customer-portal/customer-portal.service";
+import { normalizeChileanPhone, requireValidChileanRut } from "@/lib/chile/rut";
 const message = (error: unknown, fallback: string) =>
-  error instanceof Error ? error.message : fallback;
+  error instanceof Error && !/coerce|json object|pgrst|schema|constraint|violates|column/i.test(error.message) ? error.message : fallback;
 async function founderClient() {
   const client = await createSupabaseServerClient();
   const { data } = await client.auth.getUser();
@@ -40,12 +41,12 @@ export async function createCrmCustomerAction(input: {
     const { client, user } = await founderClient();
     if (!input.fullName.trim() || !input.rut.trim())
       throw new Error("Nombre y RUT son obligatorios.");
-    const normalized = input.rut.toUpperCase().replace(/[^0-9K]/g, "");
+    const normalized = requireValidChileanRut(input.rut);
     const { data: existing, error: lookup } = await client
       .from("customers")
       .select("id")
       .is("deleted_at", null)
-      .eq("rut", input.rut.trim())
+      .eq("metadata->>normalizedRut", normalized)
       .maybeSingle();
     if (lookup) throw lookup;
     if (existing) throw new Error("Ya existe un cliente con este RUT.");
@@ -53,9 +54,9 @@ export async function createCrmCustomerAction(input: {
       .from("customers")
       .insert({
         full_name: input.fullName.trim(),
-        rut: input.rut.trim(),
+        rut: normalized,
         company: input.company.trim() || null,
-        phone: input.phone.trim() || null,
+        phone: normalizeChileanPhone(input.phone) || null,
         email: input.email.trim().toLowerCase() || null,
         address: input.address.trim() || null,
         metadata: { normalizedRut: normalized },
@@ -89,6 +90,7 @@ export async function updateCrmCustomerAction(input: {
   try {
     const { client, user } = await founderClient();
     if (!input.reason.trim()) throw new Error("Registra el motivo del cambio.");
+    const normalized = requireValidChileanRut(input.rut);
     const { data: current, error: readError } = await client
       .from("customers")
       .select("metadata,projects(id,status,deleted_at)")
@@ -99,13 +101,14 @@ export async function updateCrmCustomerAction(input: {
       .from("customers")
       .update({
         full_name: input.fullName.trim(),
-        rut: input.rut.trim(),
+        rut: normalized,
         company: input.company.trim() || null,
-        phone: input.phone.trim() || null,
+        phone: normalizeChileanPhone(input.phone) || null,
         email: input.email.trim().toLowerCase() || null,
         address: input.address.trim() || null,
         metadata: {
           ...current.metadata,
+          normalizedRut: normalized,
           commercialNotes: input.commercialNotes,
           contacts: input.contacts,
         },

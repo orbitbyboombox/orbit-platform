@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { MunicipalityCombobox } from "@/components/forms/municipality-combobox";
 import type { ActiveMunicipality } from "@/features/settings/master-data/municipality-master-data";
 import { cn } from "@/lib/utils";
+import { formatChileanRut, isValidChileanRut } from "@/lib/chile/rut";
 import { sendAutomaticBookingInvitationAction } from "@/features/automatic-booking/actions";
 import { sendManualReservationConfirmationAction } from "../actions/customer.actions";
 import {
@@ -960,7 +961,7 @@ export function NewProjectDrawer({
   };
   const customerValid = Boolean(
     (draft.client.name ?? "").trim() &&
-      /^[0-9]{7,8}-[0-9K]$/.test(draft.client.rut ?? "") &&
+      isValidChileanRut(draft.client.rut ?? "") &&
       (draft.client.phone ?? "").length === 12 &&
       /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.client.email ?? ""),
   );
@@ -1523,16 +1524,7 @@ export function NewProjectDrawer({
                   inputMode="text"
                   label="RUT"
                   onChange={(e) => {
-                    const raw = e.target.value
-                      .replace(/[^0-9kK]/g, "")
-                      .toUpperCase()
-                      .slice(0, 9);
-                    client(
-                      "rut",
-                      raw.length > 1
-                        ? `${raw.slice(0, -1)}-${raw.slice(-1)}`
-                        : raw,
-                    );
+                    client("rut", formatChileanRut(e.target.value));
                   }}
                   placeholder="12345678-9"
                   required

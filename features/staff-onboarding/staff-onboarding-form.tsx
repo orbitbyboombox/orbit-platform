@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { CheckCircle2, ChevronLeft, ChevronRight, Upload } from "lucide-react";
+import { RutInput } from "@/components/forms/rut-input";
 
 type Invitation = {
   id: string;
@@ -356,6 +357,18 @@ function Input({
   required?: boolean;
   readOnly?: boolean;
 }) {
+  if (name === "rut")
+    return (
+      <label className="text-sm font-medium">
+        {label}
+        <RutInput
+          className="mt-2 min-h-11 w-full rounded-xl border bg-background px-3"
+          defaultValue={value}
+          required={required}
+          onChange={(event) => onChange(event.currentTarget.value)}
+        />
+      </label>
+    );
   return (
     <label className="text-sm font-medium">
       {label}

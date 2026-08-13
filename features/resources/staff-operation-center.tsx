@@ -11,6 +11,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { RutInput } from "@/components/forms/rut-input";
 import {
   assignOperationalStaffAction,
   createOperationalStaffAction,
@@ -683,7 +684,7 @@ function StaffForm({
       )}
       <Field label="Nombre" name="firstName" defaultValue={item?.firstName} />
       <Field label="Apellido" name="lastName" defaultValue={item?.lastName} />
-      <Field label="RUT" name="rut" defaultValue={item?.rut} />
+      <label className="text-sm font-medium">RUT<RutInput className="mt-2 min-h-11 w-full rounded-xl border bg-background px-3" defaultValue={item?.rut} /></label>
       <Field label="Teléfono" name="phone" defaultValue={item?.phone} />
       <Field
         label="Correo"
