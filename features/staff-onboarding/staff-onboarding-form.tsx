@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { CheckCircle2, ChevronLeft, ChevronRight, Upload } from "lucide-react";
 
 type Invitation = {
@@ -19,6 +19,29 @@ const steps = [
   "Datos bancarios",
   "Documentos",
 ];
+const documentFields = [
+  ["identityFront", "IDENTITY_FRONT", "Cédula · frente"],
+  ["identityBack", "IDENTITY_BACK", "Cédula · reverso"],
+  ["licenseFront", "DRIVER_LICENSE_FRONT", "Licencia · frente"],
+  ["licenseBack", "DRIVER_LICENSE_BACK", "Licencia · reverso"],
+] as const;
+type UploadedDocument = {
+  documentType: string;
+  path: string;
+  fileName: string;
+  mimeType: string;
+};
+
+async function readJson(response: Response) {
+  const text = await response.text();
+  if (!text) return {} as Record<string, unknown>;
+  try {
+    return JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    throw new Error(`El servidor respondió con un error (${response.status}).`);
+  }
+}
+
 export function StaffOnboardingForm({
   invitation,
   token,
@@ -29,6 +52,9 @@ export function StaffOnboardingForm({
   const [step, setStep] = useState(0);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadLabel, setUploadLabel] = useState("");
+  const abortRef = useRef<AbortController | null>(null);
   const [submitted, setSubmitted] = useState(invitation.status === "SUBMITTED");
   const [data, setData] = useState<Record<string, string>>(
     () =>
@@ -50,29 +76,136 @@ export function StaffOnboardingForm({
     canDrive ||
     capabilities.some((item) => item === "ASSEMBLY" || item === "DISASSEMBLY");
   const submit = async (form: FormData) => {
+    const controller = new AbortController();
+    let timedOut = false;
+    const timeout = window.setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, 120_000);
+    abortRef.current = controller;
+    const uploaded: UploadedDocument[] = [];
     setPending(true);
     setError("");
-    form.set("token", token);
-    form.set(
-      "payload",
-      JSON.stringify({
+    setUploadProgress(0);
+    try {
+      const files = documentFields
+        .filter(([field]) =>
+          field.startsWith("license") ? requiresLicense : true,
+        )
+        .map(([field, documentType, label]) => ({
+          documentType,
+          label,
+          file: form.get(field),
+        }));
+      for (const item of files) {
+        if (!(item.file instanceof File) || item.file.size === 0)
+          throw new Error(`Adjunta ${item.label.toLowerCase()}.`);
+      }
+      const totalSteps = files.length + 1;
+      for (let index = 0; index < files.length; index += 1) {
+        const item = files[index];
+        const file = item.file as File;
+        setUploadLabel(`Subiendo ${item.label.toLowerCase()}…`);
+        const authorization = await fetch("/api/staff-onboarding/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            token,
+            documentType: item.documentType,
+            fileName: file.name,
+            mimeType: file.type,
+            fileSize: file.size,
+          }),
+          signal: controller.signal,
+        });
+        const authorizationResult = await readJson(authorization);
+        if (!authorization.ok)
+          throw new Error(
+            String(
+              authorizationResult.message ??
+                `No se pudo cargar ${item.label.toLowerCase()}.`,
+            ),
+          );
+        const path = String(authorizationResult.path ?? "");
+        const signedUrl = String(authorizationResult.signedUrl ?? "");
+        if (!path || !signedUrl)
+          throw new Error(`No se pudo cargar ${item.label.toLowerCase()}.`);
+        const uploadBody = new FormData();
+        uploadBody.append("cacheControl", "3600");
+        uploadBody.append("", file);
+        const upload = await fetch(signedUrl, {
+          method: "PUT",
+          headers: { "x-upsert": "false" },
+          body: uploadBody,
+          signal: controller.signal,
+        });
+        if (!upload.ok) {
+          const uploadError = await readJson(upload).catch(
+            () => ({}) as Record<string, unknown>,
+          );
+          throw new Error(
+            String(
+              uploadError.message ??
+                `Storage rechazó ${item.label.toLowerCase()} (${upload.status}).`,
+            ),
+          );
+        }
+        uploaded.push({
+          documentType: item.documentType,
+          path,
+          fileName: file.name,
+          mimeType: file.type,
+        });
+        setUploadProgress(Math.round(((index + 1) / totalSteps) * 100));
+      }
+      setUploadLabel("Creando solicitud de onboarding…");
+      const response = await fetch("/api/staff-onboarding/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token,
+          documents: uploaded,
+          payload: {
         ...data,
         capabilities,
         canDrive,
         phone: data.phone || invitation.mobile,
-      }),
-    );
-    const response = await fetch("/api/staff-onboarding/submit", {
-      method: "POST",
-      body: form,
-    });
-    const result = (await response.json()) as { message?: string };
-    setPending(false);
-    if (!response.ok)
-      return setError(
-        result.message ?? "No fue posible enviar tu información.",
+          },
+        }),
+        signal: controller.signal,
+      });
+      const result = await readJson(response);
+      if (!response.ok)
+        throw new Error(
+          String(result.message ?? "No fue posible enviar tu información."),
+        );
+      setUploadProgress(100);
+      setSubmitted(true);
+    } catch (cause) {
+      if (uploaded.length)
+        void fetch("/api/staff-onboarding/upload", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            token,
+            paths: uploaded.map((document) => document.path),
+          }),
+        });
+      setError(
+        cause instanceof DOMException && cause.name === "AbortError"
+          ? timedOut
+            ? "La carga superó el tiempo máximo. Revisa tu conexión e inténtalo nuevamente."
+            : "El envío fue cancelado. Puedes intentarlo nuevamente."
+          : cause instanceof Error
+            ? cause.message
+            : "No fue posible enviar tu información.",
       );
-    setSubmitted(true);
+    } finally {
+      window.clearTimeout(timeout);
+      abortRef.current = null;
+      setPending(false);
+      setUploadLabel("");
+    }
   };
   if (submitted)
     return (
@@ -138,6 +271,20 @@ export function StaffOnboardingForm({
             {error}
           </p>
         ) : null}
+        {pending ? (
+          <div className="mt-5" aria-live="polite">
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span>{uploadLabel}</span>
+              <span>{uploadProgress}%</span>
+            </div>
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted/20">
+              <div
+                className="h-full bg-brand transition-all"
+                style={{ width: `${uploadProgress}%` }}
+              />
+            </div>
+          </div>
+        ) : null}
         <div className="mt-7 flex justify-between gap-3">
           <button
             className="inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 font-semibold disabled:opacity-40"
@@ -158,12 +305,27 @@ export function StaffOnboardingForm({
               <ChevronRight className="size-4" />
             </button>
           ) : (
-            <button
-              className="min-h-11 rounded-xl bg-brand px-5 font-semibold text-brand-foreground"
-              disabled={pending || capabilities.length === 0}
-            >
-              {pending ? "Enviando…" : "Enviar para revisión"}
-            </button>
+            <div className="flex gap-3">
+              {pending ? (
+                <button
+                  className="min-h-11 rounded-xl border px-5 font-semibold"
+                  type="button"
+                  onClick={() => abortRef.current?.abort()}
+                >
+                  Cancelar
+                </button>
+              ) : null}
+              <button
+                className="min-h-11 rounded-xl bg-brand px-5 font-semibold text-brand-foreground"
+                disabled={pending || capabilities.length === 0}
+              >
+                {pending
+                  ? "Enviando…"
+                  : error
+                    ? "Reintentar envío"
+                    : "Enviar para revisión"}
+              </button>
+            </div>
           )}
         </div>
       </form>

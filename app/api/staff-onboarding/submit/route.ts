@@ -2,23 +2,33 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { staffOnboardingTokenHash } from "@/features/staff-onboarding/staff-onboarding.service";
 
-const documents = [
-  { field: "identityFront", type: "IDENTITY_FRONT" },
-  { field: "identityBack", type: "IDENTITY_BACK" },
-  { field: "licenseFront", type: "DRIVER_LICENSE_FRONT" },
-  { field: "licenseBack", type: "DRIVER_LICENSE_BACK" },
-] as const;
+const documentTypes = new Set([
+  "IDENTITY_FRONT",
+  "IDENTITY_BACK",
+  "DRIVER_LICENSE_FRONT",
+  "DRIVER_LICENSE_BACK",
+]);
+type UploadedDocument = {
+  documentType: string;
+  path: string;
+  fileName: string;
+  mimeType: string;
+};
+
 export async function POST(request: Request) {
-  const uploaded: string[] = [];
+  const newPaths: string[] = [];
+  let invitationId = "";
+  let documentsPersisted = false;
+  let previousDocuments: Array<Record<string, unknown>> = [];
   try {
-    const form = await request.formData(),
-      token = String(form.get("token") ?? ""),
-      payload = JSON.parse(String(form.get("payload") ?? "{}")) as Record<
-        string,
-        unknown
-      >;
-    const admin = createAdminClient(),
-      now = new Date().toISOString();
+    const body = (await request.json()) as Record<string, unknown>;
+    const token = String(body.token ?? "");
+    const payload = (body.payload ?? {}) as Record<string, unknown>;
+    const uploadedDocuments = Array.isArray(body.documents)
+      ? (body.documents as UploadedDocument[])
+      : [];
+    const admin = createAdminClient();
+    const now = new Date().toISOString();
     const { data: invitation, error } = await admin
       .from("staff_onboarding_invitations")
       .select("id,email,status")
@@ -26,11 +36,13 @@ export async function POST(request: Request) {
       .gt("expires_at", now)
       .in("status", ["INVITED", "OPENED", "CHANGES_REQUESTED"])
       .maybeSingle();
-    if (error || !invitation)
+    if (error) throw error;
+    if (!invitation)
       return NextResponse.json(
         { message: "La invitación ya no está disponible." },
         { status: 404 },
       );
+    invitationId = invitation.id;
     const required = [
       "rut",
       "birthDate",
@@ -59,57 +71,56 @@ export async function POST(request: Request) {
       (payload.capabilities as string[]).some(
         (item) => item === "ASSEMBLY" || item === "DISASSEMBLY",
       );
-    for (const item of documents) {
-      const file = form.get(item.field);
-      if (!(file instanceof File) || file.size === 0) {
-        if (item.field.startsWith("license") && !requiresLicense) continue;
-        throw new Error(
-          `Adjunta ${item.type.toLowerCase().replaceAll("_", " ")}.`,
-        );
-      }
-      if (file.size > 10_485_760) throw new Error(`${file.name} supera 10 MB.`);
-      if (
-        !["image/jpeg", "image/png", "image/webp", "application/pdf"].includes(
-          file.type,
-        )
+    const requiredDocumentTypes = ["IDENTITY_FRONT", "IDENTITY_BACK"];
+    if (requiresLicense)
+      requiredDocumentTypes.push("DRIVER_LICENSE_FRONT", "DRIVER_LICENSE_BACK");
+    const prefix = `staff-onboarding/${invitation.id}/`;
+    const documents = uploadedDocuments.filter(
+      (document) =>
+        documentTypes.has(document.documentType) &&
+        document.path.startsWith(prefix),
+    );
+    const uniqueDocumentTypes = new Set(
+      documents.map((document) => document.documentType),
+    );
+    if (
+      documents.length !== uploadedDocuments.length ||
+      uniqueDocumentTypes.size !== documents.length ||
+      requiredDocumentTypes.some(
+        (type) => !documents.some((document) => document.documentType === type),
       )
-        throw new Error("Los documentos deben ser JPG, PNG, WEBP o PDF.");
-      const extension = file.name.split(".").pop()?.toLowerCase() || "bin",
-        path = `staff-onboarding/${invitation.id}/${item.type.toLowerCase()}-${crypto.randomUUID()}.${extension}`;
-      const { error: uploadError } = await admin.storage
+    )
+      throw new Error("Faltan documentos requeridos para enviar el registro.");
+
+    for (const document of documents) {
+      const { data: exists, error: storageError } = await admin.storage
         .from("orbit-documents")
-        .upload(path, await file.arrayBuffer(), {
-          contentType: file.type,
-          upsert: false,
-        });
-      if (uploadError) throw uploadError;
-      uploaded.push(path);
-      const { data: previous } = await admin
-        .from("staff_onboarding_documents")
-        .select("storage_bucket,storage_path")
-        .eq("invitation_id", invitation.id)
-        .eq("document_type", item.type)
-        .maybeSingle();
-      await admin
-        .from("staff_onboarding_documents")
-        .delete()
-        .eq("invitation_id", invitation.id)
-        .eq("document_type", item.type);
-      if (previous?.storage_path)
-        await admin.storage
-          .from(previous.storage_bucket)
-          .remove([previous.storage_path]);
-      const { error: documentError } = await admin
-        .from("staff_onboarding_documents")
-        .insert({
-          invitation_id: invitation.id,
-          document_type: item.type,
-          storage_path: path,
-          file_name: file.name,
-          mime_type: file.type,
-        });
-      if (documentError) throw documentError;
+        .exists(document.path);
+      if (storageError || !exists)
+        throw storageError ?? new Error(`No se cargó ${document.fileName}.`);
+      newPaths.push(document.path);
     }
+
+    const { data: storedDocuments, error: previousError } = await admin
+      .from("staff_onboarding_documents")
+      .select(
+        "invitation_id,staff_id,document_type,storage_bucket,storage_path,file_name,mime_type,created_at",
+      )
+      .eq("invitation_id", invitation.id);
+    if (previousError) throw previousError;
+    previousDocuments = storedDocuments ?? [];
+    const rows = documents.map((document) => ({
+      invitation_id: invitation.id,
+      document_type: document.documentType,
+      storage_path: document.path,
+      file_name: document.fileName,
+      mime_type: document.mimeType,
+    }));
+    const { error: documentError } = await admin
+      .from("staff_onboarding_documents")
+      .upsert(rows, { onConflict: "invitation_id,document_type" });
+    if (documentError) throw documentError;
+    documentsPersisted = true;
     const { error: updateError } = await admin
       .from("staff_onboarding_invitations")
       .update({
@@ -121,12 +132,44 @@ export async function POST(request: Request) {
       })
       .eq("id", invitation.id);
     if (updateError) throw updateError;
+    const replacedPaths = (previousDocuments ?? [])
+      .filter((previous) =>
+        documents.some(
+          (document) =>
+            document.documentType === previous.document_type &&
+            document.path !== previous.storage_path,
+        ),
+      )
+      .map((previous) => String(previous.storage_path));
+    if (replacedPaths.length)
+      await admin.storage.from("orbit-documents").remove(replacedPaths);
+    console.info("staff_onboarding.submitted", {
+      invitationId: invitation.id,
+      documentCount: documents.length,
+    });
     return NextResponse.json({ ok: true });
   } catch (error) {
-    if (uploaded.length) {
+    if (documentsPersisted && invitationId) {
       const admin = createAdminClient();
-      await admin.storage.from("orbit-documents").remove(uploaded);
+      const { error: rollbackDeleteError } = await admin
+        .from("staff_onboarding_documents")
+        .delete()
+        .eq("invitation_id", invitationId);
+      const { error: rollbackInsertError } = previousDocuments.length
+        ? await admin.from("staff_onboarding_documents").insert(previousDocuments)
+        : { error: null };
+      if (rollbackDeleteError || rollbackInsertError)
+        console.error("staff_onboarding.document_rollback_failed", {
+          invitationId,
+          rollbackDeleteError,
+          rollbackInsertError,
+        });
     }
+    if (newPaths.length) {
+      const admin = createAdminClient();
+      await admin.storage.from("orbit-documents").remove(newPaths);
+    }
+    console.error("staff_onboarding.submission_failed", error);
     return NextResponse.json(
       {
         message:
