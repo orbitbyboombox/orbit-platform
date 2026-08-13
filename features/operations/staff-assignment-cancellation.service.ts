@@ -103,16 +103,34 @@ export async function deliverAssignmentCancellationEmail(
     sentIds: string[] = [],
     failures: string[] = [];
   for (const recipient of recipients) {
+    const staffName =
+        `${staff?.first_name ?? ""} ${staff?.last_name ?? ""}`.trim() ||
+        "Colaborador BOOMBOX",
+      eventName = project?.name ?? "Evento BOOMBOX",
+      operatorCancellation =
+        recipient.founder && cancellation.responsibility === "OPERATOR";
     const subject = recipient.founder
-        ? cancellation.responsibility === "OPERATOR"
-          ? "🚨 OPERADOR CANCELÓ EVENTO"
+        ? operatorCancellation
+          ? `🚨 OPERADOR CANCELÓ EVENTO · ${eventName}`
           : "🚨 STAFF CANCELÓ EVENTO"
         : "Tu asignación BOOMBOX fue cancelada",
       heading = recipient.founder
-        ? "URGENTE · Asignación de Staff cancelada"
+        ? operatorCancellation
+          ? "EVENTO CANCELADO POR OPERADOR"
+          : "URGENTE · Asignación de Staff cancelada"
         : "Asignación cancelada por BOOMBOX",
-      textBody = [heading,...rows.map(([label,value])=>`${label}: ${value}`),eventUrl].join("\n"),
-      htmlBody = `<main style="font-family:Arial,sans-serif;color:#171717;line-height:1.6"><h1>${escapeHtml(heading)}</h1><table style="border-collapse:collapse">${rows.map(([label,value])=>`<tr><td style="padding:7px 12px;color:#666">${escapeHtml(label)}</td><td style="padding:7px 12px;font-weight:700">${escapeHtml(value)}</td></tr>`).join("")}</table><p><a href="${eventUrl}" style="display:inline-block;background:#F78900;color:#111;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:10px">Abrir Evento en ORBIT</a></p></main>`;
+      summary = operatorCancellation
+        ? `Evento: ${eventName}\nCanceló: ${staffName}`
+        : "",
+      textBody = [
+        heading,
+        summary,
+        ...rows.map(([label, value]) => `${label}: ${value}`),
+        eventUrl,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      htmlBody = `<main style="font-family:Arial,sans-serif;color:#171717;line-height:1.6"><h1>${escapeHtml(heading)}</h1>${operatorCancellation ? `<section style="margin:18px 0;padding:16px 18px;border-left:4px solid #dc2626;background:#fef2f2"><p style="margin:0 0 6px;color:#991b1b;font-size:13px;font-weight:700;text-transform:uppercase">Atención operacional inmediata</p><p style="margin:0;font-size:18px"><strong>Evento:</strong> ${escapeHtml(eventName)}</p><p style="margin:4px 0 0;font-size:18px"><strong>Canceló:</strong> ${escapeHtml(staffName)}</p></section>` : ""}<table style="border-collapse:collapse">${rows.map(([label,value])=>`<tr><td style="padding:7px 12px;color:#666">${escapeHtml(label)}</td><td style="padding:7px 12px;font-weight:700">${escapeHtml(value)}</td></tr>`).join("")}</table><p><a href="${eventUrl}" style="display:inline-block;background:#F78900;color:#111;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:10px">Abrir Evento en ORBIT</a></p></main>`;
     let delivered = false,
       lastError = "";
     for (let attempt=1;attempt<=3;attempt+=1) {
