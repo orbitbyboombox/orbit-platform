@@ -7,7 +7,6 @@ import {
   History,
   Pencil,
   Search,
-  Trash2,
   UserX,
   X,
 } from "lucide-react";
@@ -15,7 +14,6 @@ import { Button } from "@/components/ui/button";
 import {
   assignOperationalStaffAction,
   createOperationalStaffAction,
-  deleteOperationalStaffAction,
   disableOperationalStaffAction,
   updateOperationalStaffAction,
   type StaffOperationalRecord,
@@ -179,19 +177,6 @@ export function StaffOperationCenter({
       );
     });
   };
-  const remove = (item: StaffOperationalRecord) => {
-    if (
-      !window.confirm(
-        `¿Eliminar a ${item.firstName} ${item.lastName} del Staff activo? El historial se conservará.`,
-      )
-    )
-      return;
-    startTransition(async () => {
-      const result = await deleteOperationalStaffAction(item);
-      if (!result.ok) return setError(result.error);
-      setStaff((current) => current.filter((member) => member.id !== item.id));
-    });
-  };
   const assign = (data: FormData) => {
     setError("");
     startTransition(async () => {
@@ -335,7 +320,7 @@ export function StaffOperationCenter({
             <p className="mt-1 text-2xl font-semibold">
               {item.assignments.length}
             </p>
-            <div className="mt-5 grid grid-cols-2 gap-2 border-t pt-4 sm:grid-cols-5 lg:grid-cols-2 xl:grid-cols-5">
+            <div className="mt-5 grid grid-cols-2 gap-2 border-t pt-4 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
               <Action
                 icon={<Eye />}
                 label="Abrir"
@@ -351,12 +336,6 @@ export function StaffOperationCenter({
                 label="Deshabilitar"
                 disabled={pending || item.status === "DISABLED"}
                 onClick={() => disable(item)}
-              />
-              <Action
-                icon={<Trash2 />}
-                label="Eliminar"
-                danger
-                onClick={() => remove(item)}
               />
               <Action
                 icon={<History />}

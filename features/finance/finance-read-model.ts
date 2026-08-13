@@ -37,14 +37,7 @@ export type FinanceDashboardReadModel = {
   risks: FinanceRisk[];
 };
 
-type AccountKey = "BANCO_CHILE" | "BANCO_SANTANDER" | "CAJA_CHICA" | "TRANSBANK" | "MERCADO_PAGO";
-const ACCOUNT_LABELS: Record<AccountKey, string> = {
-  BANCO_CHILE: "Banco Chile",
-  BANCO_SANTANDER: "Banco Santander",
-  CAJA_CHICA: "Caja Chica",
-  TRANSBANK: "Transbank",
-  MERCADO_PAGO: "Mercado Pago",
-};
+type CashAccount={code:string;name:string;kind:string;primary:boolean};
 const number = (value: unknown) => Number(value ?? 0) || 0;
 const sum = <T,>(rows: readonly T[], value: (row: T) => number) => rows.reduce((total, row) => total + value(row), 0);
 const dateOnly = (value: string | null | undefined) => value?.slice(0, 10) ?? "";
@@ -56,13 +49,12 @@ const metadata = (value: unknown): Record<string, unknown> => {
   if (value && typeof value === "object") return value as Record<string, unknown>;
   try { return JSON.parse(String(value ?? "{}")) as Record<string, unknown>; } catch { return {}; }
 };
-const accountKey = (value: unknown): AccountKey | null => {
+const accountKey = (value: unknown,accounts:readonly CashAccount[]): string | null => {
   const normalized = String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-  if (normalized.includes("santander")) return "BANCO_SANTANDER";
-  if (normalized.includes("banco chile") || normalized.includes("banco de chile")) return "BANCO_CHILE";
-  if (normalized.includes("mercado pago") || normalized.includes("mercadopago")) return "MERCADO_PAGO";
-  if (normalized.includes("transbank") || normalized.includes("webpay")) return "TRANSBANK";
-  if (normalized.includes("efectivo") || normalized.includes("caja chica")) return "CAJA_CHICA";
+  const direct=accounts.find(account=>normalized.includes(account.code.toLowerCase().replaceAll("_"," "))||normalized.includes(account.name.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase()));
+  if(direct)return direct.code;
+  if(normalized.includes("mercado pago")||normalized.includes("mercadopago"))return accounts.find(account=>account.kind==="PAYMENT_GATEWAY")?.code??null;
+  if(normalized.includes("transfer"))return accounts.find(account=>account.primary)?.code??null;
   return null;
 };
 const monthName = new Intl.DateTimeFormat("es-CL", { month: "long", year: "numeric", timeZone: "America/Santiago" });
@@ -82,7 +74,7 @@ export async function loadFinanceDashboardReadModel(client: SupabaseClient): Pro
   next30Date.setUTCDate(next30Date.getUTCDate() + 30);
   const next30 = next30Date.toISOString().slice(0, 10);
 
-  const [truth, receivablesResult, paymentsResult, expensesResult, settlementsResult, staffMovementsResult, fuelResult, integrityResult] = await Promise.all([
+  const [truth, receivablesResult, paymentsResult, expensesResult, settlementsResult, staffMovementsResult, fuelResult, integrityResult,bankAccountsResult] = await Promise.all([
     loadFinancialTruth(client),
     client.from("accounts_receivable_projection").select("id,project_id,customer_id,due_date,amount,paid_amount,outstanding_balance,effective_status"),
     client.from("invoice_payments").select("id,invoice_id,amount,paid_at,method,deleted_at,invoices!inner(financial_record_state,record_origin,status,deleted_at)").is("deleted_at", null).eq("invoices.financial_record_state", "ACTIVE").eq("invoices.record_origin", "PRODUCTION").neq("invoices.status", "CANCELLED").is("invoices.deleted_at", null),
@@ -91,8 +83,9 @@ export async function loadFinanceDashboardReadModel(client: SupabaseClient): Pro
     client.from("event_staff_settlement_movements").select("id,settlement_id,movement_type,amount,movement_date,method").is("deleted_at", null),
     client.from("vehicle_fuel_logs").select("id,fuel_date,total_amount,receipt_path"),
     client.from("financial_integrity_issues").select("id,status").eq("status", "OPEN"),
+    client.from("finance_bank_accounts").select("code,name,account_kind,is_primary").eq("active",true).order("is_primary",{ascending:false}),
   ]);
-  const error = receivablesResult.error ?? paymentsResult.error ?? expensesResult.error ?? settlementsResult.error ?? staffMovementsResult.error ?? fuelResult.error;
+  const error = receivablesResult.error ?? paymentsResult.error ?? expensesResult.error ?? settlementsResult.error ?? staffMovementsResult.error ?? fuelResult.error??bankAccountsResult.error;
   if (error) throw error;
 
   const activeTruth = truth.filter((row) => row.status === "CONFIRMED");
@@ -114,10 +107,11 @@ export async function loadFinanceDashboardReadModel(client: SupabaseClient): Pro
   const outgoingAll = sum(paidExpenses, (row) => number(row.total)) + sum(staffCashMovements, (row) => row.signedAmount) + sum(fuel, (row) => number(row.total_amount));
   const availableCash = collectedAll - outgoingAll;
 
-  const cashAccounts = new Map<AccountKey, number>(Object.keys(ACCOUNT_LABELS).map((key) => [key as AccountKey, 0]));
+  const configuredAccounts:CashAccount[]=(bankAccountsResult.data??[]).map(row=>({code:row.code,name:row.name,kind:row.account_kind,primary:row.is_primary}));
+  const cashAccounts = new Map<string, number>(configuredAccounts.map(account=>[account.code,0]));
   let unassignedCash = 0;
   const registerCash = (source: unknown, amount: number) => {
-    const key = accountKey(source);
+    const key = accountKey(source,configuredAccounts);
     if (key) cashAccounts.set(key, (cashAccounts.get(key) ?? 0) + amount);
     else unassignedCash += amount;
   };
@@ -195,7 +189,7 @@ export async function loadFinanceDashboardReadModel(client: SupabaseClient): Pro
     cash: {
       total: availableCash,
       unassigned: unassignedCash,
-      accounts: (Object.keys(ACCOUNT_LABELS) as AccountKey[]).map((key) => ({ label: ACCOUNT_LABELS[key], value: cashAccounts.get(key) ?? 0, href: `/finance/cash-flow?account=${key}` })),
+      accounts: configuredAccounts.map(account => ({ label:account.name, value: cashAccounts.get(account.code) ?? 0, href: `/finance/cash-flow?account=${account.code}` })),
     },
     today: [
       moneyMetric("Ventas de hoy", todayRevenue, "Eventos activos con fecha de hoy.", "/projects?date=today"),

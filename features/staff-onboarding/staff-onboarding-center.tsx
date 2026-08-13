@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Check, MailPlus, UserRoundCheck, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Check, Eye, MailPlus, Pencil, RotateCw, Trash2, UserRoundCheck, X } from "lucide-react";
 import {
   inviteStaffAction,
+  manageStaffInvitationAction,
   reviewStaffOnboardingAction,
 } from "./staff-onboarding.actions";
 
@@ -24,10 +26,12 @@ export function StaffOnboardingCenter({
 }: {
   invitations: StaffOnboardingInvitation[];
 }) {
+  const router=useRouter();
   const [inviteOpen, setInviteOpen] = useState(false);
   const [reviewing, setReviewing] = useState<StaffOnboardingInvitation | null>(
     null,
   );
+  const [editing, setEditing] = useState<StaffOnboardingInvitation | null>(null);
   const [pending, start] = useTransition();
   const [message, setMessage] = useState("");
   const submitInvite = (form: FormData) =>
@@ -38,7 +42,7 @@ export function StaffOnboardingCenter({
           ? (result.message ?? "Invitación enviada.")
           : (result.error ?? "Error"),
       );
-      if (result.ok) setInviteOpen(false);
+      if (result.ok){setInviteOpen(false);router.refresh();}
     });
   const review = (action: string, notes: string) => {
     if (!reviewing) return;
@@ -53,9 +57,14 @@ export function StaffOnboardingCenter({
           ? (result.message ?? "Revisión guardada.")
           : (result.error ?? "Error"),
       );
-      if (result.ok) setReviewing(null);
+      if (result.ok){setReviewing(null);router.refresh();}
     });
   };
+  const manage=(item:StaffOnboardingInvitation,action:string,values?:FormData)=>start(async()=>{
+    const form=values??new FormData();form.set("invitationId",item.id);form.set("action",action);
+    if((action==="CANCEL"||action==="DELETE")&&!window.confirm(action==="DELETE"?"¿Eliminar permanentemente esta invitación pendiente?":"¿Cancelar esta invitación?"))return;
+    const result=await manageStaffInvitationAction(form);setMessage(result.ok?(result.message??"Operación completada."):(result.error??"Error"));if(result.ok){setEditing(null);router.refresh();}
+  });
   return (
     <section className="rounded-2xl border bg-card p-5 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -81,7 +90,6 @@ export function StaffOnboardingCenter({
       </div>
       <div className="mt-5 grid gap-3 lg:grid-cols-2">
         {invitations
-          .filter((item) => item.status !== "APPROVED")
           .map((item) => (
             <article className="rounded-xl border p-4" key={item.id}>
               <div className="flex items-start justify-between gap-3">
@@ -97,18 +105,14 @@ export function StaffOnboardingCenter({
                   {label(item.status)}
                 </span>
               </div>
-              {item.status === "SUBMITTED" ? (
-                <button
-                  className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-brand"
-                  onClick={() => setReviewing(item)}
-                >
-                  <UserRoundCheck className="size-4" />
-                  Revisar información
-                </button>
-              ) : null}
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Action icon={Eye} label="Ver" onClick={()=>setReviewing(item)}/>
+                {item.status!=="APPROVED"?<><Action icon={Pencil} label="Editar" onClick={()=>setEditing(item)}/><Action icon={RotateCw} label="Reenviar" onClick={()=>manage(item,"RESEND")}/>{!["CANCELLED","REJECTED","EXPIRED"].includes(item.status)?<Action icon={X} label="Cancelar" onClick={()=>manage(item,"CANCEL")}/>:null}<Action icon={Trash2} label="Eliminar" onClick={()=>manage(item,"DELETE")}/></>:null}
+                {item.status === "SUBMITTED" ? <Action icon={UserRoundCheck} label="Aprobar / revisar" onClick={()=>setReviewing(item)} primary/>:null}
+              </div>
             </article>
           ))}
-        {!invitations.some((item) => item.status !== "APPROVED") ? (
+        {!invitations.length ? (
           <p className="rounded-xl border border-dashed p-5 text-sm text-muted">
             No hay invitaciones pendientes.
           </p>
@@ -134,6 +138,7 @@ export function StaffOnboardingCenter({
           review={review}
         />
       ) : null}
+      {editing?<EditDialog invitation={editing} close={()=>setEditing(null)} pending={pending} submit={form=>manage(editing,"EDIT",form)}/>:null}
     </section>
   );
 }
@@ -144,6 +149,9 @@ const label = (status: string) =>
     SUBMITTED: "Pendiente de aprobación",
     CHANGES_REQUESTED: "Cambios solicitados",
     REJECTED: "Rechazado",
+    APPROVED: "Aprobado · Staff creado",
+    CANCELLED: "Cancelado",
+    EXPIRED: "Expirado",
   })[status] ?? status;
 function InviteDialog({
   close,
@@ -182,14 +190,18 @@ function InviteDialog({
     </div>
   );
 }
+function EditDialog({invitation,close,pending,submit}:{invitation:StaffOnboardingInvitation;close:()=>void;pending:boolean;submit:(form:FormData)=>void}){return <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4"><form action={submit} className="w-full max-w-lg rounded-2xl border bg-card p-6"><div className="flex justify-between"><h3 className="text-xl font-semibold">Editar invitación</h3><button aria-label="Cerrar" onClick={close} type="button"><X/></button></div><div className="mt-5 grid gap-4 sm:grid-cols-2"><Field defaultValue={invitation.firstName} name="firstName" label="Nombre"/><Field defaultValue={invitation.lastName} name="lastName" label="Apellido"/><Field defaultValue={invitation.email} name="email" label="Email" type="email"/><Field defaultValue={invitation.mobile} name="mobile" label="Móvil" type="tel"/></div><button className="mt-6 w-full rounded-xl bg-brand py-3 font-semibold text-brand-foreground" disabled={pending}>{pending?"Guardando…":"Guardar cambios"}</button></form></div>}
+function Action({icon:Icon,label,onClick,primary=false}:{icon:typeof Eye;label:string;onClick:()=>void;primary?:boolean}){return <button className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold ${primary?"bg-brand text-brand-foreground":"border"}`} disabled={false} onClick={onClick}><Icon className="size-3.5"/>{label}</button>}
 function Field({
   name,
   label,
   type = "text",
+  defaultValue,
 }: {
   name: string;
   label: string;
   type?: string;
+  defaultValue?: string;
 }) {
   return (
     <label className="text-sm font-medium">
@@ -197,6 +209,7 @@ function Field({
       <input
         className="mt-2 min-h-11 w-full rounded-xl border bg-background px-3"
         name={name}
+        defaultValue={defaultValue}
         required
         type={type}
       />
@@ -260,7 +273,7 @@ function ReviewDialog({
             ))}
           </div>
         </div>
-        <textarea
+        {invitation.status==="SUBMITTED"?<><textarea
           className="mt-5 min-h-24 w-full rounded-xl border bg-background p-3"
           placeholder="Observación o cambios solicitados"
           value={notes}
@@ -289,7 +302,7 @@ function ReviewDialog({
             <Check className="size-4" />
             Aprobar
           </button>
-        </div>
+        </div></>:<p className="mt-5 rounded-xl border bg-background/40 p-3 text-sm text-muted">Esta invitación está en estado {label(invitation.status)} y se muestra en modo consulta.</p>}
       </div>
     </div>
   );

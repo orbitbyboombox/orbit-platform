@@ -133,3 +133,30 @@ export async function reviewStaffOnboardingAction(form: FormData) {
     };
   }
 }
+
+async function sendOnboardingEmail(email:string,firstName:string,token:string){
+  const url=`${appUrl()}/staff/onboarding/${token}`;
+  await new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken()).send({to:email,subject:"Completa tu registro Staff BOOMBOX",textBody:`Hola ${firstName}. Completa tu registro seguro en ${url}. El enlace vence en 7 días.`,htmlBody:`<main style="font-family:Arial,sans-serif;color:#171717"><h1>Staff BOOMBOX</h1><p>Hola ${firstName}, completa tu información para incorporarte al equipo operacional.</p><p><a href="${url}" style="display:inline-block;background:#F78900;color:#111;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:10px">Completar mi registro</a></p></main>`,driveFileIds:[]});
+}
+
+export async function manageStaffInvitationAction(form:FormData){
+  try{
+    const{client}=await admin();const id=String(form.get("invitationId")??"");const action=String(form.get("action")??"");
+    const{data:item,error:readError}=await client.from("staff_onboarding_invitations").select("id,first_name,last_name,email,mobile,status,staff_id").eq("id",id).single();if(readError)throw readError;
+    if(item.status==="APPROVED")throw new Error("Un colaborador aprobado no se elimina. Desactívalo o archívalo desde su perfil Staff.");
+    if(action==="EDIT"){
+      const payload={first_name:String(form.get("firstName")??"").trim(),last_name:String(form.get("lastName")??"").trim(),email:String(form.get("email")??"").trim().toLowerCase(),mobile:String(form.get("mobile")??"").trim(),updated_at:new Date().toISOString()};
+      if(!payload.first_name||!payload.last_name||!payload.mobile||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email))throw new Error("Completa los datos de la invitación.");
+      const{error}=await client.from("staff_onboarding_invitations").update(payload).eq("id",id);if(error)throw error;
+    }else if(action==="RESEND"){
+      if(["CANCELLED","REJECTED","EXPIRED"].includes(item.status))throw new Error("Esta invitación ya no está activa.");
+      const token=randomBytes(32).toString("hex");const{error}=await client.from("staff_onboarding_invitations").update({token_hash:hash(token),expires_at:new Date(Date.now()+7*86400000).toISOString(),updated_at:new Date().toISOString()}).eq("id",id);if(error)throw error;await sendOnboardingEmail(item.email,item.first_name,token);
+    }else if(action==="CANCEL"){
+      const{error}=await client.from("staff_onboarding_invitations").update({status:"CANCELLED",updated_at:new Date().toISOString()}).eq("id",id);if(error)throw error;
+    }else if(action==="DELETE"){
+      if(!["INVITED","OPENED","CHANGES_REQUESTED","REJECTED","CANCELLED","EXPIRED"].includes(item.status))throw new Error("Solo las invitaciones pendientes sin aprobación pueden eliminarse.");
+      const{error}=await client.from("staff_onboarding_invitations").delete().eq("id",id).is("staff_id",null);if(error)throw error;
+    }else throw new Error("Acción no válida.");
+    revalidatePath("/resources/staff");return{ok:true,message:action==="RESEND"?"Invitación reenviada.":action==="DELETE"?"Invitación eliminada.":action==="CANCEL"?"Invitación cancelada.":"Invitación actualizada."};
+  }catch(error){return{ok:false,error:error instanceof Error?error.message:"No fue posible gestionar la invitación."};}
+}
