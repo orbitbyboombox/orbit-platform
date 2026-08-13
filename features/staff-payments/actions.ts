@@ -13,7 +13,45 @@ async function context() {
   if (!data.user) throw new Error("Tu sesión expiró. Vuelve a iniciar sesión.");
   const { data: profile } = await client.from("profiles").select("role").eq("id", data.user.id).single();
   if (!profile || !["CEO", "ADMINISTRATOR"].includes(profile.role)) throw new Error("Solo Administración puede gestionar pagos de Staff.");
-  return { client };
+  return { client, userId: data.user.id };
+}
+
+export async function addStaffSettlementAdjustmentAction(data: FormData): Promise<Result> {
+  try {
+    const { client } = await context();
+    const paymentId = text(data, "paymentId"), reason = text(data, "adjustmentReason"), comment = text(data, "adjustmentComment");
+    const direction = text(data, "adjustmentDirection") === "NEGATIVE" ? -1 : 1;
+    const amount = Math.abs(Number(data.get("adjustmentAmount"))) * direction;
+    if (!paymentId || !Number.isFinite(amount) || amount === 0 || !comment) throw new Error("Ingresa el ajuste, motivo y comentario.");
+    const { data: payment, error: readError } = await client.from("event_staff_payments").select("project_id").eq("id", paymentId).is("deleted_at", null).single();
+    if (readError) throw readError;
+    const { error } = await client.rpc("add_staff_settlement_adjustment", { p_settlement_id: paymentId, p_reason: reason, p_amount: amount, p_comment: comment });
+    if (error) throw error;
+    revalidateSettlement(payment.project_id);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: friendly(error, "No fue posible registrar el ajuste.") };
+  }
+}
+
+export async function addStaffSettlementReimbursementAction(data: FormData): Promise<Result> {
+  try {
+    const { client, userId } = await context();
+    const paymentId = text(data, "paymentId"), category = text(data, "reimbursementCategory"), description = text(data, "reimbursementDescription"), status = text(data, "reimbursementStatus");
+    const amount = Number(data.get("reimbursementAmount"));
+    if (!paymentId || !description || !Number.isFinite(amount) || amount <= 0) throw new Error("Ingresa la descripción y monto del reembolso.");
+    if (!["FOOD", "PARKING", "FUEL", "TOLLS", "ACCOMMODATION", "OPERATIONAL_PURCHASES", "OTHER"].includes(category)) throw new Error("Categoría de reembolso inválida.");
+    if (!["PENDING", "PAID"].includes(status)) throw new Error("Estado de reembolso inválido.");
+    const { data: payment, error: readError } = await client.from("event_staff_payments").select("project_id,staff_id").eq("id", paymentId).eq("status", "CONFIRMED").is("deleted_at", null).single();
+    if (readError) throw readError;
+    const metadata = JSON.stringify({ description, source: "EVENT_STAFF_SETTLEMENT", reimbursementCategory: category, auditReason: "Reembolso operacional registrado desde la liquidación del Evento" });
+    const { error } = await client.from("expenses").insert({ project_id: payment.project_id, responsible_staff_id: payment.staff_id, event_staff_settlement_id: paymentId, occurred_on: text(data, "reimbursementDate") || new Date().toISOString().slice(0, 10), category, supplier: "Reembolso Staff", subtotal: amount, vat: 0, total: amount, currency: "CLP", status, approval_reason: metadata, created_by: userId, updated_by: userId });
+    if (error) throw error;
+    revalidateSettlement(payment.project_id);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: friendly(error, "No fue posible registrar el reembolso.") };
+  }
 }
 
 function revalidateSettlement(projectId: string) {

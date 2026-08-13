@@ -166,7 +166,7 @@ export default async function ProjectWorkspacePage({
     client
       .from("event_staff_payments")
       .select(
-        "id,status,tasks,settlement_status,paid_amount,paid_at,sii_receipt_status,assembly_payment,operator_payment,disassembly_payment,transport_bonus,parking_payment,total_internal_payment,staff(first_name,last_name)",
+        "id,status,tasks,settlement_status,paid_amount,paid_at,sii_receipt_status,original_assembly_payment,original_operator_payment,original_disassembly_payment,automatic_assembly_payment,automatic_operator_payment,automatic_disassembly_payment,assembly_payment,operator_payment,disassembly_payment,transport_bonus,parking_payment,total_internal_payment,staff(first_name,last_name)",
       )
       .eq("project_id", projectId)
       .is("deleted_at", null),
@@ -222,6 +222,11 @@ export default async function ProjectWorkspacePage({
       .order("requested_at"),
     client.from("staff_event_publications").select("published").eq("project_id",projectId).maybeSingle(),
   ]);
+  const [{ data: settlementAdjustments, error: settlementAdjustmentError }, { data: settlementReimbursements, error: settlementReimbursementError }] = await Promise.all([
+    client.from("event_staff_settlement_adjustments").select("id,settlement_id,reason,amount,comment,created_by,created_at").in("settlement_id",(payroll??[]).map(item=>item.id).concat("00000000-0000-0000-0000-000000000000")).order("created_at"),
+    client.from("expenses").select("id,event_staff_settlement_id,category,total,status,occurred_on,approval_reason").eq("project_id",projectId).not("event_staff_settlement_id","is",null).is("deleted_at",null).neq("status","CANCELLED").order("occurred_on"),
+  ]);
+  if(settlementAdjustmentError)throw settlementAdjustmentError;if(settlementReimbursementError)throw settlementReimbursementError;
   const [
     { data: customer },
     { data: tasks },
@@ -965,7 +970,7 @@ export default async function ProjectWorkspacePage({
     staffAssignments: {
       projectId,
       published: staffPublication?.published ?? false,
-      settlements: (payroll ?? []).filter((item)=>item.status!=="CANCELLED").map((item)=>({id:item.id,staffName:Array.isArray(item.staff)?`${item.staff[0]?.first_name??""} ${item.staff[0]?.last_name??""}`.trim():"Staff",roles:item.tasks??[],net:Number(item.total_internal_payment),paid:Number(item.paid_amount),settlementStatus:item.settlement_status,paidAt:item.paid_at??"",receiptStatus:item.sii_receipt_status})),
+      settlements: (payroll ?? []).filter((item)=>item.status!=="CANCELLED").map((item)=>{const adjustments=(settlementAdjustments??[]).filter(value=>value.settlement_id===item.id);const reimbursements=(settlementReimbursements??[]).filter(value=>value.event_staff_settlement_id===item.id);const originalOperator=Number(item.original_operator_payment??item.automatic_operator_payment??item.operator_payment),originalAssembly=Number(item.original_assembly_payment??item.automatic_assembly_payment??item.assembly_payment),originalDisassembly=Number(item.original_disassembly_payment??item.automatic_disassembly_payment??item.disassembly_payment),originalNet=originalOperator+originalAssembly+originalDisassembly,adjustmentTotal=adjustments.reduce((sum,value)=>sum+Number(value.amount),0),reimbursementTotal=reimbursements.reduce((sum,value)=>sum+Number(value.total),0),finalAmount=originalNet+adjustmentTotal+reimbursementTotal,paid=Number(item.paid_amount);return{id:item.id,staffName:Array.isArray(item.staff)?`${item.staff[0]?.first_name??""} ${item.staff[0]?.last_name??""}`.trim():"Staff",roles:item.tasks??[],originalOperator,originalAssembly,originalDisassembly,originalNet,adjustmentTotal,reimbursementTotal,finalAmount,paid,remaining:Math.max(0,finalAmount-paid),settlementStatus:item.settlement_status,paidAt:item.paid_at??"",receiptStatus:item.sii_receipt_status,adjustments:adjustments.map(value=>({id:value.id,reason:value.reason,amount:Number(value.amount),comment:value.comment,createdAt:value.created_at,founder:"Founder"})),reimbursements:reimbursements.map(value=>{let description="Reembolso operacional";try{const metadata=JSON.parse(value.approval_reason??"{}")as{description?:string};description=metadata.description??description}catch{}return{id:value.id,category:value.category,description,amount:Number(value.total),status:value.status,date:value.occurred_on}})}}),
       requests: (staffRequests ?? []).map((request) => {
         const member = Array.isArray(request.staff) ? request.staff[0] : request.staff;
         return { id: request.id, staffName: member ? `${member.first_name} ${member.last_name}` : "Staff", responsibility: request.responsibility, requestedAt: request.requested_at };
