@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerActionClient } from "@/lib/supabase/server";
 import { synchronizeConfirmedReservationCalendar } from "@/features/connectors/google-calendar/application/google-calendar-sync.service";
-import { deliverAssignmentCancellationEmail } from "@/features/operations/staff-assignment-cancellation.service";
+import { deliverAssignmentCancellationBoundary } from "@/features/operations/staff-assignment-cancellation.service";
 
 export type StaffAssignmentMutation = {
   id?: string;
@@ -280,26 +280,51 @@ export async function cancelStaffAssignmentByFounderAction(input: {
     );
     if (error || !cancellationId)
       throw error ?? new Error("No fue posible registrar la cancelación.");
-    const delivery = await deliverAssignmentCancellationEmail(
-      ctx.client,
-      String(cancellationId),
-    );
-    await synchronizeConfirmedReservationCalendar({
-      client: ctx.client,
-      projectId: input.projectId,
-      actorId: ctx.user.id,
-      onlyExisting: true,
-    });
+    let boundaryFailures: unknown[] = [];
+    try {
+      const boundary = await deliverAssignmentCancellationBoundary(
+        ctx.client,
+        String(cancellationId),
+      );
+      boundaryFailures = boundary.failed;
+    } catch (boundaryError) {
+      boundaryFailures = [boundaryError];
+      console.error("[ORBIT][STAFF_CANCELLATION_BOUNDARY]", {
+        cancellationId,
+        stage: "load",
+        error:
+          boundaryError instanceof Error
+            ? boundaryError.message
+            : String(boundaryError),
+      });
+    }
+    try {
+      await synchronizeConfirmedReservationCalendar({
+        client: ctx.client,
+        projectId: input.projectId,
+        actorId: ctx.user.id,
+        onlyExisting: true,
+      });
+    } catch (calendarError) {
+      console.error("[ORBIT][STAFF_CANCELLATION_BOUNDARY]", {
+        cancellationId,
+        stage: "calendar",
+        error:
+          calendarError instanceof Error
+            ? calendarError.message
+            : String(calendarError),
+      });
+    }
     revalidatePath(`/projects/${input.projectId}`);
     revalidatePath("/staff-portal");
     revalidatePath("/operations");
     revalidatePath("/resources/staff");
     revalidatePath("/finance");
     revalidatePath("/reports");
-    if (delivery.status !== "SENT")
-      console.error("[ORBIT][STAFF_CANCELLATION_EMAIL]", {
+    if (boundaryFailures.length)
+      console.error("[ORBIT][STAFF_CANCELLATION_BOUNDARY_INCOMPLETE]", {
         cancellationId,
-        status: delivery.status,
+        failed: boundaryFailures,
       });
     return { ok: true };
   } catch (error) {

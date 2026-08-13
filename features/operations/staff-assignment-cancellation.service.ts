@@ -136,3 +136,149 @@ export async function deliverAssignmentCancellationEmail(
     .eq("id", cancellationId);
   return { status: "FAILED" as const };
 }
+
+type BoundaryStage = "portal" | "timeline" | "notification" | "email";
+type BoundaryResult = {
+  completed: BoundaryStage[];
+  failed: Array<{ stage: BoundaryStage; error: string }>;
+};
+
+/**
+ * Boundary B runs strictly after the cancellation RPC has committed. Each
+ * projection is isolated so Timeline, Portal or email can never invalidate the
+ * canonical Assignment cancellation and its Settlement recalculation.
+ */
+export async function deliverAssignmentCancellationBoundary(
+  client: SupabaseClient,
+  cancellationId: string,
+): Promise<BoundaryResult> {
+  const { data: cancellation, error } = await client
+    .from("staff_assignment_cancellations")
+    .select(
+      "id,project_id,staff_id,responsibility,initiated_by,reason_category,reason_detail,cancelled_by,projects(customer_id,orbit_event_id)",
+    )
+    .eq("id", cancellationId)
+    .single();
+  if (error || !cancellation)
+    throw error ?? new Error("Cancelación no encontrada para Boundary B.");
+
+  const project = Array.isArray(cancellation.projects)
+      ? cancellation.projects[0]
+      : cancellation.projects,
+    reason = [cancellation.reason_category, cancellation.reason_detail]
+      .filter(Boolean)
+      .join(" · "),
+    founderInitiated = cancellation.initiated_by === "FOUNDER",
+    completed: BoundaryStage[] = [],
+    failed: BoundaryResult["failed"] = [];
+  const run = async (stage: BoundaryStage, operation: () => Promise<void>) => {
+    try {
+      await operation();
+      completed.push(stage);
+    } catch (stageError) {
+      const message =
+        stageError instanceof Error ? stageError.message : String(stageError);
+      failed.push({ stage, error: message });
+      console.error("[ORBIT][STAFF_CANCELLATION_BOUNDARY]", {
+        cancellationId,
+        stage,
+        error: message,
+      });
+    }
+  };
+
+  await run("portal", async () => {
+    const { error: portalError } = await client
+      .from("staff_event_publications")
+      .upsert(
+        {
+          project_id: cancellation.project_id,
+          published: true,
+          published_at: new Date().toISOString(),
+          published_by: cancellation.cancelled_by,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "project_id" },
+      );
+    if (portalError) throw portalError;
+  });
+
+  await run("timeline", async () => {
+    const action = founderInitiated
+        ? "STAFF_ASSIGNMENT_CANCELLED_BY_FOUNDER"
+        : "STAFF_ASSIGNMENT_CANCELLED",
+      message = founderInitiated
+        ? "Founder canceló la asignación y el Evento volvió a requerir cobertura."
+        : "URGENTE: Staff canceló su asignación. El Evento volvió a requerir cobertura.";
+    const { error: timelineError } = await client.from("timeline_events").upsert(
+      {
+        customer_id: project?.customer_id,
+        project_id: cancellation.project_id,
+        staff_id: cancellation.staff_id,
+        orbit_event_id: project?.orbit_event_id,
+        event_type: action,
+        title: founderInitiated
+          ? "Founder canceló una asignación"
+          : "Staff canceló una asignación",
+        description: reason,
+        actor_id: cancellation.cancelled_by,
+        actor_label: founderInitiated ? "Founder" : "Staff",
+        source: founderInitiated ? "EventWorkspace" : "StaffPortal",
+        action,
+        entity_type: "StaffAssignmentCancellation",
+        entity_id: cancellation.id,
+        human_message: message,
+        correlation_id: `staff-assignment-cancellation:${cancellation.id}`,
+        reason,
+        created_by: cancellation.cancelled_by,
+      },
+      { onConflict: "correlation_id" },
+    );
+    if (timelineError) throw timelineError;
+  });
+
+  await run("notification", async () => {
+    const { error: notificationError } = await client
+      .from("internal_notifications")
+      .upsert(
+        {
+          project_id: cancellation.project_id,
+          customer_id: project?.customer_id,
+          staff_id: cancellation.staff_id,
+          notification_type: founderInitiated
+            ? "STAFF_ASSIGNMENT_CANCELLED_BY_FOUNDER"
+            : "STAFF_ASSIGNMENT_CANCELLED",
+          title: founderInitiated
+            ? "Asignación cancelada por BOOMBOX"
+            : "URGENTE · Staff canceló un Evento",
+          message: reason,
+          status: "UNREAD",
+          correlation_id: `staff-assignment-cancellation-alert:${cancellation.id}`,
+          category: founderInitiated ? "STAFF" : "OPERATIONS",
+          priority: founderInitiated ? "HIGH" : "CRITICAL",
+          action_required: true,
+          entity_type: "StaffAssignmentCancellation",
+          entity_id: cancellation.id,
+          related_href: founderInitiated
+            ? "/staff-portal"
+            : `/projects/${cancellation.project_id}`,
+          metadata: {
+            responsibility: cancellation.responsibility,
+            republished: completed.includes("portal"),
+          },
+        },
+        { onConflict: "correlation_id" },
+      );
+    if (notificationError) throw notificationError;
+  });
+
+  await run("email", async () => {
+    const delivery = await deliverAssignmentCancellationEmail(
+      client,
+      cancellationId,
+    );
+    if (delivery.status === "FAILED")
+      throw new Error("El proveedor rechazó el correo después de 3 intentos.");
+  });
+  return { completed, failed };
+}

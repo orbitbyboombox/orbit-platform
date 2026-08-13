@@ -43,7 +43,13 @@ export type StaffPortalEvent = {
   status: string;
   vehicle: string;
   equipment: string[];
-  notes: string;
+  operationalInformation: {
+    observations: string;
+    specialInstructions: string;
+    equipmentNotes: string;
+    setupNotes: string;
+    emergencyNotes: string;
+  };
   documents: Array<{ id: string; type: string }>;
   checkins: string[];
   checklist: string[];
@@ -757,10 +763,23 @@ function EventDetail({
             </div>
           </div>
           <div className="rounded-2xl border p-4">
-            <h3 className="font-semibold">Notas</h3>
-            <p className="mt-3 whitespace-pre-wrap text-sm text-muted">
-              {event.notes || "Sin notas operacionales adicionales."}
-            </p>
+            <h3 className="font-semibold">Información Operacional</h3>
+            <dl className="mt-3 space-y-3 text-sm">
+              {[
+                ["Observaciones operacionales", event.operationalInformation.observations],
+                ["Instrucciones especiales", event.operationalInformation.specialInstructions],
+                ["Equipamiento", event.operationalInformation.equipmentNotes],
+                ["Montaje", event.operationalInformation.setupNotes],
+                ["Emergencias", event.operationalInformation.emergencyNotes],
+              ].map(([label, detail]) => (
+                <div key={label}>
+                  <dt className="font-medium text-foreground">{label}</dt>
+                  <dd className="mt-1 whitespace-pre-wrap text-muted">
+                    {detail || "Sin información adicional."}
+                  </dd>
+                </div>
+              ))}
+            </dl>
           </div>
         </section>
       </article>

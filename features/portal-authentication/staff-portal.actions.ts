@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadPortalSession, requestEvidence } from "./portal-auth.service";
-import { deliverAssignmentCancellationEmail } from "@/features/operations/staff-assignment-cancellation.service";
+import { deliverAssignmentCancellationBoundary } from "@/features/operations/staff-assignment-cancellation.service";
 
 const CHECKLIST = new Set([
   "READ_OPERATIONAL_SHEET",
@@ -239,10 +239,23 @@ export async function cancelStaffAssignmentAction(form: FormData) {
       ok: false,
       message: error?.message ?? "No fue posible cancelar la asignación.",
     };
-  const delivery = await deliverAssignmentCancellationEmail(
-    admin,
-    String(cancellationId),
-  );
+  let boundaryComplete = false;
+  try {
+    const boundary = await deliverAssignmentCancellationBoundary(
+      admin,
+      String(cancellationId),
+    );
+    boundaryComplete = boundary.failed.length === 0;
+  } catch (boundaryError) {
+    console.error("[ORBIT][STAFF_CANCELLATION_BOUNDARY]", {
+      cancellationId,
+      stage: "load",
+      error:
+        boundaryError instanceof Error
+          ? boundaryError.message
+          : String(boundaryError),
+    });
+  }
   revalidatePath("/staff-portal");
   revalidatePath("/");
   revalidatePath("/operations");
@@ -251,9 +264,9 @@ export async function cancelStaffAssignmentAction(form: FormData) {
   return {
     ok: true,
     message:
-      delivery.status === "SENT"
+      boundaryComplete
         ? "Asignación cancelada. El Founder fue notificado inmediatamente."
-        : "Asignación cancelada y alerta crítica creada. El correo al Founder requiere revisión.",
+        : "Asignación cancelada correctamente. Una entrega secundaria quedó registrada para revisión.",
   };
 }
 
