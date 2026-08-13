@@ -209,8 +209,13 @@ export const MODULE_WORKSPACES = {
   DASHBOARD: [
     { key: "DASHBOARD_HEADER", label: "Encabezado", defaultVisible: true },
     {
-      key: "PUBLICATION_CONSOLE",
-      label: "Consola de publicación",
+      key: "DASHBOARD_WIDGETS",
+      label: "KPIs del Founder",
+      defaultVisible: true,
+    },
+    {
+      key: "DASHBOARD_TODAY",
+      label: "Jornada operacional",
       defaultVisible: true,
     },
     {
@@ -218,7 +223,11 @@ export const MODULE_WORKSPACES = {
       label: "Acciones rápidas",
       defaultVisible: true,
     },
-    { key: "DASHBOARD_WIDGETS", label: "Widgets", defaultVisible: true },
+    {
+      key: "PUBLICATION_CONSOLE",
+      label: "Consola de publicación",
+      defaultVisible: false,
+    },
     {
       key: "DASHBOARD_WORKSPACE_SETTINGS",
       label: "Configuración del Workspace",
