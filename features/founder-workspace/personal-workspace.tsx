@@ -247,6 +247,7 @@ const ROUTE_MODULES: [RegExp, ModuleWorkspaceKey][] = [
   [/^\/customers/, "CUSTOMERS"],
   [/^\/(events|projects)/, "EVENTS"],
   [/^\/finance\/receivables/, "RECEIVABLES"],
+  [/^\/finance\/payables/, "PAYABLES"],
   [/^\/finance/, "FINANCE"],
   [/^\/resources\/staff/, "STAFF"],
   [/^\/resources/, "RESOURCES"],

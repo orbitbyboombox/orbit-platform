@@ -94,7 +94,7 @@ export const WIDGETS = [
   {
     key: "ACCOUNTS_PAYABLE",
     label: "Cuentas por pagar",
-    href: "/finance/expenses?status=pending",
+    href: "/finance/payables",
     icon: WalletCards,
     module: "FINANCE",
   },
@@ -287,6 +287,28 @@ export const MODULE_WORKSPACES = {
       defaultVisible: false,
     },
   ],
+  PAYABLES: [
+    {
+      key: "PAYABLES_HEADER",
+      label: "Encabezado de compromisos",
+      defaultVisible: true,
+    },
+    {
+      key: "PAYABLES_KPIS",
+      label: "Resumen de pagos",
+      defaultVisible: true,
+    },
+    {
+      key: "PAYABLES_PRIORITY",
+      label: "Prioridad visual",
+      defaultVisible: true,
+    },
+    {
+      key: "PAYABLES_MANAGEMENT",
+      label: "Compromisos canónicos",
+      defaultVisible: true,
+    },
+  ],
   STAFF: [
     { key: "STAFF_CENTER", label: "Gestión de Staff", defaultVisible: true },
     { key: "STAFF_PAYMENTS", label: "Pagos de Staff", defaultVisible: true },
@@ -413,6 +435,7 @@ export const DEFAULT_WORKSPACE: FounderWorkspacePreferences = {
     "RESOURCES",
     "FINANCE",
     "RECEIVABLES",
+    "PAYABLES",
     "REPORTS",
     "SETTINGS",
   ],

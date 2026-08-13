@@ -38,6 +38,7 @@ export type NavigationKey =
   | "RESOURCES"
   | "FINANCE"
   | "RECEIVABLES"
+  | "PAYABLES"
   | "REPORTS"
   | "SETTINGS";
 
@@ -49,6 +50,7 @@ export const navigationItems: readonly NavigationItem[] = [
   { key: "RESOURCES", label: "Recursos", href: "/resources", icon: Layers3, module:"RESOURCES" },
   { key: "FINANCE", label: "Finanzas", href: "/finance", icon: CircleDollarSign, module:"FINANCE" },
   { key: "RECEIVABLES", label: "Cuentas por Cobrar", href: "/finance/receivables", icon: ReceiptText, module:"FINANCE" },
+  { key: "PAYABLES", label: "Cuentas por Pagar", href: "/finance/payables", icon: ReceiptText, module:"FINANCE" },
   { key: "REPORTS", label: "Reportes", href: "/reports", icon: BarChart3, module:"REPORTS" },
   { key: "SETTINGS", label: "Configuración", href: "/settings", icon: Settings, module:"DASHBOARD" },
 ];
