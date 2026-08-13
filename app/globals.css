@@ -17,6 +17,10 @@
   --info: #1d4ed8;
   --info-soft: #dbeafe;
   --brand: #ff9500;
+  --radius-card: 1rem;
+  --space-section: 1.5rem;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.04), 0 12px 32px rgb(0 0 0 / 0.04);
+  --shadow-card-hover: 0 2px 4px rgb(0 0 0 / 0.05), 0 18px 44px rgb(0 0 0 / 0.08);
 }
 
 @theme inline {
@@ -40,10 +44,10 @@
 }
 
 .dark {
-  --background: #0c0c0d;
+  --background: #0a0a0b;
   --foreground: #f4f4f5;
-  --card: #121214;
-  --border: #27272a;
+  --card: #111113;
+  --border: #252529;
   --muted: #a1a1aa;
   --accent: #202023;
   --accent-foreground: #fafafa;
@@ -55,6 +59,8 @@
   --danger-soft: #3b1717;
   --info: #93c5fd;
   --info-soft: #172554;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.35), 0 16px 44px rgb(0 0 0 / 0.18);
+  --shadow-card-hover: 0 2px 5px rgb(0 0 0 / 0.4), 0 22px 56px rgb(0 0 0 / 0.26);
 }
 
 body {
@@ -68,17 +74,68 @@ body {
 }
 
 * { border-color: var(--border); box-sizing: border-box; }
+html { scroll-behavior: smooth; }
 ::selection { background: color-mix(in srgb, var(--brand) 28%, transparent); }
-button, input { font: inherit; }
+button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: not-allowed; }
+
+#platform-workspace-content {
+  container-type: inline-size;
+}
+
+#platform-workspace-content :where(h1) {
+  letter-spacing: -0.04em;
+  text-wrap: balance;
+}
+
+#platform-workspace-content :where(h2, h3) {
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+
+#platform-workspace-content :where(.rounded-lg, .rounded-xl, .rounded-2xl, .rounded-3xl, .rounded-\[1\.75rem\], .rounded-\[2rem\]) {
+  border-radius: var(--radius-card);
+}
+
+#platform-workspace-content :where(.border.bg-card, .border[class*="bg-card/"]) {
+  box-shadow: var(--shadow-card);
+}
+
+#platform-workspace-content :where(article, section, details, a, button) {
+  transition-duration: 180ms;
+  transition-timing-function: cubic-bezier(.2,.8,.2,1);
+}
+
+#platform-workspace-content :where(a, button):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--brand) 70%, transparent);
+  outline-offset: 3px;
+}
+
+#platform-workspace-content :where(.border.bg-card, .border[class*="bg-card/"]):hover {
+  box-shadow: var(--shadow-card-hover);
+}
+
+.workspace-draggable {
+  transition: opacity 160ms ease, transform 180ms ease, box-shadow 180ms ease;
+}
+
+.workspace-draggable:active {
+  opacity: .84;
+}
 
 @keyframes orbit-enter {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-.orbit-enter { animation: orbit-enter 320ms ease-out both; }
+@keyframes orbit-counter-enter {
+  from { opacity: 0; transform: translateY(5px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.orbit-enter { animation: orbit-enter 260ms cubic-bezier(.2,.8,.2,1) both; }
+.orbit-counter { animation: orbit-counter-enter 360ms cubic-bezier(.2,.8,.2,1) both; font-variant-numeric: tabular-nums; }
 
 /* Reservation summaries remain part of the wizard flow at every breakpoint. */
 aside[aria-label="Nueva reserva"] aside {

@@ -1326,11 +1326,24 @@ export default async function OperationsPage() {
       href: item.project_id ? `/projects/${item.project_id}` : "/notifications",
     };
   });
+  const commandCenterAlerts: CommandCenterItem[] = controlData.alerts.map(
+    (alert, index) => ({
+      id: `operational-alert-${index}`,
+      title: alert.label,
+      detail: `${alert.value} · ${alert.detail}`,
+      href: alert.href,
+      tone:
+        alert.tone === "danger"
+          ? ("danger" as const)
+          : ("warning" as const),
+    }),
+  );
   return (
     <FounderWorkspaceExperience
       currentDate={currentDate}
       finance={financeDashboard}
       founderName="Matías"
+      operationalAlerts={commandCenterAlerts}
       pendingTasks={taskSummary.pending}
       publicationConsole={publicationConsole}
       recentActivity={commandCenterActivity}

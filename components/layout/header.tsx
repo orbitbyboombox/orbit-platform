@@ -40,7 +40,7 @@ export function Header({ userEmail, unreadNotifications, navigationOrder, hidden
   const eventHref = pathname.startsWith("/projects/") ? pathname : undefined;
   return (
     <>
-      <header className="sticky top-0 z-20 flex h-16 items-center gap-2 border-b bg-background/90 px-3 backdrop-blur sm:gap-3 sm:px-4 md:px-5 lg:px-6">
+      <header className="sticky top-0 z-20 flex h-16 items-center gap-2 border-b border-border/70 bg-background/82 px-3 shadow-[0_1px_18px_rgba(0,0,0,.06)] backdrop-blur-xl sm:gap-3 sm:px-4 md:px-5 lg:px-6">
         <Button
           aria-expanded={menuOpen}
           aria-label={menuOpen ? "Cerrar navegación" : "Abrir navegación"}
@@ -53,14 +53,14 @@ export function Header({ userEmail, unreadNotifications, navigationOrder, hidden
         </Button>
         <Link
           aria-label="Ir al Dashboard"
-          className="flex h-9 w-32 items-center rounded-md bg-[#080808] px-2.5 lg:hidden"
+          className="flex h-9 w-28 items-center px-2 lg:hidden"
           href="/operations"
         >
           <BrandLogo className="w-full" surface="dark" />
         </Link>
         <nav
           aria-label="Navegación contextual"
-          className="ml-1 hidden items-center gap-1 xl:flex"
+          className="ml-1 hidden items-center gap-0.5 xl:flex"
         >
           {isEnabled("DASHBOARD") && (openedFromDashboard ? (
             <Button asChild className="min-h-9 px-3" variant="ghost">
@@ -98,7 +98,7 @@ export function Header({ userEmail, unreadNotifications, navigationOrder, hidden
           )}
         </nav>
         <SearchBar
-          className="ml-auto hidden max-w-sm sm:flex"
+          className="ml-auto hidden max-w-md sm:flex"
           placeholder="Buscar proyectos, clientes o eventos..."
         />
         {isEnabled("OPERATIONS") && <Button
@@ -128,7 +128,7 @@ export function Header({ userEmail, unreadNotifications, navigationOrder, hidden
             <Settings2 className="size-4" />
           </Link>
         </Button>
-        <div className="hidden min-w-0 text-right lg:block">
+        <div className="hidden min-w-0 border-l pl-3 text-right lg:block">
           <p className="truncate text-xs font-medium">Founder</p>
           <p className="max-w-40 truncate text-xs text-muted">{userEmail}</p>
         </div>
@@ -148,7 +148,7 @@ export function Header({ userEmail, unreadNotifications, navigationOrder, hidden
       </header>
       <nav
         aria-label="Navegación contextual móvil"
-        className="sticky top-16 z-10 flex gap-1 overflow-x-auto border-b bg-background/95 px-3 py-2 backdrop-blur xl:hidden"
+        className="sticky top-16 z-10 flex gap-1 overflow-x-auto border-b border-border/70 bg-background/92 px-3 py-2 backdrop-blur-xl xl:hidden"
       >
         {isEnabled("DASHBOARD") && (openedFromDashboard ? (
           <Button asChild className="min-h-9 shrink-0 px-3" variant="ghost">
@@ -186,7 +186,7 @@ export function Header({ userEmail, unreadNotifications, navigationOrder, hidden
         )}
       </nav>
       {menuOpen && (
-        <div className="fixed inset-x-3 top-[7.5rem] z-40 rounded-lg border bg-card p-2 shadow-lg md:hidden">
+        <div className="fixed inset-x-3 top-[7.5rem] z-40 rounded-2xl border bg-card/95 p-2 shadow-2xl backdrop-blur-xl md:hidden">
           <NavigationList hiddenNavigation={hiddenNavigation} navigationOrder={navigationOrder} onNavigate={() => setMenuOpen(false)} />
         </div>
       )}

@@ -63,6 +63,7 @@ export function FounderWorkspaceExperience({
   finance,
   founderName,
   pendingTasks,
+  operationalAlerts,
   publicationConsole,
   recentActivity,
   todayEvents,
@@ -73,6 +74,7 @@ export function FounderWorkspaceExperience({
   finance: FinanceDashboardReadModel;
   founderName: string;
   pendingTasks: number;
+  operationalAlerts: CommandCenterItem[];
   publicationConsole?: React.ReactNode;
   recentActivity: CommandCenterItem[];
   todayEvents: number;
@@ -136,7 +138,7 @@ export function FounderWorkspaceExperience({
               <KpiIcon index={index} />
               <ArrowUpRight className="size-4 text-muted transition group-hover:text-brand" />
             </span>
-            <strong className="mt-7 block text-2xl tracking-[-.03em] sm:text-3xl">{formatMetric(metric)}</strong>
+            <strong className="orbit-counter mt-7 block text-2xl tracking-[-.03em] sm:text-3xl">{formatMetric(metric)}</strong>
             <span className="mt-2 block text-xs font-semibold uppercase tracking-[.08em] text-muted">{metric.label}</span>
           </button>
         ))}
@@ -155,7 +157,12 @@ export function FounderWorkspaceExperience({
               <strong className="block truncate text-sm">{item.title}</strong>
               <span className="mt-1 block truncate text-xs text-muted">{item.detail}</span>
             </span>
-            <ArrowUpRight className="size-4 text-muted group-hover:text-brand" />
+            <span className="flex items-center gap-2">
+              <span className={`hidden rounded-full px-2 py-1 text-[9px] font-semibold uppercase tracking-[.08em] sm:inline-flex ${item.tone === "danger" ? "bg-danger/10 text-danger" : item.tone === "warning" ? "bg-warning/10 text-warning" : "bg-info/10 text-info"}`}>
+                {item.tone === "danger" ? "Crítico" : item.tone === "warning" ? "Prioridad" : "Evento"}
+              </span>
+              <ArrowUpRight className="size-4 text-muted group-hover:text-brand" />
+            </span>
           </Link>
         ))}
         {!todayOperation.length && <EmptyState label="No hay prioridades operacionales para hoy." />}
@@ -167,7 +174,19 @@ export function FounderWorkspaceExperience({
     <section className="rounded-[1.75rem] border bg-card p-5 shadow-sm sm:p-7" aria-labelledby="founder-alerts-title">
       <SectionHeading eyebrow="Atención" id="founder-alerts-title" title="Alertas accionables" />
       <div className="mt-5 space-y-2">
-        {finance.risks.slice(0, 6).map((risk) => (
+        {operationalAlerts.slice(0, 3).map((alert) => (
+          <Link className="group flex items-center gap-3 rounded-xl border bg-background/35 p-3.5 transition hover:border-brand/40" href={alert.href} key={alert.id}>
+            <span className={`grid size-9 shrink-0 place-items-center rounded-full ${alert.tone === "danger" ? "bg-danger/10 text-danger" : "bg-warning/10 text-warning"}`}>
+              <AlertTriangle className="size-4" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <strong className="block text-sm">{alert.title}</strong>
+              <span className="mt-0.5 block truncate text-xs text-muted">{alert.detail}</span>
+            </span>
+            <ArrowUpRight className="size-4 text-muted group-hover:text-brand" />
+          </Link>
+        ))}
+        {finance.risks.slice(0, Math.max(3, 6 - operationalAlerts.length)).map((risk) => (
           <Link className="group flex items-center gap-3 rounded-xl border bg-background/35 p-3.5 transition hover:border-brand/40" href={risk.href} key={risk.key}>
             <span className={`grid size-9 shrink-0 place-items-center rounded-full ${risk.severity === "danger" ? "bg-danger/10 text-danger" : "bg-warning/10 text-warning"}`}>
               <AlertTriangle className="size-4" />
@@ -179,7 +198,7 @@ export function FounderWorkspaceExperience({
             <ArrowUpRight className="size-4 text-muted group-hover:text-brand" />
           </Link>
         ))}
-        {!finance.risks.length && <EmptyState label="No hay alertas financieras accionables." />}
+        {!finance.risks.length && !operationalAlerts.length && <EmptyState label="No hay alertas accionables." />}
       </div>
     </section>
   );
