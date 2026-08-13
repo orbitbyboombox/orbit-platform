@@ -166,7 +166,7 @@ export default async function ProjectWorkspacePage({
     client
       .from("event_staff_payments")
       .select(
-        "id,status,assembly_payment,operator_payment,disassembly_payment,transport_bonus,parking_payment,total_internal_payment,staff(first_name,last_name)",
+        "id,status,tasks,settlement_status,paid_amount,paid_at,sii_receipt_status,assembly_payment,operator_payment,disassembly_payment,transport_bonus,parking_payment,total_internal_payment,staff(first_name,last_name)",
       )
       .eq("project_id", projectId)
       .is("deleted_at", null),
@@ -965,6 +965,7 @@ export default async function ProjectWorkspacePage({
     staffAssignments: {
       projectId,
       published: staffPublication?.published ?? false,
+      settlements: (payroll ?? []).filter((item)=>item.status!=="CANCELLED").map((item)=>({id:item.id,staffName:Array.isArray(item.staff)?`${item.staff[0]?.first_name??""} ${item.staff[0]?.last_name??""}`.trim():"Staff",roles:item.tasks??[],net:Number(item.total_internal_payment),paid:Number(item.paid_amount),settlementStatus:item.settlement_status,paidAt:item.paid_at??"",receiptStatus:item.sii_receipt_status})),
       requests: (staffRequests ?? []).map((request) => {
         const member = Array.isArray(request.staff) ? request.staff[0] : request.staff;
         return { id: request.id, staffName: member ? `${member.first_name} ${member.last_name}` : "Staff", responsibility: request.responsibility, requestedAt: request.requested_at };
