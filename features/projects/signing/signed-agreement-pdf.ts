@@ -54,6 +54,25 @@ export async function createSignedAgreementPdf(input: SignedAgreementPdfInput): 
     }
   }
 
+  const payment=addPage(pdf,font,bold,input,"Información de pago");
+  sectionTitle(payment,bold,"DATOS PARA TRANSFERENCIA",692);
+  payment.drawRectangle({x:42,y:405,width:511,height:245,color:pale,borderColor:orange,borderWidth:1.5});
+  payment.drawRectangle({x:42,y:614,width:511,height:36,color:orange});
+  payment.drawText("Producciones BoomBox Company SpA",{x:60,y:626,size:11,font:bold,color:dark});
+  drawTransferRows(payment,font,bold,[
+    ["RUT","76.565.272-3"],
+    ["Banco","BCI"],
+    ["Tipo de cuenta","Cuenta Corriente"],
+    ["Número de cuenta","52093409"],
+    ["Correo comprobantes","contabilidad@bbox.cl"],
+  ],582);
+  payment.drawRectangle({x:42,y:150,width:511,height:218,color:dark});
+  payment.drawText("IMPORTANTE",{x:60,y:338,size:10,font:bold,color:orange});
+  payment.drawText("Al realizar la transferencia indicar:",{x:60,y:312,size:11,font:bold,color:rgb(1,1,1)});
+  const transferReferences=["- Nombre del cliente","- Fecha del evento","- ORBIT Event ID"];
+  transferReferences.forEach((line,index)=>payment.drawText(line,{x:72,y:282-index*23,size:10,font,color:rgb(.86,.87,.89)}));
+  drawWrapped(payment,"Una vez realizada la transferencia, el comprobante puede enviarse respondiendo el correo de confirmación o cargándose posteriormente en el Portal Cliente.",60,202,472,9,14,font,rgb(.75,.76,.8));
+
   if(!commercialDocument&&input.signaturePng&&input.signedAt){const signed=addPage(pdf,font,bold,input,"Firmas y verificación"); sectionTitle(signed,bold,"FIRMA DEL CLIENTE",692);
   const signature=await pdf.embedPng(input.signaturePng); const scaled=signature.scale(Math.min(1,250/signature.width,110/signature.height)); signed.drawRectangle({x:42,y:515,width:280,height:130,color:pale,borderColor:rgb(.82,.83,.85),borderWidth:1}); signed.drawImage(signature,{x:56,y:528,width:scaled.width,height:scaled.height}); signed.drawLine({start:{x:42,y:490},end:{x:322,y:490},thickness:1,color:ink}); signed.drawText(safe(input.customer),{x:42,y:472,size:10,font:bold,color:ink});
   sectionTitle(signed,bold,"FIRMA BOOMBOX",402); signed.drawText(safe(input.branding.brandName),{x:42,y:350,size:20,font:bold,color:orange}); signed.drawText("Firma electrónica institucional",{x:42,y:326,size:9,font,color:muted}); signed.drawLine({start:{x:42,y:306},end:{x:322,y:306},thickness:1,color:ink});
@@ -68,5 +87,6 @@ export async function createSignedAgreementPdf(input: SignedAgreementPdfInput): 
 function addPage(pdf:PDFDocument,font:PDFFont,bold:PDFFont,input:SignedAgreementPdfInput,title:string){const page=pdf.addPage(PAGE);page.drawRectangle({x:0,y:760,width:PAGE[0],height:82,color:dark});page.drawText(safe(input.branding.brandName).toUpperCase(),{x:42,y:797,size:12,font:bold,color:orange});page.drawText(safe(title),{x:42,y:775,size:10,font,color:rgb(.85,.86,.88)});page.drawText(safe(input.branding.footer),{x:42,y:36,size:8,font,color:muted});return page;}
 function sectionTitle(page:PDFPage,bold:PDFFont,title:string,y:number){page.drawText(title,{x:42,y,size:9,font:bold,color:orange});page.drawLine({start:{x:42,y:y-10},end:{x:553,y:y-10},thickness:.7,color:rgb(.85,.86,.88)});}
 function drawRows(page:PDFPage,font:PDFFont,bold:PDFFont,rows:Array<[string,string]>,startY:number,emphasizeLast=false){let y=startY;for(const [index,[label,value]] of rows.entries()){const emphasized=emphasizeLast&&index===2;page.drawText(safe(label).toUpperCase(),{x:42,y,size:8,font:bold,color:muted});page.drawText(safe(value).slice(0,76),{x:205,y,size:emphasized?13:10,font:emphasized?bold:font,color:emphasized?orange:ink});y-=36;}return y;}
+function drawTransferRows(page:PDFPage,font:PDFFont,bold:PDFFont,rows:Array<[string,string]>,startY:number){let y=startY;for(const[label,value]of rows){page.drawText(safe(label).toUpperCase(),{x:60,y,size:8,font:bold,color:muted});page.drawText(safe(value),{x:250,y,size:10,font,color:ink});y-=36;}return y;}
 function drawWrapped(page:PDFPage,text:string,x:number,y:number,maxWidth:number,size:number,lineHeight:number,font:PDFFont,color=ink){const words=text.split(/\s+/);let line="";for(const word of words){const next=line?`${line} ${word}`:word;if(font.widthOfTextAtSize(next,size)>maxWidth&&line){page.drawText(line,{x,y,size,font,color});y-=lineHeight;line=word;}else line=next;}if(line){page.drawText(line,{x,y,size,font,color});y-=lineHeight;}return y;}
 function safe(value:string):string{return String(value??"").replace(/[^\x20-\x7EÀ-ÿ]/g," ");}
