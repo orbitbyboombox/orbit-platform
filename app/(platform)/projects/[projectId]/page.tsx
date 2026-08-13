@@ -89,6 +89,8 @@ export default async function ProjectWorkspacePage({
     { data: estimatedCosts },
     { data: realCostOverrides },
     { data: profitabilityStatement },
+    { data: staffRequests },
+    { data: staffPublication },
   ] = await Promise.all([
     client
       .from("projects")
@@ -212,6 +214,13 @@ export default async function ProjectWorkspacePage({
       )
       .eq("project_id", projectId)
       .maybeSingle(),
+    client
+      .from("staff_assignment_requests")
+      .select("id,responsibility,status,requested_at,staff(first_name,last_name)")
+      .eq("project_id", projectId)
+      .eq("status", "PENDING")
+      .order("requested_at"),
+    client.from("staff_event_publications").select("published").eq("project_id",projectId).maybeSingle(),
   ]);
   const [
     { data: customer },
@@ -955,6 +964,11 @@ export default async function ProjectWorkspacePage({
     },
     staffAssignments: {
       projectId,
+      published: staffPublication?.published ?? false,
+      requests: (staffRequests ?? []).map((request) => {
+        const member = Array.isArray(request.staff) ? request.staff[0] : request.staff;
+        return { id: request.id, staffName: member ? `${member.first_name} ${member.last_name}` : "Staff", responsibility: request.responsibility, requestedAt: request.requested_at };
+      }),
       assignments: productionAssignments
         .filter((item) => item.project_id === projectId)
         .map((item) => ({
