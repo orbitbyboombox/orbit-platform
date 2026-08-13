@@ -261,17 +261,7 @@ export const MODULE_WORKSPACES = {
   FINANCE: [
     {
       key: "FINANCE_DASHBOARD",
-      label: "Dashboard financiero",
-      defaultVisible: true,
-    },
-    {
-      key: "ACCOUNTS_RECEIVABLE",
-      label: "Cuentas por cobrar",
-      defaultVisible: true,
-    },
-    {
-      key: "EVENT_PROFITABILITY",
-      label: "Rentabilidad de eventos",
+      label: "KPIs financieros",
       defaultVisible: true,
     },
   ],
