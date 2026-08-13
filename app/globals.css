@@ -44,12 +44,12 @@
 }
 
 .dark {
-  --background: #0a0a0b;
-  --foreground: #f4f4f5;
-  --card: #111113;
-  --border: #252529;
-  --muted: #a1a1aa;
-  --accent: #202023;
+  --background: #080a0d;
+  --foreground: #f5f6f8;
+  --card: #0f1217;
+  --border: #242a34;
+  --muted: #9299a6;
+  --accent: #171c24;
   --accent-foreground: #fafafa;
   --success: #86efac;
   --success-soft: #143222;
@@ -59,12 +59,16 @@
   --danger-soft: #3b1717;
   --info: #93c5fd;
   --info-soft: #172554;
-  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.35), 0 16px 44px rgb(0 0 0 / 0.18);
-  --shadow-card-hover: 0 2px 5px rgb(0 0 0 / 0.4), 0 22px 56px rgb(0 0 0 / 0.26);
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.025), 0 18px 48px rgb(0 0 0 / 0.16);
+  --shadow-card-hover: 0 1px 0 rgb(255 255 255 / 0.04), 0 24px 64px rgb(0 0 0 / 0.28);
 }
 
 body {
   background: var(--background);
+  background-image:
+    radial-gradient(circle at 48% -10%, rgb(255 149 0 / 0.035), transparent 28rem),
+    linear-gradient(180deg, #080a0d 0%, #090b0f 100%);
+  background-attachment: fixed;
   color: var(--foreground);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
   margin: 0;
@@ -136,6 +140,29 @@ button:disabled { cursor: not-allowed; }
 
 .orbit-enter { animation: orbit-enter 260ms cubic-bezier(.2,.8,.2,1) both; }
 .orbit-counter { animation: orbit-counter-enter 360ms cubic-bezier(.2,.8,.2,1) both; font-variant-numeric: tabular-nums; }
+
+.orbit-command-center {
+  --command-panel: color-mix(in srgb, var(--card) 92%, #151a22 8%);
+}
+
+.orbit-command-center [data-command-card] {
+  background: var(--command-panel);
+  border-color: color-mix(in srgb, var(--border) 86%, white 14%);
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.025), 0 18px 52px rgb(0 0 0 / 0.13);
+}
+
+.orbit-command-center [data-command-card]:hover {
+  border-color: color-mix(in srgb, var(--brand) 34%, var(--border));
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.035), 0 22px 60px rgb(0 0 0 / 0.23);
+}
+
+.orbit-command-center [data-command-label] {
+  color: var(--brand);
+  font-size: .6875rem;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
 
 /* Reservation summaries remain part of the wizard flow at every breakpoint. */
 aside[aria-label="Nueva reserva"] aside {

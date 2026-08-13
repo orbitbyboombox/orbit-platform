@@ -32,7 +32,7 @@ export function Header({ userEmail, userName, userRole, unreadNotifications, nav
   const { isEnabled } = useModuleManager();
   return (
     <>
-      <header className="sticky top-0 z-20 flex h-16 items-center gap-2 border-b border-border/70 bg-background/82 px-3 shadow-[0_1px_18px_rgba(0,0,0,.06)] backdrop-blur-xl sm:gap-3 sm:px-4 md:px-5 lg:px-6">
+      <header className="sticky top-0 z-20 flex h-[4.5rem] items-center gap-2 border-b border-border/70 bg-background/88 px-3 backdrop-blur-xl sm:gap-3 sm:px-4 md:px-6 lg:px-8">
         <Button
           aria-expanded={menuOpen}
           aria-label={menuOpen ? "Cerrar navegación" : "Abrir navegación"}
@@ -51,7 +51,7 @@ export function Header({ userEmail, userName, userRole, unreadNotifications, nav
           <BrandLogo className="w-full" surface="dark" />
         </Link>
         <SearchBar
-          className="ml-auto hidden max-w-md sm:flex"
+          className="ml-auto hidden max-w-[18rem] border-border/80 bg-card/75 md:flex lg:max-w-[22rem] xl:max-w-[24rem]"
           placeholder="Buscar proyectos, clientes o eventos..."
         />
         {isEnabled("OPERATIONS") && <Button
@@ -81,13 +81,14 @@ export function Header({ userEmail, userName, userRole, unreadNotifications, nav
             <Settings2 className="size-4" />
           </Link>
         </Button>
-        <div className="hidden min-w-0 border-l pl-3 text-right lg:block">
+        <span className="mx-1 hidden h-7 w-px bg-border lg:block" aria-hidden="true" />
+        <Link aria-label="Abrir perfil del Founder" href="/settings?section=profile">
+          <Avatar className="size-10" initials={userEmail.slice(0, 2).toUpperCase()} />
+        </Link>
+        <div className="hidden min-w-0 pr-1 text-left lg:block">
           <p className="max-w-40 truncate text-xs font-medium">{userName}</p>
           <p className="max-w-40 truncate text-[10px] text-muted">{userRole}</p>
         </div>
-        <Link aria-label="Abrir perfil del Founder" href="/settings?section=profile">
-          <Avatar initials={userEmail.slice(0, 2).toUpperCase()} />
-        </Link>
         <form action={signOutAction}>
           <Button
             aria-label="Cerrar sesión"

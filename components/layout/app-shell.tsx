@@ -22,12 +22,12 @@ export function AppShell({ children, userEmail, userName, userRole, unreadNotifi
   return (
     <ModuleManagerProvider modules={modules}><PersonalWorkspaceProvider initialPreferences={workspace}><div className="min-h-screen bg-background">
       <Sidebar hiddenNavigation={workspace.hiddenNavigation} navigationOrder={workspace.navigationOrder} />
-      <div className="transition-[padding] duration-200 md:pl-20 lg:pl-60 peer-data-[collapsed=true]:lg:pl-20">
+      <div className="transition-[padding] duration-200 md:pl-20 lg:pl-[15.25rem] peer-data-[collapsed=true]:lg:pl-20">
         <Header hiddenNavigation={workspace.hiddenNavigation} navigationOrder={workspace.navigationOrder} unreadNotifications={unreadNotifications} userEmail={userEmail} userName={userName} userRole={userRole} />
         <main className="min-h-[calc(100vh-4rem)] pb-20 sm:pb-24 md:pb-0">
           <PageContainer id="platform-workspace-content"><GlobalLayoutEngine/><ModuleAvailabilityGuard>{children}</ModuleAvailabilityGuard></PageContainer>
         </main>
-        <footer className="border-t border-border/60 px-5 py-6 sm:px-8"><div className="mx-auto flex max-w-[1600px] flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><BrandLogo className="h-8 w-32" surface="dark" /><BrandSignature className="sm:text-right" /></div></footer>
+        <footer className="px-5 py-5 sm:px-8"><div className="mx-auto flex max-w-[1600px] flex-col gap-3 rounded-2xl border border-border/70 bg-card/45 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"><BrandLogo className="h-7 w-28" surface="dark" /><BrandSignature className="sm:text-right" /></div></footer>
       </div>
     </div></PersonalWorkspaceProvider></ModuleManagerProvider>
   );
