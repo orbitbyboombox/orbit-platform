@@ -52,13 +52,14 @@ export async function overrideStaffEventPaymentAction(data: FormData): Promise<R
 export async function updateStaffEventSettlementAction(data: FormData): Promise<Result> {
   try {
     const { client } = await context();
-    const paymentId = text(data, "paymentId"), status = text(data, "status"), receiptStatus = text(data, "receiptStatus");
-    const paidAmount = Math.max(0, Number(data.get("paidAmount")));
-    if (!paymentId) throw new Error("Pago operacional no encontrado.");
+    const paymentId = text(data, "paymentId"), movementType = text(data, "movementType"), receiptStatus = text(data, "receiptStatus");
+    const amount = Math.max(0, Number(data.get("movementAmount")));
+    if (!paymentId || !amount) throw new Error("Ingresa el nuevo movimiento de pago.");
     const { data: payment, error: readError } = await client.from("event_staff_payments").select("project_id").eq("id", paymentId).is("deleted_at", null).single();
     if (readError) throw readError;
-    const { error } = await client.rpc("update_staff_event_settlement", { p_payment_id: paymentId, p_status: status, p_paid_amount: paidAmount, p_paid_at: text(data, "paidAt") || null, p_receipt_status: receiptStatus });
+    const { error } = await client.rpc("register_staff_settlement_movement", { p_settlement_id: paymentId, p_type: movementType, p_amount: amount, p_date: text(data, "paidAt") || null, p_method: text(data,"method"), p_notes: text(data,"notes") });
     if (error) throw error;
+    const{error:receiptError}=await client.rpc("update_staff_settlement_receipt",{p_settlement_id:paymentId,p_receipt_status:receiptStatus});if(receiptError)throw receiptError;
     revalidateSettlement(payment.project_id);
     return { ok: true };
   } catch (error) {
