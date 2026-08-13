@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import {
   acceptStaffAssignmentAction,
+  cancelStaffAssignmentAction,
   changeStaffPasswordAction,
   completeStaffChecklistItemAction,
   recordStaffCheckInAction,
@@ -431,7 +432,9 @@ function AvailableEvents({
                   ? "Aprobada"
                   : item.status === "REJECTED"
                     ? "Rechazada"
-                    : "Confirmada"}
+                    : item.status === "CANCELLED"
+                      ? "Cancelada"
+                      : "Confirmada"}
             </span>
           </div>
         ))}
@@ -476,6 +479,10 @@ function EventDetail({
 }) {
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState("");
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelRole, setCancelRole] = useState(event.roles[0] ?? "");
+  const [cancelReason, setCancelReason] = useState("ILLNESS");
+  const [cancelDetail, setCancelDetail] = useState("");
   const next = CHECKINS.find((item) => !event.checkins.includes(item.code)),
     needsAcceptance = pendingAcceptance(event.status);
   const run = (action: () => Promise<{ ok: boolean; message: string }>) =>
@@ -486,6 +493,14 @@ function EventDetail({
     });
   const maps = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${event.address}, ${event.district}`)}`;
   const googleCalendar = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(`BOOMBOX · ${event.customer}`)}&dates=${event.date.replaceAll("-", "")}T${event.start.replace(":", "")}00/${event.date.replaceAll("-", "")}T${event.finish.replace(":", "")}00&details=${encodeURIComponent(`Servicio: ${event.service}\nORBIT Event ID: ${event.orbitEventId}`)}&location=${encodeURIComponent(event.address)}`;
+  const cancel = () => {
+    const data = new FormData();
+    data.set("projectId", event.id);
+    data.set("responsibility", cancelRole);
+    data.set("reasonCategory", cancelReason);
+    data.set("reasonDetail", cancelDetail);
+    run(() => cancelStaffAssignmentAction(data));
+  };
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 sm:items-center sm:p-6"
@@ -639,6 +654,78 @@ function EventDetail({
             </section>
           </>
         )}
+        {!event.checkins.includes("EVENT_FINISHED") ? (
+          <section className="mt-6 rounded-2xl border border-danger/30 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="font-semibold">¿No puedes asistir?</h3>
+                <p className="mt-1 text-sm text-muted">
+                  Cancela con motivo obligatorio. El Founder recibirá una alerta
+                  crítica inmediatamente.
+                </p>
+              </div>
+              <button
+                className="min-h-10 rounded-xl border border-danger/30 px-3 text-sm font-semibold text-danger"
+                onClick={() => setCancelling((value) => !value)}
+              >
+                Cancelar asignación
+              </button>
+            </div>
+            {cancelling ? (
+              <div className="mt-4 grid gap-3 border-t pt-4 sm:grid-cols-2">
+                <label className="grid gap-2 text-sm font-medium">
+                  Responsabilidad
+                  <select
+                    className="min-h-11 rounded-xl border bg-background px-3"
+                    value={cancelRole}
+                    onChange={(event) => setCancelRole(event.target.value)}
+                  >
+                    {event.roles.map((item) => (
+                      <option key={item} value={item}>
+                        {ROLE[item] ?? item}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="grid gap-2 text-sm font-medium">
+                  Motivo
+                  <select
+                    className="min-h-11 rounded-xl border bg-background px-3"
+                    value={cancelReason}
+                    onChange={(event) => setCancelReason(event.target.value)}
+                  >
+                    <option value="ILLNESS">Enfermedad</option>
+                    <option value="EMERGENCY">Emergencia</option>
+                    <option value="FAMILY">Familiar</option>
+                    <option value="VEHICLE">Vehículo</option>
+                    <option value="OTHER">Otro</option>
+                  </select>
+                </label>
+                <label className="grid gap-2 text-sm font-medium sm:col-span-2">
+                  Detalle
+                  <textarea
+                    className="min-h-24 rounded-xl border bg-background p-3"
+                    placeholder="Información útil para que BOOMBOX reorganice el Evento"
+                    required={cancelReason === "OTHER"}
+                    value={cancelDetail}
+                    onChange={(event) => setCancelDetail(event.target.value)}
+                  />
+                </label>
+                <button
+                  className="min-h-11 rounded-xl bg-red-600 px-4 text-sm font-semibold text-white disabled:opacity-50 sm:col-span-2"
+                  disabled={
+                    pending ||
+                    !cancelRole ||
+                    (cancelReason === "OTHER" && !cancelDetail.trim())
+                  }
+                  onClick={cancel}
+                >
+                  {pending ? "Notificando…" : "Confirmar cancelación"}
+                </button>
+              </div>
+            ) : null}
+          </section>
+        ) : null}
         {message ? <p className="mt-3 text-sm text-muted">{message}</p> : null}
         <section className="mt-6 grid gap-4 lg:grid-cols-2">
           <div className="rounded-2xl border p-4">

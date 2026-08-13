@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
+  cancelStaffAssignmentByFounderAction,
   saveStaffAssignmentAction,
   updateStaffAssignmentStatusAction,
   type StaffAssignmentMutation,
@@ -166,6 +167,9 @@ export function StaffAssignmentCenter({
   const [settlement, setSettlement] = useState<EventStaffSettlement | null>(
     null,
   );
+  const [cancelling, setCancelling] = useState<OperationalAssignment | null>(
+    null,
+  );
   const [message, setMessage] = useState("");
   const mutate = (action: () => Promise<{ ok: boolean; error?: string }>) => {
     setMessage("");
@@ -191,6 +195,25 @@ export function StaffAssignmentCenter({
       const result = await reviewStaffRequestAction(data);
       setMessage(result.message);
       if (result.ok) router.refresh();
+    });
+  const cancelAssignment = (
+    item: OperationalAssignment,
+    reasonCategory: string,
+    reasonDetail: string,
+  ) =>
+    startTransition(async () => {
+      const result = await cancelStaffAssignmentByFounderAction({
+        id: item.id,
+        projectId,
+        reasonCategory,
+        reasonDetail,
+      });
+      if (!result.ok) {
+        setMessage(result.error);
+        return;
+      }
+      setCancelling(null);
+      router.refresh();
     });
   const saveSettlement = (
     data: FormData,
@@ -347,13 +370,9 @@ export function StaffAssignmentCenter({
               ) && (
                 <Small
                   danger
-                  label="Remover"
+                  label="Cancelar asignación"
                   icon={<Trash2 />}
-                  onClick={() =>
-                    window.confirm(
-                      `¿Remover a ${item.staffName} del evento?`,
-                    ) && setStatus(item, "CANCELLED")
-                  }
+                  onClick={() => setCancelling(item)}
                 />
               )}
             </div>
@@ -442,11 +461,105 @@ export function StaffAssignmentCenter({
           onSubmit={saveSettlement}
         />
       )}
+      {cancelling ? (
+        <AssignmentCancellationDialog
+          item={cancelling}
+          pending={pending}
+          onClose={() => setCancelling(null)}
+          onSubmit={(reasonCategory, reasonDetail) =>
+            cancelAssignment(cancelling, reasonCategory, reasonDetail)
+          }
+        />
+      ) : null}
     </section>
   );
 }
 
 void SettlementDialog;
+
+function AssignmentCancellationDialog({
+  item,
+  pending,
+  onClose,
+  onSubmit,
+}: {
+  item: OperationalAssignment;
+  pending: boolean;
+  onClose: () => void;
+  onSubmit: (reasonCategory: string, reasonDetail: string) => void;
+}) {
+  const [reasonCategory, setReasonCategory] = useState("OPERATIONAL"),
+    [reasonDetail, setReasonDetail] = useState("");
+  return (
+    <div
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 sm:items-center sm:p-6"
+      role="dialog"
+    >
+      <section className="w-full max-w-lg rounded-t-2xl border bg-card p-5 sm:rounded-2xl sm:p-7">
+        <header className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[.18em] text-danger">
+              Cancelación operacional
+            </p>
+            <h3 className="mt-2 text-xl font-semibold">
+              Cancelar asignación de {item.staffName}
+            </h3>
+            <p className="mt-2 text-sm text-muted">
+              Staff recibirá una alerta y un email. El Evento volverá a estar
+              disponible para cobertura.
+            </p>
+          </div>
+          <button
+            aria-label="Cerrar"
+            className="rounded-lg border p-2"
+            onClick={onClose}
+          >
+            <X className="size-4" />
+          </button>
+        </header>
+        <label className="mt-5 grid gap-2 text-sm font-medium">
+          Motivo
+          <select
+            className="min-h-11 rounded-xl border bg-background px-3"
+            value={reasonCategory}
+            onChange={(event) => setReasonCategory(event.target.value)}
+          >
+            <option value="OPERATIONAL">Decisión operacional</option>
+            <option value="ILLNESS">Enfermedad</option>
+            <option value="EMERGENCY">Emergencia</option>
+            <option value="FAMILY">Familiar</option>
+            <option value="VEHICLE">Vehículo</option>
+            <option value="OTHER">Otro</option>
+          </select>
+        </label>
+        <label className="mt-4 grid gap-2 text-sm font-medium">
+          Detalle
+          <textarea
+            className="min-h-24 rounded-xl border bg-background p-3"
+            placeholder="Explica el motivo para el historial operacional"
+            required={reasonCategory === "OTHER"}
+            value={reasonDetail}
+            onChange={(event) => setReasonDetail(event.target.value)}
+          />
+        </label>
+        <div className="mt-6 flex justify-end gap-2">
+          <Button disabled={pending} onClick={onClose} variant="outline">
+            Volver
+          </Button>
+          <Button
+            disabled={
+              pending || (reasonCategory === "OTHER" && !reasonDetail.trim())
+            }
+            onClick={() => onSubmit(reasonCategory, reasonDetail)}
+          >
+            {pending ? "Cancelando…" : "Confirmar cancelación"}
+          </Button>
+        </div>
+      </section>
+    </div>
+  );
+}
 
 function SettlementDetailDialog({
   item,
