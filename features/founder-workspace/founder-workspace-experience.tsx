@@ -1,331 +1,292 @@
 "use client";
-import { useState, useTransition } from "react";
-import { GripVertical, Settings2, Star } from "lucide-react";
+
+import {
+  AlertTriangle,
+  ArrowUpRight,
+  CalendarDays,
+  CircleDollarSign,
+  Clock3,
+  Contact,
+  FilePlus2,
+  ReceiptText,
+  Settings2,
+  Sparkles,
+  TrendingUp,
+  UsersRound,
+  WalletCards,
+} from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import {
-  useModuleManager,
-  type OrbitModuleKey,
-} from "@/features/module-manager";
-import { saveFounderWorkspaceAction } from "./actions";
-import {
-  QUICK_ACTIONS,
-  WIDGETS,
-  type FounderWorkspacePreferences,
-  type QuickActionKey,
-  type WorkspaceWidgetKey,
-} from "./catalog";
+import type { FinanceDashboardReadModel, FinanceMetric } from "@/features/finance/finance-read-model";
 import { PersonalWorkspaceSections } from "./personal-workspace";
 
-export type WorkspaceValues = Record<
-  WorkspaceWidgetKey,
-  { value: string; detail: string }
->;
+export type CommandCenterItem = {
+  id: string;
+  title: string;
+  detail: string;
+  href: string;
+  time?: string;
+  tone?: "default" | "success" | "info" | "warning" | "danger";
+};
+
+export type CommandCenterEvent = CommandCenterItem & {
+  date: string;
+  service: string;
+  location: string;
+  staff: string;
+  status: string;
+};
+
+const quickActions = [
+  { label: "Nuevo Evento", href: "/projects?reservation=new", icon: FilePlus2 },
+  { label: "Clientes", href: "/customers", icon: Contact },
+  { label: "Staff", href: "/resources/staff", icon: UsersRound },
+  { label: "Calendario", href: "/projects?view=calendar", icon: CalendarDays },
+  { label: "Registrar Gasto", href: "/finance/expenses?action=new", icon: ReceiptText },
+] as const;
+
+const money = (value: number) =>
+  new Intl.NumberFormat("es-CL", {
+    style: "currency",
+    currency: "CLP",
+    maximumFractionDigits: 0,
+  }).format(value);
+
+const formatMetric = (metric: FinanceMetric) => {
+  if (metric.format === "money") return money(metric.value);
+  if (metric.format === "percent") return `${metric.value.toFixed(1)}%`;
+  return new Intl.NumberFormat("es-CL").format(metric.value);
+};
+
 export function FounderWorkspaceExperience({
   currentDate,
+  finance,
   founderName,
-  initialPreferences,
   pendingTasks,
   publicationConsole,
+  recentActivity,
   todayEvents,
-  values,
+  todayOperation,
+  upcomingEvents,
 }: {
   currentDate: string;
+  finance: FinanceDashboardReadModel;
   founderName: string;
-  initialPreferences: FounderWorkspacePreferences;
   pendingTasks: number;
   publicationConsole?: React.ReactNode;
+  recentActivity: CommandCenterItem[];
   todayEvents: number;
-  values: WorkspaceValues;
+  todayOperation: CommandCenterItem[];
+  upcomingEvents: CommandCenterEvent[];
 }) {
   const router = useRouter();
-  const { isEnabled } = useModuleManager();
-  const [prefs, setPrefs] = useState(initialPreferences);
-  const [dragged, setDragged] = useState<{
-    kind: "action" | "widget";
-    key: string;
-  } | null>(null);
-  const [pending, startTransition] = useTransition();
-  const [message, setMessage] = useState("");
-  const persist = (next: FounderWorkspacePreferences) => {
-    setPrefs(next);
-    startTransition(async () => {
-      const result = await saveFounderWorkspaceAction(next);
-      setMessage(
-        result.ok
-          ? "Escritorio guardado"
-          : "No se guardó el cambio. Intenta nuevamente.",
-      );
-    });
-  };
-  const reorder = <T extends string>(items: T[], source: T, target: T) => {
-    const next = items.filter((x) => x !== source);
-    next.splice(next.indexOf(target), 0, source);
-    return next;
-  };
-  const drop = (kind: "action" | "widget", target: string) => {
-    if (!dragged || dragged.kind !== kind || dragged.key === target) return;
-    persist(
-      kind === "action"
-        ? {
-            ...prefs,
-            quickActionOrder: reorder(
-              prefs.quickActionOrder,
-              dragged.key as QuickActionKey,
-              target as QuickActionKey,
-            ),
-          }
-        : {
-            ...prefs,
-            widgetOrder: reorder(
-              prefs.widgetOrder,
-              dragged.key as WorkspaceWidgetKey,
-              target as WorkspaceWidgetKey,
-            ),
-          },
-    );
-    setDragged(null);
-  };
-  const visibleActions = prefs.quickActionOrder
-    .map((key) => QUICK_ACTIONS.find((item) => item.key === key)!)
-    .filter(
-      (item) =>
-        item &&
-        !prefs.hiddenQuickActions.includes(item.key) &&
-        isEnabled(item.module as OrbitModuleKey),
-    )
-    .sort(
-      (a, b) =>
-        Number(prefs.favoriteQuickActions.includes(b.key)) -
-        Number(prefs.favoriteQuickActions.includes(a.key)),
-    );
-  const visibleWidgets = prefs.widgetOrder
-    .map((key) => WIDGETS.find((item) => item.key === key)!)
-    .filter(
-      (item) =>
-        item &&
-        !prefs.hiddenWidgets.includes(item.key) &&
-        isEnabled(item.module as OrbitModuleKey),
-    );
-  const header = (
-    <header className="rounded-3xl border bg-card p-6 sm:p-8">
-      <p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">
-        🏠 Mi Escritorio
-      </p>
-      <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-        Buenos días, {founderName} 👋
-      </h1>
-      <p className="mt-2 text-sm text-muted">{currentDate}</p>
-      <div className="mt-6 grid gap-3 sm:grid-cols-2">
-        <HeaderMetric label="Eventos de hoy" value={todayEvents} />
-        <HeaderMetric
-          label="Tareas operacionales pendientes"
-          value={pendingTasks}
-        />
+  const findHeadline = (label: string) =>
+    finance.headline.find((item) => item.label === label);
+  const findForecast = (label: string) =>
+    finance.forecast.find((item) => item.label === label);
+  const fallback = (label: string, href: string): FinanceMetric => ({
+    label,
+    value: 0,
+    format: "money",
+    detail: "Sin movimientos canónicos en el período.",
+    href,
+  });
+  const kpis = [
+    findHeadline("Caja disponible") ?? fallback("Caja disponible", "/finance/cash-flow"),
+    findHeadline("Por cobrar") ?? fallback("Cobros pendientes", "/finance/receivables"),
+    {
+      label: "Eventos de hoy",
+      value: todayEvents,
+      format: "count" as const,
+      detail: "Agenda operacional del día.",
+      href: "/projects?date=today",
+    },
+    findHeadline("Profit neto") ?? fallback("Profit actual", "/projects?view=profitability"),
+    findForecast("Pagos proyectados") ?? fallback("Pagos próximos", "/finance/payables"),
+    findHeadline("Nómina") ?? fallback("Próxima nómina", "/resources/staff?workspace=payroll"),
+  ];
+
+  const welcome = (
+    <header className="overflow-hidden rounded-[2rem] border bg-card px-6 py-7 shadow-sm sm:px-8 sm:py-9 lg:px-10">
+      <div className="max-w-4xl">
+        <p className="text-xs font-semibold uppercase tracking-[.2em] text-brand">Founder Command Center</p>
+        <h1 className="mt-4 text-4xl font-semibold tracking-[-.04em] sm:text-5xl lg:text-6xl">
+          Buenos días, {founderName} <span aria-hidden>👋</span>
+        </h1>
+        <p className="mt-3 text-sm capitalize text-muted sm:text-base">{currentDate}</p>
+        <p className="mt-7 max-w-2xl text-lg leading-8 text-foreground/80">
+          Tienes <strong className="text-foreground">{todayEvents} eventos hoy</strong> y{" "}
+          <strong className="text-foreground">{pendingTasks} prioridades operacionales</strong> pendientes.
+        </p>
       </div>
     </header>
   );
+
+  const founderKpis = (
+    <section aria-labelledby="founder-kpis-title">
+      <SectionHeading eyebrow="Estado de BOOMBOX" id="founder-kpis-title" title="Lo esencial, ahora" />
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-6">
+        {kpis.map((metric, index) => (
+          <button
+            className="group min-h-40 rounded-2xl border bg-card p-4 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-md sm:p-5"
+            key={`${metric.label}-${index}`}
+            onClick={() => router.push(metric.href)}
+          >
+            <span className="flex items-start justify-between gap-3">
+              <KpiIcon index={index} />
+              <ArrowUpRight className="size-4 text-muted transition group-hover:text-brand" />
+            </span>
+            <strong className="mt-7 block text-2xl tracking-[-.03em] sm:text-3xl">{formatMetric(metric)}</strong>
+            <span className="mt-2 block text-xs font-semibold uppercase tracking-[.08em] text-muted">{metric.label}</span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+
+  const today = (
+    <section className="rounded-[1.75rem] border bg-card p-5 shadow-sm sm:p-7" aria-labelledby="today-operation-title">
+      <SectionHeading eyebrow="Ahora" id="today-operation-title" title="Operación de hoy" />
+      <div className="mt-5 divide-y">
+        {todayOperation.map((item) => (
+          <Link className="group grid grid-cols-[3.5rem_1fr_auto] items-center gap-3 py-4 first:pt-0 last:pb-0" href={item.href} key={item.id}>
+            <time className="font-mono text-sm font-semibold text-brand">{item.time ?? "Ahora"}</time>
+            <span className="min-w-0">
+              <strong className="block truncate text-sm">{item.title}</strong>
+              <span className="mt-1 block truncate text-xs text-muted">{item.detail}</span>
+            </span>
+            <ArrowUpRight className="size-4 text-muted group-hover:text-brand" />
+          </Link>
+        ))}
+        {!todayOperation.length && <EmptyState label="No hay prioridades operacionales para hoy." />}
+      </div>
+    </section>
+  );
+
+  const alerts = (
+    <section className="rounded-[1.75rem] border bg-card p-5 shadow-sm sm:p-7" aria-labelledby="founder-alerts-title">
+      <SectionHeading eyebrow="Atención" id="founder-alerts-title" title="Alertas accionables" />
+      <div className="mt-5 space-y-2">
+        {finance.risks.slice(0, 6).map((risk) => (
+          <Link className="group flex items-center gap-3 rounded-xl border bg-background/35 p-3.5 transition hover:border-brand/40" href={risk.href} key={risk.key}>
+            <span className={`grid size-9 shrink-0 place-items-center rounded-full ${risk.severity === "danger" ? "bg-danger/10 text-danger" : "bg-warning/10 text-warning"}`}>
+              <AlertTriangle className="size-4" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <strong className="block text-sm">{risk.label}</strong>
+              <span className="mt-0.5 block truncate text-xs text-muted">{risk.count} pendientes · {money(risk.amount)}</span>
+            </span>
+            <ArrowUpRight className="size-4 text-muted group-hover:text-brand" />
+          </Link>
+        ))}
+        {!finance.risks.length && <EmptyState label="No hay alertas financieras accionables." />}
+      </div>
+    </section>
+  );
+
+  const upcoming = (
+    <section aria-labelledby="upcoming-events-title">
+      <SectionHeading eyebrow="Próximos 15 días" id="upcoming-events-title" title="Eventos próximos" />
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {upcomingEvents.slice(0, 6).map((event) => (
+          <Link className="group rounded-2xl border bg-card p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-md" href={event.href} key={event.id}>
+            <div className="flex items-start justify-between gap-4">
+              <span className="text-xs font-semibold uppercase tracking-[.1em] text-brand">{event.date}</span>
+              <span className="rounded-full bg-info/10 px-2.5 py-1 text-[10px] font-semibold text-info">{event.status}</span>
+            </div>
+            <h3 className="mt-5 truncate text-lg font-semibold">{event.title}</h3>
+            <p className="mt-1 truncate text-sm text-muted">{event.service}</p>
+            <div className="mt-5 space-y-2 text-xs text-muted">
+              <p className="flex items-center gap-2"><CalendarDays className="size-3.5 text-brand" />{event.location || "Ubicación pendiente"}</p>
+              <p className="flex items-center gap-2"><UsersRound className="size-3.5 text-brand" />{event.staff}</p>
+            </div>
+          </Link>
+        ))}
+        {!upcomingEvents.length && <EmptyState label="No hay eventos próximos registrados." />}
+      </div>
+    </section>
+  );
+
+  const activity = (
+    <section className="rounded-[1.75rem] border bg-card p-5 shadow-sm sm:p-7" aria-labelledby="recent-activity-title">
+      <SectionHeading eyebrow="En vivo" id="recent-activity-title" title="Actividad reciente" />
+      <div className="mt-5 space-y-4">
+        {recentActivity.slice(0, 7).map((item) => (
+          <Link className="group flex gap-3" href={item.href} key={item.id}>
+            <span className="mt-1.5 size-2 shrink-0 rounded-full bg-success" />
+            <span className="min-w-0 flex-1">
+              <strong className="block truncate text-sm">{item.title}</strong>
+              <span className="mt-1 block truncate text-xs text-muted">{item.detail}</span>
+            </span>
+            <ArrowUpRight className="size-4 shrink-0 text-muted group-hover:text-brand" />
+          </Link>
+        ))}
+        {!recentActivity.length && <EmptyState label="Todavía no hay actividad operacional reciente." />}
+      </div>
+    </section>
+  );
+
   const actions = (
-    <section aria-labelledby="workspace-actions">
-      <WorkspaceTitle
-        id="workspace-actions"
-        title="Acciones rápidas"
-        subtitle="Tus favoritas permanecen primero. Arrastra o usa el menú de cada bloque para cambiar el orden."
-      />
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {visibleActions.map((item) => {
-          const Icon = item.icon;
-          const favorite = prefs.favoriteQuickActions.includes(item.key);
+    <section aria-labelledby="quick-actions-title">
+      <SectionHeading eyebrow="Resolver" id="quick-actions-title" title="Acciones rápidas" />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        {quickActions.map((action) => {
+          const Icon = action.icon;
           return (
-            <article
-              className="group rounded-2xl border bg-card p-4"
-              draggable
-              key={item.key}
-              onDragStart={() => setDragged({ kind: "action", key: item.key })}
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={() => drop("action", item.key)}
-            >
-              <button
-                className="flex min-h-16 w-full items-center gap-3 pr-10 text-left"
-                onClick={() => router.push(item.href)}
-              >
-                <span className="grid size-11 place-items-center rounded-xl bg-brand/10 text-brand">
-                  <Icon className="size-5" />
-                </span>
-                <span className="flex-1 font-semibold">{item.label}</span>
-                <GripVertical className="size-4 text-muted" />
-              </button>
-              <MiniButton
-                active={favorite}
-                label="Favorito"
-                onClick={() =>
-                  persist({
-                    ...prefs,
-                    favoriteQuickActions: favorite
-                      ? prefs.favoriteQuickActions.filter(
-                          (key) => key !== item.key,
-                        )
-                      : [...prefs.favoriteQuickActions, item.key],
-                  })
-                }
-              >
-                <Star className="size-3.5" />
-              </MiniButton>
-            </article>
+            <Link className="group flex min-h-24 items-center gap-3 rounded-2xl border bg-card p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-md" href={action.href} key={action.label}>
+              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand"><Icon className="size-4" /></span>
+              <span className="text-sm font-semibold">{action.label}</span>
+            </Link>
           );
         })}
       </div>
     </section>
   );
-  const widgets = (
-    <section aria-labelledby="workspace-widgets">
-      <WorkspaceTitle
-        id="workspace-widgets"
-        title="Widgets"
-        subtitle="Cada tarjeta conserva su módulo y sus datos; aquí solo controlas presentación."
-      />
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {visibleWidgets.map((item) => {
-          const Icon = item.icon;
-          const data = values[item.key];
-          return (
-            <article
-              className="rounded-2xl border bg-card p-4"
-              draggable
-              key={item.key}
-              onDragStart={() => setDragged({ kind: "widget", key: item.key })}
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={() => drop("widget", item.key)}
-            >
-              <button
-                className="w-full pr-10 text-left"
-                onClick={() => router.push(item.href)}
-              >
-                <span className="flex items-center justify-between">
-                  <Icon className="size-4 text-brand" />
-                  <GripVertical className="size-4 text-muted" />
-                </span>
-                <strong className="mt-4 block text-2xl">{data.value}</strong>
-                <span className="mt-1 block text-sm font-semibold">
-                  {item.label}
-                </span>
-                <span className="mt-2 block text-xs text-muted">
-                  {data.detail}
-                </span>
-              </button>
-            </article>
-          );
-        })}
-      </div>
-    </section>
-  );
-  const settings = (
-    <section
-      className="rounded-2xl border bg-card p-5"
-      id="founder-workspace-settings"
-    >
+
+  const workspaceSettings = (
+    <section className="rounded-2xl border bg-card p-5 shadow-sm" aria-labelledby="workspace-settings-title">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">
-            Configuración
-          </p>
-          <h2 className="mt-2 text-xl font-semibold">Founder Workspace</h2>
-          <p className="mt-1 text-sm text-muted">
-            {pending
-              ? "Guardando…"
-              : message ||
-                "El orden y la visibilidad son personales para esta cuenta."}
-          </p>
+          <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Tu espacio</p>
+          <h2 className="mt-2 text-xl font-semibold" id="workspace-settings-title">Founder Workspace</h2>
+          <p className="mt-1 text-sm text-muted">Mueve, oculta o restaura cada bloque. Tu configuración permanece guardada.</p>
         </div>
-        <Button
-          onClick={() => router.push("/settings#founder-workspace")}
-          variant="outline"
-        >
-          <Settings2 className="mr-2 size-4" />
-          Administrar ocultos
-        </Button>
+        <Link className="inline-flex min-h-10 items-center justify-center rounded-xl border px-4 text-sm font-semibold transition hover:border-brand hover:text-brand" href="/settings#founder-workspace">
+          <Settings2 className="mr-2 size-4" /> Configurar espacio
+        </Link>
       </div>
     </section>
   );
+
   return (
     <main id="founder-workspace">
       <PersonalWorkspaceSections
         moduleKey="DASHBOARD"
         sections={[
-          {
-            key: "DASHBOARD_HEADER",
-            label: "Buenos días, Matías",
-            content: header,
-          },
-          ...(publicationConsole
-            ? [
-                {
-                  key: "PUBLICATION_CONSOLE",
-                  label: "Consola de publicación",
-                  content: publicationConsole,
-                },
-              ]
-            : []),
-          {
-            key: "DASHBOARD_QUICK_ACTIONS",
-            label: "Acciones rápidas",
-            content: actions,
-          },
-          { key: "DASHBOARD_WIDGETS", label: "Widgets", content: widgets },
-          {
-            key: "DASHBOARD_WORKSPACE_SETTINGS",
-            label: "Configuración del Workspace",
-            content: settings,
-          },
+          { key: "DASHBOARD_HEADER", label: "Bienvenida", content: welcome },
+          { key: "DASHBOARD_WIDGETS", label: "KPIs del Founder", content: founderKpis },
+          { key: "DASHBOARD_TODAY", label: "Operación de hoy", content: <div className="grid gap-5 xl:grid-cols-[1.25fr_.75fr]">{today}{alerts}</div> },
+          { key: "DASHBOARD_UPCOMING", label: "Próximos eventos", content: upcoming },
+          { key: "DASHBOARD_ACTIVITY", label: "Actividad reciente", content: activity },
+          { key: "DASHBOARD_QUICK_ACTIONS", label: "Acciones rápidas", content: actions },
+          ...(publicationConsole ? [{ key: "PUBLICATION_CONSOLE", label: "Consola de publicación", content: publicationConsole }] : []),
+          { key: "DASHBOARD_WORKSPACE_SETTINGS", label: "Configuración del Workspace", content: workspaceSettings },
         ]}
       />
     </main>
   );
 }
-function HeaderMetric({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-2xl border bg-background/30 p-4">
-      <strong className="text-2xl">{value}</strong>
-      <p className="mt-1 text-sm text-muted">{label}</p>
-    </div>
-  );
+
+function SectionHeading({ eyebrow, id, title }: { eyebrow: string; id: string; title: string }) {
+  return <header><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">{eyebrow}</p><h2 className="mt-2 text-2xl font-semibold tracking-[-.025em]" id={id}>{title}</h2></header>;
 }
-function WorkspaceTitle({
-  id,
-  title,
-  subtitle,
-}: {
-  id: string;
-  title: string;
-  subtitle: string;
-}) {
-  return (
-    <header className="mb-4">
-      <h2 className="text-xl font-semibold" id={id}>
-        {title}
-      </h2>
-      <p className="mt-1 text-sm text-muted">{subtitle}</p>
-    </header>
-  );
+
+function KpiIcon({ index }: { index: number }) {
+  const icons = [WalletCards, CircleDollarSign, CalendarDays, TrendingUp, ReceiptText, Clock3];
+  const Icon = icons[index] ?? Sparkles;
+  return <span className="grid size-9 place-items-center rounded-xl bg-brand/10 text-brand"><Icon className="size-4" /></span>;
 }
-function MiniButton({
-  active = false,
-  children,
-  label,
-  onClick,
-}: {
-  active?: boolean;
-  children: React.ReactNode;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      className={`mt-3 inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium ${active ? "border-brand/40 text-brand" : "text-muted hover:text-foreground"}`}
-      onClick={onClick}
-    >
-      {children}
-      {label}
-    </button>
-  );
+
+function EmptyState({ label }: { label: string }) {
+  return <p className="rounded-xl border border-dashed p-4 text-sm text-muted">{label}</p>;
 }

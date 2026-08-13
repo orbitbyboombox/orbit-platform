@@ -7,6 +7,7 @@ import {
   Gauge,
   LogOut,
   Menu,
+  Settings2,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -116,11 +117,24 @@ export function Header({ userEmail, unreadNotifications, navigationOrder, hidden
             )}
           </Link>
         </Button>}
+        <Button
+          aria-label="Configuración rápida"
+          asChild
+          className="hidden sm:inline-flex"
+          size="icon"
+          variant="ghost"
+        >
+          <Link href="/settings">
+            <Settings2 className="size-4" />
+          </Link>
+        </Button>
         <div className="hidden min-w-0 text-right lg:block">
-          <p className="truncate text-xs font-medium">Usuario actual</p>
+          <p className="truncate text-xs font-medium">Founder</p>
           <p className="max-w-40 truncate text-xs text-muted">{userEmail}</p>
         </div>
-        <Avatar initials={userEmail.slice(0, 2).toUpperCase()} />
+        <Link aria-label="Abrir perfil del Founder" href="/settings?section=profile">
+          <Avatar initials={userEmail.slice(0, 2).toUpperCase()} />
+        </Link>
         <form action={signOutAction}>
           <Button
             aria-label="Cerrar sesión"

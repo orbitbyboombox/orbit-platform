@@ -6,10 +6,11 @@ import {
 import { SupabaseCustomerRepository } from "@/features/projects/infrastructure";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { loadFinancialTruth } from "@/features/business-engine";
+import { loadFinanceDashboardReadModel } from "@/features/finance/finance-read-model";
 import {
+  type CommandCenterEvent,
+  type CommandCenterItem,
   FounderWorkspaceExperience,
-  loadFounderWorkspace,
-  type WorkspaceValues,
 } from "@/features/founder-workspace";
 import { StaffOperationsView } from "@/features/resources/staff-operations-view";
 
@@ -54,12 +55,12 @@ export default async function OperationsPage() {
   const { data: auth, error: authError } = await client.auth.getUser();
   if (authError || !auth.user)
     throw authError ?? new Error("Sesión requerida.");
-  const founderWorkspace = await loadFounderWorkspace(client, auth.user.id);
   const { error: taskMaterializationError } = await client.rpc(
     "materialize_scheduled_event_tasks",
   );
   if (taskMaterializationError) throw taskMaterializationError;
   const financialTruth = await loadFinancialTruth(client);
+  const financeDashboard = await loadFinanceDashboardReadModel(client);
   const today = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Santiago",
   }).format(new Date());
@@ -136,7 +137,11 @@ export default async function OperationsPage() {
       .eq("status", "CONFIRMED")
       .gt("total_internal_payment", 0),
     Promise.resolve({ data: financialTruth, error: null }),
-    client.from("timeline_events").select("project_id"),
+    client
+      .from("timeline_events")
+      .select("id,project_id,title,description,occurred_at")
+      .order("occurred_at", { ascending: false })
+      .limit(20),
     client
       .from("projects")
       .select(
@@ -146,7 +151,7 @@ export default async function OperationsPage() {
     client.from("customers").select("id,metadata").is("deleted_at", null),
     client
       .from("tasks")
-      .select("priority,status,due_at")
+      .select("id,project_id,title,priority,status,due_at")
       .is("deleted_at", null),
     client
       .from("accounts_receivable_projection")
@@ -1044,60 +1049,18 @@ export default async function OperationsPage() {
       "/projects?view=profitability",
     ),
   );
+  // Legacy operational projections remain available to the existing Operations
+  // Center while the Founder Command Center reads its financial KPIs exclusively
+  // from Finance Read Model.
+  void [
+    readiness,
+    availableOperators,
+    monthlyRevenue,
+    monthlyExpenses,
+    availableVehicles,
+    controlData,
+  ];
 
-  const workspaceValues: WorkspaceValues = {
-    TODAY_EVENTS: {
-      value: String(
-        projects.filter((project) => project.event.date === today).length,
-      ),
-      detail: "Agenda operacional de hoy",
-    },
-    UPCOMING_EVENTS: {
-      value: String(next15Events),
-      detail: "Próximos 15 días",
-    },
-    ACCOUNTS_RECEIVABLE: {
-      value: money(accountsReceivable),
-      detail: `${activeInvoices.length} documentos abiertos`,
-    },
-    ACCOUNTS_PAYABLE: {
-      value: money(accountsPayable),
-      detail: `${money(monthlyExpenses)} en gastos del mes`,
-    },
-    MONTHLY_REVENUE: {
-      value: money(monthlyRevenue),
-      detail: "Reservas confirmadas del mes",
-    },
-    OPERATIONAL_COST: {
-      value: money(monthlyTotalOperationalCost),
-      detail: "Personal + recursos operacionales",
-    },
-    PROFITABILITY: {
-      value: money(realProfit),
-      detail: `Margen ${pct(netMargin)}`,
-    },
-    BUSINESS_INTELLIGENCE: {
-      value: "Abrir",
-      detail: "Indicadores productivos",
-    },
-    FUEL: { value: money(costSum("fuel")), detail: "Costo asignado a eventos" },
-    PAPER_CONSUMPTION: {
-      value: money(costSum("paper")),
-      detail: "Consumo valorizado",
-    },
-    STAFF: {
-      value: String(activeAssignments.length),
-      detail: `${availableOperators} operadores disponibles`,
-    },
-    FLEET: {
-      value: String(availableVehicles),
-      detail: "Vehículos disponibles",
-    },
-    NOTIFICATIONS: {
-      value: String(controlData.alerts.length),
-      detail: `${readiness.length} eventos supervisados`,
-    },
-  };
   const currentDate = new Intl.DateTimeFormat("es-CL", {
     dateStyle: "full",
     timeZone: "America/Santiago",
@@ -1289,17 +1252,93 @@ export default async function OperationsPage() {
       }))}
     />
   );
+  const commandCenterToday: CommandCenterItem[] = [
+    ...projects
+      .filter((project) => project.event.date === today)
+      .map((project) => ({
+        id: `event-${project.id}`,
+        title: project.client.name,
+        detail: `${project.services.join(" + ") || project.name} · ${project.event.city || "Ubicación pendiente"}`,
+        href: `/projects/${project.id}`,
+        time: project.event.time?.slice(0, 5) || "Hoy",
+        tone: "info" as const,
+      })),
+    ...openTasks
+      .filter(
+        (task) =>
+          task.due_at &&
+          new Intl.DateTimeFormat("en-CA", {
+            timeZone: "America/Santiago",
+          }).format(new Date(task.due_at)) === today,
+      )
+      .map((task) => ({
+        id: `task-${task.id}`,
+        title: task.title || "Tarea operacional",
+        detail: task.priority === "CRITICAL" ? "Prioridad crítica" : "Pendiente para hoy",
+        href: task.project_id ? `/projects/${task.project_id}` : "/tasks",
+        time: new Intl.DateTimeFormat("es-CL", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+          timeZone: "America/Santiago",
+        }).format(new Date(task.due_at!)),
+        tone: task.priority === "CRITICAL" ? ("danger" as const) : ("warning" as const),
+      })),
+  ].sort((a, b) => (a.time ?? "").localeCompare(b.time ?? ""));
+
+  const commandCenterEvents: CommandCenterEvent[] = planningEvents.map(
+    (event) => ({
+      id: event.id,
+      title: event.customer,
+      detail: `${event.service} · ${event.hours} horas`,
+      href: `/projects/${event.id}`,
+      date: new Intl.DateTimeFormat("es-CL", {
+        day: "2-digit",
+        month: "short",
+        timeZone: "America/Santiago",
+      }).format(new Date(`${event.date}T12:00:00Z`)),
+      service: `${event.service} · ${event.hours} horas`,
+      location: [event.venue, event.district].filter(Boolean).join(" · "),
+      staff:
+        [
+          event.roles.operator.assignee,
+          event.roles.assembly.assignee,
+          event.roles.disassembly.assignee,
+        ]
+          .filter(Boolean)
+          .join(" · ") || "Staff pendiente",
+      status: event.published ? "Publicado" : "Preparación",
+    }),
+  );
+
+  const commandCenterActivity: CommandCenterItem[] = (
+    timelineResult.data ?? []
+  ).map((item) => {
+    const project = item.project_id ? projectMap.get(item.project_id) : null;
+    return {
+      id: item.id,
+      title: item.title || "Actividad operacional",
+      detail: `${project?.client.name ?? "ORBIT"} · ${new Intl.DateTimeFormat("es-CL", {
+        dateStyle: "medium",
+        timeStyle: "short",
+        timeZone: "America/Santiago",
+      }).format(new Date(item.occurred_at))}`,
+      href: item.project_id ? `/projects/${item.project_id}` : "/notifications",
+    };
+  });
   return (
     <FounderWorkspaceExperience
       currentDate={currentDate}
+      finance={financeDashboard}
       founderName="Matías"
-      initialPreferences={founderWorkspace}
       pendingTasks={taskSummary.pending}
       publicationConsole={publicationConsole}
+      recentActivity={commandCenterActivity}
       todayEvents={
         projects.filter((project) => project.event.date === today).length
       }
-      values={workspaceValues}
+      todayOperation={commandCenterToday}
+      upcomingEvents={commandCenterEvents}
     />
   );
 }
