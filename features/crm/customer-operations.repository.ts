@@ -59,6 +59,8 @@ export async function loadCrmCustomerOperations(
       ["operator", "Operador", "PERSONNEL"],
       ["assembly", "Montaje", "PERSONNEL"],
       ["disassembly", "Desmontaje", "PERSONNEL"],
+      ["staffAdjustments", "Ajustes de liquidación", "PERSONNEL"],
+      ["staffTax", "Retención boleta Staff (15,25%)", "PERSONNEL"],
       ["paper", "Papel", "OPERATIONAL"],
       ["fuel", "Combustible", "OPERATIONAL"],
       ["transport", "Transporte", "OPERATIONAL"],
@@ -67,6 +69,7 @@ export async function loadCrmCustomerOperations(
       ["branding", `Branding · ${Number(costValues.brandingFaces ?? 0)} caras`, "OPERATIONAL"],
       ["pens", "Lápices", "OPERATIONAL"],
       ["doubleSidedTape", "Cinta doble contacto", "OPERATIONAL"],
+      ["registeredExpenses", "Gastos del Evento (netos)", "OPERATIONAL"],
       ["other", "Otros costos operacionales", "OPERATIONAL"],
     ].map(([key, label, group]) => ({ key, label, group: group as "PERSONNEL" | "OPERATIONAL", amount: Number(costValues[key] ?? 0) }));
     return {
