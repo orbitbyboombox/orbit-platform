@@ -214,6 +214,11 @@ export const MODULE_WORKSPACES = {
       defaultVisible: true,
     },
     {
+      key: "DASHBOARD_STAFF_APPROVALS",
+      label: "Aprobaciones de Staff pendientes",
+      defaultVisible: true,
+    },
+    {
       key: "DASHBOARD_QUICK_ACTIONS",
       label: "Acciones rápidas",
       defaultVisible: true,

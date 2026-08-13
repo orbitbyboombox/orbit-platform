@@ -46,9 +46,12 @@ export async function loadFounderWorkspace(
     }
     const storedOrder = storedModule?.sectionOrder ?? [];
     const newKeys = known.filter((key) => !storedOrder.includes(key));
+    const hiddenByDefault = sections
+      .filter((section) => newKeys.includes(section.key) && !section.defaultVisible)
+      .map((section) => section.key);
     const hiddenSections = [
       ...(storedModule?.hiddenSections ?? []),
-      ...newKeys,
+      ...hiddenByDefault,
     ];
     return [moduleKey, { sectionOrder: [...storedOrder, ...newKeys], hiddenSections: [...new Set(hiddenSections)], sectionLabels:{...defaults[moduleKey as keyof typeof defaults].sectionLabels,...storedModule.sectionLabels} }];
   })) as FounderWorkspacePreferences["moduleWorkspaces"];

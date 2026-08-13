@@ -13,6 +13,7 @@ import {
   FounderWorkspaceExperience,
 } from "@/features/founder-workspace";
 import { StaffOperationsView } from "@/features/resources/staff-operations-view";
+import { officialStaffAssignmentPayment } from "@/features/operations/staff-assignment-payment";
 
 type PlanningRole = {
   code: "OPERATOR" | "ASSEMBLY" | "DISASSEMBLY";
@@ -88,6 +89,7 @@ export default async function OperationsPage() {
     vehicleEventsResult,
     publicationsResult,
     staffRequestsResult,
+    staffRatesResult,
   ] = await Promise.all([
     new SupabaseCustomerRepository(client).findAll(),
     client
@@ -171,10 +173,15 @@ export default async function OperationsPage() {
     client
       .from("staff_assignment_requests")
       .select(
-        "id,project_id,responsibility,requested_at,staff(first_name,last_name),projects(name,event_date,project_services(service_code),customers(full_name))",
+        "id,project_id,responsibility,requested_at,staff(first_name,last_name),projects(name,event_date,project_services(service_code,duration_hours),customers(full_name))",
       )
       .eq("status", "PENDING")
       .order("requested_at", { ascending: true }),
+    client
+      .from("cost_master_entries")
+      .select("code,amount")
+      .eq("enabled", true)
+      .is("deleted_at", null),
   ]);
 
   const results = [
@@ -200,6 +207,7 @@ export default async function OperationsPage() {
     vehicleEventsResult,
     publicationsResult,
     staffRequestsResult,
+    staffRatesResult,
   ];
   const error = results.find((result) => result.error)?.error;
   if (error) throw error;
@@ -1197,6 +1205,38 @@ export default async function OperationsPage() {
       responsibility: row.responsibility,
     };
   });
+  const pendingStaffApprovals = (staffRequestsResult.data ?? []).map((row) => {
+    const member = Array.isArray(row.staff) ? row.staff[0] : row.staff;
+    const project = Array.isArray(row.projects) ? row.projects[0] : row.projects;
+    const customer = project
+      ? Array.isArray(project.customers)
+        ? project.customers[0]
+        : project.customers
+      : null;
+    const services = project
+      ? Array.isArray(project.project_services)
+        ? project.project_services
+        : []
+      : [];
+    const officialProject = officialEventMap.get(row.project_id);
+    const operations = (officialProject?.operations ?? {}) as Record<string, unknown>;
+    const hours = Number(services[0]?.duration_hours ?? 0);
+    return {
+      id: row.id,
+      projectId: row.project_id,
+      collaborator: member
+        ? `${member.first_name} ${member.last_name}`
+        : "Staff",
+      event: customer?.full_name ?? project?.name ?? "Evento",
+      role: row.responsibility,
+      estimatedPayment: officialStaffAssignmentPayment(
+        staffRatesResult.data ?? [],
+        hours,
+        row.responsibility,
+        Number(operations.transportationBonus ?? operations.staffTransportBonus ?? 0),
+      ),
+    };
+  });
   const publicationConsole = (
     <StaffOperationsView
       events={planningEvents.map((event) => ({
@@ -1353,6 +1393,7 @@ export default async function OperationsPage() {
       finance={financeDashboard}
       founderName="Matías"
       operationalAlerts={commandCenterAlerts}
+      pendingStaffApprovals={pendingStaffApprovals}
       pendingTasks={taskSummary.pending}
       publicationConsole={publicationConsole}
       recentActivity={commandCenterActivity}

@@ -15,9 +15,11 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
 import type { LucideIcon } from "lucide-react";
 import type { FinanceDashboardReadModel, FinanceMetric } from "@/features/finance/finance-read-model";
 import { PersonalWorkspaceSections } from "./personal-workspace";
+import { reviewStaffRequestAction } from "@/features/operations/operations-planning.actions";
 
 export type CommandCenterItem = {
   id: string;
@@ -34,6 +36,15 @@ export type CommandCenterEvent = CommandCenterItem & {
   location: string;
   staff: string;
   status: string;
+};
+
+export type PendingStaffApproval = {
+  id: string;
+  projectId: string;
+  collaborator: string;
+  event: string;
+  role: string;
+  estimatedPayment: number;
 };
 
 const quickActions = [
@@ -53,11 +64,12 @@ const toneStyle = {
   danger: "bg-danger-soft text-danger",
 } as const;
 
-export function FounderWorkspaceExperience({ currentDate, finance, founderName, operationalAlerts, pendingTasks, publicationConsole, recentActivity, todayEvents, todayOperation, upcomingEvents }: {
+export function FounderWorkspaceExperience({ currentDate, finance, founderName, operationalAlerts, pendingStaffApprovals, pendingTasks, publicationConsole, recentActivity, todayEvents, todayOperation, upcomingEvents }: {
   currentDate: string;
   finance: FinanceDashboardReadModel;
   founderName: string;
   operationalAlerts: CommandCenterItem[];
+  pendingStaffApprovals: PendingStaffApproval[];
   pendingTasks: number;
   publicationConsole?: React.ReactNode;
   recentActivity: CommandCenterItem[];
@@ -66,6 +78,8 @@ export function FounderWorkspaceExperience({ currentDate, finance, founderName, 
   upcomingEvents: CommandCenterEvent[];
 }) {
   const router = useRouter();
+  const [resolvedApprovalIds, setResolvedApprovalIds] = useState<Set<string>>(() => new Set());
+  const staffApprovalItems = pendingStaffApprovals.filter((item) => !resolvedApprovalIds.has(item.id));
   const headline = (label: string) => finance.headline.find(item => item.label === label);
   const fallback = (label: string, href: string): FinanceMetric => ({ label, value: 0, format: "money", detail: "Sin movimientos canónicos.", href });
   const kpis: Array<{ metric: FinanceMetric; icon: LucideIcon; tone: keyof typeof toneStyle }> = [
@@ -130,15 +144,50 @@ export function FounderWorkspaceExperience({ currentDate, finance, founderName, 
 
   const settings = <section className="flex flex-col gap-4 rounded-2xl border bg-card p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between"><div><PanelTitle id="workspace-settings-title" label="Founder Workspace" /><p className="mt-2 text-xs text-muted">Mueve, oculta y restaura cada bloque. Tu configuración permanece guardada.</p></div><Link className="inline-flex min-h-10 items-center justify-center rounded-xl border px-4 text-xs font-semibold hover:border-brand/40 hover:text-brand" href="/settings#founder-workspace"><Settings2 className="mr-2 size-4" />Configurar espacio</Link></section>;
 
+  const staffApprovals = staffApprovalItems.length ? <PendingStaffApprovals items={staffApprovalItems} onResolved={(id) => setResolvedApprovalIds((current) => new Set(current).add(id))} /> : null;
+
   return <main className="orbit-command-center" id="founder-workspace"><PersonalWorkspaceSections moduleKey="DASHBOARD" sections={[
     { key: "DASHBOARD_HEADER", label: "Bienvenida", content: welcome },
     { key: "DASHBOARD_WIDGETS", label: "KPIs del Founder", content: founderKpis },
+    ...(staffApprovals ? [{ key: "DASHBOARD_STAFF_APPROVALS", label: "Aprobaciones de Staff pendientes", content: staffApprovals }] : []),
     { key: "DASHBOARD_QUICK_ACTIONS", label: "Acciones rápidas", content: actions },
     { key: "DASHBOARD_TODAY", label: "Jornada operacional", content: commandGrid },
     { key: "DASHBOARD_RECENT_ACTIVITY", label: "Actividad reciente", content: activity },
     ...(publicationConsole ? [{ key: "PUBLICATION_CONSOLE", label: "Consola de publicación", content: publicationConsole }] : []),
     { key: "DASHBOARD_WORKSPACE_SETTINGS", label: "Configuración del Workspace", content: settings },
   ]} /></main>;
+}
+
+const roleLabel: Record<string, string> = {
+  OPERATOR: "Operador",
+  ASSEMBLY: "Montaje",
+  DISASSEMBLY: "Desmontaje",
+  ASSEMBLY_DISASSEMBLY: "Montaje + Desmontaje",
+};
+
+function PendingStaffApprovals({ items, onResolved }: { items: PendingStaffApproval[]; onResolved: (id: string) => void }) {
+  const router = useRouter();
+  const [pendingId, setPendingId] = useState<string | null>(null);
+  const [message, setMessage] = useState("");
+  const [isPending, startTransition] = useTransition();
+  if (!items.length) return null;
+  const review = (item: PendingStaffApproval, decision: "approve" | "reject") => {
+    setPendingId(item.id);
+    setMessage("");
+    startTransition(async () => {
+      const form = new FormData();
+      form.set("requestId", item.id);
+      form.set("decision", decision);
+      const result = await reviewStaffRequestAction(form);
+      setMessage(result.message);
+      if (result.ok) {
+        onResolved(item.id);
+        router.refresh();
+      }
+      setPendingId(null);
+    });
+  };
+  return <section data-command-card aria-labelledby="pending-staff-approvals-title" className="rounded-2xl border border-brand/25 p-5 sm:p-6"><div className="flex items-center justify-between gap-3"><div><PanelTitle id="pending-staff-approvals-title" label="Aprobaciones de Staff pendientes"/><p className="mt-2 text-xs text-muted">Aprobar ejecuta la asignación canónica completa sin abrir Staff ni el Evento.</p></div><span className="rounded-full bg-brand/10 px-3 py-1 text-xs font-semibold text-brand">{items.length}</span></div>{message?<p aria-live="polite" className="mt-4 rounded-xl border bg-background/40 p-3 text-xs text-muted">{message}</p>:null}<div className="mt-5 space-y-3">{items.map(item=><article className="grid gap-3 rounded-xl border bg-background/30 p-4 lg:grid-cols-[1.1fr_1.1fr_.8fr_.8fr_auto] lg:items-center" key={item.id}><div><p className="text-[10px] uppercase tracking-[.12em] text-muted">Colaborador</p><p className="mt-1 text-sm font-semibold">{item.collaborator}</p></div><div><p className="text-[10px] uppercase tracking-[.12em] text-muted">Evento</p><p className="mt-1 text-sm font-semibold">{item.event}</p></div><div><p className="text-[10px] uppercase tracking-[.12em] text-muted">Rol</p><p className="mt-1 text-sm font-semibold">{roleLabel[item.role]??item.role}</p></div><div><p className="text-[10px] uppercase tracking-[.12em] text-muted">Pago estimado</p><p className="mt-1 text-sm font-semibold">{money(item.estimatedPayment)}</p></div><div className="flex flex-wrap gap-2 lg:justify-end"><button className="min-h-10 rounded-xl bg-brand px-3 text-xs font-semibold text-brand-foreground disabled:opacity-50" disabled={isPending} onClick={()=>review(item,"approve")}>{pendingId===item.id&&isPending?"Procesando…":"Aprobar"}</button><button className="min-h-10 rounded-xl border px-3 text-xs font-semibold disabled:opacity-50" disabled={isPending} onClick={()=>review(item,"reject")}>Rechazar</button><Link className="inline-flex min-h-10 items-center rounded-xl border px-3 text-xs font-semibold text-muted hover:text-brand" href={`/projects/${item.projectId}#staff-assignment`}>Ver</Link></div></article>)}</div></section>;
 }
 
 function PanelTitle({ id, label }: { id: string; label: string }) { return <h2 data-command-label id={id}>{label}</h2>; }
