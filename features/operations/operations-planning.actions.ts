@@ -1,11 +1,11 @@
 "use server";
 
 import {revalidatePath} from "next/cache";
-import {createSupabaseServerClient} from "@/lib/supabase/server";
+import {createSupabaseServerActionClient} from "@/lib/supabase/server";
 import {deliverSmartAssignmentPackage} from "./smart-assignment-package.service";
 
 type Result={ok:true;message:string}|{ok:false;message:string};
-async function context(){const client=await createSupabaseServerClient();const{data,error}=await client.auth.getUser();if(error||!data.user)throw new Error("Sesión requerida.");const{data:profile,error:profileError}=await client.from("profiles").select("role").eq("id",data.user.id).single();if(profileError||!["CEO","ADMINISTRATOR"].includes(profile?.role))throw new Error("Solo Administración puede asignar Staff.");return client;}
+async function context(){const client=await createSupabaseServerActionClient();const{data,error}=await client.auth.getUser();if(error||!data.user)throw new Error("Sesión requerida.");const{data:profile,error:profileError}=await client.from("profiles").select("role").eq("id",data.user.id).single();if(profileError||!["CEO","ADMINISTRATOR"].includes(profile?.role))throw new Error("Solo Administración puede asignar Staff.");return client;}
 const value=(data:FormData,key:string)=>String(data.get(key)??"").trim();
 
 export async function assignEventResponsibilityAction(data:FormData):Promise<Result>{try{const client=await context();const{error}=await client.rpc("assign_event_operational_responsibility",{p_project_id:value(data,"projectId"),p_staff_id:value(data,"staffId"),p_responsibility:value(data,"responsibility"),p_reason:"Asignación desde Centro de Operaciones"});if(error)throw error;revalidatePath("/operations");revalidatePath(`/projects/${value(data,"projectId")}`);return{ok:true,message:"Asignación guardada."};}catch(error){return{ok:false,message:error instanceof Error?error.message:"No fue posible guardar la asignación."};}}
