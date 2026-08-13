@@ -17,6 +17,11 @@ import {
   StaffOnboardingCenter,
   type StaffOnboardingInvitation,
 } from "@/features/staff-onboarding/staff-onboarding-center";
+import { AcademyManager } from "@/features/academy/academy-manager";
+import {
+  loadAcademyArticles,
+  loadAcademyStats,
+} from "@/features/academy/repository";
 
 export default async function StaffManagementPage() {
   const client = await createSupabaseServerClient();
@@ -496,6 +501,8 @@ export default async function StaffManagementPage() {
       fileName: document.file_name,
     })),
   }));
+  const academyArticles = await loadAcademyArticles(client);
+  const academyStats = await loadAcademyStats(client, academyArticles);
   return (
     <StaffWorkspaces
       team={
@@ -524,6 +531,9 @@ export default async function StaffManagementPage() {
           events={paymentEvents}
           months={monthlyRecords}
         />
+      }
+      academy={
+        <AcademyManager articles={academyArticles} stats={academyStats} />
       }
     />
   );
