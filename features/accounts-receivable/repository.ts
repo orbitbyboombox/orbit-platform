@@ -20,13 +20,13 @@ export async function loadAccountsReceivable(
     client
       .from("accounts_receivable_projection")
       .select(
-        "id,invoice_number,customer_id,project_id,orbit_event_id,customer_type,status,effective_status,amount,paid_amount,outstanding_balance,issue_date,due_date,payment_term,custom_term_days,purchase_order,days_remaining,aging_bucket,version,customers(full_name),projects(name)",
+        "id,invoice_number,customer_id,project_id,orbit_event_id,customer_type,status,effective_status,amount,paid_amount,outstanding_balance,issue_date,due_date,payment_term,custom_term_days,purchase_order,days_remaining,aging_bucket,version,payment_history,customers(full_name),projects(name,project_services(service_code),agreements(id,status,signed_pdf_path))",
       )
       .order("due_date", { ascending: true, nullsFirst: false }),
     client
       .from("accounts_receivable_history")
       .select(
-        "id,invoice_number,customer_id,project_id,orbit_event_id,customer_type,status,effective_status,financial_record_state,record_origin,amount,paid_amount,outstanding_balance,issue_date,due_date,payment_term,custom_term_days,purchase_order,days_remaining,aging_bucket,version,customers(full_name),projects(name)",
+        "id,invoice_number,customer_id,project_id,orbit_event_id,customer_type,status,effective_status,financial_record_state,record_origin,amount,paid_amount,outstanding_balance,issue_date,due_date,payment_term,custom_term_days,purchase_order,days_remaining,aging_bucket,version,customers(full_name),projects(name,project_services(service_code),agreements(id,status,signed_pdf_path))",
       )
       .order("created_at", { ascending: false }),
     client
@@ -51,7 +51,7 @@ export async function loadAccountsReceivable(
       .from("agreements")
       .select("id,project_id,status")
       .order("created_at", { ascending: false }),
-    client.from("invoice_payments").select("invoice_id,paid_at,created_at"),
+    client.from("invoice_payments").select("id,invoice_id,amount,paid_at,method,reason,created_at").is("deleted_at",null).order("paid_at",{ascending:false}),
   ]);
   const failure = [
     invoicesResult,
@@ -71,6 +71,9 @@ export async function loadAccountsReceivable(
       const project = Array.isArray(row.projects)
         ? row.projects[0]
         : row.projects;
+      const agreements=[...(project?.agreements??[])].sort((a,b)=>String(b.id).localeCompare(String(a.id)));
+      const agreement=agreements.find((item)=>["SIGNED","COMMERCIAL_DOCUMENT"].includes(item.status))??agreements[0];
+      const history=(Array.isArray(row.payment_history)?row.payment_history:[]) as Array<Record<string,unknown>>;
       return {
         id: row.id,
         invoiceNumber: row.invoice_number,
@@ -92,6 +95,11 @@ export async function loadAccountsReceivable(
         daysRemaining: row.days_remaining,
         agingBucket: row.aging_bucket,
         version: row.version,
+        service:(project?.project_services??[]).map((item)=>item.service_code).join(" + ")||"Sin servicio",
+        agreementId:agreement?.id??null,
+        contractAvailable:Boolean(agreement?.signed_pdf_path),
+        paymentHistory:history.map((item)=>({id:String(item.id),amount:Number(item.amount),paidAt:String(item.paidAt),method:String(item.method??"—"),observation:String(item.observation??"")})),
+        lastPayment:history[0]?{id:String(history[0].id),amount:Number(history[0].amount),paidAt:String(history[0].paidAt),method:String(history[0].method??"—")}:null,
       };
     },
   );
@@ -103,6 +111,9 @@ export async function loadAccountsReceivable(
       const project = Array.isArray(row.projects)
         ? row.projects[0]
         : row.projects;
+      const agreements=[...(project?.agreements??[])].sort((a,b)=>String(b.id).localeCompare(String(a.id)));
+      const agreement=agreements.find((item)=>["SIGNED","COMMERCIAL_DOCUMENT"].includes(item.status))??agreements[0];
+      const history=(paymentsResult.data??[]).filter(item=>item.invoice_id===row.id);
       return {
         id: row.id,
         invoiceNumber: row.invoice_number,
@@ -124,6 +135,11 @@ export async function loadAccountsReceivable(
         daysRemaining: row.days_remaining,
         agingBucket: row.aging_bucket,
         version: row.version,
+        service:(project?.project_services??[]).map((item)=>item.service_code).join(" + ")||"Sin servicio",
+        agreementId:agreement?.id??null,
+        contractAvailable:Boolean(agreement?.signed_pdf_path),
+        paymentHistory:history.map(item=>({id:item.id,amount:Number(item.amount),paidAt:item.paid_at,method:item.method??"—",observation:item.reason??""})),
+        lastPayment:history[0]?{id:history[0].id,amount:Number(history[0].amount),paidAt:history[0].paid_at,method:history[0].method??"—"}:null,
         recordState: row.financial_record_state,
         recordOrigin: row.record_origin,
       };

@@ -35,6 +35,11 @@ export interface ReceivableInvoice {
   daysRemaining: number | null;
   agingBucket: string;
   version: number;
+  service: string;
+  agreementId: string | null;
+  contractAvailable: boolean;
+  lastPayment: { id: string; amount: number; paidAt: string; method: string } | null;
+  paymentHistory: readonly { id: string; amount: number; paidAt: string; method: string; observation: string }[];
   recordState?: "ACTIVE" | "ARCHIVED" | "CANCELLED" | "DELETED";
   recordOrigin?: "PRODUCTION" | "QA";
 }
