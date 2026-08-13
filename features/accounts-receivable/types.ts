@@ -19,8 +19,11 @@ export interface ReceivableInvoice {
   invoiceNumber: string;
   customerId: string;
   customerName: string;
+  customerEmail: string | null;
+  customerPhone: string | null;
   projectId: string;
   projectName: string;
+  projectType: string;
   orbitEventId: string;
   customerType: "PRIVATE" | "CORPORATE";
   status: InvoiceStatus;
@@ -38,6 +41,9 @@ export interface ReceivableInvoice {
   service: string;
   agreementId: string | null;
   contractAvailable: boolean;
+  collectorId: string | null;
+  collectorName: string;
+  reminders: readonly { id: string; subject: string; status: string; occurredAt: string }[];
   lastPayment: { id: string; amount: number; paidAt: string; method: string } | null;
   paymentHistory: readonly { id: string; amount: number; paidAt: string; method: string; observation: string }[];
   recordState?: "ACTIVE" | "ARCHIVED" | "CANCELLED" | "DELETED";
@@ -72,6 +78,9 @@ export interface ReceivableDataset {
     accountsReceivable: number;
     outstandingBalance: number;
     overdueBalance: number;
+    collected: number;
+    companyCredits: number;
+    collectionRate: number;
     averageCollectionDays: number | null;
     aging: Record<string, number>;
   };
