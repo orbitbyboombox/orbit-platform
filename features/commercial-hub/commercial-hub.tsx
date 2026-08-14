@@ -108,7 +108,7 @@ export function CommercialHub({ data }: { data: CommercialHubData }) {
           </Button>
           <Button
             className="min-h-12 justify-start"
-            onClick={() => setView("HOME")}
+            onClick={() => setView("COMPANIES_QUOTE")}
             variant="outline"
           >
             <ReceiptText />
