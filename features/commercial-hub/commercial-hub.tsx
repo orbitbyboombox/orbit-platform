@@ -855,7 +855,7 @@ function Field({
   return (
     <label className="grid min-w-0 gap-1.5 text-sm">
       <span className="font-medium">{label}</span>
-      <span className="contents [&_input]:min-h-11 [&_input]:min-w-0 [&_input]:rounded-xl [&_input]:border [&_input]:bg-background [&_input]:px-3 [&_select]:min-h-11 [&_select]:min-w-0 [&_select]:rounded-xl [&_select]:border [&_select]:bg-background [&_select]:px-3 [&_textarea]:min-w-0 [&_textarea]:rounded-xl [&_textarea]:border [&_textarea]:bg-background [&_textarea]:p-3">
+      <span className="contents [&_input]:min-h-11 [&_input]:min-w-0 [&_input]:rounded-xl [&_input]:border [&_input]:bg-background [&_input]:px-3 [&_select]:min-h-11 [&_select]:min-w-0 [&_select]:w-full [&_select]:max-w-full [&_select]:rounded-xl [&_select]:border [&_select]:bg-background [&_select]:px-3 [&_textarea]:min-w-0 [&_textarea]:rounded-xl [&_textarea]:border [&_textarea]:bg-background [&_textarea]:p-3">
         {children}
       </span>
     </label>
