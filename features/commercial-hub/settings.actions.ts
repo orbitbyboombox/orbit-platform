@@ -1,6 +1,8 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerActionClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { isCommercialCatalogCategory, validateCommercialUpload } from "./catalogs";
 async function access() {
   const client = await createSupabaseServerActionClient();
   const { data } = await client.auth.getUser();
@@ -16,51 +18,77 @@ async function access() {
     );
   return { client, user: data.user };
 }
-export async function uploadCommercialDocumentAction(form: FormData) {
+export async function prepareCommercialDocumentUploadAction(input: {
+  category: string;
+  name: string;
+  version: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+}) {
+  try {
+    await access();
+    const category = input.category;
+    const name = input.name.trim();
+    const version = input.version.trim();
+    const validation = validateCommercialUpload({ mimeType: input.mimeType, size: input.size });
+    if (validation) throw new Error(validation);
+    if (!isCommercialCatalogCategory(category) || !name || !version)
+      throw new Error("Completa nombre, categoría y versión.");
+    const filename = input.filename.replace(/[^a-zA-Z0-9._-]/g, "-") || "catalogo.pdf";
+    const path = `commercial/${category.toLowerCase()}/${crypto.randomUUID()}-${filename}`;
+    const admin = createAdminClient();
+    const signed = await admin.storage.from("orbit-documents").createSignedUploadUrl(path);
+    if (signed.error) throw signed.error;
+    return { ok: true as const, path, token: signed.data.token, signedUrl: signed.data.signedUrl };
+  } catch (error) {
+    console.error("Commercial document upload preparation failed", error);
+    return { ok: false as const, error: error instanceof Error ? error.message : "No pudimos preparar la carga del catálogo." };
+  }
+}
+
+export async function finalizeCommercialDocumentUploadAction(input: {
+  category: string;
+  name: string;
+  version: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+  path: string;
+}) {
   try {
     const { client, user } = await access();
-    const file = form.get("file");
-    if (!(file instanceof File) || !file.size)
-      throw new Error("Selecciona un PDF.");
-    if (file.type !== "application/pdf")
-      throw new Error("El documento debe ser PDF.");
-    if (file.size > 30 * 1024 * 1024) throw new Error("El PDF supera 30 MB.");
-    const category = String(form.get("category")),
-      name = String(form.get("name")).trim(),
-      version = String(form.get("version")).trim();
-    if (
-      !["WEDDINGS", "COMPANIES", "EVENTS"].includes(category) ||
-      !name ||
-      !version
-    )
+    const validation = validateCommercialUpload({ mimeType: input.mimeType, size: input.size });
+    if (validation) throw new Error(validation);
+    if (!isCommercialCatalogCategory(input.category) || !input.name.trim() || !input.version.trim())
       throw new Error("Completa nombre, categoría y versión.");
-    const path = `commercial/${category.toLowerCase()}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
-    const upload = await client.storage
-      .from("orbit-documents")
-      .upload(path, file, { contentType: "application/pdf", upsert: false });
-    if (upload.error) throw upload.error;
+    if (!input.path.startsWith(`commercial/${input.category.toLowerCase()}/`))
+      throw new Error("La referencia del archivo no es válida.");
+    const admin = createAdminClient();
+    const info = await admin.storage.from("orbit-documents").info(input.path);
+    if (info.error) throw new Error("Storage no confirmó el archivo cargado.");
     const { error } = await client
       .from("commercial_documents")
       .insert({
-        name,
-        category,
-        version,
-        filename: file.name,
-        storage_path: path,
+        name: input.name.trim(),
+        category: input.category,
+        version: input.version.trim(),
+        filename: input.filename,
+        storage_path: input.path,
+        file_size: input.size,
+        metadata: { mimeType: input.mimeType, uploadMode: "SIGNED_DIRECT" },
         status: "PENDING",
         uploaded_by: user.id,
       });
     if (error) throw error;
     revalidatePath("/settings");
     revalidatePath("/leads");
-    return { ok: true as const, message: "Nueva versión cargada. Revísala y actívala cuando corresponda." };
+    return { ok: true as const, message: "Catálogo cargado correctamente. Revísalo y actívalo cuando corresponda." };
   } catch (error) {
+    console.error("Commercial document upload finalization failed", error);
     return {
       ok: false as const,
-      error:
-        error instanceof Error
-          ? error.message
-          : "No fue posible cargar el documento.",
+      error: error instanceof Error ? error.message : "No pudimos cargar el catálogo. Intenta nuevamente.",
     };
   }
 }

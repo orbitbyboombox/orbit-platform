@@ -12,6 +12,7 @@ import { loadCompanySettings } from "@/features/company-settings";
 import { createCustomerProjectAction } from "@/features/projects/actions/customer.actions";
 import type { ProjectDraft } from "@/features/projects/types/project";
 import { emailParagraphs, formalQuoteSubject, normalizeEmailNewlines, quoteDisplayFilename, quoteStorageKey, withoutDuplicateSignature } from "./presentation";
+import { catalogPublicUrl, isCommercialCatalogCategory } from "./catalogs";
 
 async function founder() {
   const client = await createSupabaseServerClient();
@@ -48,6 +49,7 @@ export async function sendCommercialInformationAction(input: {
   body: string;
   documentId: string;
   requestId: string;
+  attachPdf?: boolean;
 }) {
   try {
     const { user } = await founder();
@@ -61,7 +63,7 @@ export async function sendCommercialInformationAction(input: {
     if (existing?.status === "SENT") return { ok: true as const, message: "Este envío ya fue procesado." };
     const { data: document, error } = await admin
       .from("commercial_documents")
-      .select("id,name,version,filename,storage_path,status")
+      .select("id,name,version,filename,storage_path,status,category")
       .eq("id", input.documentId)
       .eq("status", "ACTIVE")
       .single();
@@ -89,30 +91,31 @@ export async function sendCommercialInformationAction(input: {
       if (claimError.code === "23505") return { ok: true as const, message: "Este envío ya está siendo procesado." };
       throw claimError;
     }
-    const [signed, downloaded] = await Promise.all([admin.storage
-      .from("orbit-documents")
-      .createSignedUrl(document.storage_path, 60 * 30), admin.storage.from("orbit-documents").download(document.storage_path)]);
-    if (signed.error) throw signed.error;
-    if (downloaded.error) throw downloaded.error;
+    if (!isCommercialCatalogCategory(document.category)) throw new Error("La categoría del catálogo no es válida.");
+    const publicUrl = catalogPublicUrl(document.category, process.env.NEXT_PUBLIC_APP_URL ?? "https://orbit.boom-box.cl");
+    const downloaded = input.attachPdf ? await admin.storage.from("orbit-documents").download(document.storage_path) : null;
+    if (downloaded?.error) throw downloaded.error;
     const signatureUrl = typeof company.emailConfiguration.signatureGifUrl === "string" ? company.emailConfiguration.signatureGifUrl : "";
-    const signature = signatureUrl ? `<p><img src="${escapeHtml(signatureUrl)}" alt="Equipo BOOMBOX" style="display:block;max-width:420px;width:100%;height:auto"></p>` : `<p>${escapeHtml(company.emailSignature || "Equipo BOOMBOX")}</p>`;
-    const cleanBody = withoutDuplicateSignature(body, company.emailSignature || "Equipo BOOMBOX");
+    const signature = signatureUrl ? `<p style="margin:24px 0 0"><img src="${escapeHtml(signatureUrl)}" alt="BOOMBOX" style="display:block;max-width:600px;width:100%;height:auto;border:0"></p>` : `<p>Equipo BOOMBOX</p>`;
+    const cleanBody = withoutDuplicateSignature(withoutDuplicateSignature(body, company.emailSignature || "Equipo BOOMBOX"), "Equipo BOOMBOX");
     const htmlParagraphs = emailParagraphs(cleanBody).map((paragraph) => `<p style="margin:0 0 16px">${escapeHtml(paragraph).replaceAll("\n", "<br>")}</p>`).join("");
+    const cta = `<p style="margin:24px 0"><a href="${escapeHtml(publicUrl)}" style="display:inline-block;background:#f78900;color:#111;text-decoration:none;font-weight:700;padding:13px 20px;border-radius:10px">VER CATÁLOGO BOOMBOX</a></p><p style="font-size:12px;color:#666">Si el botón no abre, visita: <a href="${escapeHtml(publicUrl)}">${escapeHtml(publicUrl)}</a></p>`;
     const sent = await new GoogleGmailApiProvider(
       await loadGoogleWorkspaceAccessToken(),
     ).send({
       to: input.email.trim().toLowerCase(),
       subject,
-      textBody: `${cleanBody}\n\nDocumento: ${signed.data.signedUrl}\n\n${signatureUrl ? "" : company.emailSignature || "Equipo BOOMBOX"}`.trim(),
-      htmlBody: `<main style="font-family:Arial,sans-serif;line-height:1.6">${htmlParagraphs}<p><a href="${signed.data.signedUrl}">Ver ${escapeHtml(document.name)}</a></p>${signature}</main>`,
+      textBody: `${cleanBody}\n\nVer catálogo BOOMBOX: ${publicUrl}\n\n${signatureUrl ? "" : "Equipo BOOMBOX"}`.trim(),
+      htmlBody: `<main style="font-family:Arial,sans-serif;line-height:1.6;max-width:680px">${htmlParagraphs}${cta}${signature}</main>`,
       driveFileIds: [],
-      attachments: [{ filename: document.filename || `${document.name}.pdf`, mimeType: "application/pdf", content: new Uint8Array(await downloaded.data.arrayBuffer()) }],
+      attachments: downloaded?.data ? [{ filename: document.filename || `${document.name}.pdf`, mimeType: "application/pdf", content: new Uint8Array(await downloaded.data.arrayBuffer()) }] : [],
     });
     const { error: write } = await admin
       .from("commercial_sends")
       .update({
         status: "SENT",
         external_message_id: sent.messageId,
+        document_snapshot: { name: document.name, version: document.version, storagePath: document.storage_path, publicUrl, deliveryMode: input.attachPdf ? "LINK_AND_ATTACHMENT" : "LINK" },
       }).eq("id", claimed.id);
     if (write) throw write;
     revalidatePath("/leads");
@@ -362,9 +365,9 @@ export async function sendFormalQuoteAction(input: { quoteId: string; email: str
     }
     const links = `<p><a href="${pdfUrl.data.signedUrl}">Descargar ${escapeHtml(quote.quotation_number)}</a></p>${catalogUrl ? `<p><a href="${catalogUrl}">Ver catálogo Empresas</a></p>` : ""}`;
     const signatureUrl = typeof company.emailConfiguration.signatureGifUrl === "string" ? company.emailConfiguration.signatureGifUrl : "";
-    const signatureText = company.emailSignature || "Equipo BOOMBOX";
-    const signature = signatureUrl ? `<p><img src="${escapeHtml(signatureUrl)}" alt="Equipo BOOMBOX" style="display:block;max-width:420px;width:100%;height:auto"></p>` : `<p>${escapeHtml(signatureText)}</p>`;
-    const cleanBody = withoutDuplicateSignature(body, signatureText);
+    const signatureText = "Equipo BOOMBOX";
+    const signature = signatureUrl ? `<p><img src="${escapeHtml(signatureUrl)}" alt="BOOMBOX" style="display:block;max-width:600px;width:100%;height:auto;border:0"></p>` : `<p>${signatureText}</p>`;
+    const cleanBody = withoutDuplicateSignature(withoutDuplicateSignature(body, company.emailSignature || signatureText), signatureText);
     const htmlParagraphs = emailParagraphs(cleanBody).map((paragraph) => `<p style="margin:0 0 16px">${escapeHtml(paragraph).replaceAll("\n", "<br>")}</p>`).join("");
     const sent = await new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken()).send({ to: input.email.trim().toLowerCase(), subject, textBody: `${cleanBody}\n\nCotización: ${pdfUrl.data.signedUrl}${catalogUrl ? `\nCatálogo: ${catalogUrl}` : ""}\n\n${signatureUrl ? "" : signatureText}`.trim(), htmlBody: `<main style="font-family:Arial,sans-serif;line-height:1.6">${htmlParagraphs}${links}${signature}</main>`, driveFileIds: [], attachments: [{ filename: quoteDisplayFilename(quote.quotation_number), mimeType: "application/pdf", content: new Uint8Array(pdf) }] });
     const timestamp = new Date().toISOString();

@@ -36,7 +36,12 @@ export async function loadFounderWorkspace(
     ).map((item) => item.key),
   ];
   const defaults = defaultModuleWorkspaces();
-  const storedModules = (data.module_workspaces ?? {}) as Record<string, { sectionOrder?: string[]; hiddenSections?: string[]; sectionLabels?: Record<string,string> }>;
+  const rawStoredModules = (data.module_workspaces ?? {}) as Record<string, { sectionOrder?: string[]; hiddenSections?: string[]; sectionLabels?: Record<string,string> }>;
+  const storedModules = Object.fromEntries(Object.entries(rawStoredModules).map(([key, value]) => [key, {
+    sectionOrder: Array.isArray(value?.sectionOrder) ? value.sectionOrder : [],
+    hiddenSections: Array.isArray(value?.hiddenSections) ? value.hiddenSections : [],
+    sectionLabels: value?.sectionLabels && typeof value.sectionLabels === "object" ? value.sectionLabels : {},
+  }])) as Record<string, { sectionOrder: string[]; hiddenSections: string[]; sectionLabels: Record<string,string> }>;
   const knownModules = Object.fromEntries(Object.entries(MODULE_WORKSPACES).map(([moduleKey, sections]) => {
     const known: string[] = sections.map((section) => section.key);
     const storedModule = storedModules[moduleKey];

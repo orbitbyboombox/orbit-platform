@@ -36,6 +36,7 @@ import { calculateFormalQuote } from "./quote-calculation";
 import { commercialGreeting, displayChileanPhone, formalQuoteSubject, formatChileanRutInput, moneyInputNumber, normalizeChileanPhone, normalizeEmailNewlines, quoteDisplayFilename, titleCasePerson, withoutDuplicateSignature } from "./presentation";
 import { PdfViewer } from "./pdf-viewer";
 import { getCommercialDocumentUrlAction } from "./settings.actions";
+import { catalogPublicPath, type CommercialCatalogCategory } from "./catalogs";
 
 const money = new Intl.NumberFormat("es-CL", {
   style: "currency",
@@ -44,7 +45,7 @@ const money = new Intl.NumberFormat("es-CL", {
 });
 const categoryDocument: Record<
   Exclude<CommercialCategory, "COMPANIES_QUOTE">,
-  string
+  CommercialCatalogCategory
 > = {
   WEDDINGS: "WEDDINGS",
   BIRTHDAYS: "EVENTS",
@@ -119,7 +120,7 @@ export function CommercialHub({ data }: { data: CommercialHubData }) {
             Cotizar
           </Button>
         </div>
-        <Link className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold text-brand hover:border-brand/50" href="/settings?section=commercial-documents#commercial-documents"><Files className="size-4" />Documentos comerciales</Link>
+        <Link className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold text-brand hover:border-brand/50" href="/settings?section=commercial-documents#commercial-documents"><Files className="size-4" />Administrar catálogos</Link>
       </header>
       {view !== "HOME" && (
         <button
@@ -198,6 +199,7 @@ function InformationSender({
   const [preview, setPreview] = useState(false);
   const [message, setMessage] = useState("");
   const [requestId, setRequestId] = useState(uid);
+  const [attachPdf, setAttachPdf] = useState(false);
   const [pending, start] = useTransition();
   const send = () => {
     if (!window.confirm(`¿Enviar información a ${email}?`)) return;
@@ -210,6 +212,7 @@ function InformationSender({
         body,
         documentId: document?.id ?? "",
         requestId,
+        attachPdf,
       });
       setMessage(result.ok ? result.message : result.error);
       if (result.ok) setRequestId(uid());
@@ -245,7 +248,7 @@ function InformationSender({
           />
         </Field>
         <div className="rounded-xl border border-brand/30 bg-background p-4">
-          <p className="text-xs font-semibold uppercase tracking-[.12em] text-brand">Catálogo adjunto</p>
+          <p className="text-xs font-semibold uppercase tracking-[.12em] text-brand">Catálogo</p>
           <p className="mt-1 text-sm text-muted">
             {document
               ? `${document.name} · ${document.version} ✓`
@@ -255,6 +258,7 @@ function InformationSender({
             {document && <button className="inline-flex min-h-10 items-center rounded-lg border px-3 text-xs font-semibold text-brand" type="button" onClick={() => start(async () => { const result = await getCommercialDocumentUrlAction(document.id); if (result.ok) window.open(result.url, "_blank", "noopener,noreferrer"); else setMessage(result.error); })}>Ver</button>}
             <Link className="inline-flex min-h-10 items-center rounded-lg border px-3 text-xs font-semibold text-brand" href={`/settings?section=commercial-documents&category=${categoryDocument[category]}&returnTo=/leads#commercial-documents`}>{document ? "Cambiar catálogo" : "Subir catálogo"}</Link>
           </div>
+          {document && <div className="mt-4 grid gap-2 rounded-lg border p-3 text-sm"><label className="flex min-h-10 items-center gap-3"><input checked={!attachPdf} name={`delivery-${category}`} onChange={() => setAttachPdf(false)} type="radio" />Enviar como link <span className="text-emerald-500">Recomendado</span></label><label className="flex min-h-10 items-center gap-3"><input checked={attachPdf} name={`delivery-${category}`} onChange={() => setAttachPdf(true)} type="radio" />Adjuntar PDF al correo</label></div>}
         </div>
         {preview && (
           <div className="rounded-xl border border-brand/30 bg-background p-4">
@@ -266,7 +270,7 @@ function InformationSender({
             <p className="mt-4 whitespace-pre-wrap text-sm text-muted">
               {normalizeEmailNewlines(body).replaceAll("[Nombre]", titleCasePerson(name))}
             </p>
-            <p className="mt-4 text-sm">Adjunto: {document?.filename ?? "—"}</p>
+            {document && <><p className="mt-4 text-sm font-semibold">VER CATÁLOGO BOOMBOX</p><p className="text-sm text-brand">{catalogPublicPath(categoryDocument[category])}</p><p className="mt-2 text-sm">Modo: {attachPdf ? "Link + PDF adjunto" : "Enviar como link"}</p></>}
           </div>
         )}
         <div className="grid gap-3 sm:grid-cols-2">

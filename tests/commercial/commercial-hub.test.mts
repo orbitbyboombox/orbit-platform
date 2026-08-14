@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { calculateDiscount, calculateFormalQuote, isCommercialEmail } from "../../features/commercial-hub/quote-calculation.ts";
 import { commercialGreeting, displayChileanPhone, documentCategoryLabel, emailParagraphs, formalQuoteSubject, formatChileanRutInput, moneyInputNumber, normalizeChileanPhone, normalizeEmailNewlines, quoteDisplayFilename, quoteStorageKey, titleCasePerson, withoutDuplicateSignature } from "../../features/commercial-hub/presentation.ts";
+import { catalogCategoryFromSlug, catalogPublicPath, catalogPublicUrl, validateCommercialUpload, validateSignatureUpload } from "../../features/commercial-hub/catalogs.ts";
 
 const line = (patch: Record<string, unknown> = {}) => ({ id: "1", code: "CLASSIC", description: "Tótem Classic", quantity: 4, catalogPrice: 500000, quotedPrice: 430000, discountType: null, discountValue: 0, manual: false, ...patch });
 
@@ -52,3 +53,25 @@ test("formal email greets the contact instead of company", () => assert.equal(co
 test("formal email uses generic greeting without contact", () => assert.equal(commercialGreeting(""), "Hola,"));
 test("email signature is not duplicated", () => assert.equal(withoutDuplicateSignature("Quedamos atentos.\n\nEquipo BOOMBOX", "Equipo BOOMBOX"), "Quedamos atentos."));
 test("shared events catalog has Founder-facing category", () => assert.equal(documentCategoryLabel("EVENTS"), "Eventos / Cumpleaños / Graduaciones"));
+test("public catalog paths are stable and category-owned", () => {
+  assert.equal(catalogPublicPath("WEDDINGS"), "/catalogo/novios");
+  assert.equal(catalogPublicPath("COMPANIES"), "/catalogo/empresas");
+  assert.equal(catalogPublicPath("EVENTS"), "/catalogo/eventos");
+});
+test("public catalog URL is independent from document versions", () => {
+  assert.equal(catalogPublicUrl("WEDDINGS"), "https://orbit.boom-box.cl/catalogo/novios");
+  assert.equal(catalogPublicUrl("WEDDINGS"), catalogPublicUrl("WEDDINGS"));
+});
+test("catalog slugs resolve only to known canonical categories", () => {
+  assert.equal(catalogCategoryFromSlug("novios"), "WEDDINGS");
+  assert.equal(catalogCategoryFromSlug("empresas"), "COMPANIES");
+  assert.equal(catalogCategoryFromSlug("eventos"), "EVENTS");
+  assert.equal(catalogCategoryFromSlug("interno"), null);
+});
+test("catalog upload accepts a PDF larger than 20 MB", () => assert.equal(validateCommercialUpload({ mimeType: "application/pdf", size: 21 * 1024 * 1024 }), null));
+test("catalog upload rejects files above 30 MB", () => assert.equal(validateCommercialUpload({ mimeType: "application/pdf", size: 31 * 1024 * 1024 }), "El PDF supera 30 MB."));
+test("catalog upload rejects a non PDF", () => assert.equal(validateCommercialUpload({ mimeType: "image/png", size: 1024 }), "El documento debe ser PDF."));
+test("graphical signature accepts every supported image format", () => {
+  for (const mimeType of ["image/gif", "image/png", "image/jpeg", "image/webp"]) assert.equal(validateSignatureUpload({ mimeType, size: 1024 }), null);
+});
+test("graphical signature rejects unsupported formats", () => assert.equal(validateSignatureUpload({ mimeType: "image/svg+xml", size: 1024 }), "Usa GIF, PNG, JPG o WebP."));

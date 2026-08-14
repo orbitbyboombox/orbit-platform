@@ -7,10 +7,12 @@ import { ArrowLeft, Check, ExternalLink, FileText, History, RotateCcw, Save, Upl
 import {
   activateCommercialDocumentAction,
   getCommercialDocumentUrlAction,
+  finalizeCommercialDocumentUploadAction,
+  prepareCommercialDocumentUploadAction,
   restoreCommercialTemplateAction,
   updateCommercialTemplateAction,
-  uploadCommercialDocumentAction,
 } from "./settings.actions";
+import { uploadFileToSignedUrl } from "./direct-upload";
 import type { CommercialDocument, CommercialTemplate } from "./types";
 export function CommercialSettings({
   templates,
@@ -29,6 +31,8 @@ export function CommercialSettings({
   const router = useRouter();
   const [pending, start] = useTransition();
   const [message, setMessage] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadCategory, setUploadCategory] = useState<Category | null>(selectedInitial ?? null);
   const [versionsCategory, setVersionsCategory] = useState<Category | null>(null);
   const labels: Record<Category, string> = {
@@ -59,12 +63,29 @@ export function CommercialSettings({
                 <Button variant="outline" onClick={() => setVersionsCategory(versionsCategory === category ? null : category)}><History />Gestionar versiones</Button>
               </div>
             </div>
-            {uploadCategory === category && <form action={(form) => start(async () => { const result = await uploadCommercialDocumentAction(form); setMessage(result.ok ? result.message : result.error); if (result.ok) { setUploadCategory(null); router.refresh(); } })} className="mt-4 grid gap-3 rounded-xl border bg-background p-4">
+            {uploadCategory === category && <form action={async (form) => {
+              const file = form.get("file");
+              if (!(file instanceof File)) { setMessage("Selecciona un PDF."); return; }
+              setUploading(true); setUploadProgress(0); setMessage("Subiendo catálogo…");
+              try {
+                const details = { category, name: String(form.get("name") ?? ""), version: String(form.get("version") ?? ""), filename: file.name, mimeType: file.type, size: file.size };
+                const prepared = await prepareCommercialDocumentUploadAction(details);
+                if (!prepared.ok) throw new Error(prepared.error);
+                await uploadFileToSignedUrl(prepared.signedUrl, file, setUploadProgress);
+                const finalized = await finalizeCommercialDocumentUploadAction({ ...details, path: prepared.path });
+                if (!finalized.ok) throw new Error(finalized.error);
+                setMessage(finalized.message); setUploadCategory(null); router.refresh();
+              } catch (error) {
+                console.error("Commercial catalog direct upload failed", error);
+                setMessage(error instanceof Error && error.message ? error.message : "No pudimos cargar el catálogo. Intenta nuevamente.");
+              } finally { setUploading(false); }
+            }} className="mt-4 grid gap-3 rounded-xl border bg-background p-4">
               <input name="category" type="hidden" value={category} />
               <label className="grid gap-1 text-sm font-medium">Nombre<input className="min-h-11 rounded-xl border bg-card px-3 text-base" name="name" placeholder={`Catálogo ${labels[category]}`} required /></label>
               <label className="grid gap-1 text-sm font-medium">Versión<input className="min-h-11 rounded-xl border bg-card px-3 text-base" name="version" placeholder="2026–2027" required /></label>
               <label className="grid gap-2 text-sm font-medium">Archivo PDF<input accept="application/pdf" className="min-h-11 w-full text-base file:mr-3 file:rounded-lg file:border-0 file:bg-brand/10 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-brand" name="file" required type="file" /></label>
-              <Button disabled={pending}>{pending ? "Cargando…" : "Cargar PDF"}</Button>
+              {uploading && <div aria-label="Progreso de carga" className="h-2 overflow-hidden rounded-full bg-muted/20"><div className="h-full bg-brand transition-[width]" style={{ width: `${uploadProgress}%` }} /></div>}
+              <Button disabled={pending || uploading}>{uploading ? `Subiendo catálogo… ${uploadProgress}%` : "Cargar PDF"}</Button>
             </form>}
             {versionsCategory === category && <div className="mt-4 space-y-2 rounded-xl border bg-background p-3">
               {categoryDocuments.length === 0 ? <p className="text-sm text-muted">Aún no hay versiones cargadas.</p> : categoryDocuments.map((document) => <div className="rounded-lg border bg-card p-3" key={document.id}><p className="font-medium">{document.name} · {document.version}</p><p className="mt-1 text-xs text-muted">{document.status === "ACTIVE" ? "ACTIVO" : document.status === "ARCHIVED" ? "ARCHIVADO" : "PENDIENTE"} · {document.uploadedAt.slice(0, 10)}</p><div className="mt-2 flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => start(async () => { const result = await getCommercialDocumentUrlAction(document.id); if (result.ok) window.open(result.url, "_blank", "noopener,noreferrer"); else setMessage(result.error); })}>Ver</Button>{document.status !== "ACTIVE" && <Button size="sm" onClick={() => start(async () => { const result = await activateCommercialDocumentAction(document.id); setMessage(result.ok ? result.message : result.error); if (result.ok) router.refresh(); })}><Check />Activar</Button>}</div></div>)}
