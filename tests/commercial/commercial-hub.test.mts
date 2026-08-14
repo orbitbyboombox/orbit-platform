@@ -1,0 +1,35 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { calculateDiscount, calculateFormalQuote, isCommercialEmail } from "../../features/commercial-hub/quote-calculation.ts";
+
+const line = (patch: Record<string, unknown> = {}) => ({ id: "1", code: "CLASSIC", description: "Tótem Classic", quantity: 4, catalogPrice: 500000, quotedPrice: 430000, discountType: null, discountValue: 0, manual: false, ...patch });
+
+test("quantity 1", () => assert.equal(calculateFormalQuote([line({ quantity: 1 })], null, 0, 50).subtotal, 430000));
+test("quantity 4", () => assert.equal(calculateFormalQuote([line()], null, 0, 50).subtotal, 1720000));
+test("quantity 10", () => assert.equal(calculateFormalQuote([line({ quantity: 10 })], null, 0, 50).subtotal, 4300000));
+test("quantity 20", () => assert.equal(calculateFormalQuote([line({ quantity: 20 })], null, 0, 50).subtotal, 8600000));
+test("invalid zero quantity is bounded to one", () => assert.equal(calculateFormalQuote([line({ quantity: 0 })], null, 0, 50).subtotal, 430000));
+test("negative price is bounded to zero", () => assert.equal(calculateFormalQuote([line({ quotedPrice: -1 })], null, 0, 50).subtotal, 0));
+test("catalog reference remains immutable", () => { const item = line(); calculateFormalQuote([item], null, 0, 50); assert.equal(item.catalogPrice, 500000); });
+test("per quote override is used", () => assert.equal(calculateFormalQuote([line({ quantity: 2, quotedPrice: 420000 })], null, 0, 50).subtotal, 840000));
+test("manual item", () => assert.equal(calculateFormalQuote([line({ manual: true, catalogPrice: null, quantity: 3, quotedPrice: 12345 })], null, 0, 50).subtotal, 37035));
+test("multiline description does not affect totals", () => assert.equal(calculateFormalQuote([line({ description: "Uno\nDos", quantity: 1 })], null, 0, 50).subtotal, 430000));
+test("line CLP discount", () => assert.equal(calculateFormalQuote([line({ quantity: 1, quotedPrice: 100000, discountType: "CLP", discountValue: 10000 })], null, 0, 50).subtotal, 90000));
+test("line percentage discount", () => assert.equal(calculateFormalQuote([line({ quantity: 1, quotedPrice: 100000, discountType: "PERCENT", discountValue: 10 })], null, 0, 50).subtotal, 90000));
+test("line percentage capped at 100", () => assert.equal(calculateDiscount(100000, "PERCENT", 120), 100000));
+test("line CLP discount capped at gross", () => assert.equal(calculateDiscount(100000, "CLP", 120000), 100000));
+test("negative discount is zero", () => assert.equal(calculateDiscount(100000, "CLP", -1), 0));
+test("global CLP discount", () => assert.equal(calculateFormalQuote([line({ quantity: 1, quotedPrice: 100000 })], "CLP", 10000, 50).net, 90000));
+test("global percentage discount", () => assert.equal(calculateFormalQuote([line({ quantity: 1, quotedPrice: 100000 })], "PERCENT", 10, 50).net, 90000));
+test("IVA is applied exactly once to net", () => { const result = calculateFormalQuote([line({ quantity: 1, quotedPrice: 100000 })], null, 0, 50); assert.equal(result.vat, 19000); assert.equal(result.total, 119000); });
+test("default deposit 50 percent", () => assert.equal(calculateFormalQuote([line({ quantity: 1, quotedPrice: 100000 })], null, 0, 50).deposit, 59500));
+test("custom deposit 30 percent", () => assert.equal(calculateFormalQuote([line({ quantity: 1, quotedPrice: 100000 })], null, 0, 30).deposit, 35700));
+test("deposit capped at 100", () => { const result = calculateFormalQuote([line({ quantity: 1, quotedPrice: 100000 })], null, 0, 150); assert.equal(result.deposit, result.total); });
+test("balance equals total minus deposit", () => { const result = calculateFormalQuote([line({ quantity: 1, quotedPrice: 100000 })], null, 0, 40); assert.equal(result.balance, result.total - result.deposit); });
+test("multiple lines sum", () => assert.equal(calculateFormalQuote([line({ quantity: 1, quotedPrice: 100 }), line({ id: "2", quantity: 2, quotedPrice: 200 })], null, 0, 50).subtotal, 500));
+test("corporate scenario", () => { const result = calculateFormalQuote([line({ quantity: 4, quotedPrice: 450000 }), line({ id: "2", code: "BRANDING", quantity: 10, quotedPrice: 150000 }), line({ id: "3", code: "QR", quantity: 4, quotedPrice: 25000 }), line({ id: "4", code: "TRANSPORT", quantity: 1, quotedPrice: 50000 })], null, 0, 50); assert.equal(result.net, 3450000); assert.equal(result.vat, 655500); });
+test("simple quote one line", () => assert.equal(calculateFormalQuote([line({ quantity: 1 })], null, 0, 50).lineTotals.length, 1));
+test("complex quote ten lines", () => assert.equal(calculateFormalQuote(Array.from({ length: 10 }, (_, index) => line({ id: String(index), quantity: index + 1, quotedPrice: 1000 })), null, 0, 50).lineTotals.length, 10));
+test("valid commercial email", () => assert.equal(isCommercialEmail("cliente@empresa.cl"), true));
+test("email trims whitespace", () => assert.equal(isCommercialEmail(" cliente@empresa.cl "), true));
+test("invalid commercial email", () => assert.equal(isCommercialEmail("cliente"), false));

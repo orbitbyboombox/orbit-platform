@@ -20,7 +20,7 @@ export async function loadAccountsPayable(client:SupabaseClient):Promise<Account
   client.from("event_staff_settlement_movements").select("id,settlement_id,movement_type,amount,movement_date,method,notes,receipt_path,created_at").is("deleted_at",null).order("movement_date"),
   client.from("expenses").select("id,project_id,event_staff_settlement_id,category,supplier,document_number,occurred_on,total,status,receipt_path,approval_reason,created_at").is("deleted_at",null).order("occurred_on"),
   client.from("finance_recurring_expense_runs").select("rule_id,expense_id,accounting_month"),
-  client.from("finance_recurring_expense_rules").select("id,name,category,amount,frequency,next_due_date,active,bank_account_id,finance_bank_accounts(name,account_kind)").eq("active",true),
+  client.from("finance_recurring_expense_rules").select("id,name,category,amount,currency,frequency,next_due_date,active,bank_account_id,finance_bank_accounts(name,account_kind)").eq("active",true).eq("currency","CLP"),
   client.from("mercado_pago_transactions").select("id,external_id,project_id,fee_amount,settlement_status,transfer_status,available_at,transferred_at,created_at").gt("fee_amount",0),
  ]);
  const failure=[settlementsResult,staffResult,projectsResult,adjustmentsResult,movementsResult,expensesResult,runsResult,rulesResult,mpResult].find(result=>result.error)?.error;if(failure)throw failure;

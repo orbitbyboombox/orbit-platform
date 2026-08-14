@@ -1,0 +1,87 @@
+export type CommercialCategory =
+  | "WEDDINGS"
+  | "BIRTHDAYS"
+  | "GRADUATIONS"
+  | "COMPANIES_CATALOG"
+  | "COMPANIES_QUOTE";
+export type DiscountType = "CLP" | "PERCENT";
+
+export interface CommercialCustomerOption {
+  id: string;
+  name: string;
+  company: string;
+  rut: string;
+  email: string;
+  phone: string;
+  address: string;
+}
+export interface CommercialCatalogItem {
+  code: string;
+  label: string;
+  category: string;
+  unitPrice: number | null;
+}
+export interface CommercialTemplate {
+  id: string;
+  category: CommercialCategory;
+  subject: string;
+  body: string;
+}
+export interface CommercialDocument {
+  id: string;
+  name: string;
+  category: string;
+  version: string;
+  filename: string;
+}
+export interface RecentCommercialQuote {
+  id: string;
+  number: string;
+  customer: string;
+  total: number;
+  status: string;
+  issuedAt: string;
+  draft?: FormalQuoteDraft;
+}
+export interface CommercialHubData {
+  customers: CommercialCustomerOption[];
+  catalog: CommercialCatalogItem[];
+  templates: CommercialTemplate[];
+  documents: CommercialDocument[];
+  recentQuotes: RecentCommercialQuote[];
+  recentSends: Array<{ id: string; recipient: string; category: string; subject: string; status: string; sentAt: string }>;
+}
+
+export interface QuoteLineDraft {
+  id: string;
+  code: string;
+  description: string;
+  quantity: number;
+  catalogPrice: number | null;
+  quotedPrice: number;
+  discountType: DiscountType | null;
+  discountValue: number;
+  manual: boolean;
+}
+export interface FormalQuoteDraft {
+  quoteId?: string;
+  existingCustomerId: string | null;
+  saveTemporaryCustomer: boolean;
+  company: string;
+  rut: string;
+  contact: string;
+  email: string;
+  phone: string;
+  address: string;
+  eventName: string;
+  eventDate: string;
+  eventTime: string;
+  eventLocation: string;
+  eventCity: string;
+  validityDays: number;
+  depositPercent: number;
+  globalDiscountType: DiscountType | null;
+  globalDiscountValue: number;
+  attachCatalog: boolean;
+  lines: QuoteLineDraft[];
+}

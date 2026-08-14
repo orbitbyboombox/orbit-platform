@@ -5,10 +5,12 @@ export const COMMERCIAL_DEPOSIT_RATE = 0.5;
 export type CommercialQuoteStatus =
   | "DRAFT"
   | "SENT"
+  | "VIEWED"
   | "ACCEPTED"
   | "REJECTED"
   | "EXPIRED"
-  | "CONVERTED";
+  | "CONVERTED"
+  | "CANCELLED";
 
 export function calculateCommercialTax(input: {
   taxableAmount: number;

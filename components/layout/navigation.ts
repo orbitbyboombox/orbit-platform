@@ -33,6 +33,7 @@ export interface NavigationItem {
 export type NavigationKey =
   | "HOME"
   | "CUSTOMERS"
+  | "COMMERCIAL"
   | "EVENTS"
   | "STAFF"
   | "RESOURCES"
@@ -43,14 +44,81 @@ export type NavigationKey =
   | "SETTINGS";
 
 export const navigationItems: readonly NavigationItem[] = [
-  { key: "HOME", label: "Mi Jornada", href: "/operations", icon: Gauge, module:"DASHBOARD" },
-  { key: "CUSTOMERS", label: "Clientes", href: "/customers", icon: FolderKanban, module:"PROJECTS" },
-  { key: "EVENTS", label: "Eventos", href: "/events", icon: CalendarDays, module:"PROJECTS" },
-  { key: "STAFF", label: "Staff", href: "/resources/staff", icon: UsersRound, module:"STAFF" },
-  { key: "RESOURCES", label: "Recursos", href: "/resources", icon: Layers3, module:"RESOURCES" },
-  { key: "FINANCE", label: "Finanzas", href: "/finance", icon: CircleDollarSign, module:"FINANCE" },
-  { key: "RECEIVABLES", label: "Cuentas por Cobrar", href: "/finance/receivables", icon: ReceiptText, module:"FINANCE" },
-  { key: "PAYABLES", label: "Cuentas por Pagar", href: "/finance/payables", icon: ReceiptText, module:"FINANCE" },
-  { key: "REPORTS", label: "Reportes", href: "/reports", icon: BarChart3, module:"REPORTS" },
-  { key: "SETTINGS", label: "Configuración", href: "/settings", icon: Settings, module:"DASHBOARD" },
+  {
+    key: "HOME",
+    label: "Mi Jornada",
+    href: "/operations",
+    icon: Gauge,
+    module: "DASHBOARD",
+  },
+  {
+    key: "CUSTOMERS",
+    label: "Clientes",
+    href: "/customers",
+    icon: FolderKanban,
+    module: "PROJECTS",
+  },
+  {
+    key: "COMMERCIAL",
+    label: "Cotizar",
+    href: "/leads",
+    icon: ReceiptText,
+    module: "COMMERCIAL",
+  },
+  {
+    key: "EVENTS",
+    label: "Eventos",
+    href: "/events",
+    icon: CalendarDays,
+    module: "PROJECTS",
+  },
+  {
+    key: "STAFF",
+    label: "Staff",
+    href: "/resources/staff",
+    icon: UsersRound,
+    module: "STAFF",
+  },
+  {
+    key: "RESOURCES",
+    label: "Recursos",
+    href: "/resources",
+    icon: Layers3,
+    module: "RESOURCES",
+  },
+  {
+    key: "FINANCE",
+    label: "Finanzas",
+    href: "/finance",
+    icon: CircleDollarSign,
+    module: "FINANCE",
+  },
+  {
+    key: "RECEIVABLES",
+    label: "Cuentas por Cobrar",
+    href: "/finance/receivables",
+    icon: ReceiptText,
+    module: "FINANCE",
+  },
+  {
+    key: "PAYABLES",
+    label: "Cuentas por Pagar",
+    href: "/finance/payables",
+    icon: ReceiptText,
+    module: "FINANCE",
+  },
+  {
+    key: "REPORTS",
+    label: "Reportes",
+    href: "/reports",
+    icon: BarChart3,
+    module: "REPORTS",
+  },
+  {
+    key: "SETTINGS",
+    label: "Configuración",
+    href: "/settings",
+    icon: Settings,
+    module: "DASHBOARD",
+  },
 ];

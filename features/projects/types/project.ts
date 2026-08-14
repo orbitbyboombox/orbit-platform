@@ -84,6 +84,7 @@ export interface Project {
 }
 
 export interface ProjectDraft {
+  commercialSourceQuotationId?: string;
   reservationTransactionId?: string;
   crmCustomerId?: string;
   type?: ProjectType;

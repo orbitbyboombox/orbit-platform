@@ -226,15 +226,13 @@ export async function createCustomerProjectAction(
       const expiration = new Date(today);
       expiration.setDate(expiration.getDate() + 7);
       const quotationNumber = `COT-${today.getFullYear()}-${project.id.replaceAll("-", "").slice(0, 8).toUpperCase()}`;
-      const { data: existingQuotation, error: quotationLookupError } =
-        await client
-          .from("quotations")
-          .select("id")
-          .eq("quotation_number", quotationNumber)
-          .maybeSingle();
+      const quotationLookup = draft.commercialSourceQuotationId
+        ? client.from("quotations").select("id").eq("id", draft.commercialSourceQuotationId).eq("status", "ACCEPTED").maybeSingle()
+        : client.from("quotations").select("id").eq("quotation_number", quotationNumber).maybeSingle();
+      const { data: existingQuotation, error: quotationLookupError } = await quotationLookup;
       if (quotationLookupError) throw quotationLookupError;
       let quotation = existingQuotation;
-      let quotationCreated = false;
+      if (draft.commercialSourceQuotationId && !quotation) throw new Error("La cotización comercial debe estar ACEPTADA antes de convertirla en reserva.");
       if (!quotation) {
         const { data, error: quotationError } = await client
           .from("quotations")
@@ -291,9 +289,12 @@ export async function createCustomerProjectAction(
           .single();
         if (quotationError) throw quotationError;
         quotation = data;
-        quotationCreated = true;
       }
-      if (quotationCreated && quotation) {
+      if (quotation) {
+        if (draft.commercialSourceQuotationId) {
+          const { error: sourceLinkError } = await client.from("quotations").update({ customer_id: persistedProject.customer_id, project_id: project.id, orbit_event_id: persistedProject.orbit_event_id, updated_by: auth.user.id }).eq("id", quotation.id);
+          if (sourceLinkError) throw sourceLinkError;
+        }
         const format = new Intl.NumberFormat("es-CL", {
           style: "currency",
           currency: "CLP",
@@ -322,7 +323,7 @@ export async function createCustomerProjectAction(
           });
         if (timelineError) throw timelineError;
       }
-      if (quotationCreated && quotation && adjustment.mode === "NEGOTIATED") {
+      if (quotation && adjustment.mode === "NEGOTIATED") {
         const { error: negotiationAuditError } = await client
           .from("reservation_commercial_negotiations")
           .insert({
