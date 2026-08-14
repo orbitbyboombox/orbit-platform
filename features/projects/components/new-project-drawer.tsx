@@ -537,7 +537,11 @@ export function NewProjectDrawer({
   const compatibleExtras = (service: ProjectService) =>
     (serviceByCode.get(service)?.compatibleExtras ?? [])
       .map(masterExtraToReservation)
-      .filter((extra): extra is ServiceExtra => extra !== null);
+      .filter(
+        (extra): extra is ServiceExtra =>
+          extra !== null &&
+          !(draft.type === "Corporate" && extra === "Scrapbook"),
+      );
 
   const selectedMunicipality =
     municipalities.find((item) => item.name === draft.event.city) ?? null;
@@ -573,7 +577,10 @@ export function NewProjectDrawer({
           price.durationHours === null),
     );
   const brandingPrice = priceFor("EXTRA", extraCodes.Branding);
-  const brandingMinimum = 1;
+  const brandingMinimum = Math.max(
+    1,
+    Number(brandingPrice?.rules?.minimumQuantity ?? 1),
+  );
   const brandingMaximum = Math.min(
     4,
     Math.max(
@@ -581,13 +588,27 @@ export function NewProjectDrawer({
       Number(brandingPrice?.rules?.maximumQuantity ?? 4),
     ),
   );
-  const extraUnitPrice = (extra: ServiceExtra) => {
-    if (includedExtras.includes(extra)) return 0;
+  const includedExtrasForService = (service: ProjectService) =>
+    Array.from(
+      new Set([
+        ...includedExtras,
+        ...(serviceByCode.get(service)?.defaultExtras ?? [])
+          .map(masterExtraToReservation)
+          .filter((extra): extra is ServiceExtra => extra !== null),
+      ]),
+    );
+  const extraUnitPrice = (
+    service: ProjectService,
+    extra: ServiceExtra,
+  ) => {
+    if (includedExtrasForService(service).includes(extra)) return 0;
     const code = extraCodes[extra as keyof typeof extraCodes];
     return code ? (priceFor("EXTRA", code)?.unitPrice ?? 0) : 0;
   };
   const compatibleIncludedExtras = (service: ProjectService) =>
-    includedExtras.filter((extra) => compatibleExtras(service).includes(extra));
+    includedExtrasForService(service).filter((extra) =>
+      compatibleExtras(service).includes(extra),
+    );
   const serviceBasePrice = (
     service: ProjectService,
     configuration: ServiceConfiguration,
@@ -622,8 +643,9 @@ export function NewProjectDrawer({
         (extra === "Imanes" && configuration.magnetsMode === "BENEFIT"
           ? 0
           : extra === "Branding"
-          ? Number(extraUnitPrice(extra)) * configuration.brandingQuantity
-          : Number(extraUnitPrice(extra))),
+          ? Number(extraUnitPrice(service, extra)) *
+            configuration.brandingQuantity
+          : Number(extraUnitPrice(service, extra))),
       0,
     );
     return (
@@ -1940,7 +1962,7 @@ export function NewProjectDrawer({
                           compatibleIncludedExtras(service).includes(extra);
                         const selected =
                           included || configuration.extras.includes(extra);
-                        const unit = extraUnitPrice(extra);
+                        const unit = extraUnitPrice(service, extra);
                         if (extra === "Branding")
                           return (
                             <label
