@@ -6,6 +6,7 @@ import {
   Copy,
   FileDown,
   FilePlus2,
+  Files,
   GraduationCap,
   GripVertical,
   Mail,
@@ -118,6 +119,7 @@ export function CommercialHub({ data }: { data: CommercialHubData }) {
             Cotizar
           </Button>
         </div>
+        <Link className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold text-brand hover:border-brand/50" href="/settings?section=commercial-documents#commercial-documents"><Files className="size-4" />Documentos comerciales</Link>
       </header>
       {view !== "HOME" && (
         <button
@@ -251,7 +253,7 @@ function InformationSender({
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             {document && <button className="inline-flex min-h-10 items-center rounded-lg border px-3 text-xs font-semibold text-brand" type="button" onClick={() => start(async () => { const result = await getCommercialDocumentUrlAction(document.id); if (result.ok) window.open(result.url, "_blank", "noopener,noreferrer"); else setMessage(result.error); })}>Ver</button>}
-            <Link className="inline-flex min-h-10 items-center rounded-lg border px-3 text-xs font-semibold text-brand" href="/settings#commercial-settings">{document ? "Cambiar catálogo" : "Subir catálogo"}</Link>
+            <Link className="inline-flex min-h-10 items-center rounded-lg border px-3 text-xs font-semibold text-brand" href={`/settings?section=commercial-documents&category=${categoryDocument[category]}&returnTo=/leads#commercial-documents`}>{document ? "Cambiar catálogo" : "Subir catálogo"}</Link>
           </div>
         </div>
         {preview && (

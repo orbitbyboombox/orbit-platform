@@ -17,7 +17,7 @@ import {
   loadCompanySettings,
 } from "@/features/company-settings";
 import Link from "next/link";
-import { Activity, ArrowRight } from "lucide-react";
+import { Activity, ArrowRight, Files } from "lucide-react";
 import { ModuleManagerCenter } from "@/features/module-manager";
 import { loadModuleStates } from "@/features/module-manager/repository";
 import { ProfitabilitySettings } from "@/features/settings/profitability-settings";
@@ -43,7 +43,8 @@ import { loadBankingReadModel } from "@/features/finance/banking/repository";
 import { BankSettings } from "@/features/finance/banking/bank-settings";
 import { CommercialSettings } from "@/features/commercial-hub";
 
-export default async function SettingsPage() {
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ section?: string; category?: string; returnTo?: string }> }) {
+  const query = await searchParams;
   const client = await createSupabaseServerClient();
   const { data: auth, error: authError } = await client.auth.getUser();
   if (authError || !auth.user)
@@ -137,8 +138,41 @@ export default async function SettingsPage() {
         createDisconnectedGoogleWorkspaceConnection("AUTHENTICATION_ERROR"),
       )
     : createDisconnectedGoogleWorkspaceConnection();
+  const commercialDocumentRows = (commercialDocuments ?? []).map((item) => ({
+    id: item.id,
+    name: item.name,
+    category: item.category,
+    version: item.version,
+    filename: item.filename,
+    status: item.status,
+    uploadedAt: item.uploaded_at,
+  })) as never;
+  const commercialTemplatesData = (commercialTemplates ?? []) as never;
+  const commercialOpen = query.section === "commercial-documents";
   return (
-    <PersonalWorkspaceSections
+    <main className="mx-auto w-full max-w-[1480px] space-y-6 p-4 sm:p-6 lg:p-8">
+      <Link
+        className="group flex items-center justify-between gap-5 rounded-3xl border border-brand/30 bg-card p-5 transition hover:border-brand/60 hover:bg-brand/[.04] sm:p-7"
+        href="/settings?section=commercial-documents#commercial-documents"
+      >
+        <div className="flex min-w-0 items-start gap-4">
+          <span className="rounded-2xl border bg-background p-3 text-brand"><Files className="size-5" /></span>
+          <div className="min-w-0">
+            <p className="text-lg font-semibold">Documentos Comerciales</p>
+            <p className="mt-1 text-sm text-muted">Administra los catálogos de Matrimonios, Empresas y Eventos.</p>
+          </div>
+        </div>
+        <ArrowRight className="size-5 shrink-0 text-brand transition group-hover:translate-x-1" />
+      </Link>
+      {commercialOpen && (
+        <CommercialSettings
+          documents={commercialDocumentRows}
+          initialCategory={query.category}
+          returnTo={query.returnTo === "/leads" ? "/leads" : undefined}
+          templates={commercialTemplatesData}
+        />
+      )}
+      <PersonalWorkspaceSections
       moduleKey="SETTINGS"
       sections={[
         {
@@ -169,26 +203,6 @@ export default async function SettingsPage() {
           key: "COMPANY_SETTINGS",
           label: "Configuración de Empresa",
           content: <><CompanySettingsCenter settings={companySettings} /><EmailSignatureSettings url={typeof companySettings.emailConfiguration.signatureGifUrl === "string" ? companySettings.emailConfiguration.signatureGifUrl : ""} /></>,
-        },
-        {
-          key: "COMMERCIAL_SETTINGS",
-          label: "Plantillas y Documentos Comerciales",
-          content: (
-            <CommercialSettings
-              templates={(commercialTemplates ?? []) as never}
-              documents={
-                (commercialDocuments ?? []).map((item) => ({
-                  id: item.id,
-                  name: item.name,
-                  category: item.category,
-                  version: item.version,
-                  filename: item.filename,
-                  status: item.status,
-                  uploadedAt: item.uploaded_at,
-                })) as never
-              }
-            />
-          ),
         },
         {
           key: "FINANCE_BANK_ACCOUNTS",
@@ -291,6 +305,7 @@ export default async function SettingsPage() {
           content: <CommunicationHub {...communication} />,
         },
       ]}
-    />
+      />
+    </main>
   );
 }
