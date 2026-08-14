@@ -172,7 +172,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           templates={commercialTemplatesData}
         />
       )}
-      <PersonalWorkspaceSections
+      {!commercialOpen && <PersonalWorkspaceSections
       moduleKey="SETTINGS"
       sections={[
         {
@@ -305,7 +305,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           content: <CommunicationHub {...communication} />,
         },
       ]}
-      />
+      />}
     </main>
   );
 }
