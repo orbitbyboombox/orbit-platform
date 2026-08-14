@@ -184,6 +184,18 @@ body :where([role="dialog"]) > :where(div, form, article) {
   opacity: .84;
 }
 
+/* Keep mobile content centered. Workspace controls overlay their reserved
+   header corner on narrow screens instead of shrinking the whole section. */
+.workspace-menu-host {
+  padding-right: var(--workspace-header-padding-right) !important;
+}
+
+@media (min-width: 48rem) {
+  .workspace-menu-host {
+    padding-right: calc(var(--workspace-header-padding-right) + 3.5rem) !important;
+  }
+}
+
 @keyframes orbit-enter {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }

@@ -322,7 +322,7 @@ export async function updateCrmEventAction(input: {
       p_reason: input.reason,
     });
     if (error) throw error;
-    await Promise.all([
+    const synchronization = await Promise.allSettled([
       synchronizeConfirmedReservationCalendar({ client, projectId: input.projectId, actorId: user.id, operation: "UPSERT", requireCommercialReadiness: false }),
       synchronizeConfirmedReservationDrive({ client, projectId: input.projectId, actorId: user.id, recordTimeline: true }),
     ]);
@@ -331,7 +331,16 @@ export async function updateCrmEventAction(input: {
     revalidatePath("/projects");
     revalidatePath("/events");
     revalidateCustomerSurfaces(input.projectId);
-    return { ok: true as const };
+    const failedSynchronizations = synchronization.filter(
+      (result) => result.status === "rejected",
+    ).length;
+    return {
+      ok: true as const,
+      warning:
+        failedSynchronizations > 0
+          ? "El Evento fue actualizado. Google Workspace quedó pendiente de sincronización."
+          : undefined,
+    };
   } catch (error) {
     return {
       ok: false as const,

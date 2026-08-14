@@ -485,7 +485,11 @@ function prepareWorkspaceHeader(host: HTMLElement) {
     host.dataset.workspaceOriginalPaddingRight =
       getComputedStyle(host).paddingRight;
   host.style.position = "relative";
-  host.style.paddingRight = `calc(${host.dataset.workspaceOriginalPaddingRight} + 3.5rem)`;
+  host.style.setProperty(
+    "--workspace-header-padding-right",
+    host.dataset.workspaceOriginalPaddingRight,
+  );
+  host.classList.add("workspace-menu-host");
 }
 function workspaceMenuTop(host: HTMLElement, title: HTMLElement | null) {
   if (!title) return 0;
