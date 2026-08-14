@@ -13,7 +13,7 @@ export default async function PlatformLayout({ children }: { children: React.Rea
   if(error){if(isMissingSessionError(error))redirect("/login");if(isInvalidSessionError(error))redirect("/api/auth/session-expired");throw error}
   const user=data.user;if(!user?.email)redirect("/login");
   const{data:profile,error:profileError}=await client.from("profiles").select("role,display_name").eq("id",user.id).maybeSingle();if(profileError)throw profileError;if(!profile||!["CEO","ADMINISTRATOR"].includes(profile.role))redirect(profile?.role==="STAFF"?"/login?access=staff":"/login?access=customer");
-  await synchronizeModuleCatalog(client,user.id);
+  if(profile.role==="CEO")await synchronizeModuleCatalog(client,user.id);
   const [unreadNotifications,modules,workspace]=await Promise.all([loadNotificationUnreadCount(user.id),loadModuleStates(client),loadFounderWorkspace(client,user.id)]);
   return <AppShell modules={modules} unreadNotifications={unreadNotifications} userEmail={user.email} userName={profile.display_name||"Founder"} userRole={profile.role==="CEO"?"Founder":"Administrador"} workspace={workspace}>{children}</AppShell>;
 }
