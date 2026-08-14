@@ -746,12 +746,12 @@ function QuotePreview({
 }) {
   return (
     <section className="rounded-2xl bg-white p-5 text-black shadow-xl sm:p-8">
-      <div className="flex justify-between gap-4 border-b border-orange-500 pb-5">
+      <div className="flex flex-col gap-4 border-b border-orange-500 pb-5 sm:flex-row sm:justify-between">
         <div>
           <p className="text-2xl font-black tracking-[.16em]">BOOMBOX®</p>
           <p className="mt-2 text-xs">Producciones BoomBox Company SpA</p>
         </div>
-        <div className="text-right">
+        <div className="text-left sm:text-right">
           <h3 className="text-xl font-bold text-orange-600">COTIZACIÓN</h3>
           <p className="text-xs">Vista previa A4</p>
         </div>
