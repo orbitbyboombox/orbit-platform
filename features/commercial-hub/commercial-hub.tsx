@@ -870,5 +870,5 @@ function Field({
 
 function MoneyInput({ value, onValue, ...props }: { value: number; onValue: (value: number) => void } & Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange">) {
   const [draft, setDraft] = useState(String(value));
-  return <input {...props} inputMode="numeric" min="0" type="text" value={draft} onChange={(event) => { const next = event.target.value.replace(/[^0-9]/g, ""); setDraft(next); onValue(moneyInputNumber(next)); }} onBlur={() => { const normalized = moneyInputNumber(draft); setDraft(String(normalized)); onValue(normalized); }} />;
+  return <input {...props} inputMode="numeric" min="0" type="text" value={draft} onChange={(event) => { const next = event.target.value.replace(/[^0-9]/g, ""); setDraft(next); if (next !== "") onValue(moneyInputNumber(next)); }} onBlur={() => { const normalized = moneyInputNumber(draft); setDraft(String(normalized)); onValue(normalized); }} />;
 }
