@@ -47,7 +47,7 @@ export function Header({ userEmail, userName, userRole, unreadNotifications, nav
         </Button>
         <Link
           aria-label="Ir al Dashboard"
-          className="flex h-9 w-28 items-center px-2 lg:hidden"
+          className="flex h-9 w-24 shrink-0 items-center px-1 sm:w-28 lg:hidden"
           href="/operations"
         >
           <BrandLogo className="w-full" surface="dark" />
@@ -57,6 +57,7 @@ export function Header({ userEmail, userName, userRole, unreadNotifications, nav
           placeholder="Buscar proyectos, clientes o eventos..."
           shortcut="⌘K"
         />
+        <span className="flex-1 md:hidden" aria-hidden="true" />
         {isEnabled("OPERATIONS") && <Button
           aria-label={`${unreadNotifications} notificaciones sin leer`}
           asChild

@@ -10,6 +10,7 @@ import {
   uploadCommercialDocumentAction,
 } from "./settings.actions";
 import type { CommercialDocument, CommercialTemplate } from "./types";
+import { documentCategoryLabel } from "./presentation";
 export function CommercialSettings({
   templates,
   documents,
@@ -29,8 +30,7 @@ export function CommercialSettings({
           Plantillas y documentos comerciales
         </h2>
         <p className="mt-2 text-sm text-muted">
-          Una sola biblioteca versionada. Los envíos utilizan exclusivamente la
-          versión ACTIVE.
+          Carga cada catálogo una sola vez. Los envíos utilizan automáticamente la versión activa hasta que publiques una nueva.
         </p>
       </div>
       <form
@@ -83,7 +83,7 @@ export function CommercialSettings({
             <div>
               <p className="font-semibold">{document.name}</p>
               <p className="text-sm text-muted">
-                {document.category} · {document.version} · {document.status} ·{" "}
+                {documentCategoryLabel(document.category)} · {document.version} · {document.status === "ACTIVE" ? "ACTIVO" : document.status === "ARCHIVED" ? "ARCHIVADO" : "PENDIENTE"} ·{" "}
                 {document.uploadedAt.slice(0, 10)}
               </p>
             </div>

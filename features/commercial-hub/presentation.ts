@@ -53,3 +53,27 @@ export function moneyInputNumber(value: string) {
 export function titleCasePerson(value: string) {
   return value.trim().replace(/(^|[\s'-])([\p{L}])/gu, (_, prefix, letter) => `${prefix}${letter.toUpperCase()}`);
 }
+
+export function emailParagraphs(value: string) {
+  return normalizeEmailNewlines(value)
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+}
+
+export function commercialGreeting(contact: string) {
+  const person = titleCasePerson(contact);
+  return person ? `Hola ${person},` : "Hola,";
+}
+
+export function withoutDuplicateSignature(value: string, fallback: string) {
+  const normalized = normalizeEmailNewlines(value).trim();
+  const escaped = fallback.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return normalized.replace(new RegExp(`(?:\\n\\s*){1,2}${escaped}\\s*$`, "i"), "").trim();
+}
+
+export function documentCategoryLabel(category: string) {
+  if (category === "WEDDINGS") return "Matrimonios / Novios";
+  if (category === "COMPANIES") return "Empresas";
+  return "Eventos / Cumpleaños / Graduaciones";
+}

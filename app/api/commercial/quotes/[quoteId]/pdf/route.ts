@@ -24,6 +24,9 @@ export async function GET(request: Request, context: { params: Promise<{ quoteId
         : {};
     const customer = (quote.customer_snapshot ?? {}) as Record<string, string>;
     const event = (snapshot.event ?? {}) as Record<string, string>;
+    const configuredConditions = Array.isArray(pdfConfiguration.commercialReservationConditions)
+      ? pdfConfiguration.commercialReservationConditions.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+      : [];
     const items = [...(quote.quotation_items ?? [])].sort((a, b) => Number(a.display_order) - Number(b.display_order));
     const pdf = await createFormalQuotePdf({
       number: quote.quotation_number,
@@ -32,7 +35,7 @@ export async function GET(request: Request, context: { params: Promise<{ quoteId
       customer,
       event,
       lines: items.map((item) => ({ description: item.description || item.label, quantity: Number(item.quantity), quotedPrice: Number(item.quoted_price ?? item.unit_price), total: Number(item.total) })),
-      subtotal: Number(snapshot.subtotal ?? 0), discount: Number(snapshot.discount ?? 0), net: Number(snapshot.net ?? 0), tax: Number(snapshot.tax ?? 0), total: Number(snapshot.total ?? 0), deposit: Number(snapshot.deposit ?? 0), balance: Number(snapshot.balance ?? 0),
+      subtotal: Number(snapshot.subtotal ?? 0), discount: Number(snapshot.discount ?? 0), net: Number(snapshot.net ?? 0), tax: Number(snapshot.tax ?? 0), total: Number(snapshot.total ?? 0), deposit: Number(snapshot.deposit ?? 0), balance: Number(snapshot.balance ?? 0), depositPercent: Number(snapshot.depositPercent ?? 50),
       company: {
         legalName: company.legalName,
         taxId: company.taxId,
@@ -44,6 +47,7 @@ export async function GET(request: Request, context: { params: Promise<{ quoteId
         bankName: bank.bankName || "Banco no configurado",
         bankAccountType: bank.accountType || "Cuenta no configurada",
         bankAccountNumber: bank.accountNumber || "Número no configurado",
+        reservationConditions: configuredConditions,
       },
     });
     const disposition = new URL(request.url).searchParams.get("download") === "1" ? "attachment" : "inline";

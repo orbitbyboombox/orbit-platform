@@ -243,6 +243,7 @@ body :where([role="dialog"]) > :where(div, form, article) {
 @media (max-width: 47.99rem) {
   #platform-workspace-content { padding-inline: 1rem; }
   #platform-workspace-content :where(th, td) { padding: .75rem; }
+  body :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea) { font-size: 16px; }
 }
 
 /* Reservation summaries remain part of the wizard flow at every breakpoint. */
