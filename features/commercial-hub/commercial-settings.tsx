@@ -50,7 +50,7 @@ export function CommercialSettings({
         {categories.map((category) => {
           const categoryDocuments = documents.filter((item) => item.category === category);
           const active = categoryDocuments.find((item) => item.status === "ACTIVE");
-          return <article className={`rounded-2xl border bg-card p-5 ${selectedInitial === category ? "border-brand/60 ring-1 ring-brand/20" : ""}`} id={`document-category-${category.toLowerCase()}`} key={category}>
+          return <article className={`min-w-0 rounded-2xl border bg-card p-5 ${selectedInitial === category ? "border-brand/60 ring-1 ring-brand/20" : ""}`} id={`document-category-${category.toLowerCase()}`} key={category}>
             <div className="flex items-start gap-3"><span className="rounded-xl border bg-background p-2.5 text-brand"><FileText className="size-5" /></span><div><h3 className="font-semibold">{labels[category]}</h3><p className={`mt-1 text-sm ${active ? "text-emerald-500" : "text-muted"}`}>{active ? `Activo · ${active.name} ${active.version}` : "Sin catálogo"}</p></div></div>
             <div className="mt-5 grid gap-2">
               <Button className="min-h-11 w-full" onClick={() => setUploadCategory(uploadCategory === category ? null : category)}><Upload />Subir nueva versión</Button>
