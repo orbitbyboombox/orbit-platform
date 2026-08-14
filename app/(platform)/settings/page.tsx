@@ -13,6 +13,7 @@ import { createDisconnectedGoogleWorkspaceConnection } from "@/features/connecto
 import { loadGoogleWorkspaceConnection } from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import {
   CompanySettingsCenter,
+  EmailSignatureSettings,
   loadCompanySettings,
 } from "@/features/company-settings";
 import Link from "next/link";
@@ -167,7 +168,7 @@ export default async function SettingsPage() {
         {
           key: "COMPANY_SETTINGS",
           label: "Configuración de Empresa",
-          content: <CompanySettingsCenter settings={companySettings} />,
+          content: <><CompanySettingsCenter settings={companySettings} /><EmailSignatureSettings url={typeof companySettings.emailConfiguration.signatureGifUrl === "string" ? companySettings.emailConfiguration.signatureGifUrl : ""} /></>,
         },
         {
           key: "COMMERCIAL_SETTINGS",

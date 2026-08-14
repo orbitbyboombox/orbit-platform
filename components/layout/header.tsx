@@ -30,6 +30,7 @@ export interface HeaderProps {
 
 export function Header({ userEmail, userName, userRole, unreadNotifications, navigationOrder, hiddenNavigation }: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const { isEnabled } = useModuleManager();
   return (
     <>
@@ -84,24 +85,15 @@ export function Header({ userEmail, userName, userRole, unreadNotifications, nav
           </Link>
         </Button>
         <span className="mx-1 hidden h-7 w-px bg-border lg:block" aria-hidden="true" />
-        <Link aria-label="Abrir perfil del Founder" href="/settings?section=profile">
+        <button aria-expanded={userMenuOpen} aria-label="Abrir menú del Founder" className="rounded-full" onClick={() => setUserMenuOpen((open) => !open)}>
           <Avatar className="size-10" initials={userEmail.slice(0, 2).toUpperCase()} />
-        </Link>
+        </button>
         <div className="hidden min-w-0 pr-1 text-left lg:block">
           <p className="max-w-40 truncate text-xs font-medium">{userName}</p>
           <p className="max-w-40 truncate text-[10px] text-muted">{userRole}</p>
         </div>
         <ChevronDown aria-hidden="true" className="hidden size-3.5 text-muted lg:block" />
-        <form action={signOutAction}>
-          <Button
-            aria-label="Cerrar sesión"
-            size="icon"
-            type="submit"
-            variant="ghost"
-          >
-            <LogOut className="size-4" />
-          </Button>
-        </form>
+        {userMenuOpen && <div className="absolute right-3 top-[4.1rem] z-50 w-56 rounded-xl border bg-card p-2 shadow-2xl sm:right-4"><Link className="flex min-h-11 items-center rounded-lg px-3 text-sm hover:bg-accent" href="/settings?section=profile" onClick={() => setUserMenuOpen(false)}>Perfil y configuración</Link><form action={signOutAction}><button className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-left text-sm hover:bg-accent" type="submit"><LogOut className="size-4" />Cerrar sesión</button></form></div>}
       </header>
       {menuOpen && (
         <div className="fixed inset-x-3 top-[4.75rem] z-40 rounded-2xl border bg-card/95 p-2 shadow-2xl backdrop-blur-xl md:hidden">

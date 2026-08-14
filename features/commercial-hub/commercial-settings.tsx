@@ -20,7 +20,7 @@ export function CommercialSettings({
   const [pending, start] = useTransition();
   const [message, setMessage] = useState("");
   return (
-    <section className="space-y-6">
+    <section className="space-y-6" id="commercial-settings">
       <div>
         <p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">
           Configuración comercial

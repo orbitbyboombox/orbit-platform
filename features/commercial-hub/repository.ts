@@ -1,10 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CommercialHubData } from "./types";
+import { normalizeEmailNewlines } from "./presentation";
+import { loadCompanySettings } from "@/features/company-settings";
 
 export async function loadCommercialHubData(
   client: SupabaseClient,
 ): Promise<CommercialHubData> {
-  const [customers, catalog, templates, documents, quotes, sends] = await Promise.all([
+  const [customers, catalog, templates, documents, quotes, sends, company] = await Promise.all([
     client
       .from("customers")
       .select("id,full_name,company,rut,email,phone,address")
@@ -35,10 +37,12 @@ export async function loadCommercialHubData(
       .order("created_at", { ascending: false })
       .limit(20),
     client.from("commercial_sends").select("id,recipient_email,category,subject,status,sent_at").order("sent_at", { ascending: false }).limit(20),
+    loadCompanySettings(client),
   ]);
   for (const result of [customers, catalog, templates, documents, quotes, sends])
     if (result.error) throw result.error;
   return {
+    company: { legalName: company.legalName, taxId: company.taxId, address: company.address, city: company.city, phone: company.phone, website: company.website },
     customers: (customers.data ?? []).map((row) => ({
       id: row.id,
       name: row.full_name,
@@ -57,7 +61,7 @@ export async function loadCommercialHubData(
           ? Number(row.unit_price)
           : null,
     })),
-    templates: (templates.data ?? []) as CommercialHubData["templates"],
+    templates: (templates.data ?? []).map((template) => ({ ...template, subject: normalizeEmailNewlines(template.subject).replaceAll("\n", " ").trim(), body: normalizeEmailNewlines(template.body) })) as CommercialHubData["templates"],
     documents: (documents.data ?? []) as CommercialHubData["documents"],
     recentQuotes: (quotes.data ?? []).map((row) => {
       const customer = Array.isArray(row.customers)

@@ -11,6 +11,7 @@ import { createFormalQuotePdf } from "./formal-quote-pdf";
 import { loadCompanySettings } from "@/features/company-settings";
 import { createCustomerProjectAction } from "@/features/projects/actions/customer.actions";
 import type { ProjectDraft } from "@/features/projects/types/project";
+import { formalQuoteSubject, normalizeEmailNewlines, quoteDisplayFilename, quoteStorageKey } from "./presentation";
 
 async function founder() {
   const client = await createSupabaseServerClient();
@@ -55,6 +56,7 @@ export async function sendCommercialInformationAction(input: {
     if (!input.documentId)
       throw new Error("No existe un documento ACTIVE para esta categoría.");
     const admin = createAdminClient();
+    const company = await loadCompanySettings(admin);
     const { data: existing } = await admin.from("commercial_sends").select("status").eq("idempotency_key", input.requestId).maybeSingle();
     if (existing?.status === "SENT") return { ok: true as const, message: "Este envío ya fue procesado." };
     const { data: document, error } = await admin
@@ -69,8 +71,8 @@ export async function sendCommercialInformationAction(input: {
       Nombre: input.name.trim() || "",
       Empresa: input.name.trim() || "",
     };
-    const subject = replace(input.subject, vars),
-      body = replace(input.body, vars);
+    const subject = normalizeEmailNewlines(replace(input.subject, vars)).replaceAll("\n", " ").trim(),
+      body = normalizeEmailNewlines(replace(input.body, vars));
     const { data: claimed, error: claimError } = await admin.from("commercial_sends").insert({
       idempotency_key: input.requestId,
       recipient_email: input.email.trim().toLowerCase(),
@@ -91,13 +93,15 @@ export async function sendCommercialInformationAction(input: {
       .from("orbit-documents")
       .createSignedUrl(document.storage_path, 60 * 30);
     if (signed.error) throw signed.error;
+    const signatureUrl = typeof company.emailConfiguration.signatureGifUrl === "string" ? company.emailConfiguration.signatureGifUrl : "";
+    const signature = signatureUrl ? `<p><img src="${escapeHtml(signatureUrl)}" alt="Equipo BOOMBOX" style="display:block;max-width:420px;width:100%;height:auto"></p>` : `<p>${escapeHtml(company.emailSignature || "Equipo BOOMBOX")}</p>`;
     const sent = await new GoogleGmailApiProvider(
       await loadGoogleWorkspaceAccessToken(),
     ).send({
       to: input.email.trim().toLowerCase(),
       subject,
       textBody: `${body}\n\nDocumento: ${signed.data.signedUrl}`,
-      htmlBody: `<main style="font-family:Arial,sans-serif;line-height:1.6;white-space:pre-line">${escapeHtml(body)}<p><a href="${signed.data.signedUrl}">Ver ${escapeHtml(document.name)}</a></p></main>`,
+      htmlBody: `<main style="font-family:Arial,sans-serif;line-height:1.6;white-space:pre-line">${escapeHtml(body)}<p><a href="${signed.data.signedUrl}">Ver ${escapeHtml(document.name)}</a></p>${signature}</main>`,
       driveFileIds: [],
     });
     const { error: write } = await admin
@@ -118,10 +122,7 @@ export async function createFormalQuoteAction(input: FormalQuoteDraft) {
   try {
     const { user } = await founder();
     if (!input.lines.length) throw new Error("Agrega al menos un ítem.");
-    if (!input.existingCustomerId && !input.company.trim())
-      throw new Error("Identifica al cliente temporal.");
-    if (!isCommercialEmail(input.email))
-      throw new Error("Ingresa un correo válido.");
+    if (!input.existingCustomerId && input.saveTemporaryCustomer && !input.company.trim() && !input.contact.trim()) throw new Error("Ingresa un nombre antes de guardar el cliente.");
     const admin = createAdminClient();
     let customerId = input.existingCustomerId;
     if (!customerId && input.saveTemporaryCustomer) {
@@ -131,7 +132,7 @@ export async function createFormalQuoteAction(input: FormalQuoteDraft) {
           full_name: input.contact.trim() || input.company.trim(),
           company: input.company.trim() || null,
           rut: input.rut.trim() || null,
-          email: input.email.trim().toLowerCase(),
+          email: input.email.trim() ? input.email.trim().toLowerCase() : null,
           phone: input.phone.trim() || null,
           address: input.address.trim() || null,
           metadata: { customerType: "COMPANY", source: "COMMERCIAL_QUOTE" },
@@ -331,8 +332,8 @@ export async function sendFormalQuoteAction(input: { quoteId: string; email: str
     const event = (snapshot.event ?? {}) as Record<string, string>;
     const config = company.pdfConfiguration.commercialBank && typeof company.pdfConfiguration.commercialBank === "object" ? company.pdfConfiguration.commercialBank as Record<string, string> : {};
     const items = [...(quote.quotation_items ?? [])].sort((a, b) => Number(a.display_order) - Number(b.display_order));
-    const pdf = await createFormalQuotePdf({ number: quote.quotation_number, issueDate: quote.issue_date, expirationDate: quote.expiration_date, customer, event, lines: items.map((item) => ({ description: item.description || item.label, quantity: Number(item.quantity), quotedPrice: Number(item.quoted_price ?? item.unit_price), total: Number(item.total) })), subtotal: Number(snapshot.subtotal ?? 0), discount: Number(snapshot.discount ?? 0), net: Number(snapshot.net ?? 0), tax: Number(snapshot.tax ?? 0), total: Number(snapshot.total ?? 0), deposit: Number(snapshot.deposit ?? 0), balance: Number(snapshot.balance ?? 0), company: { legalName: company.legalName, taxId: company.taxId, address: company.address, phone: company.phone, email: config.email || company.salesEmail || company.supportEmail, website: company.website, bankName: config.bankName || "Banco no configurado", bankAccountType: config.accountType || "Cuenta no configurada", bankAccountNumber: config.accountNumber || "Número no configurado" } });
-    const pdfPath = `commercial/quotes/${quote.id}/${quote.quotation_number.replaceAll(" ", "-")}.pdf`;
+    const pdf = await createFormalQuotePdf({ number: quote.quotation_number, issueDate: quote.issue_date, expirationDate: quote.expiration_date, customer, event, lines: items.map((item) => ({ description: item.description || item.label, quantity: Number(item.quantity), quotedPrice: Number(item.quoted_price ?? item.unit_price), total: Number(item.total) })), subtotal: Number(snapshot.subtotal ?? 0), discount: Number(snapshot.discount ?? 0), net: Number(snapshot.net ?? 0), tax: Number(snapshot.tax ?? 0), total: Number(snapshot.total ?? 0), deposit: Number(snapshot.deposit ?? 0), balance: Number(snapshot.balance ?? 0), company: { legalName: company.legalName, taxId: company.taxId, address: company.address, city: company.city, phone: company.phone, email: config.email || company.salesEmail || company.supportEmail, website: company.website, bankName: config.bankName || "Banco no configurado", bankAccountType: config.accountType || "Cuenta no configurada", bankAccountNumber: config.accountNumber || "Número no configurado" } });
+    const pdfPath = quoteStorageKey(quote.id, quote.quotation_number);
     const upload = await admin.storage.from("orbit-documents").upload(pdfPath, pdf, { contentType: "application/pdf", upsert: true });
     if (upload.error) throw upload.error;
     const pdfUrl = await admin.storage.from("orbit-documents").createSignedUrl(pdfPath, 60 * 60 * 24 * 7);
@@ -347,13 +348,17 @@ export async function sendFormalQuoteAction(input: { quoteId: string; email: str
       catalogUrl = signed.data.signedUrl;
       catalogSnapshot = { id: document.id, name: document.name, version: document.version };
     }
-    const { data: claim, error: claimError } = await admin.from("commercial_sends").insert({ idempotency_key: input.requestId, recipient_email: input.email.trim().toLowerCase(), category: "COMPANIES_QUOTE", quotation_id: quote.id, subject: input.subject, body_snapshot: input.body, document_snapshot: { quote: quote.quotation_number, pdfPath, catalog: catalogSnapshot }, status: "PREPARING", sent_by: user.id }).select("id").single();
+    const subject = normalizeEmailNewlines(input.subject || formalQuoteSubject(quote.quotation_number, customer.company || customer.contact)).replaceAll("\n", " ").trim();
+    const body = normalizeEmailNewlines(input.body);
+    const { data: claim, error: claimError } = await admin.from("commercial_sends").insert({ idempotency_key: input.requestId, recipient_email: input.email.trim().toLowerCase(), category: "COMPANIES_QUOTE", quotation_id: quote.id, subject, body_snapshot: body, document_snapshot: { quote: quote.quotation_number, pdfPath, catalog: catalogSnapshot }, status: "PREPARING", sent_by: user.id }).select("id").single();
     if (claimError) {
       if (claimError.code === "23505") return { ok: true as const, message: "Este envío ya está siendo procesado." };
       throw claimError;
     }
     const links = `<p><a href="${pdfUrl.data.signedUrl}">Descargar ${escapeHtml(quote.quotation_number)}</a></p>${catalogUrl ? `<p><a href="${catalogUrl}">Ver catálogo Empresas</a></p>` : ""}`;
-    const sent = await new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken()).send({ to: input.email.trim().toLowerCase(), subject: input.subject, textBody: `${input.body}\n\nCotización: ${pdfUrl.data.signedUrl}${catalogUrl ? `\nCatálogo: ${catalogUrl}` : ""}`, htmlBody: `<main style="font-family:Arial,sans-serif;line-height:1.6;white-space:pre-line">${escapeHtml(input.body)}${links}</main>`, driveFileIds: [] });
+    const signatureUrl = typeof company.emailConfiguration.signatureGifUrl === "string" ? company.emailConfiguration.signatureGifUrl : "";
+    const signature = signatureUrl ? `<p><img src="${escapeHtml(signatureUrl)}" alt="Equipo BOOMBOX" style="display:block;max-width:420px;width:100%;height:auto"></p>` : `<p>Equipo BOOMBOX</p>`;
+    const sent = await new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken()).send({ to: input.email.trim().toLowerCase(), subject, textBody: `${body}\n\nCotización: ${pdfUrl.data.signedUrl}${catalogUrl ? `\nCatálogo: ${catalogUrl}` : ""}`, htmlBody: `<main style="font-family:Arial,sans-serif;line-height:1.6;white-space:pre-line">${escapeHtml(body)}${links}${signature}</main>`, driveFileIds: [], attachments: [{ filename: quoteDisplayFilename(quote.quotation_number), mimeType: "application/pdf", content: new Uint8Array(pdf) }] });
     const timestamp = new Date().toISOString();
     const { error: sendError } = await admin.from("commercial_sends").update({ status: "SENT", external_message_id: sent.messageId, sent_at: timestamp }).eq("id", claim.id);
     if (sendError) throw sendError;

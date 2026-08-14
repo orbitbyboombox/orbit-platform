@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { loadCompanySettings } from "@/features/company-settings";
 import { createFormalQuotePdf } from "@/features/commercial-hub/formal-quote-pdf";
+import { quoteDisplayFilename } from "@/features/commercial-hub/presentation";
 
-export async function GET(_: Request, context: { params: Promise<{ quoteId: string }> }) {
+export async function GET(request: Request, context: { params: Promise<{ quoteId: string }> }) {
   try {
     const client = await createSupabaseServerClient();
     const { data: auth } = await client.auth.getUser();
@@ -36,6 +37,7 @@ export async function GET(_: Request, context: { params: Promise<{ quoteId: stri
         legalName: company.legalName,
         taxId: company.taxId,
         address: company.address,
+        city: company.city,
         phone: company.phone,
         email: bank.email || company.salesEmail || company.supportEmail,
         website: company.website,
@@ -44,7 +46,9 @@ export async function GET(_: Request, context: { params: Promise<{ quoteId: stri
         bankAccountNumber: bank.accountNumber || "Número no configurado",
       },
     });
-    return new NextResponse(new Uint8Array(pdf), { headers: { "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="${quote.quotation_number.replaceAll(" ", "-")}.pdf"`, "Cache-Control": "private, no-store" } });
+    const disposition = new URL(request.url).searchParams.get("download") === "1" ? "attachment" : "inline";
+    const filename = quoteDisplayFilename(quote.quotation_number);
+    return new NextResponse(new Uint8Array(pdf), { headers: { "Content-Type": "application/pdf", "Content-Disposition": `${disposition}; filename="cotizacion-boombox.pdf"; filename*=UTF-8''${encodeURIComponent(filename)}`, "Cache-Control": "private, no-store" } });
   } catch (error) {
     console.error("[commercial-quote-pdf]", error);
     return NextResponse.json({ message: "No fue posible generar el PDF." }, { status: 500 });

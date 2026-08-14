@@ -44,6 +44,7 @@ export interface RecentCommercialQuote {
   draft?: FormalQuoteDraft;
 }
 export interface CommercialHubData {
+  company: { legalName: string; taxId: string; address: string; city: string; phone: string; website: string };
   customers: CommercialCustomerOption[];
   catalog: CommercialCatalogItem[];
   templates: CommercialTemplate[];

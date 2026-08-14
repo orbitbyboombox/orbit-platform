@@ -15,7 +15,7 @@ export interface FormalQuotePdfModel {
   total: number;
   deposit: number;
   balance: number;
-  company: { legalName: string; taxId: string; address: string; phone: string; email: string; website: string; bankName: string; bankAccountType: string; bankAccountNumber: string };
+  company: { legalName: string; taxId: string; address: string; city?: string; phone: string; email: string; website: string; bankName: string; bankAccountType: string; bankAccountNumber: string };
 }
 
 const PAGE: [number, number] = [595.28, 841.89];
@@ -30,7 +30,10 @@ function header(page: PDFPage, regular: PDFFont, bold: PDFFont, model: FormalQuo
   const height = page.getHeight();
   page.drawRectangle({ x: 0, y: height - 112, width: PAGE[0], height: 112, color: graphite });
   page.drawText("BOOMBOX®", { x: 42, y: height - 58, size: 24, font: bold, color: rgb(1, 1, 1) });
-  page.drawText("EXPERIENCIAS PARA RECORDAR", { x: 42, y: height - 78, size: 7, font: regular, color: rgb(0.74, 0.75, 0.78) });
+  page.drawText(safe(model.company.legalName.toUpperCase()), { x: 42, y: height - 73, size: 6.5, font: bold, color: rgb(0.82, 0.83, 0.86) });
+  page.drawText(safe(`RUT ${model.company.taxId}`), { x: 42, y: height - 84, size: 6.5, font: regular, color: rgb(0.74, 0.75, 0.78) });
+  page.drawText(safe(`${model.company.address}${model.company.city ? ` · ${model.company.city}` : ""}`), { x: 42, y: height - 95, size: 6.5, font: regular, color: rgb(0.74, 0.75, 0.78) });
+  page.drawText(safe(`${model.company.phone} · ${model.company.website}`), { x: 42, y: height - 106, size: 6.5, font: regular, color: rgb(0.74, 0.75, 0.78) });
   page.drawText("COTIZACIÓN", { x: 404, y: height - 51, size: 18, font: bold, color: orange });
   page.drawText(safe(model.number.replace("COTIZACIÓN ", "")), { x: 404, y: height - 75, size: 11, font: bold, color: rgb(1, 1, 1) });
   page.drawText(`Emisión ${model.issueDate} · Válida hasta ${model.expirationDate}`, { x: 300, y: height - 94, size: 7.5, font: regular, color: rgb(0.75, 0.76, 0.79) });

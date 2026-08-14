@@ -6,13 +6,14 @@ export interface GoogleGmailProviderMessage {
   threadId?: string;
   replyToMessageId?: string;
   driveFileIds: readonly string[];
+  attachments?: readonly { filename: string; mimeType: string; content: Uint8Array }[];
 }
 
 const utf8Base64Url = (value: string) => btoa(unescape(encodeURIComponent(value))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 const utf8Base64 = (value: string) => btoa(unescape(encodeURIComponent(value)));
 const encodedSubject = (value: string) => `=?UTF-8?B?${utf8Base64(value)}?=`;
-const bytesBase64 = (value: ArrayBuffer) => {
-  const bytes = new Uint8Array(value); let binary = "";
+const bytesBase64 = (value: ArrayBuffer | Uint8Array) => {
+  const bytes = value instanceof Uint8Array ? value : new Uint8Array(value); let binary = "";
   for (let index = 0; index < bytes.length; index += 8192) binary += String.fromCharCode(...bytes.subarray(index, index + 8192));
   return btoa(binary);
 };
@@ -34,9 +35,9 @@ export class GoogleGmailApiProvider implements GoogleGmailLiveProvider {
   private async raw(message: GoogleGmailProviderMessage): Promise<string> {
     const headers = [`To: ${message.to}`, `Subject: ${encodedSubject(message.subject)}`, "MIME-Version: 1.0", "Content-Type: text/html; charset=UTF-8"];
     if (message.replyToMessageId) headers.push(`In-Reply-To: ${message.replyToMessageId}`, `References: ${message.replyToMessageId}`);
-    if (!message.driveFileIds.length) return utf8Base64Url(`${headers.join("\r\n")}\r\n\r\n${message.htmlBody}`);
+    if (!message.driveFileIds.length && !message.attachments?.length) return utf8Base64Url(`${headers.join("\r\n")}\r\n\r\n${message.htmlBody}`);
     const boundary = `orbit-${crypto.randomUUID()}`;
-    const attachments = await Promise.all(message.driveFileIds.map(async (fileId) => {
+    const driveAttachments = await Promise.all(message.driveFileIds.map(async (fileId) => {
       const metadataResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=name,mimeType`, { headers: { Authorization: `Bearer ${this.accessToken}` } });
       if (!metadataResponse.ok) throw new Error(`Google Drive attachment metadata failed (${metadataResponse.status}): ${await metadataResponse.text()}`);
       const metadata = await metadataResponse.json() as { name: string; mimeType: string };
@@ -45,6 +46,12 @@ export class GoogleGmailApiProvider implements GoogleGmailLiveProvider {
       const encoded = bytesBase64(await fileResponse.arrayBuffer()).replace(/.{1,76}/g, "$&\r\n");
       return [`--${boundary}`, `Content-Type: ${metadata.mimeType}; name="${metadata.name.replaceAll('"', "'") }"`, "Content-Transfer-Encoding: base64", `Content-Disposition: attachment; filename="${metadata.name.replaceAll('"', "'") }"`, "", encoded].join("\r\n");
     }));
+    const directAttachments = (message.attachments ?? []).map((attachment) => {
+      const filename = attachment.filename.replaceAll('"', "'");
+      const encoded = bytesBase64(attachment.content).replace(/.{1,76}/g, "$&\r\n");
+      return [`--${boundary}`, `Content-Type: ${attachment.mimeType}; name="${filename}"`, "Content-Transfer-Encoding: base64", `Content-Disposition: attachment; filename="${filename}"`, "", encoded].join("\r\n");
+    });
+    const attachments = [...driveAttachments, ...directAttachments];
     const mixedHeaders = headers.filter((header) => !header.startsWith("Content-Type:"));
     const body = [...mixedHeaders, `Content-Type: multipart/mixed; boundary="${boundary}"`, "", `--${boundary}`, "Content-Type: text/html; charset=UTF-8", "Content-Transfer-Encoding: 8bit", "", message.htmlBody, ...attachments, `--${boundary}--`].join("\r\n");
     return utf8Base64Url(body);

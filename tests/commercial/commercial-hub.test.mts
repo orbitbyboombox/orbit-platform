@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { calculateDiscount, calculateFormalQuote, isCommercialEmail } from "../../features/commercial-hub/quote-calculation.ts";
+import { displayChileanPhone, formalQuoteSubject, formatChileanRutInput, moneyInputNumber, normalizeChileanPhone, normalizeEmailNewlines, quoteDisplayFilename, quoteStorageKey, titleCasePerson } from "../../features/commercial-hub/presentation.ts";
 
 const line = (patch: Record<string, unknown> = {}) => ({ id: "1", code: "CLASSIC", description: "Tótem Classic", quantity: 4, catalogPrice: 500000, quotedPrice: 430000, discountType: null, discountValue: 0, manual: false, ...patch });
 
@@ -33,3 +34,16 @@ test("complex quote ten lines", () => assert.equal(calculateFormalQuote(Array.fr
 test("valid commercial email", () => assert.equal(isCommercialEmail("cliente@empresa.cl"), true));
 test("email trims whitespace", () => assert.equal(isCommercialEmail(" cliente@empresa.cl "), true));
 test("invalid commercial email", () => assert.equal(isCommercialEmail("cliente"), false));
+test("storage key is ASCII and independent from display name", () => assert.equal(quoteStorageKey("uuid", "COTIZACIÓN 2026-000001"), "commercial/quotes/uuid/cotizacion-2026-000001.pdf"));
+test("display filename preserves customer-facing Spanish", () => assert.equal(quoteDisplayFilename("COTIZACIÓN 2026-000001"), "Cotización BOOMBOX 2026-000001.pdf"));
+test("escaped email newlines become real newlines", () => assert.equal(normalizeEmailNewlines("Hola\\n\\nEquipo"), "Hola\n\nEquipo"));
+test("CRLF email newlines normalize", () => assert.equal(normalizeEmailNewlines("Hola\r\nEquipo"), "Hola\nEquipo"));
+test("formal quote subject does not duplicate Cotización", () => assert.equal(formalQuoteSubject("COTIZACIÓN 2026-000001", "Empresa"), "Cotización BOOMBOX 2026-000001 — Empresa"));
+test("formal quote subject supports optional customer", () => assert.equal(formalQuoteSubject("COTIZACIÓN 2026-000001"), "Cotización BOOMBOX 2026-000001"));
+test("RUT formats during input", () => assert.equal(formatChileanRutInput("765652723"), "76.565.272-3"));
+test("Chile phone removes pasted prefix", () => assert.equal(normalizeChileanPhone("+56 9 6304 0989"), "63040989"));
+test("Chile phone displays canonical prefix", () => assert.equal(displayChileanPhone("+56963040989"), "+56 9 6304 0989"));
+test("empty monetary draft normalizes to zero", () => assert.equal(moneyInputNumber(""), 0));
+test("monetary paste strips separators", () => assert.equal(moneyInputNumber("$150.000"), 150000));
+test("branding price edit does not retain leading zero", () => assert.equal(moneyInputNumber("150000"), 150000));
+test("person visual title case", () => assert.equal(titleCasePerson("matias maira"), "Matias Maira"));

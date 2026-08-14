@@ -46,7 +46,7 @@ export type NavigationKey =
 export const navigationItems: readonly NavigationItem[] = [
   {
     key: "HOME",
-    label: "Mi Jornada",
+    label: "Escritorio",
     href: "/operations",
     icon: Gauge,
     module: "DASHBOARD",

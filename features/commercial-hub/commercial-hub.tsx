@@ -32,6 +32,8 @@ import type {
   QuoteLineDraft,
 } from "./types";
 import { calculateFormalQuote } from "./quote-calculation";
+import { displayChileanPhone, formalQuoteSubject, formatChileanRutInput, moneyInputNumber, normalizeChileanPhone, normalizeEmailNewlines, quoteDisplayFilename, titleCasePerson } from "./presentation";
+import { PdfViewer } from "./pdf-viewer";
 
 const money = new Intl.NumberFormat("es-CL", {
   style: "currency",
@@ -189,7 +191,7 @@ function InformationSender({
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [subject, setSubject] = useState(template?.subject ?? "");
-  const [body, setBody] = useState(template?.body ?? "");
+  const [body, setBody] = useState(normalizeEmailNewlines(template?.body ?? ""));
   const [preview, setPreview] = useState(false);
   const [message, setMessage] = useState("");
   const [requestId, setRequestId] = useState(uid);
@@ -244,8 +246,9 @@ function InformationSender({
           <p className="mt-1 text-sm text-muted">
             {document
               ? `${document.name} · ${document.version}`
-              : "No hay un PDF ACTIVE. Cárgalo en Configuración → Documentos comerciales."}
+              : `Aún no has cargado el catálogo de ${category === "WEDDINGS" ? "Matrimonios" : category === "COMPANIES_CATALOG" ? "Empresas" : "Eventos"}.`}
           </p>
+          {!document && <Link className="mt-3 inline-flex min-h-10 items-center rounded-lg border px-3 text-xs font-semibold text-brand" href="/settings#commercial-settings">Subir catálogo</Link>}
         </div>
         {preview && (
           <div className="rounded-xl border border-brand/30 bg-background p-4">
@@ -255,7 +258,7 @@ function InformationSender({
             <p className="mt-3 font-semibold">Para: {email || "—"}</p>
             <p className="mt-1">{subject}</p>
             <p className="mt-4 whitespace-pre-wrap text-sm text-muted">
-              {body.replaceAll("[Nombre]", name)}
+              {normalizeEmailNewlines(body).replaceAll("[Nombre]", titleCasePerson(name))}
             </p>
             <p className="mt-4 text-sm">Adjunto: {document?.filename ?? "—"}</p>
           </div>
@@ -284,7 +287,7 @@ function InformationSender({
 
 function FormalBuilder({ data, initialDraft }: { data: CommercialHubData; initialDraft?: FormalQuoteDraft }) {
   const [customerId, setCustomerId] = useState(initialDraft?.existingCustomerId ?? "");
-  const [temporary, setTemporary] = useState({ company: initialDraft?.company ?? "", rut: initialDraft?.rut ?? "", contact: initialDraft?.contact ?? "", email: initialDraft?.email ?? "", phone: initialDraft?.phone ?? "", address: initialDraft?.address ?? "" });
+  const [temporary, setTemporary] = useState({ company: initialDraft?.company ?? "", rut: formatChileanRutInput(initialDraft?.rut ?? ""), contact: initialDraft?.contact ?? "", email: initialDraft?.email ?? "", phone: normalizeChileanPhone(initialDraft?.phone ?? ""), address: initialDraft?.address ?? "" });
   const [lines, setLines] = useState<QuoteLineDraft[]>(initialDraft?.lines ?? []);
   const [validityDays, setValidityDays] = useState(initialDraft?.validityDays ?? 10);
   const [depositPercent, setDepositPercent] = useState(initialDraft?.depositPercent ?? 50);
@@ -365,7 +368,7 @@ function FormalBuilder({ data, initialDraft }: { data: CommercialHubData; initia
             phone: selected.phone,
             address: selected.address,
           }
-        : temporary;
+        : { ...temporary, phone: temporary.phone ? `+569${normalizeChileanPhone(temporary.phone)}` : "" };
       const draft: FormalQuoteDraft = {
         quoteId: initialDraft?.quoteId,
         existingCustomerId: selected?.id ?? null,
@@ -411,7 +414,7 @@ function FormalBuilder({ data, initialDraft }: { data: CommercialHubData; initia
           </Field>
           {!selected && (
             <>
-              <Field label="Razón social">
+              <Field label="Razón social / Cliente (opcional)">
                 <input
                   value={temporary.company}
                   onChange={(e) =>
@@ -419,15 +422,15 @@ function FormalBuilder({ data, initialDraft }: { data: CommercialHubData; initia
                   }
                 />
               </Field>
-              <Field label="RUT">
+              <Field label="RUT (opcional)">
                 <input
                   value={temporary.rut}
                   onChange={(e) =>
-                    setTemporary((v) => ({ ...v, rut: e.target.value }))
+                    setTemporary((v) => ({ ...v, rut: formatChileanRutInput(e.target.value) }))
                   }
                 />
               </Field>
-              <Field label="Contacto">
+              <Field label="Contacto (opcional)">
                 <input
                   value={temporary.contact}
                   onChange={(e) =>
@@ -435,7 +438,7 @@ function FormalBuilder({ data, initialDraft }: { data: CommercialHubData; initia
                   }
                 />
               </Field>
-              <Field label="Email">
+              <Field label="Email (requerido solo al enviar)">
                 <input
                   inputMode="email"
                   value={temporary.email}
@@ -444,14 +447,14 @@ function FormalBuilder({ data, initialDraft }: { data: CommercialHubData; initia
                   }
                 />
               </Field>
-              <Field label="Teléfono">
-                <input
+              <Field label="Teléfono (opcional)">
+                <span className="flex min-w-0 items-center rounded-xl border bg-background pl-3 focus-within:ring-2"><span className="shrink-0 text-sm text-muted">+56 9</span><input className="min-w-0 flex-1 border-0"
                   inputMode="tel"
                   value={temporary.phone}
                   onChange={(e) =>
-                    setTemporary((v) => ({ ...v, phone: e.target.value }))
+                    setTemporary((v) => ({ ...v, phone: normalizeChileanPhone(e.target.value) }))
                   }
-                />
+                /></span>
               </Field>
               <Field label="Dirección">
                 <input
@@ -471,15 +474,15 @@ function FormalBuilder({ data, initialDraft }: { data: CommercialHubData; initia
               </label>
             </>
           )}
-          <Field label="Evento / proyecto">
+          <Field label="Evento / Proyecto (opcional)">
             <input value={eventName} onChange={(e) => setEventName(e.target.value)} placeholder="Activación corporativa" />
           </Field>
           <Field label="Fecha del evento (opcional)">
             <input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} />
           </Field>
-          <Field label="Hora del evento (para convertir en reserva)"><input type="time" value={eventTime} onChange={(e) => setEventTime(e.target.value)} /></Field>
-          <Field label="Dirección del evento"><input value={eventLocation} onChange={(e) => setEventLocation(e.target.value)} /></Field>
-          <Field label="Comuna / ciudad"><input value={eventCity} onChange={(e) => setEventCity(e.target.value)} /></Field>
+          <Field label="Hora del evento (opcional)"><input type="time" value={eventTime} onChange={(e) => setEventTime(e.target.value)} /></Field>
+          <Field label="Dirección del evento (opcional)"><input value={eventLocation} onChange={(e) => setEventLocation(e.target.value)} /></Field>
+          <Field label="Comuna / Ciudad (opcional)"><input value={eventCity} onChange={(e) => setEventCity(e.target.value)} /></Field>
         </div>
       </div>
       <div className="rounded-2xl border bg-card p-5 sm:p-7">
@@ -533,15 +536,10 @@ function FormalBuilder({ data, initialDraft }: { data: CommercialHubData; initia
                   update(line.id, { quantity: Number(e.target.value) })
                 }
               />
-              <input
+              <MoneyInput
                 aria-label="Precio unitario"
-                inputMode="numeric"
-                min="0"
-                type="number"
                 value={line.quotedPrice}
-                onChange={(e) =>
-                  update(line.id, { quotedPrice: Number(e.target.value) })
-                }
+                onValue={(value) => update(line.id, { quotedPrice: value })}
               />
               <p className="self-center font-semibold">
                 {money.format(
@@ -587,7 +585,7 @@ function FormalBuilder({ data, initialDraft }: { data: CommercialHubData; initia
                   </select>
                 </Field>
                 <Field label="Valor descuento">
-                  <input min="0" inputMode="numeric" type="number" value={line.discountValue} onChange={(e) => update(line.id, { discountValue: Number(e.target.value) })} />
+                  <MoneyInput value={line.discountValue} onValue={(value) => update(line.id, { discountValue: value })} />
                 </Field>
               </div>
             </article>
@@ -634,11 +632,9 @@ function FormalBuilder({ data, initialDraft }: { data: CommercialHubData; initia
               </select>
             </Field>
             <Field label="Valor descuento">
-              <input
-                min="0"
-                type="number"
+              <MoneyInput
                 value={globalDiscountValue}
-                onChange={(e) => setGlobalDiscountValue(Number(e.target.value))}
+                onValue={setGlobalDiscountValue}
               />
             </Field>
           </div>
@@ -668,7 +664,7 @@ function FormalBuilder({ data, initialDraft }: { data: CommercialHubData; initia
           <div className="mt-5 grid gap-2">
             <Button onClick={() => setPreview((v) => !v)} variant="outline">
               <FileDown />
-              Previsualizar
+              Previsualizar cotización
             </Button>
             <Button disabled={pending || !lines.length} onClick={create}>
               <FilePlus2 />
@@ -679,6 +675,7 @@ function FormalBuilder({ data, initialDraft }: { data: CommercialHubData; initia
       </div>
       {preview && (
         <QuotePreview
+          company={data.company}
           customer={selected?.company || selected?.name || temporary.company}
           lines={lines}
           totals={totals}
@@ -692,6 +689,7 @@ function FormalBuilder({ data, initialDraft }: { data: CommercialHubData; initia
           catalog={data.documents.find((document) => document.category === "COMPANIES")}
           attachCatalog={attachCatalog}
           onAttachCatalog={setAttachCatalog}
+          template={data.templates.find((item) => item.category === "COMPANIES_QUOTE")}
         />
       )}
       {message && (
@@ -706,11 +704,14 @@ function FormalBuilder({ data, initialDraft }: { data: CommercialHubData; initia
   );
 }
 
-function FormalQuoteDelivery({ quote, email, company, catalog, attachCatalog, onAttachCatalog }: { quote: { id: string; number: string; total: number }; email: string; company: string; catalog?: CommercialHubData["documents"][number]; attachCatalog: boolean; onAttachCatalog: (value: boolean) => void }) {
-  const templateSubject = `Cotización ${quote.number} — ${company || "BOOMBOX"}`;
+function FormalQuoteDelivery({ quote, email, company, catalog, attachCatalog, onAttachCatalog, template }: { quote: { id: string; number: string; total: number }; email: string; company: string; catalog?: CommercialHubData["documents"][number]; attachCatalog: boolean; onAttachCatalog: (value: boolean) => void; template?: CommercialHubData["templates"][number] }) {
+  const templateSubject = formalQuoteSubject(quote.number, company);
   const [recipient, setRecipient] = useState(email);
-  const [subject, setSubject] = useState(templateSubject);
-  const [body, setBody] = useState(`Hola,\n\nAdjuntamos ${quote.number} preparada para ${company || "su evento"}.\n\nQuedamos atentos.\n\nEquipo BOOMBOX`);
+  const variables = { "[NumeroCotizacion]": quote.number.replace(/^COTIZACIÓN\s*/i, ""), "[Empresa]": company, "[Nombre]": company };
+  const applyVariables = (value: string) => Object.entries(variables).reduce((text, [key, replacement]) => text.replaceAll(key, replacement), normalizeEmailNewlines(value));
+  const [subject, setSubject] = useState(template ? applyVariables(template.subject) : templateSubject);
+  const [body, setBody] = useState(template ? applyVariables(template.body) : `Hola,\n\nGracias por considerar a BOOMBOX para su evento.\n\nTe enviamos adjunta la Cotización BOOMBOX ${quote.number.replace(/^COTIZACIÓN\s*/i, "")}, preparada según lo conversado.\n\nLlevamos 16 años creando experiencias fotográficas para empresas, marcas y eventos en Chile.\n\nQuedamos atentos.\n\nEquipo BOOMBOX`);
+  const [pdfOpen, setPdfOpen] = useState(false);
   const [requestId, setRequestId] = useState(uid);
   const [message, setMessage] = useState("");
   const [pending, start] = useTransition();
@@ -722,17 +723,20 @@ function FormalQuoteDelivery({ quote, email, company, catalog, attachCatalog, on
       <Field label="Asunto"><input value={subject} onChange={(e) => setSubject(e.target.value)} /></Field>
       <Field label="Mensaje"><textarea className="min-h-44" value={body} onChange={(e) => setBody(e.target.value)} /></Field>
       <div className="rounded-xl border bg-background p-4 text-sm"><p className="font-semibold">Adjuntos</p><p className="mt-2">{quote.number}.pdf</p>{catalog && <label className="mt-3 flex items-center gap-2"><input type="checkbox" checked={attachCatalog} onChange={(e) => onAttachCatalog(e.target.checked)} />{catalog.filename}</label>}</div>
-      <div className="grid gap-3 sm:grid-cols-3"><Button asChild variant="outline"><a href={`/api/commercial/quotes/${quote.id}/pdf`} target="_blank" rel="noreferrer"><FileDown />Abrir PDF</a></Button><Button disabled={pending || !recipient} onClick={() => { if (!window.confirm(`¿Enviar ${quote.number} a ${recipient}?`)) return; start(async () => { const result = await sendFormalQuoteAction({ quoteId: quote.id, email: recipient, subject, body, requestId, catalogDocumentId: attachCatalog ? catalog?.id : undefined }); setMessage(result.ok ? result.message : result.error); if (result.ok) setRequestId(uid()); }); }}><Send />{pending ? "Enviando…" : "Enviar email"}</Button><Button disabled={pending} variant="outline" onClick={() => { if (!window.confirm(`¿Convertir ${quote.number} en Reserva usando el pipeline oficial?`)) return; start(async () => { const result = await convertCommercialQuoteAction(quote.id); setMessage(result.ok ? result.message : result.error); if (result.ok && result.projectId) window.location.href = `/projects/${result.projectId}`; }); }}>Convertir en reserva</Button></div>
+      <div className="grid gap-3 sm:grid-cols-3"><Button onClick={() => setPdfOpen(true)} variant="outline"><FileDown />Abrir PDF</Button><Button disabled={pending} onClick={() => { if (!recipient.trim()) { setMessage("Ingresa un correo válido para enviar."); return; } if (!window.confirm(`¿Enviar ${quote.number} a ${recipient}?`)) return; start(async () => { const result = await sendFormalQuoteAction({ quoteId: quote.id, email: recipient, subject, body: normalizeEmailNewlines(body), requestId, catalogDocumentId: attachCatalog ? catalog?.id : undefined }); setMessage(result.ok ? result.message : result.error); if (result.ok) setRequestId(uid()); }); }}><Send />{pending ? "Enviando…" : "Enviar email"}</Button><Button disabled={pending} variant="outline" onClick={() => { if (!window.confirm(`¿Convertir ${quote.number} en Reserva usando el pipeline oficial?`)) return; start(async () => { const result = await convertCommercialQuoteAction(quote.id); setMessage(result.ok ? result.message : result.error); if (result.ok && result.projectId) window.location.href = `/projects/${result.projectId}`; }); }}>Convertir en reserva</Button></div>
       {message && <p aria-live="polite" className="text-sm font-medium">{message}</p>}
+      {pdfOpen && <PdfViewer title={quoteDisplayFilename(quote.number)} src={`/api/commercial/quotes/${quote.id}/pdf`} onClose={() => setPdfOpen(false)} />}
     </div>
   </section>;
 }
 
 function QuotePreview({
+  company,
   customer,
   lines,
   totals,
 }: {
+  company: CommercialHubData["company"];
   customer: string;
   lines: QuoteLineDraft[];
   totals: {
@@ -749,11 +753,11 @@ function QuotePreview({
       <div className="flex flex-col gap-4 border-b border-orange-500 pb-5 sm:flex-row sm:justify-between">
         <div>
           <p className="text-2xl font-black tracking-[.16em]">BOOMBOX®</p>
-          <p className="mt-2 text-xs">Producciones BoomBox Company SpA</p>
+          <div className="mt-2 space-y-0.5 text-xs"><p className="font-bold uppercase">{company.legalName}</p><p>RUT {formatChileanRutInput(company.taxId)}</p><p>{[company.address, company.city].filter(Boolean).join(" · ")}</p><p>{displayChileanPhone(company.phone)} · {company.website}</p></div>
         </div>
         <div className="text-left sm:text-right">
           <h3 className="text-xl font-bold text-orange-600">COTIZACIÓN</h3>
-          <p className="text-xs">Vista previa A4</p>
+          <p className="text-xs">Previsualizar cotización</p>
         </div>
       </div>
       <h4 className="mt-6 border-l-4 border-orange-500 pl-3 font-bold">
@@ -817,6 +821,7 @@ function RecentQuotes({
   quotes: CommercialHubData["recentQuotes"];
   onEdit: (draft: FormalQuoteDraft) => void;
 }) {
+  const [openPdf, setOpenPdf] = useState<{ id: string; number: string } | null>(null);
   return (
     <section className="rounded-2xl border bg-card p-5">
       <h2 className="font-semibold">Cotizaciones recientes</h2>
@@ -831,7 +836,7 @@ function RecentQuotes({
               <span>{q.customer}</span>
               <span>{money.format(q.total)}</span>
               <span className="text-muted">{q.status}</span>
-              <a className="font-medium text-brand" href={`/api/commercial/quotes/${q.id}/pdf`} target="_blank" rel="noreferrer">PDF</a>
+              <button className="text-left font-medium text-brand" onClick={() => setOpenPdf({ id: q.id, number: q.number })}>PDF</button>
               {q.draft && <button className="font-medium text-brand" onClick={() => onEdit(q.draft!)}>Continuar</button>}
             </div>
           ))
@@ -839,6 +844,7 @@ function RecentQuotes({
           <p className="py-5 text-sm text-muted">Aún no hay cotizaciones.</p>
         )}
       </div>
+      {openPdf && <PdfViewer title={quoteDisplayFilename(openPdf.number)} src={`/api/commercial/quotes/${openPdf.id}/pdf`} onClose={() => setOpenPdf(null)} />}
     </section>
   );
 }
@@ -860,4 +866,9 @@ function Field({
       </span>
     </label>
   );
+}
+
+function MoneyInput({ value, onValue, ...props }: { value: number; onValue: (value: number) => void } & Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange">) {
+  const [draft, setDraft] = useState(String(value));
+  return <input {...props} inputMode="numeric" min="0" type="text" value={draft} onChange={(event) => { const next = event.target.value.replace(/[^0-9]/g, ""); setDraft(next); onValue(moneyInputNumber(next)); }} onBlur={() => { const normalized = moneyInputNumber(draft); setDraft(String(normalized)); onValue(normalized); }} />;
 }

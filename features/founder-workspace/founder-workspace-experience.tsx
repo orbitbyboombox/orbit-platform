@@ -51,10 +51,9 @@ export type PendingStaffApproval = {
 };
 
 const quickActions = [
-  { label: "Nuevo Evento", href: "/projects?reservation=new", icon: FilePlus2 },
-  { label: "Calendario", href: "/projects?view=calendar", icon: CalendarDays },
-  { label: "Staff", href: "/resources/staff", icon: UsersRound },
-  { label: "Registrar Gasto", href: "/finance/expenses?action=new", icon: ReceiptText },
+  { label: "+ Nuevo cliente", href: "/customers", icon: UsersRound },
+  { label: "+ Nueva reserva", href: "/projects?reservation=new", icon: FilePlus2 },
+  { label: "Cotizar", href: "/leads", icon: ReceiptText },
 ] as const;
 
 const money = (value: number) => new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(value);
@@ -162,7 +161,7 @@ export function FounderWorkspaceExperience({ currentDate, finance, founderName, 
 
   const commandGrid = <section aria-label="Jornada operacional" className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.58fr)_minmax(19rem,.92fr)]"><div className="space-y-5">{today}{alerts}</div><div className="space-y-5">{upcoming}</div></section>;
 
-  const actions = <section aria-labelledby="quick-actions-title"><PanelTitle id="quick-actions-title" label="Acciones rápidas" /><div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">{quickActions.map(action => { const Icon = action.icon; return <Link data-command-card className="group flex min-h-[4.75rem] items-center gap-3 rounded-2xl border p-4 transition hover:-translate-y-0.5" href={action.href} key={action.label}><span className="grid size-9 place-items-center rounded-xl bg-brand/10 text-brand"><Icon className="size-4" /></span><span className="text-xs font-semibold">{action.label}</span></Link>; })}</div></section>;
+  const actions = <section aria-labelledby="quick-actions-title"><PanelTitle id="quick-actions-title" label="Acciones rápidas" /><div className="mt-4 grid grid-cols-1 gap-3 min-[390px]:grid-cols-3">{quickActions.map(action => { const Icon = action.icon; return <Link data-command-card className="group flex min-h-[4.75rem] items-center gap-3 rounded-2xl border p-4 transition hover:-translate-y-0.5" href={action.href} key={action.label}><span className="grid size-9 place-items-center rounded-xl bg-brand/10 text-brand"><Icon className="size-4" /></span><span className="text-xs font-semibold uppercase">{action.label}</span></Link>; })}</div></section>;
 
   const settings = <section className="flex flex-col gap-4 rounded-2xl border bg-card p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between"><div><PanelTitle id="workspace-settings-title" label="Founder Workspace" /><p className="mt-2 text-xs text-muted">Mueve, oculta y restaura cada bloque. Tu configuración permanece guardada.</p></div><Link className="inline-flex min-h-10 items-center justify-center rounded-xl border px-4 text-xs font-semibold hover:border-brand/40 hover:text-brand" href="/settings#founder-workspace"><Settings2 className="mr-2 size-4" />Configurar espacio</Link></section>;
 
