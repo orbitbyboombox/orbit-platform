@@ -395,7 +395,7 @@ export function GlobalLayoutEngine() {
   }, [context, moduleKey, targets]);
   if (!context || !moduleKey) return null;
   const labels =
-    context.preferences.moduleWorkspaces[moduleKey].sectionLabels ?? {};
+    context.preferences.moduleWorkspaces[moduleKey]?.sectionLabels ?? {};
   return (
     <>
       {Object.entries(targets).map(([key, { element, menuTop }]) =>
