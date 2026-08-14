@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { MunicipalityCombobox } from "@/components/forms/municipality-combobox";
 import type { ActiveMunicipality } from "@/features/settings/master-data/municipality-master-data";
 import { cn } from "@/lib/utils";
+import { filterExtrasForEventType, includedExtrasForEventType, resolveBrandingMinimum } from "../reservation-business-rules";
 import { formatChileanRut, isValidChileanRut } from "@/lib/chile/rut";
 import { sendAutomaticBookingInvitationAction } from "@/features/automatic-booking/actions";
 import { sendManualReservationConfirmationAction } from "../actions/customer.actions";
@@ -535,13 +536,12 @@ export function NewProjectDrawer({
   const additionalHourRate = (service: ProjectService) =>
     serviceByCode.get(service)?.additionalHourPrice ?? 0;
   const compatibleExtras = (service: ProjectService) =>
-    (serviceByCode.get(service)?.compatibleExtras ?? [])
-      .map(masterExtraToReservation)
-      .filter(
-        (extra): extra is ServiceExtra =>
-          extra !== null &&
-          !(draft.type === "Corporate" && extra === "Scrapbook"),
-      );
+    filterExtrasForEventType(
+      draft.type ?? "",
+      (serviceByCode.get(service)?.compatibleExtras ?? [])
+        .map(masterExtraToReservation)
+        .filter((extra): extra is ServiceExtra => extra !== null),
+    );
 
   const selectedMunicipality =
     municipalities.find((item) => item.name === draft.event.city) ?? null;
@@ -557,12 +557,9 @@ export function NewProjectDrawer({
       ? selectedMunicipality.transport
       : null;
   const venueSurcharge = Number(selectedVenue?.surcharge ?? 0);
-  const includedExtras: ServiceExtra[] =
-    draft.type === "Wedding"
-      ? ["QR", "Scrapbook"]
-      : draft.type === "Birthday" || draft.type === "Graduation"
-        ? ["QR"]
-        : [];
+  const includedExtras: ServiceExtra[] = includedExtrasForEventType(
+    draft.type ?? "",
+  );
   const priceFor = (
     category: ReservationCommercialPrice["category"],
     code: string,
@@ -577,9 +574,8 @@ export function NewProjectDrawer({
           price.durationHours === null),
     );
   const brandingPrice = priceFor("EXTRA", extraCodes.Branding);
-  const brandingMinimum = Math.max(
-    1,
-    Number(brandingPrice?.rules?.minimumQuantity ?? 1),
+  const brandingMinimum = resolveBrandingMinimum(
+    brandingPrice?.rules?.minimumQuantity,
   );
   const brandingMaximum = Math.min(
     4,

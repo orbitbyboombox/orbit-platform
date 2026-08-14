@@ -30,17 +30,38 @@ async function founderClient() {
   return { client, user: data.user };
 }
 export async function createCrmCustomerAction(input: {
+  customerType: "PERSON" | "COMPANY";
   fullName: string;
   rut: string;
   company: string;
   phone: string;
   email: string;
   address: string;
+  businessActivity: string;
+  billingAddress: string;
+  billingMunicipality: string;
+  billingEmail: string;
+  primaryContactFirstName: string;
+  primaryContactLastName: string;
+  primaryContactPhone: string;
+  primaryContactEmail: string;
 }) {
   try {
     const { client, user } = await founderClient();
     if (!input.fullName.trim() || !input.rut.trim())
       throw new Error("Nombre y RUT son obligatorios.");
+    if (
+      input.customerType === "COMPANY" &&
+      (!input.company.trim() ||
+        !input.billingAddress.trim() ||
+        !input.billingMunicipality.trim() ||
+        !input.billingEmail.trim() ||
+        !input.primaryContactFirstName.trim() ||
+        !input.primaryContactLastName.trim() ||
+        !input.primaryContactPhone.trim() ||
+        !input.primaryContactEmail.trim())
+    )
+      throw new Error("Completa la facturación y el contacto principal de la empresa.");
     const normalized = requireValidChileanRut(input.rut);
     const { data: existing, error: lookup } = await client
       .from("customers")
@@ -59,7 +80,28 @@ export async function createCrmCustomerAction(input: {
         phone: normalizeChileanPhone(input.phone) || null,
         email: input.email.trim().toLowerCase() || null,
         address: input.address.trim() || null,
-        metadata: { normalizedRut: normalized },
+        metadata: {
+          normalizedRut: normalized,
+          customerType: input.customerType,
+          corporateBilling:
+            input.customerType === "COMPANY"
+              ? {
+                  businessActivity: input.businessActivity.trim(),
+                  address: input.billingAddress.trim(),
+                  municipality: input.billingMunicipality.trim(),
+                  email: input.billingEmail.trim().toLowerCase(),
+                }
+              : null,
+          primaryContact:
+            input.customerType === "COMPANY"
+              ? {
+                  firstName: input.primaryContactFirstName.trim(),
+                  lastName: input.primaryContactLastName.trim(),
+                  phone: normalizeChileanPhone(input.primaryContactPhone),
+                  email: input.primaryContactEmail.trim().toLowerCase(),
+                }
+              : null,
+        },
         created_by: user.id,
         updated_by: user.id,
       })
@@ -77,6 +119,7 @@ export async function createCrmCustomerAction(input: {
 }
 export async function updateCrmCustomerAction(input: {
   id: string;
+  customerType: "PERSON" | "COMPANY";
   fullName: string;
   rut: string;
   company: string;
@@ -85,11 +128,31 @@ export async function updateCrmCustomerAction(input: {
   address: string;
   commercialNotes: string;
   contacts: Array<{ name: string; email: string; phone: string }>;
+  businessActivity: string;
+  billingAddress: string;
+  billingMunicipality: string;
+  billingEmail: string;
+  primaryContactFirstName: string;
+  primaryContactLastName: string;
+  primaryContactPhone: string;
+  primaryContactEmail: string;
   reason: string;
 }) {
   try {
     const { client, user } = await founderClient();
     if (!input.reason.trim()) throw new Error("Registra el motivo del cambio.");
+    if (
+      input.customerType === "COMPANY" &&
+      (!input.company.trim() ||
+        !input.billingAddress.trim() ||
+        !input.billingMunicipality.trim() ||
+        !input.billingEmail.trim() ||
+        !input.primaryContactFirstName.trim() ||
+        !input.primaryContactLastName.trim() ||
+        !input.primaryContactPhone.trim() ||
+        !input.primaryContactEmail.trim())
+    )
+      throw new Error("Completa la facturación y el contacto principal de la empresa.");
     const normalized = requireValidChileanRut(input.rut);
     const { data: current, error: readError } = await client
       .from("customers")
@@ -109,6 +172,25 @@ export async function updateCrmCustomerAction(input: {
         metadata: {
           ...current.metadata,
           normalizedRut: normalized,
+          customerType: input.customerType,
+          corporateBilling:
+            input.customerType === "COMPANY"
+              ? {
+                  businessActivity: input.businessActivity.trim(),
+                  address: input.billingAddress.trim(),
+                  municipality: input.billingMunicipality.trim(),
+                  email: input.billingEmail.trim().toLowerCase(),
+                }
+              : null,
+          primaryContact:
+            input.customerType === "COMPANY"
+              ? {
+                  firstName: input.primaryContactFirstName.trim(),
+                  lastName: input.primaryContactLastName.trim(),
+                  phone: normalizeChileanPhone(input.primaryContactPhone),
+                  email: input.primaryContactEmail.trim().toLowerCase(),
+                }
+              : null,
           commercialNotes: input.commercialNotes,
           contacts: input.contacts,
         },

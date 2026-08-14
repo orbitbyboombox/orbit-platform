@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { isInvalidSessionError, isMissingSessionError } from "./auth-errors";
+import { isAdministrativeRole, unauthorizedLandingForRole } from "@/lib/auth/roles";
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request: { headers: new Headers(request.headers) } });
@@ -14,6 +15,6 @@ export async function updateSession(request: NextRequest) {
   if (!user){const login=new URL("/login",request.url);login.searchParams.set("next",request.nextUrl.pathname+request.nextUrl.search);return NextResponse.redirect(login)}
   const{data:profile,error:profileError}=await supabase.from("profiles").select("role").eq("id",user.id).maybeSingle();
   if(profileError)return response;
-  if(!profile||!["CEO","ADMINISTRATOR"].includes(profile.role)){return NextResponse.redirect(new URL(profile?.role==="STAFF"?"/login?access=staff":"/login?access=customer",request.url))}
+  if(!profile||!isAdministrativeRole(profile.role)){return NextResponse.redirect(new URL(unauthorizedLandingForRole(profile?.role),request.url))}
   return response;
 }

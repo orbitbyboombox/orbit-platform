@@ -140,6 +140,19 @@ export interface CrmCommercialNegotiation {
   timestamp: string;
 }
 export interface CrmCustomerProfile extends CrmCustomerSummary {
+  customerType: "PERSON" | "COMPANY";
+  corporateBilling: {
+    businessActivity: string;
+    address: string;
+    municipality: string;
+    email: string;
+  };
+  primaryContact: {
+    firstName: string;
+    lastName: string;
+    phone: string;
+    email: string;
+  };
   commercialNotes: string;
   contacts: Array<{ name: string; email: string; phone: string }>;
   commercialHistory: Array<{

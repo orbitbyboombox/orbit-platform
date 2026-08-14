@@ -5,6 +5,7 @@ import type {
   CrmEventSummary,
 } from "./types";
 import { formatChileanPhone, formatChileanRut } from "@/lib/chile/rut";
+import { groupByOwnerId } from "./relations";
 
 type CustomerRow = {
   id: string;
@@ -41,15 +42,7 @@ export async function loadCrmCustomers(
     ]);
   if (error) throw error;
   if (eventError) throw eventError;
-  const grouped = new Map<
-    string,
-    Array<{ event_date: string | null; status: string }>
-  >();
-  for (const event of events ?? []) {
-    const list = grouped.get(event.customer_id) ?? [];
-    list.push(event);
-    grouped.set(event.customer_id, list);
-  }
+  const grouped = groupByOwnerId(events ?? [], "customer_id");
   return ((customers ?? []) as CustomerRow[]).map((row) => {
     const owned = grouped.get(row.id) ?? [];
     return {
@@ -375,6 +368,10 @@ export async function loadCrmCustomerProfile(
           item.date && item.date >= new Date().toISOString().slice(0, 10),
       )?.date ?? undefined,
     updatedAt: row.updated_at,
+    customerType:
+      metadata.customerType === "COMPANY" || row.company ? "COMPANY" : "PERSON",
+    corporateBilling: toCorporateBilling(metadata.corporateBilling),
+    primaryContact: toPrimaryContact(metadata.primaryContact),
     commercialNotes:
       typeof metadata.commercialNotes === "string"
         ? metadata.commercialNotes
@@ -450,5 +447,25 @@ export async function loadCrmCustomerProfile(
         : "Usuario ORBIT",
       timestamp: item.created_at,
     })),
+  };
+}
+
+function toCorporateBilling(value: unknown) {
+  const billing = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  return {
+    businessActivity: String(billing.businessActivity ?? ""),
+    address: String(billing.address ?? ""),
+    municipality: String(billing.municipality ?? ""),
+    email: String(billing.email ?? ""),
+  };
+}
+
+function toPrimaryContact(value: unknown) {
+  const contact = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  return {
+    firstName: String(contact.firstName ?? ""),
+    lastName: String(contact.lastName ?? ""),
+    phone: formatChileanPhone(String(contact.phone ?? "")),
+    email: String(contact.email ?? ""),
   };
 }
