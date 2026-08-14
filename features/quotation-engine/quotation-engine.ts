@@ -1,6 +1,7 @@
 import { getQuotationExtras, getService, QUOTATION_EXTRA_RULES } from "@/features/business-core";
 import type { Money } from "@/features/business-core";
 import type { CreateQuotationInput, QuotationCalculation, QuotationLine } from "./types";
+import { calculateCommercialTax } from "@/features/commercial-flow/commercial-policy";
 
 const clp = (amount: number): Money => ({ amount: Math.round(amount), currency: "CLP" });
 const ADDITIONAL_HOUR_PRICE: Partial<Record<string, number>> = { CLASSIC: 100_000, BLACK_STUDIO: 150_000, POLAROID: 150_000, HASHTAG: 100_000, BBOX360: 130_000 };
@@ -54,6 +55,7 @@ export function calculateQuotation(input: CreateQuotationInput, catalog: readonl
   const subtotalAmount = lines.reduce((sum, line) => sum + line.total.amount, 0) + transport.amount;
   const discount = input.discount ?? clp(0);
   const taxable = Math.max(0, subtotalAmount - discount.amount);
-  const taxes = input.customerType === "COMPANY" ? clp(taxable * (vatPercentage / 100)) : clp(0);
-  return { ready: blockers.length === 0, blockers, lines, subtotal: clp(subtotalAmount), transport, discount, taxes, grandTotal: clp(taxable + taxes.amount) };
+  const commercialTax = calculateCommercialTax({ taxableAmount: taxable, customerType: input.customerType, vatPercentage });
+  const taxes = clp(commercialTax.vat);
+  return { ready: blockers.length === 0, blockers, lines, subtotal: clp(subtotalAmount), transport, discount, taxes, grandTotal: clp(commercialTax.total) };
 }

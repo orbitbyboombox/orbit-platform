@@ -1,7 +1,8 @@
 import type { EventTypeId, Money, ServiceId } from "@/features/business-core";
 import type { QuotationDuration, QuotationExtraId } from "@/features/business-core";
+import type { CommercialQuoteStatus } from "@/features/commercial-flow/commercial-policy";
 
-export type QuotationStatus = "DRAFT" | "SENT" | "ACCEPTED" | "REJECTED";
+export type QuotationStatus = CommercialQuoteStatus;
 export type QuotationCustomerType = "PRIVATE" | "COMPANY";
 export type NegotiationMethod = "MANUAL" | "PERCENT_DISCOUNT" | "PERCENT_INCREASE" | "FIXED_DISCOUNT" | "FIXED_INCREASE" | "RESTORE";
 export interface QuotationNegotiationInput { readonly quotationId: string; readonly expectedVersion: number; readonly method: NegotiationMethod; readonly value: number; readonly reason?: string; }

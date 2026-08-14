@@ -1,4 +1,5 @@
 import type { Money } from "../types";
+import { calculateCommercialDeposit, COMMERCIAL_DEPOSIT_RATE } from "@/features/commercial-flow/commercial-policy";
 
 export type PaymentMethodId = "BANK_TRANSFER" | "MERCADO_PAGO" | "FLOW";
 
@@ -16,7 +17,7 @@ export interface PaymentAmountBreakdown {
   totalToPay: Money;
 }
 
-export const RESERVATION_DEPOSIT_RATE = 0.5;
+export const RESERVATION_DEPOSIT_RATE = COMMERCIAL_DEPOSIT_RATE;
 
 export const PAYMENT_METHOD_RULES: Readonly<Record<PaymentMethodId, PaymentMethodRule>> = {
   BANK_TRANSFER: {
@@ -47,7 +48,7 @@ export function getPaymentMethodRule(method: PaymentMethodId): PaymentMethodRule
 }
 
 export function calculateReservationDeposit(total: Money): Money {
-  return { amount: Math.round(total.amount * RESERVATION_DEPOSIT_RATE), currency: total.currency };
+  return calculateCommercialDeposit(total);
 }
 
 export function calculatePaymentAmount(baseAmount: Money, method: PaymentMethodId): PaymentAmountBreakdown {
