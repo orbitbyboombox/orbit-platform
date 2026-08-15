@@ -1,6 +1,6 @@
 "use client";
 
-import { normalizeChileanMobileLocal, normalizeChileanPhone } from "@/lib/chile/rut";
+import { normalizeChileanMobileInput, normalizeChileanMobileLocal, normalizeChileanPhone } from "@/lib/chile/rut";
 
 export function ChileanMobileInput({ value, onChange, disabled, required, id, name }: {
   value: string;
@@ -27,10 +27,11 @@ export function ChileanMobileInput({ value, onChange, disabled, required, id, na
       required={required}
       type="tel"
       value={local}
-      onChange={(event) => onChange(normalizeChileanPhone(event.target.value))}
+      onChange={(event) => onChange(normalizeChileanMobileInput(event.target.value))}
       onPaste={(event) => {
         event.preventDefault();
-        onChange(normalizeChileanPhone(event.clipboardData.getData("text")));
+        const pasted = normalizeChileanPhone(event.clipboardData.getData("text"));
+        onChange(pasted.length === 11 ? pasted : normalizeChileanMobileInput(pasted));
       }}
     />
   </span>;

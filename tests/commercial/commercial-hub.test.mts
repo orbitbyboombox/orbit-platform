@@ -3,7 +3,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import { calculateDiscount, calculateFormalQuote, isCommercialEmail } from "../../features/commercial-hub/quote-calculation.ts";
 import { QUICK_SEND_CTA_FALLBACK, QUICK_SEND_CTA_LABEL, commercialGreeting, commercialSignatureMode, displayChileanPhone, documentCategoryLabel, emailParagraphs, formalQuoteSubject, formatChileanRutInput, hasUnresolvedCommercialVariables, inlineCommercialText, isQuickSendCtaParagraph, moneyInputNumber, normalizeEmailNewlines, quickSendBodyParagraphs, quickSendEditableBody, quoteDisplayFilename, quoteStorageKey, resolveQuickSendBody, titleCasePerson, withoutDuplicateSignature } from "../../features/commercial-hub/presentation.ts";
-import { normalizeChileanMobileLocal, normalizeChileanPhone } from "../../lib/chile/rut.ts";
+import { normalizeChileanMobileInput, normalizeChileanMobileLocal, normalizeChileanPhone } from "../../lib/chile/rut.ts";
 import { activeCommercialDocument, catalogCategoryForQuickSend, catalogCategoryFromSlug, catalogPublicPath, catalogPublicUrl, pendingCommercialDocuments, validateCommercialUpload, validateSignatureUpload } from "../../features/commercial-hub/catalogs.ts";
 
 const line = (patch: Record<string, unknown> = {}) => ({ id: "1", code: "CLASSIC", description: "Tótem Classic", quantity: 4, catalogPrice: 500000, quotedPrice: 430000, discountType: null, discountValue: 0, manual: false, ...patch });
@@ -46,6 +46,12 @@ test("formal quote subject supports optional customer", () => assert.equal(forma
 test("RUT formats during input", () => assert.equal(formatChileanRutInput("765652723"), "76.565.272-3"));
 test("Chile phone removes pasted prefix", () => assert.equal(normalizeChileanPhone("+56 9 6304 0989"), "56963040989"));
 test("Chile phone preserves a valid leading nine in the editable eight digits", () => assert.equal(normalizeChileanMobileLocal("99690487"), "99690487"));
+test("Chile phone default prefix leaves the eight editable digits empty", () => assert.equal(normalizeChileanMobileLocal("+569"), ""));
+test("Chile phone typing does not duplicate the fixed mobile prefix", () => {
+  assert.equal(normalizeChileanMobileInput("9"), "9");
+  assert.equal(normalizeChileanMobileInput("96304098"), "56996304098");
+  assert.equal(normalizeChileanMobileLocal("56996304098"), "96304098");
+});
 test("all Chile phone input formats resolve to one canonical value", () => {
   for (const value of ["+56999690487", "+56 9 9969 0487", "99690487"]) assert.equal(normalizeChileanPhone(value), "56999690487");
 });

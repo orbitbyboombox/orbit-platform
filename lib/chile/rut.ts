@@ -42,9 +42,17 @@ export function normalizeChileanPhone(value: string) {
 /** Eight digits shown after ORBIT's fixed +56 9 mobile prefix. */
 export function normalizeChileanMobileLocal(value: string) {
   let digits = value.replace(/\D/g, "");
-  if (digits.startsWith("56")) digits = digits.slice(2);
+  if (digits === "569") return "";
+  if (digits.length > 8 && digits.startsWith("569")) digits = digits.slice(3);
+  else if (digits.length > 8 && digits.startsWith("56")) digits = digits.slice(2);
   if (digits.length === 9 && digits.startsWith("9")) digits = digits.slice(1);
   return digits.slice(0, 8);
+}
+
+/** Keeps partial typing local and emits the canonical 569XXXXXXXX only when complete. */
+export function normalizeChileanMobileInput(value: string) {
+  const local = value.replace(/\D/g, "").slice(0, 8);
+  return local.length === 8 ? `569${local}` : local;
 }
 
 export function formatChileanPhone(value: string) {

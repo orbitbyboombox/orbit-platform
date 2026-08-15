@@ -31,7 +31,7 @@ import { MunicipalityCombobox } from "@/components/forms/municipality-combobox";
 import type { ActiveMunicipality } from "@/features/settings/master-data/municipality-master-data";
 import { cn } from "@/lib/utils";
 import { filterExtrasForEventType, includedExtrasForEventType, resolveBrandingMinimum } from "../reservation-business-rules";
-import { formatChileanRut, isValidChileanRut } from "@/lib/chile/rut";
+import { formatChileanRut, isValidChileanRut, normalizeChileanMobileLocal, normalizeChileanPhone } from "@/lib/chile/rut";
 import { sendAutomaticBookingInvitationAction } from "@/features/automatic-booking/actions";
 import { sendManualReservationConfirmationAction } from "../actions/customer.actions";
 import {
@@ -785,8 +785,10 @@ export function NewProjectDrawer({
         setEventAddress(value.eventAddress);
       if (typeof value.operationalContact === "string")
         setOperationalContact(value.operationalContact);
-      if (typeof value.operationalPhone === "string")
-        setOperationalPhone(value.operationalPhone);
+      if (typeof value.operationalPhone === "string") {
+        const recoveredLocal = normalizeChileanMobileLocal(value.operationalPhone);
+        setOperationalPhone(/^9{8}$/.test(recoveredLocal) ? "+569" : value.operationalPhone);
+      }
       if (typeof value.mainContact === "string")
         setMainContact(value.mainContact);
       if (typeof value.specialRequests === "string")
@@ -1065,7 +1067,7 @@ export function NewProjectDrawer({
                 draft.event.date &&
                 draft.event.time &&
                 operationalContact &&
-                operationalPhone.length === 12 &&
+                /^569\d{8}$/.test(normalizeChileanPhone(operationalPhone)) &&
                 (draft.type === "Wedding" ? bride && groom : mainContact),
             )
           : step === 3
