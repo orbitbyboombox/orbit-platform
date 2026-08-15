@@ -93,6 +93,19 @@ export function quickSendBodyParagraphs(value: string, contact: string) {
   );
 }
 
+export function quickSendEditableBody(value: string) {
+  return emailParagraphs(value)
+    .filter((paragraph) => !isQuickSendCtaParagraph(paragraph))
+    .join("\n\n");
+}
+
+export function inlineCommercialText(value: string) {
+  return value.split(/(\*\*[^*]+\*\*)/g).filter(Boolean).map((part) => ({
+    text: part.startsWith("**") && part.endsWith("**") ? part.slice(2, -2) : part,
+    strong: part.startsWith("**") && part.endsWith("**"),
+  }));
+}
+
 export function hasUnresolvedCommercialVariables(value: string) {
   return /\[[A-Za-zÁÉÍÓÚáéíóúÑñ]+\]/.test(value);
 }

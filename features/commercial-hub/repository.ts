@@ -26,9 +26,8 @@ export async function loadCommercialHubData(
       .order("category"),
     client
       .from("commercial_documents")
-      .select("id,name,category,version,filename")
-      .eq("status", "ACTIVE")
-      .order("category"),
+      .select("id,name,category,version,filename,status,uploaded_at")
+      .order("uploaded_at", { ascending: false }),
     client
       .from("quotations")
       .select(
@@ -68,7 +67,15 @@ export async function loadCommercialHubData(
           : null,
     })),
     templates: (templates.data ?? []).map((template) => ({ ...template, subject: normalizeEmailNewlines(template.subject).replaceAll("\n", " ").trim(), body: normalizeEmailNewlines(template.body) })) as CommercialHubData["templates"],
-    documents: (documents.data ?? []) as CommercialHubData["documents"],
+    documents: (documents.data ?? []).map((document) => ({
+      id: document.id,
+      name: document.name,
+      category: document.category,
+      version: document.version,
+      filename: document.filename,
+      status: document.status,
+      uploadedAt: document.uploaded_at,
+    })) as CommercialHubData["documents"],
     recentQuotes: (quotes.data ?? []).map((row) => {
       const customer = Array.isArray(row.customers)
         ? row.customers[0]

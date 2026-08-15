@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { calculateDiscount, calculateFormalQuote, isCommercialEmail } from "../../features/commercial-hub/quote-calculation.ts";
-import { QUICK_SEND_CTA_FALLBACK, QUICK_SEND_CTA_LABEL, commercialGreeting, commercialSignatureMode, displayChileanPhone, documentCategoryLabel, emailParagraphs, formalQuoteSubject, formatChileanRutInput, hasUnresolvedCommercialVariables, isQuickSendCtaParagraph, moneyInputNumber, normalizeChileanPhone, normalizeEmailNewlines, quickSendBodyParagraphs, quoteDisplayFilename, quoteStorageKey, resolveQuickSendBody, titleCasePerson, withoutDuplicateSignature } from "../../features/commercial-hub/presentation.ts";
-import { catalogCategoryFromSlug, catalogPublicPath, catalogPublicUrl, validateCommercialUpload, validateSignatureUpload } from "../../features/commercial-hub/catalogs.ts";
+import { QUICK_SEND_CTA_FALLBACK, QUICK_SEND_CTA_LABEL, commercialGreeting, commercialSignatureMode, displayChileanPhone, documentCategoryLabel, emailParagraphs, formalQuoteSubject, formatChileanRutInput, hasUnresolvedCommercialVariables, inlineCommercialText, isQuickSendCtaParagraph, moneyInputNumber, normalizeChileanPhone, normalizeEmailNewlines, quickSendBodyParagraphs, quickSendEditableBody, quoteDisplayFilename, quoteStorageKey, resolveQuickSendBody, titleCasePerson, withoutDuplicateSignature } from "../../features/commercial-hub/presentation.ts";
+import { activeCommercialDocument, catalogCategoryForQuickSend, catalogCategoryFromSlug, catalogPublicPath, catalogPublicUrl, pendingCommercialDocuments, validateCommercialUpload, validateSignatureUpload } from "../../features/commercial-hub/catalogs.ts";
 
 const line = (patch: Record<string, unknown> = {}) => ({ id: "1", code: "CLASSIC", description: "Tótem Classic", quantity: 4, catalogPrice: 500000, quotedPrice: 430000, discountType: null, discountValue: 0, manual: false, ...patch });
 
@@ -86,6 +86,35 @@ test("weddings quick-send resolves to Novios catalog", () => assert.equal(catalo
 test("birthdays quick-send resolves to Events catalog", () => assert.equal(catalogPublicPath("EVENTS"), "/catalogo/eventos"));
 test("graduations quick-send resolves to Events catalog", () => assert.equal(catalogPublicPath("EVENTS"), "/catalogo/eventos"));
 test("companies catalog architecture remains independent", () => assert.equal(catalogPublicPath("COMPANIES"), "/catalogo/empresas"));
+test("quick-send categories use one canonical catalog mapping", () => {
+  assert.equal(catalogCategoryForQuickSend("WEDDINGS"), "WEDDINGS");
+  assert.equal(catalogCategoryForQuickSend("COMPANIES_CATALOG"), "COMPANIES");
+  assert.equal(catalogCategoryForQuickSend("BIRTHDAYS"), "EVENTS");
+  assert.equal(catalogCategoryForQuickSend("GRADUATIONS"), "EVENTS");
+});
+test("quick-send resolves only the ACTIVE canonical document", () => {
+  const documents = [
+    { id: "pending", category: "WEDDINGS", status: "PENDING" },
+    { id: "active", category: "WEDDINGS", status: "ACTIVE" },
+  ];
+  assert.equal(activeCommercialDocument(documents, "WEDDINGS")?.id, "active");
+  assert.deepEqual(pendingCommercialDocuments(documents, "WEDDINGS").map((item) => item.id), ["pending"]);
+});
+test("clean quick-send editor hides the technical CTA marker", () => {
+  const clean = quickSendEditableBody(`Hola [Nombre],\n\n👉 **[${QUICK_SEND_CTA_LABEL}]**\n\n**BOOMBOX**`);
+  assert.equal(clean, "Hola [Nombre],\n\n**BOOMBOX**");
+  assert.deepEqual(inlineCommercialText("**BOOMBOX** oficial"), [{ text: "BOOMBOX", strong: true }, { text: " oficial", strong: false }]);
+});
+test("catalog activation invalidates Hub and all stable public routes", () => {
+  const source = readFileSync(new URL("../../features/commercial-hub/settings.actions.ts", import.meta.url), "utf8");
+  for (const path of ["/leads", "/catalogo/novios", "/catalogo/empresas", "/catalogo/eventos"])
+    assert.match(source, new RegExp(`revalidatePath\\(\\"${path.replaceAll("/", "\\/")}\\"\\)`));
+});
+test("public catalog routes resolve the canonical ACTIVE row", () => {
+  const page = readFileSync(new URL("../../app/catalogo/[slug]/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /catalogCategoryFromSlug\(slug\)/);
+  assert.match(page, /\.eq\("status", "ACTIVE"\)/);
+});
 test("graphical signature suppresses textual fallback", () => assert.equal(commercialSignatureMode("https://example.com/signature.gif"), "GRAPHICAL"));
 test("missing graphical signature uses Team BOOMBOX fallback", () => assert.equal(commercialSignatureMode(""), "FALLBACK"));
 test("official template migration preserves Founder customizations", () => {

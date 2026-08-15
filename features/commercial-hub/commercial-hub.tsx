@@ -17,7 +17,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import {
   createFormalQuoteAction,
@@ -33,25 +33,16 @@ import type {
   QuoteLineDraft,
 } from "./types";
 import { calculateFormalQuote } from "./quote-calculation";
-import { QUICK_SEND_CTA_FALLBACK, QUICK_SEND_CTA_LABEL, commercialGreeting, displayChileanPhone, formalQuoteSubject, formatChileanRutInput, moneyInputNumber, normalizeChileanPhone, normalizeEmailNewlines, quickSendBodyParagraphs, quoteDisplayFilename, titleCasePerson, withoutDuplicateSignature } from "./presentation";
+import { QUICK_SEND_CTA_FALLBACK, QUICK_SEND_CTA_LABEL, commercialGreeting, displayChileanPhone, formalQuoteSubject, formatChileanRutInput, inlineCommercialText, moneyInputNumber, normalizeChileanPhone, normalizeEmailNewlines, quickSendBodyParagraphs, quickSendEditableBody, quoteDisplayFilename, titleCasePerson, withoutDuplicateSignature } from "./presentation";
 import { PdfViewer } from "./pdf-viewer";
 import { getCommercialDocumentUrlAction } from "./settings.actions";
-import { catalogPublicPath, type CommercialCatalogCategory } from "./catalogs";
+import { activeCommercialDocument, catalogCategoryForQuickSend, catalogPublicPath, pendingCommercialDocuments } from "./catalogs";
 
 const money = new Intl.NumberFormat("es-CL", {
   style: "currency",
   currency: "CLP",
   maximumFractionDigits: 0,
 });
-const categoryDocument: Record<
-  Exclude<CommercialCategory, "COMPANIES_QUOTE">,
-  CommercialCatalogCategory
-> = {
-  WEDDINGS: "WEDDINGS",
-  BIRTHDAYS: "EVENTS",
-  GRADUATIONS: "EVENTS",
-  COMPANIES_CATALOG: "COMPANIES",
-};
 const categoryCards = [
   {
     id: "WEDDINGS" as const,
@@ -173,12 +164,55 @@ export function CommercialHub({ data }: { data: CommercialHubData }) {
       ) : view === "COMPANIES_QUOTE" ? (
         <FormalBuilder data={data} initialDraft={draftToEdit} />
       ) : (
-        <InformationSender category={view} data={data} />
+        <InformationSender category={view} data={data} key={view} />
       )}
       <RecentQuotes quotes={data.recentQuotes} onEdit={(draft) => { setDraftToEdit(draft); setView("COMPANIES_QUOTE"); }} />
       <SendHistory sends={data.recentSends} />
     </main>
   );
+}
+
+function editorHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replaceAll("\n", "<br>");
+}
+
+function editorMarkdown(node: Node): string {
+  if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? "";
+  if (!(node instanceof HTMLElement)) return "";
+  if (node.tagName === "BR") return "\n";
+  const content = Array.from(node.childNodes).map(editorMarkdown).join("");
+  if (node.tagName === "STRONG" || node.tagName === "B") return `**${content}**`;
+  if (node.tagName === "DIV" || node.tagName === "P") return `${content}\n`;
+  return content;
+}
+
+function RichMessageEditor({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const editor = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (editor.current && document.activeElement !== editor.current)
+      editor.current.innerHTML = editorHtml(value);
+  }, [value]);
+  return <div
+    aria-label="Mensaje"
+    aria-multiline="true"
+    className="min-h-64 rounded-xl border bg-background p-4 text-base leading-7 outline-none focus:border-brand/60"
+    contentEditable
+    onInput={(event) => onChange(editorMarkdown(event.currentTarget).replace(/\n{3,}/g, "\n\n").trim())}
+    ref={editor}
+    role="textbox"
+    suppressContentEditableWarning
+  />;
+}
+
+function FormattedParagraph({ value }: { value: string }) {
+  return <p className="whitespace-pre-wrap">{inlineCommercialText(value).map((segment, index) => segment.strong
+    ? <strong className="font-semibold text-foreground" key={`${segment.text}-${index}`}>{segment.text}</strong>
+    : <span key={`${segment.text}-${index}`}>{segment.text}</span>)}</p>;
 }
 
 function InformationSender({
@@ -189,13 +223,13 @@ function InformationSender({
   data: CommercialHubData;
 }) {
   const template = data.templates.find((item) => item.category === category);
-  const document = data.documents.find(
-    (item) => item.category === categoryDocument[category],
-  );
+  const catalogCategory = catalogCategoryForQuickSend(category);
+  const document = activeCommercialDocument(data.documents, catalogCategory);
+  const pendingDocuments = pendingCommercialDocuments(data.documents, catalogCategory);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [subject, setSubject] = useState(template?.subject ?? "");
-  const [body, setBody] = useState(normalizeEmailNewlines(template?.body ?? ""));
+  const [body, setBody] = useState(quickSendEditableBody(normalizeEmailNewlines(template?.body ?? "")));
   const [preview, setPreview] = useState(false);
   const [message, setMessage] = useState("");
   const [requestId, setRequestId] = useState(uid);
@@ -241,22 +275,26 @@ function InformationSender({
           <input onChange={(e) => setSubject(e.target.value)} value={subject} />
         </Field>
         <Field label="Mensaje">
-          <textarea
-            className="min-h-64"
-            onChange={(e) => setBody(e.target.value)}
-            value={body}
-          />
+          <RichMessageEditor onChange={setBody} value={body} />
         </Field>
+        <div className="rounded-xl border border-brand/30 bg-brand/5 p-4">
+          <p className="text-xs font-semibold uppercase tracking-[.12em] text-brand">Botón del email</p>
+          <div className="mt-3 inline-flex min-h-11 items-center rounded-xl bg-brand px-5 text-sm font-semibold text-black">{QUICK_SEND_CTA_LABEL}</div>
+          <p className="mt-3 text-sm text-muted">Catálogo: {document ? `${document.name} · ${document.version}` : pendingDocuments.length ? "pendiente de activación" : "sin configurar"}</p>
+          <p className="mt-1 text-xs text-muted">La URL está protegida y se resuelve automáticamente; no necesitas editarla.</p>
+        </div>
         <div className="rounded-xl border border-brand/30 bg-background p-4">
           <p className="text-xs font-semibold uppercase tracking-[.12em] text-brand">Catálogo</p>
           <p className="mt-1 text-sm text-muted">
             {document
-              ? `${document.name} · ${document.version} ✓`
-              : `Aún no has cargado el catálogo de ${category === "WEDDINGS" ? "Matrimonios" : category === "COMPANIES_CATALOG" ? "Empresas" : "Eventos"}.`}
+              ? `${document.name} · ${document.version} · ✓ Activo`
+              : pendingDocuments.length
+                ? `El catálogo está cargado, pero aún debes activarlo para publicarlo.`
+                : `No hay un catálogo configurado para ${category === "WEDDINGS" ? "Matrimonios" : category === "COMPANIES_CATALOG" ? "Empresas" : "Eventos"}.`}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            {document && <button className="inline-flex min-h-10 items-center rounded-lg border px-3 text-xs font-semibold text-brand" type="button" onClick={() => start(async () => { const result = await getCommercialDocumentUrlAction(document.id); if (result.ok) window.open(result.url, "_blank", "noopener,noreferrer"); else setMessage(result.error); })}>Ver</button>}
-            <Link className="inline-flex min-h-10 items-center rounded-lg border px-3 text-xs font-semibold text-brand" href={`/settings?section=commercial-documents&category=${categoryDocument[category]}&returnTo=/leads#commercial-documents`}>{document ? "Cambiar catálogo" : "Subir catálogo"}</Link>
+            {document && <button className="inline-flex min-h-10 items-center rounded-lg border px-3 text-xs font-semibold text-brand" type="button" onClick={() => start(async () => { const result = await getCommercialDocumentUrlAction(document.id); if (result.ok) window.open(result.url, "_blank", "noopener,noreferrer"); else setMessage(result.error); })}>VER CATÁLOGO</button>}
+            <Link className="inline-flex min-h-10 items-center rounded-lg border px-3 text-xs font-semibold text-brand" href={`/settings?section=commercial-documents&category=${catalogCategory}&returnTo=/leads#commercial-documents`}>{document ? "CAMBIAR" : pendingDocuments.length ? "ACTIVAR CATÁLOGO" : "CONFIGURAR CATÁLOGO"}</Link>
           </div>
           {document && <div className="mt-4 grid gap-2 rounded-lg border p-3 text-sm"><label className="flex min-h-10 items-center gap-3"><input checked={!attachPdf} name={`delivery-${category}`} onChange={() => setAttachPdf(false)} type="radio" />Enviar como link <span className="text-emerald-500">Recomendado</span></label><label className="flex min-h-10 items-center gap-3"><input checked={attachPdf} name={`delivery-${category}`} onChange={() => setAttachPdf(true)} type="radio" />Adjuntar PDF al correo</label></div>}
         </div>
@@ -267,8 +305,8 @@ function InformationSender({
             </p>
             <p className="mt-3 font-semibold">Para: {email || "—"}</p>
             <p className="mt-1">{subject}</p>
-            <div className="mt-4 space-y-3 text-sm text-muted">{quickSendBodyParagraphs(withoutDuplicateSignature(body, "Equipo BOOMBOX"), name).map((paragraph, index) => <p className="whitespace-pre-wrap" key={`${paragraph}-${index}`}>{paragraph.replaceAll("**", "")}</p>)}</div>
-            {document && <><span className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-brand px-5 text-sm font-semibold text-black">{QUICK_SEND_CTA_LABEL}</span><p className="mt-3 text-xs text-muted">{QUICK_SEND_CTA_FALLBACK}</p><p className="break-all text-sm text-brand">{catalogPublicPath(categoryDocument[category])}</p><p className="mt-2 text-sm">Modo: {attachPdf ? "Link + PDF adjunto" : "Enviar como link"}</p></>}
+            <div className="mt-4 space-y-3 text-sm text-muted">{quickSendBodyParagraphs(withoutDuplicateSignature(body, "Equipo BOOMBOX"), name).map((paragraph, index) => <FormattedParagraph key={`${paragraph}-${index}`} value={paragraph} />)}</div>
+            {document && <><span className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-brand px-5 text-sm font-semibold text-black">{QUICK_SEND_CTA_LABEL}</span><p className="mt-3 text-xs text-muted">{QUICK_SEND_CTA_FALLBACK}</p><p className="break-all text-sm text-brand">{catalogPublicPath(catalogCategory)}</p><p className="mt-2 text-sm">Catálogo: {document.name} · {document.version}</p><p className="mt-1 text-sm">Modo: {attachPdf ? "Link + PDF adjunto" : "Enviar como link"}</p></>}
             <div className="mt-5">{data.company.emailSignatureUrl ? <>
               {/* The signature is a Founder-managed email asset with a dynamic external URL. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}

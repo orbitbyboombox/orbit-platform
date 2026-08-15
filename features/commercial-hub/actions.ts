@@ -12,7 +12,7 @@ import { loadCompanySettings } from "@/features/company-settings";
 import { createCustomerProjectAction } from "@/features/projects/actions/customer.actions";
 import type { ProjectDraft } from "@/features/projects/types/project";
 import { QUICK_SEND_CTA_FALLBACK, QUICK_SEND_CTA_LABEL, commercialSignatureMode, emailParagraphs, formalQuoteSubject, normalizeEmailNewlines, quickSendBodyParagraphs, quoteDisplayFilename, quoteStorageKey, resolveQuickSendBody, withoutDuplicateSignature } from "./presentation";
-import { catalogPublicUrl, isCommercialCatalogCategory } from "./catalogs";
+import { catalogCategoryForQuickSend, catalogPublicUrl, isCommercialCatalogCategory } from "./catalogs";
 
 async function founder() {
   const client = await createSupabaseServerClient();
@@ -69,6 +69,9 @@ export async function sendCommercialInformationAction(input: {
       .single();
     if (error || !document)
       throw new Error("El documento comercial ya no está disponible.");
+    if (!isCommercialCatalogCategory(document.category)) throw new Error("La categoría del catálogo no es válida.");
+    if (document.category !== catalogCategoryForQuickSend(input.category))
+      throw new Error("El catálogo no corresponde a esta comunicación.");
     const vars = { Empresa: input.name.trim() || "" };
     const subject = normalizeEmailNewlines(replace(input.subject, vars)).replaceAll("\n", " ").trim();
     const body = resolveQuickSendBody(input.body, input.name);
@@ -88,7 +91,6 @@ export async function sendCommercialInformationAction(input: {
       if (claimError.code === "23505") return { ok: true as const, message: "Este envío ya está siendo procesado." };
       throw claimError;
     }
-    if (!isCommercialCatalogCategory(document.category)) throw new Error("La categoría del catálogo no es válida.");
     const publicUrl = catalogPublicUrl(document.category, process.env.NEXT_PUBLIC_APP_URL ?? "https://orbit.boom-box.cl");
     const downloaded = input.attachPdf ? await admin.storage.from("orbit-documents").download(document.storage_path) : null;
     if (downloaded?.error) throw downloaded.error;

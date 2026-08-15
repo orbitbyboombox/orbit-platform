@@ -83,6 +83,9 @@ export async function finalizeCommercialDocumentUploadAction(input: {
     if (error) throw error;
     revalidatePath("/settings");
     revalidatePath("/leads");
+    revalidatePath("/catalogo/novios");
+    revalidatePath("/catalogo/empresas");
+    revalidatePath("/catalogo/eventos");
     return { ok: true as const, message: "Catálogo cargado correctamente. Revísalo y actívalo cuando corresponda." };
   } catch (error) {
     console.error("Commercial document upload finalization failed", error);
@@ -97,7 +100,11 @@ export async function activateCommercialDocumentAction(id: string) {
     const { client } = await access();
     const { error } = await client.rpc("activate_commercial_document", { p_document_id: id });
     if (error) throw error;
-    revalidatePath("/settings"); revalidatePath("/leads");
+    revalidatePath("/settings");
+    revalidatePath("/leads");
+    revalidatePath("/catalogo/novios");
+    revalidatePath("/catalogo/empresas");
+    revalidatePath("/catalogo/eventos");
     return { ok: true as const, message: "Documento activado. La versión anterior permanece archivada." };
   } catch (error) { return { ok: false as const, error: error instanceof Error ? error.message : "No fue posible activar el documento." }; }
 }

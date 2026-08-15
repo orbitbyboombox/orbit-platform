@@ -54,9 +54,11 @@ export function CommercialSettings({
         {categories.map((category) => {
           const categoryDocuments = documents.filter((item) => item.category === category);
           const active = categoryDocuments.find((item) => item.status === "ACTIVE");
+          const latestPending = categoryDocuments.find((item) => item.status === "PENDING");
           return <article className={`min-w-0 rounded-2xl border bg-card p-5 ${selectedInitial === category ? "border-brand/60 ring-1 ring-brand/20" : ""}`} id={`document-category-${category.toLowerCase()}`} key={category}>
-            <div className="flex items-start gap-3"><span className="rounded-xl border bg-background p-2.5 text-brand"><FileText className="size-5" /></span><div><h3 className="font-semibold">{labels[category]}</h3><p className={`mt-1 text-sm ${active ? "text-emerald-500" : "text-muted"}`}>{active ? `Activo · ${active.name} ${active.version}` : "Sin catálogo"}</p></div></div>
+            <div className="flex items-start gap-3"><span className="rounded-xl border bg-background p-2.5 text-brand"><FileText className="size-5" /></span><div><h3 className="font-semibold">{labels[category]}</h3><p className={`mt-1 text-sm ${active ? "text-emerald-500" : latestPending ? "text-amber-500" : "text-muted"}`}>{active ? `Activo · ${active.name} ${active.version}` : latestPending ? `Pendiente de activación · ${latestPending.name} ${latestPending.version}` : "Sin catálogo"}</p></div></div>
             <div className="mt-5 grid gap-2">
+              {!active && latestPending && <Button disabled={pending} onClick={() => start(async () => { const result = await activateCommercialDocumentAction(latestPending.id); setMessage(result.ok ? result.message : result.error); if (result.ok) router.refresh(); })}><Check />Activar catálogo</Button>}
               <Button className="min-h-11 w-full" onClick={() => setUploadCategory(uploadCategory === category ? null : category)}><Upload />Subir nueva versión</Button>
               <div className="grid gap-2 sm:grid-cols-2">
                 <Button disabled={!active || pending} variant="outline" onClick={() => active && start(async () => { const result = await getCommercialDocumentUrlAction(active.id); if (result.ok) window.open(result.url, "_blank", "noopener,noreferrer"); else setMessage(result.error); })}><ExternalLink />Ver</Button>
@@ -74,7 +76,7 @@ export function CommercialSettings({
                 await uploadFileToSignedUrl(prepared.signedUrl, file, setUploadProgress);
                 const finalized = await finalizeCommercialDocumentUploadAction({ ...details, path: prepared.path });
                 if (!finalized.ok) throw new Error(finalized.error);
-                setMessage(finalized.message); setUploadCategory(null); router.refresh();
+                setMessage(`${finalized.message} Actívalo para publicarlo en Quick-Send.`); setUploadCategory(null); setVersionsCategory(category); router.refresh();
               } catch (error) {
                 console.error("Commercial catalog direct upload failed", error);
                 setMessage(error instanceof Error && error.message ? error.message : "No pudimos cargar el catálogo. Intenta nuevamente.");

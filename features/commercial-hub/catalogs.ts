@@ -7,6 +7,19 @@ export const COMMERCIAL_CATALOGS = {
 export type CommercialCatalogCategory = keyof typeof COMMERCIAL_CATALOGS;
 export type CommercialCatalogSlug = (typeof COMMERCIAL_CATALOGS)[CommercialCatalogCategory]["slug"];
 
+export type QuickSendCatalogCategory =
+  | "WEDDINGS"
+  | "BIRTHDAYS"
+  | "GRADUATIONS"
+  | "COMPANIES_CATALOG";
+
+const QUICK_SEND_CATALOGS: Record<QuickSendCatalogCategory, CommercialCatalogCategory> = {
+  WEDDINGS: "WEDDINGS",
+  BIRTHDAYS: "EVENTS",
+  GRADUATIONS: "EVENTS",
+  COMPANIES_CATALOG: "COMPANIES",
+};
+
 export function isCommercialCatalogCategory(value: string): value is CommercialCatalogCategory {
   return Object.hasOwn(COMMERCIAL_CATALOGS, value);
 }
@@ -14,6 +27,28 @@ export function isCommercialCatalogCategory(value: string): value is CommercialC
 export function catalogCategoryFromSlug(slug: string): CommercialCatalogCategory | null {
   const entry = Object.entries(COMMERCIAL_CATALOGS).find(([, value]) => value.slug === slug);
   return (entry?.[0] as CommercialCatalogCategory | undefined) ?? null;
+}
+
+export function catalogCategoryForQuickSend(category: QuickSendCatalogCategory) {
+  return QUICK_SEND_CATALOGS[category];
+}
+
+export function activeCommercialDocument<T extends { category: string; status: string }>(
+  documents: T[],
+  category: CommercialCatalogCategory,
+) {
+  return documents.find(
+    (document) => document.category === category && document.status === "ACTIVE",
+  );
+}
+
+export function pendingCommercialDocuments<T extends { category: string; status: string }>(
+  documents: T[],
+  category: CommercialCatalogCategory,
+) {
+  return documents.filter(
+    (document) => document.category === category && document.status === "PENDING",
+  );
 }
 
 export function catalogPublicPath(category: CommercialCatalogCategory) {

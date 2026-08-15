@@ -33,6 +33,8 @@ export interface CommercialDocument {
   category: string;
   version: string;
   filename: string;
+  status: "PENDING" | "ACTIVE" | "ARCHIVED";
+  uploadedAt?: string;
 }
 export interface RecentCommercialQuote {
   id: string;
