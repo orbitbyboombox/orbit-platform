@@ -326,44 +326,31 @@ export async function createFormalQuotePdf(model: FormalQuotePdfModel) {
   y -= 27;
 
   const reservationConditions = model.company.reservationConditions?.length ? model.company.reservationConditions : defaultConditions(model);
-  const sectionTop = y;
-  page.drawText("CONDICIONES DE RESERVA", { x: 42, y: sectionTop, size: 10.5, font: bold, color: orange });
-  let reservationY = sectionTop - 22;
+  finalHeading("CONDICIONES DE RESERVA");
   reservationConditions.forEach((condition) => {
-    const lines = wrap(`• ${condition}`, regular, 8.8, 300);
-    lines.forEach((line) => { page.drawText(line, { x: 42, y: reservationY, size: 8.8, font: regular, color: graphite }); reservationY -= 11.5; });
-    reservationY -= 5;
+    const lines = wrap(`• ${condition}`, regular, 8.8, 511);
+    lines.forEach((line) => { page.drawText(line, { x: 42, y, size: 8.8, font: regular, color: graphite }); y -= 11.5; });
+    y -= 4;
   });
+  y -= 8;
 
-  page.drawRectangle({ x: 369, y: sectionTop - 148, width: 184, height: 157, color: rgb(0.985, 0.986, 0.989), borderColor: rule, borderWidth: 0.7 });
-  page.drawText("FORMA DE PAGO", { x: 385, y: sectionTop - 20, size: 10, font: bold, color: orange });
+  finalHeading("FORMA DE PAGO");
   const paymentRows = [model.company.legalName, model.company.taxId ? `RUT ${model.company.taxId}` : "", model.company.bankName, model.company.bankAccountType, model.company.bankAccountNumber ? `N.º ${model.company.bankAccountNumber}` : "", model.company.email].filter(Boolean);
   paymentRows.forEach((row, index) => {
-    const lines = wrap(safe(row), index === 0 ? bold : regular, 8.3, 152);
-    const baseY = sectionTop - 43 - index * 17;
-    lines.forEach((line, lineIndex) => page.drawText(line, { x: 385, y: baseY - lineIndex * 10, size: 8.3, font: index === 0 ? bold : regular, color: index === paymentRows.length - 1 ? orange : graphite }));
+    page.drawText(safe(row), { x: 42, y, size: 8.8, font: index === 0 ? bold : regular, color: index === paymentRows.length - 1 ? orange : graphite, maxWidth: 511 });
+    y -= 12;
   });
+  y -= 12;
 
-  y = Math.min(reservationY, sectionTop - 163);
   finalHeading("CONDICIONES OPERACIONALES");
-  const operational = model.company.operationalConditions;
-  const split = Math.ceil(operational.length / 2);
-  const columns = [operational.slice(0, split), operational.slice(split)];
-  const operationalTop = y;
-  let operationalBottom = y;
-  columns.forEach((column, columnIndex) => {
-    const x = 42 + columnIndex * 267;
-    let columnY = operationalTop;
-    column.forEach((condition) => {
-      page.drawText(safe(condition.label).toUpperCase(), { x, y: columnY, size: 7.8, font: bold, color: muted });
-      columnY -= 12;
-      const lines = wrap(safe(condition.text), regular, 8.4, 244);
-      lines.forEach((line) => { page.drawText(line, { x, y: columnY, size: 8.4, font: regular, color: graphite }); columnY -= 10.6; });
-      columnY -= 7;
-    });
-    operationalBottom = Math.min(operationalBottom, columnY);
+  model.company.operationalConditions.forEach((condition) => {
+    page.drawText(safe(condition.label).toUpperCase(), { x: 42, y, size: 7.8, font: bold, color: muted });
+    y -= 11.5;
+    const lines = wrap(safe(condition.text), regular, 8.5, 511);
+    lines.forEach((line) => { page.drawText(line, { x: 42, y, size: 8.5, font: regular, color: graphite }); y -= 10.8; });
+    y -= 5;
   });
-  y = operationalBottom - 5;
+  y -= 2;
 
   page.drawLine({ start: { x: 42, y: y + 5 }, end: { x: 553, y: y + 5 }, thickness: 0.7, color: rule });
   y -= 13;
