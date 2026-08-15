@@ -14,6 +14,7 @@ const reviewAction = readFileSync(`${root}/features/operations/operations-planni
 const eventWorkspace = readFileSync(`${root}/app/(platform)/projects/[projectId]/page.tsx`, "utf8");
 const eventLifecycle = readFileSync(`${root}/features/projects/actions/customer.actions.ts`, "utf8");
 const assignmentCenter = readFileSync(`${root}/features/staff-assignment-center/staff-assignment-center.tsx`, "utf8");
+const lifecycleAction = readFileSync(`${root}/features/projects/actions/reservation-lifecycle.actions.ts`, "utf8");
 
 test("Phase D preserves one canonical assignment and settlement transaction", () => {
   assert.match(migration, /assign_event_operational_responsibility/);
@@ -88,6 +89,9 @@ test("Event cancellation closes Staff publication and isolates secondary effects
   assert.match(eventLifecycle, /from\("event_staff_requirements"\)[\s\S]*published: false/);
   assert.match(eventLifecycle, /from\("staff_assignment_requests"\)[\s\S]*status: "CANCELLED"/);
   assert.match(eventLifecycle, /Promise\.allSettled\(boundaryTasks\)/);
+  assert.match(lifecycleAction, /cancel_staff_assignment_by_founder/);
+  assert.match(lifecycleAction, /from\("staff_event_publications"\).*published:false/);
+  assert.match(lifecycleAction, /Promise\.allSettled/);
 });
 
 test("payment and RLS paths remain isolated", () => {
