@@ -227,7 +227,7 @@ export default async function ProjectWorkspacePage({
       .maybeSingle(),
     client
       .from("project_operational_contracts")
-      .select("operational_status,contact_status,contact_first_name,contact_last_name,contact_phone,contact_email,contact_role,contact_notes,event_start_at,service_start_at,staff_arrival_at,assembly_start_at,service_end_at,disassembly_start_at,operational_end_at,access_instructions,operational_notes,readiness_status,readiness_reasons")
+      .select("operational_status,contact_status,contact_first_name,contact_last_name,contact_phone,contact_email,contact_role,contact_notes,event_start_at,service_start_at,staff_arrival_at,assembly_start_at,service_end_at,disassembly_start_at,operational_end_at,access_instructions,operational_notes,readiness_status,readiness_reasons,logistics_reason,parking_status,max_access_height,loading_access,logistics_notes")
       .eq("project_id", projectId)
       .maybeSingle(),
     client
@@ -253,7 +253,7 @@ export default async function ProjectWorkspacePage({
     client.from("event_logistics_summary").select("logistics_mode,logistics_status,trip_count,vehicle_count,fuel_cost,toll_cost,parking_cost,other_cost,real_logistics_cost").eq("project_id",projectId).maybeSingle(),
     client.from("vehicle_trips").select("id,asset_id,driver_staff_id,driver_name,trip_type,sequence,origin,destination,planned_start_at,planned_end_at,distance,status,meeting_point,instructions,operational_assets(asset_code,vehicle_profiles(model)),staff(first_name,last_name)").eq("project_id",projectId).is("deleted_at",null).neq("status","CANCELLED").order("sequence"),
     client.from("expenses").select("id,vehicle_trip_id,category,total,status,receipt_path,approval_reason").eq("project_id",projectId).not("vehicle_trip_id","is",null).is("deleted_at",null).neq("status","CANCELLED").order("occurred_on"),
-    client.from("vehicle_profiles").select("asset_id,nickname,model,operational_status,operational_assets!inner(asset_code,status,deleted_at)").is("operational_assets.deleted_at",null).order("model"),
+    client.from("vehicle_profiles").select("asset_id,nickname,model,height_m,operational_status,operational_assets!inner(asset_code,status,deleted_at)").is("operational_assets.deleted_at",null).order("model"),
   ]);
   const logisticsError=logisticsSummaryResult.error??logisticsTripsResult.error??logisticsExpensesResult.error??logisticsVehiclesResult.error;
   if(logisticsError)throw logisticsError;
@@ -1316,8 +1316,9 @@ export default async function ProjectWorkspacePage({
     projectId,
     mode:(logisticsSummary?.logistics_mode??"NOT_REQUIRED") as EventLogisticsData["mode"],
     status:(logisticsSummary?.logistics_status??"NOT_REQUIRED") as EventLogisticsData["status"],
+    access:{reason:operationalContract?.logistics_reason??"",parkingStatus:operationalContract?.parking_status??"",maxHeight:operationalContract?.max_access_height===null||operationalContract?.max_access_height===undefined?null:Number(operationalContract.max_access_height),loadingAccess:operationalContract?.loading_access??"",notes:operationalContract?.logistics_notes??"",contactName:[operationalContract?.contact_first_name,operationalContract?.contact_last_name].filter(Boolean).join(" "),contactPhone:operationalContract?.contact_phone??""},
     summary:{tripCount:Number(logisticsSummary?.trip_count??0),vehicleCount:Number(logisticsSummary?.vehicle_count??0),fuel:Number(logisticsSummary?.fuel_cost??0),tolls:Number(logisticsSummary?.toll_cost??0),parking:Number(logisticsSummary?.parking_cost??0),other:Number(logisticsSummary?.other_cost??0),total:Number(logisticsSummary?.real_logistics_cost??0)},
-    vehicles:(logisticsVehiclesResult.data??[]).map(row=>{const asset=Array.isArray(row.operational_assets)?row.operational_assets[0]:row.operational_assets;return{id:row.asset_id,label:row.nickname||row.model||asset?.asset_code||"Vehículo",available:row.operational_status==="OPERATIONAL"&&asset?.status==="AVAILABLE"}}),
+    vehicles:(logisticsVehiclesResult.data??[]).map(row=>{const asset=Array.isArray(row.operational_assets)?row.operational_assets[0]:row.operational_assets;return{id:row.asset_id,label:row.nickname||row.model||asset?.asset_code||"Vehículo",available:row.operational_status==="OPERATIONAL"&&asset?.status==="AVAILABLE",height:row.height_m===null?null:Number(row.height_m)}}),
     drivers:(staff??[]).filter(member=>member.status==="ACTIVE").map(member=>({id:member.id,label:`${member.first_name} ${member.last_name}`})),
     trips:(logisticsTripsResult.data??[]).map(row=>{const asset=Array.isArray(row.operational_assets)?row.operational_assets[0]:row.operational_assets,profile=asset?(Array.isArray(asset.vehicle_profiles)?asset.vehicle_profiles[0]:asset.vehicle_profiles):null,member=Array.isArray(row.staff)?row.staff[0]:row.staff;return{id:row.id,assetId:row.asset_id,vehicle:profile?.model??asset?.asset_code??"Transporte externo",driver:member?`${member.first_name} ${member.last_name}`:row.driver_name??"Founder",type:row.trip_type,sequence:Number(row.sequence),origin:row.origin,destination:row.destination,plannedStartAt:row.planned_start_at,plannedEndAt:row.planned_end_at,distance:row.distance===null?null:Number(row.distance),status:row.status,meetingPoint:row.meeting_point??"",instructions:row.instructions??""}}),
     expenses:(logisticsExpensesResult.data??[]).map(row=>{let description="";try{const metadata=JSON.parse(row.approval_reason??"{}");description=String(metadata.description??"")}catch{}return{id:row.id,tripId:String(row.vehicle_trip_id),category:row.category,description,total:Number(row.total),status:row.status,receipt:Boolean(row.receipt_path)}}),
