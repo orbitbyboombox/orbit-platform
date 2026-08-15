@@ -275,9 +275,9 @@ function Section({
 }
 function Row({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="flex min-h-10 items-start justify-between gap-4 border-b py-2 last:border-0">
-      <dt className="text-sm text-muted">{label}</dt>
-      <dd className="text-right text-sm font-medium">{value}</dd>
+    <div className="grid min-h-10 grid-cols-[minmax(0,1fr)_minmax(0,2fr)] items-start gap-4 border-b py-2 last:border-0">
+      <dt className="min-w-0 text-sm text-muted">{label}</dt>
+      <dd className="min-w-0 break-words text-right text-sm font-medium">{value}</dd>
     </div>
   );
 }
