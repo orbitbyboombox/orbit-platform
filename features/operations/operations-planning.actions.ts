@@ -8,7 +8,7 @@ type Result={ok:true;message:string}|{ok:false;message:string};
 async function context(){const client=await createSupabaseServerActionClient();const{data,error}=await client.auth.getUser();if(error||!data.user)throw new Error("Sesión requerida.");const{data:profile,error:profileError}=await client.from("profiles").select("role").eq("id",data.user.id).single();if(profileError||!["CEO","ADMINISTRATOR"].includes(profile?.role))throw new Error("Solo Administración puede asignar Staff.");return client;}
 const value=(data:FormData,key:string)=>String(data.get(key)??"").trim();
 
-type ApprovalStage="SERVER_ACTION"|"AUTHENTICATION"|"REQUEST_LOOKUP"|"RPC"|"PACKAGE_DELIVERY"|"REVALIDATION";
+type ApprovalStage="SERVER_ACTION"|"AUTHENTICATION"|"REQUEST_LOOKUP"|"RPC"|"PACKAGE_DELIVERY"|"REJECTION_NOTIFICATION"|"REVALIDATION";
 type ApprovalRequest={id:string;project_id:string;staff_id:string;responsibility:string;status:string};
 const approvalError=(error:unknown)=>{const record=error&&typeof error==="object"?error as Record<string,unknown>:{};const message=error instanceof Error?error.message:typeof record.message==="string"?record.message:String(error);return{message,code:typeof record.code==="string"?record.code:null,details:typeof record.details==="string"?record.details:null,hint:typeof record.hint==="string"?record.hint:null,stack:error instanceof Error?error.stack:new Error(message).stack};};
 
@@ -55,6 +55,10 @@ export async function reviewStaffRequestAction(data:FormData):Promise<Result>{
       stage="PACKAGE_DELIVERY";
       try{await deliverSmartAssignmentPackage(client,requestId);}
       catch(error){const failure=approvalError(error);console.error("[staff-approval] package-failed",{reference,stage,userId,request,error:failure});deliveryWarning=` La asignación y liquidación quedaron confirmadas, pero la entrega del paquete requiere atención: ${failure.message}.`;}
+    }else{
+      stage="REJECTION_NOTIFICATION";
+      const{error:notificationError}=await client.from("internal_notifications").upsert({project_id:request.project_id,staff_id:request.staff_id,notification_type:"STAFF_REQUEST_REJECTED",title:"Solicitud de Staff rechazada",message:`Tu solicitud para ${request.responsibility} fue rechazada por el Founder.`,status:"UNREAD",correlation_id:`staff-request-rejected:${request.id}`,category:"OPERATIONS",priority:"INFORMATION",action_required:false,entity_type:"AssignmentRequest",entity_id:request.id,related_href:"/staff-portal"},{onConflict:"correlation_id",ignoreDuplicates:true});
+      if(notificationError)console.error("[staff-approval] rejection-notification-failed",{reference,stage,userId,request,error:notificationError});
     }
     stage="REVALIDATION";
     revalidatePath("/");revalidatePath("/operations");revalidatePath("/projects","layout");revalidatePath("/resources/staff");revalidatePath("/staff-portal");revalidatePath("/finance");revalidatePath("/finance/cash-flow");revalidatePath("/reports");

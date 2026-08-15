@@ -9,6 +9,8 @@ const staffProjection = readFileSync(`${root}/features/portal-authentication/sta
 const timelineFix = readFileSync(`${root}/supabase/migrations/0131_operations_phase_d_timeline_source.sql`, "utf8");
 const cancellation = readFileSync(`${root}/supabase/migrations/0109_rc52_5_staff_cancellation_recovery.sql`, "utf8");
 const requestWorkflow = readFileSync(`${root}/supabase/migrations/0090_rc30b_staff_request_workflow.sql`, "utf8");
+const packageDelivery = readFileSync(`${root}/features/operations/smart-assignment-package.service.ts`, "utf8");
+const reviewAction = readFileSync(`${root}/features/operations/operations-planning.actions.ts`, "utf8");
 
 test("Phase D preserves one canonical assignment and settlement transaction", () => {
   assert.match(migration, /assign_event_operational_responsibility/);
@@ -61,6 +63,14 @@ test("Phase D timeline writes use the accepted Staff source", () => {
   assert.match(timelineFix, /actor_label,source/);
   assert.match(timelineFix, /'Staff','Staff',p_status/);
   assert.doesNotMatch(timelineFix, /'Staff','StaffPortal',p_status/);
+  assert.doesNotMatch(packageDelivery, /source:"StaffAssignment"/);
+  assert.match(packageDelivery, /source:"Operations"/);
+});
+
+test("approval and rejection both produce Staff-facing notifications", () => {
+  assert.match(packageDelivery, /notification_type:"SMART_ASSIGNMENT_PACKAGE"/);
+  assert.match(reviewAction, /notification_type:"STAFF_REQUEST_REJECTED"/);
+  assert.match(reviewAction, /staff-request-rejected:/);
 });
 
 test("payment and RLS paths remain isolated", () => {
