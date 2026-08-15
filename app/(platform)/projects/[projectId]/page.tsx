@@ -90,7 +90,6 @@ export default async function ProjectWorkspacePage({
     { data: staffPublication },
     { data: operationalContract },
     { data: operationalRequirements },
-    { data: staffRoleRequirements },
   ] = await Promise.all([
     client
       .from("projects")
@@ -236,12 +235,14 @@ export default async function ProjectWorkspacePage({
       .eq("project_id", projectId)
       .eq("status", "ACTIVE")
       .order("created_at"),
-    client
+  ]);
+  const { data: staffRoleRequirements, error: staffRoleRequirementError } =
+    await client
       .from("event_staff_requirements")
       .select("role,required_quantity,published")
       .eq("project_id", projectId)
-      .order("role"),
-  ]);
+      .order("role");
+  if (staffRoleRequirementError) throw staffRoleRequirementError;
   const physicalRequirements=(operationalRequirements??[]).filter(item=>item.requirement_type==="PHYSICAL_UNIT"&&item.asset_type);
   type AssetAvailabilityRow={asset_id:string;asset_code:string;asset_type:string;asset_status:string;available:boolean;conflict_project_id:string|null;conflict_project_name:string|null;conflict_start_at:string;conflict_end_at:string};
   const availabilityResults=await Promise.all(physicalRequirements.map(async requirement=>{
