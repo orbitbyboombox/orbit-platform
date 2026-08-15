@@ -25,6 +25,7 @@ import {
   addStaffSettlementReimbursementAction,
   updateStaffEventSettlementAction,
 } from "@/features/staff-payments/actions";
+import { reviewStaffRequestAction, setEventStaffRequirementAction } from "@/features/operations/operations-planning.actions";
 
 export type OperationalAssignment = {
   id: string;
@@ -101,6 +102,8 @@ export type StaffAssignmentCenterProps = {
   hasPendingRequest?: boolean;
   published?: boolean;
   settlements?: EventStaffSettlement[];
+  requirements?: Array<{ role: string; required: number; published: boolean }>;
+  requests?: Array<{ id: string; role: string; staffName: string; status: string }>;
 };
 const roles = [
   { value: "OPERATOR", label: "Operador" },
@@ -151,6 +154,8 @@ export function StaffAssignmentCenter({
   vehicles,
   hasPendingRequest = false,
   settlements = [],
+  requirements = [],
+  requests = [],
 }: StaffAssignmentCenterProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -256,6 +261,18 @@ export function StaffAssignmentCenter({
           {message}
         </p>
       )}
+      <section className="mb-5 grid gap-3 border-b pb-5 lg:grid-cols-3">
+        {roles.map((role) => {
+          const requirement = requirements.find((item) => item.role === role.value);
+          const confirmed = assignments.filter((item) => item.role === role.value && !["CANCELLED", "REJECTED"].includes(item.status)).length;
+          return <form action={(data)=>startTransition(async()=>{const result=await setEventStaffRequirementAction(data);setMessage(result.message);if(result.ok)router.refresh()})} className="rounded-xl border p-4" key={role.value}>
+            <input name="projectId" type="hidden" value={projectId}/><input name="role" type="hidden" value={role.value}/>
+            <div className="flex items-center justify-between gap-3"><div><p className="font-semibold">{role.label}</p><p className="text-sm text-muted">{confirmed}/{requirement?.required??0} asignado{(requirement?.required??0)===1?"":"s"}</p></div><StatusBadge label={requirement?.published?"Publicado":"Interno"} variant={requirement?.published?"success":"info"}/></div>
+            <div className="mt-3 flex items-end gap-2"><label className="grid flex-1 gap-1 text-xs text-muted">Cantidad requerida<input className="min-h-10 rounded-lg border bg-background px-3 text-foreground" defaultValue={requirement?.required??(role.value==="OPERATOR"?1:0)} min="0" name="quantity" type="number"/></label><label className="flex min-h-10 items-center gap-2 text-sm"><input defaultChecked={requirement?.published??false} name="published" type="checkbox" value="true"/>Publicar</label><Button disabled={pending} type="submit">Guardar</Button></div>
+          </form>;
+        })}
+      </section>
+      {requests.length ? <section className="mb-5 border-b pb-5"><h3 className="font-semibold">Solicitudes Staff</h3><div className="mt-3 grid gap-3 lg:grid-cols-2">{requests.map((request)=><article className="rounded-xl border p-4" key={request.id}><p className="font-semibold">{request.staffName}</p><p className="mt-1 text-sm text-muted">{roleLabel(request.role)} · Solicitud pendiente</p><div className="mt-3 flex gap-2"><form action={(data)=>startTransition(async()=>{const result=await reviewStaffRequestAction(data);setMessage(result.message);if(result.ok)router.refresh()})}><input name="requestId" type="hidden" value={request.id}/><input name="decision" type="hidden" value="approve"/><Button disabled={pending} type="submit">Aprobar</Button></form><form action={(data)=>startTransition(async()=>{const result=await reviewStaffRequestAction(data);setMessage(result.message);if(result.ok)router.refresh()})}><input name="requestId" type="hidden" value={request.id}/><input name="decision" type="hidden" value="reject"/><Button disabled={pending} type="submit" variant="outline">Rechazar</Button></form></div></article>)}</div></section>:null}
       <div className="grid gap-3 lg:grid-cols-2">
         {assignments.map((item) => (
           <article className="rounded-xl border p-4" key={item.id}>

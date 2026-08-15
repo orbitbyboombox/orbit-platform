@@ -90,6 +90,7 @@ export default async function ProjectWorkspacePage({
     { data: staffPublication },
     { data: operationalContract },
     { data: operationalRequirements },
+    { data: staffRoleRequirements },
   ] = await Promise.all([
     client
       .from("projects")
@@ -215,10 +216,10 @@ export default async function ProjectWorkspacePage({
       .maybeSingle(),
     client
       .from("staff_assignment_requests")
-      .select("id")
+      .select("id,responsibility,status,staff(first_name,last_name)")
       .eq("project_id", projectId)
       .eq("status", "PENDING")
-      .limit(1),
+      .order("requested_at"),
     client
       .from("staff_event_publications")
       .select("published")
@@ -235,6 +236,11 @@ export default async function ProjectWorkspacePage({
       .eq("project_id", projectId)
       .eq("status", "ACTIVE")
       .order("created_at"),
+    client
+      .from("event_staff_requirements")
+      .select("role,required_quantity,published")
+      .eq("project_id", projectId)
+      .order("role"),
   ]);
   const physicalRequirements=(operationalRequirements??[]).filter(item=>item.requirement_type==="PHYSICAL_UNIT"&&item.asset_type);
   type AssetAvailabilityRow={asset_id:string;asset_code:string;asset_type:string;asset_status:string;available:boolean;conflict_project_id:string|null;conflict_project_name:string|null;conflict_start_at:string;conflict_end_at:string};
@@ -1029,6 +1035,22 @@ export default async function ProjectWorkspacePage({
     staffAssignments: {
       projectId,
       published: staffPublication?.published ?? false,
+      requirements: (staffRoleRequirements ?? []).map((item) => ({
+        role: item.role,
+        required: Number(item.required_quantity),
+        published: item.published,
+      })),
+      requests: (staffRequests ?? []).map((item) => {
+        const member = Array.isArray(item.staff) ? item.staff[0] : item.staff;
+        return {
+          id: item.id,
+          role: item.responsibility,
+          status: item.status,
+          staffName: member
+            ? `${member.first_name} ${member.last_name}`
+            : "Colaborador",
+        };
+      }),
       settlements: (payroll ?? [])
         .filter((item) => item.status !== "CANCELLED")
         .map((item) => {

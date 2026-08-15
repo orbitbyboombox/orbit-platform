@@ -107,12 +107,38 @@ const ROLE: Record<string, string> = {
   DISASSEMBLY: "Desmontaje",
   ASSEMBLY_DISASSEMBLY: "Montaje + Desmontaje",
 };
-const CHECKINS = [
+const executionActions = (roles: string[]) => [
   { code: "ON_THE_WAY", label: "En camino" },
   { code: "ARRIVED", label: "Llegué" },
-  { code: "EVENT_STARTED", label: "Evento iniciado" },
-  { code: "EVENT_FINISHED", label: "Evento finalizado" },
+  ...(roles.includes("ASSEMBLY")
+    ? [
+        { code: "ASSEMBLY_STARTED", label: "Iniciar montaje" },
+        { code: "ASSEMBLY_COMPLETED", label: "Montaje listo" },
+      ]
+    : []),
+  ...(roles.includes("OPERATOR")
+    ? [
+        { code: "EVENT_STARTED", label: "Iniciar servicio" },
+        { code: "EVENT_FINISHED", label: "Finalizar servicio" },
+      ]
+    : []),
+  ...(roles.includes("DISASSEMBLY")
+    ? [
+        { code: "DISASSEMBLY_STARTED", label: "Iniciar desmontaje" },
+        { code: "DISASSEMBLY_COMPLETED", label: "Desmontaje completo" },
+      ]
+    : []),
 ];
+const participationCompleted = (event: StaffPortalEvent) =>
+  event.roles.every((role) =>
+    event.checkins.includes(
+      role === "ASSEMBLY"
+        ? "ASSEMBLY_COMPLETED"
+        : role === "DISASSEMBLY"
+          ? "DISASSEMBLY_COMPLETED"
+          : "EVENT_FINISHED",
+    ),
+  );
 const PRE_EVENT = [
   { code: "READ_OPERATIONAL_SHEET", label: "Leer ficha operacional" },
   { code: "EQUIPMENT_CHECKED", label: "Equipos revisados" },
@@ -125,7 +151,7 @@ const pendingAcceptance = (status: string) =>
 const stateLabel = (event: StaffPortalEvent) =>
   pendingAcceptance(event.status)
     ? "Pendiente de aceptación"
-    : event.checkins.includes("EVENT_FINISHED")
+    : participationCompleted(event)
       ? "Completado"
       : event.checkins.includes("EVENT_STARTED")
         ? "Evento iniciado"
@@ -163,12 +189,12 @@ export function StaffPortalDashboard({
   }).format(new Date());
   const todayEvents = events.filter((event) => event.date === today),
     completed = events.filter((event) =>
-      event.checkins.includes("EVENT_FINISHED"),
+      participationCompleted(event),
     ),
     confirmed = events.filter(
       (event) =>
         !pendingAcceptance(event.status) &&
-        !event.checkins.includes("EVENT_FINISHED"),
+        !participationCompleted(event),
     );
   if (mustChangePassword) return <PasswordSetup name={name} />;
   return (
@@ -497,7 +523,8 @@ function EventDetail({
   const [cancelRole, setCancelRole] = useState(event.roles[0] ?? "");
   const [cancelReason, setCancelReason] = useState("ILLNESS");
   const [cancelDetail, setCancelDetail] = useState("");
-  const next = CHECKINS.find((item) => !event.checkins.includes(item.code)),
+  const actions = executionActions(event.roles);
+  const next = actions.find((item) => !event.checkins.includes(item.code)),
     needsAcceptance = pendingAcceptance(event.status);
   const run = (action: () => Promise<{ ok: boolean; message: string }>) =>
     startTransition(async () => {
@@ -640,7 +667,7 @@ function EventDetail({
             <section className="mt-6 rounded-2xl border p-4">
               <h3 className="font-semibold">Estado operacional</h3>
               <div className="mt-3 flex flex-wrap gap-2">
-                {CHECKINS.map((item) => (
+                {actions.map((item) => (
                   <span
                     className={`rounded-full border px-3 py-1.5 text-xs ${event.checkins.includes(item.code) ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-500" : "text-muted"}`}
                     key={item.code}
@@ -668,7 +695,7 @@ function EventDetail({
             </section>
           </>
         )}
-        {!event.checkins.includes("EVENT_FINISHED") ? (
+        {!participationCompleted(event) ? (
           <section className="mt-6 rounded-2xl border border-danger/30 p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
