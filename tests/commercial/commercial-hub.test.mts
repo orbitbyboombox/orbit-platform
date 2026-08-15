@@ -112,8 +112,37 @@ test("catalog activation invalidates Hub and all stable public routes", () => {
 });
 test("public catalog routes resolve the canonical ACTIVE row", () => {
   const page = readFileSync(new URL("../../app/catalogo/[slug]/page.tsx", import.meta.url), "utf8");
+  const repository = readFileSync(new URL("../../features/commercial-hub/catalog-repository.ts", import.meta.url), "utf8");
   assert.match(page, /catalogCategoryFromSlug\(slug\)/);
-  assert.match(page, /\.eq\("status", "ACTIVE"\)/);
+  assert.match(page, /loadActiveCommercialDocument\(category\)/);
+  assert.match(repository, /\.eq\("status", "ACTIVE"\)/);
+});
+test("canonical download route streams the ACTIVE PDF without a relative URL", () => {
+  const route = readFileSync(new URL("../../app/catalogo/[slug]/document/route.ts", import.meta.url), "utf8");
+  const actions = readFileSync(new URL("../../app/catalogo/[slug]/catalog-actions.tsx", import.meta.url), "utf8");
+  assert.match(route, /loadActiveCommercialDocument\(category\)/);
+  assert.match(route, /createSignedUrl/);
+  assert.match(route, /download \? \{ download: document\.filename \}/);
+  assert.match(actions, /`\/catalogo\/\$\{encodeURIComponent\(slug\)\}\/document\?download=1`/);
+  assert.doesNotMatch(actions, /href="document\?download=1"/);
+});
+test("public reader renders the canonical document progressively", () => {
+  const reader = readFileSync(new URL("../../app/catalogo/[slug]/continuous-pdf-reader.tsx", import.meta.url), "utf8");
+  assert.match(reader, /document\.numPages/);
+  assert.match(reader, /IntersectionObserver/);
+  assert.match(reader, /rootMargin: "900px 0px"/);
+  assert.match(reader, /Cargando catálogo/);
+  assert.match(reader, /Reintentar/);
+});
+test("public catalog share uses Web Share with clipboard fallback", () => {
+  const actions = readFileSync(new URL("../../app/catalogo/[slug]/catalog-actions.tsx", import.meta.url), "utf8");
+  assert.match(actions, /navigator\.share/);
+  assert.match(actions, /navigator\.clipboard\.writeText/);
+});
+test("public catalog surface contains no administrative navigation", () => {
+  const page = readFileSync(new URL("../../app/catalogo/[slug]/page.tsx", import.meta.url), "utf8");
+  for (const internal of ["Founder", "Configuración", "Clientes", "Navegación principal"])
+    assert.doesNotMatch(page, new RegExp(internal));
 });
 test("graphical signature suppresses textual fallback", () => assert.equal(commercialSignatureMode("https://example.com/signature.gif"), "GRAPHICAL"));
 test("missing graphical signature uses Team BOOMBOX fallback", () => assert.equal(commercialSignatureMode(""), "FALLBACK"));
