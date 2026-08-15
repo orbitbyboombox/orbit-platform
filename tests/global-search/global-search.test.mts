@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { globalSearchHref, normalizeGlobalSearchTerm } from "../../features/global-search/model.ts";
+import { globalSearchHref, globalSearchNoResultsMessage, normalizeGlobalSearchTerm } from "../../features/global-search/model.ts";
 
 test("normalizes exact, partial and case-insensitive customer names", () => {
   assert.equal(normalizeGlobalSearchTerm("Soledad Provens"), "soledadprovens");
@@ -25,6 +25,10 @@ test("builds canonical navigation targets", () => {
   assert.equal(globalSearchHref("CUSTOMER", "customer-id"), "/customers/customer-id");
   assert.equal(globalSearchHref("EVENT", "event-id"), "/projects/event-id");
   assert.equal(globalSearchHref("QUOTE", "quote-id"), "/api/commercial/quotes/quote-id/pdf");
+});
+
+test("returns the required no-result state", () => {
+  assert.equal(globalSearchNoResultsMessage("  inexistente  "), "No encontramos resultados para “inexistente”.");
 });
 
 test("database migration enforces RBAC and relational search sources", async () => {

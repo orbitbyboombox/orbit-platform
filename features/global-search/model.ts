@@ -31,3 +31,6 @@ export function globalSearchHref(kind: GlobalSearchKind, id: string) {
   return `/api/commercial/quotes/${id}/pdf`;
 }
 
+export function globalSearchNoResultsMessage(query: string) {
+  return `No encontramos resultados para “${query.trim()}”.`;
+}

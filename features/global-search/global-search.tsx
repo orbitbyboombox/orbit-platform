@@ -4,7 +4,7 @@ import { CalendarDays, FileText, Search, UserRound, X } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { GLOBAL_SEARCH_GROUPS, type GlobalSearchKind, type GlobalSearchResult } from "./model";
+import { GLOBAL_SEARCH_GROUPS, globalSearchNoResultsMessage, type GlobalSearchKind, type GlobalSearchResult } from "./model";
 
 const icons: Record<GlobalSearchKind, typeof Search> = {
   CUSTOMER: UserRound,
@@ -126,7 +126,7 @@ export function GlobalSearch() {
               {query.trim().length < 2 ? <Empty title="Busca en todo ORBIT" detail="Escribe al menos dos caracteres para comenzar." /> : null}
               {loading ? <p className="py-10 text-center text-sm text-muted">Buscando…</p> : null}
               {!loading && failed ? <Empty title="No fue posible buscar" detail="Reintenta en unos segundos." /> : null}
-              {!loading && !failed && query.trim().length >= 2 && results.length === 0 ? <Empty title={`No encontramos resultados para “${query.trim()}”.`} detail="Prueba con nombre, RUT, teléfono, evento o número de cotización." /> : null}
+              {!loading && !failed && query.trim().length >= 2 && results.length === 0 ? <Empty title={globalSearchNoResultsMessage(query)} detail="Prueba con nombre, RUT, teléfono, evento o número de cotización." /> : null}
               {!loading && !failed ? grouped.map((group) => (
                 <section className="mb-6 last:mb-0" key={group.kind}>
                   <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-[.18em] text-brand">{group.label}</h2>
@@ -149,4 +149,3 @@ export function GlobalSearch() {
 function Empty({ title, detail }: { title: string; detail: string }) {
   return <div className="grid min-h-48 place-items-center text-center"><div><Search className="mx-auto size-6 text-muted" /><p className="mt-4 font-semibold">{title}</p><p className="mt-2 text-sm text-muted">{detail}</p></div></div>;
 }
-
