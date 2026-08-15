@@ -42,6 +42,18 @@ export async function recordStaffCheckInAction(
   return { ok: true, message: "Estado operacional actualizado." };
 }
 
+export async function updateStaffLogisticsTripAction(tripId:string,status:string){
+  const session=await loadPortalSession("STAFF");
+  if(!session?.staff_id)return{ok:false,message:"Tu sesión expiró."};
+  if(!["IN_PROGRESS","ARRIVED","COMPLETED"].includes(status))return{ok:false,message:"Estado de viaje inválido."};
+  const admin=createAdminClient(),evidence=requestEvidence(await headers());
+  const{data:projectId,error}=await admin.rpc("update_staff_vehicle_trip_status",{p_staff_id:session.staff_id,p_trip_id:tripId,p_status:status,p_odometer:null});
+  if(error||!projectId)return{ok:false,message:error?.message??"No fue posible actualizar el viaje."};
+  try{const{data:project}=await admin.from("projects").select("customer_id,orbit_event_id").eq("id",projectId).single();if(project)await admin.from("timeline_events").upsert({customer_id:project.customer_id,project_id:projectId,staff_id:session.staff_id,orbit_event_id:project.orbit_event_id,event_type:`LOGISTICS_TRIP_${status}`,title:"Viaje logístico actualizado",description:`El conductor marcó el viaje como ${status}.`,actor_label:"Staff",source:"Staff",action:`LOGISTICS_TRIP_${status}`,entity_type:"VehicleTrip",entity_id:tripId,human_message:`Estado logístico ${status}.`,correlation_id:`staff-logistics-trip:${tripId}:${status}`,reason:`${evidence.device} · ${evidence.ipHash}`},{onConflict:"correlation_id",ignoreDuplicates:true});}catch(boundaryError){console.error("[ORBIT][STAFF_LOGISTICS_TIMELINE_BOUNDARY]",{tripId,status,error:boundaryError instanceof Error?boundaryError.message:String(boundaryError)});}
+  revalidatePath("/staff-portal");revalidatePath("/operations");revalidatePath(`/projects/${projectId}`);
+  return{ok:true,message:"Viaje logístico actualizado."};
+}
+
 export async function acceptStaffAssignmentAction(projectId: string) {
   const session = await loadPortalSession("STAFF");
   if (!session?.staff_id) return { ok: false, message: "Tu sesión expiró." };

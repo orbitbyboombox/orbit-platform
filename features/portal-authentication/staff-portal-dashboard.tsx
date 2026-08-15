@@ -19,6 +19,7 @@ import {
   declineStaffResponsibilityAction,
   recordStaffCheckInAction,
   requestStaffResponsibilityAction,
+  updateStaffLogisticsTripAction,
 } from "./staff-portal.actions";
 
 export type StaffPortalEvent = {
@@ -42,7 +43,7 @@ export type StaffPortalEvent = {
   net: number;
   status: string;
   vehicle: string;
-  logistics?: {driver:string;departure:string;meetingPoint:string;route:string;instructions:string};
+  logistics: Array<{id:string;type:string;sequence:number;vehicle:string;driver:string;departure:string;arrival:string;meetingPoint:string;route:string;instructions:string;status:string}>;
   equipment: string[];
   operationalInformation: {
     observations: string;
@@ -591,7 +592,6 @@ function EventDetail({
             value={event.roles.map((role) => ROLE[role] ?? role).join(" + ")}
           />
           <Small label="Vehículo" value={event.vehicle} />
-          {event.logistics?<><Small label="Conductor" value={event.logistics.driver}/><Small label="Salida logística" value={event.logistics.departure}/><Small label="Punto de encuentro" value={event.logistics.meetingPoint}/><Small label="Ruta" value={event.logistics.route}/><Small label="Instrucciones logísticas" value={event.logistics.instructions}/></>:null}
           <Small
             label="Equipamiento"
             value={event.equipment.join(" · ") || "No asignado"}
@@ -600,6 +600,7 @@ function EventDetail({
           <Small label="Pago neto" value={money(event.net)} />
           <Small label="Estado" value={stateLabel(event)} />
         </div>
+        {event.logistics.length?<section className="mt-6 rounded-2xl border p-4"><h3 className="font-semibold">Mis viajes logísticos</h3><div className="mt-3 space-y-3">{event.logistics.map(trip=>{const nextStatus=trip.status==="PLANNED"?"IN_PROGRESS":trip.status==="IN_PROGRESS"?"ARRIVED":trip.status==="ARRIVED"?"COMPLETED":null;const nextLabel=nextStatus==="IN_PROGRESS"?"Iniciar viaje":nextStatus==="ARRIVED"?"Llegué":"Finalizar viaje";return <article className="rounded-xl border p-3" key={trip.id}><div className="flex flex-wrap items-start justify-between gap-2"><div><p className="font-semibold">{trip.sequence}. {trip.type.replaceAll("_"," ")}</p><p className="text-sm text-muted">{trip.vehicle} · {trip.driver}</p></div><span className="rounded-full border px-2.5 py-1 text-xs font-semibold">{trip.status}</span></div><div className="mt-3 grid gap-2 sm:grid-cols-2"><Small label="Salida" value={trip.departure}/><Small label="Llegada estimada" value={trip.arrival}/><Small label="Punto de encuentro" value={trip.meetingPoint}/><Small label="Ruta" value={trip.route}/><Small label="Instrucciones" value={trip.instructions}/></div><div className="mt-3 flex flex-wrap gap-2">{nextStatus?<button className="min-h-11 rounded-xl bg-brand px-4 text-sm font-semibold text-brand-foreground disabled:opacity-50" disabled={pending} onClick={()=>run(()=>updateStaffLogisticsTripAction(trip.id,nextStatus))}>{pending?"Actualizando…":nextLabel}</button>:<span className="text-sm font-semibold text-emerald-500">Viaje completado</span>}<a className="inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold" href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(trip.route.split("→").at(-1)?.trim()??event.address)}`} rel="noreferrer" target="_blank"><Navigation className="size-4"/>Abrir en Maps</a></div></article>})}</div></section>:null}
         <div className="mt-4 flex flex-wrap gap-2">
           <a
             className="inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold text-brand"

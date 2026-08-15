@@ -186,6 +186,8 @@ export function FleetCenter({
                   label="Revisión técnica"
                   value={vehicle.technicalInspectionExpiration || "Pendiente"}
                 />
+                <Detail label="Altura" value={vehicle.heightM===null?"Pendiente":`${vehicle.heightM} m`}/>
+                <Detail label="Capacidad" value={vehicle.capacityNotes||"Pendiente"}/>
                 {showFuelControl && <><Detail label="Costo combustible" value={money.format(vehicle.fuelTotal)} /><Detail label="Cargas" value={String(vehicleLogs.length)} /></>}
               </dl>
               <div className="mt-5 grid grid-cols-2 gap-2 border-t pt-4 sm:grid-cols-3">
@@ -358,6 +360,10 @@ function VehicleForm({
           { value: "DIESEL", label: "Diésel" },
         ]}
       />
+      <Field label="Altura (m)" name="heightM" type="number" step="0.01" defaultValue={vehicle?.heightM?.toString()}/>
+      <Field label="Largo (m)" name="lengthM" type="number" step="0.01" defaultValue={vehicle?.lengthM?.toString()}/>
+      <Field label="Ancho (m)" name="widthM" type="number" step="0.01" defaultValue={vehicle?.widthM?.toString()}/>
+      <Field label="Capacidad / restricciones" name="capacityNotes" defaultValue={vehicle?.capacityNotes}/>
       <Field
         label="Kilometraje actual"
         name="currentMileage"
