@@ -11,7 +11,7 @@ import { createFormalQuotePdf } from "./formal-quote-pdf";
 import { loadCompanySettings } from "@/features/company-settings";
 import { createCustomerProjectAction } from "@/features/projects/actions/customer.actions";
 import type { ProjectDraft } from "@/features/projects/types/project";
-import { emailParagraphs, formalQuoteSubject, normalizeEmailNewlines, quoteDisplayFilename, quoteStorageKey, withoutDuplicateSignature } from "./presentation";
+import { QUICK_SEND_CTA_FALLBACK, QUICK_SEND_CTA_LABEL, commercialSignatureMode, emailParagraphs, formalQuoteSubject, normalizeEmailNewlines, quickSendBodyParagraphs, quoteDisplayFilename, quoteStorageKey, resolveQuickSendBody, withoutDuplicateSignature } from "./presentation";
 import { catalogPublicUrl, isCommercialCatalogCategory } from "./catalogs";
 
 async function founder() {
@@ -69,12 +69,9 @@ export async function sendCommercialInformationAction(input: {
       .single();
     if (error || !document)
       throw new Error("El documento comercial ya no está disponible.");
-    const vars = {
-      Nombre: input.name.trim() || "",
-      Empresa: input.name.trim() || "",
-    };
-    const subject = normalizeEmailNewlines(replace(input.subject, vars)).replaceAll("\n", " ").trim(),
-      body = normalizeEmailNewlines(replace(input.body, vars));
+    const vars = { Empresa: input.name.trim() || "" };
+    const subject = normalizeEmailNewlines(replace(input.subject, vars)).replaceAll("\n", " ").trim();
+    const body = resolveQuickSendBody(input.body, input.name);
     const { data: claimed, error: claimError } = await admin.from("commercial_sends").insert({
       idempotency_key: input.requestId,
       recipient_email: input.email.trim().toLowerCase(),
@@ -96,16 +93,18 @@ export async function sendCommercialInformationAction(input: {
     const downloaded = input.attachPdf ? await admin.storage.from("orbit-documents").download(document.storage_path) : null;
     if (downloaded?.error) throw downloaded.error;
     const signatureUrl = typeof company.emailConfiguration.signatureGifUrl === "string" ? company.emailConfiguration.signatureGifUrl : "";
-    const signature = signatureUrl ? `<p style="margin:24px 0 0"><img src="${escapeHtml(signatureUrl)}" alt="BOOMBOX" style="display:block;max-width:600px;width:100%;height:auto;border:0"></p>` : `<p>Equipo BOOMBOX</p>`;
+    const signatureMode = commercialSignatureMode(signatureUrl);
+    const signature = signatureMode === "GRAPHICAL" ? `<p style="margin:24px 0 0"><img src="${escapeHtml(signatureUrl)}" alt="BOOMBOX" style="display:block;max-width:600px;width:100%;height:auto;border:0"></p>` : `<p style="margin:8px 0 0"><strong>Equipo BOOMBOX</strong></p>`;
     const cleanBody = withoutDuplicateSignature(withoutDuplicateSignature(body, company.emailSignature || "Equipo BOOMBOX"), "Equipo BOOMBOX");
-    const htmlParagraphs = emailParagraphs(cleanBody).map((paragraph) => `<p style="margin:0 0 16px">${escapeHtml(paragraph).replaceAll("\n", "<br>")}</p>`).join("");
-    const cta = `<p style="margin:24px 0"><a href="${escapeHtml(publicUrl)}" style="display:inline-block;background:#f78900;color:#111;text-decoration:none;font-weight:700;padding:13px 20px;border-radius:10px">VER CATÁLOGO BOOMBOX</a></p><p style="font-size:12px;color:#666">Si el botón no abre, visita: <a href="${escapeHtml(publicUrl)}">${escapeHtml(publicUrl)}</a></p>`;
+    const richText = (paragraph: string) => paragraph.split(/(\*\*[^*]+\*\*)/g).map((part) => part.startsWith("**") && part.endsWith("**") ? `<strong>${escapeHtml(part.slice(2, -2))}</strong>` : escapeHtml(part)).join("").replaceAll("\n", "<br>");
+    const htmlParagraphs = quickSendBodyParagraphs(cleanBody, input.name).map((paragraph) => `<p style="margin:0 0 16px">${richText(paragraph)}</p>`).join("");
+    const cta = `<p style="margin:24px 0"><a href="${escapeHtml(publicUrl)}" style="display:inline-block;background:#f78900;color:#111;text-decoration:none;font-weight:700;padding:14px 20px;border-radius:10px;min-height:20px">${QUICK_SEND_CTA_LABEL}</a></p><p style="margin:0 0 20px;font-size:13px;color:#666">${QUICK_SEND_CTA_FALLBACK} <a href="${escapeHtml(publicUrl)}">${escapeHtml(publicUrl)}</a></p>`;
     const sent = await new GoogleGmailApiProvider(
       await loadGoogleWorkspaceAccessToken(),
     ).send({
       to: input.email.trim().toLowerCase(),
       subject,
-      textBody: `${cleanBody}\n\nVer catálogo BOOMBOX: ${publicUrl}\n\n${signatureUrl ? "" : "Equipo BOOMBOX"}`.trim(),
+      textBody: `${quickSendBodyParagraphs(cleanBody, input.name).join("\n\n")}\n\n${QUICK_SEND_CTA_LABEL}: ${publicUrl}\n\n${signatureMode === "GRAPHICAL" ? "" : "Equipo BOOMBOX"}`.trim(),
       htmlBody: `<main style="font-family:Arial,sans-serif;line-height:1.6;max-width:680px">${htmlParagraphs}${cta}${signature}</main>`,
       driveFileIds: [],
       attachments: downloaded?.data ? [{ filename: document.filename || `${document.name}.pdf`, mimeType: "application/pdf", content: new Uint8Array(await downloaded.data.arrayBuffer()) }] : [],

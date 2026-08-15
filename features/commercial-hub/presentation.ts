@@ -66,6 +66,41 @@ export function commercialGreeting(contact: string) {
   return person ? `Hola ${person},` : "Hola,";
 }
 
+export const QUICK_SEND_CTA_LABEL = "VER PLANES Y VALORES BOOMBOX";
+export const QUICK_SEND_CTA_FALLBACK = "Si el botón no funciona, puedes ver nuestros planes y valores aquí.";
+
+export function resolveQuickSendBody(value: string, contact: string) {
+  const person = titleCasePerson(contact);
+  return normalizeEmailNewlines(value)
+    .replace(/Hola\s+\[Nombre\],?/gi, commercialGreeting(contact))
+    .replaceAll("[Nombre]", person)
+    .replace(/Hola\s+,/gi, "Hola,")
+    .trim();
+}
+
+export function isQuickSendCtaParagraph(value: string) {
+  const normalized = value
+    .replace(/[👉*\[\]]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
+  return normalized === QUICK_SEND_CTA_LABEL;
+}
+
+export function quickSendBodyParagraphs(value: string, contact: string) {
+  return emailParagraphs(resolveQuickSendBody(value, contact)).filter(
+    (paragraph) => !isQuickSendCtaParagraph(paragraph),
+  );
+}
+
+export function hasUnresolvedCommercialVariables(value: string) {
+  return /\[[A-Za-zÁÉÍÓÚáéíóúÑñ]+\]/.test(value);
+}
+
+export function commercialSignatureMode(signatureUrl: string) {
+  return signatureUrl.trim() ? "GRAPHICAL" as const : "FALLBACK" as const;
+}
+
 export function withoutDuplicateSignature(value: string, fallback: string) {
   const normalized = normalizeEmailNewlines(value).trim();
   const escaped = fallback.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { calculateDiscount, calculateFormalQuote, isCommercialEmail } from "../../features/commercial-hub/quote-calculation.ts";
-import { commercialGreeting, displayChileanPhone, documentCategoryLabel, emailParagraphs, formalQuoteSubject, formatChileanRutInput, moneyInputNumber, normalizeChileanPhone, normalizeEmailNewlines, quoteDisplayFilename, quoteStorageKey, titleCasePerson, withoutDuplicateSignature } from "../../features/commercial-hub/presentation.ts";
+import { QUICK_SEND_CTA_FALLBACK, QUICK_SEND_CTA_LABEL, commercialGreeting, commercialSignatureMode, displayChileanPhone, documentCategoryLabel, emailParagraphs, formalQuoteSubject, formatChileanRutInput, hasUnresolvedCommercialVariables, isQuickSendCtaParagraph, moneyInputNumber, normalizeChileanPhone, normalizeEmailNewlines, quickSendBodyParagraphs, quoteDisplayFilename, quoteStorageKey, resolveQuickSendBody, titleCasePerson, withoutDuplicateSignature } from "../../features/commercial-hub/presentation.ts";
 import { catalogCategoryFromSlug, catalogPublicPath, catalogPublicUrl, validateCommercialUpload, validateSignatureUpload } from "../../features/commercial-hub/catalogs.ts";
 
 const line = (patch: Record<string, unknown> = {}) => ({ id: "1", code: "CLASSIC", description: "Tótem Classic", quantity: 4, catalogPrice: 500000, quotedPrice: 430000, discountType: null, discountValue: 0, manual: false, ...patch });
@@ -75,3 +76,21 @@ test("graphical signature accepts every supported image format", () => {
   for (const mimeType of ["image/gif", "image/png", "image/jpeg", "image/webp"]) assert.equal(validateSignatureUpload({ mimeType, size: 1024 }), null);
 });
 test("graphical signature rejects unsupported formats", () => assert.equal(validateSignatureUpload({ mimeType: "image/svg+xml", size: 1024 }), "Usa GIF, PNG, JPG o WebP."));
+test("quick-send greeting resolves a personal name", () => assert.match(resolveQuickSendBody("Hola [Nombre],\n\nBienvenido.", "matías"), /^Hola Matías,/));
+test("quick-send greeting without name is friendly", () => assert.equal(resolveQuickSendBody("Hola [Nombre],\n\nBienvenido.", ""), "Hola,\n\nBienvenido."));
+test("quick-send never exposes an unresolved name placeholder", () => assert.equal(hasUnresolvedCommercialVariables(resolveQuickSendBody("Hola [Nombre],", "")), false));
+test("quick-send CTA marker is removed from body paragraphs", () => assert.deepEqual(quickSendBodyParagraphs(`Hola [Nombre],\n\n👉 **[${QUICK_SEND_CTA_LABEL}]**\n\nUn abrazo,`, "Matías"), ["Hola Matías,", "Un abrazo,"]));
+test("quick-send CTA marker recognizes the official representation", () => assert.equal(isQuickSendCtaParagraph(`👉 **[${QUICK_SEND_CTA_LABEL}]**`), true));
+test("quick-send CTA includes a compatible fallback message", () => assert.match(QUICK_SEND_CTA_FALLBACK, /botón no funciona/i));
+test("weddings quick-send resolves to Novios catalog", () => assert.equal(catalogPublicPath("WEDDINGS"), "/catalogo/novios"));
+test("birthdays quick-send resolves to Events catalog", () => assert.equal(catalogPublicPath("EVENTS"), "/catalogo/eventos"));
+test("graduations quick-send resolves to Events catalog", () => assert.equal(catalogPublicPath("EVENTS"), "/catalogo/eventos"));
+test("companies catalog architecture remains independent", () => assert.equal(catalogPublicPath("COMPANIES"), "/catalogo/empresas"));
+test("graphical signature suppresses textual fallback", () => assert.equal(commercialSignatureMode("https://example.com/signature.gif"), "GRAPHICAL"));
+test("missing graphical signature uses Team BOOMBOX fallback", () => assert.equal(commercialSignatureMode(""), "FALLBACK"));
+test("official template migration preserves Founder customizations", () => {
+  const migration = readFileSync(new URL("../../supabase/migrations/0123_official_quick_send_templates.sql", import.meta.url), "utf8");
+  assert.match(migration, /template\.subject is not distinct from template\.default_subject/);
+  assert.match(migration, /template\.body is not distinct from template\.default_body/);
+  assert.doesNotMatch(migration, /COMPANIES_CATALOG/);
+});

@@ -33,7 +33,7 @@ import type {
   QuoteLineDraft,
 } from "./types";
 import { calculateFormalQuote } from "./quote-calculation";
-import { commercialGreeting, displayChileanPhone, formalQuoteSubject, formatChileanRutInput, moneyInputNumber, normalizeChileanPhone, normalizeEmailNewlines, quoteDisplayFilename, titleCasePerson, withoutDuplicateSignature } from "./presentation";
+import { QUICK_SEND_CTA_FALLBACK, QUICK_SEND_CTA_LABEL, commercialGreeting, displayChileanPhone, formalQuoteSubject, formatChileanRutInput, moneyInputNumber, normalizeChileanPhone, normalizeEmailNewlines, quickSendBodyParagraphs, quoteDisplayFilename, titleCasePerson, withoutDuplicateSignature } from "./presentation";
 import { PdfViewer } from "./pdf-viewer";
 import { getCommercialDocumentUrlAction } from "./settings.actions";
 import { catalogPublicPath, type CommercialCatalogCategory } from "./catalogs";
@@ -267,10 +267,13 @@ function InformationSender({
             </p>
             <p className="mt-3 font-semibold">Para: {email || "—"}</p>
             <p className="mt-1">{subject}</p>
-            <p className="mt-4 whitespace-pre-wrap text-sm text-muted">
-              {normalizeEmailNewlines(body).replaceAll("[Nombre]", titleCasePerson(name))}
-            </p>
-            {document && <><p className="mt-4 text-sm font-semibold">VER CATÁLOGO BOOMBOX</p><p className="text-sm text-brand">{catalogPublicPath(categoryDocument[category])}</p><p className="mt-2 text-sm">Modo: {attachPdf ? "Link + PDF adjunto" : "Enviar como link"}</p></>}
+            <div className="mt-4 space-y-3 text-sm text-muted">{quickSendBodyParagraphs(withoutDuplicateSignature(body, "Equipo BOOMBOX"), name).map((paragraph, index) => <p className="whitespace-pre-wrap" key={`${paragraph}-${index}`}>{paragraph.replaceAll("**", "")}</p>)}</div>
+            {document && <><span className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-brand px-5 text-sm font-semibold text-black">{QUICK_SEND_CTA_LABEL}</span><p className="mt-3 text-xs text-muted">{QUICK_SEND_CTA_FALLBACK}</p><p className="break-all text-sm text-brand">{catalogPublicPath(categoryDocument[category])}</p><p className="mt-2 text-sm">Modo: {attachPdf ? "Link + PDF adjunto" : "Enviar como link"}</p></>}
+            <div className="mt-5">{data.company.emailSignatureUrl ? <>
+              {/* The signature is a Founder-managed email asset with a dynamic external URL. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img alt="Firma gráfica BOOMBOX" className="h-auto w-full max-w-[600px]" src={data.company.emailSignatureUrl} />
+            </> : <p className="font-semibold">Equipo BOOMBOX</p>}</div>
           </div>
         )}
         <div className="grid gap-3 sm:grid-cols-2">

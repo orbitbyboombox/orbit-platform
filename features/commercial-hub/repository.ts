@@ -48,7 +48,7 @@ export async function loadCommercialHubData(
     ? company.pdfConfiguration.commercialReservationConditions.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
     : [];
   return {
-    company: { legalName: company.legalName, taxId: company.taxId, address: company.address, city: company.city, phone: company.phone, website: company.website, email: bank.email || company.salesEmail || company.supportEmail, bankName: bank.bankName || "BCI", bankAccountType: bank.accountType || "Cuenta Corriente", bankAccountNumber: bank.accountNumber || "52093409", reservationConditions: configuredConditions },
+    company: { legalName: company.legalName, taxId: company.taxId, address: company.address, city: company.city, phone: company.phone, website: company.website, email: bank.email || company.salesEmail || company.supportEmail, bankName: bank.bankName || "BCI", bankAccountType: bank.accountType || "Cuenta Corriente", bankAccountNumber: bank.accountNumber || "52093409", reservationConditions: configuredConditions, emailSignatureUrl: typeof company.emailConfiguration.signatureGifUrl === "string" ? company.emailConfiguration.signatureGifUrl : "" },
     customers: (customers.data ?? []).map((row) => ({
       id: row.id,
       name: row.full_name,
