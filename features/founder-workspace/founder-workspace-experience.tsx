@@ -169,12 +169,12 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
   const settings = <section className="flex flex-col gap-4 rounded-2xl border bg-card p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between"><div><PanelTitle id="workspace-settings-title" label="Founder Workspace" /><p className="mt-2 text-xs text-muted">Mueve, oculta y restaura cada bloque. Tu configuración permanece guardada.</p></div><Link className="inline-flex min-h-10 items-center justify-center rounded-xl border px-4 text-xs font-semibold hover:border-brand/40 hover:text-brand" href="/settings#founder-workspace"><Settings2 className="mr-2 size-4" />Configurar espacio</Link></section>;
 
   const staffApprovals = staffApprovalItems.length ? <PendingStaffApprovals items={staffApprovalItems} onResolved={(id) => setResolvedApprovalIds((current) => new Set(current).add(id))} /> : null;
-  const financialAlerts = <FinancialAlertCenter current={financialAlert} history={financialAlertHistory} />;
+  const financialAlerts = financialAlert || financialAlertHistory.length ? <FinancialAlertCenter current={financialAlert} history={financialAlertHistory} /> : null;
 
   return <main className="orbit-command-center" id="founder-workspace"><PersonalWorkspaceSections moduleKey="DASHBOARD" sections={[
     { key: "DASHBOARD_HEADER", label: "Bienvenida", content: welcome },
     { key: "DASHBOARD_WIDGETS", label: "KPIs del Founder", content: founderKpis },
-    { key: "DASHBOARD_FINANCIAL_ALERTS", label: "Obligaciones financieras", content: financialAlerts },
+    ...(financialAlerts ? [{ key: "DASHBOARD_FINANCIAL_ALERTS", label: "Obligaciones financieras", content: financialAlerts }] : []),
     ...(staffApprovals ? [{ key: "DASHBOARD_STAFF_APPROVALS", label: "Aprobaciones de Staff pendientes", content: staffApprovals }] : []),
     { key: "DASHBOARD_QUICK_ACTIONS", label: "Acciones rápidas", content: actions },
     { key: "DASHBOARD_TODAY", label: "Jornada operacional", content: commandGrid },
