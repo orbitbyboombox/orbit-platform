@@ -219,7 +219,7 @@ function InformationSender({
     });
   };
   return (
-    <section className="rounded-2xl border bg-card p-5 sm:p-7">
+    <section className="rounded-2xl border bg-card p-5 sm:p-7" data-workspace-ignore>
       <h2 className="text-2xl font-semibold">Enviar información {category === "WEDDINGS" ? "Matrimonios" : category === "COMPANIES_CATALOG" ? "Empresas" : category === "BIRTHDAYS" ? "Cumpleaños" : "Graduaciones"}</h2>
       <p className="mt-2 text-sm text-muted">
         El envío no crea un cliente automáticamente.
