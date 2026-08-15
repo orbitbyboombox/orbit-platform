@@ -17,7 +17,7 @@ import {
   UserCheck,
   X,
 } from "lucide-react";
-import { normalizeChileanPhone } from "@/lib/chile/rut";
+import { ChileanMobileInput } from "@/components/forms/chilean-mobile-input";
 import {
   useEffect,
   useId,
@@ -270,6 +270,10 @@ function Field({
       />
     </label>
   );
+}
+
+function PhoneField({ label, value, onChange, disabled, required }: { label: string; value: string; onChange: (value: string) => void; disabled?: boolean; required?: boolean }) {
+  return <label className="block text-sm font-medium">{label}<span className="mt-2 block"><ChileanMobileInput disabled={disabled} onChange={onChange} required={required} value={value} /></span></label>;
 }
 
 function TextArea({
@@ -1604,20 +1608,7 @@ export function NewProjectDrawer({
                   onChange={(e) => client("company", e.target.value)}
                   value={draft.client.company ?? ""}
                 />
-                <Field
-                  autoComplete="off"
-                  disabled={Boolean(selectedCustomer)}
-                  inputMode="tel"
-                  label="Teléfono"
-                  onChange={(e) =>
-                    client(
-                      "phone",
-                      normalizeChileanPhone(e.target.value),
-                    )
-                  }
-                  required
-                  value={draft.client.phone || "+569"}
-                />
+                <PhoneField disabled={Boolean(selectedCustomer)} label="Teléfono" onChange={(phone) => client("phone", phone)} required value={draft.client.phone} />
                 <Field
                   autoComplete="off"
                   disabled={Boolean(selectedCustomer)}
@@ -1785,16 +1776,7 @@ export function NewProjectDrawer({
                     onChange={(e) => setOperationalContact(e.target.value)}
                     value={operationalContact}
                   />
-                  <Field
-                    inputMode="tel"
-                    label="Teléfono del contacto operacional"
-                    onChange={(e) =>
-                      setOperationalPhone(
-                        normalizeChileanPhone(e.target.value),
-                      )
-                    }
-                    value={operationalPhone}
-                  />
+                  <PhoneField label="Teléfono del contacto operacional" onChange={setOperationalPhone} value={operationalPhone} />
                   {draft.type === "Wedding" ? (
                     <>
                       <Field

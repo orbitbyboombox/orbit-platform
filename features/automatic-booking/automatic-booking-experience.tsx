@@ -6,7 +6,8 @@ import { ChevronLeft, ChevronRight, LoaderCircle, Sparkles } from "lucide-react"
 import { BrandLogo } from "@/components/brand-logo";
 import { Button } from "@/components/ui/button";
 import { MunicipalityCombobox } from "@/components/forms/municipality-combobox";
-import { formatChileanRut, normalizeChileanPhone } from "@/lib/chile/rut";
+import { formatChileanRut } from "@/lib/chile/rut";
+import { ChileanMobileInput } from "@/components/forms/chilean-mobile-input";
 import type { ActiveMunicipality } from "@/features/settings/master-data/municipality-master-data";
 
 type Service = { code: string; name: string; configuration: Record<string, unknown>; availableHours: number[] };
@@ -64,7 +65,7 @@ export function AutomaticBookingExperience({ email, municipalities, prices, serv
 }
 
 function Step({title,children}:{title:string;children:React.ReactNode}){return <div><h2 className="mb-6 text-2xl font-semibold">{title}</h2>{children}</div>}
-function Field({label,value,onChange,type="text",...props}:{label:string;value:string;onChange:(value:string)=>void;type?:string}&Omit<React.InputHTMLAttributes<HTMLInputElement>,"value"|"onChange"|"type">){return <label className="block text-sm font-medium">{label}<input className="mt-2 h-12 w-full rounded-xl border bg-background px-4" inputMode={type==="tel"?"numeric":props.inputMode} maxLength={type==="tel"?11:props.maxLength} onChange={event=>onChange(type==="tel"?normalizeChileanPhone(event.target.value):event.target.value)} type={type} value={value} {...props}/></label>}
+function Field({label,value,onChange,type="text",...props}:{label:string;value:string;onChange:(value:string)=>void;type?:string}&Omit<React.InputHTMLAttributes<HTMLInputElement>,"value"|"onChange"|"type">){if(type==="tel")return <label className="block text-sm font-medium">{label}<span className="mt-2 block"><ChileanMobileInput disabled={props.disabled} onChange={onChange} required={props.required} value={value}/></span></label>;return <label className="block text-sm font-medium">{label}<input className="mt-2 h-12 w-full rounded-xl border bg-background px-4" onChange={event=>onChange(event.target.value)} type={type} value={value} {...props}/></label>}
 function Select({label,value,onChange,options}:{label:string;value:string;onChange:(value:string)=>void;options:Array<string|{value:string;label:string}>}){return <label className="mt-4 block text-sm font-medium">{label}<select className="mt-2 h-12 w-full rounded-xl border bg-background px-4" onChange={event=>onChange(event.target.value)} value={value}>{options.map(item=>{const option=typeof item==="string"?{value:item,label:item}:item;return <option key={option.value} value={option.value}>{option.label}</option>})}</select></label>}
 function SmartExtras({compatible,eventType,magnetsMode,onMagnetsMode,prices,selected,toggle}:{compatible:string[];eventType:string;magnetsMode:"NONE"|"PAID"|"BENEFIT";onMagnetsMode:(value:"NONE"|"PAID"|"BENEFIT")=>void;prices:Price[];selected:string[];toggle:(extra:string)=>void}){
   const extraPrice=(code:string)=>prices.find((item)=>item.category==="EXTRA"&&item.code===code)?.unit_price??0;
