@@ -396,8 +396,11 @@ export function ProjectWorkspaceExperience(
     health >= 90 ? "READY" : health >= 60 ? "ATTENTION" : "BLOCKED";
   const healthVariant =
     health >= 90 ? "success" : health >= 60 ? "warning" : "danger";
-  const currentAssets = props.equipment.assets.filter(
-    (a) => a.current?.projectName === "Este evento",
+  const currentAssets = props.equipment.requirements.flatMap((requirement) =>
+    requirement.assignments.map((assignment) => ({
+      code: assignment.code,
+      type: requirement.assetType,
+    })),
   );
   const totem = currentAssets.find((a) => a.type === "TOTEM");
   const assetCase = currentAssets.find((a) => a.type === "CASE");

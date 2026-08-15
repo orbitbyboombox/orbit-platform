@@ -43,6 +43,8 @@ type PlanningEvent = {
   status: string;
   published: boolean;
   readinessPending: number;
+  resourcesRequired: number;
+  resourcesAssigned: number;
 };
 type PlanningRequest = {
   id: string;
@@ -89,6 +91,7 @@ export default async function OperationsPage() {
     staffRequestsResult,
     staffRatesResult,
     operationalContractsResult,
+    resourceRequirementsResult,
     cancellationAlertsResult,
   ] = await Promise.all([
     new SupabaseCustomerRepository(client).findAll(),
@@ -185,6 +188,8 @@ export default async function OperationsPage() {
     client
       .from("project_operational_contracts")
       .select("project_id,operational_status,readiness_status,readiness_reasons"),
+    client.from("event_operational_requirements").select("project_id,required_quantity,assigned_quantity")
+      .eq("status","ACTIVE").eq("requirement_type","PHYSICAL_UNIT").not("asset_type","is",null),
     client
       .from("internal_notifications")
       .select("id,project_id,title,message,metadata,created_at,staff(first_name,last_name),projects(name,event_date,event_time)")
@@ -219,6 +224,7 @@ export default async function OperationsPage() {
     staffRequestsResult,
     staffRatesResult,
     operationalContractsResult,
+    resourceRequirementsResult,
     cancellationAlertsResult,
   ];
   const error = results.find((result) => result.error)?.error;
@@ -297,6 +303,7 @@ export default async function OperationsPage() {
       const operational = (operationalContractsResult.data ?? []).find(
         (item) => item.project_id === project.id,
       );
+      const resourceRequirements=(resourceRequirementsResult.data??[]).filter(item=>item.project_id===project.id);
       const paymentReady =
         ["APPROVED", "CONFIRMED", "PAID"].includes(
           String(finance.status ?? finance.paymentStatus ?? ""),
@@ -317,6 +324,10 @@ export default async function OperationsPage() {
           {
             label: "Operación",
             state: state(operational?.readiness_status === "READY"),
+          },
+          {
+            label:"Recursos",
+            state:state(!resourceRequirements.length||resourceRequirements.every(item=>Number(item.assigned_quantity)>=Number(item.required_quantity))),
           },
           { label: "Cliente", state: state(Boolean(project.client.name)) },
           {
@@ -1167,6 +1178,7 @@ export default async function OperationsPage() {
       const operational = (operationalContractsResult.data ?? []).find(
         (item) => item.project_id === project.id,
       );
+      const resourceRequirements=(resourceRequirementsResult.data??[]).filter(item=>item.project_id===project.id);
       return {
         id: project.id,
         date: official?.event_date ?? project.event.date,
@@ -1195,6 +1207,8 @@ export default async function OperationsPage() {
         readinessPending: Array.isArray(operational?.readiness_reasons)
           ? operational.readiness_reasons.length
           : 0,
+        resourcesRequired:resourceRequirements.reduce((sum,item)=>sum+Math.ceil(Number(item.required_quantity)),0),
+        resourcesAssigned:resourceRequirements.reduce((sum,item)=>sum+Number(item.assigned_quantity),0),
       };
     });
   const pendingRequests: PlanningRequest[] = (
@@ -1266,6 +1280,8 @@ export default async function OperationsPage() {
         service: `${event.service} · ${event.hours} horas`,
         published: event.published,
         readinessPending: event.readinessPending,
+        resourcesRequired:event.resourcesRequired,
+        resourcesAssigned:event.resourcesAssigned,
         ready: Boolean(
           event.date &&
             event.customer &&

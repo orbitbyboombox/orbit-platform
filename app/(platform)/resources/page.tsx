@@ -12,11 +12,13 @@ import type { OperationalRoute } from "@/features/resources/route-cost.actions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { loadModuleStates } from "@/features/module-manager/repository";
 import { PersonalWorkspaceSections } from "@/features/founder-workspace";
+import { ServiceAssetMappingManager } from "@/features/resources/service-asset-mapping";
+import type { ServiceAssetMapping } from "@/features/resources/service-asset-mapping.actions";
 
 export default async function ResourcesPage() {
   const client = await createSupabaseServerClient();
   const modules = await loadModuleStates(client);
-  const [{ data: staff, error: staffError }, { data: assignments, error: assignmentError }, { data: projects, error: projectError }, { data: assets, error: assetError }, { data: assetHistory, error: historyError }, { data: supplies, error: supplyError }, { data: vehicleProfiles, error: vehicleError }, { data: fuelLogs, error: fuelError }, { data: vehicleRoutes, error: routeError }] = await Promise.all([
+  const [{ data: staff, error: staffError }, { data: assignments, error: assignmentError }, { data: projects, error: projectError }, { data: assets, error: assetError }, { data: assetHistory, error: historyError }, { data: supplies, error: supplyError }, { data: vehicleProfiles, error: vehicleError }, { data: fuelLogs, error: fuelError }, { data: vehicleRoutes, error: routeError }, { data: serviceMappings, error: serviceMappingError }] = await Promise.all([
     client.from("staff").select("id,first_name,last_name,rut,role,availability,status,version").is("deleted_at", null),
     client.from("assignments").select("id,project_id,staff_id,status,resources").is("deleted_at", null),
     client.from("projects").select("id,name,event_date").is("deleted_at", null),
@@ -26,6 +28,7 @@ export default async function ResourcesPage() {
     client.from("vehicle_profiles").select("asset_id,nickname,model,plate,fuel_type,current_mileage,insurance_expiration,technical_inspection_expiration,operational_status,notes,version,operational_assets!inner(asset_code,status,deleted_at)").is("operational_assets.deleted_at", null).order("model"),
     client.from("vehicle_fuel_logs").select("id,asset_id,fuel_date,fuel_type,litres,total_amount,gas_station,receipt_path").order("fuel_date", { ascending: false }),
     client.from("vehicle_routes").select("id,asset_id,route_date,driver_staff_id,distance,notes,version,fuel:vehicle_fuel_logs!vehicle_routes_fuel_log_id_fkey(total_amount,receipt_path),events:vehicle_route_events(project_id,allocated_fuel_cost)").is("deleted_at", null).eq("status", "ACTIVE").order("route_date", { ascending: false }),
+    client.from("service_asset_type_mappings").select("id,service_code,asset_type,units_per_service,buffer_before_minutes,buffer_after_minutes,enabled,version").order("service_code"),
   ]);
   if (staffError) throw staffError;
   if (assignmentError) throw assignmentError;
@@ -36,6 +39,7 @@ export default async function ResourcesPage() {
   if (vehicleError) throw vehicleError;
   if (fuelError) throw fuelError;
   if (routeError) throw routeError;
+  if (serviceMappingError) throw serviceMappingError;
   const projectMap = new Map((projects ?? []).map((project) => [project.id, project.name]));
   const status = (value: string): ResourceStatus => value === "APPROVED" || value === "ACCEPTED" ? "RESERVED" : value === "ACTIVE" ? "IN_USE" : "AVAILABLE";
   const resourceValues = (key: string) => [...new Set((assignments ?? []).map((item) => (item.resources as Record<string, unknown> | null)?.[key]).filter((value): value is string => typeof value === "string" && value.length > 0))];
@@ -76,8 +80,10 @@ export default async function ResourcesPage() {
   const projectOptions = (projects ?? []).map((project) => ({ id: project.id, label: `${project.name} · ${project.event_date}` }));
   const driverOptions = (staff ?? []).filter((member) => member.status === "ACTIVE").map((member) => ({ id: member.id, label: `${member.first_name} ${member.last_name}` }));
   const routes: OperationalRoute[] = (vehicleRoutes ?? []).map((route) => { const fuel = Array.isArray(route.fuel) ? route.fuel[0] : route.fuel; const events = route.events ?? []; const amount = Number(fuel?.total_amount ?? 0); return { id: route.id, vehicleId: route.asset_id, date: route.route_date, driverId: route.driver_staff_id ?? "", eventIds: events.map((event) => event.project_id), fuelAmount: amount, distance: route.distance === null ? null : Number(route.distance), notes: route.notes ?? "", receiptPath: fuel?.receipt_path ?? "", version: route.version, allocatedPerEvent: events.length ? amount / events.length : 0 }; });
+  const mappings: ServiceAssetMapping[] = (serviceMappings ?? []).map((mapping) => ({ id: mapping.id, serviceCode: mapping.service_code, assetType: mapping.asset_type, unitsPerService: Number(mapping.units_per_service), bufferBeforeMinutes: mapping.buffer_before_minutes, bufferAfterMinutes: mapping.buffer_after_minutes, enabled: mapping.enabled, version: mapping.version }));
   return <PersonalWorkspaceSections moduleKey="RESOURCES" sections={[
     {key:"RESOURCE_CENTER",label:"Centro de Recursos",content:<ResourceCenter initialItems={resources}/>},
+    {key:"SERVICE_RESOURCE_MAPPING",label:"Relación servicio–recurso",content:<ServiceAssetMappingManager mappings={mappings}/>},
     ...(modules.FLEET?[{key:"FLEET",label:"Flota",content:<FleetCenter initialVehicles={fleet} initialFuelLogs={fuelEntries} projects={projectOptions} drivers={driverOptions} showFuelControl={modules.FUEL_CONTROL}/>}]:[]),
     ...(modules.ROUTE_COSTS?[{key:"ROUTE_COSTS",label:"Costos de Ruta",content:<RouteCostCenter initialRoutes={routes} vehicles={fleet} projects={projectOptions} drivers={driverOptions}/>}]:[]),
     ...(modules.EQUIPMENT?[{key:"EQUIPMENT",label:"Equipamiento",content:<details className="rounded-2xl border bg-card p-5"><summary className="cursor-pointer font-semibold">Gestión detallada e historial de equipamiento</summary><div className="mt-6"><EquipmentOperationCenter initialItems={equipment} historyEntries={equipmentHistory}/></div></details>}]:[]),

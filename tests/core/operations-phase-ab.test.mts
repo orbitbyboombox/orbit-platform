@@ -8,7 +8,7 @@ const eventPage = readFileSync(new URL("../../app/(platform)/projects/[projectId
 const staffPortal = readFileSync(new URL("../../features/portal-authentication/staff-portal.tsx", import.meta.url), "utf8");
 
 test("confirmed handoff remains on projects and is idempotent", () => {
-  assert.match(migration, /project_id uuid primary key references public\.projects/);
+  assert.match(migration, /project_id uuid not null unique references public\.projects/);
   assert.match(migration, /unique\(project_id,canonical_key\)/);
   assert.match(migration, /on conflict\(project_id,canonical_key\) do update/);
   assert.match(migration, /prepare_confirmed_reservation_records_commercial_core/);

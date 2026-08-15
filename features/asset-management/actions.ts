@@ -12,5 +12,23 @@ export async function assignOperationalAssetAction(input: { projectId: string; a
 }
 
 export async function releaseOperationalAssetAction(input: { projectId: string; assignmentId: string; reason: string }): Promise<Result> {
-  try { await new SupabaseAssetRepository(await createSupabaseServerClient()).release(input.assignmentId, input.reason); revalidatePath(`/projects/${input.projectId}`); return { ok: true }; } catch (error) { return failure(error); }
+  try { await new SupabaseAssetRepository(await createSupabaseServerClient()).release(input.assignmentId, input.reason); revalidatePath(`/projects/${input.projectId}`); revalidatePath("/operations"); return { ok: true }; } catch (error) { return failure(error); }
+}
+
+export async function assignPhysicalResourcesAction(input: { projectId: string; requirementId: string; assetIds: string[]; reason: string }): Promise<Result> {
+  try {
+    const client=await createSupabaseServerClient();
+    const{error}=await client.rpc("assign_operational_assets",{p_project_id:input.projectId,p_requirement_id:input.requirementId,p_asset_ids:input.assetIds,p_reason:input.reason});
+    if(error)throw error;
+    revalidatePath(`/projects/${input.projectId}`);revalidatePath("/operations");return{ok:true};
+  }catch(error){return failure(error);}
+}
+
+export async function replacePhysicalResourceAction(input: { projectId: string; assignmentId: string; assetId: string; reason: string }): Promise<Result> {
+  try{
+    const client=await createSupabaseServerClient();
+    const{error}=await client.rpc("replace_operational_asset",{p_assignment_id:input.assignmentId,p_new_asset_id:input.assetId,p_reason:input.reason});
+    if(error)throw error;
+    revalidatePath(`/projects/${input.projectId}`);revalidatePath("/operations");return{ok:true};
+  }catch(error){return failure(error);}
 }

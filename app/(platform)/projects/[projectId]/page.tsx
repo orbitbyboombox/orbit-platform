@@ -9,6 +9,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { calculateAndPersistRealEventCost } from "@/features/profit-engine";
 import { loadFounderWorkspace } from "@/features/founder-workspace";
 import { loadCrmCustomerOperations } from "@/features/crm/customer-operations.repository";
+import type { EquipmentAssignmentPanelProps } from "@/features/asset-management";
 
 export interface ProjectWorkspacePageProps {
   params: Promise<{ projectId: string }>;
@@ -135,7 +136,7 @@ export default async function ProjectWorkspacePage({
     client
       .from("asset_assignments")
       .select(
-        "id,project_id,asset_id,assignment_status,projects(name,event_date,event_time)",
+        "id,project_id,asset_id,operational_requirement_id,assignment_status,planned_start_at,planned_end_at,projects(name,event_date,event_time),operational_assets(asset_code,status)",
       )
       .eq("assignment_status", "ASSIGNED")
       .is("deleted_at", null),
@@ -230,11 +231,18 @@ export default async function ProjectWorkspacePage({
       .maybeSingle(),
     client
       .from("event_operational_requirements")
-      .select("id,code,label,requirement_type,required_quantity,assigned_quantity")
+      .select("id,code,label,requirement_type,asset_type,required_quantity,assigned_quantity")
       .eq("project_id", projectId)
       .eq("status", "ACTIVE")
       .order("created_at"),
   ]);
+  const physicalRequirements=(operationalRequirements??[]).filter(item=>item.requirement_type==="PHYSICAL_UNIT"&&item.asset_type);
+  type AssetAvailabilityRow={asset_id:string;asset_code:string;asset_type:string;asset_status:string;available:boolean;conflict_project_id:string|null;conflict_project_name:string|null;conflict_start_at:string;conflict_end_at:string};
+  const availabilityResults=await Promise.all(physicalRequirements.map(async requirement=>{
+    const{data,error}=await client.rpc("get_event_asset_availability",{p_project_id:projectId,p_requirement_id:requirement.id});
+    if(error)throw error;return[requirement.id,(data??[]) as AssetAvailabilityRow[]] as const;
+  }));
+  const availabilityByRequirement=new Map(availabilityResults);
   const [
     { data: settlementAdjustments, error: settlementAdjustmentError },
     { data: settlementReimbursements, error: settlementReimbursementError },
@@ -390,7 +398,11 @@ export default async function ProjectWorkspacePage({
     id: string;
     project_id: string;
     asset_id: string;
+    operational_requirement_id: string | null;
+    planned_start_at: string | null;
+    planned_end_at: string | null;
     projects: { name: string; event_date: string; event_time: string };
+    operational_assets: { asset_code: string; status: string };
   };
   type StaffAssignment = {
     id: string;
@@ -421,42 +433,21 @@ export default async function ProjectWorkspacePage({
   const productionAssignments = (
     (operatorAssignments ?? []) as unknown as StaffAssignment[]
   ).filter((item) => confirmedAssignmentStatuses.has(item.status));
-  const operatorByProject = new Map(
-    productionAssignments
-      .filter((item) => item.assignment_type === "OPERATOR")
-      .map((item) => [
-        item.project_id,
-        `${item.staff.first_name} ${item.staff.last_name}`,
-      ]),
-  );
-  const equipment = {
+  const equipment: EquipmentAssignmentPanelProps = {
     projectId,
     orbitEventId: rawProject?.orbit_event_id ?? `ORB-${projectId}`,
     projectType: typeLabel,
-    assets: (assets ?? []).map((asset) => {
-      const active = activeAssets.find((item) => item.asset_id === asset.id);
-      return {
-        id: asset.id,
-        code: asset.asset_code,
-        type: asset.asset_type,
-        status: asset.status,
-        usageCounter: asset.usage_counter,
-        qrKey: asset.qr_key,
-        current: active
-          ? {
-              assignmentId: active.id,
-              projectName:
-                active.project_id === projectId
-                  ? "Este evento"
-                  : active.projects.name,
-              date: active.projects.event_date,
-              time: active.projects.event_time?.slice(0, 5) ?? "Por confirmar",
-              operator:
-                operatorByProject.get(active.project_id) ?? "Sin asignar",
-            }
-          : undefined,
-      };
-    }),
+    requirements: physicalRequirements.map(requirement=>({
+      id:requirement.id,label:requirement.label,assetType:requirement.asset_type as EquipmentAssignmentPanelProps["requirements"][number]["assetType"],
+      required:Number(requirement.required_quantity),assigned:Number(requirement.assigned_quantity),
+      assignments:activeAssets.filter(item=>item.project_id===projectId&&item.operational_requirement_id===requirement.id).map(item=>({
+        assignmentId:item.id,assetId:item.asset_id,code:item.operational_assets.asset_code,status:item.operational_assets.status as EquipmentAssignmentPanelProps["requirements"][number]["assignments"][number]["status"],
+      })),
+      options:(availabilityByRequirement.get(requirement.id)??[]).map(item=>({
+        id:item.asset_id,code:item.asset_code,type:item.asset_type as EquipmentAssignmentPanelProps["requirements"][number]["options"][number]["type"],status:item.asset_status as EquipmentAssignmentPanelProps["requirements"][number]["options"][number]["status"],available:item.available,
+        conflict:item.conflict_project_id?{projectName:item.conflict_project_name??"Otro Evento",startAt:item.conflict_start_at,endAt:item.conflict_end_at}:undefined,
+      })),
+    })),
     staff: (staff ?? [])
       .filter(
         (member) =>
