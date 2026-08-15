@@ -12,7 +12,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { SearchBar } from "@/components/forms/search-bar";
+import { GlobalSearch } from "@/features/global-search/global-search";
 import { NavigationList } from "./sidebar";
 import { signOutAction } from "@/features/authentication/actions/auth.actions";
 import { BrandLogo } from "@/components/brand-logo";
@@ -52,12 +52,7 @@ export function Header({ userEmail, userName, userRole, unreadNotifications, nav
         >
           <BrandLogo className="w-full" surface="dark" />
         </Link>
-        <SearchBar
-          className="ml-auto hidden max-w-[18rem] border-border/80 bg-card/75 md:flex lg:max-w-[22rem] xl:max-w-[24rem]"
-          placeholder="Buscar proyectos, clientes o eventos..."
-          shortcut="⌘K"
-        />
-        <span className="flex-1 md:hidden" aria-hidden="true" />
+        <GlobalSearch />
         {isEnabled("OPERATIONS") && <Button
           aria-label={`${unreadNotifications} notificaciones sin leer`}
           asChild
