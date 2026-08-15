@@ -43,11 +43,6 @@ export default async function ProjectWorkspacePage({
   const { data: auth, error: authError } = await client.auth.getUser();
   if (authError || !auth.user) redirect("/api/auth/session-expired");
   const founderWorkspace = await loadFounderWorkspace(client, auth.user.id);
-  const { error: checklistBootstrapError } = await client.rpc(
-    "ensure_event_checklist",
-    { p_project_id: projectId },
-  );
-  if (checklistBootstrapError) throw checklistBootstrapError;
   let projects;
   try {
     projects = await new SupabaseCustomerRepository(client).findAll();
@@ -92,6 +87,8 @@ export default async function ProjectWorkspacePage({
     { data: profitabilityStatement },
     { data: staffRequests },
     { data: staffPublication },
+    { data: operationalContract },
+    { data: operationalRequirements },
   ] = await Promise.all([
     client
       .from("projects")
@@ -195,7 +192,7 @@ export default async function ProjectWorkspacePage({
         "id,status,event_checklist_items(id,item_key,category,label,position,mandatory,completed,completed_at),event_operational_milestones(milestone,occurred_at,notes)",
       )
       .eq("project_id", projectId)
-      .single(),
+      .maybeSingle(),
     client
       .from("estimated_cost_sheets")
       .select(
@@ -226,6 +223,17 @@ export default async function ProjectWorkspacePage({
       .select("published")
       .eq("project_id", projectId)
       .maybeSingle(),
+    client
+      .from("project_operational_contracts")
+      .select("operational_status,contact_status,contact_first_name,contact_last_name,contact_phone,contact_email,contact_role,contact_notes,event_start_at,service_start_at,staff_arrival_at,assembly_start_at,service_end_at,disassembly_start_at,operational_end_at,access_instructions,operational_notes,readiness_status,readiness_reasons")
+      .eq("project_id", projectId)
+      .maybeSingle(),
+    client
+      .from("event_operational_requirements")
+      .select("id,code,label,requirement_type,required_quantity,assigned_quantity")
+      .eq("project_id", projectId)
+      .eq("status", "ACTIVE")
+      .order("created_at"),
   ]);
   const [
     { data: settlementAdjustments, error: settlementAdjustmentError },
@@ -301,7 +309,7 @@ export default async function ProjectWorkspacePage({
       .order("occurred_at", { ascending: false }),
     client
       .from("project_services")
-      .select("service_code,duration_hours,extras")
+      .select("service_code,duration_hours,quantity,extras")
       .eq("project_id", projectId),
   ]);
   const { data: priceHistory } = quotation
@@ -755,6 +763,7 @@ export default async function ProjectWorkspacePage({
         ? `${item.duration_hours} horas`
         : "Duración por confirmar",
       extras: Array.isArray(item.extras) ? item.extras.map(String) : [],
+      quantity: Number(item.quantity ?? 1),
     })),
     tasks: (tasks ?? []).map((item) => ({
       ...item,
@@ -1166,6 +1175,73 @@ export default async function ProjectWorkspacePage({
     await loadCrmCustomerOperations(client, [projectId])
   )[0];
   if (!eventControlOperations) notFound();
+  const checklistItems = checklist?.event_checklist_items ?? [];
+  const operationalReadiness = operationalContract
+    ? {
+        projectId,
+        status: operationalContract.operational_status,
+        readiness: operationalContract.readiness_status,
+        reasons: Array.isArray(operationalContract.readiness_reasons)
+          ? (operationalContract.readiness_reasons as {
+              code: string;
+              label: string;
+              href?: string;
+            }[])
+          : [],
+        contact: {
+          status: operationalContract.contact_status,
+          firstName: operationalContract.contact_first_name ?? "",
+          lastName: operationalContract.contact_last_name ?? "",
+          phone: operationalContract.contact_phone ?? "",
+          email: operationalContract.contact_email ?? "",
+          role: operationalContract.contact_role ?? "",
+          notes: operationalContract.contact_notes ?? "",
+          fallbackLabel:
+            operationalContract.contact_status === "PENDING"
+              ? (customer?.full_name ?? project.client.name)
+              : undefined,
+        },
+        schedules: {
+          staffArrivalAt: operationalContract.staff_arrival_at ?? "",
+          assemblyStartAt: operationalContract.assembly_start_at ?? "",
+          serviceStartAt: operationalContract.service_start_at ?? "",
+          serviceEndAt: operationalContract.service_end_at ?? "",
+          disassemblyStartAt:
+            operationalContract.disassembly_start_at ?? "",
+          operationalEndAt: operationalContract.operational_end_at ?? "",
+        },
+        accessInstructions: operationalContract.access_instructions ?? "",
+        operationalNotes: operationalContract.operational_notes ?? "",
+        requirements: (operationalRequirements ?? []).map((item) => ({
+          id: item.id,
+          code: item.code,
+          label: item.label,
+          type: item.requirement_type,
+          required: Number(item.required_quantity),
+          assigned: Number(item.assigned_quantity),
+        })),
+        staff: productionAssignments
+          .filter(
+            (item) =>
+              item.project_id === projectId &&
+              !["CANCELLED", "REJECTED"].includes(item.status),
+          )
+          .map((item) => ({
+            role: item.assignment_type,
+            name: `${item.staff.first_name} ${item.staff.last_name}`,
+            status: item.status,
+          })),
+        checklist: {
+          completed: checklistItems.filter(
+            (item) =>
+              item.mandatory && item.category !== "RETURN" && item.completed,
+          ).length,
+          required: checklistItems.filter(
+            (item) => item.mandatory && item.category !== "RETURN",
+          ).length,
+        },
+      }
+    : undefined;
   const primaryService = (serviceRows ?? [])[0];
   const eventControl = {
     event: {
@@ -1204,6 +1280,7 @@ export default async function ProjectWorkspacePage({
       equipment={equipment}
       event360={event360}
       eventControl={eventControl}
+      operationalReadiness={operationalReadiness}
       eventDateIso={date}
       portalStage={portalStage}
       productionIntegration={productionIntegration}

@@ -22,6 +22,7 @@ export type StaffOperationsEvent = {
   }>;
   eventStatus?: string;
   requestCount?: number;
+  readinessPending?: number;
 };
 export type StaffOperationsRequest = {
   id: string;
@@ -130,6 +131,9 @@ export function StaffOperationsView({
                     {event.assignments.length
                       ? event.assignments.join(" · ")
                       : "Sin asignaciones confirmadas"}
+                  </p>
+                  <p className={`mt-2 text-xs font-semibold ${event.readinessPending ? "text-warning" : "text-success"}`}>
+                    {event.readinessPending ? `OPERACIÓN: ${event.readinessPending} PENDIENTES` : "OPERACIÓN LISTA"}
                   </p>
                   {event.settlements?.length ? (
                     <div className="mt-3 grid gap-2 sm:grid-cols-2">

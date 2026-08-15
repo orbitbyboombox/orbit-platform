@@ -14,6 +14,7 @@ import {
 } from "@/features/founder-workspace";
 import { StaffOperationsView } from "@/features/resources/staff-operations-view";
 import { officialStaffAssignmentPayment } from "@/features/operations/staff-assignment-payment";
+import { isInsideOperationalWindow } from "@/features/operations/operational-window";
 
 type PlanningRole = {
   code: "OPERATOR" | "ASSEMBLY" | "DISASSEMBLY";
@@ -41,6 +42,7 @@ type PlanningEvent = {
   };
   status: string;
   published: boolean;
+  readinessPending: number;
 };
 type PlanningRequest = {
   id: string;
@@ -56,10 +58,6 @@ export default async function OperationsPage() {
   const { data: auth, error: authError } = await client.auth.getUser();
   if (authError || !auth.user)
     throw authError ?? new Error("Sesión requerida.");
-  const { error: taskMaterializationError } = await client.rpc(
-    "materialize_scheduled_event_tasks",
-  );
-  if (taskMaterializationError) throw taskMaterializationError;
   const financialTruth = await loadFinancialTruth(client);
   const financeDashboard = await loadFinanceDashboardReadModel(client);
   const today = new Intl.DateTimeFormat("en-CA", {
@@ -90,6 +88,7 @@ export default async function OperationsPage() {
     publicationsResult,
     staffRequestsResult,
     staffRatesResult,
+    operationalContractsResult,
     cancellationAlertsResult,
   ] = await Promise.all([
     new SupabaseCustomerRepository(client).findAll(),
@@ -184,6 +183,9 @@ export default async function OperationsPage() {
       .eq("enabled", true)
       .is("deleted_at", null),
     client
+      .from("project_operational_contracts")
+      .select("project_id,operational_status,readiness_status,readiness_reasons"),
+    client
       .from("internal_notifications")
       .select("id,project_id,title,message,metadata,created_at,staff(first_name,last_name),projects(name,event_date,event_time)")
       .in("notification_type", ["STAFF_ASSIGNMENT_CANCELLED", "STAFF_ASSIGNMENT_CANCELLED_BY_FOUNDER"])
@@ -216,6 +218,7 @@ export default async function OperationsPage() {
     publicationsResult,
     staffRequestsResult,
     staffRatesResult,
+    operationalContractsResult,
     cancellationAlertsResult,
   ];
   const error = results.find((result) => result.error)?.error;
@@ -291,6 +294,9 @@ export default async function OperationsPage() {
         (item) => item.project_id === project.id,
       );
       const finance = financeByProject.get(project.id) ?? {};
+      const operational = (operationalContractsResult.data ?? []).find(
+        (item) => item.project_id === project.id,
+      );
       const paymentReady =
         ["APPROVED", "CONFIRMED", "PAID"].includes(
           String(finance.status ?? finance.paymentStatus ?? ""),
@@ -308,6 +314,10 @@ export default async function OperationsPage() {
         eventDate: project.event.date,
         eventTime: project.event.time,
         statuses: [
+          {
+            label: "Operación",
+            state: state(operational?.readiness_status === "READY"),
+          },
           { label: "Cliente", state: state(Boolean(project.client.name)) },
           {
             label: "Cotización",
@@ -449,14 +459,9 @@ export default async function OperationsPage() {
         }).format(new Date(task.due_at)) === today,
     ).length,
   };
-  const next15Events = projects.filter((project) => {
-    if (!project.event.date) return false;
-    const days = Math.ceil(
-      (new Date(`${project.event.date}T12:00:00Z`).getTime() - Date.now()) /
-        86_400_000,
-    );
-    return days >= 0 && days <= 15;
-  }).length;
+  const next15Events = projects.filter(
+    (project) => isInsideOperationalWindow(project.event.date, today),
+  ).length;
   const accountsReceivable = (receivablesResult.data ?? [])
     .filter((item) => !["PAID", "CANCELLED"].includes(item.effective_status))
     .reduce((sum, item) => sum + Number(item.outstanding_balance ?? 0), 0);
@@ -1159,6 +1164,9 @@ export default async function OperationsPage() {
         };
       };
       const finance = financeByProject.get(project.id) ?? {};
+      const operational = (operationalContractsResult.data ?? []).find(
+        (item) => item.project_id === project.id,
+      );
       return {
         id: project.id,
         date: official?.event_date ?? project.event.date,
@@ -1184,6 +1192,9 @@ export default async function OperationsPage() {
         },
         status: project.status,
         published: publicationMap.get(project.id) ?? false,
+        readinessPending: Array.isArray(operational?.readiness_reasons)
+          ? operational.readiness_reasons.length
+          : 0,
       };
     });
   const pendingRequests: PlanningRequest[] = (
@@ -1254,6 +1265,7 @@ export default async function OperationsPage() {
         customer: event.customer,
         service: `${event.service} · ${event.hours} horas`,
         published: event.published,
+        readinessPending: event.readinessPending,
         ready: Boolean(
           event.date &&
             event.customer &&
@@ -1365,7 +1377,11 @@ export default async function OperationsPage() {
         ]
           .filter(Boolean)
           .join(" · ") || "Staff pendiente",
-      status: event.published ? "Publicado" : "Preparación",
+      status: event.published
+        ? "Publicado"
+        : event.readinessPending
+          ? `Operación: ${event.readinessPending} pendientes`
+          : "Operación lista",
     }),
   );
 

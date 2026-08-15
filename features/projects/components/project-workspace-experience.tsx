@@ -85,6 +85,7 @@ import {
 } from "@/features/accounts-receivable";
 import { CustomerEventOperations } from "@/features/crm/customer-event-operations";
 import type { CrmCustomerEventOperations, CrmEventSummary } from "@/features/crm/types";
+import { EventOperationalReadiness, type OperationalReadinessData } from "@/features/operations/event-operational-readiness";
 
 type Event360Task = {
   id: string;
@@ -194,6 +195,7 @@ export type ProjectWorkspaceExperienceProps = Omit<
   productionIntegration: ProductionIntegrationPanelProps;
   event360: Event360Data;
   eventControl: { event: CrmEventSummary; operations: CrmCustomerEventOperations };
+  operationalReadiness?: OperationalReadinessData;
   reconciliationId?: string;
   workspacePreferences: FounderWorkspacePreferences;
   workspaceData: {
@@ -811,6 +813,8 @@ export function ProjectWorkspaceExperience(
               </OptionalModule>
             )}
           </section>
+
+          {props.operationalReadiness ? <EventOperationalReadiness data={props.operationalReadiness}/> : null}
 
           <section className="scroll-mt-24" id="event-control-center">
             <div className="mb-3"><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Centro operativo</p><h2 className="mt-1 text-2xl font-semibold">Gestión completa del Evento</h2><p className="mt-1 text-sm text-muted">Pagos, costos, Staff, documentos, Portal y Calendar pertenecen a este Evento.</p></div>
