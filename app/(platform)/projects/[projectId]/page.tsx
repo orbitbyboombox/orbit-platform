@@ -236,7 +236,11 @@ export default async function ProjectWorkspacePage({
       .eq("project_id", projectId)
       .eq("status", "ACTIVE")
       .order("created_at"),
-    client.rpc("get_event_staff_requirements", { p_project_id: projectId }),
+    client
+      .from("event_staff_requirements")
+      .select("role,required_quantity,published")
+      .eq("project_id", projectId)
+      .order("role"),
   ]);
   const physicalRequirements=(operationalRequirements??[]).filter(item=>item.requirement_type==="PHYSICAL_UNIT"&&item.asset_type);
   type AssetAvailabilityRow={asset_id:string;asset_code:string;asset_type:string;asset_status:string;available:boolean;conflict_project_id:string|null;conflict_project_name:string|null;conflict_start_at:string;conflict_end_at:string};

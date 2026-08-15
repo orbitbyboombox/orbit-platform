@@ -11,6 +11,8 @@ const cancellation = readFileSync(`${root}/supabase/migrations/0109_rc52_5_staff
 const requestWorkflow = readFileSync(`${root}/supabase/migrations/0090_rc30b_staff_request_workflow.sql`, "utf8");
 const packageDelivery = readFileSync(`${root}/features/operations/smart-assignment-package.service.ts`, "utf8");
 const reviewAction = readFileSync(`${root}/features/operations/operations-planning.actions.ts`, "utf8");
+const eventWorkspace = readFileSync(`${root}/app/(platform)/projects/[projectId]/page.tsx`, "utf8");
+const eventLifecycle = readFileSync(`${root}/features/projects/actions/customer.actions.ts`, "utf8");
 
 test("Phase D preserves one canonical assignment and settlement transaction", () => {
   assert.match(migration, /assign_event_operational_responsibility/);
@@ -71,6 +73,18 @@ test("approval and rejection both produce Staff-facing notifications", () => {
   assert.match(packageDelivery, /notification_type:"SMART_ASSIGNMENT_PACKAGE"/);
   assert.match(reviewAction, /notification_type:"STAFF_REQUEST_REJECTED"/);
   assert.match(reviewAction, /staff-request-rejected:/);
+});
+
+test("Event Workspace reads canonical Staff requirements", () => {
+  assert.match(eventWorkspace, /from\("event_staff_requirements"\)/);
+  assert.match(eventWorkspace, /select\("role,required_quantity,published"\)/);
+});
+
+test("Event cancellation closes Staff publication and isolates secondary effects", () => {
+  assert.match(eventLifecycle, /from\("staff_event_publications"\)[\s\S]*published: false/);
+  assert.match(eventLifecycle, /from\("event_staff_requirements"\)[\s\S]*published: false/);
+  assert.match(eventLifecycle, /from\("staff_assignment_requests"\)[\s\S]*status: "CANCELLED"/);
+  assert.match(eventLifecycle, /Promise\.allSettled\(boundaryTasks\)/);
 });
 
 test("payment and RLS paths remain isolated", () => {

@@ -19,6 +19,7 @@ import {
   confirmPersistedReservation,
   type ConfirmationStage,
 } from "../operations/confirmed-reservation-orchestrator.service";
+import { deliverAssignmentCancellationBoundary } from "@/features/operations/staff-assignment-cancellation.service";
 
 export type CreateCustomerResult =
   | { ok: true; project: Project }
@@ -802,18 +803,35 @@ export async function softDeleteCustomerByProjectAction(
       .single();
     if (error || !data)
       throw error ?? new Error("No encontramos el cliente del evento.");
-    await Promise.all([
-      removeCancelledReservationCalendar({
-        client,
-        projectId,
-        actorId: auth.user.id,
-      }),
-      archiveCancelledReservationDrive({
-        client,
-        projectId,
-        actorId: auth.user.id,
-      }),
-    ]);
+    const { data: activeAssignments, error: assignmentLoadError } = await client
+      .from("assignments")
+      .select("id")
+      .eq("project_id", projectId)
+      .is("deleted_at", null)
+      .not("status", "in", "(CANCELLED,REJECTED,COMPLETED)");
+    if (assignmentLoadError) throw assignmentLoadError;
+    const cancellationIds: string[] = [];
+    for (const assignment of activeAssignments ?? []) {
+      const { data: cancellationId, error: cancellationError } = await client.rpc(
+        "cancel_staff_assignment_by_founder",
+        {
+          p_assignment_id: assignment.id,
+          p_reason_category: "OPERATIONAL",
+          p_reason_detail: reason,
+          p_device: null,
+          p_ip_hash: null,
+          p_user_agent: null,
+        },
+      );
+      if (cancellationError || !cancellationId)
+        throw cancellationError ?? new Error("No fue posible cancelar el Staff confirmado.");
+      const { error: republishError } = await client
+        .from("staff_assignment_cancellations")
+        .update({ republish_allowed: false })
+        .eq("id", cancellationId);
+      if (republishError) throw republishError;
+      cancellationIds.push(String(cancellationId));
+    }
     const cancelledAt = new Date().toISOString();
     const finance =
       data.finance && typeof data.finance === "object"
@@ -825,6 +843,9 @@ export async function softDeleteCustomerByProjectAction(
       quotationUpdate,
       invoiceUpdate,
       otherProjects,
+      publicationUpdate,
+      requirementUpdate,
+      requestUpdate,
     ] = await Promise.all([
       client
         .from("projects")
@@ -869,17 +890,45 @@ export async function softDeleteCustomerByProjectAction(
         .eq("customer_id", data.customer_id)
         .neq("id", projectId)
         .is("deleted_at", null),
+      client
+        .from("staff_event_publications")
+        .update({ published: false, updated_at: cancelledAt })
+        .eq("project_id", projectId),
+      client
+        .from("event_staff_requirements")
+        .update({ published: false, updated_at: cancelledAt, updated_by: auth.user.id })
+        .eq("project_id", projectId),
+      client
+        .from("staff_assignment_requests")
+        .update({ status: "CANCELLED", reviewed_at: cancelledAt, reviewed_by: auth.user.id })
+        .eq("project_id", projectId)
+        .eq("status", "PENDING"),
     ]);
     if (projectUpdate.error) throw projectUpdate.error;
     if (portalUpdate.error) throw portalUpdate.error;
     if (quotationUpdate.error) throw quotationUpdate.error;
     if (invoiceUpdate.error) throw invoiceUpdate.error;
     if (otherProjects.error) throw otherProjects.error;
+    if (publicationUpdate.error) throw publicationUpdate.error;
+    if (requirementUpdate.error) throw requirementUpdate.error;
+    if (requestUpdate.error) throw requestUpdate.error;
     const message =
       "Reserva cancelada y sincronizada: Calendar eliminado, Drive archivado, Portal desactivado y estados operacionales actualizados.";
-    const { error: timelineError } = await client
-      .from("timeline_events")
-      .insert({
+    for (const cancellationId of cancellationIds) {
+      try {
+        await deliverAssignmentCancellationBoundary(client, cancellationId);
+      } catch (boundaryError) {
+        console.error("[ORBIT][EVENT_CANCELLATION_BOUNDARY]", {
+          stage: "staff",
+          cancellationId,
+          error: boundaryError instanceof Error ? boundaryError.message : String(boundaryError),
+        });
+      }
+    }
+    const boundaryTasks = [
+      removeCancelledReservationCalendar({ client, projectId, actorId: auth.user.id }),
+      archiveCancelledReservationDrive({ client, projectId, actorId: auth.user.id }),
+      client.from("timeline_events").insert({
         customer_id: data.customer_id,
         project_id: projectId,
         orbit_event_id: data.orbit_event_id,
@@ -896,8 +945,18 @@ export async function softDeleteCustomerByProjectAction(
         correlation_id: `reservation:${data.orbit_event_id}:cancelled:${crypto.randomUUID()}`,
         reason,
         created_by: auth.user.id,
-      });
-    if (timelineError) throw timelineError;
+      }).then(({ error: timelineError }) => {
+        if (timelineError) throw timelineError;
+      }),
+    ];
+    const boundaryResults = await Promise.allSettled(boundaryTasks);
+    boundaryResults.forEach((result, index) => {
+      if (result.status === "rejected")
+        console.error("[ORBIT][EVENT_CANCELLATION_BOUNDARY]", {
+          stage: ["calendar", "drive", "timeline"][index],
+          error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+        });
+    });
     // El evento puede terminar, pero la relación CRM del cliente permanece.
     [
       "/projects",
