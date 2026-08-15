@@ -33,7 +33,8 @@ import type {
   QuoteLineDraft,
 } from "./types";
 import { calculateFormalQuote } from "./quote-calculation";
-import { QUICK_SEND_CTA_FALLBACK, QUICK_SEND_CTA_LABEL, commercialGreeting, displayChileanPhone, formalQuoteSubject, formatChileanRutInput, inlineCommercialText, moneyInputNumber, normalizeChileanPhone, normalizeEmailNewlines, quickSendBodyParagraphs, quickSendEditableBody, quoteDisplayFilename, titleCasePerson, withoutDuplicateSignature } from "./presentation";
+import { QUICK_SEND_CTA_FALLBACK, QUICK_SEND_CTA_LABEL, commercialGreeting, displayChileanPhone, formalQuoteSubject, formatChileanRutInput, inlineCommercialText, moneyInputNumber, normalizeEmailNewlines, quickSendBodyParagraphs, quickSendEditableBody, quoteDisplayFilename, titleCasePerson, withoutDuplicateSignature } from "./presentation";
+import { ChileanMobileInput } from "@/components/forms/chilean-mobile-input";
 import { PdfViewer } from "./pdf-viewer";
 import { getCommercialDocumentUrlAction } from "./settings.actions";
 import { activeCommercialDocument, catalogCategoryForQuickSend, catalogPublicPath, pendingCommercialDocuments } from "./catalogs";
@@ -338,7 +339,7 @@ function InformationSender({
 
 function FormalBuilder({ data, initialDraft }: { data: CommercialHubData; initialDraft?: FormalQuoteDraft }) {
   const [customerId, setCustomerId] = useState(initialDraft?.existingCustomerId ?? "");
-  const [temporary, setTemporary] = useState({ company: initialDraft?.company ?? "", rut: formatChileanRutInput(initialDraft?.rut ?? ""), contact: initialDraft?.contact ?? "", email: initialDraft?.email ?? "", phone: normalizeChileanPhone(initialDraft?.phone ?? ""), address: initialDraft?.address ?? "" });
+  const [temporary, setTemporary] = useState({ company: initialDraft?.company ?? "", rut: formatChileanRutInput(initialDraft?.rut ?? ""), contact: initialDraft?.contact ?? "", email: initialDraft?.email ?? "", phone: initialDraft?.phone ?? "", address: initialDraft?.address ?? "" });
   const [lines, setLines] = useState<QuoteLineDraft[]>(initialDraft?.lines ?? []);
   const [validityDays, setValidityDays] = useState(initialDraft?.validityDays ?? 10);
   const [depositPercent, setDepositPercent] = useState(initialDraft?.depositPercent ?? 50);
@@ -419,7 +420,7 @@ function FormalBuilder({ data, initialDraft }: { data: CommercialHubData; initia
             phone: selected.phone,
             address: selected.address,
           }
-        : { ...temporary, phone: temporary.phone ? `+569${normalizeChileanPhone(temporary.phone)}` : "" };
+        : temporary;
       const draft: FormalQuoteDraft = {
         quoteId: initialDraft?.quoteId,
         existingCustomerId: selected?.id ?? null,
@@ -499,13 +500,7 @@ function FormalBuilder({ data, initialDraft }: { data: CommercialHubData; initia
                 />
               </Field>
               <Field label="Teléfono (opcional)">
-                <span className="flex min-w-0 items-center rounded-xl border bg-background pl-3 focus-within:ring-2"><span className="shrink-0 text-sm text-muted">+56 9</span><input className="min-w-0 flex-1 border-0"
-                  inputMode="tel"
-                  value={temporary.phone}
-                  onChange={(e) =>
-                    setTemporary((v) => ({ ...v, phone: normalizeChileanPhone(e.target.value) }))
-                  }
-                /></span>
+                <ChileanMobileInput value={temporary.phone} onChange={(phone) => setTemporary((v) => ({ ...v, phone }))} />
               </Field>
               <Field label="Dirección">
                 <input

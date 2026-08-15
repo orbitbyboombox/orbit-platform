@@ -22,6 +22,7 @@ import type { FinanceDashboardReadModel, FinanceMetric } from "@/features/financ
 import { PersonalWorkspaceSections } from "./personal-workspace";
 import { reviewStaffRequestAction } from "@/features/operations/operations-planning.actions";
 import { markNotificationReadAction } from "@/features/notification-center/actions";
+import { FinancialAlertCenter, type FinancialAlertView } from "@/features/financial-alerts/financial-alert-center";
 
 export type CommandCenterItem = {
   id: string;
@@ -66,9 +67,11 @@ const toneStyle = {
   danger: "bg-danger-soft text-danger",
 } as const;
 
-export function FounderWorkspaceExperience({ currentDate, finance, founderName, operationalAlerts, pendingStaffApprovals, pendingTasks, publicationConsole, recentActivity, todayEvents, todayOperation, upcomingEvents }: {
+export function FounderWorkspaceExperience({ currentDate, finance, financialAlert, financialAlertHistory, founderName, operationalAlerts, pendingStaffApprovals, pendingTasks, publicationConsole, recentActivity, todayEvents, todayOperation, upcomingEvents }: {
   currentDate: string;
   finance: FinanceDashboardReadModel;
+  financialAlert: FinancialAlertView | null;
+  financialAlertHistory: FinancialAlertView[];
   founderName: string;
   operationalAlerts: CommandCenterItem[];
   pendingStaffApprovals: PendingStaffApproval[];
@@ -166,10 +169,12 @@ export function FounderWorkspaceExperience({ currentDate, finance, founderName, 
   const settings = <section className="flex flex-col gap-4 rounded-2xl border bg-card p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between"><div><PanelTitle id="workspace-settings-title" label="Founder Workspace" /><p className="mt-2 text-xs text-muted">Mueve, oculta y restaura cada bloque. Tu configuración permanece guardada.</p></div><Link className="inline-flex min-h-10 items-center justify-center rounded-xl border px-4 text-xs font-semibold hover:border-brand/40 hover:text-brand" href="/settings#founder-workspace"><Settings2 className="mr-2 size-4" />Configurar espacio</Link></section>;
 
   const staffApprovals = staffApprovalItems.length ? <PendingStaffApprovals items={staffApprovalItems} onResolved={(id) => setResolvedApprovalIds((current) => new Set(current).add(id))} /> : null;
+  const financialAlerts = <FinancialAlertCenter current={financialAlert} history={financialAlertHistory} />;
 
   return <main className="orbit-command-center" id="founder-workspace"><PersonalWorkspaceSections moduleKey="DASHBOARD" sections={[
     { key: "DASHBOARD_HEADER", label: "Bienvenida", content: welcome },
     { key: "DASHBOARD_WIDGETS", label: "KPIs del Founder", content: founderKpis },
+    { key: "DASHBOARD_FINANCIAL_ALERTS", label: "Obligaciones financieras", content: financialAlerts },
     ...(staffApprovals ? [{ key: "DASHBOARD_STAFF_APPROVALS", label: "Aprobaciones de Staff pendientes", content: staffApprovals }] : []),
     { key: "DASHBOARD_QUICK_ACTIONS", label: "Acciones rápidas", content: actions },
     { key: "DASHBOARD_TODAY", label: "Jornada operacional", content: commandGrid },

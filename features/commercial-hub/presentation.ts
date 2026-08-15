@@ -32,16 +32,10 @@ export function formatChileanRutInput(value: string) {
   return `${Number(body).toLocaleString("es-CL")}-${verifier}`;
 }
 
-export function normalizeChileanPhone(value: string) {
-  let digits = value.replace(/\D/g, "");
-  if (digits.startsWith("56")) digits = digits.slice(2);
-  if (digits.startsWith("9")) digits = digits.slice(1);
-  return digits.slice(0, 8);
-}
-
 export function displayChileanPhone(value: string) {
-  const digits = normalizeChileanPhone(value);
-  return digits ? `+56 9 ${digits.slice(0, 4)} ${digits.slice(4)}`.trim() : "+56 9";
+  const digits = value.replace(/\D/g, "");
+  const local = digits.startsWith("569") ? digits.slice(3, 11) : digits.slice(-8);
+  return local ? `+56 9 ${local.slice(0, 4)} ${local.slice(4)}`.trim() : "+56 9";
 }
 
 export function moneyInputNumber(value: string) {

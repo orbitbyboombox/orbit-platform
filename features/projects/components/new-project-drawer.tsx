@@ -17,6 +17,7 @@ import {
   UserCheck,
   X,
 } from "lucide-react";
+import { normalizeChileanPhone } from "@/lib/chile/rut";
 import {
   useEffect,
   useId,
@@ -1611,7 +1612,7 @@ export function NewProjectDrawer({
                   onChange={(e) =>
                     client(
                       "phone",
-                      `+569${e.target.value.replace(/\D/g, "").replace(/^569/, "").slice(0, 8)}`,
+                      normalizeChileanPhone(e.target.value),
                     )
                   }
                   required
@@ -1789,7 +1790,7 @@ export function NewProjectDrawer({
                     label="Teléfono del contacto operacional"
                     onChange={(e) =>
                       setOperationalPhone(
-                        `+569${e.target.value.replace(/\D/g, "").replace(/^569/, "").slice(0, 8)}`,
+                        normalizeChileanPhone(e.target.value),
                       )
                     }
                     value={operationalPhone}

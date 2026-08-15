@@ -1407,10 +1407,26 @@ export default async function OperationsPage() {
           : ("warning" as const),
     }),
   )];
+  const { error: financialAlertEnsureError } = await client.rpc("ensure_financial_alerts", { p_now: new Date().toISOString() });
+  if (financialAlertEnsureError) throw financialAlertEnsureError;
+  const { data: financialAlertRows, error: financialAlertError } = await client
+    .from("financial_alert_obligations")
+    .select("id,obligation_key,accounting_period,status,paid_at,financial_alert_rules(name,escalation_day,timezone)")
+    .order("accounting_period", { ascending: false })
+    .limit(24);
+  if (financialAlertError) throw financialAlertError;
+  const financialAlertHistory = (financialAlertRows ?? []).map((row) => {
+    const rule = Array.isArray(row.financial_alert_rules) ? row.financial_alert_rules[0] : row.financial_alert_rules;
+    const localDay = Number(new Intl.DateTimeFormat("en-CA", { timeZone: rule?.timezone ?? "America/Santiago", day: "2-digit" }).format(new Date()));
+    return { id: row.id, key: row.obligation_key, title: localDay >= (rule?.escalation_day ?? 20) ? `${rule?.name ?? "PAGAR IVA"} HOY` : rule?.name ?? "PAGAR IVA", status: row.status as "PENDING" | "PAID", period: row.accounting_period.slice(0,7), paidAt: row.paid_at };
+  });
+  const financialAlert = financialAlertHistory.find((item) => item.status === "PENDING") ?? null;
   return (
     <FounderWorkspaceExperience
       currentDate={currentDate}
       finance={financeDashboard}
+      financialAlert={financialAlert}
+      financialAlertHistory={financialAlertHistory}
       founderName="Matías"
       operationalAlerts={commandCenterAlerts}
       pendingStaffApprovals={pendingStaffApprovals}

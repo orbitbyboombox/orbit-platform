@@ -35,14 +35,20 @@ export function requireValidChileanRut(value: string) {
 }
 
 export function normalizeChileanPhone(value: string) {
-  const digits = value.replace(/\D/g, "");
-  if (digits.startsWith("56")) return digits.slice(0, 11);
-  if (digits.startsWith("9")) return `56${digits.slice(0, 9)}`;
-  return digits.slice(0, 11);
+  const local = normalizeChileanMobileLocal(value);
+  return local ? `569${local}` : "";
+}
+
+/** Eight digits shown after ORBIT's fixed +56 9 mobile prefix. */
+export function normalizeChileanMobileLocal(value: string) {
+  let digits = value.replace(/\D/g, "");
+  if (digits.startsWith("56")) digits = digits.slice(2);
+  if (digits.length === 9 && digits.startsWith("9")) digits = digits.slice(1);
+  return digits.slice(0, 8);
 }
 
 export function formatChileanPhone(value: string) {
   const normalized = normalizeChileanPhone(value);
-  if (normalized.length !== 11 || !normalized.startsWith("569")) return value;
+  if (normalized.length !== 11) return value;
   return `+56 9 ${normalized.slice(3, 7)} ${normalized.slice(7, 11)}`;
 }
