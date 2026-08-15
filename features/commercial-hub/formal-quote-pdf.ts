@@ -51,6 +51,7 @@ export interface FormalQuotePdfModel {
     bankName: string;
     bankAccountType: string;
     bankAccountNumber: string;
+    importantNotice?: string;
     reservationConditions?: string[];
     operationalConditions: QuoteOperationalCondition[];
   };
@@ -179,6 +180,7 @@ function footer(
   regular: PDFFont,
   model: FormalQuotePdfModel,
   pageNumber: number,
+  totalPages: number,
 ) {
   page.drawLine({
     start: { x: 42, y: 38 },
@@ -194,7 +196,15 @@ function footer(
     ),
     { x: 42, y: 23, size: 7, font: regular, color: muted, maxWidth: 470 },
   );
-  rightText(page, String(pageNumber), 553, 23, 7, regular, muted);
+  rightText(page, `${pageNumber} / ${totalPages}`, 553, 23, 7, regular, muted);
+}
+
+function compactHeader(page: PDFPage, regular: PDFFont, bold: PDFFont, model: FormalQuotePdfModel) {
+  const top = page.getHeight();
+  page.drawRectangle({ x: 0, y: top - 92, width: PAGE[0], height: 92, color: graphite });
+  page.drawText("BOOMBOX®", { x: 42, y: top - 47, size: 22, font: bold, color: white });
+  rightText(page, safe(model.number), 553, top - 42, 11, bold, orange);
+  rightText(page, "RESERVA Y CONDICIONES", 553, top - 61, 7.5, regular, rgb(0.78, 0.8, 0.84));
 }
 
 const defaultConditions = (model: FormalQuotePdfModel) => [
@@ -211,86 +221,40 @@ export async function createFormalQuotePdf(model: FormalQuotePdfModel) {
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
   let page = pdf.addPage(PAGE);
   let y = 682;
-  let pageNumber = 1;
-  const nextPage = () => {
+
+  const newServicePage = () => {
     page = pdf.addPage(PAGE);
-    pageNumber += 1;
     header(page, regular, bold, model);
-    footer(page, regular, model, pageNumber);
     y = 682;
   };
-  const ensure = (height: number) => {
-    if (y - height < 56) nextPage();
+  const ensureService = (height: number) => {
+    if (y - height < 58) newServicePage();
   };
-  const heading = (text: string, keepWithNext = 12) => {
-    ensure(18 + keepWithNext);
+  const serviceHeading = (text: string) => {
+    ensureService(30);
     page.drawText(text, { x: 42, y, size: 8.5, font: bold, color: orange });
     y -= 17;
   };
-  const paragraph = (
-    text: string,
-    options: {
-      size?: number;
-      bold?: boolean;
-      indent?: number;
-      lineHeight?: number;
-      after?: number;
-    } = {},
-  ) => {
-    const size = options.size ?? 8.5;
+  const serviceParagraph = (text: string, options: { size?: number; bold?: boolean; lineHeight?: number } = {}) => {
+    const size = options.size ?? 8;
     const font = options.bold ? bold : regular;
-    const indent = options.indent ?? 0;
-    const lineHeight = options.lineHeight ?? 11;
-    const lines = wrap(text, font, size, 511 - indent);
-    ensure(lines.length * lineHeight + (options.after ?? 1));
-    lines.forEach((item) => {
-      page.drawText(item, { x: 42 + indent, y, size, font, color: graphite });
-      y -= lineHeight;
-    });
-    y -= options.after ?? 1;
+    const lineHeight = options.lineHeight ?? 9;
+    const lines = wrap(text, font, size, 511);
+    ensureService(lines.length * lineHeight);
+    lines.forEach((line) => { page.drawText(line, { x: 42, y, size, font, color: graphite }); y -= lineHeight; });
   };
 
   header(page, regular, bold, model);
-  footer(page, regular, model, pageNumber);
-  heading("CLIENTE");
-  const customerRows = [
-    model.customer.company,
-    model.customer.rut,
-    model.customer.contact,
-    model.customer.email,
-    model.customer.phone,
-    model.customer.address,
-    model.event.name,
-    model.event.date ? `Fecha: ${date(model.event.date)}` : "",
-    model.event.time ? `Hora: ${model.event.time}` : "",
-    [model.event.location, model.event.city].filter(Boolean).join(" · "),
-  ].filter((item): item is string => Boolean(item?.trim()));
-  customerRows.forEach((item, index) =>
-    paragraph(item, {
-      bold: index === 0,
-      size: index === 0 ? 10 : 8,
-      lineHeight: index === 0 ? 12 : 9,
-      after: 0,
-    }),
-  );
-  y -= 13;
+  serviceHeading("CLIENTE");
+  const customerRows = [model.customer.company, model.customer.rut, model.customer.contact, model.customer.email, model.customer.phone, model.customer.address, model.event.name, model.event.date ? `Fecha: ${date(model.event.date)}` : "", model.event.time ? `Hora: ${model.event.time}` : "", [model.event.location, model.event.city].filter(Boolean).join(" · ")].filter((item): item is string => Boolean(item?.trim()));
+  customerRows.forEach((item, index) => serviceParagraph(item, { bold: index === 0, size: index === 0 ? 10 : 8, lineHeight: index === 0 ? 12 : 9 }));
+  y = Math.min(y - 28, 536);
 
-  const tableHeader = () => {
-    ensure(34);
-    page.drawRectangle({
-      x: 42,
-      y: y - 5,
-      width: 511,
-      height: 24,
-      color: graphite,
-    });
-    page.drawText("DESCRIPCIÓN", {
-      x: 52,
-      y: y + 2,
-      size: 8,
-      font: bold,
-      color: white,
-    });
+  const tableHeader = (continuation = false) => {
+    ensureService(38);
+    if (continuation) { page.drawText("CONTINUACIÓN DE SERVICIOS", { x: 42, y: y + 25, size: 7.5, font: bold, color: orange }); }
+    page.drawRectangle({ x: 42, y: y - 5, width: 511, height: 24, color: graphite });
+    page.drawText("DESCRIPCIÓN", { x: 52, y: y + 2, size: 8, font: bold, color: white });
     rightText(page, "CANT.", 382, y + 2, 8, bold, white);
     rightText(page, "P. UNITARIO", 462, y + 2, 8, bold, white);
     rightText(page, "TOTAL", 543, y + 2, 8, bold, white);
@@ -299,280 +263,90 @@ export async function createFormalQuotePdf(model: FormalQuotePdfModel) {
   tableHeader();
   for (const item of model.lines) {
     const descriptions = wrap(item.description, regular, 8.5, 265);
-    const rowHeight = Math.max(22, descriptions.length * 10 + 6);
-    if (y - rowHeight < 56) {
-      nextPage();
-      tableHeader();
-    }
-    descriptions.forEach((text, index) =>
-      page.drawText(text, {
-        x: 52,
-          y: y - index * 10,
-        size: 8.2,
-        font: regular,
-        color: graphite,
-      }),
-    );
+    const rowHeight = Math.max(25, descriptions.length * 10 + 8);
+    if (y - rowHeight < 58) { newServicePage(); tableHeader(true); }
+    descriptions.forEach((text, index) => page.drawText(text, { x: 52, y: y - index * 10, size: 8.2, font: regular, color: graphite }));
     rightText(page, String(item.quantity), 376, y, 8.5, regular);
     rightText(page, money(item.quotedPrice), 462, y, 7.5, regular);
     rightText(page, money(item.total), 543, y, 7.5, bold);
     y -= rowHeight;
-    page.drawLine({
-      start: { x: 42, y: y + 6 },
-      end: { x: 553, y: y + 6 },
-      thickness: 0.4,
-      color: rule,
-    });
+    page.drawLine({ start: { x: 42, y: y + 6 }, end: { x: 553, y: y + 6 }, thickness: 0.4, color: rule });
   }
 
-  ensure(132);
-  y -= 5;
-  const totals: Array<[string, number, boolean?]> = [
-    ["Subtotal", model.subtotal],
-    ...(model.discount
-      ? [["Descuento", -model.discount] as [string, number]]
-      : []),
-    ["Neto", model.net],
-    ["IVA 19%", model.tax],
-    ["TOTAL PROPUESTA", model.total, true],
-  ];
+  ensureService(model.discount ? 122 : 106);
+  y -= 8;
+  const totals: Array<[string, number, boolean?]> = [["Subtotal", model.subtotal], ...(model.discount ? [["Descuento", -model.discount] as [string, number]] : []), ["Neto", model.net], ["IVA 19%", model.tax], ["TOTAL PROPUESTA", model.total, true]];
   totals.forEach(([label, value, strong]) => {
-    page.drawText(label, {
-      x: 342,
-      y,
-      size: strong ? 11 : 8.5,
-      font: strong ? bold : regular,
-      color: strong ? graphite : muted,
-    });
-    rightText(
-      page,
-      money(value),
-      553,
-      y,
-      strong ? 15 : 9,
-      bold,
-      strong ? orange : graphite,
-    );
-    y -= strong ? 24 : 16;
+    page.drawText(label, { x: 342, y, size: strong ? 11 : 8.5, font: strong ? bold : regular, color: strong ? graphite : muted });
+    rightText(page, money(value), 553, y, strong ? 15 : 9, bold, strong ? orange : graphite);
+    y -= strong ? 26 : 16;
   });
-  page.drawLine({
-    start: { x: 342, y: y + 8 },
-    end: { x: 553, y: y + 8 },
-    thickness: 1,
-    color: orange,
-  });
-  [
-    ["ABONO PARA RESERVAR", model.deposit],
-    ["SALDO", model.balance],
-  ].forEach(([label, value]) => {
-    page.drawText(String(label), {
-      x: 342,
-      y,
-      size: 9,
-      font: bold,
-      color: graphite,
-    });
-    rightText(page, money(Number(value)), 553, y, 10, bold);
-    y -= 18;
-  });
-  y -= 5;
+  page.drawLine({ start: { x: 342, y: y + 10 }, end: { x: 553, y: y + 10 }, thickness: 1.2, color: orange });
 
-  const conditions = model.company.reservationConditions?.length
-    ? model.company.reservationConditions
-    : defaultConditions(model);
-  const drawCompactColumns = (title: string, items: string[]) => {
-    const columnWidth = 246;
-    const gap = 19;
+  // Reservation and conditions deliberately start on an independent final page.
+  page = pdf.addPage(PAGE);
+  compactHeader(page, regular, bold, model);
+  y = 720;
+  const finalHeading = (text: string) => { page.drawText(text, { x: 42, y, size: 9, font: bold, color: orange }); y -= 15; };
+  const drawWrapped = (text: string, x: number, width: number, size = 8, lineHeight = 10, font = regular, color = graphite) => {
+    const lines = wrap(text, font, size, width);
+    lines.forEach((line) => { page.drawText(line, { x, y, size, font, color }); y -= lineHeight; });
+  };
+
+  finalHeading("RESUMEN DE RESERVA");
+  const cards: Array<[string, number, boolean?]> = [["TOTAL PROPUESTA", model.total, true], [`ABONO PARA RESERVAR - ${model.depositPercent ?? 50}%`, model.deposit], ["SALDO PENDIENTE", model.balance]];
+  cards.forEach(([label, value, emphasized], index) => {
+    const x = 42 + index * 174;
+    page.drawRectangle({ x, y: y - 56, width: 163, height: 68, color: emphasized ? rgb(0.995, 0.94, 0.89) : rgb(0.96, 0.965, 0.975), borderColor: emphasized ? orange : rule, borderWidth: emphasized ? 1 : 0.6 });
+    page.drawText(label, { x: x + 11, y: y - 12, size: 6.8, font: bold, color: emphasized ? orange : muted, maxWidth: 141 });
+    page.drawText(money(value), { x: x + 11, y: y - 39, size: 13, font: bold, color: graphite, maxWidth: 141 });
+  });
+  y -= 72;
+
+  const drawBulletColumns = (title: string, items: string[], size = 7.8, lineHeight = 9.7) => {
+    finalHeading(title);
+    const width = 244;
+    const gap = 23;
     const split = Math.ceil(items.length / 2);
     const columns = [items.slice(0, split), items.slice(split)];
-    const itemHeight = (item: string) =>
-      wrap(`• ${item}`, regular, 7, columnWidth).length * 8.6 + 2;
-    const columnHeights = columns.map((column) =>
-      column.reduce((sum, item) => sum + itemHeight(item), 0),
-    );
-    const blockHeight = Math.max(...columnHeights, 0);
-    ensure(17 + blockHeight + 4);
-    heading(title, blockHeight);
-    const topY = y;
+    const top = y;
+    let bottom = y;
     columns.forEach((column, columnIndex) => {
-      let columnY = topY;
-      const x = 42 + columnIndex * (columnWidth + gap);
-      for (const item of column) {
-        const lines = wrap(`• ${item}`, regular, 7, columnWidth);
-        lines.forEach((line) => {
-          page.drawText(line, {
-            x,
-            y: columnY,
-            size: 7,
-            font: regular,
-            color: graphite,
-          });
-          columnY -= 8.6;
-        });
-        columnY -= 2;
-      }
+      let columnY = top;
+      const x = 42 + columnIndex * (width + gap);
+      column.forEach((item) => {
+        const lines = wrap(`• ${item}`, regular, size, width);
+        lines.forEach((line) => { page.drawText(line, { x, y: columnY, size, font: regular, color: graphite }); columnY -= lineHeight; });
+        columnY -= 3;
+      });
+      bottom = Math.min(bottom, columnY);
     });
-    y = topY - blockHeight - 4;
+    y = bottom - 4;
   };
-  drawCompactColumns("CONDICIONES DE RESERVA", conditions);
+  const reservationConditions = model.company.reservationConditions?.length ? model.company.reservationConditions : defaultConditions(model);
+  drawBulletColumns("CONDICIONES DE RESERVA", reservationConditions);
+  drawBulletColumns("CONDICIONES OPERACIONALES", model.company.operationalConditions.map((condition) => `${safe(condition.label)}: ${safe(condition.text)}`), 7.5, 9.2);
 
-  const conditionLines = (
-    condition: QuoteOperationalCondition,
-    width: number,
-    size: number,
-  ) => {
-    const label = `${safe(condition.label)}:`;
-    const words = safe(condition.text).split(/\s+/).filter(Boolean);
-    const firstWidth = Math.max(
-      30,
-      width - bold.widthOfTextAtSize(label, size) - 3,
-    );
-    let first = "";
-    while (words.length) {
-      const candidate = first ? `${first} ${words[0]}` : words[0];
-      if (regular.widthOfTextAtSize(candidate, size) > firstWidth && first)
-        break;
-      first = candidate;
-      words.shift();
-    }
-    return {
-      label,
-      lines: [first, ...wrap(words.join(" "), regular, size, width)].filter(
-        Boolean,
-      ),
-    };
-  };
-  const operational = model.company.operationalConditions;
-  const operationalWidth = 246;
-  const operationalGap = 19;
-  const operationalSize = 7;
-  const operationalLineHeight = 8.2;
-  const operationalSplit = Math.ceil(operational.length / 2);
-  const operationalColumns = [
-    operational.slice(0, operationalSplit),
-    operational.slice(operationalSplit),
-  ];
-  const operationalHeight = (column: QuoteOperationalCondition[]) =>
-    column.reduce(
-      (sum, condition) =>
-        sum +
-        conditionLines(condition, operationalWidth, operationalSize).lines
-          .length *
-          operationalLineHeight +
-        2,
-      0,
-    );
-  const operationalBlockHeight = Math.max(
-    ...operationalColumns.map(operationalHeight),
-    0,
-  );
-  if (operationalBlockHeight + 21 <= 626) {
-    ensure(17 + operationalBlockHeight + 4);
-    heading("CONDICIONES OPERACIONALES", operationalBlockHeight);
-    const topY = y;
-    operationalColumns.forEach((column, columnIndex) => {
-      let columnY = topY;
-      const x = 42 + columnIndex * (operationalWidth + operationalGap);
-      for (const condition of column) {
-        const lines = conditionLines(
-          condition,
-          operationalWidth,
-          operationalSize,
-        );
-        const labelWidth = bold.widthOfTextAtSize(lines.label, operationalSize);
-        page.drawText(lines.label, {
-          x,
-          y: columnY,
-          size: operationalSize,
-          font: bold,
-          color: graphite,
-        });
-        page.drawText(lines.lines[0], {
-          x: x + labelWidth + 3,
-          y: columnY,
-          size: operationalSize,
-          font: regular,
-          color: graphite,
-        });
-        lines.lines.slice(1).forEach((line, index) =>
-          page.drawText(line, {
-            x,
-            y: columnY - (index + 1) * operationalLineHeight,
-            size: operationalSize,
-            font: regular,
-            color: graphite,
-          }),
-        );
-        columnY -= lines.lines.length * operationalLineHeight + 2;
-      }
-    });
-    y = topY - operationalBlockHeight - 4;
-  } else {
-    heading("CONDICIONES OPERACIONALES", 18);
-    for (const condition of operational) {
-      const lines = conditionLines(condition, 511, 7.2);
-      ensure(lines.lines.length * 9 + 4);
-      const labelWidth = bold.widthOfTextAtSize(lines.label, 7.2);
-      page.drawText(lines.label, {
-        x: 42,
-        y,
-        size: 7.2,
-        font: bold,
-        color: graphite,
-      });
-      page.drawText(lines.lines[0], {
-        x: 45 + labelWidth,
-        y,
-        size: 7.2,
-        font: regular,
-        color: graphite,
-      });
-      y -= 9;
-      lines.lines.slice(1).forEach((line) => {
-        page.drawText(line, {
-          x: 42,
-          y,
-          size: 7.2,
-          font: regular,
-          color: graphite,
-        });
-        y -= 9;
-      });
-      y -= 3;
-    }
-  }
-
-  // Payment and commercial closing form one final unit; never orphan the CTA.
-  ensure(112);
-  heading("FORMA DE PAGO", 38);
-  const bankRows = [
-    model.company.legalName,
-    model.company.taxId ? `RUT ${model.company.taxId}` : "",
-    model.company.bankName,
-    model.company.bankAccountType,
-    model.company.bankAccountNumber
-      ? `N.º ${model.company.bankAccountNumber}`
-      : "",
-    model.company.email,
-  ].filter(Boolean);
-  const bankLineOne = bankRows.slice(0, 2).join(" · ");
-  const bankLineTwo = bankRows.slice(2, 5).join(" · ");
-  paragraph(bankLineOne, { size: 7.5, bold: true, lineHeight: 9, after: 1 });
-  paragraph(bankLineTwo, { size: 7.5, lineHeight: 9, after: 1 });
-  if (bankRows[5])
-    paragraph(bankRows[5], { size: 7.5, lineHeight: 9, after: 2 });
-
-  ensure(49);
-  heading("¿LISTOS PARA CREAR LA EXPERIENCIA?", 28);
-  paragraph(
-    "Para continuar con esta propuesta, responde este correo o avanza con el proceso de reserva BOOMBOX.",
-    { size: 8, lineHeight: 10, after: 2 },
-  );
-  paragraph("16 años creando experiencias que se recuerdan.", {
-    size: 9,
-    bold: true,
-    lineHeight: 10,
-    after: 0,
+  finalHeading("FORMA DE PAGO");
+  const paymentRows = [model.company.legalName, model.company.taxId ? `RUT ${model.company.taxId}` : "", model.company.bankName, model.company.bankAccountType, model.company.bankAccountNumber ? `N.º ${model.company.bankAccountNumber}` : "", model.company.email].filter(Boolean);
+  const paymentTop = y;
+  paymentRows.forEach((row, index) => {
+    page.drawText(safe(row), { x: index < 3 ? 42 : 309, y: paymentTop - (index % 3) * 11, size: 7.8, font: index === 0 ? bold : regular, color: index === paymentRows.length - 1 ? orange : graphite });
   });
+  y = paymentTop - 38;
+
+  page.drawRectangle({ x: 42, y: y - 35, width: 511, height: 45, color: rgb(0.96, 0.965, 0.975), borderColor: rule, borderWidth: 0.6 });
+  page.drawText("IMPORTANTE", { x: 54, y: y - 7, size: 7.5, font: bold, color: orange });
+  y -= 20;
+  drawWrapped(model.company.importantNotice || "La fecha se considera reservada una vez cumplidas las condiciones de confirmación correspondientes.", 54, 487, 7.8, 9.5);
+  y -= 13;
+
+  finalHeading("¿LISTOS PARA CREAR LA EXPERIENCIA?");
+  drawWrapped("Para continuar con esta propuesta, responde este correo o avanza con el proceso de reserva BOOMBOX.", 42, 511, 8, 10);
+  y -= 1;
+  drawWrapped("16 años creando experiencias que se recuerdan.", 42, 511, 9, 10, bold);
+
+  const pages = pdf.getPages();
+  pages.forEach((current, index) => footer(current, regular, model, index + 1, pages.length));
   return Buffer.from(await pdf.save());
 }

@@ -76,10 +76,27 @@ async function pageTexts(pdf: Uint8Array) {
   return pages;
 }
 
-test("simple commercial quote fits one readable A4 page", async () => {
+test("simple commercial quote always uses two deliberate A4 pages", async () => {
   const pdf = await createFormalQuotePdf(model(2));
   const document = await PDFDocument.load(pdf);
-  assert.equal(document.getPageCount(), 1);
+  assert.equal(document.getPageCount(), 2);
+});
+
+test("page one ends with commercial total and excludes reservation details", async () => {
+  const [first] = await pageTexts(await createFormalQuotePdf(model(3)));
+  assert.match(first, /TOTAL PROPUESTA/);
+  for (const forbidden of ["ABONO PARA RESERVAR", "SALDO PENDIENTE", "CONDICIONES DE RESERVA", "FORMA DE PAGO", "LISTOS PARA CREAR LA EXPERIENCIA"]) assert.doesNotMatch(first, new RegExp(forbidden));
+});
+
+test("final page contains complete reservation and conditions composition", async () => {
+  const texts = await pageTexts(await createFormalQuotePdf(model(3)));
+  const last = texts.at(-1) ?? "";
+  for (const expected of ["RESUMEN DE RESERVA", "TOTAL PROPUESTA", "ABONO PARA RESERVAR", "SALDO PENDIENTE", "CONDICIONES DE RESERVA", "CONDICIONES OPERACIONALES", "FORMA DE PAGO", "IMPORTANTE", "LISTOS PARA CREAR LA EXPERIENCIA"]) assert.match(last, new RegExp(expected));
+});
+
+test("every page includes elegant total page numbering", async () => {
+  const texts = await pageTexts(await createFormalQuotePdf(model(3)));
+  texts.forEach((text, index) => assert.match(text, new RegExp(`${index + 1} \/ ${texts.length}`)));
 });
 
 test("operational conditions and final blocks follow the approved order", async () => {
@@ -117,9 +134,9 @@ test("operational conditions remain Founder configurable", () => {
   );
 });
 
-test("medium quote paginates naturally without an orphan closing", async () => {
+test("medium quote keeps an independent final conditions page", async () => {
   const texts = await pageTexts(await createFormalQuotePdf(model(8)));
-  assert.ok(texts.length >= 1 && texts.length <= 2);
+  assert.ok(texts.length >= 2);
   assert.match(texts.at(-1) ?? "", /FORMA DE PAGO/);
   assert.match(texts.at(-1) ?? "", /LISTOS PARA CREAR LA EXPERIENCIA/);
 });
@@ -129,4 +146,5 @@ test("long quote uses intelligent multipage layout and keeps the final unit toge
   assert.ok(texts.length >= 2);
   assert.match(texts.at(-1) ?? "", /FORMA DE PAGO/);
   assert.match(texts.at(-1) ?? "", /LISTOS PARA CREAR LA EXPERIENCIA/);
+  assert.doesNotMatch(texts[0], /CONDICIONES DE RESERVA/);
 });

@@ -67,13 +67,13 @@ const cases: Array<[string, FormalQuotePdfModel]> = [
         location: "Centro de eventos",
         city: "Huechuraba",
       },
-      lines: [line(0), line(1)],
-      subtotal: 2000000,
-      net: 2000000,
-      tax: 380000,
-      total: 2380000,
-      deposit: 1190000,
-      balance: 1190000,
+      lines: [line(0), line(1), line(2)],
+      subtotal: 3000000,
+      net: 3000000,
+      tax: 570000,
+      total: 3570000,
+      deposit: 1785000,
+      balance: 1785000,
     },
   ],
   [
@@ -127,11 +127,11 @@ for (const [filename, model] of cases) {
   const bytes = await createFormalQuotePdf(model);
   const loaded = await PDFDocument.load(bytes);
   await writeFile(join(destination, filename), bytes);
-  if (filename.includes("simple") && loaded.getPageCount() !== 1)
-    throw new Error("Simple case did not fit one page.");
-  if (filename.includes("medium") && loaded.getPageCount() > 2)
-    throw new Error("Medium case paginated excessively.");
-  if (filename.includes("multipage") && loaded.getPageCount() < 2)
+  if (filename.includes("simple") && loaded.getPageCount() !== 2)
+    throw new Error("Simple case did not preserve the mandatory two-page layout.");
+  if (filename.includes("medium") && loaded.getPageCount() < 2)
+    throw new Error("Medium case lost the independent conditions page.");
+  if (filename.includes("multipage") && loaded.getPageCount() < 3)
     throw new Error("Multipage case did not paginate.");
   console.log(
     `${filename}: ${loaded.getPageCount()} page(s), ${bytes.length} bytes`,
