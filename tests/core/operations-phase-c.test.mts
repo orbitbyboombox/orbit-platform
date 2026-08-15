@@ -7,6 +7,10 @@ const migration = readFileSync(new URL("../../supabase/migrations/0128_operation
 const eventPanel = readFileSync(new URL("../../features/asset-management/equipment-assignment-panel.tsx", import.meta.url), "utf8");
 const staffPortal = readFileSync(new URL("../../features/portal-authentication/staff-portal.tsx", import.meta.url), "utf8");
 const operations = readFileSync(new URL("../../app/(platform)/operations/page.tsx", import.meta.url), "utf8");
+const clientPortal = [
+  readFileSync(new URL("../../app/p/[token]/page.tsx", import.meta.url), "utf8"),
+  readFileSync(new URL("../../features/customer-portal/customer-portal-home.tsx", import.meta.url), "utf8"),
+].join("\n");
 
 test("same-day resources conflict only when complete operational windows overlap", () => {
   const morning = { startAt: "2026-08-21T12:00:00Z", endAt: "2026-08-21T16:00:00Z" };
@@ -64,6 +68,10 @@ test("Staff sees confirmed physical resource codes without assignment controls",
   assert.match(staffPortal, /from\("asset_assignments"\)/);
   assert.match(staffPortal, /physicalResources/);
   assert.doesNotMatch(staffPortal, /assignPhysicalResourcesAction|replacePhysicalResourceAction/);
+});
+
+test("Client Portal remains isolated from internal physical inventory", () => {
+  assert.doesNotMatch(clientPortal, /asset_assignments|operational_assets|physicalResources/);
 });
 
 test("migration never invents an assignment or deletes inventory", () => {
