@@ -20,7 +20,7 @@ export async function transitionReservationLifecycleAction(projectId:string,acti
     }
     const{error}=await client.rpc("transition_reservation_lifecycle",{p_project_id:projectId,p_action:action,p_reason:reason.trim()});if(error)throw error;
     if(action==="CANCEL"){
-      const now=new Date().toISOString();const results=await Promise.all([client.from("staff_event_publications").update({published:false,updated_at:now}).eq("project_id",projectId),client.from("event_staff_requirements").update({published:false,updated_at:now,updated_by:auth.user.id}).eq("project_id",projectId),client.from("staff_assignment_requests").update({status:"CANCELLED",reviewed_at:now,reviewed_by:auth.user.id}).eq("project_id",projectId).eq("status","PENDING")]);const criticalError=results.find(result=>result.error)?.error;if(criticalError)throw criticalError;
+      const{error:closureError}=await client.rpc("close_cancelled_event_staff_flow",{p_project_id:projectId});if(closureError)throw closureError;
       for(const cancellationId of cancellationIds){try{await deliverAssignmentCancellationBoundary(client,cancellationId)}catch(boundaryError){console.error("[ORBIT][EVENT_LIFECYCLE_BOUNDARY]",{stage:"staff",cancellationId,error:boundaryError instanceof Error?boundaryError.message:String(boundaryError)})}}
     }
     if(action==="ARCHIVE"||action==="CANCEL"||action==="PERMANENT_DELETE"){

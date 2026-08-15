@@ -178,7 +178,7 @@ export async function deliverAssignmentCancellationBoundary(
   const { data: cancellation, error } = await client
     .from("staff_assignment_cancellations")
     .select(
-      "id,project_id,staff_id,responsibility,initiated_by,reason_category,reason_detail,cancelled_by,republish_allowed,projects(customer_id,orbit_event_id)",
+      "id,project_id,staff_id,responsibility,initiated_by,reason_category,reason_detail,cancelled_by,republish_allowed,projects(customer_id,orbit_event_id,status,deleted_at)",
     )
     .eq("id", cancellationId)
     .single();
@@ -211,7 +211,13 @@ export async function deliverAssignmentCancellationBoundary(
   };
 
   await run("portal", async () => {
-    if (!cancellation.republish_allowed) return;
+    const projectClosed =
+      !project ||
+      Boolean(project.deleted_at) ||
+      ["CANCELLED", "CANCELED", "CLOSED", "ARCHIVED"].includes(
+        String(project.status ?? "").toUpperCase(),
+      );
+    if (!cancellation.republish_allowed || projectClosed) return;
     const { error: portalError } = await client
       .from("staff_event_publications")
       .upsert(
