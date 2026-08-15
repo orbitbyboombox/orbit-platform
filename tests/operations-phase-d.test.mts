@@ -13,6 +13,7 @@ const packageDelivery = readFileSync(`${root}/features/operations/smart-assignme
 const reviewAction = readFileSync(`${root}/features/operations/operations-planning.actions.ts`, "utf8");
 const eventWorkspace = readFileSync(`${root}/app/(platform)/projects/[projectId]/page.tsx`, "utf8");
 const eventLifecycle = readFileSync(`${root}/features/projects/actions/customer.actions.ts`, "utf8");
+const assignmentCenter = readFileSync(`${root}/features/staff-assignment-center/staff-assignment-center.tsx`, "utf8");
 
 test("Phase D preserves one canonical assignment and settlement transaction", () => {
   assert.match(migration, /assign_event_operational_responsibility/);
@@ -78,6 +79,8 @@ test("approval and rejection both produce Staff-facing notifications", () => {
 test("Event Workspace reads canonical Staff requirements", () => {
   assert.match(eventWorkspace, /from\("event_staff_requirements"\)/);
   assert.match(eventWorkspace, /select\("role,required_quantity,published"\)/);
+  assert.match(assignmentCenter, /Math\.max\(configuredRequired, confirmed\)/);
+  assert.match(assignmentCenter, /role\.value === "OPERATOR" && published/);
 });
 
 test("Event cancellation closes Staff publication and isolates secondary effects", () => {

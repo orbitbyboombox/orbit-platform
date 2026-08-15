@@ -153,6 +153,7 @@ export function StaffAssignmentCenter({
   staff,
   vehicles,
   hasPendingRequest = false,
+  published = false,
   settlements = [],
   requirements = [],
   requests = [],
@@ -265,10 +266,13 @@ export function StaffAssignmentCenter({
         {roles.map((role) => {
           const requirement = requirements.find((item) => item.role === role.value);
           const confirmed = assignments.filter((item) => item.role === role.value && !["CANCELLED", "REJECTED"].includes(item.status)).length;
+          const configuredRequired = requirement?.required ?? (role.value === "OPERATOR" ? 1 : 0);
+          const required = Math.max(configuredRequired, confirmed);
+          const isPublished = requirement?.published ?? (role.value === "OPERATOR" && published);
           return <form action={(data)=>startTransition(async()=>{const result=await setEventStaffRequirementAction(data);setMessage(result.message);if(result.ok)router.refresh()})} className="rounded-xl border p-4" key={role.value}>
             <input name="projectId" type="hidden" value={projectId}/><input name="role" type="hidden" value={role.value}/>
-            <div className="flex items-center justify-between gap-3"><div><p className="font-semibold">{role.label}</p><p className="text-sm text-muted">{confirmed}/{requirement?.required??0} asignado{(requirement?.required??0)===1?"":"s"}</p></div><StatusBadge label={requirement?.published?"Publicado":"Interno"} variant={requirement?.published?"success":"info"}/></div>
-            <div className="mt-3 flex items-end gap-2"><label className="grid flex-1 gap-1 text-xs text-muted">Cantidad requerida<input className="min-h-10 rounded-lg border bg-background px-3 text-foreground" defaultValue={requirement?.required??(role.value==="OPERATOR"?1:0)} min="0" name="quantity" type="number"/></label><label className="flex min-h-10 items-center gap-2 text-sm"><input defaultChecked={requirement?.published??false} name="published" type="checkbox" value="true"/>Publicar</label><Button disabled={pending} type="submit">Guardar</Button></div>
+            <div className="flex items-center justify-between gap-3"><div><p className="font-semibold">{role.label}</p><p className="text-sm text-muted">{confirmed}/{required} asignado{required===1?"":"s"}</p></div><StatusBadge label={isPublished?"Publicado":"Interno"} variant={isPublished?"success":"info"}/></div>
+            <div className="mt-3 flex items-end gap-2"><label className="grid flex-1 gap-1 text-xs text-muted">Cantidad requerida<input className="min-h-10 rounded-lg border bg-background px-3 text-foreground" defaultValue={required} min="0" name="quantity" type="number"/></label><label className="flex min-h-10 items-center gap-2 text-sm"><input defaultChecked={isPublished} name="published" type="checkbox" value="true"/>Publicar</label><Button disabled={pending} type="submit">Guardar</Button></div>
           </form>;
         })}
       </section>
