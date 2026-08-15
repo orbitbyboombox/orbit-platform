@@ -247,7 +247,7 @@ export async function deliverAssignmentCancellationBoundary(
         description: reason,
         actor_id: cancellation.cancelled_by,
         actor_label: founderInitiated ? "Founder" : "Staff",
-        source: founderInitiated ? "EventWorkspace" : "StaffPortal",
+        source: founderInitiated ? "Operations" : "Staff",
         action,
         entity_type: "StaffAssignmentCancellation",
         entity_id: cancellation.id,
