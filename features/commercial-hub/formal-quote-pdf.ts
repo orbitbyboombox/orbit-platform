@@ -283,68 +283,95 @@ export async function createFormalQuotePdf(model: FormalQuotePdfModel) {
   });
   page.drawLine({ start: { x: 342, y: y + 10 }, end: { x: 553, y: y + 10 }, thickness: 1.2, color: orange });
 
+  // The commercial page closes with a compact reservation summary, keeping
+  // the detailed conditions on their own deliberately spacious final page.
+  ensureService(112);
+  y = Math.min(y - 18, 182);
+  page.drawText("RESUMEN DE RESERVA", { x: 42, y, size: 9.5, font: bold, color: orange });
+  y -= 16;
+  const summaryCards: Array<[string, number, boolean?]> = [
+    ["TOTAL PROPUESTA", model.total, true],
+    [`ABONO PARA RESERVAR - ${model.depositPercent ?? 50}%`, model.deposit],
+    ["SALDO PENDIENTE", model.balance],
+  ];
+  summaryCards.forEach(([label, value, emphasized], index) => {
+    const x = 42 + index * 174;
+    page.drawRectangle({
+      x,
+      y: y - 58,
+      width: 163,
+      height: 62,
+      color: emphasized ? rgb(0.995, 0.94, 0.89) : rgb(0.96, 0.965, 0.975),
+      borderColor: emphasized ? orange : rule,
+      borderWidth: emphasized ? 1 : 0.6,
+    });
+    page.drawText(label, { x: x + 11, y: y - 17, size: 6.8, font: bold, color: emphasized ? orange : muted, maxWidth: 141 });
+    page.drawText(money(value), { x: x + 11, y: y - 43, size: 13, font: bold, color: graphite, maxWidth: 141 });
+  });
+
   // Reservation and conditions deliberately start on an independent final page.
   page = pdf.addPage(PAGE);
   compactHeader(page, regular, bold, model);
   y = 720;
-  const finalHeading = (text: string) => { page.drawText(text, { x: 42, y, size: 9, font: bold, color: orange }); y -= 15; };
-  const drawWrapped = (text: string, x: number, width: number, size = 8, lineHeight = 10, font = regular, color = graphite) => {
+  const finalHeading = (text: string) => { page.drawText(text, { x: 42, y, size: 10.5, font: bold, color: orange }); y -= 20; };
+  const drawWrapped = (text: string, x: number, width: number, size = 8.8, lineHeight = 11.5, font = regular, color = graphite) => {
     const lines = wrap(text, font, size, width);
     lines.forEach((line) => { page.drawText(line, { x, y, size, font, color }); y -= lineHeight; });
   };
 
-  finalHeading("RESUMEN DE RESERVA");
-  const cards: Array<[string, number, boolean?]> = [["TOTAL PROPUESTA", model.total, true], [`ABONO PARA RESERVAR - ${model.depositPercent ?? 50}%`, model.deposit], ["SALDO PENDIENTE", model.balance]];
-  cards.forEach(([label, value, emphasized], index) => {
-    const x = 42 + index * 174;
-    page.drawRectangle({ x, y: y - 56, width: 163, height: 68, color: emphasized ? rgb(0.995, 0.94, 0.89) : rgb(0.96, 0.965, 0.975), borderColor: emphasized ? orange : rule, borderWidth: emphasized ? 1 : 0.6 });
-    page.drawText(label, { x: x + 11, y: y - 12, size: 6.8, font: bold, color: emphasized ? orange : muted, maxWidth: 141 });
-    page.drawText(money(value), { x: x + 11, y: y - 39, size: 13, font: bold, color: graphite, maxWidth: 141 });
-  });
-  y -= 72;
+  page.drawRectangle({ x: 42, y: y - 48, width: 511, height: 58, color: rgb(0.96, 0.965, 0.975), borderColor: rule, borderWidth: 0.7 });
+  page.drawText("IMPORTANTE", { x: 56, y: y - 10, size: 8.5, font: bold, color: orange });
+  y -= 28;
+  drawWrapped(model.company.importantNotice || "La fecha se considera reservada una vez cumplidas las condiciones de confirmación correspondientes.", 56, 483, 8.8, 11);
+  y -= 27;
 
-  const drawBulletColumns = (title: string, items: string[], size = 7.8, lineHeight = 9.7) => {
-    finalHeading(title);
-    const width = 244;
-    const gap = 23;
-    const split = Math.ceil(items.length / 2);
-    const columns = [items.slice(0, split), items.slice(split)];
-    const top = y;
-    let bottom = y;
-    columns.forEach((column, columnIndex) => {
-      let columnY = top;
-      const x = 42 + columnIndex * (width + gap);
-      column.forEach((item) => {
-        const lines = wrap(`• ${item}`, regular, size, width);
-        lines.forEach((line) => { page.drawText(line, { x, y: columnY, size, font: regular, color: graphite }); columnY -= lineHeight; });
-        columnY -= 3;
-      });
-      bottom = Math.min(bottom, columnY);
-    });
-    y = bottom - 4;
-  };
   const reservationConditions = model.company.reservationConditions?.length ? model.company.reservationConditions : defaultConditions(model);
-  drawBulletColumns("CONDICIONES DE RESERVA", reservationConditions);
-  drawBulletColumns("CONDICIONES OPERACIONALES", model.company.operationalConditions.map((condition) => `${safe(condition.label)}: ${safe(condition.text)}`), 7.5, 9.2);
-
-  finalHeading("FORMA DE PAGO");
-  const paymentRows = [model.company.legalName, model.company.taxId ? `RUT ${model.company.taxId}` : "", model.company.bankName, model.company.bankAccountType, model.company.bankAccountNumber ? `N.º ${model.company.bankAccountNumber}` : "", model.company.email].filter(Boolean);
-  const paymentTop = y;
-  paymentRows.forEach((row, index) => {
-    page.drawText(safe(row), { x: index < 3 ? 42 : 309, y: paymentTop - (index % 3) * 11, size: 7.8, font: index === 0 ? bold : regular, color: index === paymentRows.length - 1 ? orange : graphite });
+  const sectionTop = y;
+  page.drawText("CONDICIONES DE RESERVA", { x: 42, y: sectionTop, size: 10.5, font: bold, color: orange });
+  let reservationY = sectionTop - 22;
+  reservationConditions.forEach((condition) => {
+    const lines = wrap(`• ${condition}`, regular, 8.8, 300);
+    lines.forEach((line) => { page.drawText(line, { x: 42, y: reservationY, size: 8.8, font: regular, color: graphite }); reservationY -= 11.5; });
+    reservationY -= 5;
   });
-  y = paymentTop - 38;
 
-  page.drawRectangle({ x: 42, y: y - 35, width: 511, height: 45, color: rgb(0.96, 0.965, 0.975), borderColor: rule, borderWidth: 0.6 });
-  page.drawText("IMPORTANTE", { x: 54, y: y - 7, size: 7.5, font: bold, color: orange });
-  y -= 20;
-  drawWrapped(model.company.importantNotice || "La fecha se considera reservada una vez cumplidas las condiciones de confirmación correspondientes.", 54, 487, 7.8, 9.5);
+  page.drawRectangle({ x: 369, y: sectionTop - 148, width: 184, height: 157, color: rgb(0.985, 0.986, 0.989), borderColor: rule, borderWidth: 0.7 });
+  page.drawText("FORMA DE PAGO", { x: 385, y: sectionTop - 20, size: 10, font: bold, color: orange });
+  const paymentRows = [model.company.legalName, model.company.taxId ? `RUT ${model.company.taxId}` : "", model.company.bankName, model.company.bankAccountType, model.company.bankAccountNumber ? `N.º ${model.company.bankAccountNumber}` : "", model.company.email].filter(Boolean);
+  paymentRows.forEach((row, index) => {
+    const lines = wrap(safe(row), index === 0 ? bold : regular, 8.3, 152);
+    const baseY = sectionTop - 43 - index * 17;
+    lines.forEach((line, lineIndex) => page.drawText(line, { x: 385, y: baseY - lineIndex * 10, size: 8.3, font: index === 0 ? bold : regular, color: index === paymentRows.length - 1 ? orange : graphite }));
+  });
+
+  y = Math.min(reservationY, sectionTop - 163);
+  finalHeading("CONDICIONES OPERACIONALES");
+  const operational = model.company.operationalConditions;
+  const split = Math.ceil(operational.length / 2);
+  const columns = [operational.slice(0, split), operational.slice(split)];
+  const operationalTop = y;
+  let operationalBottom = y;
+  columns.forEach((column, columnIndex) => {
+    const x = 42 + columnIndex * 267;
+    let columnY = operationalTop;
+    column.forEach((condition) => {
+      page.drawText(safe(condition.label).toUpperCase(), { x, y: columnY, size: 7.8, font: bold, color: muted });
+      columnY -= 12;
+      const lines = wrap(safe(condition.text), regular, 8.4, 244);
+      lines.forEach((line) => { page.drawText(line, { x, y: columnY, size: 8.4, font: regular, color: graphite }); columnY -= 10.6; });
+      columnY -= 7;
+    });
+    operationalBottom = Math.min(operationalBottom, columnY);
+  });
+  y = operationalBottom - 5;
+
+  page.drawLine({ start: { x: 42, y: y + 5 }, end: { x: 553, y: y + 5 }, thickness: 0.7, color: rule });
   y -= 13;
-
-  finalHeading("¿LISTOS PARA CREAR LA EXPERIENCIA?");
-  drawWrapped("Para continuar con esta propuesta, responde este correo o avanza con el proceso de reserva BOOMBOX.", 42, 511, 8, 10);
-  y -= 1;
-  drawWrapped("16 años creando experiencias que se recuerdan.", 42, 511, 9, 10, bold);
+  page.drawText("¿LISTOS PARA CREAR LA EXPERIENCIA?", { x: 42, y, size: 10.5, font: bold, color: orange });
+  y -= 18;
+  drawWrapped("Para continuar con esta propuesta, responde este correo o avanza con el proceso de reserva BOOMBOX.", 42, 511, 8.8, 11);
+  y -= 2;
+  drawWrapped("16 años creando experiencias que se recuerdan.", 42, 511, 9.6, 11, bold);
 
   const pages = pdf.getPages();
   pages.forEach((current, index) => footer(current, regular, model, index + 1, pages.length));

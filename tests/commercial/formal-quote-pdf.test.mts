@@ -82,16 +82,19 @@ test("simple commercial quote always uses two deliberate A4 pages", async () => 
   assert.equal(document.getPageCount(), 2);
 });
 
-test("page one ends with commercial total and excludes reservation details", async () => {
+test("page one closes with the commercial total and compact reservation summary", async () => {
   const [first] = await pageTexts(await createFormalQuotePdf(model(3)));
   assert.match(first, /TOTAL PROPUESTA/);
-  for (const forbidden of ["ABONO PARA RESERVAR", "SALDO PENDIENTE", "CONDICIONES DE RESERVA", "FORMA DE PAGO", "LISTOS PARA CREAR LA EXPERIENCIA"]) assert.doesNotMatch(first, new RegExp(forbidden));
+  assert.match(first, /RESUMEN DE RESERVA/);
+  assert.match(first, /ABONO PARA RESERVAR/);
+  assert.match(first, /SALDO PENDIENTE/);
+  for (const forbidden of ["CONDICIONES DE RESERVA", "FORMA DE PAGO", "LISTOS PARA CREAR LA EXPERIENCIA"]) assert.doesNotMatch(first, new RegExp(forbidden));
 });
 
 test("final page contains complete reservation and conditions composition", async () => {
   const texts = await pageTexts(await createFormalQuotePdf(model(3)));
   const last = texts.at(-1) ?? "";
-  for (const expected of ["RESUMEN DE RESERVA", "TOTAL PROPUESTA", "ABONO PARA RESERVAR", "SALDO PENDIENTE", "CONDICIONES DE RESERVA", "CONDICIONES OPERACIONALES", "FORMA DE PAGO", "IMPORTANTE", "LISTOS PARA CREAR LA EXPERIENCIA"]) assert.match(last, new RegExp(expected));
+  for (const expected of ["CONDICIONES DE RESERVA", "CONDICIONES OPERACIONALES", "FORMA DE PAGO", "IMPORTANTE", "LISTOS PARA CREAR LA EXPERIENCIA"]) assert.match(last, new RegExp(expected));
 });
 
 test("every page includes elegant total page numbering", async () => {
@@ -103,11 +106,12 @@ test("operational conditions and final blocks follow the approved order", async 
   const texts = await pageTexts(await createFormalQuotePdf(model(2)));
   const text = texts.join(" ");
   const reservation = text.indexOf("CONDICIONES DE RESERVA");
-  const operational = text.indexOf("CONDICIONES OPERACIONALES");
   const payment = text.indexOf("FORMA DE PAGO");
+  const operational = text.indexOf("CONDICIONES OPERACIONALES");
   const closing = text.indexOf("LISTOS PARA CREAR LA EXPERIENCIA");
-  assert.ok(reservation >= 0 && reservation < operational);
-  assert.ok(operational < payment && payment < closing);
+  assert.ok(reservation >= 0 && reservation < payment);
+  assert.ok(payment < operational && operational < closing);
+  const normalizedText = text.toLocaleLowerCase("es-CL");
   for (const expected of [
     "Montaje y desmontaje",
     "Acceso",
@@ -117,7 +121,7 @@ test("operational conditions and final blocks follow the approved order", async 
     "Espacio de instalación",
     "Cambios operacionales",
   ])
-    assert.ok(text.includes(expected));
+    assert.ok(normalizedText.includes(expected.toLocaleLowerCase("es-CL")));
 });
 
 test("operational conditions remain Founder configurable", () => {
