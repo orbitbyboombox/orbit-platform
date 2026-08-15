@@ -25,6 +25,7 @@ export type StaffOperationsEvent = {
   readinessPending?: number;
   resourcesRequired?: number;
   resourcesAssigned?: number;
+  logisticsStatus?: string;
 };
 export type StaffOperationsRequest = {
   id: string;
@@ -139,6 +140,9 @@ export function StaffOperationsView({
                   </p>
                   <p className={`mt-1 text-xs font-semibold ${(event.resourcesAssigned??0)<(event.resourcesRequired??0)?"text-warning":"text-muted"}`}>
                     {event.resourcesRequired?`RECURSOS: ${event.resourcesAssigned??0}/${event.resourcesRequired}`:"RECURSOS: No requiere"}
+                  </p>
+                  <p className={`mt-1 text-xs font-semibold ${event.logisticsStatus === "Pendiente" ? "text-warning" : "text-muted"}`}>
+                    LOGÍSTICA: {event.logisticsStatus ?? "No requiere"}
                   </p>
                   {event.settlements?.length ? (
                     <div className="mt-3 grid gap-2 sm:grid-cols-2">

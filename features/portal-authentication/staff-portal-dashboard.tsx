@@ -42,6 +42,7 @@ export type StaffPortalEvent = {
   net: number;
   status: string;
   vehicle: string;
+  logistics?: {driver:string;departure:string;meetingPoint:string;route:string;instructions:string};
   equipment: string[];
   operationalInformation: {
     observations: string;
@@ -590,6 +591,7 @@ function EventDetail({
             value={event.roles.map((role) => ROLE[role] ?? role).join(" + ")}
           />
           <Small label="Vehículo" value={event.vehicle} />
+          {event.logistics?<><Small label="Conductor" value={event.logistics.driver}/><Small label="Salida logística" value={event.logistics.departure}/><Small label="Punto de encuentro" value={event.logistics.meetingPoint}/><Small label="Ruta" value={event.logistics.route}/><Small label="Instrucciones logísticas" value={event.logistics.instructions}/></>:null}
           <Small
             label="Equipamiento"
             value={event.equipment.join(" · ") || "No asignado"}

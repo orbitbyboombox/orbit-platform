@@ -10,6 +10,7 @@ import { calculateAndPersistRealEventCost } from "@/features/profit-engine";
 import { loadFounderWorkspace } from "@/features/founder-workspace";
 import { loadCrmCustomerOperations } from "@/features/crm/customer-operations.repository";
 import type { EquipmentAssignmentPanelProps } from "@/features/asset-management";
+import type { EventLogisticsData } from "@/features/operations/event-logistics-center";
 
 export interface ProjectWorkspacePageProps {
   params: Promise<{ projectId: string }>;
@@ -243,6 +244,19 @@ export default async function ProjectWorkspacePage({
       .eq("project_id", projectId)
       .order("role");
   if (staffRoleRequirementError) throw staffRoleRequirementError;
+  const [
+    logisticsSummaryResult,
+    logisticsTripsResult,
+    logisticsExpensesResult,
+    logisticsVehiclesResult,
+  ] = await Promise.all([
+    client.from("event_logistics_summary").select("logistics_mode,logistics_status,trip_count,vehicle_count,fuel_cost,toll_cost,parking_cost,other_cost,real_logistics_cost").eq("project_id",projectId).maybeSingle(),
+    client.from("vehicle_trips").select("id,asset_id,driver_staff_id,driver_name,trip_type,sequence,origin,destination,planned_start_at,planned_end_at,distance,status,meeting_point,instructions,operational_assets(asset_code,vehicle_profiles(model)),staff(first_name,last_name)").eq("project_id",projectId).is("deleted_at",null).neq("status","CANCELLED").order("sequence"),
+    client.from("expenses").select("id,vehicle_trip_id,category,total,status,receipt_path,approval_reason").eq("project_id",projectId).not("vehicle_trip_id","is",null).is("deleted_at",null).neq("status","CANCELLED").order("occurred_on"),
+    client.from("vehicle_profiles").select("asset_id,nickname,model,operational_status,operational_assets!inner(asset_code,status,deleted_at)").is("operational_assets.deleted_at",null).order("model"),
+  ]);
+  const logisticsError=logisticsSummaryResult.error??logisticsTripsResult.error??logisticsExpensesResult.error??logisticsVehiclesResult.error;
+  if(logisticsError)throw logisticsError;
   const physicalRequirements=(operationalRequirements??[]).filter(item=>item.requirement_type==="PHYSICAL_UNIT"&&item.asset_type);
   type AssetAvailabilityRow={asset_id:string;asset_code:string;asset_type:string;asset_status:string;available:boolean;conflict_project_id:string|null;conflict_project_name:string|null;conflict_start_at:string;conflict_end_at:string};
   const availabilityResults=await Promise.all(physicalRequirements.map(async requirement=>{
@@ -1194,18 +1208,25 @@ export default async function ProjectWorkspacePage({
   )[0];
   if (!eventControlOperations) notFound();
   const checklistItems = checklist?.event_checklist_items ?? [];
+  const logisticsMode=String(logisticsSummaryResult.data?.logistics_mode??"NOT_REQUIRED"),logisticsTrips=logisticsTripsResult.data??[];
+  const logisticsReasons:{code:string;label:string;href:string}[]=[];
+  if(logisticsMode!=="NOT_REQUIRED"){
+    if(logisticsMode==="COMPANY_VEHICLE"&&!logisticsTrips.some(item=>item.asset_id))logisticsReasons.push({code:"LOGISTICS:VEHICLE",label:"Falta vehículo para logística.",href:"#event-logistics"});
+    if(!logisticsTrips.length)logisticsReasons.push({code:"LOGISTICS:TRIP",label:"Falta viaje crítico de logística.",href:"#event-logistics"});
+    else if(!logisticsTrips.some(item=>item.driver_staff_id||item.driver_name))logisticsReasons.push({code:"LOGISTICS:DRIVER",label:"Falta conductor para logística.",href:"#event-logistics"});
+  }
   const operationalReadiness = operationalContract
     ? {
         projectId,
         status: operationalContract.operational_status,
-        readiness: operationalContract.readiness_status,
-        reasons: Array.isArray(operationalContract.readiness_reasons)
+        readiness: logisticsReasons.length?"NOT_READY":operationalContract.readiness_status,
+        reasons: [...(Array.isArray(operationalContract.readiness_reasons)
           ? (operationalContract.readiness_reasons as {
               code: string;
               label: string;
               href?: string;
             }[])
-          : [],
+          : []),...logisticsReasons],
         contact: {
           status: operationalContract.contact_status,
           firstName: operationalContract.contact_first_name ?? "",
@@ -1290,6 +1311,17 @@ export default async function ProjectWorkspacePage({
     },
     operations: eventControlOperations,
   };
+  const logisticsSummary=logisticsSummaryResult.data;
+  const logistics:EventLogisticsData={
+    projectId,
+    mode:(logisticsSummary?.logistics_mode??"NOT_REQUIRED") as EventLogisticsData["mode"],
+    status:(logisticsSummary?.logistics_status??"NOT_REQUIRED") as EventLogisticsData["status"],
+    summary:{tripCount:Number(logisticsSummary?.trip_count??0),vehicleCount:Number(logisticsSummary?.vehicle_count??0),fuel:Number(logisticsSummary?.fuel_cost??0),tolls:Number(logisticsSummary?.toll_cost??0),parking:Number(logisticsSummary?.parking_cost??0),other:Number(logisticsSummary?.other_cost??0),total:Number(logisticsSummary?.real_logistics_cost??0)},
+    vehicles:(logisticsVehiclesResult.data??[]).map(row=>{const asset=Array.isArray(row.operational_assets)?row.operational_assets[0]:row.operational_assets;return{id:row.asset_id,label:row.nickname||row.model||asset?.asset_code||"Vehículo",available:row.operational_status==="OPERATIONAL"&&asset?.status==="AVAILABLE"}}),
+    drivers:(staff??[]).filter(member=>member.status==="ACTIVE").map(member=>({id:member.id,label:`${member.first_name} ${member.last_name}`})),
+    trips:(logisticsTripsResult.data??[]).map(row=>{const asset=Array.isArray(row.operational_assets)?row.operational_assets[0]:row.operational_assets,profile=asset?(Array.isArray(asset.vehicle_profiles)?asset.vehicle_profiles[0]:asset.vehicle_profiles):null,member=Array.isArray(row.staff)?row.staff[0]:row.staff;return{id:row.id,assetId:row.asset_id,vehicle:profile?.model??asset?.asset_code??"Transporte externo",driver:member?`${member.first_name} ${member.last_name}`:row.driver_name??"Founder",type:row.trip_type,sequence:Number(row.sequence),origin:row.origin,destination:row.destination,plannedStartAt:row.planned_start_at,plannedEndAt:row.planned_end_at,distance:row.distance===null?null:Number(row.distance),status:row.status,meetingPoint:row.meeting_point??"",instructions:row.instructions??""}}),
+    expenses:(logisticsExpensesResult.data??[]).map(row=>{let description="";try{const metadata=JSON.parse(row.approval_reason??"{}");description=String(metadata.description??"")}catch{}return{id:row.id,tripId:String(row.vehicle_trip_id),category:row.category,description,total:Number(row.total),status:row.status,receipt:Boolean(row.receipt_path)}}),
+  };
   return (
     <ProjectWorkspaceExperience
       reconciliationId={query.reconciliation}
@@ -1299,6 +1331,7 @@ export default async function ProjectWorkspacePage({
       event360={event360}
       eventControl={eventControl}
       operationalReadiness={operationalReadiness}
+      logistics={logistics}
       eventDateIso={date}
       portalStage={portalStage}
       productionIntegration={productionIntegration}

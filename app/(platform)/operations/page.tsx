@@ -45,6 +45,7 @@ type PlanningEvent = {
   readinessPending: number;
   resourcesRequired: number;
   resourcesAssigned: number;
+  logisticsStatus: string;
 };
 type PlanningRequest = {
   id: string;
@@ -93,6 +94,7 @@ export default async function OperationsPage() {
     operationalContractsResult,
     resourceRequirementsResult,
     cancellationAlertsResult,
+    logisticsResult,
   ] = await Promise.all([
     new SupabaseCustomerRepository(client).findAll(),
     client
@@ -197,6 +199,9 @@ export default async function OperationsPage() {
       .eq("priority", "CRITICAL")
       .eq("status", "UNREAD")
       .order("created_at", { ascending: false }),
+    client
+      .from("event_logistics_summary")
+      .select("project_id,logistics_mode,logistics_status,trip_count"),
   ]);
 
   const results = [
@@ -226,6 +231,7 @@ export default async function OperationsPage() {
     operationalContractsResult,
     resourceRequirementsResult,
     cancellationAlertsResult,
+    logisticsResult,
   ];
   const error = results.find((result) => result.error)?.error;
   if (error) throw error;
@@ -1179,6 +1185,7 @@ export default async function OperationsPage() {
         (item) => item.project_id === project.id,
       );
       const resourceRequirements=(resourceRequirementsResult.data??[]).filter(item=>item.project_id===project.id);
+      const logistics=(logisticsResult.data??[]).find(item=>item.project_id===project.id);
       return {
         id: project.id,
         date: official?.event_date ?? project.event.date,
@@ -1209,6 +1216,15 @@ export default async function OperationsPage() {
           : 0,
         resourcesRequired:resourceRequirements.reduce((sum,item)=>sum+Math.ceil(Number(item.required_quantity)),0),
         resourcesAssigned:resourceRequirements.reduce((sum,item)=>sum+Number(item.assigned_quantity),0),
+        logisticsStatus: logistics?.logistics_mode === "NOT_REQUIRED"
+          ? "No requiere"
+          : logistics?.logistics_status === "COMPLETED"
+            ? "Completada"
+            : logistics?.logistics_status === "IN_PROGRESS"
+              ? "En ejecución"
+              : logistics?.logistics_status === "PLANNED"
+                ? `${Number(logistics.trip_count)} viaje(s) planificado(s)`
+                : "Pendiente",
       };
     });
   const pendingRequests: PlanningRequest[] = (
@@ -1282,6 +1298,7 @@ export default async function OperationsPage() {
         readinessPending: event.readinessPending,
         resourcesRequired:event.resourcesRequired,
         resourcesAssigned:event.resourcesAssigned,
+        logisticsStatus:event.logisticsStatus,
         ready: Boolean(
           event.date &&
             event.customer &&
