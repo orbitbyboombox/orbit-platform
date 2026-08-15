@@ -16,6 +16,7 @@ const eventLifecycle = readFileSync(`${root}/features/projects/actions/customer.
 const assignmentCenter = readFileSync(`${root}/features/staff-assignment-center/staff-assignment-center.tsx`, "utf8");
 const lifecycleAction = readFileSync(`${root}/features/projects/actions/reservation-lifecycle.actions.ts`, "utf8");
 const cancelledEventClosure = readFileSync(`${root}/supabase/migrations/0132_operations_phase_d_cancelled_event_closure.sql`, "utf8");
+const cancelledEventClosureFix = readFileSync(`${root}/supabase/migrations/0133_operations_phase_d_cancelled_event_closure_fix.sql`, "utf8");
 const cancellationBoundary = readFileSync(`${root}/features/operations/staff-assignment-cancellation.service.ts`, "utf8");
 
 test("Phase D preserves one canonical assignment and settlement transaction", () => {
@@ -97,6 +98,8 @@ test("Event cancellation closes Staff publication and isolates secondary effects
   assert.match(cancelledEventClosure, /update public\.event_staff_requirements[\s\S]*published=false/);
   assert.match(cancelledEventClosure, /update public\.staff_assignment_requests[\s\S]*status='CANCELLED'/);
   assert.match(cancelledEventClosure, /update public\.staff_assignment_cancellations[\s\S]*republish_allowed=false/);
+  assert.match(cancelledEventClosureFix, /update public\.staff_assignment_cancellations[\s\S]*set republish_allowed=false/);
+  assert.doesNotMatch(cancelledEventClosureFix, /staff_assignment_cancellations[\s\S]*updated_at=now\(\)/);
   assert.match(cancellationBoundary, /projectClosed/);
   assert.match(lifecycleAction, /Promise\.allSettled/);
 });
