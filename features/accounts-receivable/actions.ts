@@ -4,6 +4,9 @@ import { createSupabaseServerActionClient } from "@/lib/supabase/server";
 import type { PaymentTerm } from "./types";
 import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import { GoogleGmailApiProvider } from "@/features/connectors/google-gmail/provider/google-gmail-live.provider";
+import { createHash } from "node:crypto";
+
+const maxReceiptBytes = 15 * 1024 * 1024;
 type Result = { ok: true } | { ok: false; error: string };
 export type ReceivableMovementAction =
   | "DEPOSIT"
@@ -20,6 +23,112 @@ const fail = (error: unknown): { ok: false; error: string } => ({
       ? error.message
       : "No fue posible completar la operación.",
 });
+
+const normalizeMovementReason = (value: FormDataEntryValue | null, fallback = "Movimiento registrado por Founder") => {
+  const text = String(value ?? fallback).trim();
+  return text.length >= 3 ? text : fallback;
+};
+
+const movementMethod = (formData: FormData) => String(formData.get("method") || "TRANSFER");
+
+function buildPaymentIdempotencyKey(parts: {
+  invoiceId: string;
+  action: ReceivableMovementAction | "MANUAL_PAYMENT";
+  amount?: number;
+  method: string;
+  reason: string;
+  targetPaymentId?: string;
+  receiptChecksum?: string | null;
+  requestId?: string;
+}): string {
+  const stableRequestId = (parts.requestId ?? "").trim();
+  if (stableRequestId) {
+    return createHash("sha256")
+      .update(
+        `phase1-request:${parts.invoiceId}|${parts.action}|${parts.amount ?? "-"}|${parts.method}|${parts.reason}|${parts.receiptChecksum ?? "-"}|${stableRequestId}`,
+      )
+      .digest("hex");
+  }
+  const source = [
+    "phase1",
+    parts.invoiceId,
+    parts.action,
+    parts.targetPaymentId ?? "-",
+    typeof parts.amount === "number" ? String(parts.amount) : "-",
+    parts.method,
+    parts.reason,
+    parts.receiptChecksum ?? "-",
+  ]
+    .join("|")
+    .toLowerCase();
+  return createHash("sha256").update(source).digest("hex");
+}
+
+async function detectReceipt(file: File | null, invoiceId: string): Promise<{
+  checksum: string | null;
+  storagePath: string | null;
+  bytes: Uint8Array | null;
+  mimeType: string | null;
+}> {
+  if (!(file instanceof File) || file.size === 0) {
+    return { checksum: null, storagePath: null, bytes: null, mimeType: null };
+  }
+  if (file.size > maxReceiptBytes) {
+    throw new Error("El comprobante no puede superar 15 MB.");
+  }
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const extension = (file.name.split(".").pop() || "bin").toLowerCase();
+  const storagePath = `receivables/${invoiceId}/${crypto.randomUUID()}.${extension}`;
+  return {
+    checksum: createHash("sha256").update(bytes).digest("hex"),
+    storagePath,
+    bytes,
+    mimeType: file.type || "application/octet-stream",
+  };
+}
+
+async function upsertReceiptToStorage(
+  client: Awaited<ReturnType<typeof createSupabaseServerActionClient>>,
+  storagePath: string | null,
+  bytes: Uint8Array | null,
+  mimeType: string | null,
+) {
+  if (!storagePath || !bytes || !mimeType) {
+    return;
+  }
+  const { error: uploadError } = await client.storage.from("orbit-documents").upload(storagePath, bytes, {
+    contentType: mimeType,
+    upsert: false,
+  });
+  if (uploadError) throw uploadError;
+}
+
+async function ensureNoDuplicatePaymentByIdempotency(
+  client: Awaited<ReturnType<typeof createSupabaseServerActionClient>>,
+  invoiceId: string,
+  idempotencyKey: string,
+) {
+  const { data: existing } = await client
+    .from("invoice_payments")
+    .select("id")
+    .eq("invoice_id", invoiceId)
+    .eq("idempotency_key", idempotencyKey)
+    .is("deleted_at", null)
+    .maybeSingle();
+  return !!existing?.id;
+}
+
+async function removeUploadedReceipt(
+  client: Awaited<ReturnType<typeof createSupabaseServerActionClient>>,
+  storagePath: string | null,
+) {
+  if (!storagePath) return;
+  try {
+    await client.storage.from("orbit-documents").remove([storagePath]);
+  } catch {
+    // best-effort cleanup on retry/error paths.
+  }
+}
 export async function createInvoiceAction(formData: FormData): Promise<Result> {
   try {
     const client = await createSupabaseServerActionClient();
@@ -101,36 +210,43 @@ export async function applyReceivableMovementAction(
     const action = String(
       formData.get("movementAction"),
     ) as ReceivableMovementAction;
-    const receipt = formData.get("receipt");
-    let receiptPath: string | null = null;
-    if (receipt instanceof File && receipt.size > 0) {
-      if (receipt.size > 15 * 1024 * 1024)
-        throw new Error("El comprobante no puede superar 15 MB.");
-      const extension = receipt.name.split(".").pop()?.toLowerCase() || "bin";
-      receiptPath = `receivables/${invoiceId}/${crypto.randomUUID()}.${extension}`;
-      const { error: uploadError } = await client.storage
-        .from("orbit-documents")
-        .upload(receiptPath, receipt, {
-          contentType: receipt.type,
-          upsert: false,
-        });
-      if (uploadError) throw uploadError;
-    }
+    const receipt = await detectReceipt(formData.get("receipt") instanceof File ? (formData.get("receipt") as File) : null, invoiceId);
     const occurredOn = String(
       formData.get("occurredOn") || new Date().toISOString().slice(0, 10),
     );
+    const method = movementMethod(formData);
+    const reason = normalizeMovementReason(formData.get("reason"));
+    const amount = Number(formData.get("amount") || 0);
+    const occurredAt = `${occurredOn}T12:00:00-04:00`;
+    const requestId = String(formData.get("requestId") || "").trim();
+    const idempotencyKey = buildPaymentIdempotencyKey({
+      invoiceId,
+      action,
+      amount,
+      method,
+      reason,
+      receiptChecksum: receipt.checksum,
+      requestId,
+    });
+    if (await ensureNoDuplicatePaymentByIdempotency(client, invoiceId, idempotencyKey)) {
+      return { ok: true };
+    }
+    await upsertReceiptToStorage(client, receipt.storagePath, receipt.bytes, receipt.mimeType);
     const { error } = await client.rpc("apply_receivable_movement", {
       p_invoice_id: invoiceId,
       p_action: action,
-      p_amount: Number(formData.get("amount") || 0),
-      p_occurred_at: `${occurredOn}T12:00:00-04:00`,
-      p_method: String(formData.get("method") || "TRANSFER"),
-      p_receipt_path: receiptPath,
-      p_reason: String(
-        formData.get("reason") || "Movimiento registrado por Founder",
-      ),
+      p_amount: amount,
+      p_occurred_at: occurredAt,
+      p_method: method,
+      p_receipt_path: receipt.storagePath,
+      p_receipt_checksum: receipt.checksum,
+      p_reason: reason,
+      p_idempotency_key: idempotencyKey,
     });
-    if (error) throw error;
+    if (error) {
+      await removeUploadedReceipt(client, receipt.storagePath);
+      throw error;
+    }
     revalidate();
     if (projectId) revalidatePath(`/projects/${projectId}`);
     return { ok: true };
@@ -145,28 +261,43 @@ export async function registerReceivablePaymentAction(formData: FormData): Promi
     if (!auth.user) throw new Error("Sesión requerida.");
     const invoiceId = String(formData.get("invoiceId"));
     const projectId = String(formData.get("projectId"));
-    const receipt = formData.get("receipt");
-    let receiptPath: string | null = null;
-    let receiptName: string | null = null;
-    if (receipt instanceof File && receipt.size > 0) {
-      if (receipt.size > 15 * 1024 * 1024) throw new Error("El comprobante no puede superar 15 MB.");
-      receiptName = receipt.name;
-      const extension = receipt.name.split(".").pop()?.toLowerCase() || "bin";
-      receiptPath = `receivables/${invoiceId}/${crypto.randomUUID()}.${extension}`;
-      const { error: uploadError } = await client.storage.from("orbit-documents").upload(receiptPath, receipt, { contentType: receipt.type, upsert: false });
-      if (uploadError) throw uploadError;
+    const receipt = await detectReceipt(formData.get("receipt") instanceof File ? (formData.get("receipt") as File) : null, invoiceId);
+    const method = movementMethod(formData);
+    const reason = normalizeMovementReason(formData.get("observation"), "Pago registrado desde Perfil del Cliente");
+    const amount = Number(formData.get("amount"));
+    const paidOn = String(formData.get("paidOn") || new Date().toISOString().slice(0, 10));
+    const occurredOn = `${paidOn}T12:00:00-04:00`;
+    const receiptInput = formData.get("receipt");
+    const receiptName = receiptInput instanceof File ? receiptInput.name : null;
+    const requestId = String(formData.get("requestId") || "").trim();
+    const idempotencyKey = buildPaymentIdempotencyKey({
+      invoiceId,
+      action: "PARTIAL_PAYMENT",
+      amount,
+      method,
+      reason,
+      requestId,
+      receiptChecksum: receipt.checksum,
+    });
+    if (await ensureNoDuplicatePaymentByIdempotency(client, invoiceId, idempotencyKey)) {
+      return { ok: true };
     }
-    const paidOn = String(formData.get("paidOn"));
+    await upsertReceiptToStorage(client, receipt.storagePath, receipt.bytes, receipt.mimeType);
     const { error } = await client.rpc("register_receivable_payment", {
       p_invoice_id: invoiceId,
-      p_amount: Number(formData.get("amount")),
-      p_paid_at: `${paidOn}T12:00:00-04:00`,
-      p_method: String(formData.get("method") || "TRANSFER"),
-      p_receipt_path: receiptPath,
+      p_amount: amount,
+      p_paid_at: occurredOn,
+      p_method: method,
+      p_receipt_path: receipt.storagePath,
       p_receipt_name: receiptName,
-      p_observation: String(formData.get("observation") || ""),
+      p_observation: reason,
+      p_receipt_checksum: receipt.checksum,
+      p_idempotency_key: idempotencyKey,
     });
-    if (error) throw error;
+    if (error) {
+      await removeUploadedReceipt(client, receipt.storagePath);
+      throw error;
+    }
     revalidate();
     if (projectId) revalidatePath(`/projects/${projectId}`);
     return { ok: true };
@@ -245,27 +376,26 @@ export async function manageReceivablePaymentAction(formData: FormData): Promise
     const paymentId = String(formData.get("paymentId"));
     const projectId = String(formData.get("projectId"));
     const action = String(formData.get("paymentAction"));
-    const receipt = formData.get("receipt");
-    let receiptPath: string | null = null;
-    if (receipt instanceof File && receipt.size > 0) {
-      if (receipt.size > 15 * 1024 * 1024) throw new Error("El comprobante no puede superar 15 MB.");
-      const extension = receipt.name.split(".").pop()?.toLowerCase() || "bin";
-      receiptPath = `receivables/${invoiceId}/${crypto.randomUUID()}.${extension}`;
-      const { error: uploadError } = await client.storage.from("orbit-documents").upload(receiptPath, receipt, { contentType: receipt.type, upsert: false });
-      if (uploadError) throw uploadError;
-    }
+    const rawReason = normalizeMovementReason(formData.get("reason"));
+    const method = movementMethod(formData);
     const paidOn = String(formData.get("paidOn") || "");
+    const receipt = await detectReceipt(formData.get("receipt") instanceof File ? (formData.get("receipt") as File) : null, invoiceId);
+    const amount = action === "EDIT" ? Number(formData.get("amount") || 0) : null;
+    const occurredAt = paidOn ? `${paidOn}T12:00:00-04:00` : null;
     const { error } = await client.rpc("manage_receivable_payment", {
       p_invoice_id: invoiceId,
       p_payment_id: paymentId,
       p_action: action,
-      p_amount: action === "EDIT" ? Number(formData.get("amount")) : null,
-      p_paid_at: action === "EDIT" ? `${paidOn}T12:00:00-04:00` : null,
-      p_method: action === "EDIT" ? String(formData.get("method") || "") : null,
-      p_receipt_path: receiptPath,
-      p_reason: String(formData.get("reason") || ""),
+      p_amount: amount,
+      p_paid_at: occurredAt,
+      p_method: action === "EDIT" ? method : null,
+      p_receipt_path: receipt.storagePath,
+      p_reason: rawReason,
     });
-    if (error) throw error;
+    if (error) {
+      await removeUploadedReceipt(client, receipt.storagePath);
+      throw error;
+    }
     revalidate();
     if (projectId) revalidatePath(`/projects/${projectId}`);
     return { ok: true };

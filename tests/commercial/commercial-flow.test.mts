@@ -50,3 +50,10 @@ test("a public signing token cannot be used for another agreement", () => {
   assert.equal(assertCommercialDocumentOwnership({ tokenAgreementId: "agreement-1", requestedAgreementId: "agreement-1" }), true);
   assert.throws(() => assertCommercialDocumentOwnership({ tokenAgreementId: "agreement-1", requestedAgreementId: "agreement-2" }), /no pertenece/);
 });
+
+test("custom deposit rate is respected in commercial confirmation", () => {
+  const result = evaluateCommercialConfirmation({ agreementSigned: true, total: 600_000, paid: 450_000, depositRate: 0.75 });
+  assert.equal(result.requiredDeposit, 450_000);
+  assert.equal(result.confirmed, true);
+  assert.equal(result.state, "CONFIRMED");
+});

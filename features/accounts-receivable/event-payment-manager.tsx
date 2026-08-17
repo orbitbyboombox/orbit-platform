@@ -75,8 +75,10 @@ export function EventPaymentManager({
 }) {
   const router = useRouter();
   const [action, setAction] = useState<ReceivableMovementAction | null>(null);
+  const [actionRequestId, setActionRequestId] = useState(() => crypto.randomUUID());
   const [feedback, setFeedback] = useState("");
   const [newPayment, setNewPayment] = useState(false);
+  const [newPaymentRequestId, setNewPaymentRequestId] = useState(() => crypto.randomUUID());
   const [dateEditor, setDateEditor] = useState(false);
   const [movementEditor, setMovementEditor] = useState<{ mode: "EDIT" | "DELETE"; item: Movement } | null>(null);
   const [pending, startTransition] = useTransition();
@@ -85,6 +87,7 @@ export function EventPaymentManager({
     data.set("invoiceId", receivable.id);
     data.set("projectId", projectId);
     data.set("movementAction", action);
+    data.set("requestId", actionRequestId);
     startTransition(async () => {
       const result = await applyReceivableMovementAction(data);
       if (result.ok) {
@@ -93,6 +96,17 @@ export function EventPaymentManager({
         router.refresh();
       } else setFeedback(result.error);
     });
+  };
+  const openAction = (value: ReceivableMovementAction) => {
+    setAction(value);
+    setActionRequestId(crypto.randomUUID());
+  };
+  const openNewPayment = () => {
+    setNewPaymentRequestId(crypto.randomUUID());
+    setNewPayment(true);
+  };
+  const closeNewPayment = () => {
+    setNewPayment(false);
   };
   return (
     <section
@@ -135,7 +149,7 @@ export function EventPaymentManager({
       </div>
       {reconciliationId&&<div className="mt-5 rounded-xl border border-brand/30 bg-brand/[.05] p-4"><p className="font-semibold">Conciliación bancaria sugerida</p><p className="mt-1 text-sm text-muted">Confirma aquí para crear un único movimiento en este Payment Ledger. La importación no afecta saldos antes de esta acción.</p><Button className="mt-3" disabled={pending} onClick={()=>startTransition(async()=>{const data=new FormData();data.set("reconciliationId",reconciliationId);data.set("invoiceId",receivable.id);data.set("projectId",projectId);const result=await confirmReconciledPaymentAction(data);setFeedback(result.ok?"Pago conciliado y proyecciones actualizadas.":result.error);if(result.ok)router.refresh();})}>{pending?"Confirmando…":"Confirmar pago conciliado"}</Button></div>}
       {receivable.status !== "CANCELLED" && receivable.outstandingBalance > 0 && (
-        <Button className="mt-5" onClick={() => setNewPayment(true)}>
+        <Button className="mt-5" onClick={openNewPayment}>
           <Plus className="size-4" />
           Registrar nuevo pago
         </Button>
@@ -150,24 +164,24 @@ export function EventPaymentManager({
               <Action
                 label="Registrar Pago Total"
                 icon={<CheckCircle2 />}
-                onClick={() => setAction("FULL_PAYMENT")}
+                onClick={() => openAction("FULL_PAYMENT")}
               />
               {receivable.paidAmount > 0 && (
                 <Action
                   label="Volver a Pendiente"
                   icon={<RotateCcw />}
-                  onClick={() => setAction("RETURN_PENDING")}
+                  onClick={() => openAction("RETURN_PENDING")}
                 />
               )}
               <Action
                 label="Archivar Cuenta"
                 icon={<Archive />}
-                onClick={() => setAction("ARCHIVE")}
+                onClick={() => openAction("ARCHIVE")}
               />
               <Action
                 label="Cancelar Cuenta"
                 icon={<X />}
-                onClick={() => setAction("CANCEL")}
+                onClick={() => openAction("CANCEL")}
               />
             </>
           )}
@@ -180,7 +194,7 @@ export function EventPaymentManager({
             danger
             label="Eliminar Cuenta"
             icon={<Trash2 />}
-            onClick={() => setAction("DELETE")}
+            onClick={() => openAction("DELETE")}
           />
         </div>
       </details>
@@ -315,7 +329,8 @@ export function EventPaymentManager({
         <NewPaymentDialog
           invoiceId={receivable.id}
           maxAmount={receivable.outstandingBalance}
-          onClose={() => setNewPayment(false)}
+          requestId={newPaymentRequestId}
+          onClose={closeNewPayment}
           onSubmit={(data) =>
             startTransition(async () => {
               const result = await registerReceivablePaymentAction(data);
@@ -358,8 +373,24 @@ export function EventPaymentManager({
     </section>
   );
 }
-function NewPaymentDialog({ invoiceId, maxAmount, pending, projectId, onClose, onSubmit }: { invoiceId: string; maxAmount: number; pending: boolean; projectId: string; onClose: () => void; onSubmit: (data: FormData) => void }) {
-  return <div aria-modal="true" className="fixed inset-0 z-50 flex items-end justify-center bg-black/65 sm:items-center sm:p-6" role="dialog"><div className="w-full rounded-t-2xl border bg-card p-5 sm:max-w-lg sm:rounded-2xl"><div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-wide text-brand">Payment Ledger</p><h3 className="mt-1 text-xl font-semibold">Registrar nuevo pago</h3><p className="mt-1 text-sm text-muted">Este pago se agregará como un movimiento independiente.</p></div><button aria-label="Cerrar" className="rounded-lg border p-2" onClick={onClose}><X className="size-4"/></button></div><form action={(data) => { data.set("invoiceId", invoiceId); data.set("projectId", projectId); onSubmit(data); }} className="mt-5 space-y-4"><Field label="Monto"><input max={maxAmount} min="1" name="amount" required type="number"/></Field><Field label="Fecha"><input defaultValue={new Date().toISOString().slice(0, 10)} name="paidOn" required type="date"/></Field><Field label="Método de pago"><select defaultValue="TRANSFER" name="method"><option value="TRANSFER">Transferencia</option><option value="CARD">Tarjeta</option><option value="CASH">Efectivo</option><option value="OTHER">Otro</option></select></Field><Field label="Comprobante"><input accept="image/jpeg,image/png,image/webp,application/pdf" name="receipt" type="file"/></Field><Field label="Observación (opcional)"><input name="observation"/></Field><Button className="w-full" disabled={pending}>{pending ? "Registrando…" : "Guardar nuevo pago"}</Button></form></div></div>;
+function NewPaymentDialog({
+  invoiceId,
+  maxAmount,
+  pending,
+  projectId,
+  requestId,
+  onClose,
+  onSubmit,
+}: {
+  invoiceId: string;
+  maxAmount: number;
+  pending: boolean;
+  projectId: string;
+  requestId: string;
+  onClose: () => void;
+  onSubmit: (data: FormData) => void;
+}) {
+  return <div aria-modal="true" className="fixed inset-0 z-50 flex items-end justify-center bg-black/65 sm:items-center sm:p-6" role="dialog"><div className="w-full rounded-t-2xl border bg-card p-5 sm:max-w-lg sm:rounded-2xl"><div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-wide text-brand">Payment Ledger</p><h3 className="mt-1 text-xl font-semibold">Registrar nuevo pago</h3><p className="mt-1 text-sm text-muted">Este pago se agregará como un movimiento independiente.</p></div><button aria-label="Cerrar" className="rounded-lg border p-2" onClick={onClose}><X className="size-4"/></button></div><form action={(data) => { data.set("invoiceId", invoiceId); data.set("projectId", projectId); data.set("requestId", requestId); onSubmit(data); }} className="mt-5 space-y-4"><Field label="Monto"><input max={maxAmount} min="1" name="amount" required type="number"/></Field><Field label="Fecha"><input defaultValue={new Date().toISOString().slice(0, 10)} name="paidOn" required type="date"/></Field><Field label="Método de pago"><select defaultValue="TRANSFER" name="method"><option value="TRANSFER">Transferencia</option><option value="CARD">Tarjeta</option><option value="CASH">Efectivo</option><option value="OTHER">Otro</option></select></Field><Field label="Comprobante"><input accept="image/jpeg,image/png,image/webp,application/pdf" name="receipt" type="file"/></Field><Field label="Observación (opcional)"><input name="observation"/></Field><Button className="w-full" disabled={pending}>{pending ? "Registrando…" : "Guardar nuevo pago"}</Button></form></div></div>;
 }
 function paymentMethod(method: string) { return ({ TRANSFER: "Transferencia", CARD: "Tarjeta", CASH: "Efectivo", OTHER: "Otro" } as Record<string, string>)[method] ?? method; }
 function MovementEditor({ invoiceId, movement, mode, pending, projectId, onClose, onSubmit }: { invoiceId: string; movement: Movement; mode: "EDIT" | "DELETE"; pending: boolean; projectId: string; onClose: () => void; onSubmit: (data: FormData) => void }) {

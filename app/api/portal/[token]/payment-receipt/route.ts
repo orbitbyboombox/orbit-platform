@@ -25,7 +25,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const admin = createAdminClient(); const { error: storageError } = await admin.storage.from("orbit-documents").upload(storagePath, bytes, { contentType: file.type, upsert: false }); if (storageError) throw storageError;
     const customer = Array.isArray(portal.project.customers) ? portal.project.customers[0] : portal.project.customers;
     const uploaded = await uploadReservationDocumentToDrive({ client: admin, projectId: portal.access.project_id, customerName: customer.full_name, eventDate: portal.project.event_date, kind: "PAYMENT_PROOF", name: file.name, mimeType: file.type, bytes });
-    const { data: document, error: documentError } = await admin.from("documents").insert({ project_id: portal.access.project_id, customer_id: portal.access.customer_id, document_type: "PAYMENT_RECEIPT", storage_bucket: "orbit-documents", storage_path: storagePath, checksum, drive_file_id: uploaded.id }).select("id").single(); if (documentError) throw documentError;
+    const { data: document, error: documentError } = await admin.from("documents").insert({
+      project_id: portal.access.project_id,
+      customer_id: portal.access.customer_id,
+      invoice_id: portal.invoice?.id ?? null,
+      orbit_event_id: portal.project.orbit_event_id,
+      document_type: "PAYMENT_RECEIPT",
+      storage_bucket: "orbit-documents",
+      storage_path: storagePath,
+      checksum,
+      drive_file_id: uploaded.id,
+    }).select("id").single();
+    if (documentError) throw documentError;
     const correlation = `portal-payment-proof:${document.id}`;
     const { error: timelineError } = await admin.from("timeline_events").insert({ customer_id: portal.access.customer_id, project_id: portal.access.project_id, event_type: "PAYMENT_PROOF_UPLOADED", title: "Comprobante de pago recibido.", description: "El cliente adjuntó un comprobante para validación.", orbit_event_id: portal.project.orbit_event_id, actor_label: "Cliente", source: "Customer", action: "PAYMENT_PROOF_UPLOADED", entity_type: "Document", entity_id: document.id, human_message: "El cliente adjuntó un comprobante de pago.", correlation_id: correlation }); if (timelineError) throw timelineError;
     destination.searchParams.set("paymentUpload", "success");
