@@ -7,6 +7,7 @@ const migration = readFileSync(`${root}/supabase/migrations/0140_financial_integ
 const migration0141 = readFileSync(`${root}/supabase/migrations/0141_register_receivable_payment_rpc_overload_fix.sql`, "utf8");
 const migration0142 = readFileSync(`${root}/supabase/migrations/0142_financial_ledger_integrity.sql`, "utf8");
 const migration0144 = readFileSync(`${root}/supabase/migrations/0144_financial_resolution_helper_schema_fix.sql`, "utf8");
+const migration0145 = readFileSync(`${root}/supabase/migrations/0145_backfill_maintenance_authorization.sql`, "utf8");
 const reconciliation = readFileSync(`${root}/supabase/migrations/0100_rc31g_banking_reconciliation.sql`, "utf8");
 const actions = readFileSync(`${root}/features/accounts-receivable/actions.ts`, "utf8");
 const ui = readFileSync(`${root}/features/accounts-receivable/event-payment-manager.tsx`, "utf8");
@@ -293,6 +294,68 @@ test("0142 protege recibos técnicos en receivable_movements", () => {
     migration0142,
     /create or replace function public\.recalculate_receivable_movement_amount\(p_invoice_id uuid\)/,
   );
+});
+
+test("0145 permite ejecución del backfill desde service role o admin autenticado", () => {
+  assert.equal(
+    migration0145.includes("create or replace function public.execute_receivable_payment_receipt_backfill(p_dry_run boolean default true)"),
+    true,
+    "0145 debe reescribir la función canónica de backfill.",
+  );
+  assert.match(
+    migration0145,
+    /is_service_backend :=\s*coalesce\(current_setting\('request\.jwt\.claim\.role', true\), ''\)\s*=\s*'service_role'\s*or auth\.role\(\) = 'service_role'/,
+  );
+  assert.match(
+    migration0145,
+    /if not \(is_service_backend or \(actor is not null and public\.can_administer\(\)\)\) then/,
+  );
+});
+
+test("0145 bloquea anon y autenticado no-admin", () => {
+  assert.match(
+    migration0145,
+    /revoke all on function public\.execute_receivable_payment_receipt_backfill\(boolean\) from public,anon;/,
+  );
+  assert.match(
+    migration0145,
+    /if not \(is_service_backend or \(actor is not null and public\.can_administer\(\)\)\) then/,
+  );
+  assert.match(
+    migration0145,
+    /or auth\.role\(\) = 'service_role';/,
+  );
+});
+
+test("0145 mantiene idempotencia de ejecución y dry-run", () => {
+  assert.equal(
+    /if not p_dry_run then[\s\S]*insert into public\.documents/.test(migration0145),
+    true,
+    "La inserción debe ocurrir solo en modo no dry-run.",
+  );
+  assert.equal(
+    /if not p_dry_run then[\s\S]*update public\.documents/.test(migration0145),
+    true,
+    "El update debe ocurrir solo en modo no dry-run.",
+  );
+  assert.equal(
+    migration0145.includes("on conflict (idempotency_key) do nothing"),
+    true,
+    "El backfill debe seguir siendo idempotente.",
+  );
+});
+
+test("0145 no añade side effects de escritura al instalarse", () => {
+  const migrationText = migration0145.toLowerCase();
+  const bodyStart = migrationText.indexOf("create or replace function public.execute_receivable_payment_receipt_backfill(p_dry_run boolean default true)");
+  const bodyEnd = migrationText.indexOf("revoke all on function public.execute_receivable_payment_receipt_backfill(boolean) from public,anon;");
+  const functionBody = bodyStart >= 0 && bodyEnd > bodyStart ? migration0145.slice(bodyStart, bodyEnd) : "";
+  assert.ok(functionBody.length > 0, "Debe existir el bloque de función en 0145.");
+  assert.equal(functionBody.includes("return jsonb_build_object"), true, "La función debe retornar conteo de acciones.");
+  assert.equal(functionBody.includes("if not p_dry_run then"), true, "Debe ejecutar cambios solo fuera de dry-run.");
+  assert.equal(functionBody.includes("insert into public.documents"), true, "Solo permite inserciones por ejecución controlada.");
+  assert.equal(functionBody.includes("update public.documents"), true, "Solo permite updates por ejecución controlada.");
+  assert.equal(functionBody.includes("delete "), false, "0145 no debe incluir DELETE durante backfill.");
 });
 
 test("0144 elimina dependencia inexistente de invoice_payments.metadata", () => {
