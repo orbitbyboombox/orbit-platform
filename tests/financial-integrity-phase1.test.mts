@@ -8,6 +8,7 @@ const migration0141 = readFileSync(`${root}/supabase/migrations/0141_register_re
 const migration0142 = readFileSync(`${root}/supabase/migrations/0142_financial_ledger_integrity.sql`, "utf8");
 const migration0144 = readFileSync(`${root}/supabase/migrations/0144_financial_resolution_helper_schema_fix.sql`, "utf8");
 const migration0145 = readFileSync(`${root}/supabase/migrations/0145_backfill_maintenance_authorization.sql`, "utf8");
+const migration0146 = readFileSync(`${root}/supabase/migrations/0146_document_backfill_schema_compatibility.sql`, "utf8");
 const reconciliation = readFileSync(`${root}/supabase/migrations/0100_rc31g_banking_reconciliation.sql`, "utf8");
 const actions = readFileSync(`${root}/features/accounts-receivable/actions.ts`, "utf8");
 const ui = readFileSync(`${root}/features/accounts-receivable/event-payment-manager.tsx`, "utf8");
@@ -356,6 +357,56 @@ test("0145 no añade side effects de escritura al instalarse", () => {
   assert.equal(functionBody.includes("insert into public.documents"), true, "Solo permite inserciones por ejecución controlada.");
   assert.equal(functionBody.includes("update public.documents"), true, "Solo permite updates por ejecución controlada.");
   assert.equal(functionBody.includes("delete "), false, "0145 no debe incluir DELETE durante backfill.");
+});
+
+test("0146 elimina dependencia de documents.updated_by en backfill", () => {
+  const fnStart = migration0146.indexOf("create or replace function public.execute_receivable_payment_receipt_backfill");
+  const fnEnd = migration0146.indexOf("revoke all on function public.preview_receivable_payment_receipt_backfill() from public,anon;");
+  const functionBody = fnStart >= 0 && fnEnd > fnStart ? migration0146.slice(fnStart, fnEnd) : "";
+
+  assert.ok(fnStart >= 0, "0146 debe redefinir execute_receivable_payment_receipt_backfill.");
+  assert.equal(functionBody.includes("updated_by"), false, "0146 no debe escribir documents.updated_by.");
+  assert.equal(
+    functionBody.includes("on conflict (idempotency_key) do nothing"),
+    true,
+    "0146 debe mantener idempotencia por idempotency_key cuando exista.",
+  );
+  assert.match(migration0146, /has_idempotency_key boolean;/);
+  assert.match(migration0146, /select exists\([\s\S]*column_name = 'idempotency_key'[\s\S]*\) into has_idempotency_key;/);
+});
+
+test("0146 mantiene fallback sin updated_by/updated_at y conserva autorización", () => {
+  assert.match(migration0146, /is_service_backend :=\s*coalesce\(current_setting\('request\.jwt\.claim\.role', true\), ''\) = 'service_role'/);
+  assert.equal(
+    migration0146.includes("if not (is_service_backend or (actor is not null and public.can_administer())) then"),
+    true,
+    "0146 debe conservar la autorización dual 0145.",
+  );
+  assert.equal(migration0146.includes("if has_idempotency_key then"), true, "0146 debe evaluar existencia de idempotency_key en documents.");
+  assert.equal(
+    migration0146.includes("on conflict (storage_path) do nothing"),
+    true,
+    "0146 debe mantener fallback de idempotencia por storage_path si falta idempotency_key.",
+  );
+  assert.equal(migration0146.includes("updated_by = actor"), false, "0146 no debe depender de documents.updated_by.");
+  assert.match(
+    migration0146,
+    /if has_idempotency_key then[\s\S]*on conflict \(idempotency_key\) do nothing[\s\S]*on conflict \(storage_path\) do nothing/,
+  );
+  assert.equal(
+    migration0146.includes("grant execute on function public.execute_receivable_payment_receipt_backfill(boolean) to authenticated, service_role;"),
+    true,
+    "0146 debe conservar permisos de ejecución para authenticated + service_role.",
+  );
+});
+
+test("0146 no ejecuta reparación ni side-effect fuera de execute_receivable_payment_receipt_backfill", () => {
+  const fnStart = migration0146.indexOf("create or replace function public.execute_receivable_payment_receipt_backfill(p_dry_run boolean default true)");
+  const fnEnd = migration0146.indexOf("revoke all on function public.preview_receivable_payment_receipt_backfill() from public,anon;");
+  const functionBody = fnStart >= 0 && fnEnd > fnStart ? migration0146.slice(fnStart, fnEnd) : "";
+  assert.ok(functionBody.includes("if not p_dry_run then"), "La inserción/actualización debe ocurrir solo en ejecución real.");
+  assert.ok(functionBody.includes("insert into public.documents"), "Backfill canónico por inserción debe existir.");
+  assert.ok(!functionBody.includes("delete from public.documents"), "No se borra documents durante instalación/ejecución del helper.");
 });
 
 test("0144 elimina dependencia inexistente de invoice_payments.metadata", () => {
