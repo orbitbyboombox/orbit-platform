@@ -5,8 +5,11 @@ import test from "node:test";
 import {
   type HistoricalPaymentReceiptCandidate,
   type HistoricalPaymentReceiptSyncRepository,
+  resolveCanonicalCustomerName,
+  resolveCanonicalPilotFolderPath,
   executeHistoricalPaymentReceiptDriveSync,
   hasPilotContext,
+  type HistoricalPaymentReceiptCandidateRow,
 } from "../features/connectors/google-drive/application/historical-payment-receipt-drive-sync.service.ts";
 import type { GoogleDriveLiveProvider } from "../features/connectors/google-drive/provider/google-drive-live.provider.ts";
 
@@ -253,6 +256,33 @@ test("runner preserves receipt_name when determining filename", async () => {
   assert.equal(provider.uploads.at(0)?.name, "recibo-original.png");
 });
 
+test("runner falls back filename to storage basename when receipt_name missing", async () => {
+  const repository = new MockRepository([
+    {
+      documentId: "doc-fallback-basename",
+      projectId: "project-4b",
+      paymentId: null,
+      invoiceId: null,
+      customerId: "customer-4b",
+      customerName: "Cliente C",
+      eventDate: "2026-06-30",
+      storageBucket: "orbit-documents",
+      storagePath: "project-4b/foto-comprobante.jpg",
+      driveFileId: null,
+      receiptName: null,
+    },
+  ], ["project-4b/foto-comprobante.jpg"]);
+  const provider = new MockDriveProvider({ existing: new Map() });
+
+  await executeHistoricalPaymentReceiptDriveSync({
+    client: null as never,
+    repository,
+    resolveDestination: async () => ({ folderId: "folder", folderPath: "ORBIT", provider }),
+  });
+
+  assert.equal(provider.uploads.at(0)?.name, "foto-comprobante.jpg");
+});
+
 test("runner uploads and links receipt to documents", async () => {
   const repository = new MockRepository([
     {
@@ -483,4 +513,35 @@ test("pilot context filters only png/jpg candidates with event/customer", () => 
   const pilot = candidates.filter((candidate) => hasPilotContext(candidate));
   assert.equal(pilot.length, 1);
   assert.equal(pilot[0].documentId, "a");
+});
+
+test("runner folder path is deterministic for canonical payment proof destination", () => {
+  const folderPath = resolveCanonicalPilotFolderPath({
+    customerName: "Camila Sandoval",
+    eventDate: "2026-12-05",
+    rootDriveFolder: "BOOMBOX ORBIT",
+  });
+
+  assert.equal(folderPath, "BOOMBOX ORBIT/2026/December/05-12-2026 - Camila Sandoval/02_Comprobantes");
+});
+
+test("runner does not use non-canonical customer override", () => {
+  const rowFromProject = {
+    id: "doc-1",
+    invoice_id: null,
+    payment_id: null,
+    project_id: "project-1",
+    customer_id: null,
+    drive_file_id: null,
+    storage_bucket: null,
+    storage_path: null,
+    projects: {
+      event_date: "2026-12-05",
+      customers: [{ full_name: "Camila Sandoval" }],
+    },
+    customers: { full_name: "Camila Sandangel" },
+    invoice_payments: null,
+  } satisfies HistoricalPaymentReceiptCandidateRow;
+
+  assert.equal(resolveCanonicalCustomerName(rowFromProject), "Camila Sandoval");
 });

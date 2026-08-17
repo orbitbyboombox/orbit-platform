@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { GoogleDriveLiveProvider } from "../provider/google-drive-live.provider.ts";
+import { resolveAutomaticDestination } from "./google-drive-folder-strategy.ts";
 
 export type HistoricalPaymentReceiptDriveSyncStatus =
   | "UPLOADED"
@@ -61,8 +62,71 @@ export interface ResolutionContext {
   kind: "PAYMENT_PROOF";
 }
 
+export interface PilotDriveFolderInput {
+  customerName: string;
+  eventDate: string;
+  rootDriveFolder: string;
+}
+
+type CustomerProfile = { full_name?: unknown; id?: unknown };
+type CustomerProfileRow = CustomerProfile | readonly CustomerProfile[] | null | undefined;
+
+export type HistoricalPaymentReceiptCandidateRow = {
+  id: string;
+  invoice_id: string | null;
+  payment_id: string | null;
+  project_id: string;
+  customer_id: string | null;
+  drive_file_id: string | null;
+  storage_bucket: string | null;
+  storage_path: string | null;
+  projects?:
+    | {
+        event_date: string | null;
+        customer_id?: unknown;
+        customers?: CustomerProfileRow;
+      }
+    | readonly {
+        event_date: string | null;
+        customer_id?: unknown;
+        customers?: CustomerProfileRow;
+      }[]
+    | null;
+  customers?: CustomerProfileRow;
+  invoice_payments?:
+    | { receipt_name: string | null }
+    | readonly { receipt_name: string | null }[]
+    | null;
+};
+
 function extractReason(error: unknown): string {
   return error instanceof Error ? error.message : "No fue posible completar la operación.";
+}
+
+function resolveProfileName(profile: CustomerProfileRow): string | null {
+  const selected = Array.isArray(profile) ? profile.at(0) : profile;
+  if (!selected || typeof selected !== "object") return null;
+  return trimOrNull(selected.full_name);
+}
+
+export function resolveCanonicalCustomerName(row: HistoricalPaymentReceiptCandidateRow): string | null {
+  const project = Array.isArray(row.projects) ? row.projects.at(0) : row.projects;
+  const fromProject = project ? resolveProfileName(project.customers) : null;
+  if (fromProject) return fromProject;
+  return resolveProfileName(row.customers);
+}
+
+export function resolveCanonicalPilotFolderPath(input: PilotDriveFolderInput): string {
+  return resolveAutomaticDestination(
+    {
+      kind: "PAYMENT_PROOF",
+      context: {
+        customerName: input.customerName,
+        eventDate: input.eventDate,
+      },
+    },
+    input.rootDriveFolder,
+  ).folderPath;
 }
 
 const PILOT_EXTENSIONS = [".png", ".jpg", ".jpeg"];
@@ -129,7 +193,7 @@ export class DefaultHistoricalPaymentReceiptDriveSyncRepository implements Histo
   }
 
   async loadCandidates(input?: { documentIds?: readonly string[] } | undefined): Promise<HistoricalPaymentReceiptCandidate[]> {
-    type LoadCandidatesRow = {
+type LoadCandidatesRow = {
       id: string;
       invoice_id: string | null;
       payment_id: string | null;
@@ -138,17 +202,18 @@ export class DefaultHistoricalPaymentReceiptDriveSyncRepository implements Histo
       drive_file_id: string | null;
       storage_bucket: string | null;
       storage_path: string | null;
-      projects?: Array<{
+    projects?: Array<{
         event_date: string | null;
+        customer_id?: unknown;
         customers?: { id: string; full_name: string } | Array<{ id: string; full_name: string }> | null;
-      }> | { event_date: string | null; customers?: { id: string; full_name: string } | Array<{ id: string; full_name: string }> | null } | null;
-      invoice_payments?: Array<{ receipt_name: string | null }> | { receipt_name: string | null } | null;
-    };
+      }> | { event_date: string | null; customer_id?: unknown; customers?: { id: string; full_name: string } | Array<{ id: string; full_name: string }> | null } | null;
+    invoice_payments?: Array<{ receipt_name: string | null }> | { receipt_name: string | null } | null;
+  };
 
     let query = this.client
       .from("documents")
       .select(
-        "id,invoice_id,payment_id,project_id,customer_id,drive_file_id,storage_bucket,storage_path,projects(event_date,customer_id,customers(id,full_name)),invoice_payments(receipt_name)",
+        "id,invoice_id,payment_id,project_id,customer_id,drive_file_id,storage_bucket,storage_path,projects(event_date,customer_id,customers(id,full_name)),customers(full_name),invoice_payments(receipt_name)",
       )
       .eq("document_type", "PAYMENT_RECEIPT")
       .is("deleted_at", null)
@@ -164,8 +229,7 @@ export class DefaultHistoricalPaymentReceiptDriveSyncRepository implements Histo
 
     return (data ?? []).map((row: LoadCandidatesRow) => {
       const project = Array.isArray(row.projects) ? row.projects.at(0) : row.projects;
-      const customers = project?.customers;
-      const customer = Array.isArray(customers) ? customers.at(0) : customers;
+      const customerName = resolveCanonicalCustomerName(row);
       const invoicePayment = row.invoice_payments;
       const invoicePaymentReceiptName = Array.isArray(invoicePayment)
         ? trimOrNull(invoicePayment.at(0)?.receipt_name)
@@ -179,8 +243,8 @@ export class DefaultHistoricalPaymentReceiptDriveSyncRepository implements Histo
         paymentId: trimOrNull(row.payment_id),
         invoiceId: trimOrNull(row.invoice_id),
         projectId: row.project_id,
-        customerId: trimOrNull(row.customer_id) ?? trimOrNull(customer?.id) ?? null,
-        customerName: trimOrNull(customer?.full_name),
+        customerId: trimOrNull(row.customer_id) ?? trimOrNull(project?.customer_id) ?? null,
+        customerName,
         eventDate: trimOrNull(project?.event_date),
         storageBucket,
         storagePath,

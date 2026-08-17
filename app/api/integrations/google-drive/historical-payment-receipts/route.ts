@@ -3,10 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadCompanySettings } from "@/features/company-settings";
 import { getGoogleWorkspaceAdministrator } from "@/features/connectors/google-workspace/application/google-workspace.authorization.guard";
-import { resolveAutomaticDestination } from "@/features/connectors/google-drive/application/google-drive-folder-strategy";
 import {
   DefaultHistoricalPaymentReceiptDriveSyncRepository,
   executeHistoricalPaymentReceiptDriveSync,
+  resolveCanonicalPilotFolderPath,
   hasPilotContext,
   type HistoricalPaymentReceiptCandidate,
 } from "@/features/connectors/google-drive/application/historical-payment-receipt-drive-sync.service";
@@ -20,21 +20,6 @@ function isStorageObjectPresent(client: ReturnType<typeof createAdminClient>, bu
     .download(path)
     .then(({ data, error }) => Boolean(data) && !error)
     .catch(() => false);
-}
-
-function buildPilotFolderPath(input: {
-  customerName: string;
-  eventDate: string;
-  rootFolder: string;
-}): string {
-  const destination = resolveAutomaticDestination(
-    {
-      kind: "PAYMENT_PROOF",
-      context: { customerName: input.customerName, eventDate: input.eventDate },
-    },
-    input.rootFolder,
-  );
-  return destination.folderPath;
 }
 
 function asPilotSummary(candidate: HistoricalPaymentReceiptCandidate, folderPath: string | null) {
@@ -71,10 +56,10 @@ export async function GET() {
 
     pilot = asPilotSummary(
       candidate,
-      buildPilotFolderPath({
+      resolveCanonicalPilotFolderPath({
         customerName,
         eventDate,
-        rootFolder: company.driveRootFolder,
+        rootDriveFolder: company.driveRootFolder,
       }),
     );
     break;
