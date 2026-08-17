@@ -6,6 +6,7 @@ const root = process.cwd();
 const migration = readFileSync(`${root}/supabase/migrations/0140_financial_integrity_hotfix_phase1.sql`, "utf8");
 const migration0141 = readFileSync(`${root}/supabase/migrations/0141_register_receivable_payment_rpc_overload_fix.sql`, "utf8");
 const migration0142 = readFileSync(`${root}/supabase/migrations/0142_financial_ledger_integrity.sql`, "utf8");
+const migration0144 = readFileSync(`${root}/supabase/migrations/0144_financial_resolution_helper_schema_fix.sql`, "utf8");
 const reconciliation = readFileSync(`${root}/supabase/migrations/0100_rc31g_banking_reconciliation.sql`, "utf8");
 const actions = readFileSync(`${root}/features/accounts-receivable/actions.ts`, "utf8");
 const ui = readFileSync(`${root}/features/accounts-receivable/event-payment-manager.tsx`, "utf8");
@@ -291,6 +292,48 @@ test("0142 protege recibos técnicos en receivable_movements", () => {
   assert.match(
     migration0142,
     /create or replace function public\.recalculate_receivable_movement_amount\(p_invoice_id uuid\)/,
+  );
+});
+
+test("0144 elimina dependencia inexistente de invoice_payments.metadata", () => {
+  assert.match(
+    migration0144,
+    /create or replace function public\.mark_return_pending_technical_resolution\(\s*p_movement_id uuid,\s*p_actor_id uuid,\s*p_resolution_reason text,\s*p_source_payment_id uuid,\s*p_applies_cash_impact boolean default false\s*\)/,
+  );
+  assert.equal(
+    migration0144.includes("update public.invoice_payments"),
+    false,
+    "0144 no debe escribir metadata en invoice_payments (columna inexistente en production).",
+  );
+  assert.equal(
+    /select rm\.invoice_id, rm\.reference[\s\S]*into v_invoice_id, v_reference/.test(migration0144),
+    true,
+    "Debe cargar factura y reference de receivable_movements para resolución técnica.",
+  );
+  assert.equal(
+    migration0144.includes("if v_reference ~* '^[0-9a-fA-F-]{36}$'"),
+    true,
+    "Debe derivar el movimiento de pago cuando reference viene como UUID.",
+  );
+  assert.equal(
+    migration0144.includes("set metadata = coalesce(metadata, '{}'::jsonb) || jsonb_build_object("),
+    true,
+    "Debe actualizar metadata técnica de receivable_movements.",
+  );
+});
+
+test("0144 preserva resolución técnica y mantiene sourcePaymentId opcional en metadata", () => {
+  assert.match(
+    migration0144,
+    /'sourcePaymentId', v_source_payment_id::text,/,
+  );
+  assert.match(
+    migration0144,
+    /'sourceMovementId', p_movement_id::text/,
+  );
+  assert.match(
+    migration0144,
+    /coalesce\(upper\(metadata -> 'technicalResolution' ->> 'status'\), ''\) <> 'RESOLVED_TECHNICAL'/,
   );
 });
 
