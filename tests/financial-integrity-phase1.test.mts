@@ -9,6 +9,7 @@ const migration0142 = readFileSync(`${root}/supabase/migrations/0142_financial_l
 const migration0144 = readFileSync(`${root}/supabase/migrations/0144_financial_resolution_helper_schema_fix.sql`, "utf8");
 const migration0145 = readFileSync(`${root}/supabase/migrations/0145_backfill_maintenance_authorization.sql`, "utf8");
 const migration0146 = readFileSync(`${root}/supabase/migrations/0146_document_backfill_schema_compatibility.sql`, "utf8");
+const migration0147 = readFileSync(`${root}/supabase/migrations/0147_document_backfill_idempotency_fix.sql`, "utf8");
 const reconciliation = readFileSync(`${root}/supabase/migrations/0100_rc31g_banking_reconciliation.sql`, "utf8");
 const actions = readFileSync(`${root}/features/accounts-receivable/actions.ts`, "utf8");
 const ui = readFileSync(`${root}/features/accounts-receivable/event-payment-manager.tsx`, "utf8");
@@ -397,6 +398,77 @@ test("0146 mantiene fallback sin updated_by/updated_at y conserva autorización"
     migration0146.includes("grant execute on function public.execute_receivable_payment_receipt_backfill(boolean) to authenticated, service_role;"),
     true,
     "0146 debe conservar permisos de ejecución para authenticated + service_role.",
+  );
+});
+
+test("0147 corrige idempotencia de backfill por storage_path", () => {
+  assert.match(
+    migration0147,
+    /create or replace function public\.execute_receivable_payment_receipt_backfill\(p_dry_run boolean default true\)/,
+  );
+  assert.equal(
+    /on conflict \(idempotency_key\) do nothing/.test(migration0147),
+    false,
+    "0147 no debe usar ON CONFLICT(idempotency_key).",
+  );
+  assert.equal(
+    /on conflict \(storage_path\) do nothing/.test(migration0147),
+    true,
+    "0147 debe usar ON CONFLICT(storage_path) como idempotencia.",
+  );
+  assert.equal(
+    migration0147.includes("create or replace function public.preview_receivable_payment_receipt_backfill()"),
+    false,
+    "0147 debe limitarse a redefine el helper execute, no preview.",
+  );
+});
+
+test("0147 conserva autorización dual (Founder/Admin + service role)", () => {
+  assert.match(
+    migration0147,
+    /is_service_backend :=[\s\S]*current_setting\('request\.jwt\.claim\.role', true\)/,
+  );
+  assert.match(
+    migration0147,
+    /if not \(is_service_backend or \(actor is not null and public\.can_administer\(\)\)\) then/,
+  );
+  assert.ok(
+    migration0147.includes("revoke all on function public.execute_receivable_payment_receipt_backfill(boolean) from public,anon;"),
+    "Debe revocar a public y anon.",
+  );
+  assert.ok(
+    migration0147.includes("grant execute on function public.execute_receivable_payment_receipt_backfill(boolean) to authenticated, service_role;"),
+    "Debe permitir ejecución a authenticated y service_role.",
+  );
+});
+
+test("0147 conserva idempotency_key como trazabilidad y evita side effects al instalar", () => {
+  assert.match(
+    migration0147,
+    /select exists\([\s\S]*column_name = 'idempotency_key'[\s\S]*\) into has_idempotency_key;/,
+  );
+  assert.equal(migration0147.includes("idempotency_key\n            ) values ("), true, "0147 debe persistir idempotency_key en el insert cuando exista.");
+  assert.equal(migration0147.includes("idempotency_key = coalesce(idempotency_key"), true, "0147 debe preservar idempotency_key en update cuando ya exista.");
+  assert.equal(migration0147.includes("if not p_dry_run then"), true, "La inserción/actualización debe ocurrir solo en modo no dry-run.");
+  assert.equal(migration0147.includes("delete from public.documents"), false, "0147 no debe borrar documentos al ejecutar.");
+  assert.equal(migration0147.includes("insert into public.storage.objects"), false, "0147 no debe modificar storage.");
+});
+
+test("0147 no toca esquema financiero ni historial histórico", () => {
+  assert.equal(
+    /insert into public\.invoices|update public\.invoices|delete from public\.invoices/.test(migration0147),
+    false,
+    "0147 no debe tocar invoices.",
+  );
+  assert.equal(
+    /insert into public\.invoice_payments|update public\.invoice_payments|delete from public\.invoice_payments/.test(migration0147),
+    false,
+    "0147 no debe tocar invoice_payments.",
+  );
+  assert.equal(
+    /insert into public\.receivable_movements|update public\.receivable_movements|delete from public\.receivable_movements/.test(migration0147),
+    false,
+    "0147 no debe tocar receivable_movements.",
   );
 });
 
