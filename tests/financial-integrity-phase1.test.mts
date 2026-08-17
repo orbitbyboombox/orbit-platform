@@ -4,6 +4,7 @@ import test from "node:test";
 
 const root = process.cwd();
 const migration = readFileSync(`${root}/supabase/migrations/0140_financial_integrity_hotfix_phase1.sql`, "utf8");
+const migration0141 = readFileSync(`${root}/supabase/migrations/0141_register_receivable_payment_rpc_overload_fix.sql`, "utf8");
 const reconciliation = readFileSync(`${root}/supabase/migrations/0100_rc31g_banking_reconciliation.sql`, "utf8");
 const actions = readFileSync(`${root}/features/accounts-receivable/actions.ts`, "utf8");
 const ui = readFileSync(`${root}/features/accounts-receivable/event-payment-manager.tsx`, "utf8");
@@ -14,8 +15,8 @@ test("compatibilidad de register_receivable_payment con firma legacy de 7 args",
     /create or replace function public\.register_receivable_payment\(\s*p_invoice_id uuid,\s*p_amount numeric,\s*p_paid_at timestamptz,\s*p_method text,\s*p_receipt_path text,\s*p_receipt_name text,\s*p_observation text\s*\)/,
   );
   assert.match(
-    migration,
-    /create or replace function public\.register_receivable_payment\(\s*p_invoice_id uuid,\s*p_amount numeric,\s*p_paid_at timestamptz,\s*p_method text,\s*p_receipt_path text,\s*p_receipt_name text,\s*p_observation text,\s*p_receipt_checksum text default null,\s*p_idempotency_key text default null\s*\)/,
+    migration0141,
+    /create or replace function public\.register_receivable_payment\(\s*p_invoice_id uuid,\s*p_amount numeric,\s*p_paid_at timestamptz,\s*p_method text,\s*p_receipt_path text,\s*p_receipt_name text,\s*p_observation text,\s*p_receipt_checksum text,\s*p_idempotency_key text\s*\)/,
   );
   assert.match(
     reconciliation,
@@ -25,8 +26,46 @@ test("compatibilidad de register_receivable_payment con firma legacy de 7 args",
     migration,
     /payment_id := public\.register_receivable_payment\([\s\S]*?p_receipt_checksum => null,\s*p_idempotency_key => null\s*\);/,
   );
-  assert.match(migration, /revoke all on function public\.register_receivable_payment\(uuid,numeric,timestamptz,text,text,text,text\) from public,anon;/);
-  assert.match(migration, /revoke all on function public\.register_receivable_payment\(uuid,numeric,timestamptz,text,text,text,text,text,text\) from public,anon;/);
+  assert.match(
+    migration0141,
+    /revoke all on function public\.register_receivable_payment\(uuid,numeric,timestamptz,text,text,text,text\) from public,anon;/,
+  );
+  assert.match(
+    migration0141,
+    /revoke all on function public\.register_receivable_payment\(uuid,numeric,timestamptz,text,text,text,text,text,text\) from public,anon;/,
+  );
+});
+
+test("register_receivable_payment con 9 args es inequívoco para REST", () => {
+  assert.match(
+    migration0141,
+    /create or replace function public\.register_receivable_payment\(\s*p_invoice_id uuid,\s*p_amount numeric,\s*p_paid_at timestamptz,\s*p_method text,\s*p_receipt_path text,\s*p_receipt_name text,\s*p_observation text,\s*p_receipt_checksum text,\s*p_idempotency_key text\s*\)/,
+  );
+  assert.equal(
+    /p_receipt_checksum text default null/.test(migration0141),
+    false,
+    "La firma canónica no debe quedar con defaults en 0141.",
+  );
+  assert.equal(
+    /p_idempotency_key text default null/.test(migration0141),
+    false,
+    "La firma canónica no debe quedar con defaults en 0141.",
+  );
+  assert.match(
+    migration0141,
+    /create or replace function public\.register_receivable_payment\(\s*p_invoice_id uuid,\s*p_amount numeric,\s*p_paid_at timestamptz,\s*p_method text,\s*p_receipt_path text,\s*p_receipt_name text,\s*p_observation text\s*\)/,
+  );
+});
+
+test("no se revocan/otorgan firmas inexistentes de register_receivable_payment en 0140", () => {
+  assert.doesNotMatch(
+    migration,
+    /revoke all on function public\.register_receivable_payment\(uuid,numeric,timestamptz,text,text,text,text,text\) from public,anon;/,
+  );
+  assert.doesNotMatch(
+    migration,
+    /grant execute on function public\.register_receivable_payment\(uuid,numeric,timestamptz,text,text,text,text,text\) to authenticated;/,
+  );
 });
 
 test("idempotencia estable sin timestamp y con requestId", () => {
@@ -81,6 +120,54 @@ test("backfill de comprobantes preparado DRY-RUN/idempotente", () => {
   assert.match(migration, /if not p_dry_run then[\s\S]*on conflict \(idempotency_key\) do nothing;/);
   assert.match(migration, /update public\.documents[\s\S]*where storage_path = item\.receipt_path/);
   assert.match(migration, /return jsonb_build_object\(\s*'total_scanned'/);
+});
+
+test("preview_receivable_payment_receipt_backfill no depende de columnas no existentes de storage.objects", () => {
+  const snippetStart = migration.indexOf("create or replace function public.preview_receivable_payment_receipt_backfill()");
+  const snippetEnd = migration.indexOf("create or replace function public.execute_receivable_payment_receipt_backfill(p_dry_run boolean default true)");
+  assert.ok(snippetStart >= 0 && snippetEnd > snippetStart, "backfill preview function exists in 0140");
+
+  const snippet = migration.slice(snippetStart, snippetEnd);
+  assert.ok(snippet.includes("storage.objects"), "Debe consultar storage.objects");
+  assert.equal(
+    /left join storage\.objects o on o\.bucket_id = 'orbit-documents' and o\.name = ip\.receipt_path/.test(snippet),
+    true,
+    "Debe validar existencia por bucket_id + name",
+  );
+  assert.equal(/o\.deleted_at/.test(snippet), false, "No debe usar storage.objects.deleted_at");
+  assert.match(snippet, /o\.name is not null as has_storage_object/);
+});
+
+test("preview_receivable_payment_receipt_backfill usa orbit_event_id real", () => {
+  const snippetStart = migration.indexOf("create or replace function public.preview_receivable_payment_receipt_backfill()");
+  const snippetEnd = migration.indexOf("create or replace function public.execute_receivable_payment_receipt_backfill(p_dry_run boolean default true)");
+  assert.ok(snippetStart >= 0 && snippetEnd > snippetStart, "backfill preview function exists in 0140");
+
+  const snippet = migration.slice(snippetStart, snippetEnd);
+  assert.ok(snippet.includes("  orbit_event_id text,"), "Debe declarar orbit_event_id como text");
+  assert.ok(snippet.includes("  payment_id uuid,"));
+  assert.ok(snippet.includes("  invoice_id uuid,"));
+  assert.ok(snippet.includes("  project_id uuid,"));
+  assert.ok(snippet.includes("  customer_id uuid,"));
+  assert.ok(snippet.includes("  receipt_path text,"));
+  assert.ok(snippet.includes("  has_documents_row boolean,"));
+  assert.ok(snippet.includes("  has_storage_object boolean,"));
+  assert.ok(snippet.includes("  has_drive_file_id boolean,"));
+  assert.ok(snippet.includes("  recommendation text"));
+  assert.equal(/i\.orbit_event_id\s*::\s*uuid/.test(snippet), false, "No debe castear orbit_event_id legacy a UUID");
+  assert.match(
+    snippet,
+    /select\s+ip\.id,\s*ip\.invoice_id,\s*i\.project_id,\s*i\.customer_id,\s*i\.orbit_event_id,\s*ip\.receipt_path,\s*d\.id is not null as has_documents_row,\s*o\.name is not null as has_storage_object,\s*d\.drive_file_id is not null as has_drive_file_id,\s*case\n\s+when d\.id is null then 'INSERT'/,
+  );
+});
+
+test("revisar funciones returns table/record de 0140", () => {
+  assert.match(
+    migration,
+    /create or replace function public\.preview_receivable_payment_receipt_backfill\(\)\s*returns table\(/,
+  );
+  assert.ok(migration.includes("create or replace function public.execute_receivable_payment_receipt_backfill(p_dry_run boolean default true)"));
+  assert.ok(!/create or replace function public\.[^(]+\([^)]*\)\s*returns record/.test(migration));
 });
 
 test("migration no rompe callers legacy ni SQL principales", () => {

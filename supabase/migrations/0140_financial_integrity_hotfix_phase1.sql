@@ -548,8 +548,6 @@ end $$;
 
 revoke all on function public.register_receivable_payment(uuid,numeric,timestamptz,text,text,text,text) from public,anon;
 grant execute on function public.register_receivable_payment(uuid,numeric,timestamptz,text,text,text,text) to authenticated;
-revoke all on function public.register_receivable_payment(uuid,numeric,timestamptz,text,text,text,text,text) from public,anon;
-grant execute on function public.register_receivable_payment(uuid,numeric,timestamptz,text,text,text,text,text) to authenticated;
 revoke all on function public.register_receivable_payment(uuid,numeric,timestamptz,text,text,text,text,text,text) from public,anon;
 grant execute on function public.register_receivable_payment(uuid,numeric,timestamptz,text,text,text,text,text,text) to authenticated;
 
@@ -559,7 +557,7 @@ returns table(
   invoice_id uuid,
   project_id uuid,
   customer_id uuid,
-  orbit_event_id uuid,
+  orbit_event_id text,
   receipt_path text,
   has_documents_row boolean,
   has_storage_object boolean,
@@ -574,7 +572,7 @@ returns table(
     i.orbit_event_id,
     ip.receipt_path,
     d.id is not null as has_documents_row,
-    o.id is not null as has_storage_object,
+    o.name is not null as has_storage_object,
     d.drive_file_id is not null as has_drive_file_id,
     case
       when d.id is null then 'INSERT'
@@ -584,7 +582,7 @@ returns table(
   from public.invoice_payments ip
   join public.invoices i on i.id = ip.invoice_id
   left join public.documents d on d.storage_path = ip.receipt_path and d.storage_bucket = 'orbit-documents' and d.deleted_at is null
-  left join storage.objects o on o.bucket_id = 'orbit-documents' and o.name = ip.receipt_path and o.deleted_at is null
+  left join storage.objects o on o.bucket_id = 'orbit-documents' and o.name = ip.receipt_path
   where ip.deleted_at is null
     and coalesce(nullif(trim(ip.receipt_path), ''), '') <> ''
     and ip.receipt_path is not null
