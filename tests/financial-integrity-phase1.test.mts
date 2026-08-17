@@ -5,6 +5,7 @@ import test from "node:test";
 const root = process.cwd();
 const migration = readFileSync(`${root}/supabase/migrations/0140_financial_integrity_hotfix_phase1.sql`, "utf8");
 const migration0141 = readFileSync(`${root}/supabase/migrations/0141_register_receivable_payment_rpc_overload_fix.sql`, "utf8");
+const migration0142 = readFileSync(`${root}/supabase/migrations/0142_financial_ledger_integrity.sql`, "utf8");
 const reconciliation = readFileSync(`${root}/supabase/migrations/0100_rc31g_banking_reconciliation.sql`, "utf8");
 const actions = readFileSync(`${root}/features/accounts-receivable/actions.ts`, "utf8");
 const ui = readFileSync(`${root}/features/accounts-receivable/event-payment-manager.tsx`, "utf8");
@@ -13,10 +14,6 @@ test("compatibilidad de register_receivable_payment con firma legacy de 7 args",
   assert.match(
     migration,
     /create or replace function public\.register_receivable_payment\(\s*p_invoice_id uuid,\s*p_amount numeric,\s*p_paid_at timestamptz,\s*p_method text,\s*p_receipt_path text,\s*p_receipt_name text,\s*p_observation text\s*\)/,
-  );
-  assert.match(
-    migration0141,
-    /create or replace function public\.register_receivable_payment\(\s*p_invoice_id uuid,\s*p_amount numeric,\s*p_paid_at timestamptz,\s*p_method text,\s*p_receipt_path text,\s*p_receipt_name text,\s*p_observation text,\s*p_receipt_checksum text,\s*p_idempotency_key text\s*\)/,
   );
   assert.match(
     reconciliation,
@@ -34,12 +31,17 @@ test("compatibilidad de register_receivable_payment con firma legacy de 7 args",
     migration0141,
     /revoke all on function public\.register_receivable_payment\(uuid,numeric,timestamptz,text,text,text,text,text,text\) from public,anon;/,
   );
+  assert.equal(
+    /create function public\.register_receivable_payment\(\s*p_invoice_id uuid,\s*p_amount numeric,\s*p_paid_at timestamptz,\s*p_method text,\s*p_receipt_path text,\s*p_receipt_name text,\s*p_observation text\s*\)\s*returns uuid language plpgsql/.test(migration0141),
+    false,
+    "0141 no debe recrear la firma legacy de 7 args.",
+  );
 });
 
 test("register_receivable_payment con 9 args es inequívoco para REST", () => {
   assert.match(
     migration0141,
-    /create or replace function public\.register_receivable_payment\(\s*p_invoice_id uuid,\s*p_amount numeric,\s*p_paid_at timestamptz,\s*p_method text,\s*p_receipt_path text,\s*p_receipt_name text,\s*p_observation text,\s*p_receipt_checksum text,\s*p_idempotency_key text\s*\)/,
+    /create function public\.register_receivable_payment\(\s*p_invoice_id uuid,\s*p_amount numeric,\s*p_paid_at timestamptz,\s*p_method text,\s*p_receipt_path text,\s*p_receipt_name text,\s*p_observation text,\s*p_receipt_checksum text,\s*p_idempotency_key text\s*\)/,
   );
   assert.equal(
     /p_receipt_checksum text default null/.test(migration0141),
@@ -51,9 +53,44 @@ test("register_receivable_payment con 9 args es inequívoco para REST", () => {
     false,
     "La firma canónica no debe quedar con defaults en 0141.",
   );
+  assert.equal(
+    /create function public\.register_receivable_payment\(\s*p_invoice_id uuid,\s*p_amount numeric,\s*p_paid_at timestamptz,\s*p_method text,\s*p_receipt_path text,\s*p_receipt_name text,\s*p_observation text\s*\)/.test(
+      migration0141,
+    ),
+    false,
+    "0141 no debe redefinir la firma legacy de 7 args.",
+  );
+});
+
+test("0141 reescribe explícitamente el 9-arg sin defaults y sin CREATE OR REPLACE", () => {
+  const signatureWithoutDefaults = /create function public\.register_receivable_payment\(\s*p_invoice_id uuid,\s*p_amount numeric,\s*p_paid_at timestamptz,\s*p_method text,\s*p_receipt_path text,\s*p_receipt_name text,\s*p_observation text,\s*p_receipt_checksum text,\s*p_idempotency_key text\s*\)/;
+  assert.ok(signatureWithoutDefaults.test(migration0141), "Debe definir el 9-arg canónico sin CREATE OR REPLACE");
+  assert.equal(
+    /create or replace function public\.register_receivable_payment\(\s*p_invoice_id uuid,\s*p_amount numeric,\s*p_paid_at timestamptz,\s*p_method text,\s*p_receipt_path text,\s*p_receipt_name text,\s*p_observation text,\s*p_receipt_checksum text,\s*p_idempotency_key text\s*\)/.test(migration0141),
+    false,
+    "No debe usar CREATE OR REPLACE en el 9-arg canónico.",
+  );
   assert.match(
     migration0141,
-    /create or replace function public\.register_receivable_payment\(\s*p_invoice_id uuid,\s*p_amount numeric,\s*p_paid_at timestamptz,\s*p_method text,\s*p_receipt_path text,\s*p_receipt_name text,\s*p_observation text\s*\)/,
+    /DROP\s+FUNCTION\s+IF\s+EXISTS\s+public\.register_receivable_payment\(\s*uuid,\s*numeric,\s*timestamptz,\s*text,\s*text,\s*text,\s*text,\s*text,\s*text\s*\);/i,
+  );
+  assert.equal(/cascade/i.test(migration0141), false, "El DROP de 0141 no debe usar CASCADE.");
+  assert.equal(
+    /do\\s+\\$\\$/.test(migration0141),
+    false,
+    "0141 no debe usar DO block.",
+  );
+  assert.equal(
+    /pg_get_function_identity_arguments/.test(migration0141),
+    false,
+    "0141 no debe usar pg_get_function_identity_arguments.",
+  );
+  assert.equal(
+    /create function public\.register_receivable_payment\(\s*p_invoice_id uuid,\s*p_amount numeric,\s*p_paid_at timestamptz,\s*p_method text,\s*p_receipt_path text,\s*p_receipt_name text,\s*p_observation text\s*\)/.test(
+      migration0141,
+    ),
+    false,
+    "0141 no debe recrear la firma legacy de 7 args.",
   );
 });
 
@@ -184,4 +221,98 @@ test("migration no rompe callers legacy ni SQL principales", () => {
     /grant execute on function public\.sync_project_commercial_state\(uuid\) to authenticated,service_role;/,
   );
   assert.match(migration, /recalculate_invoice_paid_amount\(p_invoice_id uuid\)/);
+});
+
+
+test("0142 define el ledger canónico de cobrado sobre invoice_payments", () => {
+  assert.match(
+    migration0142,
+    /create or replace function public\.recalculate_invoice_paid_amount\(p_invoice_id uuid\)[\s\S]*ip\.invoice_id = p_invoice_id[\s\S]*ip\.deleted_at is null/,
+  );
+  assert.ok(
+    migration0142.includes("create or replace function public.invoice_payment_cash_impact("),
+    "Debe existir la función invoice_payment_cash_impact",
+  );
+  assert.ok(
+    migration0142.includes("when upper(coalesce(trim(p_movement_type), 'PARTIAL_PAYMENT')) in ("),
+    "invoice_payment_cash_impact debe incluir movement types de abonos",
+  );
+  assert.ok(
+    migration0142.includes("'DEPOSIT',"),
+    "invoice_payment_cash_impact debe incluir DEPOSIT en los movement types",
+  );
+  assert.ok(
+    migration0142.includes("'PARTIAL_PAYMENT',"),
+    "invoice_payment_cash_impact debe incluir PARTIAL_PAYMENT en los movement types",
+  );
+  assert.ok(
+    migration0142.includes("'FULL_PAYMENT'"),
+    "invoice_payment_cash_impact debe incluir FULL_PAYMENT en los movement types",
+  );
+  assert.ok(
+    migration0142.includes(") then coalesce(p_amount, 0)"),
+    "invoice_payment_cash_impact debe devolver monto positivo en movement types de abono",
+  );
+  assert.ok(
+    migration0142.includes(
+      "when upper(coalesce(trim(p_movement_type), '')) = 'RETURN_COMPLETED' then -abs(coalesce(p_amount, 0))",
+    ),
+    "invoice_payment_cash_impact debe descontar monto con RETURN_COMPLETED",
+  );
+  assert.ok(
+    migration0142.includes("when upper(coalesce(trim(p_movement_type), '')) = 'RETURN_PENDING' then 0"),
+    "invoice_payment_cash_impact debe tratar RETURN_PENDING como no caja",
+  );
+  const recalcStart = migration0142.indexOf("create or replace function public.recalculate_invoice_paid_amount(p_invoice_id uuid)");
+  const recalcEnd = migration0142.indexOf("create or replace function public.receivable_movement_cash_impact(");
+  const recalcBlock = migration0142.slice(recalcStart, recalcEnd);
+  assert.equal(
+    /sum\(ip\.amount\)/.test(recalcBlock),
+    false,
+    "El cálculo canónico de paid_amount no debe sumar invoice_payments.amount directamente",
+  );
+});
+
+test("0142 protege recibos técnicos en receivable_movements", () => {
+  assert.match(migration0142, /create or replace function public\.receivable_movement_cash_impact\(/);
+  assert.ok(
+    migration0142.includes("upper(coalesce(p_metadata ->> 'managedAction', '')) in ('DELETE', 'CANCEL') then 0"),
+    "Los movimientos con managedAction DELETE/CANCEL no deben impactar caja",
+  );
+  assert.ok(
+    migration0142.includes("when upper(coalesce(trim(p_movement_type), '')) = 'RETURN_PENDING' then 0"),
+    "RETURN_PENDING debe ser técnico y no afectar caja",
+  );
+  assert.equal(
+    /upper\(coalesce\(trim\(p_movement_type\), ''\)\) = 'RETURN_PENDING'[\s\S]*managedAction[\s\S]*RETURN_COMPLETED[\s\S]*-abs\(/.test(migration0142),
+    false,
+    "RETURN_PENDING con managedAction RETURN_COMPLETED no debe reducir caja en la capa de eventos",
+  );
+  assert.match(
+    migration0142,
+    /create or replace function public\.recalculate_receivable_movement_amount\(p_invoice_id uuid\)/,
+  );
+});
+
+test("0142 preview de integridad detecta mismatches entre capas", () => {
+  assert.match(
+    migration0142,
+    /create or replace function public\.preview_financial_ledger_integrity\(p_invoice_id uuid default null\)/,
+  );
+  assert.match(
+    migration0142,
+    /create or replace function public\.recalculate_receivable_movement_amount\(p_invoice_id uuid\)/,
+  );
+  assert.match(
+    migration0142,
+    /create or replace function public\.preview_invoice_repair_plan\(\n  p_invoice_ids uuid\[\] default null\n\)/,
+  );
+  assert.match(
+    migration0142,
+    /public\.recalculate_receivable_movement_amount\(i\.id\) <> public\.recalculate_invoice_paid_amount\(i\.id\)/,
+  );
+  assert.match(
+    migration0142,
+    /revoke all on function public\.financial_ledger_integrity_summary\(\) from public,anon;/,
+  );
 });

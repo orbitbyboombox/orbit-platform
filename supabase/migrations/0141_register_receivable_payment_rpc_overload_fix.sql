@@ -1,10 +1,25 @@
 -- HOTFIX 0141:
--- resolve PostgREST `PGRST203` by keeping both call paths explicit.
+-- Resolve PostgREST `PGRST203` by keeping both call paths explicit.
 -- - legacy SQL caller: 7 positional args (existing behavior)
 -- - canonical REST/RPC caller: 9 args with checksum + idempotency key
--- Removing defaults from the 9-arg signature avoids static resolver ambiguity.
+-- Keep it minimal and deterministic:
+--   1) drop canonical 9-arg overload with exact signature (no defaults)
+--   2) recreate canonical 9-arg overload
+--   3) keep legacy 7-arg wrapper untouched (from 0140)
 
-create or replace function public.register_receivable_payment(
+DROP FUNCTION IF EXISTS public.register_receivable_payment(
+  uuid,
+  numeric,
+  timestamptz,
+  text,
+  text,
+  text,
+  text,
+  text,
+  text
+);
+
+create function public.register_receivable_payment(
   p_invoice_id uuid,
   p_amount numeric,
   p_paid_at timestamptz,
@@ -14,7 +29,7 @@ create or replace function public.register_receivable_payment(
   p_observation text,
   p_receipt_checksum text,
   p_idempotency_key text
-) returns uuid language plpgsql security definer set search_path=public as $$
+) returns uuid language plpgsql security definer set search_path=public as $f$
 declare
   actor uuid := auth.uid();
   payment_id uuid;
@@ -51,33 +66,8 @@ begin
   end if;
 
   return payment_id;
-end $$;
-
-create or replace function public.register_receivable_payment(
-  p_invoice_id uuid,
-  p_amount numeric,
-  p_paid_at timestamptz,
-  p_method text,
-  p_receipt_path text,
-  p_receipt_name text,
-  p_observation text
-) returns uuid language plpgsql security definer set search_path=public as $$
-declare
-  payment_id uuid;
-begin
-  payment_id := public.register_receivable_payment(
-    p_invoice_id => p_invoice_id,
-    p_amount => p_amount,
-    p_paid_at => p_paid_at,
-    p_method => p_method,
-    p_receipt_path => p_receipt_path,
-    p_receipt_name => p_receipt_name,
-    p_observation => p_observation,
-    p_receipt_checksum => null,
-    p_idempotency_key => null
-  );
-  return payment_id;
-end $$;
+end
+$f$;
 
 revoke all on function public.register_receivable_payment(uuid,numeric,timestamptz,text,text,text,text) from public,anon;
 grant execute on function public.register_receivable_payment(uuid,numeric,timestamptz,text,text,text,text) to authenticated;
