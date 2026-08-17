@@ -1,3 +1,9 @@
+import type {
+  PaymentClassificationSummary,
+  ReceivablePaymentCategory,
+  ReceivablePaymentSource,
+} from "./payment-term-classification";
+
 export type InvoiceStatus =
   | "DRAFT"
   | "ISSUED"
@@ -34,6 +40,10 @@ export interface ReceivableInvoice {
   dueDate: string | null;
   paymentTerm: PaymentTerm;
   customTermDays: number | null;
+  paymentCategory: ReceivablePaymentCategory;
+  paymentCategorySource: ReceivablePaymentSource;
+  canonicalPaymentTerm: PaymentTerm;
+  canonicalPaymentTermDays: number;
   purchaseOrder: string | null;
   daysRemaining: number | null;
   agingBucket: string;
@@ -80,6 +90,7 @@ export interface ReceivableDataset {
     overdueBalance: number;
     collected: number;
     companyCredits: number;
+    paymentCategorySummary: PaymentClassificationSummary;
     collectionRate: number;
     averageCollectionDays: number | null;
     aging: Record<string, number>;

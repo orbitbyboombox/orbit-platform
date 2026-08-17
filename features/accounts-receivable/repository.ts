@@ -4,6 +4,10 @@ import type {
   ReceivableDataset,
   ReceivableInvoice,
 } from "./types";
+import {
+  resolveReceivablePaymentCategory,
+  summarizeReceivablePaymentCategories,
+} from "./payment-term-classification";
 export async function loadAccountsReceivable(
   client: SupabaseClient,
 ): Promise<ReceivableDataset> {
@@ -22,13 +26,13 @@ export async function loadAccountsReceivable(
     client
       .from("accounts_receivable_projection")
       .select(
-        "id,invoice_number,customer_id,project_id,orbit_event_id,customer_type,status,effective_status,amount,paid_amount,outstanding_balance,issue_date,due_date,payment_term,custom_term_days,purchase_order,days_remaining,aging_bucket,version,payment_history,issued_by,created_by,customers(full_name,email,phone),projects(name,project_type,project_services(service_code),agreements(id,status,signed_pdf_path))",
+        "id,invoice_number,customer_id,project_id,orbit_event_id,customer_type,status,effective_status,amount,paid_amount,outstanding_balance,issue_date,due_date,payment_term,custom_term_days,purchase_order,days_remaining,aging_bucket,version,payment_history,issued_by,created_by,customers(full_name,email,phone),projects(name,project_type,finance,project_services(service_code),agreements(id,status,signed_pdf_path))",
       )
       .order("due_date", { ascending: true, nullsFirst: false }),
     client
       .from("accounts_receivable_history")
       .select(
-        "id,invoice_number,customer_id,project_id,orbit_event_id,customer_type,status,effective_status,financial_record_state,record_origin,amount,paid_amount,outstanding_balance,issue_date,due_date,payment_term,custom_term_days,purchase_order,days_remaining,aging_bucket,version,issued_by,created_by,customers(full_name,email,phone),projects(name,project_type,project_services(service_code),agreements(id,status,signed_pdf_path))",
+        "id,invoice_number,customer_id,project_id,orbit_event_id,customer_type,status,effective_status,financial_record_state,record_origin,amount,paid_amount,outstanding_balance,issue_date,due_date,payment_term,custom_term_days,purchase_order,days_remaining,aging_bucket,version,issued_by,created_by,customers(full_name,email,phone),projects(name,project_type,finance,project_services(service_code),agreements(id,status,signed_pdf_path))",
       )
       .order("created_at", { ascending: false }),
     client
@@ -80,6 +84,12 @@ export async function loadAccountsReceivable(
       const project = Array.isArray(row.projects)
         ? row.projects[0]
         : row.projects;
+      const classification = resolveReceivablePaymentCategory({
+        customerType: row.customer_type,
+        invoicePaymentTerm: row.payment_term,
+        invoiceCustomTermDays: row.custom_term_days,
+        projectFinance: project?.finance,
+      });
       const agreements=[...(project?.agreements??[])].sort((a,b)=>String(b.id).localeCompare(String(a.id)));
       const agreement=agreements.find((item)=>["SIGNED","COMMERCIAL_DOCUMENT"].includes(item.status))??agreements[0];
       const history=(Array.isArray(row.payment_history)?row.payment_history:[]) as Array<Record<string,unknown>>;
@@ -103,6 +113,10 @@ export async function loadAccountsReceivable(
         dueDate: row.due_date,
         paymentTerm: row.payment_term,
         customTermDays: row.custom_term_days,
+        paymentCategory: classification.paymentCategory,
+        paymentCategorySource: classification.paymentCategorySource,
+        canonicalPaymentTerm: classification.canonicalPaymentTerm,
+        canonicalPaymentTermDays: classification.canonicalPaymentTermDays,
         purchaseOrder: row.purchase_order,
         daysRemaining: row.days_remaining,
         agingBucket: row.aging_bucket,
@@ -126,6 +140,12 @@ export async function loadAccountsReceivable(
       const project = Array.isArray(row.projects)
         ? row.projects[0]
         : row.projects;
+      const classification = resolveReceivablePaymentCategory({
+        customerType: row.customer_type,
+        invoicePaymentTerm: row.payment_term,
+        invoiceCustomTermDays: row.custom_term_days,
+        projectFinance: project?.finance,
+      });
       const agreements=[...(project?.agreements??[])].sort((a,b)=>String(b.id).localeCompare(String(a.id)));
       const agreement=agreements.find((item)=>["SIGNED","COMMERCIAL_DOCUMENT"].includes(item.status))??agreements[0];
       const history=(paymentsResult.data??[]).filter(item=>item.invoice_id===row.id);
@@ -149,6 +169,10 @@ export async function loadAccountsReceivable(
         dueDate: row.due_date,
         paymentTerm: row.payment_term,
         customTermDays: row.custom_term_days,
+        paymentCategory: classification.paymentCategory,
+        paymentCategorySource: classification.paymentCategorySource,
+        canonicalPaymentTerm: classification.canonicalPaymentTerm,
+        canonicalPaymentTermDays: classification.canonicalPaymentTermDays,
         purchaseOrder: row.purchase_order,
         daysRemaining: row.days_remaining,
         agingBucket: row.aging_bucket,
@@ -254,6 +278,7 @@ export async function loadAccountsReceivable(
   const active = invoices.filter(
     (x) => !["CANCELLED", "DRAFT"].includes(x.status),
   );
+  const paymentCategorySummary = summarizeReceivablePaymentCategories(active);
   const aging = { "15": 0, "30": 0, "60": 0, "90+": 0 };
   invoices.forEach((x) => {
     if (x.agingBucket in aging)
@@ -272,7 +297,9 @@ export async function loadAccountsReceivable(
         .filter((x) => x.status === "OVERDUE")
         .reduce((s, x) => s + x.outstandingBalance, 0),
       collected: active.reduce((s,x)=>s+x.paidAmount,0),
-      companyCredits: active.filter(x=>x.customerType==="CORPORATE"&&x.paymentTerm!=="CASH").reduce((s,x)=>s+x.outstandingBalance,0),
+      companyCredits:
+        paymentCategorySummary.days30 + paymentCategorySummary.otherCredit,
+      paymentCategorySummary,
       collectionRate: active.reduce((s,x)=>s+x.amount,0)>0?active.reduce((s,x)=>s+x.paidAmount,0)/active.reduce((s,x)=>s+x.amount,0)*100:0,
       averageCollectionDays: (() => {
         const values = customers
