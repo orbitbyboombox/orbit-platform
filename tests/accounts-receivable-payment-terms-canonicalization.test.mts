@@ -28,6 +28,27 @@ test("proyectos corporativos con 30 días prevalecen sobre la factura legacy CAS
   assert.equal(result.paymentCategorySource, "PROJECT_FINANCE");
 });
 
+test("corporate CASH del invoice no anula condición CORPORATE_CREDIT", () => {
+  const result = resolveReceivablePaymentCategory({
+    customerType: "CORPORATE",
+    invoicePaymentTerm: "CASH",
+    invoiceCustomTermDays: 0,
+    projectFinance: { paymentCondition: "CORPORATE_CREDIT", paymentTermDays: 30 },
+  });
+  assert.equal(result.paymentCategory, "EMPRESA_30_DIAS");
+});
+
+test("corporate DAYS_30 del invoice sigue como empresa con condición corporativa", () => {
+  const result = resolveReceivablePaymentCategory({
+    customerType: "CORPORATE",
+    invoicePaymentTerm: "DAYS_30",
+    invoiceCustomTermDays: 30,
+    projectFinance: { paymentCondition: "CORPORATE_CREDIT", paymentTermDays: 30 },
+  });
+  assert.equal(result.paymentCategory, "EMPRESA_30_DIAS");
+  assert.equal(result.paymentCategorySource, "PROJECT_FINANCE");
+});
+
 test("cliente particular con FIFTY_FIFTY se clasifica como ordinario", () => {
   const result = resolveReceivablePaymentCategory({
     customerType: "PRIVATE",
@@ -48,6 +69,134 @@ test("plazo comercial distinto de 30 días se clasifica como OTRO CRÉDITO", () 
   });
   assert.equal(result.paymentCategory, "OTRO_CREDITO");
   assert.equal(result.canonicalPaymentTerm, "DAYS_45");
+});
+
+test("no hay solapamiento entre saldos ordinarios y crédito empresas", () => {
+  const rows = [
+    {
+      id: "a",
+      payment: resolveReceivablePaymentCategory({
+        customerType: "CORPORATE",
+        invoicePaymentTerm: "CASH",
+        invoiceCustomTermDays: 0,
+        projectFinance: { paymentCondition: "CORPORATE_CREDIT", paymentTermDays: 30 },
+      }),
+      outstandingBalance: 580_000,
+    },
+    {
+      id: "b",
+      payment: resolveReceivablePaymentCategory({
+        customerType: "CORPORATE",
+        invoicePaymentTerm: "DAYS_30",
+        invoiceCustomTermDays: 30,
+        projectFinance: null,
+      }),
+      outstandingBalance: 934_150,
+    },
+    {
+      id: "c",
+      payment: resolveReceivablePaymentCategory({
+        customerType: "PRIVATE",
+        invoicePaymentTerm: "CASH",
+        invoiceCustomTermDays: 0,
+        projectFinance: { paymentCondition: "FIFTY_FIFTY", paymentTermDays: 0 },
+      }),
+      outstandingBalance: 4_176_408,
+    },
+    {
+      id: "d",
+      payment: resolveReceivablePaymentCategory({
+        customerType: "CORPORATE",
+        invoicePaymentTerm: "CUSTOM",
+        invoiceCustomTermDays: 45,
+        projectFinance: null,
+      }),
+      outstandingBalance: 238_000,
+    },
+  ];
+
+  const companyCategoryIds = rows
+    .filter((row) =>
+      row.payment.paymentCategory === "EMPRESA_30_DIAS" ||
+      row.payment.paymentCategory === "OTRO_CREDITO",
+    )
+    .map((row) => row.id);
+
+  const ordinaryCategoryIds = rows.filter((row) => row.payment.paymentCategory === "ORDENARIO_50").map((row) => row.id);
+
+  const overlap = companyCategoryIds.filter((id) => ordinaryCategoryIds.includes(id));
+  const companyCreditBalance = rows
+    .filter((row) => companyCategoryIds.includes(row.id))
+    .reduce((sum, row) => sum + row.outstandingBalance, 0);
+  const ordinaryBalance = rows
+    .filter((row) => ordinaryCategoryIds.includes(row.id))
+    .reduce((sum, row) => sum + row.outstandingBalance, 0);
+
+  assert.equal(overlap.length, 0);
+  assert.equal(companyCreditBalance, 1_752_150);
+  assert.equal(ordinaryBalance, 4_176_408);
+});
+
+test("baseline canónico no duplica ni depende de una sola categoría legacy", () => {
+  const rows = [
+    {
+      outstandingBalance: 580_000,
+      classification: resolveReceivablePaymentCategory({
+        customerType: "CORPORATE",
+        invoicePaymentTerm: "CASH",
+        invoiceCustomTermDays: 0,
+        projectFinance: { paymentCondition: "CORPORATE_CREDIT", paymentTermDays: 30 },
+      }),
+    },
+    {
+      outstandingBalance: 250_000,
+      classification: resolveReceivablePaymentCategory({
+        customerType: "CORPORATE",
+        invoicePaymentTerm: "CASH",
+        invoiceCustomTermDays: 0,
+        projectFinance: { paymentCondition: "CORPORATE_CREDIT", paymentTermDays: 30 },
+      }),
+    },
+    {
+      outstandingBalance: 934_150,
+      classification: resolveReceivablePaymentCategory({
+        customerType: "CORPORATE",
+        invoicePaymentTerm: "DAYS_30",
+        invoiceCustomTermDays: 30,
+        projectFinance: null,
+      }),
+    },
+    {
+      outstandingBalance: 238_000,
+      classification: resolveReceivablePaymentCategory({
+        customerType: "CORPORATE",
+        invoicePaymentTerm: "CUSTOM",
+        invoiceCustomTermDays: 45,
+        projectFinance: null,
+      }),
+    },
+    {
+      outstandingBalance: 4_176_408,
+      classification: resolveReceivablePaymentCategory({
+        customerType: "PRIVATE",
+        invoicePaymentTerm: "CASH",
+        invoiceCustomTermDays: 0,
+        projectFinance: { paymentCondition: "FIFTY_FIFTY", paymentTermDays: 0 },
+      }),
+    },
+  ];
+  const summary = summarizeReceivablePaymentCategories(
+    rows.map(({ outstandingBalance, classification }) => ({
+      outstandingBalance,
+      paymentCategory: classification.paymentCategory,
+    })),
+  );
+  const creditCompanies = summary.days30 + summary.otherCredit;
+
+  assert.equal(summary.ordinary, 4_176_408);
+  assert.equal(creditCompanies, 2_002_150);
+  assert.equal(summary.total, 6_178_558);
+  assert.equal(summary.ordinary + summary.days30 + summary.otherCredit, 6_178_558);
 });
 
 test("resumen de categorías usa la suma de saldos sin duplicar filas", () => {
