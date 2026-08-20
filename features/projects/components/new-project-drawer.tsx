@@ -1332,7 +1332,7 @@ export function NewProjectDrawer({
             />
           ))}
         </div>
-        <div className="flex-1 overflow-y-auto p-5 sm:p-7">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 sm:p-7" data-reservation-wizard-scroll>
           {step === 0 && (
             <div className="mx-auto max-w-xl space-y-4">
               <h3 className="text-xl font-semibold">
@@ -1827,7 +1827,7 @@ export function NewProjectDrawer({
                   contratadas.
                 </p>
               </div>
-              <aside className="h-fit max-lg:sticky max-lg:bottom-0 lg:sticky lg:top-0">
+              <aside className="h-fit lg:sticky lg:top-0" data-reservation-summary>
                 {summary}
               </aside>
             </div>
@@ -2305,7 +2305,7 @@ export function NewProjectDrawer({
                   </p>
                 </section>
               </div>
-              <aside className="h-fit max-lg:sticky max-lg:bottom-0 lg:sticky lg:top-0">
+              <aside className="h-fit lg:sticky lg:top-0" data-reservation-summary>
                 {summary}
               </aside>
             </div>
@@ -2835,7 +2835,7 @@ export function NewProjectDrawer({
           )}
           {error && <p className="mt-4 text-sm text-danger">{error}</p>}
         </div>
-        <footer className="flex items-center justify-between gap-3 border-t p-5 sm:p-7">
+        <footer className="flex shrink-0 items-center justify-between gap-3 border-t bg-card p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:p-7" data-reservation-wizard-actions>
           {step > 0 && step < 6 ? (
             <ActionButton
               disabled={submitting}

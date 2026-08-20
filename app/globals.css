@@ -263,11 +263,9 @@ aside[aria-label="Nueva reserva"] aside {
 
 @media (min-width: 48rem) and (max-width: 63.99rem) {
   aside[aria-label="Nueva reserva"] aside {
-    position: sticky !important;
-    z-index: 5;
-    bottom: 0;
-    padding-top: 0.75rem;
-    background: var(--card);
+    position: static !important;
+    inset: auto !important;
+    margin-top: 1.5rem;
   }
 }
 

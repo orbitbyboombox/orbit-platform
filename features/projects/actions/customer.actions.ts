@@ -483,7 +483,13 @@ export async function createCustomerProjectAction(
                 ? "DAYS_45"
                 : termDays === 60
                   ? "DAYS_60"
-                  : "CASH";
+                  : termDays > 0
+                    ? "CUSTOM"
+                    : "CASH";
+        const corporateCredit =
+          draft.type === "Corporate" &&
+          adjustment?.paymentCondition === "CORPORATE_CREDIT";
+        const issueDate = new Date().toISOString().slice(0, 10);
         const invoiceNumber = `FAC-${new Date().getFullYear()}-${project.id.replaceAll("-", "").slice(0, 8).toUpperCase()}`;
         const { error: invoiceError } = await client.from("invoices").upsert(
           {
@@ -493,8 +499,13 @@ export async function createCustomerProjectAction(
             quotation_id: quotation?.id ?? null,
             orbit_event_id: persisted.orbit_event_id,
             customer_type: draft.type === "Corporate" ? "CORPORATE" : "PRIVATE",
-            status: "DRAFT",
+            status: corporateCredit ? "ISSUED" : "DRAFT",
+            issue_date: corporateCredit ? issueDate : null,
             payment_term: draft.type === "Corporate" ? paymentTerm : "CASH",
+            custom_term_days:
+              draft.type === "Corporate" && paymentTerm === "CUSTOM"
+                ? termDays
+                : null,
             purchase_order:
               formalization === "PURCHASE_ORDER"
                 ? "Pendiente de recepción"
@@ -503,6 +514,8 @@ export async function createCustomerProjectAction(
               quotation?.final_customer_price ?? adjustment?.finalPrice ?? 0,
             ),
             notes: `Formalización comercial: ${formalization}`,
+            issued_by: corporateCredit ? auth.user.id : null,
+            issued_at: corporateCredit ? new Date().toISOString() : null,
             created_by: auth.user.id,
             updated_by: auth.user.id,
           },
