@@ -1,4 +1,4 @@
-export type GlobalSearchKind = "CUSTOMER" | "EVENT" | "QUOTE";
+export type GlobalSearchKind = "CUSTOMER" | "COMPANY" | "EVENT" | "QUOTE";
 
 export interface GlobalSearchResult {
   id: string;
@@ -13,6 +13,7 @@ export const GLOBAL_SEARCH_GROUPS: ReadonlyArray<{
   label: string;
 }> = [
   { kind: "CUSTOMER", label: "Clientes" },
+  { kind: "COMPANY", label: "Empresas" },
   { kind: "EVENT", label: "Eventos" },
   { kind: "QUOTE", label: "Cotizaciones" },
 ];
@@ -26,7 +27,7 @@ export function normalizeGlobalSearchTerm(value: string) {
 }
 
 export function globalSearchHref(kind: GlobalSearchKind, id: string) {
-  if (kind === "CUSTOMER") return `/customers/${id}`;
+  if (kind === "CUSTOMER" || kind === "COMPANY") return `/customers/${id}`;
   if (kind === "EVENT") return `/projects/${id}`;
   return `/api/commercial/quotes/${id}/pdf`;
 }

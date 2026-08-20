@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, FileText, Search, UserRound, X } from "lucide-react";
+import { Building2, CalendarDays, FileText, Search, UserRound, X } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { GLOBAL_SEARCH_GROUPS, globalSearchNoResultsMessage, type GlobalSearchKi
 
 const icons: Record<GlobalSearchKind, typeof Search> = {
   CUSTOMER: UserRound,
+  COMPANY: Building2,
   EVENT: CalendarDays,
   QUOTE: FileText,
 };
@@ -103,7 +104,7 @@ export function GlobalSearch() {
         type="button"
       >
         <Search className="size-4 shrink-0" />
-        <span className="min-w-0 flex-1 truncate">Buscar proyectos, clientes o eventos...</span>
+        <span className="min-w-0 flex-1 truncate">Buscar clientes, empresas o eventos...</span>
         <kbd className="rounded-md border bg-accent/70 px-1.5 py-1 text-[10px] font-semibold">⌘K</kbd>
       </button>
       {open ? (
@@ -115,7 +116,7 @@ export function GlobalSearch() {
                 aria-label="Buscar en ORBIT"
                 className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted"
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Cliente, evento, RUT, teléfono o cotización"
+                placeholder="Cliente, empresa, evento, código ORBIT o contacto"
                 ref={inputRef}
                 type="search"
                 value={query}
