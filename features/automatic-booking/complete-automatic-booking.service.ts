@@ -86,13 +86,18 @@ export async function completeAutomaticBooking(input: { token: string; submissio
     if (projectError) throw projectError;
     currentModule = "RESERVATION_AND_CONTRACT";
     const quotationId = randomUUID();
-    const quotationNumber = `COT-AUTO-${input.submission.event.date.replaceAll("-", "")}-${projectId.slice(0, 6).toUpperCase()}`;
+    const issueDate = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(new Date());
+    const { data: quotationNumber, error: quotationNumberError } = await admin.rpc("allocate_quotation_number", {
+      p_quotation_id: quotationId,
+      p_issue_date: issueDate,
+    });
+    if (quotationNumberError || !quotationNumber) throw quotationNumberError ?? new Error("No fue posible asignar el número de cotización.");
     const agreementId = randomUUID();
     const memory = { customer_id: customerId, context: { customerName: input.submission.customer.name, eventType: input.submission.event.type, eventDate: input.submission.event.date, currentTimelineStage: "Reserva confirmada", nextRecommendedAction: "Preparar operación" }, created_by: actorId, updated_by: actorId };
     currentModule = "TIMELINE";
     const [serviceWrite, quotationWrite, agreementWrite, memoryWrite, timelineWrite] = await measured("reservation_records", () => Promise.all([
       admin.from("project_services").insert({ project_id: projectId, service_code: input.submission.service.code, duration_hours: input.submission.service.hours, extras: persistedExtras }),
-      admin.from("quotations").insert({ id: quotationId, quotation_number: quotationNumber, customer_id: customerId, project_id: projectId, orbit_event_id: orbitEventId, status: "ACCEPTED", customer_type: input.submission.event.type === "Corporate" ? "COMPANY" : "PRIVATE", event_type: input.submission.event.type, issue_date: now.slice(0, 10), expiration_date: input.submission.event.date, subtotal: pricing.subtotal, transport_total: pricing.transport, discount_total: 0, tax_total: 0, grand_total: pricing.total, official_price: pricing.total, final_customer_price: pricing.total, price_difference: 0, pricing_snapshot: pricing, blockers: [], created_by: actorId, updated_by: actorId }),
+      admin.from("quotations").insert({ id: quotationId, quotation_number: quotationNumber, customer_id: customerId, project_id: projectId, orbit_event_id: orbitEventId, status: "ACCEPTED", customer_type: input.submission.event.type === "Corporate" ? "COMPANY" : "PRIVATE", event_type: input.submission.event.type, issue_date: issueDate, expiration_date: input.submission.event.date, subtotal: pricing.subtotal, transport_total: pricing.transport, discount_total: 0, tax_total: 0, grand_total: pricing.total, official_price: pricing.total, final_customer_price: pricing.total, price_difference: 0, pricing_snapshot: pricing, blockers: [], created_by: actorId, updated_by: actorId }),
       admin.from("agreements").insert({ id: agreementId, project_id: projectId, status: "SENT", template_version: "1.0", rendered_contract: { quotationNumber, termsAccepted: true, commercialSummary: pricing }, created_by: actorId, updated_by: actorId }),
       admin.from("customer_memory").upsert(memory, { onConflict: "customer_id" }),
       admin.from("timeline_events").insert({ customer_id: customerId, project_id: projectId, event_type: "AUTOMATIC_RESERVATION_CREATED", title: "Reserva automática creada.", description: "El cliente completó la reserva desde la invitación segura.", orbit_event_id: orbitEventId, actor_label: "Cliente", source: "Customer", action: "AUTOMATIC_RESERVATION_CREATED", entity_type: "Project", entity_id: projectId, human_message: "Reserva automática creada y confirmada por el cliente.", correlation_id: `automatic-booking:${invitation.id}`, created_by: actorId }),

@@ -153,17 +153,18 @@ export async function createFormalQuoteAction(input: FormalQuoteDraft) {
       if (error) throw error;
       customerId = data.id;
     }
-    const issueDate = new Date().toISOString().slice(0, 10);
+    const issueDate = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(new Date());
     const expiration = new Date(`${issueDate}T12:00:00Z`);
     expiration.setUTCDate(expiration.getUTCDate() + input.validityDays);
     let number: string;
+    let quoteId = input.quoteId ?? crypto.randomUUID();
     if (input.quoteId) {
       const { data: existing, error: existingError } = await admin.from("quotations").select("quotation_number,status").eq("id", input.quoteId).single();
       if (existingError) throw existingError;
       if (existing.status !== "DRAFT") throw new Error("Solo un borrador puede editarse.");
       number = existing.quotation_number;
     } else {
-      const { data: nextNumber, error: numberError } = await admin.rpc("next_commercial_quote_number", { p_issue_date: issueDate });
+      const { data: nextNumber, error: numberError } = await admin.rpc("allocate_quotation_number", { p_quotation_id: quoteId, p_issue_date: issueDate });
       if (numberError) throw numberError;
       number = nextNumber;
     }
@@ -211,8 +212,7 @@ export async function createFormalQuoteAction(input: FormalQuoteDraft) {
       discountValue: line.discountValue, displayOrder: line.order, manual: line.manual,
       metadata: { catalogOverride: line.catalogPrice != null && line.catalogPrice !== line.quotedPrice },
     }));
-    let quoteId = input.quoteId;
-    if (quoteId) {
+    if (input.quoteId) {
       const { error: updateError } = await admin.rpc("update_commercial_quote_draft", {
         p_quotation_id: quoteId,
         p_quote: { customerId, customerSnapshot: snapshot.customer, commercialSnapshot: snapshot, expirationDate: expiration.toISOString().slice(0, 10), subtotal, discountTotal: globalDiscount, taxTotal: tax, grandTotal: total, validityDays: input.validityDays, depositPercent: input.depositPercent, globalDiscountType: input.globalDiscountType, globalDiscountValue: input.globalDiscountValue },
@@ -223,6 +223,7 @@ export async function createFormalQuoteAction(input: FormalQuoteDraft) {
       const { data: quote, error } = await admin
       .from("quotations")
       .insert({
+        id: quoteId,
         quotation_number: number,
         customer_id: customerId,
         project_id: null,
@@ -252,10 +253,11 @@ export async function createFormalQuoteAction(input: FormalQuoteDraft) {
         created_by: user.id,
         updated_by: user.id,
       })
-      .select("id")
+      .select("id,quotation_number")
       .single();
       if (error) throw error;
       quoteId = quote.id;
+      number = quote.quotation_number;
       const { error: itemError } = await admin
       .from("quotation_items")
       .insert(

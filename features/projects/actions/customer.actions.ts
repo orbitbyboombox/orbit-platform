@@ -224,20 +224,24 @@ export async function createCustomerProjectAction(
         .single();
       if (projectError) throw projectError;
       const today = new Date();
+      const issueDate = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(today);
       const expiration = new Date(today);
       expiration.setDate(expiration.getDate() + 7);
-      const quotationNumber = `COT-${today.getFullYear()}-${project.id.replaceAll("-", "").slice(0, 8).toUpperCase()}`;
       const quotationLookup = draft.commercialSourceQuotationId
         ? client.from("quotations").select("id").eq("id", draft.commercialSourceQuotationId).eq("status", "ACCEPTED").maybeSingle()
-        : client.from("quotations").select("id").eq("quotation_number", quotationNumber).maybeSingle();
+        : client.from("quotations").select("id").eq("project_id", project.id).is("deleted_at", null).maybeSingle();
       const { data: existingQuotation, error: quotationLookupError } = await quotationLookup;
       if (quotationLookupError) throw quotationLookupError;
       let quotation = existingQuotation;
       if (draft.commercialSourceQuotationId && !quotation) throw new Error("La cotización comercial debe estar ACEPTADA antes de convertirla en reserva.");
       if (!quotation) {
+        const quotationId = crypto.randomUUID();
+        const { data: quotationNumber, error: allocationError } = await client.rpc("allocate_quotation_number", { p_quotation_id: quotationId, p_issue_date: issueDate });
+        if (allocationError || !quotationNumber) throw allocationError ?? new Error("No fue posible asignar el número de cotización.");
         const { data, error: quotationError } = await client
           .from("quotations")
           .insert({
+            id: quotationId,
             quotation_number: quotationNumber,
             customer_id: persistedProject.customer_id,
             project_id: project.id,
@@ -245,7 +249,7 @@ export async function createCustomerProjectAction(
             status: "DRAFT",
             customer_type: draft.type === "Corporate" ? "COMPANY" : "PRIVATE",
             event_type: draft.type,
-            issue_date: today.toISOString().slice(0, 10),
+            issue_date: issueDate,
             expiration_date: expiration.toISOString().slice(0, 10),
             subtotal,
             transport_total: 0,
