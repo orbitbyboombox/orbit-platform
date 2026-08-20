@@ -15,7 +15,7 @@ const staff=read("features/portal-authentication/staff-portal-dashboard.tsx");
 const reservation=read("features/projects/components/new-project-drawer.tsx");
 const quick=read("features/founder-workspace/founder-workspace-experience.tsx");
 
-test("canonical lock freezes body and html",()=>{assert.match(lock,/body\.style\.position="fixed"/);assert.match(lock,/html\.style\.overflow="hidden"/);assert.match(lock,/body\.style\.overflow="hidden"/)});
+test("canonical lock freezes body without disabling the html touch surface",()=>{assert.match(lock,/body\.style\.position="fixed"/);assert.match(lock,/body\.style\.overflow="hidden"/);assert.doesNotMatch(lock,/document\.documentElement|html\.style/)});
 test("lock preserves exact horizontal and vertical position",()=>{assert.match(lock,/x:window\.scrollX,y:window\.scrollY/);assert.match(lock,/window\.scrollTo\(\{left:current\.x,top:current\.y/)});
 test("nested dialogs retain lock until final release",()=>{assert.match(lock,/lockCount\+\+===0/);assert.match(lock,/--lockCount>0/)});
 test("release is idempotent on unexpected cleanup",()=>assert.match(lock,/if\(released\)return;released=true/));
@@ -24,8 +24,9 @@ test("legacy guard blocks every real aria modal outside canonical surfaces",()=>
 test("MobileDialog uses shared lock",()=>assert.match(dialog,/acquireModalScrollLock\(\)/));
 test("MobileDialog uses body portal",()=>assert.match(dialog,/createPortal\([\s\S]*document\.body/));
 test("modal content supports native vertical touch",()=>{assert.match(dialog,/touch-pan-y/);assert.match(dialog,/-webkit-overflow-scrolling:touch/)});
-test("upper and lower overscroll stay contained",()=>assert.match(dialog,/overscroll-contain/));
-test("modal owns internal scroll rather than body",()=>assert.match(dialog,/min-h-0 flex-1 touch-pan-y overflow-y-auto/));
+test("upper and lower overscroll stay contained",()=>assert.match(dialog,/overscroll-y-contain/));
+test("modal owns one internal scroll viewport with valid flex geometry",()=>{assert.match(dialog,/h-\[calc\(100dvh-env\(safe-area-inset-top\)\)\] min-h-0/);assert.match(dialog,/min-h-0 flex-1 touch-pan-y overflow-x-hidden overflow-y-auto/);assert.equal((dialog.match(/overflow-y-auto/g)??[]).length,1)});
+test("background lock does not intercept touch, pointer or wheel events",()=>{assert.doesNotMatch(lock,/touchstart|touchmove|pointermove|wheel|preventDefault/);assert.doesNotMatch(guard,/touchstart|touchmove|pointermove|wheel|preventDefault/)});
 test("background pointer interaction is intercepted by overlay",()=>assert.match(dialog,/data-orbit-modal-overlay[\s\S]*onMouseDown/));
 test("Escape closes through canonical handler",()=>assert.match(dialog,/event\.key==="Escape"/));
 test("focus trap remains active",()=>assert.match(dialog,/event\.key!=="Tab"/));
