@@ -11,6 +11,7 @@ import { loadFounderWorkspace } from "@/features/founder-workspace";
 import { loadCrmCustomerOperations } from "@/features/crm/customer-operations.repository";
 import type { EquipmentAssignmentPanelProps } from "@/features/asset-management";
 import type { EventLogisticsData } from "@/features/operations/event-logistics-center";
+import { resolveReceivablePaymentCategory } from "@/features/accounts-receivable/payment-term-classification";
 
 export interface ProjectWorkspacePageProps {
   params: Promise<{ projectId: string }>;
@@ -101,7 +102,7 @@ export default async function ProjectWorkspacePage({
       .single(),
     client
       .from("agreements")
-      .select("id,status,created_at")
+      .select("id,status,created_at,signed_pdf_path,drive_file_id")
       .eq("project_id", projectId)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -317,7 +318,7 @@ export default async function ProjectWorkspacePage({
   ] = await Promise.all([
     client
       .from("customers")
-      .select("full_name,phone,email,address,city,emergency_contact:metadata")
+      .select("full_name,rut,phone,email,address,city,emergency_contact:metadata")
       .eq(
         "id",
         rawProject?.customer_id ?? "00000000-0000-0000-0000-000000000000",
@@ -351,6 +352,8 @@ export default async function ProjectWorkspacePage({
   const services =
     query.services?.split(",").filter(Boolean) ?? project.services;
   const typeLabel = query.type ?? project.type;
+  const canonicalPayment=resolveReceivablePaymentCategory({customerType:typeLabel==="Corporate"?"CORPORATE":"PRIVATE",invoicePaymentTerm:invoice?.payment_term??null,invoiceCustomTermDays:null,projectFinance:rawProject?.finance});
+  const paymentCondition=canonicalPayment.paymentCategory==="ORDENARIO_50"?"Saldo cliente / 50%":canonicalPayment.paymentCategory==="EMPRESA_30_DIAS"?"Crédito Empresa · 30 días":canonicalPayment.paymentCategory==="CREDITO_SIN_PLAZO"?"Crédito Empresa · sin plazo definido":canonicalPayment.paymentCategory==="OTRO_CREDITO"?`Crédito Empresa · ${canonicalPayment.canonicalPaymentTermDays} días`:"Requiere revisión";
   const date = query.date ?? project.event.date;
   const formattedDate = new Intl.DateTimeFormat("es-CL", {
     dateStyle: "long",
@@ -1346,7 +1349,9 @@ export default async function ProjectWorkspacePage({
       signing={{
         agreementId: agreement?.id,
         status: agreement?.status ?? "PENDING",
+        href: agreement?.drive_file_id?`https://drive.google.com/open?id=${agreement.drive_file_id}`:undefined,
       }}
+      commercialHub={{customerTaxId:customer?.rut??undefined,customerKind:typeLabel==="Corporate"?"EMPRESA":"PARTICULAR",paymentCondition,quotation:quotation?{number:quotation.quotation_number,status:quotation.status,href:quotation.drive_file_id?`https://drive.google.com/open?id=${quotation.drive_file_id}`:undefined}:undefined}}
       workspaceData={workspaceData}
       workspacePreferences={founderWorkspace}
     />

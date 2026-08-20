@@ -2,7 +2,7 @@
 
 import { useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { ExternalTaxDocumentsCenter } from "@/features/external-tax-documents/external-tax-documents-center";
+import { EventCommercialDocumentHub } from "@/features/external-tax-documents/event-commercial-document-hub";
 import {
   AlertTriangle,
   Archive,
@@ -198,7 +198,8 @@ export type ProjectWorkspaceExperienceProps = Omit<
   eventDateIso?: string;
   activities?: readonly { title: string; detail: string; time: string }[];
   equipment: EquipmentAssignmentPanelProps;
-  signing: { agreementId?: string; status: string };
+  signing: { agreementId?: string; status: string; href?: string };
+  commercialHub: { customerTaxId?:string; customerKind:"PARTICULAR"|"EMPRESA"; paymentCondition:string; quotation?:{number:string;status:string;href?:string} };
   productionIntegration: ProductionIntegrationPanelProps;
   event360: Event360Data;
   eventControl: { event: CrmEventSummary; operations: CrmCustomerEventOperations };
@@ -1031,49 +1032,9 @@ export function ProjectWorkspaceExperience(
                 eyebrow="07 · Archivos"
                 icon={<FolderOpen className="size-5" />}
                 id="documents"
-                title="Documentos"
+                title="Documentos y estado comercial"
               >
-                <ExternalTaxDocumentsCenter projectId={props.projectKey!} invoiceId={event.receivable?.id} customerName={props.clientName} documents={event.documents.filter(doc=>doc.taxType&&doc.folio&&doc.issueDate).map(doc=>({id:doc.id,taxType:doc.taxType!,folio:doc.folio!,issueDate:doc.issueDate!,total:doc.total??0,status:doc.status??"ADJUNTADO",href:doc.href}))}/>
-                <div className="space-y-3">
-                  {event.documents.length ? (
-                    event.documents.map((doc) => (
-                      <article
-                        className="flex items-center justify-between gap-3 rounded-xl border p-4"
-                        key={doc.id}
-                      >
-                        <div className="flex min-w-0 items-center gap-3">
-                          <FileText className="size-5 shrink-0 text-brand" />
-                          <div>
-                            <p className="font-medium">
-                              {humanDocument(doc.type)}
-                            </p>
-                            <p className="text-xs text-muted">
-                              {dateTime(doc.createdAt)}
-                            </p>
-                          </div>
-                        </div>
-                        {doc.href ? (
-                          <a
-                            aria-label={`Descargar ${humanDocument(doc.type)}`}
-                            className="grid size-10 shrink-0 place-items-center rounded-lg border hover:border-brand"
-                            href={doc.href}
-                            rel="noreferrer"
-                            target="_blank"
-                          >
-                            <Download className="size-4" />
-                          </a>
-                        ) : (
-                          <StatusBadge
-                            label="Archivo protegido"
-                            variant="neutral"
-                          />
-                        )}
-                      </article>
-                    ))
-                  ) : (
-                    <Empty text="Cotizaciones, acuerdos, comprobantes, diseños y galerías aparecerán aquí cuando estén disponibles." />
-                  )}
-                </div>
+                <EventCommercialDocumentHub projectId={props.projectKey!} customerName={props.clientName} customerTaxId={props.commercialHub.customerTaxId} customerKind={props.commercialHub.customerKind} quotation={props.commercialHub.quotation} contract={props.signing} receivable={event.receivable?{id:event.receivable.id,paid:event.receivable.paidAmount,outstanding:event.receivable.outstandingBalance,dueDate:event.receivable.dueDate,status:event.receivable.status}:undefined} paymentCondition={props.commercialHub.paymentCondition} documents={event.documents} taxDocuments={event.documents.filter(doc=>doc.taxType&&doc.folio&&doc.issueDate).map(doc=>({id:doc.id,taxType:doc.taxType!,folio:doc.folio!,issueDate:doc.issueDate!,total:doc.total??0,status:doc.status??"ADJUNTADO",href:doc.href}))}/>
               </Section>
             )}
             {showLegacyDuplicatedEventSections && moduleVisible("GOOGLE_CALENDAR") && (
