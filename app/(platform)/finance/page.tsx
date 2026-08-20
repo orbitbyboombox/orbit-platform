@@ -17,10 +17,11 @@ export default async function FinancePage() {
   return <div className="space-y-7">
     <FinancialDashboardHeader data={data} />
     <div className="flex justify-end"><Button asChild variant="outline"><Link href="/finance/banking"><Landmark className="size-4"/>Bancos y conciliación</Link></Button></div>
+    <PeriodMetricsSection eyebrow="Desempeño mensual" title={`Este mes · ${data.periodLabel}`} description="Ventas, cobros y resultado del período, con costos directos y overhead separados." metrics={data.month} workspaceKey="FINANCE_MONTH" />
+    <PeriodMetricsSection eyebrow="Posición financiera" title="Posición actual" description="Saldos acumulados y exposición vigente; no se mezclan con el desempeño mensual." metrics={data.position} workspaceKey="FINANCE_POSITION" />
     <AvailableCashSection data={data.cash} />
-    <PeriodMetricsSection eyebrow="Sección 02" title="Hoy" description="Actividad financiera registrada durante la jornada." metrics={data.today} workspaceKey="FINANCE_TODAY" />
-    <PeriodMetricsSection eyebrow="Sección 03" title={`Este mes · ${data.periodLabel}`} description="Resultado consolidado del período en curso." metrics={data.month} workspaceKey="FINANCE_MONTH" />
-    <PeriodMetricsSection eyebrow="Sección 04" title="Próximos 30 días" description="Compromisos y cobranzas activas dentro del horizonte." metrics={data.forecast} workspaceKey="FINANCE_FORECAST" />
+    <PeriodMetricsSection eyebrow="Actividad diaria" title="Hoy" description="Actividad financiera registrada durante la jornada." metrics={data.today} workspaceKey="FINANCE_TODAY" />
+    <PeriodMetricsSection eyebrow="Proyección separada" title="Próximos 30 días" description="Compromisos y cobranzas activas dentro del horizonte; no son dinero realizado." metrics={data.forecast} workspaceKey="FINANCE_FORECAST" />
     <FinancialRisksSection data={data.risks} />
   </div>;
 }

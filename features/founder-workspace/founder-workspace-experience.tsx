@@ -11,7 +11,6 @@ import {
   TrendingUp,
   UsersRound,
   WalletCards,
-  Wrench,
   Check,
 } from "lucide-react";
 import Link from "next/link";
@@ -93,15 +92,18 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
     setAcknowledgedAlertIds((current) => new Set(current).add(id));
     router.refresh();
   });
-  const headline = (label: string) => finance.headline.find(item => item.label === label);
+  const position = (label: string) => finance.position.find(item => item.label === label);
+  const month = (label: string) => finance.month.find(item => item.label === label);
   const fallback = (label: string, href: string): FinanceMetric => ({ label, value: 0, format: "money", detail: "Sin movimientos canónicos.", href });
   const kpis: Array<{ metric: FinanceMetric; icon: LucideIcon; tone: keyof typeof toneStyle }> = [
-    { metric: headline("Caja disponible") ?? fallback("Caja disponible", "/finance/cash-flow"), icon: WalletCards, tone: "info" },
-    { metric: headline("Ventas") ?? fallback("Ventas del mes", "/projects?period=month"), icon: TrendingUp, tone: "success" },
-    { metric: headline("Por cobrar") ?? fallback("Cobros pendientes", "/finance/receivables"), icon: CircleDollarSign, tone: "warning" },
+    { metric: position("Caja registrada") ?? fallback("Caja registrada", "/finance/cash-flow"), icon: WalletCards, tone: "info" },
+    { metric: position("Por cobrar total") ?? fallback("Por cobrar total", "/finance/receivables"), icon: CircleDollarSign, tone: "warning" },
+    { metric: position("Crédito Empresas") ?? fallback("Crédito Empresas", "/finance/receivables?category=company-credit"), icon: CircleDollarSign, tone: "warning" },
+    { metric: position("Saldos Clientes / Eventos") ?? fallback("Saldos Clientes / Eventos", "/finance/receivables?category=ordinary"), icon: WalletCards, tone: "info" },
+    { metric: month("Ventas del mes") ?? fallback("Ventas del mes", "/projects?period=month"), icon: TrendingUp, tone: "success" },
+    { metric: month("Resultado operativo") ?? fallback("Resultado operativo del mes", "/finance/expenses"), icon: TrendingUp, tone: "success" },
+    { metric: month("Margen operativo") ?? { label: "Margen operativo del mes", value: 0, format: "percent", detail: "Resultado operativo sobre ventas del mes.", href: "/finance/expenses" }, icon: TrendingUp, tone: "info" },
     { metric: { label: "Eventos hoy", value: todayEvents, format: "count", detail: "Agenda operacional de hoy.", href: "/projects?date=today" }, icon: CalendarDays, tone: "default" },
-    { metric: { label: "Producción activa", value: todayOperation.length, format: "count", detail: "Eventos y prioridades activas.", href: "/operations" }, icon: Wrench, tone: "danger" },
-    { metric: headline("Margen") ?? { label: "Rentabilidad", value: 0, format: "percent", detail: "Margen neto del mes.", href: "/projects?view=profitability" }, icon: TrendingUp, tone: "info" },
   ];
 
   const welcome = <header className="pb-1 pt-2 sm:pb-2 sm:pt-4">

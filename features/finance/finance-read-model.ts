@@ -1,7 +1,10 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { loadAccountsReceivable } from "@/features/accounts-receivable";
 import { loadFinancialTruth } from "@/features/business-engine";
+import { summarizeFixedMonthlyExpenses, type FixedExpenseRule } from "@/features/expense-center/fixed-expense-read-model";
+import { calculateMonthlyFinancePerformance } from "./finance-performance";
 
 export type FinanceMetric = {
   label: string;
@@ -25,7 +28,6 @@ export type FinanceRisk = {
 export type FinanceDashboardReadModel = {
   generatedAt: string;
   periodLabel: string;
-  headline: FinanceMetric[];
   cash: {
     total: number;
     unassigned: number;
@@ -33,6 +35,7 @@ export type FinanceDashboardReadModel = {
   };
   today: FinanceMetric[];
   month: FinanceMetric[];
+  position: FinanceMetric[];
   forecast: FinanceMetric[];
   risks: FinanceRisk[];
 };
@@ -74,18 +77,20 @@ export async function loadFinanceDashboardReadModel(client: SupabaseClient): Pro
   next30Date.setUTCDate(next30Date.getUTCDate() + 30);
   const next30 = next30Date.toISOString().slice(0, 10);
 
-  const [truth, receivablesResult, paymentsResult, expensesResult, settlementsResult, staffMovementsResult, fuelResult, integrityResult,bankAccountsResult] = await Promise.all([
+  const [truth, receivableDataset, receivablesResult, paymentsResult, expensesResult, settlementsResult, staffMovementsResult, fuelResult, integrityResult,bankAccountsResult,fixedRulesResult] = await Promise.all([
     loadFinancialTruth(client),
+    loadAccountsReceivable(client),
     client.from("accounts_receivable_projection").select("id,project_id,customer_id,due_date,amount,paid_amount,outstanding_balance,effective_status"),
-    client.from("invoice_payments").select("id,invoice_id,amount,paid_at,method,deleted_at,invoices!inner(financial_record_state,record_origin,status,deleted_at)").is("deleted_at", null).eq("invoices.financial_record_state", "ACTIVE").eq("invoices.record_origin", "PRODUCTION").neq("invoices.status", "CANCELLED").is("invoices.deleted_at", null),
+    client.from("invoice_payments").select("id,invoice_id,amount,movement_type,paid_at,method,deleted_at,invoices!inner(financial_record_state,record_origin,status,deleted_at)").is("deleted_at", null).eq("invoices.financial_record_state", "ACTIVE").eq("invoices.record_origin", "PRODUCTION").neq("invoices.status", "CANCELLED").is("invoices.deleted_at", null),
     client.from("expenses").select("id,project_id,occurred_on,total,status,receipt_path,approval_reason,event_staff_settlement_id").is("deleted_at", null),
     client.from("staff_settlement_financials").select("settlement_id,project_id,staff_id,accounting_month,payroll_net,final_amount,paid_amount,remaining_balance,sii_receipt_status"),
     client.from("event_staff_settlement_movements").select("id,settlement_id,movement_type,amount,movement_date,method").is("deleted_at", null),
     client.from("vehicle_fuel_logs").select("id,fuel_date,total_amount,receipt_path"),
     client.from("financial_integrity_issues").select("id,status").eq("status", "OPEN"),
     client.from("finance_bank_accounts").select("code,name,account_kind,is_primary").eq("active",true).order("is_primary",{ascending:false}),
+    client.from("finance_recurring_expense_rules").select("id,name,category,amount,currency,frequency,next_due_date,active,metadata"),
   ]);
-  const error = receivablesResult.error ?? paymentsResult.error ?? expensesResult.error ?? settlementsResult.error ?? staffMovementsResult.error ?? fuelResult.error??bankAccountsResult.error;
+  const error = receivablesResult.error ?? paymentsResult.error ?? expensesResult.error ?? settlementsResult.error ?? staffMovementsResult.error ?? fuelResult.error??bankAccountsResult.error??fixedRulesResult.error;
   if (error) throw error;
 
   const activeTruth = truth.filter((row) => row.status === "CONFIRMED");
@@ -94,6 +99,10 @@ export async function loadFinanceDashboardReadModel(client: SupabaseClient): Pro
   const monthTruth = activeTruth.filter((row) => row.eventDate?.startsWith(month));
   const receivables = receivablesResult.data ?? [];
   const payments = paymentsResult.data ?? [];
+  const cashImpactResults = await Promise.all(payments.map((row) => client.rpc("invoice_payment_cash_impact", { p_movement_type: row.movement_type, p_amount: row.amount })));
+  const cashImpactError = cashImpactResults.find((result) => result.error)?.error;
+  if (cashImpactError) throw cashImpactError;
+  const canonicalPayments = payments.map((row, index) => ({ ...row, cashImpact: number(cashImpactResults[index]?.data) }));
   const expenses = (expensesResult.data ?? []).filter((row) => !row.project_id || activeProjectIds.has(row.project_id));
   const settlements = (settlementsResult.data ?? []).filter((row) => activeProjectIds.has(row.project_id));
   const activeSettlementIds = new Set(settlements.map((row) => row.settlement_id));
@@ -101,7 +110,7 @@ export async function loadFinanceDashboardReadModel(client: SupabaseClient): Pro
   const expenseReceipts = new Set(expenses.map((row) => row.receipt_path).filter(Boolean));
   const fuel = (fuelResult.data ?? []).filter((row) => !expenseReceipts.has(row.receipt_path));
 
-  const collectedAll = sum(payments, (row) => number(row.amount));
+  const collectedAll = sum(canonicalPayments, (row) => row.cashImpact);
   const paidExpenses = expenses.filter((row) => row.status === "PAID");
   const staffCashMovements = staffMovements.map((row) => ({ ...row, signedAmount: row.movement_type === "REVERSAL" ? -number(row.amount) : number(row.amount) }));
   const outgoingAll = sum(paidExpenses, (row) => number(row.total)) + sum(staffCashMovements, (row) => row.signedAmount) + sum(fuel, (row) => number(row.total_amount));
@@ -115,7 +124,7 @@ export async function loadFinanceDashboardReadModel(client: SupabaseClient): Pro
     if (key) cashAccounts.set(key, (cashAccounts.get(key) ?? 0) + amount);
     else unassignedCash += amount;
   };
-  payments.forEach((row) => registerCash(row.method, number(row.amount)));
+  canonicalPayments.forEach((row) => registerCash(row.method, row.cashImpact));
   paidExpenses.forEach((row) => {
     const meta = metadata(row.approval_reason);
     registerCash(meta.sourceAccount ?? meta.bank ?? meta.paymentMethod, -number(row.total));
@@ -123,8 +132,8 @@ export async function loadFinanceDashboardReadModel(client: SupabaseClient): Pro
   staffCashMovements.forEach((row) => registerCash(row.method, -row.signedAmount));
   fuel.forEach((row) => registerCash(null, -number(row.total_amount)));
 
-  const todayPayments = payments.filter((row) => dateOnly(row.paid_at) === today);
-  const monthPayments = payments.filter((row) => dateOnly(row.paid_at).startsWith(month));
+  const todayPayments = canonicalPayments.filter((row) => dateOnly(row.paid_at) === today);
+  const monthPayments = canonicalPayments.filter((row) => dateOnly(row.paid_at).startsWith(month));
   const todayExpenses = paidExpenses.filter((row) => row.occurred_on === today);
   const monthExpenses = paidExpenses.filter((row) => row.occurred_on?.startsWith(month));
   const todayStaff = staffCashMovements.filter((row) => row.movement_date === today);
@@ -134,13 +143,14 @@ export async function loadFinanceDashboardReadModel(client: SupabaseClient): Pro
   const outstanding = sum(receivables.filter((row) => !["PAID", "CANCELLED"].includes(row.effective_status)), (row) => number(row.outstanding_balance));
   const monthlyRevenue = sum(monthTruth, (row) => row.revenue);
   const monthlyCosts = sum(monthTruth, (row) => row.realCost);
-  const monthlyProfit = sum(monthTruth, (row) => row.netProfit);
-  const monthlyMargin = monthlyRevenue ? (monthlyProfit / monthlyRevenue) * 100 : 0;
+  const fixedRules: FixedExpenseRule[] = (fixedRulesResult.data ?? []).map((row) => ({ id: row.id, name: row.name, category: row.category, amount: number(row.amount), currency: row.currency as "CLP" | "USD", frequency: row.frequency, active: row.active, nextDueDate: row.next_due_date, metadata: (row.metadata ?? {}) as Record<string, unknown> }));
+  const fixedMonthlyExpenses = summarizeFixedMonthlyExpenses(fixedRules, now).monthlyTotal;
+  const performance = calculateMonthlyFinancePerformance({ revenue: monthlyRevenue, directEventCosts: monthlyCosts, fixedMonthlyExpenses });
   const todayRevenue = sum(todayTruth, (row) => row.revenue);
   const todayCost = sum(todayTruth, (row) => row.realCost);
   const todayProfit = sum(todayTruth, (row) => row.netProfit);
-  const collectionsToday = sum(todayPayments, (row) => number(row.amount));
-  const collectionsMonth = sum(monthPayments, (row) => number(row.amount));
+  const collectionsToday = sum(todayPayments, (row) => row.cashImpact);
+  const collectionsMonth = sum(monthPayments, (row) => row.cashImpact);
   const paymentsToday = sum(todayExpenses, (row) => number(row.total)) + sum(todayStaff, (row) => row.signedAmount) + sum(todayFuel, (row) => number(row.total_amount));
   const expensesMonth = sum(monthExpenses, (row) => number(row.total)) + sum(monthFuel, (row) => number(row.total_amount));
 
@@ -170,22 +180,9 @@ export async function loadFinanceDashboardReadModel(client: SupabaseClient): Pro
 
   const riskCount = risks.reduce((total, risk) => total + risk.count, 0);
   const payrollTotal = sum(monthlyPayroll, (row) => number(row.payroll_net));
-  const headline: FinanceMetric[] = [
-    moneyMetric("Ventas", monthlyRevenue, "Ventas del mes desde Financial Truth.", "/projects?period=month"),
-    moneyMetric("Cobrado", collectionsMonth, "Movimientos del Payment Ledger este mes.", "/finance/receivables?status=paid"),
-    moneyMetric("Por cobrar", outstanding, "Saldo de cuentas por cobrar activas.", "/finance/receivables?status=outstanding", outstanding > 0 ? "warning" : "default"),
-    moneyMetric("Nómina", payrollTotal, "Liquidaciones del mes contable.", "/resources/staff?workspace=payroll"),
-    moneyMetric("Costos operacionales", monthlyCosts, "Costo real de Eventos del mes.", "/projects?view=profitability"),
-    moneyMetric("Profit neto", monthlyProfit, "Ventas netas menos costos reales.", "/projects?view=profitability", monthlyProfit >= 0 ? "success" : "danger"),
-    { label: "Margen", value: monthlyMargin, format: "percent", detail: "Margen neto del mes.", href: "/projects?view=profitability", tone: monthlyMargin >= 0 ? "success" : "danger" },
-    moneyMetric("Caja disponible", availableCash, "Cobros menos egresos pagados registrados.", "/finance/cash-flow", availableCash >= 0 ? "success" : "danger"),
-    { label: "Riesgos próximos", value: riskCount, format: "count", detail: "Alertas accionables abiertas.", href: "#financial-risks", tone: riskCount ? "danger" : "success" },
-  ];
-
   return {
     generatedAt: now.toISOString(),
     periodLabel: monthName.format(now),
-    headline,
     cash: {
       total: availableCash,
       unassigned: unassignedCash,
@@ -199,13 +196,25 @@ export async function loadFinanceDashboardReadModel(client: SupabaseClient): Pro
       moneyMetric("Profit de hoy", todayProfit, "Ventas menos costo real de Eventos de hoy.", "/projects?date=today&view=profitability", todayProfit >= 0 ? "success" : "danger"),
     ],
     month: [
-      moneyMetric("Ventas", monthlyRevenue, "Eventos del mes.", "/projects?period=month"),
-      moneyMetric("Cobrado", collectionsMonth, "Payment Ledger del mes.", "/finance/receivables?period=month"),
-      moneyMetric("Por cobrar", outstanding, "Cuentas activas abiertas.", "/finance/receivables?status=outstanding"),
-      moneyMetric("Nómina", payrollTotal, "Liquidaciones del mes contable.", "/resources/staff?workspace=payroll"),
-      moneyMetric("Gastos", expensesMonth, "Gastos y combustible pagados este mes.", "/finance/expenses?period=month"),
-      moneyMetric("Profit neto", monthlyProfit, "Financial Truth del mes.", "/projects?period=month&view=profitability", monthlyProfit >= 0 ? "success" : "danger"),
-      { label: "Margen", value: monthlyMargin, format: "percent", detail: "Margen neto del mes.", href: "/projects?period=month&view=profitability", tone: monthlyMargin >= 0 ? "success" : "danger" },
+      moneyMetric("Ventas del mes", monthlyRevenue, "Financial Truth confirmado por fecha de Evento.", "/projects?period=month"),
+      moneyMetric("Cobrado del mes", collectionsMonth, "Impacto de caja canónico del Payment Ledger.", "/finance/receivables?period=month"),
+      moneyMetric("Costos directos de Eventos", monthlyCosts, "Costo real de Eventos confirmados del mes.", "/projects?period=month&view=profitability"),
+      moneyMetric("Gastos fijos comprometidos", fixedMonthlyExpenses, "Overhead mensual vigente; no reduce caja hasta su pago.", "/finance/expenses"),
+      moneyMetric("Resultado de Eventos", performance.eventResult, "Ventas menos costos directos.", "/projects?period=month&view=profitability", performance.eventResult >= 0 ? "success" : "danger"),
+      moneyMetric("Resultado operativo", performance.operatingResult, "Resultado de Eventos menos overhead mensual.", "/finance/expenses", performance.operatingResult >= 0 ? "success" : "danger"),
+      { label: "Margen de Eventos", value: performance.eventMargin, format: "percent", detail: "Resultado de Eventos sobre ventas del mes.", href: "/projects?period=month&view=profitability", tone: performance.eventMargin >= 0 ? "success" : "danger" },
+      { label: "Margen operativo", value: performance.operatingMargin, format: "percent", detail: "Resultado operativo sobre ventas del mes.", href: "/finance/expenses", tone: performance.operatingMargin >= 0 ? "success" : "danger" },
+      moneyMetric("Nómina devengada del mes", payrollTotal, "Liquidaciones del mes contable; no equivale necesariamente a pago.", "/resources/staff?workspace=payroll"),
+      moneyMetric("Egresos pagados del mes", expensesMonth, "Gastos y combustible materializados durante el mes.", "/finance/expenses?period=month"),
+    ],
+    position: [
+      moneyMetric("Cobrado acumulado", collectedAll, "Impacto de caja canónico acumulado.", "/finance/receivables?status=paid"),
+      moneyMetric("Por cobrar total", outstanding, "Saldo global de cuentas activas.", "/finance/receivables", outstanding > 0 ? "warning" : "default"),
+      moneyMetric("Saldos Clientes / Eventos", receivableDataset.metrics.paymentCategorySummary.ordinary, "Pendiente ordinario sin crédito empresarial.", "/finance/receivables?category=ordinary"),
+      moneyMetric("Crédito Empresas", receivableDataset.metrics.companyCredits, "Saldo corporativo, con o sin plazo definido.", "/finance/receivables?category=company-credit"),
+      moneyMetric("Caja registrada", availableCash, "Cobrado acumulado menos egresos pagados registrados; no es saldo bancario.", "/finance/cash-flow", availableCash >= 0 ? "success" : "danger"),
+      moneyMetric("Egresos acumulados registrados", outgoingAll, "Gastos, Staff y combustible efectivamente registrados.", "/finance/cash-flow?direction=outgoing"),
+      { label: "Riesgos próximos", value: riskCount, format: "count", detail: "Alertas financieras accionables.", href: "#financial-risks", tone: riskCount ? "danger" : "success" },
     ],
     forecast: [
       moneyMetric("Cobros proyectados", projectedCollections, "Vencimientos activos de los próximos 30 días.", "/finance/receivables?range=30"),
