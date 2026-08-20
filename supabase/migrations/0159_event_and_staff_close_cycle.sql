@@ -147,6 +147,7 @@ declare actor uuid:=auth.uid(); gate jsonb; p public.projects%rowtype; closure_i
 begin
  if actor is null or not public.can_administer() then raise exception 'Solo Founder o Administración puede cerrar Eventos.'; end if;
  select * into p from public.projects where id=p_project_id and deleted_at is null for update;if not found then raise exception 'Evento no encontrado.';end if;
+ if exists(select 1 from public.event_operational_closures where project_id=p_project_id and status='CLOSED') then return public.preview_event_operational_close(p_project_id); end if;
  insert into public.event_operational_closures(project_id,status) values(p_project_id,'CLOSE_PENDING') on conflict(project_id) do update set status='CLOSE_PENDING',updated_at=now() where event_operational_closures.status<>'CLOSED' returning id into closure_id;
  gate:=public.preview_event_operational_close(p_project_id);
  if not coalesce((gate->>'ready')::boolean,false) then update public.event_operational_closures set status='OPEN',updated_at=now() where id=closure_id; raise exception 'Cierre bloqueado: %',gate->'blockers'; end if;
@@ -154,7 +155,7 @@ begin
  if not coalesce((gate->>'ready')::boolean,false) then raise exception 'Invariantes de cierre no reconciliadas.'; end if;
  update public.event_operational_closures set status='CLOSED',close_version=close_version+1,close_snapshot=gate,closed_at=now(),closed_by=actor,reopened_at=null,reopened_by=null,reopen_reason=null,updated_at=now() where id=closure_id;
  insert into public.timeline_events(customer_id,project_id,orbit_event_id,actor_id,actor_label,source,action,entity_type,entity_id,event_type,title,description,human_message,correlation_id,created_by)
- values(p.customer_id,p.id,p.orbit_event_id,actor,'Founder','Operations','EVENT_OPERATION_CLOSED','EventOperationalClosure',closure_id,'EVENT_OPERATION_CLOSED','Evento cerrado operacionalmente','Gate Phase F aprobado.','Evento cerrado con costo real reconciliado.','event-close:'||closure_id||':'||(select close_version from public.event_operational_closures where id=closure_id),actor);
+ values(p.customer_id,p.id,p.orbit_event_id,actor,'Founder','Operations','EVENT_OPERATION_CLOSED','EventOperationalClosure',closure_id::text,'EVENT_OPERATION_CLOSED','Evento cerrado operacionalmente','Gate Phase F aprobado.','Evento cerrado con costo real reconciliado.','event-close:'||closure_id||':'||(select close_version from public.event_operational_closures where id=closure_id),actor);
  return public.preview_event_operational_close(p_project_id);
 end $$;
 
@@ -222,6 +223,7 @@ create or replace function public.refresh_staff_month_payment_state(p_month date
 returns text language plpgsql security definer set search_path=public as $$
 declare month_start date:=date_trunc('month',p_month)::date; close_row public.staff_monthly_closes%rowtype; pending numeric;
 begin
+ if auth.uid() is null or not public.can_administer() then raise exception 'Solo Founder o Administración puede actualizar el estado de pago mensual.'; end if;
  select * into close_row from public.staff_monthly_closes where accounting_month=month_start for update;if not found then return 'OPEN';end if;
  select coalesce(sum(greatest(f.remaining_balance,0)),0) into pending from public.staff_monthly_close_items i join public.staff_settlement_financials f on f.settlement_id=i.settlement_id where i.monthly_close_id=close_row.id and i.close_version=close_row.close_version;
  if close_row.status='CLOSED' and pending=0 then update public.staff_monthly_closes set status='PAID',paid_at=now(),updated_at=now() where id=close_row.id;return 'PAID';end if;return close_row.status;
