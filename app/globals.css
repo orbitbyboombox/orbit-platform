@@ -83,6 +83,8 @@ html { scroll-behavior: smooth; }
 button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: not-allowed; }
+html:has([aria-modal="true"]) { overflow: hidden; overscroll-behavior: none; }
+[data-orbit-modal-overlay] { padding-top: env(safe-area-inset-top); overscroll-behavior: contain; }
 
 #platform-workspace-content {
   container-type: inline-size;
