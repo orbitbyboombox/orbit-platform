@@ -26,7 +26,15 @@ test("breakdown contains only sourced monetary lines and reconciles to direct co
     assert.match(migration, new RegExp(`'${key}'`));
   }
   assert.match(migration, /event_cost_breakdown_total\(c\.cost_breakdown\)<>c\.total_operational_cost/);
+  assert.match(migration, /total_operational_cost:=round\(personnel_cost\+operational_resources_cost,2\)/);
+  assert.match(migration, /'paper',case when truth\.status='CANCELLED' then 0 else round\(estimate\.paper,2\) end/);
   assert.doesNotMatch(migration, /Otros costos considerados por el motor/);
+});
+
+test("preview filters only real Production columns", () => {
+  assert.match(migration, /p\.deleted_at is null/);
+  assert.match(migration, /upper\(p\.status\) not in \('CANCELLED','CANCELED','ARCHIVED'\)/);
+  assert.doesNotMatch(migration, /p\.record_origin/);
 });
 
 test("Automotriz canonical regression excludes VAT, cash collection and overhead", () => {

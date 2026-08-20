@@ -51,22 +51,24 @@ begin
   select coalesce(sum(subtotal),0) into expense_net from public.expenses
   where project_id=p_project_id and deleted_at is null and status<>'CANCELLED';
 
-  operator_value:=coalesce(real_operator,case when confirmed_settlements>0 then staff_operator end,estimate.operator);
-  assembly_value:=coalesce(real_assembly,case when confirmed_settlements>0 then staff_assembly end,estimate.assembly);
-  disassembly_value:=coalesce(real_disassembly,case when confirmed_settlements>0 then staff_disassembly end,estimate.disassembly);
-  fuel_value:=coalesce(real_fuel,estimate.fuel);
-  transport_value:=coalesce(real_transport,estimate.transport);
-  scrapbook_value:=coalesce(real_scrapbook,estimate.scrapbook);
-  magnets_value:=coalesce(real_magnets,estimate.magnets);
-  other_value:=estimate.other_configured+real_other;
-  staff_net:=operator_value+assembly_value+disassembly_value+staff_adjustments;
+  operator_value:=round(coalesce(real_operator,case when confirmed_settlements>0 then staff_operator end,estimate.operator),2);
+  assembly_value:=round(coalesce(real_assembly,case when confirmed_settlements>0 then staff_assembly end,estimate.assembly),2);
+  disassembly_value:=round(coalesce(real_disassembly,case when confirmed_settlements>0 then staff_disassembly end,estimate.disassembly),2);
+  staff_adjustments:=round(staff_adjustments,2);
+  fuel_value:=round(coalesce(real_fuel,estimate.fuel),2);
+  transport_value:=round(coalesce(real_transport,estimate.transport),2);
+  scrapbook_value:=round(coalesce(real_scrapbook,estimate.scrapbook),2);
+  magnets_value:=round(coalesce(real_magnets,estimate.magnets),2);
+  other_value:=round(estimate.other_configured+real_other,2);
+  expense_net:=round(expense_net,2);
+  staff_net:=round(operator_value+assembly_value+disassembly_value+staff_adjustments,2);
   staff_tax:=public.staff_company_cost_from_net(staff_net)-staff_net;
 
-  personnel_cost:=case when truth.status='CANCELLED' then 0 else staff_net+staff_tax end;
-  operational_resources_cost:=case when truth.status='CANCELLED' then 0 else
-    estimate.paper+fuel_value+transport_value+scrapbook_value+magnets_value+
-    estimate.branding+estimate.pens+estimate.double_sided_tape+other_value+expense_net end;
-  total_operational_cost:=personnel_cost+operational_resources_cost;
+  personnel_cost:=case when truth.status='CANCELLED' then 0 else round(staff_net+staff_tax,2) end;
+  operational_resources_cost:=case when truth.status='CANCELLED' then 0 else round(
+    round(estimate.paper,2)+fuel_value+transport_value+scrapbook_value+magnets_value+
+    round(estimate.branding,2)+round(estimate.pens,2)+round(estimate.double_sided_tape,2)+other_value+expense_net,2) end;
+  total_operational_cost:=round(personnel_cost+operational_resources_cost,2);
   estimated_tax:=public.staff_company_cost_from_net(estimate.operator+estimate.assembly+estimate.disassembly)-(estimate.operator+estimate.assembly+estimate.disassembly);
   estimated_cost:=case when truth.status='CANCELLED' then 0 else estimate.total+estimated_tax end;
   cost_breakdown:=jsonb_build_object(
@@ -77,15 +79,15 @@ begin
     'staffTax',case when truth.status='CANCELLED' then 0 else staff_tax end,
     'staffTaxRate',public.staff_withholding_rate()*100,
     'operationalResourcesCost',operational_resources_cost,
-    'paper',case when truth.status='CANCELLED' then 0 else estimate.paper end,
+    'paper',case when truth.status='CANCELLED' then 0 else round(estimate.paper,2) end,
     'fuel',case when truth.status='CANCELLED' then 0 else fuel_value end,
     'transport',case when truth.status='CANCELLED' then 0 else transport_value end,
     'scrapbook',case when truth.status='CANCELLED' then 0 else scrapbook_value end,
     'magnets',case when truth.status='CANCELLED' then 0 else magnets_value end,
-    'branding',case when truth.status='CANCELLED' then 0 else estimate.branding end,
+    'branding',case when truth.status='CANCELLED' then 0 else round(estimate.branding,2) end,
     'brandingFaces',estimate.branding_faces,'brandingUnitCost',estimate.branding_unit_cost,
-    'pens',case when truth.status='CANCELLED' then 0 else estimate.pens end,
-    'doubleSidedTape',case when truth.status='CANCELLED' then 0 else estimate.double_sided_tape end,
+    'pens',case when truth.status='CANCELLED' then 0 else round(estimate.pens,2) end,
+    'doubleSidedTape',case when truth.status='CANCELLED' then 0 else round(estimate.double_sided_tape,2) end,
     'registeredExpenses',case when truth.status='CANCELLED' then 0 else expense_net end,
     'other',case when truth.status='CANCELLED' then 0 else other_value end,
     'totalOperationalCost',total_operational_cost,
@@ -165,9 +167,11 @@ language sql stable security definer set search_path=public as $$
       or public.event_cost_breakdown_total(f.cost_breakdown)<>f.real_cost
       or public.event_cost_breakdown_total(c.cost_breakdown)<>c.total_operational_cost
   from public.financial_event_records f
-  join public.projects p on p.id=f.project_id and p.deleted_at is null and p.record_origin='PRODUCTION'
+  join public.projects p on p.id=f.project_id and p.deleted_at is null
   cross join lateral public.calculate_event_operation_cost(f.project_id) c
-  where f.status<>'CANCELLED' and (p_project_ids is null or f.project_id=any(p_project_ids));
+  where f.status<>'CANCELLED'
+    and upper(p.status) not in ('CANCELLED','CANCELED','ARCHIVED')
+    and (p_project_ids is null or f.project_id=any(p_project_ids));
 $$;
 
 create or replace function public.execute_event_profitability_repair(p_project_ids uuid[] default null,p_dry_run boolean default true)
