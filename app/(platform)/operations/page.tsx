@@ -194,8 +194,8 @@ export default async function OperationsPage() {
       .eq("status","ACTIVE").eq("requirement_type","PHYSICAL_UNIT").not("asset_type","is",null),
     client
       .from("internal_notifications")
-      .select("id,project_id,title,message,metadata,created_at,staff(first_name,last_name),projects(name,event_date,event_time)")
-      .in("notification_type", ["STAFF_ASSIGNMENT_CANCELLED", "STAFF_ASSIGNMENT_CANCELLED_BY_FOUNDER"])
+      .select("id,project_id,notification_type,title,message,metadata,created_at,staff(first_name,last_name),projects(name,event_date,event_time)")
+      .in("notification_type", ["STAFF_ASSIGNMENT_CANCELLED", "STAFF_ASSIGNMENT_CANCELLED_BY_FOUNDER", "STAFF_ASSIGNMENT_NOTIFICATION", "STAFF_REJECTED", "STAFF_ASSIGNMENT_EMAIL_FAILED"])
       .eq("priority", "CRITICAL")
       .eq("status", "UNREAD")
       .order("created_at", { ascending: false }),
@@ -1442,7 +1442,8 @@ export default async function OperationsPage() {
     const project=Array.isArray(alert.projects)?alert.projects[0]:alert.projects;
     const metadata=(alert.metadata??{}) as Record<string,unknown>;
     const schedule=[project?.event_date,project?.event_time?.slice(0,5)].filter(Boolean).join(" · ");
-    return {id:alert.id,title:"Staff canceló una asignación",detail:[`${staffMember?.first_name??"Staff"} ${staffMember?.last_name??""}`.trim(),String(metadata.responsibility??"Rol por confirmar"),project?.name,schedule,alert.message].filter(Boolean).join(" · "),href:alert.project_id?`/projects/${alert.project_id}#staff-assignment`:"/notifications",tone:"danger" as const,acknowledgeable:true};
+    const rejected=["STAFF_REJECTED","STAFF_ASSIGNMENT_CANCELLED","STAFF_ASSIGNMENT_CANCELLED_BY_FOUNDER"].includes(alert.notification_type),failed=alert.notification_type==="STAFF_ASSIGNMENT_EMAIL_FAILED";
+    return {id:alert.id,title:failed?"Falló notificación de Staff":rejected?"Staff rechazó/canceló una asignación":"Staff pendiente de confirmación",detail:[`${staffMember?.first_name??"Staff"} ${staffMember?.last_name??""}`.trim(),String(metadata.responsibility??"Rol por confirmar"),project?.name,schedule,alert.message].filter(Boolean).join(" · "),href:alert.project_id?`/projects/${alert.project_id}#staff-assignment`:"/notifications",tone:rejected||failed?"danger" as const:"warning" as const,acknowledgeable:true};
   });
   const commandCenterAlerts: CommandCenterItem[] = [...cancellationAlerts,...controlData.alerts.map(
     (alert, index) => ({

@@ -19,6 +19,7 @@ import {
   completeStaffChecklistItemAction,
   declineStaffResponsibilityAction,
   recordStaffCheckInAction,
+  rejectAssignedStaffAssignmentAction,
   requestStaffResponsibilityAction,
   updateStaffLogisticsTripAction,
   submitStaffExpenseAction,
@@ -539,6 +540,7 @@ function EventDetail({
   const [cancelRole, setCancelRole] = useState(event.roles[0] ?? "");
   const [cancelReason, setCancelReason] = useState("ILLNESS");
   const [cancelDetail, setCancelDetail] = useState("");
+  const [rejecting,setRejecting]=useState(false),[rejectReason,setRejectReason]=useState("UNAVAILABLE"),[rejectDetail,setRejectDetail]=useState("");
   const actions = executionActions(event.roles);
   const next = actions.find((item) => !event.checkins.includes(item.code)),
     needsAcceptance = pendingAcceptance(event.status);
@@ -655,6 +657,8 @@ function EventDetail({
             >
               {pending ? "Confirmando…" : "Aceptar asignación"}
             </button>
+            <button className="mt-4 min-h-11 rounded-xl border border-red-500/40 px-4 text-sm font-semibold text-red-600" disabled={pending} onClick={()=>setRejecting(value=>!value)}>Rechazar asignación</button>
+            {rejecting?<div className="mt-4 grid gap-3 border-t pt-4"><label className="grid gap-2 text-sm font-medium">Motivo<select className="min-h-11 rounded-xl border bg-background px-3" value={rejectReason} onChange={event=>setRejectReason(event.target.value)}><option value="ILLNESS">Enfermedad</option><option value="EMERGENCY">Emergencia</option><option value="UNAVAILABLE">No disponible</option><option value="DISTANCE">Distancia</option><option value="OTHER">Otro</option></select></label><label className="grid gap-2 text-sm font-medium">Detalle<textarea className="min-h-24 rounded-xl border bg-background p-3" required value={rejectDetail} onChange={event=>setRejectDetail(event.target.value)}/></label><button className="min-h-11 rounded-xl bg-red-600 px-4 text-sm font-semibold text-white disabled:opacity-50" disabled={pending||!rejectDetail.trim()} onClick={()=>{const form=new FormData();form.set("projectId",event.id);form.set("reason",rejectReason);form.set("detail",rejectDetail);run(()=>rejectAssignedStaffAssignmentAction(form))}}>Confirmar rechazo</button></div>:null}
           </section>
         ) : (
           <>

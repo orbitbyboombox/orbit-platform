@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadPortalSession, requestEvidence } from "./portal-auth.service";
 import { deliverAssignmentCancellationBoundary } from "@/features/operations/staff-assignment-cancellation.service";
+import {notifyOperationsOfStaffRejection} from "@/features/operations/staff-assignment-notification.service";
 
 const CHECKLIST = new Set([
   "READ_OPERATIONAL_SHEET",
@@ -94,7 +95,7 @@ export async function acceptStaffAssignmentAction(projectId: string) {
     .eq("status", "APPROVED");
   await admin
     .from("timeline_events")
-    .insert({
+    .upsert({
       customer_id: project.customer_id,
       project_id: projectId,
       staff_id: session.staff_id,
@@ -110,7 +111,7 @@ export async function acceptStaffAssignmentAction(projectId: string) {
       human_message: "El colaborador aceptó su asignación.",
       correlation_id: `staff-package-accepted:${projectId}:${session.staff_id}`,
       reason: `${evidence.device} · ${evidence.ipHash}`,
-    });
+    },{onConflict:"correlation_id",ignoreDuplicates:true});
   revalidatePath("/staff-portal");
   revalidatePath("/operations");
   revalidatePath(`/projects/${projectId}`);
@@ -118,6 +119,17 @@ export async function acceptStaffAssignmentAction(projectId: string) {
     ok: true,
     message: "Asignación aceptada. Tu paquete operacional está listo.",
   };
+}
+
+export async function rejectAssignedStaffAssignmentAction(form:FormData){
+  const session=await loadPortalSession("STAFF");if(!session?.staff_id)return{ok:false,message:"Tu sesión expiró."};
+  const projectId=String(form.get("projectId")??""),reason=String(form.get("reason")??"").trim(),detail=String(form.get("detail")??"").trim();if(!projectId||!reason||!detail)return{ok:false,message:"Selecciona y describe el motivo del rechazo."};
+  const admin=createAdminClient(),evidence=requestEvidence(await headers()),now=new Date().toISOString();
+  const{data:project,error:projectError}=await admin.from("projects").select("customer_id,orbit_event_id").eq("id",projectId).single();if(projectError||!project)return{ok:false,message:projectError?.message??"Evento no encontrado."};
+  const{data:rows,error}=await admin.from("assignments").update({status:"REJECTED",rejected_at:now,response_at:now,reason:`${reason}: ${detail}`}).eq("project_id",projectId).eq("staff_id",session.staff_id).in("status",["PENDING","PENDING_CONFIRMATION","ASSIGNED"]).is("deleted_at",null).select("id");if(error)return{ok:false,message:error.message};if(!rows?.length)return{ok:false,message:"La asignación ya no está disponible."};
+  for(const row of rows)await admin.from("timeline_events").upsert({customer_id:project.customer_id,project_id:projectId,staff_id:session.staff_id,orbit_event_id:project.orbit_event_id,event_type:"STAFF_REJECTED",title:"Asignación rechazada",description:`Motivo: ${reason} · ${detail}`,actor_label:"Staff",source:"StaffPortal",action:"STAFF_REJECTED",entity_type:"Assignment",entity_id:row.id,human_message:"El colaborador rechazó su asignación.",correlation_id:`staff-assignment-rejected:${row.id}`,reason:`${reason} · ${detail} · ${evidence.device} · ${evidence.ipHash}`},{onConflict:"correlation_id",ignoreDuplicates:true});
+  await notifyOperationsOfStaffRejection(admin,{projectId,staffId:session.staff_id,assignmentIds:rows.map(row=>row.id),reason:`${reason} · ${detail}`});
+  revalidatePath("/staff-portal");revalidatePath("/operations");revalidatePath("/notifications");revalidatePath(`/projects/${projectId}`);return{ok:true,message:"Asignación rechazada. Operaciones fue notificado."};
 }
 
 export async function completeStaffChecklistItemAction(

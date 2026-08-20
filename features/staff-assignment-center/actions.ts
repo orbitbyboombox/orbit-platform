@@ -6,6 +6,7 @@ import { createSupabaseServerActionClient } from "@/lib/supabase/server";
 import { synchronizeConfirmedReservationCalendar } from "@/features/connectors/google-calendar/application/google-calendar-sync.service";
 import { deliverAssignmentCancellationBoundary } from "@/features/operations/staff-assignment-cancellation.service";
 import { requestEvidence } from "@/features/portal-authentication/portal-auth.service";
+import {deliverStaffAssignmentNotification} from "@/features/operations/staff-assignment-notification.service";
 
 export type StaffAssignmentMutation = {
   id?: string;
@@ -132,6 +133,7 @@ export async function saveStaffAssignmentAction(
       reason: value(input.observations) ?? "Asignación operacional",
       updated_by: ctx.user.id,
     };
+    let assignmentId=input.id??"";
     if (input.replaceId) {
       const { data: old, error: oldError } = await ctx.client
         .from("assignments")
@@ -163,6 +165,7 @@ export async function saveStaffAssignmentAction(
         .eq("project_id", input.projectId)
         .is("deleted_at", null);
       if (error) throw error;
+      assignmentId=input.id;
       await timeline(
         ctx,
         input.id,
@@ -177,6 +180,7 @@ export async function saveStaffAssignmentAction(
         .select("id")
         .single();
       if (error) throw error;
+      assignmentId=created.id;
       await timeline(
         ctx,
         created.id,
@@ -187,6 +191,7 @@ export async function saveStaffAssignmentAction(
         input.staffId,
       );
     }
+    try{await deliverStaffAssignmentNotification(ctx.client,assignmentId)}catch(notificationError){console.error("[ORBIT][STAFF_ASSIGNMENT_NOTIFICATION]",{assignmentId,error:notificationError instanceof Error?notificationError.message:String(notificationError)})}
     await synchronizeConfirmedReservationCalendar({
       client: ctx.client,
       projectId: input.projectId,
@@ -198,6 +203,8 @@ export async function saveStaffAssignmentAction(
     revalidatePath("/customers", "layout");
     revalidatePath("/finance");
     revalidatePath("/reports");
+    revalidatePath("/operations");
+    revalidatePath("/notifications");
     return { ok: true };
   } catch (error) {
     return {
