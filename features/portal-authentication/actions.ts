@@ -1,5 +1,6 @@
 "use server";
 import { cookies,headers } from "next/headers";
+import { createHash } from "node:crypto";
 import { redirect } from "next/navigation";
 import {revalidatePath} from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -23,7 +24,7 @@ export async function customerPortalLoginAction(_:Result|undefined,form:FormData
 export async function staffPortalLoginAction(_:Result|undefined,form:FormData):Promise<Result>{
   let rut:string;try{rut=requireValidChileanRut(String(form.get("rut")??""));}catch(error){return{ok:false,error:friendlyPortalError(error)}}const pin=String(form.get("pin")??"");const evidence=requestEvidence(await headers());
   const {data,error}=await createAdminClient().rpc("authenticate_staff_portal",{p_rut:rut,p_pin:pin,p_ip_hash:evidence.ipHash,p_user_agent:evidence.userAgent,p_device:evidence.device});
-  const session=data?.[0];if(error||!session)return{ok:false,error:FAILURE};(await cookies()).set(STAFF_SESSION_COOKIE,session.session_token,cookieOptions(session.expires_at));redirect("/staff-portal");
+  const session=data?.[0];if(error||!session){const rutHash=createHash("sha256").update(rut).digest("hex");const{data:attempt}=await createAdminClient().from("portal_access_attempts").select("failure_code").eq("access_type","STAFF").eq("normalized_rut_hash",rutHash).order("attempted_at",{ascending:false}).limit(1).maybeSingle();console.warn("[ORBIT][STAFF_PORTAL_AUTH_REJECTED]",{failureCode:attempt?.failure_code??(error?"RPC_ERROR":"UNKNOWN")});return{ok:false,error:FAILURE};}(await cookies()).set(STAFF_SESSION_COOKIE,session.session_token,cookieOptions(session.expires_at));redirect("/staff-portal");
 }
 export async function portalLogoutAction(type:"CUSTOMER"|"STAFF"){await revokePortalSession(type);redirect(type==="CUSTOMER"?"/login?access=customer":"/login?access=staff");}
 export async function resetStaffPinAction(form:FormData){const client=await createSupabaseServerActionClient();const staffId=String(form.get("staffId")??"");const pin=String(form.get("pin")??"");const reason=String(form.get("reason")??"");const{error}=await client.rpc("set_staff_portal_pin",{p_staff_id:staffId,p_pin:pin,p_reason:reason});return error?{ok:false,error:friendlyPortalError(error,"No fue posible generar el PIN.")}:{ok:true,message:`PIN ${pin} generado. El colaborador deberá crear su contraseña al ingresar.`};}
