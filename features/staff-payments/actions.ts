@@ -98,9 +98,13 @@ export async function updateStaffEventSettlementAction(data: FormData): Promise<
     const { error } = await client.rpc("register_staff_settlement_movement", { p_settlement_id: paymentId, p_type: movementType, p_amount: amount, p_date: text(data, "paidAt") || null, p_method: text(data,"method"), p_notes: text(data,"notes") });
     if (error) throw error;
     const{error:receiptError}=await client.rpc("update_staff_settlement_receipt",{p_settlement_id:paymentId,p_receipt_status:receiptStatus});if(receiptError)throw receiptError;
-    revalidateSettlement(payment.project_id);
+    await client.rpc("refresh_staff_month_payment_state",{p_month:text(data,"accountingMonth")||new Date().toISOString().slice(0,7)+"-01"});revalidateSettlement(payment.project_id);
     return { ok: true };
   } catch (error) {
     return { ok: false, error: friendly(error, "No fue posible actualizar el pago del evento.") };
   }
 }
+
+export async function previewStaffMonthCloseAction(month:string){try{const{client}=await context();const{data,error}=await client.rpc("preview_staff_monthly_close",{p_month:`${month}-01`});if(error)throw error;return{ok:true,data}}catch(error){return{ok:false,error:friendly(error,"No fue posible revisar el cierre mensual.")}}}
+export async function closeStaffMonthAction(month:string){try{const{client}=await context();const{data,error}=await client.rpc("close_staff_month",{p_month:`${month}-01`});if(error)throw error;revalidatePath("/resources/staff");return{ok:true,data}}catch(error){return{ok:false,error:friendly(error,"No fue posible cerrar el mes Staff.")}}}
+export async function reopenStaffMonthAction(month:string,reason:string){try{const{client}=await context();const{data,error}=await client.rpc("reopen_staff_month",{p_month:`${month}-01`,p_reason:reason});if(error)throw error;revalidatePath("/resources/staff");return{ok:true,data}}catch(error){return{ok:false,error:friendly(error,"No fue posible reabrir el mes Staff.")}}}
