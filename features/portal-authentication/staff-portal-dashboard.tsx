@@ -9,6 +9,7 @@ import {
   Download,
   MapPin,
   Navigation,
+  Upload,
   X,
 } from "lucide-react";
 import {
@@ -20,6 +21,7 @@ import {
   recordStaffCheckInAction,
   requestStaffResponsibilityAction,
   updateStaffLogisticsTripAction,
+  submitStaffExpenseAction,
 } from "./staff-portal.actions";
 import { MobileDialog } from "@/components/ui/mobile-dialog";
 
@@ -98,6 +100,7 @@ export type StaffRequest = {
   status: string;
   requestedAt: string;
 };
+export type StaffExpenseSubmission = { id:string;projectId:string;category:string;amount:number;occurredOn:string;description:string;status:string;rejectionReason:string };
 const money = (value: number) =>
   new Intl.NumberFormat("es-CL", {
     style: "currency",
@@ -171,6 +174,7 @@ export function StaffPortalDashboard({
   notifications,
   availableEvents,
   requests,
+  expenseSubmissions,
   mustChangePassword,
 }: {
   name: string;
@@ -184,6 +188,7 @@ export function StaffPortalDashboard({
   }>;
   availableEvents: AvailableStaffEvent[];
   requests: StaffRequest[];
+  expenseSubmissions: StaffExpenseSubmission[];
   mustChangePassword: boolean;
 }) {
   const [selected, setSelected] = useState<StaffPortalEvent | null>(null);
@@ -218,6 +223,7 @@ export function StaffPortalDashboard({
           🎓 BOOMBOX Academy
         </Link>
       </header>
+      <StaffExpenseSubmissionPanel events={events} submissions={expenseSubmissions} />
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <Metric
           label="Eventos de hoy"
@@ -338,6 +344,12 @@ export function StaffPortalDashboard({
     </div>
   );
 }
+function StaffExpenseSubmissionPanel({events,submissions}:{events:StaffPortalEvent[];submissions:StaffExpenseSubmission[]}) {
+  const [open,setOpen]=useState(false),[pending,start]=useTransition(),[message,setMessage]=useState("");
+  const submit=(form:FormData)=>start(async()=>{const result=await submitStaffExpenseAction(form);setMessage(result.message);if(result.ok){setOpen(false);location.reload();}});
+  return <section className="rounded-3xl border border-brand/30 bg-brand/5 p-5 sm:p-7"><div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Reembolsos y gastos autorizados</p><h2 className="mt-1 text-xl font-semibold">Sube tu gasto</h2><p className="mt-1 text-sm text-muted">Adjunta el comprobante. No impactará finanzas hasta que el Founder lo apruebe.</p></div><button className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-brand px-5 font-semibold text-brand-foreground" onClick={()=>setOpen(true)}><Upload className="size-4"/>Sube tu gasto</button></div>{message?<p className="mt-4 rounded-xl border bg-card p-3 text-sm">{message}</p>:null}<div className="mt-4 grid gap-2 sm:grid-cols-2">{submissions.map(item=><div className="rounded-xl border bg-card p-3 text-sm" key={item.id}><div className="flex justify-between gap-3"><strong>{item.category}</strong><strong>{money(item.amount)}</strong></div><p className="mt-1 text-muted">{item.occurredOn} · {item.status==="PENDING_REVIEW"?"PENDIENTE":item.status==="APPROVED"?"APROBADO":item.status==="REJECTED"?"RECHAZADO":item.status}</p>{item.rejectionReason?<p className="mt-1 text-red-600">Motivo: {item.rejectionReason}</p>:null}</div>)}</div>{open?<MobileDialog description="Selecciona uno de tus Eventos asignados y adjunta el comprobante." eyebrow="Portal Staff" onClose={()=>setOpen(false)} size="lg" title="Sube tu gasto"><form action={submit} className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-medium sm:col-span-2">Evento asignado<select className="mt-2 min-h-11 w-full rounded-xl border bg-background px-3" defaultValue={events.length===1?events[0]?.id:""} name="projectId" required><option value="">Seleccionar Evento</option>{events.map(event=><option key={event.id} value={event.id}>{event.date} · {event.customer} · {event.service}</option>)}</select></label><label className="text-sm font-medium">Categoría<select className="mt-2 min-h-11 w-full rounded-xl border bg-background px-3" name="category" required><option value="UBER_TRANSPORT">Uber / transporte</option><option value="FOOD">Comida</option><option value="PARKING">Estacionamiento</option><option value="TOLLS">Peaje</option><option value="MOBILITY">Movilización</option><option value="OTHER">Otro</option></select></label><label className="text-sm font-medium">Monto<input className="mt-2 min-h-11 w-full rounded-xl border bg-background px-3" min="1" name="amount" required type="number"/></label><label className="text-sm font-medium">Fecha<input className="mt-2 min-h-11 w-full rounded-xl border bg-background px-3" name="occurredOn" required type="date"/></label><label className="text-sm font-medium">Método<select className="mt-2 min-h-11 w-full rounded-xl border bg-background px-3" name="paymentMethod"><option value="PERSONAL_CARD">Tarjeta personal</option><option value="CASH">Efectivo</option><option value="COMPANY_CARD">Tarjeta empresa</option><option value="OTHER">Otro</option></select></label><label className="text-sm font-medium sm:col-span-2">Responsable del pago<select className="mt-2 min-h-11 w-full rounded-xl border bg-background px-3" name="expenseOwner"><option value="REIMBURSEMENT">Lo pagué yo, requiere reembolso</option><option value="COMPANY_PAID">Lo pagó BOOMBOX directamente</option></select></label><label className="text-sm font-medium sm:col-span-2">Descripción<input className="mt-2 min-h-11 w-full rounded-xl border bg-background px-3" name="description" placeholder="Obligatoria para Otro"/></label><label className="text-sm font-medium sm:col-span-2">Observación<textarea className="mt-2 min-h-20 w-full rounded-xl border bg-background p-3" name="notes"/></label><label className="text-sm font-medium sm:col-span-2">Comprobante<input accept="image/jpeg,image/png,image/webp,application/pdf" capture="environment" className="mt-2 block w-full rounded-xl border bg-background p-2" name="receipt" required type="file"/></label><button className="min-h-12 rounded-xl bg-brand px-5 font-semibold text-brand-foreground sm:col-span-2" disabled={pending}>{pending?"Enviando…":"Enviar a revisión"}</button></form></MobileDialog>:null}</section>;
+}
+
 function PasswordSetup({ name }: { name: string }) {
   const [pending, start] = useTransition();
   const [message, setMessage] = useState("");

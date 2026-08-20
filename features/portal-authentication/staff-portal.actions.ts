@@ -301,3 +301,31 @@ export async function changeStaffPasswordAction(form: FormData) {
   revalidatePath("/staff-portal");
   return { ok: true, message: "Contraseña creada correctamente." };
 }
+
+export async function submitStaffExpenseAction(form: FormData) {
+  const session = await loadPortalSession("STAFF");
+  if (!session?.staff_id) return { ok: false, message: "Tu sesión expiró." };
+  const projectId = String(form.get("projectId") ?? ""),
+    category = String(form.get("category") ?? ""),
+    amount = Number(form.get("amount") ?? 0),
+    occurredOn = String(form.get("occurredOn") ?? ""),
+    description = String(form.get("description") ?? "").trim(),
+    file = form.get("receipt");
+  if (!(file instanceof File) || !file.size)
+    return { ok: false, message: "Adjunta una foto o PDF del comprobante." };
+  if (!["image/jpeg", "image/png", "image/webp", "application/pdf"].includes(file.type))
+    return { ok: false, message: "El comprobante debe ser una foto o PDF." };
+  if (file.size > 15 * 1024 * 1024)
+    return { ok: false, message: "El comprobante no puede superar 15 MB." };
+  const admin = createAdminClient(), bytes = await file.arrayBuffer(),
+    checksum = Buffer.from(await crypto.subtle.digest("SHA-256", bytes)).toString("hex"),
+    idempotencyKey = Buffer.from(await crypto.subtle.digest("SHA-256", new TextEncoder().encode([session.staff_id, projectId, category, amount, occurredOn, checksum].join("|")))).toString("hex"),
+    extension = file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "bin",
+    path = `staff-expenses/${session.staff_id}/${projectId}/${idempotencyKey}.${extension}`;
+  const upload = await admin.storage.from("orbit-expenses").upload(path, bytes, { contentType: file.type, upsert: false });
+  if (upload.error && !upload.error.message.toLowerCase().includes("already exists")) return { ok: false, message: upload.error.message };
+  const { error } = await admin.rpc("create_staff_expense_submission", { p_staff_id: session.staff_id, p_project_id: projectId, p_category: category, p_amount: amount, p_occurred_on: occurredOn, p_payment_method: String(form.get("paymentMethod") ?? ""), p_description: description, p_notes: String(form.get("notes") ?? ""), p_receipt_path: path, p_checksum: checksum, p_idempotency_key: idempotencyKey, p_reimbursement: String(form.get("expenseOwner") ?? "REIMBURSEMENT") === "REIMBURSEMENT" });
+  if (error) { if (!upload.error) await admin.storage.from("orbit-expenses").remove([path]); return { ok: false, message: error.message }; }
+  revalidatePath("/staff-portal"); revalidatePath(`/projects/${projectId}/staff-expenses`); revalidatePath("/operations");
+  return { ok: true, message: "Gasto enviado. El Founder debe revisarlo antes de que impacte finanzas." };
+}
