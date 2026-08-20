@@ -17,6 +17,8 @@ export interface CalendarOperationalEventInput {
   service: string;
   contractedHours: number;
   eventDate: string;
+  calendarStartDate: string;
+  calendarStartTime: string;
   operator: string;
   blackBox: string;
   booth: string;
@@ -24,6 +26,7 @@ export interface CalendarOperationalEventInput {
   operatorCallTime: string;
   mountingWindow: string;
   serviceStart: string;
+  serviceStartDate: string;
   serviceEnd: string;
   serviceEndDate?: string;
   dismantlingWindow: string;
