@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadAccountsReceivable } from "@/features/accounts-receivable";
 import { loadFinancialTruth } from "@/features/business-engine";
 import { summarizeFixedMonthlyExpenses, type FixedExpenseRule } from "@/features/expense-center/fixed-expense-read-model";
+import { selectCanonicalFuelLogs } from "./canonical-fuel";
 import { calculateMonthlyFinancePerformance } from "./finance-performance";
 
 export type FinanceMetric = {
@@ -77,7 +78,7 @@ export async function loadFinanceDashboardReadModel(client: SupabaseClient): Pro
   next30Date.setUTCDate(next30Date.getUTCDate() + 30);
   const next30 = next30Date.toISOString().slice(0, 10);
 
-  const [truth, receivableDataset, receivablesResult, paymentsResult, expensesResult, settlementsResult, staffMovementsResult, fuelResult, integrityResult,bankAccountsResult,fixedRulesResult] = await Promise.all([
+  const [truth, receivableDataset, receivablesResult, paymentsResult, expensesResult, settlementsResult, staffMovementsResult, fuelResult, routesResult, routeEventsResult, integrityResult,bankAccountsResult,fixedRulesResult] = await Promise.all([
     loadFinancialTruth(client),
     loadAccountsReceivable(client),
     client.from("accounts_receivable_projection").select("id,project_id,customer_id,due_date,amount,paid_amount,outstanding_balance,effective_status"),
@@ -85,12 +86,14 @@ export async function loadFinanceDashboardReadModel(client: SupabaseClient): Pro
     client.from("expenses").select("id,project_id,occurred_on,total,status,receipt_path,approval_reason,event_staff_settlement_id").is("deleted_at", null),
     client.from("staff_settlement_financials").select("settlement_id,project_id,staff_id,accounting_month,payroll_net,final_amount,paid_amount,remaining_balance,sii_receipt_status"),
     client.from("event_staff_settlement_movements").select("id,settlement_id,movement_type,amount,movement_date,method").is("deleted_at", null),
-    client.from("vehicle_fuel_logs").select("id,fuel_date,total_amount,receipt_path"),
+    client.from("vehicle_fuel_logs").select("id,fuel_date,total_amount,receipt_path,gas_station,route_id"),
+    client.from("vehicle_routes").select("id,status,deleted_at,notes"),
+    client.from("vehicle_route_events").select("route_id,project_id"),
     client.from("financial_integrity_issues").select("id,status").eq("status", "OPEN"),
     client.from("finance_bank_accounts").select("code,name,account_kind,is_primary").eq("active",true).order("is_primary",{ascending:false}),
     client.from("finance_recurring_expense_rules").select("id,name,category,amount,currency,frequency,next_due_date,active,metadata"),
   ]);
-  const error = receivablesResult.error ?? paymentsResult.error ?? expensesResult.error ?? settlementsResult.error ?? staffMovementsResult.error ?? fuelResult.error??bankAccountsResult.error??fixedRulesResult.error;
+  const error = receivablesResult.error ?? paymentsResult.error ?? expensesResult.error ?? settlementsResult.error ?? staffMovementsResult.error ?? fuelResult.error??routesResult.error??routeEventsResult.error??bankAccountsResult.error??fixedRulesResult.error;
   if (error) throw error;
 
   const activeTruth = truth.filter((row) => row.status === "CONFIRMED");
@@ -107,8 +110,13 @@ export async function loadFinanceDashboardReadModel(client: SupabaseClient): Pro
   const settlements = (settlementsResult.data ?? []).filter((row) => activeProjectIds.has(row.project_id));
   const activeSettlementIds = new Set(settlements.map((row) => row.settlement_id));
   const staffMovements = (staffMovementsResult.data ?? []).filter((row) => activeSettlementIds.has(row.settlement_id));
-  const expenseReceipts = new Set(expenses.map((row) => row.receipt_path).filter(Boolean));
-  const fuel = (fuelResult.data ?? []).filter((row) => !expenseReceipts.has(row.receipt_path));
+  const expenseReceipts = new Set(expenses.map((row) => row.receipt_path).filter((path): path is string => Boolean(path)));
+  const routes = new Map((routesResult.data ?? []).map((row) => [row.id, row]));
+  const productionRouteIds = new Set((routeEventsResult.data ?? []).filter((row) => activeProjectIds.has(row.project_id)).map((row) => row.route_id));
+  const fuel = selectCanonicalFuelLogs((fuelResult.data ?? []).map((row) => {
+    const route = row.route_id ? routes.get(row.route_id) : null;
+    return { ...row, receiptPath: row.receipt_path, gasStation: row.gas_station, routeId: row.route_id, routeStatus: route?.status ?? null, routeDeletedAt: route?.deleted_at ?? null, routeNotes: route?.notes ?? null, hasActiveProductionProject: Boolean(row.route_id && productionRouteIds.has(row.route_id)) };
+  }), expenseReceipts);
 
   const collectedAll = sum(canonicalPayments, (row) => row.cashImpact);
   const paidExpenses = expenses.filter((row) => row.status === "PAID");
