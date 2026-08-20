@@ -2,6 +2,7 @@
 
 import { useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { ExternalTaxDocumentsCenter } from "@/features/external-tax-documents/external-tax-documents-center";
 import {
   AlertTriangle,
   Archive,
@@ -128,6 +129,11 @@ type Event360Data = {
     type: string;
     href?: string;
     createdAt: string;
+    taxType?: string;
+    folio?: string;
+    issueDate?: string;
+    total?: number;
+    status?: string;
   }[];
   google: {
     calendarStatus: string;
@@ -1020,13 +1026,14 @@ export function ProjectWorkspaceExperience(
                 </Section>
               </OptionalModule>
             )}
-            {showLegacyDuplicatedEventSections && moduleVisible("DOCUMENTS") && (
+            {moduleVisible("DOCUMENTS") && (
               <Section
                 eyebrow="07 · Archivos"
                 icon={<FolderOpen className="size-5" />}
                 id="documents"
                 title="Documentos"
               >
+                <ExternalTaxDocumentsCenter projectId={props.projectKey!} invoiceId={event.receivable?.id} customerName={props.clientName} documents={event.documents.filter(doc=>doc.taxType&&doc.folio&&doc.issueDate).map(doc=>({id:doc.id,taxType:doc.taxType!,folio:doc.folio!,issueDate:doc.issueDate!,total:doc.total??0,status:doc.status??"ADJUNTADO",href:doc.href}))}/>
                 <div className="space-y-3">
                   {event.documents.length ? (
                     event.documents.map((doc) => (

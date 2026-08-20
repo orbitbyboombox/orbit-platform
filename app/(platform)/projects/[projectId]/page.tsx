@@ -114,7 +114,7 @@ export default async function ProjectWorkspacePage({
     client
       .from("documents")
       .select(
-        "id,document_type,storage_bucket,storage_path,drive_file_id,created_at",
+        "id,document_type,storage_bucket,storage_path,drive_file_id,created_at,external_tax_document_type,external_folio,external_issue_date,external_total_amount,external_document_status",
       )
       .eq("project_id", projectId)
       .is("deleted_at", null)
@@ -797,6 +797,11 @@ export default async function ProjectWorkspacePage({
         ? `https://drive.google.com/open?id=${item.drive_file_id}`
         : undefined,
       createdAt: item.created_at,
+      taxType: item.external_tax_document_type ?? undefined,
+      folio: item.external_folio ?? undefined,
+      issueDate: item.external_issue_date ?? undefined,
+      total: item.external_total_amount == null ? undefined : Number(item.external_total_amount),
+      status: item.external_document_status ?? undefined,
     })),
     google: {
       calendarStatus: calendarSync?.status ?? "PENDING",
