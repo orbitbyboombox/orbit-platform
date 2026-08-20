@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isInvalidSessionError, isMissingSessionError } from "@/lib/supabase/auth-errors";
 import { loadModuleStates, synchronizeModuleCatalog } from "@/features/module-manager/repository";
 import { loadFounderWorkspace } from "@/features/founder-workspace";
+import { LegacyModalScrollGuard } from "@/components/ui/legacy-modal-scroll-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -15,5 +16,5 @@ export default async function PlatformLayout({ children }: { children: React.Rea
   const{data:profile,error:profileError}=await client.from("profiles").select("role,display_name").eq("id",user.id).maybeSingle();if(profileError)throw profileError;if(!profile||!["CEO","ADMINISTRATOR"].includes(profile.role))redirect(profile?.role==="STAFF"?"/login?access=staff":"/login?access=customer");
   if(profile.role==="CEO")await synchronizeModuleCatalog(client,user.id);
   const [unreadNotifications,modules,workspace]=await Promise.all([loadNotificationUnreadCount(user.id),loadModuleStates(client),loadFounderWorkspace(client,user.id)]);
-  return <AppShell modules={modules} unreadNotifications={unreadNotifications} userEmail={user.email} userName={profile.display_name||"Founder"} userRole={profile.role==="CEO"?"Founder":"Administrador"} workspace={workspace}>{children}</AppShell>;
+  return <AppShell modules={modules} unreadNotifications={unreadNotifications} userEmail={user.email} userName={profile.display_name||"Founder"} userRole={profile.role==="CEO"?"Founder":"Administrador"} workspace={workspace}><LegacyModalScrollGuard/>{children}</AppShell>;
 }
