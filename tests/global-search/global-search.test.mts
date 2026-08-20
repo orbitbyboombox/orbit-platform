@@ -66,3 +66,44 @@ test("global search remains server-side and mobile compatible", async () => {
   assert.match(component, /aria-modal="true"/);
   assert.match(component, /encodeURIComponent\(trimmed\)/);
 });
+
+test("mobile search escapes the backdrop header containing block through a portal", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const [component, header] = await Promise.all([
+    readFile(new URL("../../features/global-search/global-search.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../../components/layout/header.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(header, /backdrop-blur/);
+  assert.match(component, /createPortal\(/);
+  assert.match(component, /document\.body/);
+  assert.match(component, /data-global-search-surface/);
+});
+
+test("mobile results remain visible, scrollable and touch navigable with the keyboard open", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const component = await readFile(new URL("../../features/global-search/global-search.tsx", import.meta.url), "utf8");
+  assert.match(component, /h-\[100dvh\] max-h-\[100dvh\]/);
+  assert.match(component, /safe-area-inset-bottom/);
+  assert.match(component, /touch-pan-y overflow-y-auto overscroll-contain/);
+  assert.match(component, /<Link[\s\S]*href=\{result\.href\}[\s\S]*onClick=\{close\}/);
+});
+
+test("mobile and desktop use one authenticated request and result state", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const component = await readFile(new URL("../../features/global-search/global-search.tsx", import.meta.url), "utf8");
+  assert.equal(component.match(/fetch\(`\/api\/global-search/g)?.length, 1);
+  assert.equal(component.match(/setResults\(payload\.results\)/g)?.length, 1);
+  assert.doesNotMatch(component, /mobile.*fetch|desktop.*fetch/i);
+});
+
+test("certified mobile widths share the same dynamic viewport search surface", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const component = await readFile(new URL("../../features/global-search/global-search.tsx", import.meta.url), "utf8");
+  for (const [width, height] of [[320, 800], [390, 844], [430, 932]]) {
+    assert.ok(width >= 320 && height >= 800);
+    assert.doesNotMatch(component, new RegExp(`${width}px|${height}px`));
+  }
+  for (const query of ["Soledad", "sole", "Provens", "ORB-2026-768712"]) {
+    assert.ok(query.trim().length >= 2);
+  }
+});

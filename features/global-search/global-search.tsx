@@ -3,6 +3,7 @@
 import { Building2, CalendarDays, FileText, Search, UserRound, X } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { GLOBAL_SEARCH_GROUPS, globalSearchNoResultsMessage, type GlobalSearchKind, type GlobalSearchResult } from "./model";
 
@@ -107,9 +108,9 @@ export function GlobalSearch() {
         <span className="min-w-0 flex-1 truncate">Buscar clientes, empresas o eventos...</span>
         <kbd className="rounded-md border bg-accent/70 px-1.5 py-1 text-[10px] font-semibold">⌘K</kbd>
       </button>
-      {open ? (
-        <div aria-label="Búsqueda global" aria-modal="true" className="fixed inset-0 z-[100] bg-background md:bg-black/65 md:p-6" role="dialog">
-          <div className="mx-auto flex h-full w-full flex-col bg-background md:mt-[7vh] md:h-auto md:max-h-[78vh] md:max-w-2xl md:overflow-hidden md:rounded-2xl md:border md:bg-card md:shadow-2xl">
+      {open ? createPortal(
+        <div aria-label="Búsqueda global" aria-modal="true" className="fixed inset-0 z-[110] h-[100dvh] max-h-[100dvh] overflow-hidden bg-background md:bg-black/65 md:p-6" data-global-search-surface role="dialog">
+          <div className="mx-auto flex h-full min-h-0 w-full flex-col overflow-hidden bg-background pb-[env(safe-area-inset-bottom)] md:mt-[7vh] md:h-auto md:max-h-[78dvh] md:max-w-2xl md:rounded-2xl md:border md:bg-card md:pb-0 md:shadow-2xl">
             <div className="flex min-h-16 items-center gap-3 border-b px-4 sm:px-5">
               <Search className="size-5 shrink-0 text-brand" />
               <input
@@ -123,7 +124,7 @@ export function GlobalSearch() {
               />
               <Button aria-label="Cerrar búsqueda" onClick={close} size="icon" variant="ghost"><X className="size-4" /></Button>
             </div>
-            <div aria-live="polite" className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
+            <div aria-live="polite" className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain p-4 sm:p-5" data-global-search-results>
               {query.trim().length < 2 ? <Empty title="Busca en todo ORBIT" detail="Escribe al menos dos caracteres para comenzar." /> : null}
               {loading ? <p className="py-10 text-center text-sm text-muted">Buscando…</p> : null}
               {!loading && failed ? <Empty title="No fue posible buscar" detail="Reintenta en unos segundos." /> : null}
@@ -141,7 +142,7 @@ export function GlobalSearch() {
               )) : null}
             </div>
           </div>
-        </div>
+        </div>, document.body
       ) : null}
     </>
   );
