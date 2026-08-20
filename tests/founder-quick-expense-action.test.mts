@@ -5,16 +5,19 @@ import { isAdministrativeRole } from "../lib/auth/roles.ts";
 
 const root = new URL("../", import.meta.url);
 const founder = readFileSync(new URL("features/founder-workspace/founder-workspace-experience.tsx", root), "utf8");
+const catalog = readFileSync(new URL("features/founder-workspace/catalog.ts", root), "utf8");
 const expensePage = readFileSync(new URL("app/(platform)/finance/expenses/page.tsx", root), "utf8");
 
 test("Founder Command Center exposes the canonical expense action", () => {
-  assert.match(founder, /label: "Ingresar gasto", href: "\/finance\/expenses\?create=1"/);
+  assert.match(founder, /label: "\+ Ingresar gasto", href: "\/finance\/expenses\?create=1"/);
+  assert.match(catalog, /label: "Ingresar gasto",\s+href: "\/finance\/expenses\?create=1"/);
   assert.match(expensePage, /openCreate=\{\(await searchParams\)\.create==="1"\}/);
 });
 
 test("quick action remains touch-friendly on mobile and desktop", () => {
   assert.match(founder, /grid-cols-2 gap-3 md:grid-cols-4/);
   assert.match(founder, /min-h-\[4\.75rem\]/);
+  assert.match(founder, /min-h-11[\s\S]*expenseQuickAction\.label/);
 });
 
 test("quick action reuses Expense Center without another form or endpoint", () => {

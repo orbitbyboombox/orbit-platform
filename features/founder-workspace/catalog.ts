@@ -48,8 +48,8 @@ export const QUICK_ACTIONS = [
   },
   {
     key: "NEW_EXPENSE",
-    label: "Nuevo Gasto",
-    href: "/finance/expenses?action=new",
+    label: "Ingresar gasto",
+    href: "/finance/expenses?create=1",
     icon: ReceiptText,
     module: "FINANCE",
   },

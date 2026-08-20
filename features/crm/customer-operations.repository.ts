@@ -10,7 +10,7 @@ export async function loadCrmCustomerOperations(
   projectIds: string[],
 ): Promise<CrmCustomerEventOperations[]> {
   if (!projectIds.length) return [];
-  const [receivables, assignments, staff, assets, agreements, documents, calendars, portals, invoices, profitability, financialTruth, quotations, expenses, services] =
+  const [receivables, assignments, staff, assets, agreements, documents, calendars, portals, invoices, financialTruth, quotations, expenses, services] =
     await Promise.all([
       client.from("accounts_receivable_projection").select("id,project_id,invoice_number,amount,paid_amount,outstanding_balance,due_date,effective_status,payment_history").in("project_id", projectIds),
       client.from("assignments").select("id,project_id,staff_id,assignment_type,status,arrival_time,start_time,finish_time,assigned_vehicle,observations,staff(first_name,last_name),operational_assets(asset_code)").in("project_id", projectIds).is("deleted_at", null),
@@ -21,13 +21,12 @@ export async function loadCrmCustomerOperations(
       client.from("calendar_sync").select("project_id,status,external_event_id,external_url").in("project_id", projectIds),
       client.from("customer_portal_tokens").select("project_id").in("project_id", projectIds).is("revoked_at", null),
       client.from("invoices").select("id,project_id,invoice_number,status,amount,due_date").in("project_id", projectIds).is("deleted_at", null).order("created_at", { ascending: false }),
-      client.from("event_profitability_statements").select("project_id,real_costs,profitability,classification,created_at").in("project_id", projectIds).order("created_at", { ascending: false }),
       client.from("financial_event_records").select("project_id,revenue,personnel_cost,operational_resources_cost,total_operational_cost,net_profit,net_margin,cost_breakdown,calculated_at").in("project_id", projectIds),
       client.from("quotations").select("id,project_id,subtotal,transport_total,tax_total,grand_total,final_customer_price,pricing_snapshot,created_at,quotation_items(item_type,code,label,quantity,final_total,metadata)").in("project_id", projectIds).is("deleted_at", null).order("created_at", { ascending: false }),
       client.from("expenses").select("id,project_id,occurred_on,category,approval_reason,total,status").in("project_id", projectIds).is("deleted_at", null).order("occurred_on", { ascending: false }),
       client.from("project_services").select("project_id,service_code,duration_hours,extras").in("project_id", projectIds),
     ]);
-  const failures = [receivables, assignments, staff, assets, agreements, documents, calendars, portals, invoices, profitability, financialTruth, quotations, expenses, services].filter((result) => result.error);
+  const failures = [receivables, assignments, staff, assets, agreements, documents, calendars, portals, invoices, financialTruth, quotations, expenses, services].filter((result) => result.error);
   if (failures.length) throw failures[0].error;
   const activeStaff = (staff.data ?? []).filter((member) => member.status === "ACTIVE").map((member) => ({
     id: member.id,
@@ -40,7 +39,6 @@ export async function loadCrmCustomerOperations(
     const invoice = (receivables.data ?? []).find((item) => item.project_id === projectId);
     const agreement = (agreements.data ?? []).find((item) => item.project_id === projectId);
     const calendar = (calendars.data ?? []).find((item) => item.project_id === projectId);
-    const profit = (profitability.data ?? []).find((item) => item.project_id === projectId);
     const truth = (financialTruth.data ?? []).find((item) => item.project_id === projectId);
     const quotation = (quotations.data ?? []).find((item) => item.project_id === projectId);
     const service = (services.data ?? []).find((item) => item.project_id === projectId);
@@ -52,9 +50,7 @@ export async function loadCrmCustomerOperations(
       if (!item) return "NO";
       return Boolean(item.metadata?.included) || /INCLUID|BENEFICIO/.test(item.label.toUpperCase()) || (item.metadata?.source !== "PROJECT" && Number(item.final_total) === 0) ? "Incluido" : "SÍ";
     };
-    const realCosts = (profit?.real_costs ?? {}) as Record<string, unknown>;
-    const profitValues = (profit?.profitability ?? {}) as Record<string, unknown>;
-    const costValues = (truth?.cost_breakdown ?? realCosts) as Record<string, unknown>;
+    const costValues = (truth?.cost_breakdown ?? {}) as Record<string, unknown>;
     const costBreakdown = [
       ["operator", "Operador", "PERSONNEL"],
       ["assembly", "Montaje", "PERSONNEL"],
@@ -136,16 +132,16 @@ export async function loadCrmCustomerOperations(
         try { description = String(JSON.parse(item.approval_reason ?? "{}").description ?? description); } catch {}
         return { id: item.id, date: item.occurred_on, category: item.category, description, total: Number(item.total ?? 0), status: item.status };
       }),
-      profitability: profit || truth ? {
-        revenue: Number(truth?.revenue ?? profitValues.grossRevenue ?? 0),
-        personnelCost: Number(truth?.personnel_cost ?? realCosts.personnelCost ?? 0),
-        operationalCost: Number(truth?.operational_resources_cost ?? realCosts.operationalResourcesCost ?? 0),
-        totalCost: Number(truth?.total_operational_cost ?? realCosts.totalOperationalCost ?? realCosts.total ?? 0),
+      profitability: truth ? {
+        revenue: Number(truth.revenue),
+        personnelCost: Number(truth.personnel_cost),
+        operationalCost: Number(truth.operational_resources_cost),
+        totalCost: Number(truth.total_operational_cost),
         costBreakdown,
-        profit: Number(truth?.net_profit ?? profitValues.netProfit ?? 0),
-        margin: Number(truth?.net_margin ?? profitValues.margin ?? 0),
-        classification: profit?.classification ?? "NORMAL",
-        calculatedAt: truth?.calculated_at ?? profit?.created_at ?? new Date().toISOString(),
+        profit: Number(truth.net_profit),
+        margin: Number(truth.net_margin),
+        classification: Number(truth.net_margin) >= 40 ? "HIGHLY_PROFITABLE" : Number(truth.net_margin) >= 20 ? "NORMAL" : "LOW_MARGIN",
+        calculatedAt: truth.calculated_at,
       } : null,
     };
   });

@@ -50,11 +50,12 @@ export type PendingStaffApproval = {
   estimatedPayment: number;
 };
 
+const expenseQuickAction = { label: "+ Ingresar gasto", href: "/finance/expenses?create=1", icon: WalletCards } as const;
 const quickActions = [
   { label: "+ Nuevo cliente", href: "/customers", icon: UsersRound },
   { label: "+ Nueva reserva", href: "/projects?reservation=new", icon: FilePlus2 },
   { label: "Cotizar", href: "/leads", icon: ReceiptText },
-  { label: "Ingresar gasto", href: "/finance/expenses?create=1", icon: WalletCards },
+  expenseQuickAction,
 ] as const;
 
 const money = (value: number) => new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(value);
@@ -112,6 +113,7 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
     <h1 className="mt-3 text-[2rem] font-semibold leading-tight tracking-[-.05em] sm:text-[2.6rem]">Buenos días, {founderName} <span aria-hidden>👋</span></h1>
     <p className="mt-2 text-sm capitalize text-muted">{currentDate}</p>
     <p className="mt-4 text-sm text-muted">{todayEvents} eventos hoy <span className="px-1.5 text-border">·</span> {pendingTasks} prioridades pendientes</p>
+    <Link className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl border border-brand/30 px-4 text-sm font-semibold text-brand" href={expenseQuickAction.href}><WalletCards className="size-4" />{expenseQuickAction.label}</Link>
   </header>;
 
   const founderKpis = <section aria-label="Indicadores principales" className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
