@@ -37,6 +37,7 @@ export type StaffPortalEvent = {
   duration: number;
   extras: string[];
   date: string;
+  staffCallAt: string | null;
   start: string;
   finish: string;
   address: string;
@@ -583,8 +584,8 @@ function EventDetail({
           </button>
         </div>
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <Small label="Fecha" value={event.date} />
-          <Small label="Horario" value={`${event.start}–${event.finish}`} />
+          <Small label="CITACIÓN" value={event.staffCallAt?new Date(event.staffCallAt).toLocaleString("es-CL",{timeZone:"America/Santiago"}):"Por confirmar"} />
+          <Small label="SERVICIO" value={`${event.date} · ${event.start}–${event.finish}`} />
           <Small label="Lugar" value={event.venue} />
           <Small label="Dirección" value={event.address} />
           <Small label="Comuna" value={event.district} />

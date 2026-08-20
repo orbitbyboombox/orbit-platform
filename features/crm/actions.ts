@@ -367,6 +367,8 @@ export async function updateCrmEventAction(input: {
   projectId: string;
   date: string;
   time: string;
+  serviceEndAt?: string;
+  staffCallAt?: string;
   type: string;
   location: string;
   eventAddress?: string;
@@ -404,6 +406,7 @@ export async function updateCrmEventAction(input: {
       p_reason: input.reason,
     });
     if (error) throw error;
+    if(input.date&&input.time&&input.serviceEndAt){const{error:scheduleError}=await client.rpc("update_event_service_schedule",{p_project_id:input.projectId,p_service_start_local:`${input.date}T${input.time}`,p_service_end_local:input.serviceEndAt,p_staff_call_local:input.staffCallAt||null});if(scheduleError)throw scheduleError;}
     const synchronization = await Promise.allSettled([
       synchronizeConfirmedReservationCalendar({ client, projectId: input.projectId, actorId: user.id, operation: "UPSERT", requireCommercialReadiness: false }),
       synchronizeConfirmedReservationDrive({ client, projectId: input.projectId, actorId: user.id, recordTimeline: true }),

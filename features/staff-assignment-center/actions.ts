@@ -13,6 +13,7 @@ export type StaffAssignmentMutation = {
   staffId: string;
   role: string;
   arrivalTime: string;
+  staffCallAt?: string;
   startTime: string;
   finishTime: string;
   vehicleId: string;
@@ -121,6 +122,8 @@ export async function saveStaffAssignmentAction(
       assignment_type: input.role,
       status: "ASSIGNED",
       arrival_time: value(input.arrivalTime) ?? automaticArrival,
+      staff_call_at:value(input.staffCallAt??""),
+      staff_call_source:value(input.staffCallAt??"")?"MANUAL_OVERRIDE":null,
       start_time: value(input.startTime) ?? value(eventStart),
       finish_time: value(input.finishTime) ?? automaticFinish,
       assigned_vehicle: value(input.vehicleId),

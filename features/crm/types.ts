@@ -126,6 +126,9 @@ export interface CrmOperationalEvent extends CrmEventSummary {
   customerName: string;
   company: string;
   operator: string;
+  serviceStartAt: string | null;
+  serviceEndAt: string | null;
+  staffCallAt: string | null;
 }
 export interface CrmCommercialNegotiation {
   id: string;
