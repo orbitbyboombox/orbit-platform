@@ -298,7 +298,7 @@ export async function loadAccountsReceivable(
         .reduce((s, x) => s + x.outstandingBalance, 0),
       collected: active.reduce((s,x)=>s+x.paidAmount,0),
       companyCredits:
-        paymentCategorySummary.days30 + paymentCategorySummary.otherCredit,
+        paymentCategorySummary.days30 + paymentCategorySummary.otherCredit + paymentCategorySummary.noTermCredit,
       paymentCategorySummary,
       collectionRate: active.reduce((s,x)=>s+x.amount,0)>0?active.reduce((s,x)=>s+x.paidAmount,0)/active.reduce((s,x)=>s+x.amount,0)*100:0,
       averageCollectionDays: (() => {

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  isCompanyCreditPaymentCategory,
   resolveReceivablePaymentCategory,
   summarizeReceivablePaymentCategories,
 } from "../features/accounts-receivable/payment-term-classification.ts";
@@ -71,6 +72,20 @@ test("plazo comercial distinto de 30 días se clasifica como OTRO CRÉDITO", () 
   assert.equal(result.canonicalPaymentTerm, "DAYS_45");
 });
 
+test("CORPORATE_CREDIT sin plazo explícito sigue siendo Crédito Empresas", () => {
+  for (const paymentTermDays of [0, null]) {
+    const result = resolveReceivablePaymentCategory({
+      customerType: "CORPORATE",
+      invoicePaymentTerm: "CASH",
+      invoiceCustomTermDays: null,
+      projectFinance: { paymentCondition: "CORPORATE_CREDIT", paymentTermDays },
+    });
+    assert.equal(result.paymentCategory, "CREDITO_SIN_PLAZO");
+    assert.equal(result.paymentCategorySource, "PROJECT_FINANCE");
+    assert.equal(isCompanyCreditPaymentCategory(result.paymentCategory), true);
+  }
+});
+
 test("no hay solapamiento entre saldos ordinarios y crédito empresas", () => {
   const rows = [
     {
@@ -116,10 +131,7 @@ test("no hay solapamiento entre saldos ordinarios y crédito empresas", () => {
   ];
 
   const companyCategoryIds = rows
-    .filter((row) =>
-      row.payment.paymentCategory === "EMPRESA_30_DIAS" ||
-      row.payment.paymentCategory === "OTRO_CREDITO",
-    )
+    .filter((row) => isCompanyCreditPaymentCategory(row.payment.paymentCategory))
     .map((row) => row.id);
 
   const ordinaryCategoryIds = rows.filter((row) => row.payment.paymentCategory === "ORDENARIO_50").map((row) => row.id);
@@ -170,9 +182,9 @@ test("baseline canónico no duplica ni depende de una sola categoría legacy", (
       outstandingBalance: 238_000,
       classification: resolveReceivablePaymentCategory({
         customerType: "CORPORATE",
-        invoicePaymentTerm: "CUSTOM",
-        invoiceCustomTermDays: 45,
-        projectFinance: null,
+        invoicePaymentTerm: "CASH",
+        invoiceCustomTermDays: null,
+        projectFinance: { paymentCondition: "CORPORATE_CREDIT", paymentTermDays: 0, corporateCreditApproved: true },
       }),
     },
     {
@@ -191,12 +203,12 @@ test("baseline canónico no duplica ni depende de una sola categoría legacy", (
       paymentCategory: classification.paymentCategory,
     })),
   );
-  const creditCompanies = summary.days30 + summary.otherCredit;
+  const creditCompanies = summary.days30 + summary.otherCredit + summary.noTermCredit;
 
   assert.equal(summary.ordinary, 4_176_408);
   assert.equal(creditCompanies, 2_002_150);
   assert.equal(summary.total, 6_178_558);
-  assert.equal(summary.ordinary + summary.days30 + summary.otherCredit, 6_178_558);
+  assert.equal(summary.ordinary + summary.days30 + summary.otherCredit + summary.noTermCredit, 6_178_558);
 });
 
 test("resumen de categorías usa la suma de saldos sin duplicar filas", () => {
@@ -232,9 +244,9 @@ test("resumen de categorías usa la suma de saldos sin duplicar filas", () => {
       outstandingBalance: 238_000,
       classification: resolveReceivablePaymentCategory({
         customerType: "CORPORATE",
-        invoicePaymentTerm: "CUSTOM",
-        invoiceCustomTermDays: 45,
-        projectFinance: null,
+        invoicePaymentTerm: "CASH",
+        invoiceCustomTermDays: null,
+        projectFinance: { paymentCondition: "CORPORATE_CREDIT", paymentTermDays: 0, corporateCreditApproved: true },
       }),
     },
     {
@@ -255,11 +267,12 @@ test("resumen de categorías usa la suma de saldos sin duplicar filas", () => {
   );
   assert.equal(summary.ordinary, 4_176_408);
   assert.equal(summary.days30, 1_764_150);
-  assert.equal(summary.otherCredit, 238_000);
+  assert.equal(summary.otherCredit, 0);
+  assert.equal(summary.noTermCredit, 238_000);
   assert.equal(summary.review, 0);
   assert.equal(summary.total, 6_178_558);
   assert.equal(
-    summary.ordinary + summary.days30 + summary.otherCredit + summary.review,
+    summary.ordinary + summary.days30 + summary.otherCredit + summary.noTermCredit + summary.review,
     6_178_558,
   );
 });

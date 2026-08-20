@@ -11,6 +11,7 @@ export type ReceivablePaymentCategory =
   | "ORDENARIO_50"
   | "EMPRESA_30_DIAS"
   | "OTRO_CREDITO"
+  | "CREDITO_SIN_PLAZO"
   | "REQUIERE_REVISIÓN";
 
 export type ReceivablePaymentSource =
@@ -22,6 +23,7 @@ export type PaymentClassificationSummary = {
   ordinary: number;
   days30: number;
   otherCredit: number;
+  noTermCredit: number;
   review: number;
 };
 
@@ -142,6 +144,14 @@ export function resolveReceivablePaymentCategory({
   );
 
   if (financeCondition === "CORPORATE_CREDIT") {
+    if (!financeTermDays) {
+      return {
+        paymentCategory: "CREDITO_SIN_PLAZO",
+        paymentCategorySource: "PROJECT_FINANCE",
+        canonicalPaymentTerm: "CASH",
+        canonicalPaymentTermDays: 0,
+      };
+    }
     const resolved = classifyByDays(financeTermDays ?? 0, "PROJECT_FINANCE");
     return {
       paymentCategory: resolved.paymentCategory,
@@ -234,17 +244,23 @@ export function summarizeReceivablePaymentCategories(
         acc.days30 += row.outstandingBalance;
       else if (row.paymentCategory === "OTRO_CREDITO")
         acc.otherCredit += row.outstandingBalance;
+      else if (row.paymentCategory === "CREDITO_SIN_PLAZO")
+        acc.noTermCredit += row.outstandingBalance;
       else if (row.paymentCategory === "REQUIERE_REVISIÓN")
         acc.review += row.outstandingBalance;
       else acc.ordinary += row.outstandingBalance;
       return acc;
     },
-    { ordinary: 0, days30: 0, otherCredit: 0, review: 0 },
+    { ordinary: 0, days30: 0, otherCredit: 0, noTermCredit: 0, review: 0 },
   );
   return {
     ...summary,
-    total: summary.ordinary + summary.days30 + summary.otherCredit + summary.review,
+    total: summary.ordinary + summary.days30 + summary.otherCredit + summary.noTermCredit + summary.review,
   };
+}
+
+export function isCompanyCreditPaymentCategory(category: ReceivablePaymentCategory): boolean {
+  return category === "EMPRESA_30_DIAS" || category === "OTRO_CREDITO" || category === "CREDITO_SIN_PLAZO";
 }
 
 export function paymentCategoryLabel(category: ReceivablePaymentCategory): string {
@@ -252,6 +268,8 @@ export function paymentCategoryLabel(category: ReceivablePaymentCategory): strin
     ? "EMPRESA · 30 DÍAS"
     : category === "OTRO_CREDITO"
       ? "OTRO CRÉDITO"
+      : category === "CREDITO_SIN_PLAZO"
+        ? "EMPRESA · SIN PLAZO"
       : category === "REQUIERE_REVISIÓN"
         ? "REQUIERE REVISIÓN"
         : "SALDO 50% / ORDINARIO";
