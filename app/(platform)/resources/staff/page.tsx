@@ -22,6 +22,10 @@ import {
   loadAcademyArticles,
   loadAcademyStats,
 } from "@/features/academy/repository";
+import type {
+  StaffDocumentCategory,
+  StaffDocumentView,
+} from "@/features/staff-documents/staff-document-model";
 
 export default async function StaffManagementPage() {
   const client = await createSupabaseServerClient();
@@ -35,6 +39,8 @@ export default async function StaffManagementPage() {
     { data: publications, error: publicationError },
     { data: requests, error: requestError },
     { data: onboarding, error: onboardingError },
+    { data: staffDocuments, error: staffDocumentsError },
+    { data: staffExpenseDocuments, error: staffExpenseDocumentsError },
   ] = await Promise.all([
     client
       .from("staff")
@@ -89,6 +95,20 @@ export default async function StaffManagementPage() {
         "id,first_name,last_name,email,mobile,status,submitted_at,review_notes,submitted_data,staff_onboarding_documents(id,document_type,file_name)",
       )
       .order("created_at", { ascending: false }),
+    client
+      .from("staff_onboarding_documents")
+      .select(
+        "id,staff_id,document_type,category,file_name,friendly_label,created_at,applicable_month,status",
+      )
+      .not("staff_id", "is", null)
+      .order("created_at", { ascending: false }),
+    client
+      .from("staff_expense_submissions")
+      .select(
+        "staff_id,document_id,description,occurred_on,status,submitted_at",
+      )
+      .not("document_id", "is", null)
+      .order("submitted_at", { ascending: false }),
   ]);
   if (staffError) throw staffError;
   if (assignmentError) throw assignmentError;
@@ -99,6 +119,24 @@ export default async function StaffManagementPage() {
   if (publicationError) throw publicationError;
   if (requestError) throw requestError;
   if (onboardingError) throw onboardingError;
+  if (staffDocumentsError) throw staffDocumentsError;
+  if (staffExpenseDocumentsError) throw staffExpenseDocumentsError;
+  const { data: expenseDocumentMetadata, error: expenseDocumentMetadataError } =
+    await client
+      .from("documents")
+      .select("id,original_filename,created_at")
+      .in(
+        "id",
+        (staffExpenseDocuments ?? [])
+          .map((item) => item.document_id)
+          .filter((value): value is string => Boolean(value))
+          .concat("00000000-0000-0000-0000-000000000000"),
+      )
+      .is("deleted_at", null);
+  if (expenseDocumentMetadataError) throw expenseDocumentMetadataError;
+  const expenseDocumentMetadataById = new Map(
+    (expenseDocumentMetadata ?? []).map((item) => [item.id, item]),
+  );
   const [
     { data: paymentRows, error: paymentError },
     { data: financialEvents, error: financialEventsError },
@@ -206,6 +244,41 @@ export default async function StaffManagementPage() {
       const projectIds = new Set(
         memberAssignments.map((item) => item.projectId),
       );
+      const canonicalDocuments: StaffDocumentView[] = (staffDocuments ?? [])
+        .filter((document) => document.staff_id === row.id)
+        .map((document) => ({
+          id: document.id,
+          category: (document.category ?? "IDENTIDAD") as StaffDocumentCategory,
+          documentType: document.document_type,
+          fileName: document.file_name,
+          label: document.friendly_label || document.file_name,
+          createdAt: document.created_at,
+          applicableMonth: document.applicable_month,
+          status: document.status ?? "ACTIVE",
+          source: "STAFF_DOCUMENT",
+        }));
+      const expenseReferences: StaffDocumentView[] = (
+        staffExpenseDocuments ?? []
+      )
+        .filter(
+          (document) => document.staff_id === row.id && document.document_id,
+        )
+        .map((document) => {
+          const metadata = expenseDocumentMetadataById.get(document.document_id!);
+          return {
+            id: document.document_id!,
+            category: "GASTOS",
+            documentType: "STAFF_EXPENSE_RECEIPT",
+            fileName:
+              metadata?.original_filename ||
+              `Comprobante-gasto-${document.occurred_on}`,
+            label: document.description || "Comprobante de gasto operacional",
+            createdAt: metadata?.created_at || document.submitted_at,
+            applicableMonth: document.occurred_on.slice(0, 7),
+            status: document.status,
+            source: "EXPENSE_REFERENCE",
+          };
+        });
       return {
         id: row.id,
         version: row.version,
@@ -227,6 +300,7 @@ export default async function StaffManagementPage() {
         history: [...timelineHistory, ...auditHistory].sort((a, b) =>
           b.occurredAt.localeCompare(a.occurredAt),
         ),
+        documents: [...canonicalDocuments, ...expenseReferences],
         financial: {
           upcomingEvents: new Set(
             memberAssignments

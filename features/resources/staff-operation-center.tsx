@@ -27,6 +27,7 @@ import {
   type StaffPaymentEvent,
   type StaffPaymentMonth,
 } from "@/features/staff-payments";
+import { StaffDocumentCenter } from "@/features/staff-documents/staff-document-center";
 
 export interface StaffProjectOption {
   id: string;
@@ -156,6 +157,8 @@ export function StaffOperationCenter({
                     ...result.staff,
                     assignments: item.assignments,
                     history: item.history,
+                    documents: item.documents,
+                    associatedExpenses: item.associatedExpenses,
                     financial: item.financial,
                   }
                 : item,
@@ -559,6 +562,11 @@ function ProfileView({
         />
       </dl>
       {access ? <StaffPinReset members={[access]} /> : null}
+      <StaffDocumentCenter
+        initialDocuments={item.documents}
+        staffId={item.id}
+        staffName={`${item.firstName} ${item.lastName}`}
+      />
       <StaffPaymentsCenter
         staff={[
           {
