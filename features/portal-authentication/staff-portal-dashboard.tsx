@@ -25,6 +25,8 @@ import {
   submitStaffExpenseAction,
 } from "./staff-portal.actions";
 import { MobileDialog } from "@/components/ui/mobile-dialog";
+import { StaffMonthlyAccountPanel } from "@/features/staff-monthly-account/staff-monthly-account-panel";
+import type { StaffMonthlyAccount } from "@/features/staff-monthly-account/model";
 
 export type StaffPortalEvent = {
   id: string;
@@ -177,6 +179,7 @@ export function StaffPortalDashboard({
   availableEvents,
   requests,
   expenseSubmissions,
+  monthlyAccounts,
   mustChangePassword,
 }: {
   name: string;
@@ -191,6 +194,7 @@ export function StaffPortalDashboard({
   availableEvents: AvailableStaffEvent[];
   requests: StaffRequest[];
   expenseSubmissions: StaffExpenseSubmission[];
+  monthlyAccounts: StaffMonthlyAccount[];
   mustChangePassword: boolean;
 }) {
   const [selected, setSelected] = useState<StaffPortalEvent | null>(null);
@@ -226,6 +230,7 @@ export function StaffPortalDashboard({
         </Link>
       </header>
       <StaffExpenseSubmissionPanel events={events} submissions={expenseSubmissions} />
+      <section className="space-y-3"><h2 className="text-xl font-semibold">Mis pagos</h2>{monthlyAccounts.map(account=><StaffMonthlyAccountPanel account={account} key={account.id} mode="STAFF"/>)}{!monthlyAccounts.length&&<p className="rounded-2xl border p-4 text-sm text-muted">Aún no hay liquidaciones mensuales disponibles.</p>}</section>
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <Metric
           label="Eventos de hoy"

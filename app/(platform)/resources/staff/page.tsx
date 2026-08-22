@@ -41,6 +41,7 @@ export default async function StaffManagementPage() {
     { data: onboarding, error: onboardingError },
     { data: staffDocuments, error: staffDocumentsError },
     { data: staffExpenseDocuments, error: staffExpenseDocumentsError },
+    { data: monthlyAccounts, error: monthlyAccountsError },
   ] = await Promise.all([
     client
       .from("staff")
@@ -109,6 +110,7 @@ export default async function StaffManagementPage() {
       )
       .not("document_id", "is", null)
       .order("submitted_at", { ascending: false }),
+    client.from("staff_monthly_accounts").select("id,staff_id,accounting_month,expected_amount,boleta_status,boleta_document_id,boleta_rejection_reason,payment_status,paid_amount,paid_at,payment_method,payment_reference,payment_receipt_document_id,drive_sync_status").order("accounting_month",{ascending:false}),
   ]);
   if (staffError) throw staffError;
   if (assignmentError) throw assignmentError;
@@ -121,6 +123,7 @@ export default async function StaffManagementPage() {
   if (onboardingError) throw onboardingError;
   if (staffDocumentsError) throw staffDocumentsError;
   if (staffExpenseDocumentsError) throw staffExpenseDocumentsError;
+  if (monthlyAccountsError) throw monthlyAccountsError;
   const { data: expenseDocumentMetadata, error: expenseDocumentMetadataError } =
     await client
       .from("documents")
@@ -446,7 +449,7 @@ export default async function StaffManagementPage() {
       ];
     },
   );
-  const monthlyRecords: StaffPaymentMonth[] = [];
+  const monthlyRecords: StaffPaymentMonth[] = (monthlyAccounts??[]).map(row=>({id:row.id,staffId:row.staff_id,month:row.accounting_month,tax:0,advances:0,paid:Number(row.paid_amount),status:row.payment_status,documents:[],account:{id:row.id,staffId:row.staff_id,month:row.accounting_month,expectedAmount:Number(row.expected_amount),boletaStatus:row.boleta_status,boletaDocumentId:row.boleta_document_id,rejectionReason:row.boleta_rejection_reason??"",paymentStatus:row.payment_status,paidAmount:Number(row.paid_amount),paidAt:row.paid_at??"",paymentMethod:row.payment_method??"",paymentReference:row.payment_reference??"",receiptDocumentId:row.payment_receipt_document_id,driveSyncStatus:row.drive_sync_status}}));
   const lastLoginByStaff = new Map<string, string>();
   for (const entry of history ?? []) {
     if (

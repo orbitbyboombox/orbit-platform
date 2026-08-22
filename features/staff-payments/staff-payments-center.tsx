@@ -4,6 +4,7 @@ import { ExternalLink, Search, TriangleAlert } from "lucide-react";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { closeStaffMonthAction, previewStaffMonthCloseAction, reopenStaffMonthAction } from "./actions";
+import {StaffMonthlyAccountPanel}from"@/features/staff-monthly-account/staff-monthly-account-panel";
 
 export type StaffPaymentEvent = {
   id: string;
@@ -40,6 +41,7 @@ export type StaffPaymentMonth = {
   paid: number;
   status: string;
   documents: { id: string; type: string; name: string; createdAt: string }[];
+  account?: import("@/features/staff-monthly-account/model").StaffMonthlyAccount;
 };
 export type StaffPaymentMember = { id: string; name: string; rut: string };
 const money = new Intl.NumberFormat("es-CL", {
@@ -55,6 +57,7 @@ const roleLabel = (value: string) =>
 export function StaffPaymentsCenter({
   staff,
   events,
+  months,
 }: {
   staff: StaffPaymentMember[];
   events: StaffPaymentEvent[];
@@ -109,9 +112,10 @@ export function StaffPaymentsCenter({
                 sum + Math.max(0, item.finalAmount - item.paidAmount),
               0,
             ),
+            account: months.find(item=>item.staffId===member.id&&item.month.startsWith(month))?.account,
           };
         }),
-    [events, month, query, staff],
+    [events, month, months, query, staff],
   );
   return (
     <section className="space-y-5 rounded-2xl border bg-card p-5 sm:p-7">
@@ -219,6 +223,7 @@ export function StaffPaymentsCenter({
               </p>
             </summary>
             <div className="mt-4 space-y-3">
+              {row.account&&<StaffMonthlyAccountPanel account={row.account} mode="FOUNDER"/>}
               {row.eventRows.map((item) => (
                 <EventRow item={item} key={item.id} />
               ))}
