@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { syncStaffArchiveBackfill } from "@/features/staff-monthly-account/drive-archive.service";
 
 export async function POST(request: Request) {
@@ -14,7 +15,7 @@ export async function POST(request: Request) {
     timingSafeEqual(Buffer.from(serviceRole), Buffer.from(provided));
 
   if (!serviceRoleAuthorized) {
-    const admin = createAdminClient();
+    const admin = await createSupabaseServerClient();
     const { data: session } = await admin.auth.getUser();
     if (!session.user) {
       return NextResponse.json({ message: "No autorizado." }, { status: 403 });

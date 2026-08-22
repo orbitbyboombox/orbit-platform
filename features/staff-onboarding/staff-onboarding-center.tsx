@@ -93,6 +93,14 @@ export function StaffOnboardingCenter({
           <MailPlus className="size-4" />
           Invitar colaborador
         </button>
+        <form action="/api/admin/staff-document-drive-archive" method="POST">
+          <button
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold"
+            type="submit"
+          >
+            Sincronizar Drive
+          </button>
+        </form>
       </div>
       <div className="mt-5 grid gap-3 lg:grid-cols-2">
         {invitations
