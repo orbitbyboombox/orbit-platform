@@ -9,6 +9,7 @@ import {
   reviewStaffOnboardingAction,
 } from "./staff-onboarding.actions";
 import { formatChileanPhone } from "@/lib/chile/rut";
+import { MobileDialog } from "@/components/ui/mobile-dialog";
 
 export type StaffOnboardingInvitation = {
   id: string;
@@ -235,81 +236,87 @@ function ReviewDialog({
   const [notes, setNotes] = useState("");
   const d = invitation.data;
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/70 p-4">
-      <div className="mx-auto my-8 max-w-3xl rounded-2xl border bg-card p-6">
-        <div className="flex justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase text-brand">
-              Revisión Founder
-            </p>
-            <h3 className="mt-1 text-2xl font-semibold">
-              {invitation.firstName} {invitation.lastName}
-            </h3>
+    <MobileDialog
+      description="Revisa los datos cargados, abre los documentos y decide si apruebas o solicitas cambios."
+      eyebrow="Revisión Founder"
+      footer={
+        invitation.status === "SUBMITTED" ? (
+          <div className="flex flex-wrap justify-end gap-2">
+            <button
+              className="rounded-xl border px-4 py-2 text-sm font-semibold"
+              disabled={pending}
+              onClick={() => review("REJECT", notes)}
+              type="button"
+            >
+              Rechazar
+            </button>
+            <button
+              className="rounded-xl border px-4 py-2 text-sm font-semibold"
+              disabled={pending}
+              onClick={() => review("REQUEST_CHANGES", notes)}
+              type="button"
+            >
+              Solicitar cambios
+            </button>
+            <button
+              className="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-brand-foreground"
+              disabled={pending}
+              onClick={() => review("APPROVE", notes)}
+              type="button"
+            >
+              <Check className="size-4" />
+              Aprobar
+            </button>
           </div>
-          <button aria-label="Cerrar" onClick={close}>
-            <X />
-          </button>
+        ) : null
+      }
+      onClose={close}
+      size="xl"
+      title={`${invitation.firstName} ${invitation.lastName}`}
+      variant="fullscreen-mobile"
+    >
+      <dl className="grid gap-3 sm:grid-cols-2">
+        {Object.entries(d)
+          .filter(([key]) => key !== "capabilities")
+          .map(([key, value]) => (
+            <div className="rounded-xl border p-3" key={key}>
+              <dt className="text-xs text-muted">{fieldLabel(key)}</dt>
+              <dd className="mt-1 text-sm font-semibold">
+                {String(value || "—")}
+              </dd>
+            </div>
+          ))}
+      </dl>
+      <div className="mt-5">
+        <h4 className="font-semibold">Documentos</h4>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {invitation.documents.map((doc) => (
+            <a
+              href={`/api/staff-onboarding/documents/${doc.id}`}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-lg border px-3 py-2 text-sm"
+              key={doc.id}
+            >
+              {doc.fileName}
+            </a>
+          ))}
         </div>
-        <dl className="mt-6 grid gap-3 sm:grid-cols-2">
-          {Object.entries(d)
-            .filter(([key]) => key !== "capabilities")
-            .map(([key, value]) => (
-              <div className="rounded-xl border p-3" key={key}>
-                <dt className="text-xs text-muted">{fieldLabel(key)}</dt>
-                <dd className="mt-1 text-sm font-semibold">
-                  {String(value || "—")}
-                </dd>
-              </div>
-            ))}
-        </dl>
-        <div className="mt-5">
-          <h4 className="font-semibold">Documentos</h4>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {invitation.documents.map((doc) => (
-              <a
-                href={`/api/staff-onboarding/documents/${doc.id}`}
-                target="_blank"
-                rel="noreferrer"
-                className="rounded-lg border px-3 py-2 text-sm"
-                key={doc.id}
-              >
-                {doc.fileName}
-              </a>
-            ))}
-          </div>
-        </div>
-        {invitation.status==="SUBMITTED"?<><textarea
+      </div>
+      {invitation.status === "SUBMITTED" ? (
+        <textarea
           className="mt-5 min-h-24 w-full rounded-xl border bg-background p-3"
           placeholder="Observación o cambios solicitados"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
         />
-        <div className="mt-4 flex flex-wrap justify-end gap-2">
-          <button
-            className="rounded-xl border px-4 py-2 text-sm font-semibold"
-            disabled={pending}
-            onClick={() => review("REJECT", notes)}
-          >
-            Rechazar
-          </button>
-          <button
-            className="rounded-xl border px-4 py-2 text-sm font-semibold"
-            disabled={pending}
-            onClick={() => review("REQUEST_CHANGES", notes)}
-          >
-            Solicitar cambios
-          </button>
-          <button
-            className="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-brand-foreground"
-            disabled={pending}
-            onClick={() => review("APPROVE", notes)}
-          >
-            <Check className="size-4" />
-            Aprobar
-          </button>
-        </div></>:<p className="mt-5 rounded-xl border bg-background/40 p-3 text-sm text-muted">Esta invitación está en estado {label(invitation.status)} y se muestra en modo consulta.</p>}
-      </div>
-    </div>
+      ) : (
+        <p className="mt-5 rounded-xl border bg-background/40 p-3 text-sm text-muted">
+          Esta invitación está en estado {label(invitation.status)} y se muestra
+          en modo consulta.
+        </p>
+      )}
+    </MobileDialog>
   );
 }
 const fieldLabel = (key: string) =>

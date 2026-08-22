@@ -131,13 +131,13 @@ export function StaffOnboardingForm({
         const signedUrl = String(authorizationResult.signedUrl ?? "");
         if (!path || !signedUrl)
           throw new Error(`No se pudo cargar ${item.label.toLowerCase()}.`);
-        const uploadBody = new FormData();
-        uploadBody.append("cacheControl", "3600");
-        uploadBody.append("", file);
         const upload = await fetch(signedUrl, {
           method: "PUT",
-          headers: { "x-upsert": "false" },
-          body: uploadBody,
+          headers: {
+            "Content-Type": file.type || "application/octet-stream",
+            "x-upsert": "false",
+          },
+          body: file,
           signal: controller.signal,
         });
         if (!upload.ok) {
