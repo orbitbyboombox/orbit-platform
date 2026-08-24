@@ -1,0 +1,254 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { createSupabaseServerActionClient } from "@/lib/supabase/server";
+import { isAdministrativeRole } from "@/lib/auth/roles";
+import { loadCompanySettings } from "@/features/company-settings/repository";
+import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-workspace/application/google-workspace.repository";
+import { GoogleGmailApiProvider } from "@/features/connectors/google-gmail/provider/google-gmail-live.provider";
+import { resolveCollectionBankDetails } from "./collection-bank-details";
+import { buildCollectionEmailDraft } from "./collection-email.template";
+import type { ReceivableInvoice } from "./types";
+
+export type CollectionEmailSendSuccess = {
+  ok: true;
+  recipient: string;
+  sentAt: string;
+  communicationId: string;
+  providerMessageId: string | null;
+  deduplicated?: boolean;
+};
+
+type Result = CollectionEmailSendSuccess | { ok: false; error: string };
+
+const fail = (error: unknown): { ok: false; error: string } => ({
+  ok: false,
+  error:
+    error instanceof Error
+      ? error.message
+      : "No fue posible completar la operación.",
+});
+
+const toHtml = (value: string) =>
+  value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;")
+    .replace(/\n/g, "<br />");
+
+function normalizeText(value: FormDataEntryValue | null, fallback: string) {
+  const text = String(value ?? "").trim();
+  return text.length ? text : fallback;
+}
+
+async function loadFounderContext() {
+  const client = await createSupabaseServerActionClient();
+  const { data: auth, error } = await client.auth.getUser();
+  if (error || !auth.user) throw error ?? new Error("Sesión requerida.");
+  const { data: profile, error: profileError } = await client
+    .from("profiles")
+    .select("role,display_name")
+    .eq("id", auth.user.id)
+    .single();
+  if (profileError) throw profileError;
+  if (!isAdministrativeRole(profile?.role)) {
+    throw new Error("Solo Founder o Administración puede enviar cobranzas.");
+  }
+  return { client, userId: auth.user.id, profileRole: profile?.role ?? null };
+}
+
+async function loadCollectionTarget(
+  client: Awaited<ReturnType<typeof createSupabaseServerActionClient>>,
+  invoiceId: string,
+) {
+  const { data, error } = await client
+    .from("accounts_receivable_projection")
+    .select(
+      "id,invoice_number,customer_id,project_id,orbit_event_id,amount,paid_amount,outstanding_balance,due_date,days_remaining,status,customers(full_name,email,phone),projects(name)",
+    )
+    .eq("id", invoiceId)
+    .single();
+  if (error) throw error;
+  const customer = Array.isArray(data.customers)
+    ? data.customers[0]
+    : data.customers;
+  const project = Array.isArray(data.projects)
+    ? data.projects[0]
+    : data.projects;
+  return { data, customer, project };
+}
+
+function buildRequestKey(invoiceId: string, requestId: string) {
+  return `collection-email:${invoiceId}:${requestId}`;
+}
+
+export async function sendCollectionEmailAction(
+  formData: FormData,
+): Promise<Result> {
+  try {
+    const { client, userId } = await loadFounderContext();
+    const invoiceId = String(formData.get("invoiceId") ?? "").trim();
+    const requestId = String(formData.get("requestId") ?? "").trim();
+    if (!invoiceId) throw new Error("La cobranza requiere una cuenta válida.");
+    if (!requestId) throw new Error("La cobranza requiere un intento válido.");
+
+    const { data, customer, project } = await loadCollectionTarget(
+      client,
+      invoiceId,
+    );
+    const company = await loadCompanySettings(client);
+    const bankDetails = resolveCollectionBankDetails(company);
+    if (!customer?.email) {
+      throw new Error("El cliente no tiene correo registrado.");
+    }
+    if (["PAID", "CANCELLED", "ARCHIVED"].includes(data.status)) {
+      throw new Error("Esta cuenta no tiene un saldo activo para cobrar.");
+    }
+    if (Number(data.outstanding_balance) <= 0) {
+      throw new Error("Esta cuenta no tiene saldo activo para cobrar.");
+    }
+
+    const draft = buildCollectionEmailDraft({
+      invoiceNumber: data.invoice_number,
+      customerName: customer.full_name ?? "Cliente",
+      customerEmail: customer.email ?? null,
+      projectName: project?.name ?? "BOOMBOX",
+      outstandingBalance: Number(data.outstanding_balance),
+      dueDate: data.due_date,
+      daysRemaining: data.days_remaining,
+      status: data.status as ReceivableInvoice["status"],
+      collectionActions: [],
+    } as Pick<
+      ReceivableInvoice,
+      | "invoiceNumber"
+      | "customerName"
+      | "customerEmail"
+      | "projectName"
+      | "outstandingBalance"
+      | "dueDate"
+      | "daysRemaining"
+      | "status"
+      | "collectionActions"
+    >, bankDetails);
+
+    const subject = normalizeText(formData.get("subject"), draft.subject);
+    const body = normalizeText(formData.get("body"), draft.body);
+    const threadKey = buildRequestKey(invoiceId, requestId);
+    const now = new Date().toISOString();
+    const { data: existing, error: existingError } = await client
+      .from("communications")
+      .select("id,status,occurred_at,external_message_id")
+      .eq("project_id", data.project_id)
+      .eq("communication_type", "COLLECTION_EMAIL")
+      .eq("thread_key", threadKey)
+      .maybeSingle();
+    if (existingError) throw existingError;
+    if (existing?.id && existing.status === "SENT") {
+      return {
+        ok: true,
+        recipient: customer.email,
+        sentAt: existing.occurred_at ?? now,
+        communicationId: existing.id,
+        providerMessageId: existing.external_message_id ?? null,
+        deduplicated: true,
+      };
+    }
+
+    let sentAt = now;
+    let providerMessageId: string | null = null;
+    const { data: communication, error: communicationError } = await client
+      .from("communications")
+      .insert({
+        customer_id: data.customer_id,
+        project_id: data.project_id,
+        channel: "GMAIL",
+        direction: "OUTBOUND",
+        communication_type: "COLLECTION_EMAIL",
+        thread_key: threadKey,
+        subject,
+        body,
+        status: "PENDING",
+        occurred_at: now,
+        created_by: userId,
+      })
+      .select("id")
+      .single();
+    if (communicationError) throw communicationError;
+
+    try {
+      const sent = await new GoogleGmailApiProvider(
+        await loadGoogleWorkspaceAccessToken(),
+      ).send({
+        to: customer.email,
+        subject,
+        textBody: body,
+        htmlBody: `<main style="font-family:Arial,sans-serif;color:#171717;line-height:1.6">${toHtml(
+          body,
+        )}</main>`,
+        driveFileIds: [],
+      });
+      sentAt = new Date().toISOString();
+      providerMessageId = sent.messageId;
+      const { error: updateError } = await client
+        .from("communications")
+        .update({
+          status: "SENT",
+          external_message_id: sent.messageId,
+          occurred_at: sentAt,
+        })
+        .eq("id", communication.id);
+      if (updateError) throw updateError;
+      const { error: timelineError } = await client.from("timeline_events").insert({
+        customer_id: data.customer_id,
+        project_id: data.project_id,
+        orbit_event_id: data.orbit_event_id,
+        event_type: "COLLECTION_EMAIL_SENT",
+        title: "Cobranza por email enviada",
+        description: `Founder envió una cobranza por email por ${Number(
+          data.outstanding_balance,
+        ).toLocaleString("es-CL", {
+          style: "currency",
+          currency: "CLP",
+          maximumFractionDigits: 0,
+        })}.`,
+        actor_id: userId,
+        actor_label: "Founder",
+        source: "Accounts Receivable",
+        action: "COLLECTION_EMAIL_SENT",
+        entity_type: "Communication",
+        entity_id: communication.id,
+        human_message: "Cobranza por email enviada al cliente.",
+        correlation_id: `collection-email:${communication.id}`,
+        communication_id: communication.id,
+        created_by: userId,
+      });
+      if (timelineError) throw timelineError;
+    } catch (error) {
+      await client
+        .from("communications")
+        .update({
+          status: "FAILED",
+          occurred_at: new Date().toISOString(),
+        })
+        .eq("id", communication.id);
+      throw error;
+    }
+
+    revalidatePath("/finance/receivables");
+    revalidatePath(`/customers/${data.customer_id}`);
+    revalidatePath(`/projects/${data.project_id}`);
+    revalidatePath("/finance");
+    revalidatePath("/finance/collections");
+    return {
+      ok: true,
+      recipient: customer.email,
+      sentAt,
+      communicationId: communication.id,
+      providerMessageId,
+    };
+  } catch (error) {
+    return fail(error);
+  }
+}

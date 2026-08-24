@@ -5,6 +5,7 @@ import {
   FolderKanban,
   Gauge,
   Layers3,
+  Mail,
   ReceiptText,
   Settings,
   UsersRound,
@@ -39,6 +40,7 @@ export type NavigationKey =
   | "RESOURCES"
   | "FINANCE"
   | "RECEIVABLES"
+  | "COLLECTIONS"
   | "PAYABLES"
   | "REPORTS"
   | "SETTINGS";
@@ -98,6 +100,13 @@ export const navigationItems: readonly NavigationItem[] = [
     label: "Cuentas por Cobrar",
     href: "/finance/receivables",
     icon: ReceiptText,
+    module: "FINANCE",
+  },
+  {
+    key: "COLLECTIONS",
+    label: "Cobrar a Clientes",
+    href: "/finance/collections",
+    icon: Mail,
     module: "FINANCE",
   },
   {

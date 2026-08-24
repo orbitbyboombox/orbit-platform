@@ -25,6 +25,7 @@ export interface ReceivableInvoice {
   invoiceNumber: string;
   customerId: string;
   customerName: string;
+  customerCompany: string | null;
   customerEmail: string | null;
   customerPhone: string | null;
   projectId: string;

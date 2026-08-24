@@ -61,9 +61,18 @@ export async function loadFounderWorkspace(
     return [moduleKey, { sectionOrder: [...storedOrder, ...newKeys], hiddenSections: [...new Set(hiddenSections)], sectionLabels:{...defaults[moduleKey as keyof typeof defaults].sectionLabels,...storedModule.sectionLabels} }];
   })) as FounderWorkspacePreferences["moduleWorkspaces"];
   const moduleWorkspaces={...storedModules,...knownModules} as FounderWorkspacePreferences["moduleWorkspaces"];
+  const storedNavigation = (data.navigation_order ?? []) as FounderWorkspacePreferences["navigationOrder"];
+  const newNavigation = DEFAULT_WORKSPACE.navigationOrder.filter(
+    (key) => !storedNavigation.includes(key),
+  );
   return {
-    navigationOrder: data.navigation_order ?? DEFAULT_WORKSPACE.navigationOrder,
-    hiddenNavigation: data.hidden_navigation ?? [],
+    navigationOrder: [...storedNavigation, ...newNavigation],
+    hiddenNavigation: [
+      ...(data.hidden_navigation ?? []),
+      ...newNavigation.filter((key) =>
+        DEFAULT_WORKSPACE.hiddenNavigation.includes(key),
+      ),
+    ].filter((key, index, values) => values.indexOf(key) === index),
     quickActionOrder: data.quick_action_order as QuickActionKey[],
     hiddenQuickActions: data.hidden_quick_actions as QuickActionKey[],
     favoriteQuickActions: data.favorite_quick_actions as QuickActionKey[],

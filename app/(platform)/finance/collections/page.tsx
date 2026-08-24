@@ -1,12 +1,9 @@
-import {
-  AccountsReceivableCenter,
-  loadAccountsReceivable,
-} from "@/features/accounts-receivable";
+import { CollectionCenter, loadAccountsReceivable } from "@/features/accounts-receivable";
 import { resolveCollectionBankDetails } from "@/features/accounts-receivable/collection-bank-details";
 import { loadCompanySettings } from "@/features/company-settings/repository";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export default async function AccountsReceivablePage() {
+export default async function CollectionCenterPage() {
   const client = await createSupabaseServerClient();
   const [dataset, company] = await Promise.all([
     loadAccountsReceivable(client),
@@ -14,7 +11,7 @@ export default async function AccountsReceivablePage() {
   ]);
 
   return (
-    <AccountsReceivableCenter
+    <CollectionCenter
       bankDetails={resolveCollectionBankDetails(company)}
       dataset={dataset}
     />
