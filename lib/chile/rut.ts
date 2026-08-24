@@ -2,12 +2,13 @@ export function normalizeChileanRut(value: string) {
   return value.toUpperCase().replace(/[^0-9K]/g, "").slice(0, 9);
 }
 
-export function formatChileanRut(value: string) {
-  const normalized = normalizeChileanRut(value);
+export function formatChileanRut(value?: string | null) {
+  const normalized = normalizeChileanRut(value ?? "");
   if (normalized.length < 2) return normalized;
   const body = normalized.slice(0, -1);
   const verifier = normalized.slice(-1);
-  return `${Number(body).toLocaleString("es-CL")}-${verifier}`;
+  if (!/^\d+$/.test(body)) return normalized;
+  return `${body.replace(/\B(?=(\d{3})+(?!\d))/g, ".")}-${verifier}`;
 }
 
 export function isValidChileanRut(value: string) {

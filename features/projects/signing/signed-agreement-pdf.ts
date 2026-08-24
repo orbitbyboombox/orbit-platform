@@ -1,6 +1,7 @@
 import "server-only";
 import QRCode from "qrcode";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import { formatChileanRut } from "../../../lib/chile/rut";
 
 export interface SignedAgreementPdfInput {
   quotationNumber: string; customer: string; customerRut: string; customerEmail: string; customerPhone: string;
@@ -37,7 +38,7 @@ export async function createSignedAgreementPdf(input: SignedAgreementPdfInput): 
   cover.drawText(safe(input.customer),{x:42,y:455,size:18,font:bold,color:rgb(1,1,1)}); cover.drawText(safe(input.eventDate),{x:42,y:425,size:12,font,color:rgb(.75,.76,.8)}); cover.drawText(safe(input.quotationNumber),{x:42,y:92,size:10,font:bold,color:orange}); cover.drawText(`Versión ${safe(input.agreementVersion)}`,{x:42,y:72,size:9,font,color:rgb(.65,.67,.7)});
 
   const info=addPage(pdf,font,bold,input,"Información de la reserva");
-  sectionTitle(info,bold,"INFORMACIÓN DEL CLIENTE",692); drawRows(info,font,bold,[["Nombre",input.customer],["RUT",input.customerRut],["Correo",input.customerEmail],["Teléfono",input.customerPhone]],660);
+  sectionTitle(info,bold,"INFORMACIÓN DEL CLIENTE",692); drawRows(info,font,bold,[["Nombre",input.customer],["RUT",formatChileanRut(input.customerRut)],["Correo",input.customerEmail],["Teléfono",input.customerPhone]],660);
   sectionTitle(info,bold,"INFORMACIÓN DEL EVENTO",498); drawRows(info,font,bold,[["Evento",input.event],["Fecha",input.eventDate],["Hora de servicio",input.eventTime],["Lugar",input.venue],["Dirección",input.address],["Contacto operacional",input.operationalContact]],466);
 
   const commercial=addPage(pdf,font,bold,input,"Servicio contratado");

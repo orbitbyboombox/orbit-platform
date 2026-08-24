@@ -3,7 +3,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import { calculateDiscount, calculateFormalQuote, isCommercialEmail } from "../../features/commercial-hub/quote-calculation.ts";
 import { QUICK_SEND_CTA_FALLBACK, QUICK_SEND_CTA_LABEL, commercialGreeting, commercialSignatureMode, displayChileanPhone, documentCategoryLabel, emailParagraphs, formalQuoteSubject, formatChileanRutInput, hasUnresolvedCommercialVariables, inlineCommercialText, isQuickSendCtaParagraph, moneyInputNumber, normalizeEmailNewlines, quickSendBodyParagraphs, quickSendEditableBody, quoteDisplayFilename, quoteStorageKey, resolveQuickSendBody, titleCasePerson, withoutDuplicateSignature } from "../../features/commercial-hub/presentation.ts";
-import { normalizeChileanMobileInput, normalizeChileanMobileLocal, normalizeChileanPhone } from "../../lib/chile/rut.ts";
+import { formatChileanRut, normalizeChileanMobileInput, normalizeChileanMobileLocal, normalizeChileanPhone } from "../../lib/chile/rut.ts";
 import { activeCommercialDocument, catalogCategoryForQuickSend, catalogCategoryFromSlug, catalogPublicPath, catalogPublicUrl, pendingCommercialDocuments, validateCommercialUpload, validateSignatureUpload } from "../../features/commercial-hub/catalogs.ts";
 
 const line = (patch: Record<string, unknown> = {}) => ({ id: "1", code: "CLASSIC", description: "Tótem Classic", quantity: 4, catalogPrice: 500000, quotedPrice: 430000, discountType: null, discountValue: 0, manual: false, ...patch });
@@ -44,6 +44,31 @@ test("CRLF email newlines normalize", () => assert.equal(normalizeEmailNewlines(
 test("formal quote subject does not duplicate Cotización", () => assert.equal(formalQuoteSubject("COTIZACIÓN 2026-000001", "Empresa"), "Cotización BOOMBOX 2026-000001 — Empresa"));
 test("formal quote subject supports optional customer", () => assert.equal(formalQuoteSubject("COTIZACIÓN 2026-000001"), "Cotización BOOMBOX 2026-000001"));
 test("RUT formats during input", () => assert.equal(formatChileanRutInput("765652723"), "76.565.272-3"));
+test("canonical RUT presentation accepts legacy representations", () => {
+  assert.equal(formatChileanRut("904130001"), "90.413.000-1");
+  assert.equal(formatChileanRut("765652723"), "76.565.272-3");
+  assert.equal(formatChileanRut("12.345.678-k"), "12.345.678-K");
+  assert.equal(formatChileanRut("90.413.0001"), "90.413.000-1");
+  assert.equal(formatChileanRut(null), "");
+  assert.equal(formatChileanRut(""), "");
+});
+test("quote create and edit use the canonical authenticated session RPC with explicit success text", () => {
+  const actions = readFileSync(new URL("../../features/commercial-hub/actions.ts", import.meta.url), "utf8");
+  const hub = readFileSync(new URL("../../features/commercial-hub/commercial-hub.tsx", import.meta.url), "utf8");
+  assert.match(actions, /const \{ client, user \} = await founder\(\);/);
+  assert.match(actions, /client\.rpc\(\s*"save_commercial_quote_draft"/);
+  assert.doesNotMatch(actions, /admin\.rpc\(\s*"save_commercial_quote_draft"/);
+  assert.match(hub, /Cotización actualizada correctamente/);
+});
+test("PDF viewer consumes close interactions before unmounting", () => {
+  const viewer = readFileSync(new URL("../../features/commercial-hub/pdf-viewer.tsx", import.meta.url), "utf8");
+  assert.match(viewer, /event\.preventDefault\(\)/);
+  assert.match(viewer, /event\.stopPropagation\(\)/);
+  assert.match(viewer, /window\.setTimeout\(onClose, 0\)/);
+  assert.match(viewer, /onPointerUp=\{close\}/);
+  assert.equal((viewer.match(/onClick=\{close\}/g) ?? []).length, 2);
+  assert.match(viewer, /pointer-events-auto/);
+});
 test("Chile phone removes pasted prefix", () => assert.equal(normalizeChileanPhone("+56 9 6304 0989"), "56963040989"));
 test("Chile phone preserves a valid leading nine in the editable eight digits", () => assert.equal(normalizeChileanMobileLocal("99690487"), "99690487"));
 test("Chile phone default prefix leaves the eight editable digits empty", () => assert.equal(normalizeChileanMobileLocal("+569"), ""));

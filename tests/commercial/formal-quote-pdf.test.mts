@@ -17,8 +17,8 @@ const model = (lineCount: number): FormalQuotePdfModel => ({
   issueDate: "2026-08-14",
   expirationDate: "2026-08-24",
   customer: {
-    company: "Cliente BOOMBOX SpA",
-    rut: "76.000.000-0",
+    company: "Compañía Cervecerías Unidas S.a",
+    rut: "904130001",
     contact: "María González",
     email: "maria@example.com",
     phone: "+56 9 1234 5678",
@@ -80,6 +80,13 @@ test("simple commercial quote always uses two deliberate A4 pages", async () => 
   const pdf = await createFormalQuotePdf(model(2));
   const document = await PDFDocument.load(pdf);
   assert.equal(document.getPageCount(), 2);
+});
+
+test("quotation PDF presents the customer RUT in canonical Chilean format", async () => {
+  const text = (await pageTexts(await createFormalQuotePdf(model(2)))).join(" ");
+  assert.match(text, /Compañía Cervecerías Unidas S\.a/);
+  assert.match(text, /90\.413\.000-1/);
+  assert.doesNotMatch(text, /904130001/);
 });
 
 test("page one closes with the commercial total and compact reservation summary", async () => {

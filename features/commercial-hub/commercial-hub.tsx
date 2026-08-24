@@ -38,6 +38,7 @@ import { ChileanMobileInput } from "@/components/forms/chilean-mobile-input";
 import { PdfViewer } from "./pdf-viewer";
 import { getCommercialDocumentUrlAction } from "./settings.actions";
 import { activeCommercialDocument, catalogCategoryForQuickSend, catalogPublicPath, pendingCommercialDocuments } from "./catalogs";
+import { formatChileanRut } from "@/lib/chile/rut";
 
 const money = new Intl.NumberFormat("es-CL", {
   style: "currency",
@@ -474,7 +475,7 @@ function FormalBuilder({ data, initialDraft }: { data: CommercialHubData; initia
               <option value="">Cliente temporal</option>
               {data.customers.map((item) => (
                 <option key={item.id} value={item.id}>
-                  {item.company || item.name} · {item.rut}
+                  {item.company || item.name} · {formatChileanRut(item.rut)}
                 </option>
               ))}
             </select>

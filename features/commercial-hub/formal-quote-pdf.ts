@@ -6,6 +6,7 @@ import {
   type PDFFont,
 } from "pdf-lib";
 import type { QuoteOperationalCondition } from "./operational-conditions";
+import { formatChileanRut } from "../../lib/chile/rut.ts";
 
 export interface FormalQuotePdfModel {
   number: string;
@@ -131,7 +132,7 @@ function header(
   });
   const identity = [
     model.company.legalName.toUpperCase(),
-    model.company.taxId ? `RUT ${model.company.taxId}` : "",
+    model.company.taxId ? `RUT ${formatChileanRut(model.company.taxId)}` : "",
     [model.company.address, model.company.city].filter(Boolean).join(" · "),
     [model.company.phone, model.company.website].filter(Boolean).join(" · "),
   ].filter(Boolean);
@@ -246,7 +247,7 @@ export async function createFormalQuotePdf(model: FormalQuotePdfModel) {
 
   header(page, regular, bold, model);
   serviceHeading("CLIENTE");
-  const customerRows = [model.customer.company, model.customer.rut, model.customer.contact, model.customer.email, model.customer.phone, model.customer.address, model.event.name, model.event.date ? `Fecha: ${date(model.event.date)}` : "", model.event.time ? `Hora: ${model.event.time}` : "", [model.event.location, model.event.city].filter(Boolean).join(" · ")].filter((item): item is string => Boolean(item?.trim()));
+  const customerRows = [model.customer.company, formatChileanRut(model.customer.rut), model.customer.contact, model.customer.email, model.customer.phone, model.customer.address, model.event.name, model.event.date ? `Fecha: ${date(model.event.date)}` : "", model.event.time ? `Hora: ${model.event.time}` : "", [model.event.location, model.event.city].filter(Boolean).join(" · ")].filter((item): item is string => Boolean(item?.trim()));
   customerRows.forEach((item, index) => serviceParagraph(item, { bold: index === 0, size: index === 0 ? 10 : 8, lineHeight: index === 0 ? 12 : 9 }));
   y = Math.min(y - 28, 536);
 
@@ -335,7 +336,7 @@ export async function createFormalQuotePdf(model: FormalQuotePdfModel) {
   y -= 8;
 
   finalHeading("FORMA DE PAGO");
-  const paymentRows = [model.company.legalName, model.company.taxId ? `RUT ${model.company.taxId}` : "", model.company.bankName, model.company.bankAccountType, model.company.bankAccountNumber ? `N.º ${model.company.bankAccountNumber}` : "", model.company.email].filter(Boolean);
+  const paymentRows = [model.company.legalName, model.company.taxId ? `RUT ${formatChileanRut(model.company.taxId)}` : "", model.company.bankName, model.company.bankAccountType, model.company.bankAccountNumber ? `N.º ${model.company.bankAccountNumber}` : "", model.company.email].filter(Boolean);
   paymentRows.forEach((row, index) => {
     page.drawText(safe(row), { x: 42, y, size: 8.8, font: index === 0 ? bold : regular, color: index === paymentRows.length - 1 ? orange : graphite, maxWidth: 511 });
     y -= 12;

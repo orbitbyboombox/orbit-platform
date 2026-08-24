@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import type { CrmCustomerProfile } from "./types";
 import { updateCrmCustomerAction } from "./actions";
 import { RutInput } from "@/components/forms/rut-input";
+import { formatChileanRut } from "@/lib/chile/rut";
 
 const money = (value: number) => new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(value);
 
@@ -22,7 +23,7 @@ export function CustomerProfile({ customer }: { customer: CrmCustomerProfile }) 
     setEditing(false); router.refresh();
   });
   return <div className="flex flex-col gap-7" id="customer-workspace">
-    <header><Link className="inline-flex items-center gap-2 text-sm text-muted" href="/customers"><ArrowLeft className="size-4"/>Volver a Clientes</Link><div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs uppercase tracking-[.18em] text-muted">Relación comercial</p><h1 className="mt-2 text-3xl font-semibold">{customer.fullName}</h1><p className="mt-2 text-sm text-muted">{customer.company || "Cliente particular"} · {customer.rut}</p></div><button className="rounded-xl bg-primary px-4 py-2.5 text-sm text-primary-foreground" onClick={() => setEditing((value) => !value)} type="button">✏ Editar cliente</button></div></header>
+    <header><Link className="inline-flex items-center gap-2 text-sm text-muted" href="/customers"><ArrowLeft className="size-4"/>Volver a Clientes</Link><div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs uppercase tracking-[.18em] text-muted">Relación comercial</p><h1 className="mt-2 text-3xl font-semibold">{customer.fullName}</h1><p className="mt-2 text-sm text-muted">{customer.company || "Cliente particular"} · {formatChileanRut(customer.rut)}</p></div><button className="rounded-xl bg-primary px-4 py-2.5 text-sm text-primary-foreground" onClick={() => setEditing((value) => !value)} type="button">✏ Editar cliente</button></div></header>
     <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{[
       [CalendarDays, "Eventos activos", String(customer.activeEvents), "#customer-events"],
       [Archive, "Eventos archivados", String(customer.archivedEvents), "#customer-events"],
