@@ -41,4 +41,4 @@ test("reservation wizard backdrop and safe layout remain intact",()=>{assert.mat
 test("quick expense action remains canonical",()=>assert.match(quick,/\/finance\/expenses\?create=1/));
 for(const viewport of ["320x800","390x844","430x932","1366x768","1440x900"])test(`${viewport} uses dynamic viewport modal surface`,()=>assert.match(dialog,/100dvh/));
 test("desktop wheel targets the internal overflow container",()=>assert.match(dialog,/overflow-y-auto/));
-test("overlay and Escape cleanup both restore scroll through effect cleanup",()=>{assert.match(dialog,/return\(\)=>\{document\.removeEventListener\("keydown",onKeyDown\);releaseLock\(\)\}/);assert.match(dialog,/if\(event\.target===event\.currentTarget\)onClose\(\)/)});
+test("overlay and Escape cleanup both restore scroll through effect cleanup",()=>{assert.match(dialog,/return\(\)=>\{document\.removeEventListener\("keydown",onKeyDown\);releaseLock\(\)\}/);assert.match(dialog,/dismissOnOverlayClick&&event\.target===event\.currentTarget\)onClose\(\)/)});

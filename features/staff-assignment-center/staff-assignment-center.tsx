@@ -8,11 +8,12 @@ import {
   Pencil,
   Plus,
   RefreshCw,
+  X,
   Trash2,
   UsersRound,
-  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { MobileDialog } from "@/components/ui/mobile-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
   cancelStaffAssignmentByFounderAction,
@@ -118,6 +119,26 @@ const money = (value: number) =>
     currency: "CLP",
     maximumFractionDigits: 0,
   }).format(value);
+const chileDateTimeFormatter = new Intl.DateTimeFormat("es-CL", {
+  timeZone: "America/Santiago",
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+const chileInputDate = (value = new Date()) => {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Santiago",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(value);
+  const year = parts.find((part) => part.type === "year")?.value ?? "";
+  const month = parts.find((part) => part.type === "month")?.value ?? "";
+  const day = parts.find((part) => part.type === "day")?.value ?? "";
+  return `${year}-${month}-${day}`;
+};
 const adjustmentReason = (value: string) =>
   ({
     BONUS: "Bono",
@@ -470,10 +491,12 @@ function AssignmentCancellationDialog({
   const [reasonCategory, setReasonCategory] = useState("OPERATIONAL"),
     [reasonDetail, setReasonDetail] = useState("");
   return (
-    <div
-      aria-modal="true"
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 sm:items-center sm:p-6"
-      role="dialog"
+    <MobileDialog
+      dismissOnOverlayClick={false}
+      eyebrow="Cancelación operacional"
+      onClose={onClose}
+      size="lg"
+      title={`Cancelar asignación de ${item.staffName}`}
     >
       <section className="w-full max-w-lg rounded-t-2xl border bg-card p-5 sm:rounded-2xl sm:p-7">
         <header className="flex items-start justify-between gap-4">
@@ -536,7 +559,7 @@ function AssignmentCancellationDialog({
           </Button>
         </div>
       </section>
-    </div>
+    </MobileDialog>
   );
 }
 
@@ -561,31 +584,15 @@ function SettlementDetailDialog({
       REVERSAL: "Reversa / corrección",
     })[value] ?? value;
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center sm:p-6"
-      role="dialog"
-      aria-modal="true"
+    <MobileDialog
+      dismissOnOverlayClick={false}
+      description="Composición y trazabilidad completa del pago, sin salir del Evento."
+      eyebrow="LIQUIDACIÓN DEL EVENTO"
+      onClose={onClose}
+      size="xl"
+      title={item.staffName}
     >
-      <div className="max-h-[94dvh] w-full overflow-y-auto rounded-t-2xl border bg-card p-5 sm:max-w-3xl sm:rounded-2xl sm:p-7">
-        <header className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold text-brand">
-              LIQUIDACIÓN DEL EVENTO
-            </p>
-            <h3 className="mt-1 text-xl font-semibold">{item.staffName}</h3>
-            <p className="mt-1 text-sm text-muted">
-              Composición y trazabilidad completa del pago, sin salir del
-              Evento.
-            </p>
-          </div>
-          <button
-            aria-label="Cerrar"
-            className="rounded-lg border p-2"
-            onClick={onClose}
-          >
-            <X className="size-4" />
-          </button>
-        </header>
+      <div className="w-full rounded-t-2xl border bg-card p-5 sm:max-w-3xl sm:rounded-2xl sm:p-7">
         <details className="mt-6 rounded-xl border p-4" open>
           <summary className="cursor-pointer font-semibold">
             LIQUIDACIÓN ORIGINAL · {money(item.originalNet)}
@@ -627,11 +634,9 @@ function SettlementDetailDialog({
                 <p className="mt-2 text-muted">{adjustment.comment}</p>
                 <p className="mt-2 text-xs text-muted">
                   Founder: {adjustment.founder} ·{" "}
-                  {new Date(adjustment.createdAt).toLocaleDateString("es-CL")} ·{" "}
-                  {new Date(adjustment.createdAt).toLocaleTimeString("es-CL", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
+                  {chileDateTimeFormatter.format(
+                    new Date(adjustment.createdAt),
+                  )}
                 </p>
               </article>
             ))}
@@ -758,7 +763,7 @@ function SettlementDetailDialog({
               type="number"
             />
             <Field
-              defaultValue={new Date().toISOString().slice(0, 10)}
+              defaultValue={chileInputDate()}
               label="Fecha"
               name="reimbursementDate"
               type="date"
@@ -834,7 +839,7 @@ function SettlementDetailDialog({
               type="number"
             />
             <Field
-              defaultValue={new Date().toISOString().slice(0, 10)}
+              defaultValue={chileInputDate()}
               label="Fecha"
               name="paidAt"
               type="date"
@@ -872,7 +877,7 @@ function SettlementDetailDialog({
           </dl>
         </details>
       </div>
-    </div>
+    </MobileDialog>
   );
 }
 
@@ -891,31 +896,15 @@ function SettlementDialog({
   ) => void;
 }) {
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center sm:p-6"
-      role="dialog"
-      aria-modal="true"
+    <MobileDialog
+      dismissOnOverlayClick={false}
+      description="El valor original es inmutable. Toda diferencia queda registrada como ajuste."
+      eyebrow="LIQUIDACIÓN DEL EVENTO"
+      onClose={onClose}
+      size="xl"
+      title={item.staffName}
     >
       <div className="max-h-[92dvh] w-full overflow-y-auto rounded-t-2xl border bg-card p-5 sm:max-w-2xl sm:rounded-2xl sm:p-7">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-xs font-semibold text-brand">
-              LIQUIDACIÓN DEL EVENTO
-            </p>
-            <h3 className="mt-1 text-xl font-semibold">{item.staffName}</h3>
-            <p className="mt-1 text-sm text-muted">
-              El valor original es inmutable. Toda diferencia queda registrada
-              como ajuste.
-            </p>
-          </div>
-          <button
-            aria-label="Cerrar"
-            className="rounded-lg border p-2"
-            onClick={onClose}
-          >
-            <X className="size-4" />
-          </button>
-        </div>
         <section className="mt-6 rounded-xl border p-4">
           <h4 className="font-semibold">Liquidación original</h4>
           <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -974,7 +963,9 @@ function SettlementDialog({
                   {adjustmentReason(adjustment.reason)} · {adjustment.comment}
                   <span className="block">
                     {adjustment.founder} ·{" "}
-                    {new Date(adjustment.createdAt).toLocaleString("es-CL")}
+                    {chileDateTimeFormatter.format(
+                      new Date(adjustment.createdAt),
+                    )}
                   </span>
                 </p>
               ))}
@@ -1016,7 +1007,7 @@ function SettlementDialog({
             type="number"
           />
           <Field
-            defaultValue={new Date().toISOString().slice(0, 10)}
+            defaultValue={chileInputDate()}
             label="Fecha"
             name="reimbursementDate"
             type="date"
@@ -1078,7 +1069,7 @@ function SettlementDialog({
             type="number"
           />
           <Field
-            defaultValue={new Date().toISOString().slice(0, 10)}
+            defaultValue={chileInputDate()}
             label="Fecha del movimiento"
             name="paidAt"
             type="date"
@@ -1099,7 +1090,7 @@ function SettlementDialog({
           </Button>
         </form>
       </div>
-    </div>
+    </MobileDialog>
   );
 }
 
@@ -1129,37 +1120,21 @@ function AssignmentDialog({
     member.capabilities.includes(role),
   );
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center sm:p-6"
-      role="dialog"
-      aria-modal="true"
+    <MobileDialog
+      description="Solo Operador, Montaje y Desmontaje. La llegada del Operador se calcula 90 minutos antes del inicio real."
+      dismissOnOverlayClick={false}
+      eyebrow="STAFF · EVENT 360°"
+      onClose={onClose}
+      size="xl"
+      title={
+        mode === "replace"
+          ? "Reemplazar Staff"
+          : mode === "edit"
+            ? "Editar asignación"
+            : "Asignar responsabilidad"
+      }
     >
       <div className="max-h-[92dvh] w-full overflow-y-auto rounded-t-2xl border bg-card p-5 sm:max-w-2xl sm:rounded-2xl sm:p-7">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-xs font-semibold text-brand">
-              STAFF · EVENT 360°
-            </p>
-            <h3 className="mt-1 text-2xl font-semibold">
-              {mode === "replace"
-                ? "Reemplazar Staff"
-                : mode === "edit"
-                  ? "Editar asignación"
-                  : "Asignar responsabilidad"}
-            </h3>
-            <p className="mt-2 text-sm text-muted">
-              Solo Operador, Montaje y Desmontaje. La llegada del Operador se
-              calcula 90 minutos antes del inicio real.
-            </p>
-          </div>
-          <button
-            aria-label="Cerrar"
-            className="rounded-lg border p-2"
-            onClick={onClose}
-          >
-            <X className="size-4" />
-          </button>
-        </div>
         <form
           className="mt-6 grid gap-4 sm:grid-cols-2"
           onSubmit={(event) => {
@@ -1254,7 +1229,7 @@ function AssignmentDialog({
           </Button>
         </form>
       </div>
-    </div>
+    </MobileDialog>
   );
 }
 function Time({ label, value }: { label: string; value: string }) {

@@ -9,11 +9,31 @@ import type { BusinessIntelligenceDataset, ChartDatum, IntelligenceRange } from 
 
 const money=(value:number)=>new Intl.NumberFormat("es-CL",{style:"currency",currency:"CLP",maximumFractionDigits:0}).format(value);
 const number=(value:number,digits=0)=>new Intl.NumberFormat("es-CL",{maximumFractionDigits:digits}).format(value);
+const chileDateTimeFormatter = new Intl.DateTimeFormat("es-CL",{
+  timeZone:"America/Santiago",
+  day:"2-digit",
+  month:"2-digit",
+  year:"numeric",
+  hour:"2-digit",
+  minute:"2-digit",
+});
+const chileInputDate = (value = new Date()) => {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Santiago",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(value);
+  const year = parts.find((part) => part.type === "year")?.value ?? "";
+  const month = parts.find((part) => part.type === "month")?.value ?? "";
+  const day = parts.find((part) => part.type === "day")?.value ?? "";
+  return `${year}-${month}-${day}`;
+};
 const day=(value:string|null|undefined)=>value?.slice(0,10)??"";
 const normalized=(value:string)=>value.trim().toLocaleLowerCase("es-CL");
 
 export function BusinessIntelligenceCenter({dataset}:{dataset:BusinessIntelligenceDataset}){
-  const [range,setRange]=useState<IntelligenceRange>("MONTH"); const today=new Date().toISOString().slice(0,10); const [customStart,setCustomStart]=useState(today); const [customEnd,setCustomEnd]=useState(today);
+  const [range,setRange]=useState<IntelligenceRange>("MONTH"); const today=chileInputDate(); const [customStart,setCustomStart]=useState(today); const [customEnd,setCustomEnd]=useState(today);
   const metrics=useMemo(()=>calculate(dataset,range,customStart,customEnd,today),[dataset,range,customStart,customEnd,today]);
   const negotiationMetrics=useMemo(()=>dataset.quotations.reduce((result,quotation)=>{const snapshot=(quotation.pricing_snapshot??{}) as Record<string,unknown>;const commercial=(snapshot.commercialNegotiation??{}) as Record<string,unknown>;const official=Number(quotation.official_price??quotation.grand_total);const final=Number(quotation.final_customer_price??quotation.grand_total);const courtesy=Number(snapshot.courtesyValue??commercial.courtesyValue??0);const days=Number(snapshot.paymentTermDays??commercial.paymentTermDays??0);return{officialRevenue:result.officialRevenue+official,discountGiven:result.discountGiven+Number(snapshot.discount??commercial.discountAmount??quotation.discount_total??0),courtesyCost:result.courtesyCost+courtesy,commercialMargin:result.commercialMargin+(final-official+courtesy),paymentDays:result.paymentDays+days,terms:result.terms+(days>0?1:0)}},{officialRevenue:0,discountGiven:0,courtesyCost:0,commercialMargin:0,paymentDays:0,terms:0}),[dataset.quotations]);
   const operationMetrics=useMemo(()=>{const rows=dataset.financialEvents.filter(item=>item.status==="CONFIRMED");const count=rows.length||1;return{averagePersonnelCost:rows.reduce((sum,item)=>sum+Number(item.personnel_cost),0)/count,averageOperationalResourcesCost:rows.reduce((sum,item)=>sum+Number(item.operational_resources_cost),0)/count,averageEventCost:rows.reduce((sum,item)=>sum+Number(item.total_operational_cost),0)/count}},[dataset.financialEvents]);
@@ -21,7 +41,7 @@ export function BusinessIntelligenceCenter({dataset}:{dataset:BusinessIntelligen
     ["Métrica","Valor"],["Ingresos de hoy",money(metrics.todayRevenue)],["Profit de hoy",money(metrics.todayProfit)],["Ingresos del mes",money(metrics.monthRevenue)],["Profit del mes",money(metrics.monthProfit)],["Cotizaciones abiertas",String(metrics.openQuotations)],["Conversión",`${metrics.conversion.toFixed(1)}%`],["Ticket promedio",money(metrics.averageTicket)],["Margen promedio",`${metrics.averageMargin.toFixed(1)}%`],["Clientes nuevos",String(metrics.newCustomers)],["Clientes recurrentes",String(metrics.returningCustomers)],["Eventos próximos",String(metrics.upcomingEvents)],["Eventos completados",String(metrics.completedEvents)],["Eventos cancelados",String(metrics.cancelledEvents)]];
   const receivables={total:dataset.receivables.reduce((s,x)=>s+Number(x.amount),0),outstanding:dataset.receivables.reduce((s,x)=>s+Number(x.outstanding_balance),0),overdue:dataset.receivables.filter(x=>x.effective_status==="OVERDUE").reduce((s,x)=>s+Number(x.outstanding_balance),0),aging:["15","30","60","90+"].map(label=>({label,value:dataset.receivables.filter(x=>x.aging_bucket===label).reduce((s,x)=>s+Number(x.outstanding_balance),0)}))};
   return <WorkspaceLayout header={null} timeline={null} copilot={null} className="max-w-none p-0" mainContent={<main className="space-y-6 pb-10" id="business-intelligence">
-    <section className="rounded-3xl border bg-card p-5 sm:p-7"><div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between"><div><div className="flex items-center gap-2"><StatusBadge label="Datos productivos" variant="success"/><StatusBadge label={`Actualizado ${new Date(dataset.generatedAt).toLocaleString("es-CL")}`} variant="neutral"/></div><p className="mt-5 text-xs font-semibold uppercase tracking-[.2em] text-brand">Business Intelligence Center</p><h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Inteligencia ejecutiva</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-muted">Una lectura comercial, financiera y operacional construida exclusivamente desde los registros productivos de ORBIT.</p></div><div className="flex flex-wrap gap-2 print:hidden"><ActionButton icon={FileText} label="PDF" onClick={()=>window.print()} variant="outline"/><ActionButton icon={FileSpreadsheet} label="Excel" onClick={()=>downloadExcel(exportRows())} variant="outline"/><ActionButton icon={Download} label="CSV" onClick={()=>downloadCsv(exportRows())}/></div></div>
+    <section className="rounded-3xl border bg-card p-5 sm:p-7"><div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between"><div><div className="flex items-center gap-2"><StatusBadge label="Datos productivos" variant="success"/><StatusBadge label={`Actualizado ${chileDateTimeFormatter.format(new Date(dataset.generatedAt))}`} variant="neutral"/></div><p className="mt-5 text-xs font-semibold uppercase tracking-[.2em] text-brand">Business Intelligence Center</p><h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Inteligencia ejecutiva</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-muted">Una lectura comercial, financiera y operacional construida exclusivamente desde los registros productivos de ORBIT.</p></div><div className="flex flex-wrap gap-2 print:hidden"><ActionButton icon={FileText} label="PDF" onClick={()=>window.print()} variant="outline"/><ActionButton icon={FileSpreadsheet} label="Excel" onClick={()=>downloadExcel(exportRows())} variant="outline"/><ActionButton icon={Download} label="CSV" onClick={()=>downloadCsv(exportRows())}/></div></div>
       <div className="mt-6 flex gap-2 overflow-x-auto border-t pt-5 print:hidden">{([['TODAY','Hoy'],['WEEK','Semana'],['MONTH','Mes'],['QUARTER','Trimestre'],['YEAR','Año'],['CUSTOM','Rango']] as [IntelligenceRange,string][]).map(([value,label])=><button className={`min-h-10 shrink-0 rounded-full border px-4 text-sm font-medium ${range===value?"border-brand bg-brand/10 text-brand":"text-muted"}`} key={value} onClick={()=>setRange(value)}>{label}</button>)}</div>
       {range==="CUSTOM"&&<div className="mt-4 grid gap-3 sm:grid-cols-2 print:hidden"><label className="text-sm text-muted">Desde<input className="mt-1 block min-h-11 w-full rounded-xl border bg-background px-3 text-foreground" onChange={event=>setCustomStart(event.target.value)} type="date" value={customStart}/></label><label className="text-sm text-muted">Hasta<input className="mt-1 block min-h-11 w-full rounded-xl border bg-background px-3 text-foreground" onChange={event=>setCustomEnd(event.target.value)} type="date" value={customEnd}/></label></div>}
     </section>

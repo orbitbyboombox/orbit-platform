@@ -8,10 +8,10 @@ import {
   Pencil,
   Search,
   UserX,
-  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RutInput } from "@/components/forms/rut-input";
+import { MobileDialog } from "@/components/ui/mobile-dialog";
 import {
   assignOperationalStaffAction,
   createOperationalStaffAction,
@@ -78,6 +78,18 @@ const statusLabel = (item: StaffOperationalRecord) =>
     ? "Asignado"
     : (statusOptions.find((status) => status.value === item.status)?.label ??
       item.status);
+const chileInputDate = (value = new Date()) => {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Santiago",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(value);
+  const year = parts.find((part) => part.type === "year")?.value ?? "1970";
+  const month = parts.find((part) => part.type === "month")?.value ?? "01";
+  const day = parts.find((part) => part.type === "day")?.value ?? "01";
+  return `${year}-${month}-${day}`;
+};
 type Panel =
   | { kind: "create" }
   | { kind: "view" | "edit" | "history"; item: StaffOperationalRecord }
@@ -410,36 +422,25 @@ function StaffPanel({
 }) {
   const item =
     panel.kind === "create" || panel.kind === "assign" ? null : panel.item;
+  const title =
+    panel.kind === "create"
+      ? "Agregar Staff"
+      : panel.kind === "edit"
+        ? "Editar Staff"
+        : panel.kind === "assign"
+          ? "Asignar Staff"
+          : panel.kind === "history"
+            ? "Historial"
+            : `${item?.firstName} ${item?.lastName}`;
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center sm:p-6"
-      role="dialog"
-      aria-modal="true"
+    <MobileDialog
+      dismissOnOverlayClick={false}
+      eyebrow="STAFF"
+      onClose={onClose}
+      size="xl"
+      title={title}
     >
-      <div className="max-h-[92dvh] w-full overflow-y-auto rounded-t-2xl border bg-card p-5 sm:max-w-3xl sm:rounded-2xl sm:p-7">
-        <div className="flex justify-between">
-          <div>
-            <p className="text-xs font-semibold text-brand">STAFF</p>
-            <h2 className="mt-1 text-2xl font-semibold">
-              {panel.kind === "create"
-                ? "Agregar Staff"
-                : panel.kind === "edit"
-                  ? "Editar Staff"
-                  : panel.kind === "assign"
-                    ? "Asignar Staff"
-                    : panel.kind === "history"
-                      ? "Historial"
-                      : `${item?.firstName} ${item?.lastName}`}
-            </h2>
-          </div>
-          <button
-            onClick={onClose}
-            aria-label="Cerrar"
-            className="rounded-lg border p-2"
-          >
-            <X className="size-4" />
-          </button>
-        </div>
+      <div className="w-full rounded-t-2xl border bg-card p-5 sm:max-w-3xl sm:rounded-2xl sm:p-7">
         {panel.kind === "assign" ? (
           <AssignmentForm
             staff={staff}
@@ -483,7 +484,7 @@ function StaffPanel({
           />
         )}
       </div>
-    </div>
+    </MobileDialog>
   );
 }
 function ProfileView({
@@ -497,7 +498,7 @@ function ProfileView({
   paymentEvents: StaffPaymentEvent[];
   paymentMonths: StaffPaymentMonth[];
 }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = chileInputDate();
   const active = item.assignments.filter(
     (x) => !["COMPLETED", "CANCELLED", "REJECTED"].includes(x.status),
   );
