@@ -6,7 +6,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { GoogleGmailApiProvider } from "@/features/connectors/google-gmail/provider/google-gmail-live.provider";
 import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import type { CommercialCategory, FormalQuoteDraft } from "./types";
-import { calculateFormalQuote, isCommercialEmail } from "./quote-calculation";
+import { isCommercialEmail } from "./quote-calculation";
+import { prepareFormalQuotePersistence } from "./quote-persistence";
 import { createFormalQuotePdf } from "./formal-quote-pdf";
 import { loadCompanySettings } from "@/features/company-settings";
 import { createCustomerProjectAction } from "@/features/projects/actions/customer.actions";
@@ -129,10 +130,11 @@ export async function sendCommercialInformationAction(input: {
 
 export async function createFormalQuoteAction(input: FormalQuoteDraft) {
   try {
-    const { user } = await founder();
+    const { client, user } = await founder();
     if (!input.lines.length) throw new Error("Agrega al menos un ítem.");
     if (!input.existingCustomerId && input.saveTemporaryCustomer && !input.company.trim() && !input.contact.trim()) throw new Error("Ingresa un nombre antes de guardar el cliente.");
     const admin = createAdminClient();
+    const quoteId = input.quoteId ?? input.requestId ?? crypto.randomUUID();
     let customerId = input.existingCustomerId;
     if (!customerId && input.saveTemporaryCustomer) {
       const { data, error } = await admin
@@ -156,175 +158,88 @@ export async function createFormalQuoteAction(input: FormalQuoteDraft) {
     const issueDate = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(new Date());
     const expiration = new Date(`${issueDate}T12:00:00Z`);
     expiration.setUTCDate(expiration.getUTCDate() + input.validityDays);
-    let number: string;
-    let quoteId = input.quoteId ?? crypto.randomUUID();
-    if (input.quoteId) {
-      const { data: existing, error: existingError } = await admin.from("quotations").select("quotation_number,status").eq("id", input.quoteId).single();
-      if (existingError) throw existingError;
-      if (existing.status !== "DRAFT") throw new Error("Solo un borrador puede editarse.");
-      number = existing.quotation_number;
-    } else {
-      const { data: nextNumber, error: numberError } = await admin.rpc("allocate_quotation_number", { p_quotation_id: quoteId, p_issue_date: issueDate });
-      if (numberError) throw numberError;
-      number = nextNumber;
-    }
-    const calculation = calculateFormalQuote(
-      input.lines,
-      input.globalDiscountType,
-      input.globalDiscountValue,
-      input.depositPercent,
-    );
-    const normalized = input.lines.map((line, index) => ({
-      ...line,
-      order: index,
-      total: calculation.lineTotals[index],
-    }));
-    const subtotal = calculation.subtotal;
-    const globalDiscount = calculation.discount;
-    const net = calculation.net;
-    const tax = calculation.vat;
-    const total = calculation.total;
-    const snapshot = {
-      customer: {
-        company: input.company,
-        rut: input.rut,
-        contact: input.contact,
-        email: input.email,
-        phone: input.phone,
-        address: input.address,
-      },
-      event: { name: input.eventName, date: input.eventDate, time: input.eventTime, location: input.eventLocation, city: input.eventCity },
-      lines: normalized,
-      subtotal,
-      discount: globalDiscount,
-      net,
-      tax,
-      total,
-      depositPercent: input.depositPercent,
-      deposit: calculation.deposit,
-      balance: calculation.balance,
-      validityDays: input.validityDays,
-    };
-    const itemPayload = normalized.map((line) => ({
-      itemType: line.manual ? "EXTRA" : line.code.includes("TRANSPORT") ? "TRANSPORT" : "SERVICE",
-      code: line.code, description: line.description, quantity: line.quantity, quotedPrice: line.quotedPrice,
-      total: line.total, catalogPrice: line.catalogPrice, discountType: line.discountType,
-      discountValue: line.discountValue, displayOrder: line.order, manual: line.manual,
-      metadata: { catalogOverride: line.catalogPrice != null && line.catalogPrice !== line.quotedPrice },
-    }));
-    if (input.quoteId) {
-      const { error: updateError } = await admin.rpc("update_commercial_quote_draft", {
+    const prepared = prepareFormalQuotePersistence(input);
+    const { data: saved, error: saveError } = await client.rpc(
+      "save_commercial_quote_draft",
+      {
         p_quotation_id: quoteId,
-        p_quote: { customerId, customerSnapshot: snapshot.customer, commercialSnapshot: snapshot, expirationDate: expiration.toISOString().slice(0, 10), subtotal, discountTotal: globalDiscount, taxTotal: tax, grandTotal: total, validityDays: input.validityDays, depositPercent: input.depositPercent, globalDiscountType: input.globalDiscountType, globalDiscountValue: input.globalDiscountValue },
-        p_items: itemPayload,
-      });
-      if (updateError) throw updateError;
-    } else {
-      const { data: quote, error } = await admin
-      .from("quotations")
-      .insert({
-        id: quoteId,
-        quotation_number: number,
-        customer_id: customerId,
-        project_id: null,
-        orbit_event_id: null,
-        status: "DRAFT",
-        customer_type: "COMPANY",
-        event_type: "CORPORATE",
-        issue_date: issueDate,
-        expiration_date: expiration.toISOString().slice(0, 10),
-        currency: "CLP",
-        subtotal,
-        transport_total: 0,
-        discount_total: globalDiscount,
-        tax_total: tax,
-        grand_total: total,
-        official_price: total,
-        final_customer_price: total,
-        price_difference: 0,
-        customer_snapshot: snapshot.customer,
-        commercial_snapshot: snapshot,
-        pricing_snapshot: snapshot,
-        validity_days: input.validityDays,
-        deposit_percent: input.depositPercent,
-        global_discount_type: input.globalDiscountType,
-        global_discount_value: input.globalDiscountValue,
-        blockers: [],
-        created_by: user.id,
-        updated_by: user.id,
-      })
-      .select("id,quotation_number")
-      .single();
-      if (error) throw error;
-      quoteId = quote.id;
-      number = quote.quotation_number;
-      const { error: itemError } = await admin
-      .from("quotation_items")
-      .insert(
-        normalized.map((line) => ({
-          quotation_id: quoteId,
-          item_type: line.manual
-            ? "EXTRA"
-            : line.code.includes("TRANSPORT")
-              ? "TRANSPORT"
-              : "SERVICE",
-          code: line.code,
-          label: line.description,
-          description: line.description,
-          quantity: line.quantity,
-          unit_price: line.quotedPrice,
-          total: line.total,
-          official_unit_price: line.catalogPrice ?? line.quotedPrice,
-          official_total:
-            (line.catalogPrice ?? line.quotedPrice) * line.quantity,
-          final_unit_price: line.quotedPrice,
-          final_total: line.total,
-          catalog_price: line.catalogPrice,
-          quoted_price: line.quotedPrice,
-          discount_type: line.discountType,
-          discount_value: line.discountValue,
-          display_order: line.order,
-          is_manual: line.manual,
-          metadata: {
-            catalogOverride:
-              line.catalogPrice != null &&
-              line.catalogPrice !== line.quotedPrice,
-          },
-        })),
-      );
-      if (itemError) {
-        await admin.from("quotations").delete().eq("id", quoteId);
-        throw itemError;
-      }
-    }
+        p_quote: {
+          issueDate,
+          customerId,
+          customerSnapshot: prepared.customerSnapshot,
+          commercialSnapshot: prepared.commercialSnapshot,
+          expirationDate: expiration.toISOString().slice(0, 10),
+          subtotal: prepared.calculation.subtotal,
+          discountTotal: prepared.calculation.discount,
+          taxTotal: prepared.calculation.vat,
+          grandTotal: prepared.calculation.total,
+          validityDays: input.validityDays,
+          depositPercent: input.depositPercent,
+          globalDiscountType: input.globalDiscountType,
+          globalDiscountValue: input.globalDiscountValue,
+        },
+        p_items: prepared.items,
+      },
+    );
+    if (saveError) throw saveError;
+    const result = saved as {
+      quotationId?: string;
+      quotationNumber?: string;
+      operation?: "CREATED" | "UPDATED";
+    } | null;
+    if (!result?.quotationId || !result.quotationNumber || !result.operation)
+      throw new Error("La persistencia no confirmó la cotización.");
+    const number = result.quotationNumber;
+    const operation = result.operation;
+    const correlationId = `commercial-quote:${quoteId}:${operation.toLowerCase()}:${input.requestId ?? quoteId}`;
     after(async () => {
       try {
         await admin
           .from("timeline_events")
-          .insert({
+          .upsert({
             customer_id: customerId,
             project_id: null,
-            event_type: "COMMERCIAL_QUOTE_DRAFTED",
-            title: "Cotización comercial creada",
-            description: `${number} fue guardada como borrador.`,
+            event_type: operation === "UPDATED" ? "COMMERCIAL_QUOTE_UPDATED" : "COMMERCIAL_QUOTE_DRAFTED",
+            title: operation === "UPDATED" ? "Cotización comercial actualizada" : "Cotización comercial creada",
+            description: `${number} fue ${operation === "UPDATED" ? "actualizada" : "guardada"} como borrador.`,
             actor_id: user.id,
             actor_label: "Founder",
             source: "Commercial Hub",
-            action: "COMMERCIAL_QUOTE_DRAFTED",
+            action: operation === "UPDATED" ? "COMMERCIAL_QUOTE_UPDATED" : "COMMERCIAL_QUOTE_DRAFTED",
             entity_type: "Quotation",
             entity_id: quoteId,
-            human_message: `Cotización ${number} creada.`,
-            correlation_id: `commercial-quote:${quoteId}`,
+            human_message: `Cotización ${number} ${operation === "UPDATED" ? "actualizada" : "creada"}.`,
+            correlation_id: correlationId,
             created_by: user.id,
-          });
+          }, { onConflict: "correlation_id", ignoreDuplicates: true });
       } catch (error) {
         console.error("Commercial quote audit boundary failed", error);
       }
     });
     revalidatePath("/leads");
-    return { ok: true as const, id: quoteId!, number, total };
+    return {
+      ok: true as const,
+      id: result.quotationId,
+      number,
+      total: prepared.calculation.total,
+      operation,
+    };
   } catch (error) {
-    return fail(error, "No fue posible crear la cotización.");
+    const technical = error as { code?: string; message?: string; details?: string };
+    console.error("[ORBIT][COMMERCIAL_QUOTE_SAVE]", {
+      mode: input.quoteId ? "UPDATE" : "CREATE",
+      quoteId: input.quoteId ?? null,
+      requestId: input.requestId ?? null,
+      code: technical?.code ?? "UNKNOWN",
+      message: technical?.message ?? "Unknown commercial quote persistence error",
+      details: technical?.details ?? null,
+    });
+    return fail(
+      error,
+      input.quoteId
+        ? "No fue posible actualizar la cotización. Intenta nuevamente."
+        : "No fue posible guardar la cotización. Intenta nuevamente.",
+    );
   }
 }
 

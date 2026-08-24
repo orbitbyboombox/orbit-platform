@@ -4,6 +4,7 @@ import test from "node:test";
 
 const root = process.cwd();
 const sql = readFileSync(`${root}/supabase/migrations/0157_quotation_global_sequence.sql`, "utf8");
+const commercialSave = readFileSync(`${root}/supabase/migrations/0165_commercial_quote_draft_persistence_fix.sql`, "utf8");
 const commercial = readFileSync(`${root}/features/commercial-hub/actions.ts`, "utf8");
 const automatic = readFileSync(`${root}/features/automatic-booking/complete-automatic-booking.service.ts`, "utf8");
 const reservation = readFileSync(`${root}/features/projects/actions/customer.actions.ts`, "utf8");
@@ -40,18 +41,20 @@ test("migration preserves history and guards Founder seed", () => {
 });
 
 test("all application quotation writers use the canonical allocator", () => {
-  for (const source of [commercial, automatic, reservation, repository]) {
+  for (const source of [commercialSave, automatic, reservation, repository]) {
     assert.match(source, /allocate_quotation_number/);
     assert.doesNotMatch(source, /COT-AUTO-|COT-\$\{|next_commercial_quote_number/);
   }
+  assert.match(commercial, /save_commercial_quote_draft/);
+  assert.doesNotMatch(commercial, /next_commercial_quote_number/);
   assert.match(commercial, /America\/Santiago/);
   assert.match(automatic, /America\/Santiago/);
   assert.match(reservation, /America\/Santiago/);
 });
 
 test("edits preserve the assigned quotation number and outputs consume it", () => {
-  assert.match(commercial, /select\("quotation_number,status"\)/);
-  assert.match(commercial, /number = existing\.quotation_number/);
+  assert.match(commercialSave, /select q\.status, q\.quotation_number/);
+  assert.match(commercialSave, /operation_value := 'UPDATED'/);
   assert.match(commercial, /createFormalQuotePdf\(\{ number: quote\.quotation_number/);
   assert.match(repository, /select\("id,quotation_number"\)/);
   assert.match(automatic, /rendered_contract: \{ quotationNumber/);

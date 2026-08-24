@@ -338,6 +338,9 @@ function InformationSender({
 }
 
 function FormalBuilder({ data, initialDraft }: { data: CommercialHubData; initialDraft?: FormalQuoteDraft }) {
+  const [persistedQuoteId, setPersistedQuoteId] = useState(initialDraft?.quoteId);
+  const saveRequestIdRef = useRef(initialDraft?.quoteId ?? uid());
+  const saveInFlightRef = useRef(false);
   const [customerId, setCustomerId] = useState(initialDraft?.existingCustomerId ?? "");
   const [temporary, setTemporary] = useState({ company: initialDraft?.company ?? "", rut: formatChileanRutInput(initialDraft?.rut ?? ""), contact: initialDraft?.contact ?? "", email: initialDraft?.email ?? "", phone: initialDraft?.phone ?? "", address: initialDraft?.address ?? "" });
   const [lines, setLines] = useState<QuoteLineDraft[]>(initialDraft?.lines ?? []);
@@ -409,43 +412,55 @@ function FormalBuilder({ data, initialDraft }: { data: CommercialHubData; initia
     () => calculateFormalQuote(lines, globalDiscountType, globalDiscountValue, depositPercent),
     [lines, globalDiscountType, globalDiscountValue, depositPercent],
   );
-  const create = () =>
+  const create = () => {
+    if (saveInFlightRef.current) return;
+    saveInFlightRef.current = true;
     start(async () => {
-      const source = selected
-        ? {
-            company: selected.company || selected.name,
-            rut: selected.rut,
-            contact: selected.name,
-            email: selected.email,
-            phone: selected.phone,
-            address: selected.address,
-          }
-        : temporary;
-      const draft: FormalQuoteDraft = {
-        quoteId: initialDraft?.quoteId,
-        existingCustomerId: selected?.id ?? null,
-        saveTemporaryCustomer: saveCustomer,
-        ...source,
-        eventName,
-        eventDate,
-        eventTime,
-        eventLocation,
-        eventCity,
-        validityDays,
-        depositPercent,
-        globalDiscountType,
-        globalDiscountValue,
-        attachCatalog,
-        lines,
-      };
-      const result = await createFormalQuoteAction(draft);
-      setMessage(
-        result.ok
-          ? `${result.number} guardada por ${money.format(result.total)}.`
-          : result.error,
-      );
-      if (result.ok) setCreatedQuote({ id: result.id, number: result.number, total: result.total });
+      try {
+        const source = selected
+          ? {
+              company: selected.company || selected.name,
+              rut: selected.rut,
+              contact: selected.name,
+              email: selected.email,
+              phone: selected.phone,
+              address: selected.address,
+            }
+          : temporary;
+        const draft: FormalQuoteDraft = {
+          quoteId: persistedQuoteId,
+          requestId: saveRequestIdRef.current,
+          existingCustomerId: selected?.id ?? null,
+          saveTemporaryCustomer: saveCustomer,
+          ...source,
+          eventName,
+          eventDate,
+          eventTime,
+          eventLocation,
+          eventCity,
+          validityDays,
+          depositPercent,
+          globalDiscountType,
+          globalDiscountValue,
+          attachCatalog,
+          lines,
+        };
+        const result = await createFormalQuoteAction(draft);
+        setMessage(
+          result.ok
+            ? `${result.operation === "UPDATED" ? "✓ Cotización actualizada correctamente" : "✓ Cotización guardada correctamente"}: ${result.number} por ${money.format(result.total)}.`
+            : result.error,
+        );
+        if (result.ok) {
+          setPersistedQuoteId(result.id);
+          saveRequestIdRef.current = uid();
+          setCreatedQuote({ id: result.id, number: result.number, total: result.total });
+        }
+      } finally {
+        saveInFlightRef.current = false;
+      }
     });
+  };
   return (
     <section className="space-y-5">
       <div className="rounded-2xl border bg-card p-5 sm:p-7">
