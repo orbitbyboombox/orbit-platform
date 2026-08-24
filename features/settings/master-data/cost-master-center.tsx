@@ -58,9 +58,9 @@ const groups: ReadonlyArray<{
   },
   {
     category: "TRANSPORT_OVERRIDE",
-    title: "Transporte",
+    title: "Transporte real",
     description:
-      "Tarifas vigentes desde Master Data y override operacional opcional.",
+      "Costo real base y override manual opcional por Evento.",
   },
   {
     category: "BRANDING",

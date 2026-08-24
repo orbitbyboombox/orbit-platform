@@ -878,7 +878,7 @@ export function ProjectWorkspaceExperience(
                       value={money(event.estimatedCosts.fuel)}
                     />
                     <Row
-                      label="Transporte"
+                      label="Costo estimado transporte"
                       value={money(event.estimatedCosts.transport)}
                     />
                     <Row
@@ -1176,7 +1176,7 @@ export function ProjectWorkspaceExperience(
                             value={money(event.profit.revenue.extras)}
                           />
                           <Row
-                            label="Transporte"
+                            label="Traslado cobrado al cliente"
                             value={money(event.profit.revenue.transport)}
                           />
                           <Row

@@ -1,19 +1,235 @@
 "use client";
 
-import {useState,useTransition} from "react";
-import {useRouter} from "next/navigation";
-import {Calculator,LockKeyhole,Save} from "lucide-react";
-import {ActionButton} from "@/components/ui/action-button";
-import {saveRealCostsAction} from "@/features/projects/actions/real-cost.actions";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { Calculator, LockKeyhole, Save } from "lucide-react";
+import { ActionButton } from "@/components/ui/action-button";
+import { saveRealCostsAction } from "@/features/projects/actions/real-cost.actions";
 
-export type RealCostCategory="OPERATOR"|"ASSEMBLY"|"DISASSEMBLY"|"FUEL"|"TRANSPORT"|"PARKING"|"TOLLS"|"MEALS"|"HOTEL"|"SCRAPBOOK"|"MAGNETS"|"OTHER_OPERATIONAL";
-export type RealCostItem={category:RealCostCategory;label:string;estimated:number;real:number;reason?:string;updatedAt?:string;updatedBy?:string};
-export type RealCostData={paper:number;items:RealCostItem[];estimatedTotal:number;realTotal:number};
-const money=new Intl.NumberFormat("es-CL",{style:"currency",currency:"CLP",maximumFractionDigits:0});
+export type RealCostCategory =
+  | "OPERATOR"
+  | "ASSEMBLY"
+  | "DISASSEMBLY"
+  | "FUEL"
+  | "TRANSPORT"
+  | "PARKING"
+  | "TOLLS"
+  | "MEALS"
+  | "HOTEL"
+  | "SCRAPBOOK"
+  | "MAGNETS"
+  | "OTHER_OPERATIONAL";
 
-export function RealCostOverridePanel({projectId,data}:{projectId:string;data:RealCostData}){
-  const router=useRouter();const[pending,startTransition]=useTransition();const[values,setValues]=useState<Record<string,number>>(Object.fromEntries(data.items.map(item=>[item.category,item.real])));const[feedback,setFeedback]=useState("");
-  const realTotal=data.paper+data.items.reduce((sum,item)=>sum+(values[item.category]??0),0);const difference=realTotal-data.estimatedTotal;
-  return <section className="scroll-mt-24 rounded-2xl border bg-card p-5 sm:p-6" id="real-costs"><header className="mb-5 flex items-start gap-3 border-b pb-4"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand"><Calculator className="size-5"/></span><div><p className="text-[11px] font-semibold uppercase tracking-[.18em] text-muted">Founder · Administración</p><h2 className="mt-1 text-xl font-semibold">Costos reales</h2><p className="mt-1 text-sm text-muted">Confirma el costo final después del evento. Cada cambio conserva su historial completo.</p></div></header><form action={form=>startTransition(async()=>{setFeedback("Guardando costos reales…");const result=await saveRealCostsAction(form);setFeedback(result.message);if(result.ok)router.refresh()})} className="space-y-5"><input name="projectId" type="hidden" value={projectId}/><div className="grid gap-3 sm:grid-cols-3"><Metric label="Total estimado" value={data.estimatedTotal}/><Metric label="Total real" value={realTotal}/><Metric difference label="Diferencia" value={difference}/></div><div className="overflow-x-auto"><table className="w-full min-w-[680px] text-sm"><thead><tr className="border-b text-left text-xs uppercase tracking-wide text-muted"><th className="px-2 py-3">Ítem</th><th className="px-2 py-3 text-right">Estimado</th><th className="px-2 py-3">Real</th><th className="px-2 py-3 text-right">Diferencia</th><th className="px-2 py-3">Último motivo</th></tr></thead><tbody><tr className="border-b"><td className="px-2 py-3 font-medium">Papel <LockKeyhole className="ml-1 inline size-3.5 text-muted"/></td><td className="px-2 py-3 text-right">{money.format(data.paper)}</td><td className="px-2 py-3 text-muted">Automático · solo lectura</td><td className="px-2 py-3 text-right">{money.format(0)}</td><td className="px-2 py-3 text-muted">Cost Master</td></tr>{data.items.map(item=>{const value=values[item.category]??0;return <tr className="border-b last:border-0" key={item.category}><td className="px-2 py-3 font-medium">{item.label}</td><td className="px-2 py-3 text-right text-muted">{money.format(item.estimated)}</td><td className="px-2 py-2"><input className="min-h-11 w-full rounded-lg border bg-background px-3 text-right font-medium outline-none focus:border-brand" min="0" name={item.category} onChange={event=>setValues(current=>({...current,[item.category]:Number(event.target.value)}))} step="1" type="number" value={value}/></td><td className={`px-2 py-3 text-right font-medium ${value-item.estimated>0?"text-danger":value-item.estimated<0?"text-success":"text-muted"}`}>{money.format(value-item.estimated)}</td><td className="max-w-48 px-2 py-3 text-xs text-muted">{item.reason??"Sin ajustes"}{item.updatedAt?<span className="block">{new Intl.DateTimeFormat("es-CL",{dateStyle:"short",timeStyle:"short"}).format(new Date(item.updatedAt))}</span>:null}</td></tr>})}</tbody></table></div><label className="block"><span className="mb-2 block text-sm font-semibold">Motivo del ajuste</span><textarea className="min-h-24 w-full rounded-xl border bg-background p-3 outline-none focus:border-brand" name="reason" placeholder="Ej.: Operador senior, peajes y combustible reales del evento." required/></label><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><p aria-live="polite" className="text-sm text-muted">{feedback}</p><ActionButton disabled={pending} icon={Save} label={pending?"Guardando…":"Guardar costos reales"} type="submit"/></div></form></section>;
+export type RealCostItem = {
+  category: RealCostCategory;
+  label: string;
+  estimated: number;
+  real: number;
+  reason?: string;
+  updatedAt?: string;
+  updatedBy?: string;
+};
+
+export type RealCostData = {
+  paper: number;
+  items: RealCostItem[];
+  estimatedTotal: number;
+  realTotal: number;
+};
+
+const money = new Intl.NumberFormat("es-CL", {
+  style: "currency",
+  currency: "CLP",
+  maximumFractionDigits: 0,
+});
+
+export function RealCostOverridePanel({
+  projectId,
+  data,
+}: {
+  projectId: string;
+  data: RealCostData;
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [values, setValues] = useState<Record<string, number>>(
+    Object.fromEntries(data.items.map((item) => [item.category, item.real])),
+  );
+  const [feedback, setFeedback] = useState("");
+
+  const realTotal =
+    data.paper + data.items.reduce((sum, item) => sum + (values[item.category] ?? 0), 0);
+  const difference = realTotal - data.estimatedTotal;
+
+  return (
+    <section
+      className="scroll-mt-24 rounded-2xl border bg-card p-5 sm:p-6"
+      id="real-costs"
+    >
+      <header className="mb-5 flex items-start gap-3 border-b pb-4">
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand">
+          <Calculator className="size-5" />
+        </span>
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[.18em] text-muted">
+            Founder · Administración
+          </p>
+          <h2 className="mt-1 text-xl font-semibold">Costos reales</h2>
+          <p className="mt-1 text-sm text-muted">
+            Confirma el costo final después del evento. Cada cambio conserva su
+            historial completo.
+          </p>
+        </div>
+      </header>
+
+      <form
+        action={(form) =>
+          startTransition(async () => {
+            setFeedback("Guardando costos reales…");
+            const result = await saveRealCostsAction(form);
+            setFeedback(result.message);
+            if (result.ok) router.refresh();
+          })
+        }
+        className="space-y-5"
+      >
+        <input name="projectId" type="hidden" value={projectId} />
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Metric label="Total estimado" value={data.estimatedTotal} />
+          <Metric label="Total real" value={realTotal} />
+          <Metric difference label="Diferencia" value={difference} />
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[680px] text-sm">
+            <thead>
+              <tr className="border-b text-left text-xs uppercase tracking-wide text-muted">
+                <th className="px-2 py-3">Ítem</th>
+                <th className="px-2 py-3 text-right">Estimado</th>
+                <th className="px-2 py-3">Real</th>
+                <th className="px-2 py-3 text-right">Diferencia</th>
+                <th className="px-2 py-3">Último motivo</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="border-b">
+                <td className="px-2 py-3 font-medium">
+                  Papel <LockKeyhole className="ml-1 inline size-3.5 text-muted" />
+                </td>
+                <td className="px-2 py-3 text-right">{money.format(data.paper)}</td>
+                <td className="px-2 py-3 text-muted">Automático · solo lectura</td>
+                <td className="px-2 py-3 text-right">{money.format(0)}</td>
+                <td className="px-2 py-3 text-muted">Cost Master</td>
+              </tr>
+              {data.items.map((item) => {
+                const value = values[item.category] ?? 0;
+                return (
+                  <tr className="border-b last:border-0" key={item.category}>
+                    <td className="px-2 py-3 font-medium">
+                      {item.category === "TRANSPORT"
+                        ? "Costo real transporte"
+                        : item.label}
+                    </td>
+                    <td className="px-2 py-3 text-right text-muted">
+                      {money.format(item.estimated)}
+                    </td>
+                    <td className="px-2 py-2">
+                      <input
+                        className="min-h-11 w-full rounded-lg border bg-background px-3 text-right font-medium outline-none focus:border-brand"
+                        min="0"
+                        name={item.category}
+                        onChange={(event) =>
+                          setValues((current) => ({
+                            ...current,
+                            [item.category]: Number(event.target.value),
+                          }))
+                        }
+                        step="1"
+                        type="number"
+                        value={value}
+                      />
+                    </td>
+                    <td
+                      className={`px-2 py-3 text-right font-medium ${
+                        value - item.estimated > 0
+                          ? "text-danger"
+                          : value - item.estimated < 0
+                            ? "text-success"
+                            : "text-muted"
+                      }`}
+                    >
+                      {money.format(value - item.estimated)}
+                    </td>
+                    <td className="max-w-48 px-2 py-3 text-xs text-muted">
+                      {item.reason ?? "Sin ajustes"}
+                      {item.updatedAt ? (
+                        <span className="block">
+                          {new Intl.DateTimeFormat("es-CL", {
+                            dateStyle: "short",
+                            timeStyle: "short",
+                          }).format(new Date(item.updatedAt))}
+                        </span>
+                      ) : null}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <label className="block">
+          <span className="mb-2 block text-sm font-semibold">Motivo del ajuste</span>
+          <textarea
+            className="min-h-24 w-full rounded-xl border bg-background p-3 outline-none focus:border-brand"
+            name="reason"
+            placeholder="Ej.: Operador senior, peajes y combustible reales del evento."
+            required
+          />
+        </label>
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p aria-live="polite" className="text-sm text-muted">
+            {feedback}
+          </p>
+          <ActionButton
+            disabled={pending}
+            icon={Save}
+            label={pending ? "Guardando…" : "Guardar costos reales"}
+            type="submit"
+          />
+        </div>
+      </form>
+    </section>
+  );
 }
-function Metric({label,value,difference=false}:{label:string;value:number;difference?:boolean}){return <div className="rounded-xl border bg-background/30 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</p><p className={`mt-2 text-xl font-semibold ${difference&&value>0?"text-danger":difference&&value<0?"text-success":""}`}>{money.format(value)}</p></div>}
+
+function Metric({
+  label,
+  value,
+  difference = false,
+}: {
+  label: string;
+  value: number;
+  difference?: boolean;
+}) {
+  return (
+    <div className="rounded-xl border bg-background/30 p-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+        {label}
+      </p>
+      <p
+        className={`mt-2 text-xl font-semibold ${
+          difference && value > 0
+            ? "text-danger"
+            : difference && value < 0
+              ? "text-success"
+              : ""
+        }`}
+      >
+        {money.format(value)}
+      </p>
+    </div>
+  );
+}

@@ -59,7 +59,7 @@ export async function loadCrmCustomerOperations(
       ["staffTax", "Retención boleta Staff (15,25%)", "PERSONNEL"],
       ["paper", "Papel", "OPERATIONAL"],
       ["fuel", "Combustible", "OPERATIONAL"],
-      ["transport", "Transporte", "OPERATIONAL"],
+      ["transport", "Costo real transporte", "OPERATIONAL"],
       ["scrapbook", "Scrapbook", "OPERATIONAL"],
       ["magnets", "Imanes", "OPERATIONAL"],
       ["branding", `Branding · ${Number(costValues.brandingFaces ?? 0)} caras`, "OPERATIONAL"],

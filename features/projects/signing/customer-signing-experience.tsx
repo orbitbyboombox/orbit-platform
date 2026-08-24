@@ -119,7 +119,7 @@ export function CustomerSigningExperience(
         <dd className="font-semibold">{props.extras}</dd>
       </div>
       <div>
-        <dt className="text-muted">Transporte</dt>
+        <dt className="text-muted">Traslado cobrado al cliente</dt>
         <dd className="font-semibold">{props.transport}</dd>
       </div>
       <div>

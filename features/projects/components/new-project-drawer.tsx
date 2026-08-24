@@ -450,7 +450,7 @@ function CommercialSummary({
           <dd className="font-medium">{currency.format(extrasPrice)}</dd>
         </div>
         <div className="flex justify-between gap-3">
-          <dt className="text-muted">Transporte · precio aplicado</dt>
+          <dt className="text-muted">Traslado cobrado al cliente · precio aplicado</dt>
           <dd className="font-medium">{currency.format(transportPrice)}</dd>
         </div>
         <div className="flex justify-between gap-3 border-t pt-3">
@@ -1803,7 +1803,7 @@ export function NewProjectDrawer({
                 {selectedVenue && selectedMunicipality && (
                   <div className="rounded-2xl border border-success/30 bg-success/5 p-4">
                     <p className="font-semibold text-success">
-                      Transporte calculado automáticamente
+                      Traslado cobrado al cliente calculado automáticamente
                     </p>
                     <p className="mt-1 text-sm text-muted">
                       {selectedVenue.name} · {selectedVenue.municipality} ·
