@@ -74,6 +74,7 @@ test("Drive retries are idempotent", () => {
   assert.match(driveRouting, /findFileByName/);
   assert.match(driveRouting, /reused: Boolean\(existing\)/);
   assert.match(actions, /retryPhotoStripDriveAction/);
+  assert.match(founderUi, /current && current\.driveStatus !== "SYNCED"/);
 });
 
 test("Drive failure cannot erase or invalidate the canonical design", () => {
