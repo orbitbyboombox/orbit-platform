@@ -7,9 +7,13 @@ import { loadCompanySettings } from "@/features/company-settings/repository";
 import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import { GoogleGmailApiProvider } from "@/features/connectors/google-gmail/provider/google-gmail-live.provider";
 import { resolveCollectionBankDetails } from "./collection-bank-details";
-import { buildCollectionEmailDraft } from "./collection-email.template";
+import {
+  buildCollectionEmailDraft,
+  collectionDraftFingerprint,
+} from "./collection-email.template";
 import type { ReceivableInvoice } from "./types";
 import { normalizeEmailRecipients } from "@/lib/email/recipients";
+import { resolveCollectionEventDetail } from "./collection-event-detail";
 
 export type CollectionEmailSendSuccess = {
   ok: true;
@@ -68,7 +72,7 @@ async function loadCollectionTarget(
   const { data, error } = await client
     .from("accounts_receivable_projection")
     .select(
-      "id,invoice_number,customer_id,project_id,orbit_event_id,amount,paid_amount,outstanding_balance,due_date,days_remaining,status,customers(full_name,email,secondary_email,phone),projects(name)",
+      "id,invoice_number,customer_id,project_id,orbit_event_id,amount,paid_amount,outstanding_balance,due_date,days_remaining,status,customers(full_name,email,secondary_email,phone),projects(name,event_date,location,city,operations,project_services(service_code,duration_hours),project_operational_contracts(service_start_at,service_end_at))",
     )
     .eq("id", invoiceId)
     .single();
@@ -79,7 +83,26 @@ async function loadCollectionTarget(
   const project = Array.isArray(data.projects)
     ? data.projects[0]
     : data.projects;
-  return { data, customer, project };
+  const operational = Array.isArray(project?.project_operational_contracts)
+    ? project.project_operational_contracts[0]
+    : project?.project_operational_contracts;
+  const detail = resolveCollectionEventDetail({
+    eventDate: project?.event_date,
+    location: project?.location,
+    city: project?.city,
+    operations: project?.operations,
+    services: (project?.project_services ?? []).map((item) => ({
+      serviceCode: item.service_code,
+      durationHours: Number(item.duration_hours ?? 0) || null,
+    })),
+    operationalContract: operational
+      ? {
+          serviceStartAt: operational.service_start_at,
+          serviceEndAt: operational.service_end_at,
+        }
+      : null,
+  });
+  return { data, customer, project, detail };
 }
 
 function buildRequestKey(invoiceId: string, requestId: string) {
@@ -96,7 +119,7 @@ export async function sendCollectionEmailAction(
     if (!invoiceId) throw new Error("La cobranza requiere una cuenta válida.");
     if (!requestId) throw new Error("La cobranza requiere un intento válido.");
 
-    const { data, customer, project } = await loadCollectionTarget(
+    const { data, customer, project, detail } = await loadCollectionTarget(
       client,
       invoiceId,
     );
@@ -118,8 +141,13 @@ export async function sendCollectionEmailAction(
       customerEmail: customer.email ?? null,
       customerSecondaryEmail: customer.secondary_email ?? null,
       projectName: project?.name ?? "BOOMBOX",
+      amount: Number(data.amount),
       outstandingBalance: Number(data.outstanding_balance),
       dueDate: data.due_date,
+      eventDate: detail.eventDate,
+      eventLocation: detail.eventLocation,
+      service: detail.service,
+      eventDuration: detail.eventDuration,
       daysRemaining: data.days_remaining,
       status: data.status as ReceivableInvoice["status"],
       collectionActions: [],
@@ -130,12 +158,24 @@ export async function sendCollectionEmailAction(
       | "customerEmail"
       | "customerSecondaryEmail"
       | "projectName"
+      | "amount"
       | "outstandingBalance"
       | "dueDate"
+      | "eventDate"
+      | "eventLocation"
+      | "service"
+      | "eventDuration"
       | "daysRemaining"
       | "status"
       | "collectionActions"
     >, bankDetails);
+
+    const expectedDraft = String(formData.get("expectedDraft") ?? "");
+    if (expectedDraft !== collectionDraftFingerprint(draft)) {
+      throw new Error(
+        "Los datos del evento o el saldo cambiaron. Cierra y vuelve a abrir la cobranza para revisar la información vigente.",
+      );
+    }
 
     const subject = normalizeText(formData.get("subject"), draft.subject);
     const body = normalizeText(formData.get("body"), draft.body);

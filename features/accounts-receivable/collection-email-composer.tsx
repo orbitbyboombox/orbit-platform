@@ -5,7 +5,10 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { MobileDialog } from "@/components/ui/mobile-dialog";
-import { buildCollectionEmailDraft } from "./collection-email.template";
+import {
+  buildCollectionEmailDraft,
+  collectionDraftFingerprint,
+} from "./collection-email.template";
 import { sendCollectionEmailAction } from "./collection-email.actions";
 import type { CollectionBankDetails } from "./collection-bank-details";
 import type { ReceivableInvoice } from "./types";
@@ -156,6 +159,11 @@ export function CollectionEmailComposer({
             <input name="invoiceId" type="hidden" value={invoice.id} />
             <input name="requestId" type="hidden" value={requestId} />
             <input name="templateKey" type="hidden" value={draft.templateKey} />
+            <input
+              name="expectedDraft"
+              type="hidden"
+              value={collectionDraftFingerprint(draft)}
+            />
             {sendState.status !== "idle" ? (
               <div
                 aria-live="polite"
@@ -186,17 +194,48 @@ export function CollectionEmailComposer({
                 </div>
               </div>
             ) : null}
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <Detail label="Para" value={draft.to || "Sin correo"} />
-              <Detail label="Saldo pendiente" value={draft.outstandingLabel} />
-              <Detail label="Vencimiento" value={draft.dueDateLabel} />
-              <Detail label="Estado" value={draft.statusLabel} />
-              <Detail label="Último aviso" value={draft.lastNoticeLabel} />
-              <Detail
-                label="Plantilla"
-                value={draft.templateKey === "OVERDUE" ? "Vencida" : "Por vencer"}
-              />
-            </div>
+            <section
+              className="min-w-0 space-y-3 rounded-2xl border bg-background/40 p-4"
+              data-collection-event-summary
+            >
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+                  Resumen canónico de la cobranza
+                </p>
+                <p className="mt-1 text-sm text-muted">
+                  Revisa el evento y el saldo vigente antes de enviar.
+                </p>
+              </div>
+              <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                <Detail label="Cliente" value={invoice.customerName} />
+                <Detail label="Fecha del evento" value={draft.eventDateLabel} />
+                {draft.eventLocation ? (
+                  <Detail label="Lugar" value={draft.eventLocation} />
+                ) : null}
+                <Detail label="Servicio" value={draft.serviceLabel} />
+                <Detail label="Duración" value={draft.durationLabel} />
+                <div className="min-w-0 rounded-xl border border-brand/30 bg-brand/10 p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+                    Saldo pendiente
+                  </p>
+                  <p className="mt-1 break-words text-lg font-semibold text-foreground">
+                    {draft.outstandingLabel}
+                  </p>
+                </div>
+                <Detail label="Vencimiento" value={draft.dueDateLabel} />
+                <Detail label="Para" value={draft.to || "Sin correo"} />
+                <Detail
+                  label="CC"
+                  value={draft.cc.length ? draft.cc.join(", ") : "Sin CC"}
+                />
+                <Detail label="Estado" value={draft.statusLabel} />
+                <Detail label="Último aviso" value={draft.lastNoticeLabel} />
+                <Detail
+                  label="Plantilla"
+                  value={draft.templateKey === "OVERDUE" ? "Vencida" : "Por vencer"}
+                />
+              </div>
+            </section>
             <label className="block min-w-0 text-sm font-medium">
               CC
               <span className="mt-2 block">
@@ -291,7 +330,7 @@ export function CollectionEmailComposer({
 
 function Detail({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border bg-background/50 p-3">
+    <div className="min-w-0 rounded-xl border bg-background/50 p-3">
       <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
         {label}
       </p>

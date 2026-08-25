@@ -11,10 +11,49 @@ export type CollectionEmailDraft = {
   body: string;
   statusLabel: string;
   dueDateLabel: string;
+  eventDateLabel: string;
+  eventLocation: string | null;
+  serviceLabel: string;
+  durationLabel: string;
+  totalLabel: string;
   outstandingLabel: string;
   lastNoticeLabel: string;
   bankDetails: CollectionBankDetails;
 };
+
+type CollectionEmailInvoiceInput = Pick<
+  ReceivableInvoice,
+  | "invoiceNumber"
+  | "customerName"
+  | "customerEmail"
+  | "customerSecondaryEmail"
+  | "projectName"
+  | "outstandingBalance"
+  | "dueDate"
+  | "daysRemaining"
+  | "status"
+  | "collectionActions"
+> &
+  Partial<
+    Pick<
+      ReceivableInvoice,
+      "amount" | "eventDate" | "eventLocation" | "service" | "eventDuration"
+    >
+  >;
+
+export function collectionDraftFingerprint(draft: CollectionEmailDraft) {
+  return JSON.stringify([
+    draft.templateKey,
+    draft.to,
+    draft.eventDateLabel,
+    draft.eventLocation,
+    draft.serviceLabel,
+    draft.durationLabel,
+    draft.totalLabel,
+    draft.outstandingLabel,
+    draft.dueDateLabel,
+  ]);
+}
 
 const money = (value: number) =>
   new Intl.NumberFormat("es-CL", {
@@ -23,10 +62,10 @@ const money = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value);
 
-const date = (value: string | null) =>
+const date = (value: string | null, dateStyle: "medium" | "long" = "medium") =>
   value
     ? new Intl.DateTimeFormat("es-CL", {
-        dateStyle: "medium",
+        dateStyle,
         timeZone: "America/Santiago",
       }).format(new Date(`${value.slice(0, 10)}T12:00:00-04:00`))
     : "Sin fecha";
@@ -55,19 +94,7 @@ export function getLastCollectionNoticeAt(
 }
 
 export function buildCollectionEmailDraft(
-  invoice: Pick<
-    ReceivableInvoice,
-    | "invoiceNumber"
-    | "customerName"
-    | "customerEmail"
-    | "customerSecondaryEmail"
-    | "projectName"
-    | "outstandingBalance"
-    | "dueDate"
-    | "daysRemaining"
-    | "status"
-    | "collectionActions"
-  >,
+  invoice: CollectionEmailInvoiceInput,
   bankDetails: CollectionBankDetails,
 ): CollectionEmailDraft {
   const overdue =
@@ -76,7 +103,11 @@ export function buildCollectionEmailDraft(
     ? "OVERDUE"
     : "UPCOMING";
   const outstandingLabel = money(invoice.outstandingBalance);
-  const dueDateLabel = date(invoice.dueDate);
+  const totalLabel = money(invoice.amount ?? invoice.outstandingBalance);
+  const dueDateLabel = date(invoice.dueDate, "long");
+  const eventDateLabel = invoice.eventDate
+    ? date(invoice.eventDate, "long")
+    : "Por confirmar";
   const lastNoticeAt = getLastCollectionNoticeAt(invoice.collectionActions);
   const lastNoticeLabel = lastNoticeAt
     ? new Intl.DateTimeFormat("es-CL", {
@@ -98,12 +129,26 @@ export function buildCollectionEmailDraft(
     `RUT: ${bankDetails.rut}`,
     `Email de transferencia: ${bankDetails.email}`,
   ];
+  const eventBlock = [
+    "Detalle de tu evento:",
+    `Fecha del evento: ${eventDateLabel}`,
+    ...(invoice.eventLocation
+      ? [`Lugar: ${invoice.eventLocation}`]
+      : []),
+    `Servicio: ${invoice.service ?? "Sin servicio"}`,
+    `Duración: ${invoice.eventDuration ?? "Por confirmar"}`,
+    `Valor total: ${totalLabel}`,
+    `Saldo pendiente: ${outstandingLabel}`,
+    ...(invoice.dueDate ? [`Fecha de pago: ${dueDateLabel}`] : []),
+  ];
   const body =
     templateKey === "OVERDUE"
       ? [
           `Hola ${invoice.customerName},`,
           "",
-          `Queríamos recordarte que se encuentra vencido un saldo pendiente de ${outstandingLabel} correspondiente a ${invoice.projectName}${invoice.dueDate ? `, cuyo vencimiento era el ${dueDateLabel}` : ""}.`,
+          "Queríamos recordarte que el saldo pendiente de tu evento se encuentra vencido.",
+          "",
+          ...eventBlock,
           "",
           "Para regularizar el pago, puedes realizar la transferencia a los siguientes datos:",
           ...bankBlock,
@@ -120,7 +165,9 @@ export function buildCollectionEmailDraft(
       : [
           `Hola ${invoice.customerName},`,
           "",
-          `Te escribimos desde BOOMBOX para comentarte que actualmente existe un saldo pendiente de ${outstandingLabel} correspondiente a ${invoice.projectName}${invoice.dueDate ? `, con fecha de pago ${dueDateLabel}` : ""}.`,
+          "Te escribimos desde BOOMBOX para recordarte el saldo pendiente de tu evento.",
+          "",
+          ...eventBlock,
           "",
           "Para regularizar el pago, te dejamos nuevamente nuestros datos bancarios:",
           ...bankBlock,
@@ -143,6 +190,11 @@ export function buildCollectionEmailDraft(
     body,
     statusLabel: emailStatus(invoice),
     dueDateLabel,
+    eventDateLabel,
+    eventLocation: invoice.eventLocation ?? null,
+    serviceLabel: invoice.service ?? "Sin servicio",
+    durationLabel: invoice.eventDuration ?? "Por confirmar",
+    totalLabel,
     outstandingLabel,
     lastNoticeLabel,
     bankDetails,

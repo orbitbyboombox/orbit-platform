@@ -51,6 +51,9 @@ export interface ReceivableInvoice {
   agingBucket: string;
   version: number;
   service: string;
+  eventDate: string | null;
+  eventLocation: string | null;
+  eventDuration: string;
   agreementId: string | null;
   contractAvailable: boolean;
   collectorId: string | null;

@@ -8,6 +8,49 @@ import {
   resolveReceivablePaymentCategory,
   summarizeReceivablePaymentCategories,
 } from "./payment-term-classification";
+import { resolveCollectionEventDetail } from "./collection-event-detail";
+
+function relation<T>(value: T | T[] | null | undefined): T | null {
+  return Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
+}
+
+function eventDetail(project: {
+  event_date?: string | null;
+  location?: string | null;
+  city?: string | null;
+  operations?: unknown;
+  project_services?: Array<{
+    service_code: string;
+    duration_hours?: number | null;
+  }>;
+  project_operational_contracts?:
+    | { service_start_at?: string | null; service_end_at?: string | null }
+    | Array<{
+        service_start_at?: string | null;
+        service_end_at?: string | null;
+      }>
+    | null;
+} | null) {
+  return resolveCollectionEventDetail({
+    eventDate: project?.event_date,
+    location: project?.location,
+    city: project?.city,
+    operations: project?.operations,
+    services: (project?.project_services ?? []).map((item) => ({
+      serviceCode: item.service_code,
+      durationHours: Number(item.duration_hours ?? 0) || null,
+    })),
+    operationalContract: (() => {
+      const contract = relation(project?.project_operational_contracts);
+      return contract
+        ? {
+            serviceStartAt: contract.service_start_at,
+            serviceEndAt: contract.service_end_at,
+          }
+        : null;
+    })(),
+  });
+}
 export async function loadAccountsReceivable(
   client: SupabaseClient,
 ): Promise<ReceivableDataset> {
@@ -26,13 +69,13 @@ export async function loadAccountsReceivable(
     client
       .from("accounts_receivable_projection")
       .select(
-        "id,invoice_number,customer_id,project_id,orbit_event_id,customer_type,status,effective_status,amount,paid_amount,outstanding_balance,issue_date,due_date,payment_term,custom_term_days,purchase_order,days_remaining,aging_bucket,version,payment_history,issued_by,created_by,customers(full_name,company,email,secondary_email,phone),projects(name,project_type,finance,project_services(service_code),agreements(id,status,signed_pdf_path))",
+        "id,invoice_number,customer_id,project_id,orbit_event_id,customer_type,status,effective_status,amount,paid_amount,outstanding_balance,issue_date,due_date,payment_term,custom_term_days,purchase_order,days_remaining,aging_bucket,version,payment_history,issued_by,created_by,customers(full_name,company,email,secondary_email,phone),projects(name,project_type,event_date,location,city,operations,finance,project_services(service_code,duration_hours),project_operational_contracts(service_start_at,service_end_at),agreements(id,status,signed_pdf_path))",
       )
       .order("due_date", { ascending: true, nullsFirst: false }),
     client
       .from("accounts_receivable_history")
       .select(
-        "id,invoice_number,customer_id,project_id,orbit_event_id,customer_type,status,effective_status,financial_record_state,record_origin,amount,paid_amount,outstanding_balance,issue_date,due_date,payment_term,custom_term_days,purchase_order,days_remaining,aging_bucket,version,issued_by,created_by,customers(full_name,company,email,secondary_email,phone),projects(name,project_type,finance,project_services(service_code),agreements(id,status,signed_pdf_path))",
+        "id,invoice_number,customer_id,project_id,orbit_event_id,customer_type,status,effective_status,financial_record_state,record_origin,amount,paid_amount,outstanding_balance,issue_date,due_date,payment_term,custom_term_days,purchase_order,days_remaining,aging_bucket,version,issued_by,created_by,customers(full_name,company,email,secondary_email,phone),projects(name,project_type,event_date,location,city,operations,finance,project_services(service_code,duration_hours),project_operational_contracts(service_start_at,service_end_at),agreements(id,status,signed_pdf_path))",
       )
       .order("created_at", { ascending: false }),
     client
@@ -84,6 +127,7 @@ export async function loadAccountsReceivable(
       const project = Array.isArray(row.projects)
         ? row.projects[0]
         : row.projects;
+      const detail = eventDetail(project);
       const classification = resolveReceivablePaymentCategory({
         customerType: row.customer_type,
         invoicePaymentTerm: row.payment_term,
@@ -123,7 +167,10 @@ export async function loadAccountsReceivable(
         daysRemaining: row.days_remaining,
         agingBucket: row.aging_bucket,
         version: row.version,
-        service:(project?.project_services??[]).map((item)=>item.service_code).join(" + ")||"Sin servicio",
+        service: detail.service,
+        eventDate: detail.eventDate,
+        eventLocation: detail.eventLocation,
+        eventDuration: detail.eventDuration,
         agreementId:agreement?.id??null,
         contractAvailable:Boolean(agreement?.signed_pdf_path),
         collectorId:row.issued_by??row.created_by??null,
@@ -142,6 +189,7 @@ export async function loadAccountsReceivable(
       const project = Array.isArray(row.projects)
         ? row.projects[0]
         : row.projects;
+      const detail = eventDetail(project);
       const classification = resolveReceivablePaymentCategory({
         customerType: row.customer_type,
         invoicePaymentTerm: row.payment_term,
@@ -181,7 +229,10 @@ export async function loadAccountsReceivable(
         daysRemaining: row.days_remaining,
         agingBucket: row.aging_bucket,
         version: row.version,
-        service:(project?.project_services??[]).map((item)=>item.service_code).join(" + ")||"Sin servicio",
+        service: detail.service,
+        eventDate: detail.eventDate,
+        eventLocation: detail.eventLocation,
+        eventDuration: detail.eventDuration,
         agreementId:agreement?.id??null,
         contractAvailable:Boolean(agreement?.signed_pdf_path),
         collectorId:row.issued_by??row.created_by??null,
