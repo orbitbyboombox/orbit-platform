@@ -441,6 +441,7 @@ export async function updateCrmEventAction(input: {
           : undefined,
     };
   } catch (error) {
+    console.error("updateCrmEventAction failed", error);
     return {
       ok: false as const,
       error: message(error, "No fue posible actualizar el evento."),
