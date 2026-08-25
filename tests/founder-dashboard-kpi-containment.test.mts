@@ -11,7 +11,7 @@ test("Founder KPIs use one reusable container-aware value component", () => {
   assert.match(founder, /<FounderKpiValue>\{formatMetric\(metric\)\}<\/FounderKpiValue>/);
   assert.match(valueComponent, /data-kpi-value/);
   assert.match(valueComponent, /style=\{\{ fontSize: "clamp\(\.875rem, 10cqi, 1\.55rem\)" \}\}/);
-  assert.match(founder, /\[container-type:inline-size\]/);
+  assert.match(founder, /style=\{\{ containerType: "inline-size" \}\}/);
 });
 
 test("large monetary values can shrink within a readable bounded range", () => {

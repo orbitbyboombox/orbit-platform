@@ -117,7 +117,7 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
   </header>;
 
   const founderKpis = <section aria-label="Indicadores principales" className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-    {kpis.map(({ metric, icon: Icon, tone }) => <button data-command-card className="group min-h-[7.75rem] min-w-0 rounded-2xl border p-4 text-left [container-type:inline-size] transition hover:-translate-y-0.5 sm:p-[1.05rem]" key={metric.label} onClick={() => router.push(metric.href)}>
+    {kpis.map(({ metric, icon: Icon, tone }) => <button data-command-card className="group min-h-[7.75rem] min-w-0 rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 sm:p-[1.05rem]" key={metric.label} onClick={() => router.push(metric.href)} style={{ containerType: "inline-size" }}>
       <span className="flex items-center gap-3"><span className={`grid size-10 shrink-0 place-items-center rounded-xl ${toneStyle[tone]}`}><Icon className="size-[18px]" /></span><span className="text-[.7rem] font-medium leading-4 text-muted">{metric.label}</span></span>
       <FounderKpiValue>{formatMetric(metric)}</FounderKpiValue>
       <span className="mt-2 block truncate text-[10px] text-muted">{metric.detail}</span>
