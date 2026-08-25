@@ -836,7 +836,7 @@ export default async function OperationsPage() {
             "/projects?cost=paper",
           ),
           metric(
-            "Combustible",
+            "Combustible adicional",
             money(costSum("fuel")),
             "Costo vigente",
             "/projects?cost=fuel",

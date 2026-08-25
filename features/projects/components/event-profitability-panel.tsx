@@ -36,7 +36,7 @@ const labels: Record<string, string> = {
   staffTaxRate: "Tasa retención Staff",
   operationalResourcesCost: "Recursos operacionales",
   paper: "Papel",
-  fuel: "Combustible",
+  fuel: "Combustible adicional",
   scrapbook: "Scrapbook",
   magnets: "Imanes",
   branding: "Branding",

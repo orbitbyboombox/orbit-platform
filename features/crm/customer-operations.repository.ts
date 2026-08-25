@@ -58,7 +58,7 @@ export async function loadCrmCustomerOperations(
       ["staffAdjustments", "Ajustes de liquidación", "PERSONNEL"],
       ["staffTax", "Retención boleta Staff (15,25%)", "PERSONNEL"],
       ["paper", "Papel", "OPERATIONAL"],
-      ["fuel", "Combustible", "OPERATIONAL"],
+      ["fuel", "Combustible adicional", "OPERATIONAL"],
       ["transport", "Costo real transporte", "OPERATIONAL"],
       ["scrapbook", "Scrapbook", "OPERATIONAL"],
       ["magnets", "Imanes", "OPERATIONAL"],

@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerActionClient } from "@/lib/supabase/server";
-import { SupabaseProfitRepository } from "@/features/profit-engine";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { suggestBusinessExpenseCategory } from "./business-expense-classification";
 
@@ -32,4 +31,4 @@ export async function expenseReceiptUrlAction(path:string):Promise<{ok:boolean;u
 
 export async function associateEventExpenseStaffAction(data:FormData):Promise<{ok:boolean;message:string}>{try{const{client,userId}=await context();const expenseId=text(data,"expenseId"),staffId=text(data,"staffId")||null,projectId=text(data,"projectId");if(!expenseId||!projectId)throw new Error("Selecciona el gasto del Evento.");let settlementId:string|null=null;if(staffId){const{data:settlement,error:settlementError}=await client.from("event_staff_payments").select("id").eq("project_id",projectId).eq("staff_id",staffId).eq("status","CONFIRMED").is("deleted_at",null).single();if(settlementError||!settlement)throw settlementError??new Error("El responsable debe tener una liquidación confirmada en este Evento.");settlementId=settlement.id;}const{error}=await client.from("expenses").update({responsible_staff_id:staffId,event_staff_settlement_id:settlementId,updated_by:userId}).eq("id",expenseId).eq("project_id",projectId).is("deleted_at",null);if(error)throw error;revalidatePath(`/projects/${projectId}`);revalidatePath("/operations");revalidatePath("/resources/staff");return{ok:true,message:"Gasto vinculado a la liquidación sin modificar nómina."};}catch(error){return{ok:false,message:message(error)};}}
 
-async function syncProjectExpenseCost(client:SupabaseClient,projectId:string){const[{data:expenses,error:expenseError},{data:snapshot,error:snapshotError}]=await Promise.all([client.from("expenses").select("total").eq("project_id",projectId).is("deleted_at",null),client.from("profit_snapshots").select("id,version").eq("project_id",projectId).is("deleted_at",null).order("created_at",{ascending:false}).limit(1).maybeSingle()]);if(expenseError)throw expenseError;if(snapshotError)throw snapshotError;if(snapshot)await new SupabaseProfitRepository(client).update({snapshotId:snapshot.id,expectedVersion:snapshot.version,expenseCost:(expenses??[]).reduce((sum,item)=>sum+Number(item.total??0),0),reason:"Gastos operacionales sincronizados desde el Centro de Gastos"});}
+async function syncProjectExpenseCost(client:SupabaseClient,projectId:string){const{error}=await client.rpc("sync_event_operation_cost",{p_project_id:projectId});if(error)throw error;}

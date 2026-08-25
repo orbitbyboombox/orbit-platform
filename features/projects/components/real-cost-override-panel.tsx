@@ -129,7 +129,9 @@ export function RealCostOverridePanel({
                     <td className="px-2 py-3 font-medium">
                       {item.category === "TRANSPORT"
                         ? "Costo real transporte"
-                        : item.label}
+                        : item.category === "FUEL"
+                          ? "Combustible adicional"
+                          : item.label}
                     </td>
                     <td className="px-2 py-3 text-right text-muted">
                       {money.format(item.estimated)}

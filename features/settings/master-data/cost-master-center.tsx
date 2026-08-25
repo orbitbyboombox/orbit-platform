@@ -53,8 +53,9 @@ const groups: ReadonlyArray<{
   },
   {
     category: "FUEL",
-    title: "Combustible",
-    description: "Costo predeterminado por evento.",
+    title: "Combustible adicional",
+    description:
+      "Sin valor automático; se registra por Evento solo cuando existe un gasto real independiente.",
   },
   {
     category: "TRANSPORT_OVERRIDE",

@@ -172,13 +172,11 @@ export default async function ProjectWorkspacePage({
       .eq("project_id", projectId)
       .is("deleted_at", null),
     client
-      .from("profit_snapshots")
+      .from("financial_event_records")
       .select(
-        "id,status,revenue,operational_cost,gross_margin,gross_margin_percent",
+        "id:project_id,status,revenue,operational_cost:total_operational_cost,gross_margin:gross_profit,gross_margin_percent:gross_margin",
       )
       .eq("project_id", projectId)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false })
       .limit(1),
     client
       .from("accounts_receivable_projection")
@@ -899,7 +897,7 @@ export default async function ProjectWorkspacePage({
             ["OPERATOR", "Operador", Number(estimatedCosts.operator)],
             ["ASSEMBLY", "Montaje", Number(estimatedCosts.assembly)],
             ["DISASSEMBLY", "Desmontaje", Number(estimatedCosts.disassembly)],
-            ["FUEL", "Combustible", Number(estimatedCosts.fuel)],
+            ["FUEL", "Combustible adicional", Number(estimatedCosts.fuel)],
             ["TRANSPORT", "Transporte", Number(estimatedCosts.transport)],
             ["PARKING", "Estacionamiento", 0],
             ["TOLLS", "Peajes", 0],

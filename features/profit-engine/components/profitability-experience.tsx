@@ -85,7 +85,7 @@ export function ProfitabilityExperience({ events, insights, recommendation, supp
                 <div><dt className="text-muted">Costo operacional</dt><dd className="mt-1 font-semibold">{currency.format(event.operationalCost)}</dd></div>
                 <div><dt className="text-muted">Equipo</dt><dd className="mt-1 font-medium">{currency.format(event.staffCost)}</dd></div>
                 <div><dt className="text-muted">Costo real transporte</dt><dd className="mt-1 font-medium">{currency.format(event.transportCost)}</dd></div>
-                <div><dt className="text-muted">Combustible estimado</dt><dd className="mt-1 font-medium">{currency.format(event.fuelCost)}</dd></div>
+                <div><dt className="text-muted">Combustible adicional</dt><dd className="mt-1 font-medium">{currency.format(event.fuelCost)}</dd></div>
                 <div><dt className="text-muted">Insumos</dt><dd className="mt-1 font-medium">{currency.format(event.suppliesCost)}</dd></div>
               </dl>
             </SmartCard>

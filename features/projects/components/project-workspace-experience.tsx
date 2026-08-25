@@ -889,7 +889,7 @@ export function ProjectWorkspaceExperience(
                       value={money(event.estimatedCosts.disassembly)}
                     />
                     <Row
-                      label="Combustible"
+                      label="Combustible adicional"
                       value={money(event.estimatedCosts.fuel)}
                     />
                     <Row
