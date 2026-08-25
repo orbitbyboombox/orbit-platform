@@ -265,4 +265,6 @@ test("22 mobile routing and conversion controls remain reachable", () => {
   assert.match(detailUi, /min-h-11/);
   assert.match(reviewUi, /variant="fullscreen-mobile"/);
   assert.match(reviewUi, /footer=/);
+  assert.match(detailUi, /timeZone: "America\/Santiago"/);
+  assert.match(customerProfile, /timeZone: "America\/Santiago"/);
 });

@@ -337,7 +337,10 @@ function actionExplanation(status: string) {
 
 function formatDate(value: string) {
   if (!value) return "Por completar";
-  return new Intl.DateTimeFormat("es-CL", { dateStyle: "medium" }).format(
+  return new Intl.DateTimeFormat("es-CL", {
+    dateStyle: "medium",
+    timeZone: "UTC",
+  }).format(
     new Date(`${value.slice(0, 10)}T12:00:00Z`),
   );
 }
@@ -347,5 +350,6 @@ function formatDateTime(value: string) {
   return new Intl.DateTimeFormat("es-CL", {
     dateStyle: "medium",
     timeStyle: "short",
+    timeZone: "America/Santiago",
   }).format(new Date(value));
 }
