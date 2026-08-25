@@ -9,10 +9,12 @@ import { GoogleGmailApiProvider } from "@/features/connectors/google-gmail/provi
 import { resolveCollectionBankDetails } from "./collection-bank-details";
 import { buildCollectionEmailDraft } from "./collection-email.template";
 import type { ReceivableInvoice } from "./types";
+import { normalizeEmailRecipients } from "@/lib/email/recipients";
 
 export type CollectionEmailSendSuccess = {
   ok: true;
   recipient: string;
+  ccRecipients: string[];
   sentAt: string;
   communicationId: string;
   providerMessageId: string | null;
@@ -66,7 +68,7 @@ async function loadCollectionTarget(
   const { data, error } = await client
     .from("accounts_receivable_projection")
     .select(
-      "id,invoice_number,customer_id,project_id,orbit_event_id,amount,paid_amount,outstanding_balance,due_date,days_remaining,status,customers(full_name,email,phone),projects(name)",
+      "id,invoice_number,customer_id,project_id,orbit_event_id,amount,paid_amount,outstanding_balance,due_date,days_remaining,status,customers(full_name,email,secondary_email,phone),projects(name)",
     )
     .eq("id", invoiceId)
     .single();
@@ -114,6 +116,7 @@ export async function sendCollectionEmailAction(
       invoiceNumber: data.invoice_number,
       customerName: customer.full_name ?? "Cliente",
       customerEmail: customer.email ?? null,
+      customerSecondaryEmail: customer.secondary_email ?? null,
       projectName: project?.name ?? "BOOMBOX",
       outstandingBalance: Number(data.outstanding_balance),
       dueDate: data.due_date,
@@ -125,6 +128,7 @@ export async function sendCollectionEmailAction(
       | "invoiceNumber"
       | "customerName"
       | "customerEmail"
+      | "customerSecondaryEmail"
       | "projectName"
       | "outstandingBalance"
       | "dueDate"
@@ -135,11 +139,15 @@ export async function sendCollectionEmailAction(
 
     const subject = normalizeText(formData.get("subject"), draft.subject);
     const body = normalizeText(formData.get("body"), draft.body);
+    const recipients = normalizeEmailRecipients({
+      to: customer.email,
+      cc: String(formData.get("cc") ?? ""),
+    });
     const threadKey = buildRequestKey(invoiceId, requestId);
     const now = new Date().toISOString();
     const { data: existing, error: existingError } = await client
       .from("communications")
-      .select("id,status,occurred_at,external_message_id")
+      .select("id,status,occurred_at,external_message_id,to_recipient,cc_recipients")
       .eq("project_id", data.project_id)
       .eq("communication_type", "COLLECTION_EMAIL")
       .eq("thread_key", threadKey)
@@ -148,7 +156,8 @@ export async function sendCollectionEmailAction(
     if (existing?.id && existing.status === "SENT") {
       return {
         ok: true,
-        recipient: customer.email,
+        recipient: existing.to_recipient ?? recipients.to,
+        ccRecipients: existing.cc_recipients ?? recipients.cc,
         sentAt: existing.occurred_at ?? now,
         communicationId: existing.id,
         providerMessageId: existing.external_message_id ?? null,
@@ -170,6 +179,8 @@ export async function sendCollectionEmailAction(
         subject,
         body,
         status: "PENDING",
+        to_recipient: recipients.to,
+        cc_recipients: recipients.cc,
         occurred_at: now,
         created_by: userId,
       })
@@ -181,7 +192,8 @@ export async function sendCollectionEmailAction(
       const sent = await new GoogleGmailApiProvider(
         await loadGoogleWorkspaceAccessToken(),
       ).send({
-        to: customer.email,
+        to: recipients.to,
+        cc: recipients.cc,
         subject,
         textBody: body,
         htmlBody: `<main style="font-family:Arial,sans-serif;color:#171717;line-height:1.6">${toHtml(
@@ -243,7 +255,8 @@ export async function sendCollectionEmailAction(
     revalidatePath("/finance/collections");
     return {
       ok: true,
-      recipient: customer.email,
+      recipient: recipients.to,
+      ccRecipients: recipients.cc,
       sentAt,
       communicationId: communication.id,
       providerMessageId,

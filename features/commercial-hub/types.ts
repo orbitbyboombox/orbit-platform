@@ -12,6 +12,7 @@ export interface CommercialCustomerOption {
   company: string;
   rut: string;
   email: string;
+  secondaryEmail: string;
   phone: string;
   address: string;
 }
@@ -52,7 +53,7 @@ export interface CommercialHubData {
   templates: CommercialTemplate[];
   documents: CommercialDocument[];
   recentQuotes: RecentCommercialQuote[];
-  recentSends: Array<{ id: string; recipient: string; category: string; subject: string; status: string; sentAt: string }>;
+  recentSends: Array<{ id: string; recipient: string; ccRecipients: string[]; category: string; subject: string; status: string; sentAt: string; providerMessageId: string | null; quotationId: string | null; projectId: string | null; customerId: string | null }>;
 }
 
 export interface QuoteLineDraft {
@@ -75,6 +76,7 @@ export interface FormalQuoteDraft {
   rut: string;
   contact: string;
   email: string;
+  secondaryEmail?: string;
   phone: string;
   address: string;
   eventName: string;

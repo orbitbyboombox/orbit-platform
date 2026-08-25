@@ -14,7 +14,7 @@ export default async function ProjectsRoute() {
     client.from("master_data_entries").select("configuration").eq("domain", "SYSTEM_PARAMETERS").eq("code", "EVENT_VENUES").eq("enabled", true).maybeSingle(),
     loadActiveMunicipalities(client),
     auth.user ? client.from("profiles").select("role").eq("id", auth.user.id).single() : Promise.resolve({ data: null, error: null }),
-    client.from("customers").select("id,full_name,rut,email,phone,company,address,city,metadata").is("deleted_at",null).order("updated_at",{ascending:false}),
+    client.from("customers").select("id,full_name,rut,email,secondary_email,phone,company,address,city,metadata").is("deleted_at",null).order("updated_at",{ascending:false}),
     client.from("crm_events").select("id,customer_id,event_type,event_date,status,project_id").order("event_date",{ascending:false}),
   ]);
   if (commercialPricesResult.error) throw commercialPricesResult.error;
@@ -51,6 +51,6 @@ export default async function ProjectsRoute() {
     };
   });
   const canNegotiate = ["CEO", "ADMINISTRATOR", "SALES"].includes(profileResult.data?.role ?? "");
-  const crmCustomers=(crmCustomersResult.data??[]).map(customer=>{const metadata=(customer.metadata??{})as Record<string,unknown>;const contacts=Array.isArray(metadata.contacts)?metadata.contacts.filter((item):item is Record<string,unknown>=>Boolean(item)&&typeof item==="object").map(item=>({name:String(item.name??item.fullName??"Contacto"),email:String(item.email??""),phone:String(item.phone??"")})):[];return{id:customer.id,name:customer.full_name,rut:customer.rut??"",email:customer.email??"",phone:customer.phone??"",company:customer.company??"",address:customer.address??"",city:customer.city??"",commercialNotes:typeof metadata.commercialNotes==="string"?metadata.commercialNotes:"",contacts,previousEvents:(crmEventsResult.data??[]).filter(event=>event.customer_id===customer.id).map(event=>({id:event.id,projectId:event.project_id,type:event.event_type,date:event.event_date,status:event.status}))}});
+  const crmCustomers=(crmCustomersResult.data??[]).map(customer=>{const metadata=(customer.metadata??{})as Record<string,unknown>;const contacts=Array.isArray(metadata.contacts)?metadata.contacts.filter((item):item is Record<string,unknown>=>Boolean(item)&&typeof item==="object").map(item=>({name:String(item.name??item.fullName??"Contacto"),email:String(item.email??""),phone:String(item.phone??"")})):[];return{id:customer.id,name:customer.full_name,rut:customer.rut??"",email:customer.email??"",secondaryEmail:customer.secondary_email??"",phone:customer.phone??"",company:customer.company??"",address:customer.address??"",city:customer.city??"",commercialNotes:typeof metadata.commercialNotes==="string"?metadata.commercialNotes:"",contacts,previousEvents:(crmEventsResult.data??[]).filter(event=>event.customer_id===customer.id).map(event=>({id:event.id,projectId:event.project_id,type:event.event_type,date:event.event_date,status:event.status}))}});
   return <ProjectsPage canNegotiate={canNegotiate} commercialPrices={commercialPrices} crmCustomers={crmCustomers} initialProjects={projects} municipalities={municipalities} services={services} venues={venues} />;
 }

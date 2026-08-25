@@ -14,6 +14,7 @@ type CustomerRow = {
   company: string | null;
   phone: string | null;
   email: string | null;
+  secondary_email: string | null;
   address: string | null;
   city: string | null;
   metadata: Record<string, unknown> | null;
@@ -30,7 +31,7 @@ export async function loadCrmCustomers(
       client
         .from("customers")
         .select(
-          "id,full_name,rut,company,phone,email,address,city,metadata,version,updated_at",
+          "id,full_name,rut,company,phone,email,secondary_email,address,city,metadata,version,updated_at",
         )
         .is("deleted_at", null)
         .order("updated_at", { ascending: false }),
@@ -52,6 +53,7 @@ export async function loadCrmCustomers(
       company: text(row.company),
       phone: formatChileanPhone(text(row.phone)),
       email: text(row.email),
+      secondaryEmail: text(row.secondary_email),
       address: text(row.address),
       city: text(row.city),
       version: row.version,
@@ -90,7 +92,7 @@ export async function loadCrmCustomerProfile(
     client
       .from("customers")
       .select(
-        "id,full_name,rut,company,phone,email,address,city,metadata,version,updated_at",
+        "id,full_name,rut,company,phone,email,secondary_email,address,city,metadata,version,updated_at",
       )
       .eq("id", customerId)
       .is("deleted_at", null)
@@ -358,6 +360,7 @@ export async function loadCrmCustomerProfile(
     company: text(row.company),
     phone: formatChileanPhone(text(row.phone)),
     email: text(row.email),
+    secondaryEmail: text(row.secondary_email),
     address: text(row.address),
     city: text(row.city),
     version: row.version,

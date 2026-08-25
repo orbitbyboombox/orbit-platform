@@ -13,6 +13,7 @@ import { uploadReservationDocumentToDrive } from "@/features/connectors/google-d
 import type { GoogleDriveDocumentKind } from "@/features/connectors/google-drive/types/google-drive-live.types";
 import { createCustomerPortalAccess } from "@/features/customer-portal/customer-portal.service";
 import { normalizeChileanPhone, requireValidChileanRut } from "@/lib/chile/rut";
+import { normalizeOptionalEmail } from "@/lib/email/recipients";
 const message = (error: unknown, fallback: string) =>
   error instanceof Error && !/coerce|json object|pgrst|schema|constraint|violates|column/i.test(error.message) ? error.message : fallback;
 async function founderClient() {
@@ -36,6 +37,7 @@ export async function createCrmCustomerAction(input: {
   company: string;
   phone: string;
   email: string;
+  secondaryEmail: string;
   address: string;
   businessActivity: string;
   billingAddress: string;
@@ -78,7 +80,8 @@ export async function createCrmCustomerAction(input: {
         rut: normalized,
         company: input.company.trim() || null,
         phone: normalizeChileanPhone(input.phone) || null,
-        email: input.email.trim().toLowerCase() || null,
+        email: normalizeOptionalEmail(input.email, "email principal"),
+        secondary_email: normalizeOptionalEmail(input.secondaryEmail, "email secundario / CC"),
         address: input.address.trim() || null,
         metadata: {
           normalizedRut: normalized,
@@ -125,6 +128,7 @@ export async function updateCrmCustomerAction(input: {
   company: string;
   phone: string;
   email: string;
+  secondaryEmail: string;
   address: string;
   commercialNotes: string;
   contacts: Array<{ name: string; email: string; phone: string }>;
@@ -167,7 +171,8 @@ export async function updateCrmCustomerAction(input: {
         rut: normalized,
         company: input.company.trim() || null,
         phone: normalizeChileanPhone(input.phone) || null,
-        email: input.email.trim().toLowerCase() || null,
+        email: normalizeOptionalEmail(input.email, "email principal"),
+        secondary_email: normalizeOptionalEmail(input.secondaryEmail, "email secundario / CC"),
         address: input.address.trim() || null,
         metadata: {
           ...current.metadata,

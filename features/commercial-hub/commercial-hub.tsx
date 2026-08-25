@@ -343,7 +343,7 @@ function FormalBuilder({ data, initialDraft }: { data: CommercialHubData; initia
   const saveRequestIdRef = useRef(initialDraft?.quoteId ?? uid());
   const saveInFlightRef = useRef(false);
   const [customerId, setCustomerId] = useState(initialDraft?.existingCustomerId ?? "");
-  const [temporary, setTemporary] = useState({ company: initialDraft?.company ?? "", rut: formatChileanRutInput(initialDraft?.rut ?? ""), contact: initialDraft?.contact ?? "", email: initialDraft?.email ?? "", phone: initialDraft?.phone ?? "", address: initialDraft?.address ?? "" });
+  const [temporary, setTemporary] = useState({ company: initialDraft?.company ?? "", rut: formatChileanRutInput(initialDraft?.rut ?? ""), contact: initialDraft?.contact ?? "", email: initialDraft?.email ?? "", secondaryEmail: initialDraft?.secondaryEmail ?? "", phone: initialDraft?.phone ?? "", address: initialDraft?.address ?? "" });
   const [lines, setLines] = useState<QuoteLineDraft[]>(initialDraft?.lines ?? []);
   const [validityDays, setValidityDays] = useState(initialDraft?.validityDays ?? 10);
   const [depositPercent, setDepositPercent] = useState(initialDraft?.depositPercent ?? 50);
@@ -424,6 +424,7 @@ function FormalBuilder({ data, initialDraft }: { data: CommercialHubData; initia
               rut: selected.rut,
               contact: selected.name,
               email: selected.email,
+              secondaryEmail: selected.secondaryEmail,
               phone: selected.phone,
               address: selected.address,
             }
@@ -512,6 +513,15 @@ function FormalBuilder({ data, initialDraft }: { data: CommercialHubData; initia
                   value={temporary.email}
                   onChange={(e) =>
                     setTemporary((v) => ({ ...v, email: e.target.value }))
+                  }
+                />
+              </Field>
+              <Field label="Email secundario / CC (opcional)">
+                <input
+                  inputMode="email"
+                  value={temporary.secondaryEmail}
+                  onChange={(e) =>
+                    setTemporary((v) => ({ ...v, secondaryEmail: e.target.value }))
                   }
                 />
               </Field>
@@ -747,6 +757,7 @@ function FormalBuilder({ data, initialDraft }: { data: CommercialHubData; initia
         <FormalQuoteDelivery
           quote={createdQuote}
           email={selected?.email || temporary.email}
+          secondaryEmail={selected?.secondaryEmail || temporary.secondaryEmail}
           company={selected?.company || selected?.name || temporary.company}
           contact={selected?.name || temporary.contact}
           catalog={data.documents.find((document) => document.category === "COMPANIES")}
@@ -767,9 +778,14 @@ function FormalBuilder({ data, initialDraft }: { data: CommercialHubData; initia
   );
 }
 
-function FormalQuoteDelivery({ quote, email, company, contact, catalog, attachCatalog, onAttachCatalog, template }: { quote: { id: string; number: string; total: number }; email: string; company: string; contact: string; catalog?: CommercialHubData["documents"][number]; attachCatalog: boolean; onAttachCatalog: (value: boolean) => void; template?: CommercialHubData["templates"][number] }) {
+function FormalQuoteDelivery({ quote, email, secondaryEmail, company, contact, catalog, attachCatalog, onAttachCatalog, template }: { quote: { id: string; number: string; total: number }; email: string; secondaryEmail: string; company: string; contact: string; catalog?: CommercialHubData["documents"][number]; attachCatalog: boolean; onAttachCatalog: (value: boolean) => void; template?: CommercialHubData["templates"][number] }) {
   const templateSubject = formalQuoteSubject(quote.number, company);
   const [recipient, setRecipient] = useState(email);
+  const [ccInput, setCcInput] = useState(secondaryEmail);
+  useEffect(() => {
+    setRecipient(email);
+    setCcInput(secondaryEmail);
+  }, [email, quote.id, secondaryEmail]);
   const variables = { "[NumeroCotizacion]": quote.number.replace(/^COTIZACIÓN\s*/i, ""), "[Empresa]": company, "[Nombre]": titleCasePerson(contact) };
   const applyVariables = (value: string) => Object.entries(variables).reduce((text, [key, replacement]) => text.replaceAll(key, replacement), normalizeEmailNewlines(value));
   const [subject, setSubject] = useState(template ? applyVariables(template.subject) : templateSubject);
@@ -784,10 +800,12 @@ function FormalQuoteDelivery({ quote, email, company, contact, catalog, attachCa
     <p className="mt-1 text-sm text-muted">{quote.number} · {money.format(quote.total)}</p>
     <div className="mt-5 grid gap-4">
       <Field label="Para"><input inputMode="email" value={recipient} onChange={(e) => setRecipient(e.target.value)} /></Field>
+      <Field label="CC"><textarea className="min-h-24" placeholder="Un correo por línea o separados por coma" value={ccInput} onChange={(e) => setCcInput(e.target.value)} /></Field>
+      <p className="-mt-2 text-xs text-muted">El email secundario se sugiere automáticamente. Puedes quitarlo, editarlo o agregar CC temporales para este envío.</p>
       <Field label="Asunto"><input value={subject} onChange={(e) => setSubject(e.target.value)} /></Field>
       <Field label="Mensaje"><textarea className="min-h-44" value={body} onChange={(e) => setBody(e.target.value)} /></Field>
       <div className="rounded-xl border bg-background p-4 text-sm"><p className="font-semibold">Adjuntos</p><p className="mt-2">{quoteDisplayFilename(quote.number)}</p>{catalog && <label className="mt-3 flex items-center gap-2"><input type="checkbox" checked={attachCatalog} onChange={(e) => onAttachCatalog(e.target.checked)} />Catálogo vigente: {catalog.name} · {catalog.version}</label>}</div>
-      <div className="grid gap-3 sm:grid-cols-3"><Button onClick={() => setPdfOpen(true)} variant="outline"><FileDown />Abrir PDF</Button><Button disabled={pending} onClick={() => { if (!recipient.trim()) { setMessage("Ingresa un correo válido para enviar."); return; } if (!window.confirm(`¿Enviar ${quote.number} a ${recipient}?`)) return; start(async () => { const result = await sendFormalQuoteAction({ quoteId: quote.id, email: recipient, subject, body: normalizeEmailNewlines(body), requestId, catalogDocumentId: attachCatalog ? catalog?.id : undefined }); setMessage(result.ok ? result.message : result.error); if (result.ok) setRequestId(uid()); }); }}><Send />{pending ? "Enviando…" : "Enviar email"}</Button><Button disabled={pending} variant="outline" onClick={() => { if (!window.confirm(`¿Convertir ${quote.number} en Reserva usando el pipeline oficial?`)) return; start(async () => { const result = await convertCommercialQuoteAction(quote.id); setMessage(result.ok ? result.message : result.error); if (result.ok && result.projectId) window.location.href = `/projects/${result.projectId}`; }); }}>Convertir en reserva</Button></div>
+      <div className="grid gap-3 sm:grid-cols-3"><Button onClick={() => setPdfOpen(true)} variant="outline"><FileDown />Abrir PDF</Button><Button disabled={pending} onClick={() => { if (!recipient.trim()) { setMessage("Ingresa un correo válido para enviar."); return; } const cc = ccInput.split(/[\n,;]+/).map((value) => value.trim()).filter(Boolean); const ccLabel = cc.length ? ` con copia a ${cc.join(", ")}` : ""; if (!window.confirm(`¿Enviar ${quote.number} a ${recipient}${ccLabel}?`)) return; start(async () => { const result = await sendFormalQuoteAction({ quoteId: quote.id, email: recipient, cc, subject, body: normalizeEmailNewlines(body), requestId, catalogDocumentId: attachCatalog ? catalog?.id : undefined }); setMessage(result.ok ? result.message : result.error); if (result.ok) setRequestId(uid()); }); }}><Send />{pending ? "Enviando…" : "Enviar email"}</Button><Button disabled={pending} variant="outline" onClick={() => { if (!window.confirm(`¿Convertir ${quote.number} en Reserva usando el pipeline oficial?`)) return; start(async () => { const result = await convertCommercialQuoteAction(quote.id); setMessage(result.ok ? result.message : result.error); if (result.ok && result.projectId) window.location.href = `/projects/${result.projectId}`; }); }}>Convertir en reserva</Button></div>
       {message && <p aria-live="polite" className="text-sm font-medium">{message}</p>}
       {pdfOpen && <PdfViewer title={quoteDisplayFilename(quote.number)} src={`/api/commercial/quotes/${quote.id}/pdf`} onClose={() => setPdfOpen(false)} />}
     </div>
@@ -916,7 +934,7 @@ function RecentQuotes({
   );
 }
 function SendHistory({ sends }: { sends: CommercialHubData["recentSends"] }) {
-  return <section className="rounded-2xl border bg-card p-5"><h2 className="font-semibold">Historial de envíos</h2><div className="mt-4 divide-y">{sends.length ? sends.map((send) => <div className="grid gap-1 py-3 text-sm sm:grid-cols-[1fr_1fr_auto_auto] sm:gap-4" key={send.id}><span className="font-medium">{send.recipient}</span><span className="truncate">{send.subject}</span><span>{send.category}</span><span className="text-muted">{send.status} · {send.sentAt.slice(0, 10)}</span></div>) : <p className="py-5 text-sm text-muted">Aún no hay envíos comerciales.</p>}</div></section>;
+  return <section className="rounded-2xl border bg-card p-5"><h2 className="font-semibold">Historial de envíos</h2><div className="mt-4 divide-y">{sends.length ? sends.map((send) => <div className="grid min-w-0 gap-1 py-3 text-sm sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:gap-4" key={send.id}><div className="min-w-0"><p className="break-all font-medium">Para: {send.recipient}</p><p className="break-all text-xs text-muted">CC: {send.ccRecipients.length ? send.ccRecipients.join(", ") : "Sin CC"}</p></div><div className="min-w-0"><p className="truncate">{send.subject}</p><p className="truncate text-xs text-muted">ID proveedor: {send.providerMessageId || "Pendiente"}</p></div><span className="text-muted">{send.status} · {send.sentAt.slice(0, 10)}</span></div>) : <p className="py-5 text-sm text-muted">Aún no hay envíos comerciales.</p>}</div></section>;
 }
 function Field({
   label,

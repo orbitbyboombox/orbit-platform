@@ -53,6 +53,7 @@ export interface Project {
   client: {
     name: string;
     email: string;
+    secondaryEmail?: string;
     phone: string;
     company?: string;
     rut?: string;

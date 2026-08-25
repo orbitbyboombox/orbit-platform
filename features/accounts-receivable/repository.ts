@@ -26,13 +26,13 @@ export async function loadAccountsReceivable(
     client
       .from("accounts_receivable_projection")
       .select(
-        "id,invoice_number,customer_id,project_id,orbit_event_id,customer_type,status,effective_status,amount,paid_amount,outstanding_balance,issue_date,due_date,payment_term,custom_term_days,purchase_order,days_remaining,aging_bucket,version,payment_history,issued_by,created_by,customers(full_name,company,email,phone),projects(name,project_type,finance,project_services(service_code),agreements(id,status,signed_pdf_path))",
+        "id,invoice_number,customer_id,project_id,orbit_event_id,customer_type,status,effective_status,amount,paid_amount,outstanding_balance,issue_date,due_date,payment_term,custom_term_days,purchase_order,days_remaining,aging_bucket,version,payment_history,issued_by,created_by,customers(full_name,company,email,secondary_email,phone),projects(name,project_type,finance,project_services(service_code),agreements(id,status,signed_pdf_path))",
       )
       .order("due_date", { ascending: true, nullsFirst: false }),
     client
       .from("accounts_receivable_history")
       .select(
-        "id,invoice_number,customer_id,project_id,orbit_event_id,customer_type,status,effective_status,financial_record_state,record_origin,amount,paid_amount,outstanding_balance,issue_date,due_date,payment_term,custom_term_days,purchase_order,days_remaining,aging_bucket,version,issued_by,created_by,customers(full_name,company,email,phone),projects(name,project_type,finance,project_services(service_code),agreements(id,status,signed_pdf_path))",
+        "id,invoice_number,customer_id,project_id,orbit_event_id,customer_type,status,effective_status,financial_record_state,record_origin,amount,paid_amount,outstanding_balance,issue_date,due_date,payment_term,custom_term_days,purchase_order,days_remaining,aging_bucket,version,issued_by,created_by,customers(full_name,company,email,secondary_email,phone),projects(name,project_type,finance,project_services(service_code),agreements(id,status,signed_pdf_path))",
       )
       .order("created_at", { ascending: false }),
     client
@@ -100,6 +100,7 @@ export async function loadAccountsReceivable(
         customerName: customer?.full_name ?? "Cliente",
         customerCompany: customer?.company ?? null,
         customerEmail: customer?.email ?? null,
+        customerSecondaryEmail: customer?.secondary_email ?? null,
         customerPhone: customer?.phone ?? null,
         projectId: row.project_id,
         projectName: project?.name ?? "Evento",
@@ -157,6 +158,7 @@ export async function loadAccountsReceivable(
         customerName: customer?.full_name ?? "Cliente",
         customerCompany: customer?.company ?? null,
         customerEmail: customer?.email ?? null,
+        customerSecondaryEmail: customer?.secondary_email ?? null,
         customerPhone: customer?.phone ?? null,
         projectId: row.project_id,
         projectName: project?.name ?? "Evento",

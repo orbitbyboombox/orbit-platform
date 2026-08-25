@@ -29,6 +29,7 @@ type SendState =
       sentAt: string;
       communicationId: string;
       providerMessageId: string | null;
+      ccRecipients: string[];
       message: string;
     }
   | {
@@ -59,6 +60,7 @@ export function CollectionEmailComposer({
   const [open, setOpen] = useState(false);
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
+  const [ccInput, setCcInput] = useState("");
   const [requestId, setRequestId] = useState("");
   const [sendState, setSendState] = useState<SendState>({ status: "idle" });
   const [pending, startTransition] = useTransition();
@@ -76,6 +78,7 @@ export function CollectionEmailComposer({
     const next = buildCollectionEmailDraft(invoice, bankDetails);
     setSubject(next.subject);
     setBody(next.body);
+    setCcInput(next.cc.join("\n"));
     setRequestId(crypto.randomUUID());
     setSendState({ status: "idle" });
   }, [bankDetails, invoice, open]);
@@ -87,7 +90,7 @@ export function CollectionEmailComposer({
     setSendState({
       status: "sending",
       recipient: draft.to,
-      message: `Enviando... a ${draft.to}.`,
+      message: `Enviando... a ${draft.to}${ccInput.trim() ? " con CC aprobado" : ""}.`,
     });
     startTransition(async () => {
       const result = await sendCollectionEmailAction(formData);
@@ -95,11 +98,13 @@ export function CollectionEmailComposer({
         setSendState({
           status: "success",
           recipient: result.recipient,
+          ccRecipients: result.ccRecipients,
           sentAt: result.sentAt,
           communicationId: result.communicationId,
           providerMessageId: result.providerMessageId,
           message:
             `✅ Email enviado a ${result.recipient}.` +
+            (result.ccRecipients.length ? ` CC: ${result.ccRecipients.join(", ")}.` : "") +
             (result.deduplicated ? " Ya estaba registrado en el historial." : ""),
         });
         router.refresh();
@@ -182,7 +187,7 @@ export function CollectionEmailComposer({
               </div>
             ) : null}
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <Detail label="To" value={draft.to || "Sin correo"} />
+              <Detail label="Para" value={draft.to || "Sin correo"} />
               <Detail label="Saldo pendiente" value={draft.outstandingLabel} />
               <Detail label="Vencimiento" value={draft.dueDateLabel} />
               <Detail label="Estado" value={draft.statusLabel} />
@@ -192,6 +197,21 @@ export function CollectionEmailComposer({
                 value={draft.templateKey === "OVERDUE" ? "Vencida" : "Por vencer"}
               />
             </div>
+            <label className="block min-w-0 text-sm font-medium">
+              CC
+              <span className="mt-2 block">
+                <textarea
+                  className="min-h-24 w-full min-w-0 rounded-xl border bg-background p-3 text-sm"
+                  name="cc"
+                  onChange={(event) => setCcInput(event.target.value)}
+                  placeholder="Un correo por línea o separados por coma"
+                  value={ccInput}
+                />
+              </span>
+              <span className="mt-2 block text-xs font-normal text-muted">
+                El email secundario permanente se sugiere automáticamente. Puedes quitarlo o agregar CC sólo para este envío.
+              </span>
+            </label>
             <div className="grid gap-3 rounded-2xl border bg-background/40 p-4 sm:grid-cols-2 xl:grid-cols-3">
               <div className="sm:col-span-2 xl:col-span-3">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
@@ -240,7 +260,7 @@ export function CollectionEmailComposer({
                   : sendState.status === "error"
                     ? sendState.message
                     : canSend
-                      ? `Se enviará a ${draft.to}.`
+                      ? `Se enviará a ${draft.to}${ccInput.trim() ? ` · CC: ${ccInput.split(/[\n,;]+/).map((value) => value.trim()).filter(Boolean).join(", ")}` : ""}.`
                       : "El saldo debe estar activo y el cliente debe tener correo registrado."}
               </p>
               <div className="flex gap-2">

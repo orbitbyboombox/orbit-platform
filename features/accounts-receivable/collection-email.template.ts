@@ -6,6 +6,7 @@ export type CollectionEmailTemplateKey = "UPCOMING" | "OVERDUE";
 export type CollectionEmailDraft = {
   templateKey: CollectionEmailTemplateKey;
   to: string;
+  cc: string[];
   subject: string;
   body: string;
   statusLabel: string;
@@ -59,6 +60,7 @@ export function buildCollectionEmailDraft(
     | "invoiceNumber"
     | "customerName"
     | "customerEmail"
+    | "customerSecondaryEmail"
     | "projectName"
     | "outstandingBalance"
     | "dueDate"
@@ -136,6 +138,7 @@ export function buildCollectionEmailDraft(
   return {
     templateKey,
     to: invoice.customerEmail ?? "",
+    cc: invoice.customerSecondaryEmail ? [invoice.customerSecondaryEmail] : [],
     subject,
     body,
     statusLabel: emailStatus(invoice),

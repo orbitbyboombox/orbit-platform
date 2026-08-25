@@ -20,6 +20,7 @@ import {
   type ConfirmationStage,
 } from "../operations/confirmed-reservation-orchestrator.service";
 import { deliverAssignmentCancellationBoundary } from "@/features/operations/staff-assignment-cancellation.service";
+import { normalizeOptionalEmail, normalizeRequiredEmail } from "@/lib/email/recipients";
 
 export type CreateCustomerResult =
   | { ok: true; project: Project }
@@ -63,6 +64,27 @@ function reservationErrorDetails(error: unknown) {
 export async function createCustomerProjectAction(
   draft: ProjectDraft,
 ): Promise<CreateCustomerResult> {
+  try {
+    draft = {
+      ...draft,
+      client: {
+        ...draft.client,
+        email: draft.crmCustomerId
+          ? (normalizeOptionalEmail(draft.client.email, "email principal") ?? "")
+          : normalizeRequiredEmail(draft.client.email, "email principal"),
+        secondaryEmail:
+          normalizeOptionalEmail(
+            draft.client.secondaryEmail,
+            "email secundario / CC",
+          ) ?? "",
+      },
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Los correos no son válidos.",
+    };
+  }
   const reference = safeReservationReference();
   const transactionId = draft.reservationTransactionId;
   const startedAt = Date.now();

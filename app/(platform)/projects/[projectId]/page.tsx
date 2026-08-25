@@ -96,7 +96,7 @@ export default async function ProjectWorkspacePage({
     client
       .from("projects")
       .select(
-        "customer_id,orbit_event_id,budget,contract,finance,operations,resources,status",
+        "customer_id,orbit_event_id,budget,contract,finance,operations,resources,status,communication_recipient_snapshot",
       )
       .eq("id", projectId)
       .single(),
@@ -318,7 +318,7 @@ export default async function ProjectWorkspacePage({
   ] = await Promise.all([
     client
       .from("customers")
-      .select("full_name,rut,phone,email,address,city,emergency_contact:metadata")
+      .select("full_name,rut,phone,email,secondary_email,address,city,emergency_contact:metadata")
       .eq(
         "id",
         rawProject?.customer_id ?? "00000000-0000-0000-0000-000000000000",
@@ -763,6 +763,16 @@ export default async function ProjectWorkspacePage({
     customer: {
       phone: customer?.phone ?? project.client.phone,
       email: customer?.email ?? project.client.email,
+      secondaryEmail: Array.isArray(
+        (rawProject?.communication_recipient_snapshot as Record<string, unknown> | null)?.cc,
+      )
+        ? String(
+            ((rawProject?.communication_recipient_snapshot as Record<string, unknown>).cc as unknown[])[0] ??
+              customer?.secondary_email ??
+              project.client.secondaryEmail ??
+              "",
+          )
+        : customer?.secondary_email ?? project.client.secondaryEmail ?? "",
       address: customer?.address ?? "Sin dirección registrada",
       city: customer?.city ?? project.event.city,
       emergencyContact:
@@ -1333,6 +1343,7 @@ export default async function ProjectWorkspacePage({
   };
   return (
     <ProjectWorkspaceExperience
+      customerId={rawProject?.customer_id ?? ""}
       reconciliationId={query.reconciliation}
       {...experienceProps}
       activities={activities}

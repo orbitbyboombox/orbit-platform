@@ -32,6 +32,7 @@ import type { ActiveMunicipality } from "@/features/settings/master-data/municip
 import { cn } from "@/lib/utils";
 import { filterExtrasForEventType, includedExtrasForEventType, resolveBrandingMinimum } from "../reservation-business-rules";
 import { formatChileanRut, isValidChileanRut, normalizeChileanMobileLocal, normalizeChileanPhone } from "@/lib/chile/rut";
+import { isValidOptionalEmail } from "@/lib/email/recipients";
 import { sendAutomaticBookingInvitationAction } from "@/features/automatic-booking/actions";
 import { sendManualReservationConfirmationAction } from "../actions/customer.actions";
 import {
@@ -54,7 +55,7 @@ const steps = [
   "Confirmación",
 ] as const;
 const initialDraft: ProjectDraft = {
-  client: { name: "", email: "", phone: "", rut: "", address: "" },
+  client: { name: "", email: "", secondaryEmail: "", phone: "", rut: "", address: "" },
   event: {
     date: "",
     time: "",
@@ -216,6 +217,7 @@ export interface ReservationCrmCustomer {
   name: string;
   rut: string;
   email: string;
+  secondaryEmail: string;
   phone: string;
   company: string;
   address: string;
@@ -853,6 +855,7 @@ export function NewProjectDrawer({
         name: canonical.name,
         rut: canonical.rut,
         email: canonical.email,
+        secondaryEmail: canonical.secondaryEmail,
         phone: canonical.phone,
         company: canonical.company || undefined,
         address: canonical.address,
@@ -862,6 +865,7 @@ export function NewProjectDrawer({
         current.client.name === canonicalClient.name &&
         current.client.rut === canonicalClient.rut &&
         current.client.email === canonicalClient.email &&
+        current.client.secondaryEmail === canonicalClient.secondaryEmail &&
         current.client.phone === canonicalClient.phone &&
         current.client.company === canonicalClient.company &&
         current.client.address === canonicalClient.address
@@ -898,6 +902,7 @@ export function NewProjectDrawer({
               customer.company,
               customer.phone,
               customer.email,
+              customer.secondaryEmail,
             ].some((value) => normalizeCustomerSearch(value).includes(needle));
           })
           .slice(0, 8)
@@ -917,6 +922,7 @@ export function NewProjectDrawer({
         name: customer.name,
         rut: customer.rut,
         email: customer.email,
+        secondaryEmail: customer.secondaryEmail,
         phone: customer.phone,
         company: customer.company || undefined,
         address: customer.address,
@@ -1032,6 +1038,7 @@ export function NewProjectDrawer({
       /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
         (draft.client.email ?? "").trim(),
       ) &&
+      isValidOptionalEmail(draft.client.secondaryEmail) &&
       draft.origin,
   );
   const customerValid = existingCustomerValid || newCustomerValid;
@@ -1521,8 +1528,12 @@ export function NewProjectDrawer({
                       {selectedCustomer.company || "Cliente particular"}
                     </p>
                     <p>
-                      <span className="text-muted">Email:</span>{" "}
+                      <span className="text-muted">Email principal:</span>{" "}
                       {selectedCustomer.email || "Sin email"}
+                    </p>
+                    <p>
+                      <span className="text-muted">Email secundario / CC:</span>{" "}
+                      {selectedCustomer.secondaryEmail || "Sin email secundario"}
                     </p>
                     <p>
                       <span className="text-muted">Teléfono:</span>{" "}
@@ -1614,12 +1625,25 @@ export function NewProjectDrawer({
                 <Field
                   autoComplete="off"
                   disabled={Boolean(selectedCustomer)}
-                  label="Correo"
+                  label="Email principal"
                   onChange={(e) => client("email", e.target.value)}
                   required
                   type="email"
                   value={draft.client.email}
                 />
+                <div>
+                  <Field
+                    autoComplete="off"
+                    disabled={Boolean(selectedCustomer)}
+                    label="Email secundario / CC (opcional)"
+                    onChange={(e) => client("secondaryEmail", e.target.value)}
+                    type="email"
+                    value={draft.client.secondaryEmail ?? ""}
+                  />
+                  <p className="mt-2 text-xs text-muted">
+                    Recibirá copia de las comunicaciones asociadas a esta reserva.
+                  </p>
+                </div>
               </div>
               <Field
                 autoComplete="off"

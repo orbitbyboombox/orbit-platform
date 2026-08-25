@@ -19,6 +19,7 @@ interface CustomerRow {
   id: string;
   full_name: string;
   email: string | null;
+  secondary_email: string | null;
   phone: string | null;
   company: string | null;
   city: string | null;
@@ -37,6 +38,7 @@ interface ProjectRow {
   location: string | null;
   city: string | null;
   operations: Record<string, unknown>;
+  communication_recipient_snapshot: Record<string, unknown>;
 }
 interface ServiceRow {
   project_id: string;
@@ -117,13 +119,13 @@ export class SupabaseCustomerRepository implements CustomerRepository {
     ] = await Promise.all([
       this.client
         .from("customers")
-        .select("id,full_name,email,phone,company,city,metadata,version")
+        .select("id,full_name,email,secondary_email,phone,company,city,metadata,version")
         .is("deleted_at", null)
         .order("updated_at", { ascending: false }),
       this.client
         .from("projects")
         .select(
-          "id,customer_id,name,project_type,status,health,event_date,event_time,location,city,operations",
+          "id,customer_id,name,project_type,status,health,event_date,event_time,location,city,operations,communication_recipient_snapshot",
         )
         .is("deleted_at", null)
         .order("event_date", { ascending: true }),
@@ -164,6 +166,11 @@ export class SupabaseCustomerRepository implements CustomerRepository {
           entry.customer_id === customer.id || entry.project_id === row.id,
       );
       const memory = memoryMap.get(customer.id) ?? {};
+      const snapshotCc = Array.isArray(row.communication_recipient_snapshot?.cc)
+        ? row.communication_recipient_snapshot.cc.find(
+            (value): value is string => typeof value === "string",
+          )
+        : undefined;
       return [
         {
           id: row.id,
@@ -172,6 +179,7 @@ export class SupabaseCustomerRepository implements CustomerRepository {
           client: {
             name: customer.full_name,
             email: customer.email ?? "",
+            secondaryEmail: snapshotCc ?? customer.secondary_email ?? "",
             phone: customer.phone ?? "",
             company: customer.company ?? undefined,
           },
@@ -232,7 +240,7 @@ export class SupabaseCustomerRepository implements CustomerRepository {
     const { data: canonicalCustomer, error: canonicalCustomerError } =
       await this.client
         .from("customers")
-        .select("full_name,email,phone,company,rut,address")
+        .select("full_name,email,secondary_email,phone,company,rut,address")
         .eq("id", String(row.customer_id))
         .is("deleted_at", null)
         .single();
@@ -244,6 +252,7 @@ export class SupabaseCustomerRepository implements CustomerRepository {
       client: {
         name: canonicalCustomer.full_name,
         email: canonicalCustomer.email ?? "",
+        secondaryEmail: canonicalCustomer.secondary_email ?? "",
         phone: canonicalCustomer.phone ?? "",
         company: canonicalCustomer.company ?? undefined,
         rut: canonicalCustomer.rut ?? undefined,

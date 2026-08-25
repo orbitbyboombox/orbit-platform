@@ -9,7 +9,7 @@ export async function loadCommercialHubData(
   const [customers, catalog, templates, documents, quotes, sends, company] = await Promise.all([
     client
       .from("customers")
-      .select("id,full_name,company,rut,email,phone,address")
+      .select("id,full_name,company,rut,email,secondary_email,phone,address")
       .is("deleted_at", null)
       .order("updated_at", { ascending: false }),
     client
@@ -35,7 +35,7 @@ export async function loadCommercialHubData(
       )
       .order("created_at", { ascending: false })
       .limit(20),
-    client.from("commercial_sends").select("id,recipient_email,category,subject,status,sent_at").order("sent_at", { ascending: false }).limit(20),
+    client.from("commercial_sends").select("id,recipient_email,cc_recipients,category,subject,status,sent_at,external_message_id,quotation_id,project_id,customer_id").order("sent_at", { ascending: false }).limit(20),
     loadCompanySettings(client),
   ]);
   for (const result of [customers, catalog, templates, documents, quotes, sends])
@@ -54,6 +54,7 @@ export async function loadCommercialHubData(
       company: row.company ?? "",
       rut: row.rut ?? "",
       email: row.email ?? "",
+      secondaryEmail: row.secondary_email ?? "",
       phone: row.phone ?? "",
       address: row.address ?? "",
     })),
@@ -107,6 +108,7 @@ export async function loadCommercialHubData(
             rut: customerSnapshot.rut ?? "",
             contact: customerSnapshot.contact ?? "",
             email: customerSnapshot.email ?? "",
+            secondaryEmail: customerSnapshot.secondaryEmail ?? "",
             phone: customerSnapshot.phone ?? "",
             address: customerSnapshot.address ?? "",
             eventName: event.name ?? "",
@@ -124,6 +126,6 @@ export async function loadCommercialHubData(
         }),
       };
     }),
-    recentSends: (sends.data ?? []).map((row) => ({ id: row.id, recipient: row.recipient_email, category: row.category, subject: row.subject, status: row.status, sentAt: row.sent_at })),
+    recentSends: (sends.data ?? []).map((row) => ({ id: row.id, recipient: row.recipient_email, ccRecipients: row.cc_recipients ?? [], category: row.category, subject: row.subject, status: row.status, sentAt: row.sent_at, providerMessageId: row.external_message_id, quotationId: row.quotation_id, projectId: row.project_id, customerId: row.customer_id })),
   };
 }

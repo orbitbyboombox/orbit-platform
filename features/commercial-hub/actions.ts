@@ -15,6 +15,7 @@ import type { ProjectDraft } from "@/features/projects/types/project";
 import { QUICK_SEND_CTA_FALLBACK, QUICK_SEND_CTA_LABEL, commercialSignatureMode, emailParagraphs, formalQuoteSubject, normalizeEmailNewlines, quickSendBodyParagraphs, quoteDisplayFilename, quoteStorageKey, resolveQuickSendBody, withoutDuplicateSignature } from "./presentation";
 import { catalogCategoryForQuickSend, catalogPublicUrl, isCommercialCatalogCategory } from "./catalogs";
 import { normalizeQuoteOperationalConditions } from "./operational-conditions";
+import { normalizeEmailRecipients, normalizeOptionalEmail } from "@/lib/email/recipients";
 
 async function founder() {
   const client = await createSupabaseServerClient();
@@ -132,6 +133,8 @@ export async function createFormalQuoteAction(input: FormalQuoteDraft) {
   try {
     const { client, user } = await founder();
     if (!input.lines.length) throw new Error("Agrega al menos un ítem.");
+    normalizeOptionalEmail(input.email, "email principal");
+    normalizeOptionalEmail(input.secondaryEmail, "email secundario / CC");
     if (!input.existingCustomerId && input.saveTemporaryCustomer && !input.company.trim() && !input.contact.trim()) throw new Error("Ingresa un nombre antes de guardar el cliente.");
     const admin = createAdminClient();
     const quoteId = input.quoteId ?? input.requestId ?? crypto.randomUUID();
@@ -144,6 +147,7 @@ export async function createFormalQuoteAction(input: FormalQuoteDraft) {
           company: input.company.trim() || null,
           rut: input.rut.trim() || null,
           email: input.email.trim() ? input.email.trim().toLowerCase() : null,
+          secondary_email: normalizeOptionalEmail(input.secondaryEmail, "email secundario / CC"),
           phone: input.phone.trim() || null,
           address: input.address.trim() || null,
           metadata: { customerType: "COMPANY", source: "COMMERCIAL_QUOTE" },
@@ -243,13 +247,13 @@ export async function createFormalQuoteAction(input: FormalQuoteDraft) {
   }
 }
 
-export async function sendFormalQuoteAction(input: { quoteId: string; email: string; subject: string; body: string; requestId: string; catalogDocumentId?: string }) {
+export async function sendFormalQuoteAction(input: { quoteId: string; email: string; cc?: string[]; subject: string; body: string; requestId: string; catalogDocumentId?: string }) {
   try {
     const { user } = await founder();
-    if (!isCommercialEmail(input.email)) throw new Error("Ingresa un correo válido.");
+    const recipients = normalizeEmailRecipients({ to: input.email, cc: input.cc });
     const admin = createAdminClient();
     const [{ data: quote, error }, company] = await Promise.all([
-      admin.from("quotations").select("id,quotation_number,issue_date,expiration_date,customer_snapshot,commercial_snapshot,quotation_items(description,label,quantity,quoted_price,unit_price,total,display_order)").eq("id", input.quoteId).single(),
+      admin.from("quotations").select("id,quotation_number,issue_date,expiration_date,customer_id,project_id,customer_snapshot,commercial_snapshot,quotation_items(description,label,quantity,quoted_price,unit_price,total,display_order)").eq("id", input.quoteId).single(),
       loadCompanySettings(admin),
     ]);
     if (error || !quote) throw new Error("La cotización ya no está disponible.");
@@ -277,7 +281,7 @@ export async function sendFormalQuoteAction(input: { quoteId: string; email: str
     }
     const subject = normalizeEmailNewlines(input.subject || formalQuoteSubject(quote.quotation_number, customer.company || customer.contact)).replaceAll("\n", " ").trim();
     const body = normalizeEmailNewlines(input.body);
-    const { data: claim, error: claimError } = await admin.from("commercial_sends").insert({ idempotency_key: input.requestId, recipient_email: input.email.trim().toLowerCase(), category: "COMPANIES_QUOTE", quotation_id: quote.id, subject, body_snapshot: body, document_snapshot: { quote: quote.quotation_number, pdfPath, catalog: catalogSnapshot }, status: "PREPARING", sent_by: user.id }).select("id").single();
+    const { data: claim, error: claimError } = await admin.from("commercial_sends").insert({ idempotency_key: input.requestId, recipient_email: recipients.to, cc_recipients: recipients.cc, category: "COMPANIES_QUOTE", quotation_id: quote.id, customer_id: quote.customer_id, project_id: quote.project_id, subject, body_snapshot: body, document_snapshot: { quote: quote.quotation_number, pdfPath, catalog: catalogSnapshot }, status: "PREPARING", sent_by: user.id }).select("id").single();
     if (claimError) {
       if (claimError.code === "23505") return { ok: true as const, message: "Este envío ya está siendo procesado." };
       throw claimError;
@@ -288,7 +292,7 @@ export async function sendFormalQuoteAction(input: { quoteId: string; email: str
     const signature = signatureUrl ? `<p><img src="${escapeHtml(signatureUrl)}" alt="BOOMBOX" style="display:block;max-width:600px;width:100%;height:auto;border:0"></p>` : `<p>${signatureText}</p>`;
     const cleanBody = withoutDuplicateSignature(withoutDuplicateSignature(body, company.emailSignature || signatureText), signatureText);
     const htmlParagraphs = emailParagraphs(cleanBody).map((paragraph) => `<p style="margin:0 0 16px">${escapeHtml(paragraph).replaceAll("\n", "<br>")}</p>`).join("");
-    const sent = await new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken()).send({ to: input.email.trim().toLowerCase(), subject, textBody: `${cleanBody}\n\nCotización: ${pdfUrl.data.signedUrl}${catalogUrl ? `\nCatálogo: ${catalogUrl}` : ""}\n\n${signatureUrl ? "" : signatureText}`.trim(), htmlBody: `<main style="font-family:Arial,sans-serif;line-height:1.6">${htmlParagraphs}${links}${signature}</main>`, driveFileIds: [], attachments: [{ filename: quoteDisplayFilename(quote.quotation_number), mimeType: "application/pdf", content: new Uint8Array(pdf) }] });
+    const sent = await new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken()).send({ to: recipients.to, cc: recipients.cc, subject, textBody: `${cleanBody}\n\nCotización: ${pdfUrl.data.signedUrl}${catalogUrl ? `\nCatálogo: ${catalogUrl}` : ""}\n\n${signatureUrl ? "" : signatureText}`.trim(), htmlBody: `<main style="font-family:Arial,sans-serif;line-height:1.6">${htmlParagraphs}${links}${signature}</main>`, driveFileIds: [], attachments: [{ filename: quoteDisplayFilename(quote.quotation_number), mimeType: "application/pdf", content: new Uint8Array(pdf) }] });
     const timestamp = new Date().toISOString();
     const { error: sendError } = await admin.from("commercial_sends").update({ status: "SENT", external_message_id: sent.messageId, sent_at: timestamp }).eq("id", claim.id);
     if (sendError) throw sendError;
@@ -320,7 +324,7 @@ export async function convertCommercialQuoteAction(quoteId: string) {
       reservationTransactionId: crypto.randomUUID(),
       crmCustomerId: quote.customer_id ?? undefined,
       type: "Corporate",
-      client: { name: customer.contact || customer.company, company: customer.company || undefined, rut: customer.rut || undefined, email: customer.email || "", phone: customer.phone || "", address: customer.address || undefined },
+      client: { name: customer.contact || customer.company, company: customer.company || undefined, rut: customer.rut || undefined, email: customer.email || "", secondaryEmail: customer.secondaryEmail || "", phone: customer.phone || "", address: customer.address || undefined },
       event: { date: event.date, time: event.time, location: event.location, city: event.city, durationHours: 2, extras: items.filter((item) => !item.is_manual).map((item) => item.code) },
       services: items.filter((item) => !item.is_manual).map((item) => item.code),
       origin: "Other",

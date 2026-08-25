@@ -18,6 +18,7 @@ export function prepareFormalQuotePersistence(input: FormalQuoteDraft) {
     rut: input.rut,
     contact: input.contact,
     email: input.email,
+    secondaryEmail: input.secondaryEmail ?? "",
     phone: input.phone,
     address: input.address,
   };

@@ -2,6 +2,7 @@
 
 import { useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { EventCommercialDocumentHub } from "@/features/external-tax-documents/event-commercial-document-hub";
 import {
   AlertTriangle,
@@ -107,6 +108,7 @@ type Event360Data = {
   customer: {
     phone: string;
     email: string;
+    secondaryEmail: string;
     address: string;
     city: string;
     emergencyContact: string;
@@ -193,6 +195,7 @@ export type ProjectWorkspaceExperienceProps = Omit<
   ProjectHeaderProps,
   "status"
 > & {
+  customerId: string;
   projectKey?: string;
   portalStage?: CustomerPortalStage;
   eventDateIso?: string;
@@ -608,9 +611,21 @@ export function ProjectWorkspaceExperience(
                     value={event.customer.phone || "Sin registro"}
                   />
                   <Row
-                    label="Email"
+                    label="Email principal"
                     value={event.customer.email || "Sin registro"}
                   />
+                  <Row
+                    label="Email secundario / CC"
+                    value={event.customer.secondaryEmail || "Sin registro"}
+                  />
+                  <div className="mt-4">
+                    <Link
+                      className="inline-flex min-h-11 items-center rounded-xl border px-4 text-sm font-semibold text-brand"
+                      href={`/customers/${props.customerId}`}
+                    >
+                      Editar emails en Cliente
+                    </Link>
+                  </div>
                   <Row label="Dirección" value={event.customer.address} />
                   <Row label="Lugar" value={props.location} />
                   <Row label="Comuna" value={event.customer.city} />
