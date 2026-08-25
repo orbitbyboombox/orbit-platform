@@ -34,6 +34,7 @@ type SendState =
       providerMessageId: string | null;
       ccRecipients: string[];
       message: string;
+      warning?: string;
     }
   | {
       status: "error";
@@ -106,9 +107,10 @@ export function CollectionEmailComposer({
           communicationId: result.communicationId,
           providerMessageId: result.providerMessageId,
           message:
-            `✅ Email enviado a ${result.recipient}.` +
+            `✓ Email enviado a ${result.recipient}.` +
             (result.ccRecipients.length ? ` CC: ${result.ccRecipients.join(", ")}.` : "") +
             (result.deduplicated ? " Ya estaba registrado en el historial." : ""),
+          warning: result.warning,
         });
         router.refresh();
         return;
@@ -186,9 +188,16 @@ export function CollectionEmailComposer({
                   <div className="space-y-1">
                     <p className="font-medium">{sendState.message}</p>
                     {sendState.status === "success" ? (
-                      <p className="text-xs opacity-80">
-                        Enviado el {formatSentAt(sendState.sentAt)}.
-                      </p>
+                      <>
+                        <p className="text-xs opacity-80">
+                          Enviado el {formatSentAt(sendState.sentAt)}.
+                        </p>
+                        {sendState.warning ? (
+                          <p className="text-xs font-medium text-amber-800">
+                            {sendState.warning}
+                          </p>
+                        ) : null}
+                      </>
                     ) : null}
                   </div>
                 </div>
@@ -270,6 +279,7 @@ export function CollectionEmailComposer({
               />
               <Detail label="Marca" value={draft.bankDetails.companyLabel} />
             </div>
+            <CollectionEmailVisualPreview draft={draft} invoice={invoice} />
             <label className="block text-sm font-medium">
               Asunto
               <span className="mt-2 block">
@@ -295,7 +305,7 @@ export function CollectionEmailComposer({
             <div className="flex flex-col gap-3 border-t bg-card pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-4 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-xs text-muted">
                 {sendState.status === "success"
-                  ? `✅ Email enviado a ${sendState.recipient}.`
+                  ? `✓ Email enviado a ${sendState.recipient}.`
                   : sendState.status === "error"
                     ? sendState.message
                     : canSend
@@ -325,6 +335,103 @@ export function CollectionEmailComposer({
         </MobileDialog>
       )}
     </>
+  );
+}
+
+function CollectionEmailVisualPreview({
+  draft,
+  invoice,
+}: {
+  draft: ReturnType<typeof buildCollectionEmailDraft>;
+  invoice: ReceivableInvoice;
+}) {
+  const overdue = draft.templateKey === "OVERDUE";
+  return (
+    <section className="min-w-0 overflow-hidden rounded-2xl border bg-white text-zinc-900 shadow-sm">
+      <header className="border-b-4 border-orange-500 bg-zinc-950 px-5 py-5 text-white sm:px-6">
+        <p className="text-lg font-black tracking-[.12em]">BOOMBOX</p>
+        <p className="mt-1 text-[10px] font-semibold uppercase tracking-[.18em] text-orange-300">
+          Vista previa · cobranza comercial
+        </p>
+      </header>
+      <div className="min-w-0 space-y-5 p-5 sm:p-6">
+        <div>
+          <p className="text-base font-bold">Hola {invoice.customerName},</p>
+          <p className="mt-2 text-sm leading-6 text-zinc-600">
+            {overdue
+              ? "Queríamos recordarte que el saldo pendiente de tu evento se encuentra vencido."
+              : "Te escribimos para recordarte el saldo pendiente de tu evento."}
+          </p>
+        </div>
+        <div className="min-w-0 rounded-xl border bg-zinc-50 p-4">
+          <p className="text-[10px] font-bold uppercase tracking-[.16em] text-orange-600">
+            Detalle del evento
+          </p>
+          <div className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2">
+            <PreviewDetail label="Fecha" value={draft.eventDateLabel} />
+            {draft.eventLocation ? (
+              <PreviewDetail label="Lugar" value={draft.eventLocation} />
+            ) : null}
+            <PreviewDetail label="Servicio" value={draft.serviceLabel} />
+            <PreviewDetail label="Duración" value={draft.durationLabel} />
+          </div>
+        </div>
+        <div
+          className={`min-w-0 rounded-xl border-2 p-5 ${
+            overdue
+              ? "border-red-400 bg-red-50"
+              : "border-orange-400 bg-orange-50"
+          }`}
+        >
+          <p
+            className={`text-[10px] font-black uppercase tracking-[.16em] ${
+              overdue ? "text-red-700" : "text-orange-700"
+            }`}
+          >
+            {overdue ? "Saldo vencido pendiente" : "Saldo pendiente"}
+          </p>
+          <p className="mt-2 break-words text-3xl font-black text-zinc-950">
+            {draft.outstandingLabel}
+          </p>
+          <p className="mt-3 text-xs font-semibold text-zinc-600">
+            Fecha de pago / vencimiento: {draft.dueDateLabel}
+          </p>
+        </div>
+        <div className="min-w-0 rounded-xl bg-zinc-950 p-5 text-white">
+          <p className="text-[10px] font-bold uppercase tracking-[.16em] text-orange-300">
+            Datos para transferencia
+          </p>
+          <div className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2">
+            <PreviewDetail dark label="Banco" value={draft.bankDetails.bankName} />
+            <PreviewDetail dark label="Tipo de cuenta" value={draft.bankDetails.accountType} />
+            <PreviewDetail dark label="N° de cuenta" value={draft.bankDetails.accountNumber} />
+            <PreviewDetail dark label="RUT" value={draft.bankDetails.rut} />
+            <PreviewDetail dark label="Email" value={draft.bankDetails.email} />
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function PreviewDetail({
+  label,
+  value,
+  dark = false,
+}: {
+  label: string;
+  value: string;
+  dark?: boolean;
+}) {
+  return (
+    <div className="min-w-0">
+      <p className={`text-[9px] font-bold uppercase tracking-wide ${dark ? "text-zinc-400" : "text-zinc-500"}`}>
+        {label}
+      </p>
+      <p className={`mt-1 break-words text-sm font-semibold ${dark ? "text-white" : "text-zinc-900"}`}>
+        {value}
+      </p>
+    </div>
   );
 }
 

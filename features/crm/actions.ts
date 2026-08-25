@@ -393,6 +393,13 @@ export async function updateCrmEventAction(input: {
       p_changes: {
         date: input.date,
         time: input.time,
+        ...(input.date && input.time && input.serviceEndAt
+          ? {
+              serviceStartLocal: `${input.date}T${input.time}`,
+              serviceEndLocal: input.serviceEndAt,
+              staffCallLocal: input.staffCallAt || "",
+            }
+          : {}),
         type: input.type,
         location: input.location,
         ...(input.eventAddress !== undefined
@@ -411,7 +418,6 @@ export async function updateCrmEventAction(input: {
       p_reason: input.reason,
     });
     if (error) throw error;
-    if(input.date&&input.time&&input.serviceEndAt){const{error:scheduleError}=await client.rpc("update_event_service_schedule",{p_project_id:input.projectId,p_service_start_local:`${input.date}T${input.time}`,p_service_end_local:input.serviceEndAt,p_staff_call_local:input.staffCallAt||null});if(scheduleError)throw scheduleError;}
     const synchronization = await Promise.allSettled([
       synchronizeConfirmedReservationCalendar({ client, projectId: input.projectId, actorId: user.id, operation: "UPSERT", requireCommercialReadiness: false }),
       synchronizeConfirmedReservationDrive({ client, projectId: input.projectId, actorId: user.id, recordTimeline: true }),
@@ -420,12 +426,15 @@ export async function updateCrmEventAction(input: {
     revalidatePath(`/projects/${input.projectId}`);
     revalidatePath("/projects");
     revalidatePath("/events");
+    revalidatePath("/operations");
+    revalidatePath("/finance/collections");
     revalidateCustomerSurfaces(input.projectId);
     const failedSynchronizations = synchronization.filter(
       (result) => result.status === "rejected",
     ).length;
     return {
       ok: true as const,
+      message: "✓ Evento actualizado correctamente",
       warning:
         failedSynchronizations > 0
           ? "El Evento fue actualizado. Google Workspace quedó pendiente de sincronización."

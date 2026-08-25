@@ -211,12 +211,14 @@ test("generated commercial PDF separates service hours and extras", async () => 
 test("generated PDF preserves the existing real commercial totals", async () => {
   const presentation = commercial();
   const pdf = await createSignedAgreementPdf({
-    quotationNumber: "2026-826", customer: "Jenniffer Chavez", customerRut: "90.413.000-1", customerEmail: "jfchave@ccu.cl", customerPhone: "+56 9 3194 6000", event: "Evento corporativo", eventDate: "2026-09-14", eventTime: "14:00", services: presentation.service, hours: presentation.duration, extras: presentation.extrasLabel, venue: "Av Vitacura 2680", address: "Las Condes", operationalContact: "Equipo BOOMBOX", finalCustomerPrice: 345_100, agreementVersion: "RC-16", verificationCode: "SAFE-PREVIEW", portalUrl: "https://orbit.boom-box.cl/portal", documentMode: "COMMERCIAL_DOCUMENT", branding: { productName: "ORBIT", productVersion: "v1.0", brandName: "BOOMBOX", poweredBy: "NOVA CORE", footer: "Documento emitido por BOOMBOX mediante ORBIT.", currency: "CLP", locale: "es-CL", timezone: "America/Santiago" },
+    quotationNumber: "2026-826", customer: "Jenniffer Chavez", customerRut: "90.413.000-1", customerEmail: "jfchave@ccu.cl", customerPhone: "+56 9 3194 6000", event: "Evento corporativo", eventDate: "2026-09-14", eventTime: "14:00", services: presentation.service, hours: presentation.duration, extras: presentation.extrasLabel, venue: "Av Vitacura 2680", address: "Las Condes", operationalContact: "Equipo BOOMBOX", finalCustomerPrice: 345_100, companyCommercial: true, netAmount: 290_000, vatAmount: 55_100, depositPercent: 50, depositAmount: 172_550, balanceAmount: 172_550, agreementVersion: "RC-16", verificationCode: "SAFE-PREVIEW", portalUrl: "https://orbit.boom-box.cl/portal", documentMode: "COMMERCIAL_DOCUMENT", branding: { productName: "ORBIT", productVersion: "v1.0", brandName: "BOOMBOX", poweredBy: "NOVA CORE", footer: "Documento emitido por BOOMBOX mediante ORBIT.", currency: "CLP", locale: "es-CL", timezone: "America/Santiago" },
   });
   const text = (await pdfText(pdf)).join(" ");
-  assert.match(text, /RESERVA 50%\s+\$172\.550/);
-  assert.match(text, /SALDO RESTANTE\s+\$172\.550/);
-  assert.match(text, /PRECIO FINAL CLIENTE\s+\$345\.100/);
+  assert.match(text, /NETO\s+\$290\.000/);
+  assert.match(text, /IVA 19%\s+\$55\.100/);
+  assert.match(text, /PRECIO TOTAL\s+\$345\.100/);
+  assert.match(text, /La reserva se confirma con un abono del 50% del valor total/);
+  assert.doesNotMatch(text, /RESERVA 50%|SALDO RESTANTE/);
 });
 
 test("email and both PDF paths consume the one shared presentation model", () => {

@@ -105,9 +105,9 @@ test("collection email action is Founder-only, canonical and idempotent", () => 
   assert.match(action, /providerMessageId/);
   assert.match(action, /timeline_events/);
   assert.match(action, /COLLECTION_EMAIL_SENT/);
-  assert.match(action, /revalidatePath\("\/finance\/receivables"\)/);
-  assert.match(action, /revalidatePath\("\/finance\/collections"\)/);
-  assert.match(action, /revalidatePath\(`\/customers\/\$\{data\.customer_id\}`\)/);
+  assert.match(action, /"\/finance\/receivables"/);
+  assert.match(action, /"\/finance\/collections"/);
+  assert.match(action, /`\/customers\/\$\{data\.customer_id\}`/);
 });
 
 test("receivables center exposes the collection composer and last notice label", () => {
@@ -130,13 +130,13 @@ test("collection center provides the founder operational workflow and bank detai
 });
 
 test("navigation and finance pages expose the new collection center", () => {
-  assert.match(navigation, /Cobrar a Clientes/);
+  assert.match(navigation, /COBRAR CLIENTES/);
   assert.match(navigation, /\/finance\/collections/);
   assert.match(collectionPage, /resolveCollectionBankDetails/);
   assert.match(collectionPage, /CollectionCenter/);
   assert.match(receivablesPage, /resolveCollectionBankDetails/);
   assert.match(receivablesPage, /AccountsReceivableCenter/);
-  assert.match(founderWorkspaceCatalog, /hiddenNavigation: \["COLLECTIONS"\]/);
+  assert.match(founderWorkspaceCatalog, /hiddenNavigation: \[\]/);
   assert.match(founderWorkspaceRepository, /newNavigation\.filter/);
   assert.match(founderWorkspaceRepository, /DEFAULT_WORKSPACE\.hiddenNavigation\.includes/);
 });
@@ -158,7 +158,7 @@ test("composer uses the canonical mobile dialog and request id gate", () => {
   assert.match(composer, /dismissOnOverlayClick={false}/);
   assert.match(composer, /Enviando\.\.\./);
   assert.match(composer, /EMAIL ENVIADO/);
-  assert.match(composer, /✅ Email enviado a/);
+  assert.match(composer, /✓ Email enviado a/);
   assert.match(composer, /❌ No se pudo enviar el email/);
   assert.match(composer, /aria-live="polite"/);
 });

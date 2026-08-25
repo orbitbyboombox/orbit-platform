@@ -6,6 +6,7 @@ export interface SignedAgreementPdfInput {
   quotationNumber: string; customer: string; customerRut: string; customerEmail: string; customerPhone: string;
   event: string; eventDate: string; eventTime: string; services: string; hours: string; extras: string;
   venue: string; address: string; operationalContact: string; finalCustomerPrice: number;
+  companyCommercial?: boolean; netAmount?: number; vatAmount?: number; depositPercent?: number; depositAmount?: number; balanceAmount?: number;
   signaturePng?: Uint8Array; signedAt?: string; agreementVersion: string; verificationCode: string; portalUrl: string;
   documentMode?: "SIGNED_CONTRACT" | "COMMERCIAL_DOCUMENT";
   branding:{productName:string;productVersion:string;brandName:string;poweredBy:string;footer:string;currency:string;locale:string;timezone:string};
@@ -13,8 +14,8 @@ export interface SignedAgreementPdfInput {
 
 const PAGE:[number,number]=[595.28,841.89];
 const orange=rgb(247/255,137/255,0); const dark=rgb(0.055,0.058,0.065); const ink=rgb(0.12,0.13,0.15); const muted=rgb(0.38,0.40,0.44); const pale=rgb(0.965,0.967,0.972);
-const terms = [
-  ["Reserva y pago", "La fecha quedará reservada una vez firmado el contrato y abonado el 50% del valor total. El saldo restante deberá pagarse durante la semana previa al evento. La reserva no es reembolsable, pues bloquea exclusivamente la fecha y horario seleccionados."],
+const terms = (depositPercent:number) => [
+  ["Reserva y pago", `La reserva se confirma con un abono del ${depositPercent}% del valor total. El saldo restante deberá pagarse durante la semana previa al evento. La reserva no es reembolsable, pues bloquea exclusivamente la fecha y horario seleccionados.`],
   ["Reprogramación", "El cliente podrá solicitar un cambio de fecha, sujeto a disponibilidad de BOOMBOX. Los valores podrán actualizarse si la nueva fecha corresponde a otra temporada, ubicación o condición de servicio. La reserva podrá cederse a otra persona previa autorización escrita."],
   ["Horario contratado", "El servicio comenzará y finalizará en el horario acordado. Los atrasos propios del evento no extenderán automáticamente el servicio. Toda hora adicional deberá ser solicitada y pagada, quedando sujeta a disponibilidad."],
   ["Acceso e instalación", "El cliente deberá asegurar acceso oportuno al recinto, un espacio adecuado y conexión eléctrica independiente de 220 V. Los costos generados por esperas, restricciones o una segunda visita podrán cobrarse adicionalmente."],
@@ -29,6 +30,10 @@ const terms = [
 export async function createSignedAgreementPdf(input: SignedAgreementPdfInput): Promise<Uint8Array> {
   const pdf=await PDFDocument.create(); const font=await pdf.embedFont(StandardFonts.Helvetica); const bold=await pdf.embedFont(StandardFonts.HelveticaBold);
   const commercialDocument=input.documentMode==="COMMERCIAL_DOCUMENT";
+  const total=input.finalCustomerPrice;
+  const depositPercent=Number.isFinite(input.depositPercent)?Number(input.depositPercent):50;
+  const net=Number.isFinite(input.netAmount)?Number(input.netAmount):Math.max(0,total-Number(input.vatAmount??0));
+  const vat=Number.isFinite(input.vatAmount)?Number(input.vatAmount):Math.max(0,total-net);
   pdf.setTitle(`${commercialDocument?"Documento comercial":"Contrato"} BOOMBOX ${input.quotationNumber}`); pdf.setAuthor(input.branding.brandName); pdf.setSubject(commercialDocument?"Documento comercial oficial":"Contrato oficial firmado digitalmente");
   const money=(value:number)=>new Intl.NumberFormat(input.branding.locale,{style:"currency",currency:input.branding.currency,maximumFractionDigits:0}).format(value);
 
@@ -42,12 +47,14 @@ export async function createSignedAgreementPdf(input: SignedAgreementPdfInput): 
 
   const commercial=addPage(pdf,font,bold,input,"Servicio contratado");
   sectionTitle(commercial,bold,"EXPERIENCIA CONTRATADA",692); drawRows(commercial,font,bold,[["Servicio",input.services],["Horas",input.hours],["Extras",input.extras],["Lugar",input.venue]],660);
-  sectionTitle(commercial,bold,"RESUMEN COMERCIAL",472); drawRows(commercial,font,bold,[["Reserva 50%",money(Math.round(input.finalCustomerPrice/2))],["Saldo restante",money(input.finalCustomerPrice-Math.round(input.finalCustomerPrice/2))],["PRECIO FINAL CLIENTE",money(input.finalCustomerPrice)]],440,true);
-  commercial.drawText("El cliente visualiza y acepta el precio final indicado en este contrato.",{x:42,y:220,size:9,font,color:muted});
+  const commercialRows:Array<[string,string]>=input.companyCommercial?[["Neto",money(net)],["IVA 19%",money(vat)],["PRECIO TOTAL",money(total)]]:[["PRECIO TOTAL",money(total)]];
+  sectionTitle(commercial,bold,"RESUMEN COMERCIAL",472); drawRows(commercial,font,bold,commercialRows,440,true);
+  commercial.drawText(`La reserva se confirma con un abono del ${depositPercent}% del valor total.`,{x:42,y:285,size:10,font:bold,color:ink});
+  commercial.drawText("El cliente visualiza y acepta el precio total indicado en este contrato.",{x:42,y:250,size:9,font,color:muted});
 
   for(let pageIndex=0;pageIndex<2;pageIndex++){
     const page=addPage(pdf,font,bold,input,`Términos y Condiciones · ${pageIndex+1}/2`); let y=690;
-    for(const [index,[title,body]] of terms.entries()){
+    for(const [index,[title,body]] of terms(depositPercent).entries()){
       if(Math.floor(index/5)!==pageIndex)continue;
       page.drawText(`${index+1}. ${safe(title)}`,{x:42,y,size:11,font:bold,color:ink}); y-=20;
       y=drawWrapped(page,safe(body),42,y,510,10,15,font,muted)-22;
@@ -86,7 +93,7 @@ export async function createSignedAgreementPdf(input: SignedAgreementPdfInput): 
 
 function addPage(pdf:PDFDocument,font:PDFFont,bold:PDFFont,input:SignedAgreementPdfInput,title:string){const page=pdf.addPage(PAGE);page.drawRectangle({x:0,y:760,width:PAGE[0],height:82,color:dark});page.drawText(safe(input.branding.brandName).toUpperCase(),{x:42,y:797,size:12,font:bold,color:orange});page.drawText(safe(title),{x:42,y:775,size:10,font,color:rgb(.85,.86,.88)});page.drawText(safe(input.branding.footer),{x:42,y:36,size:8,font,color:muted});return page;}
 function sectionTitle(page:PDFPage,bold:PDFFont,title:string,y:number){page.drawText(title,{x:42,y,size:9,font:bold,color:orange});page.drawLine({start:{x:42,y:y-10},end:{x:553,y:y-10},thickness:.7,color:rgb(.85,.86,.88)});}
-function drawRows(page:PDFPage,font:PDFFont,bold:PDFFont,rows:Array<[string,string]>,startY:number,emphasizeLast=false){let y=startY;for(const [index,[label,value]] of rows.entries()){const emphasized=emphasizeLast&&index===2;page.drawText(safe(label).toUpperCase(),{x:42,y,size:8,font:bold,color:muted});page.drawText(safe(value).slice(0,76),{x:205,y,size:emphasized?13:10,font:emphasized?bold:font,color:emphasized?orange:ink});y-=36;}return y;}
+function drawRows(page:PDFPage,font:PDFFont,bold:PDFFont,rows:Array<[string,string]>,startY:number,emphasizeLast=false){let y=startY;for(const [index,[label,value]] of rows.entries()){const emphasized=emphasizeLast&&index===rows.length-1;page.drawText(safe(label).toUpperCase(),{x:42,y,size:8,font:bold,color:muted});page.drawText(safe(value).slice(0,76),{x:205,y,size:emphasized?13:10,font:emphasized?bold:font,color:emphasized?orange:ink});y-=36;}return y;}
 function drawTransferRows(page:PDFPage,font:PDFFont,bold:PDFFont,rows:Array<[string,string]>,startY:number){let y=startY;for(const[label,value]of rows){page.drawText(safe(label).toUpperCase(),{x:60,y,size:8,font:bold,color:muted});page.drawText(safe(value),{x:250,y,size:10,font,color:ink});y-=36;}return y;}
 function drawWrapped(page:PDFPage,text:string,x:number,y:number,maxWidth:number,size:number,lineHeight:number,font:PDFFont,color=ink){const words=text.split(/\s+/);let line="";for(const word of words){const next=line?`${line} ${word}`:word;if(font.widthOfTextAtSize(next,size)>maxWidth&&line){page.drawText(line,{x,y,size,font,color});y-=lineHeight;line=word;}else line=next;}if(line){page.drawText(line,{x,y,size,font,color});y-=lineHeight;}return y;}
 function safe(value:string):string{return String(value??"").replace(/[^\x20-\x7EÀ-ÿ·]/g," ");}

@@ -9,6 +9,7 @@ import { GoogleGmailApiProvider } from "@/features/connectors/google-gmail/provi
 import { resolveCollectionBankDetails } from "./collection-bank-details";
 import {
   buildCollectionEmailDraft,
+  buildCollectionEmailHtml,
   collectionDraftFingerprint,
 } from "./collection-email.template";
 import type { ReceivableInvoice } from "./types";
@@ -23,6 +24,7 @@ export type CollectionEmailSendSuccess = {
   communicationId: string;
   providerMessageId: string | null;
   deduplicated?: boolean;
+  warning?: string;
 };
 
 type Result = CollectionEmailSendSuccess | { ok: false; error: string };
@@ -34,15 +36,6 @@ const fail = (error: unknown): { ok: false; error: string } => ({
       ? error.message
       : "No fue posible completar la operación.",
 });
-
-const toHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;")
-    .replace(/\n/g, "<br />");
 
 function normalizeText(value: FormDataEntryValue | null, fallback: string) {
   const text = String(value ?? "").trim();
@@ -205,94 +198,143 @@ export async function sendCollectionEmailAction(
       };
     }
 
-    let sentAt = now;
-    let providerMessageId: string | null = null;
-    const { data: communication, error: communicationError } = await client
-      .from("communications")
-      .insert({
-        customer_id: data.customer_id,
-        project_id: data.project_id,
-        channel: "GMAIL",
-        direction: "OUTBOUND",
-        communication_type: "COLLECTION_EMAIL",
-        thread_key: threadKey,
-        subject,
-        body,
-        status: "PENDING",
-        to_recipient: recipients.to,
-        cc_recipients: recipients.cc,
-        occurred_at: now,
-        created_by: userId,
-      })
-      .select("id")
-      .single();
-    if (communicationError) throw communicationError;
+    if (existing?.id && existing.status === "PENDING") {
+      throw new Error(
+        "Este envío ya se está procesando. Revisa el historial antes de intentar nuevamente.",
+      );
+    }
 
+    let communication: { id: string };
+    if (existing?.id && existing.status === "FAILED") {
+      const { data: retried, error: retryError } = await client
+        .from("communications")
+        .update({
+          subject,
+          body,
+          status: "PENDING",
+          to_recipient: recipients.to,
+          cc_recipients: recipients.cc,
+          occurred_at: now,
+        })
+        .eq("id", existing.id)
+        .select("id")
+        .single();
+      if (retryError) throw retryError;
+      communication = retried;
+    } else {
+      const { data: created, error: communicationError } = await client
+        .from("communications")
+        .insert({
+          customer_id: data.customer_id,
+          project_id: data.project_id,
+          channel: "GMAIL",
+          direction: "OUTBOUND",
+          communication_type: "COLLECTION_EMAIL",
+          thread_key: threadKey,
+          subject,
+          body,
+          status: "PENDING",
+          to_recipient: recipients.to,
+          cc_recipients: recipients.cc,
+          occurred_at: now,
+          created_by: userId,
+        })
+        .select("id")
+        .single();
+      if (communicationError) throw communicationError;
+      communication = created;
+    }
+
+    let sent;
     try {
-      const sent = await new GoogleGmailApiProvider(
+      sent = await new GoogleGmailApiProvider(
         await loadGoogleWorkspaceAccessToken(),
       ).send({
         to: recipients.to,
         cc: recipients.cc,
         subject,
         textBody: body,
-        htmlBody: `<main style="font-family:Arial,sans-serif;color:#171717;line-height:1.6">${toHtml(
-          body,
-        )}</main>`,
+        htmlBody: buildCollectionEmailHtml(draft, body),
         driveFileIds: [],
       });
-      sentAt = new Date().toISOString();
-      providerMessageId = sent.messageId;
-      const { error: updateError } = await client
+    } catch (providerError) {
+      await client
+        .from("communications")
+        .update({ status: "FAILED", occurred_at: new Date().toISOString() })
+        .eq("id", communication.id);
+      throw providerError;
+    }
+
+    const sentAt = new Date().toISOString();
+    const providerMessageId = sent.messageId;
+    const warnings: string[] = [];
+    let { error: statusError } = await client
+      .from("communications")
+      .update({
+        status: "SENT",
+        external_message_id: providerMessageId,
+        occurred_at: sentAt,
+      })
+      .eq("id", communication.id);
+    if (statusError) {
+      const retry = await client
         .from("communications")
         .update({
           status: "SENT",
-          external_message_id: sent.messageId,
+          external_message_id: providerMessageId,
           occurred_at: sentAt,
         })
         .eq("id", communication.id);
-      if (updateError) throw updateError;
-      const { error: timelineError } = await client.from("timeline_events").insert({
-        customer_id: data.customer_id,
-        project_id: data.project_id,
-        orbit_event_id: data.orbit_event_id,
-        event_type: "COLLECTION_EMAIL_SENT",
-        title: "Cobranza por email enviada",
-        description: `Founder envió una cobranza por email por ${Number(
-          data.outstanding_balance,
-        ).toLocaleString("es-CL", {
-          style: "currency",
-          currency: "CLP",
-          maximumFractionDigits: 0,
-        })}.`,
-        actor_id: userId,
-        actor_label: "Founder",
-        source: "Accounts Receivable",
-        action: "COLLECTION_EMAIL_SENT",
-        entity_type: "Communication",
-        entity_id: communication.id,
-        human_message: "Cobranza por email enviada al cliente.",
-        correlation_id: `collection-email:${communication.id}`,
-        communication_id: communication.id,
-        created_by: userId,
-      });
-      if (timelineError) throw timelineError;
-    } catch (error) {
-      await client
-        .from("communications")
-        .update({
-          status: "FAILED",
-          occurred_at: new Date().toISOString(),
-        })
-        .eq("id", communication.id);
-      throw error;
+      statusError = retry.error;
+    }
+    if (statusError) {
+      warnings.push(
+        "El proveedor confirmó el envío, pero el historial requiere revisión.",
+      );
     }
 
-    revalidatePath("/finance/receivables");
-    revalidatePath(`/customers/${data.customer_id}`);
-    revalidatePath(`/projects/${data.project_id}`);
-    revalidatePath("/finance");
-    revalidatePath("/finance/collections");
+    const { error: timelineError } = await client.from("timeline_events").insert({
+      customer_id: data.customer_id,
+      project_id: data.project_id,
+      orbit_event_id: data.orbit_event_id,
+      event_type: "COLLECTION_EMAIL_SENT",
+      title: "Cobranza por email enviada",
+      description: `Founder envió una cobranza por email por ${Number(
+        data.outstanding_balance,
+      ).toLocaleString("es-CL", {
+        style: "currency",
+        currency: "CLP",
+        maximumFractionDigits: 0,
+      })}.`,
+      actor_id: userId,
+      actor_label: "Founder",
+      source: "Accounts Receivable",
+      action: "COLLECTION_EMAIL_SENT",
+      entity_type: "Communication",
+      entity_id: communication.id,
+      human_message: "Cobranza por email enviada al cliente.",
+      correlation_id: `collection-email:${communication.id}`,
+      communication_id: communication.id,
+      created_by: userId,
+    });
+    if (timelineError) {
+      warnings.push("El email fue enviado; Timeline quedó pendiente de actualizar.");
+    }
+
+    for (const path of [
+      "/finance/receivables",
+      `/customers/${data.customer_id}`,
+      `/projects/${data.project_id}`,
+      "/finance",
+      "/finance/collections",
+    ]) {
+      try {
+        revalidatePath(path);
+      } catch {
+        if (!warnings.includes("El email fue enviado; la vista requiere recarga manual."))
+          warnings.push("El email fue enviado; la vista requiere recarga manual.");
+      }
+    }
     return {
       ok: true,
       recipient: recipients.to,
@@ -300,6 +342,7 @@ export async function sendCollectionEmailAction(
       sentAt,
       communicationId: communication.id,
       providerMessageId,
+      warning: warnings.join(" ") || undefined,
     };
   } catch (error) {
     return fail(error);

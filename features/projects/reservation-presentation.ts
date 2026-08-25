@@ -25,6 +25,70 @@ export type CustomerCommercialPresentationInput = DurationPresentationInput & {
   commercialItems?: CustomerCommercialItem[];
 };
 
+export type AcceptedCommercialFinancialFallback = {
+  subtotal?: number | null;
+  discountTotal?: number | null;
+  taxTotal?: number | null;
+  grandTotal?: number | null;
+  finalCustomerPrice?: number | null;
+  depositPercent?: number | null;
+};
+
+const record = (value: unknown): Record<string, unknown> =>
+  value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+
+const finite = (value: unknown, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+export function acceptedCommercialFinancialPresentation(
+  acceptedSnapshot: unknown,
+  fallback: AcceptedCommercialFinancialFallback = {},
+) {
+  const snapshot = record(acceptedSnapshot);
+  const commercial = record(snapshot.commercial);
+  const quotation = record(snapshot.quotation);
+  const subtotal = finite(
+    commercial.subtotal,
+    finite(quotation.subtotal, finite(fallback.subtotal)),
+  );
+  const discount = finite(
+    commercial.discount,
+    finite(quotation.discountTotal, finite(fallback.discountTotal)),
+  );
+  const net = finite(commercial.net, Math.max(0, subtotal - discount));
+  const vat = finite(
+    commercial.tax,
+    finite(quotation.taxTotal, finite(fallback.taxTotal)),
+  );
+  const total = finite(
+    commercial.total,
+    finite(
+      quotation.grandTotal,
+      finite(
+        fallback.finalCustomerPrice,
+        finite(fallback.grandTotal, net + vat),
+      ),
+    ),
+  );
+  const depositPercent = finite(
+    commercial.depositPercent,
+    finite(quotation.depositPercent, finite(fallback.depositPercent, 50)),
+  );
+  const deposit = finite(
+    commercial.deposit,
+    Math.round((total * depositPercent) / 100),
+  );
+  const balance = finite(
+    commercial.balance,
+    Math.max(0, total - deposit),
+  );
+  return { net, vat, total, depositPercent, deposit, balance };
+}
+
 export function customerCommercialItemsFromSnapshot(
   acceptedSnapshot: unknown,
 ): CustomerCommercialItem[] {

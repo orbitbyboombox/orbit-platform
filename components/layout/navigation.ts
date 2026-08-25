@@ -54,6 +54,13 @@ export const navigationItems: readonly NavigationItem[] = [
     module: "DASHBOARD",
   },
   {
+    key: "COLLECTIONS",
+    label: "COBRAR CLIENTES",
+    href: "/finance/collections",
+    icon: Mail,
+    module: "FINANCE",
+  },
+  {
     key: "CUSTOMERS",
     label: "Clientes",
     href: "/customers",
@@ -100,13 +107,6 @@ export const navigationItems: readonly NavigationItem[] = [
     label: "Cuentas por Cobrar",
     href: "/finance/receivables",
     icon: ReceiptText,
-    module: "FINANCE",
-  },
-  {
-    key: "COLLECTIONS",
-    label: "Cobrar a Clientes",
-    href: "/finance/collections",
-    icon: Mail,
     module: "FINANCE",
   },
   {
