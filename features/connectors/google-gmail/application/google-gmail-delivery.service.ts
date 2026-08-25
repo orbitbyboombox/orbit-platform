@@ -106,7 +106,7 @@ export async function deliverFounderReservationNotification(input: { projectId: 
     amount,
     paymentStatus,
     customerType,
-    contractStatus: agreement?.status === "SIGNED" && Boolean(agreement.drive_file_id) ? "SIGNED" : agreement?.drive_file_id ? "DOCUMENT_AVAILABLE" : "PENDING",
+    contractStatus: agreement?.status === "SIGNED" && Boolean(agreement.drive_file_id) ? "SIGNED" : "PENDING",
     integrations: [
       { label: "Cliente", ready: Boolean(customer?.full_name) },
       { label: "Evento", ready: Boolean(project.id && project.orbit_event_id) },

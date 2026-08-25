@@ -38,7 +38,7 @@ export type FounderReservationNotificationInput = {
   amount: number;
   paymentStatus: string;
   customerType: string;
-  contractStatus: "SIGNED" | "DOCUMENT_AVAILABLE" | "PENDING";
+  contractStatus: "SIGNED" | "PENDING";
   integrations: Array<{ label: string; ready: boolean }>;
 };
 
@@ -48,9 +48,7 @@ export function renderFounderReservationNotification(
   const contract =
     input.contractStatus === "SIGNED"
       ? "Firmado"
-      : input.contractStatus === "DOCUMENT_AVAILABLE"
-        ? "Documento comercial disponible"
-        : "Pendiente";
+      : "Pendiente";
   const rows = [
     ["Cliente", currentCustomerContact(input.customer)],
     ["Número de reserva", input.quotationNumber ?? input.orbitEventId ?? "—"],
