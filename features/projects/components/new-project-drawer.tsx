@@ -35,6 +35,7 @@ import { formatChileanRut, isValidChileanRut, normalizeChileanMobileLocal, norma
 import { isValidOptionalEmail } from "@/lib/email/recipients";
 import { sendAutomaticBookingInvitationAction } from "@/features/automatic-booking/actions";
 import { sendManualReservationConfirmationAction } from "../actions/customer.actions";
+import { attachCustomerPurchaseOrderAction } from "@/features/commercial-documents/actions";
 import {
   projectOrigins,
   projectTypes,
@@ -512,6 +513,7 @@ export function NewProjectDrawer({
   const [creditTerm, setCreditTerm] = useState<CreditTerm>("CASH");
   const [customCreditDays, setCustomCreditDays] = useState(0);
   const [purchaseOrder, setPurchaseOrder] = useState("");
+  const [purchaseOrderFile, setPurchaseOrderFile] = useState<File | null>(null);
   const [receipt, setReceipt] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [retryingTransaction, setRetryingTransaction] = useState(false);
@@ -976,6 +978,7 @@ export function NewProjectDrawer({
     setCreditTerm("CASH");
     setCustomCreditDays(0);
     setPurchaseOrder("");
+    setPurchaseOrderFile(null);
     setReceipt("");
     setSubmitting(false);
     setRetryingTransaction(false);
@@ -1240,6 +1243,20 @@ export function NewProjectDrawer({
         }),
       );
       setCreatedProject(project);
+      if (purchaseOrderFile) {
+        const purchaseOrderData = new FormData();
+        purchaseOrderData.set("projectId", project.id);
+        purchaseOrderData.set("purchaseOrderNumber", purchaseOrder);
+        purchaseOrderData.set("file", purchaseOrderFile);
+        const purchaseOrderResult =
+          await attachCustomerPurchaseOrderAction(purchaseOrderData);
+        if (!purchaseOrderResult.ok)
+          setPortalMessage(
+            `Reserva creada. La OC quedó pendiente: ${purchaseOrderResult.error}`,
+          );
+        else if (purchaseOrderResult.warning)
+          setPortalMessage(purchaseOrderResult.warning);
+      }
       window.localStorage.removeItem(manualReservationDraftKey);
       setStep(6);
     } catch (cause) {
@@ -2466,6 +2483,20 @@ export function NewProjectDrawer({
                         onChange={(e) => setPurchaseOrder(e.target.value)}
                         value={purchaseOrder}
                       />
+                      <label className="block text-sm font-medium">
+                        ADJUNTAR OC CLIENTE (opcional)
+                        <input
+                          accept="application/pdf,image/jpeg,image/png"
+                          className="mt-2 block min-h-11 w-full min-w-0 rounded-xl border bg-background p-2"
+                          onChange={(event) =>
+                            setPurchaseOrderFile(event.target.files?.[0] ?? null)
+                          }
+                          type="file"
+                        />
+                        <span className="mt-2 block text-xs text-muted">
+                          PDF, JPG, JPEG o PNG. Se guardará en el archivo protegido del Evento.
+                        </span>
+                      </label>
                       <dl className="grid gap-3 rounded-xl bg-background/40 p-4 text-sm sm:grid-cols-2">
                         <div>
                           <dt className="text-muted">Factura</dt>

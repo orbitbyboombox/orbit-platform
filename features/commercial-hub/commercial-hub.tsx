@@ -20,8 +20,9 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import {
+  acceptCommercialQuoteAction,
   createFormalQuoteAction,
-  convertCommercialQuoteAction,
+  loadCommercialQuoteConversionReviewAction,
   sendCommercialInformationAction,
   sendFormalQuoteAction,
 } from "./actions";
@@ -39,6 +40,8 @@ import { PdfViewer } from "./pdf-viewer";
 import { getCommercialDocumentUrlAction } from "./settings.actions";
 import { activeCommercialDocument, catalogCategoryForQuickSend, catalogPublicPath, pendingCommercialDocuments } from "./catalogs";
 import { formatChileanRut } from "@/lib/chile/rut";
+import { QuoteConversionReviewDialog } from "./quote-conversion-review";
+import type { QuoteConversionReview } from "./quote-conversion";
 
 const money = new Intl.NumberFormat("es-CL", {
   style: "currency",
@@ -805,7 +808,8 @@ function FormalQuoteDelivery({ quote, email, secondaryEmail, company, contact, c
       <Field label="Asunto"><input value={subject} onChange={(e) => setSubject(e.target.value)} /></Field>
       <Field label="Mensaje"><textarea className="min-h-44" value={body} onChange={(e) => setBody(e.target.value)} /></Field>
       <div className="rounded-xl border bg-background p-4 text-sm"><p className="font-semibold">Adjuntos</p><p className="mt-2">{quoteDisplayFilename(quote.number)}</p>{catalog && <label className="mt-3 flex items-center gap-2"><input type="checkbox" checked={attachCatalog} onChange={(e) => onAttachCatalog(e.target.checked)} />Catálogo vigente: {catalog.name} · {catalog.version}</label>}</div>
-      <div className="grid gap-3 sm:grid-cols-3"><Button onClick={() => setPdfOpen(true)} variant="outline"><FileDown />Abrir PDF</Button><Button disabled={pending} onClick={() => { if (!recipient.trim()) { setMessage("Ingresa un correo válido para enviar."); return; } const cc = ccInput.split(/[\n,;]+/).map((value) => value.trim()).filter(Boolean); const ccLabel = cc.length ? ` con copia a ${cc.join(", ")}` : ""; if (!window.confirm(`¿Enviar ${quote.number} a ${recipient}${ccLabel}?`)) return; start(async () => { const result = await sendFormalQuoteAction({ quoteId: quote.id, email: recipient, cc, subject, body: normalizeEmailNewlines(body), requestId, catalogDocumentId: attachCatalog ? catalog?.id : undefined }); setMessage(result.ok ? result.message : result.error); if (result.ok) setRequestId(uid()); }); }}><Send />{pending ? "Enviando…" : "Enviar email"}</Button><Button disabled={pending} variant="outline" onClick={() => { if (!window.confirm(`¿Convertir ${quote.number} en Reserva usando el pipeline oficial?`)) return; start(async () => { const result = await convertCommercialQuoteAction(quote.id); setMessage(result.ok ? result.message : result.error); if (result.ok && result.projectId) window.location.href = `/projects/${result.projectId}`; }); }}>Convertir en reserva</Button></div>
+      <div className="grid gap-3 sm:grid-cols-2"><Button onClick={() => setPdfOpen(true)} variant="outline"><FileDown />Abrir PDF</Button><Button disabled={pending} onClick={() => { if (!recipient.trim()) { setMessage("Ingresa un correo válido para enviar."); return; } const cc = ccInput.split(/[\n,;]+/).map((value) => value.trim()).filter(Boolean); const ccLabel = cc.length ? ` con copia a ${cc.join(", ")}` : ""; if (!window.confirm(`¿Enviar ${quote.number} a ${recipient}${ccLabel}?`)) return; start(async () => { const result = await sendFormalQuoteAction({ quoteId: quote.id, email: recipient, cc, subject, body: normalizeEmailNewlines(body), requestId, catalogDocumentId: attachCatalog ? catalog?.id : undefined }); setMessage(result.ok ? result.message : result.error); if (result.ok) setRequestId(uid()); }); }}><Send />{pending ? "Enviando…" : "Enviar email"}</Button></div>
+      <p className="text-xs text-muted">La reserva se genera únicamente después de marcar la cotización como aceptada, desde “Cotizaciones recientes”.</p>
       {message && <p aria-live="polite" className="text-sm font-medium">{message}</p>}
       {pdfOpen && <PdfViewer title={quoteDisplayFilename(quote.number)} src={`/api/commercial/quotes/${quote.id}/pdf`} onClose={() => setPdfOpen(false)} />}
     </div>
@@ -905,6 +909,9 @@ function RecentQuotes({
 }) {
   const [openPdf, setOpenPdf] = useState<{ id: string; number: string } | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [review, setReview] = useState<QuoteConversionReview | null>(null);
+  const [message, setMessage] = useState("");
+  const [pending, startTransition] = useTransition();
   const visibleQuotes = expanded ? quotes : quotes.slice(0, 5);
   return (
     <section className="rounded-2xl border bg-card p-5">
@@ -913,15 +920,19 @@ function RecentQuotes({
         {quotes.length ? (
           visibleQuotes.map((q) => (
             <div
-              className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 py-3 text-sm sm:grid-cols-[1fr_1fr_auto_auto_auto_auto] sm:gap-4"
+              className="grid min-w-0 gap-2 py-3 text-sm lg:grid-cols-[minmax(0,1fr)_auto_auto_auto] lg:items-center lg:gap-4"
               key={q.id}
             >
               <span className="min-w-0 truncate font-medium">{q.number.replace(/^COTIZACIÓN\s*/i, "")} · {q.customer}</span>
               <span className="font-medium">{money.format(q.total)}</span>
-              <span className="text-muted">{q.status} · {q.issuedAt.split("-").reverse().slice(0, 2).join(" ")}</span>
-              <span className="hidden text-muted sm:inline">{q.status}</span>
-              <button className="text-left font-medium text-brand" onClick={() => setOpenPdf({ id: q.id, number: q.number })}>PDF</button>
-              {q.draft && <button className="font-medium text-brand" onClick={() => onEdit(q.draft!)}>Continuar</button>}
+              <span className="text-muted">{quoteStatusLabel(q.status)} · {q.issuedAt.split("-").reverse().slice(0, 2).join(" ")}</span>
+              <div className="flex min-w-0 flex-wrap gap-3 lg:justify-end">
+                <button className="min-h-11 font-medium text-brand" onClick={() => setOpenPdf({ id: q.id, number: q.number })}>PDF</button>
+                {q.draft && <button className="min-h-11 font-medium text-brand" onClick={() => onEdit(q.draft!)}>Continuar</button>}
+                {["SENT","VIEWED"].includes(q.status) ? <button className="min-h-11 font-semibold text-brand" disabled={pending} onClick={() => { if(!window.confirm(`¿Confirmar que ${q.number} fue aceptada por el cliente?`))return; startTransition(async()=>{const result=await acceptCommercialQuoteAction(q.id);setMessage(result.ok?result.message:result.error);if(result.ok)window.location.reload()})}}>MARCAR COMO ACEPTADA</button>:null}
+                {q.status==="ACCEPTED" ? <button className="min-h-11 font-semibold text-brand" disabled={pending} onClick={()=>startTransition(async()=>{const result=await loadCommercialQuoteConversionReviewAction(q.id);if(!result.ok){setMessage(result.error);return}if(result.converted){window.location.assign(`/projects/${result.projectId}`);return}setReview(result.review)})}>GENERAR RESERVA DESDE COTIZACIÓN</button>:null}
+                {q.status==="CONVERTED" ? <><span className="inline-flex min-h-11 items-center font-semibold text-success">RESERVA YA GENERADA</span>{q.projectId?<Link className="inline-flex min-h-11 items-center font-semibold text-brand" href={`/projects/${q.projectId}`}>VER EVENTO</Link>:null}</>:null}
+              </div>
             </div>
           ))
         ) : (
@@ -929,10 +940,13 @@ function RecentQuotes({
         )}
       </div>
       {quotes.length > 5 && <button className="mt-3 text-sm font-semibold text-brand" onClick={() => setExpanded((value) => !value)}>{expanded ? "Ver menos" : "Ver todas"}</button>}
+      {message?<p aria-live="polite" className="mt-3 text-sm font-medium">{message}</p>:null}
       {openPdf && <PdfViewer title={quoteDisplayFilename(openPdf.number)} src={`/api/commercial/quotes/${openPdf.id}/pdf`} onClose={() => setOpenPdf(null)} />}
+      {review?<QuoteConversionReviewDialog review={review} onClose={()=>setReview(null)} onCreated={projectId=>window.location.assign(`/projects/${projectId}`)}/>:null}
     </section>
   );
 }
+function quoteStatusLabel(status:string){return({DRAFT:"BORRADOR",SENT:"ENVIADA",VIEWED:"ENVIADA",ACCEPTED:"ACEPTADA",REJECTED:"RECHAZADA",EXPIRED:"VENCIDA",CONVERTED:"CONVERTIDA A RESERVA"}as Record<string,string>)[status]??status}
 function SendHistory({ sends }: { sends: CommercialHubData["recentSends"] }) {
   return <section className="rounded-2xl border bg-card p-5"><h2 className="font-semibold">Historial de envíos</h2><div className="mt-4 divide-y">{sends.length ? sends.map((send) => <div className="grid min-w-0 gap-1 py-3 text-sm sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:gap-4" key={send.id}><div className="min-w-0"><p className="break-all font-medium">Para: {send.recipient}</p><p className="break-all text-xs text-muted">CC: {send.ccRecipients.length ? send.ccRecipients.join(", ") : "Sin CC"}</p></div><div className="min-w-0"><p className="truncate">{send.subject}</p><p className="truncate text-xs text-muted">ID proveedor: {send.providerMessageId || "Pendiente"}</p></div><span className="text-muted">{send.status} · {send.sentAt.slice(0, 10)}</span></div>) : <p className="py-5 text-sm text-muted">Aún no hay envíos comerciales.</p>}</div></section>;
 }

@@ -44,6 +44,7 @@ export interface RecentCommercialQuote {
   total: number;
   status: string;
   issuedAt: string;
+  projectId: string | null;
   draft?: FormalQuoteDraft;
 }
 export interface CommercialHubData {

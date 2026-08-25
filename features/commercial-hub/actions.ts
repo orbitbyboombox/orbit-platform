@@ -16,6 +16,14 @@ import { QUICK_SEND_CTA_FALLBACK, QUICK_SEND_CTA_LABEL, commercialSignatureMode,
 import { catalogCategoryForQuickSend, catalogPublicUrl, isCommercialCatalogCategory } from "./catalogs";
 import { normalizeQuoteOperationalConditions } from "./operational-conditions";
 import { normalizeEmailRecipients, normalizeOptionalEmail } from "@/lib/email/recipients";
+import { attachCustomerPurchaseOrderAction } from "@/features/commercial-documents/actions";
+import { archiveAcceptedQuoteForProject } from "@/features/commercial-documents/drive-archive";
+import {
+  assertQuoteConversionReady,
+  buildQuoteConversionReview,
+  resolveQuoteConversionCustomer,
+  type QuoteConversionOverrides,
+} from "./quote-conversion";
 
 async function founder() {
   const client = await createSupabaseServerClient();
@@ -28,7 +36,7 @@ async function founder() {
     .single();
   if (!profile || !["CEO", "ADMINISTRATOR", "SALES"].includes(profile.role))
     throw new Error("No tienes permiso comercial.");
-  return { client, user: data.user };
+  return { client, user: data.user, role: profile.role };
 }
 const fail = (error: unknown, fallback: string) => ({
   ok: false as const,
@@ -303,47 +311,311 @@ export async function sendFormalQuoteAction(input: { quoteId: string; email: str
   } catch (error) { return fail(error, "No fue posible enviar la cotización."); }
 }
 
-export async function convertCommercialQuoteAction(quoteId: string) {
+export async function acceptCommercialQuoteAction(quoteId: string) {
   try {
-    const { user } = await founder();
-    const admin = createAdminClient();
-    const { data: quote, error } = await admin.from("quotations").select("id,status,customer_id,customer_snapshot,commercial_snapshot,quotation_items(code,catalog_price,quoted_price,quantity,is_manual)").eq("id", quoteId).single();
+    const { client, role } = await founder();
+    if (!["CEO", "ADMINISTRATOR"].includes(role))
+      throw new Error("Solo Founder o Administración puede aceptar una cotización.");
+    const { data, error } = await client.rpc(
+      "accept_commercial_quote_for_reservation",
+      { p_quote_id: quoteId },
+    );
     if (error) throw error;
-    if (quote.status === "CONVERTED") return { ok: true as const, message: "Esta cotización ya fue convertida." };
-    if (!["SENT", "VIEWED", "ACCEPTED"].includes(quote.status)) throw new Error("Primero envía la cotización al cliente.");
-    const snapshot = quote.commercial_snapshot as Record<string, unknown>;
-    const customer = quote.customer_snapshot as Record<string, string>;
-    const event = (snapshot.event ?? {}) as Record<string, string>;
-    if (!event.date || !event.time || !event.location || !event.city) throw new Error("Completa fecha, hora, dirección y comuna antes de convertir.");
-    const items = quote.quotation_items ?? [];
-    const net = Number(snapshot.net ?? 0), vat = Number(snapshot.tax ?? 0), total = Number(snapshot.total ?? 0);
-    const official = items.reduce((sum, item) => sum + Number(item.catalog_price ?? item.quoted_price ?? 0) * Number(item.quantity), 0);
-    const difference = net - official;
-    const draft: ProjectDraft = {
-      commercialSourceQuotationId: quote.id,
-      reservationTransactionId: crypto.randomUUID(),
-      crmCustomerId: quote.customer_id ?? undefined,
-      type: "Corporate",
-      client: { name: customer.contact || customer.company, company: customer.company || undefined, rut: customer.rut || undefined, email: customer.email || "", secondaryEmail: customer.secondaryEmail || "", phone: customer.phone || "", address: customer.address || undefined },
-      event: { date: event.date, time: event.time, location: event.location, city: event.city, durationHours: 2, extras: items.filter((item) => !item.is_manual).map((item) => item.code) },
-      services: items.filter((item) => !item.is_manual).map((item) => item.code),
-      origin: "Other",
-      notes: `Reserva convertida desde cotización ${quote.id}.\n${items.filter((item) => item.is_manual).map((item) => `Ítem especial: ${item.code}`).join("\n")}`,
-      commercialFormalization: { type: "INVOICE_ONLY", requiresSignature: false, documentType: "COMMERCIAL_DOCUMENT" },
-      commercialAdjustment: { type: "COMMERCIAL_NEGOTIATION", mode: difference === 0 ? "OFFICIAL" : "NEGOTIATED", value: net, reason: "Conversión de cotización comercial aceptada", internalNotes: `Fuente canónica: ${quote.id}`, subtotal: official, officialTotal: official, officialServicePrice: official, officialExtras: 0, officialTransport: 0, officialVenueSurcharge: 0, negotiatedServicePrice: net, negotiatedExtras: 0, negotiatedTransport: 0, negotiatedTotal: net, difference, differencePercentage: official ? difference / official * 100 : 0, discountAmount: Number(snapshot.discount ?? 0), discountReason: "CORPORATE_AGREEMENT", commercialCharge: 0, appliedTransport: 0, courtesyValue: 0, courtesies: [], paymentCondition: "FIFTY_FIFTY", paymentTermDays: 0, paymentReceiptRequired: true, corporateCreditApproved: false, corporateVatApplied: true, netAmount: net, vatAmount: vat, finalPrice: total },
+    revalidatePath("/leads");
+    return {
+      ok: true as const,
+      message:
+        (data as { status?: string } | null)?.status === "CONVERTED"
+          ? "La cotización ya tiene una reserva."
+          : "Cotización marcada como ACEPTADA.",
     };
-    const acceptedAt = new Date().toISOString();
-    const { error: acceptError } = await admin.from("quotations").update({ status: "ACCEPTED", approved_by: user.id, approved_at: acceptedAt, approval_reason: "Aceptada para conversión en reserva", updated_by: user.id }).eq("id", quote.id).in("status", ["SENT", "VIEWED", "ACCEPTED"]);
-    if (acceptError) throw acceptError;
+  } catch (error) {
+    return fail(error, "No fue posible aceptar la cotización.");
+  }
+}
+
+export async function loadCommercialQuoteConversionReviewAction(
+  quoteId: string,
+) {
+  try {
+    const { client, role } = await founder();
+    if (!["CEO", "ADMINISTRATOR"].includes(role))
+      throw new Error("Solo Founder o Administración puede revisar la conversión.");
+    const { data: quote, error } = await client
+      .from("quotations")
+      .select("id,status,project_id,customer_id,accepted_snapshot")
+      .eq("id", quoteId)
+      .is("deleted_at", null)
+      .single();
+    if (error) throw error;
+    if (quote.status === "CONVERTED" && quote.project_id)
+      return {
+        ok: true as const,
+        converted: true as const,
+        projectId: quote.project_id,
+      };
+    if (quote.status !== "ACCEPTED")
+      throw new Error("La cotización debe estar ACEPTADA antes de generar la reserva.");
+    let snapshot = quote.accepted_snapshot;
+    if (!snapshot) {
+      const { data, error: snapshotError } = await client.rpc(
+        "build_accepted_commercial_quote_snapshot",
+        { p_quote_id: quoteId },
+      );
+      if (snapshotError) throw snapshotError;
+      snapshot = data;
+    }
+    return {
+      ok: true as const,
+      converted: false as const,
+      review: buildQuoteConversionReview({
+        quoteId: quote.id,
+        status: quote.status,
+        projectId: quote.project_id,
+        customerId: quote.customer_id,
+        snapshot,
+      }),
+    };
+  } catch (error) {
+    return fail(error, "No fue posible preparar la revisión de la cotización.");
+  }
+}
+
+export async function confirmCommercialQuoteConversionAction(
+  formData: FormData,
+) {
+  try {
+    const { client, user, role } = await founder();
+    if (!["CEO", "ADMINISTRATOR"].includes(role))
+      throw new Error("Solo Founder o Administración puede generar la reserva.");
+    const quoteId = String(formData.get("quoteId") ?? "");
+    const overrides: QuoteConversionOverrides = {
+      name: String(formData.get("eventName") ?? ""),
+      date: String(formData.get("eventDate") ?? ""),
+      time: String(formData.get("eventTime") ?? ""),
+      location: String(formData.get("eventLocation") ?? ""),
+      city: String(formData.get("eventCity") ?? ""),
+      durationHours: Number(formData.get("durationHours")),
+      customerCompany: String(formData.get("customerCompany") ?? ""),
+      customerRut: String(formData.get("customerRut") ?? ""),
+      customerContact: String(formData.get("customerContact") ?? ""),
+      customerEmail: String(formData.get("customerEmail") ?? ""),
+      customerPhone: String(formData.get("customerPhone") ?? ""),
+      customerAddress: String(formData.get("customerAddress") ?? ""),
+    };
+    const { data: prepared, error: prepareError } = await client.rpc(
+      "prepare_commercial_quote_conversion",
+      { p_quote_id: quoteId },
+    );
+    if (prepareError) throw prepareError;
+    const claim = prepared as {
+      status?: string;
+      projectId?: string;
+      transactionId?: string;
+      snapshot?: unknown;
+    } | null;
+    if (claim?.status === "CONVERTED" && claim.projectId)
+      return {
+        ok: true as const,
+        message: "RESERVA YA GENERADA",
+        projectId: claim.projectId,
+        duplicate: true,
+      };
+    if (!claim?.transactionId || !claim.snapshot)
+      throw new Error("No fue posible obtener la transacción canónica de conversión.");
+    const { data: quoteIdentity, error: identityError } = await client
+      .from("quotations")
+      .select("id,status,project_id,customer_id")
+      .eq("id", quoteId)
+      .single();
+    if (identityError) throw identityError;
+    const review = buildQuoteConversionReview({
+      quoteId,
+      status: quoteIdentity.status,
+      projectId: quoteIdentity.project_id,
+      customerId: quoteIdentity.customer_id,
+      snapshot: claim.snapshot,
+    });
+    const event = assertQuoteConversionReady(review, overrides);
+    const customer = resolveQuoteConversionCustomer(review, overrides);
+    const items = review.items;
+    const officialServicePrice = items
+      .filter((item) => item.itemType === "SERVICE")
+      .reduce(
+        (sum, item) =>
+          sum + Number(item.catalogPrice ?? item.quotedPrice) * item.quantity,
+        0,
+      );
+    const officialExtras = items
+      .filter((item) => item.itemType === "EXTRA")
+      .reduce(
+        (sum, item) =>
+          sum + Number(item.catalogPrice ?? item.quotedPrice) * item.quantity,
+        0,
+      );
+    const officialTransport = items
+      .filter((item) => item.itemType === "TRANSPORT")
+      .reduce(
+        (sum, item) =>
+          sum + Number(item.catalogPrice ?? item.quotedPrice) * item.quantity,
+        0,
+      );
+    const official =
+      officialServicePrice + officialExtras + officialTransport ||
+      review.financial.subtotal;
+    const acceptedExtras = items
+      .filter((item) => item.itemType === "EXTRA")
+      .reduce((sum, item) => sum + item.total, 0);
+    const acceptedTransport = review.financial.customerTransportCharge;
+    const acceptedService = Math.max(
+      0,
+      review.financial.net - acceptedExtras - acceptedTransport,
+    );
+    const difference = review.financial.net - official;
+    const draft: ProjectDraft = {
+      commercialSourceQuotationId: quoteId,
+      reservationTransactionId: claim.transactionId,
+      crmCustomerId: review.customerId ?? undefined,
+      type: "Corporate",
+      client: {
+        name: customer.contact || customer.company,
+        company: customer.company || undefined,
+        rut: customer.rut || undefined,
+        email: customer.email,
+        secondaryEmail: customer.secondaryEmail,
+        phone: customer.phone,
+        address: customer.address || undefined,
+      },
+      event: {
+        date: event.date,
+        time: event.time,
+        location: event.location,
+        city: event.city,
+        durationHours: Number(event.durationHours),
+        extras: items
+          .filter((item) => item.itemType !== "SERVICE")
+          .map((item) => item.code),
+      },
+      services: Array.from(
+        new Set(
+          items
+            .filter((item) => item.itemType !== "TRANSPORT")
+            .map((item) => item.code),
+        ),
+      ),
+      origin: "Other",
+      notes: [
+        `Reserva convertida desde ${review.number} · revisión ${review.version}.`,
+        `Evento importado: ${event.name}.`,
+        ...items.map(
+          (item) =>
+            `${item.label} · cantidad ${item.quantity} · total ${item.total}`,
+        ),
+        ...review.commercialConditions,
+      ].join("\n"),
+      commercialFormalization: { type: "INVOICE_ONLY", requiresSignature: false, documentType: "COMMERCIAL_DOCUMENT" },
+      commercialAdjustment: { type: "COMMERCIAL_NEGOTIATION", mode: difference === 0 ? "OFFICIAL" : "NEGOTIATED", value: review.financial.net, reason: "Conversión de cotización comercial aceptada", internalNotes: `Fuente canónica: ${quoteId}`, subtotal: official, officialTotal: official, officialServicePrice, officialExtras, officialTransport, officialVenueSurcharge: 0, negotiatedServicePrice: acceptedService, negotiatedExtras: acceptedExtras, negotiatedTransport: acceptedTransport, negotiatedTotal: review.financial.net, difference, differencePercentage: official ? difference / official * 100 : 0, discountAmount: review.financial.discount, discountReason: "CORPORATE_AGREEMENT", commercialCharge: 0, appliedTransport: acceptedTransport, courtesyValue: 0, courtesies: [], paymentCondition: review.financial.depositPercent >= 100 ? "CASH" : "FIFTY_FIFTY", paymentTermDays: 0, paymentReceiptRequired: true, corporateCreditApproved: false, corporateVatApplied: review.financial.tax > 0, netAmount: review.financial.net, vatAmount: review.financial.tax, finalPrice: review.financial.total },
+    };
     const result = await createCustomerProjectAction(draft);
     if (!result.ok) throw new Error(result.error);
-    const { data: projectIdentity, error: projectIdentityError } = await admin.from("projects").select("customer_id,orbit_event_id").eq("id", result.project.id).single();
-    if (projectIdentityError) throw projectIdentityError;
-    const { error: convertedError } = await admin.from("quotations").update({ status: "CONVERTED", customer_id: projectIdentity.customer_id, project_id: result.project.id, orbit_event_id: projectIdentity.orbit_event_id, converted_at: new Date().toISOString(), updated_by: user.id }).eq("id", quote.id);
-    if (convertedError) throw convertedError;
+    const { data: persistedProject, error: projectError } = await client
+      .from("projects")
+      .select("finance,operations")
+      .eq("id", result.project.id)
+      .single();
+    if (projectError) throw projectError;
+    const finance = persistedProject.finance && typeof persistedProject.finance === "object" ? persistedProject.finance as Record<string, unknown> : {};
+    const operations = persistedProject.operations && typeof persistedProject.operations === "object" ? persistedProject.operations as Record<string, unknown> : {};
+    const { error: snapshotWriteError } = await client
+      .from("projects")
+      .update({
+        name: event.name,
+        finance: {
+          ...finance,
+          acceptedQuote: {
+            quotationId: quoteId,
+            quotationNumber: review.number,
+            revision: review.version,
+            acceptedAt: review.acceptedAt,
+            ...review.financial,
+          },
+        },
+        operations: {
+          ...operations,
+          commercialOrigin: {
+            quotationId: quoteId,
+            event,
+            acceptedItems: items,
+          },
+        },
+        updated_by: user.id,
+      })
+      .eq("id", result.project.id);
+    if (snapshotWriteError) throw snapshotWriteError;
+    for (const item of items.filter(
+      (entry) => entry.itemType !== "TRANSPORT",
+    )) {
+      const { error: quantityError } = await client
+        .from("project_services")
+        .upsert(
+          {
+            project_id: result.project.id,
+            service_code: item.code,
+            quantity: item.quantity,
+            duration_hours: Number(event.durationHours),
+            extras: draft.event.extras ?? [],
+          },
+          { onConflict: "project_id,service_code" },
+        );
+      if (quantityError) throw quantityError;
+    }
+    const { error: finalizeError } = await client.rpc(
+      "finalize_commercial_quote_conversion",
+      {
+        p_quote_id: quoteId,
+        p_transaction_id: claim.transactionId,
+        p_project_id: result.project.id,
+        p_review: { event, reviewedAt: new Date().toISOString() },
+      },
+    );
+    if (finalizeError) throw finalizeError;
+    const warnings: string[] = [];
+    const ocFile = formData.get("purchaseOrderFile");
+    if (ocFile instanceof File && ocFile.size) {
+      const purchaseOrder = new FormData();
+      purchaseOrder.set("projectId", result.project.id);
+      purchaseOrder.set(
+        "purchaseOrderNumber",
+        String(formData.get("purchaseOrderNumber") ?? ""),
+      );
+      purchaseOrder.set("file", ocFile);
+      const oc = await attachCustomerPurchaseOrderAction(purchaseOrder);
+      if (!oc.ok) warnings.push(`OC Cliente: ${oc.error}`);
+      else if (oc.warning) warnings.push(oc.warning);
+    }
+    try {
+      const drive = await archiveAcceptedQuoteForProject({
+        quoteId,
+        projectId: result.project.id,
+      });
+      if (!drive.archived)
+        warnings.push("La cotización permanece protegida en ORBIT y su archivo Drive está pendiente.");
+    } catch (driveError) {
+      warnings.push("La reserva fue creada; el archivo administrativo de la cotización en Drive queda pendiente.");
+      console.error("[ORBIT][ACCEPTED_QUOTE_DRIVE_ARCHIVE]", driveError);
+    }
     revalidatePath("/leads"); revalidatePath(`/projects/${result.project.id}`);
-    return { ok: true as const, message: "Cotización convertida mediante el pipeline único de Reserva.", projectId: result.project.id };
-  } catch (error) { return fail(error, "No fue posible convertir la cotización."); }
+    return {
+      ok: true as const,
+      message: warnings.length
+        ? `Reserva creada. ${warnings.join(" ")}`
+        : "Reserva creada desde la cotización aceptada mediante el pipeline único.",
+      projectId: result.project.id,
+      duplicate: Boolean(result.project.reservationResumed),
+    };
+  } catch (error) {
+    return fail(error, "No fue posible convertir la cotización.");
+  }
 }
 function escapeHtml(value: string) {
   return value.replace(

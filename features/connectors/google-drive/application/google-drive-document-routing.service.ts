@@ -43,3 +43,18 @@ export async function uploadReservationDocumentToDrive(input: ReservationDocumen
   const file = await destination.provider.uploadFile({ name: input.name, mimeType: input.mimeType, bytes: input.bytes, parentFolderId: destination.folderId });
   return { ...file, folderId: destination.folderId, folderPath: destination.folderPath };
 }
+
+export async function archiveReservationDocumentToDrive(input: ReservationDocumentContext & { name: string; mimeType: string; bytes: Uint8Array }) {
+  const destination = await resolveReservationDocumentFolder(input);
+  const existing = await destination.provider.findFileByName({
+    name: input.name,
+    parentFolderId: destination.folderId,
+  });
+  const file = existing ?? await destination.provider.uploadFile({
+    name: input.name,
+    mimeType: input.mimeType,
+    bytes: input.bytes,
+    parentFolderId: destination.folderId,
+  });
+  return { ...file, folderId: destination.folderId, folderPath: destination.folderPath, reused: Boolean(existing) };
+}

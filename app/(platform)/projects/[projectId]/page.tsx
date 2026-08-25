@@ -115,7 +115,7 @@ export default async function ProjectWorkspacePage({
     client
       .from("documents")
       .select(
-        "id,document_type,storage_bucket,storage_path,drive_file_id,created_at,external_tax_document_type,external_folio,external_issue_date,external_total_amount,external_document_status",
+        "id,document_type,storage_bucket,storage_path,drive_file_id,created_at,external_tax_document_type,external_folio,external_issue_date,external_total_amount,external_document_status,purchase_order_number,original_filename,mime_type,metadata",
       )
       .eq("project_id", projectId)
       .is("deleted_at", null)
@@ -123,7 +123,7 @@ export default async function ProjectWorkspacePage({
     client
       .from("quotations")
       .select(
-        "id,quotation_number,version,status,grand_total,transport_total,official_price,final_customer_price,price_difference,created_at,pdf_storage_path,drive_file_id,gmail_draft_id",
+        "id,quotation_number,version,status,grand_total,transport_total,official_price,final_customer_price,price_difference,created_at,approved_at,pdf_storage_path,drive_file_id,gmail_draft_id,quotation_items(description,label,quantity,total,display_order)",
       )
       .eq("project_id", projectId)
       .is("deleted_at", null)
@@ -238,6 +238,12 @@ export default async function ProjectWorkspacePage({
       .eq("status", "ACTIVE")
       .order("created_at"),
   ]);
+  const { data: commercialOrigin, error: commercialOriginError } = await client
+    .from("project_commercial_origins")
+    .select("quotation_id,quotation_number,quotation_version,accepted_at,accepted_snapshot")
+    .eq("project_id", projectId)
+    .maybeSingle();
+  if (commercialOriginError) throw commercialOriginError;
   const { data: staffRoleRequirements, error: staffRoleRequirementError } =
     await client
       .from("event_staff_requirements")
@@ -806,10 +812,16 @@ export default async function ProjectWorkspacePage({
     documents: (documents ?? []).map((item) => ({
       id: item.id,
       type: item.document_type,
-      href: item.drive_file_id
-        ? `https://drive.google.com/open?id=${item.drive_file_id}`
-        : undefined,
+      href: `/api/projects/${projectId}/documents/${item.id}`,
       createdAt: item.created_at,
+      number: item.purchase_order_number ?? undefined,
+      originalFilename: item.original_filename ?? undefined,
+      driveArchiveStatus:
+        item.metadata && typeof item.metadata === "object" && "driveArchiveStatus" in item.metadata
+          ? String(item.metadata.driveArchiveStatus)
+          : item.drive_file_id
+            ? "ARCHIVED"
+            : "PENDING",
       taxType: item.external_tax_document_type ?? undefined,
       folio: item.external_folio ?? undefined,
       issueDate: item.external_issue_date ?? undefined,
@@ -1360,13 +1372,53 @@ export default async function ProjectWorkspacePage({
       signing={{
         agreementId: agreement?.id,
         status: agreement?.status ?? "PENDING",
-        href: agreement?.drive_file_id?`https://drive.google.com/open?id=${agreement.drive_file_id}`:undefined,
+        href: documents?.find(item=>["SIGNED_AGREEMENT","COMMERCIAL_DOCUMENT","AGREEMENT"].includes(item.document_type))?.id
+          ? `/api/projects/${projectId}/documents/${documents.find(item=>["SIGNED_AGREEMENT","COMMERCIAL_DOCUMENT","AGREEMENT"].includes(item.document_type))!.id}`
+          : undefined,
+        createdAt: agreement?.created_at,
       }}
-      commercialHub={{customerTaxId:customer?.rut??undefined,customerKind:typeLabel==="Corporate"?"EMPRESA":"PARTICULAR",paymentCondition,quotation:quotation?{number:quotation.quotation_number,status:quotation.status,href:quotation.drive_file_id?`https://drive.google.com/open?id=${quotation.drive_file_id}`:undefined}:undefined}}
+      commercialHub={{customerTaxId:customer?.rut??undefined,customerKind:typeLabel==="Corporate"?"EMPRESA":"PARTICULAR",paymentCondition,quotation:buildCommercialQuotationFile(commercialOrigin,quotation)}}
       workspaceData={workspaceData}
       workspacePreferences={founderWorkspace}
     />
   );
+}
+
+function buildCommercialQuotationFile(originValue: unknown, quotationValue: unknown) {
+  const asRecord = (value: unknown): Record<string, unknown> =>
+    value && typeof value === "object" && !Array.isArray(value)
+      ? value as Record<string, unknown>
+      : {};
+  const origin = asRecord(originValue);
+  const quotation = asRecord(quotationValue);
+  const snapshot = asRecord(origin.accepted_snapshot);
+  const snapshotQuote = asRecord(snapshot.quotation);
+  const commercial = asRecord(snapshot.commercial);
+  const id = String(origin.quotation_id ?? quotation.id ?? "");
+  if (!id) return undefined;
+  const sourceItems = Array.isArray(snapshot.items)
+    ? snapshot.items
+    : Array.isArray(quotation.quotation_items)
+      ? quotation.quotation_items
+      : [];
+  const items = sourceItems.map((value) => {
+    const item = asRecord(value);
+    return {
+      label: String(item.label ?? item.description ?? item.code ?? "Ítem"),
+      quantity: Number(item.quantity ?? 1),
+      total: Number(item.total ?? 0),
+    };
+  });
+  return {
+    id,
+    number: String(origin.quotation_number ?? quotation.quotation_number ?? "Cotización"),
+    status: String(quotation.status ?? "CONVERTED"),
+    revision: Number(origin.quotation_version ?? quotation.version ?? snapshotQuote.version ?? 1),
+    acceptedAt: String(origin.accepted_at ?? quotation.approved_at ?? quotation.created_at ?? new Date(0).toISOString()),
+    total: Number(commercial.total ?? snapshotQuote.grandTotal ?? quotation.grand_total ?? 0),
+    href: `/api/commercial/quotes/${id}/pdf`,
+    items,
+  };
 }
 
 function mergeExperienceKnowledge(rows: readonly Record<string, unknown>[]) {

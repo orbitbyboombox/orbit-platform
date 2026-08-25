@@ -59,7 +59,7 @@ export function buildStaffFolderPlan(staffMemberName: string,rootName=DEFAULT_GO
 
 export function resolveAutomaticDestination(request: GoogleDriveDestinationRequest,rootName=DEFAULT_GOOGLE_DRIVE_ROOT): GoogleDriveDestination {
   const { kind, context } = request;
-  const customerMap = { CONTRACT: "01_Contrato", PAYMENT_PROOF: "02_Comprobantes", QUOTATION: "03_Cotizaciones", DESIGN: "04_Diseños", PHOTO: "05_Fotografías", VIDEO: "06_Videos", INVOICE: "07_Facturación", HONORARIOS: "08_Honorarios", OTHER_DOCUMENT: "09_Documentos", DELIVERY: "09_Documentos", CUSTOMER_HISTORY: "09_Documentos" } as const;
+  const customerMap = { CONTRACT: "01_Contrato", PAYMENT_PROOF: "02_Comprobantes", QUOTATION: "03_Cotizaciones", DESIGN: "04_Diseños", PHOTO: "05_Fotografías", VIDEO: "06_Videos", INVOICE: "07_Facturación", HONORARIOS: "08_Honorarios", PURCHASE_ORDER: "09_Documentos", OTHER_DOCUMENT: "09_Documentos", DELIVERY: "09_Documentos", CUSTOMER_HISTORY: "09_Documentos" } as const;
   if (kind in customerMap) {
     if (!context.customerName || !context.eventDate) throw new Error("El destino del cliente requiere nombre y fecha del evento.");
     const plan = buildCustomerFolderPlan(context.customerName, context.eventDate,rootName);

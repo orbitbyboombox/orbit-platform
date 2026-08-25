@@ -31,7 +31,7 @@ export async function loadCommercialHubData(
     client
       .from("quotations")
       .select(
-        "id,quotation_number,status,grand_total,issue_date,customer_id,customer_snapshot,commercial_snapshot,validity_days,deposit_percent,global_discount_type,global_discount_value,customers(full_name,company),quotation_items(code,description,label,quantity,catalog_price,quoted_price,unit_price,discount_type,discount_value,is_manual,display_order)",
+        "id,quotation_number,status,grand_total,issue_date,project_id,customer_id,customer_snapshot,commercial_snapshot,validity_days,deposit_percent,global_discount_type,global_discount_value,customers(full_name,company),quotation_items(code,description,label,quantity,catalog_price,quoted_price,unit_price,discount_type,discount_value,is_manual,display_order)",
       )
       .order("created_at", { ascending: false })
       .limit(20),
@@ -99,6 +99,7 @@ export async function loadCommercialHubData(
         total: Number(row.grand_total),
         status: row.status,
         issuedAt: row.issue_date,
+        projectId: row.project_id,
         ...(row.status === "DRAFT" && {
           draft: {
             quoteId: row.id,
