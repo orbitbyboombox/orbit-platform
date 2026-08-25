@@ -102,6 +102,8 @@ export async function GET(
       deposit: Number(snapshot.deposit ?? 0),
       balance: Number(snapshot.balance ?? 0),
       depositPercent: Number(snapshot.depositPercent ?? 50),
+      paymentCondition: snapshot.paymentCondition === "CORPORATE_CREDIT" || snapshot.paymentCondition === "CASH" ? snapshot.paymentCondition : "FIFTY_FIFTY",
+      paymentTermDays: Number(snapshot.paymentTermDays ?? 0),
       company: {
         legalName: company.legalName,
         taxId: company.taxId,

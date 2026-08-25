@@ -87,6 +87,8 @@ export interface FormalQuoteDraft {
   eventCity: string;
   validityDays: number;
   depositPercent: number;
+  paymentCondition?: "FIFTY_FIFTY" | "CASH" | "CORPORATE_CREDIT";
+  paymentTermDays?: number;
   globalDiscountType: DiscountType | null;
   globalDiscountValue: number;
   attachCatalog: boolean;

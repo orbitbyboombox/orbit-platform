@@ -119,6 +119,7 @@ export function QuoteConversionReviewDialog({
         )}
 
         <ReviewSection title="Cliente / empresa">
+          <p className="text-sm font-semibold">TIPO CLIENTE · Empresa</p>
           <div className="grid min-w-0 gap-4 sm:grid-cols-2">
             <ImportedField label="Empresa / cliente" name="customerCompany" required={!review.customerId&&!review.customer.contact} value={review.customer.company}/>
             <ImportedField label="RUT" name="customerRut" value={review.customer.rut}/>
@@ -160,6 +161,23 @@ export function QuoteConversionReviewDialog({
         </ReviewSection>
 
         <ReviewSection title="Snapshot financiero aceptado">
+          <div className="mb-4 grid min-w-0 gap-4 sm:grid-cols-2">
+            <label className="grid gap-1.5 text-sm">
+              <span className="font-medium">CONDICIÓN DE PAGO</span>
+              <select className="min-h-11 rounded-xl border bg-background px-3 disabled:opacity-80" defaultValue={review.financial.paymentCondition ?? ""} disabled={Boolean(review.financial.paymentCondition)} name="paymentCondition" required>
+                <option value="" disabled>Seleccionar</option>
+                <option value="FIFTY_FIFTY">Reserva + saldo</option>
+                <option value="CASH">Contado</option>
+                <option value="CORPORATE_CREDIT">Crédito Empresa</option>
+              </select>
+              {review.financial.paymentCondition ? <input name="paymentCondition" type="hidden" value={review.financial.paymentCondition} /> : null}
+            </label>
+            <label className="grid gap-1.5 text-sm">
+              <span className="font-medium">PLAZO (días; obligatorio para crédito)</span>
+              <input className="min-h-11 rounded-xl border bg-background px-3 disabled:opacity-80" defaultValue={review.financial.paymentTermDays || ""} disabled={review.financial.paymentTermDays > 0} min="1" name="paymentTermDays" step="1" type="number" />
+              {review.financial.paymentTermDays > 0 ? <input name="paymentTermDays" type="hidden" value={review.financial.paymentTermDays} /> : null}
+            </label>
+          </div>
           <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
             {[
               ["Subtotal", review.financial.subtotal],

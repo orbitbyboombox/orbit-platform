@@ -41,6 +41,8 @@ export interface FormalQuotePdfModel {
   deposit: number;
   balance: number;
   depositPercent?: number;
+  paymentCondition?: "FIFTY_FIFTY" | "CASH" | "CORPORATE_CREDIT";
+  paymentTermDays?: number;
   company: {
     legalName: string;
     taxId: string;
@@ -309,6 +311,12 @@ export async function createFormalQuotePdf(model: FormalQuotePdfModel) {
     page.drawText(label, { x: x + 11, y: y - 17, size: 6.8, font: bold, color: emphasized ? orange : muted, maxWidth: 141 });
     page.drawText(money(value), { x: x + 11, y: y - 43, size: 13, font: bold, color: graphite, maxWidth: 141 });
   });
+  const paymentLabel = model.paymentCondition === "CORPORATE_CREDIT"
+    ? `Crédito Empresa · ${model.paymentTermDays ?? 0} días desde emisión de factura`
+    : model.paymentCondition === "CASH"
+      ? "Contado"
+      : "Reserva + saldo";
+  page.drawText(`CONDICIÓN DE PAGO · ${paymentLabel}`, { x: 42, y: y - 76, size: 8.2, font: bold, color: graphite, maxWidth: 511 });
 
   // Reservation and conditions deliberately start on an independent final page.
   page = pdf.addPage(PAGE);

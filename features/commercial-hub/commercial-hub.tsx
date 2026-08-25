@@ -349,6 +349,8 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
   const [lines, setLines] = useState<QuoteLineDraft[]>(initialDraft?.lines ?? []);
   const [validityDays, setValidityDays] = useState(initialDraft?.validityDays ?? 10);
   const [depositPercent, setDepositPercent] = useState(initialDraft?.depositPercent ?? 50);
+  const [paymentCondition, setPaymentCondition] = useState<"FIFTY_FIFTY" | "CASH" | "CORPORATE_CREDIT">(initialDraft?.paymentCondition ?? "FIFTY_FIFTY");
+  const [paymentTermDays, setPaymentTermDays] = useState(initialDraft?.paymentTermDays ?? 30);
   const [globalDiscountType, setGlobalDiscountType] =
     useState<DiscountType | null>(initialDraft?.globalDiscountType ?? null);
   const [globalDiscountValue, setGlobalDiscountValue] = useState(initialDraft?.globalDiscountValue ?? 0);
@@ -444,6 +446,8 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
           eventCity,
           validityDays,
           depositPercent,
+          paymentCondition,
+          paymentTermDays: paymentCondition === "CORPORATE_CREDIT" ? paymentTermDays : 0,
           globalDiscountType,
           globalDiscountValue,
           attachCatalog,
@@ -691,6 +695,18 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
                 onChange={(e) => setDepositPercent(Number(e.target.value))}
               />
             </Field>
+            <Field label="Condición de pago">
+              <select value={paymentCondition} onChange={(event) => setPaymentCondition(event.target.value as typeof paymentCondition)}>
+                <option value="FIFTY_FIFTY">Reserva + saldo</option>
+                <option value="CASH">Contado</option>
+                <option value="CORPORATE_CREDIT">Crédito Empresa</option>
+              </select>
+            </Field>
+            {paymentCondition === "CORPORATE_CREDIT" ? (
+              <Field label="Plazo de crédito (días)">
+                <input min="1" step="1" type="number" value={paymentTermDays} onChange={(event) => setPaymentTermDays(Number(event.target.value))} />
+              </Field>
+            ) : null}
             <Field label="Descuento global">
               <select
                 value={globalDiscountType ?? ""}

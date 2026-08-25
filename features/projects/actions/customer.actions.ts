@@ -497,56 +497,9 @@ export async function createCustomerProjectAction(
         .eq("id", project.id);
       if (financeUpdateError) throw financeUpdateError;
       if (invoiceRequired) {
-        const quotation = Array.isArray(persisted.quotations)
-          ? persisted.quotations[0]
-          : persisted.quotations;
-        const termDays = adjustment?.paymentTermDays ?? 0;
-        const paymentTerm =
-          termDays === 15
-            ? "DAYS_15"
-            : termDays === 30
-              ? "DAYS_30"
-              : termDays === 45
-                ? "DAYS_45"
-                : termDays === 60
-                  ? "DAYS_60"
-                  : termDays > 0
-                    ? "CUSTOM"
-                    : "CASH";
-        const corporateCredit =
-          draft.type === "Corporate" &&
-          adjustment?.paymentCondition === "CORPORATE_CREDIT";
-        const issueDate = new Date().toISOString().slice(0, 10);
-        const invoiceNumber = `FAC-${new Date().getFullYear()}-${project.id.replaceAll("-", "").slice(0, 8).toUpperCase()}`;
-        const { error: invoiceError } = await client.from("invoices").upsert(
-          {
-            invoice_number: invoiceNumber,
-            customer_id: persisted.customer_id,
-            project_id: project.id,
-            quotation_id: quotation?.id ?? null,
-            orbit_event_id: persisted.orbit_event_id,
-            customer_type: draft.type === "Corporate" ? "CORPORATE" : "PRIVATE",
-            status: corporateCredit ? "ISSUED" : "DRAFT",
-            issue_date: corporateCredit ? issueDate : null,
-            payment_term: draft.type === "Corporate" ? paymentTerm : "CASH",
-            custom_term_days:
-              draft.type === "Corporate" && paymentTerm === "CUSTOM"
-                ? termDays
-                : null,
-            purchase_order:
-              formalization === "PURCHASE_ORDER"
-                ? "Pendiente de recepción"
-                : null,
-            amount: Number(
-              quotation?.final_customer_price ?? adjustment?.finalPrice ?? 0,
-            ),
-            notes: `Formalización comercial: ${formalization}`,
-            issued_by: corporateCredit ? auth.user.id : null,
-            issued_at: corporateCredit ? new Date().toISOString() : null,
-            created_by: auth.user.id,
-            updated_by: auth.user.id,
-          },
-          { onConflict: "invoice_number" },
+        const { error: invoiceError } = await client.rpc(
+          "sync_project_receivable_terms",
+          { p_project_id: project.id },
         );
         if (invoiceError) throw invoiceError;
       }

@@ -55,6 +55,8 @@ const acceptedSnapshot = {
     depositPercent: 40,
     deposit: 214200,
     balance: 321300,
+    paymentCondition: "FIFTY_FIFTY",
+    paymentTermDays: 0,
     conditions: ["Acceso coordinado"],
   },
   items: [
@@ -75,7 +77,7 @@ test("5 event date transfers", () => assert.equal(review.event.date, "2026-11-20
 test("6 schedule transfers", () => { assert.equal(review.event.time, "19:00"); assert.equal(review.event.durationHours, 4); });
 test("7 venue address and commune transfer", () => { assert.equal(review.event.location, "Centro de Eventos"); assert.equal(review.event.city, "Las Condes"); });
 test("8 accepted services items and quantities transfer", () => { assert.equal(review.items[0].code, "CLASSIC"); assert.equal(review.items[0].quantity, 2); });
-test("9 accepted financial values remain exact", () => assert.deepEqual(review.financial, { subtotal:500000,discount:50000,net:450000,tax:85500,total:535500,depositPercent:40,deposit:214200,balance:321300,customerTransportCharge:100000 }));
+test("9 accepted financial values remain exact", () => assert.deepEqual(review.financial, { subtotal:500000,discount:50000,net:450000,tax:85500,total:535500,depositPercent:40,deposit:214200,balance:321300,customerTransportCharge:100000,paymentCondition:"FIFTY_FIFTY",paymentTermDays:0 }));
 test("10 customer transport charge remains revenue", () => { assert.equal(review.financial.customerTransportCharge, 100000); assert.match(actions, /negotiatedTransport: acceptedTransport/); });
 test("11 internal real transport cost stays outside conversion", () => { assert.doesNotMatch(actions, /real_logistics_cost|financial_cost_overrides|transport_cost/); assert.match(reviewUi, /costo real de transporte permanece separado/); });
 test("12 missing operational fields are requested", () => {

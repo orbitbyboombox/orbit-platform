@@ -146,7 +146,7 @@ export function resolveReceivablePaymentCategory({
   if (financeCondition === "CORPORATE_CREDIT") {
     if (!financeTermDays) {
       return {
-        paymentCategory: "CREDITO_SIN_PLAZO",
+        paymentCategory: "REQUIERE_REVISIÓN",
         paymentCategorySource: "PROJECT_FINANCE",
         canonicalPaymentTerm: "CASH",
         canonicalPaymentTermDays: 0,
@@ -260,7 +260,7 @@ export function summarizeReceivablePaymentCategories(
 }
 
 export function isCompanyCreditPaymentCategory(category: ReceivablePaymentCategory): boolean {
-  return category === "EMPRESA_30_DIAS" || category === "OTRO_CREDITO" || category === "CREDITO_SIN_PLAZO";
+  return category === "EMPRESA_30_DIAS" || category === "OTRO_CREDITO";
 }
 
 export function paymentCategoryLabel(category: ReceivablePaymentCategory): string {

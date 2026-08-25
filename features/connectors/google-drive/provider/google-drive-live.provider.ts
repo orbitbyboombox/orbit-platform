@@ -14,12 +14,14 @@ export interface GoogleDriveLiveProvider {
   findFolder(input: { name: string; parentFolderId?: string }): Promise<GoogleDriveCreatedFolder | null>;
   findFileByName(input: { name: string; parentFolderId?: string }): Promise<GoogleDriveFoundFile | null>;
   createFolder(input: { name: string; parentFolderId?: string }): Promise<GoogleDriveCreatedFolder>;
+  getFolderParents?(id: string): Promise<string[]>;
   updateFolder(input: { id: string; name: string; parentFolderId?: string; previousParentFolderId?: string }): Promise<GoogleDriveCreatedFolder>;
   uploadFile(input: { name: string; mimeType: string; bytes: Uint8Array; parentFolderId?: string }): Promise<GoogleDriveUploadedFile>;
 }
 
 export class InMemoryGoogleDriveLiveProvider implements GoogleDriveLiveProvider {
   private readonly folders = new Map<string, GoogleDriveCreatedFolder>();
+  private readonly parents = new Map<string, string[]>();
   private readonly files = new Map<string, GoogleDriveFoundFile[]>();
 
   async findFolder(input: { name: string; parentFolderId?: string }) {
@@ -39,10 +41,14 @@ export class InMemoryGoogleDriveLiveProvider implements GoogleDriveLiveProvider 
       name: input.name,
     };
     this.folders.set(`${input.parentFolderId ?? "root"}/${input.name}`, created);
+    this.parents.set(created.id, [input.parentFolderId ?? "root"]);
     return created;
   }
 
+  async getFolderParents(id: string) { return this.parents.get(id) ?? []; }
+
   async updateFolder(input: { id: string; name: string; parentFolderId?: string; previousParentFolderId?: string }) {
+    if (input.parentFolderId) this.parents.set(input.id, [input.parentFolderId]);
     return { id: input.id, name: input.name };
   }
 
@@ -99,6 +105,15 @@ export class GoogleDriveApiProvider implements GoogleDriveLiveProvider {
     }
     const body = await response.json() as { files?: GoogleDriveFoundFile[] };
     return body.files?.[0] ?? null;
+  }
+
+  async getFolderParents(id: string): Promise<string[]> {
+    const response = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?fields=parents`, {
+      headers: { Authorization: `Bearer ${this.accessToken}` },
+    });
+    if (!response.ok) throw new Error(`Google Drive parent lookup failed (${response.status}): ${await response.text()}`);
+    const body = await response.json() as { parents?: string[] };
+    return body.parents ?? [];
   }
 
   async createFolder(input: { name: string; parentFolderId?: string }): Promise<GoogleDriveCreatedFolder> {

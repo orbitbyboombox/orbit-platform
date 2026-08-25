@@ -2,6 +2,10 @@ import type { FormalQuoteDraft } from "./types.ts";
 import { calculateFormalQuote } from "./quote-calculation.ts";
 
 export function prepareFormalQuotePersistence(input: FormalQuoteDraft) {
+  const paymentCondition = input.paymentCondition ?? "FIFTY_FIFTY";
+  const paymentTermDays = paymentCondition === "CORPORATE_CREDIT"
+    ? Math.max(0, Math.trunc(Number(input.paymentTermDays ?? 0)))
+    : 0;
   const calculation = calculateFormalQuote(
     input.lines,
     input.globalDiscountType,
@@ -38,6 +42,8 @@ export function prepareFormalQuotePersistence(input: FormalQuoteDraft) {
     tax: calculation.vat,
     total: calculation.total,
     depositPercent: input.depositPercent,
+    paymentCondition,
+    paymentTermDays,
     deposit: calculation.deposit,
     balance: calculation.balance,
     validityDays: input.validityDays,

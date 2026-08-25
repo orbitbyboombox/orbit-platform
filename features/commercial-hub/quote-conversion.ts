@@ -47,6 +47,8 @@ export type QuoteConversionReview = {
     deposit: number;
     balance: number;
     customerTransportCharge: number;
+    paymentCondition: "FIFTY_FIFTY" | "CASH" | "CORPORATE_CREDIT" | null;
+    paymentTermDays: number;
   };
   commercialConditions: string[];
   missing: string[];
@@ -61,6 +63,8 @@ export type QuoteConversionOverrides = Partial<
   customerEmail?: string;
   customerPhone?: string;
   customerAddress?: string;
+  paymentCondition?: string;
+  paymentTermDays?: number;
 };
 
 const record = (value: unknown): Record<string, unknown> =>
@@ -129,6 +133,11 @@ export function buildQuoteConversionReview(input: {
   const customerTransportCharge =
     number(quotation.transportTotal) || lineTransportCharge;
   const durationHours = number(event.durationHours, 0) || null;
+  const rawPaymentCondition = text(commercial.paymentCondition).toUpperCase();
+  const paymentCondition = (rawPaymentCondition === "CORPORATE_CREDIT" || rawPaymentCondition === "CASH" || rawPaymentCondition === "FIFTY_FIFTY"
+    ? rawPaymentCondition
+    : null) as QuoteConversionReview["financial"]["paymentCondition"];
+  const paymentTermDays = Math.max(0, Math.trunc(number(commercial.paymentTermDays, 0)));
   const review: QuoteConversionReview = {
     quoteId: input.quoteId,
     number: text(quotation.number),
@@ -168,6 +177,8 @@ export function buildQuoteConversionReview(input: {
       deposit,
       balance: number(commercial.balance, Math.max(0, total - deposit)),
       customerTransportCharge,
+      paymentCondition,
+      paymentTermDays,
     },
     commercialConditions: Array.isArray(commercial.conditions)
       ? commercial.conditions.map(text).filter(Boolean)
@@ -191,7 +202,24 @@ export function missingQuoteConversionFields(review: QuoteConversionReview) {
   if (!review.event.city) missing.push("Comuna / ciudad");
   if (!review.event.durationHours) missing.push("Duración");
   if (!review.items.length) missing.push("Servicios / productos");
+  if (!review.financial.paymentCondition) missing.push("Condición de pago");
+  if (review.financial.paymentCondition === "CORPORATE_CREDIT" && review.financial.paymentTermDays <= 0) missing.push("Plazo de crédito Empresa");
   return missing;
+}
+
+export function resolveQuoteConversionPaymentTerms(review: QuoteConversionReview, overrides: QuoteConversionOverrides) {
+  const rawCondition = review.financial.paymentCondition || text(overrides.paymentCondition).toUpperCase();
+  const paymentCondition = (rawCondition === "CORPORATE_CREDIT" || rawCondition === "CASH" || rawCondition === "FIFTY_FIFTY"
+    ? rawCondition
+    : null) as QuoteConversionReview["financial"]["paymentCondition"];
+  const overrideDays = Math.max(0, Math.trunc(Number(overrides.paymentTermDays ?? 0)));
+  const paymentTermDays = paymentCondition === "CORPORATE_CREDIT"
+    ? review.financial.paymentTermDays || overrideDays
+    : 0;
+  if (!paymentCondition) throw new Error("Selecciona la condición de pago aceptada.");
+  if (paymentCondition === "CORPORATE_CREDIT" && paymentTermDays <= 0)
+    throw new Error("El crédito Empresa requiere un plazo positivo en días.");
+  return { paymentCondition, paymentTermDays };
 }
 
 export function resolveQuoteConversionEvent(
@@ -232,10 +260,12 @@ export function assertQuoteConversionReady(
 ) {
   const event = resolveQuoteConversionEvent(review, overrides);
   const customer = resolveQuoteConversionCustomer(review, overrides);
+  const paymentTerms = resolveQuoteConversionPaymentTerms(review, overrides);
   const missing = missingQuoteConversionFields({
     ...review,
     customer,
     event,
+    financial: { ...review.financial, ...paymentTerms },
   });
   if (review.status !== "ACCEPTED")
     throw new Error("La cotización debe estar ACEPTADA.");

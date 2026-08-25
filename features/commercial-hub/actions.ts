@@ -22,6 +22,7 @@ import {
   assertQuoteConversionReady,
   buildQuoteConversionReview,
   resolveQuoteConversionCustomer,
+  resolveQuoteConversionPaymentTerms,
   type QuoteConversionOverrides,
 } from "./quote-conversion";
 
@@ -231,6 +232,8 @@ export async function createFormalQuoteAction(input: FormalQuoteDraft) {
   try {
     const { client, user } = await founder();
     if (!input.lines.length) throw new Error("Agrega al menos un ítem.");
+    if (input.paymentCondition === "CORPORATE_CREDIT" && (!Number.isInteger(input.paymentTermDays) || Number(input.paymentTermDays) <= 0))
+      throw new Error("El crédito Empresa requiere un plazo positivo en días.");
     normalizeOptionalEmail(input.email, "email principal");
     normalizeOptionalEmail(input.secondaryEmail, "email secundario / CC");
     if (!input.existingCustomerId && input.saveTemporaryCustomer && !input.company.trim() && !input.contact.trim()) throw new Error("Ingresa un nombre antes de guardar el cliente.");
@@ -361,7 +364,7 @@ export async function sendFormalQuoteAction(input: { quoteId: string; email: str
     const config = company.pdfConfiguration.commercialBank && typeof company.pdfConfiguration.commercialBank === "object" ? company.pdfConfiguration.commercialBank as Record<string, string> : {};
     const items = [...(quote.quotation_items ?? [])].sort((a, b) => Number(a.display_order) - Number(b.display_order));
     const configuredConditions = Array.isArray(company.pdfConfiguration.commercialReservationConditions) ? company.pdfConfiguration.commercialReservationConditions.filter((item): item is string => typeof item === "string" && item.trim().length > 0) : [];
-    const pdf = await createFormalQuotePdf({ number: quote.quotation_number, issueDate: quote.issue_date, expirationDate: quote.expiration_date, customer, event, lines: items.map((item) => ({ description: item.description || item.label, quantity: Number(item.quantity), quotedPrice: Number(item.quoted_price ?? item.unit_price), total: Number(item.total) })), subtotal: Number(snapshot.subtotal ?? 0), discount: Number(snapshot.discount ?? 0), net: Number(snapshot.net ?? 0), tax: Number(snapshot.tax ?? 0), total: Number(snapshot.total ?? 0), deposit: Number(snapshot.deposit ?? 0), balance: Number(snapshot.balance ?? 0), depositPercent: Number(snapshot.depositPercent ?? 50), company: { legalName: company.legalName, taxId: company.taxId, address: company.address, city: company.city, phone: company.phone, email: config.email || company.salesEmail || company.supportEmail, website: company.website, bankName: config.bankName || "Banco no configurado", bankAccountType: config.accountType || "Cuenta no configurada", bankAccountNumber: config.accountNumber || "Número no configurado", importantNotice: typeof company.pdfConfiguration.commercialImportantNotice === "string" ? company.pdfConfiguration.commercialImportantNotice : undefined, reservationConditions: configuredConditions, operationalConditions: normalizeQuoteOperationalConditions(company.pdfConfiguration.commercialOperationalConditions) } });
+    const pdf = await createFormalQuotePdf({ number: quote.quotation_number, issueDate: quote.issue_date, expirationDate: quote.expiration_date, customer, event, lines: items.map((item) => ({ description: item.description || item.label, quantity: Number(item.quantity), quotedPrice: Number(item.quoted_price ?? item.unit_price), total: Number(item.total) })), subtotal: Number(snapshot.subtotal ?? 0), discount: Number(snapshot.discount ?? 0), net: Number(snapshot.net ?? 0), tax: Number(snapshot.tax ?? 0), total: Number(snapshot.total ?? 0), deposit: Number(snapshot.deposit ?? 0), balance: Number(snapshot.balance ?? 0), depositPercent: Number(snapshot.depositPercent ?? 50), paymentCondition: snapshot.paymentCondition === "CORPORATE_CREDIT" || snapshot.paymentCondition === "CASH" ? snapshot.paymentCondition : "FIFTY_FIFTY", paymentTermDays: Number(snapshot.paymentTermDays ?? 0), company: { legalName: company.legalName, taxId: company.taxId, address: company.address, city: company.city, phone: company.phone, email: config.email || company.salesEmail || company.supportEmail, website: company.website, bankName: config.bankName || "Banco no configurado", bankAccountType: config.accountType || "Cuenta no configurada", bankAccountNumber: config.accountNumber || "Número no configurado", importantNotice: typeof company.pdfConfiguration.commercialImportantNotice === "string" ? company.pdfConfiguration.commercialImportantNotice : undefined, reservationConditions: configuredConditions, operationalConditions: normalizeQuoteOperationalConditions(company.pdfConfiguration.commercialOperationalConditions) } });
     const pdfPath = quoteStorageKey(quote.id, quote.quotation_number);
     const upload = await admin.storage.from("orbit-documents").upload(pdfPath, pdf, { contentType: "application/pdf", upsert: true });
     if (upload.error) throw upload.error;
@@ -493,6 +496,8 @@ export async function confirmCommercialQuoteConversionAction(
       customerEmail: String(formData.get("customerEmail") ?? ""),
       customerPhone: String(formData.get("customerPhone") ?? ""),
       customerAddress: String(formData.get("customerAddress") ?? ""),
+      paymentCondition: String(formData.get("paymentCondition") ?? ""),
+      paymentTermDays: Number(formData.get("paymentTermDays")),
     };
     const { data: prepared, error: prepareError } = await client.rpc(
       "prepare_commercial_quote_conversion",
@@ -524,6 +529,7 @@ export async function confirmCommercialQuoteConversionAction(
     });
     const event = assertQuoteConversionReady(review, overrides);
     const customer = resolveQuoteConversionCustomer(review, overrides);
+    const paymentTerms = resolveQuoteConversionPaymentTerms(review, overrides);
     const items = review.items;
     const officialServicePrice = items
       .filter((item) => item.itemType === "SERVICE")
@@ -600,7 +606,7 @@ export async function confirmCommercialQuoteConversionAction(
         ...review.commercialConditions,
       ].join("\n"),
       commercialFormalization: { type: "INVOICE_ONLY", requiresSignature: false, documentType: "COMMERCIAL_DOCUMENT" },
-      commercialAdjustment: { type: "COMMERCIAL_NEGOTIATION", mode: difference === 0 ? "OFFICIAL" : "NEGOTIATED", value: review.financial.net, reason: "Conversión de cotización comercial aceptada", internalNotes: `Fuente canónica: ${quoteId}`, subtotal: official, officialTotal: official, officialServicePrice, officialExtras, officialTransport, officialVenueSurcharge: 0, negotiatedServicePrice: acceptedService, negotiatedExtras: acceptedExtras, negotiatedTransport: acceptedTransport, negotiatedTotal: review.financial.net, difference, differencePercentage: official ? difference / official * 100 : 0, discountAmount: review.financial.discount, discountReason: "CORPORATE_AGREEMENT", commercialCharge: 0, appliedTransport: acceptedTransport, courtesyValue: 0, courtesies: [], paymentCondition: review.financial.depositPercent >= 100 ? "CASH" : "FIFTY_FIFTY", paymentTermDays: 0, paymentReceiptRequired: true, corporateCreditApproved: false, corporateVatApplied: review.financial.tax > 0, netAmount: review.financial.net, vatAmount: review.financial.tax, finalPrice: review.financial.total },
+      commercialAdjustment: { type: "COMMERCIAL_NEGOTIATION", mode: difference === 0 ? "OFFICIAL" : "NEGOTIATED", value: review.financial.net, reason: "Conversión de cotización comercial aceptada", internalNotes: `Fuente canónica: ${quoteId}`, subtotal: official, officialTotal: official, officialServicePrice, officialExtras, officialTransport, officialVenueSurcharge: 0, negotiatedServicePrice: acceptedService, negotiatedExtras: acceptedExtras, negotiatedTransport: acceptedTransport, negotiatedTotal: review.financial.net, difference, differencePercentage: official ? difference / official * 100 : 0, discountAmount: review.financial.discount, discountReason: "CORPORATE_AGREEMENT", commercialCharge: 0, appliedTransport: acceptedTransport, courtesyValue: 0, courtesies: [], paymentCondition: paymentTerms.paymentCondition, paymentTermDays: paymentTerms.paymentTermDays, paymentReceiptRequired: true, corporateCreditApproved: paymentTerms.paymentCondition === "CORPORATE_CREDIT", corporateVatApplied: review.financial.tax > 0, netAmount: review.financial.net, vatAmount: review.financial.tax, finalPrice: review.financial.total },
     };
     const result = await createCustomerProjectAction(draft);
     if (!result.ok) throw new Error(result.error);

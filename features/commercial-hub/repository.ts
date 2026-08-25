@@ -173,6 +173,10 @@ export async function loadCommercialHubData(
             eventCity: event.city ?? "",
             validityDays: Number(row.validity_days),
             depositPercent: Number(row.deposit_percent),
+            paymentCondition: commercial.paymentCondition === "CORPORATE_CREDIT" || commercial.paymentCondition === "CASH"
+              ? commercial.paymentCondition
+              : "FIFTY_FIFTY",
+            paymentTermDays: Number(commercial.paymentTermDays ?? 0),
             globalDiscountType: row.global_discount_type,
             globalDiscountValue: Number(row.global_discount_value),
             attachCatalog: false,

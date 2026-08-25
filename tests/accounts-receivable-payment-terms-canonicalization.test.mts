@@ -72,7 +72,7 @@ test("plazo comercial distinto de 30 días se clasifica como OTRO CRÉDITO", () 
   assert.equal(result.canonicalPaymentTerm, "DAYS_45");
 });
 
-test("CORPORATE_CREDIT sin plazo explícito sigue siendo Crédito Empresas", () => {
+test("CORPORATE_CREDIT sin plazo explícito requiere revisión y no entra a Crédito Empresas", () => {
   for (const paymentTermDays of [0, null]) {
     const result = resolveReceivablePaymentCategory({
       customerType: "CORPORATE",
@@ -80,9 +80,9 @@ test("CORPORATE_CREDIT sin plazo explícito sigue siendo Crédito Empresas", () 
       invoiceCustomTermDays: null,
       projectFinance: { paymentCondition: "CORPORATE_CREDIT", paymentTermDays },
     });
-    assert.equal(result.paymentCategory, "CREDITO_SIN_PLAZO");
+    assert.equal(result.paymentCategory, "REQUIERE_REVISIÓN");
     assert.equal(result.paymentCategorySource, "PROJECT_FINANCE");
-    assert.equal(isCompanyCreditPaymentCategory(result.paymentCategory), true);
+    assert.equal(isCompanyCreditPaymentCategory(result.paymentCategory), false);
   }
 });
 
@@ -203,12 +203,12 @@ test("baseline canónico no duplica ni depende de una sola categoría legacy", (
       paymentCategory: classification.paymentCategory,
     })),
   );
-  const creditCompanies = summary.days30 + summary.otherCredit + summary.noTermCredit;
+  const creditCompanies = summary.days30 + summary.otherCredit;
 
   assert.equal(summary.ordinary, 4_176_408);
-  assert.equal(creditCompanies, 2_002_150);
+  assert.equal(creditCompanies, 1_764_150);
   assert.equal(summary.total, 6_178_558);
-  assert.equal(summary.ordinary + summary.days30 + summary.otherCredit + summary.noTermCredit, 6_178_558);
+  assert.equal(summary.ordinary + summary.days30 + summary.otherCredit + summary.review, 6_178_558);
 });
 
 test("resumen de categorías usa la suma de saldos sin duplicar filas", () => {
@@ -268,8 +268,8 @@ test("resumen de categorías usa la suma de saldos sin duplicar filas", () => {
   assert.equal(summary.ordinary, 4_176_408);
   assert.equal(summary.days30, 1_764_150);
   assert.equal(summary.otherCredit, 0);
-  assert.equal(summary.noTermCredit, 238_000);
-  assert.equal(summary.review, 0);
+  assert.equal(summary.noTermCredit, 0);
+  assert.equal(summary.review, 238_000);
   assert.equal(summary.total, 6_178_558);
   assert.equal(
     summary.ordinary + summary.days30 + summary.otherCredit + summary.noTermCredit + summary.review,
