@@ -34,7 +34,6 @@ import { filterExtrasForEventType, includedExtrasForEventType, resolveBrandingMi
 import { formatChileanRut, isValidChileanRut, normalizeChileanMobileLocal, normalizeChileanPhone } from "@/lib/chile/rut";
 import { isValidOptionalEmail } from "@/lib/email/recipients";
 import { sendAutomaticBookingInvitationAction } from "@/features/automatic-booking/actions";
-import { sendManualReservationConfirmationAction } from "../actions/customer.actions";
 import { attachCustomerPurchaseOrderAction } from "@/features/commercial-documents/actions";
 import {
   projectOrigins,
@@ -520,8 +519,6 @@ export function NewProjectDrawer({
   const [error, setError] = useState("");
   const [createdProject, setCreatedProject] = useState<Project | null>(null);
   const [portalMessage, setPortalMessage] = useState("");
-  const [confirmationPreview, setConfirmationPreview] = useState(false);
-  const [confirmationSending, setConfirmationSending] = useState(false);
   const [negotiatedServicePrice, setNegotiatedServicePrice] = useState<
     number | null
   >(null);
@@ -1271,10 +1268,6 @@ export function NewProjectDrawer({
       setSubmitting(false);
     }
   };
-  const portalUrl = createdProject
-    ? `${window.location.origin}/projects/${createdProject.id}#portal-cliente`
-    : "";
-
   const summary = (
     <CommercialSummary
       extrasPrice={appliedExtrasPrice}
@@ -1307,7 +1300,7 @@ export function NewProjectDrawer({
               <p className="mt-3 leading-7 text-muted">
                 {retryingTransaction
                   ? "ORBIT conservará la misma reserva y continuará únicamente las etapas pendientes."
-                  : "Estamos creando la reserva, contrato, Portal, Calendar, Drive y correo. Tiempo estimado: 60–90 segundos."}
+                  : "Estamos creando la reserva, contrato, Portal, Calendar y Drive. La confirmación al cliente quedará pendiente de una acción explícita. Tiempo estimado: 60–90 segundos."}
               </p>
               <ol className="mt-6 grid gap-2 text-left text-sm sm:grid-cols-2">
                 {[
@@ -1316,7 +1309,7 @@ export function NewProjectDrawer({
                   "Portal",
                   "Calendar",
                   "Drive",
-                  "Correo",
+                  "Confirmación cliente: pendiente",
                 ].map((item) => (
                   <li className="rounded-xl border p-3" key={item}>
                     ⏳ {item}
@@ -2744,7 +2737,7 @@ export function NewProjectDrawer({
                   "Documento oficial preparado",
                   "Reserva registrada",
                   "Portal disponible",
-                  "Correo pendiente de decisión",
+                  "Confirmación cliente pendiente de envío",
                 ].map((label) => (
                   <div
                     className="flex items-center gap-3 rounded-xl border p-4"
@@ -2759,9 +2752,9 @@ export function NewProjectDrawer({
               <section className="rounded-2xl border p-5 text-left">
                 <h4 className="text-lg font-semibold">¿Qué deseas hacer?</h4>
                 <div className="mt-4 grid gap-2 sm:grid-cols-3">
-                  <Button onClick={() => setConfirmationPreview(true)}>
+                  <Button onClick={() => window.location.assign(`/projects/${createdProject.id}#agreement-control`)}>
                     <Send className="size-4" />
-                    Enviar confirmación al cliente
+                    Abrir Evento y enviar
                   </Button>
                   <Button onClick={reset} variant="outline">
                     Enviar más tarde
@@ -2776,92 +2769,6 @@ export function NewProjectDrawer({
                   </Button>
                 </div>
               </section>
-              {confirmationPreview && (
-                <section className="rounded-2xl border border-brand/30 bg-brand/5 p-5 text-left">
-                  <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">
-                    Vista previa antes de enviar
-                  </p>
-                  <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-                    <div>
-                      <dt className="text-muted">Cliente</dt>
-                      <dd className="font-semibold">
-                        {createdProject.client.name}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-muted">Destino</dt>
-                      <dd className="font-semibold">
-                        {createdProject.client.email}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-muted">Servicio</dt>
-                      <dd>
-                        {createdProject.services.map(serviceLabel).join(" + ")}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-muted">Documento</dt>
-                      <dd>
-                        {requiresSignature
-                          ? "Contrato firmado"
-                          : "Documento comercial"}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-muted">Precio aplicado</dt>
-                      <dd>{currency.format(adjustedSubtotal)}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-muted">IVA</dt>
-                      <dd>
-                        {corporateVatApplied
-                          ? currency.format(vatAmount)
-                          : "No aplicado"}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-muted">Portal</dt>
-                      <dd className="truncate">{portalUrl}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-muted">Total</dt>
-                      <dd className="font-semibold">
-                        {currency.format(payableTotal)}
-                      </dd>
-                    </div>
-                  </dl>
-                  <div className="mt-5 flex gap-2">
-                    <Button
-                      disabled={confirmationSending}
-                      onClick={async () => {
-                        setConfirmationSending(true);
-                        const result =
-                          await sendManualReservationConfirmationAction(
-                            createdProject.id,
-                          );
-                        setPortalMessage(result.message);
-                        if (result.ok) setConfirmationPreview(false);
-                        setConfirmationSending(false);
-                      }}
-                    >
-                      {confirmationSending ? (
-                        <LoaderCircle className="size-4 animate-spin" />
-                      ) : (
-                        <Send className="size-4" />
-                      )}
-                      Enviar
-                    </Button>
-                    <Button
-                      disabled={confirmationSending}
-                      onClick={() => setConfirmationPreview(false)}
-                      variant="outline"
-                    >
-                      Cancelar
-                    </Button>
-                  </div>
-                </section>
-              )}
               {portalMessage && (
                 <p className="text-sm text-success">{portalMessage}</p>
               )}

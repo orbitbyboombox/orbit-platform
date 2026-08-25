@@ -338,7 +338,7 @@ export default async function ProjectWorkspacePage({
       .order("due_at", { ascending: true, nullsFirst: false }),
     client
       .from("communications")
-      .select("id,channel,status,subject,thread_key,occurred_at")
+      .select("id,channel,status,communication_type,subject,thread_key,occurred_at")
       .eq("project_id", projectId)
       .order("occurred_at", { ascending: false }),
     client
@@ -852,10 +852,16 @@ export default async function ProjectWorkspacePage({
           : undefined;
       })(),
       gmailStatus:
-        communications?.find((item) => item.channel === "GMAIL")?.status ??
-        "PENDING",
-      gmailThread: communications?.find((item) => item.channel === "GMAIL")
-        ?.thread_key,
+        communications?.find(
+          (item) =>
+            item.channel === "GMAIL" &&
+            item.communication_type === "RESERVATION_CONFIRMATION",
+        )?.status ?? "NEVER_SENT",
+      gmailThread: communications?.find(
+        (item) =>
+          item.channel === "GMAIL" &&
+          item.communication_type === "RESERVATION_CONFIRMATION",
+      )?.thread_key,
     },
     payroll: (payroll ?? []).map((item) => ({
       staff: Array.isArray(item.staff)

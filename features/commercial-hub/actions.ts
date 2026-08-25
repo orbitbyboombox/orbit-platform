@@ -57,6 +57,7 @@ const conversionSuccess = (
 ) => ({
   ok: true as const,
   message: "✓ Reserva creada correctamente" as const,
+  customerConfirmationMessage: "Confirmación cliente pendiente de envío" as const,
   projectId,
   duplicate,
   warnings,

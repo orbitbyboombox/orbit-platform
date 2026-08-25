@@ -16,6 +16,9 @@ const conversionUi = source("features/commercial-hub/quote-conversion-review.tsx
 const delivery = source(
   "features/connectors/google-gmail/application/google-gmail-delivery.service.ts",
 );
+const confirmationService = source(
+  "features/connectors/google-gmail/application/reservation-confirmation.service.ts",
+);
 const migration = source(
   "supabase/migrations/0168_quote_conversion_committed_outcome_recovery.sql",
 );
@@ -125,8 +128,8 @@ test("14 Founder email uses the latest CRM contact", () => {
 });
 
 test("15 confirmed customer communication also resolves current CRM data", () => {
-  assert.match(delivery, /customers!inner\(full_name,email,phone,metadata\)/);
-  assert.match(delivery, /currentCustomerContact/);
+  assert.match(confirmationService, /customers!inner\(full_name,email,secondary_email,metadata\)/);
+  assert.match(confirmationService, /fullName: customer\.full_name/);
 });
 
 test("16 committed reservation success has the exact user outcome", () => {

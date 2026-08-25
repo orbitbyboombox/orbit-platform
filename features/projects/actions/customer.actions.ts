@@ -9,9 +9,9 @@ import {
   synchronizeConfirmedReservationDrive,
 } from "@/features/connectors/google-drive/application/google-drive-sync.service";
 import {
-  deliverConfirmedReservationEmail,
-  deliverFounderReservationNotification,
-} from "@/features/connectors/google-gmail/application/google-gmail-delivery.service";
+  loadReservationConfirmationComposer,
+  sendReservationConfirmation,
+} from "@/features/connectors/google-gmail/application/reservation-confirmation.service";
 import { formalizeManualReservation } from "../signing/manual-reservation-formalization.service";
 import type { Project, ProjectDraft } from "../types/project";
 import type { CustomerMutationInput } from "../infrastructure";
@@ -21,10 +21,7 @@ import {
 } from "../operations/confirmed-reservation-orchestrator.service";
 import { deliverAssignmentCancellationBoundary } from "@/features/operations/staff-assignment-cancellation.service";
 import { normalizeOptionalEmail, normalizeRequiredEmail } from "@/lib/email/recipients";
-import {
-  commercialServiceList,
-  currentCustomerContact,
-} from "../reservation-presentation";
+import { isAdministrativeRole } from "@/lib/auth/roles";
 
 export type CreateCustomerResult =
   | { ok: true; project: Project }
@@ -651,97 +648,80 @@ export async function createCustomerProjectAction(
   }
 }
 
-export async function sendManualReservationConfirmationAction(
-  projectId: string,
-): Promise<{ ok: boolean; message: string }> {
+async function requireReservationCommunicationFounder() {
+  const client = await createSupabaseServerClient();
+  const { data: auth, error } = await client.auth.getUser();
+  if (error || !auth.user) throw error ?? new Error("Sesión requerida.");
+  const { data: profile, error: profileError } = await client
+    .from("profiles")
+    .select("role")
+    .eq("id", auth.user.id)
+    .single();
+  if (profileError) throw profileError;
+  if (!isAdministrativeRole(profile.role))
+    throw new Error("Solo Founder o Administración puede enviar confirmaciones.");
+  return auth.user.id;
+}
+
+export async function sendManualReservationConfirmationAction(formData: FormData) {
   try {
-    const client = await createSupabaseServerClient();
-    const { data: auth, error } = await client.auth.getUser();
-    if (error || !auth.user) throw error ?? new Error("Sesión requerida.");
-    const result = await deliverConfirmedReservationEmail({
+    const actorId = await requireReservationCommunicationFounder();
+    const projectId = String(formData.get("projectId") ?? "").trim();
+    const requestId = String(formData.get("requestId") ?? "").trim();
+    if (!projectId || !requestId) throw new Error("El intento de envío no es válido.");
+    const result = await sendReservationConfirmation({
       projectId,
-      actorId: auth.user.id,
+      actorId,
+      requestId,
+      subject: String(formData.get("subject") ?? ""),
+      body: String(formData.get("body") ?? ""),
+      cc: String(formData.get("cc") ?? ""),
+      confirmResend: formData.get("confirmResend") === "true",
     });
-    if (result.status === "SENT")
-      await deliverFounderReservationNotification({
-        projectId,
-        actorId: auth.user.id,
-      });
     revalidatePath(`/projects/${projectId}`);
-    revalidatePath("/settings");
+    revalidatePath("/customers");
+    if (result.status !== "SENT") {
+      return {
+        ok: false as const,
+        ...result,
+        message: "No se pudo enviar la confirmación.",
+        error: "El intento ya está pendiente o falló. Usa Reintentar para crear un nuevo intento.",
+      };
+    }
     return {
-      ok: true,
-      message:
-        result.status === "SENT"
-          ? "Confirmación enviada al cliente y notificación Founder procesada."
-          : "El documento aún no está listo para enviar.",
+      ok: true as const,
+      ...result,
+      message: `✓ Confirmación enviada a ${result.recipient}`,
     };
   } catch (error) {
     console.error(
       JSON.stringify({
         level: "error",
         event: "manual_reservation.confirmation_send_failed",
-        projectId,
+        projectId: String(formData.get("projectId") ?? ""),
         error: reservationErrorDetails(error),
         timestamp: new Date().toISOString(),
       }),
     );
     return {
-      ok: false,
-      message: `No fue posible enviar la confirmación. Referencia ${safeReservationReference()}`,
+      ok: false as const,
+      message: "No se pudo enviar la confirmación.",
+      error: error instanceof Error ? error.message : "Falla desconocida del proveedor.",
     };
   }
 }
 export async function getManualConfirmationPreviewAction(projectId: string) {
   try {
-    const client = await createSupabaseServerClient();
-    const { data: auth } = await client.auth.getUser();
-    if (!auth.user) throw new Error("Sesión requerida.");
-    const { data, error } = await client
-      .from("projects")
-      .select(
-        "finance,customers!inner(full_name,email,metadata),project_services(service_code),agreements(status),customer_portal_tokens(id)",
-      )
-      .eq("id", projectId)
-      .single();
-    if (error) throw error;
-    const customer = Array.isArray(data.customers)
-      ? data.customers[0]
-      : data.customers;
-    const agreement = Array.isArray(data.agreements)
-      ? data.agreements.at(-1)
-      : data.agreements;
-    const finance =
-      data.finance && typeof data.finance === "object"
-        ? (data.finance as Record<string, unknown>)
-        : {};
+    await requireReservationCommunicationFounder();
+    const preview = await loadReservationConfirmationComposer(projectId);
     return {
       ok: true as const,
-      preview: {
-        customer: currentCustomerContact({
-          fullName: customer.full_name,
-          metadata: customer.metadata,
-        }),
-        email: customer.email ?? "Sin correo",
-        services: commercialServiceList(
-          (data.project_services ?? []).map((item) => item.service_code),
-        ),
-        negotiation: `Precio aplicado ${Number(finance.finalPrice ?? 0).toLocaleString("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 })}`,
-        vat: Number(finance.vatAmount ?? 0),
-        document:
-          agreement?.status === "SIGNED"
-            ? "Contrato firmado"
-            : "Documento comercial",
-        portal:
-          (data.customer_portal_tokens ?? []).length > 0
-            ? "Portal disponible"
-            : "Portal pendiente",
-      },
+      preview,
     };
-  } catch {
+  } catch (error) {
     return {
       ok: false as const,
-      message: `No fue posible preparar la vista previa. Referencia ${safeReservationReference()}`,
+      message: error instanceof Error ? error.message : "No fue posible preparar la vista previa.",
     };
   }
 }

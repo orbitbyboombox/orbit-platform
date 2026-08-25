@@ -202,6 +202,9 @@ export function QuoteConversionReviewDialog({
             className={`rounded-xl border p-4 text-sm font-medium ${outcome ? "border-emerald-500/40 bg-emerald-500/10" : ""}`}
           >
             <p>{message}</p>
+            {outcome ? (
+              <p className="mt-2">Confirmación cliente pendiente de envío.</p>
+            ) : null}
             {outcome?.warnings.map((warning) => (
               <p className="mt-2 text-amber-700 dark:text-amber-300" key={`${warning.integration}:${warning.detail}`}>
                 Hay una integración pendiente de sincronización: {warning.integration}.

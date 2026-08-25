@@ -1,6 +1,7 @@
 export interface GoogleGmailProviderMessage {
   to: string;
   cc?: readonly string[];
+  idempotencyKey?: string;
   subject: string;
   textBody: string;
   htmlBody: string;
@@ -41,6 +42,10 @@ export class GoogleGmailApiProvider implements GoogleGmailLiveProvider {
   private async raw(message: GoogleGmailProviderMessage): Promise<string> {
     const headers = [`To: ${message.to}`, `Subject: ${encodedSubject(message.subject)}`, "MIME-Version: 1.0", "Content-Type: text/html; charset=UTF-8"];
     if (message.cc?.length) headers.splice(1, 0, `Cc: ${message.cc.join(", ")}`);
+    if (message.idempotencyKey) {
+      const safeKey = message.idempotencyKey.replace(/[^a-zA-Z0-9._-]+/g, "-");
+      headers.push(`Message-ID: <${safeKey}@orbit.boom-box.cl>`, `X-ORBIT-Idempotency-Key: ${safeKey}`);
+    }
     if (message.replyToMessageId) headers.push(`In-Reply-To: ${message.replyToMessageId}`, `References: ${message.replyToMessageId}`);
     if (!message.driveFileIds.length && !message.attachments?.length) return utf8Base64Url(`${headers.join("\r\n")}\r\n\r\n${message.htmlBody}`);
     const boundary = `orbit-${crypto.randomUUID()}`;
