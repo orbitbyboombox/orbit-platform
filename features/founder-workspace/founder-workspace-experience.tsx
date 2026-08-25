@@ -117,9 +117,9 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
   </header>;
 
   const founderKpis = <section aria-label="Indicadores principales" className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-    {kpis.map(({ metric, icon: Icon, tone }) => <button data-command-card className="group min-h-[7.75rem] rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 sm:p-[1.05rem]" key={metric.label} onClick={() => router.push(metric.href)}>
+    {kpis.map(({ metric, icon: Icon, tone }) => <button data-command-card className="group min-h-[7.75rem] min-w-0 rounded-2xl border p-4 text-left [container-type:inline-size] transition hover:-translate-y-0.5 sm:p-[1.05rem]" key={metric.label} onClick={() => router.push(metric.href)}>
       <span className="flex items-center gap-3"><span className={`grid size-10 shrink-0 place-items-center rounded-xl ${toneStyle[tone]}`}><Icon className="size-[18px]" /></span><span className="text-[.7rem] font-medium leading-4 text-muted">{metric.label}</span></span>
-      <strong className="orbit-counter mt-3 block text-[1.55rem] leading-none tracking-[-.04em]">{formatMetric(metric)}</strong>
+      <FounderKpiValue>{formatMetric(metric)}</FounderKpiValue>
       <span className="mt-2 block truncate text-[10px] text-muted">{metric.detail}</span>
     </button>)}
   </section>;
@@ -222,5 +222,6 @@ function PendingStaffApprovals({ items, onResolved }: { items: PendingStaffAppro
 }
 
 function PanelTitle({ id, label }: { id: string; label: string }) { return <h2 data-command-label id={id}>{label}</h2>; }
+export function FounderKpiValue({ children }: { children: string }) { return <strong data-kpi-value className="orbit-counter mt-3 block max-w-full min-w-0 font-semibold leading-[1.05] tracking-[-.05em] [font-variant-numeric:tabular-nums] [overflow-wrap:anywhere]" style={{ fontSize: "clamp(.875rem, 10cqi, 1.55rem)" }}>{children}</strong>; }
 function StatusPill({ tone = "info" }: { tone?: CommandCenterItem["tone"] }) { const resolved = tone ?? "info"; return <span className={`hidden rounded-lg px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[.06em] sm:inline-flex ${toneStyle[resolved]}`}>{resolved === "danger" ? "Crítico" : resolved === "warning" ? "Pendiente" : "Activo"}</span>; }
 function Empty({ label }: { label: string }) { return <p className="rounded-xl border border-dashed p-4 text-xs text-muted">{label}</p>; }
