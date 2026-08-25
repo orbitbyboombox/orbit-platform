@@ -72,10 +72,16 @@ export function EventCenter({
   );
 
   const openEditor = (event: CrmOperationalEvent) => {
+    const operationalDate = event.serviceStartAt?.slice(0, 10) ?? event.date ?? "";
+    const canonicalDate = event.date ?? operationalDate;
     setEditing(event);
-    setEditDate(event.date ?? "");
-    setServiceEndAt(event.serviceEndAt?.slice(0, 16) ?? "");
-    setStaffCallAt(event.staffCallAt?.slice(0, 16) ?? "");
+    setEditDate(canonicalDate);
+    setServiceEndAt(
+      shiftEventScheduleDate(event.serviceEndAt, operationalDate, canonicalDate),
+    );
+    setStaffCallAt(
+      shiftEventScheduleDate(event.staffCallAt, operationalDate, canonicalDate),
+    );
     setError("");
     setFeedback("");
   };

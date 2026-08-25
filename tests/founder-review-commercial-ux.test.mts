@@ -17,6 +17,7 @@ const eventAction = read("features/crm/actions.ts");
 const eventCenter = read("features/crm/event-center.tsx");
 const eventRepository = read("features/crm/events-repository.ts");
 const migration = read("supabase/migrations/0173_event_date_atomic_update.sql");
+const scheduleRepair = read("supabase/migrations/0174_repair_event_service_schedule_writer.sql");
 const manualPdf = read("features/projects/signing/manual-reservation-formalization.service.ts");
 const signedPdf = read("features/projects/signing/digital-signature.service.ts");
 const pdf = read("features/projects/signing/signed-agreement-pdf.ts");
@@ -75,6 +76,8 @@ test("event date and operational schedule commit through one atomic RPC", () => 
   assert.doesNotMatch(eventAction, /\.rpc\("update_event_service_schedule"/);
   assert.match(migration, /perform public\.update_event_service_schedule/);
   assert.match(migration, /perform public\.update_crm_event/);
+  assert.match(scheduleRepair, /prepared_by/);
+  assert.doesNotMatch(scheduleRepair, /created_by/);
 });
 
 test("event save has explicit success, refresh persistence, and downstream sync", () => {
@@ -87,6 +90,8 @@ test("event save has explicit success, refresh persistence, and downstream sync"
   assert.match(eventAction, /"\/operations"/);
   assert.match(eventAction, /"\/finance\/collections"/);
   assert.match(eventRepository, /event\.event_date/);
+  assert.match(eventRepository, /window\.source==='SERVICE_START'\?null/);
+  assert.match(eventCenter, /const operationalDate = event\.serviceStartAt/);
 });
 
 test("accepted snapshot fixes company net, VAT, total, and actual deposit percent", () => {
