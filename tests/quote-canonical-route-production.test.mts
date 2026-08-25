@@ -126,6 +126,8 @@ test("2 the canonical App Router quote page exists", () => {
     true,
   );
   assert.match(detailRepository, /\.eq\("id", normalized\)/);
+  assert.match(detailRepository, /\.order\("sent_at"/);
+  assert.doesNotMatch(detailRepository, /sent_at,created_at/);
 });
 
 test("3 real SENT quote shape opens without requiring a project", () => {

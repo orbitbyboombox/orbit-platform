@@ -31,10 +31,10 @@ export async function loadCommercialQuoteDetail(
   const { data: sends, error: sendsError } = await client
     .from("commercial_sends")
     .select(
-      "id,status,sent_at,created_at,recipient_email,cc_recipients,subject",
+      "id,status,sent_at,recipient_email,cc_recipients,subject",
     )
     .eq("quotation_id", quote.id)
-    .order("created_at", { ascending: false });
+    .order("sent_at", { ascending: false });
   if (sendsError) throw sendsError;
   return buildCommercialQuoteDetail(quote, sends ?? []);
 }
