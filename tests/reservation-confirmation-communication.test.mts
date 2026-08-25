@@ -21,11 +21,25 @@ const templateInput = {
   venue: "Av Vitacura 2680",
   city: "Las Condes",
   serviceCodes: ["CLASSIC", "UNLIMITED_MAGNETS"],
-  commercialLabels: ["Classic 3 horas 5x15cms", "Imanes ilimitados GRATIS"],
+  commercialItems: [
+    {
+      code: "CLASSIC",
+      label: "Classic 3 horas 5x15cms",
+      itemType: "SERVICE",
+      total: 290000,
+    },
+    {
+      code: "UNLIMITED_MAGNETS",
+      label: "Imanes ilimitados GRATIS",
+      itemType: "SERVICE",
+      total: 0,
+    },
+  ],
   serviceStartAt: "2026-09-14T17:00:00Z",
   serviceEndAt: "2026-09-14T20:00:00Z",
   eventDurationHours: 3,
   serviceDurations: [3, 3],
+  transport: 0,
   total: 345100,
   paid: 0,
   balance: 345100,
@@ -97,21 +111,22 @@ test("9 provider failure is recorded without invalidating a reservation", () => 
 
 test("10 current customer contact is used while accepted commercial values stay fixed", () => {
   assert.match(service, /customer: \{ fullName: customer\.full_name, metadata: customer\.metadata \}/);
-  assert.match(service, /commercialLabels\(quotation\?\.accepted_snapshot\)/);
+  assert.match(service, /customerCommercialItemsFromSnapshot/);
   assert.match(service, /quotation\?\.final_customer_price/);
 });
 
 test("11 customer template uses commercial labels without enum leakage", () => {
   const rendered = buildReservationConfirmationTemplate(templateInput);
-  assert.match(rendered.body, /Classic 3 horas 5x15cms \+ Imanes ilimitados GRATIS/);
+  assert.match(rendered.body, /Servicio: Classic · 3 horas/);
+  assert.match(rendered.body, /Extras: Imanes ilimitados · Gratis/);
   assert.doesNotMatch(rendered.body, /CLASSIC|UNLIMITED_MAGNETS/);
   assert.match(rendered.subject, /¡Tu reserva BOOMBOX está confirmada!/);
 });
 
 test("12 customer template uses one canonical event duration", () => {
   const rendered = buildReservationConfirmationTemplate(templateInput);
-  assert.match(rendered.body, /Duración: 3 horas/);
-  assert.doesNotMatch(rendered.body, /3 h \+ 3 h|3 horas \+ 3 horas/);
+  assert.match(rendered.body, /Servicio: Classic · 3 horas/);
+  assert.doesNotMatch(rendered.body, /3 h \+ 3 h|3 horas \+ 3 horas|3 horas, 3 horas/);
 });
 
 test("13 Payment Ledger and Accounts Receivable remain read-only", () => {

@@ -1,7 +1,7 @@
 import {
-  canonicalEventDuration,
-  commercialServiceList,
+  customerCommercialPresentation,
   currentCustomerContact,
+  type CustomerCommercialItem,
 } from "../../../projects/reservation-presentation.ts";
 
 const money = (value: number) =>
@@ -25,11 +25,12 @@ export type ReservationConfirmationTemplateInput = {
   venue?: string | null;
   city?: string | null;
   serviceCodes: string[];
-  commercialLabels?: string[];
+  commercialItems?: CustomerCommercialItem[];
   serviceStartAt?: string | null;
   serviceEndAt?: string | null;
   eventDurationHours?: number | null;
   serviceDurations?: Array<number | null | undefined>;
+  transport: number;
   total: number;
   paid: number;
   balance: number;
@@ -40,10 +41,9 @@ export function buildReservationConfirmationTemplate(
   input: ReservationConfirmationTemplateInput,
 ) {
   const customer = currentCustomerContact(input.customer);
-  const services = input.commercialLabels?.filter(Boolean).length
-    ? Array.from(new Set(input.commercialLabels?.map((value) => value.trim()))).join(" + ")
-    : commercialServiceList(input.serviceCodes);
-  const duration = canonicalEventDuration({
+  const commercial = customerCommercialPresentation({
+    serviceCodes: input.serviceCodes,
+    commercialItems: input.commercialItems,
     serviceStartAt: input.serviceStartAt,
     serviceEndAt: input.serviceEndAt,
     eventDurationHours: input.eventDurationHours,
@@ -61,8 +61,9 @@ export function buildReservationConfirmationTemplate(
     `Tu reserva para ${input.eventName || "tu evento"} ha quedado confirmada.`,
     `Fecha: ${eventDate(input.eventDate)}`,
     `Horario: ${input.eventTime?.slice(0, 5) || "Por confirmar"}`,
-    `Servicio: ${services}`,
-    `Duración: ${duration}`,
+    `Servicio: ${commercial.serviceWithDuration}`,
+    `Extras: ${commercial.extrasLabel}`,
+    `Transporte: ${money(input.transport)}`,
     `Lugar: ${venue}`,
     `Valor total: ${money(input.total)}`,
     `Abono recibido: ${money(input.paid)}`,
@@ -74,5 +75,13 @@ export function buildReservationConfirmationTemplate(
     "Nos vemos pronto.",
     "Equipo BOOMBOX",
   ].join("\n\n");
-  return { subject, body, customer, services, duration, venue };
+  return {
+    subject,
+    body,
+    customer,
+    services: commercial.service,
+    extras: commercial.extrasLabel,
+    duration: commercial.duration,
+    venue,
+  };
 }

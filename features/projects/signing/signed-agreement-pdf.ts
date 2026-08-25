@@ -1,7 +1,6 @@
-import "server-only";
 import QRCode from "qrcode";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
-import { formatChileanRut } from "../../../lib/chile/rut";
+import { formatChileanRut } from "../../../lib/chile/rut.ts";
 
 export interface SignedAgreementPdfInput {
   quotationNumber: string; customer: string; customerRut: string; customerEmail: string; customerPhone: string;
@@ -90,4 +89,4 @@ function sectionTitle(page:PDFPage,bold:PDFFont,title:string,y:number){page.draw
 function drawRows(page:PDFPage,font:PDFFont,bold:PDFFont,rows:Array<[string,string]>,startY:number,emphasizeLast=false){let y=startY;for(const [index,[label,value]] of rows.entries()){const emphasized=emphasizeLast&&index===2;page.drawText(safe(label).toUpperCase(),{x:42,y,size:8,font:bold,color:muted});page.drawText(safe(value).slice(0,76),{x:205,y,size:emphasized?13:10,font:emphasized?bold:font,color:emphasized?orange:ink});y-=36;}return y;}
 function drawTransferRows(page:PDFPage,font:PDFFont,bold:PDFFont,rows:Array<[string,string]>,startY:number){let y=startY;for(const[label,value]of rows){page.drawText(safe(label).toUpperCase(),{x:60,y,size:8,font:bold,color:muted});page.drawText(safe(value),{x:250,y,size:10,font,color:ink});y-=36;}return y;}
 function drawWrapped(page:PDFPage,text:string,x:number,y:number,maxWidth:number,size:number,lineHeight:number,font:PDFFont,color=ink){const words=text.split(/\s+/);let line="";for(const word of words){const next=line?`${line} ${word}`:word;if(font.widthOfTextAtSize(next,size)>maxWidth&&line){page.drawText(line,{x,y,size,font,color});y-=lineHeight;line=word;}else line=next;}if(line){page.drawText(line,{x,y,size,font,color});y-=lineHeight;}return y;}
-function safe(value:string):string{return String(value??"").replace(/[^\x20-\x7EÀ-ÿ]/g," ");}
+function safe(value:string):string{return String(value??"").replace(/[^\x20-\x7EÀ-ÿ·]/g," ");}

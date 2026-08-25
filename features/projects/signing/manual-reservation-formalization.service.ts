@@ -8,12 +8,16 @@ import { uploadReservationDocumentToDrive } from "@/features/connectors/google-d
 import { confirmDigitalSignature } from "./digital-signature.service";
 import { createSignedAgreementPdf } from "./signed-agreement-pdf";
 import type { ProjectDraft } from "../types/project";
+import {
+  customerCommercialItemsFromSnapshot,
+  customerCommercialPresentation,
+} from "../reservation-presentation";
 
 const sha256=(value:string|Uint8Array)=>createHash("sha256").update(value).digest("hex");
 
 export async function formalizeManualReservation(input:{projectId:string;actorId:string;formalization:NonNullable<ProjectDraft["commercialFormalization"]>}){
   const admin=createAdminClient();
-  const {data:project,error}=await admin.from("projects").select("id,name,customer_id,orbit_event_id,event_date,event_time,location,city,operations,customers!inner(full_name,email,rut,phone),project_services(service_code,duration_hours,extras),quotations(quotation_number,final_customer_price)").eq("id",input.projectId).single();
+  const {data:project,error}=await admin.from("projects").select("id,name,customer_id,orbit_event_id,event_date,event_time,location,city,operations,customers!inner(full_name,email,rut,phone),project_services(service_code,duration_hours,extras),project_operational_contracts(service_start_at,service_end_at),quotations(quotation_number,final_customer_price,accepted_snapshot)").eq("id",input.projectId).single();
   if(error)throw error;
   const customer=Array.isArray(project.customers)?project.customers[0]:project.customers;
   const quotation=Array.isArray(project.quotations)?project.quotations[0]:project.quotations;
@@ -32,8 +36,10 @@ export async function formalizeManualReservation(input:{projectId:string;actorId
 
   const [company,portal]=await Promise.all([loadCompanySettings(admin),createCustomerPortalAccess(project.id,input.actorId)]);
   const services=project.project_services??[]; const operations=project.operations&&typeof project.operations==="object"?project.operations as Record<string,unknown>:{};
+  const operational=Array.isArray(project.project_operational_contracts)?project.project_operational_contracts[0]:project.project_operational_contracts;
+  const commercial=customerCommercialPresentation({serviceCodes:services.map(item=>item.service_code),commercialItems:customerCommercialItemsFromSnapshot(quotation?.accepted_snapshot),serviceStartAt:operational?.service_start_at,serviceEndAt:operational?.service_end_at,eventDurationHours:Number(operations.durationHours??0)||null,serviceDurations:services.map(item=>Number(item.duration_hours??0)||null)});
   const verificationCode=sha256(`${agreementId}:${input.formalization.type}`).slice(0,24).toUpperCase();
-  const pdf=await createSignedAgreementPdf({quotationNumber:quotation?.quotation_number??"Sin cotización",customer:customer.full_name,customerRut:customer.rut??"Por confirmar",customerEmail:customer.email,customerPhone:customer.phone??"Por confirmar",event:project.name,eventDate:project.event_date,eventTime:project.event_time?.slice(0,5)??"Por confirmar",services:services.map(item=>item.service_code).join(", ")||"Por confirmar",hours:services.map(item=>item.duration_hours?`${item.duration_hours} horas`:"").filter(Boolean).join(", ")||"Por confirmar",extras:services.flatMap(item=>Array.isArray(item.extras)?item.extras:[]).join(", ")||"Sin extras",finalCustomerPrice:Number(quotation?.final_customer_price??0),venue:project.location??"Por confirmar",address:String(operations.eventAddress??project.city??"Por confirmar"),operationalContact:String(operations.operationalContact??"Equipo BOOMBOX"),agreementVersion:"RC-16",verificationCode,portalUrl:portal.url,documentMode:"COMMERCIAL_DOCUMENT",branding:{productName:company.productName,productVersion:company.productVersion,brandName:company.brandName,poweredBy:company.poweredBy,footer:company.contractFooter,currency:company.currency,locale:company.locale,timezone:company.timezone}});
+  const pdf=await createSignedAgreementPdf({quotationNumber:quotation?.quotation_number??"Sin cotización",customer:customer.full_name,customerRut:customer.rut??"Por confirmar",customerEmail:customer.email,customerPhone:customer.phone??"Por confirmar",event:project.name,eventDate:project.event_date,eventTime:project.event_time?.slice(0,5)??"Por confirmar",services:commercial.service,hours:commercial.duration,extras:commercial.extrasLabel,finalCustomerPrice:Number(quotation?.final_customer_price??0),venue:project.location??"Por confirmar",address:String(operations.eventAddress??project.city??"Por confirmar"),operationalContact:String(operations.operationalContact??"Equipo BOOMBOX"),agreementVersion:"RC-16",verificationCode,portalUrl:portal.url,documentMode:"COMMERCIAL_DOCUMENT",branding:{productName:company.productName,productVersion:company.productVersion,brandName:company.brandName,poweredBy:company.poweredBy,footer:company.contractFooter,currency:company.currency,locale:company.locale,timezone:company.timezone}});
   const path=`${project.id}/${agreementId}/documento-con-factura.pdf`;
   const [storage,drive]=await Promise.all([admin.storage.from("orbit-documents").upload(path,pdf,{contentType:"application/pdf",upsert:false}),uploadReservationDocumentToDrive({client:admin,projectId:project.id,customerName:customer.full_name,eventDate:project.event_date,kind:"CONTRACT",name:`Documento con Factura - ${project.name}.pdf`,mimeType:"application/pdf",bytes:pdf})]);
   if(storage.error)throw storage.error;

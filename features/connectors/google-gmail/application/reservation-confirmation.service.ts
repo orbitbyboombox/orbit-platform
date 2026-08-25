@@ -7,6 +7,7 @@ import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-wor
 import type { GoogleGmailLiveProvider } from "../provider/google-gmail-live.provider";
 import { GoogleGmailApiProvider } from "../provider/google-gmail-live.provider";
 import { buildReservationConfirmationTemplate } from "./reservation-confirmation.template";
+import { customerCommercialItemsFromSnapshot } from "@/features/projects/reservation-presentation";
 
 export type ReservationConfirmationStatus = "NEVER_SENT" | "SENT" | "FAILED";
 
@@ -82,16 +83,6 @@ function object(value: unknown) {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
 }
 
-function commercialLabels(acceptedSnapshot: unknown) {
-  const items = object(acceptedSnapshot).items;
-  if (!Array.isArray(items)) return [];
-  return items
-    .map(object)
-    .filter((item) => item.itemType === "SERVICE")
-    .map((item) => String(item.label ?? "").trim())
-    .filter(Boolean);
-}
-
 function communicationStatus(history: CommunicationRow[]): ReservationConfirmationStatus {
   if (!history.length) return "NEVER_SENT";
   return history[0]?.status === "SENT" ? "SENT" : "FAILED";
@@ -106,7 +97,7 @@ export async function loadReservationConfirmationComposer(
       admin
         .from("projects")
         .select(
-          "id,customer_id,name,event_date,event_time,location,city,operations,customers!inner(full_name,email,secondary_email,metadata),project_services(service_code,duration_hours),quotations(final_customer_price,grand_total,accepted_snapshot,created_at),financial_event_records(invoiced_amount,paid_amount,outstanding_balance),project_operational_contracts(service_start_at,service_end_at),customer_portal_tokens(id)",
+          "id,customer_id,name,event_date,event_time,location,city,operations,customers!inner(full_name,email,secondary_email,metadata),project_services(service_code,duration_hours),quotations(final_customer_price,grand_total,transport_total,accepted_snapshot,created_at),financial_event_records(invoiced_amount,paid_amount,outstanding_balance),project_operational_contracts(service_start_at,service_end_at),customer_portal_tokens(id)",
         )
         .eq("id", projectId)
         .is("deleted_at", null)
@@ -145,11 +136,14 @@ export async function loadReservationConfirmationComposer(
     venue: project.location,
     city: project.city,
     serviceCodes: (project.project_services ?? []).map((item) => item.service_code),
-    commercialLabels: commercialLabels(quotation?.accepted_snapshot),
+    commercialItems: customerCommercialItemsFromSnapshot(
+      quotation?.accepted_snapshot,
+    ),
     serviceStartAt: operational?.service_start_at,
     serviceEndAt: operational?.service_end_at,
     eventDurationHours: Number(operations.durationHours ?? 0) || null,
     serviceDurations: (project.project_services ?? []).map((item) => Number(item.duration_hours ?? 0)),
+    transport: Number(quotation?.transport_total ?? 0),
     total: Number(quotation?.final_customer_price ?? quotation?.grand_total ?? financial?.invoiced_amount ?? 0),
     paid: Number(financial?.paid_amount ?? 0),
     balance: Number(financial?.outstanding_balance ?? quotation?.final_customer_price ?? 0),
