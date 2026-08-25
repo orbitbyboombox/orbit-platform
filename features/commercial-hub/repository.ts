@@ -28,15 +28,33 @@ export async function loadCommercialQuoteDetail(
   const { data: quote, error } = await query.maybeSingle();
   if (error) throw error;
   if (!quote) return null;
-  const { data: sends, error: sendsError } = await client
-    .from("commercial_sends")
-    .select(
-      "id,status,sent_at,recipient_email,cc_recipients,subject",
-    )
-    .eq("quotation_id", quote.id)
-    .order("sent_at", { ascending: false });
+  const [sendsResult, originResult] = await Promise.all([
+    client
+      .from("commercial_sends")
+      .select(
+        "id,status,sent_at,recipient_email,cc_recipients,subject",
+      )
+      .eq("quotation_id", quote.id)
+      .order("sent_at", { ascending: false }),
+    client
+      .from("project_commercial_origins")
+      .select("project_id,created_at")
+      .eq("quotation_id", quote.id)
+      .maybeSingle(),
+  ]);
+  const { data: sends, error: sendsError } = sendsResult;
   if (sendsError) throw sendsError;
-  return buildCommercialQuoteDetail(quote, sends ?? []);
+  if (originResult.error) throw originResult.error;
+  const linkedProjectId = quote.project_id ?? originResult.data?.project_id;
+  return buildCommercialQuoteDetail(
+    {
+      ...quote,
+      project_id: linkedProjectId,
+      status: linkedProjectId ? "CONVERTED" : quote.status,
+      converted_at: quote.converted_at ?? originResult.data?.created_at,
+    },
+    sends ?? [],
+  );
 }
 
 export async function loadCommercialHubData(

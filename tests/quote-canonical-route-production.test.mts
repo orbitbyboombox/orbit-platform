@@ -128,6 +128,7 @@ test("2 the canonical App Router quote page exists", () => {
   assert.match(detailRepository, /\.eq\("id", normalized\)/);
   assert.match(detailRepository, /\.order\("sent_at"/);
   assert.doesNotMatch(detailRepository, /sent_at,created_at/);
+  assert.match(detailRepository, /project_commercial_origins/);
 });
 
 test("3 real SENT quote shape opens without requiring a project", () => {
@@ -229,6 +230,8 @@ test("16 concurrent conversion is protected", () => {
 
 test("17 converted quote exposes View Event instead of conversion", () => {
   assert.equal(quoteDetailActions("CONVERTED", "project-1").isConverted, true);
+  assert.equal(quoteDetailActions("ACCEPTED", "project-1").canConvert, false);
+  assert.equal(quoteDetailActions("ACCEPTED", "project-1").isConverted, true);
   assert.match(detailUi, /RESERVA YA GENERADA/);
   assert.match(detailUi, /VER EVENTO/);
 });

@@ -86,8 +86,8 @@ export function quoteDetailActions(status: string, projectId: string | null) {
   return {
     canEdit: status === "DRAFT",
     canAccept: ["SENT", "VIEWED"].includes(status),
-    canConvert: status === "ACCEPTED",
-    isConverted: status === "CONVERTED" && Boolean(projectId),
+    canConvert: status === "ACCEPTED" && !projectId,
+    isConverted: Boolean(projectId),
   };
 }
 
