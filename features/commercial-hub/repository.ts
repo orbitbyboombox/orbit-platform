@@ -2,6 +2,42 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CommercialHubData } from "./types";
 import { normalizeEmailNewlines } from "./presentation";
 import { loadCompanySettings } from "@/features/company-settings";
+import {
+  buildCommercialQuoteDetail,
+  type CommercialQuoteDetail,
+} from "./quote-detail";
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const quoteDetailSelect =
+  "id,quotation_number,version,status,customer_id,project_id,issue_date,expiration_date,created_at,updated_at,approved_at,approved_by,approval_reason,converted_at,customer_snapshot,commercial_snapshot,accepted_snapshot,validity_days,deposit_percent,global_discount_type,global_discount_value,subtotal,discount_total,tax_total,grand_total,final_customer_price,customers(full_name,company,rut,email,secondary_email,phone,address),quotation_items(id,item_type,code,description,label,quantity,catalog_price,quoted_price,unit_price,total,discount_type,discount_value,is_manual,display_order)";
+
+export async function loadCommercialQuoteDetail(
+  client: SupabaseClient,
+  identifier: string,
+): Promise<CommercialQuoteDetail | null> {
+  const normalized = decodeURIComponent(identifier).trim();
+  let query = client
+    .from("quotations")
+    .select(quoteDetailSelect)
+    .is("deleted_at", null);
+  query = UUID_PATTERN.test(normalized)
+    ? query.eq("id", normalized)
+    : query.eq("quotation_number", normalized);
+  const { data: quote, error } = await query.maybeSingle();
+  if (error) throw error;
+  if (!quote) return null;
+  const { data: sends, error: sendsError } = await client
+    .from("commercial_sends")
+    .select(
+      "id,status,sent_at,created_at,recipient_email,cc_recipients,subject",
+    )
+    .eq("quotation_id", quote.id)
+    .order("created_at", { ascending: false });
+  if (sendsError) throw sendsError;
+  return buildCommercialQuoteDetail(quote, sends ?? []);
+}
 
 export async function loadCommercialHubData(
   client: SupabaseClient,

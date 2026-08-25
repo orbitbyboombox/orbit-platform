@@ -161,7 +161,7 @@ export interface CrmCustomerProfile extends CrmCustomerSummary {
   contacts: Array<{ name: string; email: string; phone: string }>;
   commercialHistory: Array<{
     id: string;
-    projectId: string;
+    href: string;
     type: string;
     title: string;
     detail: string;

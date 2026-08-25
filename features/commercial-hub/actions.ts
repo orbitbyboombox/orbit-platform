@@ -322,6 +322,7 @@ export async function acceptCommercialQuoteAction(quoteId: string) {
     );
     if (error) throw error;
     revalidatePath("/leads");
+    revalidatePath(`/quotes/${quoteId}`);
     return {
       ok: true as const,
       message:
@@ -604,7 +605,7 @@ export async function confirmCommercialQuoteConversionAction(
       warnings.push("La reserva fue creada; el archivo administrativo de la cotización en Drive queda pendiente.");
       console.error("[ORBIT][ACCEPTED_QUOTE_DRIVE_ARCHIVE]", driveError);
     }
-    revalidatePath("/leads"); revalidatePath(`/projects/${result.project.id}`);
+    revalidatePath("/leads"); revalidatePath(`/quotes/${quoteId}`); revalidatePath(`/projects/${result.project.id}`);
     return {
       ok: true as const,
       message: warnings.length

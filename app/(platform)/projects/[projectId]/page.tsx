@@ -1416,7 +1416,8 @@ function buildCommercialQuotationFile(originValue: unknown, quotationValue: unkn
     revision: Number(origin.quotation_version ?? quotation.version ?? snapshotQuote.version ?? 1),
     acceptedAt: String(origin.accepted_at ?? quotation.approved_at ?? quotation.created_at ?? new Date(0).toISOString()),
     total: Number(commercial.total ?? snapshotQuote.grandTotal ?? quotation.grand_total ?? 0),
-    href: `/api/commercial/quotes/${id}/pdf`,
+    detailHref: `/quotes/${id}`,
+    pdfHref: `/api/commercial/quotes/${id}/pdf`,
     items,
   };
 }

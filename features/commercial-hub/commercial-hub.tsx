@@ -80,7 +80,6 @@ export function CommercialHub({ data }: { data: CommercialHubData }) {
   const [view, setView] = useState<"HOME" | CommercialCategory | "COMPANIES">(
     "HOME",
   );
-  const [draftToEdit, setDraftToEdit] = useState<FormalQuoteDraft | undefined>();
   return (
     <main className="mx-auto w-full max-w-[1480px] space-y-6 p-4 sm:p-6 lg:p-8">
       <header>
@@ -167,11 +166,11 @@ export function CommercialHub({ data }: { data: CommercialHubData }) {
           </button>
         </section>
       ) : view === "COMPANIES_QUOTE" ? (
-        <FormalBuilder data={data} initialDraft={draftToEdit} />
+        <FormalBuilder data={data} />
       ) : (
         <InformationSender category={view} data={data} key={view} />
       )}
-      <RecentQuotes quotes={data.recentQuotes} onEdit={(draft) => { setDraftToEdit(draft); setView("COMPANIES_QUOTE"); }} />
+      <RecentQuotes quotes={data.recentQuotes} />
       <SendHistory sends={data.recentSends} />
     </main>
   );
@@ -341,7 +340,7 @@ function InformationSender({
   );
 }
 
-function FormalBuilder({ data, initialDraft }: { data: CommercialHubData; initialDraft?: FormalQuoteDraft }) {
+export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData; initialDraft?: FormalQuoteDraft }) {
   const [persistedQuoteId, setPersistedQuoteId] = useState(initialDraft?.quoteId);
   const saveRequestIdRef = useRef(initialDraft?.quoteId ?? uid());
   const saveInFlightRef = useRef(false);
@@ -902,10 +901,8 @@ function QuotePreview({
 }
 function RecentQuotes({
   quotes,
-  onEdit,
 }: {
   quotes: CommercialHubData["recentQuotes"];
-  onEdit: (draft: FormalQuoteDraft) => void;
 }) {
   const [openPdf, setOpenPdf] = useState<{ id: string; number: string } | null>(null);
   const [expanded, setExpanded] = useState(false);
@@ -923,12 +920,12 @@ function RecentQuotes({
               className="grid min-w-0 gap-2 py-3 text-sm lg:grid-cols-[minmax(0,1fr)_auto_auto_auto] lg:items-center lg:gap-4"
               key={q.id}
             >
-              <span className="min-w-0 truncate font-medium">{q.number.replace(/^COTIZACIÓN\s*/i, "")} · {q.customer}</span>
+              <Link className="min-w-0 truncate font-medium hover:text-brand" href={`/quotes/${q.id}`}>{q.number.replace(/^COTIZACIÓN\s*/i, "")} · {q.customer}</Link>
               <span className="font-medium">{money.format(q.total)}</span>
               <span className="text-muted">{quoteStatusLabel(q.status)} · {q.issuedAt.split("-").reverse().slice(0, 2).join(" ")}</span>
               <div className="flex min-w-0 flex-wrap gap-3 lg:justify-end">
                 <button className="min-h-11 font-medium text-brand" onClick={() => setOpenPdf({ id: q.id, number: q.number })}>PDF</button>
-                {q.draft && <button className="min-h-11 font-medium text-brand" onClick={() => onEdit(q.draft!)}>Continuar</button>}
+                <Link className="inline-flex min-h-11 items-center font-medium text-brand" href={`/quotes/${q.id}`}>{q.draft ? "ABRIR / CONTINUAR" : "ABRIR"}</Link>
                 {["SENT","VIEWED"].includes(q.status) ? <button className="min-h-11 font-semibold text-brand" disabled={pending} onClick={() => { if(!window.confirm(`¿Confirmar que ${q.number} fue aceptada por el cliente?`))return; startTransition(async()=>{const result=await acceptCommercialQuoteAction(q.id);setMessage(result.ok?result.message:result.error);if(result.ok)window.location.reload()})}}>MARCAR COMO ACEPTADA</button>:null}
                 {q.status==="ACCEPTED" ? <button className="min-h-11 font-semibold text-brand" disabled={pending} onClick={()=>startTransition(async()=>{const result=await loadCommercialQuoteConversionReviewAction(q.id);if(!result.ok){setMessage(result.error);return}if(result.converted){window.location.assign(`/projects/${result.projectId}`);return}setReview(result.review)})}>GENERAR RESERVA DESDE COTIZACIÓN</button>:null}
                 {q.status==="CONVERTED" ? <><span className="inline-flex min-h-11 items-center font-semibold text-success">RESERVA YA GENERADA</span>{q.projectId?<Link className="inline-flex min-h-11 items-center font-semibold text-brand" href={`/projects/${q.projectId}`}>VER EVENTO</Link>:null}</>:null}

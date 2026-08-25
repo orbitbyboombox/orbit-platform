@@ -202,7 +202,7 @@ export type ProjectWorkspaceExperienceProps = Omit<
   activities?: readonly { title: string; detail: string; time: string }[];
   equipment: EquipmentAssignmentPanelProps;
   signing: { agreementId?: string; status: string; href?: string; createdAt?:string; signedAt?:string };
-  commercialHub: { customerTaxId?:string; customerKind:"PARTICULAR"|"EMPRESA"; paymentCondition:string; quotation?:{id:string;number:string;status:string;revision:number;acceptedAt:string;total:number;href:string;items:readonly {label:string;quantity:number;total:number}[]} };
+  commercialHub: { customerTaxId?:string; customerKind:"PARTICULAR"|"EMPRESA"; paymentCondition:string; quotation?:{id:string;number:string;status:string;revision:number;acceptedAt:string;total:number;detailHref:string;pdfHref:string;items:readonly {label:string;quantity:number;total:number}[]} };
   productionIntegration: ProductionIntegrationPanelProps;
   event360: Event360Data;
   eventControl: { event: CrmEventSummary; operations: CrmCustomerEventOperations };

@@ -6,6 +6,7 @@ import type {
 } from "./types";
 import { formatChileanPhone, formatChileanRut } from "@/lib/chile/rut";
 import { groupByOwnerId } from "./relations";
+import { commercialQuoteHref } from "@/features/commercial-hub/quote-detail";
 
 type CustomerRow = {
   id: string;
@@ -393,7 +394,7 @@ export async function loadCrmCustomerProfile(
     commercialHistory: [
       ...(quotations ?? []).map((item) => ({
         id: `quotation-${item.id}`,
-        projectId: item.project_id,
+        href: commercialQuoteHref(item.id),
         type: "Cotización",
         title: item.quotation_number,
         detail: `${item.status} · ${Number(item.final_customer_price ?? item.grand_total ?? 0).toLocaleString("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 })}`,
@@ -401,7 +402,7 @@ export async function loadCrmCustomerProfile(
       })),
       ...negotiationRows.map((item) => ({
         id: `negotiation-${item.id}`,
-        projectId: item.project_id,
+        href: `/projects/${item.project_id}`,
         type: "Negociación",
         title: item.reason ?? "Precio aplicado",
         detail: `${Number(item.negotiated_total ?? 0).toLocaleString("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 })} · Diferencia ${Number(item.difference ?? 0).toLocaleString("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 })}`,
@@ -409,7 +410,7 @@ export async function loadCrmCustomerProfile(
       })),
       ...mapped.map((item) => ({
         id: `reservation-${item.id}`,
-        projectId: item.projectId,
+        href: `/projects/${item.projectId}`,
         type: "Reserva / Evento",
         title: item.name,
         detail: `${item.service || "Servicio por confirmar"} · ${item.status}`,
