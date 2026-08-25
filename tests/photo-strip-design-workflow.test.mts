@@ -14,6 +14,7 @@ const portalUi = source("features/customer-portal/customer-photo-strip-design-ex
 const portalService = source("features/customer-portal/customer-portal.service.ts");
 const portalRoute = source("app/api/portal/[token]/design/[documentId]/route.ts");
 const founderRoute = source("app/api/projects/[projectId]/documents/[documentId]/route.ts");
+const documentHub = source("features/external-tax-documents/event-commercial-document-hub.tsx");
 
 test("eligible Classic Event requires the Photo Strip Design section", () => {
   assert.equal(requiresPhotoStripDesign(["CLASSIC"]), true);
@@ -61,6 +62,7 @@ test("previous versions remain in Founder history", () => {
   assert.match(founderUi, /Historial del diseño/);
   assert.match(founderUi, /SUPERSEDIDA/);
   assert.doesNotMatch(migration, /delete from public\.documents/i);
+  assert.match(documentHub, /PHOTO_STRIP_DESIGN:"Diseño tira de fotos"/);
 });
 
 test("Drive archive uses the canonical Event design folder", () => {

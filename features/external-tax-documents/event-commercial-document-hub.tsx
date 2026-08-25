@@ -9,7 +9,7 @@ type DocumentRow={id:string;type:string;href?:string;createdAt:string;number?:st
 type HubProps={projectId:string;customerName:string;customerTaxId?:string;customerKind:"PARTICULAR"|"EMPRESA";quotation?:{id:string;number:string;status:string;revision:number;acceptedAt:string;total:number;detailHref:string;pdfHref:string;items:readonly {label:string;quantity:number;total:number}[]};contract:{status:string;href?:string;createdAt?:string;signedAt?:string};receivable?:{id:string;paid:number;outstanding:number;dueDate:string|null;status:string};paymentCondition:string;documents:readonly DocumentRow[];taxDocuments:readonly ExternalTaxDocumentRow[]};
 const money=(value:number)=>new Intl.NumberFormat("es-CL",{style:"currency",currency:"CLP",maximumFractionDigits:0}).format(value);
 const date=(value:string)=>new Date(value).toLocaleDateString("es-CL");
-const labels:Record<string,string>={QUOTATION:"Cotización",AGREEMENT:"Contrato",SIGNED_AGREEMENT:"Contrato firmado",COMMERCIAL_DOCUMENT:"Documento comercial",PAYMENT_RECEIPT:"Comprobante de pago",EXTERNAL_TAX_DOCUMENT:"Documento SII",CUSTOMER_PURCHASE_ORDER:"OC Cliente",DESIGN:"Diseño",GALLERY:"Galería",BACKUP:"Respaldo"};
+const labels:Record<string,string>={QUOTATION:"Cotización",AGREEMENT:"Contrato",SIGNED_AGREEMENT:"Contrato firmado",COMMERCIAL_DOCUMENT:"Documento comercial",PAYMENT_RECEIPT:"Comprobante de pago",EXTERNAL_TAX_DOCUMENT:"Documento SII",CUSTOMER_PURCHASE_ORDER:"OC Cliente",DESIGN:"Diseño",PHOTO_STRIP_DESIGN:"Diseño tira de fotos",GALLERY:"Galería",BACKUP:"Respaldo"};
 
 export function EventCommercialDocumentHub(props:HubProps){
   const receipts=props.documents.filter(item=>item.type==="PAYMENT_RECEIPT");
