@@ -225,7 +225,10 @@ test("15 double click and browser retry resume one transaction", () => {
 test("16 concurrent conversion is protected", () => {
   assert.match(migration, /for update/);
   assert.match(migration, /on conflict\(quotation_id\) do nothing/);
-  assert.match(actions, /duplicate: Boolean\(result\.project\.reservationResumed\)/);
+  assert.match(
+    actions,
+    /conversionSuccess\(projectId, Boolean\(result\.project\.reservationResumed\), warnings\)/,
+  );
 });
 
 test("17 converted quote exposes View Event instead of conversion", () => {

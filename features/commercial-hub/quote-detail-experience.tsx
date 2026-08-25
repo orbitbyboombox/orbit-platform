@@ -281,7 +281,6 @@ export function CommercialQuoteDetailExperience({
       {review ? (
         <QuoteConversionReviewDialog
           onClose={() => setReview(null)}
-          onCreated={(projectId) => router.push(`/projects/${projectId}`)}
           review={review}
         />
       ) : null}

@@ -939,7 +939,7 @@ function RecentQuotes({
       {quotes.length > 5 && <button className="mt-3 text-sm font-semibold text-brand" onClick={() => setExpanded((value) => !value)}>{expanded ? "Ver menos" : "Ver todas"}</button>}
       {message?<p aria-live="polite" className="mt-3 text-sm font-medium">{message}</p>:null}
       {openPdf && <PdfViewer title={quoteDisplayFilename(openPdf.number)} src={`/api/commercial/quotes/${openPdf.id}/pdf`} onClose={() => setOpenPdf(null)} />}
-      {review?<QuoteConversionReviewDialog review={review} onClose={()=>setReview(null)} onCreated={projectId=>window.location.assign(`/projects/${projectId}`)}/>:null}
+      {review?<QuoteConversionReviewDialog review={review} onClose={()=>setReview(null)}/>:null}
     </section>
   );
 }

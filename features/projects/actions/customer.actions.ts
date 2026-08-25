@@ -21,6 +21,10 @@ import {
 } from "../operations/confirmed-reservation-orchestrator.service";
 import { deliverAssignmentCancellationBoundary } from "@/features/operations/staff-assignment-cancellation.service";
 import { normalizeOptionalEmail, normalizeRequiredEmail } from "@/lib/email/recipients";
+import {
+  commercialServiceList,
+  currentCustomerContact,
+} from "../reservation-presentation";
 
 export type CreateCustomerResult =
   | { ok: true; project: Project }
@@ -696,7 +700,7 @@ export async function getManualConfirmationPreviewAction(projectId: string) {
     const { data, error } = await client
       .from("projects")
       .select(
-        "finance,customers!inner(full_name,email),project_services(service_code),agreements(status),customer_portal_tokens(id)",
+        "finance,customers!inner(full_name,email,metadata),project_services(service_code),agreements(status),customer_portal_tokens(id)",
       )
       .eq("id", projectId)
       .single();
@@ -714,12 +718,14 @@ export async function getManualConfirmationPreviewAction(projectId: string) {
     return {
       ok: true as const,
       preview: {
-        customer: customer.full_name,
+        customer: currentCustomerContact({
+          fullName: customer.full_name,
+          metadata: customer.metadata,
+        }),
         email: customer.email ?? "Sin correo",
-        services:
-          (data.project_services ?? [])
-            .map((item) => item.service_code)
-            .join(" + ") || "Sin servicio",
+        services: commercialServiceList(
+          (data.project_services ?? []).map((item) => item.service_code),
+        ),
         negotiation: `Precio aplicado ${Number(finance.finalPrice ?? 0).toLocaleString("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 })}`,
         vat: Number(finance.vatAmount ?? 0),
         document:

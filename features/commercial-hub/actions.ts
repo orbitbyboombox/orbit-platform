@@ -46,6 +46,95 @@ const fail = (error: unknown, fallback: string) => ({
       ? error.message
       : fallback,
 });
+export type QuoteConversionWarning = {
+  integration: string;
+  detail: string;
+};
+const conversionSuccess = (
+  projectId: string,
+  duplicate: boolean,
+  warnings: QuoteConversionWarning[] = [],
+) => ({
+  ok: true as const,
+  message: "✓ Reserva creada correctamente" as const,
+  projectId,
+  duplicate,
+  warnings,
+});
+const conversionWarning = (
+  warnings: QuoteConversionWarning[],
+  integration: string,
+  error: unknown,
+) => {
+  const detail = error instanceof Error ? error.message : String(error);
+  warnings.push({ integration, detail });
+  console.error(
+    JSON.stringify({
+      level: "error",
+      event: "commercial_quote.post_commit_integration_pending",
+      integration,
+      detail,
+      timestamp: new Date().toISOString(),
+    }),
+  );
+};
+
+async function recoverCommittedQuoteConversion(
+  quoteId: string,
+  client: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+) {
+  const { data: quote, error } = await client
+    .from("quotations")
+    .select("id,status,project_id,conversion_transaction_id")
+    .eq("id", quoteId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (error || !quote?.project_id) return null;
+  const { data: project, error: projectError } = await client
+    .from("projects")
+    .select("id")
+    .eq("id", quote.project_id)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (projectError || !project) return null;
+  const warnings: QuoteConversionWarning[] = [];
+  if (quote.status !== "CONVERTED" && quote.conversion_transaction_id) {
+    const { data: transaction } = await client
+      .from("reservation_transactions")
+      .select("status,project_id")
+      .eq("id", quote.conversion_transaction_id)
+      .maybeSingle();
+    if (transaction?.status === "COMPLETED" && transaction.project_id === project.id) {
+      const { error: finalizeError } = await client.rpc(
+        "finalize_commercial_quote_conversion",
+        {
+          p_quote_id: quoteId,
+          p_transaction_id: quote.conversion_transaction_id,
+          p_project_id: project.id,
+          p_review: {
+            recovery: true,
+            reviewedAt: new Date().toISOString(),
+          },
+        },
+      );
+      if (finalizeError)
+        conversionWarning(warnings, "Vinculación comercial", finalizeError);
+    }
+  }
+  return conversionSuccess(project.id, true, warnings);
+}
+
+export async function recoverCommercialQuoteConversionAction(quoteId: string) {
+  try {
+    const { client, role } = await founder();
+    if (!['CEO', 'ADMINISTRATOR'].includes(role))
+      throw new Error("Solo Founder o Administración puede recuperar la conversión.");
+    const recovered = await recoverCommittedQuoteConversion(quoteId, client);
+    return recovered ?? { ok: false as const, error: "La reserva todavía no está confirmada." };
+  } catch (error) {
+    return fail(error, "No fue posible verificar la reserva.");
+  }
+}
 const replace = (value: string, vars: Record<string, string>) =>
   Object.entries(vars).reduce(
     (text, [key, item]) => text.replaceAll(`[${key}]`, item),
@@ -416,12 +505,7 @@ export async function confirmCommercialQuoteConversionAction(
       snapshot?: unknown;
     } | null;
     if (claim?.status === "CONVERTED" && claim.projectId)
-      return {
-        ok: true as const,
-        message: "RESERVA YA GENERADA",
-        projectId: claim.projectId,
-        duplicate: true,
-      };
+      return conversionSuccess(claim.projectId, true);
     if (!claim?.transactionId || !claim.snapshot)
       throw new Error("No fue posible obtener la transacción canónica de conversión.");
     const { data: quoteIdentity, error: identityError } = await client
@@ -519,102 +603,123 @@ export async function confirmCommercialQuoteConversionAction(
     };
     const result = await createCustomerProjectAction(draft);
     if (!result.ok) throw new Error(result.error);
-    const { data: persistedProject, error: projectError } = await client
-      .from("projects")
-      .select("finance,operations")
-      .eq("id", result.project.id)
-      .single();
-    if (projectError) throw projectError;
-    const finance = persistedProject.finance && typeof persistedProject.finance === "object" ? persistedProject.finance as Record<string, unknown> : {};
-    const operations = persistedProject.operations && typeof persistedProject.operations === "object" ? persistedProject.operations as Record<string, unknown> : {};
-    const { error: snapshotWriteError } = await client
-      .from("projects")
-      .update({
-        name: event.name,
-        finance: {
-          ...finance,
-          acceptedQuote: {
-            quotationId: quoteId,
-            quotationNumber: review.number,
-            revision: review.version,
-            acceptedAt: review.acceptedAt,
-            ...review.financial,
-          },
+    const projectId = result.project.id;
+    const warnings: QuoteConversionWarning[] = [];
+    try {
+      const { error: finalizeError } = await client.rpc(
+        "finalize_commercial_quote_conversion",
+        {
+          p_quote_id: quoteId,
+          p_transaction_id: claim.transactionId,
+          p_project_id: projectId,
+          p_review: { event, reviewedAt: new Date().toISOString() },
         },
-        operations: {
-          ...operations,
-          commercialOrigin: {
-            quotationId: quoteId,
-            event,
-            acceptedItems: items,
-          },
-        },
-        updated_by: user.id,
-      })
-      .eq("id", result.project.id);
-    if (snapshotWriteError) throw snapshotWriteError;
-    for (const item of items.filter(
-      (entry) => entry.itemType !== "TRANSPORT",
-    )) {
-      const { error: quantityError } = await client
-        .from("project_services")
-        .upsert(
-          {
-            project_id: result.project.id,
-            service_code: item.code,
-            quantity: item.quantity,
-            duration_hours: Number(event.durationHours),
-            extras: draft.event.extras ?? [],
-          },
-          { onConflict: "project_id,service_code" },
-        );
-      if (quantityError) throw quantityError;
+      );
+      if (finalizeError) throw finalizeError;
+    } catch (finalizeError) {
+      conversionWarning(warnings, "Vinculación comercial", finalizeError);
     }
-    const { error: finalizeError } = await client.rpc(
-      "finalize_commercial_quote_conversion",
-      {
-        p_quote_id: quoteId,
-        p_transaction_id: claim.transactionId,
-        p_project_id: result.project.id,
-        p_review: { event, reviewedAt: new Date().toISOString() },
-      },
-    );
-    if (finalizeError) throw finalizeError;
-    const warnings: string[] = [];
+    try {
+      const { data: persistedProject, error: projectError } = await client
+        .from("projects")
+        .select("finance,operations")
+        .eq("id", projectId)
+        .single();
+      if (projectError) throw projectError;
+      const finance = persistedProject.finance && typeof persistedProject.finance === "object" ? persistedProject.finance as Record<string, unknown> : {};
+      const operations = persistedProject.operations && typeof persistedProject.operations === "object" ? persistedProject.operations as Record<string, unknown> : {};
+      const { error: snapshotWriteError } = await client
+        .from("projects")
+        .update({
+          name: event.name,
+          finance: {
+            ...finance,
+            acceptedQuote: {
+              quotationId: quoteId,
+              quotationNumber: review.number,
+              revision: review.version,
+              acceptedAt: review.acceptedAt,
+              ...review.financial,
+            },
+          },
+          operations: {
+            ...operations,
+            commercialOrigin: {
+              quotationId: quoteId,
+              event,
+              acceptedItems: items,
+            },
+          },
+          updated_by: user.id,
+        })
+        .eq("id", projectId);
+      if (snapshotWriteError) throw snapshotWriteError;
+    } catch (snapshotError) {
+      conversionWarning(warnings, "Ficha comercial del Evento", snapshotError);
+    }
+    try {
+      for (const item of items.filter(
+        (entry) => entry.itemType !== "TRANSPORT",
+      )) {
+        const { error: quantityError } = await client
+          .from("project_services")
+          .upsert(
+            {
+              project_id: projectId,
+              service_code: item.code,
+              quantity: item.quantity,
+              duration_hours: Number(event.durationHours),
+              extras: draft.event.extras ?? [],
+            },
+            { onConflict: "project_id,service_code" },
+          );
+        if (quantityError) throw quantityError;
+      }
+    } catch (serviceError) {
+      conversionWarning(warnings, "Servicios del Evento", serviceError);
+    }
     const ocFile = formData.get("purchaseOrderFile");
     if (ocFile instanceof File && ocFile.size) {
-      const purchaseOrder = new FormData();
-      purchaseOrder.set("projectId", result.project.id);
-      purchaseOrder.set(
-        "purchaseOrderNumber",
-        String(formData.get("purchaseOrderNumber") ?? ""),
-      );
-      purchaseOrder.set("file", ocFile);
-      const oc = await attachCustomerPurchaseOrderAction(purchaseOrder);
-      if (!oc.ok) warnings.push(`OC Cliente: ${oc.error}`);
-      else if (oc.warning) warnings.push(oc.warning);
+      try {
+        const purchaseOrder = new FormData();
+        purchaseOrder.set("projectId", projectId);
+        purchaseOrder.set(
+          "purchaseOrderNumber",
+          String(formData.get("purchaseOrderNumber") ?? ""),
+        );
+        purchaseOrder.set("file", ocFile);
+        const oc = await attachCustomerPurchaseOrderAction(purchaseOrder);
+        if (!oc.ok) throw new Error(oc.error);
+        if (oc.warning) throw new Error(oc.warning);
+      } catch (ocError) {
+        conversionWarning(warnings, "OC Cliente", ocError);
+      }
     }
     try {
       const drive = await archiveAcceptedQuoteForProject({
         quoteId,
-        projectId: result.project.id,
+        projectId,
       });
       if (!drive.archived)
-        warnings.push("La cotización permanece protegida en ORBIT y su archivo Drive está pendiente.");
+        throw new Error("El archivo administrativo de la cotización está pendiente.");
     } catch (driveError) {
-      warnings.push("La reserva fue creada; el archivo administrativo de la cotización en Drive queda pendiente.");
-      console.error("[ORBIT][ACCEPTED_QUOTE_DRIVE_ARCHIVE]", driveError);
+      conversionWarning(warnings, "Google Drive", driveError);
     }
-    revalidatePath("/leads"); revalidatePath(`/quotes/${quoteId}`); revalidatePath(`/projects/${result.project.id}`);
-    return {
-      ok: true as const,
-      message: warnings.length
-        ? `Reserva creada. ${warnings.join(" ")}`
-        : "Reserva creada desde la cotización aceptada mediante el pipeline único.",
-      projectId: result.project.id,
-      duplicate: Boolean(result.project.reservationResumed),
-    };
+    revalidatePath("/leads"); revalidatePath(`/quotes/${quoteId}`); revalidatePath(`/projects/${projectId}`);
+    return conversionSuccess(projectId, Boolean(result.project.reservationResumed), warnings);
   } catch (error) {
+    const quoteId = String(formData.get("quoteId") ?? "");
+    if (quoteId) {
+      try {
+        const { client, role } = await founder();
+        if (["CEO", "ADMINISTRATOR"].includes(role)) {
+          const recovered = await recoverCommittedQuoteConversion(quoteId, client);
+          if (recovered) return recovered;
+        }
+      } catch (recoveryError) {
+        console.error("[ORBIT][QUOTE_CONVERSION_RECOVERY]", recoveryError);
+      }
+    }
     return fail(error, "No fue posible convertir la cotización.");
   }
 }

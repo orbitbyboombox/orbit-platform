@@ -2,9 +2,14 @@
 
 import { useRef, useState, useTransition } from "react";
 import { AlertTriangle, Check, FileText } from "lucide-react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { MobileDialog } from "@/components/ui/mobile-dialog";
-import { confirmCommercialQuoteConversionAction } from "./actions";
+import {
+  confirmCommercialQuoteConversionAction,
+  recoverCommercialQuoteConversionAction,
+  type QuoteConversionWarning,
+} from "./actions";
 import type { QuoteConversionReview } from "./quote-conversion";
 
 const money = new Intl.NumberFormat("es-CL", {
@@ -16,22 +21,35 @@ const money = new Intl.NumberFormat("es-CL", {
 export function QuoteConversionReviewDialog({
   review,
   onClose,
-  onCreated,
 }: {
   review: QuoteConversionReview;
   onClose: () => void;
-  onCreated: (projectId: string) => void;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState("");
+  const [outcome, setOutcome] = useState<{
+    projectId: string;
+    warnings: QuoteConversionWarning[];
+  } | null>(null);
   const submit = () => {
     if (!formRef.current || pending) return;
     const formData = new FormData(formRef.current);
     startTransition(async () => {
-      const result = await confirmCommercialQuoteConversionAction(formData);
-      setMessage(result.ok ? result.message : result.error);
-      if (result.ok) onCreated(result.projectId);
+      try {
+        const result = await confirmCommercialQuoteConversionAction(formData);
+        setMessage(result.ok ? result.message : result.error);
+        if (result.ok)
+          setOutcome({ projectId: result.projectId, warnings: result.warnings });
+      } catch {
+        const recovered = await recoverCommercialQuoteConversionAction(review.quoteId);
+        setMessage(recovered.ok ? recovered.message : recovered.error);
+        if (recovered.ok)
+          setOutcome({
+            projectId: recovered.projectId,
+            warnings: recovered.warnings,
+          });
+      }
     });
   };
   return (
@@ -42,11 +60,17 @@ export function QuoteConversionReviewDialog({
       footer={
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button disabled={pending} onClick={onClose} variant="outline">
-            Cancelar
+            {outcome ? "CERRAR" : "Cancelar"}
           </Button>
-          <Button disabled={pending} onClick={submit}>
-            {pending ? "Creando reserva…" : "CONFIRMAR Y CREAR RESERVA"}
-          </Button>
+          {outcome ? (
+            <Button asChild>
+              <Link href={`/projects/${outcome.projectId}`}>ABRIR EVENTO</Link>
+            </Button>
+          ) : (
+            <Button disabled={pending} onClick={submit}>
+              {pending ? "Creando reserva…" : "CONFIRMAR Y CREAR RESERVA"}
+            </Button>
+          )}
         </div>
       }
       onClose={onClose}
@@ -172,7 +196,19 @@ export function QuoteConversionReviewDialog({
           <p className="mt-2 text-xs text-muted">PDF, JPG, JPEG o PNG. Archivo privado; no bloquea la creación de la reserva.</p>
         </ReviewSection>
 
-        {message ? <p aria-live="polite" className="rounded-xl border p-4 text-sm font-medium">{message}</p> : null}
+        {message ? (
+          <section
+            aria-live="polite"
+            className={`rounded-xl border p-4 text-sm font-medium ${outcome ? "border-emerald-500/40 bg-emerald-500/10" : ""}`}
+          >
+            <p>{message}</p>
+            {outcome?.warnings.map((warning) => (
+              <p className="mt-2 text-amber-700 dark:text-amber-300" key={`${warning.integration}:${warning.detail}`}>
+                Hay una integración pendiente de sincronización: {warning.integration}.
+              </p>
+            ))}
+          </section>
+        ) : null}
       </form>
     </MobileDialog>
   );
