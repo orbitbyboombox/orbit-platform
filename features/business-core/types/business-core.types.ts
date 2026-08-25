@@ -61,6 +61,7 @@ export interface ServiceCatalogItem {
   id: ServiceId;
   name: string;
   duration: DurationRule;
+  requiresPhotoStripDesign: boolean;
 }
 
 export interface EventTypeCatalogItem {

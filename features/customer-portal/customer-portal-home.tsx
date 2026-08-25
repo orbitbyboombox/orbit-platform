@@ -6,6 +6,8 @@ import { BrandLogo } from "@/components/brand-logo";
 import { useCompanySettings } from "@/features/company-settings";
 import { CustomerPaymentExperience } from "./customer-payment-experience";
 import { CustomerEventExperience } from "./customer-event-experience";
+import { CustomerPhotoStripDesignExperience } from "./customer-photo-strip-design-experience";
+import { requiresPhotoStripDesign } from "@/features/business-core/catalog/service.catalog";
 
 type PortalData = Awaited<ReturnType<typeof import("./customer-portal.service").loadCustomerPortal>> & {};
 type PortalProject = NonNullable<PortalData>["project"] & {
@@ -62,12 +64,14 @@ export function CustomerPortalHome({ data, token }: { data: NonNullable<PortalDa
   const contractUrl = `/api/portal/${encodeURIComponent(token)}/contract`;
   const phone = company.phone || "+56 9 0000 0000";
   const whatsapp = phone.replace(/\D/g, "");
+  const photoStripEligible = requiresPhotoStripDesign(project.project_services.map((service) => service.service_code));
 
   const quickAccess: Array<{ icon: ComponentType<{ className?: string }>; label: string; href: string }> = [
     { icon: Home, label: "Mi Evento", href: "#event-summary" }, { icon: FileText, label: "Mi Contrato", href: contractUrl },
     { icon: CreditCard, label: "Mis Pagos", href: "#payments" }, { icon: Landmark, label: "Datos bancarios", href: "#bank-details" },
     { icon: Phone, label: "Contacto BOOMBOX", href: "#contact" },
   ];
+  if (photoStripEligible) quickAccess.splice(3, 0, { icon: FileText, label: "Diseño de tira", href: "#photo-strip-design" });
 
   return <main className="min-h-screen bg-background text-foreground"><div className="mx-auto max-w-7xl space-y-6 px-4 py-5 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
     <header className="overflow-hidden rounded-3xl border border-border/80 bg-card p-6 sm:p-9 lg:p-12">
@@ -78,6 +82,8 @@ export function CustomerPortalHome({ data, token }: { data: NonNullable<PortalDa
     <Panel id="quick-access" title="Accesos rápidos"><nav aria-label="Accesos del Portal" className="grid grid-cols-2 gap-3 lg:grid-cols-5">{quickAccess.map(({ icon: Icon, label, href }) => <a className="flex min-h-24 flex-col items-center justify-center gap-2 rounded-2xl border border-border/80 bg-background/40 p-3 text-center text-sm font-medium transition-colors hover:border-brand/50 hover:text-brand" href={href} key={label}><Icon className="size-5"/>{label}</a>)}</nav></Panel>
 
     <CustomerEventExperience data={data}/>
+
+    {photoStripEligible ? <CustomerPhotoStripDesignExperience data={data} token={token}/> : null}
 
     <CustomerPaymentExperience data={data} token={token}/>
     <BankTransferDetails/>

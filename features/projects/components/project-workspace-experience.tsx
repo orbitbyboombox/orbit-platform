@@ -89,6 +89,8 @@ import { CustomerEventOperations } from "@/features/crm/customer-event-operation
 import type { CrmCustomerEventOperations, CrmEventSummary } from "@/features/crm/types";
 import { EventOperationalReadiness, type OperationalReadinessData } from "@/features/operations/event-operational-readiness";
 import { EventLogisticsCenter, type EventLogisticsData } from "@/features/operations/event-logistics-center";
+import { requiresPhotoStripDesign } from "@/features/business-core/catalog/service.catalog";
+import { PhotoStripDesignCenter } from "@/features/photo-strip-design";
 
 type Event360Task = {
   id: string;
@@ -136,6 +138,14 @@ type Event360Data = {
     issueDate?: string;
     total?: number;
     status?: string;
+    originalFilename?: string;
+    version?: number;
+    isCurrent?: boolean;
+    workflowStatus?: string;
+    uploadedBy?: string;
+    approvedAt?: string;
+    driveSyncStatus?: string;
+    driveSyncError?: string;
   }[];
   google: {
     calendarStatus: string;
@@ -387,6 +397,22 @@ export function ProjectWorkspaceExperience(
   );
   const [, startWorkspaceTransition] = useTransition();
   const event = props.event360;
+  const photoStripEligible = requiresPhotoStripDesign(event.services.map((service) => service.code));
+  const photoStripDocuments = event.documents
+    .filter((document) => document.type === "PHOTO_STRIP_DESIGN")
+    .map((document) => ({
+      id: document.id,
+      version: document.version ?? 1,
+      isCurrent: Boolean(document.isCurrent),
+      status: document.workflowStatus === "APPROVED" ? "APPROVED" as const : "RECEIVED" as const,
+      originalFilename: document.originalFilename ?? `Diseño tira V${document.version ?? 1}`,
+      createdAt: document.createdAt,
+      uploadedBy: document.uploadedBy ?? "Founder / Administración",
+      approvedAt: document.approvedAt,
+      driveStatus: document.driveSyncStatus === "SYNCED" ? "SYNCED" as const : document.driveSyncStatus === "ERROR" ? "ERROR" as const : "PENDING" as const,
+      driveError: document.driveSyncError,
+      href: document.href!,
+    }));
   const intelligence = ORBIT_TIME_ENGINE.getEventIntelligence({
     eventDate: props.eventDateIso ?? "",
   });
@@ -1049,6 +1075,7 @@ export function ProjectWorkspaceExperience(
                 id="documents"
                 title="Documentos y estado comercial"
               >
+                {photoStripEligible ? <PhotoStripDesignCenter documents={photoStripDocuments} projectId={props.projectKey!}/> : null}
                 <EventCommercialDocumentHub projectId={props.projectKey!} customerName={props.clientName} customerTaxId={props.commercialHub.customerTaxId} customerKind={props.commercialHub.customerKind} quotation={props.commercialHub.quotation} contract={props.signing} receivable={event.receivable?{id:event.receivable.id,paid:event.receivable.paidAmount,outstanding:event.receivable.outstandingBalance,dueDate:event.receivable.dueDate,status:event.receivable.status}:undefined} paymentCondition={props.commercialHub.paymentCondition} documents={event.documents} taxDocuments={event.documents.filter(doc=>doc.taxType&&doc.folio&&doc.issueDate).map(doc=>({id:doc.id,taxType:doc.taxType!,folio:doc.folio!,issueDate:doc.issueDate!,total:doc.total??0,status:doc.status??"ADJUNTADO",href:doc.href}))}/>
               </Section>
             )}

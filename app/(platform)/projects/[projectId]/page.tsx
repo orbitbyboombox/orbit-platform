@@ -12,6 +12,7 @@ import { loadCrmCustomerOperations } from "@/features/crm/customer-operations.re
 import type { EquipmentAssignmentPanelProps } from "@/features/asset-management";
 import type { EventLogisticsData } from "@/features/operations/event-logistics-center";
 import { resolveReceivablePaymentCategory } from "@/features/accounts-receivable/payment-term-classification";
+import { requiresPhotoStripDesign } from "@/features/business-core/catalog/service.catalog";
 
 export interface ProjectWorkspacePageProps {
   params: Promise<{ projectId: string }>;
@@ -115,7 +116,7 @@ export default async function ProjectWorkspacePage({
     client
       .from("documents")
       .select(
-        "id,document_type,storage_bucket,storage_path,drive_file_id,created_at,external_tax_document_type,external_folio,external_issue_date,external_total_amount,external_document_status,purchase_order_number,original_filename,mime_type,metadata",
+        "id,document_type,storage_bucket,storage_path,drive_file_id,drive_folder_id,drive_sync_status,drive_sync_error,drive_synced_at,created_at,external_tax_document_type,external_folio,external_issue_date,external_total_amount,external_document_status,purchase_order_number,original_filename,mime_type,metadata,version,is_current,workflow_status,uploaded_by,approved_at",
       )
       .eq("project_id", projectId)
       .is("deleted_at", null)
@@ -759,6 +760,17 @@ export default async function ProjectWorkspacePage({
           true,
         ),
       },
+      ...(requiresPhotoStripDesign((serviceRows ?? []).map((item) => item.service_code)) ? [{
+        label: "Diseño tira",
+        ...ready(
+          documents?.some((item) => item.document_type === "PHOTO_STRIP_DESIGN" && item.is_current && item.workflow_status === "APPROVED") ?? false,
+          "Diseño de tira aprobado.",
+          documents?.some((item) => item.document_type === "PHOTO_STRIP_DESIGN" && item.is_current)
+            ? "Diseño recibido; falta aprobación Founder."
+            : "Diseño de tira pendiente.",
+          true,
+        ),
+      }] : []),
     ],
   };
   const event360 = {
@@ -825,6 +837,15 @@ export default async function ProjectWorkspacePage({
       issueDate: item.external_issue_date ?? undefined,
       total: item.external_total_amount == null ? undefined : Number(item.external_total_amount),
       status: item.external_document_status ?? undefined,
+      version: Number(item.version ?? 1),
+      isCurrent: Boolean(item.is_current),
+      workflowStatus: item.workflow_status ?? undefined,
+      uploadedBy: item.uploaded_by
+        ? (settlementActors ?? []).find((actor) => actor.id === item.uploaded_by)?.display_name ?? "Founder / Administración"
+        : undefined,
+      approvedAt: item.approved_at ?? undefined,
+      driveSyncStatus: item.drive_sync_status ?? undefined,
+      driveSyncError: item.drive_sync_error ?? undefined,
     })),
     google: {
       calendarStatus: calendarSync?.status ?? "PENDING",

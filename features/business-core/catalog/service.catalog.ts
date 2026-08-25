@@ -1,15 +1,15 @@
 import type { ServiceCatalogItem, ServiceId } from "../types";
 
 export const SERVICE_CATALOG = [
-  { id: "CLASSIC", name: "Classic", duration: { mode: "SELECTABLE", availableHours: [2, 3, 4], shouldRequestDuration: true } },
-  { id: "POLAROID", name: "Polaroid", duration: { mode: "SELECTABLE", availableHours: [2, 3, 4], shouldRequestDuration: true } },
-  { id: "BLACK_STUDIO", name: "Black Studio", duration: { mode: "SELECTABLE", availableHours: [2, 3, 4], shouldRequestDuration: true } },
-  { id: "BBOX360", name: "BBOX360", duration: { mode: "SELECTABLE", availableHours: [2, 3, 4], shouldRequestDuration: true } },
-  { id: "LIGHTBOX", name: "LightBox", duration: { mode: "FIXED", availableHours: [5], fixedHours: 5, shouldRequestDuration: false } },
-  { id: "BOOMBALL", name: "BoomBall", duration: { mode: "SINGLE_SERVICE", availableHours: [], shouldRequestDuration: false } },
-  { id: "HASHTAG", name: "Hashtag", duration: { mode: "SELECTABLE", availableHours: [2, 3, 4], shouldRequestDuration: true } },
-  { id: "INSTABOX", name: "Instabox", duration: { mode: "SELECTABLE", availableHours: [2, 3, 4], shouldRequestDuration: true } },
-  { id: "VIDEO_LOUNGE", name: "Video Lounge", duration: { mode: "SELECTABLE", availableHours: [2, 3, 4], shouldRequestDuration: true } },
+  { id: "CLASSIC", name: "Classic", requiresPhotoStripDesign: true, duration: { mode: "SELECTABLE", availableHours: [2, 3, 4], shouldRequestDuration: true } },
+  { id: "POLAROID", name: "Polaroid", requiresPhotoStripDesign: false, duration: { mode: "SELECTABLE", availableHours: [2, 3, 4], shouldRequestDuration: true } },
+  { id: "BLACK_STUDIO", name: "Black Studio", requiresPhotoStripDesign: false, duration: { mode: "SELECTABLE", availableHours: [2, 3, 4], shouldRequestDuration: true } },
+  { id: "BBOX360", name: "BBOX360", requiresPhotoStripDesign: false, duration: { mode: "SELECTABLE", availableHours: [2, 3, 4], shouldRequestDuration: true } },
+  { id: "LIGHTBOX", name: "LightBox", requiresPhotoStripDesign: false, duration: { mode: "FIXED", availableHours: [5], fixedHours: 5, shouldRequestDuration: false } },
+  { id: "BOOMBALL", name: "BoomBall", requiresPhotoStripDesign: false, duration: { mode: "SINGLE_SERVICE", availableHours: [], shouldRequestDuration: false } },
+  { id: "HASHTAG", name: "Hashtag", requiresPhotoStripDesign: false, duration: { mode: "SELECTABLE", availableHours: [2, 3, 4], shouldRequestDuration: true } },
+  { id: "INSTABOX", name: "Instabox", requiresPhotoStripDesign: false, duration: { mode: "SELECTABLE", availableHours: [2, 3, 4], shouldRequestDuration: true } },
+  { id: "VIDEO_LOUNGE", name: "Video Lounge", requiresPhotoStripDesign: false, duration: { mode: "SELECTABLE", availableHours: [2, 3, 4], shouldRequestDuration: true } },
 ] as const satisfies readonly ServiceCatalogItem[];
 
 export const SERVICE_CATALOG_BY_ID: Readonly<Record<ServiceId, ServiceCatalogItem>> = Object.fromEntries(
@@ -18,4 +18,8 @@ export const SERVICE_CATALOG_BY_ID: Readonly<Record<ServiceId, ServiceCatalogIte
 
 export function getService(serviceId: ServiceId): ServiceCatalogItem {
   return SERVICE_CATALOG_BY_ID[serviceId];
+}
+
+export function requiresPhotoStripDesign(serviceCodes: readonly string[]): boolean {
+  return serviceCodes.some((code) => SERVICE_CATALOG_BY_ID[code as ServiceId]?.requiresPhotoStripDesign === true);
 }
