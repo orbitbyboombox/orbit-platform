@@ -59,6 +59,12 @@ test("reload persistence is read from canonical documents", () => {
   assert.match(eventHub, /CUSTOMER_PURCHASE_ORDER/);
 });
 
+test("confirmed upload performs a deployment-safe full Event reload", () => {
+  assert.match(center, /if \(!result\.ok\)/);
+  assert.match(center, /window\.location\.reload\(\)/);
+  assert.doesNotMatch(center, /setOpen\(false\);\s*router\.refresh\(\)/);
+});
+
 test("view and download remain protected and project scoped", () => {
   assert.match(route, /auth\.getUser/);
   assert.match(route, /\.eq\("project_id", projectId\)/);

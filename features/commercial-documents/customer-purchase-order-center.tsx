@@ -44,7 +44,9 @@ export function CustomerPurchaseOrderCenter({ projectId, document }: {
         }
         setMessage(result.warning || "✓ OC CLIENTE ADJUNTADA");
         setOpen(false);
-        router.refresh();
+        // A full navigation prevents a tab opened before a deploy from reconciling
+        // its stale client tree with the newly rendered Event after the Server Action.
+        window.location.reload();
       } finally {
         uploadLock.current = false;
       }
