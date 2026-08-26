@@ -116,7 +116,7 @@ export default async function ProjectWorkspacePage({
     client
       .from("documents")
       .select(
-        "id,document_type,storage_bucket,storage_path,drive_file_id,drive_folder_id,drive_sync_status,drive_sync_error,drive_synced_at,created_at,external_tax_document_type,external_folio,external_issue_date,external_total_amount,external_document_status,purchase_order_number,original_filename,mime_type,metadata,version,is_current,workflow_status,uploaded_by,approved_at",
+        "id,document_type,storage_bucket,storage_path,drive_file_id,drive_folder_id,drive_sync_status,drive_sync_error,drive_synced_at,created_at,external_tax_document_type,external_folio,external_issue_date,external_total_amount,external_document_status,purchase_order_number,original_filename,mime_type,file_size,metadata,version,is_current,workflow_status,uploaded_by,approved_at",
       )
       .eq("project_id", projectId)
       .is("deleted_at", null)
@@ -826,8 +826,11 @@ export default async function ProjectWorkspacePage({
       createdAt: item.created_at,
       number: item.purchase_order_number ?? undefined,
       originalFilename: item.original_filename ?? undefined,
+      fileSize: item.file_size == null ? undefined : Number(item.file_size),
       driveArchiveStatus:
-        item.metadata && typeof item.metadata === "object" && "driveArchiveStatus" in item.metadata
+        item.drive_sync_status
+          ? String(item.drive_sync_status)
+          : item.metadata && typeof item.metadata === "object" && "driveArchiveStatus" in item.metadata
           ? String(item.metadata.driveArchiveStatus)
           : item.drive_file_id
             ? "ARCHIVED"
