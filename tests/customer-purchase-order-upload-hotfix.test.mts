@@ -93,6 +93,13 @@ test("Drive retry is Founder-only and document scoped", () => {
   assert.match(center, /REINTENTAR DRIVE/);
 });
 
+test("an unauthorized Drive retry cannot mutate document sync state", () => {
+  assert.match(actions, /let verifiedDocumentId: string \| null = null/);
+  assert.match(actions, /verifiedDocumentId = document\.id/);
+  assert.match(actions, /if \(verifiedDocumentId\)/);
+  assert.doesNotMatch(actions, /recordCustomerPurchaseOrderDriveFailure\(createAdminClient\(\), documentId, error\)/);
+});
+
 test("Drive archive is deterministic and idempotent", () => {
   assert.equal(customerPurchaseOrderDriveFileName({ documentId: "12345678-0000-0000-0000-000000000000", orbitEventId: "2026-826", originalFilename: "OC final.pdf" }), "OC_CLIENTE_2026-826_12345678_OC-final.pdf");
   assert.match(drive, /archiveReservationDocumentToDrive/);

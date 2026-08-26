@@ -127,6 +127,7 @@ export async function attachCustomerPurchaseOrderAction(formData: FormData) {
 }
 
 export async function retryCustomerPurchaseOrderDriveAction(projectId: string, documentId: string) {
+  let verifiedDocumentId: string | null = null;
   try {
     await founderSession();
     const admin = createAdminClient();
@@ -134,11 +135,14 @@ export async function retryCustomerPurchaseOrderDriveAction(projectId: string, d
       .eq("id", documentId).eq("project_id", projectId)
       .eq("document_type", "CUSTOMER_PURCHASE_ORDER").is("deleted_at", null).single();
     if (error || !document) throw new Error("OC Cliente no encontrada.");
+    verifiedDocumentId = document.id;
     const result = await archiveCustomerPurchaseOrder({ admin, documentId });
     refresh(projectId);
     return { ok: true as const, message: result.reused ? "Drive reconciliado sin duplicados." : "OC archivada en Drive." };
   } catch (error) {
-    try { await recordCustomerPurchaseOrderDriveFailure(createAdminClient(), documentId, error); } catch {}
+    if (verifiedDocumentId) {
+      try { await recordCustomerPurchaseOrderDriveFailure(createAdminClient(), verifiedDocumentId, error); } catch {}
+    }
     return { ok: false as const, error: operationalErrorMessage(error, "No fue posible sincronizar Drive.") };
   }
 }
