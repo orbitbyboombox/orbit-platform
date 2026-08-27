@@ -36,6 +36,7 @@ export type ReservationConfirmationHistoryItem = {
 
 export type ReservationConfirmationComposer = {
   projectId: string;
+  orbitEventId: string;
   customerId: string;
   customerName: string;
   to: string;
@@ -99,7 +100,7 @@ export async function loadReservationConfirmationComposer(
       admin
         .from("projects")
         .select(
-          "id,customer_id,name,project_type,event_date,event_time,location,city,operations,customers!inner(full_name,email,secondary_email,metadata),project_services(service_code,duration_hours),quotations(id,status,quotation_number,customer_type,final_customer_price,grand_total,transport_total,accepted_snapshot,created_at,quotation_items(label,description,total)),agreements(id,signed_pdf_path,created_at),financial_event_records(invoiced_amount,paid_amount,outstanding_balance),project_operational_contracts(service_start_at,service_end_at),customer_portal_tokens(id)",
+          "id,customer_id,orbit_event_id,name,project_type,event_date,event_time,location,city,operations,customers!inner(full_name,email,secondary_email,metadata),project_services(service_code,duration_hours),quotations(id,status,quotation_number,customer_type,final_customer_price,grand_total,transport_total,accepted_snapshot,created_at,quotation_items(label,description,total)),agreements(id,signed_pdf_path,created_at),financial_event_records(invoiced_amount,paid_amount,outstanding_balance),project_operational_contracts(service_start_at,service_end_at),customer_portal_tokens(id)",
         )
         .eq("id", projectId)
         .is("deleted_at", null)
@@ -175,6 +176,7 @@ export async function loadReservationConfirmationComposer(
   const history = (rows ?? []) as CommunicationRow[];
   return {
     projectId,
+    orbitEventId: project.orbit_event_id,
     customerId: project.customer_id,
     customerName: template.customer,
     to: customer.email,
@@ -381,6 +383,7 @@ export async function sendReservationConfirmation(
     const { error: timelineError } = await admin.from("timeline_events").insert({
       customer_id: composer.customerId,
       project_id: input.projectId,
+      orbit_event_id: composer.orbitEventId,
       communication_id: communication.id,
       event_type: "RESERVATION_CONFIRMATION_SENT",
       title: "Confirmación de reserva enviada al cliente",

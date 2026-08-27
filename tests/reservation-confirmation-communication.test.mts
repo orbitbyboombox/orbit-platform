@@ -15,6 +15,7 @@ const projectPage = source("app/(platform)/projects/[projectId]/page.tsx");
 const formalDocument = source("features/commercial-hub/formal-quote-document.ts");
 const formalRoute = source("app/api/commercial/quotes/[quoteId]/pdf/route.ts");
 const deliveryMetadata = source("supabase/migrations/0180_reservation_confirmation_delivery_metadata.sql");
+const timelineRepair = source("supabase/migrations/0181_reservation_confirmation_timeline_repair.sql");
 
 const templateInput = {
   customer: { fullName: "Jenniffer Chavez", metadata: {} },
@@ -239,4 +240,19 @@ test("23 provider emits a real PDF MIME attachment", async () => {
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("24 sent confirmation Timeline persists the canonical Event identity", () => {
+  assert.match(service, /id,customer_id,orbit_event_id,name/);
+  assert.match(service, /orbitEventId: project\.orbit_event_id/);
+  assert.match(service, /from\("timeline_events"\)\.insert\(\{[\s\S]*orbit_event_id: composer\.orbitEventId/);
+});
+
+test("25 missing confirmation Timeline rows are repaired globally without resending or finance writes", () => {
+  assert.match(timelineRepair, /from public\.communications c/);
+  assert.match(timelineRepair, /join public\.projects p on p\.id = c\.project_id/);
+  assert.match(timelineRepair, /p\.orbit_event_id/);
+  assert.match(timelineRepair, /not exists/);
+  assert.doesNotMatch(timelineRepair, /invoice_payments|receivable_movements|paid_amount|send\(/);
+  assert.doesNotMatch(timelineRepair, /where c\.project_id\s*=|where c\.customer_id\s*=/);
 });

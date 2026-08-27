@@ -7,6 +7,12 @@ import { GoogleGmailApiProvider } from "@/features/connectors/google-gmail/provi
 import { createHash } from "node:crypto";
 
 const maxReceiptBytes = 15 * 1024 * 1024;
+const allowedReceiptTypes = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+]);
 type Result = { ok: true } | { ok: false; error: string };
 export type ReceivableMovementAction =
   | "DEPOSIT"
@@ -23,6 +29,36 @@ const fail = (error: unknown): { ok: false; error: string } => ({
       ? error.message
       : "No fue posible completar la operación.",
 });
+
+function paymentFailure(
+  operation: string,
+  error: unknown,
+  context: { invoiceId?: string; projectId?: string } = {},
+): { ok: false; error: string } {
+  const reference = crypto.randomUUID().slice(0, 8).toUpperCase();
+  const detail =
+    error && typeof error === "object"
+      ? {
+          code: "code" in error ? String(error.code ?? "") : null,
+          message: "message" in error ? String(error.message ?? "") : String(error),
+          details: "details" in error ? String(error.details ?? "") : null,
+          hint: "hint" in error ? String(error.hint ?? "") : null,
+        }
+      : { code: null, message: String(error), details: null, hint: null };
+  console.error(
+    JSON.stringify({
+      level: "error",
+      event: "payment.entry.failed",
+      operation,
+      reference,
+      ...context,
+      error: detail,
+      timestamp: new Date().toISOString(),
+    }),
+  );
+  const message = detail.message || "No fue posible registrar el pago.";
+  return { ok: false, error: `${message} · Referencia ${reference}` };
+}
 
 const normalizeMovementReason = (value: FormDataEntryValue | null, fallback = "Movimiento registrado por Founder") => {
   const text = String(value ?? fallback).trim();
@@ -75,6 +111,9 @@ async function detectReceipt(file: File | null, invoiceId: string): Promise<{
   }
   if (file.size > maxReceiptBytes) {
     throw new Error("El comprobante no puede superar 15 MB.");
+  }
+  if (!allowedReceiptTypes.has(file.type)) {
+    throw new Error("El comprobante debe ser JPG, PNG, WEBP o PDF.");
   }
   const bytes = new Uint8Array(await file.arrayBuffer());
   const extension = (file.name.split(".").pop() || "bin").toLowerCase();
@@ -201,12 +240,14 @@ export async function createInvoiceAction(formData: FormData): Promise<Result> {
 export async function applyReceivableMovementAction(
   formData: FormData,
 ): Promise<Result> {
+  let invoiceId = "";
+  let projectId = "";
   try {
     const client = await createSupabaseServerActionClient();
     const { data: auth } = await client.auth.getUser();
     if (!auth.user) throw new Error("Sesión requerida.");
-    const invoiceId = String(formData.get("invoiceId"));
-    const projectId = String(formData.get("projectId"));
+    invoiceId = String(formData.get("invoiceId") ?? "").trim();
+    projectId = String(formData.get("projectId") ?? "").trim();
     const action = String(
       formData.get("movementAction"),
     ) as ReceivableMovementAction;
@@ -251,28 +292,48 @@ export async function applyReceivableMovementAction(
     if (projectId) revalidatePath(`/projects/${projectId}`);
     return { ok: true };
   } catch (error) {
-    return fail(error);
+    return paymentFailure("APPLY_RECEIVABLE_MOVEMENT", error, { invoiceId, projectId });
   }
 }
 export async function registerReceivablePaymentAction(formData: FormData): Promise<Result> {
+  let invoiceId = "";
+  let projectId = "";
   try {
     const client = await createSupabaseServerActionClient();
     const { data: auth } = await client.auth.getUser();
     if (!auth.user) throw new Error("Sesión requerida.");
-    const invoiceId = String(formData.get("invoiceId"));
-    const projectId = String(formData.get("projectId"));
+    invoiceId = String(formData.get("invoiceId") ?? "").trim();
+    projectId = String(formData.get("projectId") ?? "").trim();
+    if (!invoiceId || !projectId) throw new Error("Falta identificar la cuenta por cobrar del Evento.");
     const receipt = await detectReceipt(formData.get("receipt") instanceof File ? (formData.get("receipt") as File) : null, invoiceId);
     const method = movementMethod(formData);
     const reason = normalizeMovementReason(formData.get("observation"), "Pago registrado desde Perfil del Cliente");
     const amount = Number(formData.get("amount"));
+    if (!Number.isFinite(amount) || amount <= 0) throw new Error("El monto debe ser mayor a cero.");
     const paidOn = String(formData.get("paidOn") || new Date().toISOString().slice(0, 10));
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(paidOn)) throw new Error("La fecha del pago no es válida.");
     const occurredOn = `${paidOn}T12:00:00-04:00`;
     const receiptInput = formData.get("receipt");
     const receiptName = receiptInput instanceof File ? receiptInput.name : null;
     const requestId = String(formData.get("requestId") || "").trim();
+    const { data: receivable, error: receivableError } = await client
+      .from("accounts_receivable_projection")
+      .select("id,project_id,outstanding_balance,status")
+      .eq("id", invoiceId)
+      .eq("project_id", projectId)
+      .single();
+    if (receivableError) throw receivableError;
+    if (["PAID", "CANCELLED", "ARCHIVED"].includes(String(receivable.status)))
+      throw new Error("La cuenta por cobrar no admite nuevos pagos.");
+    const outstanding = Number(receivable.outstanding_balance);
+    if (!Number.isFinite(outstanding) || outstanding <= 0)
+      throw new Error("La cuenta ya no tiene saldo pendiente.");
+    if (amount > outstanding)
+      throw new Error("El monto supera el saldo pendiente.");
+    const movementAction: ReceivableMovementAction = amount === outstanding ? "FULL_PAYMENT" : "PARTIAL_PAYMENT";
     const idempotencyKey = buildPaymentIdempotencyKey({
       invoiceId,
-      action: "PARTIAL_PAYMENT",
+      action: movementAction,
       amount,
       method,
       reason,
@@ -283,14 +344,14 @@ export async function registerReceivablePaymentAction(formData: FormData): Promi
       return { ok: true };
     }
     await upsertReceiptToStorage(client, receipt.storagePath, receipt.bytes, receipt.mimeType);
-    const { error } = await client.rpc("register_receivable_payment", {
+    const { data: paymentId, error } = await client.rpc("apply_receivable_movement", {
       p_invoice_id: invoiceId,
+      p_action: movementAction,
       p_amount: amount,
-      p_paid_at: occurredOn,
+      p_occurred_at: occurredOn,
       p_method: method,
       p_receipt_path: receipt.storagePath,
-      p_receipt_name: receiptName,
-      p_observation: reason,
+      p_reason: reason,
       p_receipt_checksum: receipt.checksum,
       p_idempotency_key: idempotencyKey,
     });
@@ -298,18 +359,40 @@ export async function registerReceivablePaymentAction(formData: FormData): Promi
       await removeUploadedReceipt(client, receipt.storagePath);
       throw error;
     }
+    if (paymentId && receiptName) {
+      const { error: receiptNameError } = await client
+        .from("invoice_payments")
+        .update({ receipt_name: receiptName })
+        .eq("id", paymentId)
+        .eq("invoice_id", invoiceId);
+      if (receiptNameError) {
+        console.warn(
+          JSON.stringify({
+            level: "warning",
+            event: "payment.receipt_name_sync_failed",
+            invoiceId,
+            projectId,
+            paymentId,
+            error: receiptNameError.message,
+          }),
+        );
+      }
+    }
     revalidate();
     if (projectId) revalidatePath(`/projects/${projectId}`);
     return { ok: true };
-  } catch (error) { return fail(error); }
+  } catch (error) {
+    return paymentFailure("REGISTER_MANUAL_PAYMENT", error, { invoiceId, projectId });
+  }
 }
 export async function confirmReconciledPaymentAction(formData:FormData):Promise<Result>{
+  let invoiceId="";let projectId="";
   try{
     const client=await createSupabaseServerActionClient();const{data:auth}=await client.auth.getUser();if(!auth.user)throw new Error("Sesión requerida.");
-    const importId=String(formData.get("reconciliationId")||"");const invoiceId=String(formData.get("invoiceId")||"");const projectId=String(formData.get("projectId")||"");
+    const importId=String(formData.get("reconciliationId")||"");invoiceId=String(formData.get("invoiceId")||"");projectId=String(formData.get("projectId")||"");
     const{error}=await client.rpc("confirm_bank_reconciliation",{p_import_id:importId,p_invoice_id:invoiceId});if(error)throw error;
     revalidate();if(projectId)revalidatePath(`/projects/${projectId}`);revalidatePath("/finance/banking");return{ok:true};
-  }catch(error){return fail(error);}
+  }catch(error){return paymentFailure("CONFIRM_BANK_RECONCILIATION",error,{invoiceId,projectId});}
 }
 export async function getReceivableContractUrlAction(invoiceId:string){try{const client=await createSupabaseServerActionClient();const{data:auth}=await client.auth.getUser();if(!auth.user)throw new Error("Sesión requerida.");const{data,error}=await client.from("invoices").select("project_id,projects!inner(agreements(id,signed_pdf_path,status))").eq("id",invoiceId).single();if(error)throw error;const project=Array.isArray(data.projects)?data.projects[0]:data.projects;const agreement=[...(project?.agreements??[])].reverse().find(item=>item.signed_pdf_path&&["SIGNED","COMMERCIAL_DOCUMENT"].includes(item.status));if(!agreement?.signed_pdf_path)throw new Error("El documento oficial aún no está disponible.");const signed=await client.storage.from("orbit-documents").createSignedUrl(agreement.signed_pdf_path,300);if(signed.error)throw signed.error;return{ok:true as const,url:signed.data.signedUrl};}catch(error){return{ok:false as const,error:fail(error).error};}}
 
@@ -368,13 +451,15 @@ export async function updateReceivableDatesAction(formData: FormData): Promise<R
   } catch (error) { return fail(error); }
 }
 export async function manageReceivablePaymentAction(formData: FormData): Promise<Result> {
+  let invoiceId = "";
+  let projectId = "";
   try {
     const client = await createSupabaseServerActionClient();
     const { data: auth } = await client.auth.getUser();
     if (!auth.user) throw new Error("Sesión requerida.");
-    const invoiceId = String(formData.get("invoiceId"));
+    invoiceId = String(formData.get("invoiceId"));
     const paymentId = String(formData.get("paymentId"));
-    const projectId = String(formData.get("projectId"));
+    projectId = String(formData.get("projectId"));
     const action = String(formData.get("paymentAction"));
     const rawReason = normalizeMovementReason(formData.get("reason"));
     const method = movementMethod(formData);
@@ -399,7 +484,7 @@ export async function manageReceivablePaymentAction(formData: FormData): Promise
     revalidate();
     if (projectId) revalidatePath(`/projects/${projectId}`);
     return { ok: true };
-  } catch (error) { return fail(error); }
+  } catch (error) { return paymentFailure("MANAGE_PAYMENT_MOVEMENT", error, { invoiceId, projectId }); }
 }
 export async function auditReceivableIntegrityAction(): Promise<
   | {

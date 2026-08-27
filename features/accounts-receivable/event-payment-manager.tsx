@@ -98,6 +98,7 @@ export function EventPaymentManager({
   const [feedback, setFeedback] = useState("");
   const [newPayment, setNewPayment] = useState(false);
   const [newPaymentRequestId, setNewPaymentRequestId] = useState("");
+  const [newPaymentError, setNewPaymentError] = useState("");
   const [dateEditor, setDateEditor] = useState(false);
   const [movementEditor, setMovementEditor] = useState<{ mode: "EDIT" | "DELETE"; item: Movement } | null>(null);
   const [pending, startTransition] = useTransition();
@@ -121,10 +122,13 @@ export function EventPaymentManager({
     setActionRequestId(crypto.randomUUID());
   };
   const openNewPayment = () => {
+    setNewPaymentError("");
     setNewPaymentRequestId(crypto.randomUUID());
     setNewPayment(true);
   };
   const closeNewPayment = () => {
+    if (pending) return;
+    setNewPaymentError("");
     setNewPayment(false);
   };
   return (
@@ -332,15 +336,20 @@ export function EventPaymentManager({
           invoiceId={receivable.id}
           maxAmount={receivable.outstandingBalance}
           requestId={newPaymentRequestId}
+          error={newPaymentError}
           onClose={closeNewPayment}
           onSubmit={(data) =>
             startTransition(async () => {
               const result = await registerReceivablePaymentAction(data);
               if (result.ok) {
                 setNewPayment(false);
+                setNewPaymentError("");
                 setFeedback("Nuevo pago registrado y saldos recalculados.");
                 router.refresh();
-              } else setFeedback(result.error);
+              } else {
+                setNewPaymentError(result.error);
+                setFeedback(result.error);
+              }
             })
           }
           pending={pending}
@@ -390,6 +399,7 @@ function NewPaymentDialog({
   pending,
   projectId,
   requestId,
+  error,
   onClose,
   onSubmit,
 }: {
@@ -398,6 +408,7 @@ function NewPaymentDialog({
   pending: boolean;
   projectId: string;
   requestId: string;
+  error: string;
   onClose: () => void;
   onSubmit: (data: FormData) => void;
 }) {
@@ -413,7 +424,7 @@ function NewPaymentDialog({
         action={(data) => { data.set("invoiceId", invoiceId); data.set("projectId", projectId); data.set("requestId", requestId); onSubmit(data); }}
         className="space-y-4"
       >
-        <Field label="Monto"><input max={maxAmount} min="1" name="amount" required type="number"/></Field><Field label="Fecha"><input defaultValue={chileInputDate()} name="paidOn" required type="date"/></Field><Field label="Método de pago"><select defaultValue="TRANSFER" name="method"><option value="TRANSFER">Transferencia</option><option value="CARD">Tarjeta</option><option value="CASH">Efectivo</option><option value="OTHER">Otro</option></select></Field><Field label="Comprobante"><input accept="image/jpeg,image/png,image/webp,application/pdf" name="receipt" type="file"/></Field><Field label="Observación (opcional)"><input name="observation"/></Field><Button className="w-full" disabled={pending}>{pending ? "Registrando…" : "Guardar nuevo pago"}</Button>
+        <Field label="Monto"><input max={maxAmount} min="1" name="amount" required type="number"/></Field><Field label="Fecha"><input defaultValue={chileInputDate()} name="paidOn" required type="date"/></Field><Field label="Método de pago"><select defaultValue="TRANSFER" name="method"><option value="TRANSFER">Transferencia</option><option value="CARD">Tarjeta</option><option value="CASH">Efectivo</option><option value="OTHER">Otro</option></select></Field><Field label="Comprobante"><input accept="image/jpeg,image/png,image/webp,application/pdf" name="receipt" type="file"/></Field><Field label="Observación (opcional)"><input name="observation"/></Field>{error&&<p aria-live="assertive" className="rounded-xl border border-danger/30 bg-danger/5 p-3 text-sm text-danger">{error}</p>}<Button className="w-full" disabled={pending}>{pending ? "Registrando…" : "Guardar nuevo pago"}</Button>
       </form>
     </MobileDialog>
   );
