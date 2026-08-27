@@ -12,6 +12,42 @@ const manualStart = actions.indexOf("export async function registerReceivablePay
 const manualEnd = actions.indexOf("export async function confirmReconciledPaymentAction", manualStart);
 const manual = actions.slice(manualStart, manualEnd);
 
+type SyntheticPayment = {
+  amount: number;
+  requestId: string;
+  receiptChecksum: string | null;
+};
+
+type SyntheticCase = {
+  customerType: "CORPORATE" | "PRIVATE";
+  customerId: string;
+  projectId: string;
+  invoiceId: string;
+  total: number;
+  payments: SyntheticPayment[];
+};
+
+function runCanonicalPaymentCase(input: SyntheticCase) {
+  let paid = 0;
+  const keys = new Set<string>();
+  const movements: { action: "PARTIAL_PAYMENT" | "FULL_PAYMENT"; amount: number }[] = [];
+  const documents: { invoiceId: string; customerId: string; projectId: string }[] = [];
+
+  for (const payment of input.payments) {
+    const outstanding = input.total - paid;
+    const action = payment.amount === outstanding ? "FULL_PAYMENT" : "PARTIAL_PAYMENT";
+    const key = [input.invoiceId, "MANUAL_PAYMENT", payment.amount, payment.receiptChecksum ?? "-", payment.requestId].join("|");
+    if (keys.has(key)) continue;
+    keys.add(key);
+    assert.ok(payment.amount > 0 && payment.amount <= outstanding);
+    movements.push({ action, amount: payment.amount });
+    paid += payment.amount;
+    if (payment.receiptChecksum) documents.push({ invoiceId: input.invoiceId, customerId: input.customerId, projectId: input.projectId });
+  }
+
+  return { paid, balance: input.total - paid, movements, documents };
+}
+
 test("manual payment uses the one canonical receivable movement pipeline", () => {
   assert.match(manual, /client\.rpc\("apply_receivable_movement"/);
   assert.doesNotMatch(manual, /client\.rpc\("register_receivable_payment"/);
@@ -37,6 +73,9 @@ test("manual payment remains idempotent across double click and network retry", 
   assert.match(manual, /buildPaymentIdempotencyKey/);
   assert.match(manual, /ensureNoDuplicatePaymentByIdempotency/);
   assert.match(ui, /disabled=\{pending\}/);
+  assert.match(manual, /action: "MANUAL_PAYMENT"/);
+  assert.match(manual, /canonicalReceiptStoragePath\(invoiceId, idempotencyKey, receipt\.extension\)/);
+  assert.match(actions, /upsert: true/);
 });
 
 test("receipt validation is global and restricted to certified file types", () => {
@@ -103,4 +142,70 @@ test("reservation confirmation Timeline uses the current Event identity globally
 
 test("payment entry never sends a customer communication", () => {
   assert.doesNotMatch(manual, /Gmail|send\(|communications|RESERVATION_CONFIRMATION/);
+});
+
+test("global matrix routes Empresa and Particular payments through the same canonical implementation", () => {
+  const cases: SyntheticCase[] = [
+    {
+      customerType: "CORPORATE",
+      customerId: "10000000-0000-4000-8000-000000000001",
+      projectId: "20000000-0000-4000-8000-000000000001",
+      invoiceId: "30000000-0000-4000-8000-000000000001",
+      total: 900_000,
+      payments: [
+        { amount: 300_000, requestId: "empresa-first", receiptChecksum: "receipt-a" },
+        { amount: 600_000, requestId: "empresa-final", receiptChecksum: "receipt-b" },
+      ],
+    },
+    {
+      customerType: "PRIVATE",
+      customerId: "10000000-0000-4000-8000-000000000002",
+      projectId: "20000000-0000-4000-8000-000000000002",
+      invoiceId: "30000000-0000-4000-8000-000000000002",
+      total: 350_000,
+      payments: [
+        { amount: 100_000, requestId: "private-first", receiptChecksum: null },
+        { amount: 250_000, requestId: "private-final", receiptChecksum: "receipt-c" },
+      ],
+    },
+  ];
+
+  const results = cases.map(runCanonicalPaymentCase);
+  for (const result of results) {
+    assert.equal(result.movements.length, 2);
+    assert.deepEqual(result.movements.map((item) => item.action), ["PARTIAL_PAYMENT", "FULL_PAYMENT"]);
+    assert.equal(result.paid, result.movements.reduce((sum, item) => sum + item.amount, 0));
+    assert.equal(result.balance, 0);
+  }
+  assert.equal(results[0].documents.length, 2);
+  assert.equal(results[1].documents.length, 1);
+  assert.match(manual, /client\.rpc\("apply_receivable_movement"/);
+  assert.doesNotMatch(manual, /customerType|customer_type|CORPORATE|PRIVATE/);
+});
+
+test("retry and double click create at most one movement and one receipt reference", () => {
+  const retry: SyntheticPayment = { amount: 175_000, requestId: "stable-retry", receiptChecksum: "same-receipt" };
+  const result = runCanonicalPaymentCase({
+    customerType: "CORPORATE",
+    customerId: "10000000-0000-4000-8000-000000000003",
+    projectId: "20000000-0000-4000-8000-000000000003",
+    invoiceId: "30000000-0000-4000-8000-000000000003",
+    total: 350_000,
+    payments: [retry, retry],
+  });
+  assert.equal(result.movements.length, 1);
+  assert.equal(result.documents.length, 1);
+  assert.equal(result.paid, 175_000);
+  assert.equal(result.balance, 175_000);
+  assert.match(manual, /ensureNoDuplicatePaymentByIdempotency/);
+  assert.match(receiptSchemaHotfix, /idempotency_key/);
+});
+
+test("different customers Events and invoices stay isolated without production exceptions", () => {
+  const changedFlow = [manual, source("supabase/migrations/0140_financial_integrity_hotfix_phase1.sql"), receiptSchemaHotfix].join("\n");
+  assert.doesNotMatch(changedFlow, /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i);
+  assert.doesNotMatch(changedFlow, /F[0-9A-F]{7}/);
+  assert.match(manual, /\.eq\("id", invoiceId\)/);
+  assert.match(manual, /\.eq\("project_id", projectId\)/);
+  assert.match(receiptSchemaHotfix, /apply_receivable_movement\(uuid,text,numeric,timestamptz,text,text,text,text,text\)/);
 });

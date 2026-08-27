@@ -100,14 +100,15 @@ function buildPaymentIdempotencyKey(parts: {
   return createHash("sha256").update(source).digest("hex");
 }
 
-async function detectReceipt(file: File | null, invoiceId: string): Promise<{
+async function detectReceipt(file: File | null): Promise<{
   checksum: string | null;
   storagePath: string | null;
   bytes: Uint8Array | null;
   mimeType: string | null;
+  extension: string | null;
 }> {
   if (!(file instanceof File) || file.size === 0) {
-    return { checksum: null, storagePath: null, bytes: null, mimeType: null };
+    return { checksum: null, storagePath: null, bytes: null, mimeType: null, extension: null };
   }
   if (file.size > maxReceiptBytes) {
     throw new Error("El comprobante no puede superar 15 MB.");
@@ -117,13 +118,21 @@ async function detectReceipt(file: File | null, invoiceId: string): Promise<{
   }
   const bytes = new Uint8Array(await file.arrayBuffer());
   const extension = (file.name.split(".").pop() || "bin").toLowerCase();
-  const storagePath = `receivables/${invoiceId}/${crypto.randomUUID()}.${extension}`;
   return {
     checksum: createHash("sha256").update(bytes).digest("hex"),
-    storagePath,
+    storagePath: null,
     bytes,
     mimeType: file.type || "application/octet-stream",
+    extension,
   };
+}
+
+function canonicalReceiptStoragePath(
+  invoiceId: string,
+  idempotencyKey: string,
+  extension: string | null,
+) {
+  return extension ? `receivables/${invoiceId}/${idempotencyKey}.${extension}` : null;
 }
 
 async function upsertReceiptToStorage(
@@ -137,7 +146,7 @@ async function upsertReceiptToStorage(
   }
   const { error: uploadError } = await client.storage.from("orbit-documents").upload(storagePath, bytes, {
     contentType: mimeType,
-    upsert: false,
+    upsert: true,
   });
   if (uploadError) throw uploadError;
 }
@@ -251,7 +260,7 @@ export async function applyReceivableMovementAction(
     const action = String(
       formData.get("movementAction"),
     ) as ReceivableMovementAction;
-    const receipt = await detectReceipt(formData.get("receipt") instanceof File ? (formData.get("receipt") as File) : null, invoiceId);
+    const receipt = await detectReceipt(formData.get("receipt") instanceof File ? (formData.get("receipt") as File) : null);
     const occurredOn = String(
       formData.get("occurredOn") || new Date().toISOString().slice(0, 10),
     );
@@ -269,6 +278,7 @@ export async function applyReceivableMovementAction(
       receiptChecksum: receipt.checksum,
       requestId,
     });
+    receipt.storagePath = canonicalReceiptStoragePath(invoiceId, idempotencyKey, receipt.extension);
     if (await ensureNoDuplicatePaymentByIdempotency(client, invoiceId, idempotencyKey)) {
       return { ok: true };
     }
@@ -305,7 +315,7 @@ export async function registerReceivablePaymentAction(formData: FormData): Promi
     invoiceId = String(formData.get("invoiceId") ?? "").trim();
     projectId = String(formData.get("projectId") ?? "").trim();
     if (!invoiceId || !projectId) throw new Error("Falta identificar la cuenta por cobrar del Evento.");
-    const receipt = await detectReceipt(formData.get("receipt") instanceof File ? (formData.get("receipt") as File) : null, invoiceId);
+    const receipt = await detectReceipt(formData.get("receipt") instanceof File ? (formData.get("receipt") as File) : null);
     const method = movementMethod(formData);
     const reason = normalizeMovementReason(formData.get("observation"), "Pago registrado desde Perfil del Cliente");
     const amount = Number(formData.get("amount"));
@@ -333,13 +343,14 @@ export async function registerReceivablePaymentAction(formData: FormData): Promi
     const movementAction: ReceivableMovementAction = amount === outstanding ? "FULL_PAYMENT" : "PARTIAL_PAYMENT";
     const idempotencyKey = buildPaymentIdempotencyKey({
       invoiceId,
-      action: movementAction,
+      action: "MANUAL_PAYMENT",
       amount,
       method,
       reason,
       requestId,
       receiptChecksum: receipt.checksum,
     });
+    receipt.storagePath = canonicalReceiptStoragePath(invoiceId, idempotencyKey, receipt.extension);
     if (await ensureNoDuplicatePaymentByIdempotency(client, invoiceId, idempotencyKey)) {
       return { ok: true };
     }
@@ -464,7 +475,7 @@ export async function manageReceivablePaymentAction(formData: FormData): Promise
     const rawReason = normalizeMovementReason(formData.get("reason"));
     const method = movementMethod(formData);
     const paidOn = String(formData.get("paidOn") || "");
-    const receipt = await detectReceipt(formData.get("receipt") instanceof File ? (formData.get("receipt") as File) : null, invoiceId);
+    const receipt = await detectReceipt(formData.get("receipt") instanceof File ? (formData.get("receipt") as File) : null);
     const amount = action === "EDIT" ? Number(formData.get("amount") || 0) : null;
     const occurredAt = paidOn ? `${paidOn}T12:00:00-04:00` : null;
     const { error } = await client.rpc("manage_receivable_payment", {
