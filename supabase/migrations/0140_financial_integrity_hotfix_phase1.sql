@@ -279,7 +279,6 @@ begin
         storage_path,
         checksum,
         created_by,
-        updated_by,
         idempotency_key
       ) values (
         inv.id,
@@ -292,7 +291,6 @@ begin
         normalized_path,
         checksum_source,
         actor,
-        actor,
         normalized_key
       )
       on conflict (idempotency_key) do update
@@ -304,9 +302,7 @@ begin
           document_type = excluded.document_type,
           storage_bucket = coalesce(documents.storage_bucket, excluded.storage_bucket),
           storage_path = coalesce(documents.storage_path, excluded.storage_path),
-          checksum = coalesce(documents.checksum, excluded.checksum),
-          updated_at = now(),
-          updated_by = actor;
+          checksum = coalesce(documents.checksum, excluded.checksum);
     end if;
 
     if is_new_payment then

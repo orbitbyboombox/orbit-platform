@@ -6,6 +6,7 @@ const source = (path: string) => readFileSync(new URL(`../${path}`, import.meta.
 const actions = source("features/accounts-receivable/actions.ts");
 const ui = source("features/accounts-receivable/event-payment-manager.tsx");
 const ledger = source("supabase/migrations/0142_financial_ledger_integrity.sql");
+const receiptSchemaHotfix = source("supabase/migrations/0184_payment_receipt_documents_schema_hotfix.sql");
 const confirmation = source("features/connectors/google-gmail/application/reservation-confirmation.service.ts");
 const manualStart = actions.indexOf("export async function registerReceivablePaymentAction");
 const manualEnd = actions.indexOf("export async function confirmReconciledPaymentAction", manualStart);
@@ -43,6 +44,28 @@ test("receipt validation is global and restricted to certified file types", () =
   for (const mime of ["image/jpeg", "image/png", "image/webp", "application/pdf"])
     assert.match(actions, new RegExp(mime.replace("/", "\\/")));
   assert.match(actions, /maxReceiptBytes = 15 \* 1024 \* 1024/);
+});
+
+test("receipt persistence matches the canonical documents schema", () => {
+  assert.match(receiptSchemaHotfix, /apply_receivable_movement\(uuid,text,numeric,timestamptz,text,text,text,text,text\)/);
+  assert.match(receiptSchemaHotfix, /public\.documents canonically has created_by\/created_at/);
+  assert.doesNotMatch(receiptSchemaHotfix, /alter table public\.documents[\s\S]*add column/);
+  assert.match(receiptSchemaHotfix, /created_by,[\\n\s]+updated_by,[\\n\s]+idempotency_key/);
+  assert.match(receiptSchemaHotfix, /checksum = coalesce\(documents\.checksum, excluded\.checksum\)/);
+});
+
+test("canonical payment transaction still links receipt and stays idempotent", () => {
+  const migration = source("supabase/migrations/0140_financial_integrity_hotfix_phase1.sql");
+  const fnStart = migration.indexOf("create or replace function public.apply_receivable_movement");
+  const fnEnd = migration.indexOf("revoke all on function public.apply_receivable_movement", fnStart);
+  const fn = migration.slice(fnStart, fnEnd);
+  assert.match(fn, /insert into public\.invoice_payments/);
+  assert.match(fn, /insert into public\.documents/);
+  assert.match(fn, /payment_id,/);
+  assert.match(fn, /on conflict \(idempotency_key\) do update/);
+  assert.match(fn, /perform public\.sync_invoice_financial_state/);
+  assert.doesNotMatch(fn, /created_by,\s*updated_by,\s*idempotency_key/);
+  assert.doesNotMatch(fn, /checksum = coalesce\(documents\.checksum, excluded\.checksum\),\s*updated_at/);
 });
 
 test("a secondary receipt-name failure cannot turn a committed payment into a false failure", () => {
