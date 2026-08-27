@@ -775,11 +775,33 @@ begin
     update public.documents
     set payment_id = payment.id,
         invoice_id = inv.id,
-        updated_at = now(),
-        updated_by = actor
+        project_id = inv.project_id,
+        customer_id = inv.customer_id,
+        orbit_event_id = inv.orbit_event_id,
+        document_type = 'PAYMENT_RECEIPT',
+        storage_bucket = 'orbit-documents',
+        storage_path = trim(p_receipt_path),
+        checksum = 'OPERATIONAL-FINGERPRINT:v1|payment-edit|' || payment.id::text || '|' || trim(p_receipt_path)
     where payment_id = payment.id
-       or (invoice_id = inv.id and storage_path = payment.receipt_path)
-       or (invoice_id = inv.id and document_type = 'PAYMENT_RECEIPT');
+       or (payment_id is null and invoice_id = inv.id and storage_path = payment.receipt_path);
+
+    if not found then
+      insert into public.documents(
+        invoice_id,payment_id,project_id,customer_id,orbit_event_id,
+        document_type,storage_bucket,storage_path,checksum,created_by,idempotency_key
+      ) values (
+        inv.id,payment.id,inv.project_id,inv.customer_id,inv.orbit_event_id,
+        'PAYMENT_RECEIPT','orbit-documents',trim(p_receipt_path),
+        'OPERATIONAL-FINGERPRINT:v1|payment-edit|' || payment.id::text || '|' || trim(p_receipt_path),
+        actor,'payment_receipt_current|' || payment.id::text
+      )
+      on conflict (idempotency_key) do update
+      set invoice_id=excluded.invoice_id,payment_id=excluded.payment_id,
+          project_id=excluded.project_id,customer_id=excluded.customer_id,
+          orbit_event_id=excluded.orbit_event_id,document_type=excluded.document_type,
+          storage_bucket=excluded.storage_bucket,storage_path=excluded.storage_path,
+          checksum=excluded.checksum;
+    end if;
   end if;
 
   insert into public.timeline_events(

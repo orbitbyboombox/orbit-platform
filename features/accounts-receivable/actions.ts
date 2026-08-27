@@ -476,8 +476,17 @@ export async function manageReceivablePaymentAction(formData: FormData): Promise
     const method = movementMethod(formData);
     const paidOn = String(formData.get("paidOn") || "");
     const receipt = await detectReceipt(formData.get("receipt") instanceof File ? (formData.get("receipt") as File) : null);
+    const receiptInput = formData.get("receipt");
+    const receiptName = receiptInput instanceof File && receiptInput.size > 0 ? receiptInput.name : null;
+    const receiptKey = receipt.checksum
+      ? createHash("sha256").update(`payment-receipt-edit:${invoiceId}|${paymentId}|${receipt.checksum}`).digest("hex")
+      : null;
+    receipt.storagePath = receiptKey
+      ? canonicalReceiptStoragePath(invoiceId, receiptKey, receipt.extension)
+      : null;
     const amount = action === "EDIT" ? Number(formData.get("amount") || 0) : null;
     const occurredAt = paidOn ? `${paidOn}T12:00:00-04:00` : null;
+    await upsertReceiptToStorage(client, receipt.storagePath, receipt.bytes, receipt.mimeType);
     const { error } = await client.rpc("manage_receivable_payment", {
       p_invoice_id: invoiceId,
       p_payment_id: paymentId,
@@ -491,6 +500,14 @@ export async function manageReceivablePaymentAction(formData: FormData): Promise
     if (error) {
       await removeUploadedReceipt(client, receipt.storagePath);
       throw error;
+    }
+    if (receiptName) {
+      const { error: receiptNameError } = await client
+        .from("invoice_payments")
+        .update({ receipt_name: receiptName })
+        .eq("id", paymentId)
+        .eq("invoice_id", invoiceId);
+      if (receiptNameError) console.warn(JSON.stringify({ level: "warning", event: "payment.receipt_name_sync_failed", invoiceId, projectId, paymentId, error: receiptNameError.message }));
     }
     revalidate();
     if (projectId) revalidatePath(`/projects/${projectId}`);

@@ -7,6 +7,7 @@ const actions = source("features/accounts-receivable/actions.ts");
 const ui = source("features/accounts-receivable/event-payment-manager.tsx");
 const ledger = source("supabase/migrations/0142_financial_ledger_integrity.sql");
 const receiptSchemaHotfix = source("supabase/migrations/0184_payment_receipt_documents_schema_hotfix.sql");
+const receiptReplacementHotfix = source("supabase/migrations/0185_payment_receipt_replacement_schema_hotfix.sql");
 const confirmation = source("features/connectors/google-gmail/application/reservation-confirmation.service.ts");
 const manualStart = actions.indexOf("export async function registerReceivablePaymentAction");
 const manualEnd = actions.indexOf("export async function confirmReconciledPaymentAction", manualStart);
@@ -208,4 +209,13 @@ test("different customers Events and invoices stay isolated without production e
   assert.match(manual, /\.eq\("id", invoiceId\)/);
   assert.match(manual, /\.eq\("project_id", projectId\)/);
   assert.match(receiptSchemaHotfix, /apply_receivable_movement\(uuid,text,numeric,timestamptz,text,text,text,text,text\)/);
+});
+
+test("an existing payment can receive its first receipt without another movement", () => {
+  assert.match(actions, /payment-receipt-edit:\$\{invoiceId\}\|\$\{paymentId\}\|\$\{receipt\.checksum\}/);
+  assert.match(actions, /await upsertReceiptToStorage\(client, receipt\.storagePath, receipt\.bytes, receipt\.mimeType\)/);
+  assert.match(receiptReplacementHotfix, /if not found then\s+insert into public\.documents/);
+  assert.match(receiptReplacementHotfix, /'payment_receipt_current\|'\|\|payment\.id::text/);
+  assert.doesNotMatch(receiptReplacementHotfix, /documents[\s\S]{0,300}updated_by|documents[\s\S]{0,300}updated_at/);
+  assert.doesNotMatch(receiptReplacementHotfix, /insert into public\.invoice_payments|insert into public\.receivable_movements/);
 });
