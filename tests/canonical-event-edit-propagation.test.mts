@@ -5,6 +5,7 @@ import { isValidOperationalCall, resolveEventOperationalWindow } from "../featur
 
 const read=(path:string)=>readFileSync(new URL(`../${path}`,import.meta.url),"utf8");
 const migration=read("supabase/migrations/0182_canonical_event_edit_propagation_hotfix.sql");
+const commercialFreeze=read("supabase/migrations/0183_freeze_accepted_commercial_history_on_event_edit.sql");
 const action=read("features/crm/actions.ts");
 const calendar=read("features/connectors/google-calendar/application/google-calendar-sync.service.ts");
 const mapper=read("features/connectors/google-calendar/application/google-calendar-live.ts");
@@ -38,6 +39,10 @@ test("Calendar updates the existing event and rejects empty ranges",()=>{
 });
 test("hotfix does not mutate customer communications, historical agreements, or payment ledger",()=>{
   assert.doesNotMatch(migration,/communications|agreements|quotations|invoice_payments|paid_amount/i);
+  assert.match(commercialFreeze,/commercial_locked/);
+  assert.match(commercialFreeze,/\('ACCEPTED','CONVERTED'\)/);
+  assert.match(commercialFreeze,/if not commercial_locked then/);
+  assert.doesNotMatch(commercialFreeze,/invoice_payments|paid_amount/i);
 });
 test("Staff portal and downloadable Calendar consume the current operational contract",()=>{
   assert.match(staffPortal,/service_start_at,service_end_at,staff_arrival_at/);
