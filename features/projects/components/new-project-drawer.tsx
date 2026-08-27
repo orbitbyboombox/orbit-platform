@@ -36,6 +36,10 @@ import { isValidOptionalEmail } from "@/lib/email/recipients";
 import { sendAutomaticBookingInvitationAction } from "@/features/automatic-booking/actions";
 import { attachCustomerPurchaseOrderAction } from "@/features/commercial-documents/actions";
 import {
+  corporateCreditDueDate,
+  normalizeCorporateCreditDays,
+} from "@/features/accounts-receivable/corporate-credit-terms";
+import {
   projectOrigins,
   projectTypes,
   type Project,
@@ -98,7 +102,7 @@ type ServiceConfiguration = {
   magnetsMode: "NONE" | "PAID" | "BENEFIT";
   brandingQuantity: number;
 };
-type CreditTerm = "CASH" | "15" | "30" | "45" | "60" | "90" | "CUSTOM";
+type CreditTerm = "" | "15" | "30" | "45" | "60" | "90" | "CUSTOM";
 type PaymentCondition = "FIFTY_FIFTY" | "CASH" | "CORPORATE_CREDIT";
 type NegotiationMode = "OFFICIAL" | "NEGOTIATED";
 const initialService = (service: ReservationService): ServiceConfiguration => ({
@@ -509,7 +513,7 @@ export function NewProjectDrawer({
   const [paymentMethod, setPaymentMethod] = useState<
     "TRANSFER" | "MERCADO_PAGO"
   >("TRANSFER");
-  const [creditTerm, setCreditTerm] = useState<CreditTerm>("CASH");
+  const [creditTerm, setCreditTerm] = useState<CreditTerm>("");
   const [customCreditDays, setCustomCreditDays] = useState(0);
   const [purchaseOrder, setPurchaseOrder] = useState("");
   const [purchaseOrderFile, setPurchaseOrderFile] = useState<File | null>(null);
@@ -729,6 +733,12 @@ export function NewProjectDrawer({
         }
       : null;
   const isCorporateCustomer = draft.type === "Corporate";
+  const paymentTermDays =
+    paymentCondition === "CORPORATE_CREDIT"
+      ? creditTerm === "CUSTOM"
+        ? customCreditDays
+        : normalizeCorporateCreditDays(creditTerm)
+      : 0;
   const paymentDueDate = (() => {
     const base =
       paymentCondition === "CORPORATE_CREDIT"
@@ -737,22 +747,20 @@ export function NewProjectDrawer({
           ? new Date(`${draft.event.date}T12:00:00`)
           : null;
     if (!base || Number.isNaN(base.getTime())) return null;
-    const days =
-      paymentCondition === "CORPORATE_CREDIT"
-        ? creditTerm === "CUSTOM"
-          ? customCreditDays
-          : Number(creditTerm === "CASH" ? 0 : creditTerm)
-        : paymentCondition === "CASH"
-          ? 0
-          : -7;
-    base.setDate(base.getDate() + days);
+    if (paymentCondition === "CORPORATE_CREDIT")
+      return paymentTermDays > 0
+        ? corporateCreditDueDate(base, paymentTermDays)
+        : null;
+    base.setDate(base.getDate() + (paymentCondition === "CASH" ? 0 : -7));
     return base;
   })();
   const formattedDueDate = paymentDueDate
     ? new Intl.DateTimeFormat("es-CL", { dateStyle: "long" }).format(
         paymentDueDate,
       )
-    : "Pendiente de fecha del evento";
+    : paymentCondition === "CORPORATE_CREDIT"
+      ? "Selecciona un plazo de crédito"
+      : "Pendiente de fecha del evento";
   const mercadoPagoCommission = payableTotal - adjustedSubtotal;
 
   useEffect(() => {
@@ -806,6 +814,12 @@ export function NewProjectDrawer({
         setPaymentCondition(value.paymentCondition as PaymentCondition);
       if (typeof value.paymentMethod === "string")
         setPaymentMethod(value.paymentMethod as "TRANSFER" | "MERCADO_PAGO");
+      if (typeof value.creditTerm === "string")
+        setCreditTerm(value.creditTerm as CreditTerm);
+      if (typeof value.customCreditDays === "number")
+        setCustomCreditDays(normalizeCorporateCreditDays(value.customCreditDays));
+      if (typeof value.paymentReceiptRequired === "boolean")
+        setPaymentReceiptRequired(value.paymentReceiptRequired);
       if (typeof value.corporateCreditApproved === "boolean")
         setCorporateCreditApproved(value.corporateCreditApproved);
       if (typeof value.corporateVatApplied === "boolean")
@@ -833,6 +847,9 @@ export function NewProjectDrawer({
         transportOverride,
         paymentCondition,
         paymentMethod,
+        creditTerm,
+        customCreditDays,
+        paymentReceiptRequired,
         corporateCreditApproved,
         corporateVatApplied,
       }),
@@ -972,7 +989,7 @@ export function NewProjectDrawer({
     setSignatureDataUrl("");
     setCommercialFormalization("CONTRACT_INVOICE");
     setPaymentMethod("TRANSFER");
-    setCreditTerm("CASH");
+    setCreditTerm("");
     setCustomCreditDays(0);
     setPurchaseOrder("");
     setPurchaseOrderFile(null);
@@ -986,7 +1003,7 @@ export function NewProjectDrawer({
     setNegotiatedExtrasPrice(null);
     setTransportOverride(null);
     setPaymentCondition("FIFTY_FIFTY");
-    setCreditTerm("CASH");
+    setCreditTerm("");
     setCustomCreditDays(0);
     onClose();
   };
@@ -1042,12 +1059,6 @@ export function NewProjectDrawer({
       draft.origin,
   );
   const customerValid = existingCustomerValid || newCustomerValid;
-  const paymentTermDays =
-    paymentCondition === "CORPORATE_CREDIT"
-      ? creditTerm === "CUSTOM"
-        ? customCreditDays
-        : Number(creditTerm === "CASH" ? 0 : creditTerm)
-      : 0;
   const paymentClause =
     paymentCondition === "CASH"
       ? "El pago deberá realizarse al contado."
@@ -1087,7 +1098,7 @@ export function NewProjectDrawer({
               : step === 5
                 ? receiptSatisfied &&
                   (paymentCondition !== "CORPORATE_CREDIT" ||
-                    corporateCreditApproved)
+                    (paymentTermDays > 0 && corporateCreditApproved))
                 : true;
   const create = async () => {
     if (!valid) return;
@@ -1116,6 +1127,9 @@ export function NewProjectDrawer({
             transportOverride,
             paymentCondition,
             paymentMethod,
+            creditTerm,
+            customCreditDays,
+            paymentReceiptRequired,
             corporateCreditApproved,
             corporateVatApplied,
           }),
@@ -2286,11 +2300,11 @@ export function NewProjectDrawer({
                         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-6">
                           {(
                             [
-                              ["CASH", "Al día"],
                               ["15", "15 días"],
                               ["30", "30 días"],
                               ["45", "45 días"],
                               ["60", "60 días"],
+                              ["90", "90 días"],
                               ["CUSTOM", "Otro"],
                             ] as Array<[CreditTerm, string]>
                           ).map(([value, label]) => (
@@ -2318,7 +2332,7 @@ export function NewProjectDrawer({
                           <div className="mt-3">
                             <Field
                               label="Días de crédito"
-                              min="0"
+                              min="1"
                               onChange={(event) =>
                                 setCustomCreditDays(
                                   Math.max(0, Number(event.target.value)),
@@ -2466,9 +2480,9 @@ export function NewProjectDrawer({
                         </span>
                         <strong className="mt-1 block">
                           Crédito Empresa ·{" "}
-                          {paymentTermDays === 0
-                            ? "Pago al día"
-                            : `${paymentTermDays} días`}
+                          {paymentTermDays > 0
+                            ? `${paymentTermDays} días`
+                            : "Selecciona un plazo"}
                         </strong>
                       </p>
                       <Field
@@ -2538,6 +2552,11 @@ export function NewProjectDrawer({
                           Crédito corporativo aprobado
                         </label>
                       </div>
+                      {paymentTermDays <= 0 ? (
+                        <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
+                          Selecciona un plazo de crédito mayor a 0 días antes de confirmar.
+                        </p>
+                      ) : null}
                     </div>
                   ) : (
                     <dl className="mt-4 grid gap-3 rounded-xl bg-background/40 p-4 text-sm sm:grid-cols-3">

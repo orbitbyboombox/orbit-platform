@@ -22,6 +22,7 @@ import {
 import { deliverAssignmentCancellationBoundary } from "@/features/operations/staff-assignment-cancellation.service";
 import { normalizeOptionalEmail, normalizeRequiredEmail } from "@/lib/email/recipients";
 import { isAdministrativeRole } from "@/lib/auth/roles";
+import { assertCorporateCreditTerms } from "@/features/accounts-receivable/corporate-credit-terms";
 
 export type CreateCustomerResult =
   | { ok: true; project: Project }
@@ -84,6 +85,22 @@ export async function createCustomerProjectAction(
     return {
       ok: false,
       error: error instanceof Error ? error.message : "Los correos no son válidos.",
+    };
+  }
+  try {
+    if (draft.commercialAdjustment)
+      assertCorporateCreditTerms({
+        paymentCondition: draft.commercialAdjustment.paymentCondition,
+        paymentTermDays: draft.commercialAdjustment.paymentTermDays,
+        approved: draft.commercialAdjustment.corporateCreditApproved,
+      });
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "La condición de crédito Empresa no es válida.",
     };
   }
   const reference = safeReservationReference();
@@ -256,6 +273,26 @@ export async function createCustomerProjectAction(
       const { data: existingQuotation, error: quotationLookupError } = await quotationLookup;
       if (quotationLookupError) throw quotationLookupError;
       let quotation = existingQuotation;
+      const pricingSnapshot = {
+        commercialNegotiation: adjustment,
+        officialPrice: subtotal,
+        officialServicePrice: adjustment.officialServicePrice,
+        officialExtras:
+          adjustment.officialExtras + adjustment.officialVenueSurcharge,
+        officialTransport: adjustment.officialTransport,
+        negotiatedServicePrice: adjustment.negotiatedServicePrice,
+        negotiatedExtras: adjustment.negotiatedExtras,
+        negotiatedTransport: adjustment.negotiatedTransport,
+        negotiatedTotal: adjustment.negotiatedTotal,
+        difference: adjustment.difference,
+        differencePercentage: adjustment.differencePercentage,
+        discount,
+        commercialCharges: charges,
+        courtesyValue,
+        finalTotal,
+        paymentCondition: adjustment.paymentCondition,
+        paymentTermDays: adjustment.paymentTermDays,
+      };
       if (draft.commercialSourceQuotationId && !quotation) throw new Error("La cotización comercial debe estar ACEPTADA antes de convertirla en reserva.");
       if (!quotation) {
         const quotationId = crypto.randomUUID();
@@ -288,26 +325,7 @@ export async function createCustomerProjectAction(
             negotiation_reason: adjustment.reason.trim(),
             negotiated_by: auth.user.id,
             negotiated_at: new Date().toISOString(),
-            pricing_snapshot: {
-              commercialNegotiation: adjustment,
-              officialPrice: subtotal,
-              officialServicePrice: adjustment.officialServicePrice,
-              officialExtras:
-                adjustment.officialExtras + adjustment.officialVenueSurcharge,
-              officialTransport: adjustment.officialTransport,
-              negotiatedServicePrice: adjustment.negotiatedServicePrice,
-              negotiatedExtras: adjustment.negotiatedExtras,
-              negotiatedTransport: adjustment.negotiatedTransport,
-              negotiatedTotal: adjustment.negotiatedTotal,
-              difference: adjustment.difference,
-              differencePercentage: adjustment.differencePercentage,
-              discount,
-              commercialCharges: charges,
-              courtesyValue,
-              finalTotal,
-              paymentCondition: adjustment.paymentCondition,
-              paymentTermDays: adjustment.paymentTermDays,
-            },
+            pricing_snapshot: pricingSnapshot,
             blockers: [],
             created_by: auth.user.id,
             updated_by: auth.user.id,
@@ -317,6 +335,25 @@ export async function createCustomerProjectAction(
           .single();
         if (quotationError) throw quotationError;
         quotation = data;
+      } else if (!draft.commercialSourceQuotationId) {
+        const { error: quotationUpdateError } = await client
+          .from("quotations")
+          .update({
+            subtotal,
+            discount_total: discount + courtesyValue,
+            tax_total: adjustment.vatAmount,
+            grand_total: finalTotal,
+            official_price: subtotal,
+            final_customer_price: finalTotal,
+            price_difference: priceDifference,
+            negotiation_value: finalTotal,
+            negotiation_reason: adjustment.reason.trim(),
+            pricing_snapshot: pricingSnapshot,
+            updated_by: auth.user.id,
+          })
+          .eq("id", quotation.id)
+          .eq("status", "DRAFT");
+        if (quotationUpdateError) throw quotationUpdateError;
       }
       if (quotation) {
         if (draft.commercialSourceQuotationId) {
@@ -329,9 +366,16 @@ export async function createCustomerProjectAction(
           maximumFractionDigits: 0,
         });
         const message = `Precio aplicado registrado. Servicio ${format.format(adjustment.negotiatedServicePrice)} · extras ${format.format(adjustment.negotiatedExtras)} · transporte ${format.format(adjustment.negotiatedTransport)} · total ${format.format(finalTotal)} · condición ${adjustment.paymentCondition} · plazo ${adjustment.paymentTermDays} días.`;
-        const { error: timelineError } = await client
+        const { count: timelineCount, error: timelineLookupError } = await client
           .from("timeline_events")
-          .insert({
+          .select("id", { count: "exact", head: true })
+          .eq("project_id", project.id)
+          .eq("entity_id", quotation.id)
+          .eq("action", "QUOTATION_UPDATED");
+        if (timelineLookupError) throw timelineLookupError;
+        const { error: timelineError } = timelineCount
+          ? { error: null }
+          : await client.from("timeline_events").insert({
             orbit_event_id: persistedProject.orbit_event_id,
             project_id: project.id,
             customer_id: persistedProject.customer_id,
@@ -345,16 +389,23 @@ export async function createCustomerProjectAction(
             entity_type: "Quotation",
             entity_id: quotation.id,
             human_message: message,
-            correlation_id: crypto.randomUUID(),
+            correlation_id: transactionId,
             reason: adjustment.reason.trim(),
             created_by: auth.user.id,
           });
         if (timelineError) throw timelineError;
       }
       if (quotation && adjustment.mode === "NEGOTIATED") {
-        const { error: negotiationAuditError } = await client
-          .from("reservation_commercial_negotiations")
-          .insert({
+        const { count: negotiationCount, error: negotiationLookupError } =
+          await client
+            .from("reservation_commercial_negotiations")
+            .select("id", { count: "exact", head: true })
+            .eq("project_id", project.id)
+            .eq("quotation_id", quotation.id);
+        if (negotiationLookupError) throw negotiationLookupError;
+        const { error: negotiationAuditError } = negotiationCount
+          ? { error: null }
+          : await client.from("reservation_commercial_negotiations").insert({
             project_id: project.id,
             customer_id: persistedProject.customer_id,
             quotation_id: quotation.id,
@@ -594,9 +645,13 @@ export async function createCustomerProjectAction(
         timestamp: new Date().toISOString(),
       }),
     );
+    const partialReceivableFailure =
+      Boolean(projectId) && currentStep === "Accounts Receivable";
     return {
       ok: false,
-      error: `No se pudo completar la reserva. Tu información fue preservada. Referencia ${reference} · Etapa: ${currentStep}.`,
+      error: partialReceivableFailure
+        ? `Reserva creada. Cuenta por cobrar pendiente de sincronización. Tu información fue preservada. Referencia ${reference} · Etapa: ${currentStep}.`
+        : `No se pudo completar la reserva. Tu información fue preservada. Referencia ${reference} · Etapa: ${currentStep}.`,
     };
   }
 }

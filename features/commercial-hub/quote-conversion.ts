@@ -1,3 +1,8 @@
+import {
+  assertCorporateCreditTerms,
+  normalizeCorporateCreditDays,
+} from "../accounts-receivable/corporate-credit-terms.ts";
+
 export type AcceptedQuoteLine = {
   id: string;
   itemType: string;
@@ -137,7 +142,9 @@ export function buildQuoteConversionReview(input: {
   const paymentCondition = (rawPaymentCondition === "CORPORATE_CREDIT" || rawPaymentCondition === "CASH" || rawPaymentCondition === "FIFTY_FIFTY"
     ? rawPaymentCondition
     : null) as QuoteConversionReview["financial"]["paymentCondition"];
-  const paymentTermDays = Math.max(0, Math.trunc(number(commercial.paymentTermDays, 0)));
+  const paymentTermDays = normalizeCorporateCreditDays(
+    number(commercial.paymentTermDays, 0),
+  );
   const review: QuoteConversionReview = {
     quoteId: input.quoteId,
     number: text(quotation.number),
@@ -212,13 +219,12 @@ export function resolveQuoteConversionPaymentTerms(review: QuoteConversionReview
   const paymentCondition = (rawCondition === "CORPORATE_CREDIT" || rawCondition === "CASH" || rawCondition === "FIFTY_FIFTY"
     ? rawCondition
     : null) as QuoteConversionReview["financial"]["paymentCondition"];
-  const overrideDays = Math.max(0, Math.trunc(Number(overrides.paymentTermDays ?? 0)));
+  const overrideDays = normalizeCorporateCreditDays(overrides.paymentTermDays);
   const paymentTermDays = paymentCondition === "CORPORATE_CREDIT"
     ? review.financial.paymentTermDays || overrideDays
     : 0;
   if (!paymentCondition) throw new Error("Selecciona la condición de pago aceptada.");
-  if (paymentCondition === "CORPORATE_CREDIT" && paymentTermDays <= 0)
-    throw new Error("El crédito Empresa requiere un plazo positivo en días.");
+  assertCorporateCreditTerms({ paymentCondition, paymentTermDays });
   return { paymentCondition, paymentTermDays };
 }
 
