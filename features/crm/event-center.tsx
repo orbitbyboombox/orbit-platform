@@ -144,6 +144,7 @@ export function EventCenter({
         staffCallAt: String(form.get("staffCallAt")),
         type: String(form.get("type")),
         location: String(form.get("location")),
+        eventAddress: String(form.get("eventAddress")),
         municipality: String(form.get("municipality")),
         service: String(form.get("service")),
         duration: String(form.get("duration")),
@@ -350,6 +351,7 @@ export function EventCenter({
               ["time", "Hora", editing.time?.slice(0, 5) ?? "", "time"],
               ["type", "Tipo", editing.type, "text"],
               ["location", "Lugar", editing.location ?? "", "text"],
+              ["eventAddress", "Dirección", editing.eventAddress, "text"],
               [
                 "municipality",
                 "Comuna",

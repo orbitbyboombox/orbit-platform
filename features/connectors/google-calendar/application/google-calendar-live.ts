@@ -49,6 +49,11 @@ export function buildCalendarDescription(input: CalendarOperationalEventInput, o
 
 export function mapOperationalEventToCalendar(input: CalendarOperationalEventInput): GoogleCalendarEventPayload {
   const orbitEventId = input.orbitEventId ?? generateOrbitEventId(input.eventDate, input.sequence);
+  const start = `${input.calendarStartDate}T${input.calendarStartTime}`;
+  const end = `${input.serviceEndDate ?? input.eventDate}T${input.serviceEnd}`;
+  if (end <= start) {
+    throw new Error("La ventana operacional de Calendar es inválida: el término debe ser posterior a la citación.");
+  }
   return {
     orbitEventId,
     title: `${input.customerName} | ${input.service} | ${GOOGLE_CALENDAR_EVENT_COLORS[input.eventType].label}`,

@@ -16,6 +16,7 @@ type EventRow = {
     event_time: string | null;
     location: string | null;
     city: string | null;
+    operations: Record<string, unknown> | null;
     deleted_at: string | null;
     project_services: Array<{ service_code: string; duration_hours: number | null }>;
     quotations: Array<{ transport_total: number | null; created_at: string }>;
@@ -24,6 +25,7 @@ type EventRow = {
     event_time: string | null;
     location: string | null;
     city: string | null;
+    operations: Record<string, unknown> | null;
     deleted_at: string | null;
     project_services: Array<{ service_code: string; duration_hours: number | null }>;
     quotations: Array<{ transport_total: number | null; created_at: string }>;
@@ -31,7 +33,7 @@ type EventRow = {
 };
 
 export async function loadCrmOperationalEvents(client: SupabaseClient): Promise<CrmOperationalEvent[]> {
-  const { data: rawEvents, error } = await client.from("crm_events").select("id,customer_id,project_id,orbit_event_id,event_type,event_date,status,projects!inner(name,event_time,location,city,deleted_at,project_services(service_code,duration_hours),quotations(transport_total,created_at))").order("event_date", { ascending: true });
+  const { data: rawEvents, error } = await client.from("crm_events").select("id,customer_id,project_id,orbit_event_id,event_type,event_date,status,projects!inner(name,event_time,location,city,operations,deleted_at,project_services(service_code,duration_hours),quotations(transport_total,created_at))").order("event_date", { ascending: true });
   if (error) throw error;
   const events = (rawEvents ?? []) as unknown as EventRow[];
   const active = events.filter((event)=>{const project=Array.isArray(event.projects)?event.projects[0]:event.projects;return project&&!project.deleted_at;});
@@ -48,6 +50,6 @@ export async function loadCrmOperationalEvents(client: SupabaseClient): Promise<
   for(const assignment of assignments??[]){if(!String(assignment.assignment_type).toUpperCase().includes("OPERATOR"))continue;const staff=Array.isArray(assignment.staff)?assignment.staff[0]:assignment.staff;if(staff)operatorMap.set(assignment.project_id,`${staff.first_name??""} ${staff.last_name??""}`.trim());}
   const contractMap=new Map((contracts??[]).map(contract=>[contract.project_id,contract]));
   const unique=new Map<string,CrmOperationalEvent>();
-  for(const event of active){if(unique.has(event.project_id))continue;const project=Array.isArray(event.projects)?event.projects[0]:event.projects;if(!project||!event.event_date)continue;const service=project.project_services?.[0];const quotation=[...(project.quotations??[])].sort((a,b)=>b.created_at.localeCompare(a.created_at))[0];const customer=customerMap.get(event.customer_id),contract=contractMap.get(event.project_id);const legacyStart=`${event.event_date}T${project.event_time?.slice(0,5)??"00:00"}:00-04:00`,legacyEnd=new Date(new Date(legacyStart).getTime()+Number(service?.duration_hours??0)*3600000).toISOString();const window=resolveEventOperationalWindow({assignmentStaffCalls:(assignments??[]).filter(item=>item.project_id===event.project_id&&!['REJECTED','CANCELLED'].includes(String(item.status))).map(item=>item.staff_call_at),staffArrivalAt:contract?.staff_arrival_at,serviceStartAt:contract?.service_start_at??legacyStart,serviceEndAt:contract?.service_end_at??legacyEnd});const serviceStart=chileDateTime(window.serviceStartAt),serviceEnd=chileDateTime(window.serviceEndAt),staffCall=window.source==='SERVICE_START'?null:chileDateTime(window.operationalStartAt);unique.set(event.project_id,{id:event.id,projectId:event.project_id,orbitEventId:event.orbit_event_id,type:event.event_type,date:event.event_date,time:serviceStart.time,status:event.status,name:project.name,location:project.location,municipality:project.city,service:service?.service_code??"",duration:service?.duration_hours??null,transport:Number(quotation?.transport_total??0),customerId:event.customer_id,customerName:customer?.full_name??"Cliente sin nombre",company:customer?.company??"",operator:operatorMap.get(event.project_id)??"Sin asignar",serviceStartAt:`${serviceStart.date}T${serviceStart.time}`,serviceEndAt:`${serviceEnd.date}T${serviceEnd.time}`,staffCallAt:staffCall?`${staffCall.date}T${staffCall.time}`:null});}
+  for(const event of active){if(unique.has(event.project_id))continue;const project=Array.isArray(event.projects)?event.projects[0]:event.projects;if(!project||!event.event_date)continue;const service=project.project_services?.[0];const quotation=[...(project.quotations??[])].sort((a,b)=>b.created_at.localeCompare(a.created_at))[0];const customer=customerMap.get(event.customer_id),contract=contractMap.get(event.project_id);const legacyStart=`${event.event_date}T${project.event_time?.slice(0,5)??"00:00"}:00-04:00`,legacyEnd=new Date(new Date(legacyStart).getTime()+Number(service?.duration_hours??0)*3600000).toISOString();const window=resolveEventOperationalWindow({assignmentStaffCalls:(assignments??[]).filter(item=>item.project_id===event.project_id&&!['REJECTED','CANCELLED'].includes(String(item.status))).map(item=>item.staff_call_at),staffArrivalAt:contract?.staff_arrival_at,serviceStartAt:contract?.service_start_at??legacyStart,serviceEndAt:contract?.service_end_at??legacyEnd});const serviceStart=chileDateTime(window.serviceStartAt),serviceEnd=chileDateTime(window.serviceEndAt),staffCall=window.source==='SERVICE_START'?null:chileDateTime(window.operationalStartAt);const operations=project.operations??{};const notes=typeof operations.notes==='string'?operations.notes:'';const noteAddress=notes.match(/Dirección evento:\s*([^\n]+)/i)?.[1]?.trim()??'';unique.set(event.project_id,{id:event.id,projectId:event.project_id,orbitEventId:event.orbit_event_id,type:event.event_type,date:event.event_date,time:serviceStart.time,status:event.status,name:project.name,location:project.location,municipality:project.city,eventAddress:typeof operations.eventAddress==='string'?operations.eventAddress:noteAddress,service:service?.service_code??"",duration:service?.duration_hours??null,transport:Number(quotation?.transport_total??0),customerId:event.customer_id,customerName:customer?.full_name??"Cliente sin nombre",company:customer?.company??"",operator:operatorMap.get(event.project_id)??"Sin asignar",serviceStartAt:`${serviceStart.date}T${serviceStart.time}`,serviceEndAt:`${serviceEnd.date}T${serviceEnd.time}`,staffCallAt:staffCall?`${staffCall.date}T${staffCall.time}`:null});}
   return [...unique.values()];
 }
