@@ -242,8 +242,10 @@ test("17 converted quote exposes View Event instead of conversion", () => {
 test("18 accepted quote PDF remains protected and accessible", () => {
   assert.match(detailUi, /api\/commercial\/quotes\/\$\{quote\.id\}\/pdf/);
   const pdfRoute = source("app/api/commercial/quotes/[quoteId]/pdf/route.ts");
+  const pdfDocument = source("features/commercial-hub/formal-quote-document.ts");
   assert.match(pdfRoute, /auth\.getUser/);
-  assert.match(pdfRoute, /accepted_snapshot/);
+  assert.match(pdfRoute, /loadFormalQuoteDocument/);
+  assert.match(pdfDocument, /accepted_snapshot/);
 });
 
 test("19 every Founder quote entry point resolves to canonical detail", () => {

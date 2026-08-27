@@ -3,8 +3,10 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { buildReservationConfirmationTemplate } from "../features/connectors/google-gmail/application/reservation-confirmation.template.ts";
+import { renderReservationConfirmationHtml } from "../features/connectors/google-gmail/application/reservation-confirmation.html.ts";
 import {
   customerCommercialItemsFromSnapshot,
+  customerCommercialItemsFromLegacyQuote,
   customerCommercialPresentation,
 } from "../features/projects/reservation-presentation.ts";
 import { createSignedAgreementPdf } from "../features/projects/signing/signed-agreement-pdf.ts";
@@ -16,6 +18,9 @@ const confirmationService = source(
 );
 const confirmationTemplate = source(
   "features/connectors/google-gmail/application/reservation-confirmation.template.ts",
+);
+const confirmationHtml = source(
+  "features/connectors/google-gmail/application/reservation-confirmation.html.ts",
 );
 const manualPdf = source(
   "features/projects/signing/manual-reservation-formalization.service.ts",
@@ -69,6 +74,11 @@ const emailInput = (items = realItems) => ({
   portalAvailable: true,
 });
 
+const companyEmailInput = (items = realItems) => ({
+  ...emailInput(items),
+  companyCommercial: true,
+});
+
 async function pdfText(pdf: Uint8Array) {
   const document = await getDocument({ data: Uint8Array.from(pdf) }).promise;
   const pages: string[] = [];
@@ -102,6 +112,22 @@ test("legacy SERVICE item is classified by the canonical extra catalog", () => {
   });
   assert.equal(result.service, "Classic");
   assert.deepEqual(result.extras, ["Imanes ilimitados · Gratis"]);
+});
+
+test("legacy Empresa quote recovers magnets and excludes transport from extras", () => {
+  const parsed = customerCommercialItemsFromLegacyQuote([
+    { label: "CLASSIC", total: 290_000 },
+    { label: "Imanes", total: 65_000 },
+    { label: "Transporte", total: 0 },
+  ]);
+  const result = customerCommercialPresentation({
+    serviceCodes: ["CLASSIC"],
+    commercialItems: parsed,
+    eventDurationHours: 3,
+  });
+  assert.equal(result.service, "Classic");
+  assert.equal(result.extrasLabel, "Imanes ilimitados · $65.000");
+  assert.doesNotMatch(result.extrasLabel, /Transporte/);
 });
 
 test("zero-price extra uses Gratis and never customer-facing $0", () => {
@@ -164,6 +190,66 @@ test("email paid extra and transport keep their exact presentation", () => {
   assert.match(rendered.body, /^Valor total: \$345\.100$/m);
   assert.match(rendered.body, /^Abono recibido: \$172\.550$/m);
   assert.match(rendered.body, /^Saldo pendiente: \$172\.550$/m);
+});
+
+test("Empresa email uses the dedicated reservation confirmation structure", () => {
+  const rendered = buildReservationConfirmationTemplate(companyEmailInput());
+  assert.match(rendered.body, /^Hola Jenniffer Chavez,$/m);
+  assert.match(rendered.body, /^BIENVENIDOS A BOOMBOX$/m);
+  assert.match(rendered.body, /^SERVICIO CONTRATADO$/m);
+  assert.match(rendered.body, /^Servicio\nClassic$/m);
+  assert.match(rendered.body, /^Duración\n3 horas$/m);
+  assert.match(rendered.body, /^Extras\nImanes ilimitados · Gratis$/m);
+  assert.match(rendered.body, /^INFORMACIÓN DEL EVENTO$/m);
+  assert.match(rendered.body, /^Fecha\n14 de septiembre de 2026$/m);
+  assert.match(rendered.body, /^Horario\n14:00$/m);
+  assert.match(
+    rendered.body,
+    /^Lugar\nPatio de la Sala de Arte, Av Vitacura 2680, Las Condes$/m,
+  );
+});
+
+test("Empresa email presents only the immutable contracted total", () => {
+  const rendered = buildReservationConfirmationTemplate(companyEmailInput());
+  assert.match(rendered.body, /VALOR DEL SERVICIO CONTRATADO\n\n\$345\.100/);
+  assert.doesNotMatch(
+    rendered.body,
+    /Transporte:|Abono recibido:|Saldo pendiente:|Reserva\s+\$172\.550|\$165\.000/,
+  );
+});
+
+test("Empresa CTA is branded, mobile friendly and targets safe portal login", () => {
+  const rendered = buildReservationConfirmationTemplate(companyEmailInput());
+  const html = renderReservationConfirmationHtml(
+    rendered.body,
+    "https://www.bbox.cl",
+    {
+      companyCommercial: true,
+      portalUrl: "https://orbit.boom-box.cl/portal",
+    },
+  );
+  assert.match(rendered.body, /^ABRIR EVENTO EN ORBIT$/m);
+  assert.match(html, />ABRIR EVENTO EN ORBIT<\/a>/);
+  assert.match(html, /href="https:\/\/orbit\.boom-box\.cl\/portal"/);
+  assert.match(html, /background:#f78900/);
+  assert.match(html, /min-width:260px/);
+  assert.doesNotMatch(html, /\/projects\/|\/p\/|token=|access_token|[0-9a-f]{8}-[0-9a-f-]{27}/i);
+});
+
+test("Empresa omits CTA cleanly when safe portal access is unavailable", () => {
+  const rendered = buildReservationConfirmationTemplate({
+    ...companyEmailInput(),
+    portalAvailable: false,
+  });
+  assert.doesNotMatch(rendered.body, /ABRIR EVENTO EN ORBIT/);
+});
+
+test("non-Empresa confirmation retains its existing financial summary", () => {
+  const rendered = buildReservationConfirmationTemplate(emailInput());
+  assert.match(rendered.body, /^Valor total: \$345\.100$/m);
+  assert.match(rendered.body, /^Abono recibido: \$172\.550$/m);
+  assert.match(rendered.body, /^Saldo pendiente: \$172\.550$/m);
+  assert.doesNotMatch(rendered.body, /SERVICIO CONTRATADO|ABRIR EVENTO EN ORBIT/);
 });
 
 test("generated commercial PDF separates service hours and extras", async () => {
@@ -242,7 +328,7 @@ test("presentation repair never writes financial or collection truth", () => {
 test("mobile email remains line-based and wrapped by the branded responsive shell", () => {
   const rendered = buildReservationConfirmationTemplate(emailInput());
   assert.ok(rendered.body.split("\n\n").every((line) => line.length < 180));
-  assert.match(confirmationService, /max-width:620px/);
-  assert.match(confirmationService, /overflow:hidden/);
-  assert.match(confirmationService, /padding:28px 12px/);
+  assert.match(confirmationHtml, /max-width:620px/);
+  assert.match(confirmationHtml, /overflow:hidden/);
+  assert.match(confirmationHtml, /padding:28px 12px/);
 });

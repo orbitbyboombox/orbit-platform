@@ -112,6 +112,41 @@ export function customerCommercialItemsFromSnapshot(
   });
 }
 
+export function customerCommercialItemsFromLegacyQuote(
+  items: Array<{
+    label?: string | null;
+    description?: string | null;
+    total?: number | null;
+  }>,
+): CustomerCommercialItem[] {
+  return items.flatMap((item) => {
+    const label = String(item.label ?? item.description ?? "").trim();
+    const comparable = label
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+    if (!comparable || /TRANSPORT/.test(comparable)) return [];
+    const extraCode = Object.entries(
+      QUOTATION_EXTRA_RULES as Readonly<Record<string, { label: string }>>,
+    ).find(([code, rule]) => {
+      const commercialLabel = rule.label
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toUpperCase()
+        .replace(/[^A-Z0-9]+/g, "_");
+      return comparable === code || commercialLabel.includes(comparable) || comparable.includes(commercialLabel);
+    })?.[0];
+    if (/IMAN/.test(comparable)) {
+      return [{ code: "UNLIMITED_MAGNETS", label, itemType: "EXTRA", total: item.total ?? null }];
+    }
+    if (extraCode)
+      return [{ code: extraCode, label, itemType: "EXTRA", total: item.total ?? null }];
+    return [];
+  });
+}
+
 const clp = (value: number) =>
   new Intl.NumberFormat("es-CL", {
     style: "currency",

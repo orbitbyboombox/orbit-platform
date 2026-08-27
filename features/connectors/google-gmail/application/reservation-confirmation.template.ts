@@ -35,6 +35,7 @@ export type ReservationConfirmationTemplateInput = {
   paid: number;
   balance: number;
   portalAvailable: boolean;
+  companyCommercial?: boolean;
 };
 
 export function buildReservationConfirmationTemplate(
@@ -54,7 +55,7 @@ export function buildReservationConfirmationTemplate(
     .filter((value, index, values) => values.indexOf(value) === index)
     .join(", ") || "Por confirmar";
   const subject = "¡Tu reserva BOOMBOX está confirmada!";
-  const body = [
+  const customerBody = [
     "¡Tu reserva BOOMBOX está confirmada!",
     `Hola ${customer},`,
     "¡Muchas gracias por confiar en BOOMBOX!",
@@ -75,9 +76,30 @@ export function buildReservationConfirmationTemplate(
     "Nos vemos pronto.",
     "Equipo BOOMBOX",
   ].join("\n\n");
+  const companyBody = [
+    `Hola ${customer},`,
+    "BIENVENIDOS A BOOMBOX",
+    "Tu reserva ha sido confirmada correctamente.",
+    "Adjuntamos tu documento comercial oficial con el detalle completo de las condiciones comerciales y de pago.",
+    "Desde este momento, toda la información esencial de tu evento también está disponible en Mi Evento.",
+    "SERVICIO CONTRATADO",
+    `Servicio\n${commercial.service}`,
+    `Duración\n${commercial.duration}`,
+    `Extras\n${commercial.extrasLabel}`,
+    "INFORMACIÓN DEL EVENTO",
+    `Fecha\n${eventDate(input.eventDate)}`,
+    `Horario\n${input.eventTime?.slice(0, 5) || "Por confirmar"}`,
+    `Lugar\n${venue}`,
+    "VALOR DEL SERVICIO CONTRATADO",
+    money(input.total),
+    ...(input.portalAvailable ? ["ABRIR EVENTO EN ORBIT"] : []),
+    "Si necesitas modificar algún dato o tienes alguna consulta, puedes responder directamente a este correo.",
+    "Nos vemos pronto.",
+    "Equipo BOOMBOX",
+  ].join("\n\n");
   return {
     subject,
-    body,
+    body: input.companyCommercial ? companyBody : customerBody,
     customer,
     services: commercial.service,
     extras: commercial.extrasLabel,

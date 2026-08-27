@@ -7,7 +7,16 @@ import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-wor
 import type { GoogleGmailLiveProvider } from "../provider/google-gmail-live.provider";
 import { GoogleGmailApiProvider } from "../provider/google-gmail-live.provider";
 import { buildReservationConfirmationTemplate } from "./reservation-confirmation.template";
-import { customerCommercialItemsFromSnapshot } from "@/features/projects/reservation-presentation";
+import {
+  acceptedCommercialFinancialPresentation,
+  customerCommercialItemsFromLegacyQuote,
+  customerCommercialItemsFromSnapshot,
+} from "@/features/projects/reservation-presentation";
+import {
+  loadReservationCommercialDocument,
+  reservationCommercialDocumentFilename,
+} from "@/features/commercial-hub/formal-quote-document";
+import { renderReservationConfirmationHtml } from "./reservation-confirmation.html";
 
 export type ReservationConfirmationStatus = "NEVER_SENT" | "SENT" | "FAILED";
 
@@ -21,6 +30,8 @@ export type ReservationConfirmationHistoryItem = {
   providerMessageId: string | null;
   failureReason: string | null;
   isResend: boolean;
+  commercialDocumentReference: string | null;
+  portalDestinationType: string | null;
 };
 
 export type ReservationConfirmationComposer = {
@@ -42,6 +53,11 @@ export type ReservationConfirmationComposer = {
   total: number;
   paid: number;
   balance: number;
+  companyCommercial: boolean;
+  quotationId: string | null;
+  quotationNumber: string | null;
+  attachmentFilename: string | null;
+  portalCtaAvailable: boolean;
   history: ReservationConfirmationHistoryItem[];
 };
 
@@ -56,28 +72,14 @@ type CommunicationRow = {
   external_message_id: string | null;
   failure_reason: string | null;
   original_communication_id: string | null;
+  commercial_document_reference: string | null;
+  portal_destination_type: string | null;
 };
 
-const escapeHtml = (value: string) =>
-  value.replace(
-    /[&<>"']/g,
-    (character) =>
-      ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&#39;",
-      })[character]!,
-  );
-
-function htmlFromEditableBody(body: string, website: string) {
-  const paragraphs = body
-    .split(/\n{2,}/)
-    .map((paragraph) => `<p style="margin:0 0 18px">${escapeHtml(paragraph).replaceAll("\n", "<br>")}</p>`)
-    .join("");
-  return `<main style="margin:0;background:#f6f4ef;padding:28px 12px;font-family:Arial,sans-serif;color:#171717;line-height:1.6"><section style="max-width:620px;margin:auto;overflow:hidden;border:1px solid #eadfce;border-radius:18px;background:#fff"><header style="background:#171717;padding:22px 28px;color:#fff"><strong style="font-size:22px;letter-spacing:.08em">BOOMBOX</strong></header><article style="padding:28px">${paragraphs}<p style="margin:24px 0 0;padding-top:18px;border-top:1px solid #eee;font-size:12px;color:#666"><a href="${escapeHtml(website)}" style="color:#e67800">${escapeHtml(website)}</a></p></article></section></main>`;
-}
+const portalLoginUrl = () => {
+  const origin = process.env.NEXT_PUBLIC_APP_URL ?? "https://orbit.boom-box.cl";
+  return `${origin.replace(/\/$/, "")}/portal`;
+};
 
 function object(value: unknown) {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
@@ -97,7 +99,7 @@ export async function loadReservationConfirmationComposer(
       admin
         .from("projects")
         .select(
-          "id,customer_id,name,event_date,event_time,location,city,operations,customers!inner(full_name,email,secondary_email,metadata),project_services(service_code,duration_hours),quotations(final_customer_price,grand_total,transport_total,accepted_snapshot,created_at),financial_event_records(invoiced_amount,paid_amount,outstanding_balance),project_operational_contracts(service_start_at,service_end_at),customer_portal_tokens(id)",
+          "id,customer_id,name,project_type,event_date,event_time,location,city,operations,customers!inner(full_name,email,secondary_email,metadata),project_services(service_code,duration_hours),quotations(id,status,quotation_number,customer_type,final_customer_price,grand_total,transport_total,accepted_snapshot,created_at,quotation_items(label,description,total)),agreements(id,signed_pdf_path,created_at),financial_event_records(invoiced_amount,paid_amount,outstanding_balance),project_operational_contracts(service_start_at,service_end_at),customer_portal_tokens(id)",
         )
         .eq("id", projectId)
         .is("deleted_at", null)
@@ -105,7 +107,7 @@ export async function loadReservationConfirmationComposer(
       admin
         .from("communications")
         .select(
-          "id,status,to_recipient,cc_recipients,subject,occurred_at,sent_at,external_message_id,failure_reason,original_communication_id",
+          "id,status,to_recipient,cc_recipients,subject,occurred_at,sent_at,external_message_id,failure_reason,original_communication_id,commercial_document_reference,portal_destination_type",
         )
         .eq("project_id", projectId)
         .eq("communication_type", "RESERVATION_CONFIRMATION")
@@ -115,19 +117,41 @@ export async function loadReservationConfirmationComposer(
   if (historyError) throw historyError;
   const customer = Array.isArray(project.customers) ? project.customers[0] : project.customers;
   if (!customer?.email) throw new Error("El cliente no tiene correo principal registrado.");
-  const quotations = [...(project.quotations ?? [])].sort((a, b) =>
-    String(b.created_at).localeCompare(String(a.created_at)),
-  );
+  const quotations = [...(project.quotations ?? [])].sort((a, b) => {
+    const acceptedOrder = Number(b.status === "ACCEPTED") - Number(a.status === "ACCEPTED");
+    return acceptedOrder || String(b.created_at).localeCompare(String(a.created_at));
+  });
   const quotation = quotations[0];
   const financial = Array.isArray(project.financial_event_records)
     ? project.financial_event_records[0]
     : project.financial_event_records;
+  const acceptedFinancial = acceptedCommercialFinancialPresentation(
+    quotation?.accepted_snapshot,
+    {
+      grandTotal: Number(quotation?.grand_total ?? 0),
+      finalCustomerPrice: Number(
+        quotation?.final_customer_price ?? financial?.invoiced_amount ?? 0,
+      ),
+    },
+  );
+  const companyCommercial =
+    quotation?.customer_type === "COMPANY" ||
+    /CORPORATE|EMPRESA/i.test(String(project.project_type ?? ""));
   const operational = Array.isArray(project.project_operational_contracts)
     ? project.project_operational_contracts[0]
     : project.project_operational_contracts;
   const operations = object(project.operations);
   const origin = object(operations.commercialOrigin);
   const originEvent = object(origin.event);
+  const acceptedItems = customerCommercialItemsFromSnapshot(
+    quotation?.accepted_snapshot,
+  );
+  const commercialItems = acceptedItems.length
+    ? acceptedItems
+    : customerCommercialItemsFromLegacyQuote(quotation?.quotation_items ?? []);
+  const formalAgreement = [...(project.agreements ?? [])]
+    .filter((item) => Boolean(item.signed_pdf_path))
+    .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0];
   const template = buildReservationConfirmationTemplate({
     customer: { fullName: customer.full_name, metadata: customer.metadata },
     eventName: String(originEvent.name ?? project.name ?? "tu evento"),
@@ -136,18 +160,17 @@ export async function loadReservationConfirmationComposer(
     venue: project.location,
     city: project.city,
     serviceCodes: (project.project_services ?? []).map((item) => item.service_code),
-    commercialItems: customerCommercialItemsFromSnapshot(
-      quotation?.accepted_snapshot,
-    ),
+    commercialItems,
     serviceStartAt: operational?.service_start_at,
     serviceEndAt: operational?.service_end_at,
     eventDurationHours: Number(operations.durationHours ?? 0) || null,
     serviceDurations: (project.project_services ?? []).map((item) => Number(item.duration_hours ?? 0)),
     transport: Number(quotation?.transport_total ?? 0),
-    total: Number(quotation?.final_customer_price ?? quotation?.grand_total ?? financial?.invoiced_amount ?? 0),
+    total: acceptedFinancial.total,
     paid: Number(financial?.paid_amount ?? 0),
     balance: Number(financial?.outstanding_balance ?? quotation?.final_customer_price ?? 0),
     portalAvailable: (project.customer_portal_tokens ?? []).length > 0,
+    companyCommercial,
   });
   const history = (rows ?? []) as CommunicationRow[];
   return {
@@ -166,9 +189,20 @@ export async function loadReservationConfirmationComposer(
     eventDate: project.event_date,
     eventTime: project.event_time?.slice(0, 5) ?? "Por confirmar",
     venue: template.venue,
-    total: Number(quotation?.final_customer_price ?? quotation?.grand_total ?? financial?.invoiced_amount ?? 0),
+    total: acceptedFinancial.total,
     paid: Number(financial?.paid_amount ?? 0),
     balance: Number(financial?.outstanding_balance ?? quotation?.final_customer_price ?? 0),
+    companyCommercial,
+    quotationId: quotation?.id ?? null,
+    quotationNumber: quotation?.quotation_number ?? null,
+    attachmentFilename:
+      companyCommercial && quotation?.quotation_number
+        ? reservationCommercialDocumentFilename(
+            String(quotation.quotation_number),
+            Boolean(formalAgreement),
+          )
+        : null,
+    portalCtaAvailable: (project.customer_portal_tokens ?? []).length > 0,
     history: history.map((item) => ({
       id: item.id,
       status: item.status,
@@ -179,6 +213,8 @@ export async function loadReservationConfirmationComposer(
       providerMessageId: item.external_message_id,
       failureReason: item.failure_reason,
       isResend: Boolean(item.original_communication_id),
+      commercialDocumentReference: item.commercial_document_reference,
+      portalDestinationType: item.portal_destination_type,
     })),
   };
 }
@@ -215,6 +251,8 @@ export async function sendReservationConfirmation(
   const subject = String(input.subject ?? composer.subject).trim().slice(0, 240);
   const body = String(input.body ?? composer.body).trim().slice(0, 20_000);
   if (!subject || !body) throw new Error("Asunto y mensaje son obligatorios.");
+  const portalCtaRequested =
+    composer.portalCtaAvailable && body.includes("ABRIR EVENTO EN ORBIT");
   const requestKey = `reservation-confirmation:${input.projectId}:${requestId}`;
   const { data: existing, error: existingError } = await admin
     .from("communications")
@@ -261,6 +299,10 @@ export async function sendReservationConfirmation(
       created_by: input.actorId,
       sent_by: input.actorId,
       original_communication_id: firstSuccessful?.id ?? null,
+      commercial_document_reference: composer.attachmentFilename,
+      portal_destination_type: portalCtaRequested
+        ? "CUSTOMER_PORTAL_LOGIN"
+        : null,
     })
     .select("id")
     .single();
@@ -289,14 +331,39 @@ export async function sendReservationConfirmation(
   try {
     const company = await loadCompanySettings(admin);
     const sender = input.sender ?? new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken());
+    const portalUrl = portalCtaRequested ? portalLoginUrl() : undefined;
+    const document = composer.companyCommercial && composer.quotationId && composer.quotationNumber
+      ? await loadReservationCommercialDocument(admin, {
+          projectId: input.projectId,
+          quotationId: composer.quotationId,
+          quotationNumber: composer.quotationNumber,
+        })
+      : null;
+    if (composer.companyCommercial && !document)
+      throw new Error("No existe un documento comercial formal para adjuntar.");
+    const textBody = portalUrl
+      ? body.replace("ABRIR EVENTO EN ORBIT", `ABRIR EVENTO EN ORBIT\n${portalUrl}`)
+      : body;
     const delivered = await sender.send({
       to: recipients.to,
       cc: recipients.cc,
       idempotencyKey: requestKey,
       subject,
-      textBody: body,
-      htmlBody: htmlFromEditableBody(body, company.website),
+      textBody,
+      htmlBody: renderReservationConfirmationHtml(body, company.website, {
+        companyCommercial: composer.companyCommercial,
+        portalUrl,
+      }),
       driveFileIds: [],
+      attachments: document
+        ? [
+            {
+              filename: document.filename,
+              mimeType: document.mimeType,
+              content: document.bytes,
+            },
+          ]
+        : [],
     });
     const sentAt = new Date().toISOString();
     const { error: updateError } = await admin

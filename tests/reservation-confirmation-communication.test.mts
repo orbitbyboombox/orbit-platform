@@ -12,6 +12,9 @@ const actions = source("features/projects/actions/customer.actions.ts");
 const ui = source("features/projects/signing/agreement-signing-control.tsx");
 const migration = source("supabase/migrations/0172_reservation_confirmation_history.sql");
 const projectPage = source("app/(platform)/projects/[projectId]/page.tsx");
+const formalDocument = source("features/commercial-hub/formal-quote-document.ts");
+const formalRoute = source("app/api/commercial/quotes/[quoteId]/pdf/route.ts");
+const deliveryMetadata = source("supabase/migrations/0180_reservation_confirmation_delivery_metadata.sql");
 
 const templateInput = {
   customer: { fullName: "Jenniffer Chavez", metadata: {} },
@@ -165,4 +168,75 @@ test("17 success is shown only after confirmed provider response", () => {
 test("18 portal authentication secrets are not placed in customer CC", () => {
   assert.doesNotMatch(service, /createCustomerPortalAccess|portal\.url|customer_portal_tokens\([^)]*token/);
   assert.match(service, /customer_portal_tokens\(id\)/);
+});
+
+test("19 Empresa attaches the stored formal document or the canonical accepted quotation", () => {
+  assert.match(service, /loadReservationCommercialDocument\(admin/);
+  assert.match(service, /attachments: document/);
+  assert.match(service, /mimeType: document\.mimeType/);
+  assert.match(service, /content: document\.bytes/);
+  assert.match(formalRoute, /loadFormalQuoteDocument\(client, quoteId\)/);
+  assert.match(formalDocument, /accepted_snapshot/);
+  assert.match(formalDocument, /createFormalQuotePdf/);
+  assert.match(formalDocument, /quoteDisplayFilename/);
+  assert.match(formalDocument, /agreements/);
+  assert.match(formalDocument, /orbit-documents/);
+  assert.match(formalDocument, /!== "%PDF"/);
+});
+
+test("20 communication history records attachment and non-secret portal destination", () => {
+  assert.match(service, /commercial_document_reference: composer\.attachmentFilename/);
+  assert.match(service, /portal_destination_type: portalCtaRequested/);
+  assert.match(deliveryMetadata, /commercial_document_reference text/);
+  assert.match(deliveryMetadata, /portal_destination_type text/);
+  assert.doesNotMatch(deliveryMetadata, /token_hash|session_token|access_token/);
+});
+
+test("21 customer portal CTA uses a credential-free route and never Founder navigation", () => {
+  assert.match(service, /const portalLoginUrl/);
+  assert.match(service, /\/portal`/);
+  assert.doesNotMatch(service, /appProjectUrl|\/projects\/\$\{|\/p\/\$\{|customer_portal_tokens\([^)]*token/);
+});
+
+test("22 formal email work cannot mutate finance, credit or payment truth", () => {
+  const changed = `${service}\n${formalDocument}\n${deliveryMetadata}`;
+  assert.doesNotMatch(changed, /from\("invoice_payments"\)|from\("accounts_receivable/);
+  assert.doesNotMatch(changed, /\.update\(\{[^}]*(paid_amount|outstanding_balance|due_date|payment_term)/);
+});
+
+test("23 provider emits a real PDF MIME attachment", async () => {
+  const originalFetch = globalThis.fetch;
+  let raw = "";
+  globalThis.fetch = async (_input, init) => {
+    raw = String(JSON.parse(String(init?.body)).raw);
+    return new Response(JSON.stringify({ id: "message-pdf", threadId: "thread-pdf" }), {
+      status: 200,
+    });
+  };
+  try {
+    await new GoogleGmailApiProvider("token").send({
+      to: "cliente@empresa.cl",
+      cc: ["compras@empresa.cl"],
+      idempotencyKey: "empresa-confirmation-pdf",
+      subject: "Reserva confirmada",
+      textBody: "Reserva confirmada",
+      htmlBody: "<p>Reserva confirmada</p>",
+      driveFileIds: [],
+      attachments: [
+        {
+          filename: "Cotización BOOMBOX 2026-826.pdf",
+          mimeType: "application/pdf",
+          content: Uint8Array.from([0x25, 0x50, 0x44, 0x46]),
+        },
+      ],
+    });
+    const padded = raw.replaceAll("-", "+").replaceAll("_", "/").padEnd(Math.ceil(raw.length / 4) * 4, "=");
+    const mime = Buffer.from(padded, "base64").toString("utf8");
+    assert.match(mime, /Content-Type: multipart\/mixed/);
+    assert.match(mime, /Content-Type: application\/pdf/);
+    assert.match(mime, /Content-Disposition: attachment; filename="Cotización BOOMBOX 2026-826\.pdf"/);
+    assert.match(mime, /JVBERg==/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
