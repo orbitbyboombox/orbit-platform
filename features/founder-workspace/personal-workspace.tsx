@@ -137,9 +137,11 @@ function WorkspaceSectionMenu({
 
 export function PersonalWorkspaceSections({
   moduleKey,
+  reorderEnabled = true,
   sections,
 }: {
   moduleKey: ModuleWorkspaceKey;
+  reorderEnabled?: boolean;
   sections: WorkspaceSection[];
 }) {
   const context = useContext(WorkspaceContext);
@@ -227,11 +229,11 @@ export function PersonalWorkspaceSections({
             data-workspace-block
             data-workspace-key={key}
             data-workspace-label={section.label}
-            draggable
+            draggable={reorderEnabled}
             key={key}
-            onDragStart={() => setDragged(key)}
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={() => drop(key)}
+            onDragStart={() => reorderEnabled && setDragged(key)}
+            onDragOver={(event) => reorderEnabled && event.preventDefault()}
+            onDrop={() => reorderEnabled && drop(key)}
           >
             {section.content}
           </section>
@@ -267,7 +269,7 @@ export function GlobalLayoutEngine() {
   const dragged = useRef<string | null>(null);
   const moduleKey = resolveModuleKey(pathname);
   useEffect(() => {
-    if (!context || !moduleKey) return;
+    if (!context || !moduleKey || moduleKey === "DASHBOARD") return;
     let timer: ReturnType<typeof setTimeout>;
     const discover = () => {
       const root = document.getElementById("platform-workspace-content");
@@ -341,7 +343,7 @@ export function GlobalLayoutEngine() {
     };
   }, [context, moduleKey, pathname]);
   useEffect(() => {
-    if (!context || !moduleKey) return;
+    if (!context || !moduleKey || moduleKey === "DASHBOARD") return;
     const config = context.preferences.moduleWorkspaces[moduleKey];
     if (!config) return;
     const cleanup: Array<() => void> = [];
@@ -394,7 +396,7 @@ export function GlobalLayoutEngine() {
     }
     return () => cleanup.forEach((fn) => fn());
   }, [context, moduleKey, targets]);
-  if (!context || !moduleKey) return null;
+  if (!context || !moduleKey || moduleKey === "DASHBOARD") return null;
   const labels =
     context.preferences.moduleWorkspaces[moduleKey]?.sectionLabels ?? {};
   return (
