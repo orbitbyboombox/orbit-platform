@@ -2,19 +2,30 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { DEFAULT_WORKSPACE, type FounderWorkspacePreferences } from "./catalog";
+
+function readableError(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message;
+  if (error && typeof error === "object" && "message" in error) {
+    const message = String((error as { message?: unknown }).message ?? "").trim();
+    if (message) return message;
+  }
+  return fallback;
+}
 export async function saveFounderWorkspaceAction(
   value: FounderWorkspacePreferences,
 ) {
   try {
     const client = await createSupabaseServerClient();
     const { data: auth, error: authError } = await client.auth.getUser();
-    if (authError || !auth.user) throw authError ?? new Error("Sesión requerida.");
+    if (authError || !auth.user) {
+      throw new Error(readableError(authError, "Sesión requerida."));
+    }
     const { data: current, error: currentError } = await client
       .from("founder_workspace_preferences")
       .select("version")
       .eq("user_id", auth.user.id)
       .maybeSingle();
-    if (currentError) throw currentError;
+    if (currentError) throw new Error(readableError(currentError, "No fue posible guardar Mi Escritorio."));
     const { error } = await client.from("founder_workspace_preferences").upsert(
       {
         user_id: auth.user.id,
@@ -32,7 +43,7 @@ export async function saveFounderWorkspaceAction(
       },
       { onConflict: "user_id" },
     );
-    if (error) throw error;
+    if (error) throw new Error(readableError(error, "No fue posible guardar Mi Escritorio."));
     revalidatePath("/operations");
     revalidatePath("/projects/[projectId]", "page");
     revalidatePath("/customers/[customerId]", "page");
@@ -53,13 +64,15 @@ export async function resetFounderWorkspaceAction() {
   try {
     const client = await createSupabaseServerClient();
     const { data: auth, error: authError } = await client.auth.getUser();
-    if (authError || !auth.user) throw authError ?? new Error("Sesión requerida.");
+    if (authError || !auth.user) {
+      throw new Error(readableError(authError, "Sesión requerida."));
+    }
     const { data: current, error: currentError } = await client
       .from("founder_workspace_preferences")
       .select("version")
       .eq("user_id", auth.user.id)
       .maybeSingle();
-    if (currentError) throw currentError;
+    if (currentError) throw new Error(readableError(currentError, "No fue posible restaurar Mi Escritorio."));
     const { error } = await client.from("founder_workspace_preferences").upsert(
       {
         user_id: auth.user.id,
@@ -77,7 +90,7 @@ export async function resetFounderWorkspaceAction() {
       },
       { onConflict: "user_id" },
     );
-    if (error) throw error;
+    if (error) throw new Error(readableError(error, "No fue posible restaurar Mi Escritorio."));
     revalidatePath("/operations");
     revalidatePath("/settings");
     return { ok: true as const };

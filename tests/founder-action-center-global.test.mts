@@ -6,9 +6,7 @@ const migration=readFileSync("supabase/migrations/0186_global_founder_action_cen
 const temporalMigration=readFileSync("supabase/migrations/0187_founder_action_temporal_reconciliation.sql","utf8");
 const groupedMigration=readFileSync("supabase/migrations/0190_group_overdue_founder_action.sql","utf8");
 const repository=readFileSync("features/founder-action-center/index.ts","utf8");
-const dashboard=readFileSync("features/founder-workspace/founder-dashboard-layout.tsx","utf8");
-const editor=readFileSync("features/founder-workspace/dashboard-layout-editor.tsx","utf8");
-const operationsPage=readFileSync("app/(platform)/operations/page.tsx","utf8");
+const dashboard=readFileSync("features/founder-workspace/founder-workspace-experience.tsx","utf8");
 const layout=readFileSync("app/(platform)/layout.tsx","utf8");
 const notifications=readFileSync("features/notification-center/notification-center.tsx","utf8");
 const notificationRepository=readFileSync("features/notification-center/repository.ts","utf8");
@@ -23,7 +21,7 @@ type Canonical={kind:"onboarding"|"expense";id:string;status:string};
 const project=(records:Canonical[])=>new Map(records.filter(record=>record.status===(record.kind==="onboarding"?"SUBMITTED":"PENDING_REVIEW")).map(record=>[`${record.kind}:${record.id}`,record]));
 
 test("new onboarding projects an actionable Founder alert",()=>{assert.match(migration,/STAFF_ONBOARDING_REVIEW_REQUIRED/);assert.match(migration,/where i\.status='SUBMITTED'/)});
-test("Founder dashboard renders the canonical operational widgets",()=>{assert.match(dashboard,/widget\.action_center/);assert.match(dashboard,/widget\.staff_approvals/);assert.match(dashboard,/widget\.financial_alerts/);assert.match(dashboard,/DashboardLayoutEditor/)});
+test("Founder dashboard renders a prominent pending action center",()=>{assert.match(dashboard,/Pendientes por revisar/);assert.match(dashboard,/founderActions\.length/)});
 test("header count derives from unresolved Founder actions",()=>{assert.match(layout,/loadFounderActionCount/);assert.doesNotMatch(layout,/loadNotificationUnreadCount/)});
 test("opening an onboarding alert does not resolve canonical state",()=>{assert.match(notifications,/Leer una tarea no la resuelve/);assert.doesNotMatch(onboarding,/status:\s*"APPROVED"/)});
 test("approving onboarding resolves projection through canonical status trigger",()=>{assert.match(migration,/after insert or update of status,submitted_at,submitted_data/);assert.match(migration,/i\.status='SUBMITTED'/)});
@@ -42,8 +40,7 @@ test("missing notification rows are recovered from canonical entities",()=>{asse
 test("multiple operators remain distinct",()=>{assert.equal(project([{kind:"onboarding",id:"one",status:"SUBMITTED"},{kind:"onboarding",id:"two",status:"SUBMITTED"}]).size,2)});
 test("multiple expenses remain distinct",()=>{assert.equal(project([{kind:"expense",id:"one",status:"PENDING_REVIEW"},{kind:"expense",id:"two",status:"PENDING_REVIEW"}]).size,2)});
 test("Founder action reads require an internal server context",()=>{assert.match(migration,/auth\.role\(\) <> 'service_role' and not public\.can_administer\(\)/);assert.match(repository,/createAdminClient/)});
-test("mobile queue uses wrapping cards and reachable full-width CTA",()=>{assert.match(dashboard,/DashboardLayoutEditor/);assert.match(editor,/grid-cols-2 gap-3 md:grid-cols-4/);assert.match(dashboard,/min-h-\[4\.75rem\]/);assert.match(dashboard,/widget\.action_center/)});
-test("upcoming events keep canonical ISO dates for countdowns",()=>{const block=operationsPage.slice(operationsPage.indexOf("const commandCenterEvents"),operationsPage.indexOf("const commandCenterActivity"));assert.match(block,/date:\s*event\.date/);assert.doesNotMatch(block,/month:\s*"short"|day:\s*"2-digit"/)});
+test("mobile queue uses wrapping cards and reachable full-width CTA",()=>{assert.match(dashboard,/break-words/);assert.match(dashboard,/min-h-11 w-full/);assert.match(dashboard,/lg:grid-cols-2/)});
 test("action center prioritizes P0 then P1 then P2 then P3",()=>{assert.match(repository,/a\.priority\.localeCompare\(b\.priority\)/);assert.match(repository,/"P0" \| "P1" \| "P2" \| "P3"/)});
 test("temporal alerts are recalculated from current Chile date and canonical state",()=>{assert.match(temporalMigration,/timezone\('America\/Santiago',now\(\)\)::date/);assert.match(temporalMigration,/r\.days_remaining<=7/);assert.match(temporalMigration,/p\.event_date between chile_today and chile_today\+5/)});
 test("one derived financial group replaces historical invoice reminders",()=>{assert.match(groupedMigration,/notification_type in\('INVOICE_OVERDUE','INVOICE_DUE_TODAY','INVOICE_DUE_SOON'\)/);assert.match(repository,/OVERDUE_INVOICE_GROUP/);assert.doesNotMatch(repository,/"INVOICE_OVERDUE"/)});

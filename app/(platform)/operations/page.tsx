@@ -1103,6 +1103,7 @@ export default async function OperationsPage() {
 
   const currentDate = new Intl.DateTimeFormat("es-CL", {
     dateStyle: "full",
+    timeStyle: "short",
     timeZone: "America/Santiago",
   }).format(new Date());
   const planningEndDate = new Date(`${today}T12:00:00Z`);

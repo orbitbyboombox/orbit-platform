@@ -3,19 +3,14 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const root = new URL("../", import.meta.url);
-const founder = readFileSync(new URL("features/founder-workspace/founder-dashboard-layout.tsx", root), "utf8");
-const editor = readFileSync(new URL("features/founder-workspace/dashboard-layout-editor.tsx", root), "utf8");
+const founder = readFileSync(new URL("features/founder-workspace/founder-workspace-experience.tsx", root), "utf8");
 const financeReadModel = readFileSync(new URL("features/finance/finance-read-model.ts", root), "utf8");
-const valueComponent = founder.slice(
-  founder.indexOf("export function FounderKpiValue"),
-  founder.indexOf("\nfunction quickActionCard"),
-);
+const valueComponent = founder.match(/export function FounderKpiValue[\s\S]*?function StatusPill/)?.[0] ?? "";
 
 test("Founder KPIs use one reusable container-aware value component", () => {
-  assert.match(founder, /<FounderKpiValue>/);
+  assert.match(founder, /<FounderKpiValue>\{formatMetric\(metric\)\}<\/FounderKpiValue>/);
   assert.match(valueComponent, /data-kpi-value/);
-  assert.match(valueComponent, /style=\{\{ fontSize: "clamp\(\.875rem, 10cqi, 1\.55rem\)" \}\}/);
-  assert.match(founder, /kpi\.cash_registered/);
+  assert.match(valueComponent, /style=\{\{ fontSize: "clamp\(\.75rem, 9cqi, 1\.55rem\)" \}\}/);
   assert.match(founder, /style=\{\{ containerType: "inline-size" \}\}/);
 });
 
@@ -25,7 +20,8 @@ test("large monetary values can shrink within a readable bounded range", () => {
     assert.equal(value.length > 0, true);
   }
   assert.match(valueComponent, /max-w-full min-w-0/);
-  assert.match(valueComponent, /\[overflow-wrap:anywhere\]/);
+  assert.match(valueComponent, /whitespace-nowrap/);
+  assert.doesNotMatch(valueComponent, /overflow-wrap:anywhere/);
 });
 
 test("financial figures are never ellipsized or truncated", () => {
@@ -35,12 +31,12 @@ test("financial figures are never ellipsized or truncated", () => {
 
 test("percentage and count values share the same safe presentation", () => {
   assert.match(founder, /metric\.format === "percent"/);
-  assert.match(founder, /metric\.format === "count"/);
-  assert.match(founder, /new Intl\.NumberFormat\("es-CL"\)/);
+  assert.match(founder, /formatMetric\(metric\)/);
+  assert.match(founder, /format: "count"/);
 });
 
 test("the KPI grid preserves six columns only when the viewport can contain them", () => {
-  assert.match(editor, /grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4/);
+  assert.match(founder, /grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6/);
   assert.match(founder, /min-h-\[7\.75rem\] min-w-0/);
 });
 
@@ -54,11 +50,11 @@ test("required responsive layouts retain safe reflow rules", () => {
 });
 
 test("KPI source values continue to come from the canonical Finance read model", () => {
-  assert.match(founder, /finance\.position/);
-  assert.match(founder, /finance\.month/);
-  for (const label of ["kpi.cash_registered", "kpi.total_receivables", "kpi.company_credit", "kpi.customer_balances", "kpi.month_sales", "kpi.operating_result", "kpi.operating_margin"]) {
+  assert.match(founder, /finance\.position\.find/);
+  assert.match(founder, /finance\.month\.find/);
+  for (const label of ["Caja registrada", "Por cobrar total", "Crédito Empresas", "Saldos Clientes / Eventos", "Ventas del mes", "Resultado operativo", "Margen operativo"]) {
     assert.match(founder, new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-    assert.match(financeReadModel, /"Caja registrada"/);
+    assert.match(financeReadModel, new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
 });
 

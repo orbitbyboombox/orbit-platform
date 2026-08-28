@@ -7,7 +7,7 @@ const root = new URL("../", import.meta.url);
 const read = (path: string) => readFileSync(new URL(path, root), "utf8");
 const model = read("features/finance/finance-read-model.ts");
 const page = read("app/(platform)/finance/page.tsx");
-const founder = read("features/founder-workspace/founder-dashboard-layout.tsx");
+const founder = read("features/founder-workspace/founder-workspace-experience.tsx");
 
 test("resultado mensual separa Eventos de overhead operativo", () => {
   assert.deepEqual(calculateMonthlyFinancePerformance({ revenue: 1_230_000, directEventCosts: 316_439, fixedMonthlyExpenses: 650_000 }), {
@@ -42,10 +42,10 @@ test("UI separa desempeño mensual de posición global", () => {
 });
 
 test("Founder Command Center etiqueta período y semántica", () => {
-  assert.match(founder, /kpi\.cash_registered/);
-  assert.match(founder, /kpi\.month_sales/);
-  assert.match(founder, /kpi\.operating_result/);
-  assert.match(founder, /kpi\.operating_margin/);
+  assert.match(founder, /position\("Caja registrada"\)/);
+  assert.match(founder, /month\("Ventas del mes"\)/);
+  assert.match(founder, /month\("Resultado operativo"\)/);
+  assert.match(founder, /month\("Margen operativo"\)/);
   assert.doesNotMatch(founder, /headline\("Margen"\)/);
 });
 

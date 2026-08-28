@@ -13,7 +13,7 @@ const search=read("features/global-search/global-search.tsx");
 const customer=read("features/crm/event-center.tsx");
 const staff=read("features/portal-authentication/staff-portal-dashboard.tsx");
 const reservation=read("features/projects/components/new-project-drawer.tsx");
-const quick=read("features/founder-workspace/founder-dashboard-layout.tsx");
+const quick=read("features/founder-workspace/founder-workspace-experience.tsx");
 
 test("canonical lock freezes body without disabling the html touch surface",()=>{assert.match(lock,/body\.style\.position="fixed"/);assert.match(lock,/body\.style\.overflow="hidden"/);assert.doesNotMatch(lock,/document\.documentElement|html\.style/)});
 test("lock preserves exact horizontal and vertical position",()=>{assert.match(lock,/x:window\.scrollX,y:window\.scrollY/);assert.match(lock,/window\.scrollTo\(\{left:current\.x,top:current\.y/)});

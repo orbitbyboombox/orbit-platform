@@ -4,13 +4,24 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { DEFAULT_DASHBOARD_LAYOUT, type DashboardLayout } from "./dashboard-layout";
 
+function readableError(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message;
+  if (error && typeof error === "object" && "message" in error) {
+    const message = String((error as { message?: unknown }).message ?? "").trim();
+    if (message) return message;
+  }
+  return fallback;
+}
+
 export async function saveFounderDashboardLayoutAction(
   layout: DashboardLayout,
 ) {
   try {
     const client = await createSupabaseServerClient();
     const { data: auth, error: authError } = await client.auth.getUser();
-    if (authError || !auth.user) throw authError ?? new Error("Sesión requerida.");
+    if (authError || !auth.user) {
+      throw new Error(readableError(authError, "Sesión requerida."));
+    }
     const { error } = await client.from("founder_workspace_preferences").upsert(
       {
         user_id: auth.user.id,
@@ -19,7 +30,7 @@ export async function saveFounderDashboardLayoutAction(
       },
       { onConflict: "user_id" },
     );
-    if (error) throw error;
+    if (error) throw new Error(readableError(error, "No fue posible guardar el orden del dashboard."));
     revalidatePath("/operations");
     revalidatePath("/settings");
     return { ok: true as const };
@@ -38,7 +49,9 @@ export async function resetFounderDashboardLayoutAction() {
   try {
     const client = await createSupabaseServerClient();
     const { data: auth, error: authError } = await client.auth.getUser();
-    if (authError || !auth.user) throw authError ?? new Error("Sesión requerida.");
+    if (authError || !auth.user) {
+      throw new Error(readableError(authError, "Sesión requerida."));
+    }
     const { error } = await client.from("founder_workspace_preferences").upsert(
       {
         user_id: auth.user.id,
@@ -47,7 +60,7 @@ export async function resetFounderDashboardLayoutAction() {
       },
       { onConflict: "user_id" },
     );
-    if (error) throw error;
+    if (error) throw new Error(readableError(error, "No fue posible restaurar el orden del dashboard."));
     revalidatePath("/operations");
     revalidatePath("/settings");
     return { ok: true as const };
