@@ -74,6 +74,8 @@ test("group action opens Cobrar Clientes filtered to VENCIDOS", () => {
   assert.equal(OVERDUE_INVOICE_GROUP_HREF, "/finance/collections?filter=OVERDUE");
   assert.match(collectionPage, /initialFilter=\{initialFilter\}/);
   assert.match(collectionCenter, /useState<CollectionFilter>\(initialFilter\)/);
+  assert.match(collectionCenter, /timeZone: "America\/Santiago"/);
+  assert.match(collectionCenter, /if \(filter === "OVERDUE"\) return isOverdue\(invoice, today\)/);
 });
 
 test("badge counts actionable cards rather than invoice rows", () => {

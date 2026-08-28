@@ -55,20 +55,24 @@ function latestNotice(invoice: ReceivableInvoice) {
   return getLastCollectionNoticeAt(invoice.collectionActions);
 }
 
-function collectionStatus(invoice: ReceivableInvoice) {
+function isOverdue(invoice: ReceivableInvoice, today: string) {
+  return Boolean(invoice.dueDate) && invoice.dueDate! < today;
+}
+
+function collectionStatus(invoice: ReceivableInvoice, today: string) {
   if (invoice.outstandingBalance <= 0 || invoice.status === "PAID") return "PAGADO";
-  if (invoice.daysRemaining !== null && invoice.daysRemaining < 0) return "VENCIDO";
-  if (invoice.daysRemaining === 0) return "VENCE HOY";
+  if (isOverdue(invoice, today)) return "VENCIDO";
+  if (invoice.dueDate === today) return "VENCE HOY";
   return "POR VENCER";
 }
 
-function priorityRank(invoice: ReceivableInvoice) {
+function priorityRank(invoice: ReceivableInvoice, today: string) {
   const notice = latestNotice(invoice);
   const recent = daysSince(notice);
   if (invoice.outstandingBalance <= 0) return 99;
-  if (invoice.daysRemaining !== null && invoice.daysRemaining < 0 && recent === null) return 0;
-  if (invoice.daysRemaining !== null && invoice.daysRemaining < 0) return 1;
-  if (invoice.daysRemaining === 0) return 2;
+  if (isOverdue(invoice, today) && recent === null) return 0;
+  if (isOverdue(invoice, today)) return 1;
+  if (invoice.dueDate === today) return 2;
   if (invoice.daysRemaining !== null && invoice.daysRemaining > 0 && invoice.daysRemaining <= 7) return 3;
   if (recent !== null && recent <= 7) return 4;
   return 5;
@@ -85,6 +89,9 @@ export function CollectionCenter({
 }) {
   const [filter, setFilter] = useState<CollectionFilter>(initialFilter);
   const [query, setQuery] = useState("");
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Santiago",
+  }).format(new Date());
 
   const actionable = useMemo(
     () =>
@@ -108,7 +115,7 @@ export function CollectionCenter({
         .filter((invoice) => {
           if (filter === "PENDING") return true;
           if (filter === "UPCOMING") return invoice.daysRemaining !== null && invoice.daysRemaining > 0;
-          if (filter === "OVERDUE") return invoice.daysRemaining !== null && invoice.daysRemaining < 0;
+          if (filter === "OVERDUE") return isOverdue(invoice, today);
           if (filter === "NO_NOTICE") return !latestNotice(invoice);
           if (filter === "WEEK") {
             const notice = latestNotice(invoice);
@@ -118,13 +125,13 @@ export function CollectionCenter({
           return false;
         })
         .sort((left, right) => {
-          const rank = priorityRank(left) - priorityRank(right);
+          const rank = priorityRank(left, today) - priorityRank(right, today);
           if (rank !== 0) return rank;
           return (left.dueDate ?? left.issueDate ?? "").localeCompare(
             right.dueDate ?? right.issueDate ?? "",
           );
         }),
-    [dataset.invoices, filter, query],
+    [dataset.invoices, filter, query, today],
   );
 
   const history = useMemo(
@@ -155,7 +162,7 @@ export function CollectionCenter({
   const rows = filter === "HISTORY" ? history : actionable;
   const summaryOutstanding = dataset.metrics.outstandingBalance;
   const summaryOverdue = actionable
-    .filter((invoice) => invoice.daysRemaining !== null && invoice.daysRemaining < 0)
+    .filter((invoice) => isOverdue(invoice, today))
     .reduce((sum, invoice) => sum + invoice.outstandingBalance, 0);
   const summaryUpcoming = actionable
     .filter((invoice) => invoice.daysRemaining !== null && invoice.daysRemaining > 0)
@@ -247,6 +254,7 @@ export function CollectionCenter({
             filter={filter}
             invoice={invoice}
             key={invoice.id}
+            today={today}
           />
         ))}
         {!rows.length ? (
@@ -263,15 +271,17 @@ function CollectionCard({
   invoice,
   bankDetails,
   filter,
+  today,
 }: {
   invoice: ReceivableInvoice;
   bankDetails: CollectionBankDetails;
   filter: CollectionFilter;
+  today: string;
 }) {
   const noticeAt = latestNotice(invoice);
   const noticeDays = daysSince(noticeAt);
   const actionLabel = noticeAt ? "REENVIAR COBRANZA" : "ENVIAR EMAIL";
-  const status = collectionStatus(invoice);
+  const status = collectionStatus(invoice, today);
   const hasEmail = Boolean(invoice.customerEmail);
   const contactPath = `/customers/${invoice.customerId}`;
 
