@@ -34,7 +34,7 @@ import type {
   QuoteLineDraft,
 } from "./types";
 import { calculateFormalQuote } from "./quote-calculation";
-import { QUICK_SEND_CTA_FALLBACK, QUICK_SEND_CTA_LABEL, commercialGreeting, displayChileanPhone, formalQuoteSubject, formatChileanRutInput, inlineCommercialText, moneyInputNumber, normalizeEmailNewlines, quickSendBodyParagraphs, quickSendEditableBody, quoteDisplayFilename, titleCasePerson, withoutDuplicateSignature } from "./presentation";
+import { QUICK_SEND_CTA_FALLBACK, QUICK_SEND_CTA_LABEL, commercialGreeting, displayChileanPhone, formalQuoteSubject, formatChileanRutInput, inlineCommercialText, moneyInputNumber, normalizeEmailNewlines, quickSendBodyParagraphs, quickSendInitialBody, quoteDisplayFilename, titleCasePerson, withoutDuplicateSignature } from "./presentation";
 import { ChileanMobileInput } from "@/components/forms/chilean-mobile-input";
 import { PdfViewer } from "./pdf-viewer";
 import { getCommercialDocumentUrlAction } from "./settings.actions";
@@ -233,7 +233,7 @@ function InformationSender({
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [subject, setSubject] = useState(template?.subject ?? "");
-  const [body, setBody] = useState(quickSendEditableBody(normalizeEmailNewlines(template?.body ?? "")));
+  const [body, setBody] = useState(quickSendInitialBody(category, normalizeEmailNewlines(template?.body ?? "")));
   const [preview, setPreview] = useState(false);
   const [message, setMessage] = useState("");
   const [requestId, setRequestId] = useState(uid);

@@ -60,8 +60,35 @@ export function commercialGreeting(contact: string) {
   return person ? `Hola ${person},` : "Hola,";
 }
 
-export const QUICK_SEND_CTA_LABEL = "VER PLANES Y VALORES BOOMBOX";
+export const QUICK_SEND_CTA_LABEL = "VER PLANES Y VALORES";
 export const QUICK_SEND_CTA_FALLBACK = "Si el botón no funciona, puedes ver nuestros planes y valores aquí.";
+
+const SOCIAL_QUICK_SEND_BODY = `Hola [Nombre],
+
+Gracias por considerar a BOOMBOX para ser parte de tu evento.
+
+Hace 16 años creamos experiencias fotográficas para matrimonios, cumpleaños y celebraciones en Chile.
+
+Preparamos distintas alternativas para que puedas elegir la experiencia que mejor se adapte a tu celebración.
+
+**¿QUIERES COTIZAR?**
+
+Respóndenos indicando:
+• servicio que te interesa
+• fecha
+• lugar del evento
+
+Revisaremos disponibilidad y prepararemos tu propuesta.
+
+**Importante:** Las fechas se confirman mediante reserva y están sujetas a disponibilidad.`;
+
+export function quickSendInitialBody(category: string, configuredBody: string) {
+  return quickSendEditableBody(
+    ["WEDDINGS", "BIRTHDAYS", "GRADUATIONS"].includes(category)
+      ? SOCIAL_QUICK_SEND_BODY
+      : configuredBody,
+  );
+}
 
 export function resolveQuickSendBody(value: string, contact: string) {
   const person = titleCasePerson(contact);
