@@ -8,6 +8,7 @@ const ui = read("features/accounts-receivable/event-payment-manager.tsx");
 const repository = read("features/crm/customer-operations.repository.ts");
 const drive = read("features/connectors/google-drive/application/historical-payment-receipt-drive-sync.service.ts");
 const migration = read("supabase/migrations/0188_payment_receipt_canonical_archive.sql");
+const conflictFix = read("supabase/migrations/0189_payment_receipt_upsert_constraint_alignment.sql");
 
 test("document-only retry attaches to an existing payment without financial writes", () => {
   assert.match(migration, /attach_receivable_payment_receipt/);
@@ -80,4 +81,27 @@ test("UI prevents double submit and explains that payment totals stay unchanged"
   assert.match(ui, /disabled=\{pending\}/);
   assert.match(ui, /No se creará otro pago ni se modificarán el monto recibido o el saldo/);
   assert.match(ui, /Guardando y archivando…/);
+});
+
+test("receipt upserts infer the canonical partial idempotency constraint", () => {
+  assert.match(conflictFix, /on conflict \(idempotency_key\) where idempotency_key is not null and deleted_at is null do update/i);
+  assert.match(conflictFix, /documents_idempotency_uq/);
+  for (const writer of [
+    "apply_receivable_movement",
+    "manage_receivable_payment",
+    "attach_receivable_payment_receipt",
+  ]) assert.match(conflictFix, new RegExp(writer));
+});
+
+test("one active receipt per payment is globally enforced after a duplicate preflight", () => {
+  assert.match(conflictFix, /group by payment_id[\s\S]*having count\(\*\) > 1/);
+  assert.match(conflictFix, /raise exception 'Duplicate active payment receipt documents exist/);
+  assert.match(conflictFix, /create unique index if not exists documents_active_payment_receipt_uq/);
+  assert.match(conflictFix, /on public\.documents \(payment_id\)[\s\S]*document_type = 'PAYMENT_RECEIPT'[\s\S]*deleted_at is null/);
+});
+
+test("constraint repair is document-only and has no production identity branches", () => {
+  assert.doesNotMatch(conflictFix, /insert into public\.(invoice_payments|receivable_movements)|update public\.invoices|paid_amount\s*=|balance\s*=/i);
+  assert.doesNotMatch(conflictFix, /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i);
+  assert.doesNotMatch(conflictFix, /F[0-9A-F]{7}|ORB-20\d{2}/i);
 });
