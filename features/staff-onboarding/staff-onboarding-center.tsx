@@ -24,14 +24,16 @@ export type StaffOnboardingInvitation = {
   documents: Array<{ id: string; type: string; fileName: string }>;
 };
 export function StaffOnboardingCenter({
+  initialReviewId,
   invitations,
 }: {
+  initialReviewId?: string;
   invitations: StaffOnboardingInvitation[];
 }) {
   const router=useRouter();
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [reviewing, setReviewing] = useState<StaffOnboardingInvitation | null>(
-    null,
+  const [reviewing, setReviewing] = useState<StaffOnboardingInvitation | null>(() =>
+    invitations.find((item) => item.id === initialReviewId) ?? null,
   );
   const [editing, setEditing] = useState<StaffOnboardingInvitation | null>(null);
   const [pending, start] = useTransition();
@@ -105,7 +107,7 @@ export function StaffOnboardingCenter({
       <div className="mt-5 grid gap-3 lg:grid-cols-2">
         {invitations
           .map((item) => (
-            <article className="rounded-xl border p-4" key={item.id}>
+            <article className={`rounded-xl border p-4 ${item.id===initialReviewId?"border-brand ring-2 ring-brand/20":""}`} id={`onboarding-${item.id}`} key={item.id}>
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h3 className="font-semibold">

@@ -12,6 +12,7 @@ import {
   UsersRound,
   WalletCards,
   Check,
+  UserRoundCheck,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -22,6 +23,7 @@ import { PersonalWorkspaceSections } from "./personal-workspace";
 import { reviewStaffRequestAction } from "@/features/operations/operations-planning.actions";
 import { markNotificationReadAction } from "@/features/notification-center/actions";
 import { FinancialAlertCenter, type FinancialAlertView } from "@/features/financial-alerts/financial-alert-center";
+import type { FounderActionItem } from "@/features/founder-action-center";
 
 export type CommandCenterItem = {
   id: string;
@@ -68,12 +70,13 @@ const toneStyle = {
   danger: "bg-danger-soft text-danger",
 } as const;
 
-export function FounderWorkspaceExperience({ currentDate, finance, financialAlert, financialAlertHistory, founderName, operationalAlerts, pendingStaffApprovals, pendingTasks, publicationConsole, recentActivity, todayEvents, todayOperation, upcomingEvents }: {
+export function FounderWorkspaceExperience({ currentDate, finance, financialAlert, financialAlertHistory, founderName, founderActions, operationalAlerts, pendingStaffApprovals, pendingTasks, publicationConsole, recentActivity, todayEvents, todayOperation, upcomingEvents }: {
   currentDate: string;
   finance: FinanceDashboardReadModel;
   financialAlert: FinancialAlertView | null;
   financialAlertHistory: FinancialAlertView[];
   founderName: string;
+  founderActions: FounderActionItem[];
   operationalAlerts: CommandCenterItem[];
   pendingStaffApprovals: PendingStaffApproval[];
   pendingTasks: number;
@@ -137,6 +140,12 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
     </div>
   </section>;
 
+  const actionCenter = <section data-command-card aria-labelledby="founder-action-center-title" className="rounded-2xl border border-brand/35 bg-brand/[.035] p-5 sm:p-6">
+    <div className="flex flex-wrap items-center justify-between gap-3"><div><p data-command-label>Alertas del Founder</p><h2 className="mt-1 text-xl font-semibold" id="founder-action-center-title">Pendientes por revisar</h2><p className="mt-2 text-xs text-muted">Tareas que permanecen aquí hasta que su estado canónico quede resuelto.</p></div><span aria-label={`${founderActions.length} pendientes accionables`} className="grid min-h-11 min-w-11 place-items-center rounded-full bg-brand px-3 text-lg font-bold text-brand-foreground">{founderActions.length}</span></div>
+    <div className="mt-5 grid gap-3 lg:grid-cols-2">{founderActions.map(item=>{const Icon=item.type==="STAFF_ONBOARDING_REVIEW_REQUIRED"?UserRoundCheck:ReceiptText;return <article className="min-w-0 rounded-xl border bg-card p-4" key={item.id}><div className="flex items-start gap-3"><span className={`grid size-10 shrink-0 place-items-center rounded-xl ${item.priority==="P0"?toneStyle.danger:toneStyle.warning}`}><Icon className="size-5"/></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="rounded-full border px-2 py-1 text-[9px] font-bold uppercase tracking-[.1em]">{item.priority}</span><span className="text-[10px] font-semibold uppercase text-muted">{item.category}</span>{item.read?<span className="text-[10px] text-muted">Leída · pendiente</span>:null}</div><h3 className="mt-2 text-sm font-semibold">{item.title}</h3><p className="mt-1 break-words text-xs leading-5 text-muted">{item.detail}</p><p className="mt-2 text-[10px] text-muted">{new Intl.DateTimeFormat("es-CL",{dateStyle:"short",timeStyle:"short",timeZone:"America/Santiago"}).format(new Date(item.createdAt))}</p></div></div><Link className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-foreground px-4 text-xs font-bold text-background sm:w-auto" href={item.href}>{item.cta}<ArrowRight className="size-3.5"/></Link></article>})}</div>
+    {!founderActions.length?<Empty label="No hay decisiones pendientes del Founder."/>:null}
+  </section>;
+
   const upcoming = <section data-command-card aria-labelledby="upcoming-events-title" className="rounded-2xl border p-5 sm:p-6">
     <div className="flex items-center justify-between gap-3"><PanelTitle id="upcoming-events-title" label="Próximos eventos" /><Link className="text-xs text-muted transition hover:text-brand" href="/projects?view=calendar">Ver calendario</Link></div>
     <div className="mt-4 divide-y">{upcomingEvents.slice(0, 4).map(event => <Link className="group grid grid-cols-[3.25rem_1fr_auto] gap-3 py-3.5 first:pt-0 last:pb-0" href={event.href} key={event.id}>
@@ -167,7 +176,7 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
     alertItems.map(alert => <article className="rounded-xl border bg-background/30 p-4 transition hover:border-brand/35" key={alert.id}><span className="flex items-start gap-3"><span className={`grid size-9 shrink-0 place-items-center rounded-xl ${alert.tone === "danger" ? toneStyle.danger : toneStyle.warning}`}><AlertTriangle className="size-4" /></span><span><strong className="block text-sm">{alert.title}</strong><span className="mt-1 block text-xs text-muted">{alert.detail}</span></span></span><span className="mt-3 flex flex-wrap items-center gap-2"><Link className="inline-flex min-h-9 items-center rounded-lg border border-brand/25 px-3 text-xs font-semibold text-brand" href={alert.href}>{alert.acknowledgeable ? "Abrir Evento / Cobertura Staff" : "Ver detalles"}</Link>{alert.acknowledgeable ? <button className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold disabled:opacity-50" disabled={alertPending} onClick={() => acknowledgeAlert(alert.id)}><Check className="size-3.5" />OK, visto</button> : null}</span></article>)
   }</div>{!visibleOperationalAlerts.length && !finance.risks.length ? <Empty label="No hay alertas accionables." /> : null}</section>;
 
-  const commandGrid = <section aria-label="Jornada operacional" className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.58fr)_minmax(19rem,.92fr)]"><div className="space-y-5">{today}{alerts}</div><div className="space-y-5">{upcoming}</div></section>;
+  const commandGrid = <section aria-label="Jornada operacional" className="space-y-5">{actionCenter}<div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.58fr)_minmax(19rem,.92fr)]"><div className="space-y-5">{today}{alerts}</div><div className="space-y-5">{upcoming}</div></div></section>;
 
   const actions = <section aria-labelledby="quick-actions-title"><PanelTitle id="quick-actions-title" label="Acciones rápidas" /><div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">{quickActions.map(action => { const Icon = action.icon; return <Link data-command-card className="group flex min-h-[4.75rem] items-center gap-3 rounded-2xl border p-4 transition hover:-translate-y-0.5" href={action.href} key={action.label}><span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand"><Icon className="size-4" /></span><span className="text-xs font-semibold uppercase">{action.label}</span></Link>; })}</div></section>;
 

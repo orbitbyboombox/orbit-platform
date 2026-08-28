@@ -1,0 +1,46 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+
+const migration=readFileSync("supabase/migrations/0186_global_founder_action_center.sql","utf8");
+const repository=readFileSync("features/founder-action-center/index.ts","utf8");
+const dashboard=readFileSync("features/founder-workspace/founder-workspace-experience.tsx","utf8");
+const layout=readFileSync("app/(platform)/layout.tsx","utf8");
+const notifications=readFileSync("features/notification-center/notification-center.tsx","utf8");
+const notificationRepository=readFileSync("features/notification-center/repository.ts","utf8");
+const onboarding=readFileSync("features/staff-onboarding/staff-onboarding-center.tsx","utf8");
+const onboardingPage=readFileSync("app/(platform)/resources/staff/page.tsx","utf8");
+const expensePage=readFileSync("app/(platform)/projects/[projectId]/staff-expenses/page.tsx","utf8");
+const expenseReview=readFileSync("features/staff-expenses/staff-expense-review.tsx","utf8");
+const expenseAction=readFileSync("features/portal-authentication/staff-portal.actions.ts","utf8");
+const expenseReviewAction=readFileSync("features/staff-expenses/staff-expense-review.actions.ts","utf8");
+
+type Canonical={kind:"onboarding"|"expense";id:string;status:string};
+const project=(records:Canonical[])=>new Map(records.filter(record=>record.status===(record.kind==="onboarding"?"SUBMITTED":"PENDING_REVIEW")).map(record=>[`${record.kind}:${record.id}`,record]));
+
+test("new onboarding projects an actionable Founder alert",()=>{assert.match(migration,/STAFF_ONBOARDING_REVIEW_REQUIRED/);assert.match(migration,/where i\.status='SUBMITTED'/)});
+test("Founder dashboard renders a prominent pending action center",()=>{assert.match(dashboard,/Pendientes por revisar/);assert.match(dashboard,/founderActions\.length/)});
+test("header count derives from unresolved Founder actions",()=>{assert.match(layout,/loadFounderActionCount/);assert.doesNotMatch(layout,/loadNotificationUnreadCount/)});
+test("opening an onboarding alert does not resolve canonical state",()=>{assert.match(notifications,/Leer una tarea no la resuelve/);assert.doesNotMatch(onboarding,/status:\s*"APPROVED"/)});
+test("approving onboarding resolves projection through canonical status trigger",()=>{assert.match(migration,/after insert or update of status,submitted_at,submitted_data/);assert.match(migration,/i\.status='SUBMITTED'/)});
+test("rejecting onboarding resolves the same canonical projection",()=>{assert.match(migration,/not exists\([\s\S]*staff_onboarding_invitations[\s\S]*status='SUBMITTED'/)});
+test("Staff expense persists through the single certified RPC",()=>{assert.match(expenseAction,/rpc\("create_staff_expense_submission"/);assert.equal((expenseAction.match(/create_staff_expense_submission/g)??[]).length,1)});
+test("Staff sees explicit success only after persistence",()=>{assert.match(expenseAction,/✓ Gasto enviado correctamente\. Tu gasto quedó enviado para revisión\./);assert.match(expenseAction,/if \(error\)/)});
+test("expense creates an actionable Founder pending state",()=>{assert.match(migration,/STAFF_EXPENSE_REVIEW_REQUIRED/);assert.match(migration,/where s\.status='PENDING_REVIEW'/)});
+test("Founder dashboard actionable count updates after expense submission",()=>{assert.match(expenseAction,/revalidatePath\("\/", "layout"\)/);assert.match(repository,/count: items\.length/)});
+test("expense alert navigates to the exact review record",()=>{assert.match(migration,/reviewExpense='\|\|s\.id\|\|'#expense-'/);assert.match(expensePage,/reviewExpense/);assert.match(expenseReview,/expense-\$\{focusId\}/)});
+test("expense approval resolves alert",()=>{assert.match(migration,/after insert or update of status,reviewed_at/);assert.match(expenseReviewAction,/review_staff_expense_submission/)});
+test("expense rejection resolves alert without deleting history",()=>{assert.match(migration,/s\.status='PENDING_REVIEW'/);assert.doesNotMatch(migration,/delete from public\.staff_expense_submissions/)});
+test("Staff portal preserves approval and rejection results",()=>{assert.match(expenseAction,/revalidatePath\("\/staff-portal"\)/);assert.match(expenseReview,/REJECT/)});
+test("canonical pending state survives reload",()=>{assert.match(repository,/reconcile_founder_action_alerts/);assert.match(migration,/on conflict\(correlation_id\) do update/)});
+test("duplicate active alerts are prevented by stable correlations and canonical entity ranking",()=>{assert.match(migration,/founder-action:staff-onboarding:/);assert.match(migration,/founder-action:staff-expense:/);assert.match(migration,/partition by entity_type,entity_id/);assert.match(repository,/canonicalKey/);assert.equal(project([{kind:"expense",id:"one",status:"PENDING_REVIEW"},{kind:"expense",id:"one",status:"PENDING_REVIEW"}]).size,1)});
+test("missing notification rows are recovered from canonical entities",()=>{assert.equal(project([{kind:"onboarding",id:"one",status:"SUBMITTED"}]).size,1);assert.match(migration,/select public\.reconcile_founder_action_alerts\(\)/)});
+test("multiple operators remain distinct",()=>{assert.equal(project([{kind:"onboarding",id:"one",status:"SUBMITTED"},{kind:"onboarding",id:"two",status:"SUBMITTED"}]).size,2)});
+test("multiple expenses remain distinct",()=>{assert.equal(project([{kind:"expense",id:"one",status:"PENDING_REVIEW"},{kind:"expense",id:"two",status:"PENDING_REVIEW"}]).size,2)});
+test("Founder action reads require an internal server context",()=>{assert.match(migration,/auth\.role\(\) <> 'service_role' and not public\.can_administer\(\)/);assert.match(repository,/createAdminClient/)});
+test("mobile queue uses wrapping cards and reachable full-width CTA",()=>{assert.match(dashboard,/break-words/);assert.match(dashboard,/min-h-11 w-full/);assert.match(dashboard,/lg:grid-cols-2/)});
+test("action center prioritizes P0 then P1 then P2",()=>{assert.match(repository,/a\.priority\.localeCompare\(b\.priority\)/);assert.match(repository,/"P0" \| "P1" \| "P2"/)});
+test("read and resolved are independent",()=>{assert.match(notificationRepository,/archived:item\.action_required\?false/);assert.match(notifications,/filter==="PENDING"\)return item\.actionRequired/)});
+test("onboarding alert opens the exact certified ReviewDialog",()=>{assert.match(onboardingPage,/reviewOnboarding/);assert.match(onboarding,/initialReviewId/);assert.match(onboarding,/invitations\.find\(\(item\) => item\.id === initialReviewId\)/)});
+test("financial customer ledgers are outside the hotfix",()=>{assert.doesNotMatch(migration,/(insert into|update|delete from) public\.(invoice_payments|receivable_movements|invoices|accounts_receivable_history)/);assert.doesNotMatch(expenseReviewAction,/invoice_payments|receivable_movements|paid_amount/)});
+test("the implementation contains no record-specific production branching",()=>{for(const source of [migration,repository,dashboard,onboarding,expenseReview])assert.doesNotMatch(source,/Daniela|Sof[ií]a|Juan Pérez|ORB-2026|cb787be5|ed061c33|F276DFD2/)});

@@ -27,7 +27,8 @@ import type {
   StaffDocumentView,
 } from "@/features/staff-documents/staff-document-model";
 
-export default async function StaffManagementPage() {
+export default async function StaffManagementPage({searchParams}:{searchParams:Promise<{reviewOnboarding?:string}>}) {
+  const {reviewOnboarding}=await searchParams;
   const client = await createSupabaseServerClient();
   const [
     { data: staff, error: staffError },
@@ -584,7 +585,7 @@ export default async function StaffManagementPage() {
     <StaffWorkspaces
       team={
         <div className="space-y-6">
-          <StaffOnboardingCenter invitations={onboardingInvitations} />
+          <StaffOnboardingCenter initialReviewId={reviewOnboarding} invitations={onboardingInvitations} />
           <StaffOperationCenter
             initialStaff={operationalStaff}
             portalAccess={portalAccess}

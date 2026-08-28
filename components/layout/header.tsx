@@ -23,12 +23,12 @@ export interface HeaderProps {
   userEmail: string;
   userName: string;
   userRole: string;
-  unreadNotifications: number;
+  actionableNotifications: number;
   navigationOrder: NavigationKey[];
   hiddenNavigation: NavigationKey[];
 }
 
-export function Header({ userEmail, userName, userRole, unreadNotifications, navigationOrder, hiddenNavigation }: HeaderProps) {
+export function Header({ userEmail, userName, userRole, actionableNotifications, navigationOrder, hiddenNavigation }: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const { isEnabled } = useModuleManager();
@@ -54,7 +54,7 @@ export function Header({ userEmail, userName, userRole, unreadNotifications, nav
         </Link>
         <GlobalSearch />
         {isEnabled("OPERATIONS") && <Button
-          aria-label={`${unreadNotifications} notificaciones sin leer`}
+          aria-label={`${actionableNotifications} pendientes por revisar`}
           asChild
           className="relative"
           size="icon"
@@ -62,9 +62,9 @@ export function Header({ userEmail, userName, userRole, unreadNotifications, nav
         >
           <Link href="/notifications">
             <Bell className="size-4" />
-            {unreadNotifications > 0 && (
+            {actionableNotifications > 0 && (
               <span className="absolute right-0.5 top-0.5 flex min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[9px] font-bold leading-4 text-white">
-                {unreadNotifications > 99 ? "99+" : unreadNotifications}
+                {actionableNotifications > 99 ? "99+" : actionableNotifications}
               </span>
             )}
           </Link>

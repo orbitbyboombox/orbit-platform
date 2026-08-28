@@ -15,6 +15,7 @@ import {
 import { StaffOperationsView } from "@/features/resources/staff-operations-view";
 import { officialStaffAssignmentPayment } from "@/features/operations/staff-assignment-payment";
 import { isInsideOperationalWindow } from "@/features/operations/operational-window";
+import { loadFounderActionCenter } from "@/features/founder-action-center";
 
 type PlanningRole = {
   code: "OPERATOR" | "ASSEMBLY" | "DISASSEMBLY";
@@ -1471,6 +1472,7 @@ export default async function OperationsPage() {
     return { id: row.id, key: row.obligation_key, title: localDay >= (rule?.escalation_day ?? 20) ? `${rule?.name ?? "PAGAR IVA"} HOY` : rule?.name ?? "PAGAR IVA", status: row.status as "PENDING" | "PAID", period: row.accounting_period.slice(0,7), paidAt: row.paid_at };
   });
   const financialAlert = financialAlertHistory.find((item) => item.status === "PENDING") ?? null;
+  const founderActionCenter = await loadFounderActionCenter(auth.user.id);
   return (
     <FounderWorkspaceExperience
       currentDate={currentDate}
@@ -1478,6 +1480,7 @@ export default async function OperationsPage() {
       financialAlert={financialAlert}
       financialAlertHistory={financialAlertHistory}
       founderName="Matías"
+      founderActions={founderActionCenter.items}
       operationalAlerts={commandCenterAlerts}
       pendingStaffApprovals={pendingStaffApprovals}
       pendingTasks={taskSummary.pending}

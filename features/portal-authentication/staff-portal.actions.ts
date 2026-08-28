@@ -338,6 +338,6 @@ export async function submitStaffExpenseAction(form: FormData) {
   if (upload.error && !upload.error.message.toLowerCase().includes("already exists")) return { ok: false, message: upload.error.message };
   const { error } = await admin.rpc("create_staff_expense_submission", { p_staff_id: session.staff_id, p_project_id: projectId, p_category: category, p_amount: amount, p_occurred_on: occurredOn, p_payment_method: String(form.get("paymentMethod") ?? ""), p_description: description, p_notes: String(form.get("notes") ?? ""), p_receipt_path: path, p_checksum: checksum, p_idempotency_key: idempotencyKey, p_reimbursement: String(form.get("expenseOwner") ?? "REIMBURSEMENT") === "REIMBURSEMENT" });
   if (error) { if (!upload.error) await admin.storage.from("orbit-expenses").remove([path]); return { ok: false, message: error.message }; }
-  revalidatePath("/staff-portal"); revalidatePath(`/projects/${projectId}/staff-expenses`); revalidatePath("/operations");
-  return { ok: true, message: "Gasto enviado. El Founder debe revisarlo antes de que impacte finanzas." };
+  revalidatePath("/staff-portal"); revalidatePath(`/projects/${projectId}/staff-expenses`); revalidatePath("/operations"); revalidatePath("/notifications"); revalidatePath("/", "layout");
+  return { ok: true, message: "✓ Gasto enviado correctamente. Tu gasto quedó enviado para revisión." };
 }

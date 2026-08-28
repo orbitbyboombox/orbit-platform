@@ -63,6 +63,9 @@ export async function inviteStaffAction(form: FormData) {
       driveFileIds: [],
     });
     revalidatePath("/resources/staff");
+    revalidatePath("/operations");
+    revalidatePath("/notifications");
+    revalidatePath("/", "layout");
     return { ok: true, message: `Invitación enviada a ${email}.` };
   } catch (error) {
     return {
@@ -115,6 +118,9 @@ export async function reviewStaffOnboardingAction(form: FormData) {
       });
     }
     revalidatePath("/resources/staff");
+    revalidatePath("/operations");
+    revalidatePath("/notifications");
+    revalidatePath("/", "layout");
     return {
       ok: true,
       message:
