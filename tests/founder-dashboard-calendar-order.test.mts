@@ -38,7 +38,7 @@ test("Calendar uses the same persisted workspace ordering pipeline", () => {
 
 test("Calendar extraction does not change Event or Calendar data logic", () => {
   assert.match(dashboard, /upcomingEvents\.slice\(0, 4\)/);
-  assert.match(dashboard, /href="\/projects\?view=calendar"/);
   assert.match(dashboard, /href="\/events"/);
+  assert.doesNotMatch(dashboard, /href="\/projects\?view=calendar"/);
   assert.doesNotMatch(dashboard, /insert into|delete from|update projects|\.from\("projects"\)/i);
 });

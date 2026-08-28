@@ -46,7 +46,7 @@ export const QUICK_ACTIONS = [
   {
     key: "CALENDAR",
     label: "Calendario",
-    href: "/projects?view=calendar",
+    href: "/events",
     icon: CalendarDays,
     module: "PROJECTS",
   },
