@@ -31,6 +31,8 @@ test("Calendar uses the same persisted workspace ordering pipeline", () => {
   assert.match(dashboard, /workspace\.update/);
   assert.match(dashboard, /sectionOrder: order/);
   assert.match(dashboard, /DASHBOARD_UPCOMING_EVENTS/);
+  assert.match(dashboard, /data-workspace-block.*data-workspace-key/);
+  assert.match(dashboard, /avoidWorkspaceMenu/);
   assert.doesNotMatch(dashboard, /localStorage|sessionStorage/);
 });
 

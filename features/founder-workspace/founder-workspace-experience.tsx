@@ -161,8 +161,17 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
     if (!config) return;
     const order = [...config.sectionOrder];
     const index = order.indexOf("DASHBOARD_UPCOMING_EVENTS");
-    const target = index + direction;
-    if (index < 0 || target < 1 || target >= order.length) return;
+    const visibleOrder = [
+      ...document.querySelectorAll<HTMLElement>(
+        '[data-workspace-block][data-workspace-key]',
+      ),
+    ]
+      .map((element) => element.dataset.workspaceKey ?? "")
+      .filter(Boolean);
+    const visibleIndex = visibleOrder.indexOf("DASHBOARD_UPCOMING_EVENTS");
+    const targetKey = visibleOrder[visibleIndex + direction];
+    const target = order.indexOf(targetKey);
+    if (index < 0 || visibleIndex < 0 || target < 1) return;
     [order[index], order[target]] = [order[target], order[index]];
     setOrderMessage("Guardando…");
     startOrderTransition(async () => {
@@ -263,7 +272,7 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
   const financialAlerts = financialAlert || financialAlertHistory.length ? <FinancialAlertCenter current={financialAlert} history={financialAlertHistory} /> : null;
   const dashboardSections = workspace.preferences.moduleWorkspaces.DASHBOARD?.sectionOrder ?? [];
   const calendarIndex = dashboardSections.indexOf("DASHBOARD_UPCOMING_EVENTS");
-  const calendarSection = <OrderableItem controls={ordering ? <OrderControls disableDown={calendarIndex < 0 || calendarIndex === dashboardSections.length - 1} disableUp={calendarIndex <= 1} label="Próximos eventos" onDown={() => moveCalendar(1)} onUp={() => moveCalendar(-1)} /> : null}>{upcoming}</OrderableItem>;
+  const calendarSection = <OrderableItem controls={ordering ? <OrderControls avoidWorkspaceMenu disableDown={calendarIndex < 0 || calendarIndex === dashboardSections.length - 1} disableUp={calendarIndex <= 1} label="Próximos eventos" onDown={() => moveCalendar(1)} onUp={() => moveCalendar(-1)} /> : null}>{upcoming}</OrderableItem>;
 
   return <main className="orbit-command-center" id="founder-workspace"><PersonalWorkspaceSections moduleKey="DASHBOARD" sections={[
     { key: "DASHBOARD_HEADER", label: "Bienvenida", content: welcome },
@@ -314,6 +323,6 @@ function PendingStaffApprovals({ items, onResolved }: { items: PendingStaffAppro
 function PanelTitle({ id, label }: { id: string; label: string }) { return <h2 data-command-label id={id}>{label}</h2>; }
 export function FounderKpiValue({ children }: { children: string }) { return <strong data-kpi-value className="orbit-counter mt-3 block max-w-full min-w-0 whitespace-nowrap font-semibold leading-[1.05] tracking-[-.05em] [font-variant-numeric:tabular-nums]" style={{ fontSize: "clamp(1.05rem, 1.6vw, 1.5rem)" }}>{children}</strong>; }
 function OrderableItem({ children, controls }: { children: ReactNode; controls: ReactNode }) { return controls ? <div className="relative min-w-0 rounded-2xl ring-1 ring-brand/50">{children}{controls}</div> : <>{children}</>; }
-function OrderControls({ disableDown, disableUp, label, onDown, onUp }: { disableDown: boolean; disableUp: boolean; label: string; onDown: () => void; onUp: () => void }) { return <span className="absolute right-2 top-2 z-10 flex gap-1 rounded-lg border bg-card/95 p-1 shadow-sm"><button aria-label={`Mover arriba ${label}`} className="grid size-9 place-items-center rounded-md text-muted hover:bg-accent hover:text-brand disabled:opacity-30" disabled={disableUp} onClick={(event) => { event.preventDefault(); event.stopPropagation(); onUp(); }} type="button"><ArrowUp className="size-4" /></button><button aria-label={`Mover abajo ${label}`} className="grid size-9 place-items-center rounded-md text-muted hover:bg-accent hover:text-brand disabled:opacity-30" disabled={disableDown} onClick={(event) => { event.preventDefault(); event.stopPropagation(); onDown(); }} type="button"><ArrowDown className="size-4" /></button></span>; }
+function OrderControls({ avoidWorkspaceMenu = false, disableDown, disableUp, label, onDown, onUp }: { avoidWorkspaceMenu?: boolean; disableDown: boolean; disableUp: boolean; label: string; onDown: () => void; onUp: () => void }) { return <span className={`absolute top-2 flex gap-1 rounded-lg border bg-card/95 p-1 shadow-sm ${avoidWorkspaceMenu ? "right-14 z-40" : "right-2 z-10"}`}><button aria-label={`Mover arriba ${label}`} className="grid size-9 place-items-center rounded-md text-muted hover:bg-accent hover:text-brand disabled:opacity-30" disabled={disableUp} onClick={(event) => { event.preventDefault(); event.stopPropagation(); onUp(); }} type="button"><ArrowUp className="size-4" /></button><button aria-label={`Mover abajo ${label}`} className="grid size-9 place-items-center rounded-md text-muted hover:bg-accent hover:text-brand disabled:opacity-30" disabled={disableDown} onClick={(event) => { event.preventDefault(); event.stopPropagation(); onDown(); }} type="button"><ArrowDown className="size-4" /></button></span>; }
 function StatusPill({ tone = "info" }: { tone?: CommandCenterItem["tone"] }) { const resolved = tone ?? "info"; return <span className={`hidden rounded-lg px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[.06em] sm:inline-flex ${toneStyle[resolved]}`}>{resolved === "danger" ? "Crítico" : resolved === "warning" ? "Pendiente" : "Activo"}</span>; }
 function Empty({ label }: { label: string }) { return <p className="rounded-xl border border-dashed p-4 text-xs text-muted">{label}</p>; }
