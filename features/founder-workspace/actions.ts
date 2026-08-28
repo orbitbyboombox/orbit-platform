@@ -1,23 +1,37 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import type { FounderWorkspacePreferences } from "./catalog";
+import { DEFAULT_WORKSPACE, type FounderWorkspacePreferences } from "./catalog";
 export async function saveFounderWorkspaceAction(
   value: FounderWorkspacePreferences,
 ) {
   try {
     const client = await createSupabaseServerClient();
-    const { error } = await client.rpc("save_founder_workspace", {
-      p_quick_action_order: value.quickActionOrder,
-      p_hidden_quick_actions: value.hiddenQuickActions,
-      p_favorite_quick_actions: value.favoriteQuickActions,
-      p_widget_order: value.widgetOrder,
-      p_hidden_widgets: value.hiddenWidgets,
-      p_hidden_event_modules: value.moduleWorkspaces.EVENTS.hiddenSections,
-      p_navigation_order: value.navigationOrder,
-      p_hidden_navigation: value.hiddenNavigation,
-      p_module_workspaces: value.moduleWorkspaces,
-    });
+    const { data: auth, error: authError } = await client.auth.getUser();
+    if (authError || !auth.user) throw authError ?? new Error("Sesión requerida.");
+    const { data: current, error: currentError } = await client
+      .from("founder_workspace_preferences")
+      .select("version")
+      .eq("user_id", auth.user.id)
+      .maybeSingle();
+    if (currentError) throw currentError;
+    const { error } = await client.from("founder_workspace_preferences").upsert(
+      {
+        user_id: auth.user.id,
+        quick_action_order: value.quickActionOrder,
+        hidden_quick_actions: value.hiddenQuickActions,
+        favorite_quick_actions: value.favoriteQuickActions,
+        widget_order: value.widgetOrder,
+        hidden_widgets: value.hiddenWidgets,
+        hidden_event_modules: value.hiddenEventModules,
+        navigation_order: value.navigationOrder,
+        hidden_navigation: value.hiddenNavigation,
+        module_workspaces: value.moduleWorkspaces,
+        version: (current?.version ?? 0) + 1,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id" },
+    );
     if (error) throw error;
     revalidatePath("/operations");
     revalidatePath("/projects/[projectId]", "page");
@@ -38,7 +52,31 @@ export async function saveFounderWorkspaceAction(
 export async function resetFounderWorkspaceAction() {
   try {
     const client = await createSupabaseServerClient();
-    const { error } = await client.rpc("reset_founder_workspace");
+    const { data: auth, error: authError } = await client.auth.getUser();
+    if (authError || !auth.user) throw authError ?? new Error("Sesión requerida.");
+    const { data: current, error: currentError } = await client
+      .from("founder_workspace_preferences")
+      .select("version")
+      .eq("user_id", auth.user.id)
+      .maybeSingle();
+    if (currentError) throw currentError;
+    const { error } = await client.from("founder_workspace_preferences").upsert(
+      {
+        user_id: auth.user.id,
+        quick_action_order: DEFAULT_WORKSPACE.quickActionOrder,
+        hidden_quick_actions: DEFAULT_WORKSPACE.hiddenQuickActions,
+        favorite_quick_actions: DEFAULT_WORKSPACE.favoriteQuickActions,
+        widget_order: DEFAULT_WORKSPACE.widgetOrder,
+        hidden_widgets: DEFAULT_WORKSPACE.hiddenWidgets,
+        hidden_event_modules: DEFAULT_WORKSPACE.hiddenEventModules,
+        navigation_order: DEFAULT_WORKSPACE.navigationOrder,
+        hidden_navigation: DEFAULT_WORKSPACE.hiddenNavigation,
+        module_workspaces: DEFAULT_WORKSPACE.moduleWorkspaces,
+        version: (current?.version ?? 0) + 1,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id" },
+    );
     if (error) throw error;
     revalidatePath("/operations");
     revalidatePath("/settings");
