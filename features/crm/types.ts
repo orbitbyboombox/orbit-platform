@@ -67,6 +67,10 @@ export interface CrmCustomerEventOperations {
       type: string;
       receiptPath: string | null;
       receiptName: string | null;
+      receiptDocumentId: string | null;
+      receiptUploadedAt: string | null;
+      receiptDriveStatus: "PENDING" | "SYNCED" | "ERROR" | null;
+      receiptDriveError: string | null;
       createdBy: string | null;
       createdAt: string;
     }>;

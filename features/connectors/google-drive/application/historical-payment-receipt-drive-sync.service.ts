@@ -50,7 +50,9 @@ export interface HistoricalPaymentReceiptSyncRunResult {
 
 export interface HistoricalPaymentReceiptSyncRepository {
   loadCandidates(input?: { documentIds?: readonly string[] } | undefined): Promise<HistoricalPaymentReceiptCandidate[]>;
-  setDriveFileId(documentId: string, driveFileId: string): Promise<void>;
+  setDriveFileId(documentId: string, driveFileId: string, driveFolderId?: string): Promise<void>;
+  setDriveSyncFailure?(documentId: string, reason: string): Promise<void>;
+  setDriveSyncPending?(documentId: string): Promise<void>;
   downloadReceipt(storageBucket: string, storagePath: string): Promise<{ bytes: Uint8Array; mimeType: string | null }>;
 }
 
@@ -254,12 +256,34 @@ type LoadCandidatesRow = {
     });
   }
 
-  async setDriveFileId(documentId: string, driveFileId: string): Promise<void> {
+  async setDriveFileId(documentId: string, driveFileId: string, driveFolderId?: string): Promise<void> {
     const { error } = await this.client
       .from("documents")
-      .update({ drive_file_id: driveFileId })
+      .update({
+        drive_file_id: driveFileId,
+        drive_folder_id: driveFolderId ?? null,
+        drive_sync_status: "SYNCED",
+        drive_sync_error: null,
+        drive_synced_at: new Date().toISOString(),
+      })
       .eq("id", documentId)
       .is("drive_file_id", null);
+    if (error) throw error;
+  }
+
+  async setDriveSyncPending(documentId: string): Promise<void> {
+    const { error } = await this.client.from("documents").update({
+      drive_sync_status: "PENDING",
+      drive_sync_error: null,
+    }).eq("id", documentId).is("drive_file_id", null);
+    if (error) throw error;
+  }
+
+  async setDriveSyncFailure(documentId: string, reason: string): Promise<void> {
+    const { error } = await this.client.from("documents").update({
+      drive_sync_status: "ERROR",
+      drive_sync_error: reason.slice(0, 1000),
+    }).eq("id", documentId).is("drive_file_id", null);
     if (error) throw error;
   }
 
@@ -322,7 +346,10 @@ export async function executeHistoricalPaymentReceiptDriveSync(input: {
       continue;
     }
 
+    await repository.setDriveSyncPending?.(candidate.documentId);
+
     if (!isStoragePathPresent(candidate)) {
+      await repository.setDriveSyncFailure?.(candidate.documentId, "Documento sin ruta de Storage válida.");
       requiresReview += 1;
       results.push({
         documentId: candidate.documentId,
@@ -341,6 +368,7 @@ export async function executeHistoricalPaymentReceiptDriveSync(input: {
     }
 
     if (!candidate.customerName || !candidate.eventDate) {
+      await repository.setDriveSyncFailure?.(candidate.documentId, "No fue posible resolver cliente y fecha del evento.");
       requiresReview += 1;
       results.push({
         documentId: candidate.documentId,
@@ -362,6 +390,7 @@ export async function executeHistoricalPaymentReceiptDriveSync(input: {
     try {
       file = await repository.downloadReceipt(candidate.storageBucket, candidate.storagePath);
     } catch (error) {
+      await repository.setDriveSyncFailure?.(candidate.documentId, extractReason(error));
       requiresReview += 1;
       results.push({
         documentId: candidate.documentId,
@@ -389,6 +418,7 @@ export async function executeHistoricalPaymentReceiptDriveSync(input: {
         kind: "PAYMENT_PROOF",
       });
     } catch (error) {
+      await repository.setDriveSyncFailure?.(candidate.documentId, extractReason(error));
       failed += 1;
       results.push({
         documentId: candidate.documentId,
@@ -416,6 +446,7 @@ export async function executeHistoricalPaymentReceiptDriveSync(input: {
         parentFolderId: destination.folderId,
       });
     } catch (error) {
+      await repository.setDriveSyncFailure?.(candidate.documentId, extractReason(error));
       failed += 1;
       results.push({
         documentId: candidate.documentId,
@@ -435,7 +466,7 @@ export async function executeHistoricalPaymentReceiptDriveSync(input: {
 
     if (existing) {
       try {
-        await repository.setDriveFileId(candidate.documentId, existing.id);
+        await repository.setDriveFileId(candidate.documentId, existing.id, destination.folderId);
         reconciled += 1;
         results.push({
           documentId: candidate.documentId,
@@ -450,6 +481,7 @@ export async function executeHistoricalPaymentReceiptDriveSync(input: {
           driveFileId: existing.id,
         });
       } catch (error) {
+        await repository.setDriveSyncFailure?.(candidate.documentId, extractReason(error));
         failed += 1;
         results.push({
           documentId: candidate.documentId,
@@ -477,7 +509,7 @@ export async function executeHistoricalPaymentReceiptDriveSync(input: {
         parentFolderId: destination.folderId,
       });
 
-      await repository.setDriveFileId(candidate.documentId, uploaded.id);
+      await repository.setDriveFileId(candidate.documentId, uploaded.id, destination.folderId);
       inserted += 1;
       results.push({
         documentId: candidate.documentId,
@@ -492,6 +524,7 @@ export async function executeHistoricalPaymentReceiptDriveSync(input: {
         driveFileId: uploaded.id,
       });
     } catch (error) {
+      await repository.setDriveSyncFailure?.(candidate.documentId, extractReason(error));
       failed += 1;
       let reconciledCandidate: { id: string; name: string } | null = null;
       try {

@@ -17,7 +17,7 @@ export async function loadCrmCustomerOperations(
       client.from("staff").select("id,first_name,last_name,role,status,capabilities").is("deleted_at", null).order("last_name"),
       client.from("operational_assets").select("id,asset_code,asset_type,status").is("deleted_at", null).order("asset_code"),
       client.from("agreements").select("id,project_id,status,created_at").in("project_id", projectIds).order("created_at", { ascending: false }),
-      client.from("documents").select("id,project_id,document_type,storage_path,drive_file_id,created_at").in("project_id", projectIds).is("deleted_at", null).order("created_at", { ascending: false }),
+      client.from("documents").select("id,project_id,payment_id,document_type,storage_path,drive_file_id,drive_sync_status,drive_sync_error,drive_synced_at,original_filename,created_at").in("project_id", projectIds).is("deleted_at", null).order("created_at", { ascending: false }),
       client.from("calendar_sync").select("project_id,status,external_event_id,external_url").in("project_id", projectIds),
       client.from("customer_portal_tokens").select("project_id").in("project_id", projectIds).is("revoked_at", null),
       client.from("invoices").select("id,project_id,invoice_number,status,amount,due_date").in("project_id", projectIds).is("deleted_at", null).order("created_at", { ascending: false }),
@@ -42,6 +42,11 @@ export async function loadCrmCustomerOperations(
     const truth = (financialTruth.data ?? []).find((item) => item.project_id === projectId);
     const quotation = (quotations.data ?? []).find((item) => item.project_id === projectId);
     const service = (services.data ?? []).find((item) => item.project_id === projectId);
+    const receiptDocuments = new Map(
+      (documents.data ?? [])
+        .filter((item) => item.project_id === projectId && item.document_type === "PAYMENT_RECEIPT" && item.payment_id)
+        .map((item) => [item.payment_id as string, item]),
+    );
     const quoteItems = (quotation?.quotation_items ?? []) as Array<{ item_type: string; code: string; label: string; quantity: number; final_total: number; metadata: Record<string, unknown> | null }>;
     const projectExtras = (Array.isArray(service?.extras) ? service.extras : []) as string[];
     const extras: Array<{ item_type: string; code: string; label: string; quantity: number; final_total: number; metadata: Record<string, unknown> | null }> = [...quoteItems.filter((item) => item.item_type === "EXTRA"), ...projectExtras.map((label) => ({ item_type: "EXTRA", code: label, label, quantity: 1, final_total: 0, metadata: { source: "PROJECT" } }))];
@@ -93,7 +98,9 @@ export async function loadCrmCustomerOperations(
         outstandingBalance: Number(invoice.outstanding_balance ?? 0),
         status: invoice.effective_status,
         dueDate: invoice.due_date,
-        movements: (Array.isArray(invoice.payment_history) ? invoice.payment_history : []).map((movement: Record<string, unknown>) => ({
+        movements: (Array.isArray(invoice.payment_history) ? invoice.payment_history : []).map((movement: Record<string, unknown>) => {
+          const receiptDocument = receiptDocuments.get(String(movement.id ?? ""));
+          return ({
           id: String(movement.id ?? ""),
           amount: Number(movement.amount ?? 0),
           paidAt: String(movement.paid_at ?? movement.paidAt ?? ""),
@@ -102,9 +109,13 @@ export async function loadCrmCustomerOperations(
           type: String(movement.type ?? "PAYMENT"),
           receiptPath: typeof movement.receiptPath === "string" ? movement.receiptPath : typeof movement.receipt_path === "string" ? movement.receipt_path : null,
           receiptName: typeof movement.receiptName === "string" ? movement.receiptName : null,
+          receiptDocumentId: receiptDocument?.id ?? null,
+          receiptUploadedAt: receiptDocument?.created_at ?? null,
+          receiptDriveStatus: receiptDocument?.drive_file_id ? "SYNCED" : (receiptDocument?.drive_sync_status as "PENDING" | "SYNCED" | "ERROR" | null | undefined) ?? null,
+          receiptDriveError: receiptDocument?.drive_sync_error ?? null,
           createdBy: typeof movement.createdBy === "string" ? movement.createdBy : null,
           createdAt: String(movement.createdAt ?? movement.paidAt ?? ""),
-        })),
+        });}),
       } : null,
       staffAssignments: {
         projectId,

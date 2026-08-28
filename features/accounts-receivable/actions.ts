@@ -4,6 +4,7 @@ import { createSupabaseServerActionClient } from "@/lib/supabase/server";
 import type { PaymentTerm } from "./types";
 import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import { GoogleGmailApiProvider } from "@/features/connectors/google-gmail/provider/google-gmail-live.provider";
+import { executeHistoricalPaymentReceiptDriveSync } from "@/features/connectors/google-drive/application/historical-payment-receipt-drive-sync.service";
 import { createHash } from "node:crypto";
 
 const maxReceiptBytes = 15 * 1024 * 1024;
@@ -13,7 +14,7 @@ const allowedReceiptTypes = new Set([
   "image/webp",
   "application/pdf",
 ]);
-type Result = { ok: true } | { ok: false; error: string };
+type Result = { ok: true; message?: string } | { ok: false; error: string };
 export type ReceivableMovementAction =
   | "DEPOSIT"
   | "PARTIAL_PAYMENT"
@@ -177,6 +178,73 @@ async function removeUploadedReceipt(
     // best-effort cleanup on retry/error paths.
   }
 }
+
+async function archivePaymentReceipt(
+  client: Awaited<ReturnType<typeof createSupabaseServerActionClient>>,
+  input: {
+    paymentId: string;
+    invoiceId: string;
+    receiptName?: string | null;
+    mimeType?: string | null;
+    fileSize?: number | null;
+  },
+): Promise<"SYNCED" | "PENDING"> {
+  const { data: document, error: documentError } = await client
+    .from("documents")
+    .select("id,drive_file_id")
+    .eq("payment_id", input.paymentId)
+    .eq("invoice_id", input.invoiceId)
+    .eq("document_type", "PAYMENT_RECEIPT")
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (documentError || !document?.id) {
+    console.error(JSON.stringify({
+      level: "error",
+      event: "payment.receipt_document_missing",
+      paymentId: input.paymentId,
+      invoiceId: input.invoiceId,
+      error: documentError?.message ?? "Documento canónico no encontrado.",
+    }));
+    return "PENDING";
+  }
+
+  if (document.drive_file_id) {
+    const { error } = await client.from("documents").update({
+      drive_sync_status: "SYNCED",
+      drive_sync_error: null,
+    }).eq("id", document.id);
+    if (error) console.warn(JSON.stringify({ level: "warning", event: "payment.receipt_drive_state_sync_failed", paymentId: input.paymentId, documentId: document.id, error: error.message }));
+    return "SYNCED";
+  }
+
+  const metadata = {
+    drive_sync_status: "PENDING",
+    drive_sync_error: null,
+    ...(input.receiptName ? { original_filename: input.receiptName } : {}),
+    ...(input.mimeType ? { mime_type: input.mimeType } : {}),
+    ...(input.fileSize ? { file_size: input.fileSize } : {}),
+  };
+  const { error: metadataError } = await client.from("documents").update(metadata).eq("id", document.id);
+  if (metadataError) {
+    console.warn(JSON.stringify({ level: "warning", event: "payment.receipt_metadata_sync_failed", paymentId: input.paymentId, documentId: document.id, error: metadataError.message }));
+  }
+
+  try {
+    const run = await executeHistoricalPaymentReceiptDriveSync({ client, documentIds: [document.id] });
+    return run.inserted + run.reconciled + run.skippedAlreadyLinked > 0 ? "SYNCED" : "PENDING";
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    await client.from("documents").update({ drive_sync_status: "ERROR", drive_sync_error: reason.slice(0, 1000) }).eq("id", document.id);
+    console.error(JSON.stringify({ level: "error", event: "payment.receipt_drive_pending", paymentId: input.paymentId, documentId: document.id, error: reason }));
+    return "PENDING";
+  }
+}
+
+function receiptSuccessMessage(prefix: string, driveStatus: "SYNCED" | "PENDING") {
+  return driveStatus === "SYNCED"
+    ? `${prefix} Comprobante guardado en ORBIT y archivado en Drive.`
+    : `${prefix} Comprobante guardado en ORBIT; sincronización con Drive pendiente.`;
+}
 export async function createInvoiceAction(formData: FormData): Promise<Result> {
   try {
     const client = await createSupabaseServerActionClient();
@@ -260,7 +328,9 @@ export async function applyReceivableMovementAction(
     const action = String(
       formData.get("movementAction"),
     ) as ReceivableMovementAction;
-    const receipt = await detectReceipt(formData.get("receipt") instanceof File ? (formData.get("receipt") as File) : null);
+    const receiptInput = formData.get("receipt");
+    const receiptFile = receiptInput instanceof File && receiptInput.size > 0 ? receiptInput : null;
+    const receipt = await detectReceipt(receiptFile);
     const occurredOn = String(
       formData.get("occurredOn") || new Date().toISOString().slice(0, 10),
     );
@@ -283,7 +353,7 @@ export async function applyReceivableMovementAction(
       return { ok: true };
     }
     await upsertReceiptToStorage(client, receipt.storagePath, receipt.bytes, receipt.mimeType);
-    const { error } = await client.rpc("apply_receivable_movement", {
+    const { data: paymentId, error } = await client.rpc("apply_receivable_movement", {
       p_invoice_id: invoiceId,
       p_action: action,
       p_amount: amount,
@@ -298,9 +368,18 @@ export async function applyReceivableMovementAction(
       await removeUploadedReceipt(client, receipt.storagePath);
       throw error;
     }
+    let message: string | undefined;
+    if (paymentId && receiptFile && receipt.storagePath) {
+      await client.from("invoice_payments").update({ receipt_name: receiptFile.name }).eq("id", paymentId).eq("invoice_id", invoiceId);
+      const driveStatus = await archivePaymentReceipt(client, {
+        paymentId: String(paymentId), invoiceId, receiptName: receiptFile.name,
+        mimeType: receipt.mimeType, fileSize: receiptFile.size,
+      });
+      message = receiptSuccessMessage("Movimiento registrado.", driveStatus);
+    }
     revalidate();
     if (projectId) revalidatePath(`/projects/${projectId}`);
-    return { ok: true };
+    return { ok: true, message };
   } catch (error) {
     return paymentFailure("APPLY_RECEIVABLE_MOVEMENT", error, { invoiceId, projectId });
   }
@@ -324,7 +403,8 @@ export async function registerReceivablePaymentAction(formData: FormData): Promi
     if (!/^\d{4}-\d{2}-\d{2}$/.test(paidOn)) throw new Error("La fecha del pago no es válida.");
     const occurredOn = `${paidOn}T12:00:00-04:00`;
     const receiptInput = formData.get("receipt");
-    const receiptName = receiptInput instanceof File ? receiptInput.name : null;
+    const receiptFile = receiptInput instanceof File && receiptInput.size > 0 ? receiptInput : null;
+    const receiptName = receiptFile?.name ?? null;
     const requestId = String(formData.get("requestId") || "").trim();
     const { data: receivable, error: receivableError } = await client
       .from("accounts_receivable_projection")
@@ -389,9 +469,17 @@ export async function registerReceivablePaymentAction(formData: FormData): Promi
         );
       }
     }
+    let message: string | undefined;
+    if (paymentId && receiptFile && receipt.storagePath) {
+      const driveStatus = await archivePaymentReceipt(client, {
+        paymentId: String(paymentId), invoiceId, receiptName,
+        mimeType: receipt.mimeType, fileSize: receiptFile.size,
+      });
+      message = receiptSuccessMessage("Pago registrado correctamente.", driveStatus);
+    }
     revalidate();
     if (projectId) revalidatePath(`/projects/${projectId}`);
-    return { ok: true };
+    return { ok: true, message };
   } catch (error) {
     return paymentFailure("REGISTER_MANUAL_PAYMENT", error, { invoiceId, projectId });
   }
@@ -509,10 +597,92 @@ export async function manageReceivablePaymentAction(formData: FormData): Promise
         .eq("invoice_id", invoiceId);
       if (receiptNameError) console.warn(JSON.stringify({ level: "warning", event: "payment.receipt_name_sync_failed", invoiceId, projectId, paymentId, error: receiptNameError.message }));
     }
+    let message: string | undefined;
+    if (receiptName && receipt.storagePath && receiptInput instanceof File) {
+      const driveStatus = await archivePaymentReceipt(client, {
+        paymentId, invoiceId, receiptName, mimeType: receipt.mimeType, fileSize: receiptInput.size,
+      });
+      message = receiptSuccessMessage("Movimiento actualizado.", driveStatus);
+    }
     revalidate();
     if (projectId) revalidatePath(`/projects/${projectId}`);
-    return { ok: true };
+    return { ok: true, message };
   } catch (error) { return paymentFailure("MANAGE_PAYMENT_MOVEMENT", error, { invoiceId, projectId }); }
+}
+
+export async function attachReceivablePaymentReceiptAction(formData: FormData): Promise<Result> {
+  let invoiceId = "";
+  let projectId = "";
+  let storagePath: string | null = null;
+  try {
+    const client = await createSupabaseServerActionClient();
+    const { data: auth } = await client.auth.getUser();
+    if (!auth.user) throw new Error("Sesión requerida.");
+    invoiceId = String(formData.get("invoiceId") ?? "").trim();
+    projectId = String(formData.get("projectId") ?? "").trim();
+    const paymentId = String(formData.get("paymentId") ?? "").trim();
+    if (!invoiceId || !projectId || !paymentId) throw new Error("Falta identificar el pago existente.");
+
+    const fileInput = formData.get("receipt");
+    const file = fileInput instanceof File && fileInput.size > 0 ? fileInput : null;
+    if (!file) throw new Error("Selecciona el comprobante del pago.");
+    const receipt = await detectReceipt(file);
+    if (!receipt.checksum || !receipt.extension || !receipt.bytes || !receipt.mimeType) throw new Error("El comprobante no es válido.");
+    const receiptKey = createHash("sha256")
+      .update(`payment-receipt-attach:${invoiceId}|${paymentId}|${receipt.checksum}`)
+      .digest("hex");
+    storagePath = canonicalReceiptStoragePath(invoiceId, receiptKey, receipt.extension);
+    await upsertReceiptToStorage(client, storagePath, receipt.bytes, receipt.mimeType);
+
+    const { data: documentId, error } = await client.rpc("attach_receivable_payment_receipt", {
+      p_invoice_id: invoiceId,
+      p_payment_id: paymentId,
+      p_storage_path: storagePath,
+      p_receipt_name: file.name,
+      p_receipt_checksum: receipt.checksum,
+      p_mime_type: receipt.mimeType,
+      p_file_size: file.size,
+    });
+    if (error || !documentId) {
+      await removeUploadedReceipt(client, storagePath);
+      throw error ?? new Error("No fue posible enlazar el comprobante al pago.");
+    }
+
+    const driveStatus = await archivePaymentReceipt(client, {
+      paymentId, invoiceId, receiptName: file.name, mimeType: receipt.mimeType, fileSize: file.size,
+    });
+    revalidate();
+    revalidatePath(`/projects/${projectId}`);
+    return { ok: true, message: receiptSuccessMessage("Pago sin cambios.", driveStatus) };
+  } catch (error) {
+    return paymentFailure("ATTACH_PAYMENT_RECEIPT", error, { invoiceId, projectId });
+  }
+}
+
+export async function retryReceivablePaymentReceiptDriveAction(input: {
+  invoiceId: string;
+  projectId: string;
+  paymentId: string;
+}): Promise<Result> {
+  try {
+    const client = await createSupabaseServerActionClient();
+    const { data: auth } = await client.auth.getUser();
+    if (!auth.user) throw new Error("Sesión requerida.");
+    const driveStatus = await archivePaymentReceipt(client, {
+      paymentId: input.paymentId,
+      invoiceId: input.invoiceId,
+    });
+    revalidate();
+    revalidatePath(`/projects/${input.projectId}`);
+    return {
+      ok: true,
+      message: driveStatus === "SYNCED"
+        ? "Comprobante archivado en Drive. El pago no fue modificado."
+        : "El comprobante sigue disponible en ORBIT; Drive queda pendiente para reintento.",
+    };
+  } catch (error) {
+    return paymentFailure("RETRY_PAYMENT_RECEIPT_DRIVE", error, { invoiceId: input.invoiceId, projectId: input.projectId });
+  }
 }
 export async function auditReceivableIntegrityAction(): Promise<
   | {

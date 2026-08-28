@@ -10,8 +10,10 @@ import {
   Trash2,
   CalendarClock,
   FileDown,
+  Paperclip,
   Pencil,
   Plus,
+  RefreshCw,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,9 +21,11 @@ import { MobileDialog } from "@/components/ui/mobile-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
   applyReceivableMovementAction,
+  attachReceivablePaymentReceiptAction,
   getReceivableReceiptUrlAction,
   manageReceivablePaymentAction,
   registerReceivablePaymentAction,
+  retryReceivablePaymentReceiptDriveAction,
   confirmReconciledPaymentAction,
   updateReceivableDatesAction,
   type ReceivableMovementAction,
@@ -36,6 +40,10 @@ type Movement = {
   type: string;
   receiptPath: string | null;
   receiptName?: string | null;
+  receiptDocumentId?: string | null;
+  receiptUploadedAt?: string | null;
+  receiptDriveStatus?: "PENDING" | "SYNCED" | "ERROR" | null;
+  receiptDriveError?: string | null;
   createdBy?: string | null;
   createdAt?: string;
 };
@@ -101,6 +109,7 @@ export function EventPaymentManager({
   const [newPaymentError, setNewPaymentError] = useState("");
   const [dateEditor, setDateEditor] = useState(false);
   const [movementEditor, setMovementEditor] = useState<{ mode: "EDIT" | "DELETE"; item: Movement } | null>(null);
+  const [receiptAttachment, setReceiptAttachment] = useState<Movement | null>(null);
   const [pending, startTransition] = useTransition();
   const submit = (data: FormData) => {
     if (!action) return;
@@ -112,7 +121,7 @@ export function EventPaymentManager({
       const result = await applyReceivableMovementAction(data);
       if (result.ok) {
         setAction(null);
-        setFeedback("Movimiento registrado y saldos sincronizados.");
+        setFeedback(result.message ?? "Movimiento registrado y saldos sincronizados.");
         router.refresh();
       } else setFeedback(result.error);
     });
@@ -242,7 +251,7 @@ export function EventPaymentManager({
                     {paymentMethod(item.method)}
                   </p>
                   {item.reason && <p className="mt-1 text-xs text-muted">{item.reason}</p>}
-                  {item.receiptPath && <button className="mt-2 inline-flex items-center gap-1 text-xs text-brand" onClick={() => startTransition(async () => { const result = await getReceivableReceiptUrlAction(item.receiptPath!); if (result.ok) window.open(result.url, "_blank", "noopener,noreferrer"); else setFeedback(result.error); })} type="button"><FileDown className="size-3"/>{item.receiptName || "Abrir comprobante"}</button>}
+                  {item.receiptPath ? <div className="mt-2 space-y-1"><button className="inline-flex items-center gap-1 text-xs text-brand" onClick={() => startTransition(async () => { const result = await getReceivableReceiptUrlAction(item.receiptPath!); if (result.ok) window.open(result.url, "_blank", "noopener,noreferrer"); else setFeedback(result.error); })} type="button"><FileDown className="size-3"/>VER COMPROBANTE · {item.receiptName || "Archivo adjunto"}</button><p className="text-xs text-muted">{item.receiptUploadedAt ? `Subido ${chileDateFormatter.format(new Date(item.receiptUploadedAt))} · ` : ""}Drive: {item.receiptDriveStatus === "SYNCED" ? "Archivado" : item.receiptDriveStatus === "ERROR" ? "Pendiente (último intento falló)" : "Pendiente"}</p>{item.receiptDriveStatus !== "SYNCED" ? <button className="inline-flex items-center gap-1 text-xs text-brand" disabled={pending} onClick={() => startTransition(async () => { const result = await retryReceivablePaymentReceiptDriveAction({ invoiceId: receivable.id, projectId, paymentId: item.id }); setFeedback(result.ok ? result.message ?? "Sincronización procesada." : result.error); if (result.ok) router.refresh(); })} type="button"><RefreshCw className="size-3"/>Reintentar archivo en Drive</button> : null}</div> : <button className="mt-2 inline-flex min-h-9 items-center gap-1 rounded-lg border px-3 text-xs font-semibold text-brand" onClick={() => setReceiptAttachment(item)} type="button"><Paperclip className="size-3"/>ADJUNTAR COMPROBANTE</button>}
                 </div>
                 <strong
                   className={item.amount < 0 ? "text-danger" : "text-success"}
@@ -344,7 +353,7 @@ export function EventPaymentManager({
               if (result.ok) {
                 setNewPayment(false);
                 setNewPaymentError("");
-                setFeedback("Nuevo pago registrado y saldos recalculados.");
+                setFeedback(result.message ?? "Nuevo pago registrado y saldos recalculados.");
                 router.refresh();
               } else {
                 setNewPaymentError(result.error);
@@ -377,11 +386,9 @@ export function EventPaymentManager({
               const result = await manageReceivablePaymentAction(data);
               if (result.ok) {
                 setMovementEditor(null);
-                setFeedback(
-                  movementEditor.mode === "EDIT"
-                    ? "Movimiento actualizado y saldos recalculados."
-                    : "Movimiento eliminado y saldos recalculados.",
-                );
+                setFeedback(result.message ?? (movementEditor.mode === "EDIT"
+                  ? "Movimiento actualizado y saldos recalculados."
+                  : "Movimiento eliminado y saldos recalculados."));
                 router.refresh();
               } else setFeedback(result.error);
             })
@@ -389,6 +396,15 @@ export function EventPaymentManager({
           pending={pending}
           projectId={projectId}
         />
+      )}
+      {receiptAttachment && (
+        <MobileDialog dismissOnOverlayClick={false} eyebrow="Payment Ledger" onClose={() => { if (!pending) setReceiptAttachment(null); }} size="lg" title="Adjuntar comprobante al pago existente">
+          <form action={(data) => { data.set("invoiceId", receivable.id); data.set("projectId", projectId); data.set("paymentId", receiptAttachment.id); startTransition(async () => { const result = await attachReceivablePaymentReceiptAction(data); setFeedback(result.ok ? result.message ?? "Comprobante adjuntado sin modificar el pago." : result.error); if (result.ok) { setReceiptAttachment(null); router.refresh(); } }); }} className="space-y-4">
+            <p className="rounded-xl border p-4 text-sm">Se adjuntará el archivo al movimiento existente por <strong>{money(Math.abs(receiptAttachment.amount))}</strong>. No se creará otro pago ni se modificarán el monto recibido o el saldo.</p>
+            <Field label="Comprobante"><input accept="image/jpeg,image/png,image/webp,application/pdf" name="receipt" required type="file"/></Field>
+            <Button className="w-full" disabled={pending}>{pending ? "Guardando y archivando…" : "Adjuntar comprobante"}</Button>
+          </form>
+        </MobileDialog>
       )}
     </section>
   );
