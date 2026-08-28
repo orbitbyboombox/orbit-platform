@@ -345,7 +345,6 @@ function CollectionEmailVisualPreview({
   draft: ReturnType<typeof buildCollectionEmailDraft>;
   invoice: ReceivableInvoice;
 }) {
-  const overdue = draft.templateKey === "OVERDUE";
   return (
     <section className="min-w-0 overflow-hidden rounded-2xl border bg-white text-zinc-900 shadow-sm">
       <header className="border-b-4 border-orange-500 bg-zinc-950 px-5 py-5 text-white sm:px-6">
@@ -358,9 +357,7 @@ function CollectionEmailVisualPreview({
         <div>
           <p className="text-base font-bold">Hola {invoice.customerName},</p>
           <p className="mt-2 text-sm leading-6 text-zinc-600">
-            {overdue
-              ? "Queríamos recordarte que el saldo pendiente de tu evento se encuentra vencido."
-              : "Te escribimos para recordarte el saldo pendiente de tu evento."}
+            Te escribimos para recordarte el saldo pendiente de tu evento.
           </p>
         </div>
         <div className="min-w-0 rounded-xl border bg-zinc-50 p-4">
@@ -377,18 +374,10 @@ function CollectionEmailVisualPreview({
           </div>
         </div>
         <div
-          className={`min-w-0 rounded-xl border-2 p-5 ${
-            overdue
-              ? "border-red-400 bg-red-50"
-              : "border-orange-400 bg-orange-50"
-          }`}
+          className="min-w-0 rounded-xl border-2 border-zinc-700 bg-orange-50 p-5"
         >
-          <p
-            className={`text-[10px] font-black uppercase tracking-[.16em] ${
-              overdue ? "text-red-700" : "text-orange-700"
-            }`}
-          >
-            {overdue ? "Saldo vencido pendiente" : "Saldo pendiente"}
+          <p className="text-[10px] font-black uppercase tracking-[.16em] text-orange-700">
+            Saldo pendiente
           </p>
           <p className="mt-2 break-words text-3xl font-black text-zinc-950">
             {draft.outstandingLabel}
@@ -409,7 +398,9 @@ function CollectionEmailVisualPreview({
             <PreviewDetail dark label="Email" value={draft.bankDetails.email} />
           </div>
         </div>
+        <p className="text-xs leading-5 text-zinc-500">Una vez realizado el pago, envía el comprobante a <a className="text-orange-700 underline" href="mailto:contabilidad@bbox.cl">contabilidad@bbox.cl</a>.</p>
       </div>
+      <footer className="border-t px-5 py-4 text-[10px] leading-4 text-zinc-500 sm:px-6">BOOMBOX · Comunicación emitida mediante ORBIT<br />ORBIT · Software desarrollado por BOOMBOX<br /><span className="text-orange-700">www.bbox.cl</span></footer>
     </section>
   );
 }

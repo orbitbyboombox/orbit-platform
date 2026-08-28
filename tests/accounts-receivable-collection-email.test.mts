@@ -53,11 +53,11 @@ test("collection email draft distinguishes overdue and upcoming invoices", () =>
   assert.equal(overdue.templateKey, "OVERDUE");
   assert.equal(overdue.to, "sofia@example.com");
   assert.equal(overdue.subject, "Saldo vencido pendiente de regularización — BOOMBOX");
-  assert.match(overdue.body, /BOOMBOX/);
-  assert.match(overdue.body, /Banco: BCI/);
-  assert.match(overdue.body, /N° de cuenta: 52093409/);
-  assert.match(overdue.body, /RUT: 76\.565\.272-3/);
-  assert.match(overdue.body, /Email de transferencia: contabilidad@boombox\.cl/);
+  assert.match(overdue.body, /DETALLE DEL EVENTO/);
+  assert.match(overdue.body, /BANCO\nBCI/);
+  assert.match(overdue.body, /N° DE CUENTA\n52093409/);
+  assert.match(overdue.body, /RUT\n76\.565\.272-3/);
+  assert.match(overdue.body, /EMAIL DE TRANSFERENCIA\ncontabilidad@boombox\.cl/);
   assert.equal(overdue.lastNoticeLabel.includes("18"), true);
   assert.equal(overdue.lastNoticeLabel.includes("2026"), true);
 
@@ -75,7 +75,7 @@ test("collection email draft distinguishes overdue and upcoming invoices", () =>
   assert.equal(upcoming.templateKey, "UPCOMING");
   assert.equal(upcoming.subject, "Recordatorio de saldo pendiente — BOOMBOX");
   assert.match(upcoming.body, /saldo pendiente/i);
-  assert.match(upcoming.body, /Banco: BCI/);
+  assert.match(upcoming.body, /BANCO\nBCI/);
   assert.equal(upcoming.lastNoticeLabel, "Sin avisos previos");
 });
 

@@ -67,31 +67,29 @@ export function buildCollectionEmailHtml(
   draft: CollectionEmailDraft,
   body = draft.body,
 ) {
-  const overdue = draft.templateKey === "OVERDUE";
-  const paragraphs = body
+  const firstParagraph = body
     .split(/\n{2,}/)
     .map((value) => value.trim())
-    .filter(Boolean);
-  const greeting = paragraphs.shift() ?? "Hola,";
-  const closingStart = paragraphs.findIndex((value) =>
-    /^Saludos,?/i.test(value),
-  );
-  const closing = closingStart >= 0 ? paragraphs.splice(closingStart) : [];
-  const generatedLine = /^(Detalle de tu evento:|Fecha del evento:|Lugar:|Servicio:|Duración:|Valor total:|Saldo pendiente:|Fecha de pago:|BOOMBOX|Banco:|Tipo de cuenta:|N° de cuenta:|RUT:|Email de transferencia:)/i;
-  const message = paragraphs.flatMap((value) => {
-    const cleaned = value
-      .split("\n")
-      .filter((line) => !generatedLine.test(line.trim()))
-      .join("\n")
-      .trim();
-    return cleaned ? [cleaned] : [];
-  });
-  const row = (label: string, value: string) =>
-    `<div style="min-width:0;padding:10px 0;border-bottom:1px solid #eceef2"><div style="font-size:11px;font-weight:700;letter-spacing:.08em;color:#6b7280;text-transform:uppercase">${escapeHtml(label)}</div><div style="margin-top:4px;font-size:15px;font-weight:600;color:#17191f;overflow-wrap:anywhere">${escapeHtml(value)}</div></div>`;
-  const paragraph = (value: string) =>
-    `<p style="margin:0 0 16px;font-size:15px;line-height:1.65;color:#343841;overflow-wrap:anywhere">${escapeHtml(value).replaceAll("\n", "<br>")}</p>`;
+    .find(Boolean);
+  const greetingLine = firstParagraph?.split("\n")[0]?.trim() ?? "Hola,";
+  const greeting = /^Hola(?:\s|,)/i.test(greetingLine) ? greetingLine : "Hola,";
+  const detailCell = (label: string, value: string, dark = false) =>
+    `<div style="display:inline-block;vertical-align:top;box-sizing:border-box;width:49%;min-width:230px;padding:10px 12px 10px 0"><div style="font-size:10px;font-weight:700;letter-spacing:.08em;color:${dark ? "#aeb4bf" : "#6b7280"};text-transform:uppercase">${escapeHtml(label)}</div><div style="margin-top:5px;font-size:15px;font-weight:600;color:${dark ? "#ffffff" : "#17191f"};overflow-wrap:anywhere">${escapeHtml(value)}</div></div>`;
+  const eventDetails = [
+    ["Fecha", draft.eventDateLabel],
+    ...(draft.eventLocation ? [["Lugar", draft.eventLocation]] : []),
+    ["Servicio", draft.serviceLabel],
+    ["Duración", draft.durationLabel],
+  ].map(([label, value]) => detailCell(label, value)).join("");
+  const bankDetails = [
+    ["Banco", draft.bankDetails.bankName],
+    ["Tipo de cuenta", draft.bankDetails.accountType],
+    ["N° de cuenta", draft.bankDetails.accountNumber],
+    ["RUT", draft.bankDetails.rut],
+    ["Email", draft.bankDetails.email],
+  ].map(([label, value]) => detailCell(label, value, true)).join("");
 
-  return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#f4f5f7;padding:0"><div style="display:none;max-height:0;overflow:hidden">${escapeHtml(draft.subject)}</div><main style="width:100%;padding:28px 12px;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;color:#17191f"><section style="max-width:620px;margin:0 auto;overflow:hidden;border:1px solid #e3e5e9;border-radius:20px;background:#ffffff;box-shadow:0 16px 42px rgba(17,24,39,.08)"><header style="background:#101216;padding:25px 28px;border-bottom:4px solid #f68b1f"><div style="font-size:22px;font-weight:800;letter-spacing:.08em;color:#ffffff">BOOMBOX</div><div style="margin-top:7px;font-size:12px;letter-spacing:.12em;color:#f6a452;text-transform:uppercase">Cobranza comercial</div></header><div style="padding:28px"><p style="margin:0 0 16px;font-size:18px;font-weight:700;line-height:1.45;color:#17191f">${escapeHtml(greeting)}</p>${message.slice(0, 2).map(paragraph).join("")}<section style="margin:26px 0;border:1px solid #e5e7eb;border-radius:16px;padding:18px;background:#fafafa"><h2 style="margin:0 0 8px;font-size:12px;letter-spacing:.12em;color:#f07f16;text-transform:uppercase">Detalle del evento</h2>${row("Fecha", draft.eventDateLabel)}${draft.eventLocation ? row("Lugar", draft.eventLocation) : ""}${row("Servicio", draft.serviceLabel)}${row("Duración", draft.durationLabel)}</section><section style="margin:26px 0;border:2px solid ${overdue ? "#c94747" : "#f68b1f"};border-radius:16px;padding:22px;background:${overdue ? "#fff7f7" : "#fff9f2"}"><div style="font-size:12px;font-weight:800;letter-spacing:.12em;color:${overdue ? "#9f2f2f" : "#b85d08"};text-transform:uppercase">${overdue ? "Saldo vencido pendiente" : "Saldo pendiente"}</div><div style="margin-top:8px;font-size:32px;font-weight:800;line-height:1.1;color:#17191f;overflow-wrap:anywhere">${escapeHtml(draft.outstandingLabel)}</div><div style="margin-top:12px;font-size:13px;font-weight:600;color:#4b5563">Fecha de pago / vencimiento: ${escapeHtml(draft.dueDateLabel)}</div></section>${message.slice(2).map(paragraph).join("")}<section style="margin:26px 0 20px;border-radius:16px;padding:20px;background:#101216;color:#ffffff"><h2 style="margin:0 0 10px;font-size:12px;letter-spacing:.12em;color:#f6a452;text-transform:uppercase">Datos para transferencia</h2>${[["Banco",draft.bankDetails.bankName],["Tipo de cuenta",draft.bankDetails.accountType],["N° de cuenta",draft.bankDetails.accountNumber],["RUT",draft.bankDetails.rut],["Email",draft.bankDetails.email]].map(([label,value])=>`<div style="padding:8px 0;border-bottom:1px solid #2b3038"><div style="font-size:10px;font-weight:700;letter-spacing:.08em;color:#aeb4bf;text-transform:uppercase">${escapeHtml(label)}</div><div style="margin-top:3px;font-size:14px;font-weight:600;color:#ffffff;overflow-wrap:anywhere">${escapeHtml(value)}</div></div>`).join("")}</section>${closing.map(paragraph).join("") || '<p style="margin:0;font-size:15px;line-height:1.6;color:#343841">Saludos,<br><strong>Equipo BOOMBOX</strong></p>'}</div><footer style="border-top:1px solid #eceef2;padding:18px 28px;font-size:11px;line-height:1.5;color:#7a808b">Mensaje de seguimiento de pago enviado por BOOMBOX. Si ya realizaste la transferencia, puedes responder con el comprobante.</footer></section></main></body></html>`;
+  return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#f4f5f7;padding:0"><div style="display:none;max-height:0;overflow:hidden">${escapeHtml(draft.subject)}</div><main style="width:100%;padding:28px 12px;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;color:#17191f"><section style="max-width:620px;margin:0 auto;overflow:hidden;border:1px solid #e3e5e9;border-radius:20px;background:#ffffff;box-shadow:0 16px 42px rgba(17,24,39,.08)"><header style="background:#101216;padding:25px 28px;border-bottom:4px solid #f68b1f"><div style="font-size:22px;font-weight:800;letter-spacing:.08em;color:#ffffff">BOOMBOX</div><div style="margin-top:7px;font-size:12px;letter-spacing:.12em;color:#f6a452;text-transform:uppercase">Cobranza comercial</div></header><div style="padding:28px"><p style="margin:0 0 8px;font-size:18px;font-weight:700;line-height:1.45;color:#17191f">${escapeHtml(greeting)}</p><p style="margin:0;font-size:15px;font-weight:400;line-height:1.65;color:#5f6470">Te escribimos para recordarte el saldo pendiente de tu evento.</p><section style="margin:26px 0;border:1px solid #30343a;border-radius:16px;padding:18px 20px;background:#fafafa"><h2 style="margin:0 0 8px;font-size:11px;letter-spacing:.16em;color:#f07f16;text-transform:uppercase">Detalle del evento</h2><div style="font-size:0">${eventDetails}</div></section><section style="margin:26px 0;border:2px solid #30343a;border-radius:16px;padding:22px 24px;background:#fff9f0"><div style="font-size:11px;font-weight:800;letter-spacing:.16em;color:#bf4a00;text-transform:uppercase">Saldo pendiente</div><div style="margin-top:10px;font-size:36px;font-weight:800;line-height:1.1;color:#090a0c;overflow-wrap:anywhere">${escapeHtml(draft.outstandingLabel)}</div><div style="margin-top:14px;font-size:13px;font-weight:600;color:#5f6470">Fecha de pago / vencimiento: ${escapeHtml(draft.dueDateLabel)}</div></section><section style="margin:26px 0 0;border-radius:16px;padding:20px 22px;background:#090a0c;color:#ffffff"><h2 style="margin:0 0 8px;font-size:11px;letter-spacing:.16em;color:#f6a452;text-transform:uppercase">Datos para transferencia</h2><div style="font-size:0">${bankDetails}</div></section><p style="margin:18px 0 0;font-size:12px;font-weight:400;line-height:1.6;color:#6b7280">Una vez realizado el pago, envía el comprobante a <a href="mailto:contabilidad@bbox.cl" style="color:#bf4a00;text-decoration:underline">contabilidad@bbox.cl</a>.</p></div><footer style="border-top:1px solid #eceef2;padding:18px 28px;font-size:11px;line-height:1.6;color:#7a808b">BOOMBOX · Comunicación emitida mediante ORBIT<br>ORBIT · Software desarrollado por BOOMBOX<br><a href="https://www.bbox.cl" style="color:#f07f16;text-decoration:none">www.bbox.cl</a></footer></section></main></body></html>`;
 }
 
 const money = (value: number) =>
@@ -159,67 +157,35 @@ export function buildCollectionEmailDraft(
     templateKey === "OVERDUE"
       ? `Saldo vencido pendiente de regularización — BOOMBOX`
       : `Recordatorio de saldo pendiente — BOOMBOX`;
-  const bankBlock = [
-    "",
-    "BOOMBOX",
-    `Banco: ${bankDetails.bankName}`,
-    `Tipo de cuenta: ${bankDetails.accountType}`,
-    `N° de cuenta: ${bankDetails.accountNumber}`,
-    `RUT: ${bankDetails.rut}`,
-    `Email de transferencia: ${bankDetails.email}`,
-  ];
   const eventBlock = [
-    "Detalle de tu evento:",
-    `Fecha del evento: ${eventDateLabel}`,
+    "DETALLE DEL EVENTO",
+    `FECHA\n${eventDateLabel}`,
     ...(invoice.eventLocation
-      ? [`Lugar: ${invoice.eventLocation}`]
+      ? [`LUGAR\n${invoice.eventLocation}`]
       : []),
-    `Servicio: ${invoice.service ?? "Sin servicio"}`,
-    `Duración: ${invoice.eventDuration ?? "Por confirmar"}`,
-    `Valor total: ${totalLabel}`,
-    `Saldo pendiente: ${outstandingLabel}`,
-    ...(invoice.dueDate ? [`Fecha de pago: ${dueDateLabel}`] : []),
+    `SERVICIO\n${invoice.service ?? "Sin servicio"}`,
+    `DURACIÓN\n${invoice.eventDuration ?? "Por confirmar"}`,
   ];
-  const body =
-    templateKey === "OVERDUE"
-      ? [
-          `Hola ${invoice.customerName},`,
-          "",
-          "Queríamos recordarte que el saldo pendiente de tu evento se encuentra vencido.",
-          "",
-          ...eventBlock,
-          "",
-          "Para regularizar el pago, puedes realizar la transferencia a los siguientes datos:",
-          ...bankBlock,
-          "",
-          "Una vez realizado el pago, agradeceremos enviarnos el comprobante para actualizar nuestros registros.",
-          "",
-          "Si ya efectuaste la transferencia, puedes omitir este mensaje.",
-          "",
-          "Muchas gracias.",
-          "",
-          "Saludos,",
-          "Equipo BOOMBOX",
-        ].join("\n")
-      : [
-          `Hola ${invoice.customerName},`,
-          "",
-          "Te escribimos desde BOOMBOX para recordarte el saldo pendiente de tu evento.",
-          "",
-          ...eventBlock,
-          "",
-          "Para regularizar el pago, te dejamos nuevamente nuestros datos bancarios:",
-          ...bankBlock,
-          "",
-          "Una vez realizado el pago, puedes responder este correo adjuntando el comprobante para que podamos actualizar nuestros registros.",
-          "",
-          "Si el pago ya fue efectuado, por favor puedes omitir este mensaje.",
-          "",
-          "Muchas gracias.",
-          "",
-          "Saludos,",
-          "Equipo BOOMBOX",
-        ].join("\n");
+  const body = [
+    `Hola ${invoice.customerName},`,
+    "",
+    "Te escribimos para recordarte el saldo pendiente de tu evento.",
+    "",
+    ...eventBlock,
+    "",
+    "SALDO PENDIENTE",
+    outstandingLabel,
+    `Fecha de pago / vencimiento: ${dueDateLabel}`,
+    "",
+    "DATOS PARA TRANSFERENCIA",
+    `BANCO\n${bankDetails.bankName}`,
+    `TIPO DE CUENTA\n${bankDetails.accountType}`,
+    `N° DE CUENTA\n${bankDetails.accountNumber}`,
+    `RUT\n${bankDetails.rut}`,
+    `EMAIL DE TRANSFERENCIA\n${bankDetails.email}`,
+    "",
+    "Una vez realizado el pago, envía el comprobante a contabilidad@bbox.cl.",
+  ].join("\n");
 
   return {
     templateKey,

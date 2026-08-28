@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
+  buildCollectionEmailHtml,
   buildCollectionEmailDraft,
   collectionDraftFingerprint,
 } from "../features/accounts-receivable/collection-email.template.ts";
@@ -93,12 +94,12 @@ test("event location combines useful canonical fields and omits missing data", (
 test("upcoming collection template includes complete event detail", () => {
   const draft = buildCollectionEmailDraft(invoice(), bankDetails);
   assert.equal(draft.templateKey, "UPCOMING");
-  assert.match(draft.body, /Fecha del evento: 14 de septiembre de 2026/);
-  assert.match(draft.body, /Lugar: Centro de Eventos Las Condes · Santiago/);
-  assert.match(draft.body, /Servicio: Classic \+ Imanes ilimitados/);
-  assert.match(draft.body, /Duración: 3 horas/);
-  assert.match(draft.body, /Valor total: \$690\.200/);
-  assert.match(draft.body, /Saldo pendiente: \$345\.100/);
+  assert.match(draft.body, /FECHA\n14 de septiembre de 2026/);
+  assert.match(draft.body, /LUGAR\nCentro de Eventos Las Condes · Santiago/);
+  assert.match(draft.body, /SERVICIO\nClassic \+ Imanes ilimitados/);
+  assert.match(draft.body, /DURACIÓN\n3 horas/);
+  assert.doesNotMatch(draft.body, /Valor total/);
+  assert.match(draft.body, /SALDO PENDIENTE\n\$345\.100/);
 });
 
 test("overdue collection template keeps the same canonical event block", () => {
@@ -107,10 +108,10 @@ test("overdue collection template keeps the same canonical event block", () => {
     bankDetails,
   );
   assert.equal(draft.templateKey, "OVERDUE");
-  assert.match(draft.body, /saldo pendiente de tu evento se encuentra vencido/i);
-  assert.match(draft.body, /Fecha del evento: 14 de septiembre de 2026/);
-  assert.match(draft.body, /Saldo pendiente: \$345\.100/);
-  assert.match(draft.body, /Banco: BCI/);
+  assert.match(draft.body, /Te escribimos para recordarte el saldo pendiente de tu evento\./);
+  assert.match(draft.body, /FECHA\n14 de septiembre de 2026/);
+  assert.match(draft.body, /SALDO PENDIENTE\n\$345\.100/);
+  assert.match(draft.body, /BANCO\nBCI/);
 });
 
 test("missing venue is omitted without placeholder or null leakage", () => {
@@ -118,7 +119,7 @@ test("missing venue is omitted without placeholder or null leakage", () => {
     invoice({ eventLocation: null }),
     bankDetails,
   );
-  assert.doesNotMatch(draft.body, /^Lugar:/m);
+  assert.doesNotMatch(draft.body, /^LUGAR$/m);
   assert.doesNotMatch(draft.body, /null|undefined/i);
 });
 
@@ -198,4 +199,47 @@ test("communication history snapshots body while Payment Ledger remains read-onl
   assert.doesNotMatch(action, /from\("payment_ledger"\)/i);
   assert.match(repository, /from\("invoice_payments"\)\.select/);
   assert.doesNotMatch(repository, /from\("invoice_payments"\)\.(insert|update|delete)/);
+});
+
+test("collection HTML matches Photo 3 hierarchy without duplicated canonical data", () => {
+  const draft = buildCollectionEmailDraft(invoice(), bankDetails);
+  const html = buildCollectionEmailHtml(draft);
+  const intro = html.slice(html.indexOf("Hola Jenniffer"), html.indexOf("Detalle del evento"));
+
+  assert.match(html, />BOOMBOX</);
+  assert.match(html, />Cobranza comercial</);
+  assert.equal(
+    intro.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(),
+    "Hola Jenniffer Chavez, Te escribimos para recordarte el saldo pendiente de tu evento.",
+  );
+  assert.doesNotMatch(intro, /14 de septiembre|Las Condes|Classic|3 horas|\$345\.100|25 de septiembre|BCI|52093409/);
+  for (const value of [
+    "14 de septiembre de 2026",
+    "Centro de Eventos Las Condes · Santiago",
+    "Classic + Imanes ilimitados",
+    "3 horas",
+    "$345.100",
+    "25 de septiembre de 2026",
+    "BCI",
+    "Cuenta Corriente",
+    "52093409",
+    "76.565.272-3",
+  ]) assert.equal(html.split(value).length - 1, 1, `${value} must render exactly once`);
+  assert.match(html, /Detalle del evento/);
+  assert.match(html, /Saldo pendiente/);
+  assert.match(html, /Datos para transferencia/);
+  assert.match(html, /Una vez realizado el pago, envía el comprobante a/);
+  assert.equal((html.match(/mailto:contabilidad@bbox\.cl/g) ?? []).length, 1);
+  assert.match(html, /BOOMBOX · Comunicación emitida mediante ORBIT/);
+  assert.match(html, /ORBIT · Software desarrollado por BOOMBOX/);
+  assert.match(html, />www\.bbox\.cl</);
+  assert.doesNotMatch(html, /Si el pago ya fue efectuado|Muchas gracias|responder este correo|Valor total/);
+});
+
+test("collection HTML is contained on desktop and wraps Photo 3 cells on mobile", () => {
+  const html = buildCollectionEmailHtml(buildCollectionEmailDraft(invoice(), bankDetails));
+  assert.match(html, /name="viewport" content="width=device-width,initial-scale=1"/);
+  assert.match(html, /max-width:620px/);
+  assert.match(html, /width:49%;min-width:230px/);
+  assert.match(html, /overflow-wrap:anywhere/);
 });
