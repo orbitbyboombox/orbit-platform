@@ -1396,11 +1396,7 @@ export default async function OperationsPage() {
       title: event.customer,
       detail: `${event.service} · ${event.hours} horas`,
       href: `/projects/${event.id}`,
-      date: new Intl.DateTimeFormat("es-CL", {
-        day: "2-digit",
-        month: "short",
-        timeZone: "America/Santiago",
-      }).format(new Date(`${event.date}T12:00:00Z`)),
+      date: event.date,
       service: `${event.service} · ${event.hours} horas`,
       location: [event.venue, event.district].filter(Boolean).join(" · "),
       staff:

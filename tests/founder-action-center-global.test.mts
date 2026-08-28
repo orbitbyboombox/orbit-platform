@@ -8,6 +8,7 @@ const groupedMigration=readFileSync("supabase/migrations/0190_group_overdue_foun
 const repository=readFileSync("features/founder-action-center/index.ts","utf8");
 const dashboard=readFileSync("features/founder-workspace/founder-dashboard-layout.tsx","utf8");
 const editor=readFileSync("features/founder-workspace/dashboard-layout-editor.tsx","utf8");
+const operationsPage=readFileSync("app/(platform)/operations/page.tsx","utf8");
 const layout=readFileSync("app/(platform)/layout.tsx","utf8");
 const notifications=readFileSync("features/notification-center/notification-center.tsx","utf8");
 const notificationRepository=readFileSync("features/notification-center/repository.ts","utf8");
@@ -42,6 +43,7 @@ test("multiple operators remain distinct",()=>{assert.equal(project([{kind:"onbo
 test("multiple expenses remain distinct",()=>{assert.equal(project([{kind:"expense",id:"one",status:"PENDING_REVIEW"},{kind:"expense",id:"two",status:"PENDING_REVIEW"}]).size,2)});
 test("Founder action reads require an internal server context",()=>{assert.match(migration,/auth\.role\(\) <> 'service_role' and not public\.can_administer\(\)/);assert.match(repository,/createAdminClient/)});
 test("mobile queue uses wrapping cards and reachable full-width CTA",()=>{assert.match(dashboard,/DashboardLayoutEditor/);assert.match(editor,/grid-cols-2 gap-3 md:grid-cols-4/);assert.match(dashboard,/min-h-\[4\.75rem\]/);assert.match(dashboard,/widget\.action_center/)});
+test("upcoming events keep canonical ISO dates for countdowns",()=>{const block=operationsPage.slice(operationsPage.indexOf("const commandCenterEvents"),operationsPage.indexOf("const commandCenterActivity"));assert.match(block,/date:\s*event\.date/);assert.doesNotMatch(block,/month:\s*"short"|day:\s*"2-digit"/)});
 test("action center prioritizes P0 then P1 then P2 then P3",()=>{assert.match(repository,/a\.priority\.localeCompare\(b\.priority\)/);assert.match(repository,/"P0" \| "P1" \| "P2" \| "P3"/)});
 test("temporal alerts are recalculated from current Chile date and canonical state",()=>{assert.match(temporalMigration,/timezone\('America\/Santiago',now\(\)\)::date/);assert.match(temporalMigration,/r\.days_remaining<=7/);assert.match(temporalMigration,/p\.event_date between chile_today and chile_today\+5/)});
 test("one derived financial group replaces historical invoice reminders",()=>{assert.match(groupedMigration,/notification_type in\('INVOICE_OVERDUE','INVOICE_DUE_TODAY','INVOICE_DUE_SOON'\)/);assert.match(repository,/OVERDUE_INVOICE_GROUP/);assert.doesNotMatch(repository,/"INVOICE_OVERDUE"/)});
