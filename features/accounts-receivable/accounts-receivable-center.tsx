@@ -13,8 +13,8 @@ import { getLastCollectionNoticeAt } from "./collection-email.template";
 import type { ReceivableDataset,ReceivableInvoice } from "./types";
 import { isCompanyCreditPaymentCategory,paymentCategoryLabel } from "./payment-term-classification";
 
-const money=(value:number)=>new Intl.NumberFormat("es-CL",{style:"currency",currency:"CLP",maximumFractionDigits:0}).format(value);
-const date=(value:string|null)=>value?new Intl.DateTimeFormat("es-CL",{dateStyle:"medium",timeZone:"UTC"}).format(new Date(`${value.slice(0,10)}T12:00:00Z`)):"Sin fecha";
+const money=(value:number)=>{const rounded=Math.round(value),sign=rounded<0?"-":"",digits=String(Math.abs(rounded)).replace(/\B(?=(\d{3})+(?!\d))/g,".");return`${sign}$${digits}`;};
+const date=(value:string|null)=>{if(!value)return"Sin fecha";const[year,month,day]=value.slice(0,10).split("-");return year&&month&&day?`${day}-${month}-${year}`:"Sin fecha";};
 const FOUNDER_THRESHOLD=500000;
 const actionClass="flex min-h-9 items-center gap-2 rounded-lg px-2 text-left text-sm hover:bg-background disabled:cursor-not-allowed disabled:opacity-40 [&_svg]:size-4";
 type DisplayStatus="PENDING"|"PARTIAL"|"PAID"|"OVERDUE"|"CREDIT"|"CANCELLED"|"ARCHIVED";
