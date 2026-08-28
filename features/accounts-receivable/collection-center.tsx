@@ -31,7 +31,7 @@ const daysSince = (value: string | null) => {
   return Number.isFinite(diff) ? Math.max(0, Math.floor(diff)) : null;
 };
 
-type Filter =
+export type CollectionFilter =
   | "PENDING"
   | "UPCOMING"
   | "OVERDUE"
@@ -40,7 +40,7 @@ type Filter =
   | "HISTORY";
 
 const filterMeta: Record<
-  Filter,
+  CollectionFilter,
   { label: string; description: string }
 > = {
   PENDING: { label: "TODOS PENDIENTES", description: "Cuentas activas con saldo." },
@@ -77,11 +77,13 @@ function priorityRank(invoice: ReceivableInvoice) {
 export function CollectionCenter({
   dataset,
   bankDetails,
+  initialFilter = "PENDING",
 }: {
   dataset: ReceivableDataset;
   bankDetails: CollectionBankDetails;
+  initialFilter?: CollectionFilter;
 }) {
-  const [filter, setFilter] = useState<Filter>("PENDING");
+  const [filter, setFilter] = useState<CollectionFilter>(initialFilter);
   const [query, setQuery] = useState("");
 
   const actionable = useMemo(
@@ -264,7 +266,7 @@ function CollectionCard({
 }: {
   invoice: ReceivableInvoice;
   bankDetails: CollectionBankDetails;
-  filter: Filter;
+  filter: CollectionFilter;
 }) {
   const noticeAt = latestNotice(invoice);
   const noticeDays = daysSince(noticeAt);

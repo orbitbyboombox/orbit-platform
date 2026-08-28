@@ -4,6 +4,7 @@ import test from "node:test";
 
 const migration=readFileSync("supabase/migrations/0186_global_founder_action_center.sql","utf8");
 const temporalMigration=readFileSync("supabase/migrations/0187_founder_action_temporal_reconciliation.sql","utf8");
+const groupedMigration=readFileSync("supabase/migrations/0190_group_overdue_founder_action.sql","utf8");
 const repository=readFileSync("features/founder-action-center/index.ts","utf8");
 const dashboard=readFileSync("features/founder-workspace/founder-workspace-experience.tsx","utf8");
 const layout=readFileSync("app/(platform)/layout.tsx","utf8");
@@ -40,11 +41,11 @@ test("multiple operators remain distinct",()=>{assert.equal(project([{kind:"onbo
 test("multiple expenses remain distinct",()=>{assert.equal(project([{kind:"expense",id:"one",status:"PENDING_REVIEW"},{kind:"expense",id:"two",status:"PENDING_REVIEW"}]).size,2)});
 test("Founder action reads require an internal server context",()=>{assert.match(migration,/auth\.role\(\) <> 'service_role' and not public\.can_administer\(\)/);assert.match(repository,/createAdminClient/)});
 test("mobile queue uses wrapping cards and reachable full-width CTA",()=>{assert.match(dashboard,/break-words/);assert.match(dashboard,/min-h-11 w-full/);assert.match(dashboard,/lg:grid-cols-2/)});
-test("action center prioritizes P0 then P1 then P2",()=>{assert.match(repository,/a\.priority\.localeCompare\(b\.priority\)/);assert.match(repository,/"P0" \| "P1" \| "P2"/)});
+test("action center prioritizes P0 then P1 then P2 then P3",()=>{assert.match(repository,/a\.priority\.localeCompare\(b\.priority\)/);assert.match(repository,/"P0" \| "P1" \| "P2" \| "P3"/)});
 test("temporal alerts are recalculated from current Chile date and canonical state",()=>{assert.match(temporalMigration,/timezone\('America\/Santiago',now\(\)\)::date/);assert.match(temporalMigration,/r\.days_remaining<=7/);assert.match(temporalMigration,/p\.event_date between chile_today and chile_today\+5/)});
-test("one stable financial alert replaces historical day-specific reminders",()=>{assert.match(temporalMigration,/founder-action:invoice:/);assert.match(temporalMigration,/correlation_id not like 'founder-action:invoice:%'/)});
+test("one derived financial group replaces historical invoice reminders",()=>{assert.match(groupedMigration,/notification_type in\('INVOICE_OVERDUE','INVOICE_DUE_TODAY','INVOICE_DUE_SOON'\)/);assert.match(repository,/OVERDUE_INVOICE_GROUP/);assert.doesNotMatch(repository,/"INVOICE_OVERDUE"/)});
 test("read and resolved are independent",()=>{assert.match(notificationRepository,/archived:actionRequired\?false/);assert.match(notifications,/filter==="PENDING"\)return item\.actionRequired/)});
 test("notification pending filter uses the exact canonical Founder action IDs",()=>{assert.match(notificationRepository,/actionIds=new Set\(actionCenter\.items\.map/);assert.match(notificationRepository,/actionRequired=actionIds\.has\(item\.id\)/)});
 test("onboarding alert opens the exact certified ReviewDialog",()=>{assert.match(onboardingPage,/reviewOnboarding/);assert.match(onboarding,/initialReviewId/);assert.match(onboarding,/invitations\.find\(\(item\) => item\.id === initialReviewId\)/)});
-test("financial customer ledgers are outside the hotfix",()=>{for(const source of [migration,temporalMigration])assert.doesNotMatch(source,/(insert into|update|delete from) public\.(invoice_payments|receivable_movements|invoices|accounts_receivable_history)/);assert.doesNotMatch(expenseReviewAction,/invoice_payments|receivable_movements|paid_amount/)});
+test("financial customer ledgers are outside the hotfix",()=>{for(const source of [migration,temporalMigration,groupedMigration])assert.doesNotMatch(source,/(insert into|update|delete from) public\.(invoice_payments|receivable_movements|invoices|accounts_receivable_history)/);assert.doesNotMatch(expenseReviewAction,/invoice_payments|receivable_movements|paid_amount/)});
 test("the implementation contains no record-specific production branching",()=>{for(const source of [migration,temporalMigration,repository,dashboard,onboarding,expenseReview])assert.doesNotMatch(source,/Daniela|Sof[ií]a|Juan Pérez|ORB-2026|cb787be5|ed061c33|F276DFD2/)});
