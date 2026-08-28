@@ -9,7 +9,8 @@ import {
 
 const repository = readFileSync("features/founder-action-center/index.ts", "utf8");
 const migration = readFileSync("supabase/migrations/0190_group_overdue_founder_action.sql", "utf8");
-const dashboard = readFileSync("features/founder-workspace/founder-workspace-experience.tsx", "utf8");
+const dashboard = readFileSync("features/founder-workspace/founder-dashboard-layout.tsx", "utf8");
+const editor = readFileSync("features/founder-workspace/dashboard-layout-editor.tsx", "utf8");
 const collectionPage = readFileSync("app/(platform)/finance/collections/page.tsx", "utf8");
 const collectionCenter = readFileSync("features/accounts-receivable/collection-center.tsx", "utf8");
 const notificationRepository = readFileSync("features/notification-center/repository.ts", "utf8");
@@ -80,7 +81,7 @@ test("group action opens Cobrar Clientes filtered to VENCIDOS", () => {
 
 test("badge counts actionable cards rather than invoice rows", () => {
   assert.match(repository, /return \{ count: items\.length, items \}/);
-  assert.match(dashboard, /founderActions\.length/);
+  assert.match(dashboard, /actionCenterItems/);
 });
 
 test("manual approvals remain individual and P1", () => {
@@ -100,10 +101,10 @@ test("derived financial state cannot be manually archived or resolved", () => {
 });
 
 test("mobile group card wraps and keeps a reachable CTA", () => {
-  assert.match(dashboard, /min-w-0 rounded-xl/);
-  assert.match(dashboard, /break-words/);
-  assert.match(dashboard, /min-h-11 w-full/);
-  assert.match(dashboard, /text-center/);
+  assert.match(dashboard, /DashboardLayoutEditor/);
+  assert.match(editor, /grid-cols-2 gap-3 md:grid-cols-4/);
+  assert.match(dashboard, /min-h-\[4\.75rem\]/);
+  assert.match(dashboard, /text-\[11px\] text-muted/);
 });
 
 test("grouping migration never changes ledger balances or payment history", () => {

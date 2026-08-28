@@ -5,11 +5,16 @@ import {
   EVENT_MODULES,
   MODULE_WORKSPACES,
   defaultModuleWorkspaces,
+  type DashboardLayout,
   type EventModuleKey,
   type FounderWorkspacePreferences,
   type QuickActionKey,
   type WorkspaceWidgetKey,
 } from "./catalog";
+import {
+  DEFAULT_DASHBOARD_LAYOUT,
+  reconcileDashboardLayout,
+} from "./dashboard-layout";
 export async function loadFounderWorkspace(
   client: SupabaseClient,
   userId: string,
@@ -17,7 +22,7 @@ export async function loadFounderWorkspace(
   const { data, error } = await client
     .from("founder_workspace_preferences")
     .select(
-      "navigation_order,hidden_navigation,quick_action_order,hidden_quick_actions,favorite_quick_actions,widget_order,hidden_widgets,hidden_event_modules,module_workspaces",
+      "navigation_order,hidden_navigation,quick_action_order,hidden_quick_actions,favorite_quick_actions,widget_order,hidden_widgets,hidden_event_modules,module_workspaces,dashboard_layout,dashboard_layout_version",
     )
     .eq("user_id", userId)
     .maybeSingle();
@@ -65,6 +70,9 @@ export async function loadFounderWorkspace(
   const newNavigation = DEFAULT_WORKSPACE.navigationOrder.filter(
     (key) => !storedNavigation.includes(key),
   );
+  const dashboardLayout = reconcileDashboardLayout(
+    (data.dashboard_layout ?? DEFAULT_DASHBOARD_LAYOUT) as DashboardLayout,
+  );
   return {
     navigationOrder: [...storedNavigation, ...newNavigation],
     hiddenNavigation: [
@@ -79,6 +87,14 @@ export async function loadFounderWorkspace(
     widgetOrder: data.widget_order as WorkspaceWidgetKey[],
     hiddenWidgets: data.hidden_widgets as WorkspaceWidgetKey[],
     hiddenEventModules: [...new Set(hidden)],
+    dashboardLayout: {
+      ...dashboardLayout,
+      version:
+        typeof data.dashboard_layout_version === "number" &&
+        data.dashboard_layout_version > 0
+          ? data.dashboard_layout_version
+          : dashboardLayout.version,
+    },
     moduleWorkspaces,
   };
 }

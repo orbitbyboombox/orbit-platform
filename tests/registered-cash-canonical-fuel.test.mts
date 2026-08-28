@@ -69,9 +69,9 @@ test("baseline de Caja registrada excluye TEST y no descuenta overhead compromet
 test("Dashboard y Founder consumen la misma Caja del Finance Read Model", () => {
   const root = new URL("../", import.meta.url);
   const model = readFileSync(new URL("features/finance/finance-read-model.ts", root), "utf8");
-  const founder = readFileSync(new URL("features/founder-workspace/founder-workspace-experience.tsx", root), "utf8");
+  const founder = readFileSync(new URL("features/founder-workspace/founder-dashboard-layout.tsx", root), "utf8");
   assert.match(model, /moneyMetric\("Caja registrada", availableCash/);
-  assert.match(founder, /finance\.position/);
-  assert.match(founder, /position\("Caja registrada"\)/);
+  assert.match(founder, /kpi\.cash_registered/);
+  assert.match(founder, /DashboardLayoutEditor/);
   assert.match(model, /selectCanonicalFuelLogs/);
 });

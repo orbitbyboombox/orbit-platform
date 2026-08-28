@@ -1,6 +1,10 @@
 import type { LucideIcon } from "lucide-react";
 import type { NavigationKey } from "@/components/layout/navigation";
 import {
+  DEFAULT_DASHBOARD_LAYOUT,
+  type DashboardLayout,
+} from "./dashboard-layout";
+import {
   BarChart3,
   CalendarDays,
   Car,
@@ -443,6 +447,7 @@ export type FounderWorkspacePreferences = {
   widgetOrder: WorkspaceWidgetKey[];
   hiddenWidgets: WorkspaceWidgetKey[];
   hiddenEventModules: EventModuleKey[];
+  dashboardLayout: DashboardLayout;
   moduleWorkspaces: Record<string, ModuleWorkspacePreference>;
 };
 export const DEFAULT_WORKSPACE: FounderWorkspacePreferences = {
@@ -468,5 +473,8 @@ export const DEFAULT_WORKSPACE: FounderWorkspacePreferences = {
   hiddenEventModules: EVENT_MODULES.filter((x) => !x.defaultVisible).map(
     (x) => x.key,
   ),
+  dashboardLayout: structuredClone(DEFAULT_DASHBOARD_LAYOUT),
   moduleWorkspaces: defaultModuleWorkspaces(),
 };
+
+export type { DashboardLayout } from "./dashboard-layout";
