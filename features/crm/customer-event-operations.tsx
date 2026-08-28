@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarDays, ChevronDown, ExternalLink, FileText, FolderSync, Pencil, Plus, ReceiptText, ShieldCheck, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { OrbitDocumentViewer } from "@/components/documents/orbit-document-viewer";
 import { EventPaymentManager } from "@/features/accounts-receivable/event-payment-manager";
 import { StaffAssignmentCenter } from "@/features/staff-assignment-center/staff-assignment-center";
 import { AgreementSigningControl } from "@/features/projects/signing/agreement-signing-control";
@@ -43,6 +44,7 @@ export function CustomerEventOperations({ event, operations, onEditEvent, reconc
   const [portalUrl, setPortalUrl] = useState("");
   const [message, setMessage] = useState("");
   const [editingDocument, setEditingDocument] = useState<CrmCustomerEventOperations["documents"][number] | null>(null);
+  const [viewer, setViewer] = useState<{ title: string; src: string } | null>(null);
   const [costDetailOpen, setCostDetailOpen] = useState(false);
   const [expenseOpen, setExpenseOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -54,17 +56,13 @@ export function CustomerEventOperations({ event, operations, onEditEvent, reconc
     window.open(result.url, "_blank", "noopener,noreferrer");
     setMessage("Portal sincronizado y disponible.");
   });
-  const openDocument = (documentId: string, driveFileId: string | null) => startTransition(async () => {
-    if (driveFileId) {
-      window.open(`https://drive.google.com/file/d/${driveFileId}/view`, "_blank", "noopener,noreferrer");
-      return;
-    }
+  const openDocument = (documentId: string, title: string) => startTransition(async () => {
     const result = await getCrmDocumentUrlAction(documentId);
     if (!result.ok) {
       setMessage(result.error);
       return;
     }
-    window.open(result.url, "_blank", "noopener,noreferrer");
+    setViewer({ title, src: result.url });
   });
   return <div className="mt-4 space-y-5 border-t pt-5">
     <CommercialSummary summary={operations.commercialSummary}/>
@@ -76,7 +74,7 @@ export function CustomerEventOperations({ event, operations, onEditEvent, reconc
     <section className="scroll-mt-24 rounded-2xl border bg-card p-5 sm:p-6" id={`documents-${event.projectId}`}>
       <header className="flex items-start gap-3"><FileText className="mt-0.5 size-5 text-brand"/><div><h3 className="font-semibold">Documentos oficiales</h3><p className="mt-1 text-sm text-muted">Cotización, contrato y documento corporativo del Evento.</p></div></header>
       <div className="mt-4 grid gap-2 sm:grid-cols-2">
-        {operations.documents.map((document) => <article className="rounded-xl border p-3" key={document.id}><div className="flex items-center justify-between gap-3"><span><strong className="text-sm">{documentLabel(document.type)}</strong><small className="mt-0.5 block text-muted">{chileDateFormatter.format(new Date(document.createdAt))}</small></span><div className="flex gap-2"><button aria-label={`Abrir ${documentLabel(document.type)}`} className="rounded-lg border p-2 hover:border-brand" disabled={pending} onClick={() => openDocument(document.id, document.driveFileId)} type="button"><ExternalLink className="size-4"/></button><button aria-label={`Reemplazar ${documentLabel(document.type)}`} className="rounded-lg border p-2 hover:border-brand" disabled={pending} onClick={() => setEditingDocument(document)} type="button"><Pencil className="size-4"/></button></div></div></article>)}
+        {operations.documents.map((document) => <article className="rounded-xl border p-3" key={document.id}><div className="flex items-center justify-between gap-3"><span><strong className="text-sm">{documentLabel(document.type)}</strong><small className="mt-0.5 block text-muted">{chileDateFormatter.format(new Date(document.createdAt))}</small></span><div className="flex gap-2"><button aria-label={`Abrir ${documentLabel(document.type)}`} className="rounded-lg border p-2 hover:border-brand" disabled={pending} onClick={() => openDocument(document.id, documentLabel(document.type))} type="button"><ExternalLink className="size-4"/></button><button aria-label={`Reemplazar ${documentLabel(document.type)}`} className="rounded-lg border p-2 hover:border-brand" disabled={pending} onClick={() => setEditingDocument(document)} type="button"><Pencil className="size-4"/></button></div></div></article>)}
         {!operations.documents.length && <p className="text-sm text-muted">Sin documentos registrados.</p>}
       </div>
       {operations.invoices.length > 0 && <div className="mt-5 border-t pt-4"><h4 className="text-sm font-semibold">Facturas</h4><div className="mt-2 grid gap-2 sm:grid-cols-2">{operations.invoices.map((invoice) => <div className="rounded-xl border p-3 text-sm" key={invoice.id}><strong>{invoice.number}</strong><p className="mt-1 text-muted">{invoice.status} · {money(invoice.amount)}</p>{invoice.dueDate && <p className="mt-1 text-xs text-muted">Vence {chileDateFormatter.format(new Date(`${invoice.dueDate}T12:00:00`))}</p>}</div>)}</div></div>}
@@ -87,6 +85,7 @@ export function CustomerEventOperations({ event, operations, onEditEvent, reconc
       <article className="min-w-0 rounded-2xl border bg-card p-5"><div className="flex items-center gap-2"><CalendarDays className="size-5 text-brand"/><h3 className="font-semibold">Google Calendar</h3></div><p className="mt-2 text-sm text-muted">{operations.calendar ? `Sincronización: ${operations.calendar.status}` : "Evento de Calendar aún no disponible."}</p><div className="mt-4 flex min-w-0 flex-wrap gap-2">{operations.calendar?.externalUrl && <Button asChild className="max-w-full" variant="outline"><a href={operations.calendar.externalUrl} rel="noreferrer" target="_blank"><ExternalLink className="size-4"/>Abrir Calendar</a></Button>}<Button className="max-w-full" onClick={onEditEvent} variant="outline"><Pencil className="size-4"/>Editar fecha, hora o dirección</Button></div><p className="mt-3 text-xs text-muted">Al guardar, Google Calendar se actualiza automáticamente.</p></article>
     </section>
     {message && <p aria-live="polite" className="rounded-xl border p-3 text-sm">{message}</p>}
+    {viewer && <OrbitDocumentViewer onClose={() => setViewer(null)} src={viewer.src} title={viewer.title}/>}
     {expenseOpen && <EventExpenseDialog event={event} onClose={() => setExpenseOpen(false)} onSaved={(notice) => { setExpenseOpen(false); setMessage(notice); router.refresh(); }} />}
     {editingDocument && <div aria-modal="true" className="fixed inset-0 z-50 flex items-end justify-center bg-black/65 sm:items-center sm:p-6" role="dialog"><div className="w-full rounded-t-2xl border bg-card p-5 sm:max-w-lg sm:rounded-2xl"><div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-wide text-brand">Documento oficial</p><h3 className="mt-1 text-xl font-semibold">Reemplazar {documentLabel(editingDocument.type)}</h3><p className="mt-1 text-sm text-muted">El Portal y Google Drive se actualizarán sin enviar correos.</p></div><button aria-label="Cerrar" className="rounded-lg border p-2" onClick={() => setEditingDocument(null)}><X className="size-4"/></button></div><form action={(data) => { data.set("documentId", editingDocument.id); data.set("projectId", event.projectId); startTransition(async () => { const result = await replaceCrmDocumentAction(data); if (result.ok) { setEditingDocument(null); setMessage("Documento reemplazado; Portal y Drive sincronizados."); router.refresh(); } else setMessage(result.error); }); }} className="mt-5 space-y-4"><label className="block text-sm"><span className="mb-1.5 block text-muted">Archivo de reemplazo</span><input accept="application/pdf,image/jpeg,image/png,image/webp" className="min-h-11 w-full rounded-xl border bg-background px-3 py-2" name="file" required type="file"/></label><label className="block text-sm"><span className="mb-1.5 block text-muted">Motivo obligatorio</span><input className="min-h-11 w-full rounded-xl border bg-background px-3" name="reason" required/></label><Button className="w-full" disabled={pending}>{pending?"Guardando…":"Guardar y sincronizar"}</Button></form></div></div>}
   </div>;

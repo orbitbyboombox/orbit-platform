@@ -17,9 +17,10 @@ export type CustomerPurchaseOrderRow = {
   driveArchiveStatus?: string;
 };
 
-export function CustomerPurchaseOrderCenter({ projectId, document }: {
+export function CustomerPurchaseOrderCenter({ projectId, document, onPreview }: {
   projectId: string;
   document?: CustomerPurchaseOrderRow;
+  onPreview?: (document: CustomerPurchaseOrderRow) => void;
 }) {
   const router = useRouter();
   const uploadLock = useRef(false);
@@ -82,9 +83,9 @@ export function CustomerPurchaseOrderCenter({ projectId, document }: {
       </Button>
     </div>
     {document ? <div className="mt-3 flex min-w-0 flex-wrap items-center gap-3 text-sm">
-      <a className="inline-flex min-h-11 items-center gap-2 font-semibold text-brand" href={document.href} rel="noreferrer" target="_blank">
+      <button className="inline-flex min-h-11 items-center gap-2 font-semibold text-brand" onClick={()=>onPreview?.(document)} type="button">
         VER DOCUMENTO<ExternalLink className="size-4"/>
-      </a>
+      </button>
       <a className="inline-flex min-h-11 items-center gap-2 font-semibold text-brand" href={`${document.href}?download=1`}>
         DESCARGAR<Download className="size-4"/>
       </a>

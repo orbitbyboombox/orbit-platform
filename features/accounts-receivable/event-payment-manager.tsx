@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { OrbitDocumentViewer } from "@/components/documents/orbit-document-viewer";
 import { MobileDialog } from "@/components/ui/mobile-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
@@ -110,6 +111,7 @@ export function EventPaymentManager({
   const [dateEditor, setDateEditor] = useState(false);
   const [movementEditor, setMovementEditor] = useState<{ mode: "EDIT" | "DELETE"; item: Movement } | null>(null);
   const [receiptAttachment, setReceiptAttachment] = useState<Movement | null>(null);
+  const [receiptViewer, setReceiptViewer] = useState<{ title: string; src: string } | null>(null);
   const [pending, startTransition] = useTransition();
   const submit = (data: FormData) => {
     if (!action) return;
@@ -251,7 +253,7 @@ export function EventPaymentManager({
                     {paymentMethod(item.method)}
                   </p>
                   {item.reason && <p className="mt-1 text-xs text-muted">{item.reason}</p>}
-                  {item.receiptPath ? <div className="mt-2 space-y-1"><button className="inline-flex items-center gap-1 text-xs text-brand" onClick={() => startTransition(async () => { const result = await getReceivableReceiptUrlAction(item.receiptPath!); if (result.ok) window.open(result.url, "_blank", "noopener,noreferrer"); else setFeedback(result.error); })} type="button"><FileDown className="size-3"/>VER COMPROBANTE · {item.receiptName || "Archivo adjunto"}</button><p className="text-xs text-muted">{item.receiptUploadedAt ? `Subido ${chileDateFormatter.format(new Date(item.receiptUploadedAt))} · ` : ""}Drive: {item.receiptDriveStatus === "SYNCED" ? "Archivado" : item.receiptDriveStatus === "ERROR" ? "Pendiente (último intento falló)" : "Pendiente"}</p>{item.receiptDriveStatus !== "SYNCED" ? <button className="inline-flex items-center gap-1 text-xs text-brand" disabled={pending} onClick={() => startTransition(async () => { const result = await retryReceivablePaymentReceiptDriveAction({ invoiceId: receivable.id, projectId, paymentId: item.id }); setFeedback(result.ok ? result.message ?? "Sincronización procesada." : result.error); if (result.ok) router.refresh(); })} type="button"><RefreshCw className="size-3"/>Reintentar archivo en Drive</button> : null}</div> : <button className="mt-2 inline-flex min-h-9 items-center gap-1 rounded-lg border px-3 text-xs font-semibold text-brand" onClick={() => setReceiptAttachment(item)} type="button"><Paperclip className="size-3"/>ADJUNTAR COMPROBANTE</button>}
+                  {item.receiptPath ? <div className="mt-2 space-y-1"><button className="inline-flex items-center gap-1 text-xs text-brand" onClick={() => startTransition(async () => { const result = await getReceivableReceiptUrlAction(item.receiptPath!); if (result.ok) setReceiptViewer({ title: item.receiptName || "Comprobante de pago", src: result.url }); else setFeedback(result.error); })} type="button"><FileDown className="size-3"/>VER COMPROBANTE · {item.receiptName || "Archivo adjunto"}</button><p className="text-xs text-muted">{item.receiptUploadedAt ? `Subido ${chileDateFormatter.format(new Date(item.receiptUploadedAt))} · ` : ""}Drive: {item.receiptDriveStatus === "SYNCED" ? "Archivado" : item.receiptDriveStatus === "ERROR" ? "Pendiente (último intento falló)" : "Pendiente"}</p>{item.receiptDriveStatus !== "SYNCED" ? <button className="inline-flex items-center gap-1 text-xs text-brand" disabled={pending} onClick={() => startTransition(async () => { const result = await retryReceivablePaymentReceiptDriveAction({ invoiceId: receivable.id, projectId, paymentId: item.id }); setFeedback(result.ok ? result.message ?? "Sincronización procesada." : result.error); if (result.ok) router.refresh(); })} type="button"><RefreshCw className="size-3"/>Reintentar archivo en Drive</button> : null}</div> : <button className="mt-2 inline-flex min-h-9 items-center gap-1 rounded-lg border px-3 text-xs font-semibold text-brand" onClick={() => setReceiptAttachment(item)} type="button"><Paperclip className="size-3"/>ADJUNTAR COMPROBANTE</button>}
                 </div>
                 <strong
                   className={item.amount < 0 ? "text-danger" : "text-success"}
@@ -270,6 +272,7 @@ export function EventPaymentManager({
           {feedback}
         </p>
       )}
+      {receiptViewer && <OrbitDocumentViewer onClose={() => setReceiptViewer(null)} src={receiptViewer.src} title={receiptViewer.title}/>}
       {action && (
         <MobileDialog
           dismissOnOverlayClick={false}

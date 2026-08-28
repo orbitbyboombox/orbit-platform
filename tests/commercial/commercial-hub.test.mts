@@ -61,11 +61,11 @@ test("quote create and edit use the canonical authenticated session RPC with exp
   assert.match(hub, /Cotización actualizada correctamente/);
 });
 test("PDF viewer consumes close interactions before unmounting", () => {
-  const viewer = readFileSync(new URL("../../features/commercial-hub/pdf-viewer.tsx", import.meta.url), "utf8");
-  assert.match(viewer, /event\.preventDefault\(\)/);
-  assert.match(viewer, /event\.stopPropagation\(\)/);
-  assert.match(viewer, /window\.setTimeout\(onClose, 0\)/);
-  assert.match(viewer, /onPointerUp=\{close\}/);
+  const viewer = readFileSync(new URL("../../components/documents/orbit-document-viewer.tsx", import.meta.url), "utf8");
+  assert.match(viewer, /closeLock\.current/);
+  assert.match(viewer, /createPortal\(/);
+  assert.match(viewer, /document\.body/);
+  assert.match(viewer, /event\.key === "Escape"/);
   assert.equal((viewer.match(/onClick=\{close\}/g) ?? []).length, 2);
   assert.match(viewer, /pointer-events-auto/);
 });
