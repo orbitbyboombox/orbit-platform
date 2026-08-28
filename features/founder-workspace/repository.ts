@@ -56,6 +56,15 @@ export async function loadFounderWorkspace(
     }
     const storedOrder = storedModule?.sectionOrder ?? [];
     const newKeys = known.filter((key) => !storedOrder.includes(key));
+    const reconciledOrder = [...storedOrder];
+    for (const key of newKeys) {
+      if (moduleKey === "DASHBOARD" && key === "DASHBOARD_UPCOMING_EVENTS") {
+        const headerIndex = reconciledOrder.indexOf("DASHBOARD_HEADER");
+        reconciledOrder.splice(headerIndex >= 0 ? headerIndex + 1 : 0, 0, key);
+      } else {
+        reconciledOrder.push(key);
+      }
+    }
     const hiddenByDefault = sections
       .filter((section) => newKeys.includes(section.key) && !section.defaultVisible)
       .map((section) => section.key);
@@ -63,7 +72,7 @@ export async function loadFounderWorkspace(
       ...(storedModule?.hiddenSections ?? []),
       ...hiddenByDefault,
     ];
-    return [moduleKey, { sectionOrder: [...storedOrder, ...newKeys], hiddenSections: [...new Set(hiddenSections)], sectionLabels:{...defaults[moduleKey as keyof typeof defaults].sectionLabels,...storedModule.sectionLabels} }];
+    return [moduleKey, { sectionOrder: reconciledOrder, hiddenSections: [...new Set(hiddenSections)], sectionLabels:{...defaults[moduleKey as keyof typeof defaults].sectionLabels,...storedModule.sectionLabels} }];
   })) as FounderWorkspacePreferences["moduleWorkspaces"];
   const moduleWorkspaces={...storedModules,...knownModules} as FounderWorkspacePreferences["moduleWorkspaces"];
   const storedNavigation = (data.navigation_order ?? []) as FounderWorkspacePreferences["navigationOrder"];

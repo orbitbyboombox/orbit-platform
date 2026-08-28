@@ -213,6 +213,11 @@ export const MODULE_WORKSPACES = {
   DASHBOARD: [
     { key: "DASHBOARD_HEADER", label: "Encabezado", defaultVisible: true },
     {
+      key: "DASHBOARD_UPCOMING_EVENTS",
+      label: "Próximos eventos",
+      defaultVisible: true,
+    },
+    {
       key: "DASHBOARD_WIDGETS",
       label: "KPIs del Founder",
       defaultVisible: true,

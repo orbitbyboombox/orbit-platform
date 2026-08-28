@@ -67,3 +67,12 @@ test("financial values cannot wrap one character per line", () => {
   assert.doesNotMatch(dashboard, /overflow-wrap:anywhere/);
   assert.doesNotMatch(dashboard, /break-all/);
 });
+
+test("the approved upcoming Events component is a first-priority sortable section", () => {
+  assert.match(dashboard, /const upcoming = <section data-command-card aria-labelledby="upcoming-events-title"/);
+  assert.match(dashboard, /DASHBOARD_UPCOMING_EVENTS/);
+  assert.match(dashboard, /moveCalendar/);
+  assert.match(dashboard, /Mover arriba/);
+  assert.match(dashboard, /Mover abajo/);
+  assert.doesNotMatch(dashboard, /new calendar|CalendarCard|SortableCalendar/);
+});

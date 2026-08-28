@@ -20,7 +20,7 @@ import {
 
 const WorkspaceContext = createContext<{
   preferences: FounderWorkspacePreferences;
-  update: (next: FounderWorkspacePreferences) => void;
+  update: (next: FounderWorkspacePreferences) => Promise<unknown>;
 } | null>(null);
 
 export function PersonalWorkspaceProvider({
@@ -37,6 +37,7 @@ export function PersonalWorkspaceProvider({
     saveQueue.current = saveQueue.current.then(() =>
       saveFounderWorkspaceAction(next),
     );
+    return saveQueue.current;
   }, []);
   const value = useMemo(() => ({ preferences, update }), [preferences, update]);
   return (

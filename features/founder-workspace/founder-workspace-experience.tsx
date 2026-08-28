@@ -156,6 +156,30 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
     saveOrder({ ...dashboardLayout, [zone]: order } as DashboardLayout);
   };
 
+  const moveCalendar = (direction: -1 | 1) => {
+    const config = workspace.preferences.moduleWorkspaces.DASHBOARD;
+    if (!config) return;
+    const order = [...config.sectionOrder];
+    const index = order.indexOf("DASHBOARD_UPCOMING_EVENTS");
+    const target = index + direction;
+    if (index < 0 || target < 1 || target >= order.length) return;
+    [order[index], order[target]] = [order[target], order[index]];
+    setOrderMessage("Guardando…");
+    startOrderTransition(async () => {
+      const result = await workspace.update({
+        ...workspace.preferences,
+        moduleWorkspaces: {
+          ...workspace.preferences.moduleWorkspaces,
+          DASHBOARD: { ...config, sectionOrder: order },
+        },
+      });
+      const saved = Boolean(
+        result && typeof result === "object" && "ok" in result && result.ok,
+      );
+      setOrderMessage(saved ? "✓ Orden guardado" : "No fue posible guardar el orden.");
+    });
+  };
+
   const orderedKpis = dashboardLayout.kpiOrder
     .map((id) => kpis.find((item) => item.id === id))
     .filter((item): item is (typeof kpis)[number] => Boolean(item));
@@ -229,7 +253,7 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
     alertItems.map(alert => <article className="rounded-xl border bg-background/30 p-4 transition hover:border-brand/35" key={alert.id}><span className="flex items-start gap-3"><span className={`grid size-9 shrink-0 place-items-center rounded-xl ${alert.tone === "danger" ? toneStyle.danger : toneStyle.warning}`}><AlertTriangle className="size-4" /></span><span><strong className="block text-sm">{alert.title}</strong><span className="mt-1 block text-xs text-muted">{alert.detail}</span></span></span><span className="mt-3 flex flex-wrap items-center gap-2"><Link className="inline-flex min-h-9 items-center rounded-lg border border-brand/25 px-3 text-xs font-semibold text-brand" href={alert.href}>{alert.acknowledgeable ? "Abrir Evento / Cobertura Staff" : "Ver detalles"}</Link>{alert.acknowledgeable ? <button className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold disabled:opacity-50" disabled={alertPending} onClick={() => acknowledgeAlert(alert.id)}><Check className="size-3.5" />OK, visto</button> : null}</span></article>)
   }</div>{!visibleOperationalAlerts.length && !finance.risks.length ? <Empty label="No hay alertas accionables." /> : null}</section>;
 
-  const commandGrid = <section aria-label="Jornada operacional" className="space-y-5">{actionCenter}<div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.58fr)_minmax(19rem,.92fr)]"><div className="space-y-5">{today}{alerts}</div><div className="space-y-5">{upcoming}</div></div></section>;
+  const commandGrid = <section aria-label="Jornada operacional" className="space-y-5">{actionCenter}<div className="space-y-5">{today}{alerts}</div></section>;
 
   const actions = <section aria-labelledby="quick-actions-title"><PanelTitle id="quick-actions-title" label="Acciones rápidas" /><div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">{orderedQuickActions.map((action, index) => { const Icon = action.icon; return <OrderableItem controls={ordering ? <OrderControls disableDown={index === orderedQuickActions.length - 1} disableUp={index === 0} label={action.label} onDown={() => move("quickActionOrder", action.id, 1)} onUp={() => move("quickActionOrder", action.id, -1)} /> : null} key={action.id}><Link data-command-card className="group flex min-h-[4.75rem] items-center gap-3 rounded-2xl border p-4 transition hover:-translate-y-0.5" href={action.href}><span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand"><Icon className="size-4" /></span><span className="text-xs font-semibold uppercase">{action.label}</span></Link></OrderableItem>; })}</div></section>;
 
@@ -237,9 +261,13 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
 
   const staffApprovals = staffApprovalItems.length ? <PendingStaffApprovals items={staffApprovalItems} onResolved={(id) => setResolvedApprovalIds((current) => new Set(current).add(id))} /> : null;
   const financialAlerts = financialAlert || financialAlertHistory.length ? <FinancialAlertCenter current={financialAlert} history={financialAlertHistory} /> : null;
+  const dashboardSections = workspace.preferences.moduleWorkspaces.DASHBOARD?.sectionOrder ?? [];
+  const calendarIndex = dashboardSections.indexOf("DASHBOARD_UPCOMING_EVENTS");
+  const calendarSection = <OrderableItem controls={ordering ? <OrderControls disableDown={calendarIndex < 0 || calendarIndex === dashboardSections.length - 1} disableUp={calendarIndex <= 1} label="Próximos eventos" onDown={() => moveCalendar(1)} onUp={() => moveCalendar(-1)} /> : null}>{upcoming}</OrderableItem>;
 
   return <main className="orbit-command-center" id="founder-workspace"><PersonalWorkspaceSections moduleKey="DASHBOARD" sections={[
     { key: "DASHBOARD_HEADER", label: "Bienvenida", content: welcome },
+    { key: "DASHBOARD_UPCOMING_EVENTS", label: "Próximos eventos", content: calendarSection },
     { key: "DASHBOARD_WIDGETS", label: "KPIs del Founder", content: founderKpis },
     ...(financialAlerts ? [{ key: "DASHBOARD_FINANCIAL_ALERTS", label: "Obligaciones financieras", content: financialAlerts }] : []),
     ...(staffApprovals ? [{ key: "DASHBOARD_STAFF_APPROVALS", label: "Aprobaciones de Staff pendientes", content: staffApprovals }] : []),
@@ -284,7 +312,7 @@ function PendingStaffApprovals({ items, onResolved }: { items: PendingStaffAppro
 }
 
 function PanelTitle({ id, label }: { id: string; label: string }) { return <h2 data-command-label id={id}>{label}</h2>; }
-export function FounderKpiValue({ children }: { children: string }) { return <strong data-kpi-value className="orbit-counter mt-3 block max-w-full min-w-0 whitespace-nowrap font-semibold leading-[1.05] tracking-[-.05em] [font-variant-numeric:tabular-nums]" style={{ fontSize: "clamp(.75rem, 9cqi, 1.55rem)" }}>{children}</strong>; }
+export function FounderKpiValue({ children }: { children: string }) { return <strong data-kpi-value className="orbit-counter mt-3 block max-w-full min-w-0 whitespace-nowrap font-semibold leading-[1.05] tracking-[-.05em] [font-variant-numeric:tabular-nums]" style={{ fontSize: "clamp(1.05rem, 1.6vw, 1.5rem)" }}>{children}</strong>; }
 function OrderableItem({ children, controls }: { children: ReactNode; controls: ReactNode }) { return controls ? <div className="relative min-w-0 rounded-2xl ring-1 ring-brand/50">{children}{controls}</div> : <>{children}</>; }
 function OrderControls({ disableDown, disableUp, label, onDown, onUp }: { disableDown: boolean; disableUp: boolean; label: string; onDown: () => void; onUp: () => void }) { return <span className="absolute right-2 top-2 z-10 flex gap-1 rounded-lg border bg-card/95 p-1 shadow-sm"><button aria-label={`Mover arriba ${label}`} className="grid size-9 place-items-center rounded-md text-muted hover:bg-accent hover:text-brand disabled:opacity-30" disabled={disableUp} onClick={(event) => { event.preventDefault(); event.stopPropagation(); onUp(); }} type="button"><ArrowUp className="size-4" /></button><button aria-label={`Mover abajo ${label}`} className="grid size-9 place-items-center rounded-md text-muted hover:bg-accent hover:text-brand disabled:opacity-30" disabled={disableDown} onClick={(event) => { event.preventDefault(); event.stopPropagation(); onDown(); }} type="button"><ArrowDown className="size-4" /></button></span>; }
 function StatusPill({ tone = "info" }: { tone?: CommandCenterItem["tone"] }) { const resolved = tone ?? "info"; return <span className={`hidden rounded-lg px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[.06em] sm:inline-flex ${toneStyle[resolved]}`}>{resolved === "danger" ? "Crítico" : resolved === "warning" ? "Pendiente" : "Activo"}</span>; }

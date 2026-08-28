@@ -10,7 +10,7 @@ const valueComponent = founder.match(/export function FounderKpiValue[\s\S]*?fun
 test("Founder KPIs use one reusable container-aware value component", () => {
   assert.match(founder, /<FounderKpiValue>\{formatMetric\(metric\)\}<\/FounderKpiValue>/);
   assert.match(valueComponent, /data-kpi-value/);
-  assert.match(valueComponent, /style=\{\{ fontSize: "clamp\(\.75rem, 9cqi, 1\.55rem\)" \}\}/);
+  assert.match(valueComponent, /style=\{\{ fontSize: "clamp\(1\.05rem, 1\.6vw, 1\.5rem\)" \}\}/);
   assert.match(founder, /style=\{\{ containerType: "inline-size" \}\}/);
 });
 
