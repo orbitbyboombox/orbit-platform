@@ -41,6 +41,7 @@ import {
   type EquipmentAssignmentPanelProps,
 } from "@/features/asset-management";
 import { AgreementSigningControl } from "@/features/projects/signing/agreement-signing-control";
+import { DigitalPhotoDeliveryControl } from "@/features/projects/communications/digital-photo-delivery-control";
 import {
   ProductionIntegrationPanel,
   type ProductionIntegrationPanelProps,
@@ -1469,8 +1470,8 @@ export function ProjectWorkspaceExperience(
               />
               <ActionButton
                 icon={Download}
-                label="Generar galería"
-                onClick={() => scroll("post-event")}
+                label="Enviar fotos digitales"
+                onClick={() => scroll("digital-photo-delivery")}
                 variant="outline"
               />
               <ActionButton
@@ -1528,6 +1529,8 @@ export function ProjectWorkspaceExperience(
               </p>
             )}
           </Section>
+
+          <DigitalPhotoDeliveryControl projectId={props.projectKey ?? ""} />
 
           {moduleVisible("MILESTONES") && (
             <OptionalModule moduleKey="MILESTONES" onHide={hideModule}>
