@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { MobileDialog } from "@/components/ui/mobile-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { renderDigitalPhotoDeliveryPreviewHtml } from "@/features/connectors/google-gmail/application/digital-photo-delivery.template";
 import type { DigitalPhotoDeliveryComposer } from "@/features/connectors/google-gmail/application/digital-photo-delivery.service";
 import {
   getDigitalPhotoDeliveryPreviewAction,
@@ -77,7 +78,12 @@ export function DigitalPhotoDeliveryControl({ projectId }: { projectId: string }
     if (!composer) return;
     setPhotoUrl(composer.currentPhotoUrl);
     setPreviewUrl(composer.currentPhotoUrl);
-    setPreviewHtml(composer.previewHtml);
+    setPreviewHtml(
+      renderDigitalPhotoDeliveryPreviewHtml(
+        composer.customerName,
+        composer.currentPhotoUrl,
+      ),
+    );
     setCc(composer.cc.join("\n"));
     setRequestId(crypto.randomUUID());
     setConfirmingResend(false);
@@ -88,7 +94,9 @@ export function DigitalPhotoDeliveryControl({ projectId }: { projectId: string }
 
   const updatePhotoUrl = (value: string) => {
     setPhotoUrl(value);
-    if (value.trim() !== previewUrl) setPreviewHtml(null);
+    setPreviewHtml(
+      renderDigitalPhotoDeliveryPreviewHtml(composer?.customerName ?? "Cliente", value),
+    );
   };
 
   const preview = () => {
@@ -364,7 +372,7 @@ export function DigitalPhotoDeliveryControl({ projectId }: { projectId: string }
             {previewHtml ? (
               <section className="min-w-0 overflow-hidden rounded-2xl border bg-white">
                 <p className="border-b bg-background/60 px-4 py-3 text-xs font-semibold uppercase tracking-[.14em] text-brand">
-                  Vista previa del email
+                  VISTA PREVIA DEL CORREO
                 </p>
                 <iframe
                   className="h-[42rem] w-full bg-white sm:h-[52rem]"
@@ -408,6 +416,7 @@ export function DigitalPhotoDeliveryControl({ projectId }: { projectId: string }
                     sendState.status === "success" ||
                     confirmingResend ||
                     !previewHtml ||
+                    !photoUrl.trim() ||
                     previewUrl !== photoUrl.trim()
                   }
                   onClick={requestDelivery}

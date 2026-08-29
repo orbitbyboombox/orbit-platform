@@ -6,6 +6,7 @@ import {
   DIGITAL_PHOTO_SUBJECT,
   digitalPhotoDeliveryText,
   renderDigitalPhotoDeliveryHtml,
+  renderDigitalPhotoDeliveryPreviewHtml,
   validateDigitalPhotoDeliveryUrl,
 } from "../features/connectors/google-gmail/application/digital-photo-delivery.template.ts";
 
@@ -207,12 +208,33 @@ test("Founder dialog is mobile-safe and requires preview before send", () => {
   assert.match(control, /label="ASUNTO" value=\{composer\.subject\}/);
   assert.match(control, /https:\/\/drive\.google\.com\/\.\.\./);
   assert.match(control, /ACTUALIZAR VISTA PREVIA/);
+  assert.match(control, /VISTA PREVIA DEL CORREO/);
+  assert.match(control, /renderDigitalPhotoDeliveryPreviewHtml/);
+  assert.match(control, /!photoUrl\.trim\(\)/);
   assert.match(control, /previewUrl !== photoUrl\.trim\(\)/);
   assert.match(control, /iframe/);
   assert.match(control, /sandbox=""/);
   assert.match(control, /ENVIANDO\.\.\./);
   assert.match(control, /✓ Fotos digitales enviadas correctamente|result\.message/);
   assert.doesNotMatch(actions, /detail: message\(error\)/);
+});
+
+test("Founder sees the real premium email preview before adding a photo URL", () => {
+  const html = renderDigitalPhotoDeliveryPreviewHtml("Cliente", "");
+  assert.match(html, />BOOMBOX</);
+  assert.match(html, />Fotos digitales</);
+  assert.match(html, /El enlace estará disponible durante 10 días/);
+  assert.match(html, />DEJAR UNA RESEÑA EN GOOGLE</);
+  assert.match(html, /aria-disabled="true"/);
+  assert.match(html, /Agrega el enlace de las fotos para habilitar este botón/);
+  assert.doesNotMatch(html, /href="https:\/\/preview\.invalid/);
+});
+
+test("valid live preview is byte-identical to the certified customer renderer", () => {
+  const preview = renderDigitalPhotoDeliveryPreviewHtml("Cliente", photoUrl);
+  const customerEmail = renderDigitalPhotoDeliveryHtml("Cliente", photoUrl);
+  assert.equal(preview, customerEmail);
+  assert.doesNotMatch(customerEmail, /aria-disabled|Agrega el enlace de las fotos/);
 });
 
 test("customer email is mobile-safe and contained on desktop", () => {
