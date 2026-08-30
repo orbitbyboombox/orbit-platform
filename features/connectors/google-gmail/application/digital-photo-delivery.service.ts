@@ -31,6 +31,7 @@ export type DigitalPhotoDeliveryComposer = {
   orbitEventId: string;
   customerId: string;
   customerName: string;
+  eventDate: string;
   to: string;
   cc: string[];
   subject: string;
@@ -73,7 +74,7 @@ export async function loadDigitalPhotoDeliveryComposer(
       admin
         .from("projects")
         .select(
-          "id,customer_id,orbit_event_id,digital_photo_delivery_url,customers!inner(full_name,email,secondary_email)",
+          "id,customer_id,orbit_event_id,event_date,digital_photo_delivery_url,customers!inner(full_name,email,secondary_email)",
         )
         .eq("id", projectId)
         .is("deleted_at", null)
@@ -94,6 +95,8 @@ export async function loadDigitalPhotoDeliveryComposer(
     : project.customers;
   if (!customer?.email)
     throw new Error("El cliente no tiene correo principal registrado.");
+  if (!project.event_date)
+    throw new Error("El Evento no tiene una fecha canónica registrada.");
   const history = (rows ?? []) as CommunicationRow[];
   const currentPhotoUrl = String(project.digital_photo_delivery_url ?? "");
   const lastSuccessful = history.find((item) => item.status === "SENT");
@@ -102,12 +105,17 @@ export async function loadDigitalPhotoDeliveryComposer(
     orbitEventId: project.orbit_event_id,
     customerId: project.customer_id,
     customerName: customer.full_name || "Cliente",
+    eventDate: project.event_date,
     to: customer.email,
     cc: customer.secondary_email ? [customer.secondary_email] : [],
     subject: DIGITAL_PHOTO_SUBJECT,
     currentPhotoUrl,
     previewHtml: currentPhotoUrl
-      ? renderDigitalPhotoDeliveryHtml(customer.full_name || "Cliente", currentPhotoUrl)
+      ? renderDigitalPhotoDeliveryHtml(
+          customer.full_name || "Cliente",
+          project.event_date,
+          currentPhotoUrl,
+        )
       : null,
     hasSuccessfulSend: Boolean(lastSuccessful),
     lastSentAt: lastSuccessful?.sent_at ?? lastSuccessful?.occurred_at ?? null,
@@ -223,7 +231,11 @@ export async function sendDigitalPhotoDelivery(
   const firstSuccessful = composer.history
     .filter((item) => item.status === "SENT")
     .at(-1);
-  const body = digitalPhotoDeliveryText(composer.customerName, photoUrl);
+  const body = digitalPhotoDeliveryText(
+    composer.customerName,
+    composer.eventDate,
+    photoUrl,
+  );
   const queuedAt = new Date().toISOString();
   const { data: communication, error: insertError } = await admin
     .from("communications")
@@ -289,7 +301,11 @@ export async function sendDigitalPhotoDelivery(
       idempotencyKey: key,
       subject: DIGITAL_PHOTO_SUBJECT,
       textBody: body,
-      htmlBody: renderDigitalPhotoDeliveryHtml(composer.customerName, photoUrl),
+      htmlBody: renderDigitalPhotoDeliveryHtml(
+        composer.customerName,
+        composer.eventDate,
+        photoUrl,
+      ),
       driveFileIds: [],
     });
     providerAccepted = true;

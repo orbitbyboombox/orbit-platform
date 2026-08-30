@@ -81,6 +81,7 @@ export function DigitalPhotoDeliveryControl({ projectId }: { projectId: string }
     setPreviewHtml(
       renderDigitalPhotoDeliveryPreviewHtml(
         composer.customerName,
+        composer.eventDate,
         composer.currentPhotoUrl,
       ),
     );
@@ -95,7 +96,11 @@ export function DigitalPhotoDeliveryControl({ projectId }: { projectId: string }
   const updatePhotoUrl = (value: string) => {
     setPhotoUrl(value);
     setPreviewHtml(
-      renderDigitalPhotoDeliveryPreviewHtml(composer?.customerName ?? "Cliente", value),
+      renderDigitalPhotoDeliveryPreviewHtml(
+        composer?.customerName ?? "Cliente",
+        composer?.eventDate ?? "",
+        value,
+      ),
     );
   };
 
