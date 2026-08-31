@@ -225,6 +225,7 @@ export type SendReservationConfirmationInput = {
   projectId: string;
   actorId: string;
   requestId: string;
+  to?: string;
   subject?: string;
   body?: string;
   cc?: string | readonly string[] | null;
@@ -249,7 +250,7 @@ export async function sendReservationConfirmation(
   if (!requestId) throw new Error("El envío requiere un identificador de intento.");
   const admin = createAdminClient();
   const composer = await loadReservationConfirmationComposer(input.projectId);
-  const recipients = normalizeEmailRecipients({ to: composer.to, cc: input.cc ?? composer.cc });
+  const recipients = normalizeEmailRecipients({ to: input.to ?? composer.to, cc: input.cc ?? composer.cc });
   const subject = String(input.subject ?? composer.subject).trim().slice(0, 240);
   const body = String(input.body ?? composer.body).trim().slice(0, 20_000);
   if (!subject || !body) throw new Error("Asunto y mensaje son obligatorios.");
@@ -276,7 +277,7 @@ export async function sendReservationConfirmation(
     };
   }
   if (composer.hasSuccessfulSend && !input.confirmResend) {
-    throw new Error(`¿Enviar nuevamente la confirmación a ${composer.to}?`);
+    throw new Error(`¿Enviar nuevamente la confirmación a ${recipients.to}?`);
   }
   const firstSuccessful = composer.history
     .filter((item) => item.status === "SENT")

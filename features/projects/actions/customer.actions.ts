@@ -681,6 +681,7 @@ export async function sendManualReservationConfirmationAction(formData: FormData
       projectId,
       actorId,
       requestId,
+      to: String(formData.get("to") ?? ""),
       subject: String(formData.get("subject") ?? ""),
       body: String(formData.get("body") ?? ""),
       cc: String(formData.get("cc") ?? ""),

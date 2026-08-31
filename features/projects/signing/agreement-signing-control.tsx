@@ -34,6 +34,7 @@ export function AgreementSigningControl({ agreementId, projectId, status }: { ag
   const [confirmingResend, setConfirmingResend] = useState(false);
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
+  const [to, setTo] = useState("");
   const [cc, setCc] = useState("");
   const [requestId, setRequestId] = useState("");
   const [sendState, setSendState] = useState<SendState>({ status: "idle" });
@@ -46,6 +47,7 @@ export function AgreementSigningControl({ agreementId, projectId, status }: { ag
     if (openComposer) {
       setSubject(result.preview.subject);
       setBody(result.preview.body);
+      setTo(result.preview.to);
       setCc(result.preview.cc.join("\n"));
       setRequestId(crypto.randomUUID());
       setSendState({ status: "idle" });
@@ -70,13 +72,14 @@ export function AgreementSigningControl({ agreementId, projectId, status }: { ag
   const deliver = (confirmResend: boolean) => {
     if (!composer || sending || sendState.status === "success") return;
     setConfirmingResend(false);
-    setSendState({ status: "sending", message: `Enviando... a ${composer.to}` });
+    setSendState({ status: "sending", message: `Enviando... a ${to}` });
     startSending(async () => {
       const formData = new FormData();
       formData.set("projectId", projectId);
       formData.set("requestId", requestId || crypto.randomUUID());
       formData.set("subject", subject);
       formData.set("body", body);
+      formData.set("to", to);
       formData.set("cc", cc);
       formData.set("confirmResend", String(confirmResend));
       const result = await sendManualReservationConfirmationAction(formData);
@@ -117,13 +120,14 @@ export function AgreementSigningControl({ agreementId, projectId, status }: { ag
     {open && composer ? <MobileDialog description="Revisa exactamente quién recibirá la confirmación y su contenido antes de enviar." dismissOnOverlayClick={false} eyebrow="COMUNICACIONES CON EL CLIENTE" onClose={() => { if (!sending) setOpen(false); }} size="xl" title={actionLabel} variant="fullscreen-mobile">
       <div className="space-y-5">
         {sendState.status !== "idle" ? <div aria-live="polite" className={`rounded-2xl border p-4 text-sm ${sendState.status === "success" ? "border-emerald-300 bg-emerald-50 text-emerald-900" : sendState.status === "error" ? "border-rose-300 bg-rose-50 text-rose-900" : "border-brand/30 bg-brand/5"}`}><div className="flex gap-2">{sendState.status === "success" ? <CheckCircle2 className="mt-0.5 size-4 shrink-0"/> : sendState.status === "error" ? <AlertCircle className="mt-0.5 size-4 shrink-0"/> : <LoaderCircle className="mt-0.5 size-4 shrink-0 animate-spin"/>}<div><p className="font-medium">{sendState.message}</p>{sendState.status === "success" && sendState.cc.length ? <p className="mt-1 text-xs">CC: {sendState.cc.join(", ")}</p> : null}</div></div></div> : null}
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Detail label="PARA" value={composer.to}/><Detail label="Servicio" value={composer.services}/><Detail label="Duración" value={composer.duration}/><Detail label="Fecha / horario" value={`${composer.eventDate} · ${composer.eventTime}`}/><Detail label="Valor total" value={money(composer.total)}/><Detail label="Abono recibido" value={money(composer.paid)}/><Detail label="Saldo pendiente" value={money(composer.balance)}/><Detail label="Lugar" value={composer.venue}/></div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Detail label="PARA" value={to}/><Detail label="Servicio" value={composer.services}/><Detail label="Duración" value={composer.duration}/><Detail label="Fecha / horario" value={`${composer.eventDate} · ${composer.eventTime}`}/><Detail label="Valor total" value={money(composer.total)}/><Detail label="Abono recibido" value={money(composer.paid)}/><Detail label="Saldo pendiente" value={money(composer.balance)}/><Detail label="Lugar" value={composer.venue}/></div>
         {composer.companyCommercial ? <div className="rounded-2xl border border-brand/30 bg-brand/5 p-4 text-sm"><p className="font-semibold">Documento comercial adjunto</p><p className="mt-1 break-words text-muted">{composer.attachmentFilename ?? "No existe una cotización formal disponible."}</p><p className="mt-2 text-xs text-muted">{composer.portalCtaAvailable ? "El botón ABRIR EVENTO EN ORBIT dirige al acceso seguro del Portal, sin incluir credenciales ni rutas internas." : "El email omitirá el botón porque el acceso seguro al Portal todavía no está disponible."}</p></div> : null}
-        <label className="block text-sm font-medium">CC<textarea className="mt-2 min-h-24 w-full rounded-xl border bg-background p-3 text-sm" disabled={sending || sendState.status === "success"} onChange={(event) => setCc(event.target.value)} placeholder="Un correo por línea o separados por coma" value={cc}/><span className="mt-2 block text-xs font-normal text-muted">Se propone el email secundario certificado. Puedes quitarlo para este envío.</span></label>
+        <label className="block text-sm font-medium">PARA<input className="mt-2 min-h-11 w-full rounded-xl border bg-background px-3 text-sm" disabled={sending || sendState.status === "success"} onChange={(event) => setTo(event.target.value)} placeholder="cliente@empresa.cl" required type="email" value={to}/><span className="mt-2 block text-xs font-normal text-muted">Se propone el email principal actual del cliente. El cambio aplica sólo a este envío y no modifica el CRM.</span></label>
+        <label className="block text-sm font-medium">CC<textarea className="mt-2 min-h-24 w-full rounded-xl border bg-background p-3 text-sm" disabled={sending || sendState.status === "success"} onChange={(event) => setCc(event.target.value)} placeholder="Un correo por línea o separados por coma" value={cc}/><span className="mt-2 block text-xs font-normal text-muted">Se propone el email secundario certificado. Puedes quitarlo o cambiarlo sólo para este envío.</span></label>
         <label className="block text-sm font-medium">ASUNTO<input className="mt-2 min-h-11 w-full rounded-xl border bg-background px-3 text-sm" disabled={sending || sendState.status === "success"} onChange={(event) => setSubject(event.target.value)} value={subject}/></label>
         <label className="block text-sm font-medium">MENSAJE<textarea className="mt-2 min-h-80 w-full rounded-xl border bg-background p-3 text-sm" disabled={sending || sendState.status === "success"} onChange={(event) => setBody(event.target.value)} value={body}/></label>
-        {confirmingResend ? <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-950"><p className="font-semibold">¿Enviar nuevamente la confirmación a {composer.to}?</p><p className="mt-1 text-sm">Una confirmación explícita genera como máximo un email.</p><div className="mt-4 flex flex-col gap-2 sm:flex-row"><Button disabled={sending} onClick={() => deliver(true)} type="button">Sí, enviar nuevamente</Button><Button disabled={sending} onClick={() => setConfirmingResend(false)} type="button" variant="outline">Volver</Button></div></div> : null}
-        <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs text-muted">{sendState.status === "success" ? sendState.message : `Se enviará a ${composer.to}${cc.trim() ? ` · CC: ${cc.split(/[\n,;]+/).map((value) => value.trim()).filter(Boolean).join(", ")}` : ""}.`}</p><div className="flex gap-2"><Button disabled={sending} onClick={() => setOpen(false)} type="button" variant="outline">Cerrar</Button><Button disabled={sending || sendState.status === "success" || confirmingResend || !subject.trim() || !body.trim()} onClick={requestDelivery} type="button">{sending ? <LoaderCircle className="size-4 animate-spin"/> : <Send className="size-4"/>}{sending ? "Enviando..." : sendState.status === "error" ? "Reintentar" : actionLabel}</Button></div></div>
+        {confirmingResend ? <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-950"><p className="font-semibold">¿Enviar nuevamente la confirmación a {to}?</p><p className="mt-1 text-sm">Una confirmación explícita genera como máximo un email.</p><div className="mt-4 flex flex-col gap-2 sm:flex-row"><Button disabled={sending} onClick={() => deliver(true)} type="button">Sí, enviar nuevamente</Button><Button disabled={sending} onClick={() => setConfirmingResend(false)} type="button" variant="outline">Volver</Button></div></div> : null}
+        <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs text-muted">{sendState.status === "success" ? sendState.message : to.trim() ? `Se enviará a ${to}${cc.trim() ? ` · CC: ${cc.split(/[\n,;]+/).map((value) => value.trim()).filter(Boolean).join(", ")}` : ""}.` : "No existe un email válido del cliente para enviar la confirmación. Ingresa o selecciona un destinatario."}</p><div className="flex gap-2"><Button disabled={sending} onClick={() => setOpen(false)} type="button" variant="outline">Cerrar</Button><Button disabled={sending || sendState.status === "success" || confirmingResend || !to.trim() || !subject.trim() || !body.trim()} onClick={requestDelivery} type="button">{sending ? <LoaderCircle className="size-4 animate-spin"/> : <Send className="size-4"/>}{sending ? "Enviando..." : sendState.status === "error" ? "Reintentar" : actionLabel}</Button></div></div>
       </div>
     </MobileDialog> : null}
   </div>;

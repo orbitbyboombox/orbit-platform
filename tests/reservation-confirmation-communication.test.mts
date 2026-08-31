@@ -58,8 +58,9 @@ test("1 internal Founder notification is not the customer confirmation", () => {
 
 test("2 manual confirmation uses current canonical TO", () => {
   assert.match(service, /customers!inner\(full_name,email,secondary_email,metadata\)/);
-  assert.match(service, /normalizeEmailRecipients\(\{ to: composer\.to/);
+  assert.match(service, /to: input\.to \?\? composer\.to/);
   assert.doesNotMatch(service, /accepted_snapshot[\s\S]{0,120}\.email/);
+  assert.doesNotMatch(service, /auth\.user\.email|session\.user\.email/);
 });
 
 test("3 certified secondary email is suggested as CC and remains editable", () => {
@@ -79,7 +80,7 @@ test("5 Event exposes NUNCA ENVIADA, ENVIADA and FALLIDA", () => {
 });
 
 test("6 manual resend requires immediate explicit confirmation", () => {
-  assert.match(ui, /¿Enviar nuevamente la confirmación a \{composer\.to\}\?/);
+  assert.match(ui, /¿Enviar nuevamente la confirmación a \{to\}\?/);
   assert.match(ui, /Sí, enviar nuevamente/);
   assert.match(actions, /confirmResend: formData\.get\("confirmResend"\) === "true"/);
 });
@@ -151,6 +152,31 @@ test("15 every Event uses the certified fullscreen MobileDialog composer", () =>
   assert.match(ui, /PARA/);
   assert.match(ui, /ASUNTO/);
   assert.match(ui, /MENSAJE/);
+});
+
+test("15b PARA and CC are editable temporary recipients without CRM mutation", () => {
+  assert.match(ui, /setTo\(result\.preview\.to\)/);
+  assert.match(ui, /onChange=\{\(event\) => setTo\(event\.target\.value\)\}/);
+  assert.match(ui, /type="email" value=\{to\}/);
+  assert.match(ui, /formData\.set\("to", to\)/);
+  assert.match(ui, /setCc\(event\.target\.value\)/);
+  assert.match(actions, /to: String\(formData\.get\("to"\) \?\? ""\)/);
+  assert.doesNotMatch(`${actions}\n${service}`, /secondary_email:\s*(recipients|input)|\.from\("customers"\)\.update/);
+});
+
+test("15c missing or invalid TO blocks send without Founder fallback", () => {
+  assert.match(ui, /!to\.trim\(\)/);
+  assert.match(ui, /No existe un email válido del cliente para enviar la confirmación/);
+  assert.match(service, /normalizeEmailRecipients\(\{ to: input\.to \?\? composer\.to/);
+  assert.doesNotMatch(`${ui}\n${actions}\n${service}`, /auth\.user\.email|session\.user\.email/);
+});
+
+test("15d provider payload and history use the displayed final TO and CC", () => {
+  assert.match(service, /to_recipient: recipients\.to/);
+  assert.match(service, /cc_recipients: recipients\.cc/);
+  assert.match(service, /sender\.send\(\{[\s\S]*to: recipients\.to,[\s\S]*cc: recipients\.cc/);
+  assert.match(service, /recipient: recipients\.to/);
+  assert.match(service, /ccRecipients: recipients\.cc/);
 });
 
 test("16 reload persistence derives Gmail status only from customer confirmation", () => {
