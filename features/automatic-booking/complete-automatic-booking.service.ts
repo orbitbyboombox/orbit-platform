@@ -8,6 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { loadActiveMunicipalities } from "@/features/settings/master-data/municipality-master-data";
 import { automaticBookingTokenHash } from "./automatic-booking.service";
 import { confirmPersistedReservation } from "@/features/projects/operations/confirmed-reservation-orchestrator.service";
+import { isValidChileanRut } from "@/lib/chile/rut";
 
 export interface AutomaticBookingSubmission {
   customer: { name: string; rut: string; phone: string; email: string; address: string };
@@ -146,7 +147,7 @@ export async function completeAutomaticBooking(input: { token: string; submissio
 }
 
 function validate(input: AutomaticBookingSubmission) {
-  if (!input.customer.name.trim() || !/^[0-9]{7,8}-[0-9K]$/i.test(input.customer.rut) || !/^\+569\d{8}$/.test(input.customer.phone)) throw new Error("Revisa tus datos personales.");
+  if (!input.customer.name.trim() || !isValidChileanRut(input.customer.rut) || !/^\+569\d{8}$/.test(input.customer.phone)) throw new Error("Revisa tus datos personales.");
   if (!input.event.type || !input.event.date || !input.event.time || !input.event.venue || !input.event.municipality) throw new Error("Revisa la información del evento.");
   if (!input.service.code || input.service.hours < 1 || !input.signatureDataUrl.startsWith("data:image/png;base64,")) throw new Error("Revisa el servicio y la firma.");
   if (!input.payment.receiptBase64 || !["image/jpeg", "image/png", "image/webp", "application/pdf"].includes(input.payment.receiptType)) throw new Error("Adjunta un comprobante válido.");
