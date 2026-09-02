@@ -107,14 +107,32 @@ export async function completeAutomaticBooking(input: { token: string; submissio
 
     currentModule = "PAYMENT_RECEIPT";
     const receiptPath = `${projectId}/${randomUUID()}-${input.submission.payment.receiptName.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
-    const [uploadedReceipt, receiptStorage] = await measured("payment_receipt", () => Promise.all([
-      uploadReservationDocumentToDrive({ client: admin, projectId, customerName: input.submission.customer.name, eventDate: input.submission.event.date, kind: "PAYMENT_PROOF", name: input.submission.payment.receiptName, mimeType: input.submission.payment.receiptType, bytes: receiptBytes }),
-      admin.storage.from("orbit-documents").upload(receiptPath, receiptBytes, { contentType: input.submission.payment.receiptType }),
-    ]));
+    const receiptStorage = await measured("payment_receipt_storage", () => admin.storage.from("orbit-documents").upload(receiptPath, receiptBytes, { contentType: input.submission.payment.receiptType }));
     const receiptUploadError = receiptStorage.error;
     if (receiptUploadError) throw receiptUploadError;
-    const { error: receiptDocumentError } = await admin.from("documents").insert({ project_id: projectId, customer_id: customerId, document_type: "PAYMENT_RECEIPT", storage_bucket: "orbit-documents", storage_path: receiptPath, checksum: automaticBookingTokenHash(input.submission.payment.receiptBase64), drive_file_id: uploadedReceipt.id, created_by: actorId });
+    const { data: receiptDocument, error: receiptDocumentError } = await admin.from("documents").insert({ project_id: projectId, customer_id: customerId, document_type: "PAYMENT_RECEIPT", storage_bucket: "orbit-documents", storage_path: receiptPath, checksum: automaticBookingTokenHash(input.submission.payment.receiptBase64), original_filename: input.submission.payment.receiptName, mime_type: input.submission.payment.receiptType, file_size: receiptBytes.length, uploaded_by: actorId, drive_sync_status: "PENDING", created_by: actorId }).select("id").single();
     if (receiptDocumentError) throw receiptDocumentError;
+
+    currentModule = "PAYMENT_LEDGER";
+    const { error: paymentError } = await admin.rpc("register_automatic_booking_deposit", {
+      p_project_id: projectId,
+      p_receipt_document_id: receiptDocument.id,
+      p_actor_id: actorId,
+      p_method: input.submission.payment.method,
+    });
+    if (paymentError) throw paymentError;
+
+    currentModule = "GOOGLE_DRIVE";
+    try {
+      const uploadedReceipt = await measured("payment_receipt_drive", () => uploadReservationDocumentToDrive({ client: admin, projectId, customerName: input.submission.customer.name, eventDate: input.submission.event.date, kind: "PAYMENT_PROOF", name: input.submission.payment.receiptName, mimeType: input.submission.payment.receiptType, bytes: receiptBytes }));
+      const { error: receiptDriveLinkError } = await admin.from("documents").update({ drive_file_id: uploadedReceipt.id, drive_sync_status: "SYNCED", drive_sync_error: null, drive_synced_at: new Date().toISOString() }).eq("id", receiptDocument.id);
+      if (receiptDriveLinkError) throw receiptDriveLinkError;
+    } catch (driveError) {
+      const message = driveError instanceof Error ? driveError.message : String(driveError);
+      await admin.from("documents").update({ drive_sync_status: "FAILED", drive_sync_error: message }).eq("id", receiptDocument.id);
+      await admin.from("internal_notifications").upsert({ project_id: projectId, customer_id: customerId, notification_type: "AUTOMATIC_BOOKING_RECEIPT_DRIVE_FAILED", title: "Comprobante pendiente de archivar en Drive", message: "El abono quedó registrado correctamente. Reintenta solamente el archivo del comprobante en Drive.", status: "UNREAD", correlation_id: `automatic-booking-receipt-drive:${projectId}`, category: "SYSTEM", priority: "HIGH", action_required: true, entity_type: "Document", entity_id: receiptDocument.id, related_href: `/projects/${projectId}`, metadata: { documentId: receiptDocument.id, error: message } }, { onConflict: "correlation_id" });
+      console.error(JSON.stringify({ level: "error", event: "automatic_booking.receipt_drive_failed", projectId, documentId: receiptDocument.id, error: message, timestamp: new Date().toISOString() }));
+    }
 
     currentModule = "SIGNATURE";
     const signingToken = randomBytes(32).toString("base64url");
