@@ -114,23 +114,24 @@ test("9 provider failure is recorded without invalidating a reservation", () => 
   assert.doesNotMatch(service, /from\("projects"\)\.update|from\("crm_reservations"\)\.update/);
 });
 
-test("10 current customer contact is used while accepted commercial values stay fixed", () => {
+test("10 current customer contact, accepted items and canonical finance stay separated", () => {
   assert.match(service, /customer: \{ fullName: customer\.full_name, metadata: customer\.metadata \}/);
   assert.match(service, /customerCommercialItemsFromSnapshot/);
-  assert.match(service, /quotation\?\.final_customer_price/);
+  assert.match(service, /financial_event_records\(invoiced_amount,paid_amount,outstanding_balance\)/);
+  assert.match(service, /total = Number\(financial\.invoiced_amount\)/);
 });
 
 test("11 customer template uses commercial labels without enum leakage", () => {
   const rendered = buildReservationConfirmationTemplate(templateInput);
-  assert.match(rendered.body, /Servicio: Classic · 3 horas/);
-  assert.match(rendered.body, /Extras: Imanes ilimitados · Gratis/);
+  assert.match(rendered.body, /Servicio\nClassic/);
+  assert.match(rendered.body, /Extras\nImanes ilimitados · Gratis/);
   assert.doesNotMatch(rendered.body, /CLASSIC|UNLIMITED_MAGNETS/);
   assert.match(rendered.subject, /¡Tu reserva BOOMBOX está confirmada!/);
 });
 
 test("12 customer template uses one canonical event duration", () => {
   const rendered = buildReservationConfirmationTemplate(templateInput);
-  assert.match(rendered.body, /Servicio: Classic · 3 horas/);
+  assert.match(rendered.body, /Duración\n3 horas/);
   assert.doesNotMatch(rendered.body, /3 h \+ 3 h|3 horas \+ 3 horas|3 horas, 3 horas/);
 });
 

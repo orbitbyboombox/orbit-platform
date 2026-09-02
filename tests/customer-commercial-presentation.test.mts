@@ -19,9 +19,6 @@ const confirmationService = source(
 const confirmationTemplate = source(
   "features/connectors/google-gmail/application/reservation-confirmation.template.ts",
 );
-const confirmationHtml = source(
-  "features/connectors/google-gmail/application/reservation-confirmation.html.ts",
-);
 const manualPdf = source(
   "features/projects/signing/manual-reservation-formalization.service.ts",
 );
@@ -175,9 +172,10 @@ test("email renders one service, classified extras and one canonical duration", 
   assert.equal(rendered.services, "Classic");
   assert.equal(rendered.extras, "Imanes ilimitados · Gratis");
   assert.equal(rendered.duration, "3 horas");
-  assert.match(rendered.body, /^Servicio: Classic · 3 horas$/m);
-  assert.match(rendered.body, /^Extras: Imanes ilimitados · Gratis$/m);
-  assert.doesNotMatch(rendered.body, /Servicio:.*\n\nServicio:/);
+  assert.match(rendered.body, /^Servicio\nClassic$/m);
+  assert.match(rendered.body, /^Duración\n3 horas$/m);
+  assert.match(rendered.body, /^Extras\nImanes ilimitados · Gratis$/m);
+  assert.equal((rendered.body.match(/^Servicio$/gm) ?? []).length, 1);
   assert.doesNotMatch(rendered.body, /UNLIMITED_MAGNETS|3 horas, 3 horas/);
 });
 
@@ -185,11 +183,10 @@ test("email paid extra and transport keep their exact presentation", () => {
   const rendered = buildReservationConfirmationTemplate(
     emailInput([realItems[0], { ...realItems[1], total: 65_000 }]),
   );
-  assert.match(rendered.body, /^Extras: Imanes ilimitados · \$65\.000$/m);
-  assert.match(rendered.body, /^Transporte: \$0$/m);
-  assert.match(rendered.body, /^Valor total: \$345\.100$/m);
-  assert.match(rendered.body, /^Abono recibido: \$172\.550$/m);
-  assert.match(rendered.body, /^Saldo pendiente: \$172\.550$/m);
+  assert.match(rendered.body, /^Extras\nImanes ilimitados · \$65\.000$/m);
+  assert.match(rendered.body, /^Valor total\n\$345\.100$/m);
+  assert.match(rendered.body, /^Abono recibido\n\$172\.550$/m);
+  assert.match(rendered.body, /^Saldo pendiente\n\$172\.550$/m);
 });
 
 test("Empresa email uses the dedicated reservation confirmation structure", () => {
@@ -209,13 +206,12 @@ test("Empresa email uses the dedicated reservation confirmation structure", () =
   );
 });
 
-test("Empresa email presents only the immutable contracted total", () => {
+test("Empresa email presents canonical total, paid amount and balance", () => {
   const rendered = buildReservationConfirmationTemplate(companyEmailInput());
-  assert.match(rendered.body, /VALOR DEL SERVICIO CONTRATADO\n\n\$345\.100/);
-  assert.doesNotMatch(
-    rendered.body,
-    /Transporte:|Abono recibido:|Saldo pendiente:|Reserva\s+\$172\.550|\$165\.000/,
-  );
+  assert.match(rendered.body, /VALOR DEL SERVICIO CONTRATADO/);
+  assert.match(rendered.body, /^Valor total\n\$345\.100$/m);
+  assert.match(rendered.body, /^Abono recibido\n\$172\.550$/m);
+  assert.match(rendered.body, /^Saldo pendiente\n\$172\.550$/m);
 });
 
 test("Empresa CTA is branded, mobile friendly and targets safe portal login", () => {
@@ -244,12 +240,13 @@ test("Empresa omits CTA cleanly when safe portal access is unavailable", () => {
   assert.doesNotMatch(rendered.body, /ABRIR EVENTO EN ORBIT/);
 });
 
-test("non-Empresa confirmation retains its existing financial summary", () => {
+test("non-Empresa confirmation uses the same premium structure", () => {
   const rendered = buildReservationConfirmationTemplate(emailInput());
-  assert.match(rendered.body, /^Valor total: \$345\.100$/m);
-  assert.match(rendered.body, /^Abono recibido: \$172\.550$/m);
-  assert.match(rendered.body, /^Saldo pendiente: \$172\.550$/m);
-  assert.doesNotMatch(rendered.body, /SERVICIO CONTRATADO|ABRIR EVENTO EN ORBIT/);
+  assert.match(rendered.body, /^SERVICIO CONTRATADO$/m);
+  assert.match(rendered.body, /^Valor total\n\$345\.100$/m);
+  assert.match(rendered.body, /^Abono recibido\n\$172\.550$/m);
+  assert.match(rendered.body, /^Saldo pendiente\n\$172\.550$/m);
+  assert.match(rendered.body, /^ABRIR EVENTO EN ORBIT$/m);
 });
 
 test("generated commercial PDF separates service hours and extras", async () => {
@@ -327,8 +324,13 @@ test("presentation repair never writes financial or collection truth", () => {
 
 test("mobile email remains line-based and wrapped by the branded responsive shell", () => {
   const rendered = buildReservationConfirmationTemplate(emailInput());
+  const html = renderReservationConfirmationHtml(
+    rendered.body,
+    "https://www.bbox.cl",
+    { companyCommercial: false, portalUrl: "https://orbit.boom-box.cl/portal" },
+  );
   assert.ok(rendered.body.split("\n\n").every((line) => line.length < 180));
-  assert.match(confirmationHtml, /max-width:620px/);
-  assert.match(confirmationHtml, /overflow:hidden/);
-  assert.match(confirmationHtml, /padding:28px 12px/);
+  assert.match(html, /max-width:640px/);
+  assert.match(html, /overflow:hidden/);
+  assert.match(html, /padding:24px 10px/);
 });

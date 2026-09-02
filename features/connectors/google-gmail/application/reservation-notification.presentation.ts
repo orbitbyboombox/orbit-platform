@@ -3,6 +3,7 @@ import {
   commercialServiceList,
   currentCustomerContact,
 } from "../../../projects/reservation-presentation.ts";
+import { renderBoomboxCommercialEmail } from "./boombox-commercial-email.html.ts";
 
 const currency = (value: number) =>
   new Intl.NumberFormat("es-CL", {
@@ -22,6 +23,21 @@ const escapeHtml = (value: string) =>
         "'": "&#39;",
       })[character]!,
   );
+const eventDate = (value: string) =>
+  new Intl.DateTimeFormat("es-CL", {
+    dateStyle: "long",
+    timeZone: "UTC",
+  }).format(new Date(`${value}T12:00:00Z`));
+
+export function founderPaymentStatusLabel(input: {
+  total: number;
+  paid: number;
+  balance: number;
+}) {
+  if (input.total > 0 && input.balance <= 0) return "Pagado";
+  if (input.paid > 0) return "Pago parcial";
+  return "Pago pendiente";
+}
 
 export type FounderReservationNotificationInput = {
   projectId: string;
@@ -36,10 +52,12 @@ export type FounderReservationNotificationInput = {
   eventDurationHours?: number | null;
   eventDate: string;
   amount: number;
-  paymentStatus: string;
+  paid: number;
+  balance: number;
   customerType: string;
   contractStatus: "SIGNED" | "PENDING";
   integrations: Array<{ label: string; ready: boolean }>;
+  website: string;
 };
 
 export function renderFounderReservationNotification(
@@ -62,14 +80,25 @@ export function renderFounderReservationNotification(
         serviceDurations: input.serviceDurations,
       }),
     ],
-    ["Fecha del evento", input.eventDate],
+    ["Fecha del evento", eventDate(input.eventDate)],
     ["Monto", currency(input.amount)],
-    ["Estado de pago", input.paymentStatus],
+    ["Pago recibido", currency(input.paid)],
+    ["Saldo", currency(input.balance)],
+    ["Estado de pago", founderPaymentStatusLabel({ total: input.amount, paid: input.paid, balance: input.balance })],
     ["Tipo de cliente", input.customerType],
   ];
   const statuses = [...input.integrations, { label: "Contrato", ready: true, value: contract }];
   const subject = "🎉 Nueva Reserva Confirmada – BOOMBOX";
-  const htmlBody = `<main style="font-family:Arial,sans-serif;color:#171717"><h1>🎉 Nueva Reserva Confirmada</h1><table style="border-collapse:collapse">${rows.map(([label, value]) => `<tr><td style="padding:7px 12px;color:#666">${escapeHtml(String(label))}</td><td style="padding:7px 12px;font-weight:700">${escapeHtml(String(value))}</td></tr>`).join("")}</table><h2>Verificación</h2><ul>${statuses.map((status) => `<li>${status.ready ? "✅" : "⚠️"} ${escapeHtml(status.label)}${"value" in status ? `: ${escapeHtml(String(status.value))}` : ""}</li>`).join("")}</ul><p><a href="${escapeHtml(input.projectUrl)}" style="display:inline-block;background:#F78900;color:#111;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:10px">Abrir Evento en ORBIT</a></p></main>`;
+  const details = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border:1px solid #e5ded2;border-radius:14px">${rows.map(([label, value], index) => `<tr><td style="width:42%;padding:12px 16px;color:#716b63;font-size:13px;vertical-align:top${index ? ";border-top:1px solid #eee7dc" : ""}">${escapeHtml(String(label))}</td><td align="right" style="padding:12px 16px;font-size:14px;font-weight:700;vertical-align:top${index ? ";border-top:1px solid #eee7dc" : ""}">${escapeHtml(String(value))}</td></tr>`).join("")}</table>`;
+  const operational = `<p style="margin:28px 0 12px;color:#d76d00;font-size:11px;font-weight:700;letter-spacing:.16em">ESTADO OPERACIONAL</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background:#111214;border-radius:14px">${statuses.map((status) => `<tr><td style="padding:10px 16px;color:${status.ready ? "#ffffff" : "#f7b955"};font-size:13px">${status.ready ? "✓" : "⚠"} ${escapeHtml(status.label)}${"value" in status ? `: ${escapeHtml(String(status.value))}` : ""}</td></tr>`).join("")}</table>`;
+  const htmlBody = renderBoomboxCommercialEmail({
+    preheader: "Nueva reserva confirmada en ORBIT.",
+    eyebrow: "CONFIRMACIÓN INTERNA",
+    title: "NUEVA RESERVA CONFIRMADA",
+    contentHtml: `${details}${operational}`,
+    website: input.website,
+    primaryAction: { href: input.projectUrl, label: "ABRIR EVENTO EN ORBIT" },
+  });
   const textBody = [
     "Reserva completada",
     ...rows.map(([label, value]) => `${label}: ${value}`),

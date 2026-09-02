@@ -23,14 +23,17 @@ export async function deliverFounderReservationNotification(input: { projectId: 
   const { data: existing, error: existingError } = await admin.from("communications").select("id,status,external_message_id").eq("project_id", input.projectId).eq("channel", "GMAIL").eq("communication_type", "INTERNAL_NOTIFICATION").eq("thread_key", `founder-reservation:${input.projectId}`).order("created_at",{ascending:false}).limit(1).maybeSingle();
   if (existingError) throw existingError;
   if (existing?.status === "SENT") return { status: "SKIPPED", messageId: existing.external_message_id ?? undefined };
-  const [{ data: project, error: projectError }, { data: calendar }, { count: portalCount }, company, { data: operational }] = await Promise.all([
-    admin.from("projects").select("id,customer_id,orbit_event_id,name,project_type,event_date,finance,operations,customers!inner(full_name,metadata),project_services(service_code,duration_hours),agreements(status,drive_file_id),quotations(quotation_number,final_customer_price,customer_type)").eq("id", input.projectId).is("deleted_at", null).single(),
+  const [{ data: project, error: projectError }, { data: calendar }, { count: portalCount }, company, { data: operational }, { data: financial, error: financialError }] = await Promise.all([
+    admin.from("projects").select("id,customer_id,orbit_event_id,name,project_type,event_date,operations,customers!inner(full_name,metadata),project_services(service_code,duration_hours),agreements(status),quotations(quotation_number,customer_type)").eq("id", input.projectId).is("deleted_at", null).single(),
     admin.from("calendar_sync").select("external_event_id").eq("project_id", input.projectId).maybeSingle(),
     admin.from("customer_portal_tokens").select("id", { count: "exact", head: true }).eq("project_id", input.projectId).is("revoked_at", null),
     loadCompanySettings(admin),
     admin.from("project_operational_contracts").select("service_start_at,service_end_at").eq("project_id", input.projectId).maybeSingle(),
+    admin.from("financial_event_records").select("invoiced_amount,paid_amount,outstanding_balance").eq("project_id", input.projectId).maybeSingle(),
   ]);
   if (projectError) throw projectError;
+  if (financialError) throw financialError;
+  if (!financial) throw new Error("La reserva no tiene verdad financiera canónica para notificar al Founder.");
   const configuredFounderEmail=typeof company.emailConfiguration.founderNotificationEmail==="string"?company.emailConfiguration.founderNotificationEmail:"";
   const recipient = configuredFounderEmail || company.operationsEmail || company.salesEmail || company.supportEmail;
   if (!recipient) throw new Error("No existe un correo interno configurado para notificar al Founder.");
@@ -39,9 +42,10 @@ export async function deliverFounderReservationNotification(input: { projectId: 
   const agreement = Array.isArray(project.agreements) ? project.agreements[0] : project.agreements;
   const operations = project.operations && typeof project.operations === "object" ? project.operations as Record<string, unknown> : {};
   const drive = operations.googleDrive && typeof operations.googleDrive === "object" ? operations.googleDrive as Record<string, unknown> : {};
-  const amount = Number(quotation?.final_customer_price ?? (project.finance as Record<string, unknown> | null)?.total ?? 0);
-  const finance=project.finance&&typeof project.finance==="object"?project.finance as Record<string,unknown>:{};
-  const paymentStatus=String(finance.paymentStatus??finance.status??"Pendiente");
+  const amount = Number(financial.invoiced_amount);
+  const paid = Number(financial.paid_amount);
+  const balance = Number(financial.outstanding_balance);
+  if(![amount,paid,balance].every(Number.isFinite)||amount<0||paid<0||balance<0||Math.abs(amount-paid-balance)>1)throw new Error("La verdad financiera canónica no es consistente para notificar al Founder.");
   const customerType=quotation?.customer_type==="COMPANY"||project.project_type==="Corporate"?"Empresa":"Particular";
   const rendered = renderFounderReservationNotification({
     projectId: project.id,
@@ -56,9 +60,10 @@ export async function deliverFounderReservationNotification(input: { projectId: 
     eventDurationHours: Number(operations.durationHours ?? 0) || null,
     eventDate: project.event_date,
     amount,
-    paymentStatus,
+    paid,
+    balance,
     customerType,
-    contractStatus: agreement?.status === "SIGNED" && Boolean(agreement.drive_file_id) ? "SIGNED" : "PENDING",
+    contractStatus: agreement?.status === "SIGNED" ? "SIGNED" : "PENDING",
     integrations: [
       { label: "Cliente", ready: Boolean(customer?.full_name) },
       { label: "Evento", ready: Boolean(project.id && project.orbit_event_id) },
@@ -68,12 +73,14 @@ export async function deliverFounderReservationNotification(input: { projectId: 
       { label: "Finanzas", ready: amount > 0 },
       { label: "Dashboard", ready: true },
     ],
+    website: company.website,
   });
   const { subject, htmlBody, textBody } = rendered;
   let lastError="";
   for(let attempt=1;attempt<=3;attempt++)try{
     const result = await new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken()).send({ to: recipient, subject, textBody, htmlBody, driveFileIds: [] });
-    const record = { customer_id: project.customer_id, project_id: project.id, channel: "GMAIL", direction: "OUTBOUND", communication_type: "INTERNAL_NOTIFICATION", thread_key: `founder-reservation:${project.id}`, subject, body: textBody, status: "SENT", external_message_id: result.messageId, occurred_at: new Date().toISOString(), created_by: input.actorId };
+    const sentAt=new Date().toISOString();
+    const record = { customer_id: project.customer_id, project_id: project.id, channel: "GMAIL", direction: "OUTBOUND", communication_type: "INTERNAL_NOTIFICATION", thread_key: `founder-reservation:${project.id}`, subject, body: textBody, status: "SENT", to_recipient:recipient, external_message_id: result.messageId, sent_at:sentAt, occurred_at:sentAt, created_by: input.actorId };
     const communicationWrite = existing?.id ? await admin.from("communications").update(record).eq("id", existing.id) : await admin.from("communications").insert(record);
     const auditWrite=await admin.from("founder_notification_deliveries").upsert({project_id:project.id,customer_id:project.customer_id,recipient,attempt_number:attempt,status:"SENT",provider_response:{messageId:result.messageId,threadId:result.threadId,accepted:true},failure_reason:null,created_by:input.actorId},{onConflict:"project_id,attempt_number"});
     if(communicationWrite.error||auditWrite.error)console.error(JSON.stringify({level:"error",event:"founder_notification.audit_write_failed",projectId:project.id,messageId:result.messageId,error:communicationWrite.error?.message??auditWrite.error?.message,timestamp:new Date().toISOString()}));

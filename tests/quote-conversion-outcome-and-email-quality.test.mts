@@ -41,10 +41,12 @@ const rendered = renderFounderReservationNotification({
   eventDurationHours: 3,
   eventDate: "2026-09-14",
   amount: 345_100,
-  paymentStatus: "Pendiente",
+  paid: 172_550,
+  balance: 172_550,
   customerType: "Empresa",
   contractStatus: "PENDING",
   integrations: [{ label: "Google Drive", ready: true }],
+  website: "https://www.bbox.cl",
 });
 
 test("1 service catalog code renders its commercial label", () => {

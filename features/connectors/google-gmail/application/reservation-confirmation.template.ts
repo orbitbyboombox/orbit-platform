@@ -55,33 +55,14 @@ export function buildReservationConfirmationTemplate(
     .filter((value, index, values) => values.indexOf(value) === index)
     .join(", ") || "Por confirmar";
   const subject = "¡Tu reserva BOOMBOX está confirmada!";
-  const customerBody = [
-    "¡Tu reserva BOOMBOX está confirmada!",
-    `Hola ${customer},`,
-    "¡Muchas gracias por confiar en BOOMBOX!",
-    `Tu reserva para ${input.eventName || "tu evento"} ha quedado confirmada.`,
-    `Fecha: ${eventDate(input.eventDate)}`,
-    `Horario: ${input.eventTime?.slice(0, 5) || "Por confirmar"}`,
-    `Servicio: ${commercial.serviceWithDuration}`,
-    `Extras: ${commercial.extrasLabel}`,
-    `Transporte: ${money(input.transport)}`,
-    `Lugar: ${venue}`,
-    `Valor total: ${money(input.total)}`,
-    `Abono recibido: ${money(input.paid)}`,
-    `Saldo pendiente: ${money(input.balance)}`,
-    input.portalAvailable
-      ? "Puedes revisar la información de tu evento y los documentos disponibles desde tu Portal BOOMBOX."
-      : "Los documentos e información de tu evento estarán disponibles desde tu Portal BOOMBOX.",
-    "Si necesitas modificar algún dato o tienes alguna consulta, puedes responder directamente a este correo.",
-    "Nos vemos pronto.",
-    "Equipo BOOMBOX",
-  ].join("\n\n");
-  const companyBody = [
+  const body = [
     `Hola ${customer},`,
     "BIENVENIDOS A BOOMBOX",
     "Tu reserva ha sido confirmada correctamente.",
-    "Adjuntamos tu documento comercial oficial con el detalle completo de las condiciones comerciales y de pago.",
-    "Desde este momento, toda la información esencial de tu evento también está disponible en Mi Evento.",
+    input.companyCommercial
+      ? "Adjuntamos tu documento comercial oficial con el detalle completo de las condiciones de tu reserva."
+      : "Ponemos a disposición tu documento comercial oficial con el detalle completo de las condiciones de tu reserva.",
+    "Desde este momento, la información esencial de tu evento también está disponible en Mi Evento.",
     "SERVICIO CONTRATADO",
     `Servicio\n${commercial.service}`,
     `Duración\n${commercial.duration}`,
@@ -91,7 +72,9 @@ export function buildReservationConfirmationTemplate(
     `Horario\n${input.eventTime?.slice(0, 5) || "Por confirmar"}`,
     `Lugar\n${venue}`,
     "VALOR DEL SERVICIO CONTRATADO",
-    money(input.total),
+    `Valor total\n${money(input.total)}`,
+    `Abono recibido\n${money(input.paid)}`,
+    `Saldo pendiente\n${money(input.balance)}`,
     ...(input.portalAvailable ? ["ABRIR EVENTO EN ORBIT"] : []),
     "Si necesitas modificar algún dato o tienes alguna consulta, puedes responder directamente a este correo.",
     "Nos vemos pronto.",
@@ -99,7 +82,7 @@ export function buildReservationConfirmationTemplate(
   ].join("\n\n");
   return {
     subject,
-    body: input.companyCommercial ? companyBody : customerBody,
+    body,
     customer,
     services: commercial.service,
     extras: commercial.extrasLabel,

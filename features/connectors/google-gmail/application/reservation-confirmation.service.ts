@@ -8,7 +8,6 @@ import type { GoogleGmailLiveProvider } from "../provider/google-gmail-live.prov
 import { GoogleGmailApiProvider } from "../provider/google-gmail-live.provider";
 import { buildReservationConfirmationTemplate } from "./reservation-confirmation.template";
 import {
-  acceptedCommercialFinancialPresentation,
   customerCommercialItemsFromLegacyQuote,
   customerCommercialItemsFromSnapshot,
 } from "@/features/projects/reservation-presentation";
@@ -126,15 +125,25 @@ export async function loadReservationConfirmationComposer(
   const financial = Array.isArray(project.financial_event_records)
     ? project.financial_event_records[0]
     : project.financial_event_records;
-  const acceptedFinancial = acceptedCommercialFinancialPresentation(
-    quotation?.accepted_snapshot,
-    {
-      grandTotal: Number(quotation?.grand_total ?? 0),
-      finalCustomerPrice: Number(
-        quotation?.final_customer_price ?? financial?.invoiced_amount ?? 0,
-      ),
-    },
-  );
+  if (!financial) {
+    throw new Error(
+      "No existe verdad financiera canónica para preparar la confirmación.",
+    );
+  }
+  const total = Number(financial.invoiced_amount);
+  const paid = Number(financial.paid_amount);
+  const balance = Number(financial.outstanding_balance);
+  if (
+    ![total, paid, balance].every(Number.isFinite) ||
+    total < 0 ||
+    paid < 0 ||
+    balance < 0 ||
+    Math.abs(total - paid - balance) > 1
+  ) {
+    throw new Error(
+      "La verdad financiera canónica no es consistente para enviar la confirmación.",
+    );
+  }
   const companyCommercial =
     quotation?.customer_type === "COMPANY" ||
     /CORPORATE|EMPRESA/i.test(String(project.project_type ?? ""));
@@ -167,9 +176,9 @@ export async function loadReservationConfirmationComposer(
     eventDurationHours: Number(operations.durationHours ?? 0) || null,
     serviceDurations: (project.project_services ?? []).map((item) => Number(item.duration_hours ?? 0)),
     transport: Number(quotation?.transport_total ?? 0),
-    total: acceptedFinancial.total,
-    paid: Number(financial?.paid_amount ?? 0),
-    balance: Number(financial?.outstanding_balance ?? quotation?.final_customer_price ?? 0),
+    total,
+    paid,
+    balance,
     portalAvailable: (project.customer_portal_tokens ?? []).length > 0,
     companyCommercial,
   });
@@ -191,9 +200,9 @@ export async function loadReservationConfirmationComposer(
     eventDate: project.event_date,
     eventTime: project.event_time?.slice(0, 5) ?? "Por confirmar",
     venue: template.venue,
-    total: acceptedFinancial.total,
-    paid: Number(financial?.paid_amount ?? 0),
-    balance: Number(financial?.outstanding_balance ?? quotation?.final_customer_price ?? 0),
+    total,
+    paid,
+    balance,
     companyCommercial,
     quotationId: quotation?.id ?? null,
     quotationNumber: quotation?.quotation_number ?? null,

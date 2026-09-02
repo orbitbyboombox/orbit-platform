@@ -54,14 +54,16 @@ test("Empresa reservation uses the shared premium shell and safe portal CTA", ()
   assert.doesNotMatch(html, /\/projects\/|token=|access_token/i);
 });
 
-test("non-Empresa reservation keeps the established renderer", () => {
+test("non-Empresa reservation uses the shared premium renderer", () => {
   const html = renderReservationConfirmationHtml(
-    "¡Tu reserva BOOMBOX está confirmada!\n\nHola Cliente,",
+    "Hola Cliente,\n\nBIENVENIDOS A BOOMBOX\n\nSERVICIO CONTRATADO\n\nServicio\nClassic",
     "https://www.bbox.cl",
     { companyCommercial: false },
   );
-  assert.match(html, /background:#f6f4ef/);
-  assert.doesNotMatch(html, /EXPERIENCIAS QUE CONECTAN|PDF ADJUNTO/);
+  assert.match(html, /EXPERIENCIAS QUE CONECTAN/);
+  assert.match(html, /RESERVA CONFIRMADA/);
+  assert.match(html, /SERVICIO CONTRATADO/);
+  assert.doesNotMatch(html, /PDF ADJUNTO/);
 });
 
 test("formal quote delivery uses premium shell without changing delivery semantics", () => {
