@@ -42,6 +42,7 @@ import { activeCommercialDocument, catalogCategoryForQuickSend, catalogPublicPat
 import { formatChileanRut } from "@/lib/chile/rut";
 import { QuoteConversionReviewDialog } from "./quote-conversion-review";
 import type { QuoteConversionReview } from "./quote-conversion";
+import { buildSocialPlansEmail } from "./social-plans-email";
 
 const money = new Intl.NumberFormat("es-CL", {
   style: "currency",
@@ -302,7 +303,29 @@ function InformationSender({
           </div>
           {document && <div className="mt-4 grid gap-2 rounded-lg border p-3 text-sm"><label className="flex min-h-10 items-center gap-3"><input checked={!attachPdf} name={`delivery-${category}`} onChange={() => setAttachPdf(false)} type="radio" />Enviar como link <span className="text-emerald-500">Recomendado</span></label><label className="flex min-h-10 items-center gap-3"><input checked={attachPdf} name={`delivery-${category}`} onChange={() => setAttachPdf(true)} type="radio" />Adjuntar PDF al correo</label></div>}
         </div>
-        {preview && (
+        {preview && category !== "COMPANIES_CATALOG" && (
+          <div className="overflow-hidden rounded-xl border border-brand/30 bg-white">
+            <p className="bg-background px-4 py-3 text-xs font-semibold uppercase text-brand">
+              Vista previa real del email
+            </p>
+            <iframe
+              className="h-[42rem] w-full bg-white sm:h-[52rem]"
+              sandbox=""
+              srcDoc={buildSocialPlansEmail({
+                body: withoutDuplicateSignature(body, "Equipo BOOMBOX"),
+                contact: name,
+                website: data.company.website,
+                catalogUrl: `${window.location.origin}${catalogPublicPath(catalogCategory)}`,
+                attachmentFilename: attachPdf && document
+                  ? document.filename || `${document.name}.pdf`
+                  : undefined,
+                signatureUrl: data.company.emailSignatureUrl,
+              }).html}
+              title="Vista previa del email Planes y Valores"
+            />
+          </div>
+        )}
+        {preview && category === "COMPANIES_CATALOG" && (
           <div className="rounded-xl border border-brand/30 bg-background p-4">
             <p className="text-xs font-semibold uppercase text-brand">
               Vista previa

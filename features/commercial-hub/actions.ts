@@ -19,6 +19,7 @@ import { normalizeQuoteOperationalConditions } from "./operational-conditions";
 import { normalizeEmailRecipients, normalizeOptionalEmail } from "@/lib/email/recipients";
 import { attachCustomerPurchaseOrderAction } from "@/features/commercial-documents/actions";
 import { archiveAcceptedQuoteForProject } from "@/features/commercial-documents/drive-archive";
+import { buildSocialPlansEmail } from "./social-plans-email";
 import {
   assertQuoteConversionReady,
   buildQuoteConversionReview,
@@ -212,7 +213,19 @@ export async function sendCommercialInformationAction(input: {
       return `<p style="margin:0 0 16px">${richText(paragraph)}</p>`;
     }).join("");
     const socialCommunication = input.category !== "COMPANIES_CATALOG";
-    const htmlBody = renderBoomboxCommercialEmail({
+    const socialEmail = socialCommunication
+      ? buildSocialPlansEmail({
+          body: cleanBody,
+          contact: input.name,
+          website: company.website,
+          catalogUrl: publicUrl,
+          attachmentFilename: downloaded?.data
+            ? document.filename || `${document.name}.pdf`
+            : undefined,
+          signatureUrl,
+        })
+      : null;
+    const htmlBody = socialEmail?.html ?? renderBoomboxCommercialEmail({
       preheader: "Conoce los planes y experiencias BOOMBOX para tu evento.",
       eyebrow: socialCommunication ? "PLANES Y EXPERIENCIAS" : "EXPERIENCIAS CORPORATIVAS",
       title: socialCommunication ? "ENCUENTRA LA EXPERIENCIA PARA TU EVENTO" : "Experiencias BOOMBOX para tu evento",
@@ -228,7 +241,7 @@ export async function sendCommercialInformationAction(input: {
     ).send({
       to: input.email.trim().toLowerCase(),
       subject,
-      textBody: `${quickSendBodyParagraphs(cleanBody, input.name).join("\n\n")}\n\n${QUICK_SEND_CTA_LABEL}: ${publicUrl}\n\n${signatureMode === "GRAPHICAL" ? "" : "Equipo BOOMBOX"}`.trim(),
+      textBody: socialEmail?.text ?? `${quickSendBodyParagraphs(cleanBody, input.name).join("\n\n")}\n\n${QUICK_SEND_CTA_LABEL}: ${publicUrl}\n\n${signatureMode === "GRAPHICAL" ? "" : "Equipo BOOMBOX"}`.trim(),
       htmlBody,
       driveFileIds: [],
       attachments: downloaded?.data ? [{ filename: document.filename || `${document.name}.pdf`, mimeType: "application/pdf", content: new Uint8Array(await downloaded.data.arrayBuffer()) }] : [],

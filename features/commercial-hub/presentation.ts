@@ -69,18 +69,21 @@ Gracias por considerar a BOOMBOX para ser parte de tu evento.
 
 Hace 16 años creamos experiencias fotográficas para matrimonios, cumpleaños y celebraciones en Chile.
 
-Preparamos distintas alternativas para que puedas elegir la experiencia que mejor se adapte a tu celebración.
+Hemos preparado nuestra propuesta para que puedas conocer las distintas experiencias, formatos y valores disponibles.
 
-**¿QUIERES COTIZAR?**
+**NUESTRA PROPUESTA**
 
-Respóndenos indicando:
-• servicio que te interesa
-• fecha
-• lugar del evento
+Encontrarás el detalle completo de nuestras experiencias y valores en el documento adjunto.
 
-Revisaremos disponibilidad y prepararemos tu propuesta.
+Si alguna alternativa te interesa, respóndenos este correo y te ayudaremos a revisar disponibilidad y preparar tu cotización.
 
-**Importante:** Las fechas se confirman mediante reserva y están sujetas a disponibilidad.`;
+**Importante:** Las fechas se confirman mediante reserva y están sujetas a disponibilidad.
+
+Esperamos ser parte de tu celebración.
+
+Un abrazo,
+
+Equipo BOOMBOX`;
 
 export function quickSendInitialBody(category: string, configuredBody: string) {
   return quickSendEditableBody(
