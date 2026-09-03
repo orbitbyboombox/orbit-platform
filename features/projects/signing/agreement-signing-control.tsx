@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { MobileDialog } from "@/components/ui/mobile-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { ReservationConfirmationComposer } from "@/features/connectors/google-gmail/application/reservation-confirmation.service";
+import { renderReservationConfirmationDelivery } from "@/features/connectors/google-gmail/application/reservation-confirmation.html";
 import { getManualConfirmationPreviewAction, sendManualReservationConfirmationAction } from "../actions/customer.actions";
 import { createSigningInvitationAction } from "./signing.actions";
 
@@ -101,6 +102,15 @@ export function AgreementSigningControl({ agreementId, projectId, status }: { ag
   };
   const statusVariant = composer?.status === "SENT" ? "success" : composer?.status === "FAILED" ? "danger" : "warning";
   const actionLabel = composer?.hasSuccessfulSend ? "REENVIAR CONFIRMACIÓN" : "ENVIAR CONFIRMACIÓN";
+  const previewHtml = composer
+    ? renderReservationConfirmationDelivery({
+        body,
+        website: composer.website,
+        companyCommercial: composer.companyCommercial,
+        portalCtaAvailable: composer.portalCtaAvailable,
+        portalUrl: composer.portalUrl,
+      }).htmlBody
+    : "";
 
   return <div className="space-y-5">
     <section className="rounded-2xl border bg-card p-5 sm:p-6">
@@ -126,6 +136,16 @@ export function AgreementSigningControl({ agreementId, projectId, status }: { ag
         <label className="block text-sm font-medium">CC<textarea className="mt-2 min-h-24 w-full rounded-xl border bg-background p-3 text-sm" disabled={sending || sendState.status === "success"} onChange={(event) => setCc(event.target.value)} placeholder="Un correo por línea o separados por coma" value={cc}/><span className="mt-2 block text-xs font-normal text-muted">Se propone el email secundario certificado. Puedes quitarlo o cambiarlo sólo para este envío.</span></label>
         <label className="block text-sm font-medium">ASUNTO<input className="mt-2 min-h-11 w-full rounded-xl border bg-background px-3 text-sm" disabled={sending || sendState.status === "success"} onChange={(event) => setSubject(event.target.value)} value={subject}/></label>
         <label className="block text-sm font-medium">MENSAJE<textarea className="mt-2 min-h-80 w-full rounded-xl border bg-background p-3 text-sm" disabled={sending || sendState.status === "success"} onChange={(event) => setBody(event.target.value)} value={body}/></label>
+        <section aria-label="Vista previa real del email" className="space-y-2">
+          <p className="text-sm font-medium">VISTA PREVIA DEL EMAIL</p>
+          <p className="text-xs text-muted">Esta es la misma salida HTML que se entrega al proveedor.</p>
+          <iframe
+            className="h-[680px] w-full rounded-2xl border bg-white"
+            sandbox=""
+            srcDoc={previewHtml}
+            title="Vista previa de confirmación de reserva"
+          />
+        </section>
         {confirmingResend ? <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-950"><p className="font-semibold">¿Enviar nuevamente la confirmación a {to}?</p><p className="mt-1 text-sm">Una confirmación explícita genera como máximo un email.</p><div className="mt-4 flex flex-col gap-2 sm:flex-row"><Button disabled={sending} onClick={() => deliver(true)} type="button">Sí, enviar nuevamente</Button><Button disabled={sending} onClick={() => setConfirmingResend(false)} type="button" variant="outline">Volver</Button></div></div> : null}
         <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs text-muted">{sendState.status === "success" ? sendState.message : to.trim() ? `Se enviará a ${to}${cc.trim() ? ` · CC: ${cc.split(/[\n,;]+/).map((value) => value.trim()).filter(Boolean).join(", ")}` : ""}.` : "No existe un email válido del cliente para enviar la confirmación. Ingresa o selecciona un destinatario."}</p><div className="flex gap-2"><Button disabled={sending} onClick={() => setOpen(false)} type="button" variant="outline">Cerrar</Button><Button disabled={sending || sendState.status === "success" || confirmingResend || !to.trim() || !subject.trim() || !body.trim()} onClick={requestDelivery} type="button">{sending ? <LoaderCircle className="size-4 animate-spin"/> : <Send className="size-4"/>}{sending ? "Enviando..." : sendState.status === "error" ? "Reintentar" : actionLabel}</Button></div></div>
       </div>

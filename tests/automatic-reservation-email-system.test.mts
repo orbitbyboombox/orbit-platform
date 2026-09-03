@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { renderReservationConfirmationHtml } from "../features/connectors/google-gmail/application/reservation-confirmation.html.ts";
+import {
+  renderReservationConfirmationDelivery,
+  renderReservationConfirmationHtml,
+} from "../features/connectors/google-gmail/application/reservation-confirmation.html.ts";
 import { buildReservationConfirmationTemplate } from "../features/connectors/google-gmail/application/reservation-confirmation.template.ts";
 import {
   founderPaymentStatusLabel,
@@ -188,4 +191,64 @@ test("customer and Founder automatic sends retain deterministic deduplication", 
 test("email hotfix contains no customer or Event-specific branching", () => {
   const changed = customerService + delivery;
   assert.doesNotMatch(changed, /Christiane|Tannen|2026-835|a85794c2|ORB-2027-487862/i);
+});
+
+test("browser CRLF edits retain Photo 2 structured rows, orange hierarchy and CTA", () => {
+  const template = buildReservationConfirmationTemplate(customerInput("Matrimonio"));
+  const browserBody = template.body.replaceAll("\n", "\r\n");
+  const { htmlBody } = renderReservationConfirmationDelivery({
+    body: browserBody,
+    website: "https://www.bbox.cl",
+    companyCommercial: false,
+    portalCtaAvailable: true,
+    portalUrl: "https://orbit.boom-box.cl/portal",
+  });
+  for (const label of ["Servicio", "Duración", "Extras", "Fecha", "Horario", "Lugar"])
+    assert.match(htmlBody, new RegExp(`<td[^>]*>${label}</td>`));
+  for (const section of ["SERVICIO CONTRATADO", "INFORMACIÓN DEL EVENTO", "VALOR DEL SERVICIO CONTRATADO"])
+    assert.match(htmlBody, new RegExp(`color:#e67800[^>]*>${section}</h2>`));
+  assert.doesNotMatch(htmlBody, /<p[^>]*>Servicio<br>/);
+  assert.equal((htmlBody.match(/ABRIR EVENTO EN ORBIT/g) ?? []).length, 1);
+  assert.match(htmlBody, /<td[^>]*background:#f78900[^>]*><a href="https:\/\/orbit\.boom-box\.cl\/portal"/);
+});
+
+test("canonical total is prominent and is not degraded to a loose labeled block", () => {
+  const html = renderReservationConfirmationHtml(
+    buildReservationConfirmationTemplate(customerInput("Evento social")).body,
+    "https://www.bbox.cl",
+    { companyCommercial: false, portalUrl: "https://orbit.boom-box.cl/portal" },
+  );
+  assert.match(html, /font-size:28px[^>]*>\$540\.000</);
+  assert.doesNotMatch(html, /<td[^>]*>Valor total<\/td>/);
+});
+
+test("unavailable portal never degrades the CTA marker into plain HTML text", () => {
+  const html = renderReservationConfirmationDelivery({
+    body: `${buildReservationConfirmationTemplate(customerInput("Cumpleaños")).body}\r\n\r\nABRIR EVENTO EN ORBIT`,
+    website: "https://www.bbox.cl",
+    companyCommercial: false,
+    portalCtaAvailable: false,
+    portalUrl: null,
+  }).htmlBody;
+  assert.doesNotMatch(html, /ABRIR EVENTO EN ORBIT/);
+});
+
+test("Founder preview and provider use the same canonical delivery renderer", () => {
+  const ui = source("features/projects/signing/agreement-signing-control.tsx");
+  assert.match(customerService, /const rendered = renderReservationConfirmationDelivery\(\{/);
+  assert.match(customerService, /htmlBody: rendered\.htmlBody/);
+  assert.match(ui, /const previewHtml = composer[\s\S]*renderReservationConfirmationDelivery\(\{/);
+  assert.match(ui, /srcDoc=\{previewHtml\}/);
+});
+
+test("automatic, manual, quote conversion and resend converge on one customer sender", () => {
+  const orchestrator = source("features/projects/operations/confirmed-reservation-orchestrator.service.ts");
+  const actions = source("features/projects/actions/customer.actions.ts");
+  const commercial = source("features/commercial-hub/actions.ts");
+  assert.match(delivery, /sendReservationConfirmation\(\{/);
+  assert.match(actions, /sendReservationConfirmation\(\{/);
+  assert.match(orchestrator, /deliverConfirmedReservationEmail/);
+  assert.match(commercial, /createCustomerProjectAction\(draft\)/);
+  assert.match(actions, /confirmPersistedReservation\(\{/);
+  assert.doesNotMatch(`${delivery}\n${actions}\n${orchestrator}\n${commercial}`, /renderReservationConfirmationHtml\(/);
 });

@@ -15,7 +15,7 @@ import {
   loadReservationCommercialDocument,
   reservationCommercialDocumentFilename,
 } from "@/features/commercial-hub/formal-quote-document";
-import { renderReservationConfirmationHtml } from "./reservation-confirmation.html";
+import { renderReservationConfirmationDelivery } from "./reservation-confirmation.html";
 
 export type ReservationConfirmationStatus = "NEVER_SENT" | "SENT" | "FAILED";
 
@@ -58,6 +58,8 @@ export type ReservationConfirmationComposer = {
   quotationNumber: string | null;
   attachmentFilename: string | null;
   portalCtaAvailable: boolean;
+  portalUrl: string | null;
+  website: string;
   history: ReservationConfirmationHistoryItem[];
 };
 
@@ -94,7 +96,7 @@ export async function loadReservationConfirmationComposer(
   projectId: string,
 ): Promise<ReservationConfirmationComposer> {
   const admin = createAdminClient();
-  const [{ data: project, error: projectError }, { data: rows, error: historyError }] =
+  const [{ data: project, error: projectError }, { data: rows, error: historyError }, company] =
     await Promise.all([
       admin
         .from("projects")
@@ -112,6 +114,7 @@ export async function loadReservationConfirmationComposer(
         .eq("project_id", projectId)
         .eq("communication_type", "RESERVATION_CONFIRMATION")
         .order("occurred_at", { ascending: false }),
+      loadCompanySettings(admin),
     ]);
   if (projectError) throw projectError;
   if (historyError) throw historyError;
@@ -214,6 +217,9 @@ export async function loadReservationConfirmationComposer(
           )
         : null,
     portalCtaAvailable: (project.customer_portal_tokens ?? []).length > 0,
+    portalUrl:
+      (project.customer_portal_tokens ?? []).length > 0 ? portalLoginUrl() : null,
+    website: company.website,
     history: history.map((item) => ({
       id: item.id,
       status: item.status,
@@ -263,8 +269,14 @@ export async function sendReservationConfirmation(
   const subject = String(input.subject ?? composer.subject).trim().slice(0, 240);
   const body = String(input.body ?? composer.body).trim().slice(0, 20_000);
   if (!subject || !body) throw new Error("Asunto y mensaje son obligatorios.");
-  const portalCtaRequested =
-    composer.portalCtaAvailable && body.includes("ABRIR EVENTO EN ORBIT");
+  const rendered = renderReservationConfirmationDelivery({
+    body,
+    website: composer.website,
+    companyCommercial: composer.companyCommercial,
+    portalCtaAvailable: composer.portalCtaAvailable,
+    portalUrl: composer.portalUrl,
+  });
+  const portalCtaRequested = Boolean(rendered.portalUrl);
   const requestKey = `reservation-confirmation:${input.projectId}:${requestId}`;
   const { data: existing, error: existingError } = await admin
     .from("communications")
@@ -341,9 +353,8 @@ export async function sendReservationConfirmation(
     throw insertError;
   }
   try {
-    const company = await loadCompanySettings(admin);
     const sender = input.sender ?? new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken());
-    const portalUrl = portalCtaRequested ? portalLoginUrl() : undefined;
+    const portalUrl = rendered.portalUrl;
     const document = composer.companyCommercial && composer.quotationId && composer.quotationNumber
       ? await loadReservationCommercialDocument(admin, {
           projectId: input.projectId,
@@ -362,10 +373,7 @@ export async function sendReservationConfirmation(
       idempotencyKey: requestKey,
       subject,
       textBody,
-      htmlBody: renderReservationConfirmationHtml(body, company.website, {
-        companyCommercial: composer.companyCommercial,
-        portalUrl,
-      }),
+      htmlBody: rendered.htmlBody,
       driveFileIds: [],
       attachments: document
         ? [
