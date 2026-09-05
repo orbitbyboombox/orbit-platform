@@ -17,7 +17,7 @@ test("14 finalized snapshot is immutable",()=>{assert.match(sql,/finalized_snaps
 test("15 Staff Portal receives canonical monthly accounts",()=>assert.match(portal,/mapStaffMonthlyAccount/));
 test("16 Staff can upload boleta",()=>assert.match(panel,/Subir boleta SII/));
 test("17 documents require protected authenticated access",()=>{assert.match(boletaRoute,/No autorizado/);assert.match(boletaRoute,/createAdminClient/);assert.doesNotMatch(boletaRoute,/getPublicUrl/)});
-test("18 upload success waits for RPC",()=>assert.ok(actions.indexOf("submit_staff_monthly_boleta")<actions.indexOf("Boleta enviada para revisión")));
+test("18 upload success waits for RPC",()=>assert.ok(actions.indexOf("submit_staff_monthly_boleta")<actions.indexOf("Boleta recibida")));
 test("19 Founder can review boleta",()=>assert.match(panel,/Ver boleta/));
 test("20 rejection requires a reason server-side",()=>assert.match(sql,/Motivo de rechazo obligatorio/));
 test("21 rejected boleta can be replaced",()=>{assert.match(sql,/account\.boleta_status<>'REJECTED'/);assert.match(sql,/status='REPLACED'/)});
