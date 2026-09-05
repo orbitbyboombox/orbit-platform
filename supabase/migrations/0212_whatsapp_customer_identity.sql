@@ -61,3 +61,4 @@ end;
 $$;
 
 revoke all on function public.resolve_whatsapp_customer(text,text) from public, anon, authenticated;
+grant execute on function public.resolve_whatsapp_customer(text,text) to service_role;
