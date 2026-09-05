@@ -73,6 +73,8 @@ export interface CommunicationHubResult {
   conversation: UnifiedConversation;
   events: readonly UnifiedCommunicationEvent[];
   dispatch: ChannelDispatchRequest;
+  suppressed?: boolean;
+  suppressionReason?: "HUMAN_HANDOFF";
 }
 
 export interface CommunicationHubIndicators {
