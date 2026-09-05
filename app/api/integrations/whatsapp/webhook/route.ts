@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
@@ -5,6 +6,7 @@ import {
   verifyMetaChallenge,
   verifyMetaWebhookSignature,
 } from "@/features/connectors/whatsapp-cloud/meta-whatsapp-cloud";
+import { processWhatsAppWebhookEvent } from "@/features/connectors/whatsapp-cloud/whatsapp-orbit.processor";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,7 +43,7 @@ export async function POST(request: Request) {
   if (!messages.length) return NextResponse.json({ ok: true, received: 0 });
 
   const client = createAdminClient();
-  let accepted = 0;
+  const acceptedIds: string[] = [];
   for (const message of messages) {
     const { error } = await client.from("whatsapp_webhook_events").upsert(
       {
@@ -65,8 +67,14 @@ export async function POST(request: Request) {
       });
       return NextResponse.json({ ok: false, error: "persist_failed" }, { status: 500 });
     }
-    accepted += 1;
+    if (message.type === "text") acceptedIds.push(message.providerMessageId);
   }
 
-  return NextResponse.json({ ok: true, received: accepted });
+  after(async () => {
+    for (const providerMessageId of acceptedIds) {
+      await processWhatsAppWebhookEvent(providerMessageId);
+    }
+  });
+
+  return NextResponse.json({ ok: true, received: messages.length });
 }
