@@ -9,12 +9,17 @@ import type { WhatsAppAiDecision } from "./whatsapp-ai.responder";
 
 export type WhatsAppCatalogDeliveryResult =
   | { status: "NOT_REQUESTED" }
+  | { status: "DISABLED" }
   | { status: "MISSING_EMAIL" }
   | { status: "ALREADY_SENT"; email: string; category: CommercialCatalogCategory }
   | { status: "SENT"; email: string; category: CommercialCatalogCategory }
   | { status: "FAILED"; error: string };
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+
+export function whatsappCommercialActionsEnabled() {
+  return process.env.WHATSAPP_COMMERCIAL_ACTIONS_ENABLED?.trim().toLowerCase() === "true";
+}
 
 function deterministicUuid(value: string) {
   const hex = createHash("sha256").update(value).digest("hex").slice(0, 32).split("");
@@ -58,6 +63,7 @@ export async function deliverCanonicalCatalogFromWhatsApp(input: {
 }): Promise<WhatsAppCatalogDeliveryResult> {
   if (input.decision.requestedAction !== "CATALOG_LOOKUP" || input.decision.catalogCategory === "NONE")
     return { status: "NOT_REQUESTED" };
+  if (!whatsappCommercialActionsEnabled()) return { status: "DISABLED" };
 
   const quickCategory = quickSendCategory(input.decision);
   if (!quickCategory) return { status: "FAILED", error: "No se pudo clasificar el catálogo comercial." };
