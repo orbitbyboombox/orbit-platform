@@ -1,4 +1,5 @@
-import { NovaChannelEngine, releaseHumanHandoff, requestHumanHandoff, type NovaConversationState } from "@/features/nova-channel";
+import { releaseHumanHandoff, requestHumanHandoff, type NovaConversationState } from "@/features/nova-channel";
+import type { NovaResponder } from "@/features/nova-channel/engine/nova-responder";
 import { normalizeChannelCommunication, toNovaChannel } from "../application/channel-normalizer";
 import type { CommunicationChannelDispatcher } from "../application/channel-dispatcher";
 import type { CommunicationTimelineRepository } from "../timeline/unified-communication.timeline";
@@ -6,7 +7,7 @@ import { newestFirst } from "../timeline/unified-communication.timeline";
 import type { ChannelCommunicationEnvelope, CommunicationHubContext, CommunicationHubResult, UnifiedCommunicationEvent, UnifiedConversation } from "../types/communication-hub.types";
 
 export class CommunicationHubEngine {
-  constructor(private readonly nova: NovaChannelEngine, private readonly timeline: CommunicationTimelineRepository, private readonly dispatcher: CommunicationChannelDispatcher) {}
+  constructor(private readonly nova: NovaResponder, private readonly timeline: CommunicationTimelineRepository, private readonly dispatcher: CommunicationChannelDispatcher) {}
 
   async receive(envelope: ChannelCommunicationEnvelope, context: CommunicationHubContext, current?: UnifiedConversation): Promise<CommunicationHubResult> {
     const communication = normalizeChannelCommunication(envelope);
@@ -63,7 +64,7 @@ export class CommunicationHubEngine {
       };
     }
 
-    const nova = this.nova.respond({ message: { id: communication.id, channel: toNovaChannel(communication.channel), conversationId: communication.conversationId, customerId: communication.customerId, senderExternalId: communication.participantId, text: communication.content, receivedAt: communication.occurredAt, confirmedInformation: communication.confirmedInformation }, memory: context.memory, conversation: novaState, operationsRecommendation: context.operationsRecommendation, profitRecommendation: context.profitRecommendation });
+    const nova = await this.nova.respond({ message: { id: communication.id, channel: toNovaChannel(communication.channel), conversationId: communication.conversationId, customerId: communication.customerId, senderExternalId: communication.participantId, text: communication.content, receivedAt: communication.occurredAt, confirmedInformation: communication.confirmedInformation }, memory: context.memory, conversation: novaState, operationsRecommendation: context.operationsRecommendation, profitRecommendation: context.profitRecommendation });
     const responseEvent: UnifiedCommunicationEvent = { id: `${communication.id}-nova-response`, conversationId: communication.conversationId, customerId: communication.customerId, channel: communication.channel, direction: "OUTBOUND", type: "NOVA_RESPONSE", occurredAt: communication.occurredAt, summary: nova.response };
     await this.timeline.append(responseEvent);
 
