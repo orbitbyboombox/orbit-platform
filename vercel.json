@@ -1,4 +1,5 @@
 {
+  "buildCommand": "pnpm test && pnpm build",
   "crons": [
     {
       "path": "/api/cron/staff-assignment-reminders",
