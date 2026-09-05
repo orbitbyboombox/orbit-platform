@@ -66,6 +66,7 @@ export function StaffPaymentsCenter({
   months: StaffPaymentMonth[];
 }) {
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [openStaffId,setOpenStaffId]=useState<string|null>(null);
   const [query, setQuery] = useState("");
   const [closeState,setCloseState]=useState<{status?:string;dueDate?:string;eligible?:number;ineligible?:number;totals?:{people?:number;total?:number;paid?:number;pending?:number;receiptsPending?:number}}|null>(null),[closeMessage,setCloseMessage]=useState(""),[reopenReason,setReopenReason]=useState(""),[closing,startClosing]=useTransition();
   useEffect(()=>{let active=true;startClosing(async()=>{const result=await previewStaffMonthCloseAction(month);if(active){if(result.ok)setCloseState(result.data);else setCloseMessage(result.error??"No fue posible cargar el cierre mensual.")}});return()=>{active=false}},[month]);
@@ -158,8 +159,9 @@ export function StaffPaymentsCenter({
       <PaymentSheet month={month} rows={rows}/>
       <div className="grid gap-4 xl:grid-cols-2">
         {rows.map((row) => (
-          <details
+          <details open={openStaffId===row.member.id}
             className="rounded-2xl border p-4 sm:p-5"
+            onToggle={(event)=>{if(event.currentTarget.open)setOpenStaffId(row.member.id);else if(openStaffId===row.member.id)setOpenStaffId(null)}}
             key={row.member.id}
           >
             <summary className="cursor-pointer list-none">
@@ -223,7 +225,7 @@ export function StaffPaymentsCenter({
               </p>
             </summary>
             <div className="mt-4 space-y-3">
-              {row.account&&<StaffMonthlyAccountPanel account={row.account} mode="FOUNDER"/>}
+              {row.account&&<StaffMonthlyAccountPanel account={row.account} mode="FOUNDER" onBack={()=>setOpenStaffId(null)}/>}
               {row.eventRows.map((item) => (
                 <EventRow item={item} key={item.id} />
               ))}
