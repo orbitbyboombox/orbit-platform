@@ -59,6 +59,7 @@ import {
   EventOperationsChecklist,
   type EventOperationsChecklistData,
 } from "@/features/event-operations-checklist";
+import { EventCompletionAction } from "@/features/event-operations-checklist/event-completion-action";
 import {
   transitionReservationLifecycleAction,
   type ReservationLifecycleAction,
@@ -982,6 +983,7 @@ export function ProjectWorkspaceExperience(
           )}
           {moduleVisible("CHECKLIST") && (
             <OptionalModule moduleKey="CHECKLIST" onHide={hideModule}>
+              <EventCompletionAction projectId={props.projectKey ?? ""} status={String(event.status ?? "")} />
               <EventOperationsChecklist
                 data={event.checklist}
                 projectId={props.projectKey ?? ""}

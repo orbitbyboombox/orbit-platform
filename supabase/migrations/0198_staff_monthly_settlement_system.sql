@@ -90,6 +90,7 @@ returns jsonb language sql stable security definer set search_path=public as $$
   where payment.staff_id=p_staff_id and payment.status='CONFIRMED' and payment.deleted_at is null
     and project.event_date>=date_trunc('month',p_month)::date and project.event_date<(date_trunc('month',p_month)+interval '1 month')::date
     and project.deleted_at is null and upper(coalesce(project.status,'')) not in('CANCELLED','CANCELED','ARCHIVED','DELETED','QA')
+    and upper(coalesce(project.status,'')) not in('COMPLETED','COMPLETADO')
     and not exists(select 1 from public.event_operational_closures closure where closure.project_id=project.id and closure.status='CLOSED')
     and not exists(select 1 from public.staff_monthly_close_eligibility_overrides override_record where override_record.settlement_id=payment.id)
 $$;
@@ -125,7 +126,7 @@ begin
   where financial.staff_id=p_staff_id and project.event_date between month_start and month_end
     and project.deleted_at is null and upper(coalesce(project.status,'')) not in('CANCELLED','CANCELED','ARCHIVED','DELETED','QA')
     and settlement.deleted_at is null and settlement.status='CONFIRMED'
-    and (exists(select 1 from public.event_operational_closures closure where closure.project_id=project.id and closure.status='CLOSED')
+    and (upper(coalesce(project.status,'')) in('COMPLETED','COMPLETADO') or exists(select 1 from public.event_operational_closures closure where closure.project_id=project.id and closure.status='CLOSED')
       or exists(select 1 from public.staff_monthly_close_eligibility_overrides override_record where override_record.settlement_id=settlement.id));
 
   select coalesce(sum(case when movement.movement_type='ADVANCE' then movement.amount when movement.movement_type='REVERSAL' then -movement.amount else 0 end),0)
@@ -136,7 +137,7 @@ begin
   where settlement.staff_id=p_staff_id and project.event_date between month_start and month_end
     and movement.deleted_at is null and settlement.deleted_at is null and settlement.status='CONFIRMED'
     and project.deleted_at is null and upper(coalesce(project.status,'')) not in('CANCELLED','CANCELED','ARCHIVED','DELETED','QA')
-    and (exists(select 1 from public.event_operational_closures closure where closure.project_id=project.id and closure.status='CLOSED')
+    and (upper(coalesce(project.status,'')) in('COMPLETED','COMPLETADO') or exists(select 1 from public.event_operational_closures closure where closure.project_id=project.id and closure.status='CLOSED')
       or exists(select 1 from public.staff_monthly_close_eligibility_overrides override_record where override_record.settlement_id=settlement.id));
   advances:=greatest(advances,0);
 
@@ -153,6 +154,7 @@ begin
   select count(*) into ineligible_count from public.event_staff_payments payment join public.projects project on project.id=payment.project_id
   where payment.staff_id=p_staff_id and payment.deleted_at is null and payment.status='CONFIRMED' and payment.total_internal_payment>0
     and project.event_date between month_start and month_end and project.deleted_at is null
+    and upper(coalesce(project.status,'')) not in('COMPLETED','COMPLETADO')
     and not exists(select 1 from public.event_operational_closures closure where closure.project_id=project.id and closure.status='CLOSED')
     and not exists(select 1 from public.staff_monthly_close_eligibility_overrides override_record where override_record.settlement_id=payment.id);
 

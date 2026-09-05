@@ -52,3 +52,5 @@ test("49 refresh re-runs canonical projection",()=>assert.match(actions,/revalid
 test("50 open Events are never auto-closed",()=>assert.doesNotMatch(sql,/update public\.projects[\s\S]*CLOSED/));
 test("51 settlement calculations remain canonical",()=>assert.match(sql,/calculate_staff_monthly_settlement/));
 test("52 boleta and payment gates remain unchanged",()=>{assert.match(sql,/boleta_status<>'APPROVED'/);assert.match(sql,/settlement_status<>'FINALIZED'/)});
+test("53 Completed is sufficient for staff eligibility",()=>{assert.match(sql,/upper\(coalesce\(project\.status,''\)\) in\('COMPLETED','COMPLETADO'\)/);assert.match(sql,/event_operational_closures/)})
+test("54 explicit completion action is global and non-financial",()=>{const source=readFileSync("supabase/migrations/0201_staff_completion_eligibility.sql","utf8"),action=readFileSync("features/event-operations-checklist/actions.ts","utf8"),ui=readFileSync("features/event-operations-checklist/event-completion-action.tsx","utf8");assert.match(source,/mark_event_completed/);assert.match(source,/status='Completed'/);assert.match(action,/mark_event_completed/);assert.match(ui,/window\.confirm/)})
