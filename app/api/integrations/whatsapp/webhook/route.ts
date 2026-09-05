@@ -74,7 +74,10 @@ export async function POST(request: Request) {
   after(async () => {
     for (const providerMessageId of acceptedIds) {
       const processed = await processWhatsAppWebhookEvent(providerMessageId);
-      if (processed.ok && !processed.skipped && !("unsupported" in processed) && !processed.suppressed)
+      const skipped = "skipped" in processed && processed.skipped;
+      const unsupported = "unsupported" in processed && processed.unsupported;
+      const suppressed = "suppressed" in processed && processed.suppressed;
+      if (processed.ok && !skipped && !unsupported && !suppressed)
         await deliverWhatsAppOutboxMessage(providerMessageId);
     }
   });
