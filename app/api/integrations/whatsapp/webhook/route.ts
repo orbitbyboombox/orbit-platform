@@ -7,6 +7,7 @@ import {
   verifyMetaWebhookSignature,
 } from "@/features/connectors/whatsapp-cloud/meta-whatsapp-cloud";
 import { processWhatsAppWebhookEvent } from "@/features/connectors/whatsapp-cloud/whatsapp-orbit.processor";
+import { deliverWhatsAppOutboxMessage } from "@/features/connectors/whatsapp-cloud/whatsapp-outbox.sender";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -72,7 +73,9 @@ export async function POST(request: Request) {
 
   after(async () => {
     for (const providerMessageId of acceptedIds) {
-      await processWhatsAppWebhookEvent(providerMessageId);
+      const processed = await processWhatsAppWebhookEvent(providerMessageId);
+      if (processed.ok && !processed.skipped && !("unsupported" in processed) && !processed.suppressed)
+        await deliverWhatsAppOutboxMessage(providerMessageId);
     }
   });
 
