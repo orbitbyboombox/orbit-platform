@@ -32,11 +32,29 @@ interface MetaWebhookPayload {
   }>;
 }
 
+interface MetaSendResponse {
+  messages?: Array<{ id?: string }>;
+}
+
 const env = (name: string) => {
   const value = process.env[name]?.trim();
   if (!value) throw new Error(`Missing ${name}.`);
   return value;
 };
+
+export class MetaWhatsAppRejectedError extends Error {
+  constructor(
+    public readonly status: number,
+    detail: string,
+  ) {
+    super(`WhatsApp send rejected (${status}): ${detail.slice(0, 500)}`);
+    this.name = "MetaWhatsAppRejectedError";
+  }
+}
+
+export function whatsappDeliveryEnabled() {
+  return process.env.WHATSAPP_DELIVERY_ENABLED?.trim().toLowerCase() === "true";
+}
 
 export function verifyMetaWebhookSignature(rawBody: string, signatureHeader: string | null) {
   const appSecret = env("WHATSAPP_APP_SECRET");
@@ -88,36 +106,38 @@ export function parseMetaWhatsAppMessages(payload: unknown): MetaWhatsAppInbound
   return messages;
 }
 
+export async function sendMetaWhatsAppText(to: string, content: string) {
+  if (!whatsappDeliveryEnabled()) throw new Error("WhatsApp delivery is disabled.");
+  const graphVersion = env("WHATSAPP_GRAPH_VERSION");
+  const phoneNumberId = env("WHATSAPP_PHONE_NUMBER_ID");
+  const accessToken = env("WHATSAPP_ACCESS_TOKEN");
+  const response = await fetch(
+    `https://graph.facebook.com/${graphVersion}/${phoneNumberId}/messages`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to,
+        type: "text",
+        text: { preview_url: false, body: content },
+      }),
+    },
+  );
+  if (!response.ok) throw new MetaWhatsAppRejectedError(response.status, await response.text());
+  const payload = await response.json() as MetaSendResponse;
+  return { providerMessageId: payload.messages?.[0]?.id ?? null };
+}
+
 export class MetaWhatsAppCloudDispatcher implements CommunicationChannelDispatcher {
   async dispatch(request: ChannelDispatchRequest): Promise<void> {
     if (request.channel !== "WHATSAPP_BUSINESS")
       throw new Error(`MetaWhatsAppCloudDispatcher cannot dispatch ${request.channel}.`);
     if (!request.content.trim()) return;
-
-    const graphVersion = env("WHATSAPP_GRAPH_VERSION");
-    const phoneNumberId = env("WHATSAPP_PHONE_NUMBER_ID");
-    const accessToken = env("WHATSAPP_ACCESS_TOKEN");
-    const response = await fetch(
-      `https://graph.facebook.com/${graphVersion}/${phoneNumberId}/messages`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          recipient_type: "individual",
-          to: request.participantId,
-          type: "text",
-          text: { preview_url: false, body: request.content },
-        }),
-      },
-    );
-
-    if (!response.ok) {
-      const detail = await response.text();
-      throw new Error(`WhatsApp send failed (${response.status}): ${detail.slice(0, 500)}`);
-    }
+    await sendMetaWhatsAppText(request.participantId, request.content);
   }
 }
