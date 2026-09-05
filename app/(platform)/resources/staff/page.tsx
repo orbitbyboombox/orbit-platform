@@ -28,8 +28,8 @@ import type {
 } from "@/features/staff-documents/staff-document-model";
 import {mapStaffMonthlyAccount,STAFF_MONTHLY_ACCOUNT_SELECT} from "@/features/staff-monthly-account/model";
 
-export default async function StaffManagementPage({searchParams}:{searchParams:Promise<{reviewOnboarding?:string}>}) {
-  const {reviewOnboarding}=await searchParams;
+export default async function StaffManagementPage({searchParams}:{searchParams:Promise<{reviewOnboarding?:string;reviewAccount?:string}>}) {
+  const {reviewOnboarding,reviewAccount}=await searchParams;
   const client = await createSupabaseServerClient();
   const [
     { data: staff, error: staffError },
@@ -609,6 +609,7 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
           staff={paymentStaff}
           events={paymentEvents}
           months={monthlyRecords}
+          initialReviewAccountId={reviewAccount}
         />
       }
       academy={

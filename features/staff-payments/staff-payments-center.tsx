@@ -63,15 +63,18 @@ export function StaffPaymentsCenter({
   staff,
   events,
   months,
+  initialReviewAccountId,
 }: {
   staff: StaffPaymentMember[];
   events: StaffPaymentEvent[];
   months: StaffPaymentMonth[];
+  initialReviewAccountId?: string;
 }) {
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const [openStaffId,setOpenStaffId]=useState<string|null>(null);
   const [query, setQuery] = useState("");
   const [closeState,setCloseState]=useState<{status?:string;dueDate?:string;eligible?:number;ineligible?:number;totals?:{people?:number;total?:number;paid?:number;pending?:number;receiptsPending?:number}}|null>(null),[closeMessage,setCloseMessage]=useState(""),[reopenReason,setReopenReason]=useState(""),[closing,startClosing]=useTransition();
+  useEffect(()=>{if(!initialReviewAccountId)return;const target=months.find(item=>item.account?.id===initialReviewAccountId);if(target){setMonth(target.month.slice(0,7));setOpenStaffId(target.staffId)}},[initialReviewAccountId,months]);
   useEffect(()=>{let active=true;startClosing(async()=>{const result=await previewStaffMonthCloseAction(month);if(active){if(result.ok)setCloseState(result.data);else setCloseMessage(result.error??"No fue posible cargar el cierre mensual.")}});return()=>{active=false}},[month]);
   const rows = useMemo(
     () =>

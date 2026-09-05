@@ -30,7 +30,7 @@ export type FounderActionCenter = {
 
 const priority = (type: string, value: string): FounderActionPriority => {
   if (value === "CRITICAL") return "P0";
-  if (["STAFF_ONBOARDING_REVIEW_REQUIRED", "STAFF_EXPENSE_REVIEW_REQUIRED"].includes(type)) return "P1";
+  if (["STAFF_ONBOARDING_REVIEW_REQUIRED", "STAFF_EXPENSE_REVIEW_REQUIRED", "STAFF_BOLETA_REVIEW_REQUIRED"].includes(type)) return "P1";
   return value === "HIGH" ? "P2" : "P3";
 };
 
@@ -39,11 +39,14 @@ const cta = (type: string) =>
     ? "REVISAR OPERADOR"
     : type === "STAFF_EXPENSE_REVIEW_REQUIRED"
       ? "REVISAR GASTO"
+      : type === "STAFF_BOLETA_REVIEW_REQUIRED"
+        ? "REVISAR BOLETA"
       : "REVISAR";
 
 const canonicalFounderActionTypeList = [
   "STAFF_ONBOARDING_REVIEW_REQUIRED",
   "STAFF_EXPENSE_REVIEW_REQUIRED",
+  "STAFF_BOLETA_REVIEW_REQUIRED",
   "HEALTH_WARNING",
   "EVENT_NOT_READY",
 ] as const;
