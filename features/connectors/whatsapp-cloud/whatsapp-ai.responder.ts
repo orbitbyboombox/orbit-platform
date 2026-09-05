@@ -57,11 +57,12 @@ const aiDecisionSchema = z.object({
   requestedAction: z.enum([
     "NONE",
     "COMMERCIAL_LOOKUP",
-    "PREPARE_QUOTE",
+    "CATALOG_LOOKUP",
     "MANUAL_REVIEW",
     "WAIT_FOR_CUSTOMER",
     "HUMAN_HANDOFF",
   ]),
+  catalogCategory: z.enum(["NONE", "WEDDINGS", "EVENTS", "COMPANIES"]),
   fields: z.array(z.object({
     field: z.enum(FIELD_NAMES),
     value: z.union([z.string(), z.number(), z.array(z.string())]),
@@ -98,9 +99,13 @@ REGLAS DE CONVERSACIÓN:
 CONTROL COMERCIAL ABSOLUTO:
 - Jamás inventes, calcules, estimes, extrapoles o sugieras precios, descuentos, traslados, impuestos, promociones, disponibilidad, vigencia ni condiciones comerciales.
 - Jamás sumes planes o inventes una tarifa para una duración no configurada.
-- No confirmes una fecha como disponible, una reserva, un pago o el envío de una cotización sin que el sistema lo haya confirmado explícitamente en el contexto.
-- Si el cliente pregunta precio, disponibilidad, descuento, reserva o cotización, clasifica la intención y solicita COMMERCIAL_LOOKUP / PREPARE_QUOTE / MANUAL_REVIEW según corresponda. El texto al cliente debe ser natural y no debe contener montos inventados.
-- Una solicitud especial (varios días, horarios fuera de estándar, combinaciones especiales, BTL, múltiples ubicaciones, branding especial, negociación/descuento o requisitos no estándar) requiere MANUAL_REVIEW.
+- No confirmes una fecha como disponible, una reserva, un pago, un catálogo enviado o una cotización enviada sin confirmación explícita del sistema.
+- Si el cliente pregunta precio o disponibilidad, usa COMMERCIAL_LOOKUP. La autoridad comercial será ORBIT.
+- Flujo estándar Matrimonios: el documento comercial corresponde al catálogo oficial Novios/Matrimonios activo; usa CATALOG_LOOKUP + WEDDINGS.
+- Flujo estándar Cumpleaños, graduaciones y eventos normales: corresponde el catálogo oficial Eventos activo; usa CATALOG_LOOKUP + EVENTS.
+- Flujo estándar Empresa sin requisitos especiales: corresponde el catálogo oficial Empresas activo; usa CATALOG_LOOKUP + COMPANIES.
+- Empresa personalizada o cualquier solicitud especial NO debe resolverse combinando tarifas ni generando un catálogo diferente: usa MANUAL_REVIEW.
+- Solicitud especial incluye varios días, jornada u horario fuera de estándar, combinación especial de servicios, BTL/activación, múltiples montajes o ubicaciones, branding/requerimiento técnico especial, cantidades fuera de catálogo, negociación/descuento o cualquier configuración no exacta.
 
 CAPTURA DE DATOS:
 - Extrae solo lo dicho o inferible con seguridad.
@@ -122,18 +127,18 @@ OBJETIVO: que el cliente piense “me atendieron rápido y entendieron exactamen
 `;
 
 const MONEY_OR_AVAILABILITY_CLAIM = /(?:\$\s?\d|\b(?:CLP|USD|UF)\b|\b\d[\d.]*\s?(?:pesos|d[oó]lares)\b|\b(?:tenemos|hay|queda|est[aá])\s+disponibilidad\b|\bfecha\s+(?:est[aá]\s+)?disponible\b|\bdescuento\s+(?:de\s+)?\d)/i;
+const FORCED_MANUAL_REVIEW = /\b(?:dos|2|tres|3|varios|m[uú]ltiples?)\s+d[ií]as\b|\bBTL\b|\bactivaci[oó]n\b|\b(?:dos|2|varios|m[uú]ltiples?)\s+(?:lugares|ubicaciones|montajes)\b|\bdescuento\b|\bnegoci(?:ar|aci[oó]n)\b|\bbranding\s+especial\b/i;
 
 function safeCommercialFallback(input: NovaChannelInput, decision: WhatsAppAiDecision) {
   if (decision.intents.includes("DISPONIBILIDAD"))
     return "Sí, lo reviso. ¿Me confirmas la fecha del evento?";
   if (decision.intents.includes("CONSULTA_PRECIO") || decision.intents.includes("QUIERE_COTIZAR"))
-    return "Sí, te ayudo con la cotización. Cuéntame la fecha, comuna y el servicio que te interesa para revisar lo que corresponde.";
+    return "Sí, te ayudo. Cuéntame la fecha, comuna y el servicio que te interesa para revisar lo que corresponde.";
   return "Perfecto, ya tomé los datos que me enviaste. Te ayudo con el siguiente paso.";
 }
 
 function actionFromDecision(decision: WhatsAppAiDecision): NovaNextAction {
   if (decision.requestedAction === "HUMAN_HANDOFF") return "WAIT_FOR_HUMAN";
-  if (decision.requestedAction === "PREPARE_QUOTE") return "GENERATE_QUOTATION";
   return "NONE";
 }
 
@@ -175,19 +180,22 @@ export class WhatsAppAiResponder implements NovaResponder {
           },
         },
       });
-      this.lastDecisionValue = object;
-      const response = MONEY_OR_AVAILABILITY_CLAIM.test(object.responseText)
-        ? safeCommercialFallback(input, object)
-        : object.responseText.trim();
+      const decision: WhatsAppAiDecision = FORCED_MANUAL_REVIEW.test(input.message.text)
+        ? { ...object, requestedAction: "MANUAL_REVIEW", catalogCategory: "NONE", intents: [...new Set([...object.intents, "COTIZACION_ESPECIAL" as const])] }
+        : object;
+      this.lastDecisionValue = decision;
+      const response = MONEY_OR_AVAILABILITY_CLAIM.test(decision.responseText)
+        ? safeCommercialFallback(input, decision)
+        : decision.responseText.trim();
       return {
         response,
-        nextRecommendedAction: actionFromDecision(object),
-        conversationStatus: statusFromDecision(object),
+        nextRecommendedAction: actionFromDecision(decision),
+        conversationStatus: statusFromDecision(decision),
         timelineEvent: {
           id: `${input.message.id}-ai-response`,
           conversationId: input.message.conversationId,
           customerId: input.message.customerId,
-          type: object.requestedAction === "PREPARE_QUOTE" ? "QUOTATION_REQUESTED" : object.requestedAction === "HUMAN_HANDOFF" ? "HUMAN_HANDOFF_REQUESTED" : "INFORMATION_REQUESTED",
+          type: decision.requestedAction === "HUMAN_HANDOFF" ? "HUMAN_HANDOFF_REQUESTED" : "INFORMATION_REQUESTED",
           occurredAt: input.message.receivedAt,
           description: response,
         },
