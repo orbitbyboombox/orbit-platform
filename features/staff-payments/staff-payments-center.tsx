@@ -5,6 +5,8 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { closeStaffMonthAction, previewStaffMonthCloseAction, reopenStaffMonthAction } from "./actions";
 import {StaffMonthlyAccountPanel}from"@/features/staff-monthly-account/staff-monthly-account-panel";
+import {generateMonthlyStaffAccountsAction}from"@/features/staff-monthly-account/actions";
+import type{StaffMonthlyAccount}from"@/features/staff-monthly-account/model";
 
 export type StaffPaymentEvent = {
   id: string;
@@ -79,7 +81,7 @@ export function StaffPaymentsCenter({
           const eventRows = events.filter(
             (item) =>
               item.staffId === member.id &&
-              item.accountingMonth.startsWith(month),
+              item.eventDate.startsWith(month),
           );
           const original = eventRows.reduce(
               (sum, item) => sum + item.originalNet,
@@ -95,9 +97,7 @@ export function StaffPaymentsCenter({
             ),
             payrollNet = original + adjustments,
             finalAmount = payrollNet + reimbursements,
-            paid = eventRows.reduce((sum, item) => sum + item.paidAmount, 0),
-            companyCost =
-              Math.round(payrollNet / (1 - 0.1525)) + reimbursements;
+            paid = eventRows.reduce((sum, item) => sum + item.paidAmount, 0);
           return {
             member,
             eventRows,
@@ -105,7 +105,6 @@ export function StaffPaymentsCenter({
             adjustments,
             reimbursements,
             finalAmount,
-            companyCost,
             paid,
             outstanding: eventRows.reduce(
               (sum, item) =>
@@ -114,7 +113,8 @@ export function StaffPaymentsCenter({
             ),
             account: months.find(item=>item.staffId===member.id&&item.month.startsWith(month))?.account,
           };
-        }),
+        })
+        .filter((row)=>row.eventRows.length>0||Boolean(row.account)),
     [events, month, months, query, staff],
   );
   return (
@@ -125,11 +125,10 @@ export function StaffPaymentsCenter({
             Staff · Registro mensual
           </p>
           <h2 className="mt-2 text-2xl font-semibold">
-            Liquidaciones por mes contable
+            Liquidación mensual Staff
           </h2>
           <p className="mt-2 text-sm text-muted">
-            La nómina usa el mes contable del pago. La fecha del Evento se
-            muestra solo como referencia histórica.
+            Trabajo, boleta SII, adelantos y saldo final desde una sola fuente canónica.
           </p>
         </div>
         <div className="grid gap-2 sm:grid-cols-2">
@@ -155,7 +154,8 @@ export function StaffPaymentsCenter({
           </label>
         </div>
       </header>
-      <section className="rounded-2xl border border-brand/25 bg-brand/5 p-4 sm:p-5"><div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Cierre mensual Staff</p><h3 className="mt-1 text-lg font-semibold">{month} · {closeState?.status??"OPEN"}</h3><p className="mt-1 text-sm text-muted">Vencimiento día 25 · {closeState?.dueDate??`${month}-25`}</p></div><div className="flex flex-wrap gap-2"><Button disabled={closing||closeState?.status==='CLOSED'||closeState?.status==='PAID'} onClick={()=>startClosing(async()=>{const r=await closeStaffMonthAction(month);if(r.ok){setCloseState(r.data);setCloseMessage("Mes cerrado y universo congelado.")}else setCloseMessage(r.error??"No fue posible cerrar el mes.")})}>Cerrar mes</Button><input className="min-h-11 rounded-xl border bg-background px-3" onChange={e=>setReopenReason(e.target.value)} placeholder="Motivo para reabrir" value={reopenReason}/><Button disabled={closing||closeState?.status!=='CLOSED'||reopenReason.trim().length<3} onClick={()=>startClosing(async()=>{const r=await reopenStaffMonthAction(month,reopenReason);if(r.ok){setCloseState(r.data);setCloseMessage("Mes reabierto con auditoría.")}else setCloseMessage(r.error??"No fue posible reabrir el mes.")})} variant="outline">Reabrir</Button></div></div><div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7"><Metric label="Personas" value={Number(closeState?.totals?.people??0)}/><Metric label="Total" value={Number(closeState?.totals?.total??0)}/><Metric label="Pagado" value={Number(closeState?.totals?.paid??0)}/><Metric label="Pendiente" value={Number(closeState?.totals?.pending??0)}/><Metric label="Boletas pendientes" value={Number(closeState?.totals?.receiptsPending??0)}/><Metric label="Elegibles" value={Number(closeState?.eligible??0)}/><Metric label="En revisión" value={Number(closeState?.ineligible??0)}/></div>{closeMessage&&<p aria-live="polite" className="mt-3 text-sm text-muted">{closeMessage}</p>}</section>
+      <section className="rounded-2xl border border-brand/25 bg-brand/5 p-4 sm:p-5"><div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Cierre mensual Staff</p><h3 className="mt-1 text-lg font-semibold">{month} · {closeState?.status??"OPEN"}</h3><p className="mt-1 text-sm text-muted">El período se determina por la fecha canónica del Evento.</p></div><div className="flex flex-wrap gap-2"><form action={form=>startClosing(async()=>{const result=await generateMonthlyStaffAccountsAction(form);setCloseMessage(result.message);if(result.ok)location.reload()})}><input name="month" type="hidden" value={month}/><Button disabled={closing}>Generar / actualizar liquidaciones</Button></form><Button disabled={closing||closeState?.status==='CLOSED'||closeState?.status==='PAID'} onClick={()=>startClosing(async()=>{const r=await closeStaffMonthAction(month);if(r.ok){setCloseState(r.data);setCloseMessage("Mes cerrado y universo congelado.")}else setCloseMessage(r.error??"No fue posible cerrar el mes.")})} variant="outline">Cerrar mes</Button><input className="min-h-11 rounded-xl border bg-background px-3" onChange={e=>setReopenReason(e.target.value)} placeholder="Motivo para reabrir" value={reopenReason}/><Button disabled={closing||closeState?.status!=='CLOSED'||reopenReason.trim().length<3} onClick={()=>startClosing(async()=>{const r=await reopenStaffMonthAction(month,reopenReason);if(r.ok){setCloseState(r.data);setCloseMessage("Mes reabierto con auditoría.")}else setCloseMessage(r.error??"No fue posible reabrir el mes.")})} variant="outline">Reabrir</Button></div></div><div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7"><Metric label="Personas" value={Number(closeState?.totals?.people??0)}/><Metric label="Total" value={Number(closeState?.totals?.total??0)}/><Metric label="Pagado" value={Number(closeState?.totals?.paid??0)}/><Metric label="Pendiente" value={Number(closeState?.totals?.pending??0)}/><Metric label="Boletas pendientes" value={Number(closeState?.totals?.receiptsPending??0)}/><Metric label="Elegibles" value={Number(closeState?.eligible??0)}/><Metric label="En revisión" value={Number(closeState?.ineligible??0)}/></div>{closeMessage&&<p aria-live="polite" className="mt-3 text-sm text-muted">{closeMessage}</p>}</section>
+      <PaymentSheet month={month} rows={rows}/>
       <div className="grid gap-4 xl:grid-cols-2">
         {rows.map((row) => (
           <details
@@ -198,7 +198,7 @@ export function StaffPaymentsCenter({
                 <Metric label="Monto final" value={row.finalAmount} />
                 <Metric label="Ya pagado" value={row.paid} />
                 <Metric label="Saldo pendiente" value={row.outstanding} />
-                <Metric label="Costo empresa" value={row.companyCost} />
+                <Metric label="Boleta SII" value={row.account?.boletaGross??0} />
                 <Metric
                   label="Boletas pendientes"
                   value={
@@ -234,6 +234,7 @@ export function StaffPaymentsCenter({
     </section>
   );
 }
+function PaymentSheet({month,rows}:{month:string;rows:Array<{member:StaffPaymentMember;account?:StaffMonthlyAccount}>}){const payable=rows.filter(row=>row.account).map(row=>({member:row.member,account:row.account!})),total=payable.reduce((sum,row)=>sum+(row.account.boletaStatus==="APPROVED"&&row.account.paymentStatus==="READY_TO_PAY"?row.account.finalTransferAmount:0),0);return <section className="rounded-2xl border bg-background/40 p-4 sm:p-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Planilla de pagos Staff</p><h3 className="mt-1 text-xl font-semibold capitalize">{new Date(`${month}-01T12:00:00Z`).toLocaleDateString("es-CL",{month:"long",year:"numeric"})}</h3></div><button className="min-h-11 rounded-xl border px-4 text-sm font-semibold print:hidden" onClick={()=>window.print()} type="button">Imprimir planilla</button></div><div className="mt-4 overflow-x-auto"><table className="w-full min-w-[34rem] text-left text-sm"><thead><tr className="border-b text-xs uppercase tracking-wider text-muted"><th className="p-3">Operador</th><th className="p-3">Período</th><th className="p-3 text-right">Total a depositar</th><th className="p-3">Estado</th></tr></thead><tbody>{payable.map(({member,account})=><tr className="border-b" key={account.id}><td className="p-3 font-semibold">{member.name}</td><td className="p-3">{month}</td><td className="p-3 text-right font-semibold">{account.boletaStatus==="APPROVED"&&account.paymentStatus==="READY_TO_PAY"?money.format(account.finalTransferAmount):"—"}</td><td className="p-3">{account.paymentStatus==="READY_TO_PAY"?"LISTO PARA PAGAR":account.paymentStatus==="PAID"?"PAGADO":account.boletaStatus==="RECEIVED"?"BOLETA EN REVISIÓN":account.boletaStatus==="REJECTED"?"BOLETA RECHAZADA":"BOLETA PENDIENTE"}</td></tr>)}</tbody></table></div><div className="mt-4 flex flex-col gap-1 rounded-xl bg-card p-4 sm:flex-row sm:items-center sm:justify-between"><strong>TOTAL GENERAL A DEPOSITAR</strong><strong className="text-2xl text-brand">{money.format(total)}</strong></div></section>}
 function EventRow({ item }: { item: StaffPaymentEvent }) {
   return (
     <article className="rounded-xl border p-3 text-sm">
