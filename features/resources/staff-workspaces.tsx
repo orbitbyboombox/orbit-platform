@@ -25,14 +25,16 @@ export function StaffWorkspaces({
   portal,
   payroll,
   academy,
+  initialWorkspace,
 }: {
   team: ReactNode;
   operations: ReactNode;
   portal: ReactNode;
   payroll: ReactNode;
   academy: ReactNode;
+  initialWorkspace?: Workspace;
 }) {
-  const [active, setActive] = useState<Workspace>("TEAM");
+  const [active, setActive] = useState<Workspace>(initialWorkspace ?? "TEAM");
   const content = {
     TEAM: team,
     OPERATIONS: operations,

@@ -583,7 +583,8 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
   const academyArticles = await loadAcademyArticles(client);
   const academyStats = await loadAcademyStats(client, academyArticles);
   return (
-    <StaffWorkspaces
+      <StaffWorkspaces
+        initialWorkspace={reviewAccount ? "PAYROLL" : undefined}
       team={
         <div className="space-y-6">
           <StaffOnboardingCenter initialReviewId={reviewOnboarding} invitations={onboardingInvitations} />
