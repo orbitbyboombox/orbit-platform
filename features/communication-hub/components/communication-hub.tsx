@@ -1,12 +1,14 @@
 "use client";
 
 import { Bot, CheckCircle2, Clock3, Inbox, Mail, MessageCircle, MessagesSquare, Phone, UserRoundCheck, UsersRound } from "lucide-react";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useMemo, useState, useTransition } from "react";
 import { SmartCard } from "@/components/cards/smart-card";
 import { BrandLogo } from "@/components/brand-logo";
 import { SectionTitle } from "@/components/layout/section-title";
 import { ActionButton } from "@/components/ui/action-button";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { releaseCommunicationConversationAction, takeCommunicationConversationAction } from "../actions";
 import type { CommunicationChannel, CommunicationHubIndicators, UnifiedCommunicationEvent, UnifiedConversation } from "../types/communication-hub.types";
 
 const CHANNEL: Record<CommunicationChannel, { label: string; icon: typeof Mail }> = {
@@ -16,8 +18,32 @@ const CHANNEL: Record<CommunicationChannel, { label: string; icon: typeof Mail }
 export interface CommunicationHubProps { conversations: readonly UnifiedConversation[]; events: readonly UnifiedCommunicationEvent[]; indicators: CommunicationHubIndicators; }
 
 export function CommunicationHub({ conversations, events, indicators }: CommunicationHubProps) {
-  const [humanConversation, setHumanConversation] = useState<string | null>("conversation-camilo");
-  const active = conversations.find(({ id }) => id === humanConversation);
+  const router = useRouter();
+  const initialConversationId = useMemo(() => conversations.find((item) => item.status === "HUMAN_HANDOFF")?.id ?? conversations[0]?.id ?? "", [conversations]);
+  const [selectedConversationId, setSelectedConversationId] = useState(initialConversationId);
+  const [message, setMessage] = useState("");
+  const [pending, startTransition] = useTransition();
+  const active = conversations.find(({ id }) => id === selectedConversationId) ?? conversations[0];
+  const humanControlled = active?.status === "HUMAN_HANDOFF" || active?.novaState.humanHandoff === true;
+
+  const takeControl = () => {
+    if (!active || humanControlled) return;
+    startTransition(async () => {
+      const result = await takeCommunicationConversationAction(active.id);
+      setMessage(result.ok ? result.message : result.error);
+      if (result.ok) router.refresh();
+    });
+  };
+
+  const releaseControl = () => {
+    if (!active || !humanControlled) return;
+    startTransition(async () => {
+      const result = await releaseCommunicationConversationAction(active.id);
+      setMessage(result.ok ? result.message : result.error);
+      if (result.ok) router.refresh();
+    });
+  };
+
   return (
     <section aria-labelledby="communication-hub" className="space-y-6 border-t pt-10 lg:pt-12">
       <div id="communication-hub"><BrandLogo className="mb-3 h-14 w-40" surface="dark" /><p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">ORBIT · COMUNICACIONES</p><SectionTitle description="Una sola historia por cliente, independiente del canal utilizado." title="Centro de Comunicaciones" /></div>
@@ -37,11 +63,15 @@ export function CommunicationHub({ conversations, events, indicators }: Communic
           </ol>
         </SmartCard>
 
-        <SmartCard icon={<UsersRound aria-hidden="true" className="size-5" />} primaryValue={active?.customerName ?? "Ninguna conversación"} secondaryValue={active ? `Atendida por ${active.assignedHuman}` : "NOVA mantiene el control"} status={<StatusBadge label={active ? "Control humano" : "NOVA activo"} variant={active ? "warning" : "success"} />} title="Traspaso humano">
-          <div className="space-y-3 text-sm"><p className="rounded-xl bg-accent/45 p-4 leading-6">El historial, la memoria y el siguiente paso permanecen intactos durante el traspaso.</p><div className="grid gap-2"><ActionButton icon={UserRoundCheck} label="Tomar conversación" onClick={() => setHumanConversation("conversation-camilo")} type="button" /><ActionButton icon={Bot} label="Liberar y reanudar NOVA" onClick={() => setHumanConversation(null)} type="button" variant="outline" /></div></div>
+        <SmartCard icon={<UsersRound aria-hidden="true" className="size-5" />} primaryValue={active?.customerName ?? "Ninguna conversación"} secondaryValue={humanControlled ? "BOOMBOX tiene el control · NOVA pausada" : "NOVA mantiene el control"} status={<StatusBadge label={humanControlled ? "Control humano" : "NOVA activo"} variant={humanControlled ? "warning" : "success"} />} title="Traspaso humano">
+          <div className="space-y-4 text-sm">
+            {conversations.length > 0 ? <label className="grid gap-2"><span className="text-xs font-semibold uppercase tracking-[.12em] text-muted">Conversación</span><select className="min-h-11 rounded-xl border bg-background px-3" disabled={pending} onChange={(event) => { setSelectedConversationId(event.target.value); setMessage(""); }} value={active?.id ?? ""}>{conversations.map((conversation) => <option key={conversation.id} value={conversation.id}>{conversation.customerName ?? conversation.customerId} · {conversation.status === "HUMAN_HANDOFF" ? "HUMANO" : "NOVA"}</option>)}</select></label> : <p className="rounded-xl border border-dashed p-4 text-muted">No hay conversaciones activas para controlar.</p>}
+            <p className="rounded-xl bg-accent/45 p-4 leading-6">Cuando tomas el control, ORBIT sigue registrando los mensajes del cliente, pero bloquea la generación y el envío automático de NOVA hasta que pulses <strong>DEVOLVER A IA</strong>.</p>
+            <div className="grid gap-2"><ActionButton disabled={!active || humanControlled || pending} icon={UserRoundCheck} label={pending && !humanControlled ? "Tomando control…" : "TOMAR CONTROL"} onClick={takeControl} type="button" /><ActionButton disabled={!active || !humanControlled || pending} icon={Bot} label={pending && humanControlled ? "Reactivando…" : "DEVOLVER A IA"} onClick={releaseControl} type="button" variant="outline" /></div>
+            {message && <p aria-live="polite" className="rounded-xl border p-3 text-sm">{message}</p>}
+          </div>
         </SmartCard>
       </div>
-
     </section>
   );
 }

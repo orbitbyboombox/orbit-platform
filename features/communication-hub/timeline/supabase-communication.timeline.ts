@@ -62,8 +62,10 @@ export async function loadCommunicationHubProjection(client: SupabaseClient): Pr
   const conversations = (stateRows as ConversationRow[]).map((row) => {
     const recent = communications.find((item) => item.customer_id === row.customer_id);
     const channel = asChannel(recent?.channel ?? String(row.context.channel ?? "FUTURE"));
-    const status = asStatus(row.status);
-    return { id: row.id, customerId: row.customer_id, customerName: customers.get(row.customer_id), status, novaState: { conversationId: row.id, customerId: row.customer_id, channel: asNovaChannel(channel), status, humanHandoff: status === "HUMAN_HANDOFF", handledBy: row.human_owner_id ?? undefined, startedAt: String(row.context.startedAt ?? row.updated_at), lastMessageAt: recent?.occurred_at ?? row.updated_at }, assignedHuman: row.human_owner_id ?? undefined, lastChannel: channel, lastInteractionAt: recent?.occurred_at ?? row.updated_at } satisfies UnifiedConversation;
+    const storedStatus = asStatus(row.status);
+    const humanHandoff = storedStatus === "HUMAN_HANDOFF" || row.nova_enabled === false;
+    const status: UnifiedConversationStatus = humanHandoff ? "HUMAN_HANDOFF" : storedStatus;
+    return { id: row.id, customerId: row.customer_id, customerName: customers.get(row.customer_id), status, novaState: { conversationId: row.id, customerId: row.customer_id, channel: asNovaChannel(channel), status, humanHandoff, handledBy: row.human_owner_id ?? undefined, startedAt: String(row.context.startedAt ?? row.updated_at), lastMessageAt: recent?.occurred_at ?? row.updated_at }, assignedHuman: row.human_owner_id ?? undefined, lastChannel: channel, lastInteractionAt: recent?.occurred_at ?? row.updated_at } satisfies UnifiedConversation;
   });
   const events = newestFirst(communications.map((row) => ({ id: row.id, conversationId: row.thread_key, customerId: row.customer_id, channel: asChannel(row.channel), direction: asDirection(row.direction), type: asEventType(row.communication_type), occurredAt: row.occurred_at, summary: row.communication_type.replaceAll("_", " ") } satisfies UnifiedCommunicationEvent)));
   return { conversations, events, indicators: calculateCommunicationIndicators(conversations) };
