@@ -16,3 +16,8 @@ test("admin archive route bypasses auth middleware and accepts service role or a
 test("onboarding center exposes a founder archive trigger for staff drive sync",()=>{assert.match(onboardingCenter,/Sincronizar Drive/);assert.match(onboardingCenter,/api\/admin\/staff-document-drive-archive/);assert.match(onboardingCenter,/method=\"POST\"/);});
 test("install performs no payment or document execution",()=>{const top=sql.replace(/\$\$[\s\S]*?\$\$/g,"BODY");assert.doesNotMatch(top,/insert into public\.event_staff_settlement_movements|insert into public\.staff_onboarding_documents/)});
 test("mobile lifecycle actions remain reachable",()=>{assert.match(panel,/sm:grid-cols-2/);assert.match(panel,/min-h-11/)});
+const paymentSheet=readFileSync("features/staff-payments/staff-payments-center.tsx","utf8");
+test("payment sheet has mobile cards without horizontal table dependency",()=>{assert.match(paymentSheet,/sm:hidden/);assert.match(paymentSheet,/sm:block/);assert.doesNotMatch(paymentSheet,/min-w-\[34rem\]/)});
+test("payment sheet action uses canonical MobileDialog and amount",()=>{assert.match(paymentSheet,/MobileDialog/);assert.match(paymentSheet,/finalTransferAmount/);assert.match(paymentSheet,/REGISTRAR PAGO STAFF/) });
+test("payment sheet requires approved boleta and ready-to-pay",()=>{assert.match(paymentSheet,/boletaStatus==="APPROVED"&&row\.account\.paymentStatus==="READY_TO_PAY/);assert.match(paymentSheet,/ADJUNTAR COMPROBANTE DE PAGO/) });
+test("payment sheet preserves canonical idempotent receipt action",()=>{assert.match(actions,/registerMonthlyStaffPaymentAction/);assert.match(actions,/payment_status===\"PAID\"/);assert.match(actions,/p_idempotency_key/) });
