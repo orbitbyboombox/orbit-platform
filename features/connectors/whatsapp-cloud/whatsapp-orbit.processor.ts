@@ -9,6 +9,7 @@ import {
 } from "@/features/communication-hub";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { QueuedWhatsAppDispatcher } from "./queued-whatsapp.dispatcher";
+import { WhatsAppAiResponder, type WhatsAppAiDecision, type WhatsAppConversationHistoryItem } from "./whatsapp-ai.responder";
 
 interface WebhookEventRow {
   id: string;
@@ -146,7 +147,22 @@ async function loadMemory(client: SupabaseClient, customerId: string, customerNa
     .maybeSingle();
   if (error) throw error;
   const context = data?.context && typeof data.context === "object" ? data.context as Record<string, unknown> : {};
-  return memoryRecord(customerId, customerName, context);
+  return { record: memoryRecord(customerId, customerName, context), context };
+}
+
+async function loadConversationHistory(client: SupabaseClient, conversationId: string): Promise<WhatsAppConversationHistoryItem[]> {
+  const { data, error } = await client
+    .from("communications")
+    .select("direction,body,occurred_at")
+    .eq("thread_key", conversationId)
+    .order("occurred_at", { ascending: false })
+    .limit(30);
+  if (error) throw error;
+  return (data ?? []).reverse().map((row) => ({
+    direction: row.direction === "INBOUND" ? "INBOUND" : row.direction === "OUTBOUND" ? "OUTBOUND" : "SYSTEM",
+    body: row.body ?? "",
+    occurredAt: row.occurred_at,
+  }));
 }
 
 async function persistInboundCommunication(client: SupabaseClient, event: WebhookEventRow, conversationId: string, customerId: string) {
@@ -180,6 +196,63 @@ async function persistOutboundCommunication(client: SupabaseClient, conversation
   if (error) throw error;
 }
 
+function canonicalMemoryUpdates(decision: WhatsAppAiDecision, occurredAt: string) {
+  const updates: Record<string, unknown> = { lastConversationDate: occurredAt };
+  const confirmed = new Set<CustomerMemoryField>(["lastConversationDate"]);
+  const locationParts: string[] = [];
+  for (const item of decision.fields) {
+    if (item.confidence !== "CONFIRMED") continue;
+    if (item.field === "name" && typeof item.value === "string") { updates.customerName = item.value; confirmed.add("customerName"); }
+    if (item.field === "eventType" && typeof item.value === "string") { updates.eventType = item.value; confirmed.add("eventType"); }
+    if (item.field === "eventDate" && typeof item.value === "string") { updates.eventDate = item.value; confirmed.add("eventDate"); }
+    if (item.field === "attendees" && typeof item.value === "number") { updates.estimatedGuests = item.value; confirmed.add("estimatedGuests"); }
+    if (item.field === "requestedService" && typeof item.value === "string") { updates.selectedService = item.value; confirmed.add("selectedService"); }
+    if (["venue", "commune", "city"].includes(item.field) && typeof item.value === "string") locationParts.push(item.value);
+  }
+  if (locationParts.length) { updates.eventLocation = [...new Set(locationParts)].join(", "); confirmed.add("eventLocation"); }
+  return { updates, confirmed: [...confirmed] };
+}
+
+async function persistAiDecision(
+  client: SupabaseClient,
+  customerId: string,
+  conversationState: ConversationStateRow,
+  baseMemoryContext: Record<string, unknown>,
+  decision: WhatsAppAiDecision,
+  occurredAt: string,
+) {
+  const canonical = canonicalMemoryUpdates(decision, occurredAt);
+  const priorConfirmed = Array.isArray(baseMemoryContext.confirmedFields) ? baseMemoryContext.confirmedFields.filter((item): item is string => typeof item === "string") : [];
+  const memoryContext = {
+    ...baseMemoryContext,
+    ...canonical.updates,
+    confirmedFields: [...new Set([...priorConfirmed, ...canonical.confirmed])],
+    whatsappAi: {
+      summary: decision.conversationSummary,
+      intents: decision.intents,
+      fields: decision.fields,
+      requestedAction: decision.requestedAction,
+      waitForMoreData: decision.waitForMoreData,
+      updatedAt: occurredAt,
+    },
+  };
+  const { error: memoryError } = await client.from("customer_memory").upsert({
+    customer_id: customerId,
+    context: memoryContext,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "customer_id" });
+  if (memoryError) throw memoryError;
+
+  const { error: stateError } = await client.from("conversation_states").update({
+    context: {
+      ...conversationState.context,
+      whatsappAi: memoryContext.whatsappAi,
+    },
+    updated_at: new Date().toISOString(),
+  }).eq("id", conversationState.id);
+  if (stateError) throw stateError;
+}
+
 export async function processWhatsAppWebhookEvent(providerMessageId: string) {
   const client = createAdminClient();
   const now = new Date().toISOString();
@@ -206,10 +279,12 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
     const conversationState = await resolveConversation(client, customer.id, event.sender_wa_id, event.occurred_at);
     await persistInboundCommunication(client, event, conversationState.id, customer.id);
 
-    const memory = await loadMemory(client, customer.id, customer.full_name);
+    const memoryState = await loadMemory(client, customer.id, customer.full_name);
+    const history = await loadConversationHistory(client, conversationState.id);
     const memoryEngine = new CustomerMemoryEngine(ORBIT_TIME_ENGINE);
+    const aiResponder = new WhatsAppAiResponder(new NovaChannelEngine(memoryEngine), history);
     const engine = new CommunicationHubEngine(
-      new NovaChannelEngine(memoryEngine),
+      aiResponder,
       new SupabaseCommunicationTimelineRepository(client),
       new QueuedWhatsAppDispatcher(client, customer.id),
     );
@@ -224,16 +299,27 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
         content: event.text_body,
         occurredAt: event.occurred_at,
       },
-      { memory },
+      { memory: memoryState.record },
       current,
     );
 
+    if (!result.suppressed && aiResponder.lastDecision)
+      await persistAiDecision(client, customer.id, conversationState, memoryState.context, aiResponder.lastDecision, event.occurred_at);
+
     await client.from("conversation_states").update({
       status: result.conversation.status,
-      nova_enabled: !result.suppressed,
+      nova_enabled: !result.suppressed && result.conversation.status !== "HUMAN_HANDOFF",
       human_owner_id: result.conversation.assignedHuman ?? null,
       context: {
         ...conversationState.context,
+        ...(aiResponder.lastDecision ? { whatsappAi: {
+          summary: aiResponder.lastDecision.conversationSummary,
+          intents: aiResponder.lastDecision.intents,
+          fields: aiResponder.lastDecision.fields,
+          requestedAction: aiResponder.lastDecision.requestedAction,
+          waitForMoreData: aiResponder.lastDecision.waitForMoreData,
+          updatedAt: event.occurred_at,
+        } } : {}),
         channel: "WHATSAPP_BUSINESS",
         externalParticipantId: event.sender_wa_id,
         lastInboundMessageId: event.provider_message_id,
