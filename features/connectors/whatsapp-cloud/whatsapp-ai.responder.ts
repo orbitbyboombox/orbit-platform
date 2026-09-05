@@ -148,6 +148,23 @@ function statusFromDecision(decision: WhatsAppAiDecision): NovaChannelOutput["co
   return "ACTIVE";
 }
 
+function safeAiFailure(input: NovaChannelInput): NovaChannelOutput {
+  const response = "Perfecto, recibí tu mensaje. Lo vamos a revisar bien y te respondemos por acá.";
+  return {
+    response,
+    nextRecommendedAction: "WAIT_FOR_HUMAN",
+    conversationStatus: "HUMAN_HANDOFF",
+    timelineEvent: {
+      id: `${input.message.id}-ai-failure-handoff`,
+      conversationId: input.message.conversationId,
+      customerId: input.message.customerId,
+      type: "HUMAN_HANDOFF_REQUESTED",
+      occurredAt: input.message.receivedAt,
+      description: "Atención derivada a BOOMBOX porque el asistente conversacional no pudo completar una respuesta segura.",
+    },
+  };
+}
+
 export class WhatsAppAiResponder implements NovaResponder {
   private lastDecisionValue: WhatsAppAiDecision | null = null;
 
@@ -201,12 +218,12 @@ export class WhatsAppAiResponder implements NovaResponder {
         },
       };
     } catch (error) {
-      console.error("whatsapp.ai.fallback", {
+      console.error("whatsapp.ai.safe_handoff", {
         customerId: input.message.customerId,
         detail: error instanceof Error ? error.message : String(error),
       });
       this.lastDecisionValue = null;
-      return this.fallback.respond(input);
+      return safeAiFailure(input);
     }
   }
 }
