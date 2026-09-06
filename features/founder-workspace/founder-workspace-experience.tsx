@@ -210,6 +210,16 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
   const orderedQuickActions = dashboardLayout.quickActionOrder
     .map((id) => quickActions.find((item) => item.id === id))
     .filter((item): item is (typeof quickActions)[number] => Boolean(item));
+  const attentionSummary = [
+    { label: "Leads nuevos", type: "SALES_LEAD_UNATTENDED", href: "/leads" },
+    { label: "Follow-ups vencidos", type: "SALES_FOLLOWUP_OVERDUE", href: "/leads?filter=overdue" },
+    { label: "Clientes esperando", type: "SALES_CUSTOMER_REPLIED", href: "/leads?filter=customer-replied" },
+    { label: "Cotizaciones sin seguimiento", type: "SALES_QUOTE_NO_FOLLOWUP", href: "/leads?filter=quotes" },
+    { label: "Reservas por cerrar", type: "SALES_RESERVATION_PENDING", href: "/leads?filter=reservation" },
+  ];
+  const attentionSummaryBlock = <section aria-label="Resumen de atención Founder" className="grid grid-cols-2 gap-3 md:grid-cols-5">
+    {attentionSummary.map((item) => <Link className="min-w-0 rounded-2xl border bg-card p-4 transition hover:-translate-y-0.5 hover:border-brand/40" href={item.href} key={item.label}><strong className="grid size-9 place-items-center rounded-xl bg-warning-soft text-lg text-warning">{founderActions.filter((action) => action.type === item.type).length}</strong><span className="mt-3 block text-xs font-semibold leading-4">{item.label}</span><span className="mt-1 block text-[10px] text-muted">Abrir vista</span></Link>)}
+  </section>;
 
   const welcome = <header className="pb-1 pt-2 sm:pb-2 sm:pt-4">
     <p data-command-label>Founder Command Center</p>
@@ -242,7 +252,7 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
   </section>;
 
   const actionCenter = <section data-command-card aria-labelledby="founder-action-center-title" className="rounded-2xl border border-brand/35 bg-brand/[.035] p-5 sm:p-6">
-    <div className="flex flex-wrap items-center justify-between gap-3"><div><p data-command-label>Alertas del Founder</p><h2 className="mt-1 text-xl font-semibold" id="founder-action-center-title">Pendientes por revisar</h2><p className="mt-2 text-xs text-muted">Tareas que permanecen aquí hasta que su estado canónico quede resuelto.</p></div><span aria-label={`${founderActions.length} pendientes accionables`} className="grid min-h-11 min-w-11 place-items-center rounded-full bg-brand px-3 text-lg font-bold text-brand-foreground">{founderActions.length}</span></div>
+    <div className="flex flex-wrap items-center justify-between gap-3"><div><p data-command-label>Requiere tu atención</p><h2 className="mt-1 text-xl font-semibold" id="founder-action-center-title">Pendientes por revisar</h2><p className="mt-2 text-xs text-muted">Prioridad real desde fuentes canónicas; se cierra al resolver el estado operativo.</p></div><span aria-label={`${founderActions.length} pendientes accionables`} className="grid min-h-11 min-w-11 place-items-center rounded-full bg-brand px-3 text-lg font-bold text-brand-foreground">{founderActions.length}</span></div>
     <div className="mt-5 grid gap-3 lg:grid-cols-2">{founderActions.map(item=>{const Icon=item.type==="STAFF_ONBOARDING_REVIEW_REQUIRED"?UserRoundCheck:item.type==="OVERDUE_INVOICE_GROUP"?CircleDollarSign:ReceiptText;return <article className="min-w-0 rounded-xl border bg-card p-4" key={item.id}><div className="flex items-start gap-3"><span className={`grid size-10 shrink-0 place-items-center rounded-xl ${item.priority==="P0"?toneStyle.danger:toneStyle.warning}`}><Icon className="size-5"/></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="rounded-full border px-2 py-1 text-[9px] font-bold uppercase tracking-[.1em]">{item.priority}</span><span className="text-[10px] font-semibold uppercase text-muted">{item.category}</span>{item.read?<span className="text-[10px] text-muted">Leída · pendiente</span>:null}</div><h3 className="mt-2 text-sm font-semibold">{item.title}</h3><p className="mt-1 break-words text-xs leading-5 text-muted">{item.detail}</p><p className="mt-2 text-[10px] text-muted">{formatFounderActionTimestamp(item.createdAt)}</p></div></div><Link className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-foreground px-4 text-center text-xs font-bold text-background sm:w-auto" href={item.href}>{item.cta}<ArrowRight className="size-3.5"/></Link></article>})}</div>
     {!founderActions.length?<Empty label="No hay decisiones pendientes del Founder."/>:null}
   </section>;
@@ -290,7 +300,7 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
   const calendarSection = <OrderableItem controls={ordering ? <OrderControls avoidWorkspaceMenu disableDown={calendarIndex < 0 || calendarIndex === dashboardSections.length - 1} disableUp={calendarIndex <= 1} label="Próximos eventos" onDown={() => moveCalendar(1)} onUp={() => moveCalendar(-1)} /> : null}>{upcoming}</OrderableItem>;
 
   return <main className="orbit-command-center" id="founder-workspace"><PersonalWorkspaceSections moduleKey="DASHBOARD" reorderEnabled={ordering} sections={[
-    { key: "DASHBOARD_HEADER", label: "Bienvenida", content: welcome },
+    { key: "DASHBOARD_HEADER", label: "Bienvenida", content: <><div className="mb-5">{attentionSummaryBlock}</div>{welcome}</> },
     { key: "DASHBOARD_UPCOMING_EVENTS", label: "Próximos eventos", content: calendarSection },
     { key: "DASHBOARD_WIDGETS", label: "KPIs del Founder", content: founderKpis },
     ...(financialAlerts ? [{ key: "DASHBOARD_FINANCIAL_ALERTS", label: "Obligaciones financieras", content: financialAlerts }] : []),
