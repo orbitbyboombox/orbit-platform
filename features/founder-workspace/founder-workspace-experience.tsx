@@ -27,6 +27,7 @@ import { reviewStaffRequestAction } from "@/features/operations/operations-plann
 import { markNotificationReadAction } from "@/features/notification-center/actions";
 import { FinancialAlertCenter, type FinancialAlertView } from "@/features/financial-alerts/financial-alert-center";
 import type { FounderActionItem } from "@/features/founder-action-center";
+import type { WhatsAppSummary } from "@/features/communication-hub";
 import { usePersonalWorkspace } from "./personal-workspace";
 import {
   reconcileDashboardLayout,
@@ -96,7 +97,7 @@ const toneStyle = {
   danger: "bg-danger-soft text-danger",
 } as const;
 
-export function FounderWorkspaceExperience({ currentDate, finance, financialAlert, financialAlertHistory, founderName, founderActions, operationalAlerts, pendingStaffApprovals, pendingTasks, publicationConsole, recentActivity, todayEvents, todayOperation, upcomingEvents }: {
+export function FounderWorkspaceExperience({ currentDate, finance, financialAlert, financialAlertHistory, founderName, founderActions, operationalAlerts, pendingStaffApprovals, pendingTasks, publicationConsole, recentActivity, todayEvents, todayOperation, upcomingEvents, whatsappSummary }: {
   currentDate: string;
   finance: FinanceDashboardReadModel;
   financialAlert: FinancialAlertView | null;
@@ -111,6 +112,7 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
   todayEvents: number;
   todayOperation: CommandCenterItem[];
   upcomingEvents: CommandCenterEvent[];
+  whatsappSummary?: WhatsAppSummary;
 }) {
   const router = useRouter();
   const workspace = usePersonalWorkspace();
@@ -297,6 +299,7 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
   const actions = <section aria-labelledby="quick-actions-title"><PanelTitle id="quick-actions-title" label="Acciones rápidas" /><div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">{orderedQuickActions.map((action, index) => { const Icon = action.icon; return <OrderableItem controls={ordering ? <OrderControls disableDown={index === orderedQuickActions.length - 1} disableUp={index === 0} label={action.label} onDown={() => move("quickActionOrder", action.id, 1)} onUp={() => move("quickActionOrder", action.id, -1)} /> : null} key={action.id}><Link data-command-card className="group flex min-h-[4.75rem] items-center gap-3 rounded-2xl border p-4 transition hover:-translate-y-0.5" href={action.href}><span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand"><Icon className="size-4" /></span><span className="text-xs font-semibold uppercase">{action.label}</span></Link></OrderableItem>; })}</div></section>;
 
   const settings = <section className="flex flex-col gap-4 rounded-2xl border bg-card p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between"><div><PanelTitle id="workspace-settings-title" label="Founder Workspace" /><p className="mt-2 text-xs text-muted">Mueve, oculta y restaura cada bloque. Tu configuración permanece guardada.</p></div><Link className="inline-flex min-h-10 items-center justify-center rounded-xl border px-4 text-xs font-semibold hover:border-brand/40 hover:text-brand" href="/settings#founder-workspace"><Settings2 className="mr-2 size-4" />Configurar espacio</Link></section>;
+  const whatsapp = whatsappSummary ? <section aria-labelledby="founder-whatsapp-summary" className="rounded-2xl border bg-card px-4 py-3"><div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs"><strong id="founder-whatsapp-summary" className="text-sm">WhatsApp</strong><span>Activas: <b>{whatsappSummary.active}</b></span><span>NOVA: <b>{whatsappSummary.nova}</b></span><span>Control humano: <b>{whatsappSummary.human}</b></span><span>Esperando BOOMBOX: <b>{whatsappSummary.waitingBoombox}</b></span><span>No leídas: <b>{whatsappSummary.unread}</b></span><span className="rounded-full border px-2 py-0.5 font-semibold">Delivery: OFF</span><Link className="ml-auto font-semibold text-brand hover:underline" href="/leads#whatsapp-inbox">Ver conversaciones →</Link></div></section> : null;
 
   const staffApprovals = staffApprovalItems.length ? <PendingStaffApprovals items={staffApprovalItems} onResolved={(id) => setResolvedApprovalIds((current) => new Set(current).add(id))} /> : null;
   const financialAlerts = financialAlert || financialAlertHistory.length ? <FinancialAlertCenter current={financialAlert} history={financialAlertHistory} /> : null;
@@ -306,6 +309,7 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
 
   return <main className="orbit-command-center" id="founder-workspace"><PersonalWorkspaceSections moduleKey="DASHBOARD" reorderEnabled={ordering} sections={[
     { key: "DASHBOARD_HEADER", label: "Bienvenida", content: <>{welcome}<div className="mt-4">{compactSummary}</div></> },
+    ...(whatsapp ? [{ key: "DASHBOARD_WHATSAPP", label: "WhatsApp", content: whatsapp }] : []),
     { key: "DASHBOARD_UPCOMING_EVENTS", label: "Próximos eventos", content: calendarSection },
     { key: "DASHBOARD_WIDGETS", label: "KPIs del Founder", content: founderKpis },
     ...(financialAlerts ? [{ key: "DASHBOARD_FINANCIAL_ALERTS", label: "Obligaciones financieras", content: financialAlerts }] : []),

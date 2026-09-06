@@ -56,6 +56,9 @@ const canonicalFounderActionTypeList = [
   "SALES_CUSTOMER_REPLIED",
   "SALES_RESERVATION_PENDING",
   "SALES_LEAD_STALLED",
+  "WHATSAPP_WAITING_FOR_BOOMBOX",
+  "WHATSAPP_HUMAN_STALE",
+  "WHATSAPP_UNREAD_CRITICAL",
 ] as const;
 const canonicalFounderActionTypes = new Set<string>(canonicalFounderActionTypeList);
 
@@ -63,6 +66,8 @@ const loadFounderActionCenterCached = cache(async (userId: string): Promise<Foun
   const admin = createAdminClient();
   const { error: salesError } = await admin.rpc("reconcile_sales_pipeline_founder_alerts");
   if (salesError && !["42883", "PGRST202"].includes(salesError.code ?? "")) throw salesError;
+  const { error: whatsappError } = await admin.rpc("reconcile_whatsapp_founder_alerts");
+  if (whatsappError && !["42883", "PGRST202"].includes(whatsappError.code ?? "")) throw whatsappError;
   const { error: closedSalesError } = await admin.rpc("close_noncommercial_sales_alerts");
   if (closedSalesError && !["42883", "PGRST202"].includes(closedSalesError.code ?? "")) throw closedSalesError;
   const { error: closedStateError } = await admin.rpc("close_closed_sales_alerts");

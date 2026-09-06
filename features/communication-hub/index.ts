@@ -3,5 +3,5 @@ export { normalizeChannelCommunication, toNovaChannel } from "./application/chan
 export { CommunicationHub } from "./components/communication-hub";
 export { CommunicationHubEngine } from "./engine/communication-hub.engine";
 export { calculateCommunicationIndicators, newestFirst, type CommunicationTimelineRepository } from "./timeline/unified-communication.timeline";
-export { loadCommunicationHubProjection, SupabaseCommunicationTimelineRepository, type CommunicationHubProjection } from "./timeline/supabase-communication.timeline";
+export { loadCommunicationHubProjection, calculateWhatsAppSummary, SupabaseCommunicationTimelineRepository, type CommunicationHubProjection, type WhatsAppSummary } from "./timeline/supabase-communication.timeline";
 export type * from "./types/communication-hub.types";

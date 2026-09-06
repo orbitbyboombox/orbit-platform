@@ -16,6 +16,7 @@ import { StaffOperationsView } from "@/features/resources/staff-operations-view"
 import { officialStaffAssignmentPayment } from "@/features/operations/staff-assignment-payment";
 import { isInsideOperationalWindow } from "@/features/operations/operational-window";
 import { loadFounderActionCenter } from "@/features/founder-action-center";
+import { loadCommunicationHubProjection } from "@/features/communication-hub";
 
 type PlanningRole = {
   code: "OPERATOR" | "ASSEMBLY" | "DISASSEMBLY";
@@ -1470,6 +1471,7 @@ export default async function OperationsPage() {
   });
   const financialAlert = financialAlertHistory.find((item) => item.status === "PENDING") ?? null;
   const founderActionCenter = await loadFounderActionCenter(auth.user.id);
+  const communication = await loadCommunicationHubProjection(client);
   return (
     <FounderWorkspaceExperience
       currentDate={currentDate}
@@ -1478,6 +1480,7 @@ export default async function OperationsPage() {
       financialAlertHistory={financialAlertHistory}
       founderName="Matías"
       founderActions={founderActionCenter.items}
+      whatsappSummary={communication.whatsappSummary}
       operationalAlerts={commandCenterAlerts}
       pendingStaffApprovals={pendingStaffApprovals}
       pendingTasks={taskSummary.pending}

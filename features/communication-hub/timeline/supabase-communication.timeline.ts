@@ -13,9 +13,33 @@ export interface CommunicationHubProjection {
   conversations: readonly UnifiedConversation[];
   events: readonly UnifiedCommunicationEvent[];
   indicators: CommunicationHubIndicators;
+  whatsappSummary: WhatsAppSummary;
 }
 
-const asChannel = (value: string): CommunicationChannel => ["GOOGLE_GMAIL", "WHATSAPP_BUSINESS", "INSTAGRAM_DIRECT", "WEB_CHAT", "PHONE_LOG"].includes(value) ? value as CommunicationChannel : "FUTURE";
+export interface WhatsAppSummary {
+  active: number;
+  nova: number;
+  human: number;
+  waitingBoombox: number;
+  unread: number;
+}
+
+export function calculateWhatsAppSummary(conversations: readonly UnifiedConversation[]): WhatsAppSummary {
+  const whatsapp = conversations.filter((conversation) => conversation.lastChannel === "WHATSAPP_BUSINESS");
+  return {
+    active: whatsapp.filter((conversation) => conversation.status !== "COMPLETED").length,
+    nova: whatsapp.filter((conversation) => conversation.status === "ACTIVE").length,
+    human: whatsapp.filter((conversation) => conversation.status === "HUMAN_HANDOFF").length,
+    waitingBoombox: whatsapp.filter((conversation) => conversation.status === "HUMAN_HANDOFF" && (conversation.unreadCount ?? 0) > 0).length,
+    unread: whatsapp.reduce((sum, conversation) => sum + (conversation.unreadCount ?? 0), 0),
+  };
+}
+
+const asChannel = (value: string): CommunicationChannel => {
+  const normalized = value.toUpperCase();
+  if (normalized === "WHATSAPP") return "WHATSAPP_BUSINESS";
+  return ["GOOGLE_GMAIL", "WHATSAPP_BUSINESS", "INSTAGRAM_DIRECT", "WEB_CHAT", "PHONE_LOG"].includes(normalized) ? normalized as CommunicationChannel : "FUTURE";
+};
 const asDirection = (value: string): CommunicationDirection => ["INBOUND", "OUTBOUND", "SYSTEM"].includes(value) ? value as CommunicationDirection : "SYSTEM";
 const asStatus = (value: string): UnifiedConversationStatus => ["ACTIVE", "WAITING_CUSTOMER", "HUMAN_HANDOFF", "COMPLETED"].includes(value) ? value as UnifiedConversationStatus : "ACTIVE";
 const asEventType = (value: string): CommunicationTimelineEventType => ["CONVERSATION_STARTED", "CUSTOMER_REPLY", "QUOTATION_REQUESTED", "QUOTATION_SENT", "RESERVATION_STARTED", "PORTAL_GENERATED", "CONTRACT_SENT", "PAYMENT_CONFIRMED", "REMINDER_SENT", "HUMAN_HANDOFF", "HUMAN_HANDOFF_RELEASED", "CONVERSATION_CLOSED", "NOVA_RESPONSE"].includes(value) ? value as CommunicationTimelineEventType : "NOVA_RESPONSE";
@@ -62,7 +86,7 @@ export async function loadCommunicationHubProjection(client: SupabaseClient): Pr
   const conversations = (stateRows as ConversationRow[]).map((row) => {
     const customerCommunications = communications.filter((item) => item.customer_id === row.customer_id);
     const recent = customerCommunications[0];
-    const unreadCount = customerCommunications.filter((item) => item.channel === "WHATSAPP_BUSINESS" && item.direction === "INBOUND").length;
+    const unreadCount = customerCommunications.filter((item) => asChannel(item.channel) === "WHATSAPP_BUSINESS" && item.direction.toUpperCase() === "INBOUND").length;
     const channel = asChannel(recent?.channel ?? String(row.context.channel ?? "FUTURE"));
     const storedStatus = asStatus(row.status);
     const humanHandoff = storedStatus === "HUMAN_HANDOFF" || row.nova_enabled === false;
@@ -70,5 +94,5 @@ export async function loadCommunicationHubProjection(client: SupabaseClient): Pr
     return { id: row.id, customerId: row.customer_id, customerName: customers.get(row.customer_id), phone: (customerRows as CustomerRow[]).find((item) => item.id === row.customer_id)?.phone ?? undefined, unreadCount, status, novaState: { conversationId: row.id, customerId: row.customer_id, channel: asNovaChannel(channel), status, humanHandoff, handledBy: row.human_owner_id ?? undefined, startedAt: String(row.context.startedAt ?? row.updated_at), lastMessageAt: recent?.occurred_at ?? row.updated_at }, assignedHuman: row.human_owner_id ?? undefined, lastChannel: channel, lastInteractionAt: recent?.occurred_at ?? row.updated_at } satisfies UnifiedConversation;
   });
   const events = newestFirst(communications.map((row) => ({ id: row.id, conversationId: row.thread_key, customerId: row.customer_id, channel: asChannel(row.channel), direction: asDirection(row.direction), type: asEventType(row.communication_type), occurredAt: row.occurred_at, summary: row.body || row.communication_type.replaceAll("_", " ") } satisfies UnifiedCommunicationEvent)));
-  return { conversations, events, indicators: calculateCommunicationIndicators(conversations) };
+  return { conversations, events, indicators: calculateCommunicationIndicators(conversations), whatsappSummary: calculateWhatsAppSummary(conversations) };
 }
