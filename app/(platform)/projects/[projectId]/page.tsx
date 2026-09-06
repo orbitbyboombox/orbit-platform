@@ -191,7 +191,7 @@ export default async function ProjectWorkspacePage({
     client
       .from("event_checklists")
       .select(
-        "id,status,event_checklist_items(id,item_key,category,label,position,mandatory,completed,completed_at),event_operational_milestones(milestone,occurred_at,notes)",
+        "id,status,event_checklist_items(id,item_key,category,label,position,mandatory,completed,completed_at,item_source,completed_by_label),event_operational_milestones(milestone,occurred_at,notes)",
       )
       .eq("project_id", projectId)
       .maybeSingle(),
