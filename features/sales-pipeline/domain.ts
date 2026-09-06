@@ -17,7 +17,7 @@ export function validateStageTransition(from: PipelineStage, to: PipelineStage, 
   return null;
 }
 export function followUpStatus(input: { stage: PipelineStage; humanHandoff: boolean; optOut: boolean; deliveryEnabled: boolean; nextActionAt: string | null; now?: Date }): FollowUpStatus {
-  if (input.stage === "GANADO" || input.stage === "PERDIDO" || input.optOut || input.humanHandoff || input.deliveryEnabled) return "BLOCKED";
+  if (["GANADO", "PERDIDO", "CANCELADO", "PRUEBA", "ARCHIVADO"].includes(input.stage) || input.optOut || input.humanHandoff || input.deliveryEnabled) return "BLOCKED";
   if (!input.nextActionAt) return "PAUSED";
   return new Date(input.nextActionAt).getTime() <= (input.now ?? new Date()).getTime() ? "DUE" : "SCHEDULED";
 }
