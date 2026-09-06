@@ -9,6 +9,7 @@ import {
   Archive,
   Ban,
   BriefcaseBusiness,
+  CalendarClock,
   CalendarDays,
   Check,
   CheckCircle2,
@@ -42,6 +43,7 @@ import {
 } from "@/features/asset-management";
 import { AgreementSigningControl } from "@/features/projects/signing/agreement-signing-control";
 import { DigitalPhotoDeliveryControl } from "@/features/projects/communications/digital-photo-delivery-control";
+import { PreEventReminderControl } from "@/features/projects/communications/pre-event-reminder-control";
 import {
   ProductionIntegrationPanel,
   type ProductionIntegrationPanelProps,
@@ -1477,6 +1479,12 @@ export function ProjectWorkspaceExperience(
                 variant="outline"
               />
               <ActionButton
+                icon={CalendarClock}
+                label="Recordatorio pre-evento"
+                onClick={() => scroll("pre-event-reminder")}
+                variant="outline"
+              />
+              <ActionButton
                 icon={CheckCircle2}
                 label="Cerrar evento"
                 onClick={() => scroll("post-event")}
@@ -1531,6 +1539,8 @@ export function ProjectWorkspaceExperience(
               </p>
             )}
           </Section>
+
+          <PreEventReminderControl projectId={props.projectKey ?? ""} />
 
           <DigitalPhotoDeliveryControl projectId={props.projectKey ?? ""} />
 
