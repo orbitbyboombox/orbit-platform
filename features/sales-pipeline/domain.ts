@@ -1,12 +1,12 @@
 import { PIPELINE_STAGES, type FollowUpStatus, type PipelineStage } from "./types.ts";
-export function derivePipelineStage(input: { explicit?: string | null; commercialStage?: string | null; quotationStatus?: string | null; reservationStatus?: string | null }): PipelineStage {
+export function derivePipelineStage(input: { explicit?: string | null; commercialStage?: string | null; quotationStatus?: string | null; reservationStatus?: string | null; legacyReservationConfirmed?: boolean }): PipelineStage {
   if (PIPELINE_STAGES.includes(input.explicit as PipelineStage)) return input.explicit as PipelineStage;
-  if (["CONFIRMED", "BOOKED"].includes(String(input.reservationStatus).toUpperCase())) return "GANADO";
+  if (["CONFIRMED", "BOOKED"].includes(String(input.reservationStatus).toUpperCase()) || input.legacyReservationConfirmed) return "GANADO";
   const value = String(input.commercialStage ?? "");
   if (value === "Quoting") return "COTIZACIÓN";
   if (["Waiting", "Contacted"].includes(value)) return value === "Waiting" ? "SEGUIMIENTO" : "CALIFICANDO";
   if (["Reserved"].includes(value)) return "RESERVA PENDIENTE";
-  if (["Confirmed", "Production", "Finished"].includes(value)) return ["CONFIRMED", "BOOKED"].includes(String(input.reservationStatus).toUpperCase()) ? "GANADO" : "RESERVA PENDIENTE";
+  if (["Confirmed", "Production", "Finished"].includes(value)) return ["CONFIRMED", "BOOKED"].includes(String(input.reservationStatus).toUpperCase()) || input.legacyReservationConfirmed ? "GANADO" : "RESERVA PENDIENTE";
   if (input.quotationStatus) return "COTIZACIÓN";
   return "NUEVO";
 }
