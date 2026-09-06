@@ -7,12 +7,14 @@ import {
   loadCommunicationHubProjection,
 } from "@/features/communication-hub";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { loadSalesPipeline, SalesPipeline } from "@/features/sales-pipeline";
 
 export default async function LeadsPage() {
   const client = await createSupabaseServerClient();
-  const [commercial, communication] = await Promise.all([
+  const [commercial, communication, pipeline] = await Promise.all([
     loadCommercialHubData(client),
     loadCommunicationHubProjection(client),
+    loadSalesPipeline(),
   ]);
 
   return (
@@ -25,6 +27,7 @@ export default async function LeadsPage() {
           indicators={communication.indicators}
         />
       </div>
+      <SalesPipeline data={pipeline} />
     </>
   );
 }
