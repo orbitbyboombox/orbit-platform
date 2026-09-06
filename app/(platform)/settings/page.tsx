@@ -19,7 +19,7 @@ import {
   loadCompanySettings,
 } from "@/features/company-settings";
 import Link from "next/link";
-import { Activity, ArrowRight, Files, PenTool } from "lucide-react";
+import { Activity, ArrowRight, Files, PenTool, RadioTower } from "lucide-react";
 import { ModuleManagerCenter } from "@/features/module-manager";
 import { loadModuleStates } from "@/features/module-manager/repository";
 import { ProfitabilitySettings } from "@/features/settings/profitability-settings";
@@ -155,7 +155,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const signatureOpen = query.section === "email-signature";
   return (
     <main className="mx-auto w-full max-w-[1480px] space-y-6 p-4 sm:p-6 lg:p-8">
-      <div className="grid gap-4 md:grid-cols-2"><Link
+      <div className="grid gap-4 md:grid-cols-3"><Link
         className="group flex items-center justify-between gap-5 rounded-3xl border border-brand/30 bg-card p-5 transition hover:border-brand/60 hover:bg-brand/[.04] sm:p-7"
         href="/settings?section=commercial-documents#commercial-documents"
       >
@@ -167,7 +167,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           </div>
         </div>
         <ArrowRight className="size-5 shrink-0 text-brand transition group-hover:translate-x-1" />
-      </Link><Link className="group flex items-center justify-between gap-5 rounded-3xl border border-brand/30 bg-card p-5 transition hover:border-brand/60 hover:bg-brand/[.04] sm:p-7" href="/settings?section=email-signature#email-signature-settings"><div className="flex min-w-0 items-start gap-4"><span className="rounded-2xl border bg-background p-3 text-brand"><PenTool className="size-5" /></span><div className="min-w-0"><p className="text-lg font-semibold">Firma de correo</p><p className="mt-1 text-sm text-muted">Carga y revisa la firma gráfica oficial de BOOMBOX.</p></div></div><ArrowRight className="size-5 shrink-0 text-brand transition group-hover:translate-x-1" /></Link></div>
+      </Link><Link className="group flex items-center justify-between gap-5 rounded-3xl border border-brand/30 bg-card p-5 transition hover:border-brand/60 hover:bg-brand/[.04] sm:p-7" href="/settings?section=email-signature#email-signature-settings"><div className="flex min-w-0 items-start gap-4"><span className="rounded-2xl border bg-background p-3 text-brand"><PenTool className="size-5" /></span><div className="min-w-0"><p className="text-lg font-semibold">Firma de correo</p><p className="mt-1 text-sm text-muted">Carga y revisa la firma gráfica oficial de BOOMBOX.</p></div></div><ArrowRight className="size-5 shrink-0 text-brand transition group-hover:translate-x-1" /></Link><Link className="group flex items-center justify-between gap-5 rounded-3xl border border-brand/30 bg-card p-5 transition hover:border-brand/60 hover:bg-brand/[.04] sm:p-7" href="/settings/integrations"><div className="flex min-w-0 items-start gap-4"><span className="rounded-2xl border bg-background p-3 text-brand"><RadioTower className="size-5" /></span><div className="min-w-0"><p className="text-lg font-semibold">Estado de Integraciones</p><p className="mt-1 text-sm text-muted">Observabilidad Founder de conexiones productivas, sin acciones externas.</p></div></div><ArrowRight className="size-5 shrink-0 text-brand transition group-hover:translate-x-1" /></Link></div>
       {commercialOpen && (
         <CommercialSettings
           documents={commercialDocumentRows}
