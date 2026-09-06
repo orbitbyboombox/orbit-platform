@@ -1,4 +1,10 @@
 import { PIPELINE_STAGES, type FollowUpStatus, type PipelineStage } from "./types.ts";
+export type RelatedSalesRow = { status?: string; grand_total?: number; final_customer_price?: number; created_at?: string; occurred_at?: string; direction?: string; channel?: string };
+export function normalizeRelatedRows(value: unknown): RelatedSalesRow[] {
+  if (Array.isArray(value)) return value.filter((item): item is RelatedSalesRow => Boolean(item && typeof item === "object"));
+  if (value && typeof value === "object") return [value as RelatedSalesRow];
+  return [];
+}
 export function derivePipelineStage(input: { explicit?: string | null; commercialStage?: string | null; quotationStatus?: string | null; reservationStatus?: string | null; legacyReservationConfirmed?: boolean }): PipelineStage {
   if (PIPELINE_STAGES.includes(input.explicit as PipelineStage)) return input.explicit as PipelineStage;
   if (["CONFIRMED", "BOOKED"].includes(String(input.reservationStatus).toUpperCase()) || input.legacyReservationConfirmed) return "GANADO";

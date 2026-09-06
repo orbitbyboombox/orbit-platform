@@ -1,11 +1,12 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { actionUrgency, derivePipelineStage, followUpStatus } from "./domain";
+import { actionUrgency, derivePipelineStage, followUpStatus, normalizeRelatedRows, type RelatedSalesRow } from "./domain";
 import { LEAD_SOURCES, NEXT_ACTION_TYPES, PIPELINE_STAGES, type LeadSource, type NextActionType, type PipelineStage, type SalesLead, type SalesPipelineData } from "./types";
 const source = (value: unknown): LeadSource => LEAD_SOURCES.includes(String(value).toUpperCase() as LeadSource) ? String(value).toUpperCase() as LeadSource : "UNKNOWN";
 const action = (value: unknown): NextActionType | null => NEXT_ACTION_TYPES.includes(String(value).toUpperCase() as NextActionType) ? String(value).toUpperCase() as NextActionType : null;
-type Related = { status?: string; grand_total?: number; final_customer_price?: number; created_at?: string; occurred_at?: string; direction?: string; channel?: string };
-type RawRow = { id: string; customer_id: string; orbit_event_id: string; name: string; project_type: string; event_date: string | null; operations: Record<string, unknown> | null; pipeline_stage?: string | null; lead_source?: string | null; next_action_at?: string | null; next_action_type?: string | null; estimated_value?: number | null; follow_up_status?: string | null; lost_reason?: string | null; customers?: { full_name?: string; company?: string | null } | { full_name?: string; company?: string | null }[] | null; project_services?: { service_code: string }[]; quotations?: Related[]; crm_reservations?: Related[] | Related | null; crm_events?: Related[]; financial_event_records?: Related[]; communications?: Related[] };
+type Related = RelatedSalesRow;
+type RawRow = { id: string; customer_id: string; orbit_event_id: string; name: string; project_type: string; event_date: string | null; operations: Record<string, unknown> | null; pipeline_stage?: string | null; lead_source?: string | null; next_action_at?: string | null; next_action_type?: string | null; estimated_value?: number | null; follow_up_status?: string | null; lost_reason?: string | null; customers?: { full_name?: string; company?: string | null } | { full_name?: string; company?: string | null }[] | null; project_services?: { service_code: string }[]; quotations?: Related[]; crm_reservations?: Related[] | Related | null; crm_events?: Related[] | Related | null; financial_event_records?: Related[] | Related | null; communications?: Related[] };
+
 export async function loadSalesPipeline(): Promise<SalesPipelineData> {
   const admin = createAdminClient();
   const fullSelect = "id,customer_id,orbit_event_id,name,project_type,event_date,operations,pipeline_stage,lead_source,next_action_at,next_action_type,estimated_value,follow_up_status,lost_reason,customers(full_name,company),project_services(service_code),quotations(status,grand_total,final_customer_price,created_at),crm_reservations(status),crm_events(status),financial_event_records(status),communications(occurred_at,direction,channel)";
@@ -24,7 +25,9 @@ export async function loadSalesPipeline(): Promise<SalesPipelineData> {
     const customer = Array.isArray(row.customers) ? row.customers[0] : row.customers;
     const quotes = Array.isArray(row.quotations) ? row.quotations : [];
     const reservation = Array.isArray(row.crm_reservations) ? row.crm_reservations[0] : row.crm_reservations;
-    const legacyReservationConfirmed = String(op.commercialStage ?? "").toUpperCase() === "CONFIRMED" && String(op.stage ?? "").toUpperCase() === "RESERVA CONFIRMADA" && row.crm_events?.some((event) => !["CANCELLED", "CANCELED", "ARCHIVED"].includes(String(event.status).toUpperCase())) === true && row.financial_event_records?.some((record) => String(record.status).toUpperCase() === "CONFIRMED") === true;
+    const legacyEvents = normalizeRelatedRows(row.crm_events);
+    const legacyFinancialRecords = normalizeRelatedRows(row.financial_event_records);
+    const legacyReservationConfirmed = String(op.commercialStage ?? "").toUpperCase() === "CONFIRMED" && String(op.stage ?? "").toUpperCase() === "RESERVA CONFIRMADA" && legacyEvents.some((event) => !["CANCELLED", "CANCELED", "ARCHIVED"].includes(String(event.status).toUpperCase())) && legacyFinancialRecords.some((record) => String(record.status).toUpperCase() === "CONFIRMED");
     const communications = Array.isArray(row.communications) ? row.communications : [];
     const latest = communications.sort((a, b) => String(b.occurred_at).localeCompare(String(a.occurred_at)))[0];
     const quote = [...quotes].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0];
