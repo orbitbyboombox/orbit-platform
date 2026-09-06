@@ -52,6 +52,8 @@ export interface UnifiedConversation {
   assignedHuman?: string;
   lastChannel: CommunicationChannel;
   lastInteractionAt: string;
+  phone?: string;
+  unreadCount?: number;
 }
 
 export interface CommunicationHubContext {

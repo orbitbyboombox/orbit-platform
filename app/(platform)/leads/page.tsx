@@ -6,6 +6,7 @@ import {
   CommunicationHub,
   loadCommunicationHubProjection,
 } from "@/features/communication-hub";
+import { WhatsAppInbox } from "@/features/communication-hub/components/whatsapp-inbox";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { loadSalesPipeline, SalesPipeline } from "@/features/sales-pipeline";
 
@@ -26,6 +27,7 @@ export default async function LeadsPage() {
           events={communication.events}
           indicators={communication.indicators}
         />
+        <div className="mt-6"><WhatsAppInbox conversations={communication.conversations} events={communication.events} /></div>
       </div>
       <SalesPipeline data={pipeline} />
     </>

@@ -6,8 +6,8 @@ import type { CommunicationChannel, CommunicationDirection, CommunicationHubIndi
 import { calculateCommunicationIndicators, newestFirst } from "./unified-communication.timeline";
 
 interface ConversationRow { id: string; customer_id: string; status: string; nova_enabled: boolean; human_owner_id: string | null; context: Record<string, unknown>; updated_at: string; }
-interface CustomerRow { id: string; full_name: string; }
-interface CommunicationRow { id: string; customer_id: string; channel: string; direction: string; communication_type: string; thread_key: string; occurred_at: string; }
+interface CustomerRow { id: string; full_name: string; phone?: string | null; }
+interface CommunicationRow { id: string; customer_id: string; channel: string; direction: string; communication_type: string; thread_key: string; occurred_at: string; body?: string | null; }
 
 export interface CommunicationHubProjection {
   conversations: readonly UnifiedConversation[];
@@ -52,21 +52,23 @@ export class SupabaseCommunicationTimelineRepository implements CommunicationTim
 export async function loadCommunicationHubProjection(client: SupabaseClient): Promise<CommunicationHubProjection> {
   const [{ data: stateRows, error: stateError }, { data: customerRows, error: customerError }, { data: communicationRows, error: communicationError }] = await Promise.all([
     client.from("conversation_states").select("id,customer_id,status,nova_enabled,human_owner_id,context,updated_at").order("updated_at", { ascending: false }),
-    client.from("customers").select("id,full_name").is("deleted_at", null),
-    client.from("communications").select("id,customer_id,channel,direction,communication_type,thread_key,occurred_at").order("occurred_at", { ascending: false }),
+    client.from("customers").select("id,full_name,phone").is("deleted_at", null),
+    client.from("communications").select("id,customer_id,channel,direction,communication_type,thread_key,occurred_at,body").order("occurred_at", { ascending: false }),
   ]);
   const error = stateError ?? customerError ?? communicationError;
   if (error) throw error;
   const customers = new Map((customerRows as CustomerRow[]).map((row) => [row.id, row.full_name]));
   const communications = communicationRows as CommunicationRow[];
   const conversations = (stateRows as ConversationRow[]).map((row) => {
-    const recent = communications.find((item) => item.customer_id === row.customer_id);
+    const customerCommunications = communications.filter((item) => item.customer_id === row.customer_id);
+    const recent = customerCommunications[0];
+    const unreadCount = customerCommunications.filter((item) => item.channel === "WHATSAPP_BUSINESS" && item.direction === "INBOUND").length;
     const channel = asChannel(recent?.channel ?? String(row.context.channel ?? "FUTURE"));
     const storedStatus = asStatus(row.status);
     const humanHandoff = storedStatus === "HUMAN_HANDOFF" || row.nova_enabled === false;
     const status: UnifiedConversationStatus = humanHandoff ? "HUMAN_HANDOFF" : storedStatus;
-    return { id: row.id, customerId: row.customer_id, customerName: customers.get(row.customer_id), status, novaState: { conversationId: row.id, customerId: row.customer_id, channel: asNovaChannel(channel), status, humanHandoff, handledBy: row.human_owner_id ?? undefined, startedAt: String(row.context.startedAt ?? row.updated_at), lastMessageAt: recent?.occurred_at ?? row.updated_at }, assignedHuman: row.human_owner_id ?? undefined, lastChannel: channel, lastInteractionAt: recent?.occurred_at ?? row.updated_at } satisfies UnifiedConversation;
+    return { id: row.id, customerId: row.customer_id, customerName: customers.get(row.customer_id), phone: (customerRows as CustomerRow[]).find((item) => item.id === row.customer_id)?.phone ?? undefined, unreadCount, status, novaState: { conversationId: row.id, customerId: row.customer_id, channel: asNovaChannel(channel), status, humanHandoff, handledBy: row.human_owner_id ?? undefined, startedAt: String(row.context.startedAt ?? row.updated_at), lastMessageAt: recent?.occurred_at ?? row.updated_at }, assignedHuman: row.human_owner_id ?? undefined, lastChannel: channel, lastInteractionAt: recent?.occurred_at ?? row.updated_at } satisfies UnifiedConversation;
   });
-  const events = newestFirst(communications.map((row) => ({ id: row.id, conversationId: row.thread_key, customerId: row.customer_id, channel: asChannel(row.channel), direction: asDirection(row.direction), type: asEventType(row.communication_type), occurredAt: row.occurred_at, summary: row.communication_type.replaceAll("_", " ") } satisfies UnifiedCommunicationEvent)));
+  const events = newestFirst(communications.map((row) => ({ id: row.id, conversationId: row.thread_key, customerId: row.customer_id, channel: asChannel(row.channel), direction: asDirection(row.direction), type: asEventType(row.communication_type), occurredAt: row.occurred_at, summary: row.body || row.communication_type.replaceAll("_", " ") } satisfies UnifiedCommunicationEvent)));
   return { conversations, events, indicators: calculateCommunicationIndicators(conversations) };
 }
