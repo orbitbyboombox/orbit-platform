@@ -63,6 +63,8 @@ const loadFounderActionCenterCached = cache(async (userId: string): Promise<Foun
   const admin = createAdminClient();
   const { error: salesError } = await admin.rpc("reconcile_sales_pipeline_founder_alerts");
   if (salesError && !["42883", "PGRST202"].includes(salesError.code ?? "")) throw salesError;
+  const { error: closedSalesError } = await admin.rpc("close_noncommercial_sales_alerts");
+  if (closedSalesError && !["42883", "PGRST202"].includes(closedSalesError.code ?? "")) throw closedSalesError;
   const { error: reconciliationError } = await admin.rpc("reconcile_founder_action_alerts");
   if (reconciliationError) throw reconciliationError;
   const [
@@ -72,7 +74,7 @@ const loadFounderActionCenterCached = cache(async (userId: string): Promise<Foun
   ] = await Promise.all([
     admin
       .from("internal_notifications")
-      .select("id,notification_type,title,message,created_at,category,priority,related_href,entity_type,entity_id")
+      .select("id,notification_type,title,message,created_at,category,priority,related_href,entity_type,entity_id,projects(pipeline_stage,operations)")
       .eq("action_required", true)
       .neq("status", "RESOLVED")
       .in("notification_type", [...canonicalFounderActionTypeList])
@@ -84,7 +86,13 @@ const loadFounderActionCenterCached = cache(async (userId: string): Promise<Foun
   if (error || statesError || overdueError) throw error ?? statesError ?? overdueError;
   const readIds = new Set((states ?? []).filter((state) => state.read_at).map((state) => state.notification_id));
   const projected = (rows ?? [])
-    .filter((row) => canonicalFounderActionTypes.has(row.notification_type))
+    .filter((row) => {
+      if (!canonicalFounderActionTypes.has(row.notification_type)) return false;
+      const project = Array.isArray(row.projects) ? row.projects[0] : row.projects;
+      const operations = project?.operations && typeof project.operations === "object" ? project.operations as Record<string, unknown> : {};
+      const stage = String(project?.pipeline_stage ?? operations.pipelineStage ?? "").toUpperCase();
+      return !["GANADO", "PERDIDO", "CANCELADO", "PRUEBA", "ARCHIVADO"].includes(stage);
+    })
     .map((row) => ({
       id: row.id,
       type: row.notification_type,
