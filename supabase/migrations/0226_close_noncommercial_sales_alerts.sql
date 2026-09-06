@@ -18,7 +18,7 @@ begin
      and n.notification_type like 'SALES_%'
      and n.status <> 'RESOLVED'
      and upper(coalesce(p.pipeline_stage, p.operations->>'pipelineStage', 'NUEVO'))
-         in ('GANADO','PERDIDO','CANCELADO','PRUEBA','ARCHIVADO');
+         in ('CANCELADO','PRUEBA','ARCHIVADO');
   get diagnostics affected = row_count;
   return affected;
 end;
