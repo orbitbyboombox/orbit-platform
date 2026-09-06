@@ -41,7 +41,7 @@ const cta = (type: string) =>
       ? "REVISAR GASTO"
       : type === "STAFF_BOLETA_REVIEW_REQUIRED"
         ? "REVISAR BOLETA"
-      : "REVISAR";
+      : type.startsWith("SALES_") ? "REVISAR LEAD" : "REVISAR";
 
 const canonicalFounderActionTypeList = [
   "STAFF_ONBOARDING_REVIEW_REQUIRED",
@@ -49,11 +49,20 @@ const canonicalFounderActionTypeList = [
   "STAFF_BOLETA_REVIEW_REQUIRED",
   "HEALTH_WARNING",
   "EVENT_NOT_READY",
+  "SALES_LEAD_UNATTENDED",
+  "SALES_QUOTE_NO_FOLLOWUP",
+  "SALES_FOLLOWUP_OVERDUE",
+  "SALES_NO_NEXT_ACTION",
+  "SALES_CUSTOMER_REPLIED",
+  "SALES_RESERVATION_PENDING",
+  "SALES_LEAD_STALLED",
 ] as const;
 const canonicalFounderActionTypes = new Set<string>(canonicalFounderActionTypeList);
 
 const loadFounderActionCenterCached = cache(async (userId: string): Promise<FounderActionCenter> => {
   const admin = createAdminClient();
+  const { error: salesError } = await admin.rpc("reconcile_sales_pipeline_founder_alerts");
+  if (salesError && !["42883", "PGRST202"].includes(salesError.code ?? "")) throw salesError;
   const { error: reconciliationError } = await admin.rpc("reconcile_founder_action_alerts");
   if (reconciliationError) throw reconciliationError;
   const [
