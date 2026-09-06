@@ -22,6 +22,7 @@ export function CommunicationHub({ conversations, events, indicators }: Communic
   const initialConversationId = useMemo(() => conversations.find((item) => item.status === "HUMAN_HANDOFF")?.id ?? conversations[0]?.id ?? "", [conversations]);
   const [selectedConversationId, setSelectedConversationId] = useState(initialConversationId);
   const [message, setMessage] = useState("");
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const active = conversations.find(({ id }) => id === selectedConversationId) ?? conversations[0];
   const humanControlled = active?.status === "HUMAN_HANDOFF" || active?.novaState.humanHandoff === true;
@@ -56,11 +57,12 @@ export function CommunicationHub({ conversations, events, indicators }: Communic
       </section>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(20rem,0.75fr)]">
-        <SmartCard icon={<MessagesSquare aria-hidden="true" className="size-5" />} primaryValue="Historia unificada" secondaryValue="Más reciente primero · Todos los canales" status={<StatusBadge label={`${events.length} eventos`} variant="info" />} title="Historial del cliente">
-          <ol className="space-y-3">
+        <SmartCard icon={<MessagesSquare aria-hidden="true" className="size-5" />} primaryValue="Historia unificada" secondaryValue="Más reciente primero · Todos los canales" status={<StatusBadge label={`${events.length} eventos`} variant="info" />} title="Historial unificado">
+          <div className="rounded-xl border bg-background/35 p-4"><div className="grid gap-3 text-xs sm:grid-cols-4"><div><span className="text-muted">Última actividad</span><p className="mt-1 font-semibold">{events[0] ? new Date(events[0].occurredAt).toLocaleString("es-CL", { dateStyle: "short", timeStyle: "short" }) : "—"}</p></div><div><span className="text-muted">Mensajes</span><p className="mt-1 font-semibold">{events.filter((event) => event.direction !== "SYSTEM").length}</p></div><div><span className="text-muted">Cambios de estado</span><p className="mt-1 font-semibold">{events.filter((event) => event.type.includes("HANDOFF") || event.type.includes("CLOSED")).length}</p></div><div><span className="text-muted">Acciones humanas</span><p className="mt-1 font-semibold">{events.filter((event) => event.direction === "SYSTEM").length}</p></div></div><button className="mt-4 rounded-lg border px-3 py-2 text-xs font-semibold text-brand" onClick={() => setHistoryOpen((value) => !value)}>{historyOpen ? "Ocultar historial" : "Ver historial completo"}</button></div>
+          {historyOpen && <ol className="mt-4 max-h-[28rem] space-y-3 overflow-y-auto">
             {events.map((event) => { const channel = CHANNEL[event.channel]; const Icon = channel.icon; return <li className="flex gap-3 rounded-xl border bg-background/35 p-4" key={event.id}><span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent"><Icon aria-hidden="true" className="size-4" /></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-semibold">{event.summary}</p><StatusBadge label={channel.label} variant="neutral" /></div><p className="mt-1 text-xs text-muted">{event.direction === "INBOUND" ? "Cliente" : event.direction === "OUTBOUND" ? "NOVA" : "Sistema"} · {new Date(event.occurredAt).toLocaleString("es-CL", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "America/Santiago" })}</p></div></li>; })}
             {!events.length && <li className="rounded-xl border border-dashed p-6 text-center"><p className="text-sm font-medium">Aún no existen comunicaciones.</p><p className="mt-1 text-sm text-muted">La historia unificada aparecerá aquí automáticamente.</p></li>}
-          </ol>
+          </ol>}
         </SmartCard>
 
         <SmartCard icon={<UsersRound aria-hidden="true" className="size-5" />} primaryValue={active?.customerName ?? "Ninguna conversación"} secondaryValue={humanControlled ? "BOOMBOX tiene el control · NOVA pausada" : "NOVA mantiene el control"} status={<StatusBadge label={humanControlled ? "Control humano" : "NOVA activo"} variant={humanControlled ? "warning" : "success"} />} title="Traspaso humano">
