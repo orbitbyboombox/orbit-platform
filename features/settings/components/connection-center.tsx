@@ -1,6 +1,7 @@
 "use client";
 
 import { Check, Link2, PlugZap, ShieldCheck } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { SmartCard } from "@/components/cards/smart-card";
 import { BrandLogo } from "@/components/brand-logo";
 import { SectionTitle } from "@/components/layout/section-title";
@@ -14,6 +15,7 @@ import {
   type GoogleWorkspaceConnectionHealth,
   type GoogleWorkspaceTokenStatus,
 } from "@/features/connectors";
+import { disconnectedWhatsAppConnection, type WhatsAppSafeConnection } from "@/features/connectors/whatsapp-cloud/whatsapp-connection.types";
 
 const STATUS_PRESENTATION: Record<
   ConnectionStatus,
@@ -104,12 +106,52 @@ function GoogleWorkspaceCard({ connection, configured }: GoogleWorkspaceCardProp
   );
 }
 
+function WhatsAppCard({ connection }: { connection: WhatsAppSafeConnection }) {
+  const router = useRouter();
+  const presentation = connection.connectionStatus === "CONNECTED"
+    ? { label: "Conectado", variant: "success" as const }
+    : connection.connectionStatus === "ERROR"
+      ? { label: "Error", variant: "danger" as const }
+      : { label: "No conectado", variant: "neutral" as const };
+  const technicalStatus = connection.backendStatus === "TOKEN_INVALID"
+    ? "Token inválido o sin permisos"
+    : connection.backendStatus === "PROVIDER_UNAVAILABLE"
+      ? "Proveedor o teléfono no disponible"
+      : connection.backendStatus === "PROVIDER_READY"
+        ? "Proveedor listo"
+        : connection.backendStatus === "WEBHOOK_READY"
+          ? "Webhook listo"
+          : "Configuración de servidor pendiente";
+  return (
+    <SmartCard
+      className="min-w-0 flex min-h-[320px] flex-col"
+      description="Meta WhatsApp Cloud API configurada exclusivamente en servidor. ORBIT no expone credenciales."
+      icon={<ShieldCheck aria-hidden="true" className="size-5" />}
+      status={<StatusBadge label={presentation.label} variant={presentation.variant} />}
+      title="WhatsApp"
+    >
+      <div className="flex flex-1 flex-col">
+        <dl className="grid gap-4 rounded-xl border border-border/70 bg-accent/30 p-4 text-sm sm:grid-cols-2">
+          <div><dt className="text-muted">Proveedor</dt><dd className="mt-1 font-semibold">{connection.provider}</dd></div>
+          <div><dt className="text-muted">Teléfono</dt><dd className="mt-1 font-semibold">{connection.phone ?? "No disponible"}</dd></div>
+          <div><dt className="text-muted">Webhook</dt><dd className="mt-1 font-semibold">{connection.webhookActive ? "Activo" : "Inactivo"}</dd></div>
+          <div><dt className="text-muted">Estado técnico</dt><dd className="mt-1 font-semibold">{technicalStatus}</dd></div>
+        </dl>
+        <div className="mt-auto flex flex-col gap-2 border-t pt-5 sm:flex-row sm:flex-wrap">
+          <ActionButton className="w-full sm:w-auto" disabled={!connection.controlsEnabled} icon={PlugZap} label={connection.controlsEnabled ? "Probar conexión" : "Conexión pendiente"} onClick={() => router.refresh()} type="button" variant="outline" />
+        </div>
+      </div>
+    </SmartCard>
+  );
+}
+
 interface ConnectionCenterProps {
   googleConnection?: GoogleWorkspaceConnection;
   googleConfigured?: boolean;
+  whatsappConnection?: WhatsAppSafeConnection;
 }
 
-export function ConnectionCenter({ googleConnection = createDisconnectedGoogleWorkspaceConnection(), googleConfigured = false }: ConnectionCenterProps) {
+export function ConnectionCenter({ googleConnection = createDisconnectedGoogleWorkspaceConnection(), googleConfigured = false, whatsappConnection = disconnectedWhatsAppConnection() }: ConnectionCenterProps) {
   const statuses = initialStatuses;
 
   return (
@@ -138,6 +180,7 @@ export function ConnectionCenter({ googleConnection = createDisconnectedGoogleWo
               />
             );
           }
+          if (provider.id === "whatsapp") return <WhatsAppCard connection={whatsappConnection} key={provider.id} />;
           const status = statuses[provider.id] ?? provider.initialStatus;
           const presentation = STATUS_PRESENTATION[status];
           const ProviderIcon = provider.icon;

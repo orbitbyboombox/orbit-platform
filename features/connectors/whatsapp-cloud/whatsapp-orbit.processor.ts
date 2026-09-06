@@ -11,6 +11,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { QueuedWhatsAppDispatcher } from "./queued-whatsapp.dispatcher";
 import { WhatsAppAiResponder, type WhatsAppAiDecision, type WhatsAppConversationHistoryItem } from "./whatsapp-ai.responder";
 import { deliverCanonicalCatalogFromWhatsApp, type WhatsAppCatalogDeliveryResult } from "./whatsapp-catalog.delivery";
+import { whatsappAutomationEnabled } from "./meta-whatsapp-cloud";
+import { logWhatsApp } from "./whatsapp-observability";
 
 interface WebhookEventRow {
   id: string;
@@ -107,7 +109,33 @@ async function resolveCustomer(client: SupabaseClient, event: WebhookEventRow): 
     p_sender_wa_id: event.sender_wa_id,
     p_profile_name: event.profile_name,
   });
-  if (error) throw error;
+  if (error) {
+    // Production CRM keeps customers.email NOT NULL. Older deployments of the
+    // identity RPC predate the WhatsApp email-less inbound fallback, so recover
+    // deterministically here while the idempotent migration is rolled out.
+    if (error.code !== "23502") throw error;
+    const normalizedPhone = event.sender_wa_id.replace(/[^0-9]/g, "");
+    if (!normalizedPhone) throw error;
+    const fallbackEmail = `whatsapp-${normalizedPhone}@inbound.invalid`;
+    const { data: fallbackCustomer, error: fallbackError } = await client
+      .from("customers")
+      .insert({
+        full_name: event.profile_name?.trim() || "Cliente WhatsApp",
+        email: fallbackEmail,
+        phone: `+${normalizedPhone}`,
+        metadata: {
+          leadSource: "WHATSAPP",
+          whatsappWaId: normalizedPhone,
+          whatsappFirstSeenAt: new Date().toISOString(),
+          whatsappLastSeenAt: new Date().toISOString(),
+          emailPlaceholder: true,
+        },
+      })
+      .select("id,full_name,email")
+      .single();
+    if (fallbackError) throw fallbackError;
+    return fallbackCustomer as WhatsAppCustomer;
+  }
   if (typeof data !== "string") throw new Error("WhatsApp customer identity resolution returned no customer.");
   const { data: customer, error: customerError } = await client
     .from("customers")
@@ -118,7 +146,7 @@ async function resolveCustomer(client: SupabaseClient, event: WebhookEventRow): 
   return customer as WhatsAppCustomer;
 }
 
-async function resolveConversation(client: SupabaseClient, customerId: string, senderWaId: string, occurredAt: string) {
+async function resolveConversation(client: SupabaseClient, customerId: string, senderWaId: string, occurredAt: string, automationEnabled: boolean) {
   const { data: existing, error: readError } = await client
     .from("conversation_states")
     .select("id,customer_id,status,nova_enabled,human_owner_id,context,updated_at")
@@ -131,8 +159,8 @@ async function resolveConversation(client: SupabaseClient, customerId: string, s
     .from("conversation_states")
     .insert({
       customer_id: customerId,
-      status: "ACTIVE",
-      nova_enabled: true,
+      status: automationEnabled ? "ACTIVE" : "HUMAN_HANDOFF",
+      nova_enabled: automationEnabled,
       context: {
         channel: "WHATSAPP_BUSINESS",
         externalParticipantId: senderWaId,
@@ -292,7 +320,10 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
     .select("id,provider_message_id,sender_wa_id,profile_name,message_type,text_body,occurred_at,processing_status")
     .maybeSingle();
   if (claimError) throw claimError;
-  if (!claimed) return { ok: true as const, skipped: true as const };
+  if (!claimed) {
+    logWhatsApp("info", "whatsapp_event_duplicate", providerMessageId, { provider: "META_CLOUD_API" });
+    return { ok: true as const, skipped: true as const };
+  }
 
   const event = claimed as WebhookEventRow;
   try {
@@ -301,9 +332,36 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
       return { ok: true as const, unsupported: true as const };
     }
 
+    const automationEnabled = whatsappAutomationEnabled();
     const customer = await resolveCustomer(client, event);
-    const conversationState = await resolveConversation(client, customer.id, event.sender_wa_id, event.occurred_at);
+    const conversationState = await resolveConversation(client, customer.id, event.sender_wa_id, event.occurred_at, automationEnabled);
     await persistInboundCommunication(client, event, conversationState.id, customer.id);
+
+    if (!automationEnabled) {
+      const { error: stateError } = await client.from("conversation_states").update({
+        status: "HUMAN_HANDOFF",
+        nova_enabled: false,
+        context: {
+          ...conversationState.context,
+          channel: "WHATSAPP_BUSINESS",
+          externalParticipantId: event.sender_wa_id,
+          lastInboundMessageId: event.provider_message_id,
+          lastMessageAt: event.occurred_at,
+        },
+        updated_at: new Date().toISOString(),
+      }).eq("id", conversationState.id);
+      if (stateError) throw stateError;
+      const { error: finishError } = await client.from("whatsapp_webhook_events").update({
+        processing_status: "PROCESSED",
+        customer_id: customer.id,
+        conversation_id: conversationState.id,
+        processing_error: null,
+        updated_at: new Date().toISOString(),
+      }).eq("id", event.id);
+      if (finishError) throw finishError;
+      logWhatsApp("info", "whatsapp_event_processed", providerMessageId, { outcome: "HUMAN_REVIEW", automation: "DISABLED" });
+      return { ok: true as const, suppressed: true as const, customerId: customer.id, conversationId: conversationState.id, finalStatus: "HUMAN_HANDOFF" as const };
+    }
 
     const memoryState = await loadMemory(client, customer.id, customer.full_name);
     const history = await loadConversationHistory(client, conversationState.id);
@@ -394,15 +452,28 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
     }).eq("id", event.id);
     if (finishError) throw finishError;
 
+    logWhatsApp("info", "whatsapp_event_processed", providerMessageId, { outcome: finalStatus });
+
     return { ok: true as const, suppressed: Boolean(result.suppressed), customerId: customer.id, conversationId: conversationState.id, finalStatus };
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
+    const detail = error instanceof Error
+      ? error.message
+      : (() => {
+        if (!error || typeof error !== "object") return String(error);
+        const candidate = error as { message?: unknown; code?: unknown; details?: unknown; hint?: unknown };
+        return JSON.stringify({
+          message: candidate.message ?? null,
+          code: candidate.code ?? null,
+          details: candidate.details ?? null,
+          hint: candidate.hint ?? null,
+        });
+      })();
     await client.from("whatsapp_webhook_events").update({
       processing_status: "FAILED",
       processing_error: detail.slice(0, 1000),
       updated_at: new Date().toISOString(),
     }).eq("id", event.id);
-    console.error("whatsapp.processor.failed", { providerMessageId, detail });
+    logWhatsApp("error", "whatsapp_event_processing_failed", providerMessageId, { detail });
     return { ok: false as const, error: detail };
   }
 }

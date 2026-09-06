@@ -43,11 +43,11 @@ const env = (name: string) => {
 };
 
 export class MetaWhatsAppRejectedError extends Error {
-  constructor(
-    public readonly status: number,
-    detail: string,
-  ) {
-    super(`WhatsApp send rejected (${status}): ${detail.slice(0, 500)}`);
+  public readonly status: number;
+
+  constructor(status: number) {
+    super(`WhatsApp send rejected (${status}).`);
+    this.status = status;
     this.name = "MetaWhatsAppRejectedError";
   }
 }
@@ -56,13 +56,22 @@ export function whatsappDeliveryEnabled() {
   return process.env.WHATSAPP_DELIVERY_ENABLED?.trim().toLowerCase() === "true";
 }
 
+export function whatsappAutomationEnabled() {
+  return process.env.WHATSAPP_AUTOMATION_ENABLED?.trim().toLowerCase() === "true";
+}
+
+function safeEqual(left: string, right: string) {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+  return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
+}
+
 export function verifyMetaWebhookSignature(rawBody: string, signatureHeader: string | null) {
   const appSecret = env("WHATSAPP_APP_SECRET");
-  if (!signatureHeader?.startsWith("sha256=")) return false;
+  if (!signatureHeader || !/^sha256=[a-f0-9]{64}$/i.test(signatureHeader)) return false;
   const expected = createHmac("sha256", appSecret).update(rawBody).digest("hex");
   const received = signatureHeader.slice("sha256=".length);
-  if (received.length !== expected.length) return false;
-  return timingSafeEqual(Buffer.from(received, "hex"), Buffer.from(expected, "hex"));
+  return safeEqual(received.toLowerCase(), expected);
 }
 
 export function verifyMetaChallenge(url: URL) {
@@ -70,7 +79,7 @@ export function verifyMetaChallenge(url: URL) {
   const token = url.searchParams.get("hub.verify_token");
   const challenge = url.searchParams.get("hub.challenge");
   const configuredToken = env("WHATSAPP_VERIFY_TOKEN");
-  if (mode !== "subscribe" || token !== configuredToken || !challenge) return null;
+  if (mode !== "subscribe" || !token || !safeEqual(token, configuredToken) || !challenge) return null;
   return challenge;
 }
 
@@ -128,7 +137,7 @@ export async function sendMetaWhatsAppText(to: string, content: string) {
       }),
     },
   );
-  if (!response.ok) throw new MetaWhatsAppRejectedError(response.status, await response.text());
+  if (!response.ok) throw new MetaWhatsAppRejectedError(response.status);
   const payload = await response.json() as MetaSendResponse;
   return { providerMessageId: payload.messages?.[0]?.id ?? null };
 }

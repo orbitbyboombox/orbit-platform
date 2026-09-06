@@ -11,6 +11,8 @@ import {
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createDisconnectedGoogleWorkspaceConnection } from "@/features/connectors";
 import { loadGoogleWorkspaceConnection } from "@/features/connectors/google-workspace/application/google-workspace.repository";
+import { loadWhatsAppConnection } from "@/features/connectors/whatsapp-cloud/whatsapp-connection";
+import { disconnectedWhatsAppConnection } from "@/features/connectors/whatsapp-cloud/whatsapp-connection.types";
 import {
   CompanySettingsCenter,
   EmailSignatureSettings,
@@ -138,6 +140,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         createDisconnectedGoogleWorkspaceConnection("AUTHENTICATION_ERROR"),
       )
     : createDisconnectedGoogleWorkspaceConnection();
+  const whatsappConnection = await loadWhatsAppConnection().catch(() => disconnectedWhatsAppConnection("PROVIDER_UNAVAILABLE"));
   const commercialDocumentRows = (commercialDocuments ?? []).map((item) => ({
     id: item.id,
     name: item.name,
@@ -297,6 +300,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
               <ConnectionCenter
                 googleConfigured={googleConfigured}
                 googleConnection={googleConnection}
+                whatsappConnection={whatsappConnection}
               />
             </div>
           ),
