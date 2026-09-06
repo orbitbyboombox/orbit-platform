@@ -63,6 +63,8 @@ const loadFounderActionCenterCached = cache(async (userId: string): Promise<Foun
   const admin = createAdminClient();
   const { error: salesError } = await admin.rpc("reconcile_sales_pipeline_founder_alerts");
   if (salesError && !["42883", "PGRST202"].includes(salesError.code ?? "")) throw salesError;
+  const { error: closedSalesError } = await admin.rpc("close_noncommercial_sales_alerts");
+  if (closedSalesError && !["42883", "PGRST202"].includes(closedSalesError.code ?? "")) throw closedSalesError;
   const { error: reconciliationError } = await admin.rpc("reconcile_founder_action_alerts");
   if (reconciliationError) throw reconciliationError;
   const [
