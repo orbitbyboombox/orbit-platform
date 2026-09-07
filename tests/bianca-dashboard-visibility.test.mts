@@ -4,13 +4,16 @@ import { readFile } from "node:fs/promises";
 
 const read = (path: string) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("the real Founder dashboard renders BIANCA as a required-visible section", async () => {
+test("the real Founder dashboard exposes BIANCA to the canonical customization system", async () => {
   const workspace = await read("features/founder-workspace/founder-workspace-experience.tsx");
   const personal = await read("features/founder-workspace/personal-workspace.tsx");
   assert.match(workspace, /DASHBOARD_BIANCA/);
-  assert.match(workspace, /requiredVisible: true/);
-  assert.match(personal, /section\.requiredVisible/);
-  assert.match(personal, /Boolean\(section\?\.requiredVisible\)/);
+  assert.match(workspace, /DASHBOARD_BIANCA/);
+  assert.match(workspace, /Ordenar escritorio/);
+  assert.match(personal, /Secciones ocultas/);
+  assert.match(personal, /Ocultar/);
+  assert.match(personal, /Mostrar/);
+  assert.match(personal, /draggable=\{editing && reorderEnabled\}/);
 });
 
 test("dashboard visibility is independent from WhatsApp and delivery gates", async () => {

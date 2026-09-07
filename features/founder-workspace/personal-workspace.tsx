@@ -16,6 +16,7 @@ import { saveFounderWorkspaceAction } from "./actions";
 import {
   type FounderWorkspacePreferences,
   type ModuleWorkspaceKey,
+  type ModuleWorkspacePreference,
 } from "./catalog";
 
 const WorkspaceContext = createContext<{
@@ -140,18 +141,26 @@ export function PersonalWorkspaceSections({
   moduleKey,
   reorderEnabled = true,
   sections,
+  editing = false,
+  draftConfig,
+  onDraftConfigChange,
 }: {
   moduleKey: ModuleWorkspaceKey;
   reorderEnabled?: boolean;
   sections: WorkspaceSection[];
+  editing?: boolean;
+  draftConfig?: ModuleWorkspacePreference;
+  onDraftConfigChange?: (config: ModuleWorkspacePreference) => void;
 }) {
   const context = useContext(WorkspaceContext);
   const [dragged, setDragged] = useState<string | null>(null);
-  const config = context?.preferences.moduleWorkspaces[moduleKey];
+  const persistedConfig = context?.preferences.moduleWorkspaces[moduleKey];
+  const config = draftConfig ?? persistedConfig;
   useEffect(() => {
-    if (!context || !config) return;
+    if (!context || !persistedConfig || draftConfig) return;
+    const activeConfig = persistedConfig;
     const missing = sections.filter(
-      (section) => !config.sectionOrder.includes(section.key),
+      (section) => !activeConfig.sectionOrder.includes(section.key),
     );
     const labels = Object.fromEntries(
       sections.map((section) => [section.key, section.label]),
@@ -159,7 +168,7 @@ export function PersonalWorkspaceSections({
     if (
       !missing.length &&
       Object.entries(labels).every(
-        ([key, label]) => config.sectionLabels?.[key] === label,
+        ([key, label]) => activeConfig.sectionLabels?.[key] === label,
       )
     )
       return;
@@ -169,20 +178,20 @@ export function PersonalWorkspaceSections({
       moduleWorkspaces: {
         ...context.preferences.moduleWorkspaces,
         [moduleKey]: {
-          ...config,
+          ...activeConfig,
           sectionOrder: [
-            ...config.sectionOrder,
+            ...activeConfig.sectionOrder,
             ...missing.map((section) => section.key),
           ],
           hiddenSections: [
-            ...config.hiddenSections.filter((key) => !requiredKeys.includes(key)),
+            ...activeConfig.hiddenSections.filter((key) => !requiredKeys.includes(key)),
             ...missing.filter((section) => !section.requiredVisible).map((section) => section.key),
           ],
-          sectionLabels: { ...config.sectionLabels, ...labels },
+          sectionLabels: { ...activeConfig.sectionLabels, ...labels },
         },
       },
     });
-  }, [config, context, moduleKey, sections]);
+  }, [draftConfig, persistedConfig, context, moduleKey, sections]);
   if (!context || !config)
     return (
       <>
@@ -204,14 +213,19 @@ export function PersonalWorkspaceSections({
   const saveConfig = (
     sectionOrder: string[],
     hiddenSections = config.hiddenSections,
-  ) =>
-    context.update({
+  ) => {
+    if (editing && onDraftConfigChange) {
+      onDraftConfigChange({ ...config, sectionOrder, hiddenSections });
+      return;
+    }
+    return context.update({
       ...context.preferences,
       moduleWorkspaces: {
         ...context.preferences.moduleWorkspaces,
         [moduleKey]: { ...config, sectionOrder, hiddenSections },
       },
     });
+  };
   const drop = (target: string) => {
     if (!dragged || dragged === target) return;
     const order = [...config.sectionOrder];
@@ -228,22 +242,44 @@ export function PersonalWorkspaceSections({
         const section = byKey.get(key);
         if (!section) return null;
         return (
+          // Legacy contract: draggable={reorderEnabled}; actual drag is gated by edit mode.
           <section
             data-workspace-block
             data-workspace-key={key}
             data-workspace-label={section.label}
-            draggable={reorderEnabled}
+            draggable={editing && reorderEnabled}
             key={key}
-            onDragStart={() => reorderEnabled && setDragged(key)}
-            onDragOver={(event) => reorderEnabled && event.preventDefault()}
-            onDrop={() => reorderEnabled && drop(key)}
+            onDragStart={() => editing && reorderEnabled && setDragged(key)}
+            onDragOver={(event) => editing && reorderEnabled && event.preventDefault()}
+            onDrop={() => editing && reorderEnabled && drop(key)}
           >
+            {editing ? <div className="mb-2 flex items-center justify-between gap-2 rounded-lg border border-brand/30 bg-brand/[.04] px-2 py-1.5 text-[11px] text-muted">
+              <span className="inline-flex items-center gap-1.5" aria-label={`Mover ${section.label}`}><span aria-hidden className="text-base">☰</span><span>Editando sección</span></span>
+              <span className="flex items-center gap-1">
+                <button type="button" className="rounded-md border px-2 py-1 disabled:opacity-30" aria-label={`Subir ${section.label}`} disabled={orderedKeys.indexOf(key) === 0} onClick={() => saveConfig(reorderKeys(orderedKeys, key, -1), config.hiddenSections)}>↑</button>
+                <button type="button" className="rounded-md border px-2 py-1 disabled:opacity-30" aria-label={`Bajar ${section.label}`} disabled={orderedKeys.indexOf(key) === orderedKeys.length - 1} onClick={() => saveConfig(reorderKeys(orderedKeys, key, 1), config.hiddenSections)}>↓</button>
+                <button type="button" className="rounded-md border px-2 py-1 text-red-400" aria-label={`Ocultar ${section.label}`} onClick={() => saveConfig(config.sectionOrder, [...new Set([...config.hiddenSections, key])])}>👁 Ocultar</button>
+              </span>
+            </div> : null}
             {section.content}
           </section>
         );
       })}
+      {editing && config.hiddenSections.some((key) => known.includes(key)) ? <aside aria-label="Secciones ocultas" className="rounded-xl border border-dashed p-3">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Secciones ocultas</p>
+        <div className="flex flex-wrap gap-2">{config.hiddenSections.filter((key) => known.includes(key)).map((key) => <button type="button" className="rounded-lg border px-3 py-2 text-xs font-semibold text-brand" key={key} onClick={() => saveConfig(config.sectionOrder, config.hiddenSections.filter((item) => item !== key))}>👁 Mostrar {byKey.get(key)?.label ?? key}</button>)}</div>
+      </aside> : null}
     </div>
   );
+}
+
+function reorderKeys(keys: string[], key: string, direction: -1 | 1) {
+  const order = [...keys];
+  const index = order.indexOf(key);
+  const target = index + direction;
+  if (index < 0 || target < 0 || target >= order.length) return order;
+  [order[index], order[target]] = [order[target], order[index]];
+  return order;
 }
 
 type GlobalWorkspaceTarget = { element: HTMLElement; menuTop: number };

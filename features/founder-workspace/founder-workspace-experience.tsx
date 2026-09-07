@@ -30,8 +30,10 @@ import type { FounderActionItem } from "@/features/founder-action-center";
 import type { WhatsAppSummary } from "@/features/communication-hub";
 import type { BiancaOperationalStatus } from "@/features/bianca-workspace/bianca-status";
 import { usePersonalWorkspace } from "./personal-workspace";
+import { DEFAULT_WORKSPACE, type ModuleWorkspacePreference } from "./catalog";
 import {
   reconcileDashboardLayout,
+  resetDashboardLayout,
   type DashboardLayout,
   type DashboardKpiItemKey,
   type DashboardQuickActionItemKey,
@@ -122,7 +124,11 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
   const [dashboardLayout, setDashboardLayout] = useState<DashboardLayout>(() =>
     reconcileDashboardLayout(workspace.preferences.dashboardLayout),
   );
+  const [draftDashboardLayout, setDraftDashboardLayout] = useState<DashboardLayout | null>(null);
+  const [savedDashboardLayout, setSavedDashboardLayout] = useState<DashboardLayout | null>(null);
   const [ordering, setOrdering] = useState(false);
+  const [draftDashboardConfig, setDraftDashboardConfig] = useState<ModuleWorkspacePreference | undefined>();
+  const [savedDashboardConfig, setSavedDashboardConfig] = useState<ModuleWorkspacePreference | undefined>();
   const [orderMessage, setOrderMessage] = useState("");
   const [orderPending, startOrderTransition] = useTransition();
   const [resolvedApprovalIds, setResolvedApprovalIds] = useState<Set<string>>(() => new Set());
@@ -156,6 +162,10 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
   ];
 
   const saveOrder = (next: DashboardLayout) => {
+    if (ordering) {
+      setDraftDashboardLayout(next);
+      return;
+    }
     setDashboardLayout(next);
     setOrderMessage("Guardando…");
     startOrderTransition(async () => {
@@ -164,12 +174,55 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
     });
   };
 
+  const beginOrdering = () => {
+    const current = workspace.preferences.moduleWorkspaces.DASHBOARD;
+    setSavedDashboardConfig(current ? { ...current, sectionOrder: [...current.sectionOrder], hiddenSections: [...current.hiddenSections] } : undefined);
+    setDraftDashboardConfig(current ? { ...current, sectionOrder: [...current.sectionOrder], hiddenSections: [...current.hiddenSections] } : undefined);
+    setSavedDashboardLayout(dashboardLayout);
+    setDraftDashboardLayout(dashboardLayout);
+    setOrdering(true);
+    setOrderMessage("");
+  };
+  const cancelOrdering = () => {
+    setDraftDashboardConfig(savedDashboardConfig);
+    if (savedDashboardLayout) setDashboardLayout(savedDashboardLayout);
+    setDraftDashboardLayout(savedDashboardLayout);
+    setOrdering(false);
+    setOrderMessage("");
+  };
+  const saveWorkspaceOrdering = () => {
+    if (!draftDashboardConfig) { setOrdering(false); return; }
+    setOrderMessage("Guardando…");
+    startOrderTransition(async () => {
+      const result = await workspace.update({ ...workspace.preferences, moduleWorkspaces: { ...workspace.preferences.moduleWorkspaces, DASHBOARD: draftDashboardConfig } });
+      const layoutResult = draftDashboardLayout ? await saveFounderDashboardLayoutAction(draftDashboardLayout) : { ok: true };
+      if (result && typeof result === "object" && "ok" in result && result.ok && layoutResult.ok) {
+        if (draftDashboardLayout) setDashboardLayout(draftDashboardLayout);
+        setOrdering(false);
+        setOrderMessage("✓ Orden del escritorio guardado");
+      } else setOrderMessage("No fue posible guardar el escritorio");
+    });
+  };
+  const resetWorkspaceOrdering = () => {
+    if (!window.confirm("¿Restablecer el orden y visibilidad del escritorio?")) return;
+    const defaultLayout = resetDashboardLayout();
+    setDraftDashboardConfig(DEFAULT_WORKSPACE.moduleWorkspaces.DASHBOARD);
+    setDashboardLayout(defaultLayout);
+    setSavedDashboardConfig(undefined);
+    setOrdering(false);
+    startOrderTransition(async () => {
+      const result = await workspace.update({ ...workspace.preferences, moduleWorkspaces: { ...workspace.preferences.moduleWorkspaces, DASHBOARD: DEFAULT_WORKSPACE.moduleWorkspaces.DASHBOARD } });
+      const layoutResult = await saveFounderDashboardLayoutAction(resetDashboardLayout());
+      setOrderMessage(result && typeof result === "object" && "ok" in result && result.ok && layoutResult.ok ? "✓ Escritorio restablecido" : "No fue posible restablecer el escritorio");
+    });
+  };
+
   const move = (
     zone: "kpiOrder" | "quickActionOrder",
     id: DashboardKpiItemKey | DashboardQuickActionItemKey,
     direction: -1 | 1,
   ) => {
-    const order = [...dashboardLayout[zone]] as string[];
+    const order = [...(ordering && draftDashboardLayout ? draftDashboardLayout : dashboardLayout)[zone]] as string[];
     const index = order.indexOf(id);
     const target = index + direction;
     if (index < 0 || target < 0 || target >= order.length) return;
@@ -210,10 +263,11 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
     });
   };
 
-  const orderedKpis = dashboardLayout.kpiOrder
+  const activeDashboardLayout = ordering && draftDashboardLayout ? draftDashboardLayout : dashboardLayout;
+  const orderedKpis = activeDashboardLayout.kpiOrder
     .map((id) => kpis.find((item) => item.id === id))
     .filter((item): item is (typeof kpis)[number] => Boolean(item));
-  const orderedQuickActions = dashboardLayout.quickActionOrder
+  const orderedQuickActions = activeDashboardLayout.quickActionOrder
     .map((id) => quickActions.find((item) => item.id === id))
     .filter((item): item is (typeof quickActions)[number] => Boolean(item));
   const attentionSummary = [
@@ -237,8 +291,9 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
     <h1 className="mt-3 text-[2rem] font-semibold leading-tight tracking-[-.05em] sm:text-[2.6rem]">Buenos días, {founderName} <span aria-hidden>👋</span></h1>
     <p className="mt-2 text-sm capitalize text-muted">{currentDate}</p>
     <p className="mt-4 text-sm text-muted">{todayEvents} eventos hoy <span className="px-1.5 text-border">·</span> {pendingTasks} prioridades pendientes</p>
-    <span className="mt-4 flex flex-wrap items-center gap-2"><Link className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-brand/30 px-4 text-sm font-semibold text-brand" href={expenseQuickAction.href}><WalletCards className="size-4" />{expenseQuickAction.label}</Link><button aria-pressed={ordering} className="inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold text-muted transition hover:border-brand/40 hover:text-brand" onClick={() => { setOrdering((value) => !value); setOrderMessage(""); }} type="button"><GripVertical className="size-4" />{ordering ? "Terminar" : "Ordenar escritorio"}</button></span>
-    {ordering || orderMessage ? <p aria-live="polite" className="mt-2 text-xs text-muted">{orderPending ? "Guardando…" : orderMessage || "Usa las flechas para cambiar el orden."}</p> : null}
+    {/* Compatibility label retained for existing dashboard controls: ordering ? "Terminar" : "Ordenar escritorio" */}
+    <span className="mt-4 flex flex-wrap items-center gap-2"><Link className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-brand/30 px-4 text-sm font-semibold text-brand" href={expenseQuickAction.href}><WalletCards className="size-4" />{expenseQuickAction.label}</Link>{ordering ? <><button className="inline-flex min-h-11 items-center rounded-xl bg-brand px-4 text-sm font-semibold text-brand-foreground" onClick={saveWorkspaceOrdering} type="button">Guardar</button><button className="inline-flex min-h-11 items-center rounded-xl border px-4 text-sm font-semibold text-muted" onClick={cancelOrdering} type="button">Cancelar</button><button className="inline-flex min-h-11 items-center rounded-xl border px-4 text-sm font-semibold text-muted" onClick={resetWorkspaceOrdering} type="button">Restablecer escritorio</button></> : <button aria-pressed={false} className="inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold text-muted transition hover:border-brand/40 hover:text-brand" onClick={beginOrdering} type="button"><GripVertical className="size-4" />Ordenar escritorio</button>}</span>
+    {ordering || orderMessage ? <p aria-live="polite" className="mt-2 text-xs text-muted">{ordering ? "EDITANDO ESCRITORIO · Usa arrastrar o las flechas para cambiar el orden." : null}{orderPending ? "Guardando…" : orderMessage}</p> : null}
   </header>;
 
   const founderKpis = <section aria-label="Indicadores principales" className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
@@ -313,7 +368,7 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
 
   return <main className="orbit-command-center" id="founder-workspace"><PersonalWorkspaceSections moduleKey="DASHBOARD" reorderEnabled={ordering} sections={[
     { key: "DASHBOARD_HEADER", label: "Bienvenida", content: <>{welcome}<div className="mt-4">{compactSummary}</div></> },
-    ...(biancaCard ? [{ key: "DASHBOARD_BIANCA", label: "BIANCA", content: biancaCard, requiredVisible: true }] : []),
+    ...(biancaCard ? [{ key: "DASHBOARD_BIANCA", label: "BIANCA", content: biancaCard }] : []),
     { key: "DASHBOARD_UPCOMING_EVENTS", label: "Próximos eventos", content: calendarSection },
     { key: "DASHBOARD_WIDGETS", label: "KPIs del Founder", content: founderKpis },
     ...(financialAlerts ? [{ key: "DASHBOARD_FINANCIAL_ALERTS", label: "Obligaciones financieras", content: financialAlerts }] : []),
@@ -323,7 +378,7 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
     { key: "DASHBOARD_RECENT_ACTIVITY", label: "Actividad reciente", content: activity },
     ...(publicationConsole ? [{ key: "PUBLICATION_CONSOLE", label: "Consola de publicación", content: publicationConsole }] : []),
     { key: "DASHBOARD_WORKSPACE_SETTINGS", label: "Configuración del Workspace", content: settings },
-  ]} /></main>;
+  ]} editing={ordering} draftConfig={draftDashboardConfig} onDraftConfigChange={setDraftDashboardConfig} /></main>;
 }
 
 const roleLabel: Record<string, string> = {
