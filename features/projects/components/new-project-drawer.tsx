@@ -34,6 +34,8 @@ import { filterExtrasForEventType, includedExtrasForEventType, resolveBrandingMi
 import { formatChileanRut, isValidChileanRut, normalizeChileanMobileLocal, normalizeChileanPhone } from "@/lib/chile/rut";
 import { isValidOptionalEmail } from "@/lib/email/recipients";
 import { sendAutomaticBookingInvitationAction } from "@/features/automatic-booking/actions";
+import { draftCapacityPreflightAction } from "@/features/capacity/draft-capacity.actions";
+import { CapacityStatusPanel, type CapacityResult } from "@/features/capacity/capacity-status-panel";
 import { attachCustomerPurchaseOrderAction } from "@/features/commercial-documents/actions";
 import {
   corporateCreditDueDate,
@@ -537,7 +539,34 @@ export function NewProjectDrawer({
   const [paymentReceiptRequired, setPaymentReceiptRequired] = useState(true);
   const [corporateCreditApproved, setCorporateCreditApproved] = useState(false);
   const [corporateVatApplied, setCorporateVatApplied] = useState(false);
+  const [capacityResult, setCapacityResult] = useState<CapacityResult | null>(null);
+  const [capacityLoading, setCapacityLoading] = useState(false);
+  const capacityRequest = useRef(0);
   const recoveryChecked = useRef(false);
+  const capacityMissingInputs = !(draft.event.date && draft.event.time && eventAddress.trim() && draft.event.city && draft.services.length);
+  useEffect(() => {
+    const requestId = ++capacityRequest.current;
+    setCapacityResult(null);
+    if (capacityMissingInputs) {
+      setCapacityLoading(false);
+      return;
+    }
+    const start = new Date(`${draft.event.date}T${draft.event.time}:00`);
+    const end = new Date(start.getTime() + Math.max(1, draft.event.durationHours ?? 2) * 60 * 60 * 1000);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      setCapacityLoading(false);
+      return;
+    }
+    setCapacityLoading(true);
+    void draftCapacityPreflightAction({ serviceCodes: draft.services, eventType: draft.type ?? "", eventDate: draft.event.date, serviceStart: start.toISOString(), serviceEnd: end.toISOString(), address: eventAddress, city: draft.event.city })
+      .then((response) => {
+        if (requestId !== capacityRequest.current) return;
+        setCapacityResult(response.ok ? (response.result as CapacityResult | null) : null);
+      })
+      .finally(() => {
+        if (requestId === capacityRequest.current) setCapacityLoading(false);
+      });
+  }, [capacityMissingInputs, draft.event.date, draft.event.time, draft.event.durationHours, draft.event.city, draft.services, draft.type, eventAddress]);
   const serviceByCode = new Map(
     services.map((service) => [service.code, service]),
   );
@@ -1364,6 +1393,9 @@ export function NewProjectDrawer({
           ))}
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 sm:p-7" data-reservation-wizard-scroll>
+          <div className="mb-6">
+            <CapacityStatusPanel result={capacityResult} loading={capacityLoading} missingInputs={capacityMissingInputs} />
+          </div>
           {step === 0 && (
             <div className="mx-auto max-w-xl space-y-4">
               <h3 className="text-xl font-semibold">

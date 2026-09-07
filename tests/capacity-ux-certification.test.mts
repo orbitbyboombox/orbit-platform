@@ -34,3 +34,12 @@ test("draft preflight is read-only and race-safe at the quote surface", async ()
   assert.match(quote, /draftCapacityPreflightAction/);
   assert.match(quote, /setCapacity\(null\)/);
 });
+
+test("real manual reservation drawer always exposes the shared capacity preflight", async () => {
+  const drawer = await read("features/projects/components/new-project-drawer.tsx");
+  assert.match(drawer, /draftCapacityPreflightAction/);
+  assert.match(drawer, /<CapacityStatusPanel result=\{capacityResult\}/);
+  assert.match(drawer, /missingInputs=\{capacityMissingInputs\}/);
+  for (const field of ["draft.event.date", "draft.event.time", "draft.event.durationHours", "eventAddress", "draft.event.city", "draft.services"]) assert.match(drawer, new RegExp(field.replaceAll(".", "\\.")));
+  assert.match(drawer, /requestId !== capacityRequest.current/);
+});
