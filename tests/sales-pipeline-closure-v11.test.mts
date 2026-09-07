@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { followUpStatus, validateStageTransition } from "../features/sales-pipeline/domain.ts";
+import { followUpStatus, founderStageValidation, validateStageTransition } from "../features/sales-pipeline/domain.ts";
 
 const active = ["NUEVO", "CALIFICANDO", "COTIZACIÓN", "SEGUIMIENTO", "RESERVA PENDIENTE"];
 const closed = ["GANADO", "PERDIDO", "CANCELADO"];
@@ -26,4 +26,19 @@ test("lost still requires a reason and won requires canonical reservation", () =
 
 test("closure has no physical delete path", () => {
   assert.equal(typeof validateStageTransition, "function");
+});
+
+test("GANADO precondition is a controlled Founder validation, not an internal error", () => {
+  const failure = validateStageTransition("NUEVO", "GANADO", { reservationConfirmed: false });
+  const result = founderStageValidation(failure, "GANADO", false);
+  assert.deepEqual(result, {
+    ok: false,
+    code: "PRECONDITION_FAILED",
+    message: "No se puede marcar como ganado. Este lead todavía no tiene una reserva confirmada. Primero confirma la reserva asociada y luego podrás marcarlo como ganado.",
+  });
+});
+
+test("confirmed reservation keeps GANADO transition successful", () => {
+  const result = founderStageValidation(validateStageTransition("RESERVA PENDIENTE", "GANADO", { reservationConfirmed: true }), "GANADO", true);
+  assert.deepEqual(result, { ok: true });
 });

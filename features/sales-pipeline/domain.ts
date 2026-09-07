@@ -22,6 +22,10 @@ export function validateStageTransition(from: PipelineStage, to: PipelineStage, 
   if (from === "GANADO" && to !== "GANADO") return "Un Evento ganado no puede retroceder de etapa.";
   return null;
 }
+export function founderStageValidation(failure: string | null, to: PipelineStage, reservationConfirmed: boolean) {
+  if (failure && to === "GANADO" && !reservationConfirmed) return { ok: false as const, code: "PRECONDITION_FAILED" as const, message: "No se puede marcar como ganado. Este lead todavía no tiene una reserva confirmada. Primero confirma la reserva asociada y luego podrás marcarlo como ganado." };
+  return failure ? { ok: false as const, code: "VALIDATION_ERROR" as const, message: failure } : { ok: true as const };
+}
 export function followUpStatus(input: { stage: PipelineStage; humanHandoff: boolean; optOut: boolean; deliveryEnabled: boolean; nextActionAt: string | null; now?: Date }): FollowUpStatus {
   if (["GANADO", "PERDIDO", "CANCELADO", "PRUEBA", "ARCHIVADO"].includes(input.stage) || input.optOut || input.humanHandoff || input.deliveryEnabled) return "BLOCKED";
   if (!input.nextActionAt) return "PAUSED";
