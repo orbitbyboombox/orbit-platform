@@ -38,7 +38,7 @@ export function GoogleGmailLiveStatus() {
           <div className="mt-5 border-t pt-5"><ActionButton icon={Send} label={queued ? "Correo en cola" : "Enviar comunicación"} onClick={() => setQueued(true)} type="button" /></div>
         </SmartCard>
 
-        <SmartCard icon={<Sparkles aria-hidden="true" className="size-5 text-brand" />} primaryValue={MOCK_GMAIL_RECOMMENDATION.title} secondaryValue={MOCK_GMAIL_RECOMMENDATION.reason} status={<StatusBadge label="Una recomendación" variant="warning" />} title="ORBIT NOVA">
+        <SmartCard icon={<Sparkles aria-hidden="true" className="size-5 text-brand" />} primaryValue={MOCK_GMAIL_RECOMMENDATION.title} secondaryValue={MOCK_GMAIL_RECOMMENDATION.reason} status={<StatusBadge label="Una recomendación" variant="warning" />} title="ORBIT BIANCA">
           <div className="space-y-3 border-t pt-5 text-sm"><div className="flex items-center gap-3"><MessagesSquare aria-hidden="true" className="size-4 text-brand" /><span>Un hilo permanente por cliente</span></div><div className="flex items-center gap-3"><UsersRound aria-hidden="true" className="size-4 text-brand" /><span>Notificaciones operacionales para Staff</span></div><div className="flex items-center gap-3"><FileText aria-hidden="true" className="size-4 text-brand" /><span>Adjuntos referenciados desde Drive</span></div></div>
         </SmartCard>
       </div>

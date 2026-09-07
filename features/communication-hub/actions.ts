@@ -73,11 +73,11 @@ export async function takeCommunicationConversationAction(conversationId: string
       direction: "SYSTEM",
       type: "HUMAN_HANDOFF",
       occurredAt: now,
-      summary: `Conversación tomada por ${actorLabel}. NOVA pausada por control humano.`,
+      summary: `Conversación tomada por ${actorLabel}. BIANCA pausada por control humano.`,
     });
 
     revalidatePath("/leads");
-    return { ok: true as const, message: "Control humano activado. NOVA quedó pausada." };
+    return { ok: true as const, message: "Control humano activado. BIANCA quedó pausada." };
   } catch (error) {
     return fail(error, "No fue posible tomar el control de la conversación.");
   }
@@ -128,12 +128,12 @@ export async function releaseCommunicationConversationAction(conversationId: str
       direction: "SYSTEM",
       type: "HUMAN_HANDOFF_RELEASED",
       occurredAt: now,
-      summary: `Control devuelto a NOVA por ${actorLabel}.`,
+      summary: `Control devuelto a BIANCA por ${actorLabel}.`,
     });
 
     revalidatePath("/leads");
-    return { ok: true as const, message: "NOVA reactivada con el contexto actualizado." };
+    return { ok: true as const, message: "BIANCA reactivada con el contexto actualizado." };
   } catch (error) {
-    return fail(error, "No fue posible devolver la conversación a NOVA.");
+    return fail(error, "No fue posible devolver la conversación a BIANCA.");
   }
 }

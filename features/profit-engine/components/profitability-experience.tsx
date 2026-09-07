@@ -65,7 +65,7 @@ export function ProfitabilityExperience({ events, insights, recommendation, supp
         primaryValue={recommendation.title}
         secondaryValue={recommendation.reason}
         status={<StatusBadge label="Una recomendación" variant="info" />}
-        title="ORBIT NOVA"
+        title="ORBIT BIANCA"
       />
 
       <section aria-labelledby="event-profitability" className="space-y-5">

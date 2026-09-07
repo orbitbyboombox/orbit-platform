@@ -16,7 +16,7 @@ export class CommunicationHubEngine {
     await this.timeline.append(receivedEvent);
 
     // Founder/staff takeover is a hard backend gate. While active we keep recording
-    // inbound messages and context, but NOVA is not invoked and nothing is dispatched.
+    // inbound messages and context, but BIANCA is not invoked and nothing is dispatched.
     if (novaState.humanHandoff || current?.status === "HUMAN_HANDOFF") {
       const handledBy = current?.assignedHuman ?? novaState.handledBy ?? "BOOMBOX";
       const conversation: UnifiedConversation = {
@@ -47,7 +47,7 @@ export class CommunicationHubEngine {
             customerId: communication.customerId,
             type: "HUMAN_HANDOFF_REQUESTED",
             occurredAt: communication.occurredAt,
-            description: `NOVA suprimida mientras ${handledBy} mantiene el control humano.`,
+            description: `BIANCA suprimida mientras ${handledBy} mantiene el control humano.`,
           },
         },
         conversation,
@@ -76,14 +76,14 @@ export class CommunicationHubEngine {
 
   async takeConversation(conversation: UnifiedConversation, staffName: string, occurredAt: string) {
     const handoff = requestHumanHandoff(conversation.novaState, occurredAt, staffName);
-    const event: UnifiedCommunicationEvent = { id: handoff.timelineEvent.id, conversationId: conversation.id, customerId: conversation.customerId, channel: conversation.lastChannel, direction: "SYSTEM", type: "HUMAN_HANDOFF", occurredAt, summary: `Conversación tomada por ${staffName}. NOVA queda pausada hasta liberación explícita.` };
+    const event: UnifiedCommunicationEvent = { id: handoff.timelineEvent.id, conversationId: conversation.id, customerId: conversation.customerId, channel: conversation.lastChannel, direction: "SYSTEM", type: "HUMAN_HANDOFF", occurredAt, summary: `Conversación tomada por ${staffName}. BIANCA queda pausada hasta liberación explícita.` };
     await this.timeline.append(event);
     return { ...conversation, status: "HUMAN_HANDOFF" as const, novaState: handoff.conversation, assignedHuman: staffName, lastInteractionAt: occurredAt };
   }
 
   async releaseConversation(conversation: UnifiedConversation, occurredAt: string) {
     const handoff = releaseHumanHandoff(conversation.novaState, occurredAt);
-    const event: UnifiedCommunicationEvent = { id: handoff.timelineEvent.id, conversationId: conversation.id, customerId: conversation.customerId, channel: conversation.lastChannel, direction: "SYSTEM", type: "HUMAN_HANDOFF_RELEASED", occurredAt, summary: "Conversación devuelta a NOVA con su contexto intacto." };
+    const event: UnifiedCommunicationEvent = { id: handoff.timelineEvent.id, conversationId: conversation.id, customerId: conversation.customerId, channel: conversation.lastChannel, direction: "SYSTEM", type: "HUMAN_HANDOFF_RELEASED", occurredAt, summary: "Conversación devuelta a BIANCA con su contexto intacto." };
     await this.timeline.append(event);
     return { ...conversation, status: "ACTIVE" as const, novaState: handoff.conversation, assignedHuman: undefined, lastInteractionAt: occurredAt };
   }

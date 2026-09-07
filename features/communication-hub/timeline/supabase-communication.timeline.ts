@@ -69,7 +69,7 @@ export class SupabaseCommunicationTimelineRepository implements CommunicationTim
   }
 
   async append(event: UnifiedCommunicationEvent): Promise<void> {
-    await this.timeline.append({ orbitEventId: `ORB-COMM-${event.conversationId}`, actorLabel: event.direction === "INBOUND" ? "Cliente" : event.direction === "OUTBOUND" ? "NOVA" : "Sistema", source: event.channel === "GOOGLE_GMAIL" ? "Gmail" : event.direction === "INBOUND" ? "Customer" : "NOVA", action: timelineAction(event), entityType: "Communication", entityId: event.conversationId, customerId: event.customerId, humanMessage: event.summary, correlationId: event.id, occurredAt: event.occurredAt });
+    await this.timeline.append({ orbitEventId: `ORB-COMM-${event.conversationId}`, actorLabel: event.direction === "INBOUND" ? "Cliente" : event.direction === "OUTBOUND" ? "BIANCA" : "Sistema", source: event.channel === "GOOGLE_GMAIL" ? "Gmail" : event.direction === "INBOUND" ? "Customer" : "NOVA", action: timelineAction(event), entityType: "Communication", entityId: event.conversationId, customerId: event.customerId, humanMessage: event.summary, correlationId: event.id, occurredAt: event.occurredAt });
   }
 }
 

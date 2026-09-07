@@ -38,7 +38,7 @@ const executiveServices = [
   { label: "Calendar", status: "Conexión pendiente", icon: CalendarDays, variant: "warning" as const },
   { label: "Drive", status: "Conexión pendiente", icon: Cloud, variant: "warning" as const },
   { label: "Gmail", status: "Conexión pendiente", icon: Mail, variant: "warning" as const },
-  { label: "NOVA", status: "Disponible", icon: Sparkles, variant: "success" as const },
+  { label: "BIANCA", status: "Disponible", icon: Sparkles, variant: "success" as const },
 ] as const;
 
 export function HomeExperience({ projects }: { projects: readonly Project[] }) {
@@ -126,8 +126,8 @@ export function HomeExperience({ projects }: { projects: readonly Project[] }) {
             </div>
           </section>
 
-          <section aria-label="NOVA Executive Copilot">
-            {hasEvents && <OrbitCopilot actionLabel={nextEventIntelligence.timeline.nextAction} ariaLabel="Recomendación ejecutiva de NOVA" estimatedTime="30 segundos" impact="Mantiene el proyecto dentro de su fase operacional." onAction={() => openProject(nextEvent.id)} reason={`El proyecto ${nextEvent.client} requiere continuar con su siguiente etapa.`} recommendation={nextEventIntelligence.timeline.nextAction} title="NOVA · Recomendación ejecutiva" />}
+          <section aria-label="BIANCA Executive Copilot">
+            {hasEvents && <OrbitCopilot actionLabel={nextEventIntelligence.timeline.nextAction} ariaLabel="Recomendación ejecutiva de BIANCA" estimatedTime="30 segundos" impact="Mantiene el proyecto dentro de su fase operacional." onAction={() => openProject(nextEvent.id)} reason={`El proyecto ${nextEvent.client} requiere continuar con su siguiente etapa.`} recommendation={nextEventIntelligence.timeline.nextAction} title="BIANCA · Recomendación ejecutiva" />}
           </section>
         </div>
       }

@@ -625,7 +625,7 @@ export function CommandCenter({
               />
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand">
-                  ORBIT NOVA · recomendación operacional
+                  ORBIT BIANCA · recomendación operacional
                 </p>
                 <p className="mt-2 text-lg font-semibold">
                   Revisar preparación de {firstAlert.customerName}.

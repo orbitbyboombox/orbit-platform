@@ -24,5 +24,5 @@ test("registers WhatsApp types in Founder reconciler", () => {
 test("renders compact summary and safe CTA", () => {
   assert.ok(workspace.includes("Esperando BOOMBOX"));
   assert.ok(workspace.includes("Delivery: OFF"));
-  assert.ok(workspace.includes("/leads#whatsapp-inbox"));
+  assert.ok(workspace.includes("/bianca"));
 });

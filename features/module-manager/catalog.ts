@@ -27,7 +27,7 @@ export const ORBIT_MODULE_CATALOG=[
   {key:"EVENT_CHECKLIST",name:"Event Checklist",description:"Checklist antes, durante y después del evento.",category:"BUSINESS",icon:ClipboardCheck},
   {key:"BOOKING_EXPERIENCE",name:"Booking Experience",description:"Reserva manual y automática guiada.",category:"CUSTOMER_EXPERIENCE",icon:PanelsTopLeft},
   {key:"CUSTOMER_TIMELINE",name:"Customer Timeline",description:"Historial visible de la experiencia del cliente.",category:"CUSTOMER_EXPERIENCE",icon:ScrollText},
-  {key:"NOVA_CORE",name:"NOVA CORE",description:"Asistencia operacional y recomendaciones NOVA.",category:"AI",icon:Sparkles},
+  {key:"NOVA_CORE",name:"BIANCA",description:"Asistencia operacional y recomendaciones BIANCA.",category:"AI",icon:Sparkles},
   {key:"WHATSAPP_AI",name:"WhatsApp IA",description:"Automatización inteligente para WhatsApp.",category:"AI",icon:Bot},
   {key:"INSTAGRAM_AI",name:"Instagram IA",description:"Automatización inteligente para Instagram.",category:"AI",icon:Image},
   {key:"EXPERIMENTAL_FEATURES",name:"Experimental Features",description:"Funciones en evaluación controlada.",category:"LAB",icon:Bot},

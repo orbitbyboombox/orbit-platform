@@ -97,7 +97,7 @@ export function OperationsBoard({ snapshot }: OperationsBoardProps) {
         primaryValue={recommendation.title}
         secondaryValue={recommendation.reason}
         status={<StatusBadge label="Una recomendación" variant={ALERT_VARIANT[recommendation.priority]} />}
-        title="ORBIT NOVA"
+        title="ORBIT BIANCA"
       />
 
       <section aria-labelledby="black-boxes" className="space-y-5">

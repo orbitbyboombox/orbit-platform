@@ -226,7 +226,7 @@ export function StaffManagement({ snapshot }: StaffManagementProps) {
         primaryValue={recommendation.title}
         secondaryValue={recommendation.reason}
         status={<StatusBadge label="Una recomendación" variant={recommendation.priority === "CRITICAL" ? "danger" : recommendation.priority === "WARNING" ? "warning" : "info"} />}
-        title="ORBIT NOVA"
+        title="ORBIT BIANCA"
       />
 
       <section aria-labelledby="today-staff" className="space-y-5">

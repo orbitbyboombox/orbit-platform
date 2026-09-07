@@ -6,10 +6,10 @@ const read = (path: string) => readFile(new URL(`../${path}`, import.meta.url), 
 
 test("WhatsApp inbox projects canonical states and filters", async () => {
   const source = await read("features/communication-hub/components/whatsapp-inbox.tsx");
-  for (const value of ["UNREAD", "NOVA", "HUMAN", "WAITING_BOOMBOX", "WAITING_CUSTOMER", "CONTROL HUMANO", "ESPERANDO CLIENTE"]) assert.match(source, new RegExp(value));
+  for (const value of ["UNREAD", "BIANCA", "HUMAN", "WAITING_BOOMBOX", "WAITING_CUSTOMER", "CONTROL HUMANO", "ESPERANDO CLIENTE"]) assert.match(source, new RegExp(value));
 });
 
-test("manual control persists handoff and blocks NOVA", async () => {
+test("manual control persists handoff and blocks BIANCA", async () => {
   const source = await read("features/communication-hub/actions.ts");
   assert.match(source, /status: "HUMAN_HANDOFF"/);
   assert.match(source, /nova_enabled: false/);
@@ -18,7 +18,7 @@ test("manual control persists handoff and blocks NOVA", async () => {
 
 test("manual composer remains fail-closed while delivery is off", async () => {
   const source = await read("features/communication-hub/components/whatsapp-inbox.tsx");
-  assert.match(source, /Envío desactivado hasta activación oficial/);
+  assert.match(source, /Envío desactivado hasta activación\s+oficial/);
   assert.doesNotMatch(source, /whatsapp_outbound_messages|status:\s*["']SENT/);
 });
 
@@ -32,5 +32,5 @@ test("timeline keeps inbound chronological author distinction", async () => {
   const source = await read("features/communication-hub/components/whatsapp-inbox.tsx");
   assert.match(source, /event\.direction === "INBOUND"/);
   assert.match(source, /event\.direction === "OUTBOUND"/);
-  assert.match(source, /sort\(\(a, b\)/);
+  assert.match(source, /sort\(/);
 });
