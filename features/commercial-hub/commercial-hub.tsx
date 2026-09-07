@@ -608,7 +608,7 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
           <Field label="Comuna / Ciudad (opcional)"><input value={eventCity} onChange={(e) => setEventCity(e.target.value)} /></Field>
         </div>
         <div className="mt-5" data-capacity-section>
-          <CapacityStatusPanel result={capacityResult} loading={capacityLoading} missingInputs={capacityMissingInputs} missingMessage={progressiveAvailabilityMessage(capacityState)} />
+          <CapacityStatusPanel result={capacityResult} loading={capacityLoading} missingInputs={capacityMissingInputs} progressiveState={capacityState} missingMessage={progressiveAvailabilityMessage(capacityState)} />
         </div>
       </div>
       <div className="rounded-2xl border bg-card p-5 sm:p-7">

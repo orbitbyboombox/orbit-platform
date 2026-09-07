@@ -16,7 +16,8 @@ test("progressive availability never reports final availability from incomplete 
 
 test("shared capacity panel presents canonical states and fails closed", async () => {
   const source = await read("features/capacity/capacity-status-panel.tsx");
-  for (const value of ["AVAILABLE", "UNAVAILABLE", "REVIEW_REQUIRED", "VALIDANDO DISPONIBILIDAD", "SIN DISPONIBILIDAD", "REQUIERE REVISIÓN"]) assert.match(source, new RegExp(value));
+  const resolver = await read("features/capacity/progressive-availability.ts");
+  for (const value of ["AVAILABLE", "UNAVAILABLE", "REVIEW_REQUIRED", "VALIDANDO DISPONIBILIDAD", "SIN DISPONIBILIDAD", "REQUIERE REVISIÓN"]) assert.match(`${source}\n${resolver}`, new RegExp(value));
   assert.match(source, /humanSafeReason/);
   assert.match(source, /Completa fecha, horario y ubicación/);
   assert.doesNotMatch(source, /customer|other reservation/i);

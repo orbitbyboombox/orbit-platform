@@ -1395,7 +1395,7 @@ export function NewProjectDrawer({
           ))}
         </div>
         <div className="border-b px-5 py-4 sm:px-7" data-capacity-section>
-          <CapacityStatusPanel result={capacityResult} loading={capacityLoading} missingInputs={capacityMissingInputs} missingMessage={progressiveAvailabilityMessage(capacityState)} />
+          <CapacityStatusPanel result={capacityResult} loading={capacityLoading} missingInputs={capacityMissingInputs} progressiveState={capacityState} missingMessage={progressiveAvailabilityMessage(capacityState)} />
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 sm:p-7" data-reservation-wizard-scroll>
           {step === 0 && (

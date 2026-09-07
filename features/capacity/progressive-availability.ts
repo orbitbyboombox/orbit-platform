@@ -12,3 +12,7 @@ export function progressiveAvailabilityState(input: { date?: string; time?: stri
 export function progressiveAvailabilityMessage(state: ProgressiveAvailabilityState) {
   return ({ MISSING_DATE: "Selecciona la fecha del evento.", MISSING_TIME: "Selecciona el horario para validar disponibilidad.", PRELIMINARY: "Horario preliminarmente disponible. Completa la ubicación y el servicio para confirmar disponibilidad.", MISSING_LOCATION: "Completa la ubicación para seguir validando.", MISSING_SERVICE: "Selecciona un servicio para completar la validación.", VALIDATING: "Validando disponibilidad…", AVAILABLE: "Disponible.", UNAVAILABLE: "Sin disponibilidad.", REVIEW_REQUIRED: "Requiere revisión." } as const)[state];
 }
+
+export function progressiveAvailabilityHeadline(state: ProgressiveAvailabilityState) {
+  return ({ MISSING_DATE: "Selecciona la fecha del evento", MISSING_TIME: "Selecciona el horario para validar disponibilidad", PRELIMINARY: "Validación preliminar en curso", MISSING_LOCATION: "Completa la ubicación para seguir validando", MISSING_SERVICE: "Selecciona un servicio para completar la validación", VALIDATING: "VALIDANDO DISPONIBILIDAD…", AVAILABLE: "DISPONIBLE", UNAVAILABLE: "SIN DISPONIBILIDAD", REVIEW_REQUIRED: "REQUIERE REVISIÓN" } as const)[state];
+}
