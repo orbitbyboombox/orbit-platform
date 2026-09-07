@@ -45,3 +45,13 @@ test("real manual reservation drawer always exposes the shared capacity prefligh
   for (const field of ["draft.event.date", "draft.event.time", "draft.event.durationHours", "eventAddress", "draft.event.city", "draft.services"]) assert.match(drawer, new RegExp(field.replaceAll(".", "\\.")));
   assert.match(drawer, /requestId !== capacityRequest.current/);
 });
+
+test("real Constructor de cotizaciones renders availability in the same screen", async () => {
+  const hub = await read("features/commercial-hub/commercial-hub.tsx");
+  assert.match(hub, /Constructor de cotizaciones/);
+  assert.match(hub, /<CapacityStatusPanel result=\{capacityResult\}/);
+  assert.match(hub, /missingMessage=\{capacityMissingMessage\}/);
+  assert.match(hub, /data-capacity-section/);
+  assert.ok(hub.indexOf("Fecha del evento") < hub.indexOf("data-capacity-section"));
+  assert.ok(hub.indexOf("data-capacity-section") < hub.indexOf("Agregar desde catálogo"));
+});

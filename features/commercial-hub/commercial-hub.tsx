@@ -44,6 +44,8 @@ import { formatChileanRut } from "@/lib/chile/rut";
 import { QuoteConversionReviewDialog } from "./quote-conversion-review";
 import type { QuoteConversionReview } from "./quote-conversion";
 import { buildSocialPlansEmail } from "./social-plans-email";
+import { draftCapacityPreflightAction } from "@/features/capacity/draft-capacity.actions";
+import { CapacityStatusPanel, type CapacityResult } from "@/features/capacity/capacity-status-panel";
 
 const money = new Intl.NumberFormat("es-CL", {
   style: "currency",
@@ -389,6 +391,26 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
   const [preview, setPreview] = useState(false);
   const [message, setMessage] = useState("");
   const [pending, start] = useTransition();
+  const [capacityResult, setCapacityResult] = useState<CapacityResult | null>(null);
+  const [capacityLoading, setCapacityLoading] = useState(false);
+  const capacityRequest = useRef(0);
+  const capacityServiceCodes = lines.map((line) => line.code).filter((code) => !code.startsWith("MANUAL-"));
+  const capacityMissingInputs = !(eventDate && eventTime && eventLocation.trim() && eventCity.trim() && capacityServiceCodes.length);
+  const capacityMissingMessage = !eventDate || !eventTime || !eventLocation.trim() || !eventCity.trim()
+    ? "Completa fecha, horario y ubicación para validar capacidad."
+    : "Selecciona un servicio para completar la validación.";
+  useEffect(() => {
+    const requestId = ++capacityRequest.current;
+    setCapacityResult(null);
+    if (capacityMissingInputs) { setCapacityLoading(false); return; }
+    const startAt = new Date(`${eventDate}T${eventTime}:00`);
+    const endAt = new Date(startAt.getTime() + 2 * 60 * 60 * 1000);
+    if (Number.isNaN(startAt.getTime())) { setCapacityLoading(false); return; }
+    setCapacityLoading(true);
+    void draftCapacityPreflightAction({ serviceCodes: capacityServiceCodes, eventType: eventName || "", eventDate, serviceStart: startAt.toISOString(), serviceEnd: endAt.toISOString(), address: eventLocation, city: eventCity })
+      .then((response) => { if (requestId === capacityRequest.current) setCapacityResult(response.ok ? (response.result as CapacityResult | null) : null); })
+      .finally(() => { if (requestId === capacityRequest.current) setCapacityLoading(false); });
+  }, [capacityMissingInputs, eventDate, eventTime, eventLocation, eventCity, eventName, lines]);
   const selected = data.customers.find((item) => item.id === customerId);
   const addCatalog = (code: string) => {
     const item = data.catalog.find((row) => row.code === code);
@@ -585,6 +607,9 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
           <Field label="Hora del evento (opcional)"><input type="time" value={eventTime} onChange={(e) => setEventTime(e.target.value)} /></Field>
           <Field label="Dirección del evento (opcional)"><input value={eventLocation} onChange={(e) => setEventLocation(e.target.value)} /></Field>
           <Field label="Comuna / Ciudad (opcional)"><input value={eventCity} onChange={(e) => setEventCity(e.target.value)} /></Field>
+        </div>
+        <div className="mt-5" data-capacity-section>
+          <CapacityStatusPanel result={capacityResult} loading={capacityLoading} missingInputs={capacityMissingInputs} missingMessage={capacityMissingMessage} />
         </div>
       </div>
       <div className="rounded-2xl border bg-card p-5 sm:p-7">
