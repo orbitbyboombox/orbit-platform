@@ -18,11 +18,12 @@ import type { ServiceAssetMapping } from "@/features/resources/service-asset-map
 export default async function ResourcesPage() {
   const client = await createSupabaseServerClient();
   const modules = await loadModuleStates(client);
-  const [{ data: staff, error: staffError }, { data: assignments, error: assignmentError }, { data: projects, error: projectError }, { data: assets, error: assetError }, { data: assetHistory, error: historyError }, { data: supplies, error: supplyError }, { data: vehicleProfiles, error: vehicleError }, { data: fuelLogs, error: fuelError }, { data: vehicleRoutes, error: routeError }, { data: serviceMappings, error: serviceMappingError }] = await Promise.all([
+  const [{ data: staff, error: staffError }, { data: assignments, error: assignmentError }, { data: projects, error: projectError }, { data: assets, error: assetError }, { data: assetAssignments, error: assetAssignmentError }, { data: assetHistory, error: historyError }, { data: supplies, error: supplyError }, { data: vehicleProfiles, error: vehicleError }, { data: fuelLogs, error: fuelError }, { data: vehicleRoutes, error: routeError }, { data: serviceMappings, error: serviceMappingError }] = await Promise.all([
     client.from("staff").select("id,first_name,last_name,rut,role,availability,status,version").is("deleted_at", null),
     client.from("assignments").select("id,project_id,staff_id,status,resources").is("deleted_at", null),
     client.from("projects").select("id,name,event_date").is("deleted_at", null),
-    client.from("operational_assets").select("id,asset_code,asset_type,status,usage_counter,version,metadata").is("deleted_at", null).order("asset_code"),
+    client.from("operational_assets").select("id,asset_code,asset_type,status,usage_counter,version,metadata,serial_number,storage_location,notes,manufacturer,model").is("deleted_at", null).order("asset_code"),
+    client.from("asset_assignments").select("asset_id,project_id,assignment_status,planned_start_at,planned_end_at,projects(name,event_date,event_time)").eq("assignment_status", "ASSIGNED").is("deleted_at", null),
     client.from("asset_history").select("id,asset_id,message,occurred_at").order("occurred_at", { ascending: false }).limit(500),
     client.from("supplies").select("id,catalog_code,name,status,version").is("deleted_at", null).order("name"),
     client.from("vehicle_profiles").select("asset_id,nickname,model,plate,fuel_type,current_mileage,insurance_expiration,technical_inspection_expiration,operational_status,height_m,length_m,width_m,capacity_notes,notes,version,operational_assets!inner(asset_code,status,deleted_at)").is("operational_assets.deleted_at", null).order("model"),
@@ -34,6 +35,7 @@ export default async function ResourcesPage() {
   if (assignmentError) throw assignmentError;
   if (projectError) throw projectError;
   if (assetError) throw assetError;
+  if (assetAssignmentError) throw assetAssignmentError;
   if (historyError) throw historyError;
   if (supplyError) throw supplyError;
   if (vehicleError) throw vehicleError;
@@ -41,6 +43,8 @@ export default async function ResourcesPage() {
   if (routeError) throw routeError;
   if (serviceMappingError) throw serviceMappingError;
   const projectMap = new Map((projects ?? []).map((project) => [project.id, project.name]));
+  const assetAssignmentMap = new Map<string, {projectId:string;eventName:string|null;eventDate:string|null;eventTime:string|null}>();
+  (assetAssignments ?? []).forEach((row: { asset_id: string; project_id: string; projects: unknown }) => { const project = (Array.isArray(row.projects) ? row.projects[0] : row.projects) as { name?: string|null; event_date?: string|null; event_time?: string|null }|null; if (!assetAssignmentMap.has(row.asset_id)) assetAssignmentMap.set(row.asset_id, { projectId: row.project_id, eventName: project?.name ?? null, eventDate: project?.event_date ?? null, eventTime: project?.event_time ?? null }); });
   const status = (value: string): ResourceStatus => value === "APPROVED" || value === "ACCEPTED" ? "RESERVED" : value === "ACTIVE" ? "IN_USE" : "AVAILABLE";
   const resourceValues = (key: string) => [...new Set((assignments ?? []).map((item) => (item.resources as Record<string, unknown> | null)?.[key]).filter((value): value is string => typeof value === "string" && value.length > 0))];
   const input: OperationsBoardInput = {
@@ -60,6 +64,7 @@ export default async function ResourcesPage() {
       status: asset.status as EquipmentItem["status"],
       usageCount: asset.usage_counter,
       version: asset.version,
+      serialNumber: asset.serial_number ?? null, storageLocation: asset.storage_location ?? null, notes: asset.notes ?? null, manufacturer: asset.manufacturer ?? null, model: asset.model ?? null,
     };
   });
   const equipmentHistory = (assetHistory ?? []).map((entry): EquipmentHistoryEntry => ({ id: entry.id, assetId: entry.asset_id, message: entry.message, occurredAt: entry.occurred_at }));
@@ -70,7 +75,7 @@ export default async function ResourcesPage() {
     return "EQUIPMENT";
   };
   const resources: OperationalResource[] = [
-    ...(assets ?? []).filter((asset) => asset.asset_type !== "VEHICLE").map((asset) => { const metadata = (asset.metadata ?? {}) as Record<string, unknown>; return { id: asset.id, source: "ASSET" as const, category: assetCategory(asset, metadata), name: typeof metadata.name === "string" ? metadata.name : asset.asset_code, code: asset.asset_code, status: asset.status, enabled: asset.status !== "OUT_OF_SERVICE", version: asset.version }; }),
+    ...(assets ?? []).filter((asset) => asset.asset_type !== "VEHICLE").map((asset) => { const metadata = (asset.metadata ?? {}) as Record<string, unknown>; return { id: asset.id, source: "ASSET" as const, category: assetCategory(asset, metadata), name: typeof metadata.name === "string" ? metadata.name : asset.asset_code, code: asset.asset_code, status: asset.status, enabled: asset.status !== "OUT_OF_SERVICE", version: asset.version, serialNumber: asset.serial_number ?? null, storageLocation: asset.storage_location ?? null, notes: asset.notes ?? null, manufacturer: asset.manufacturer ?? null, model: asset.model ?? null, currentAssignment: assetAssignmentMap.get(asset.id) ?? null }; }),
     ...(supplies ?? []).map((supply) => ({ id: supply.id, source: "SUPPLY" as const, category: "CONSUMABLES" as const, name: supply.name, code: supply.catalog_code, status: supply.status, enabled: supply.status !== "INACTIVE", version: supply.version })),
     ...(staff ?? []).filter((member) => ["OPERATOR", "INSTALLATION", "REMOVAL"].includes(member.role)).map((member) => ({ id: member.id, source: "STAFF" as const, category: member.role === "OPERATOR" ? "OPERATORS" as const : "ASSISTANTS" as const, name: `${member.first_name} ${member.last_name}`, code: member.rut ?? member.id, status: member.status, enabled: member.status === "ACTIVE", version: member.version })),
   ];

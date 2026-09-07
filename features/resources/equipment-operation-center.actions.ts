@@ -4,7 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type EquipmentCategory = "TOTEM" | "CASE" | "VEHICLE" | "CLASSIC_TOTEM" | "BLACK_STUDIO" | "BBOX360" | "LIGHTBOX" | "BOOMBALL" | "PRINTER" | "CAMERA" | "LIGHT" | "ACCESSORY";
 export type EquipmentStatus = "AVAILABLE" | "ASSIGNED" | "IN_EVENT" | "MAINTENANCE" | "OUT_OF_SERVICE";
-export interface EquipmentItem { id:string; code:string; name:string; category:EquipmentCategory; status:EquipmentStatus; usageCount:number; version:number; }
+export interface EquipmentItem { id:string; code:string; name:string; category:EquipmentCategory; status:EquipmentStatus; usageCount:number; version:number; serialNumber?:string|null; storageLocation?:string|null; notes?:string|null; manufacturer?:string|null; model?:string|null; }
 type Result = { ok:true; item:EquipmentItem } | { ok:false; error:string };
 
 const text=(value:FormDataEntryValue|null)=>String(value??"").trim();
@@ -21,9 +21,9 @@ async function context(){
   return{client,userId:auth.user.id};
 }
 
-function item(row:{id:string;asset_code:string;asset_type:string;status:string;usage_counter:number;version:number;metadata:unknown}):EquipmentItem{
+function item(row:{id:string;asset_code:string;asset_type:string;status:string;usage_counter:number;version:number;metadata:unknown;serial_number?:string|null;storage_location?:string|null;notes?:string|null;manufacturer?:string|null;model?:string|null}):EquipmentItem{
   const metadata=(row.metadata??{}) as Record<string,unknown>;
-  return{id:row.id,code:row.asset_code,name:typeof metadata.name==="string"&&metadata.name.trim()?metadata.name:row.asset_code,category:row.asset_type as EquipmentCategory,status:row.status as EquipmentStatus,usageCount:row.usage_counter,version:row.version};
+  return{id:row.id,code:row.asset_code,name:typeof metadata.name==="string"&&metadata.name.trim()?metadata.name:row.asset_code,category:row.asset_type as EquipmentCategory,status:row.status as EquipmentStatus,usageCount:row.usage_counter,version:row.version,serialNumber:row.serial_number??null,storageLocation:row.storage_location??null,notes:row.notes??null,manufacturer:row.manufacturer??null,model:row.model??null};
 }
 
 async function history(client:Awaited<ReturnType<typeof createSupabaseServerClient>>,input:{assetId:string;actorId:string;message:string;previous?:unknown;next?:unknown}){
@@ -35,7 +35,7 @@ export async function createEquipmentAction(formData:FormData):Promise<Result>{
   try{
     const{client,userId}=await context();const code=text(formData.get("code")).toUpperCase();const name=text(formData.get("name"));const category=text(formData.get("category")) as EquipmentCategory;
     if(!code||!name||!categories.includes(category))throw new Error("Completa nombre, código y categoría.");
-    const{data,error}=await client.from("operational_assets").insert({asset_code:code,asset_type:category,status:"AVAILABLE",qr_key:`orbit:asset:${code}`,metadata:{name},created_by:userId,updated_by:userId}).select("id,asset_code,asset_type,status,usage_counter,version,metadata").single();if(error)throw error;
+    const{data,error}=await client.from("operational_assets").insert({asset_code:code,asset_type:category,status:"AVAILABLE",qr_key:`orbit:asset:${code}`,metadata:{name},serial_number:text(formData.get("serialNumber"))||null,storage_location:text(formData.get("storageLocation"))||null,notes:text(formData.get("notes"))||null,manufacturer:text(formData.get("manufacturer"))||null,model:text(formData.get("model"))||null,created_by:userId,updated_by:userId}).select("id,asset_code,asset_type,status,usage_counter,version,metadata,serial_number,storage_location,notes,manufacturer,model").single();if(error)throw error;
     await history(client,{assetId:data.id,actorId:userId,message:`${name} agregado al inventario.`,next:{code,name,category,status:"AVAILABLE"}});return{ok:true,item:item(data)};
   }catch(error){return{ok:false,error:error instanceof Error?error.message:"No fue posible agregar el equipo."};}
 }
@@ -45,15 +45,15 @@ export async function updateEquipmentAction(formData:FormData):Promise<Result>{
     const{client,userId}=await context();const id=text(formData.get("id"));const expectedVersion=Number(formData.get("version"));const code=text(formData.get("code")).toUpperCase();const name=text(formData.get("name"));const category=text(formData.get("category")) as EquipmentCategory;const status=text(formData.get("status")) as EquipmentStatus;
     if(!id||!code||!name||!categories.includes(category)||!statuses.includes(status))throw new Error("Revisa los datos del equipo.");
     const{data:previous,error:previousError}=await client.from("operational_assets").select("asset_code,asset_type,status,metadata").eq("id",id).single();if(previousError)throw previousError;
-    const{data,error}=await client.from("operational_assets").update({asset_code:code,asset_type:category,status,qr_key:`orbit:asset:${code}`,metadata:{...((previous.metadata??{}) as Record<string,unknown>),name},updated_by:userId}).eq("id",id).eq("version",expectedVersion).is("deleted_at",null).select("id,asset_code,asset_type,status,usage_counter,version,metadata").maybeSingle();if(error)throw error;if(!data)throw new Error("El equipo cambió en otra sesión. Vuelve a abrirlo.");
+    const{data,error}=await client.from("operational_assets").update({asset_code:code,asset_type:category,status,qr_key:`orbit:asset:${code}`,metadata:{...((previous.metadata??{}) as Record<string,unknown>),name},serial_number:text(formData.get("serialNumber"))||null,storage_location:text(formData.get("storageLocation"))||null,notes:text(formData.get("notes"))||null,manufacturer:text(formData.get("manufacturer"))||null,model:text(formData.get("model"))||null,updated_by:userId}).eq("id",id).eq("version",expectedVersion).is("deleted_at",null).select("id,asset_code,asset_type,status,usage_counter,version,metadata,serial_number,storage_location,notes,manufacturer,model").maybeSingle();if(error)throw error;if(!data)throw new Error("El equipo cambió en otra sesión. Vuelve a abrirlo.");
     await history(client,{assetId:id,actorId:userId,message:`${name} actualizado.`,previous,next:{code,name,category,status}});return{ok:true,item:item(data)};
   }catch(error){return{ok:false,error:error instanceof Error?error.message:"No fue posible editar el equipo."};}
 }
 
 export async function disableEquipmentAction(id:string,expectedVersion:number):Promise<Result>{
-  try{const{client,userId}=await context();const{data,error}=await client.from("operational_assets").update({status:"OUT_OF_SERVICE",updated_by:userId}).eq("id",id).eq("version",expectedVersion).is("deleted_at",null).select("id,asset_code,asset_type,status,usage_counter,version,metadata").maybeSingle();if(error)throw error;if(!data)throw new Error("El equipo cambió en otra sesión.");await history(client,{assetId:id,actorId:userId,message:`${data.asset_code} deshabilitado.`,previous:{status:"ACTIVE"},next:{status:"OUT_OF_SERVICE"}});return{ok:true,item:item(data)};}catch(error){return{ok:false,error:error instanceof Error?error.message:"No fue posible deshabilitar el equipo."};}
+  try{const{client,userId}=await context();const{data,error}=await client.from("operational_assets").update({status:"OUT_OF_SERVICE",updated_by:userId}).eq("id",id).eq("version",expectedVersion).is("deleted_at",null).select("id,asset_code,asset_type,status,usage_counter,version,metadata,serial_number,storage_location,notes,manufacturer,model").maybeSingle();if(error)throw error;if(!data)throw new Error("El equipo cambió en otra sesión.");await history(client,{assetId:id,actorId:userId,message:`${data.asset_code} deshabilitado.`,previous:{status:"ACTIVE"},next:{status:"OUT_OF_SERVICE"}});return{ok:true,item:item(data)};}catch(error){return{ok:false,error:error instanceof Error?error.message:"No fue posible deshabilitar el equipo."};}
 }
 
 export async function deleteEquipmentAction(id:string,expectedVersion:number):Promise<Result>{
-  try{const{client,userId}=await context();const now=new Date().toISOString();const{data,error}=await client.from("operational_assets").update({status:"OUT_OF_SERVICE",deleted_at:now,deleted_by:userId,updated_by:userId}).eq("id",id).eq("version",expectedVersion).is("deleted_at",null).select("id,asset_code,asset_type,status,usage_counter,version,metadata").maybeSingle();if(error)throw error;if(!data)throw new Error("El equipo cambió en otra sesión.");await history(client,{assetId:id,actorId:userId,message:`${data.asset_code} eliminado del inventario activo.`,previous:{deleted:false},next:{deleted:true}});return{ok:true,item:item(data)};}catch(error){return{ok:false,error:error instanceof Error?error.message:"No fue posible eliminar el equipo."};}
+  try{const{client,userId}=await context();const now=new Date().toISOString();const{data,error}=await client.from("operational_assets").update({status:"OUT_OF_SERVICE",deleted_at:now,deleted_by:userId,updated_by:userId}).eq("id",id).eq("version",expectedVersion).is("deleted_at",null).select("id,asset_code,asset_type,status,usage_counter,version,metadata,serial_number,storage_location,notes,manufacturer,model").maybeSingle();if(error)throw error;if(!data)throw new Error("El equipo cambió en otra sesión.");await history(client,{assetId:id,actorId:userId,message:`${data.asset_code} eliminado del inventario activo.`,previous:{deleted:false},next:{deleted:true}});return{ok:true,item:item(data)};}catch(error){return{ok:false,error:error instanceof Error?error.message:"No fue posible eliminar el equipo."};}
 }
