@@ -51,6 +51,7 @@ export type WorkspaceSection = {
   key: string;
   label: string;
   content: React.ReactNode;
+  requiredVisible?: boolean;
 };
 
 function WorkspaceSectionMenu({
@@ -162,6 +163,7 @@ export function PersonalWorkspaceSections({
       )
     )
       return;
+    const requiredKeys = sections.filter((section) => section.requiredVisible).map((section) => section.key);
     context.update({
       ...context.preferences,
       moduleWorkspaces: {
@@ -173,8 +175,8 @@ export function PersonalWorkspaceSections({
             ...missing.map((section) => section.key),
           ],
           hiddenSections: [
-            ...config.hiddenSections,
-            ...missing.map((section) => section.key),
+            ...config.hiddenSections.filter((key) => !requiredKeys.includes(key)),
+            ...missing.filter((section) => !section.requiredVisible).map((section) => section.key),
           ],
           sectionLabels: { ...config.sectionLabels, ...labels },
         },
@@ -194,10 +196,11 @@ export function PersonalWorkspaceSections({
     ...config.sectionOrder.filter((key) => known.includes(key)),
     ...known.filter((key) => !config.sectionOrder.includes(key)),
   ];
-  const visible = orderedKeys.filter(
-    (key) => !config.hiddenSections.includes(key),
-  );
   const byKey = new Map(sections.map((section) => [section.key, section]));
+  const visible = orderedKeys.filter((key) => {
+    const section = byKey.get(key);
+    return Boolean(section?.requiredVisible) || !config.hiddenSections.includes(key);
+  });
   const saveConfig = (
     sectionOrder: string[],
     hiddenSections = config.hiddenSections,

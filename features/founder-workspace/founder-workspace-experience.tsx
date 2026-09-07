@@ -313,7 +313,7 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
 
   return <main className="orbit-command-center" id="founder-workspace"><PersonalWorkspaceSections moduleKey="DASHBOARD" reorderEnabled={ordering} sections={[
     { key: "DASHBOARD_HEADER", label: "Bienvenida", content: <>{welcome}<div className="mt-4">{compactSummary}</div></> },
-    ...(biancaCard ? [{ key: "DASHBOARD_BIANCA", label: "BIANCA", content: biancaCard }] : []),
+    ...(biancaCard ? [{ key: "DASHBOARD_BIANCA", label: "BIANCA", content: biancaCard, requiredVisible: true }] : []),
     { key: "DASHBOARD_UPCOMING_EVENTS", label: "Próximos eventos", content: calendarSection },
     { key: "DASHBOARD_WIDGETS", label: "KPIs del Founder", content: founderKpis },
     ...(financialAlerts ? [{ key: "DASHBOARD_FINANCIAL_ALERTS", label: "Obligaciones financieras", content: financialAlerts }] : []),
