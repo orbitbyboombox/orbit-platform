@@ -227,7 +227,7 @@ export default async function ProjectWorkspacePage({
       .maybeSingle(),
     client
       .from("project_operational_contracts")
-      .select("operational_status,contact_status,contact_first_name,contact_last_name,contact_phone,contact_email,contact_role,contact_notes,event_start_at,service_start_at,staff_arrival_at,assembly_start_at,service_end_at,disassembly_start_at,operational_end_at,access_instructions,operational_notes,readiness_status,readiness_reasons,logistics_reason,parking_status,max_access_height,loading_access,logistics_notes")
+      .select("operational_status,contact_status,contact_first_name,contact_last_name,contact_phone,contact_email,contact_role,contact_notes,event_start_at,service_start_at,staff_arrival_at,assembly_start_at,service_end_at,disassembly_start_at,operational_end_at,access_instructions,operational_notes,readiness_status,readiness_reasons,logistics_reason,parking_status,max_access_height,loading_access,logistics_notes,shell_type,shell_selection_source")
       .eq("project_id", projectId)
       .maybeSingle(),
     client
@@ -1309,6 +1309,7 @@ export default async function ProjectWorkspacePage({
         },
         accessInstructions: operationalContract.access_instructions ?? "",
         operationalNotes: operationalContract.operational_notes ?? "",
+        shell: { type: operationalContract.shell_type ?? null, source: operationalContract.shell_selection_source ?? null, required: (serviceRows ?? []).some((item) => ["CLASSIC","POLAROID","BLACK_STUDIO","INSTABOX"].includes(item.service_code)), verifiable: Boolean(operationalContract.shell_type) },
         requirements: (operationalRequirements ?? []).map((item) => ({
           id: item.id,
           code: item.code,

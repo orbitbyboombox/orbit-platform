@@ -30,9 +30,18 @@ export async function updateEventOperationalContractAction(data: FormData): Prom
         operationalEndAt: optional(data, "operationalEndAt"),
         accessInstructions: optional(data, "accessInstructions"),
         operationalNotes: optional(data, "operationalNotes"),
+        shellType: optional(data, "shellType"),
       },
     });
     if (error) throw error;
+    const shellType = optional(data, "shellType");
+    if (shellType) {
+      const { error: shellError } = await client.rpc("set_event_shell_configuration", {
+        p_project_id: projectId,
+        p_shell_type: shellType,
+      });
+      if (shellError) throw shellError;
+    }
     revalidatePath(`/projects/${projectId}`);
     revalidatePath("/operations");
     return { ok: true, message: "Operación actualizada y readiness recalculado." };

@@ -17,6 +17,7 @@ export type OperationalReadinessData = {
   requirements: readonly { id: string; code: string; label: string; type: string; required: number; assigned: number }[];
   staff: readonly { role: string; name: string; status: string }[];
   checklist: { completed: number; required: number };
+  shell: { type: "WHITE" | "BLACK" | null; source: string | null; required: boolean; verifiable: boolean };
 };
 
 const local = (value: string) => value ? new Date(value).toLocaleString("sv-SE", { timeZone: "America/Santiago" }).replace(" ", "T").slice(0, 16) : "";
@@ -55,6 +56,7 @@ export function EventOperationalReadiness({ data }: { data: OperationalReadiness
       <Field defaultValue={local(data.schedules.serviceEndAt)} label="Fin servicio" name="serviceEndAt" type="datetime-local"/>
       <Field defaultValue={local(data.schedules.disassemblyStartAt)} label="Inicio desmontaje" name="disassemblyStartAt" type="datetime-local"/>
       <Field defaultValue={local(data.schedules.operationalEndAt)} label="Término operacional" name="operationalEndAt" type="datetime-local"/>
+      <label className="grid gap-2 text-sm">Carcasa configurada<select className="min-h-11 rounded-xl border bg-background px-3" defaultValue={data.shell.type ?? ""} name="shellType"><option value="">Sin definir</option><option value="WHITE">Tótem blanco</option><option value="BLACK">Tótem negro</option></select></label>
       <label className="grid gap-2 text-sm sm:col-span-2">Instrucciones de acceso<textarea className="min-h-24 rounded-xl border bg-background p-3" defaultValue={data.accessInstructions} name="accessInstructions"/></label>
       <label className="grid gap-2 text-sm sm:col-span-2">Notas operacionales<textarea className="min-h-24 rounded-xl border bg-background p-3" defaultValue={data.operationalNotes} name="operationalNotes"/></label>
       <button className="min-h-11 rounded-xl bg-brand px-4 font-semibold text-brand-foreground sm:col-span-2" disabled={pending}>{pending ? "Guardando…" : "Guardar y recalcular"}</button>
@@ -63,7 +65,7 @@ export function EventOperationalReadiness({ data }: { data: OperationalReadiness
     <div className="mt-6 grid gap-4 lg:grid-cols-2">
       <Card icon={<UserRound className="size-4"/>} title="Contacto en terreno"><Value label="Estado" value={data.contact.status === "CONFIRMED" ? "Confirmado" : "PENDIENTE DE CONFIRMAR"}/><Value label="Nombre" value={[data.contact.firstName, data.contact.lastName].filter(Boolean).join(" ") || data.contact.fallbackLabel || "Sin contacto"}/><Value label="Teléfono" value={data.contact.phone || "Por confirmar"}/><Value label="Rol" value={data.contact.role || "Por confirmar"}/></Card>
       <Card icon={<Clock3 className="size-4"/>} title="Horarios operacionales">{Object.entries({"Llegada Staff":data.schedules.staffArrivalAt,"Montaje":data.schedules.assemblyStartAt,"Inicio servicio":data.schedules.serviceStartAt,"Fin servicio":data.schedules.serviceEndAt,"Desmontaje":data.schedules.disassemblyStartAt,"Término operacional":data.schedules.operationalEndAt}).map(([label, value]) => <Value key={label} label={label} value={value ? new Date(value).toLocaleString("es-CL", { dateStyle: "short", timeStyle: "short", timeZone: "America/Santiago" }) : "Pendiente"}/>)}</Card>
-      <Card icon={<Package className="size-4"/>} title="Servicios y necesidades">{physical.map((item) => <Value key={item.id} label={item.label} value={`${item.required} requeridos · ${item.assigned} asignados`}/>)}{supporting.map((item) => <Value key={item.id} label={item.label} value={`${item.required} · ${item.type === "CONSUMABLE" ? "Insumo" : item.type === "TRANSPORT" ? "Traslado" : "No físico"}`}/>)}{!data.requirements.length ? <p className="text-sm text-muted">Sin necesidades definidas.</p> : null}</Card>
+      <Card icon={<Package className="size-4"/>} title="Servicios y necesidades"><Value label="Carcasa" value={data.shell.type === "WHITE" ? "Tótem blanco" : data.shell.type === "BLACK" ? "Tótem negro" : data.shell.required ? "Pendiente de definir" : "No requerida"}/>{physical.map((item) => <Value key={item.id} label={item.label} value={`${item.required} requeridos · ${item.assigned} asignados`}/>)}{supporting.map((item) => <Value key={item.id} label={item.label} value={`${item.required} · ${item.type === "CONSUMABLE" ? "Insumo" : item.type === "TRANSPORT" ? "Traslado" : "No físico"}`}/>)}{!data.requirements.length ? <p className="text-sm text-muted">Sin necesidades definidas.</p> : null}</Card>
       <Card icon={<CheckCircle2 className="size-4"/>} title="Ejecución"><Value label="Checklist" value={`${data.checklist.completed}/${data.checklist.required} críticos`}/>{data.staff.map((item) => <Value key={`${item.role}-${item.name}`} label={roleLabel[item.role] ?? item.role} value={`${item.name} · ${item.status}`}/>)}{!data.staff.length ? <Value label="Staff" value="Pendiente"/> : null}</Card>
     </div>
   </section>;
