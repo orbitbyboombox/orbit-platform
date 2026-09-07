@@ -55,3 +55,9 @@ test("real Constructor de cotizaciones renders availability in the same screen",
   assert.ok(hub.indexOf("Fecha del evento") < hub.indexOf("data-capacity-section"));
   assert.ok(hub.indexOf("data-capacity-section") < hub.indexOf("Agregar desde catálogo"));
 });
+
+test("customer closing exposes safe availability language and gates confirmation", async () => {
+  const source = await read("features/automatic-booking/automatic-booking-experience.tsx");
+  for (const text of ["DISPONIBILIDAD DE TU FECHA", "FECHA DISPONIBLE", "ESTE HORARIO YA NO SE ENCUENTRA DISPONIBLE", "ESTAMOS CONFIRMANDO TU DISPONIBILIDAD", "Selecciona un servicio para completar la validación.", "canConfirm"]) assert.match(source, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.doesNotMatch(source, /caseCapacity|bboxCapacity|CASE.*disponibles/i);
+});

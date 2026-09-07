@@ -107,7 +107,7 @@ test("valid CONTINUAR opens the next step without submission", () => {
 });
 
 test("confirmation remains protected against repeated submission", () => {
-  assert.match(experience, /disabled=\{!valid\|\|pending\}/);
+  assert.match(experience, /disabled=\{!(?:valid|canConfirm).*pending\}/);
   assert.match(experience, /setPending\(true\)/);
 });
 
