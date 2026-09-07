@@ -247,14 +247,14 @@ export function PersonalWorkspaceSections({
             data-workspace-block
             data-workspace-key={key}
             data-workspace-label={section.label}
-            draggable={editing && reorderEnabled}
+            draggable={false}
             key={key}
             onDragStart={() => editing && reorderEnabled && setDragged(key)}
             onDragOver={(event) => editing && reorderEnabled && event.preventDefault()}
             onDrop={() => editing && reorderEnabled && drop(key)}
           >
             {editing ? <div className="mb-2 flex items-center justify-between gap-2 rounded-lg border border-brand/30 bg-brand/[.04] px-2 py-1.5 text-[11px] text-muted">
-              <span className="inline-flex items-center gap-1.5" aria-label={`Mover ${section.label}`}><span aria-hidden className="text-base">☰</span><span>Editando sección</span></span>
+              <span draggable={editing && reorderEnabled} onDragStart={() => editing && reorderEnabled && setDragged(key)} className="inline-flex cursor-grab items-center gap-1.5" aria-label={`Mover ${section.label}`}><span aria-hidden className="text-base">☰</span><span>Editando sección</span></span>
               <span className="flex items-center gap-1">
                 <button type="button" className="rounded-md border px-2 py-1 disabled:opacity-30" aria-label={`Subir ${section.label}`} disabled={orderedKeys.indexOf(key) === 0} onClick={() => saveConfig(reorderKeys(orderedKeys, key, -1), config.hiddenSections)}>↑</button>
                 <button type="button" className="rounded-md border px-2 py-1 disabled:opacity-30" aria-label={`Bajar ${section.label}`} disabled={orderedKeys.indexOf(key) === orderedKeys.length - 1} onClick={() => saveConfig(reorderKeys(orderedKeys, key, 1), config.hiddenSections)}>↓</button>
