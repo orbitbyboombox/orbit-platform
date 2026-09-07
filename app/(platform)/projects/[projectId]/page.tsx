@@ -270,6 +270,7 @@ export default async function ProjectWorkspacePage({
     if(error)throw error;return[requirement.id,(data??[]) as AssetAvailabilityRow[]] as const;
   }));
   const availabilityByRequirement=new Map(availabilityResults);
+  const { data: capacityResult } = await client.rpc("get_event_capacity", { p_project_id: projectId });
   const [
     { data: settlementAdjustments, error: settlementAdjustmentError },
     { data: settlementReimbursements, error: settlementReimbursementError },
@@ -1407,6 +1408,7 @@ export default async function ProjectWorkspacePage({
         createdAt: agreement?.created_at,
       }}
       commercialHub={{customerTaxId:customer?.rut??undefined,customerKind:typeLabel==="Corporate"?"EMPRESA":"PARTICULAR",paymentCondition,quotation:buildCommercialQuotationFile(commercialOrigin,quotation)}}
+      capacityResult={(capacityResult ?? null) as import("@/features/capacity/capacity-status-panel").CapacityResult | null}
       workspaceData={workspaceData}
       workspacePreferences={founderWorkspace}
     />

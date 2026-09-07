@@ -95,6 +95,7 @@ import { EventOperationalReadiness, type OperationalReadinessData } from "@/feat
 import { EventLogisticsCenter, type EventLogisticsData } from "@/features/operations/event-logistics-center";
 import { requiresPhotoStripDesign } from "@/features/business-core/catalog/service.catalog";
 import { PhotoStripDesignCenter } from "@/features/photo-strip-design";
+import { CapacityStatusPanel, type CapacityResult } from "@/features/capacity/capacity-status-panel";
 
 type Event360Task = {
   id: string;
@@ -240,6 +241,7 @@ export type ProjectWorkspaceExperienceProps = Omit<
     commercialStage: string;
     lastQuotation: string;
   };
+  capacityResult?: CapacityResult | null;
 };
 
 const money = (value: number) =>
@@ -438,6 +440,7 @@ export function ProjectWorkspaceExperience(
     health >= 90 ? "READY" : health >= 60 ? "ATTENTION" : "BLOCKED";
   const healthVariant =
     health >= 90 ? "success" : health >= 60 ? "warning" : "danger";
+  const capacityPanel = <CapacityStatusPanel result={props.capacityResult} missingInputs={!props.eventDateIso} />;
   const currentAssets = props.equipment.requirements.flatMap((requirement) =>
     requirement.assignments.map((assignment) => ({
       code: assignment.code,
@@ -625,6 +628,7 @@ export function ProjectWorkspaceExperience(
               ))}
             </nav>
           </section>
+          <div>{capacityPanel}</div>
 
           <section className="grid gap-6 xl:grid-cols-2">
             {moduleVisible("GENERAL_INFORMATION") && (
