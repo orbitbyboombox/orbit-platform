@@ -28,6 +28,7 @@ import { markNotificationReadAction } from "@/features/notification-center/actio
 import { FinancialAlertCenter, type FinancialAlertView } from "@/features/financial-alerts/financial-alert-center";
 import type { FounderActionItem } from "@/features/founder-action-center";
 import type { WhatsAppSummary } from "@/features/communication-hub";
+import type { BiancaOperationalStatus } from "@/features/bianca-workspace/bianca-status";
 import { usePersonalWorkspace } from "./personal-workspace";
 import {
   reconcileDashboardLayout,
@@ -97,7 +98,7 @@ const toneStyle = {
   danger: "bg-danger-soft text-danger",
 } as const;
 
-export function FounderWorkspaceExperience({ currentDate, finance, financialAlert, financialAlertHistory, founderName, founderActions, operationalAlerts, pendingStaffApprovals, pendingTasks, publicationConsole, recentActivity, todayEvents, todayOperation, upcomingEvents, whatsappSummary }: {
+export function FounderWorkspaceExperience({ currentDate, finance, financialAlert, financialAlertHistory, founderName, founderActions, operationalAlerts, pendingStaffApprovals, pendingTasks, publicationConsole, recentActivity, todayEvents, todayOperation, upcomingEvents, whatsappSummary, biancaStatus, whatsappConnected }: {
   currentDate: string;
   finance: FinanceDashboardReadModel;
   financialAlert: FinancialAlertView | null;
@@ -113,6 +114,8 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
   todayOperation: CommandCenterItem[];
   upcomingEvents: CommandCenterEvent[];
   whatsappSummary?: WhatsAppSummary;
+  biancaStatus?: BiancaOperationalStatus;
+  whatsappConnected?: boolean;
 }) {
   const router = useRouter();
   const workspace = usePersonalWorkspace();
@@ -132,6 +135,7 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
   }, [workspace.preferences.dashboardLayout]);
   const staffApprovalItems = pendingStaffApprovals.filter((item) => !resolvedApprovalIds.has(item.id));
   const visibleOperationalAlerts = operationalAlerts.filter((item) => !acknowledgedAlertIds.has(item.id));
+  const biancaCard = whatsappSummary ? <section aria-labelledby="founder-bianca-card" className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">BIANCA</p><h2 id="founder-bianca-card" className="mt-2 text-xl font-semibold">WhatsApp · Ventas &amp; Atención</h2><p className="mt-1 text-sm text-muted">{biancaStatus ?? "PREPARADA"} · {whatsappConnected ? "WhatsApp conectado" : "Esperando conexión de WhatsApp"}</p></div><span className="rounded-full border px-3 py-1 text-xs font-semibold">{biancaStatus ?? "PREPARADA"}</span></div><div className="mt-5 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4"><div><p className="text-muted">Activas</p><b>{whatsappSummary.active}</b></div><div><p className="text-muted">BIANCA</p><b>{whatsappSummary.nova}</b></div><div><p className="text-muted">Control humano</p><b>{whatsappSummary.human}</b></div><div><p className="text-muted">Necesitan atención</p><b>{whatsappSummary.waitingBoombox}</b></div></div><div className="mt-5 flex flex-wrap items-center gap-3"><span className="rounded-full border px-2 py-1 text-xs">Mensajería clientes: Desactivada</span><span className="rounded-full border px-2 py-1 text-xs">Delivery: OFF</span><Link className="ml-auto inline-flex min-h-10 items-center rounded-lg bg-brand px-4 text-sm font-semibold text-brand-foreground" href="/bianca">ABRIR BIANCA <ArrowRight className="ml-2 size-4" /></Link><Link className="text-sm font-semibold text-brand hover:underline" href="/settings/bianca-lab">BIANCA Lab</Link></div></section> : null;
   const acknowledgeAlert = (id: string) => startAlertTransition(async () => {
     await markNotificationReadAction(id);
     setAcknowledgedAlertIds((current) => new Set(current).add(id));
@@ -309,7 +313,7 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
 
   return <main className="orbit-command-center" id="founder-workspace"><PersonalWorkspaceSections moduleKey="DASHBOARD" reorderEnabled={ordering} sections={[
     { key: "DASHBOARD_HEADER", label: "Bienvenida", content: <>{welcome}<div className="mt-4">{compactSummary}</div></> },
-    ...(whatsapp ? [{ key: "DASHBOARD_WHATSAPP", label: "WhatsApp", content: whatsapp }] : []),
+    ...(biancaCard ? [{ key: "DASHBOARD_BIANCA", label: "BIANCA", content: biancaCard }] : []),
     { key: "DASHBOARD_UPCOMING_EVENTS", label: "Próximos eventos", content: calendarSection },
     { key: "DASHBOARD_WIDGETS", label: "KPIs del Founder", content: founderKpis },
     ...(financialAlerts ? [{ key: "DASHBOARD_FINANCIAL_ALERTS", label: "Obligaciones financieras", content: financialAlerts }] : []),

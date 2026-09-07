@@ -17,6 +17,8 @@ import { officialStaffAssignmentPayment } from "@/features/operations/staff-assi
 import { isInsideOperationalWindow } from "@/features/operations/operational-window";
 import { loadFounderActionCenter } from "@/features/founder-action-center";
 import { loadCommunicationHubProjection } from "@/features/communication-hub";
+import { loadIntegrationHealth } from "@/features/integration-health/repository";
+import { getBiancaOperationalStatus } from "@/features/bianca-workspace/bianca-status";
 
 type PlanningRole = {
   code: "OPERATOR" | "ASSEMBLY" | "DISASSEMBLY";
@@ -1471,7 +1473,9 @@ export default async function OperationsPage() {
   });
   const financialAlert = financialAlertHistory.find((item) => item.status === "PENDING") ?? null;
   const founderActionCenter = await loadFounderActionCenter(auth.user.id);
-  const communication = await loadCommunicationHubProjection(client);
+  const [communication, integrationHealth] = await Promise.all([loadCommunicationHubProjection(client), loadIntegrationHealth()]);
+  const whatsappConnected = integrationHealth.whatsapp.some((item) => item.label === "Configuración webhook" && item.status === "PASS");
+  const biancaStatus = getBiancaOperationalStatus({ whatsappConnected, active: communication.whatsappSummary.active, human: communication.whatsappSummary.human });
   return (
     <FounderWorkspaceExperience
       currentDate={currentDate}
@@ -1481,6 +1485,8 @@ export default async function OperationsPage() {
       founderName="Matías"
       founderActions={founderActionCenter.items}
       whatsappSummary={communication.whatsappSummary}
+      biancaStatus={biancaStatus}
+      whatsappConnected={whatsappConnected}
       operationalAlerts={commandCenterAlerts}
       pendingStaffApprovals={pendingStaffApprovals}
       pendingTasks={taskSummary.pending}
