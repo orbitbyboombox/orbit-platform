@@ -29,6 +29,7 @@ const categories: readonly { value: EquipmentCategory; label: string }[] = [
   { value: "PRINTER", label: "Impresora" },
   { value: "CAMERA", label: "Cámara" },
   { value: "CASE", label: "Caja Negra BOOMBOX" },
+  { value: "DISPLAY_22", label: 'Display lateral 22"' },
   { value: "LIGHT", label: "Luz" },
   { value: "ACCESSORY", label: "Accesorio" },
   { value: "TOTEM", label: "Tótem" },

@@ -2,13 +2,13 @@
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export type EquipmentCategory = "TOTEM" | "CASE" | "VEHICLE" | "CLASSIC_TOTEM" | "BLACK_STUDIO" | "BBOX360" | "LIGHTBOX" | "BOOMBALL" | "PRINTER" | "CAMERA" | "LIGHT" | "ACCESSORY";
+export type EquipmentCategory = "TOTEM" | "CASE" | "VEHICLE" | "CLASSIC_TOTEM" | "BLACK_STUDIO" | "BBOX360" | "LIGHTBOX" | "BOOMBALL" | "PRINTER" | "CAMERA" | "LIGHT" | "ACCESSORY" | "DISPLAY_22";
 export type EquipmentStatus = "AVAILABLE" | "ASSIGNED" | "IN_EVENT" | "MAINTENANCE" | "OUT_OF_SERVICE";
 export interface EquipmentItem { id:string; code:string; name:string; category:EquipmentCategory; status:EquipmentStatus; usageCount:number; version:number; serialNumber?:string|null; storageLocation?:string|null; notes?:string|null; manufacturer?:string|null; model?:string|null; }
 type Result = { ok:true; item:EquipmentItem } | { ok:false; error:string };
 
 const text=(value:FormDataEntryValue|null)=>String(value??"").trim();
-const categories:readonly EquipmentCategory[]=["TOTEM","CASE","VEHICLE","CLASSIC_TOTEM","BLACK_STUDIO","BBOX360","LIGHTBOX","BOOMBALL","PRINTER","CAMERA","LIGHT","ACCESSORY"];
+const categories:readonly EquipmentCategory[]=["TOTEM","CASE","VEHICLE","CLASSIC_TOTEM","BLACK_STUDIO","BBOX360","LIGHTBOX","BOOMBALL","PRINTER","CAMERA","LIGHT","ACCESSORY","DISPLAY_22"];
 const statuses:readonly EquipmentStatus[]=["AVAILABLE","ASSIGNED","IN_EVENT","MAINTENANCE","OUT_OF_SERVICE"];
 
 async function context(){
