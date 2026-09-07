@@ -36,6 +36,7 @@ export function StaffOnboardingCenter({
     invitations.find((item) => item.id === initialReviewId) ?? null,
   );
   const [editing, setEditing] = useState<StaffOnboardingInvitation | null>(null);
+  const [resending, setResending] = useState<StaffOnboardingInvitation | null>(null);
   const [pending, start] = useTransition();
   const [message, setMessage] = useState("");
   useEffect(() => {
@@ -71,8 +72,14 @@ export function StaffOnboardingCenter({
   const manage=(item:StaffOnboardingInvitation,action:string,values?:FormData)=>start(async()=>{
     const form=values??new FormData();form.set("invitationId",item.id);form.set("action",action);
     if((action==="CANCEL"||action==="DELETE")&&!window.confirm(action==="DELETE"?"¿Eliminar permanentemente esta invitación pendiente?":"¿Cancelar esta invitación?"))return;
-    const result=await manageStaffInvitationAction(form);setMessage(result.ok?(result.message??"Operación completada."):(result.error??"Error"));if(result.ok){setEditing(null);router.refresh();}
+    const result=await manageStaffInvitationAction(form);setMessage(result.ok?(result.message??"Operación completada."):(result.error??"Error"));if(result.ok){setEditing(null);setResending(null);router.refresh();}
   });
+  const resend = () => {
+    if (!resending) return;
+    const form = new FormData();
+    form.set("requestId", crypto.randomUUID());
+    manage(resending, "RESEND", form);
+  };
   return (
     <section className="rounded-2xl border bg-card p-5 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -123,7 +130,7 @@ export function StaffOnboardingCenter({
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <Action icon={Eye} label="Ver" onClick={()=>setReviewing(item)}/>
-                {item.status!=="APPROVED"?<><Action icon={Pencil} label="Editar" onClick={()=>setEditing(item)}/><Action icon={RotateCw} label="Reenviar" onClick={()=>manage(item,"RESEND")}/>{!["CANCELLED","REJECTED","EXPIRED"].includes(item.status)?<Action icon={X} label="Cancelar" onClick={()=>manage(item,"CANCEL")}/>:null}<Action icon={Trash2} label="Eliminar" onClick={()=>manage(item,"DELETE")}/></>:null}
+                {item.status!=="APPROVED"?<><Action icon={Pencil} label="Editar" onClick={()=>setEditing(item)}/>{["INVITED","OPENED","CHANGES_REQUESTED","SUBMITTED"].includes(item.status)?<Action icon={RotateCw} label="Reenviar" onClick={()=>setResending(item)}/>:null}{!["CANCELLED","REJECTED","EXPIRED"].includes(item.status)?<Action icon={X} label="Cancelar" onClick={()=>manage(item,"CANCEL")}/>:null}<Action icon={Trash2} label="Eliminar" onClick={()=>manage(item,"DELETE")}/></>:null}
                 {item.status === "SUBMITTED" ? <Action icon={UserRoundCheck} label="Aprobar / revisar" onClick={()=>setReviewing(item)} primary/>:null}
               </div>
             </article>
@@ -155,8 +162,12 @@ export function StaffOnboardingCenter({
         />
       ) : null}
       {editing?<EditDialog invitation={editing} close={()=>setEditing(null)} pending={pending} submit={form=>manage(editing,"EDIT",form)}/>:null}
+      {resending?<ResendDialog invitation={resending} close={()=>setResending(null)} pending={pending} submit={resend}/>:null}
     </section>
   );
+}
+function ResendDialog({ invitation, close, pending, submit }: { invitation: StaffOnboardingInvitation; close: () => void; pending: boolean; submit: () => void }) {
+  return <MobileDialog eyebrow="Onboarding Staff" title="REENVIAR INVITACIÓN" description={`¿Quieres reenviar la invitación de registro a ${invitation.firstName} ${invitation.lastName}?`} onClose={pending ? () => undefined : close} dismissOnOverlayClick={!pending} footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button className="min-h-11 rounded-xl border px-4 text-sm font-semibold" disabled={pending} onClick={close} type="button">CANCELAR</button><button className="min-h-11 rounded-xl bg-brand px-4 text-sm font-semibold text-brand-foreground" disabled={pending} onClick={submit} type="button">{pending ? "REENVIANDO…" : "REENVIAR"}</button></div>}><div className="rounded-xl border bg-background/40 p-4 text-sm"><p className="text-xs uppercase tracking-wider text-muted">Correo</p><p className="mt-1 break-all font-semibold">{invitation.email}</p><p className="mt-4 text-xs text-muted">Se usará un único enlace vigente de producción. El enlace anterior quedará inválido.</p></div></MobileDialog>;
 }
 const label = (status: string) =>
   ({

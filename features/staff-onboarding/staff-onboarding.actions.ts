@@ -141,23 +141,43 @@ export async function reviewStaffOnboardingAction(form: FormData) {
   }
 }
 
-async function sendOnboardingEmail(email:string,firstName:string,token:string){
+async function sendOnboardingEmail(email:string,firstName:string,token:string,idempotencyKey?:string){
   const url=`${appUrl()}/staff/onboarding/${token}`;
-  await new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken()).send({to:email,subject:"Completa tu registro Staff BOOMBOX",textBody:`Hola ${firstName}. Completa tu registro seguro en ${url}. El enlace vence en 7 días.`,htmlBody:`<main style="font-family:Arial,sans-serif;color:#171717"><h1>Staff BOOMBOX</h1><p>Hola ${firstName}, completa tu información para incorporarte al equipo operacional.</p><p><a href="${url}" style="display:inline-block;background:#F78900;color:#111;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:10px">Completar mi registro</a></p></main>`,driveFileIds:[]});
+  return new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken()).send({to:email,subject:"Completa tu registro Staff BOOMBOX",idempotencyKey,textBody:`Hola ${firstName}. Completa tu registro seguro en ${url}. El enlace vence en 7 días.`,htmlBody:`<main style="font-family:Arial,sans-serif;color:#171717"><h1>Staff BOOMBOX</h1><p>Hola ${firstName}, completa tu información para incorporarte al equipo operacional.</p><p><a href="${url}" style="display:inline-block;background:#F78900;color:#111;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:10px">Completar mi registro</a></p></main>`,driveFileIds:[]});
 }
 
 export async function manageStaffInvitationAction(form:FormData){
+  let resendCorrelation = "";
   try{
     const{client}=await admin();const id=String(form.get("invitationId")??"");const action=String(form.get("action")??"");
-    const{data:item,error:readError}=await client.from("staff_onboarding_invitations").select("id,first_name,last_name,email,mobile,status,staff_id").eq("id",id).single();if(readError)throw readError;
+    if(action==="RESEND") console.info(JSON.stringify({event:"staff_invitation_resend_auth_ok",invitationId:id}));
+    const{data:item,error:readError}=await client.from("staff_onboarding_invitations").select("id,first_name,last_name,email,mobile,status,staff_id,last_resend_request_id,last_resend_provider_message_id,resend_count").eq("id",id).single();if(readError)throw readError;
+    if(action==="RESEND") console.info(JSON.stringify({event:"staff_invitation_resend_candidate_ok",invitationId:id,status:item.status}));
     if(item.status==="APPROVED")throw new Error("Un colaborador aprobado no se elimina. Desactívalo o archívalo desde su perfil Staff.");
     if(action==="EDIT"){
       const payload={first_name:String(form.get("firstName")??"").trim(),last_name:String(form.get("lastName")??"").trim(),email:String(form.get("email")??"").trim().toLowerCase(),mobile:normalizeChileanPhone(String(form.get("mobile")??"").trim()),updated_at:new Date().toISOString()};
       if(!payload.first_name||!payload.last_name||!payload.mobile||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email))throw new Error("Completa los datos de la invitación.");
       const{error}=await client.from("staff_onboarding_invitations").update(payload).eq("id",id);if(error)throw error;
     }else if(action==="RESEND"){
-      if(["CANCELLED","REJECTED","EXPIRED"].includes(item.status))throw new Error("Esta invitación ya no está activa.");
-      const token=randomBytes(32).toString("hex");const{error}=await client.from("staff_onboarding_invitations").update({token_hash:hash(token),expires_at:new Date(Date.now()+7*86400000).toISOString(),updated_at:new Date().toISOString()}).eq("id",id);if(error)throw error;await sendOnboardingEmail(item.email,item.first_name,token);
+      if(!["INVITED","OPENED","CHANGES_REQUESTED","SUBMITTED"].includes(item.status))throw new Error("Esta invitación no está disponible para reenvío.");
+      const requestId=String(form.get("requestId")??"").trim();if(!requestId)throw new Error("Solicitud de reenvío inválida.");
+      if(item.last_resend_request_id===requestId&&item.last_resend_provider_message_id)return{ok:true,message:`Invitación reenviada a ${item.email}.`};
+      const correlationId=`staff-invitation-resend:${id}:${requestId}`;
+      resendCorrelation = correlationId;
+      console.info(JSON.stringify({event:"staff_invitation_resend_start",correlationId,invitationId:id}));
+      const token=randomBytes(32).toString("hex");const{error}=await client.from("staff_onboarding_invitations").update({token_hash:hash(token),expires_at:new Date(Date.now()+7*86400000).toISOString(),last_resend_at:new Date().toISOString(),last_resend_request_id:requestId,last_resend_provider_message_id:null,resend_count:(Number(item.resend_count)||0)+1,updated_at:new Date().toISOString()}).eq("id",id);if(error)throw error;
+      console.info(JSON.stringify({event:"staff_invitation_resend_token_ready",correlationId,invitationId:id}));
+      try {
+        console.info(JSON.stringify({event:"staff_invitation_resend_provider_start",correlationId,invitationId:id}));
+        const delivered=await sendOnboardingEmail(item.email,item.first_name,token,correlationId);
+        await client.from("staff_onboarding_invitations").update({last_resend_provider_message_id:delivered.messageId,updated_at:new Date().toISOString()}).eq("id",id).eq("last_resend_request_id",requestId);
+        await client.from("audit_events").insert({entity_type:"STAFF_ONBOARDING_INVITATION",entity_id:id,action:"INVITATION_RESENT",reason:"Founder reenvió invitación de onboarding.",new_state:{correlationId,providerMessageId:delivered.messageId}});
+        console.info(JSON.stringify({event:"staff_invitation_resend_provider_success",correlationId,invitationId:id}));
+        console.info(JSON.stringify({event:"staff_invitation_resend_complete",correlationId,invitationId:id}));
+      } catch (providerError) {
+        console.error(JSON.stringify({event:"staff_invitation_resend_failed",stage:"provider",correlationId,invitationId:id,error:providerError instanceof Error?providerError.message:"provider_error"}));
+        throw providerError;
+      }
     }else if(action==="CANCEL"){
       const{error}=await client.from("staff_onboarding_invitations").update({status:"CANCELLED",updated_at:new Date().toISOString()}).eq("id",id);if(error)throw error;
     }else if(action==="DELETE"){
@@ -165,5 +185,5 @@ export async function manageStaffInvitationAction(form:FormData){
       const{error}=await client.from("staff_onboarding_invitations").delete().eq("id",id).is("staff_id",null);if(error)throw error;
     }else throw new Error("Acción no válida.");
     revalidatePath("/resources/staff");return{ok:true,message:action==="RESEND"?"Invitación reenviada.":action==="DELETE"?"Invitación eliminada.":action==="CANCEL"?"Invitación cancelada.":"Invitación actualizada."};
-  }catch(error){return{ok:false,error:error instanceof Error?error.message:"No fue posible gestionar la invitación."};}
+  }catch(error){return{ok:false,error:`${error instanceof Error?error.message:"No fue posible gestionar la invitación."}${resendCorrelation?` · Referencia: ${resendCorrelation.slice(-12)}`:""}`};}
 }
