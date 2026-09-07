@@ -11,6 +11,9 @@ import { DataStateBadge } from "@/components/ui/data-state-badge";
 import { cn } from "@/lib/utils";
 import { formatServiceSummary } from "@/lib/format-service-summary";
 import { getServicePrice, type ServiceId } from "@/features/business-core";
+import { CapacityStatusPanel, type CapacityResult } from "@/features/capacity/capacity-status-panel";
+import { draftCapacityPreflightAction } from "@/features/capacity/draft-capacity.actions";
+import { useEffect, useRef } from "react";
 
 const steps = ["Tipo de evento", "Servicios", "Duración", "Extras", "Resumen", "Enviar cotización"] as const;
 const eventTypes = ["Matrimonio", "Empresa", "Cumpleaños", "Fiesta", "Otro"] as const;
@@ -35,6 +38,28 @@ export function QuotationExperience({ onClose }: QuotationExperienceProps) {
   const [duration, setDuration] = useState(2);
   const [extras, setExtras] = useState<Extra[]>([]);
   const [sent, setSent] = useState(false);
+  const [eventDate, setEventDate] = useState("");
+  const [eventTime, setEventTime] = useState("");
+  const [location, setLocation] = useState("");
+  const [capacity, setCapacity] = useState<CapacityResult | null>(null);
+  const [capacityLoading, setCapacityLoading] = useState(false);
+  const capacityRequest = useRef(0);
+  useEffect(() => {
+    const ready = Boolean(eventDate && eventTime && location && services.length);
+    setCapacity(null);
+    if (!ready) { setCapacityLoading(false); return; }
+    const requestId = ++capacityRequest.current;
+    setCapacityLoading(true);
+    const timer = window.setTimeout(async () => {
+      const start = new Date(`${eventDate}T${eventTime}:00`).toISOString();
+      const end = new Date(new Date(start).getTime() + duration * 60 * 60 * 1000).toISOString();
+      const result = await draftCapacityPreflightAction({ serviceCodes: services.map((service) => serviceCodes[service]), eventType, eventDate, serviceStart: start, serviceEnd: end, address: location });
+      if (requestId !== capacityRequest.current) return;
+      setCapacityLoading(false);
+      if (result.ok) setCapacity((result.result ?? null) as CapacityResult | null);
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [duration, eventDate, eventTime, eventType, location, services]);
 
   const totals = useMemo(() => {
     const serviceValues = services.map((service) => getServicePrice(serviceCodes[service], duration as 2 | 3 | 4));
@@ -55,7 +80,7 @@ export function QuotationExperience({ onClose }: QuotationExperienceProps) {
     className="max-w-none p-0"
     header={<header className="rounded-2xl border bg-card p-5 sm:p-7"><div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between"><div><button className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-muted transition hover:text-foreground" onClick={onClose} type="button"><ArrowLeft aria-hidden="true" className="size-4" />Volver a proyectos</button><p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Cotización comercial</p><h1 className="mt-2 text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">Configura la experiencia</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-muted sm:text-base">Josefina + Nicolás · Matrimonio · Viña del Mar</p></div><StatusBadge label={sent ? "Cotización enviada" : `Paso ${step + 1} de ${steps.length}`} variant={sent ? "success" : "info"} /></div><div className="mt-7 flex gap-1.5" aria-label="Progreso de la cotización">{steps.map((label, index) => <span aria-label={`${label}: ${index < step ? "completado" : index === step ? "actual" : "pendiente"}`} className={cn("h-1.5 flex-1 rounded-full bg-accent", index <= step && "bg-brand")} key={label} />)}</div><div className="mt-3 flex justify-between text-xs text-muted"><span>{steps[step]}</span><span>{Math.round(((step + 1) / steps.length) * 100)}%</span></div></header>}
     copilot={<OrbitCopilot actionLabel={recommendation} estimatedTime="20 segundos" impact="Mantiene la propuesta clara y acelera la decisión del cliente." onAction={step < 5 ? nextStep : () => setSent(true)} reason="ORBIT prioriza la siguiente decisión necesaria para completar la propuesta." recommendation={recommendation} title="Recomendación comercial" />}
-    mainContent={<div className="space-y-6"><SmartCard className="min-h-[26rem]" title={steps[step]} description={step === 4 ? "Revisa la propuesta antes de preparar el envío." : step === 5 ? "La propuesta está lista para compartir con el cliente." : "Selecciona la opción que mejor representa esta experiencia."}>{sent ? <SentState /> : <StepContent step={step} eventType={eventType} setEventType={setEventType} services={services} toggleService={toggleService} duration={duration} setDuration={setDuration} extras={extras} toggleExtra={toggleExtra} totals={totals} />}</SmartCard><QuotationSummary services={services} extras={extras} duration={duration} eventType={eventType} totals={totals} /></div>}
+    mainContent={<div className="space-y-6"><div className="grid gap-3 rounded-2xl border bg-card p-4 sm:grid-cols-3"><label className="grid gap-1 text-xs font-semibold text-muted">Fecha<input className="min-h-11 rounded-lg border bg-background px-3 text-sm text-foreground" type="date" value={eventDate} onChange={(event) => setEventDate(event.target.value)} /></label><label className="grid gap-1 text-xs font-semibold text-muted">Hora<input className="min-h-11 rounded-lg border bg-background px-3 text-sm text-foreground" type="time" value={eventTime} onChange={(event) => setEventTime(event.target.value)} /></label><label className="grid gap-1 text-xs font-semibold text-muted sm:col-span-1">Ubicación<input className="min-h-11 rounded-lg border bg-background px-3 text-sm text-foreground" placeholder="Comuna / recinto" value={location} onChange={(event) => setLocation(event.target.value)} /></label></div><CapacityStatusPanel result={capacity} loading={capacityLoading} missingInputs={!(eventDate && eventTime && location && services.length)} /><SmartCard className="min-h-[26rem]" title={steps[step]} description={step === 4 ? "Revisa la propuesta antes de preparar el envío." : step === 5 ? "La propuesta está lista para compartir con el cliente." : "Selecciona la opción que mejor representa esta experiencia."}>{sent ? <SentState /> : <StepContent step={step} eventType={eventType} setEventType={setEventType} services={services} toggleService={toggleService} duration={duration} setDuration={setDuration} extras={extras} toggleExtra={toggleExtra} totals={totals} />}</SmartCard><QuotationSummary services={services} extras={extras} duration={duration} eventType={eventType} totals={totals} /></div>}
     timeline={null}
     bottomAction={<div className="sticky bottom-3 z-10 flex items-center justify-between gap-3 rounded-2xl border bg-card/95 p-3 shadow-xl backdrop-blur sm:p-4"><ActionButton disabled={step === 0 || sent} icon={ChevronLeft} label="Atrás" onClick={() => setStep((current) => Math.max(current - 1, 0))} variant="outline" />{step < 5 ? <ActionButton disabled={!canContinue} icon={ChevronRight} iconPosition="end" label={step === 4 ? "Preparar envío" : "Continuar"} onClick={nextStep} /> : <ActionButton disabled={sent} icon={Send} iconPosition="end" label={sent ? "Cotización enviada" : "Enviar cotización"} onClick={() => setSent(true)} />}</div>}
   />;

@@ -24,3 +24,13 @@ test("capacity presentation keeps BBOX360 independent from CASE", async () => {
   assert.match(source, /bboxCapacity/);
   assert.match(source, /BBOX360/);
 });
+
+test("draft preflight is read-only and race-safe at the quote surface", async () => {
+  const migration = await read("supabase/migrations/0238_draft_capacity_preflight.sql");
+  const quote = await read("features/projects/components/quotation-experience.tsx");
+  assert.match(migration, /preflight_draft_capacity/);
+  assert.doesNotMatch(migration, /insert into|update public\.(projects|crm_reservations|operational_assets)|create table/i);
+  assert.match(quote, /capacityRequest/);
+  assert.match(quote, /draftCapacityPreflightAction/);
+  assert.match(quote, /setCapacity\(null\)/);
+});
