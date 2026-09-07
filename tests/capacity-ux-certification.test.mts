@@ -68,6 +68,16 @@ test("real Constructor de cotizaciones renders availability in the same screen",
   assert.ok(hub.indexOf("data-capacity-section") < hub.indexOf("Agregar desde catálogo"));
 });
 
+test("event occupancy includes confirmed current project without changing self-preflight", async () => {
+  const page = await read("app/(platform)/projects/[projectId]/page.tsx");
+  const engine = await read("supabase/migrations/0236_canonical_capacity_engine.sql");
+  assert.match(engine, /res\.project_id<>p_project_id/);
+  assert.match(page, /reservation\?\.status === "CONFIRMED"/);
+  assert.match(page, /required\.CASE/);
+  assert.match(page, /required\.BBOX360 \? addCurrent/);
+  assert.match(page, /capacityResult=\{capacityProjection\}/);
+});
+
 test("customer closing exposes safe availability language and gates confirmation", async () => {
   const source = await read("features/automatic-booking/automatic-booking-experience.tsx");
   const resolver = await read("features/capacity/progressive-availability.ts");
