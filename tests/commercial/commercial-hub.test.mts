@@ -69,6 +69,15 @@ test("PDF viewer consumes close interactions before unmounting", () => {
   assert.equal((viewer.match(/onClick=\{close\}/g) ?? []).length, 2);
   assert.match(viewer, /pointer-events-auto/);
 });
+test("quote preview uses the canonical mobile dialog and preserves the draft on close", () => {
+  const hub = readFileSync(new URL("../../features/commercial-hub/commercial-hub.tsx", import.meta.url), "utf8");
+  assert.match(hub, /import \{ MobileDialog \} from "@\/components\/ui\/mobile-dialog"/);
+  assert.match(hub, /title="Previsualizar cotización"/);
+  assert.match(hub, /variant="fullscreen-mobile"/);
+  assert.match(hub, /onClose=\{\(\) => setPreview\(false\)\}/);
+  assert.match(hub, /<QuotePreview/);
+  assert.doesNotMatch(hub, /window\.open\([^\n]*preview/);
+});
 test("Chile phone removes pasted prefix", () => assert.equal(normalizeChileanPhone("+56 9 6304 0989"), "56963040989"));
 test("Chile phone preserves a valid leading nine in the editable eight digits", () => assert.equal(normalizeChileanMobileLocal("99690487"), "99690487"));
 test("Chile phone default prefix leaves the eight editable digits empty", () => assert.equal(normalizeChileanMobileLocal("+569"), ""));

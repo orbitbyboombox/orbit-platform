@@ -19,6 +19,7 @@ import {
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
+import { MobileDialog } from "@/components/ui/mobile-dialog";
 import {
   acceptCommercialQuoteAction,
   createFormalQuoteAction,
@@ -787,12 +788,21 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
         </aside>
       </div>
       {preview && (
-        <QuotePreview
-          company={data.company}
-          customer={selected?.company || selected?.name || temporary.company}
-          lines={lines}
-          totals={totals}
-        />
+        <MobileDialog
+          description="Revisa el borrador sin salir del constructor de cotizaciones."
+          eyebrow="VISTA PREVIA"
+          onClose={() => setPreview(false)}
+          size="xl"
+          title="Previsualizar cotización"
+          variant="fullscreen-mobile"
+        >
+          <QuotePreview
+            company={data.company}
+            customer={selected?.company || selected?.name || temporary.company}
+            lines={lines}
+            totals={totals}
+          />
+        </MobileDialog>
       )}{" "}
       {createdQuote && (
         <FormalQuoteDelivery
