@@ -31,6 +31,7 @@ function friendlyConfirmationMessage(module: string) {
     PAYMENT_RECEIPT: "No fue posible guardar el comprobante de pago. Vuelve a adjuntarlo e inténtalo nuevamente.",
     GOOGLE_DRIVE: "No fue posible guardar los documentos de la reserva. Inténtalo nuevamente en unos minutos.",
     GOOGLE_CALENDAR: "No fue posible sincronizar la fecha del evento. Inténtalo nuevamente en unos minutos.",
+    CAPACITY_GATE: "Estamos confirmando la disponibilidad de tu fecha antes de registrar el abono. Nuestro equipo revisará tu solicitud y te contactará a la brevedad.",
     GMAIL_AND_PORTAL: "No fue posible preparar el acceso del cliente. Inténtalo nuevamente en unos minutos.",
     SIGNATURE_AND_DOCUMENT_DELIVERY: "No fue posible guardar la firma y completar los documentos. Revisa la firma e inténtalo nuevamente.",
   };
@@ -104,6 +105,16 @@ export async function completeAutomaticBooking(input: { token: string; submissio
       admin.from("timeline_events").insert({ customer_id: customerId, project_id: projectId, event_type: "AUTOMATIC_RESERVATION_CREATED", title: "Reserva automática creada.", description: "El cliente completó la reserva desde la invitación segura.", orbit_event_id: orbitEventId, actor_label: "Cliente", source: "Customer", action: "AUTOMATIC_RESERVATION_CREATED", entity_type: "Project", entity_id: projectId, human_message: "Reserva automática creada y confirmada por el cliente.", correlation_id: `automatic-booking:${invitation.id}`, created_by: actorId }),
     ]));
     for (const result of [serviceWrite, quotationWrite, agreementWrite, memoryWrite, timelineWrite]) if (result.error) throw result.error;
+
+    // Capacity is revalidated immediately before any customer payment is
+    // registered. The final CONFIRMED transition remains protected by the
+    // database gate (including its concurrency lock).
+    currentModule = "CAPACITY_GATE";
+    const { data: capacity, error: capacityError } = await admin.rpc("preflight_reservation_capacity", { p_project_id: projectId });
+    if (capacityError) throw capacityError;
+    if (!capacity || typeof capacity !== "object" || (capacity as { status?: string }).status !== "AVAILABLE") {
+      throw new Error("La disponibilidad debe confirmarse antes de registrar el abono.");
+    }
 
     currentModule = "PAYMENT_RECEIPT";
     const receiptPath = `${projectId}/${randomUUID()}-${input.submission.payment.receiptName.replace(/[^a-zA-Z0-9._-]/g, "-")}`;

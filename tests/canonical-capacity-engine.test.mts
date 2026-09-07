@@ -33,3 +33,11 @@ test("inventory status and operational windows remain canonical", () => {
   assert.match(sql, /requestedWindow/);
   assert.match(sql, /requiredResources/);
 });
+
+test("final gate covers direct confirmed inserts and serializes the capacity check", () => {
+  const gate = readFileSync("supabase/migrations/0239_atomic_capacity_confirmation_gate.sql", "utf8");
+  assert.match(gate, /before insert or update of status/);
+  assert.match(gate, /pg_advisory_xact_lock/);
+  assert.match(gate, /preflight_reservation_capacity/);
+  assert.doesNotMatch(gate, /insert into|update public\.(projects|crm_reservations)/i);
+});

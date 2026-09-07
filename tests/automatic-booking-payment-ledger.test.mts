@@ -15,6 +15,13 @@ test("the receipt document is persisted before the payment is registered", () =>
   assert.ok(service.indexOf('.from("documents").insert') < service.indexOf('rpc("register_automatic_booking_deposit"'));
 });
 
+test("automatic closing revalidates live capacity before payment", () => {
+  const gate = service.indexOf('rpc("preflight_reservation_capacity"');
+  const payment = service.indexOf('rpc("register_automatic_booking_deposit"');
+  assert.ok(gate >= 0 && gate < payment);
+  assert.match(service, /La disponibilidad debe confirmarse antes de registrar el abono/);
+});
+
 test("Drive archival starts only after the canonical payment", () => {
   assert.ok(service.indexOf('rpc("register_automatic_booking_deposit"') < service.indexOf("uploadReservationDocumentToDrive({ client: admin, projectId"));
 });
