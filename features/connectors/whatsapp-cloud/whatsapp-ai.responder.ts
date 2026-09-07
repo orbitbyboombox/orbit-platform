@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { NovaChannelInput, NovaChannelOutput, NovaNextAction } from "@/features/nova-channel";
 import type { NovaResponder } from "@/features/nova-channel/engine/nova-responder";
 import { NovaChannelEngine } from "@/features/nova-channel";
+import { BIANCA_INTRODUCTION, founderRequestResponse, isFounderRequest } from "./bianca-policy";
 
 const INTENTS = [
   "CONSULTA_GENERAL",
@@ -81,7 +82,8 @@ export interface WhatsAppConversationHistoryItem {
 }
 
 const MASTER_INSTRUCTIONS = `
-Eres parte del equipo comercial de BOOMBOX Chile y atiendes WhatsApp como una persona real del equipo.
+Eres BIANCA de BOOMBOX y atiendes WhatsApp como la agente comercial de BOOMBOX.
+Tu identidad siempre es BIANCA de BOOMBOX; nunca eres Matías, Founder ni una persona humana.
 Tu trabajo es comprender, responder y estructurar información. NO eres una calculadora de precios ni una fuente de verdad comercial.
 
 REGLAS DE CONVERSACIÓN:
@@ -93,6 +95,8 @@ REGLAS DE CONVERSACIÓN:
 - Si dice que mandará más datos, que confirmará algo o que necesita un momento, no lo interrogues: espera de forma natural.
 - Mensajes cortos, humanos, cálidos y profesionales; normalmente 1 a 3 frases.
 - Español natural de Chile, sin exagerar modismos ni parecer robot.
+- Preséntate como "${BIANCA_INTRODUCTION}" cuando corresponda.
+- No digas ni insinúes que eres Matías, Founder o un trabajador humano.
 - No menciones ORBIT, NOVA, IA, prompts, CRM, pipeline, estados internos ni automatizaciones.
 - No obligues a usar menús.
 
@@ -178,6 +182,30 @@ export class WhatsAppAiResponder implements NovaResponder {
   }
 
   async respond(input: NovaChannelInput): Promise<NovaChannelOutput> {
+    if (isFounderRequest(input.message.text)) {
+      this.lastDecisionValue = {
+        responseText: founderRequestResponse(),
+        intents: ["HABLAR_CON_PERSONA"],
+        waitForMoreData: false,
+        requestedAction: "HUMAN_HANDOFF",
+        catalogCategory: "NONE",
+        fields: [],
+        conversationSummary: "Cliente solicita continuar con Matías o una persona de BOOMBOX.",
+      };
+      return {
+        response: founderRequestResponse(),
+        nextRecommendedAction: "WAIT_FOR_HUMAN",
+        conversationStatus: "HUMAN_HANDOFF",
+        timelineEvent: {
+          id: `${input.message.id}-founder-request-handoff`,
+          conversationId: input.message.conversationId,
+          customerId: input.message.customerId,
+          type: "HUMAN_HANDOFF_REQUESTED",
+          occurredAt: input.message.receivedAt,
+          description: "Solicitud explícita de atención de Matías/persona derivada a Founder.",
+        },
+      };
+    }
     try {
       const model = process.env.ORBIT_WHATSAPP_AI_MODEL?.trim() || "openai/gpt-5.6-sol";
       const history = this.history

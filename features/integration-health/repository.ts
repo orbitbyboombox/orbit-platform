@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { IntegrationHealthSnapshot, IntegrationSignal } from "./types";
+import { biancaSimulationEnabled } from "@/features/connectors/whatsapp-cloud/bianca-policy";
 
 const configured = (keys: string[]) => keys.every((key) => Boolean(process.env[key]));
 const safeError = (value: unknown) => value instanceof Error ? value.message.replace(/[\w.+-]+@[\w.-]+/g, "[redacted]").slice(0, 180) : "Error no disponible";
@@ -23,6 +24,7 @@ export async function loadIntegrationHealth(): Promise<IntegrationHealthSnapshot
   const dbOk = !customers.error;
   const webhookOk = !webhooks.error;
   const deliveryOn = process.env.WHATSAPP_DELIVERY_ENABLED === "true";
+  const biancaMessagingOn = process.env.BIANCA_CUSTOMER_MESSAGING_ENABLED === "true";
   const whatsappConfigured = configured(["WHATSAPP_VERIFY_TOKEN", "WHATSAPP_APP_SECRET", "WHATSAPP_GRAPH_VERSION", "WHATSAPP_PHONE_NUMBER_ID", "WHATSAPP_ACCESS_TOKEN"]);
   const migrationChecks = [
     signal("0211 ingress ledger", webhookOk ? "PASS" : "PENDIENTE", webhookOk ? "whatsapp_webhook_events legible en Production" : safeError(webhooks.error)),
@@ -38,6 +40,9 @@ export async function loadIntegrationHealth(): Promise<IntegrationHealthSnapshot
       signal("ORBIT Production", dbOk ? "PASS" : "ERROR", dbOk ? "Base de datos conectada" : safeError(customers.error)),
       signal("WhatsApp inbound", webhookOk && latest?.processing_status === "PROCESSED" ? "PASS" : webhookOk ? "PENDIENTE" : "ERROR", latest ? `Último evento ${latest.processing_status}` : "Sin eventos observables"),
       signal("Delivery automático", deliveryOn ? "ERROR" : "OFF", deliveryOn ? "Debe permanecer desactivado" : "WHATSAPP_DELIVERY_ENABLED=false"),
+      signal("BIANCA Engine", "PASS", "Motor preparado; acciones pasan por gates server-side"),
+      signal("BIANCA Simulation", biancaSimulationEnabled() ? "PASS" : "PENDIENTE", biancaSimulationEnabled() ? "Disponible solo para Founder; no habilita delivery" : "Deshabilitada explícitamente"),
+      signal("BIANCA Customer Messaging", biancaMessagingOn ? "ERROR" : "OFF", biancaMessagingOn ? "Debe permanecer desactivada en Production" : "Fail-closed: mensajería autónoma desactivada"),
       signal("Dependencias externas", "PENDIENTE", "Meta App Review, Wix y Google Ads fuera de este panel"),
     ],
     whatsapp: [

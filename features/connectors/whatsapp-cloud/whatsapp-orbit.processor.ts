@@ -12,6 +12,7 @@ import { QueuedWhatsAppDispatcher } from "./queued-whatsapp.dispatcher";
 import { WhatsAppAiResponder, type WhatsAppAiDecision, type WhatsAppConversationHistoryItem } from "./whatsapp-ai.responder";
 import { deliverCanonicalCatalogFromWhatsApp, type WhatsAppCatalogDeliveryResult } from "./whatsapp-catalog.delivery";
 import { whatsappAutomationEnabled } from "./meta-whatsapp-cloud";
+import { biancaCanProcessCustomerMessage } from "./bianca-policy";
 import { logWhatsApp } from "./whatsapp-observability";
 
 interface WebhookEventRow {
@@ -332,7 +333,9 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
       return { ok: true as const, unsupported: true as const };
     }
 
-    const automationEnabled = whatsappAutomationEnabled();
+    // WhatsApp automation is never sufficient by itself. BIANCA customer
+    // messaging is a separate, server-side, fail-closed gate.
+    const automationEnabled = whatsappAutomationEnabled() && biancaCanProcessCustomerMessage();
     const customer = await resolveCustomer(client, event);
     const conversationState = await resolveConversation(client, customer.id, event.sender_wa_id, event.occurred_at, automationEnabled);
     await persistInboundCommunication(client, event, conversationState.id, customer.id);

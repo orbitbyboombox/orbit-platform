@@ -6,6 +6,7 @@ import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-wor
 import { loadCompanySettings } from "@/features/company-settings";
 import { catalogPublicUrl, type CommercialCatalogCategory, type QuickSendCatalogCategory } from "@/features/commercial-hub/catalogs";
 import type { WhatsAppAiDecision } from "./whatsapp-ai.responder";
+import { biancaCustomerMessagingEnabled } from "./bianca-policy";
 
 export type WhatsAppCatalogDeliveryResult =
   | { status: "NOT_REQUESTED" }
@@ -18,7 +19,7 @@ export type WhatsAppCatalogDeliveryResult =
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 
 export function whatsappCommercialActionsEnabled() {
-  return process.env.WHATSAPP_COMMERCIAL_ACTIONS_ENABLED?.trim().toLowerCase() === "true";
+  return process.env.WHATSAPP_COMMERCIAL_ACTIONS_ENABLED?.trim().toLowerCase() === "true" && biancaCustomerMessagingEnabled();
 }
 
 function deterministicUuid(value: string) {
