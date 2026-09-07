@@ -12,6 +12,14 @@ export function biancaAiEnabled() {
   return process.env.BIANCA_AI_ENABLED?.trim().toLowerCase() === "true";
 }
 
+export function biancaOutboundEnabled() {
+  return process.env.BIANCA_OUTBOUND_ENABLED?.trim().toLowerCase() === "true";
+}
+
+export function biancaFounderNotificationsEnabled() {
+  return process.env.BIANCA_FOUNDER_NOTIFICATIONS_ENABLED?.trim().toLowerCase() === "true";
+}
+
 export function biancaSimulationEnabled() {
   // Founder simulation is safe by default; it never authorizes customer
   // delivery and is independently constrained by the server-side gates.
@@ -19,7 +27,7 @@ export function biancaSimulationEnabled() {
 }
 
 export function biancaCanProcessCustomerMessage() {
-  return biancaCustomerMessagingEnabled() && biancaAiEnabled();
+  return biancaCustomerMessagingEnabled() && biancaAiEnabled() && biancaOutboundEnabled();
 }
 
 export const BIANCA_INTRODUCTION = "¡Hola! Soy BIANCA de BOOMBOX 😊";
