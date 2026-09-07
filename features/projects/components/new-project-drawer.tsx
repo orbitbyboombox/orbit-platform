@@ -36,6 +36,7 @@ import { isValidOptionalEmail } from "@/lib/email/recipients";
 import { sendAutomaticBookingInvitationAction } from "@/features/automatic-booking/actions";
 import { draftCapacityPreflightAction } from "@/features/capacity/draft-capacity.actions";
 import { CapacityStatusPanel, type CapacityResult } from "@/features/capacity/capacity-status-panel";
+import { progressiveAvailabilityMessage, progressiveAvailabilityState } from "@/features/capacity/progressive-availability";
 import { attachCustomerPurchaseOrderAction } from "@/features/commercial-documents/actions";
 import {
   corporateCreditDueDate,
@@ -544,6 +545,7 @@ export function NewProjectDrawer({
   const capacityRequest = useRef(0);
   const recoveryChecked = useRef(false);
   const capacityMissingInputs = !(draft.event.date && draft.event.time && eventAddress.trim() && draft.event.city && draft.services.length);
+  const capacityState = progressiveAvailabilityState({ date: draft.event.date, time: draft.event.time, location: eventAddress.trim() && draft.event.city ? eventAddress : "", service: draft.services.length > 0, loading: capacityLoading, result: capacityResult?.status });
   useEffect(() => {
     const requestId = ++capacityRequest.current;
     setCapacityResult(null);
@@ -1393,7 +1395,7 @@ export function NewProjectDrawer({
           ))}
         </div>
         <div className="border-b px-5 py-4 sm:px-7" data-capacity-section>
-          <CapacityStatusPanel result={capacityResult} loading={capacityLoading} missingInputs={capacityMissingInputs} />
+          <CapacityStatusPanel result={capacityResult} loading={capacityLoading} missingInputs={capacityMissingInputs} missingMessage={progressiveAvailabilityMessage(capacityState)} />
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 sm:p-7" data-reservation-wizard-scroll>
           {step === 0 && (

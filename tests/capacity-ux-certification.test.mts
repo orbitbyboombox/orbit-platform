@@ -1,7 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { progressiveAvailabilityMessage, progressiveAvailabilityState } from "../features/capacity/progressive-availability.ts";
 const read = (path: string) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+
+test("progressive availability never reports final availability from incomplete inputs", () => {
+  assert.equal(progressiveAvailabilityState({}), "MISSING_DATE");
+  assert.equal(progressiveAvailabilityState({ date: "2026-10-01" }), "MISSING_TIME");
+  assert.equal(progressiveAvailabilityState({ date: "2026-10-01", time: "18:00" }), "PRELIMINARY");
+  assert.equal(progressiveAvailabilityMessage("MISSING_TIME"), "Selecciona el horario para validar disponibilidad.");
+  assert.equal(progressiveAvailabilityState({ date: "2026-10-01", time: "18:00", location: "Santiago" }), "MISSING_SERVICE");
+  assert.equal(progressiveAvailabilityState({ date: "2026-10-01", time: "18:00", location: "Santiago", service: true, loading: true }), "VALIDATING");
+  assert.equal(progressiveAvailabilityState({ date: "2026-10-01", time: "18:00", location: "Santiago", service: true, result: "AVAILABLE" }), "AVAILABLE");
+});
 
 test("shared capacity panel presents canonical states and fails closed", async () => {
   const source = await read("features/capacity/capacity-status-panel.tsx");
@@ -50,7 +61,7 @@ test("real Constructor de cotizaciones renders availability in the same screen",
   const hub = await read("features/commercial-hub/commercial-hub.tsx");
   assert.match(hub, /Constructor de cotizaciones/);
   assert.match(hub, /<CapacityStatusPanel result=\{capacityResult\}/);
-  assert.match(hub, /missingMessage=\{capacityMissingMessage\}/);
+  assert.match(hub, /missingMessage=\{progressiveAvailabilityMessage\(capacityState\)\}/);
   assert.match(hub, /data-capacity-section/);
   assert.ok(hub.indexOf("Fecha del evento") < hub.indexOf("data-capacity-section"));
   assert.ok(hub.indexOf("data-capacity-section") < hub.indexOf("Agregar desde catálogo"));
@@ -58,6 +69,7 @@ test("real Constructor de cotizaciones renders availability in the same screen",
 
 test("customer closing exposes safe availability language and gates confirmation", async () => {
   const source = await read("features/automatic-booking/automatic-booking-experience.tsx");
-  for (const text of ["DISPONIBILIDAD DE TU FECHA", "FECHA DISPONIBLE", "ESTE HORARIO YA NO SE ENCUENTRA DISPONIBLE", "ESTAMOS CONFIRMANDO TU DISPONIBILIDAD", "Selecciona un servicio para completar la validación.", "canConfirm"]) assert.match(source, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  const resolver = await read("features/capacity/progressive-availability.ts");
+  for (const text of ["DISPONIBILIDAD DE TU FECHA", "HORARIO DISPONIBLE", "ESTE HORARIO YA NO SE ENCUENTRA DISPONIBLE", "ESTAMOS CONFIRMANDO TU DISPONIBILIDAD", "Selecciona un servicio para completar la validación.", "canConfirm"]) assert.match(`${source}\n${resolver}`, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.doesNotMatch(source, /caseCapacity|bboxCapacity|CASE.*disponibles/i);
 });

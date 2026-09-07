@@ -46,6 +46,7 @@ import type { QuoteConversionReview } from "./quote-conversion";
 import { buildSocialPlansEmail } from "./social-plans-email";
 import { draftCapacityPreflightAction } from "@/features/capacity/draft-capacity.actions";
 import { CapacityStatusPanel, type CapacityResult } from "@/features/capacity/capacity-status-panel";
+import { progressiveAvailabilityMessage, progressiveAvailabilityState } from "@/features/capacity/progressive-availability";
 
 const money = new Intl.NumberFormat("es-CL", {
   style: "currency",
@@ -396,9 +397,7 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
   const capacityRequest = useRef(0);
   const capacityServiceCodes = lines.map((line) => line.code).filter((code) => !code.startsWith("MANUAL-"));
   const capacityMissingInputs = !(eventDate && eventTime && eventLocation.trim() && eventCity.trim() && capacityServiceCodes.length);
-  const capacityMissingMessage = !eventDate || !eventTime || !eventLocation.trim() || !eventCity.trim()
-    ? "Completa fecha, horario y ubicación para validar capacidad."
-    : "Selecciona un servicio para completar la validación.";
+  const capacityState = progressiveAvailabilityState({ date: eventDate, time: eventTime, location: eventLocation.trim() && eventCity.trim() ? eventLocation : "", service: capacityServiceCodes.length > 0, loading: capacityLoading, result: capacityResult?.status });
   useEffect(() => {
     const requestId = ++capacityRequest.current;
     setCapacityResult(null);
@@ -609,7 +608,7 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
           <Field label="Comuna / Ciudad (opcional)"><input value={eventCity} onChange={(e) => setEventCity(e.target.value)} /></Field>
         </div>
         <div className="mt-5" data-capacity-section>
-          <CapacityStatusPanel result={capacityResult} loading={capacityLoading} missingInputs={capacityMissingInputs} missingMessage={capacityMissingMessage} />
+          <CapacityStatusPanel result={capacityResult} loading={capacityLoading} missingInputs={capacityMissingInputs} missingMessage={progressiveAvailabilityMessage(capacityState)} />
         </div>
       </div>
       <div className="rounded-2xl border bg-card p-5 sm:p-7">
