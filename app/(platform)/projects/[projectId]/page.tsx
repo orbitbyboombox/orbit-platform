@@ -72,6 +72,7 @@ export default async function ProjectWorkspacePage({
       : [];
   const [
     { data: rawProject },
+    { data: reservation },
     { data: agreement },
     { data: assignments },
     { data: documents },
@@ -101,6 +102,13 @@ export default async function ProjectWorkspacePage({
       )
       .eq("id", projectId)
       .single(),
+    client
+      .from("crm_reservations")
+      .select("status")
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
     client
       .from("agreements")
       .select("id,status,created_at,signed_pdf_path,drive_file_id")
@@ -271,6 +279,22 @@ export default async function ProjectWorkspacePage({
   }));
   const availabilityByRequirement=new Map(availabilityResults);
   const { data: capacityResult } = await client.rpc("get_event_capacity", { p_project_id: projectId });
+  const capacityProjection = (() => {
+    const result = (capacityResult ?? null) as (import("@/features/capacity/capacity-status-panel").CapacityResult & { requiredResources?: { CASE?: number; BBOX360?: number } }) | null;
+    if (!result) return null;
+    const required = result.requiredResources ?? {};
+    const confirmed = reservation?.status === "CONFIRMED";
+    const addCurrent = (pool: { total?: number; committed?: number; available?: number } | undefined, quantity: number | undefined) => {
+      if (!pool || !confirmed || !quantity) return pool;
+      const committed = (pool.committed ?? 0) + quantity;
+      return { ...pool, committed, available: Math.max((pool.total ?? 0) - committed, 0) };
+    };
+    return {
+      ...result,
+      caseCapacity: addCurrent(result.caseCapacity, required.CASE),
+      bboxCapacity: required.BBOX360 ? addCurrent(result.bboxCapacity, required.BBOX360) : undefined,
+    };
+  })();
   const [
     { data: settlementAdjustments, error: settlementAdjustmentError },
     { data: settlementReimbursements, error: settlementReimbursementError },
@@ -1408,7 +1432,7 @@ export default async function ProjectWorkspacePage({
         createdAt: agreement?.created_at,
       }}
       commercialHub={{customerTaxId:customer?.rut??undefined,customerKind:typeLabel==="Corporate"?"EMPRESA":"PARTICULAR",paymentCondition,quotation:buildCommercialQuotationFile(commercialOrigin,quotation)}}
-      capacityResult={(capacityResult ?? null) as import("@/features/capacity/capacity-status-panel").CapacityResult | null}
+    capacityResult={capacityProjection}
       workspaceData={workspaceData}
       workspacePreferences={founderWorkspace}
     />
