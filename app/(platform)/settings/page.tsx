@@ -155,7 +155,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const signatureOpen = query.section === "email-signature";
   return (
     <main className="mx-auto w-full max-w-[1480px] space-y-6 p-4 sm:p-6 lg:p-8">
-      <div className="grid gap-4 md:grid-cols-3"><Link
+      <Link className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-brand/30 bg-card px-4 py-2 text-sm font-semibold text-brand hover:bg-brand/[.04]" href="/settings/bianca-lab">BIANCA Lab · Simulación Founder <ArrowRight className="size-4" /></Link>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><Link
         className="group flex items-center justify-between gap-5 rounded-3xl border border-brand/30 bg-card p-5 transition hover:border-brand/60 hover:bg-brand/[.04] sm:p-7"
         href="/settings?section=commercial-documents#commercial-documents"
       >
