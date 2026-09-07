@@ -40,6 +40,8 @@ test("real manual reservation drawer always exposes the shared capacity prefligh
   assert.match(drawer, /draftCapacityPreflightAction/);
   assert.match(drawer, /<CapacityStatusPanel result=\{capacityResult\}/);
   assert.match(drawer, /missingInputs=\{capacityMissingInputs\}/);
+  assert.match(drawer, /data-capacity-section/);
+  assert.ok(drawer.indexOf("data-capacity-section") < drawer.indexOf("data-reservation-wizard-scroll"));
   for (const field of ["draft.event.date", "draft.event.time", "draft.event.durationHours", "eventAddress", "draft.event.city", "draft.services"]) assert.match(drawer, new RegExp(field.replaceAll(".", "\\.")));
   assert.match(drawer, /requestId !== capacityRequest.current/);
 });

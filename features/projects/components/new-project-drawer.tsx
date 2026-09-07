@@ -1392,10 +1392,10 @@ export function NewProjectDrawer({
             />
           ))}
         </div>
+        <div className="border-b px-5 py-4 sm:px-7" data-capacity-section>
+          <CapacityStatusPanel result={capacityResult} loading={capacityLoading} missingInputs={capacityMissingInputs} />
+        </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 sm:p-7" data-reservation-wizard-scroll>
-          <div className="mb-6">
-            <CapacityStatusPanel result={capacityResult} loading={capacityLoading} missingInputs={capacityMissingInputs} />
-          </div>
           {step === 0 && (
             <div className="mx-auto max-w-xl space-y-4">
               <h3 className="text-xl font-semibold">
