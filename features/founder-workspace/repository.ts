@@ -79,9 +79,17 @@ export async function loadFounderWorkspace(
   const newNavigation = DEFAULT_WORKSPACE.navigationOrder.filter(
     (key) => !storedNavigation.includes(key),
   );
+  const storedDashboardVersion = typeof data.dashboard_layout_version === "number" ? data.dashboard_layout_version : 0;
   const dashboardLayout = reconcileDashboardLayout(
     (data.dashboard_layout ?? DEFAULT_DASHBOARD_LAYOUT) as DashboardLayout,
   );
+  // Version 2 introduces explicit Founder customization. A legacy hidden BIANCA
+  // flag was written by the pre-customization workaround and is normalized once;
+  // subsequent explicit hides are preserved because the version is persisted.
+  if (storedDashboardVersion < 2) {
+    const dashboard = moduleWorkspaces.DASHBOARD;
+    if (dashboard) dashboard.hiddenSections = dashboard.hiddenSections.filter((key) => key !== "DASHBOARD_BIANCA");
+  }
   return {
     navigationOrder: [...storedNavigation, ...newNavigation],
     hiddenNavigation: [
@@ -98,11 +106,7 @@ export async function loadFounderWorkspace(
     hiddenEventModules: [...new Set(hidden)],
     dashboardLayout: {
       ...dashboardLayout,
-      version:
-        typeof data.dashboard_layout_version === "number" &&
-        data.dashboard_layout_version > 0
-          ? data.dashboard_layout_version
-          : dashboardLayout.version,
+      version: Math.max(2, storedDashboardVersion || dashboardLayout.version),
     },
     moduleWorkspaces,
   };

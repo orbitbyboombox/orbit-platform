@@ -30,3 +30,15 @@ test("platform authorization remains restricted to Founder/Admin roles", async (
   assert.match(layout, /CEO.*ADMINISTRATOR/);
   assert.doesNotMatch(layout, /STAFF.*BIANCA/);
 });
+
+test("legacy BIANCA hidden state migrates once while explicit new hides persist", async () => {
+  const repository = await read("features/founder-workspace/repository.ts");
+  const layout = await read("features/founder-workspace/dashboard-layout.ts");
+  const actions = await read("features/founder-workspace/actions.ts");
+  assert.match(repository, /storedDashboardVersion < 2/);
+  assert.match(repository, /DASHBOARD_BIANCA/);
+  assert.match(repository, /Math\.max\(2, storedDashboardVersion/);
+  assert.match(layout, /DASHBOARD_LAYOUT_VERSION = 2/);
+  assert.match(actions, /dashboard_layout_version: value\.dashboardLayout\.version/);
+  assert.match(repository, /sectionOrder/);
+});

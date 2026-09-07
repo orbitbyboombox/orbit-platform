@@ -1,4 +1,4 @@
-export const DASHBOARD_LAYOUT_VERSION = 1 as const;
+export const DASHBOARD_LAYOUT_VERSION = 2 as const;
 
 export const DASHBOARD_KPI_ITEMS = [
   { id: "kpi.cash_registered", label: "Caja registrada" },

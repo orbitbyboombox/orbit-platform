@@ -38,6 +38,8 @@ export async function saveFounderWorkspaceAction(
         navigation_order: value.navigationOrder,
         hidden_navigation: value.hiddenNavigation,
         module_workspaces: value.moduleWorkspaces,
+        dashboard_layout: value.dashboardLayout,
+        dashboard_layout_version: value.dashboardLayout.version,
         version: (current?.version ?? 0) + 1,
         updated_at: new Date().toISOString(),
       },
