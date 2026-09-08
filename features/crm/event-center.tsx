@@ -103,6 +103,10 @@ export function EventCenter({
         ? "Eliminar SOLO este Evento. El Cliente permanecerá dentro del CRM. ¿Continuar?"
         : "Archivar este Evento y excluirlo de la operación activa. ¿Continuar?";
     if (!window.confirm(warning)) return;
+    const confirmation = action === "PERMANENT_DELETE"
+      ? window.prompt("Escribe ELIMINAR para confirmar la purga definitiva:")?.trim()
+      : undefined;
+    if (action === "PERMANENT_DELETE" && confirmation !== "ELIMINAR") return;
     const reason = window.prompt("Motivo obligatorio:")?.trim();
     if (!reason) return;
     start(async () => {
@@ -111,6 +115,7 @@ export function EventCenter({
         projectId: event.projectId,
         action,
         reason,
+        confirmation,
       });
       if (!result.ok) setError(result.message);
       else router.refresh();

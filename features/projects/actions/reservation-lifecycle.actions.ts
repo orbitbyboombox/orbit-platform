@@ -9,7 +9,7 @@ import { deliverAssignmentCancellationBoundary } from "@/features/operations/sta
 export type ReservationLifecycleAction="ARCHIVE"|"RESTORE"|"CANCEL"|"PERMANENT_DELETE";
 const paths=["/projects","/events","/customers","/operations","/finance","/finance/receivables","/notifications"];
 
-export async function transitionReservationLifecycleAction(projectId:string,action:ReservationLifecycleAction,reason:string):Promise<{ok:boolean;message:string}>{
+export async function transitionReservationLifecycleAction(projectId:string,action:ReservationLifecycleAction,reason:string,confirmation?:string):Promise<{ok:boolean;message:string}>{
   try{
     if(!projectId||reason.trim().length<3)throw new Error("Registra un motivo para continuar.");
     const client=await createSupabaseServerClient();const{data:auth,error:authError}=await client.auth.getUser();if(authError||!auth.user)throw new Error("Tu sesión expiró. Vuelve a iniciar sesión.");
@@ -18,7 +18,14 @@ export async function transitionReservationLifecycleAction(projectId:string,acti
       const{data:assignments,error:assignmentError}=await client.from("assignments").select("id").eq("project_id",projectId).is("deleted_at",null).not("status","in","(CANCELLED,REJECTED,COMPLETED)");if(assignmentError)throw assignmentError;
       for(const assignment of assignments??[]){const{data:cancellationId,error:cancellationError}=await client.rpc("cancel_staff_assignment_by_founder",{p_assignment_id:assignment.id,p_reason_category:"OPERATIONAL",p_reason_detail:reason.trim(),p_device:null,p_ip_hash:null,p_user_agent:null});if(cancellationError||!cancellationId)throw cancellationError??new Error("No fue posible cancelar el Staff confirmado.");const{error:republishError}=await client.from("staff_assignment_cancellations").update({republish_allowed:false}).eq("id",cancellationId);if(republishError)throw republishError;cancellationIds.push(String(cancellationId));}
     }
-    const{error}=await client.rpc("transition_reservation_lifecycle",{p_project_id:projectId,p_action:action,p_reason:reason.trim()});if(error)throw error;
+    if(action==="PERMANENT_DELETE"){
+      if(confirmation!=="ELIMINAR")return{ok:false,message:"Purga cancelada: confirmación no válida."};
+      const{data,error}=await client.rpc("purge_event_controlled",{p_project_id:projectId,p_confirmation:confirmation,p_reason:reason.trim()});
+      if(error)throw error;
+      if(data?.status==="ALREADY_DELETED")return{ok:true,message:"El Evento ya estaba eliminado."};
+    }else{
+      const{error}=await client.rpc("transition_reservation_lifecycle",{p_project_id:projectId,p_action:action,p_reason:reason.trim()});if(error)throw error;
+    }
     if(action==="CANCEL"){
       const{error:closureError}=await client.rpc("close_cancelled_event_staff_flow",{p_project_id:projectId});if(closureError)throw closureError;
       for(const cancellationId of cancellationIds){try{await deliverAssignmentCancellationBoundary(client,cancellationId)}catch(boundaryError){console.error("[ORBIT][EVENT_LIFECYCLE_BOUNDARY]",{stage:"staff",cancellationId,error:boundaryError instanceof Error?boundaryError.message:String(boundaryError)})}}

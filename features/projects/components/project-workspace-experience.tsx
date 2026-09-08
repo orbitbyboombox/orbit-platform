@@ -477,7 +477,7 @@ export function ProjectWorkspaceExperience(
     };
     if (
       !window.confirm(
-        `¿Confirmas ${labels[action]} la reserva de ${props.clientName}?${action === "PERMANENT_DELETE" ? " Esta acción elimina sus registros relacionados y no se puede deshacer. La carpeta de Drive se conservará archivada." : ""}`,
+        `¿Confirmas ${labels[action]} el Evento?\n\nCliente: ${props.clientName}\nORB: ${event.orbitEventId}\nFecha: ${props.eventDateIso ?? "sin fecha"}\nServicio: ${event.services.map((service) => service.code).join(", ") || "sin servicio"}${action === "PERMANENT_DELETE" ? "\n\nEsta acción elimina los registros operacionales asociados y no se puede deshacer." : ""}`,
       )
     )
       return;
@@ -488,6 +488,10 @@ export function ProjectWorkspaceExperience(
       )
     )
       return;
+    const purgeConfirmation = action === "PERMANENT_DELETE"
+      ? window.prompt("Escribe ELIMINAR para habilitar la purga definitiva:")?.trim()
+      : undefined;
+    if (action === "PERMANENT_DELETE" && purgeConfirmation !== "ELIMINAR") return;
     const reason = window.prompt("Motivo obligatorio de la acción:")?.trim();
     if (!reason) return;
     setCustomerDeleteFeedback("Sincronizando ciclo de vida…");
@@ -495,6 +499,7 @@ export function ProjectWorkspaceExperience(
       props.projectKey,
       action,
       reason,
+      purgeConfirmation,
     );
     if (result.ok) {
       window.alert(result.message);
