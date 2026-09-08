@@ -216,7 +216,7 @@ export type ProjectWorkspaceExperienceProps = Omit<
   eventDateIso?: string;
   activities?: readonly { title: string; detail: string; time: string }[];
   equipment: EquipmentAssignmentPanelProps;
-  signing: { agreementId?: string; status: string; href?: string; createdAt?:string; signedAt?:string };
+  signing: { agreementId?: string; quotationId?: string; status: string; href?: string; createdAt?:string; signedAt?:string };
   commercialHub: { customerTaxId?:string; customerKind:"PARTICULAR"|"EMPRESA"; paymentCondition:string; quotation?:{id:string;number:string;status:string;revision:number;acceptedAt:string;total:number;detailHref:string;pdfHref:string;items:readonly {label:string;quantity:number;total:number}[]} };
   productionIntegration: ProductionIntegrationPanelProps;
   event360: Event360Data;
@@ -1613,6 +1613,7 @@ export function ProjectWorkspaceExperience(
             <div id="agreement-control">
               <AgreementSigningControl
                 agreementId={props.signing.agreementId}
+                quotationId={props.commercialHub.quotation?.id}
                 projectId={props.projectKey ?? ""}
                 status={props.signing.status}
               />

@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash, randomUUID } from "node:crypto";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadCompanySettings } from "@/features/company-settings";
@@ -39,6 +40,34 @@ export function reservationCommercialDocumentFilename(
   return storedCommercialDocument
     ? `Documento Comercial BOOMBOX ${plainQuoteNumber(quotationNumber)}.pdf`
     : quoteDisplayFilename(quotationNumber);
+}
+
+const sha256 = (value: Uint8Array) => createHash("sha256").update(value).digest("hex");
+
+export async function regenerateCommercialDocument(input: { client: SupabaseClient; projectId: string; quotationId: string; agreementId: string; actorId: string }) {
+  const { data: agreement, error: agreementError } = await input.client.from("agreements").select("id,status").eq("id", input.agreementId).eq("project_id", input.projectId).single();
+  if (agreementError || !agreement) throw agreementError ?? new Error("Documento no encontrado.");
+  if (agreement.status === "SIGNED") throw new Error("Este documento está firmado y no puede regenerarse.");
+  const document = await loadFormalQuoteDocument(input.client, input.quotationId);
+  const { data: previous, error: previousError } = await input.client.from("documents").select("id,version").eq("project_id", input.projectId).eq("document_type", "COMMERCIAL_DOCUMENT").is("deleted_at", null).order("version", { ascending: false });
+  if (previousError) throw previousError;
+  const nextVersion = (Number(previous?.[0]?.version) || 0) + 1;
+  const previousCurrent = previous?.[0];
+  const newId = randomUUID();
+  const path = `${input.projectId}/commercial-document-v${nextVersion}-${newId}.pdf`;
+  const upload = await input.client.storage.from("orbit-documents").upload(path, document.bytes, { contentType: "application/pdf", upsert: false });
+  if (upload.error) throw upload.error;
+  const { data: project, error: projectError } = await input.client.from("projects").select("customer_id,orbit_event_id").eq("id", input.projectId).single();
+  if (projectError || !project) throw projectError ?? new Error("Evento no encontrado.");
+  if (previousCurrent) {
+    const { error } = await input.client.from("documents").update({ is_current: false, metadata: { supersededBy: newId, supersededAt: new Date().toISOString(), reason: "DOCUMENT_CORRECTION" } }).eq("id", previousCurrent.id);
+    if (error) throw error;
+  }
+  const { error: insertError } = await input.client.from("documents").insert({ id: newId, project_id: input.projectId, customer_id: project.customer_id, orbit_event_id: project.orbit_event_id, document_type: "COMMERCIAL_DOCUMENT", storage_bucket: "orbit-documents", storage_path: path, checksum: sha256(document.bytes), created_by: input.actorId, uploaded_by: input.actorId, version: nextVersion, is_current: true, workflow_status: "APPROVED", metadata: { source: "FOUNDER_DOCUMENT_CORRECTION", reason: "DOCUMENT_CORRECTION", agreementId: input.agreementId, previousDocumentId: previousCurrent?.id ?? null } });
+  if (insertError) throw insertError;
+  const { error: timelineError } = await input.client.from("timeline_events").insert({ customer_id: project.customer_id, project_id: input.projectId, orbit_event_id: project.orbit_event_id, event_type: "COMMERCIAL_DOCUMENT_CORRECTED", title: "Documento comercial corregido generado", description: `Versión ${nextVersion}; versión anterior conservada.`, actor_id: input.actorId, actor_label: "Founder", source: "Commercial Hub", action: "DOCUMENT_CORRECTION", entity_type: "Document", entity_id: newId, human_message: "Se generó una nueva versión comercial sin enviar correo.", correlation_id: `commercial-document-correction:${input.projectId}:${nextVersion}`, created_by: input.actorId });
+  if (timelineError) throw timelineError;
+  return { documentId: newId, version: nextVersion, filename: document.filename };
 }
 
 /**
@@ -167,7 +196,7 @@ export async function loadReservationCommercialDocument(
     .limit(1)
     .maybeSingle();
   if (agreementError) throw agreementError;
-  if (agreement?.signed_pdf_path) {
+  if (agreement?.status === "SIGNED" && agreement.signed_pdf_path) {
     const { data, error } = await client.storage
       .from("orbit-documents")
       .download(agreement.signed_pdf_path);
@@ -186,6 +215,24 @@ export async function loadReservationCommercialDocument(
       sourceType: "STORED_COMMERCIAL_DOCUMENT",
       sourceReference: agreement.id,
     };
+  }
+  const { data: currentDocument, error: currentDocumentError } = await client
+    .from("documents")
+    .select("id,storage_path,version")
+    .eq("project_id", input.projectId)
+    .eq("document_type", "COMMERCIAL_DOCUMENT")
+    .eq("is_current", true)
+    .is("deleted_at", null)
+    .order("version", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (currentDocumentError) throw currentDocumentError;
+  if (currentDocument?.storage_path) {
+    const { data, error } = await client.storage.from("orbit-documents").download(currentDocument.storage_path);
+    if (error || !data) throw error ?? new Error("No fue posible recuperar el documento comercial vigente.");
+    const bytes = new Uint8Array(await data.arrayBuffer());
+    if (String.fromCharCode(...bytes.subarray(0, 4)) !== "%PDF") throw new Error("El documento comercial vigente no es un PDF válido.");
+    return { filename: reservationCommercialDocumentFilename(input.quotationNumber, false), mimeType: "application/pdf", bytes, sourceType: "STORED_COMMERCIAL_DOCUMENT", sourceReference: currentDocument.id };
   }
   const generated = await loadFormalQuoteDocument(client, input.quotationId);
   if (!(generated.total > 0))

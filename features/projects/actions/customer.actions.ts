@@ -23,6 +23,7 @@ import { deliverAssignmentCancellationBoundary } from "@/features/operations/sta
 import { normalizeOptionalEmail, normalizeRequiredEmail } from "@/lib/email/recipients";
 import { isAdministrativeRole } from "@/lib/auth/roles";
 import { assertCorporateCreditTerms } from "@/features/accounts-receivable/corporate-credit-terms";
+import { regenerateCommercialDocument } from "@/features/commercial-hub/formal-quote-document";
 
 export type CreateCustomerResult =
   | { ok: true; project: Project }
@@ -742,6 +743,21 @@ export async function getManualConfirmationPreviewAction(projectId: string) {
       ok: false as const,
       message: error instanceof Error ? error.message : "No fue posible preparar la vista previa.",
     };
+  }
+}
+
+export async function regenerateCommercialDocumentAction(input: { projectId: string; quotationId: string; agreementId: string }) {
+  try {
+    const client = await createSupabaseServerClient();
+    const { data: auth } = await client.auth.getUser();
+    if (!auth.user) throw new Error("Sesión requerida.");
+    const { data: profile } = await client.from("profiles").select("role").eq("id", auth.user.id).maybeSingle();
+    if (!isAdministrativeRole(profile?.role)) throw new Error("Solo Founder o Administración puede regenerar documentos.");
+    const result = await regenerateCommercialDocument({ client, ...input, actorId: auth.user.id });
+    revalidatePath(`/projects/${input.projectId}`);
+    return { ok: true as const, ...result };
+  } catch (error) {
+    return { ok: false as const, error: error instanceof Error ? error.message : "No fue posible regenerar el documento." };
   }
 }
 

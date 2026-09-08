@@ -9,7 +9,7 @@ import { MobileDialog } from "@/components/ui/mobile-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { ReservationConfirmationComposer } from "@/features/connectors/google-gmail/application/reservation-confirmation.service";
 import { renderReservationConfirmationDelivery } from "@/features/connectors/google-gmail/application/reservation-confirmation.html";
-import { getManualConfirmationPreviewAction, sendManualReservationConfirmationAction } from "../actions/customer.actions";
+import { getManualConfirmationPreviewAction, regenerateCommercialDocumentAction, sendManualReservationConfirmationAction } from "../actions/customer.actions";
 import { createSigningInvitationAction } from "./signing.actions";
 
 const money = (value: number) => new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(value);
@@ -23,7 +23,7 @@ type SendState =
   | { status: "success"; message: string; cc: string[] }
   | { status: "error"; message: string };
 
-export function AgreementSigningControl({ agreementId, projectId, status }: { agreementId?: string; projectId: string; status: string }) {
+export function AgreementSigningControl({ agreementId, quotationId, projectId, status }: { agreementId?: string; quotationId?: string; projectId: string; status: string }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [sending, startSending] = useTransition();
@@ -39,6 +39,7 @@ export function AgreementSigningControl({ agreementId, projectId, status }: { ag
   const [cc, setCc] = useState("");
   const [requestId, setRequestId] = useState("");
   const [sendState, setSendState] = useState<SendState>({ status: "idle" });
+  const [regenerating, setRegenerating] = useState(false);
   const signed = status === "SIGNED";
 
   const refreshCommunication = (openComposer = false) => startSending(async () => {
@@ -100,6 +101,15 @@ export function AgreementSigningControl({ agreementId, projectId, status }: { ag
     if (composer?.hasSuccessfulSend) { setConfirmingResend(true); return; }
     deliver(false);
   };
+  const regenerate = () => {
+    if (!agreementId || !quotationId || regenerating || !window.confirm("Se generará una nueva versión del documento comercial. La versión anterior se conservará en el historial y no se enviará ningún correo.")) return;
+    setRegenerating(true);
+    void regenerateCommercialDocumentAction({ projectId, quotationId, agreementId }).then((result) => {
+      setMessage(result.ok ? `Documento corregido generado · versión ${result.version}.` : result.error);
+      setRegenerating(false);
+      if (result.ok) void refreshCommunication();
+    });
+  };
   const statusVariant = composer?.status === "SENT" ? "success" : composer?.status === "FAILED" ? "danger" : "warning";
   const actionLabel = composer?.hasSuccessfulSend ? "REENVIAR CONFIRMACIÓN" : "ENVIAR CONFIRMACIÓN";
   const previewHtml = composer
@@ -116,6 +126,7 @@ export function AgreementSigningControl({ agreementId, projectId, status }: { ag
     <section className="rounded-2xl border bg-card p-5 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-3"><FileSignature className="size-5 text-brand"/><div><h2 className="font-semibold">Documento oficial</h2><p className="mt-1 text-sm text-muted">Portal y documentos se sincronizan sin enviar correos al cliente.</p></div></div><StatusBadge label={signed ? "Firmado y bloqueado" : agreementId ? "Documento disponible" : "Acuerdo pendiente"} variant={signed ? "success" : agreementId ? "info" : "warning"}/></div>
       {!signed && agreementId ? <ActionButton className="mt-5" disabled={pending} label={pending ? "Preparando…" : "Preparar enlace de firma"} onClick={create}/> : null}
+      {status === "COMMERCIAL_DOCUMENT" && agreementId && quotationId ? <ActionButton className="mt-3" disabled={regenerating || sending} label={regenerating ? "Regenerando…" : "Regenerar documento corregido"} onClick={regenerate} variant="outline"/> : null}
       {url ? <div className="mt-5 rounded-xl border bg-background/40 p-4"><p className="break-all text-sm">{url}</p><ActionButton className="mt-3" icon={Copy} label="Copiar enlace" onClick={() => void navigator.clipboard.writeText(url)} variant="outline"/></div> : null}
     </section>
 
