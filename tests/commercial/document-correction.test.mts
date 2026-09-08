@@ -34,6 +34,11 @@ test("correction uses the protected administrative write path after Founder auth
   assert.match(documentSource, /find\(\(item\) => item\.is_current\)/);
 });
 
+test("correction uses a canonical timeline source accepted in Production", () => {
+  assert.doesNotMatch(documentSource, /source:\s*"Commercial Hub"/);
+  assert.match(documentSource, /event_type:\s*"COMMERCIAL_DOCUMENT_CORRECTED"[\s\S]*source:\s*"Administrator"/);
+});
+
 test("Event profile exposes one reservation document flow", () => {
   assert.match(eventOperationsSource, /DOCUMENTO DE RESERVA/);
   assert.match(eventOperationsSource, /GENERAR DOCUMENTO DE RESERVA/);
