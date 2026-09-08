@@ -133,7 +133,7 @@ export async function loadCrmCustomerOperations(
         staff: activeStaff,
         vehicles,
       },
-      agreement: agreement ? { id: agreement.id, status: agreement.status } : null,
+      agreement: agreement ? { id: agreement.id, status: agreement.status, quotationId: quotation?.id } : null,
       documents: (documents.data ?? []).filter((item) => item.project_id === projectId).map((item) => ({ id: item.id, type: item.document_type, storagePath: item.storage_path, driveFileId: item.drive_file_id, createdAt: item.created_at })),
       calendar: calendar ? { status: calendar.status, externalUrl: calendar.external_url, externalEventId: calendar.external_event_id } : null,
       portalActive: (portals.data ?? []).some((item) => item.project_id === projectId),
@@ -144,14 +144,15 @@ export async function loadCrmCustomerOperations(
         return { id: item.id, date: item.occurred_on, category: item.category, description, total: Number(item.total ?? 0), status: item.status };
       }),
       profitability: truth ? {
-        revenue: Number(truth.revenue),
+        // Commercial net is the display basis; truth.net_profit and truth.net_margin remain audit fields only.
+        revenue: Math.max(0, Number(quotation?.final_customer_price ?? quotation?.grand_total ?? 0) - Number(quotation?.tax_total ?? 0)),
         personnelCost: Number(truth.personnel_cost),
         operationalCost: Number(truth.operational_resources_cost),
         totalCost: Number(truth.total_operational_cost),
         costBreakdown,
-        profit: Number(truth.net_profit),
-        margin: Number(truth.net_margin),
-        classification: Number(truth.net_margin) >= 40 ? "HIGHLY_PROFITABLE" : Number(truth.net_margin) >= 20 ? "NORMAL" : "LOW_MARGIN",
+        profit: Math.max(0, Number(quotation?.final_customer_price ?? quotation?.grand_total ?? 0) - Number(quotation?.tax_total ?? 0)) - Number(truth.total_operational_cost ?? 0),
+        margin: (() => { const net = Math.max(0, Number(quotation?.final_customer_price ?? quotation?.grand_total ?? 0) - Number(quotation?.tax_total ?? 0)); return net > 0 ? (net - Number(truth.total_operational_cost ?? 0)) / net * 100 : 0; })(),
+        classification: (() => { const net = Math.max(0, Number(quotation?.final_customer_price ?? quotation?.grand_total ?? 0) - Number(quotation?.tax_total ?? 0)); const margin = net > 0 ? (net - Number(truth.total_operational_cost ?? 0)) / net * 100 : 0; return margin >= 40 ? "HIGHLY_PROFITABLE" : margin >= 20 ? "NORMAL" : "LOW_MARGIN"; })(),
         calculatedAt: truth.calculated_at,
       } : null,
     };
