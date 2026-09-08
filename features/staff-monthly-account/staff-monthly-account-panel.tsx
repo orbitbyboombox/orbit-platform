@@ -44,6 +44,7 @@ export function StaffMonthlyAccountPanel({
     [message, setMessage] = useState(""),
     [completing, setCompleting] = useState<string | null>(null),
     [completed, setCompleted] = useState<Set<string>>(new Set()),
+    [paymentMethod, setPaymentMethod] = useState("TRANSFERENCIA"),
     [confirming, setConfirming] = useState<{
       projectId: string;
       event: string;
@@ -422,11 +423,25 @@ export function StaffMonthlyAccountPanel({
           </label>
           <label className="text-sm">
             Método
-            <input
+            <select
               className="mt-1 min-h-11 w-full rounded-xl border px-3"
               name="method"
               required
-            />
+              value={paymentMethod}
+              onChange={(event) => setPaymentMethod(event.target.value)}
+            >
+              <option value="TRANSFERENCIA">Transferencia</option>
+              <option value="EFECTIVO">Efectivo</option>
+              <option value="OTRO">Otro</option>
+            </select>
+            {paymentMethod === "OTRO" ? (
+              <input
+                className="mt-2 min-h-11 w-full rounded-xl border px-3"
+                name="methodOther"
+                placeholder="Indica el método"
+                required
+              />
+            ) : null}
             <input name="reference" type="hidden" value="Pago mensual Staff" />
           </label>
           <label className="text-sm sm:col-span-2">

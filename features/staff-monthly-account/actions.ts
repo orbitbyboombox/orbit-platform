@@ -587,7 +587,10 @@ export async function registerMonthlyStaffPaymentAction(form: FormData) {
       accountId = String(form.get("accountId") ?? ""),
       amount = Number(form.get("amount")),
       paymentDate = String(form.get("paymentDate") ?? ""),
-      method = String(form.get("method") ?? ""),
+      methodChoice = String(form.get("method") ?? ""),
+      method = methodChoice === "OTRO"
+        ? String(form.get("methodOther") ?? "").trim()
+        : methodChoice,
       reference = String(form.get("reference") ?? ""),
       bytes = await file.arrayBuffer(),
       fileHash = createHash("sha256").update(Buffer.from(bytes)).digest("hex"),
