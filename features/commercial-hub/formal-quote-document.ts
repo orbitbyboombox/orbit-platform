@@ -44,6 +44,33 @@ export function reservationCommercialDocumentFilename(
 
 const sha256 = (value: Uint8Array) => createHash("sha256").update(value).digest("hex");
 
+export async function generateCommercialDocument(input: { client: SupabaseClient; projectId: string; quotationId: string; actorId: string }) {
+  const document = await loadFormalQuoteDocument(input.client, input.quotationId);
+  const { data: project, error: projectError } = await input.client.from("projects").select("customer_id,orbit_event_id").eq("id", input.projectId).is("deleted_at", null).single();
+  if (projectError || !project) throw projectError ?? new Error("Evento no encontrado.");
+  const { data: current, error: currentError } = await input.client.from("documents").select("id,version").eq("project_id", input.projectId).eq("document_type", "COMMERCIAL_DOCUMENT").eq("is_current", true).is("deleted_at", null).order("version", { ascending: false }).limit(1).maybeSingle();
+  if (currentError) throw currentError;
+  if (current) return { documentId: current.id, version: Number(current.version ?? 1), filename: document.filename, reused: true };
+  const { data: latest, error: latestError } = await input.client.from("documents").select("version").eq("project_id", input.projectId).eq("document_type", "COMMERCIAL_DOCUMENT").is("deleted_at", null).order("version", { ascending: false }).limit(1).maybeSingle();
+  if (latestError) throw latestError;
+  const version = Number(latest?.version ?? 0) + 1;
+  const documentId = randomUUID();
+  const storagePath = `${input.projectId}/commercial-document-v${version}-${documentId}.pdf`;
+  const upload = await input.client.storage.from("orbit-documents").upload(storagePath, document.bytes, { contentType: "application/pdf", upsert: false });
+  if (upload.error) throw upload.error;
+  try {
+    const { error: insertError } = await input.client.from("documents").insert({ id: documentId, project_id: input.projectId, customer_id: project.customer_id, orbit_event_id: project.orbit_event_id, document_type: "COMMERCIAL_DOCUMENT", storage_bucket: "orbit-documents", storage_path: storagePath, checksum: sha256(document.bytes), created_by: input.actorId, uploaded_by: input.actorId, version, is_current: true, workflow_status: "APPROVED", metadata: { source: "FOUNDER_RESERVATION_DOCUMENT", reason: "INITIAL_GENERATION" } });
+    if (insertError) throw insertError;
+    const { error: timelineError } = await input.client.from("timeline_events").insert({ customer_id: project.customer_id, project_id: input.projectId, orbit_event_id: project.orbit_event_id, event_type: "COMMERCIAL_DOCUMENT_GENERATED", title: "Documento comercial oficial generado", description: `Versión ${version}.`, actor_id: input.actorId, actor_label: "Founder", source: "Commercial Hub", action: "COMMERCIAL_DOCUMENT_GENERATED", entity_type: "Document", entity_id: documentId, human_message: "Documento comercial generado sin enviar correo.", correlation_id: `commercial-document-generation:${input.projectId}:${version}`, created_by: input.actorId });
+    if (timelineError) throw timelineError;
+  } catch (error) {
+    await input.client.from("documents").delete().eq("id", documentId);
+    await input.client.storage.from("orbit-documents").remove([storagePath]);
+    throw error;
+  }
+  return { documentId, version, filename: document.filename, reused: false };
+}
+
 export async function regenerateCommercialDocument(input: { client: SupabaseClient; projectId: string; quotationId: string; agreementId: string; actorId: string }) {
   const { data: agreement, error: agreementError } = await input.client.from("agreements").select("id,status").eq("id", input.agreementId).eq("project_id", input.projectId).single();
   if (agreementError || !agreement) throw agreementError ?? new Error("Documento no encontrado.");

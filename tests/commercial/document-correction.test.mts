@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 const documentSource = readFileSync("features/commercial-hub/formal-quote-document.ts", "utf8");
 const actionSource = readFileSync("features/projects/actions/customer.actions.ts", "utf8");
 const uiSource = readFileSync("features/projects/signing/agreement-signing-control.tsx", "utf8");
+const eventOperationsSource = readFileSync("features/crm/customer-event-operations.tsx", "utf8");
 
 test("commercial correction preserves history and creates a new current version", () => {
   assert.match(documentSource, /regenerateCommercialDocument/);
@@ -31,4 +32,12 @@ test("correction uses the protected administrative write path after Founder auth
   assert.match(actionSource, /createAdminClient/);
   assert.match(actionSource, /regenerateCommercialDocument\(\{ client: createAdminClient\(\)/);
   assert.match(documentSource, /find\(\(item\) => item\.is_current\)/);
+});
+
+test("Event profile exposes one reservation document flow", () => {
+  assert.match(eventOperationsSource, /DOCUMENTO DE RESERVA/);
+  assert.match(eventOperationsSource, /GENERAR DOCUMENTO DE RESERVA/);
+  assert.match(eventOperationsSource, /ACTUALIZAR DOCUMENTO/);
+  assert.match(eventOperationsSource, /AgreementSigningControl/);
+  assert.match(eventOperationsSource, /quotationId/);
 });

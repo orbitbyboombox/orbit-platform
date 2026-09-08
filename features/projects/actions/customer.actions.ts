@@ -24,7 +24,7 @@ import { deliverAssignmentCancellationBoundary } from "@/features/operations/sta
 import { normalizeOptionalEmail, normalizeRequiredEmail } from "@/lib/email/recipients";
 import { isAdministrativeRole } from "@/lib/auth/roles";
 import { assertCorporateCreditTerms } from "@/features/accounts-receivable/corporate-credit-terms";
-import { regenerateCommercialDocument } from "@/features/commercial-hub/formal-quote-document";
+import { generateCommercialDocument, regenerateCommercialDocument } from "@/features/commercial-hub/formal-quote-document";
 
 export type CreateCustomerResult =
   | { ok: true; project: Project }
@@ -771,6 +771,22 @@ export async function regenerateCommercialDocumentAction(input: { projectId: str
       timestamp: new Date().toISOString(),
     }));
     return { ok: false as const, error: error instanceof Error ? error.message : "No fue posible regenerar el documento." };
+  }
+}
+
+export async function generateCommercialDocumentAction(input: { projectId: string; quotationId: string }) {
+  try {
+    const client = await createSupabaseServerClient();
+    const { data: auth } = await client.auth.getUser();
+    if (!auth.user) throw new Error("Sesión requerida.");
+    const { data: profile } = await client.from("profiles").select("role").eq("id", auth.user.id).maybeSingle();
+    if (!isAdministrativeRole(profile?.role)) throw new Error("Solo Founder o Administración puede generar documentos.");
+    const result = await generateCommercialDocument({ client: createAdminClient(), ...input, actorId: auth.user.id });
+    revalidatePath(`/projects/${input.projectId}`);
+    return { ok: true as const, ...result };
+  } catch (error) {
+    console.error(JSON.stringify({ level: "error", event: "commercial_document.generation_failed", projectId: input.projectId, quotationId: input.quotationId, error: error instanceof Error ? error.message : String(error), timestamp: new Date().toISOString() }));
+    return { ok: false as const, error: error instanceof Error ? error.message : "No fue posible generar el documento." };
   }
 }
 

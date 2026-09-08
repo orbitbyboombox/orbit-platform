@@ -35,6 +35,7 @@ export interface CrmEventSummary {
 }
 export interface CrmCustomerEventOperations {
   projectId: string;
+  quotationId: string | null;
   commercialSummary: {
     service: string;
     duration: number;
@@ -100,6 +101,9 @@ export interface CrmCustomerEventOperations {
     storagePath: string | null;
     driveFileId: string | null;
     createdAt: string;
+    version: number;
+    isCurrent: boolean;
+    workflowStatus: string | null;
   }>;
   calendar: {
     status: string;
