@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { SupabaseCustomerRepository } from "../infrastructure";
 import { removeCancelledReservationCalendar } from "@/features/connectors/google-calendar/application/google-calendar-sync.service";
 import {
@@ -753,7 +754,10 @@ export async function regenerateCommercialDocumentAction(input: { projectId: str
     if (!auth.user) throw new Error("Sesión requerida.");
     const { data: profile } = await client.from("profiles").select("role").eq("id", auth.user.id).maybeSingle();
     if (!isAdministrativeRole(profile?.role)) throw new Error("Solo Founder o Administración puede regenerar documentos.");
-    const result = await regenerateCommercialDocument({ client, ...input, actorId: auth.user.id });
+    // The session client is used for authentication only. Storage and the
+    // protected document ledger are written through the canonical admin path,
+    // after the Founder/Admin role has been verified above.
+    const result = await regenerateCommercialDocument({ client: createAdminClient(), ...input, actorId: auth.user.id });
     revalidatePath(`/projects/${input.projectId}`);
     return { ok: true as const, ...result };
   } catch (error) {

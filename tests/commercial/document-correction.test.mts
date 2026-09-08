@@ -26,3 +26,9 @@ test("resend prefers current commercial document and correction never sends emai
   assert.match(uiSource, /Regenerar documento corregido/);
   assert.match(uiSource, /no se enviará ningún correo/);
 });
+
+test("correction uses the protected administrative write path after Founder auth", () => {
+  assert.match(actionSource, /createAdminClient/);
+  assert.match(actionSource, /regenerateCommercialDocument\(\{ client: createAdminClient\(\)/);
+  assert.match(documentSource, /find\(\(item\) => item\.is_current\)/);
+});

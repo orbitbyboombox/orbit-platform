@@ -49,24 +49,39 @@ export async function regenerateCommercialDocument(input: { client: SupabaseClie
   if (agreementError || !agreement) throw agreementError ?? new Error("Documento no encontrado.");
   if (agreement.status === "SIGNED") throw new Error("Este documento está firmado y no puede regenerarse.");
   const document = await loadFormalQuoteDocument(input.client, input.quotationId);
-  const { data: previous, error: previousError } = await input.client.from("documents").select("id,version").eq("project_id", input.projectId).eq("document_type", "COMMERCIAL_DOCUMENT").is("deleted_at", null).order("version", { ascending: false });
+  const { data: previous, error: previousError } = await input.client.from("documents").select("id,version,is_current,storage_path").eq("project_id", input.projectId).eq("document_type", "COMMERCIAL_DOCUMENT").is("deleted_at", null).order("version", { ascending: false });
   if (previousError) throw previousError;
   const nextVersion = (Number(previous?.[0]?.version) || 0) + 1;
-  const previousCurrent = previous?.[0];
+  const previousCurrent = previous?.find((item) => item.is_current) ?? null;
   const newId = randomUUID();
   const path = `${input.projectId}/commercial-document-v${nextVersion}-${newId}.pdf`;
   const upload = await input.client.storage.from("orbit-documents").upload(path, document.bytes, { contentType: "application/pdf", upsert: false });
   if (upload.error) throw upload.error;
   const { data: project, error: projectError } = await input.client.from("projects").select("customer_id,orbit_event_id").eq("id", input.projectId).single();
   if (projectError || !project) throw projectError ?? new Error("Evento no encontrado.");
-  if (previousCurrent) {
-    const { error } = await input.client.from("documents").update({ is_current: false, metadata: { supersededBy: newId, supersededAt: new Date().toISOString(), reason: "DOCUMENT_CORRECTION" } }).eq("id", previousCurrent.id);
-    if (error) throw error;
+  let previousWasReleased = false;
+  let newRowInserted = false;
+  try {
+    if (previousCurrent) {
+      const { error } = await input.client.from("documents").update({ is_current: false, metadata: { supersededBy: newId, supersededAt: new Date().toISOString(), reason: "DOCUMENT_CORRECTION" } }).eq("id", previousCurrent.id);
+      if (error) throw error;
+      previousWasReleased = true;
+    }
+    const { error: insertError } = await input.client.from("documents").insert({ id: newId, project_id: input.projectId, customer_id: project.customer_id, orbit_event_id: project.orbit_event_id, document_type: "COMMERCIAL_DOCUMENT", storage_bucket: "orbit-documents", storage_path: path, checksum: sha256(document.bytes), created_by: input.actorId, uploaded_by: input.actorId, version: nextVersion, is_current: true, workflow_status: "APPROVED", metadata: { source: "FOUNDER_DOCUMENT_CORRECTION", reason: "DOCUMENT_CORRECTION", agreementId: input.agreementId, previousDocumentId: previousCurrent?.id ?? null } });
+    if (insertError) throw insertError;
+    newRowInserted = true;
+    const { error: timelineError } = await input.client.from("timeline_events").insert({ customer_id: project.customer_id, project_id: input.projectId, orbit_event_id: project.orbit_event_id, event_type: "COMMERCIAL_DOCUMENT_CORRECTED", title: "Documento comercial corregido generado", description: `Versión ${nextVersion}; versión anterior conservada.`, actor_id: input.actorId, actor_label: "Founder", source: "Commercial Hub", action: "DOCUMENT_CORRECTION", entity_type: "Document", entity_id: newId, human_message: "Se generó una nueva versión comercial sin enviar correo.", correlation_id: `commercial-document-correction:${input.projectId}:${nextVersion}`, created_by: input.actorId });
+    if (timelineError) throw timelineError;
+  } catch (error) {
+    // Never leave an unattached PDF in the canonical bucket when metadata
+    // persistence fails. The previous document remains untouched.
+    if (newRowInserted) await input.client.from("documents").delete().eq("id", newId);
+    if (previousWasReleased && previousCurrent) {
+      await input.client.from("documents").update({ is_current: true }).eq("id", previousCurrent.id);
+    }
+    await input.client.storage.from("orbit-documents").remove([path]);
+    throw error;
   }
-  const { error: insertError } = await input.client.from("documents").insert({ id: newId, project_id: input.projectId, customer_id: project.customer_id, orbit_event_id: project.orbit_event_id, document_type: "COMMERCIAL_DOCUMENT", storage_bucket: "orbit-documents", storage_path: path, checksum: sha256(document.bytes), created_by: input.actorId, uploaded_by: input.actorId, version: nextVersion, is_current: true, workflow_status: "APPROVED", metadata: { source: "FOUNDER_DOCUMENT_CORRECTION", reason: "DOCUMENT_CORRECTION", agreementId: input.agreementId, previousDocumentId: previousCurrent?.id ?? null } });
-  if (insertError) throw insertError;
-  const { error: timelineError } = await input.client.from("timeline_events").insert({ customer_id: project.customer_id, project_id: input.projectId, orbit_event_id: project.orbit_event_id, event_type: "COMMERCIAL_DOCUMENT_CORRECTED", title: "Documento comercial corregido generado", description: `Versión ${nextVersion}; versión anterior conservada.`, actor_id: input.actorId, actor_label: "Founder", source: "Commercial Hub", action: "DOCUMENT_CORRECTION", entity_type: "Document", entity_id: newId, human_message: "Se generó una nueva versión comercial sin enviar correo.", correlation_id: `commercial-document-correction:${input.projectId}:${nextVersion}`, created_by: input.actorId });
-  if (timelineError) throw timelineError;
   return { documentId: newId, version: nextVersion, filename: document.filename };
 }
 
