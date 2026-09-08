@@ -5,9 +5,28 @@ export function normalizeRelatedRows(value: unknown): RelatedSalesRow[] {
   if (value && typeof value === "object") return [value as RelatedSalesRow];
   return [];
 }
+export function hasLegacyReservationEvidence(input: {
+  commercialStage?: string | null;
+  operationalStage?: string | null;
+  eventStatuses?: unknown;
+  financialStatuses?: unknown;
+}): boolean {
+  const commercial = String(input.commercialStage ?? "").toUpperCase();
+  const operational = String(input.operationalStage ?? "").toUpperCase();
+  const events = normalizeRelatedRows(input.eventStatuses).map((event) => String(event.status ?? "").toUpperCase());
+  const financial = normalizeRelatedRows(input.financialStatuses).map((record) => String(record.status ?? "").toUpperCase());
+  return ["CONFIRMED", "PRODUCTION", "FINISHED"].includes(commercial)
+    && ["RESERVA CONFIRMADA", "CONFIRMED", "RESERVED"].includes(operational)
+    && events.some((status) => !["CANCELLED", "CANCELED", "ARCHIVED"].includes(status))
+    && financial.includes("CONFIRMED");
+}
 export function derivePipelineStage(input: { explicit?: string | null; commercialStage?: string | null; quotationStatus?: string | null; reservationStatus?: string | null; legacyReservationConfirmed?: boolean }): PipelineStage {
-  if (PIPELINE_STAGES.includes(input.explicit as PipelineStage)) return input.explicit as PipelineStage;
+  const explicit = input.explicit as PipelineStage;
+  // Non-commercial terminal states are authoritative and must never be
+  // reopened by a stale reservation relation.
+  if (["PRUEBA", "ARCHIVADO"].includes(explicit)) return explicit;
   if (["CONFIRMED", "BOOKED"].includes(String(input.reservationStatus).toUpperCase()) || input.legacyReservationConfirmed) return "GANADO";
+  if (PIPELINE_STAGES.includes(explicit)) return explicit;
   const value = String(input.commercialStage ?? "");
   if (value === "Quoting") return "COTIZACIÓN";
   if (["Waiting", "Contacted"].includes(value)) return value === "Waiting" ? "SEGUIMIENTO" : "CALIFICANDO";

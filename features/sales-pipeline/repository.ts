@@ -1,6 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { actionUrgency, derivePipelineStage, followUpStatus, normalizeRelatedRows, type RelatedSalesRow } from "./domain";
+import { actionUrgency, derivePipelineStage, followUpStatus, hasLegacyReservationEvidence, normalizeRelatedRows, type RelatedSalesRow } from "./domain";
 import { LEAD_SOURCES, NEXT_ACTION_TYPES, PIPELINE_STAGES, type LeadSource, type NextActionType, type PipelineStage, type SalesLead, type SalesPipelineData } from "./types";
 const source = (value: unknown): LeadSource => LEAD_SOURCES.includes(String(value).toUpperCase() as LeadSource) ? String(value).toUpperCase() as LeadSource : "UNKNOWN";
 const action = (value: unknown): NextActionType | null => NEXT_ACTION_TYPES.includes(String(value).toUpperCase() as NextActionType) ? String(value).toUpperCase() as NextActionType : null;
@@ -27,7 +27,7 @@ export async function loadSalesPipeline(): Promise<SalesPipelineData> {
     const reservation = Array.isArray(row.crm_reservations) ? row.crm_reservations[0] : row.crm_reservations;
     const legacyEvents = normalizeRelatedRows(row.crm_events);
     const legacyFinancialRecords = normalizeRelatedRows(row.financial_event_records);
-    const legacyReservationConfirmed = String(op.commercialStage ?? "").toUpperCase() === "CONFIRMED" && String(op.stage ?? "").toUpperCase() === "RESERVA CONFIRMADA" && legacyEvents.some((event) => !["CANCELLED", "CANCELED", "ARCHIVED"].includes(String(event.status).toUpperCase())) && legacyFinancialRecords.some((record) => String(record.status).toUpperCase() === "CONFIRMED");
+    const legacyReservationConfirmed = hasLegacyReservationEvidence({ commercialStage: op.commercialStage as string | null, operationalStage: op.stage as string | null, eventStatuses: legacyEvents, financialStatuses: legacyFinancialRecords });
     const communications = Array.isArray(row.communications) ? row.communications : [];
     const latest = communications.sort((a, b) => String(b.occurred_at).localeCompare(String(a.occurred_at)))[0];
     const quote = [...quotes].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0];
