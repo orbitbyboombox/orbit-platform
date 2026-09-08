@@ -119,12 +119,28 @@ const loadFounderActionCenterCached = cache(async (userId: string): Promise<Foun
       canonicalKey: `${row.entity_type ?? row.notification_type}:${row.entity_id ?? row.id}`,
     }))
     .sort((a, b) => a.priority.localeCompare(b.priority) || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  const physicalItems = projected.filter((item) => item.type === "PHYSICAL_CONFIGURATION_MISSING");
   const seen = new Set<string>();
-  const items: FounderActionItem[] = projected.filter((item) => {
+  const items: FounderActionItem[] = projected.filter((item) => item.type !== "PHYSICAL_CONFIGURATION_MISSING").filter((item) => {
     if (seen.has(item.canonicalKey)) return false;
     seen.add(item.canonicalKey);
     return true;
   });
+  if (physicalItems.length > 0) {
+    const first = physicalItems[0];
+    items.splice(items.length, 0, {
+      id: "PHYSICAL_CONFIGURATION_MISSING_GROUP",
+      type: "PHYSICAL_CONFIGURATION_MISSING",
+      title: `${physicalItems.length} eventos sin configuración física`,
+      detail: "Eventos próximos requieren definir una configuración física.",
+      href: "/operations/week#physical-configuration-missing",
+      createdAt: first.createdAt,
+      priority: physicalItems.some((item) => item.priority === "P0") ? "P0" : physicalItems.some((item) => item.priority === "P2") ? "P2" : "P3",
+      category: "OPERATIONS",
+      read: physicalItems.every((item) => item.read),
+      cta: "DEFINIR CONFIGURACIÓN",
+    });
+  }
   const overdue = (overdueData ?? { count: 0, total: 0, oldestDueDate: null }) as OverdueReceivableSummary;
   if (Number(overdue.count) > 0) {
     items.push({
