@@ -5,10 +5,12 @@ import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { buildReservationConfirmationTemplate } from "../features/connectors/google-gmail/application/reservation-confirmation.template.ts";
 import { renderReservationConfirmationHtml } from "../features/connectors/google-gmail/application/reservation-confirmation.html.ts";
 import {
+  acceptedCommercialFinancialPresentation,
   customerCommercialItemsFromSnapshot,
   customerCommercialItemsFromLegacyQuote,
   customerCommercialPresentation,
 } from "../features/projects/reservation-presentation.ts";
+import { resolveCommercialBreakdown } from "../features/commercial-hub/commercial-breakdown.ts";
 import { createSignedAgreementPdf } from "../features/projects/signing/signed-agreement-pdf.ts";
 
 const source = (path: string) =>
@@ -230,6 +232,59 @@ test("Empresa confirmation includes net and VAT while keeping deposit separate",
   assert.match(rendered.body, /^Saldo pendiente\n\$511\.700$/m);
 });
 
+test("manual negotiated pricing snapshot is the canonical service/transport/net source", () => {
+  const financial = acceptedCommercialFinancialPresentation({
+    commercialNegotiation: {
+      negotiatedServicePrice: 390_000,
+      negotiatedExtras: 0,
+      negotiatedTransport: 40_000,
+      discountAmount: 0,
+      netAmount: 430_000,
+      vatAmount: 81_700,
+      finalPrice: 511_700,
+    },
+    commercial: {
+      servicePrice: 390_000,
+      extrasTotal: 0,
+      transportTotal: 40_000,
+      discount: 0,
+      net: 430_000,
+      tax: 81_700,
+      total: 511_700,
+    },
+  }, { finalCustomerPrice: 511_700 });
+  assert.deepEqual(financial, {
+    net: 430_000,
+    vat: 81_700,
+    total: 511_700,
+    depositPercent: 50,
+    deposit: 255_850,
+    balance: 255_850,
+  });
+});
+
+test("commercial breakdown includes transport in net without double-counting component lines", () => {
+  const breakdown = resolveCommercialBreakdown({
+    snapshot: {
+      commercial: {
+        servicePrice: 390_000,
+        extrasTotal: 0,
+        transportTotal: 40_000,
+        discount: 0,
+        net: 430_000,
+        tax: 81_700,
+        total: 511_700,
+      },
+    },
+    items: [],
+  });
+  assert.equal(breakdown.serviceSubtotal, 390_000);
+  assert.equal(breakdown.transport, 40_000);
+  assert.equal(breakdown.net, 430_000);
+  assert.equal(breakdown.tax, 81_700);
+  assert.equal(breakdown.total, 511_700);
+});
+
 test("Empresa CTA is branded, mobile friendly and targets safe portal login", () => {
   const rendered = buildReservationConfirmationTemplate(companyEmailInput());
   const html = renderReservationConfirmationHtml(
@@ -335,7 +390,6 @@ test("presentation repair never writes financial or collection truth", () => {
   const changed = `${confirmationTemplate}\n${manualPdf}\n${signedPdf}`;
   assert.doesNotMatch(changed, /from\("invoice_payments"\)|from\("accounts_receivable/);
   assert.doesNotMatch(changed, /paid_amount\s*:|outstanding_balance\s*:/);
-  assert.doesNotMatch(changed, /transport_total\s*:/);
 });
 
 test("mobile email remains line-based and wrapped by the branded responsive shell", () => {

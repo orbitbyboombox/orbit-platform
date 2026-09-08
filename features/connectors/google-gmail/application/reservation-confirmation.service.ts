@@ -104,7 +104,7 @@ export async function loadReservationConfirmationComposer(
       admin
         .from("projects")
         .select(
-          "id,customer_id,orbit_event_id,name,project_type,event_date,event_time,location,city,operations,customers!inner(full_name,email,secondary_email,metadata),project_services(service_code,duration_hours),quotations(id,status,quotation_number,customer_type,final_customer_price,subtotal,discount_total,tax_total,grand_total,transport_total,accepted_snapshot,created_at,quotation_items(label,description,total)),agreements(id,signed_pdf_path,created_at),financial_event_records(invoiced_amount,paid_amount,outstanding_balance),project_operational_contracts(service_start_at,service_end_at),customer_portal_tokens(id)",
+          "id,customer_id,orbit_event_id,name,project_type,event_date,event_time,location,city,operations,finance,customers!inner(full_name,email,secondary_email,metadata),project_services(service_code,duration_hours),quotations(id,status,quotation_number,customer_type,final_customer_price,subtotal,discount_total,tax_total,grand_total,transport_total,accepted_snapshot,pricing_snapshot,created_at,quotation_items(label,description,total)),agreements(id,signed_pdf_path,created_at),financial_event_records(invoiced_amount,paid_amount,outstanding_balance),project_operational_contracts(service_start_at,service_end_at),customer_portal_tokens(id)",
         )
         .eq("id", projectId)
         .is("deleted_at", null)
@@ -154,7 +154,7 @@ export async function loadReservationConfirmationComposer(
     quotation?.customer_type === "COMPANY" ||
     /CORPORATE|EMPRESA/i.test(String(project.project_type ?? ""));
   const commercialFinancial = acceptedCommercialFinancialPresentation(
-    quotation?.accepted_snapshot,
+    quotation?.accepted_snapshot ?? quotation?.pricing_snapshot,
     { subtotal: quotation?.subtotal, discountTotal: quotation?.discount_total, taxTotal: quotation?.tax_total, grandTotal: quotation?.grand_total, finalCustomerPrice: quotation?.final_customer_price },
   );
   const operational = Array.isArray(project.project_operational_contracts)

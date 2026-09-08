@@ -100,9 +100,13 @@ export function buildCommercialQuoteDetail(
   const acceptedQuotation = record(acceptedSnapshot.quotation);
   const acceptedCommercial = record(acceptedSnapshot.commercial);
   const currentCommercial = record(row.commercial_snapshot);
+  const pricingSnapshot = record(row.pricing_snapshot);
+  const pricingCommercial = record(pricingSnapshot.commercial);
   const commercial = Object.keys(acceptedCommercial).length
     ? acceptedCommercial
-    : currentCommercial;
+    : Object.keys(pricingCommercial).length
+      ? pricingCommercial
+      : currentCommercial;
   const acceptedCustomer = record(acceptedSnapshot.customer);
   const currentCustomer = record(row.customer_snapshot);
   const relatedCustomer = Array.isArray(row.customers)
@@ -114,7 +118,9 @@ export function buildCommercialQuoteDetail(
   const event = record(commercial.event);
   const sourceItems = Array.isArray(acceptedSnapshot.items)
     ? acceptedSnapshot.items
-    : row.quotation_items ?? [];
+    : Array.isArray(pricingSnapshot.items)
+      ? pricingSnapshot.items
+      : row.quotation_items ?? [];
   const items = sourceItems
     .map((value, index) => {
       const item = record(value);

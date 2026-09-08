@@ -13,7 +13,14 @@ export function resolveCommercialBreakdown(input: {
   snapshot: Record<string, unknown>;
   items: readonly CommercialBreakdownItem[];
 }) {
-  const snapshot = input.snapshot;
+  const source = input.snapshot;
+  const nestedCommercial = source.commercial;
+  const snapshot = nestedCommercial && typeof nestedCommercial === "object" && !Array.isArray(nestedCommercial)
+    ? { ...source, ...(nestedCommercial as Record<string, unknown>) }
+    : source;
+  const negotiation = snapshot.commercialNegotiation && typeof snapshot.commercialNegotiation === "object" && !Array.isArray(snapshot.commercialNegotiation)
+    ? snapshot.commercialNegotiation as Record<string, unknown>
+    : {};
   const typedItems = input.items.filter((item) => typeof item.itemType === "string");
   const serviceSubtotal = typedItems
     .filter((item) => String(item.itemType).toUpperCase() === "SERVICE")
@@ -28,10 +35,10 @@ export function resolveCommercialBreakdown(input: {
   const discount = amount(snapshot.discount ?? snapshot.discountTotal);
   const hasTypedLines = typedItems.length > 0;
   const explicitService = amount(
-    snapshot.serviceSubtotal ?? snapshot.servicePrice ?? snapshot.negotiatedServicePrice,
+    snapshot.serviceSubtotal ?? snapshot.servicePrice ?? snapshot.negotiatedServicePrice ?? negotiation.negotiatedServicePrice,
   );
   const explicitExtras = amount(
-    snapshot.extrasTotal ?? snapshot.negotiatedExtras ?? snapshot.extras,
+    snapshot.extrasTotal ?? snapshot.negotiatedExtras ?? snapshot.extras ?? negotiation.negotiatedExtras,
   );
   const resolvedService = explicitService || serviceSubtotal;
   const resolvedExtras = explicitExtras || extras;

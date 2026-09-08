@@ -388,11 +388,12 @@ export async function sendFormalQuoteAction(input: { quoteId: string; email: str
     const recipients = normalizeEmailRecipients({ to: input.email, cc: input.cc });
     const admin = createAdminClient();
     const [{ data: quote, error }, company] = await Promise.all([
-      admin.from("quotations").select("id,quotation_number,issue_date,expiration_date,customer_id,project_id,customer_snapshot,commercial_snapshot,quotation_items(description,label,quantity,quoted_price,unit_price,total,item_type,display_order)").eq("id", input.quoteId).single(),
+      admin.from("quotations").select("id,quotation_number,issue_date,expiration_date,customer_id,project_id,customer_snapshot,commercial_snapshot,pricing_snapshot,quotation_items(description,label,quantity,quoted_price,unit_price,total,item_type,display_order)").eq("id", input.quoteId).single(),
       loadCompanySettings(admin),
     ]);
     if (error || !quote) throw new Error("La cotización ya no está disponible.");
-    const snapshot = (quote.commercial_snapshot ?? {}) as Record<string, unknown>;
+    const pricingSnapshot = (quote.pricing_snapshot ?? {}) as Record<string, unknown>;
+    const snapshot = (quote.commercial_snapshot ?? (Object.keys(pricingSnapshot).length ? pricingSnapshot.commercial ?? pricingSnapshot : {})) as Record<string, unknown>;
     const customer = (quote.customer_snapshot ?? {}) as Record<string, string>;
     const event = (snapshot.event ?? {}) as Record<string, string>;
     const config = company.pdfConfiguration.commercialBank && typeof company.pdfConfiguration.commercialBank === "object" ? company.pdfConfiguration.commercialBank as Record<string, string> : {};

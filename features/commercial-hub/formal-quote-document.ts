@@ -124,7 +124,7 @@ export async function loadFormalQuoteDocument(
     client
       .from("quotations")
       .select(
-        "id,status,quotation_number,issue_date,expiration_date,customer_snapshot,commercial_snapshot,accepted_snapshot,quotation_items(description,label,quantity,quoted_price,unit_price,total,item_type,display_order)",
+        "id,status,quotation_number,issue_date,expiration_date,customer_snapshot,commercial_snapshot,pricing_snapshot,accepted_snapshot,quotation_items(description,label,quantity,quoted_price,unit_price,total,item_type,display_order)",
       )
       .eq("id", quotationId)
       .single(),
@@ -134,9 +134,12 @@ export async function loadFormalQuoteDocument(
 
   const accepted = object(quote.accepted_snapshot);
   const acceptedQuotation = object(accepted.quotation);
+  const pricingSnapshot = object(quote.pricing_snapshot);
   const snapshot = Object.keys(object(accepted.commercial)).length
     ? object(accepted.commercial)
-    : object(quote.commercial_snapshot);
+    : Object.keys(object(pricingSnapshot.commercial)).length
+      ? { ...pricingSnapshot, ...object(pricingSnapshot.commercial) }
+      : object(quote.commercial_snapshot);
   const customer = Object.keys(object(accepted.customer)).length
     ? object(accepted.customer)
     : object(quote.customer_snapshot);
@@ -165,8 +168,23 @@ export async function loadFormalQuoteDocument(
         };
       })
     : [];
+  const pricingItems = Array.isArray(pricingSnapshot.items)
+    ? pricingSnapshot.items.map((item) => {
+        const value = object(item);
+        return {
+          description: String(value.label ?? value.code ?? "Ítem"),
+          label: String(value.label ?? ""),
+          quantity: Number(value.quantity ?? 1),
+          quoted_price: Number(value.quotedPrice ?? 0),
+          unit_price: Number(value.quotedPrice ?? 0),
+          total: Number(value.total ?? 0),
+          item_type: String(value.itemType ?? value.item_type ?? ""),
+          display_order: Number(value.displayOrder ?? 0),
+        };
+      })
+    : [];
   const items = [
-    ...(acceptedItems.length ? acceptedItems : quote.quotation_items ?? []),
+    ...(acceptedItems.length ? acceptedItems : pricingItems.length ? pricingItems : quote.quotation_items ?? []),
   ].sort((a, b) => Number(a.display_order) - Number(b.display_order));
   const quotationNumber = String(
     acceptedQuotation.number ?? quote.quotation_number,

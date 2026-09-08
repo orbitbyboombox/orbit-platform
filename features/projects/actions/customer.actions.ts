@@ -276,6 +276,16 @@ export async function createCustomerProjectAction(
       if (quotationLookupError) throw quotationLookupError;
       let quotation = existingQuotation;
       const pricingSnapshot = {
+        commercial: {
+          servicePrice: adjustment.negotiatedServicePrice,
+          extrasTotal: adjustment.negotiatedExtras,
+          transportTotal: adjustment.negotiatedTransport,
+          discount: discount,
+          net: adjustment.netAmount,
+          tax: adjustment.vatAmount,
+          total: finalTotal,
+          depositPercent: adjustment.paymentCondition === "CORPORATE_CREDIT" ? 0 : 50,
+        },
         commercialNegotiation: adjustment,
         officialPrice: subtotal,
         officialServicePrice: adjustment.officialServicePrice,
@@ -314,7 +324,7 @@ export async function createCustomerProjectAction(
             issue_date: issueDate,
             expiration_date: expiration.toISOString().slice(0, 10),
             subtotal,
-            transport_total: 0,
+            transport_total: adjustment.negotiatedTransport,
             discount_total: discount + courtesyValue,
             tax_total: adjustment.vatAmount,
             grand_total: finalTotal,
@@ -342,6 +352,7 @@ export async function createCustomerProjectAction(
           .from("quotations")
           .update({
             subtotal,
+            transport_total: adjustment.negotiatedTransport,
             discount_total: discount + courtesyValue,
             tax_total: adjustment.vatAmount,
             grand_total: finalTotal,

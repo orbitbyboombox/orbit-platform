@@ -32,6 +32,8 @@ export type AcceptedCommercialFinancialFallback = {
   grandTotal?: number | null;
   finalCustomerPrice?: number | null;
   depositPercent?: number | null;
+  transportTotal?: number | null;
+  extrasTotal?: number | null;
 };
 
 const record = (value: unknown): Record<string, unknown> =>
@@ -51,15 +53,25 @@ export function acceptedCommercialFinancialPresentation(
   const snapshot = record(acceptedSnapshot);
   const commercial = record(snapshot.commercial);
   const quotation = record(snapshot.quotation);
+  const negotiation = record(snapshot.commercialNegotiation ?? snapshot.negotiation);
+  const manual = Object.keys(negotiation).length > 0 ? negotiation : commercial;
+  const servicePrice = finite(manual.negotiatedServicePrice, finite(manual.servicePrice));
+  const extrasTotal = finite(manual.negotiatedExtras, finite(manual.extrasTotal, finite(fallback.extrasTotal)));
+  const transportTotal = finite(manual.negotiatedTransport, finite(manual.transport, finite(fallback.transportTotal)));
   const subtotal = finite(
     commercial.subtotal,
-    finite(quotation.subtotal, finite(fallback.subtotal)),
+    finite(quotation.subtotal, finite(negotiation.subtotal, finite(fallback.subtotal))),
   );
   const discount = finite(
     commercial.discount,
     finite(quotation.discountTotal, finite(fallback.discountTotal)),
   );
-  const net = finite(commercial.net, Math.max(0, subtotal - discount));
+  const net = finite(
+    manual.netAmount,
+    finite(commercial.net, servicePrice || extrasTotal || transportTotal
+      ? Math.max(0, servicePrice + extrasTotal + transportTotal - discount)
+      : Math.max(0, subtotal - discount)),
+  );
   const vat = finite(
     commercial.tax,
     finite(quotation.taxTotal, finite(fallback.taxTotal)),
