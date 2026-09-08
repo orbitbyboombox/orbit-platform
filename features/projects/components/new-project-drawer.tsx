@@ -1120,7 +1120,7 @@ export function NewProjectDrawer({
                 (draft.type === "Wedding" ? bride && groom : mainContact),
             )
           : step === 3
-            ? draft.services.length > 0 && negotiationValid
+            ? draft.services.length > 0 && negotiationValid && (!draft.services.some((service) => service.toUpperCase() === "CLASSIC") || Boolean(draft.shellType))
             : step === 4
               ? !requiresSignature ||
                 (termsAccepted &&
@@ -1944,6 +1944,22 @@ export function NewProjectDrawer({
                     ))}
                   </div>
                 </div>
+                {draft.services.some((service) => service.toUpperCase() === "CLASSIC") && (
+                  <label className="block rounded-2xl border border-brand/30 bg-brand/5 p-4 text-sm font-medium">
+                    Carcasa del tótem <span className="text-danger">*</span>
+                    <select
+                      aria-label="Carcasa del tótem"
+                      className="mt-2 h-11 w-full rounded-lg border bg-background px-3"
+                      value={draft.shellType ?? ""}
+                      onChange={(event) => setDraft((current) => ({ ...current, shellType: event.target.value === "WHITE" || event.target.value === "BLACK" ? event.target.value : undefined }))}
+                    >
+                      <option value="">Selecciona WHITE o BLACK</option>
+                      <option value="WHITE">WHITE</option>
+                      <option value="BLACK">BLACK</option>
+                    </select>
+                    {!draft.shellType && <p className="mt-2 text-xs text-muted">Selecciona la carcasa física del Classic: WHITE o BLACK.</p>}
+                  </label>
+                )}
                 {(
                   Object.entries(configurations) as Array<
                     [ProjectService, ServiceConfiguration]

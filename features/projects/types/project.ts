@@ -85,6 +85,8 @@ export interface Project {
 }
 
 export interface ProjectDraft {
+  /** Founder-selected physical shell for CASE services; persisted by the canonical shell RPC. */
+  shellType?: "WHITE" | "BLACK";
   commercialSourceQuotationId?: string;
   reservationTransactionId?: string;
   crmCustomerId?: string;

@@ -566,6 +566,14 @@ export async function createCustomerProjectAction(
     log("Accounts Receivable", "PASS", { projectId });
     if (!completedSteps.has("Accounts Receivable"))
       await checkpoint("Accounts Receivable", "PASS");
+    if (draft.services.some((service) => service.toUpperCase() === "CLASSIC")) {
+      if (!draft.shellType) throw new Error("Selecciona la carcasa física del Classic: WHITE o BLACK.");
+      const { error: shellError } = await client.rpc("set_event_shell_configuration", {
+        p_project_id: project.id,
+        p_shell_type: draft.shellType,
+      });
+      if (shellError) throw shellError;
+    }
     const completedStages = new Set<ConfirmationStage>();
     if (completedSteps.has("Business Engine"))
       completedStages.add("BUSINESS_ENGINE");
