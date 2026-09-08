@@ -7,6 +7,11 @@ import { useCompanySettings } from "@/features/company-settings";
 import { CustomerPaymentExperience } from "./customer-payment-experience";
 import { CustomerEventExperience } from "./customer-event-experience";
 import { CustomerPhotoStripDesignExperience } from "./customer-photo-strip-design-experience";
+import { CustomerDocumentsExperience } from "./customer-documents-experience";
+import { CustomerContractExperience } from "./customer-contract-experience";
+import { CustomerCommunicationCenter } from "./customer-communication-center";
+import { CustomerGalleryExperience } from "./customer-gallery-experience";
+import { CustomerDesignExperience } from "./customer-design-experience";
 import { requiresPhotoStripDesign } from "@/features/business-core/catalog/service.catalog";
 
 type PortalData = Awaited<ReturnType<typeof import("./customer-portal.service").loadCustomerPortal>> & {};
@@ -20,6 +25,18 @@ type PortalProject = NonNullable<PortalData>["project"] & {
 function Panel({ title, description, children, id }: { title: string; description?: string; children: ReactNode; id?: string }) {
   return <section className="scroll-mt-6 rounded-3xl border border-border/80 bg-card p-5 sm:p-7" id={id}><h2 className="text-xl font-semibold tracking-tight">{title}</h2>{description && <p className="mt-1 text-sm leading-6 text-muted">{description}</p>}<div className="mt-5">{children}</div></section>;
 }
+
+function CustomerTaxDocuments({ data, token }: { data: NonNullable<PortalData>; token: string }) {
+  const docs = data.documents.filter((doc) => Boolean((doc as Record<string, unknown>).external_tax_document_type));
+  if (!docs.length) return <Panel id="tax-documents" title="Documentos tributarios"><p className="text-sm text-muted">No hay documentos tributarios disponibles.</p><p className="mt-1 text-xs text-muted">El XML tributario no está disponible en el portal.</p></Panel>;
+  return <Panel id="tax-documents" title="Documentos tributarios" description="Documentos SII asociados a tu evento."><div className="space-y-3">{docs.map((doc) => { const row = doc as Record<string, unknown>; const href = `/api/portal/${encodeURIComponent(token)}/documents/${encodeURIComponent(doc.id)}`; return <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4" key={doc.id}><div><p className="font-semibold">{String(row.external_tax_document_type).replaceAll("_", " ")} Nº {String(row.external_folio ?? "")}</p><p className="text-sm text-muted">{String(row.external_document_status ?? "Adjuntado")} · {row.external_total_amount == null ? "Monto no informado" : formatMoney(Number(row.external_total_amount))}</p></div><a className="inline-flex min-h-11 items-center rounded-xl border px-4 text-sm font-semibold text-brand" href={`${href}?download=1`}>Descargar PDF</a></div>; })}</div></Panel>;
+}
+
+function CustomerRequests({ requests }: { requests: PortalData["requests"] }) {
+  return <Panel id="requests" title="Solicitudes" description="Consultas y solicitudes asociadas a este evento.">{requests.length ? <div className="space-y-3">{requests.map((request) => <article className="rounded-xl border p-4" key={request.id}><div className="flex flex-wrap items-center justify-between gap-2"><p className="font-semibold">{request.subject || request.request_type.replaceAll("_", " ")}</p><span className="text-xs text-muted">{request.status}</span></div><p className="mt-2 text-sm text-muted">{request.message}</p></article>)}</div> : <p className="text-sm text-muted">No hay solicitudes para este evento.</p>}</Panel>;
+}
+
+function formatMoney(value: number) { return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(value); }
 
 const bankDetails = [
   ["Titular", "Producciones BoomBox Company SpA"],
@@ -82,8 +99,15 @@ export function CustomerPortalHome({ data, token }: { data: NonNullable<PortalDa
     <Panel id="quick-access" title="Accesos rápidos"><nav aria-label="Accesos del Portal" className="grid grid-cols-2 gap-3 lg:grid-cols-5">{quickAccess.map(({ icon: Icon, label, href }) => <a className="flex min-h-24 flex-col items-center justify-center gap-2 rounded-2xl border border-border/80 bg-background/40 p-3 text-center text-sm font-medium transition-colors hover:border-brand/50 hover:text-brand" href={href} key={label}><Icon className="size-5"/>{label}</a>)}</nav></Panel>
 
     <CustomerEventExperience data={data}/>
+    <CustomerDocumentsExperience data={data} token={token}/>
+    <CustomerContractExperience data={data} token={token}/>
+    <CustomerTaxDocuments data={data} token={token}/>
+    <CustomerCommunicationCenter data={data}/>
 
     {photoStripEligible ? <CustomerPhotoStripDesignExperience data={data} token={token}/> : null}
+    <CustomerDesignExperience data={data} token={token}/>
+    <CustomerGalleryExperience data={data} token={token}/>
+    <CustomerRequests requests={data.requests}/>
 
     <CustomerPaymentExperience data={data} token={token}/>
     <BankTransferDetails/>

@@ -22,6 +22,8 @@ export interface CustomerDriveDocument {
   webViewLink: string | null;
   folderId: string;
   folderUrl: string;
+  storageBucket?: string | null;
+  storagePath?: string | null;
 }
 
 export interface CustomerDocuments {
@@ -64,12 +66,33 @@ export async function loadCustomerDocuments(projectId: string): Promise<Customer
       .eq("project_id", projectId)
       .not("external_folder_id", "is", null);
     if (error) throw error;
+    const { data: storedDocuments, error: storedError } = await admin
+      .from("documents")
+      .select("id,document_type,original_filename,mime_type,created_at,updated_at,version,is_current,storage_bucket,storage_path,deleted_at")
+      .eq("project_id", projectId)
+      .is("deleted_at", null)
+      .or("document_type.neq.PHOTO_STRIP_DESIGN,is_current.eq.true");
+    if (storedError) throw storedError;
 
     const configuredFolders = folderDefinitions.flatMap((definition) => {
       const folder = folders?.find((item) => item.destination_key.endsWith(definition.suffix));
       return folder?.external_folder_id ? [{ ...definition, id: folder.external_folder_id }] : [];
     });
-    if (configuredFolders.length === 0) return empty("COMING_SOON");
+    const storageFiles: CustomerDriveDocument[] = (storedDocuments ?? []).filter((item) => item.storage_bucket && item.storage_path).map((item) => ({
+      id: item.id,
+      name: item.original_filename || item.document_type.replaceAll("_", " "),
+      category: item.document_type.includes("DESIGN") ? "DESIGN" : item.document_type.includes("PHOTO") ? "PHOTOS" : item.document_type === "EXTERNAL_TAX_DOCUMENT" || item.document_type.includes("PAYMENT") ? "FINANCIAL" : item.document_type.includes("AGREEMENT") || item.document_type.includes("CONTRACT") ? "CONTRACTS" : "OTHER",
+      categoryLabel: item.document_type.replaceAll("_", " "),
+      mimeType: item.mime_type || "application/octet-stream",
+      createdTime: item.created_at,
+      modifiedTime: item.updated_at ?? item.created_at,
+      webViewLink: null,
+      folderId: "",
+      folderUrl: "",
+      storageBucket: item.storage_bucket,
+      storagePath: item.storage_path,
+    }));
+    if (configuredFolders.length === 0) return storageFiles.length ? { status: "AVAILABLE", files: storageFiles, rootFolderUrl: null } : empty("COMING_SOON");
 
     const token = await loadGoogleWorkspaceAccessToken();
     const folderFiles = await Promise.all(
@@ -98,9 +121,10 @@ export async function loadCustomerDocuments(projectId: string): Promise<Customer
       .find(Boolean);
     const rootFolderId = folders?.find((item) => item.destination_key === eventFolder)?.external_folder_id;
 
+    const merged = [...storageFiles, ...files.filter((file) => !storageFiles.some((stored) => stored.id === file.id))];
     return {
-      status: files.length > 0 ? "AVAILABLE" : "COMING_SOON",
-      files,
+      status: merged.length > 0 ? "AVAILABLE" : "COMING_SOON",
+      files: merged,
       rootFolderUrl: rootFolderId ? `https://drive.google.com/drive/folders/${rootFolderId}` : null,
     };
   } catch {
