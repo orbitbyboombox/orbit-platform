@@ -11,6 +11,7 @@ import {
   formatQuoteOperationalConditions,
   parseQuoteOperationalConditions,
 } from "../../features/commercial-hub/operational-conditions.ts";
+import { resolveCommercialBreakdown } from "../../features/commercial-hub/commercial-breakdown.ts";
 
 const model = (lineCount: number): FormalQuotePdfModel => ({
   number: "COTIZACIÓN 2026-000003",
@@ -158,4 +159,26 @@ test("long quote uses intelligent multipage layout and keeps the final unit toge
   assert.match(texts.at(-1) ?? "", /FORMA DE PAGO/);
   assert.match(texts.at(-1) ?? "", /LISTOS PARA CREAR LA EXPERIENCIA/);
   assert.doesNotMatch(texts[0], /CONDICIONES DE RESERVA/);
+});
+
+test("commercial PDF keeps transport in the net breakdown and deposit uses total", async () => {
+  const breakdown = resolveCommercialBreakdown({
+    snapshot: { subtotal: 330_000, transportTotal: 40_000, discount: 0, tax: 81_700, total: 511_700, depositPercent: 50 },
+    items: [
+      { itemType: "SERVICE", total: 390_000 },
+      { itemType: "TRANSPORT", total: 40_000 },
+    ],
+  });
+  assert.equal(breakdown.serviceSubtotal, 390_000);
+  assert.equal(breakdown.transport, 40_000);
+  assert.equal(breakdown.net, 430_000);
+  assert.equal(breakdown.tax, 81_700);
+  assert.equal(breakdown.total, 511_700);
+  assert.equal(breakdown.deposit, 255_850);
+  const text = (await pageTexts(await createFormalQuotePdf({ ...model(1), ...breakdown }))).join(" ");
+  assert.match(text, /SERVICIO/);
+  assert.match(text, /TRASLADO/);
+  assert.match(text, /430\.000/);
+  assert.match(text, /81\.700/);
+  assert.match(text, /511\.700/);
 });

@@ -29,11 +29,15 @@ export interface FormalQuotePdfModel {
   };
   lines: Array<{
     description: string;
+    itemType?: string;
     quantity: number;
     quotedPrice: number;
     total: number;
   }>;
   subtotal: number;
+  serviceSubtotal?: number;
+  extras?: number;
+  transport?: number;
   discount: number;
   net: number;
   tax: number;
@@ -276,9 +280,17 @@ export async function createFormalQuotePdf(model: FormalQuotePdfModel) {
     page.drawLine({ start: { x: 42, y: y + 6 }, end: { x: 553, y: y + 6 }, thickness: 0.4, color: rule });
   }
 
-  ensureService(model.discount ? 122 : 106);
   y -= 8;
-  const totals: Array<[string, number, boolean?]> = [["Subtotal", model.subtotal], ...(model.discount ? [["Descuento", -model.discount] as [string, number]] : []), ["Neto", model.net], ["IVA 19%", model.tax], ["TOTAL PROPUESTA", model.total, true]];
+  const totals: Array<[string, number, boolean?]> = [
+    ["SERVICIO", model.serviceSubtotal ?? model.subtotal],
+    ...(model.extras ? [["EXTRAS", model.extras] as [string, number]] : []),
+    ...(model.transport ? [["TRASLADO", model.transport] as [string, number]] : []),
+    ...(model.discount ? [["Descuento", -model.discount] as [string, number]] : []),
+    ["Neto", model.net],
+    ["IVA 19%", model.tax],
+    ["TOTAL PROPUESTA", model.total, true],
+  ];
+  ensureService(totals.length * 16 + 30);
   totals.forEach(([label, value, strong]) => {
     page.drawText(label, { x: 342, y, size: strong ? 11 : 8.5, font: strong ? bold : regular, color: strong ? graphite : muted });
     rightText(page, money(value), 553, y, strong ? 15 : 9, bold, strong ? orange : graphite);

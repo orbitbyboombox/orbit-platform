@@ -5,6 +5,7 @@ import { loadCompanySettings } from "@/features/company-settings";
 import { createFormalQuotePdf } from "./formal-quote-pdf";
 import { normalizeQuoteOperationalConditions } from "./operational-conditions";
 import { quoteDisplayFilename } from "./presentation";
+import { resolveCommercialBreakdown } from "./commercial-breakdown";
 
 const object = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value)
@@ -52,7 +53,7 @@ export async function loadFormalQuoteDocument(
     client
       .from("quotations")
       .select(
-        "id,status,quotation_number,issue_date,expiration_date,customer_snapshot,commercial_snapshot,accepted_snapshot,quotation_items(description,label,quantity,quoted_price,unit_price,total,display_order)",
+        "id,status,quotation_number,issue_date,expiration_date,customer_snapshot,commercial_snapshot,accepted_snapshot,quotation_items(description,label,quantity,quoted_price,unit_price,total,item_type,display_order)",
       )
       .eq("id", quotationId)
       .single(),
@@ -88,6 +89,7 @@ export async function loadFormalQuoteDocument(
           quoted_price: Number(value.quotedPrice ?? 0),
           unit_price: Number(value.quotedPrice ?? 0),
           total: Number(value.total ?? 0),
+          item_type: String(value.itemType ?? value.item_type ?? ""),
           display_order: Number(value.displayOrder ?? 0),
         };
       })
@@ -108,18 +110,12 @@ export async function loadFormalQuoteDocument(
     event,
     lines: items.map((item) => ({
       description: item.description || item.label,
+      itemType: item.item_type,
       quantity: Number(item.quantity),
       quotedPrice: Number(item.quoted_price ?? item.unit_price),
       total: Number(item.total),
     })),
-    subtotal: Number(snapshot.subtotal ?? 0),
-    discount: Number(snapshot.discount ?? 0),
-    net: Number(snapshot.net ?? 0),
-    tax: Number(snapshot.tax ?? 0),
-    total: Number(snapshot.total ?? 0),
-    deposit: Number(snapshot.deposit ?? 0),
-    balance: Number(snapshot.balance ?? 0),
-    depositPercent: Number(snapshot.depositPercent ?? 50),
+    ...resolveCommercialBreakdown({ snapshot, items }),
     paymentCondition:
       snapshot.paymentCondition === "CORPORATE_CREDIT" ||
       snapshot.paymentCondition === "CASH"
