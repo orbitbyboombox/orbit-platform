@@ -1,37 +1,510 @@
 "use client";
-import{useState,useTransition}from"react";import{useRouter}from"next/navigation";
-import{Button}from"@/components/ui/button";
-import{StatusBadge}from"@/components/ui/status-badge";
-import{MobileDialog}from"@/components/ui/mobile-dialog";
-import{OrbitDocumentViewer}from"@/components/documents/orbit-document-viewer";
-import{completeSettlementEventAction,finalizeMonthlyStaffAccountAction,registerMonthlyStaffPaymentAction,reviewMonthlyBoletaAction,submitMonthlyBoletaAction}from"./actions";
-import{staffMonthLabel,type StaffMonthlyAccount}from"./model";
-const money=(v:number)=>new Intl.NumberFormat("es-CL",{style:"currency",currency:"CLP",maximumFractionDigits:0}).format(v);
-const boletaLabel={PENDING:"Pendiente",RECEIVED:"En revisión",APPROVED:"Aprobada",REJECTED:"Rechazada"};
-const paymentLabel={PENDING:"Bloqueado",READY_TO_PAY:"Listo para pagar",PAID:"Pagado"};
-export function StaffMonthlyAccountPanel({account,mode,onBack}:{account:StaffMonthlyAccount;mode:"FOUNDER"|"STAFF";onBack?:()=>void}){
-  const[pending,start]=useTransition(),[message,setMessage]=useState(""),[completing,setCompleting]=useState<string|null>(null),[completed,setCompleted]=useState<Set<string>>(new Set()),[confirming,setConfirming]=useState<{projectId:string;event:string}|null>(null),[viewerOpen,setViewerOpen]=useState(false);const router=useRouter();
-  const confirmCompletion=()=>{if(!confirming)return;const item=confirming;const correlationId=`CMP-${item.projectId}-${Date.now()}`;setConfirming(null);setCompleting(item.projectId);start(async()=>{const result=await completeSettlementEventAction(item.projectId,correlationId);setCompleting(null);setMessage(result.ok?"✓ Evento marcado como completado":`${result.message} Referencia ${result.correlationId||correlationId}`);if(result.ok){setCompleted(prev=>new Set(prev).add(item.projectId));router.refresh()}})};
-  const run=(action:(f:FormData)=>Promise<{ok:boolean;message:string}>)=>(form:FormData)=>start(async()=>{const result=await action(form);setMessage(result.message)});
-  return <section className="min-w-0 overflow-hidden rounded-2xl border bg-card p-4 sm:p-5">
-    <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Liquidación mensual Staff</p><h3 className="mt-1 text-lg font-semibold capitalize">{staffMonthLabel(account.month)}</h3><p className="mt-1 text-sm text-muted">{account.eventCount} {account.eventCount===1?"servicio":"servicios"} · tarifas NETAS pactadas</p></div><div className="flex flex-wrap items-center gap-2">{onBack?<button aria-label="Volver a liquidaciones mensuales" className="inline-flex min-h-11 items-center rounded-xl border px-3 text-sm font-semibold" onClick={onBack} type="button">← Volver</button>:null}<StatusBadge label={`Boleta: ${boletaLabel[account.boletaStatus]}`} variant={account.boletaStatus==="APPROVED"?"success":account.boletaStatus==="REJECTED"?"danger":"warning"}/><StatusBadge label={`Pago: ${paymentLabel[account.paymentStatus]}`} variant={account.paymentStatus==="PAID"?"success":account.paymentStatus==="READY_TO_PAY"?"info":"warning"}/></div></header>
-    {account.reviewRequired && account.calculation.blockingEvents.length>0?<p className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm font-semibold text-amber-700">Eventos pendientes de completar: {account.calculation.blockingEvents.length}</p>:null}
-    {(account.calculation.blockingEvents.length||account.calculation.details.length)?<section className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/5 p-3"><h4 className="font-semibold text-amber-700">Eventos del mes</h4><p className="mt-1 text-sm text-muted">Completados: {account.calculation.details.length} · Pendientes de completar: {account.calculation.blockingEvents.length}</p><div className="mt-3 space-y-2">{account.calculation.details.map(item=><article className="rounded-lg border bg-background p-3 text-sm" key={item.settlementId}><p className="font-semibold">{item.eventDate} · {item.event}</p><p className="mt-1 text-muted">{item.service} · COMPLETADO ✓</p></article>)}{account.calculation.blockingEvents.map(item=><article className="rounded-lg border bg-background p-3 text-sm" key={item.settlementId}><p className="font-semibold">{item.eventId}</p><p className="mt-1">{item.eventDate} · {item.event}</p><p className="mt-1 text-muted">{item.service} · Estado operativo: {item.status}</p>{mode==="FOUNDER"&&!completed.has(item.projectId)&&<button className="mt-2 inline-flex min-h-11 items-center rounded-xl border px-3 font-semibold text-brand" disabled={pending||completing===item.projectId} onClick={()=>setConfirming({projectId:item.projectId,event:item.event})} type="button">{completing===item.projectId?"Completando…":"Marcar completado"}</button>}<a className="ml-3 mt-2 inline-flex min-h-11 items-center font-semibold text-brand" href={`/projects/${item.projectId}`}>Abrir Evento →</a></article>)}</div></section>:null}
-    <dl className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-3"><Metric label="Total trabajado" value={account.workNet}/><Metric label="Retención" value={account.withholdingAmount} note={`${account.withholdingRate.toLocaleString("es-CL")}%`}/><Metric label="Líquido según boleta" value={account.boletaNet}/><Metric label="Adelantos realizados" value={-account.advancesTotal}/><Metric label="Reembolsos" value={account.reimbursementsTotal}/><Metric label="Saldo final a transferir" value={account.finalTransferAmount}/></dl>
-    <div className="mt-4 rounded-2xl border-2 border-brand bg-brand/5 p-4"><p className="text-xs font-bold uppercase tracking-[.16em] text-brand">Monto total boleta SII a emitir</p><p className="mt-2 break-words text-3xl font-bold tabular-nums">{money(account.boletaGross)}</p><p className="mt-2 text-sm text-muted">Este es el monto exacto que debes ingresar al emitir tu Boleta de Honorarios en SII.</p></div>
-    {account.excessAdvance>0?<p className="mt-3 rounded-xl bg-red-500/10 p-3 text-sm font-semibold text-red-600">Exceso de adelanto: {money(account.excessAdvance)}. No se generará una transferencia negativa.</p>:null}
-    {account.calculation.details.length?<details className="mt-4 rounded-xl border p-3"><summary className="cursor-pointer font-semibold">Detalle de servicios realizados</summary><div className="mt-3 space-y-2">{account.calculation.details.map(item=><article className="rounded-lg bg-background p-3 text-sm" key={item.settlementId}><div className="flex flex-col gap-1 sm:flex-row sm:justify-between"><strong>{item.eventDate} · {item.service}</strong><strong>{money(item.workNet)}</strong></div><p className="mt-1 break-words text-muted">{item.event} · {item.location||"Lugar no informado"}</p><p className="mt-1 text-xs text-muted">{item.roles.join(" + ")} · {item.hours} horas{item.advances>0?` · Adelanto ${money(item.advances)}`:""}</p></article>)}</div></details>:null}
-    <div className="mt-4 flex flex-wrap gap-2"><button className="inline-flex min-h-11 items-center rounded-xl border px-4 text-sm font-semibold" onClick={()=>setViewerOpen(true)} type="button">Ver liquidación PDF</button>{mode==="FOUNDER"&&account.boletaDocumentId?<a className="inline-flex min-h-11 items-center rounded-xl border px-4 text-sm font-semibold" href={`/api/staff-monthly-accounts/${account.id}/boleta`} target="_blank">Ver boleta</a>:null}</div>
-    {viewerOpen?<OrbitDocumentViewer onClose={()=>setViewerOpen(false)} src={`/api/staff-monthly-accounts/${account.id}/settlement-pdf`} title={`Liquidación ${staffMonthLabel(account.month)}`}/>:null}
-    {mode==="FOUNDER"&&account.settlementStatus==="DRAFT"?<form action={run(finalizeMonthlyStaffAccountAction)} className="mt-4"><input name="accountId" type="hidden" value={account.id}/><Button disabled={pending||account.reviewRequired}>Finalizar liquidación</Button></form>:null}
-    {mode==="STAFF"&&account.calculation.blockingEvents.length===0&&account.boletaGross>0&&account.boletaStatus!=="APPROVED"&&account.paymentStatus!=="PAID"?<form action={run(submitMonthlyBoletaAction)} className="mt-4 space-y-3"><p className="text-sm">Emite tu Boleta de Honorarios en SII por exactamente <strong>{money(account.boletaGross)}</strong> y súbela aquí para revisión.</p><input name="month" type="hidden" value={account.month.slice(0,7)}/><label className="block text-sm font-medium">Boleta SII<input accept="application/pdf,image/jpeg,image/png,image/webp" className="mt-1 block w-full text-sm" name="file" required type="file"/></label><Button disabled={pending} type="submit">{account.boletaStatus==="REJECTED"?"Subir boleta corregida":"Subir boleta SII"}</Button></form>:null}
-    {mode==="STAFF"&&account.boletaStatus==="RECEIVED"?<p className="mt-4 rounded-xl bg-emerald-500/10 p-3 text-sm font-semibold text-emerald-700">✓ Boleta recibida · Pendiente de revisión</p>:null}
-    {account.rejectionReason?<p className="mt-3 rounded-xl bg-red-500/10 p-3 text-sm text-red-600">Boleta rechazada · Motivo: {account.rejectionReason}</p>:null}
-    {mode==="STAFF"&&account.paymentStatus==="PAID"?<div className="mt-4"><p className="font-semibold">PAGADO · {money(account.paidAmount)}</p><p className="text-sm text-muted">Fecha {account.paidAt}</p>{account.receiptDocumentId?<a className="mt-2 inline-flex min-h-11 items-center font-semibold text-brand" href={`/api/staff-monthly-accounts/${account.id}/receipt`}>Ver comprobante de pago</a>:null}</div>:null}
-    {mode==="FOUNDER"&&account.boletaStatus==="RECEIVED"?<form action={run(reviewMonthlyBoletaAction)} className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto_auto]"><input name="accountId" type="hidden" value={account.id}/><input className="min-h-11 min-w-0 rounded-xl border px-3" name="reason" placeholder="Motivo obligatorio si rechazas"/><Button disabled={pending} name="action" value="APPROVE">Aprobar</Button><Button disabled={pending} name="action" value="REJECT" variant="outline">Rechazar</Button></form>:null}
-    {mode==="FOUNDER"&&account.paymentStatus==="READY_TO_PAY"?<form action={run(registerMonthlyStaffPaymentAction)} className="mt-4 grid gap-3 sm:grid-cols-2"><input name="accountId" type="hidden" value={account.id}/><input name="staffId" type="hidden" value={account.staffId}/><input name="month" type="hidden" value={account.month.slice(0,7)}/><input name="amount" type="hidden" value={account.finalTransferAmount}/><label className="text-sm">Fecha de pago<input className="mt-1 min-h-11 w-full rounded-xl border px-3" name="paymentDate" required type="date"/></label><label className="text-sm">Método<input className="mt-1 min-h-11 w-full rounded-xl border px-3" name="method" required/><input name="reference" type="hidden" value="Pago mensual Staff"/></label><label className="text-sm sm:col-span-2">Comprobante requerido<input accept="application/pdf,image/jpeg,image/png,image/webp" className="mt-1 block w-full" name="file" required type="file"/></label><Button className="sm:col-span-2" disabled={pending}>Registrar pago · {money(account.finalTransferAmount)}</Button></form>:null}
-    {message?<p aria-live="polite" className="mt-3 rounded-xl border p-3 text-sm text-muted">{message}</p>:null}
-    {confirming?<MobileDialog eyebrow="Liquidación mensual Staff" title="¿Marcar evento como completado?" description={confirming.event} onClose={()=>!pending&&setConfirming(null)} footer={<div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button className="min-h-11 rounded-xl border px-4 font-semibold" disabled={pending} onClick={()=>setConfirming(null)} type="button">Cancelar</button><button className="min-h-11 rounded-xl bg-brand px-4 font-semibold text-brand-foreground" disabled={pending} onClick={confirmCompletion} type="button">{pending?"Completando…":"Marcar completado"}</button></div>}><p className="text-sm text-muted">Confirma que este evento fue realizado y está operacionalmente completado. El saldo del cliente, cobranzas y pagos pendientes continuarán activos de forma independiente.</p></MobileDialog>:null}
-  </section>;
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { MobileDialog } from "@/components/ui/mobile-dialog";
+import { OrbitDocumentViewer } from "@/components/documents/orbit-document-viewer";
+import {
+  approveMonthlySettlementReviewAction,
+  completeSettlementEventAction,
+  finalizeMonthlyStaffAccountAction,
+  registerMonthlyStaffPaymentAction,
+  reviewMonthlyBoletaAction,
+  submitMonthlyBoletaAction,
+} from "./actions";
+import { staffMonthLabel, type StaffMonthlyAccount } from "./model";
+const money = (v: number) =>
+  new Intl.NumberFormat("es-CL", {
+    style: "currency",
+    currency: "CLP",
+    maximumFractionDigits: 0,
+  }).format(v);
+const boletaLabel = {
+  PENDING: "Pendiente",
+  RECEIVED: "En revisión",
+  APPROVED: "Aprobada",
+  REJECTED: "Rechazada",
+};
+const paymentLabel = {
+  PENDING: "Bloqueado",
+  READY_TO_PAY: "Listo para pagar",
+  PAID: "Pagado",
+};
+export function StaffMonthlyAccountPanel({
+  account,
+  mode,
+  onBack,
+}: {
+  account: StaffMonthlyAccount;
+  mode: "FOUNDER" | "STAFF";
+  onBack?: () => void;
+}) {
+  const [pending, start] = useTransition(),
+    [message, setMessage] = useState(""),
+    [completing, setCompleting] = useState<string | null>(null),
+    [completed, setCompleted] = useState<Set<string>>(new Set()),
+    [confirming, setConfirming] = useState<{
+      projectId: string;
+      event: string;
+    } | null>(null),
+    [viewerOpen, setViewerOpen] = useState(false);
+  const router = useRouter();
+  const confirmCompletion = () => {
+    if (!confirming) return;
+    const item = confirming;
+    const correlationId = `CMP-${item.projectId}-${Date.now()}`;
+    setConfirming(null);
+    setCompleting(item.projectId);
+    start(async () => {
+      const result = await completeSettlementEventAction(
+        item.projectId,
+        correlationId,
+      );
+      setCompleting(null);
+      setMessage(
+        result.ok
+          ? "✓ Evento marcado como completado"
+          : `${result.message} Referencia ${result.correlationId || correlationId}`,
+      );
+      if (result.ok) {
+        setCompleted((prev) => new Set(prev).add(item.projectId));
+        router.refresh();
+      }
+    });
+  };
+  const run =
+    (action: (f: FormData) => Promise<{ ok: boolean; message: string }>) =>
+    (form: FormData) =>
+      start(async () => {
+        const result = await action(form);
+        setMessage(result.message);
+      });
+  return (
+    <section className="min-w-0 overflow-hidden rounded-2xl border bg-card p-4 sm:p-5">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">
+            Liquidación mensual Staff
+          </p>
+          <h3 className="mt-1 text-lg font-semibold capitalize">
+            {staffMonthLabel(account.month)}
+          </h3>
+          <p className="mt-1 text-sm text-muted">
+            {account.eventCount}{" "}
+            {account.eventCount === 1 ? "servicio" : "servicios"} · tarifas
+            NETAS pactadas
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {onBack ? (
+            <button
+              aria-label="Volver a liquidaciones mensuales"
+              className="inline-flex min-h-11 items-center rounded-xl border px-3 text-sm font-semibold"
+              onClick={onBack}
+              type="button"
+            >
+              ← Volver
+            </button>
+          ) : null}
+          <StatusBadge
+            label={`Boleta: ${boletaLabel[account.boletaStatus]}`}
+            variant={
+              account.boletaStatus === "APPROVED"
+                ? "success"
+                : account.boletaStatus === "REJECTED"
+                  ? "danger"
+                  : "warning"
+            }
+          />
+          <StatusBadge
+            label={`Pago: ${paymentLabel[account.paymentStatus]}`}
+            variant={
+              account.paymentStatus === "PAID"
+                ? "success"
+                : account.paymentStatus === "READY_TO_PAY"
+                  ? "info"
+                  : "warning"
+            }
+          />
+        </div>
+      </header>
+      {account.reviewRequired ? (
+        <div className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+          <p className="font-semibold text-amber-700">
+            Revisión Founder requerida
+          </p>
+          <p className="mt-1 text-amber-800/90">
+            {account.reviewReason ||
+              "La liquidación tiene una inconsistencia operacional que debe revisarse antes de pagar."}
+          </p>
+          {mode === "FOUNDER" ? (
+            <form
+              action={run(approveMonthlySettlementReviewAction)}
+              className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]"
+            >
+              <input name="accountId" type="hidden" value={account.id} />
+              <input
+                aria-label="Motivo de aprobación Founder"
+                className="min-h-11 min-w-0 rounded-xl border border-amber-500/40 bg-background px-3"
+                defaultValue={
+                  account.reviewReason ||
+                  "Revisión operacional validada por Founder"
+                }
+                name="reason"
+                required
+              />
+              <Button disabled={pending} type="submit">
+                Revisar y aprobar
+              </Button>
+            </form>
+          ) : null}
+        </div>
+      ) : null}
+      {account.calculation.blockingEvents.length ||
+      account.calculation.details.length ? (
+        <section className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/5 p-3">
+          <h4 className="font-semibold text-amber-700">Eventos del mes</h4>
+          <p className="mt-1 text-sm text-muted">
+            Completados: {account.calculation.details.length} · Pendientes de
+            completar: {account.calculation.blockingEvents.length}
+          </p>
+          <div className="mt-3 space-y-2">
+            {account.calculation.details.map((item) => (
+              <article
+                className="rounded-lg border bg-background p-3 text-sm"
+                key={item.settlementId}
+              >
+                <p className="font-semibold">
+                  {item.eventDate} · {item.event}
+                </p>
+                <p className="mt-1 text-muted">{item.service} · COMPLETADO ✓</p>
+              </article>
+            ))}
+            {account.calculation.blockingEvents.map((item) => (
+              <article
+                className="rounded-lg border bg-background p-3 text-sm"
+                key={item.settlementId}
+              >
+                <p className="font-semibold">{item.eventId}</p>
+                <p className="mt-1">
+                  {item.eventDate} · {item.event}
+                </p>
+                <p className="mt-1 text-muted">
+                  {item.service} · Estado operativo: {item.status}
+                </p>
+                {mode === "FOUNDER" && !completed.has(item.projectId) && (
+                  <button
+                    className="mt-2 inline-flex min-h-11 items-center rounded-xl border px-3 font-semibold text-brand"
+                    disabled={pending || completing === item.projectId}
+                    onClick={() =>
+                      setConfirming({
+                        projectId: item.projectId,
+                        event: item.event,
+                      })
+                    }
+                    type="button"
+                  >
+                    {completing === item.projectId
+                      ? "Completando…"
+                      : "Marcar completado"}
+                  </button>
+                )}
+                <a
+                  className="ml-3 mt-2 inline-flex min-h-11 items-center font-semibold text-brand"
+                  href={`/projects/${item.projectId}`}
+                >
+                  Abrir Evento →
+                </a>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+      <dl className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-3">
+        <Metric label="Total trabajado" value={account.workNet} />
+        <Metric
+          label="Retención"
+          value={account.withholdingAmount}
+          note={`${account.withholdingRate.toLocaleString("es-CL")}%`}
+        />
+        <Metric label="Líquido según boleta" value={account.boletaNet} />
+        <Metric label="Adelantos realizados" value={-account.advancesTotal} />
+        <Metric label="Reembolsos" value={account.reimbursementsTotal} />
+        <Metric
+          label="Saldo final a transferir"
+          value={account.finalTransferAmount}
+        />
+      </dl>
+      <div className="mt-4 rounded-2xl border-2 border-brand bg-brand/5 p-4">
+        <p className="text-xs font-bold uppercase tracking-[.16em] text-brand">
+          Monto total boleta SII a emitir
+        </p>
+        <p className="mt-2 break-words text-3xl font-bold tabular-nums">
+          {money(account.boletaGross)}
+        </p>
+        <p className="mt-2 text-sm text-muted">
+          Este es el monto exacto que debes ingresar al emitir tu Boleta de
+          Honorarios en SII.
+        </p>
+      </div>
+      {account.excessAdvance > 0 ? (
+        <p className="mt-3 rounded-xl bg-red-500/10 p-3 text-sm font-semibold text-red-600">
+          Exceso de adelanto: {money(account.excessAdvance)}. No se generará una
+          transferencia negativa.
+        </p>
+      ) : null}
+      {account.calculation.details.length ? (
+        <details className="mt-4 rounded-xl border p-3">
+          <summary className="cursor-pointer font-semibold">
+            Detalle de servicios realizados
+          </summary>
+          <div className="mt-3 space-y-2">
+            {account.calculation.details.map((item) => (
+              <article
+                className="rounded-lg bg-background p-3 text-sm"
+                key={item.settlementId}
+              >
+                <div className="flex flex-col gap-1 sm:flex-row sm:justify-between">
+                  <strong>
+                    {item.eventDate} · {item.service}
+                  </strong>
+                  <strong>{money(item.workNet)}</strong>
+                </div>
+                <p className="mt-1 break-words text-muted">
+                  {item.event} · {item.location || "Lugar no informado"}
+                </p>
+                <p className="mt-1 text-xs text-muted">
+                  {item.roles.join(" + ")} · {item.hours} horas
+                  {item.advances > 0
+                    ? ` · Adelanto ${money(item.advances)}`
+                    : ""}
+                </p>
+              </article>
+            ))}
+          </div>
+        </details>
+      ) : null}
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button
+          className="inline-flex min-h-11 items-center rounded-xl border px-4 text-sm font-semibold"
+          onClick={() => setViewerOpen(true)}
+          type="button"
+        >
+          Ver liquidación PDF
+        </button>
+        {mode === "FOUNDER" && account.boletaDocumentId ? (
+          <a
+            className="inline-flex min-h-11 items-center rounded-xl border px-4 text-sm font-semibold"
+            href={`/api/staff-monthly-accounts/${account.id}/boleta`}
+            target="_blank"
+          >
+            Ver boleta
+          </a>
+        ) : null}
+      </div>
+      {viewerOpen ? (
+        <OrbitDocumentViewer
+          onClose={() => setViewerOpen(false)}
+          src={`/api/staff-monthly-accounts/${account.id}/settlement-pdf`}
+          title={`Liquidación ${staffMonthLabel(account.month)}`}
+        />
+      ) : null}
+      {mode === "FOUNDER" && account.settlementStatus === "DRAFT" ? (
+        <form action={run(finalizeMonthlyStaffAccountAction)} className="mt-4">
+          <input name="accountId" type="hidden" value={account.id} />
+          <Button disabled={pending || account.reviewRequired}>
+            Finalizar liquidación
+          </Button>
+        </form>
+      ) : null}
+      {mode === "STAFF" &&
+      account.calculation.blockingEvents.length === 0 &&
+      account.boletaGross > 0 &&
+      account.boletaStatus !== "APPROVED" &&
+      account.paymentStatus !== "PAID" ? (
+        <form
+          action={run(submitMonthlyBoletaAction)}
+          className="mt-4 space-y-3"
+        >
+          <p className="text-sm">
+            Emite tu Boleta de Honorarios en SII por exactamente{" "}
+            <strong>{money(account.boletaGross)}</strong> y súbela aquí para
+            revisión.
+          </p>
+          <input name="month" type="hidden" value={account.month.slice(0, 7)} />
+          <label className="block text-sm font-medium">
+            Boleta SII
+            <input
+              accept="application/pdf,image/jpeg,image/png,image/webp"
+              className="mt-1 block w-full text-sm"
+              name="file"
+              required
+              type="file"
+            />
+          </label>
+          <Button disabled={pending} type="submit">
+            {account.boletaStatus === "REJECTED"
+              ? "Subir boleta corregida"
+              : "Subir boleta SII"}
+          </Button>
+        </form>
+      ) : null}
+      {mode === "STAFF" && account.boletaStatus === "RECEIVED" ? (
+        <p className="mt-4 rounded-xl bg-emerald-500/10 p-3 text-sm font-semibold text-emerald-700">
+          ✓ Boleta recibida · Pendiente de revisión
+        </p>
+      ) : null}
+      {account.rejectionReason ? (
+        <p className="mt-3 rounded-xl bg-red-500/10 p-3 text-sm text-red-600">
+          Boleta rechazada · Motivo: {account.rejectionReason}
+        </p>
+      ) : null}
+      {mode === "STAFF" && account.paymentStatus === "PAID" ? (
+        <div className="mt-4">
+          <p className="font-semibold">PAGADO · {money(account.paidAmount)}</p>
+          <p className="text-sm text-muted">Fecha {account.paidAt}</p>
+          {account.receiptDocumentId ? (
+            <a
+              className="mt-2 inline-flex min-h-11 items-center font-semibold text-brand"
+              href={`/api/staff-monthly-accounts/${account.id}/receipt`}
+            >
+              Ver comprobante de pago
+            </a>
+          ) : null}
+        </div>
+      ) : null}
+      {mode === "FOUNDER" && account.boletaStatus === "RECEIVED" ? (
+        <form
+          action={run(reviewMonthlyBoletaAction)}
+          className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto_auto]"
+        >
+          <input name="accountId" type="hidden" value={account.id} />
+          <input
+            className="min-h-11 min-w-0 rounded-xl border px-3"
+            name="reason"
+            placeholder="Motivo obligatorio si rechazas"
+          />
+          <Button disabled={pending} name="action" value="APPROVE">
+            Aprobar
+          </Button>
+          <Button
+            disabled={pending}
+            name="action"
+            value="REJECT"
+            variant="outline"
+          >
+            Rechazar
+          </Button>
+        </form>
+      ) : null}
+      {mode === "FOUNDER" && account.paymentStatus === "READY_TO_PAY" && !account.reviewRequired ? (
+        <form
+          action={run(registerMonthlyStaffPaymentAction)}
+          className="mt-4 grid gap-3 sm:grid-cols-2"
+        >
+          <input name="accountId" type="hidden" value={account.id} />
+          <input name="staffId" type="hidden" value={account.staffId} />
+          <input name="month" type="hidden" value={account.month.slice(0, 7)} />
+          <input
+            name="amount"
+            type="hidden"
+            value={account.finalTransferAmount}
+          />
+          <label className="text-sm">
+            Fecha de pago
+            <input
+              className="mt-1 min-h-11 w-full rounded-xl border px-3"
+              name="paymentDate"
+              required
+              type="date"
+            />
+          </label>
+          <label className="text-sm">
+            Método
+            <input
+              className="mt-1 min-h-11 w-full rounded-xl border px-3"
+              name="method"
+              required
+            />
+            <input name="reference" type="hidden" value="Pago mensual Staff" />
+          </label>
+          <label className="text-sm sm:col-span-2">
+            Comprobante requerido
+            <input
+              accept="application/pdf,image/jpeg,image/png,image/webp"
+              className="mt-1 block w-full"
+              name="file"
+              required
+              type="file"
+            />
+          </label>
+          <Button className="sm:col-span-2" disabled={pending}>
+            Registrar pago · {money(account.finalTransferAmount)}
+          </Button>
+        </form>
+      ) : null}
+      {message ? (
+        <p
+          aria-live="polite"
+          className="mt-3 rounded-xl border p-3 text-sm text-muted"
+        >
+          {message}
+        </p>
+      ) : null}
+      {confirming ? (
+        <MobileDialog
+          eyebrow="Liquidación mensual Staff"
+          title="¿Marcar evento como completado?"
+          description={confirming.event}
+          onClose={() => !pending && setConfirming(null)}
+          footer={
+            <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                className="min-h-11 rounded-xl border px-4 font-semibold"
+                disabled={pending}
+                onClick={() => setConfirming(null)}
+                type="button"
+              >
+                Cancelar
+              </button>
+              <button
+                className="min-h-11 rounded-xl bg-brand px-4 font-semibold text-brand-foreground"
+                disabled={pending}
+                onClick={confirmCompletion}
+                type="button"
+              >
+                {pending ? "Completando…" : "Marcar completado"}
+              </button>
+            </div>
+          }
+        >
+          <p className="text-sm text-muted">
+            Confirma que este evento fue realizado y está operacionalmente
+            completado. El saldo del cliente, cobranzas y pagos pendientes
+            continuarán activos de forma independiente.
+          </p>
+        </MobileDialog>
+      ) : null}
+    </section>
+  );
 }
-function Metric({label,value,note}:{label:string;value:number;note?:string}){return <div className="min-w-0 rounded-xl border p-3"><dt className="text-xs text-muted">{label}</dt><dd className="mt-1 break-words font-semibold tabular-nums">{money(value)}</dd>{note?<p className="mt-1 text-xs text-muted">{note}</p>:null}</div>}
+function Metric({
+  label,
+  value,
+  note,
+}: {
+  label: string;
+  value: number;
+  note?: string;
+}) {
+  return (
+    <div className="min-w-0 rounded-xl border p-3">
+      <dt className="text-xs text-muted">{label}</dt>
+      <dd className="mt-1 break-words font-semibold tabular-nums">
+        {money(value)}
+      </dd>
+      {note ? <p className="mt-1 text-xs text-muted">{note}</p> : null}
+    </div>
+  );
+}
