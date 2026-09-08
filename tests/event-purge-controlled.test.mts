@@ -35,3 +35,11 @@ test("archive remains a separate lifecycle action", () => {
   assert.match(action, /transition_reservation_lifecycle/);
   assert.match(action, /purge_event_controlled/);
 });
+
+test("events delete action opens a parent-owned dialog before calling the RPC", () => {
+  assert.match(center, /const openDeleteDialog = \(event: CrmOperationalEvent\)/);
+  assert.match(center, /onClick=\{\(\) => openDeleteDialog\(event\)\}/);
+  assert.match(center, /<MobileDialog[\s\S]*title="Eliminar Evento"/);
+  assert.match(center, /const confirmDelete = \(\) =>/);
+  assert.match(center, /confirmation: deleteConfirmation/);
+});
