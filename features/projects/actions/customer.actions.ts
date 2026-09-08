@@ -761,6 +761,15 @@ export async function regenerateCommercialDocumentAction(input: { projectId: str
     revalidatePath(`/projects/${input.projectId}`);
     return { ok: true as const, ...result };
   } catch (error) {
+    console.error(JSON.stringify({
+      level: "error",
+      event: "commercial_document.regeneration_failed",
+      projectId: input.projectId,
+      quotationId: input.quotationId,
+      agreementId: input.agreementId,
+      error: error instanceof Error ? error.message : String(error),
+      timestamp: new Date().toISOString(),
+    }));
     return { ok: false as const, error: error instanceof Error ? error.message : "No fue posible regenerar el documento." };
   }
 }
