@@ -1426,6 +1426,7 @@ export default async function ProjectWorkspacePage({
       score={project.score ?? 0}
       signing={{
         agreementId: agreement?.id,
+        quotationId: quotation?.id,
         status: agreement?.status ?? "PENDING",
         href: documents?.find(item=>["SIGNED_AGREEMENT","COMMERCIAL_DOCUMENT","AGREEMENT"].includes(item.document_type))?.id
           ? `/api/projects/${projectId}/documents/${documents.find(item=>["SIGNED_AGREEMENT","COMMERCIAL_DOCUMENT","AGREEMENT"].includes(item.document_type))!.id}`
