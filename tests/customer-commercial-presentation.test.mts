@@ -209,9 +209,25 @@ test("Empresa email uses the dedicated reservation confirmation structure", () =
 test("Empresa email presents canonical total, paid amount and balance", () => {
   const rendered = buildReservationConfirmationTemplate(companyEmailInput());
   assert.match(rendered.body, /VALOR DEL SERVICIO CONTRATADO/);
-  assert.match(rendered.body, /^Valor total\n\$345\.100$/m);
+  assert.match(rendered.body, /^Total\n\$345\.100$/m);
   assert.match(rendered.body, /^Abono recibido\n\$172\.550$/m);
   assert.match(rendered.body, /^Saldo pendiente\n\$172\.550$/m);
+});
+
+test("Empresa confirmation includes net and VAT while keeping deposit separate", () => {
+  const rendered = buildReservationConfirmationTemplate({
+    ...companyEmailInput(),
+    net: 430_000,
+    vat: 81_700,
+    total: 511_700,
+    paid: 0,
+    balance: 511_700,
+  });
+  assert.match(rendered.body, /^Valor neto\n\$430\.000$/m);
+  assert.match(rendered.body, /^IVA 19%\n\$81\.700$/m);
+  assert.match(rendered.body, /^Total\n\$511\.700$/m);
+  assert.match(rendered.body, /^Abono recibido\n\$0$/m);
+  assert.match(rendered.body, /^Saldo pendiente\n\$511\.700$/m);
 });
 
 test("Empresa CTA is branded, mobile friendly and targets safe portal login", () => {

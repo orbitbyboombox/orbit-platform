@@ -8,6 +8,7 @@ import type { GoogleGmailLiveProvider } from "../provider/google-gmail-live.prov
 import { GoogleGmailApiProvider } from "../provider/google-gmail-live.provider";
 import { buildReservationConfirmationTemplate } from "./reservation-confirmation.template";
 import {
+  acceptedCommercialFinancialPresentation,
   customerCommercialItemsFromLegacyQuote,
   customerCommercialItemsFromSnapshot,
 } from "@/features/projects/reservation-presentation";
@@ -51,6 +52,8 @@ export type ReservationConfirmationComposer = {
   eventTime: string;
   venue: string;
   total: number;
+  net: number;
+  vat: number;
   paid: number;
   balance: number;
   companyCommercial: boolean;
@@ -101,7 +104,7 @@ export async function loadReservationConfirmationComposer(
       admin
         .from("projects")
         .select(
-          "id,customer_id,orbit_event_id,name,project_type,event_date,event_time,location,city,operations,customers!inner(full_name,email,secondary_email,metadata),project_services(service_code,duration_hours),quotations(id,status,quotation_number,customer_type,final_customer_price,grand_total,transport_total,accepted_snapshot,created_at,quotation_items(label,description,total)),agreements(id,signed_pdf_path,created_at),financial_event_records(invoiced_amount,paid_amount,outstanding_balance),project_operational_contracts(service_start_at,service_end_at),customer_portal_tokens(id)",
+          "id,customer_id,orbit_event_id,name,project_type,event_date,event_time,location,city,operations,customers!inner(full_name,email,secondary_email,metadata),project_services(service_code,duration_hours),quotations(id,status,quotation_number,customer_type,final_customer_price,subtotal,discount_total,tax_total,grand_total,transport_total,accepted_snapshot,created_at,quotation_items(label,description,total)),agreements(id,signed_pdf_path,created_at),financial_event_records(invoiced_amount,paid_amount,outstanding_balance),project_operational_contracts(service_start_at,service_end_at),customer_portal_tokens(id)",
         )
         .eq("id", projectId)
         .is("deleted_at", null)
@@ -150,6 +153,10 @@ export async function loadReservationConfirmationComposer(
   const companyCommercial =
     quotation?.customer_type === "COMPANY" ||
     /CORPORATE|EMPRESA/i.test(String(project.project_type ?? ""));
+  const commercialFinancial = acceptedCommercialFinancialPresentation(
+    quotation?.accepted_snapshot,
+    { subtotal: quotation?.subtotal, discountTotal: quotation?.discount_total, taxTotal: quotation?.tax_total, grandTotal: quotation?.grand_total, finalCustomerPrice: quotation?.final_customer_price },
+  );
   const operational = Array.isArray(project.project_operational_contracts)
     ? project.project_operational_contracts[0]
     : project.project_operational_contracts;
@@ -179,6 +186,8 @@ export async function loadReservationConfirmationComposer(
     eventDurationHours: Number(operations.durationHours ?? 0) || null,
     serviceDurations: (project.project_services ?? []).map((item) => Number(item.duration_hours ?? 0)),
     transport: Number(quotation?.transport_total ?? 0),
+    net: commercialFinancial.net,
+    vat: commercialFinancial.vat,
     total,
     paid,
     balance,
@@ -204,6 +213,8 @@ export async function loadReservationConfirmationComposer(
     eventTime: project.event_time?.slice(0, 5) ?? "Por confirmar",
     venue: template.venue,
     total,
+    net: commercialFinancial.net,
+    vat: commercialFinancial.vat,
     paid,
     balance,
     companyCommercial,

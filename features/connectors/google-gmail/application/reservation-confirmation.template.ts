@@ -31,6 +31,8 @@ export type ReservationConfirmationTemplateInput = {
   eventDurationHours?: number | null;
   serviceDurations?: Array<number | null | undefined>;
   transport: number;
+  net?: number;
+  vat?: number;
   total: number;
   paid: number;
   balance: number;
@@ -55,6 +57,8 @@ export function buildReservationConfirmationTemplate(
     .filter((value, index, values) => values.indexOf(value) === index)
     .join(", ") || "Por confirmar";
   const subject = "¡Tu reserva BOOMBOX está confirmada!";
+  const net = Number.isFinite(input.net) ? Number(input.net) : Math.max(0, input.total - Number(input.vat ?? 0));
+  const vat = Number.isFinite(input.vat) ? Number(input.vat) : Math.max(0, input.total - net);
   const body = [
     `Hola ${customer},`,
     "BIENVENIDOS A BOOMBOX",
@@ -72,7 +76,9 @@ export function buildReservationConfirmationTemplate(
     `Horario\n${input.eventTime?.slice(0, 5) || "Por confirmar"}`,
     `Lugar\n${venue}`,
     "VALOR DEL SERVICIO CONTRATADO",
-    `Valor total\n${money(input.total)}`,
+    ...(input.companyCommercial
+      ? [`Valor neto\n${money(net)}`, `IVA 19%\n${money(vat)}`, `Total\n${money(input.total)}`]
+      : [`Valor total\n${money(input.total)}`]),
     `Abono recibido\n${money(input.paid)}`,
     `Saldo pendiente\n${money(input.balance)}`,
     ...(input.portalAvailable ? ["ABRIR EVENTO EN ORBIT"] : []),
