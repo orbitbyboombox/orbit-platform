@@ -1181,7 +1181,7 @@ export function ProjectWorkspaceExperience(
                 </Section>
               </OptionalModule>
             )}
-            {showLegacyDuplicatedEventSections && moduleVisible("FINANCIAL_SUMMARY") && (
+            {moduleVisible("FINANCIAL_SUMMARY") && (
               <Section
                 eyebrow="09 · Rentabilidad real"
                 icon={<Gauge className="size-5" />}
@@ -1190,25 +1190,29 @@ export function ProjectWorkspaceExperience(
               >
                 {event.profit ? (
                   <div className="space-y-5">
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {(() => {
+                      const netRevenue = event.profit.revenue.contractedService + event.profit.revenue.extras + event.profit.revenue.transport - event.profit.revenue.discount;
+                      const operatingProfit = netRevenue - event.profit.costs.totalOperationalCost;
+                      const operatingMargin = netRevenue > 0 ? operatingProfit / netRevenue * 100 : 0;
+                      return <>
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
                       <MiniMoney
-                        label="Ingresos"
-                        value={event.profit.revenue.finalSaleValue}
+                        label="Ingresos netos"
+                        value={netRevenue}
                       />
                       <MiniMoney
                         label="Costo operacional"
                         value={event.profit.costs.totalOperationalCost}
                       />
                       <MiniMoney
-                        label="Profit bruto"
-                        value={event.profit.profit.grossProfit}
+                        label="Utilidad operacional"
+                        value={operatingProfit}
                       />
                       <MiniMetric
-                        label="Margen"
-                        value={Number(
-                          event.profit.profit.grossMarginPercent.toFixed(1),
-                        )}
+                        label="Margen operacional"
+                        value={Number(operatingMargin.toFixed(1))}
                       />
+                      <MiniMoney label="Recibido" value={event.receivable?.paidAmount ?? 0}/>
                     </div>
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div>
@@ -1235,8 +1239,8 @@ export function ProjectWorkspaceExperience(
                             value={`−${money(event.profit.revenue.discount)}`}
                           />
                           <Row
-                            label="Venta final"
-                            value={money(event.profit.revenue.finalSaleValue)}
+                            label="Neto comercial"
+                            value={money(netRevenue)}
                           />
                         </dl>
                       </div>
@@ -1292,13 +1296,15 @@ export function ProjectWorkspaceExperience(
                     </div>
                     <div className="grid gap-3 border-t pt-4 sm:grid-cols-2">
                       <Row
-                        label="Profit neto"
-                        value={money(event.profit.profit.netProfit)}
+                        label="Utilidad operacional"
+                        value={money(operatingProfit)}
                       />
                       <Row
-                        label="Margen neto"
-                        value={`${event.profit.profit.netMarginPercent.toFixed(1)}%`}
+                        label="Margen operacional"
+                        value={`${operatingMargin.toFixed(1)}%`}
                       />
+                      <Row label="Saldo pendiente" value={money(event.receivable?.outstandingBalance ?? netRevenue)} />
+                      <Row label="Total comercial" value={money(event.receivable?.amount ?? event.profit.revenue.finalSaleValue)} />
                       <Row
                         label="Ingreso original"
                         value={money(event.profit.history.originalRevenue)}
@@ -1312,6 +1318,8 @@ export function ProjectWorkspaceExperience(
                       Recalculado {dateTime(event.profit.calculatedAt)} ·
                       historial conservado en Profit.
                     </p>
+                    </>;
+                    })()}
                   </div>
                 ) : (
                   <Empty text="La rentabilidad aparecerá cuando el evento tenga una cotización productiva." />
