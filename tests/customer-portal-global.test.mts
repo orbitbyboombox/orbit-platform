@@ -6,6 +6,8 @@ const home = readFileSync("features/customer-portal/customer-portal-home.tsx", "
 const service = readFileSync("features/customer-portal/customer-portal.service.ts", "utf8");
 const documentsRoute = readFileSync("app/api/portal/[token]/documents/[fileId]/route.ts", "utf8");
 const authMigration = readFileSync("supabase/migrations/0019_portal_authentication_v2.sql", "utf8");
+const authActions = readFileSync("features/portal-authentication/actions.ts", "utf8");
+const loginForm = readFileSync("features/portal-authentication/portal-login-form.tsx", "utf8");
 
 test("customer portal mounts the canonical modules once", () => {
   for (const component of ["CustomerDocumentsExperience", "CustomerContractExperience", "CustomerCommunicationCenter", "CustomerGalleryExperience", "CustomerDesignExperience"]) assert.match(home, new RegExp(`<${component}`));
@@ -34,4 +36,12 @@ test("customer portal authentication remains fail-closed and records one project
   assert.match(authMigration, /p\.event_date=p_event_date/);
   assert.match(authMigration, /p\.deleted_at is null/);
   assert.match(authMigration, /portal_access_sessions/);
+});
+
+test("multiple same-day events require explicit selection and server validation", () => {
+  assert.match(authActions, /events\.length\s*>\s*1/);
+  assert.match(authActions, /authenticate_customer_portal_project/);
+  assert.match(authActions, /events\.some/);
+  assert.match(loginForm, /Selecciona tu evento/);
+  assert.match(loginForm, /name="projectId"/);
 });
