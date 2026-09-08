@@ -488,6 +488,10 @@ export function ProjectWorkspaceExperience(
       )
     )
       return;
+    const purgeConfirmation = action === "PERMANENT_DELETE"
+      ? window.prompt("Escribe ELIMINAR para habilitar la purga definitiva:")?.trim()
+      : undefined;
+    if (action === "PERMANENT_DELETE" && purgeConfirmation !== "ELIMINAR") return;
     const reason = window.prompt("Motivo obligatorio de la acción:")?.trim();
     if (!reason) return;
     setCustomerDeleteFeedback("Sincronizando ciclo de vida…");
@@ -495,6 +499,7 @@ export function ProjectWorkspaceExperience(
       props.projectKey,
       action,
       reason,
+      purgeConfirmation,
     );
     if (result.ok) {
       window.alert(result.message);
