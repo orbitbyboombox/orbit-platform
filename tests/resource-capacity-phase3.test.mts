@@ -25,7 +25,7 @@ test("shell configuration is persisted canonically and marriage/QR rules force W
   assert.match(migration, /MARRIAGE_DEFAULT/);
   assert.match(migration, /QR_REQUIREMENT/);
   assert.match(migration, /'WHITE'/);
-  assert.match(workspace, /Carcasa configurada/);
+  assert.match(workspace, /Tótem físico/);
 });
 
 test("white and black shell pools are independently gated without double-counting touch", () => {

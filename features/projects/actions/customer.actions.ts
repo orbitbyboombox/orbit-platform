@@ -566,8 +566,10 @@ export async function createCustomerProjectAction(
     log("Accounts Receivable", "PASS", { projectId });
     if (!completedSteps.has("Accounts Receivable"))
       await checkpoint("Accounts Receivable", "PASS");
-    if (draft.services.some((service) => service.toUpperCase() === "CLASSIC")) {
-      if (!draft.shellType) throw new Error("Selecciona la carcasa física del Classic: WHITE o BLACK.");
+    // Physical shell is an operational assignment, independent from the
+    // commercial service. Persist it only when explicitly supplied; the
+    // capacity gate remains fail-closed at the operational confirmation step.
+    if (draft.shellType) {
       const { error: shellError } = await client.rpc("set_event_shell_configuration", {
         p_project_id: project.id,
         p_shell_type: draft.shellType,

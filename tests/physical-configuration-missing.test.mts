@@ -32,10 +32,17 @@ test("exposes the alert in Founder action center", () => {
   assert.match(founder, /reconcile_operational_agenda_alerts/);
 });
 
-test("manual CLASSIC flow requires and persists the canonical shell", () => {
-  assert.match(drawer, /Carcasa del tótem/);
-  assert.match(drawer, /Selecciona WHITE o BLACK/);
-  assert.match(drawer, /draft\.shellType/);
+test("manual quote does not couple shell selection to CLASSIC", () => {
+  assert.doesNotMatch(drawer, /Selecciona la carcasa física del Classic/);
+  assert.doesNotMatch(drawer, /Carcasa del tótem/);
   assert.match(reservationAction, /set_event_shell_configuration/);
   assert.match(reservationAction, /p_shell_type: draft\.shellType/);
+});
+
+test("operational workspace owns the independent physical totem selector", () => {
+  const readiness = readFileSync("features/operations/event-operational-readiness.tsx", "utf8");
+  assert.match(readiness, /aria-label="Tótem físico"/);
+  assert.match(readiness, /value="WHITE"/);
+  assert.match(readiness, /value="BLACK"/);
+  assert.match(readiness, /independiente del servicio comercial/);
 });
