@@ -561,7 +561,7 @@ export function NewProjectDrawer({
       return;
     }
     setCapacityLoading(true);
-    void draftCapacityPreflightAction({ serviceCodes: draft.services, eventType: draft.type ?? "", eventDate: draft.event.date, serviceStart: start.toISOString(), serviceEnd: end.toISOString(), address: eventAddress, city: draft.event.city })
+    void draftCapacityPreflightAction({ serviceCodes: draft.services, eventType: draft.type ?? "", eventDate: draft.event.date, serviceStart: start.toISOString(), serviceEnd: end.toISOString(), address: eventAddress, city: draft.event.city, shell: draft.shellType })
       .then((response) => {
         if (requestId !== capacityRequest.current) return;
         setCapacityResult(response.ok ? (response.result as CapacityResult | null) : null);
@@ -569,7 +569,7 @@ export function NewProjectDrawer({
       .finally(() => {
         if (requestId === capacityRequest.current) setCapacityLoading(false);
       });
-  }, [capacityMissingInputs, draft.event.date, draft.event.time, draft.event.durationHours, draft.event.city, draft.services, draft.type, eventAddress]);
+  }, [capacityMissingInputs, draft.event.date, draft.event.time, draft.event.durationHours, draft.event.city, draft.services, draft.type, draft.shellType, eventAddress]);
   const serviceByCode = new Map(
     services.map((service) => [service.code, service]),
   );

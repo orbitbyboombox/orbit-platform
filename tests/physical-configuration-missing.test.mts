@@ -39,6 +39,7 @@ test("manual quote does not couple shell selection to CLASSIC", () => {
   assert.doesNotMatch(drawer, /services\.some\(\(service\) => service\.toUpperCase\(\) === "CLASSIC"/);
   assert.match(reservationAction, /set_event_shell_configuration/);
   assert.match(reservationAction, /p_shell_type: draft\.shellType/);
+  assert.match(drawer, /shell: draft\.shellType/);
 });
 
 test("operational workspace owns the independent physical totem selector", () => {
