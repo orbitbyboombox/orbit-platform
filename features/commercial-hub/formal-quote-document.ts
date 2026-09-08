@@ -135,9 +135,12 @@ export async function loadFormalQuoteDocument(
   const accepted = object(quote.accepted_snapshot);
   const acceptedQuotation = object(accepted.quotation);
   const pricingSnapshot = object(quote.pricing_snapshot);
+  const hasManualPricing = Object.keys(pricingSnapshot).some((key) =>
+    ["commercial", "commercialNegotiation", "negotiatedServicePrice", "negotiatedTransport", "netAmount", "vatAmount", "finalPrice"].includes(key),
+  );
   const snapshot = Object.keys(object(accepted.commercial)).length
     ? object(accepted.commercial)
-    : Object.keys(object(pricingSnapshot.commercial)).length
+    : hasManualPricing
       ? { ...pricingSnapshot, ...object(pricingSnapshot.commercial) }
       : object(quote.commercial_snapshot);
   const customer = Object.keys(object(accepted.customer)).length

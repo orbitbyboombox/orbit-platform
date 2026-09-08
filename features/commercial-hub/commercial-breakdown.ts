@@ -31,8 +31,8 @@ export function resolveCommercialBreakdown(input: {
   const itemTransport = typedItems
     .filter((item) => String(item.itemType).toUpperCase() === "TRANSPORT")
     .reduce((sum, item) => sum + amount(item.total), 0);
-  const transport = amount(snapshot.transportTotal ?? snapshot.transport ?? snapshot.appliedTransport) || itemTransport;
-  const discount = amount(snapshot.discount ?? snapshot.discountTotal);
+  const transport = amount(snapshot.transportTotal ?? snapshot.transport ?? snapshot.appliedTransport ?? snapshot.negotiatedTransport ?? negotiation.negotiatedTransport) || itemTransport;
+  const discount = amount(snapshot.discount ?? snapshot.discountTotal ?? snapshot.discountAmount ?? negotiation.discountAmount);
   const hasTypedLines = typedItems.length > 0;
   const explicitService = amount(
     snapshot.serviceSubtotal ?? snapshot.servicePrice ?? snapshot.negotiatedServicePrice ?? negotiation.negotiatedServicePrice,
@@ -47,12 +47,12 @@ export function resolveCommercialBreakdown(input: {
     : amount(snapshot.subtotal);
   const net = hasTypedLines
     ? Math.max(0, subtotal + transport - discount)
-    : amount(snapshot.net);
-  const taxSource = snapshot.tax ?? snapshot.taxTotal;
+    : amount(snapshot.net ?? snapshot.netAmount ?? negotiation.netAmount) || Math.max(0, subtotal + transport - discount);
+  const taxSource = snapshot.tax ?? snapshot.taxTotal ?? snapshot.vatAmount ?? negotiation.vatAmount;
   const tax = taxSource === undefined || taxSource === null
     ? Math.round(net * 0.19)
     : amount(taxSource);
-  const totalSource = snapshot.total ?? snapshot.grandTotal;
+  const totalSource = snapshot.total ?? snapshot.grandTotal ?? snapshot.finalTotal ?? snapshot.finalPrice ?? negotiation.finalPrice;
   const total = totalSource === undefined || totalSource === null
     ? net + tax
     : amount(totalSource);

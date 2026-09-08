@@ -285,6 +285,26 @@ test("commercial breakdown includes transport in net without double-counting com
   assert.equal(breakdown.total, 511_700);
 });
 
+test("legacy manual pricing snapshot with negotiation fields overrides historical subtotal", () => {
+  const breakdown = resolveCommercialBreakdown({
+    snapshot: {
+      subtotal: 330_000,
+      tax_total: 81_700,
+      grand_total: 511_700,
+      negotiatedServicePrice: 390_000,
+      negotiatedExtras: 0,
+      negotiatedTransport: 40_000,
+      commercialNegotiation: { netAmount: 430_000, vatAmount: 81_700, finalPrice: 511_700 },
+    },
+    items: [],
+  });
+  assert.equal(breakdown.serviceSubtotal, 390_000);
+  assert.equal(breakdown.transport, 40_000);
+  assert.equal(breakdown.net, 430_000);
+  assert.equal(breakdown.tax, 81_700);
+  assert.equal(breakdown.total, 511_700);
+});
+
 test("Empresa CTA is branded, mobile friendly and targets safe portal login", () => {
   const rendered = buildReservationConfirmationTemplate(companyEmailInput());
   const html = renderReservationConfirmationHtml(
