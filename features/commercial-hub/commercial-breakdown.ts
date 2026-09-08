@@ -24,11 +24,19 @@ export function resolveCommercialBreakdown(input: {
   const itemTransport = typedItems
     .filter((item) => String(item.itemType).toUpperCase() === "TRANSPORT")
     .reduce((sum, item) => sum + amount(item.total), 0);
-  const transport = amount(snapshot.transportTotal) || itemTransport;
+  const transport = amount(snapshot.transportTotal ?? snapshot.transport ?? snapshot.appliedTransport) || itemTransport;
   const discount = amount(snapshot.discount ?? snapshot.discountTotal);
   const hasTypedLines = typedItems.length > 0;
-  const subtotal = hasTypedLines
-    ? serviceSubtotal + extras
+  const explicitService = amount(
+    snapshot.serviceSubtotal ?? snapshot.servicePrice ?? snapshot.negotiatedServicePrice,
+  );
+  const explicitExtras = amount(
+    snapshot.extrasTotal ?? snapshot.negotiatedExtras ?? snapshot.extras,
+  );
+  const resolvedService = explicitService || serviceSubtotal;
+  const resolvedExtras = explicitExtras || extras;
+  const subtotal = hasTypedLines || explicitService || explicitExtras
+    ? resolvedService + resolvedExtras
     : amount(snapshot.subtotal);
   const net = hasTypedLines
     ? Math.max(0, subtotal + transport - discount)
@@ -46,8 +54,8 @@ export function resolveCommercialBreakdown(input: {
     ? Math.round((total * depositPercent) / 100)
     : amount(snapshot.deposit);
   return {
-    serviceSubtotal: serviceSubtotal || subtotal,
-    extras,
+    serviceSubtotal: resolvedService || subtotal,
+    extras: resolvedExtras,
     transport,
     subtotal,
     discount,
