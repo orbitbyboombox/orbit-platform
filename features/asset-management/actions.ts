@@ -7,6 +7,16 @@ import { SupabaseAssetRepository } from "./supabase-asset.repository";
 type Result = { ok: true } | { ok: false; error: string };
 const failure = (error: unknown): Result => ({ ok: false, error: error instanceof Error ? error.message : "No fue posible actualizar el equipo." });
 
+export async function setPhysicalConfigurationAction(input: { projectId: string; configuration: "WHITE_TOTEM" | "BLACK_TOTEM" | "BBOX360_PLATFORM" | "IA43_INTEGRATED" | "UNDEFINED" }): Promise<Result> {
+  try {
+    const client = await createSupabaseServerClient();
+    const { error } = await client.rpc("set_event_physical_configuration", { p_project_id: input.projectId, p_configuration: input.configuration });
+    if (error) throw error;
+    revalidatePath(`/projects/${input.projectId}`); revalidatePath("/operations");
+    return { ok: true };
+  } catch (error) { return failure(error); }
+}
+
 export async function assignOperationalAssetAction(input: { projectId: string; assetId: string; orbitEventId: string; reason: string }): Promise<Result> {
   try { await new SupabaseAssetRepository(await createSupabaseServerClient()).assign(input); revalidatePath(`/projects/${input.projectId}`); return { ok: true }; } catch (error) { return failure(error); }
 }

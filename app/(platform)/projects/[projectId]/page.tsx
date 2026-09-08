@@ -491,6 +491,7 @@ export default async function ProjectWorkspacePage({
     projectId,
     orbitEventId: rawProject?.orbit_event_id ?? `ORB-${projectId}`,
     projectType: typeLabel,
+    physicalConfiguration: (() => { const value = typeof operations.physicalConfiguration === "string" ? operations.physicalConfiguration : "UNDEFINED"; return ["WHITE_TOTEM","BLACK_TOTEM","BBOX360_PLATFORM","IA43_INTEGRATED","UNDEFINED"].includes(value) ? value as EquipmentAssignmentPanelProps["physicalConfiguration"] : "UNDEFINED"; })(),
     requirements: physicalRequirements.map(requirement=>({
       id:requirement.id,label:requirement.label,assetType:requirement.asset_type as EquipmentAssignmentPanelProps["requirements"][number]["assetType"],
       required:Number(requirement.required_quantity),assigned:Number(requirement.assigned_quantity),

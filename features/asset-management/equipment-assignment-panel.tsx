@@ -7,7 +7,7 @@ import { ActionButton } from "@/components/ui/action-button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { assignStaffAction, removeStaffAssignmentAction } from "@/features/resources/staff-management/actions";
 import { missingPhysicalUnits } from "@/features/operations/resource-planning";
-import { assignPhysicalResourcesAction, releaseOperationalAssetAction, replacePhysicalResourceAction } from "./actions";
+import { assignPhysicalResourcesAction, releaseOperationalAssetAction, replacePhysicalResourceAction, setPhysicalConfigurationAction } from "./actions";
 import type { AssetStatus, AssetType } from "./types";
 
 type Task = "ASSEMBLY" | "OPERATOR" | "DISASSEMBLY";
@@ -16,7 +16,8 @@ export interface PhysicalResourceAssignment { assignmentId: string; assetId: str
 export interface PhysicalResourceRequirement { id: string; label: string; assetType: AssetType; required: number; assigned: number; assignments: readonly PhysicalResourceAssignment[]; options: readonly EquipmentAssetOption[]; }
 export interface EquipmentStaffOption { id: string; name: string; group: "CALYPSO" | "GREEN"; capabilities: readonly Task[]; status: string; }
 export interface CurrentStaffAssignment { id: string; staffId: string; name: string; task: Task; status: string; }
-export interface EquipmentAssignmentPanelProps { projectId: string; orbitEventId: string; projectType: string; requirements: readonly PhysicalResourceRequirement[]; staff: readonly EquipmentStaffOption[]; currentStaff: readonly CurrentStaffAssignment[]; }
+export type PhysicalConfiguration = "WHITE_TOTEM" | "BLACK_TOTEM" | "BBOX360_PLATFORM" | "IA43_INTEGRATED" | "UNDEFINED";
+export interface EquipmentAssignmentPanelProps { projectId: string; orbitEventId: string; projectType: string; physicalConfiguration?: PhysicalConfiguration; requirements: readonly PhysicalResourceRequirement[]; staff: readonly EquipmentStaffOption[]; currentStaff: readonly CurrentStaffAssignment[]; }
 
 const STATUS:Record<AssetStatus,{label:string;variant:"success"|"info"|"warning"|"danger"}>={AVAILABLE:{label:"Disponible",variant:"success"},ASSIGNED:{label:"Planificado",variant:"info"},IN_EVENT:{label:"En uso",variant:"info"},MAINTENANCE:{label:"Mantención",variant:"warning"},OUT_OF_SERVICE:{label:"Fuera de servicio",variant:"danger"}};
 const TASK={ASSEMBLY:"Montaje",OPERATOR:"Operación",DISASSEMBLY:"Desmontaje"} as const;
@@ -24,8 +25,10 @@ const TASK={ASSEMBLY:"Montaje",OPERATOR:"Operación",DISASSEMBLY:"Desmontaje"} a
 export function EquipmentAssignmentPanel(props:EquipmentAssignmentPanelProps){
   const router=useRouter();const[message,setMessage]=useState("");const[pending,startTransition]=useTransition();
   const run=(operation:()=>Promise<{ok:boolean;error?:string}>)=>{setMessage("Actualizando planificación…");startTransition(async()=>{const result=await operation();setMessage(result.ok?"Planificación de recursos actualizada.":result.error??"No fue posible actualizar los recursos.");if(result.ok)router.refresh();});};
+  const configurationLabel:Record<PhysicalConfiguration,string>={WHITE_TOTEM:"Tótem blanco",BLACK_TOTEM:"Tótem negro",BBOX360_PLATFORM:"Plataforma 360",IA43_INTEGRATED:'Tótem IA 43"',UNDEFINED:"Sin definir"};
   return <section className="space-y-5 scroll-mt-24" id="physical-resource-planning" aria-labelledby="equipment-title">
     <div><p className="text-xs font-medium uppercase tracking-[0.18em] text-brand">Operations 1.0 · Phase C</p><h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-2xl" id="equipment-title">Recursos físicos</h2><p className="mt-2 text-sm text-muted">Selecciona los equipos reales. ORBIT valida la ventana operacional y nunca asigna silenciosamente.</p></div>
+    <div className="rounded-2xl border bg-card p-4 sm:p-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-medium uppercase tracking-[0.16em] text-muted">Configuración física</p><p className="mt-1 font-semibold">{configurationLabel[props.physicalConfiguration??"UNDEFINED"]}</p><p className="mt-1 text-sm text-muted">Define el montaje comercial antes de asignar unidades.</p></div><select aria-label="Configuración física" className="min-h-11 rounded-xl border bg-background px-3 text-sm sm:w-56" value={props.physicalConfiguration??"UNDEFINED"} disabled={pending} onChange={event=>run(()=>setPhysicalConfigurationAction({projectId:props.projectId,configuration:event.target.value as PhysicalConfiguration}))}>{Object.entries(configurationLabel).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></div></div>
     {!props.requirements.length?<div className="rounded-2xl border border-dashed p-5 text-sm text-muted">Este Evento no requiere activos físicos configurados.</div>:props.requirements.map(requirement=><RequirementPlanner key={requirement.id} projectId={props.projectId} requirement={requirement} pending={pending} run={run}/>)}
     <StaffSelector assignments={props.currentStaff} onAssign={(staffId,task)=>run(()=>assignStaffAction({staffId,projectId:props.projectId,assignmentType:task,resources:{task,payrollLinked:true},reason:"Asignación operacional manual"}))} onRemove={assignmentId=>run(()=>removeStaffAssignmentAction(assignmentId,"Retiro manual desde Workspace"))} pending={pending} staff={props.staff}/>
     <p aria-live="polite" className="text-sm font-medium">{message}</p>
