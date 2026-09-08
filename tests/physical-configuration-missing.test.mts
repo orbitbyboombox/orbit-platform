@@ -33,8 +33,10 @@ test("exposes the alert in Founder action center", () => {
 });
 
 test("manual quote does not couple shell selection to CLASSIC", () => {
+  assert.match(drawer, /aria-label="Tótem físico"/);
+  assert.match(drawer, /Pendiente de asignar/);
   assert.doesNotMatch(drawer, /Selecciona la carcasa física del Classic/);
-  assert.doesNotMatch(drawer, /Carcasa del tótem/);
+  assert.doesNotMatch(drawer, /services\.some\(\(service\) => service\.toUpperCase\(\) === "CLASSIC"/);
   assert.match(reservationAction, /set_event_shell_configuration/);
   assert.match(reservationAction, /p_shell_type: draft\.shellType/);
 });

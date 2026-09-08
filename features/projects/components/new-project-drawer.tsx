@@ -546,6 +546,7 @@ export function NewProjectDrawer({
   const recoveryChecked = useRef(false);
   const capacityMissingInputs = !(draft.event.date && draft.event.time && eventAddress.trim() && draft.event.city && draft.services.length);
   const capacityState = progressiveAvailabilityState({ date: draft.event.date, time: draft.event.time, location: eventAddress.trim() && draft.event.city ? eventAddress : "", service: draft.services.length > 0, loading: capacityLoading, result: capacityResult?.status });
+  const shellSelectionRequired = capacityResult?.status === "REVIEW_REQUIRED" && capacityResult.shell?.status === "REVIEW";
   useEffect(() => {
     const requestId = ++capacityRequest.current;
     setCapacityResult(null);
@@ -1129,7 +1130,8 @@ export function NewProjectDrawer({
               : step === 5
                 ? receiptSatisfied &&
                   (paymentCondition !== "CORPORATE_CREDIT" ||
-                    (paymentTermDays > 0 && corporateCreditApproved))
+                    (paymentTermDays > 0 && corporateCreditApproved)) &&
+                  (!shellSelectionRequired || Boolean(draft.shellType))
                 : true;
   const create = async () => {
     if (!valid) return;
@@ -1944,6 +1946,20 @@ export function NewProjectDrawer({
                     ))}
                   </div>
                 </div>
+                <label className="block rounded-2xl border border-brand/30 bg-brand/5 p-4 text-sm font-medium">
+                  Tótem físico
+                  <select
+                    aria-label="Tótem físico"
+                    className="mt-2 h-11 w-full rounded-lg border bg-background px-3"
+                    value={draft.shellType ?? ""}
+                    onChange={(event) => setDraft((current) => ({ ...current, shellType: event.target.value === "WHITE" || event.target.value === "BLACK" ? event.target.value : undefined }))}
+                  >
+                    <option value="">Pendiente de asignar</option>
+                    <option value="WHITE">WHITE · Tótem blanco</option>
+                    <option value="BLACK">BLACK · Tótem negro</option>
+                  </select>
+                  {shellSelectionRequired && !draft.shellType ? <p className="mt-2 text-xs text-warning">Selecciona el tótem físico del evento: WHITE o BLACK.</p> : <p className="mt-2 text-xs text-muted">Asignación operacional independiente del servicio comercial.</p>}
+                </label>
                 {(
                   Object.entries(configurations) as Array<
                     [ProjectService, ServiceConfiguration]
