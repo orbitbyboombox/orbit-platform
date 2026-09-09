@@ -366,8 +366,9 @@ export async function registerStaffAdvanceAction(form: FormData) {
     return { ok: true, message: "✓ Adelanto registrado y liquidación recalculada." };
   } catch (error) {
     if (uploaded.length) await createAdminClient().storage.from("orbit-documents").remove(uploaded);
-    const message = error instanceof Error ? error.message : "No fue posible registrar el adelanto.";
-    console.error(JSON.stringify({event:"staff_advance_failed",stage:"payment",settlementId,correlationId:failureCorrelationId,code:(error as {code?:string})?.code??"",message}));
+    const info = errorInfo(error);
+    const message = info.message || "No fue posible registrar el adelanto.";
+    console.error(JSON.stringify({event:"staff_advance_failed",stage:"payment",settlementId,correlationId:failureCorrelationId,code:info.code||info.name,message:info.message,details:info.details,hint:info.hint}));
     return { ok: false, message: `${message} Referencia ${failureCorrelationId}` };
   }
 }
