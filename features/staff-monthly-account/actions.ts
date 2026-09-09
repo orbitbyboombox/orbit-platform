@@ -26,7 +26,7 @@ const extensionMime = new Map([
   ["png", "image/png"],
   ["webp", "image/webp"],
 ]);
-const fileFrom = (form: FormData) => {
+const fileFrom = (form: Pick<FormData, "get">) => {
   const file = form.get("file");
   if (!(file instanceof File) || !file.size)
     throw new Error("Adjunta un PDF o imagen.");
@@ -319,6 +319,7 @@ export async function completeSettlementEventAction(
   }
 }
 export async function registerStaffAdvanceAction(form: FormData) {
+  const uploaded: string[] = [];
   try {
     const client = await adminContext();
     const settlementId = String(form.get("settlementId") ?? "");
@@ -327,6 +328,9 @@ export async function registerStaffAdvanceAction(form: FormData) {
     const methodChoice = String(form.get("method") ?? "");
     const method = methodChoice === "OTRO" ? String(form.get("methodOther") ?? "").trim() : methodChoice;
     const notes = String(form.get("notes") ?? "").trim();
+    const receipt = fileFrom({ get: (key: string) => form.get(key === "file" ? "receipt" : key) });
+    const boletaValue = form.get("boleta");
+    const boleta = boletaValue instanceof File && boletaValue.size ? fileFrom({ get: () => boletaValue }) : null;
     if (!settlementId || !Number.isFinite(amount) || amount <= 0 || !date || !method)
       throw new Error("Completa monto, fecha y método del adelanto.");
     const admin = createAdminClient();
@@ -337,32 +341,29 @@ export async function registerStaffAdvanceAction(form: FormData) {
       .maybeSingle();
     if (settlementError || !settlement || settlement.status !== "CONFIRMED" || settlement.deleted_at)
       throw settlementError ?? new Error("Liquidación Staff no encontrada.");
-    const { data: existing } = await admin
-      .from("event_staff_settlement_movements")
-      .select("id")
-      .eq("settlement_id", settlementId)
-      .eq("movement_type", "ADVANCE")
-      .eq("amount", amount)
-      .eq("movement_date", date)
-      .eq("method", method)
-      .eq("notes", notes || "Adelanto Staff")
-      .is("deleted_at", null)
-      .maybeSingle();
-    if (existing) return { ok: true, message: "Este adelanto ya estaba registrado; no se creó un duplicado." };
-    const { error } = await client.rpc("register_staff_settlement_movement", {
-      p_settlement_id: settlementId,
-      p_type: "ADVANCE",
-      p_amount: amount,
-      p_date: date,
-      p_method: method,
-      p_notes: notes || "Adelanto Staff",
+    const fileHash = async (file: File) => createHash("sha256").update(Buffer.from(await file.arrayBuffer())).digest("hex");
+    const idempotencyKey = createHash("sha256").update([settlementId, amount, date, method, notes, await fileHash(receipt.file), boleta ? await fileHash(boleta.file) : ""].join("|" )).digest("hex");
+    const receiptPath = `staff/advances/${settlement.staff_id}/${settlementId}/${idempotencyKey}/${receipt.file.name}`;
+    const receiptUpload = await admin.storage.from("orbit-documents").upload(receiptPath, await receipt.file.arrayBuffer(), {contentType:receipt.mime,upsert:false});
+    if (receiptUpload.error) throw receiptUpload.error;
+    uploaded.push(receiptPath);
+    let boletaPath: string | null = null;
+    if (boleta) {
+      boletaPath = `staff/advances/${settlement.staff_id}/${settlementId}/${idempotencyKey}/boleta-${boleta.file.name}`;
+      const boletaUpload = await admin.storage.from("orbit-documents").upload(boletaPath, await boleta.file.arrayBuffer(), {contentType:boleta.mime,upsert:false});
+      if (boletaUpload.error) throw boletaUpload.error;
+      uploaded.push(boletaPath);
+    }
+    const { error } = await client.rpc("register_staff_advance_with_documents", {
+      p_settlement_id:settlementId,p_amount:amount,p_date:date,p_method:method,p_notes:notes,p_idempotency_key:idempotencyKey,
+      p_receipt_bucket:"orbit-documents",p_receipt_path:receiptPath,p_receipt_file_name:receipt.file.name,p_receipt_mime_type:receipt.mime,
+      p_boleta_bucket:boletaPath?"orbit-documents":null,p_boleta_path:boletaPath,p_boleta_file_name:boleta?.file.name??null,p_boleta_mime_type:boleta?.mime??null,
     });
     if (error) throw error;
-    const { error: refreshError } = await admin.rpc("ensure_staff_monthly_account", { p_staff_id: settlement.staff_id, p_month: date });
-    if (refreshError) throw refreshError;
     refresh();
     return { ok: true, message: "✓ Adelanto registrado y liquidación recalculada." };
   } catch (error) {
+    if (uploaded.length) await createAdminClient().storage.from("orbit-documents").remove(uploaded);
     return { ok: false, message: error instanceof Error ? error.message : "No fue posible registrar el adelanto." };
   }
 }

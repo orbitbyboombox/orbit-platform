@@ -261,6 +261,18 @@ export function StaffMonthlyAccountPanel({
           Honorarios en SII.
         </p>
       </div>
+      {mode === "STAFF" && account.calculation.details.some((item) => item.advances > 0) ? (
+        <section className="mt-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4">
+          <h4 className="font-semibold text-emerald-700">Adelantos recibidos</h4>
+          <div className="mt-2 space-y-2 text-sm">
+            {account.calculation.details.filter((item) => item.advances > 0).map((item) => (
+              <div className="flex flex-wrap justify-between gap-2" key={item.settlementId}>
+                <span>{item.eventDate} · {item.event}</span><strong>{money(item.advances)}</strong>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
       {account.excessAdvance > 0 ? (
         <p className="mt-3 rounded-xl bg-red-500/10 p-3 text-sm font-semibold text-red-600">
           Exceso de adelanto: {money(account.excessAdvance)}. No se generará una
@@ -347,6 +359,8 @@ export function StaffMonthlyAccountPanel({
             <label className="text-sm">Fecha *<input className="mt-1 min-h-11 w-full rounded-xl border px-3" name="date" required type="date" /></label>
             <label className="text-sm">Método *<select className="mt-1 min-h-11 w-full rounded-xl border px-3" value={advanceMethod} onChange={(event) => setAdvanceMethod(event.target.value)} name="method" required><option value="TRANSFERENCIA">Transferencia</option><option value="EFECTIVO">Efectivo</option><option value="OTRO">Otro</option></select>{advanceMethod === "OTRO" ? <input className="mt-2 min-h-11 w-full rounded-xl border px-3" name="methodOther" placeholder="Indica el método" required /> : null}</label>
             <label className="text-sm">Referencia / nota<textarea className="mt-1 min-h-20 w-full rounded-xl border px-3" name="notes" /></label>
+            <label className="text-sm">Comprobante de pago *<input accept="application/pdf,image/jpeg,image/png,image/webp" className="mt-1 block w-full text-sm" name="receipt" required type="file" /></label>
+            <label className="text-sm">Boleta de honorarios (opcional)<input accept="application/pdf,image/jpeg,image/png,image/webp" className="mt-1 block w-full text-sm" name="boleta" type="file" /></label>
             <Button disabled={pending} type="submit">{pending ? "Registrando…" : "Registrar adelanto"}</Button>
           </form>
         </MobileDialog>
