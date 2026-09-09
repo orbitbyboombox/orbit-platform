@@ -52,6 +52,7 @@ export function StaffMonthlyAccountPanel({
     } | null>(null),
     [viewerOpen, setViewerOpen] = useState(false);
   const [advanceFor, setAdvanceFor] = useState<{ settlementId: string; event: string; projectId: string } | null>(null);
+  const [advanceSelection, setAdvanceSelection] = useState("");
   const [advanceMethod, setAdvanceMethod] = useState("TRANSFERENCIA");
   const router = useRouter();
   const confirmCompletion = () => {
@@ -183,6 +184,15 @@ export function StaffMonthlyAccountPanel({
                   {item.eventDate} · {item.event}
                 </p>
                 <p className="mt-1 text-muted">{item.service} · COMPLETADO ✓</p>
+                {mode === "FOUNDER" ? (
+                  <button
+                    className="mt-2 inline-flex min-h-11 items-center rounded-xl border px-3 font-semibold text-brand"
+                    onClick={() => setAdvanceFor({ settlementId: item.settlementId, event: item.event, projectId: item.projectId })}
+                    type="button"
+                  >
+                    [ADELANTO PAGO]
+                  </button>
+                ) : null}
               </article>
             ))}
             {account.calculation.blockingEvents.map((item) => (
@@ -220,7 +230,7 @@ export function StaffMonthlyAccountPanel({
                     onClick={() => setAdvanceFor({ settlementId: item.settlementId, event: item.event, projectId: item.projectId })}
                     type="button"
                   >
-                    Registrar adelanto
+                    [ADELANTO PAGO]
                   </button>
                 ) : null}
                 <a
@@ -249,6 +259,31 @@ export function StaffMonthlyAccountPanel({
           value={account.finalTransferAmount}
         />
       </dl>
+      {mode === "FOUNDER" ? (
+        <section className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand/30 bg-brand/5 p-3">
+          <p className="text-sm font-semibold">Adelantos realizados: {money(account.advancesTotal)}</p>
+          {account.calculation.details.length + account.calculation.blockingEvents.length === 1 ? (
+            <button
+              className="inline-flex min-h-11 items-center rounded-xl border px-3 font-semibold text-brand"
+              onClick={() => {
+                const item = account.calculation.details[0] ?? account.calculation.blockingEvents[0];
+                if (item) setAdvanceFor({ settlementId: item.settlementId, event: item.event, projectId: item.projectId });
+              }}
+              type="button"
+            >
+              + REGISTRAR ADELANTO
+            </button>
+          ) : account.calculation.details.length + account.calculation.blockingEvents.length > 1 ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <select aria-label="Evento para adelanto" className="min-h-11 rounded-xl border bg-background px-3 text-sm" value={advanceSelection} onChange={(event) => setAdvanceSelection(event.target.value)}>
+                <option value="">Selecciona Evento</option>
+                {[...account.calculation.details, ...account.calculation.blockingEvents].map((item) => <option key={item.settlementId} value={item.settlementId}>{item.eventDate} · {item.event}</option>)}
+              </select>
+              <button className="inline-flex min-h-11 items-center rounded-xl border px-3 font-semibold text-brand" disabled={!advanceSelection} onClick={() => { const item = [...account.calculation.details, ...account.calculation.blockingEvents].find((entry) => entry.settlementId === advanceSelection); if (item) setAdvanceFor({ settlementId: item.settlementId, event: item.event, projectId: item.projectId }); }} type="button">+ REGISTRAR ADELANTO</button>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
       <div className="mt-4 rounded-2xl border-2 border-brand bg-brand/5 p-4">
         <p className="text-xs font-bold uppercase tracking-[.16em] text-brand">
           Monto total boleta SII a emitir

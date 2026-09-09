@@ -28,6 +28,7 @@ import {
   type StaffPaymentMonth,
 } from "@/features/staff-payments";
 import { StaffDocumentCenter } from "@/features/staff-documents/staff-document-center";
+import { registerStaffAdvanceAction } from "@/features/staff-monthly-account/actions";
 
 export interface StaffProjectOption {
   id: string;
@@ -498,6 +499,10 @@ function ProfileView({
   paymentEvents: StaffPaymentEvent[];
   paymentMonths: StaffPaymentMonth[];
 }) {
+  const [advanceFor, setAdvanceFor] = useState<StaffPaymentEvent | null>(null);
+  const [advanceMethod, setAdvanceMethod] = useState("TRANSFERENCIA");
+  const [advancePending, startAdvance] = useTransition();
+  const [advanceMessage, setAdvanceMessage] = useState("");
   const today = chileInputDate();
   const active = item.assignments.filter(
     (x) => !["COMPLETED", "CANCELLED", "REJECTED"].includes(x.status),
@@ -579,6 +584,33 @@ function ProfileView({
         events={paymentEvents}
         months={paymentMonths}
       />
+      <section className="rounded-2xl border p-5">
+        <h3 className="font-semibold">Adelantos por Evento</h3>
+        <p className="mt-1 text-xs text-muted">Cada adelanto queda asociado a una liquidación y Evento existente.</p>
+        <div className="mt-4 space-y-3">
+          {paymentEvents.map((event) => (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3" key={event.id}>
+              <div><p className="font-semibold">{event.eventName}</p><p className="text-xs text-muted">{event.eventDate} · {event.service} · ORB {event.projectId.slice(0, 8)}</p></div>
+              <button className="inline-flex min-h-11 items-center rounded-xl border px-3 font-semibold text-brand" onClick={() => setAdvanceFor(event)} type="button">[ADELANTO PAGO]</button>
+            </div>
+          ))}
+          {!paymentEvents.length ? <p className="text-sm text-muted">No hay liquidaciones confirmadas para asociar un adelanto.</p> : null}
+        </div>
+      </section>
+      {advanceFor ? <MobileDialog eyebrow="Staff · Evento" title="ADELANTO PAGO" description={`${advanceFor.eventName} · ${advanceFor.eventDate}`} onClose={() => !advancePending && setAdvanceFor(null)} size="lg">
+        <form action={(form) => startAdvance(async () => { const result = await registerStaffAdvanceAction(form); setAdvanceMessage(result.message); if (result.ok) setAdvanceFor(null); })} className="grid gap-3">
+          <input name="settlementId" type="hidden" value={advanceFor.id} />
+          <label className="text-sm">Evento *<input className="mt-1 min-h-11 w-full rounded-xl border px-3" value={`${advanceFor.eventName} · ${advanceFor.eventDate}`} readOnly /></label>
+          <label className="text-sm">Monto adelanto *<input className="mt-1 min-h-11 w-full rounded-xl border px-3" min="1" name="amount" required type="number" /></label>
+          <label className="text-sm">Fecha *<input className="mt-1 min-h-11 w-full rounded-xl border px-3" name="date" required type="date" /></label>
+          <label className="text-sm">Método *<select className="mt-1 min-h-11 w-full rounded-xl border px-3" value={advanceMethod} onChange={(e) => setAdvanceMethod(e.target.value)} name="method" required><option value="TRANSFERENCIA">Transferencia</option><option value="EFECTIVO">Efectivo</option><option value="OTRO">Otro</option></select>{advanceMethod === "OTRO" ? <input className="mt-2 min-h-11 w-full rounded-xl border px-3" name="methodOther" required placeholder="Indica el método" /> : null}</label>
+          <label className="text-sm">Nota / referencia<textarea className="mt-1 min-h-20 w-full rounded-xl border px-3" name="notes" /></label>
+          <label className="text-sm">Comprobante de pago *<input accept="application/pdf,image/jpeg,image/png,image/webp" className="mt-1 block w-full text-sm" name="receipt" required type="file" /></label>
+          <label className="text-sm">Boleta de honorarios<input accept="application/pdf,image/jpeg,image/png,image/webp" className="mt-1 block w-full text-sm" name="boleta" type="file" /></label>
+          <Button disabled={advancePending} type="submit">{advancePending ? "Registrando…" : "Registrar adelanto"}</Button>
+          {advanceMessage ? <p aria-live="polite" className="text-sm text-muted">{advanceMessage}</p> : null}
+        </form>
+      </MobileDialog> : null}
       <AssociatedExpenses items={item.associatedExpenses} />
       <AssignmentList title="Asignación actual" items={active} />
       <AssignmentList title="Próximos eventos" items={upcoming} />
