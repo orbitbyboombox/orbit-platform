@@ -10,6 +10,7 @@ import {
   completeSettlementEventAction,
   finalizeMonthlyStaffAccountAction,
   registerMonthlyStaffPaymentAction,
+  registerStaffAdvanceAction,
   reviewMonthlyBoletaAction,
   submitMonthlyBoletaAction,
 } from "./actions";
@@ -50,6 +51,8 @@ export function StaffMonthlyAccountPanel({
       event: string;
     } | null>(null),
     [viewerOpen, setViewerOpen] = useState(false);
+  const [advanceFor, setAdvanceFor] = useState<{ settlementId: string; event: string; projectId: string } | null>(null);
+  const [advanceMethod, setAdvanceMethod] = useState("TRANSFERENCIA");
   const router = useRouter();
   const confirmCompletion = () => {
     if (!confirming) return;
@@ -211,6 +214,15 @@ export function StaffMonthlyAccountPanel({
                       : "Marcar completado"}
                   </button>
                 )}
+                {mode === "FOUNDER" ? (
+                  <button
+                    className="ml-3 mt-2 inline-flex min-h-11 items-center rounded-xl border px-3 font-semibold text-brand"
+                    onClick={() => setAdvanceFor({ settlementId: item.settlementId, event: item.event, projectId: item.projectId })}
+                    type="button"
+                  >
+                    Registrar adelanto
+                  </button>
+                ) : null}
                 <a
                   className="ml-3 mt-2 inline-flex min-h-11 items-center font-semibold text-brand"
                   href={`/projects/${item.projectId}`}
@@ -310,6 +322,34 @@ export function StaffMonthlyAccountPanel({
           src={`/api/staff-monthly-accounts/${account.id}/settlement-pdf`}
           title={`Liquidación ${staffMonthLabel(account.month)}`}
         />
+      ) : null}
+      {advanceFor ? (
+        <MobileDialog
+          eyebrow="Liquidación Staff"
+          title="Registrar adelanto"
+          description={`${advanceFor.event} · asociado al Evento seleccionado`}
+          onClose={() => !pending && setAdvanceFor(null)}
+          size="lg"
+        >
+          <form
+            action={(form) =>
+              start(async () => {
+                const result = await registerStaffAdvanceAction(form);
+                setMessage(result.message);
+                if (result.ok) { setAdvanceFor(null); setAdvanceMethod("TRANSFERENCIA"); }
+                if (result.ok) router.refresh();
+              })
+            }
+            className="grid gap-3"
+          >
+            <input name="settlementId" type="hidden" value={advanceFor.settlementId} />
+            <label className="text-sm">Monto adelanto *<input className="mt-1 min-h-11 w-full rounded-xl border px-3" min="1" name="amount" required type="number" /></label>
+            <label className="text-sm">Fecha *<input className="mt-1 min-h-11 w-full rounded-xl border px-3" name="date" required type="date" /></label>
+            <label className="text-sm">Método *<select className="mt-1 min-h-11 w-full rounded-xl border px-3" value={advanceMethod} onChange={(event) => setAdvanceMethod(event.target.value)} name="method" required><option value="TRANSFERENCIA">Transferencia</option><option value="EFECTIVO">Efectivo</option><option value="OTRO">Otro</option></select>{advanceMethod === "OTRO" ? <input className="mt-2 min-h-11 w-full rounded-xl border px-3" name="methodOther" placeholder="Indica el método" required /> : null}</label>
+            <label className="text-sm">Referencia / nota<textarea className="mt-1 min-h-20 w-full rounded-xl border px-3" name="notes" /></label>
+            <Button disabled={pending} type="submit">{pending ? "Registrando…" : "Registrar adelanto"}</Button>
+          </form>
+        </MobileDialog>
       ) : null}
       {mode === "FOUNDER" && account.settlementStatus === "DRAFT" ? (
         <form action={run(finalizeMonthlyStaffAccountAction)} className="mt-4">

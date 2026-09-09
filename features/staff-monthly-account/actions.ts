@@ -294,92 +294,76 @@ export async function completeSettlementEventAction(
   correlationId: string = randomUUID(),
 ) {
   try {
-    const client = await adminContext(),
-      admin = createAdminClient(),
-      actor = (await client.auth.getUser()).data.user?.id;
-    if (!actor) throw new Error("Tu sesión expiró.");
-    const { data: before } = await admin
-      .from("projects")
-      .select("id,status,customer_id,orbit_event_id")
-      .eq("id", projectId)
-      .single();
-    if (before?.status === "Completed")
-      return {
-        ok: true,
-        eventId: before.orbit_event_id,
-        status: "Completed",
-        correlationId,
-        message: "Evento ya estaba completado.",
-      };
-    const { data: item, error } = await admin
-      .from("projects")
-      .update({
-        status: "Completed",
-        updated_by: actor,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", projectId)
-      .is("deleted_at", null)
-      .not("status", "in", "(CANCELLED,CANCELED,ARCHIVED,DELETED)")
-      .select("id,customer_id,orbit_event_id,status")
-      .single();
-    if (error || !item)
-      throw error ?? new Error("Evento no disponible para completar.");
-    const { error: auditError } = await admin
-      .from("timeline_events")
-      .insert({
-        project_id: item.id,
-        customer_id: item.customer_id,
-        event_type: "EVENT_OPERATIONAL_COMPLETED",
-        title: "Evento marcado como completado",
-        description: "El servicio fue realizado y completado operacionalmente.",
-        new_state: "Completed",
-        reason: "Founder confirmó finalización operacional.",
-        correlation_id: correlationId,
-        created_by: actor,
-      });
-    if (auditError) throw auditError;
-    const { data: readback, error: readError } = await admin
-      .from("projects")
-      .select("orbit_event_id,status")
-      .eq("id", projectId)
-      .single();
-    if (readError || readback?.status !== "Completed")
-      throw (
-        readError ?? new Error("No se pudo confirmar el estado del Evento.")
-      );
-    const { data: payment } = await admin
-      .from("event_staff_payments")
-      .select("staff_id,projects(event_date)")
-      .eq("project_id", projectId)
-      .eq("status", "CONFIRMED")
-      .is("deleted_at", null)
-      .maybeSingle();
-    const eventDate =
-      payment?.projects && typeof payment.projects === "object"
-        ? (payment.projects as { event_date?: string }).event_date
-        : null;
-    if (payment?.staff_id && eventDate) {
-      const { error: refreshError } = await admin.rpc(
-        "ensure_staff_monthly_account",
-        { p_staff_id: payment.staff_id, p_month: eventDate },
-      );
-      if (refreshError) throw refreshError;
-    }
+    const client = await adminContext();
+    const { data, error } = await client.rpc(
+      "complete_staff_settlement_event_operationally",
+      { p_project_id: projectId, p_correlation_id: correlationId },
+    );
+    if (error || !data) throw error ?? new Error("No se pudo completar el Evento.");
     refresh();
     return {
       ok: true,
-      eventId: readback.orbit_event_id,
-      status: readback.status,
+      eventId: projectId,
+      status: "Completed",
       correlationId,
       message: "✓ Evento marcado como completado",
     };
   } catch (error) {
+    const info = errorInfo(error);
+    console.error(JSON.stringify({event:"staff_event_completion_failed",stage:"atomic_completion",projectId,correlationId,code:info.code||info.name,message:info.message,details:info.details,hint:info.hint}));
     return {
       ok: false,
       correlationId,
       message: "No fue posible marcar el evento como completado.",
     };
+  }
+}
+export async function registerStaffAdvanceAction(form: FormData) {
+  try {
+    const client = await adminContext();
+    const settlementId = String(form.get("settlementId") ?? "");
+    const amount = Number(form.get("amount"));
+    const date = String(form.get("date") ?? "");
+    const methodChoice = String(form.get("method") ?? "");
+    const method = methodChoice === "OTRO" ? String(form.get("methodOther") ?? "").trim() : methodChoice;
+    const notes = String(form.get("notes") ?? "").trim();
+    if (!settlementId || !Number.isFinite(amount) || amount <= 0 || !date || !method)
+      throw new Error("Completa monto, fecha y método del adelanto.");
+    const admin = createAdminClient();
+    const { data: settlement, error: settlementError } = await admin
+      .from("event_staff_payments")
+      .select("id,staff_id,project_id,status,deleted_at")
+      .eq("id", settlementId)
+      .maybeSingle();
+    if (settlementError || !settlement || settlement.status !== "CONFIRMED" || settlement.deleted_at)
+      throw settlementError ?? new Error("Liquidación Staff no encontrada.");
+    const { data: existing } = await admin
+      .from("event_staff_settlement_movements")
+      .select("id")
+      .eq("settlement_id", settlementId)
+      .eq("movement_type", "ADVANCE")
+      .eq("amount", amount)
+      .eq("movement_date", date)
+      .eq("method", method)
+      .eq("notes", notes || "Adelanto Staff")
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (existing) return { ok: true, message: "Este adelanto ya estaba registrado; no se creó un duplicado." };
+    const { error } = await client.rpc("register_staff_settlement_movement", {
+      p_settlement_id: settlementId,
+      p_type: "ADVANCE",
+      p_amount: amount,
+      p_date: date,
+      p_method: method,
+      p_notes: notes || "Adelanto Staff",
+    });
+    if (error) throw error;
+    const { error: refreshError } = await admin.rpc("ensure_staff_monthly_account", { p_staff_id: settlement.staff_id, p_month: date });
+    if (refreshError) throw refreshError;
+    refresh();
+    return { ok: true, message: "✓ Adelanto registrado y liquidación recalculada." };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : "No fue posible registrar el adelanto." };
   }
 }
 export async function finalizeMonthlyStaffAccountAction(form: FormData) {
