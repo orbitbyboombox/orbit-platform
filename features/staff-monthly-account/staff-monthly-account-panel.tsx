@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -52,11 +52,13 @@ export function StaffMonthlyAccountPanel({
     } | null>(null),
     [viewerOpen, setViewerOpen] = useState(false);
   const [advanceFor, setAdvanceFor] = useState<{ settlementId: string; event: string; projectId: string } | null>(null);
+  const completionLock = useRef(false);
   const [advanceSelection, setAdvanceSelection] = useState("");
   const [advanceMethod, setAdvanceMethod] = useState("TRANSFERENCIA");
   const router = useRouter();
   const confirmCompletion = () => {
-    if (!confirming) return;
+    if (!confirming || completionLock.current) return;
+    completionLock.current = true;
     const item = confirming;
     const correlationId = `CMP-${item.projectId}-${Date.now()}`;
     setConfirming(null);
@@ -67,6 +69,7 @@ export function StaffMonthlyAccountPanel({
         correlationId,
       );
       setCompleting(null);
+      completionLock.current = false;
       setMessage(
         result.ok
           ? "✓ Evento marcado como completado"

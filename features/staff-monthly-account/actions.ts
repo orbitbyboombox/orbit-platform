@@ -320,9 +320,11 @@ export async function completeSettlementEventAction(
 }
 export async function registerStaffAdvanceAction(form: FormData) {
   const uploaded: string[] = [];
+  const failureCorrelationId = randomUUID();
+  let settlementId = "";
   try {
     const client = await adminContext();
-    const settlementId = String(form.get("settlementId") ?? "");
+    settlementId = String(form.get("settlementId") ?? "");
     const amount = Number(form.get("amount"));
     const date = String(form.get("date") ?? "");
     const methodChoice = String(form.get("method") ?? "");
@@ -344,13 +346,13 @@ export async function registerStaffAdvanceAction(form: FormData) {
     const fileHash = async (file: File) => createHash("sha256").update(Buffer.from(await file.arrayBuffer())).digest("hex");
     const idempotencyKey = createHash("sha256").update([settlementId, amount, date, method, notes, await fileHash(receipt.file), boleta ? await fileHash(boleta.file) : ""].join("|" )).digest("hex");
     const receiptPath = `staff/advances/${settlement.staff_id}/${settlementId}/${idempotencyKey}/${receipt.file.name}`;
-    const receiptUpload = await admin.storage.from("orbit-documents").upload(receiptPath, await receipt.file.arrayBuffer(), {contentType:receipt.mime,upsert:false});
+    const receiptUpload = await admin.storage.from("orbit-documents").upload(receiptPath, await receipt.file.arrayBuffer(), {contentType:receipt.mime,upsert:true});
     if (receiptUpload.error) throw receiptUpload.error;
     uploaded.push(receiptPath);
     let boletaPath: string | null = null;
     if (boleta) {
       boletaPath = `staff/advances/${settlement.staff_id}/${settlementId}/${idempotencyKey}/boleta-${boleta.file.name}`;
-      const boletaUpload = await admin.storage.from("orbit-documents").upload(boletaPath, await boleta.file.arrayBuffer(), {contentType:boleta.mime,upsert:false});
+      const boletaUpload = await admin.storage.from("orbit-documents").upload(boletaPath, await boleta.file.arrayBuffer(), {contentType:boleta.mime,upsert:true});
       if (boletaUpload.error) throw boletaUpload.error;
       uploaded.push(boletaPath);
     }
@@ -364,7 +366,9 @@ export async function registerStaffAdvanceAction(form: FormData) {
     return { ok: true, message: "✓ Adelanto registrado y liquidación recalculada." };
   } catch (error) {
     if (uploaded.length) await createAdminClient().storage.from("orbit-documents").remove(uploaded);
-    return { ok: false, message: error instanceof Error ? error.message : "No fue posible registrar el adelanto." };
+    const message = error instanceof Error ? error.message : "No fue posible registrar el adelanto.";
+    console.error(JSON.stringify({event:"staff_advance_failed",stage:"payment",settlementId,correlationId:failureCorrelationId,code:(error as {code?:string})?.code??"",message}));
+    return { ok: false, message: `${message} Referencia ${failureCorrelationId}` };
   }
 }
 export async function finalizeMonthlyStaffAccountAction(form: FormData) {
