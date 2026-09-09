@@ -22,6 +22,14 @@ test("automatic closing revalidates live capacity before payment", () => {
   assert.match(service, /La disponibilidad debe confirmarse antes de registrar el abono/);
 });
 
+test("pre-commit automatic records remain resumable and cannot look confirmed", () => {
+  assert.match(service, /paymentStatus: "PENDING"/);
+  assert.match(service, /stage: "Capacidad pendiente"/);
+  assert.match(service, /commercialStage: "Waiting"/);
+  assert.match(service, /status: "DRAFT", customer_type/);
+  assert.ok(service.indexOf('status: "DRAFT", customer_type') < service.indexOf('rpc("preflight_reservation_capacity"'));
+});
+
 test("Drive archival starts only after the canonical payment", () => {
   assert.ok(service.indexOf('rpc("register_automatic_booking_deposit"') < service.indexOf("uploadReservationDocumentToDrive({ client: admin, projectId"));
 });
