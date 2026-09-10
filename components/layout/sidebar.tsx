@@ -22,9 +22,20 @@ export interface NavigationListProps {
 export function NavigationList({ onNavigate, compact, navigationOrder, hiddenNavigation = [], iconOnly = false }: NavigationListProps) {
   const pathname = usePathname();
   const {isEnabled}=useModuleManager();
+  const position = (key: NavigationKey) => {
+    const defaultPosition = navigationItems.findIndex(item => item.key === key);
+    if (!navigationOrder?.length) return defaultPosition;
+    const customPosition = navigationOrder.indexOf(key);
+    if (customPosition >= 0) return customPosition * 2;
+    if (key === "CALENDAR") {
+      const eventsPosition = navigationOrder.indexOf("EVENTS");
+      if (eventsPosition >= 0) return eventsPosition * 2 + 1;
+    }
+    return navigationItems.length * 2 + defaultPosition;
+  };
   return (
     <nav aria-label="Navegación principal" className="space-y-1">
-      {[...navigationItems].sort((a,b)=>(navigationOrder?.indexOf(a.key)??0)-(navigationOrder?.indexOf(b.key)??0)).filter(item=>!hiddenNavigation.includes(item.key)&&(item.href==="/settings"||isEnabled(item.module))).map(({ label, href, icon: Icon }) => {
+      {[...navigationItems].sort((a,b)=>position(a.key)-position(b.key)).filter(item=>!hiddenNavigation.includes(item.key)&&(item.href==="/settings"||isEnabled(item.module))).map(({ label, href, icon: Icon }) => {
         const isActive = href === "/" ? pathname === href : pathname.startsWith(href);
         return <Link
           aria-current={isActive ? "page" : undefined}

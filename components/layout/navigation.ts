@@ -36,6 +36,7 @@ export type NavigationKey =
   | "CUSTOMERS"
   | "COMMERCIAL"
   | "EVENTS"
+  | "CALENDAR"
   | "STAFF"
   | "RESOURCES"
   | "FINANCE"
@@ -78,6 +79,13 @@ export const navigationItems: readonly NavigationItem[] = [
     key: "EVENTS",
     label: "Eventos",
     href: "/events",
+    icon: CalendarDays,
+    module: "PROJECTS",
+  },
+  {
+    key: "CALENDAR",
+    label: "Calendario",
+    href: "/calendar",
     icon: CalendarDays,
     module: "PROJECTS",
   },
