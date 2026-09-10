@@ -1,5 +1,6 @@
 @import "tailwindcss";
 
+/* BOOMBOX visual system: dark-only, independent of OS or browser theme. */
 :root {
   color-scheme: dark;
   --background: #07090d;
