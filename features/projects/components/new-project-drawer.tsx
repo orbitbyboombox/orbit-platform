@@ -549,7 +549,6 @@ export function NewProjectDrawer({
   // Capacity is intentionally neutral until the event step has supplied its inputs.
   // The final confirmation gate below remains unchanged and still requires AVAILABLE.
   const capacityDisplayState = capacityMissingInputs ? "PENDING_INPUT" : capacityState;
-  const shellSelectionRequired = capacityResult?.status === "REVIEW_REQUIRED" && capacityResult.shell?.status === "REVIEW";
   useEffect(() => {
     const requestId = ++capacityRequest.current;
     setCapacityResult(null);
@@ -1133,8 +1132,7 @@ export function NewProjectDrawer({
               : step === 5
                 ? receiptSatisfied &&
                   (paymentCondition !== "CORPORATE_CREDIT" ||
-                    (paymentTermDays > 0 && corporateCreditApproved)) &&
-                  (!shellSelectionRequired || Boolean(draft.shellType))
+                    (paymentTermDays > 0 && corporateCreditApproved))
                 : true;
   const create = async () => {
     if (!valid) return;
@@ -1961,7 +1959,7 @@ export function NewProjectDrawer({
                     <option value="WHITE">WHITE · Tótem blanco</option>
                     <option value="BLACK">BLACK · Tótem negro</option>
                   </select>
-                  {shellSelectionRequired && !draft.shellType ? <p className="mt-2 text-xs text-warning">Selecciona el tótem físico del evento: WHITE o BLACK.</p> : <p className="mt-2 text-xs text-muted">Asignación operacional independiente del servicio comercial.</p>}
+                  <p className="mt-2 text-xs text-muted">Asignación operacional independiente del servicio comercial.</p>
                 </label>
                 {(
                   Object.entries(configurations) as Array<
