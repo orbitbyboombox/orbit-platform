@@ -10,8 +10,10 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: "#000000",
     theme_color: "#000000",
     icons: [
-      { src: "/icons/orbit-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
-      { src: "/icons/orbit-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: "/icons/orbit-bbox-icon-192-v2.png", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/icons/orbit-bbox-icon-192-v2.png", sizes: "192x192", type: "image/png", purpose: "maskable" },
+      { src: "/icons/orbit-bbox-icon-512-v2.png", sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: "/icons/orbit-bbox-icon-512-v2.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
   };
 }
