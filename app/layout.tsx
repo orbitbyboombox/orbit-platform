@@ -3,7 +3,7 @@ import "./globals.css";
 import { CompanySettingsProvider, loadCompanySettings } from "@/features/company-settings";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export async function generateMetadata():Promise<Metadata>{const settings=await loadCompanySettings(await createSupabaseServerClient());return{title:`${settings.productName} ${settings.productVersion}`,description:settings.loginTagline,icons:{icon:[{url:"/branding/orbit-app-icon.png",sizes:"512x512",type:"image/png"}],apple:[{url:"/branding/orbit-app-icon.png",sizes:"512x512",type:"image/png"}]}}}
+export async function generateMetadata():Promise<Metadata>{const settings=await loadCompanySettings(await createSupabaseServerClient());return{title:`${settings.productName} ${settings.productVersion}`,description:settings.loginTagline,icons:{icon:[{url:"/branding/orbit-bbox-icon.png",sizes:"1254x1254",type:"image/png"}],apple:[{url:"/branding/orbit-bbox-icon.png",sizes:"1254x1254",type:"image/png"}]}}}
 
 export default async function RootLayout({
   children,

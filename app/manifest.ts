@@ -3,7 +3,7 @@ import type { MetadataRoute } from "next";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "ORBIT BOOMBOX",
-    short_name: "ORBIT",
+    short_name: "ORBIT BBOX",
     description: "Plataforma operativa ORBIT BOOMBOX",
     start_url: "/",
     display: "standalone",
