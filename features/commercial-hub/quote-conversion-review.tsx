@@ -224,7 +224,7 @@ export function QuoteConversionReviewDialog({
               <p className="mt-2">Confirmación cliente pendiente de envío.</p>
             ) : null}
             {outcome?.warnings.map((warning) => (
-              <p className="mt-2 text-amber-700 dark:text-amber-300" key={`${warning.integration}:${warning.detail}`}>
+              <p className="mt-2 text-amber-300" key={`${warning.integration}:${warning.detail}`}>
                 Hay una integración pendiente de sincronización: {warning.integration}.
               </p>
             ))}

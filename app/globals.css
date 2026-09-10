@@ -1,26 +1,27 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f7f7f8;
-  --foreground: #18181b;
-  --card: #ffffff;
-  --border: #e4e4e7;
-  --muted: #71717a;
-  --accent: #f0f0f2;
-  --accent-foreground: #27272a;
-  --success: #15803d;
-  --success-soft: #dcfce7;
-  --warning: #a16207;
-  --warning-soft: #fef3c7;
-  --danger: #b91c1c;
-  --danger-soft: #fee2e2;
-  --info: #1d4ed8;
-  --info-soft: #dbeafe;
-  --brand: #ff9500;
+  color-scheme: dark;
+  --background: #07090d;
+  --foreground: #f7f7f8;
+  --card: #0d1117;
+  --border: #222832;
+  --muted: #949ba8;
+  --accent: #151a22;
+  --accent-foreground: #fafafa;
+  --success: #86efac;
+  --success-soft: #143222;
+  --warning: #fde68a;
+  --warning-soft: #3d2d0a;
+  --danger: #fca5a5;
+  --danger-soft: #3b1717;
+  --info: #93c5fd;
+  --info-soft: #172554;
+  --brand: #F78900;
   --radius-card: 1rem;
   --space-section: 1.5rem;
-  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.04), 0 12px 32px rgb(0 0 0 / 0.04);
-  --shadow-card-hover: 0 2px 4px rgb(0 0 0 / 0.05), 0 18px 44px rgb(0 0 0 / 0.08);
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.025), 0 20px 56px rgb(0 0 0 / 0.2);
+  --shadow-card-hover: 0 1px 0 rgb(255 255 255 / 0.05), 0 26px 72px rgb(0 0 0 / 0.32);
 }
 
 @theme inline {
@@ -45,26 +46,6 @@
 
 @layer base {
 
-.dark {
-  --background: #07090d;
-  --foreground: #f7f7f8;
-  --card: #0d1117;
-  --border: #222832;
-  --muted: #949ba8;
-  --accent: #151a22;
-  --accent-foreground: #fafafa;
-  --success: #86efac;
-  --success-soft: #143222;
-  --warning: #fde68a;
-  --warning-soft: #3d2d0a;
-  --danger: #fca5a5;
-  --danger-soft: #3b1717;
-  --info: #93c5fd;
-  --info-soft: #172554;
-  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.025), 0 20px 56px rgb(0 0 0 / 0.2);
-  --shadow-card-hover: 0 1px 0 rgb(255 255 255 / 0.05), 0 26px 72px rgb(0 0 0 / 0.32);
-}
-
 body {
   background: var(--background);
   background-image:
@@ -80,7 +61,7 @@ body {
 }
 
 * { border-color: var(--border); box-sizing: border-box; }
-html { scroll-behavior: smooth; }
+html { color-scheme: dark; scroll-behavior: smooth; }
 ::selection { background: color-mix(in srgb, var(--brand) 28%, transparent); }
 button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }

@@ -19,7 +19,7 @@ DEV-003 keeps the same feature-first boundaries and adds the guarded application
 - `components/layout` owns responsive application composition.
 - `components/cards`, `forms`, `timeline`, and `copilot` contain reusable composition patterns.
 - Shared navigation metadata has one source of truth in `components/layout/navigation.ts`.
-- Semantic color tokens in `app/globals.css` support light and dark themes.
+- Semantic color tokens in `app/globals.css` are fixed to the BOOMBOX dark-only visual system.
 
 ## Authentication
 

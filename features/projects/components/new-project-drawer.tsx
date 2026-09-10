@@ -2603,7 +2603,7 @@ export function NewProjectDrawer({
                         </label>
                       </div>
                       {paymentTermDays <= 0 ? (
-                        <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
+                        <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-300">
                           Selecciona un plazo de crédito mayor a 0 días antes de confirmar.
                         </p>
                       ) : null}

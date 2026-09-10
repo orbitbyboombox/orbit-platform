@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { ThemeProvider } from "@/components/theme-provider";
 import { CompanySettingsProvider, loadCompanySettings } from "@/features/company-settings";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -13,9 +12,9 @@ export default async function RootLayout({
 }>) {
   const settings=await loadCompanySettings(await createSupabaseServerClient());
   return (
-    <html className="dark" lang="es" suppressHydrationWarning>
+    <html className="dark" lang="es">
       <body className="antialiased">
-        <ThemeProvider><CompanySettingsProvider settings={settings}>{children}</CompanySettingsProvider></ThemeProvider>
+        <CompanySettingsProvider settings={settings}>{children}</CompanySettingsProvider>
       </body>
     </html>
   );
