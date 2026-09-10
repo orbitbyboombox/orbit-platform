@@ -52,10 +52,20 @@ test("real manual reservation drawer always exposes the shared capacity prefligh
   assert.match(drawer, /draftCapacityPreflightAction/);
   assert.match(drawer, /<CapacityStatusPanel result=\{capacityResult\}/);
   assert.match(drawer, /missingInputs=\{capacityMissingInputs\}/);
+  assert.match(drawer, /capacityDisplayState = capacityMissingInputs \? "PENDING_INPUT"/);
+  assert.match(drawer, /progressiveState=\{capacityDisplayState\}/);
   assert.match(drawer, /data-capacity-section/);
   assert.ok(drawer.indexOf("data-capacity-section") < drawer.indexOf("data-reservation-wizard-scroll"));
   for (const field of ["draft.event.date", "draft.event.time", "draft.event.durationHours", "eventAddress", "draft.event.city", "draft.services"]) assert.match(drawer, new RegExp(field.replaceAll(".", "\\.")));
   assert.match(drawer, /requestId !== capacityRequest.current/);
+});
+
+test("manual wizard uses a neutral pending state before event inputs", async () => {
+  const resolver = await read("features/capacity/progressive-availability.ts");
+  const panel = await read("features/capacity/capacity-status-panel.tsx");
+  assert.match(resolver, /PENDING_INPUT/);
+  assert.equal(progressiveAvailabilityMessage("PENDING_INPUT"), "Completa los datos del evento para revisar disponibilidad.");
+  assert.match(panel, /Disponibilidad pendiente/);
 });
 
 test("real Constructor de cotizaciones renders availability in the same screen", async () => {

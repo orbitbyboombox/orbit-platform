@@ -546,6 +546,9 @@ export function NewProjectDrawer({
   const recoveryChecked = useRef(false);
   const capacityMissingInputs = !(draft.event.date && draft.event.time && eventAddress.trim() && draft.event.city && draft.services.length);
   const capacityState = progressiveAvailabilityState({ date: draft.event.date, time: draft.event.time, location: eventAddress.trim() && draft.event.city ? eventAddress : "", service: draft.services.length > 0, loading: capacityLoading, result: capacityResult?.status });
+  // Capacity is intentionally neutral until the event step has supplied its inputs.
+  // The final confirmation gate below remains unchanged and still requires AVAILABLE.
+  const capacityDisplayState = capacityMissingInputs ? "PENDING_INPUT" : capacityState;
   const shellSelectionRequired = capacityResult?.status === "REVIEW_REQUIRED" && capacityResult.shell?.status === "REVIEW";
   useEffect(() => {
     const requestId = ++capacityRequest.current;
@@ -1397,7 +1400,7 @@ export function NewProjectDrawer({
           ))}
         </div>
         <div className="border-b px-5 py-4 sm:px-7" data-capacity-section>
-          <CapacityStatusPanel result={capacityResult} loading={capacityLoading} missingInputs={capacityMissingInputs} progressiveState={capacityState} missingMessage={progressiveAvailabilityMessage(capacityState)} />
+          <CapacityStatusPanel result={capacityResult} loading={capacityLoading} missingInputs={capacityMissingInputs} progressiveState={capacityDisplayState} missingMessage={progressiveAvailabilityMessage(capacityDisplayState)} />
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 sm:p-7" data-reservation-wizard-scroll>
           {step === 0 && (
