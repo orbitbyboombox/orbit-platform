@@ -341,7 +341,7 @@ function InformationSender({
             <div className="mt-5">{data.company.emailSignatureUrl ? <>
               {/* The signature is a Founder-managed email asset with a dynamic external URL. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img alt="Firma gráfica BOOMBOX" className="h-auto w-full max-w-[600px]" src={data.company.emailSignatureUrl} />
+              <img alt="Firma gráfica BOOMBOX" className="h-auto w-full max-w-[420px]" src={data.company.emailSignatureUrl} />
             </> : <p className="font-semibold">Equipo BOOMBOX</p>}</div>
           </div>
         )}

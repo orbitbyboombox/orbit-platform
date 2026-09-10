@@ -117,7 +117,7 @@ export async function deliverCanonicalCatalogFromWhatsApp(input: {
     const paragraphs = body.split(/\n{2,}/).map((paragraph) => `<p style="margin:0 0 16px">${escapeHtml(paragraph).replaceAll("\n", "<br>")}</p>`).join("");
     const signatureUrl = typeof company.emailConfiguration.signatureGifUrl === "string" ? company.emailConfiguration.signatureGifUrl : "";
     const signatureHtml = signatureUrl
-      ? `<p style="margin:24px 0 0"><img src="${escapeHtml(signatureUrl)}" alt="BOOMBOX" style="display:block;max-width:600px;width:100%;height:auto;border:0"></p>`
+      ? `<p style="margin:24px 0 0"><img src="${escapeHtml(signatureUrl)}" alt="BOOMBOX" style="display:block;max-width:420px;width:100%;height:auto;border:0"></p>`
       : "<p><strong>Equipo BOOMBOX</strong></p>";
     const htmlBody = renderBoomboxCommercialEmail({
       preheader: "Conoce las experiencias BOOMBOX para tu evento.",

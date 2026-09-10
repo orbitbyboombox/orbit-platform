@@ -170,3 +170,14 @@ test("social redesign preserves recipients, optional PDF, idempotency, and Empre
   assert.match(actions, /input\.category !== "COMPANIES_CATALOG"/);
   assert.match(actions, /socialEmail\?\.html \?\? renderBoomboxCommercialEmail/);
 });
+
+test("graphical BOOMBOX signature stays compact across every email sender", () => {
+  const senders = [
+    source("features/commercial-hub/actions.ts"),
+    source("features/commercial-hub/social-plans-email.ts"),
+    source("features/connectors/whatsapp-cloud/whatsapp-catalog.delivery.ts"),
+  ].join("\n");
+  assert.equal((senders.match(/max-width:420px/g) ?? []).length, 4);
+  assert.doesNotMatch(senders, /max-width:600px/);
+  assert.match(source("features/commercial-hub/commercial-hub.tsx"), /max-w-\[420px\]/);
+});

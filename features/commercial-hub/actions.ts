@@ -201,7 +201,7 @@ export async function sendCommercialInformationAction(input: {
     if (downloaded?.error) throw downloaded.error;
     const signatureUrl = typeof company.emailConfiguration.signatureGifUrl === "string" ? company.emailConfiguration.signatureGifUrl : "";
     const signatureMode = commercialSignatureMode(signatureUrl);
-    const signature = signatureMode === "GRAPHICAL" ? `<p style="margin:24px 0 0"><img src="${escapeHtml(signatureUrl)}" alt="BOOMBOX" style="display:block;max-width:600px;width:100%;height:auto;border:0"></p>` : `<p style="margin:8px 0 0"><strong>Equipo BOOMBOX</strong></p>`;
+    const signature = signatureMode === "GRAPHICAL" ? `<p style="margin:24px 0 0"><img src="${escapeHtml(signatureUrl)}" alt="BOOMBOX" style="display:block;max-width:420px;width:100%;height:auto;border:0"></p>` : `<p style="margin:8px 0 0"><strong>Equipo BOOMBOX</strong></p>`;
     const cleanBody = withoutDuplicateSignature(withoutDuplicateSignature(body, company.emailSignature || "Equipo BOOMBOX"), "Equipo BOOMBOX");
     const richText = (paragraph: string) => paragraph.split(/(\*\*[^*]+\*\*)/g).map((part) => part.startsWith("**") && part.endsWith("**") ? `<strong>${escapeHtml(part.slice(2, -2))}</strong>` : escapeHtml(part)).join("").replaceAll("\n", "<br>");
     const htmlParagraphs = quickSendBodyParagraphs(cleanBody, input.name).map((paragraph) => {
@@ -425,7 +425,7 @@ export async function sendFormalQuoteAction(input: { quoteId: string; email: str
     }
     const signatureUrl = typeof company.emailConfiguration.signatureGifUrl === "string" ? company.emailConfiguration.signatureGifUrl : "";
     const signatureText = "Equipo BOOMBOX";
-    const signature = signatureUrl ? `<p><img src="${escapeHtml(signatureUrl)}" alt="BOOMBOX" style="display:block;max-width:600px;width:100%;height:auto;border:0"></p>` : `<p>${signatureText}</p>`;
+    const signature = signatureUrl ? `<p><img src="${escapeHtml(signatureUrl)}" alt="BOOMBOX" style="display:block;max-width:420px;width:100%;height:auto;border:0"></p>` : `<p>${signatureText}</p>`;
     const cleanBody = withoutDuplicateSignature(withoutDuplicateSignature(body, company.emailSignature || signatureText), signatureText);
     const htmlParagraphs = emailParagraphs(cleanBody).map((paragraph) => `<p style="margin:0 0 16px">${escapeHtml(paragraph).replaceAll("\n", "<br>")}</p>`).join("");
     const attachmentFilename = quoteDisplayFilename(quote.quotation_number);
