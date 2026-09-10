@@ -33,7 +33,7 @@ export async function createAutomaticBookingInvitation(email: string, actorId: s
 export async function loadAutomaticBookingInvitation(token: string) {
   const admin = createAdminClient();
   const now = new Date().toISOString();
-  const { data, error } = await admin.from("automatic_booking_invitations").select("id,customer_email,status,expires_at,opened_at").eq("token_hash", hash(token)).gt("expires_at", now).is("consumed_at", null).in("status", ["SENT", "OPENED"]).maybeSingle();
+  const { data, error } = await admin.from("automatic_booking_invitations").select("id,customer_email,status,expires_at,opened_at,payload").eq("token_hash", hash(token)).gt("expires_at", now).is("consumed_at", null).in("status", ["SENT", "OPENED"]).maybeSingle();
   if (error || !data) return null;
   if (!data.opened_at) await admin.from("automatic_booking_invitations").update({ opened_at: now, status: "OPENED" }).eq("id", data.id).eq("status", "SENT");
   return data;

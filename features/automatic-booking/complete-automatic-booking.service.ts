@@ -12,7 +12,7 @@ import { isValidChileanRut } from "@/lib/chile/rut";
 
 export interface AutomaticBookingSubmission {
   customer: { name: string; rut: string; phone: string; email: string; address: string };
-  event: { type: string; date: string; time: string; venue: string; address: string; municipality: string; operationalContact: string; operationalPhone: string };
+  event: { type: string; date: string; time: string; venue: string; address: string; municipality: string; operationalContact: string; operationalPhone: string; shell?: "WHITE" | "BLACK" };
   service: { code: string; hours: number; extras: string[]; brandingQuantity: number };
   payment: { method: "TRANSFER" | "MERCADO_PAGO"; receiptName: string; receiptType: string; receiptBase64: string };
   signatureDataUrl: string;
@@ -89,6 +89,10 @@ export async function completeAutomaticBooking(input: { token: string; submissio
     currentModule = "PROJECT_AND_EVENT360";
     const { error: projectError } = await measured("project_and_event360", async () => await admin.from("projects").insert({ id: projectId, customer_id: customerId, orbit_event_id: orbitEventId, name: input.submission.customer.name.trim(), project_type: input.submission.event.type, status: "Upcoming", health: "Healthy", event_date: input.submission.event.date, event_time: input.submission.event.time, location: input.submission.event.venue, city: input.submission.event.municipality, operations: { stage: "Capacidad pendiente", commercialStage: "Waiting", reservationMethod: "AUTOMATIC", notes, durationHours: input.submission.service.hours, extras: persistedExtras, brandingFaces:input.submission.service.extras.includes("Branding")?Math.max(1,input.submission.service.brandingQuantity):0 }, finance, created_by: actorId, updated_by: actorId }));
     if (projectError) throw projectError;
+    if (input.submission.event.shell) {
+      const { error: shellError } = await admin.from("project_operational_contracts").upsert({ project_id: projectId, shell_type: input.submission.event.shell, shell_selection_source: "FOUNDER", prepared_by: actorId, updated_by: actorId }, { onConflict: "project_id" });
+      if (shellError) throw shellError;
+    }
     currentModule = "RESERVATION_AND_CONTRACT";
     const quotationId = randomUUID();
     const issueDate = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(new Date());
@@ -181,6 +185,7 @@ export async function completeAutomaticBooking(input: { token: string; submissio
 function validate(input: AutomaticBookingSubmission) {
   if (!input.customer.name.trim() || !isValidChileanRut(input.customer.rut) || !/^\+569\d{8}$/.test(input.customer.phone)) throw new Error("Revisa tus datos personales.");
   if (!input.event.type || !input.event.date || !input.event.time || !input.event.venue || !input.event.municipality) throw new Error("Revisa la información del evento.");
+  if (["CLASSIC", "POLAROID", "BLACK_STUDIO", "INSTABOX"].includes(input.service.code) && input.event.type !== "Wedding" && !input.event.shell) throw new Error("La configuración física requiere revisión de Founder.");
   if (!input.service.code || input.service.hours < 1 || !input.signatureDataUrl.startsWith("data:image/png;base64,")) throw new Error("Revisa el servicio y la firma.");
   if (!input.payment.receiptBase64 || !["image/jpeg", "image/png", "image/webp", "application/pdf"].includes(input.payment.receiptType)) throw new Error("Adjunta un comprobante válido.");
 }

@@ -32,5 +32,7 @@ export default async function AutomaticBookingPage({ params }: { params: Promise
     return { code: item.code, name: item.label, configuration, availableHours: Array.from(new Set(pricedHours.length ? pricedHours : configuredHours)).sort((a, b) => a - b) };
   });
   const venues = (venuesConfig.venues ?? []).filter((item) => typeof item.name === "string" && (item.enabled ?? true) !== false).map((item) => ({ name: String(item.name), municipality: String(item.municipality ?? ""), province: String(item.province ?? ""), surcharge: Number(item.surcharge ?? 0) }));
-  return <AutomaticBookingExperience email={invitation.customer_email} municipalities={municipalities} prices={prices} services={services} token={token} venues={venues}/>;
+  const invitationPayload = (invitation.payload ?? {}) as Record<string, unknown>;
+  const initialShell = invitationPayload.shell === "WHITE" || invitationPayload.shell === "BLACK" ? invitationPayload.shell : undefined;
+  return <AutomaticBookingExperience email={invitation.customer_email} initialShell={initialShell} municipalities={municipalities} prices={prices} services={services} token={token} venues={venues}/>;
 }
