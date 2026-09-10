@@ -1,5 +1,8 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
+import { BrandSignature } from "@/components/brand-signature";
 import { UnifiedAccess, type AccessType } from "@/features/authentication/components/unified-access";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -16,18 +19,16 @@ export default async function OrbitHomePage({ searchParams }: { searchParams: Pr
   const initialAccess: AccessType = access === "customer" ? "CUSTOMER" : access === "staff" ? "STAFF" : "ADMIN";
   const message = error === "session-expired" ? "Tu sesión expiró. Vuelve a iniciar sesión." : error === "access-denied" ? "Este acceso no tiene permisos administrativos." : undefined;
 
-  return <main className="dark bbox-access-shell">
-    <section className="bbox-access-card">
-      <div className="bbox-brand-panel">
-        <div className="bbox-brand-top"><span className="bbox-brand-dot" /> <span>ORBIT NOVA</span></div>
-        <div className="bbox-brand-main"><BrandLogo className="bbox-brand-logo" priority surface="dark" /><span className="bbox-brand-overline">PLATAFORMA PRIVADA DE OPERACIÓN</span><h1>Gestión inteligente<br />para <em>tu operación.</em></h1><p>Una experiencia integrada para gestionar cada evento BOOMBOX.</p></div>
-        <div className="bbox-brand-bottom"><span>♢ &nbsp;Acceso seguro</span><span>✦ &nbsp;Operación centralizada · tiempo real</span></div>
+  return <main className="dark flex min-h-screen w-full items-center justify-center overflow-x-hidden bg-background p-3 text-foreground sm:p-4">
+    <section className="w-full max-w-2xl rounded-[2rem] border bg-card p-4 shadow-xl shadow-black/20 sm:p-6">
+      <Link className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-medium text-muted transition hover:bg-accent hover:text-foreground" href="https://www.boom-box.cl">
+        <ArrowLeft className="size-4" />Volver a BOOMBOX
+      </Link>
+      <div className="mb-4 text-center">
+        <div className="mx-auto flex h-20 items-center justify-center rounded-xl px-3 sm:h-24"><BrandLogo className="w-full max-w-[16rem] sm:max-w-[18rem]" priority surface="dark" /></div>
       </div>
-      <div className="bbox-form-panel">
-        <div className="bbox-form-top"><span>ORBIT / BOOMBOX</span><span className="bbox-status"><i /> Sistema operativo</span></div>
-        <UnifiedAccess initialAccess={initialAccess} initialMessage={message} />
-        <div className="bbox-access-footer"><span>ORBIT BOOMBOX</span><span>Powered by ORBIT NOVA</span></div>
-      </div>
+      <UnifiedAccess initialAccess={initialAccess} initialMessage={message} />
+      <BrandSignature className="mt-5 border-t pt-4 text-center" />
     </section>
   </main>;
 }

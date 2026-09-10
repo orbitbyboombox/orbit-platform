@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
-import { Eye, EyeOff, LogIn } from "lucide-react";
+import { LogIn } from "lucide-react";
 import { ActionButton } from "@/components/ui/action-button";
 import { signInAction } from "../actions/auth.actions";
 import { signInSchema, type SignInInput } from "../schemas/auth.schema";
@@ -14,7 +14,6 @@ interface LoginFormProps {
 
 export function LoginForm({ initialMessage }: LoginFormProps) {
   const [serverError, setServerError] = useState<string>();
-  const [showPassword, setShowPassword] = useState(false);
   const [isPending, startTransition] = useTransition();
   const { register, handleSubmit, formState: { errors } } = useForm<SignInInput>({ resolver: zodResolver(signInSchema), defaultValues: { email: "", password: "" } });
 
@@ -26,25 +25,25 @@ export function LoginForm({ initialMessage }: LoginFormProps) {
 
   return (
     <form className="space-y-3" noValidate onSubmit={handleSubmit(onSubmit)}>
-      <div className="bbox-field">
-        <label htmlFor="email">Correo electrónico</label>
-        <input aria-describedby={errors.email ? "email-error" : undefined} aria-invalid={Boolean(errors.email)} autoComplete="email" id="email" type="email" {...register("email")} />
+      <div>
+        <label className="mb-2 block text-sm font-medium" htmlFor="email">Correo electrónico</label>
+        <input aria-describedby={errors.email ? "email-error" : undefined} aria-invalid={Boolean(errors.email)} autoComplete="email" className="h-12 w-full rounded-lg border bg-background px-3.5 text-sm outline-none transition-colors focus:border-brand/70 focus:ring-2 focus:ring-brand/30" id="email" type="email" {...register("email")} />
         {errors.email && <p className="mt-1.5 text-xs text-danger" id="email-error">Ingresa un correo electrónico válido.</p>}
       </div>
-      <div className="bbox-field">
-        <label htmlFor="password">Contraseña</label>
-        <div className="bbox-password-wrap"><input aria-describedby={errors.password ? "password-error" : undefined} aria-invalid={Boolean(errors.password)} autoComplete="current-password" id="password" type={showPassword ? "text" : "password"} {...register("password")} /><button aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"} className="bbox-password-toggle" onClick={() => setShowPassword((value) => !value)} type="button">{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></div>
+      <div>
+        <label className="mb-2 block text-sm font-medium" htmlFor="password">Contraseña</label>
+        <input aria-describedby={errors.password ? "password-error" : undefined} aria-invalid={Boolean(errors.password)} autoComplete="current-password" className="h-12 w-full rounded-lg border bg-background px-3.5 text-sm outline-none transition-colors focus:border-brand/70 focus:ring-2 focus:ring-brand/30" id="password" type="password" {...register("password")} />
         {errors.password && <p className="mt-1.5 text-xs text-danger" id="password-error">La contraseña debe tener al menos 8 caracteres.</p>}
       </div>
-      <div className="bbox-access-options">
-        <label className="bbox-remember" htmlFor="remember-session">
-          <input defaultChecked id="remember-session" name="remember" type="checkbox" />
+      <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+        <label className="flex min-h-11 cursor-pointer items-center gap-2.5 text-muted transition-colors hover:text-foreground" htmlFor="remember-session">
+          <input className="size-4 rounded border-border accent-brand" defaultChecked id="remember-session" name="remember" type="checkbox" />
           Mantener sesión iniciada
         </label>
-        <a href="mailto:admin@orbit.boom-box.cl?subject=Recuperar%20acceso%20a%20ORBIT">¿Olvidaste tu contraseña?</a>
+        <a className="flex min-h-11 items-center font-medium text-brand underline-offset-4 transition-colors hover:text-brand/80 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60" href="mailto:admin@orbit.boom-box.cl?subject=Recuperar%20acceso%20a%20ORBIT">¿Olvidaste tu contraseña?</a>
       </div>
       {(serverError ?? initialMessage) && <p aria-live="polite" className="rounded-lg border border-danger/20 bg-danger-soft p-3 text-sm text-danger" role="alert">{serverError ?? initialMessage}</p>}
-      <ActionButton className="bbox-submit" disabled={isPending} icon={LogIn} label={isPending ? "Iniciando sesión..." : "INGRESAR A ORBIT"} type="submit" />
+      <ActionButton className="mt-2 h-12 w-full" disabled={isPending} icon={LogIn} label={isPending ? "Iniciando sesión..." : "Iniciar sesión"} type="submit" />
     </form>
   );
 }
