@@ -9,7 +9,7 @@ async function getSupabaseServerConfig() {
   return { cookieStore, publishableKey, url };
 }
 
-const authCookieOptions={httpOnly:true,path:"/",sameSite:"lax" as const,secure:process.env.NODE_ENV==="production"};
+const authCookieOptions={httpOnly:true,path:"/",maxAge:60*60*24*365,sameSite:"lax" as const,secure:process.env.NODE_ENV==="production"};
 
 export async function createSupabaseServerClient() {
   const { cookieStore, publishableKey, url } = await getSupabaseServerConfig();
