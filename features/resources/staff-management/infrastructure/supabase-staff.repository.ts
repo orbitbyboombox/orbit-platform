@@ -72,10 +72,8 @@ export class SupabaseStaffRepository implements StaffRepository {
   }
 
   async removeAssignment(assignmentId: string, reason: string): Promise<void> {
-    const assignment = await this.assignmentContext(assignmentId); const actorId = await this.actorId();
-    const { error } = await this.client.from("assignments").update({ deleted_at: new Date().toISOString(), reason, updated_by: actorId }).eq("id", assignmentId).is("deleted_at", null);
+    const { error } = await this.client.rpc("remove_staff_from_event_no_work", { p_assignment_id: assignmentId, p_reason: reason });
     if (error) throw error;
-    await this.timeline.append({ orbitEventId: assignment.projects.orbit_event_id, actorId, actorLabel: "Administrador", source: "Administrator", action: "STAFF_REMOVED", entityType: "Assignment", entityId: assignmentId, projectId: assignment.project_id, staffId: assignment.staff_id, previousState: assignment.status, newState: "REMOVED", humanMessage: "Colaborador retirado de la asignación.", correlationId: crypto.randomUUID() });
   }
 
   async respondToAssignment(assignmentId: string, response: "ACCEPTED" | "REJECTED" | "ASSISTANCE_REQUESTED", reason?: string): Promise<void> {

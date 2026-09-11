@@ -8,7 +8,7 @@ import type { StaffAssignmentDraft, StaffDraft, StaffUpdate } from "../infrastru
 type ActionResult = { ok: true } | { ok: false; error: string };
 const errorResult = (error: unknown): ActionResult => ({ ok: false, error: error instanceof Error ? error.message : "No fue posible actualizar Staff." });
 async function repository() { return new SupabaseStaffRepository(await createSupabaseServerClient()); }
-const refresh = () => revalidatePath("/resources/staff");
+const refresh = () => { revalidatePath("/resources/staff"); revalidatePath("/operations"); revalidatePath("/staff-portal"); revalidatePath("/projects", "layout"); };
 
 export async function createStaffAction(input: StaffDraft): Promise<ActionResult & { staffId?: string }> { try { const staffId = await (await repository()).create(input); refresh(); return { ok: true, staffId }; } catch (error) { return errorResult(error); } }
 export async function updateStaffAction(input: StaffUpdate): Promise<ActionResult> { try { await (await repository()).update(input); refresh(); return { ok: true }; } catch (error) { return errorResult(error); } }
