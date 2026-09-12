@@ -52,4 +52,4 @@ export function verifyAdapterRequest(timestamp: string, body: string, signature:
   return timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(signature, "hex"));
 }
 
-export function syncEnabled() { return process.env.RESILIENT_SYNC_ENABLED === "true"; }
+export function syncEnabled() { return Boolean(process.env.RESILIENT_SYNC_ENABLED) && process.env.RESILIENT_SYNC_ENABLED !== "false"; }
