@@ -37,6 +37,7 @@ import { sendAutomaticBookingInvitationAction } from "@/features/automatic-booki
 import { draftCapacityPreflightAction } from "@/features/capacity/draft-capacity.actions";
 import { CapacityStatusPanel, type CapacityResult } from "@/features/capacity/capacity-status-panel";
 import { progressiveAvailabilityMessage, progressiveAvailabilityState } from "@/features/capacity/progressive-availability";
+import { useResilientSync } from "@/components/resilient-sync/resilient-sync-provider";
 import { attachCustomerPurchaseOrderAction } from "@/features/commercial-documents/actions";
 import {
   corporateCreditDueDate,
@@ -484,6 +485,7 @@ export function NewProjectDrawer({
   onClose,
   onCreate,
 }: NewProjectDrawerProps) {
+  const resilient = useResilientSync();
   const [step, setStep] = useState(0);
   const [method, setMethod] = useState<"MANUAL" | "AUTOMATIC">("MANUAL");
   const [invitationEmail, setInvitationEmail] = useState("");
@@ -1168,6 +1170,12 @@ export function NewProjectDrawer({
             corporateVatApplied,
           }),
         );
+      }
+      if (!resilient.online) {
+        const queuedDraft = JSON.parse(JSON.stringify({ ...draft, reservationTransactionId }));
+        await resilient.enqueue({ resourceType: "RESERVATION_DRAFT", resourceLocalId: reservationTransactionId, action: "CREATE", payload: queuedDraft, idempotencyKey: `boombox:reservation-draft:${reservationTransactionId}` });
+        setError("Borrador guardado en este dispositivo. Recupera conexión y sincroniza antes de confirmar la reserva.");
+        return;
       }
       const serviceDetails = (
         Object.entries(configurations) as Array<

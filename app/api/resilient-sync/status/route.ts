@@ -1,0 +1,4 @@
+import { NextResponse } from "next/server";
+import { forwardToCore, requireLocalSyncActor, SYNC_CLIENT_SLUG, SYNC_ORGANIZATION_ID, syncEnabled } from "@/lib/resilient-sync/server";
+export const runtime = "nodejs";
+export async function GET() { try { if (!syncEnabled()) return NextResponse.json({ error: "RESILIENT_SYNC_DISABLED" }, { status: 404 }); const actor = await requireLocalSyncActor(); const query = new URLSearchParams({ organization_id: SYNC_ORGANIZATION_ID, client_slug: SYNC_CLIENT_SLUG }); const response = await forwardToCore(`/api/sync/status?${query}`, { method: "GET" }, actor); return NextResponse.json(await response.json(), { status: response.status }); } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "SYNC_STATUS_FAILED" }, { status: 403 }); } }

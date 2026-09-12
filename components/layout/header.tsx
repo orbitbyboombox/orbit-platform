@@ -18,6 +18,7 @@ import { signOutAction } from "@/features/authentication/actions/auth.actions";
 import { BrandLogo } from "@/components/brand-logo";
 import { useModuleManager } from "@/features/module-manager";
 import type { NavigationKey } from "./navigation";
+import { ResilientSyncIndicator } from "@/components/resilient-sync/resilient-sync-provider";
 
 export interface HeaderProps {
   userEmail: string;
@@ -26,9 +27,10 @@ export interface HeaderProps {
   actionableNotifications: number;
   navigationOrder: NavigationKey[];
   hiddenNavigation: NavigationKey[];
+  resilientSyncEnabled: boolean;
 }
 
-export function Header({ userEmail, userName, userRole, actionableNotifications, navigationOrder, hiddenNavigation }: HeaderProps) {
+export function Header({ userEmail, userName, userRole, actionableNotifications, navigationOrder, hiddenNavigation, resilientSyncEnabled }: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const { isEnabled } = useModuleManager();
@@ -53,6 +55,7 @@ export function Header({ userEmail, userName, userRole, actionableNotifications,
           <BrandLogo className="w-full" surface="dark" />
         </Link>
         <GlobalSearch />
+        {resilientSyncEnabled ? <ResilientSyncIndicator /> : null}
         {isEnabled("OPERATIONS") && <Button
           aria-label={`${actionableNotifications} pendientes por revisar`}
           asChild

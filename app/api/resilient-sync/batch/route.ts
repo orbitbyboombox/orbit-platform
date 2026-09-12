@@ -1,0 +1,4 @@
+import { NextResponse } from "next/server";
+import { forwardToCore, requireLocalSyncActor, SYNC_CLIENT_SLUG, SYNC_ORGANIZATION_ID, syncEnabled } from "@/lib/resilient-sync/server";
+export const runtime = "nodejs";
+export async function POST(request: Request) { try { if (!syncEnabled()) return NextResponse.json({ error: "RESILIENT_SYNC_DISABLED" }, { status: 404 }); const actor = await requireLocalSyncActor(); const input = await request.json(); const response = await forwardToCore("/api/sync/batch", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ organization_id: SYNC_ORGANIZATION_ID, client_slug: SYNC_CLIENT_SLUG, operations: input.operations }) }, actor); return NextResponse.json(await response.json(), { status: response.status }); } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "SYNC_FAILED" }, { status: 403 }); } }

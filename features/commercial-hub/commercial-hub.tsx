@@ -47,6 +47,7 @@ import { buildSocialPlansEmail } from "./social-plans-email";
 import { draftCapacityPreflightAction } from "@/features/capacity/draft-capacity.actions";
 import { CapacityStatusPanel, type CapacityResult } from "@/features/capacity/capacity-status-panel";
 import { progressiveAvailabilityMessage, progressiveAvailabilityState } from "@/features/capacity/progressive-availability";
+import { useResilientSync } from "@/components/resilient-sync/resilient-sync-provider";
 
 const money = new Intl.NumberFormat("es-CL", {
   style: "currency",
@@ -368,6 +369,7 @@ function InformationSender({
 }
 
 export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData; initialDraft?: FormalQuoteDraft }) {
+  const resilient = useResilientSync();
   const [persistedQuoteId, setPersistedQuoteId] = useState(initialDraft?.quoteId);
   const saveRequestIdRef = useRef(initialDraft?.quoteId ?? uid());
   const saveInFlightRef = useRef(false);
@@ -498,6 +500,13 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
           attachCatalog,
           lines,
         };
+        if (!resilient.online) {
+          const payload = JSON.parse(JSON.stringify(draft));
+          await resilient.enqueue({ resourceType: "QUOTE_DRAFT", resourceServerId: persistedQuoteId, action: persistedQuoteId ? "UPDATE" : "CREATE", payload });
+          setMessage("Cotización guardada en este dispositivo. El número oficial y los envíos se resolverán al sincronizar.");
+          saveRequestIdRef.current = uid();
+          return;
+        }
         const result = await createFormalQuoteAction(draft);
         setMessage(
           result.ok

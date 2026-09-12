@@ -18,5 +18,5 @@ export default async function PlatformLayout({ children }: { children: React.Rea
   if(isMetaReviewerRole(profile.role))return <>{children}</>;
   if(profile.role==="CEO")await synchronizeModuleCatalog(client,user.id);
   const [founderActionCount,modules,workspace]=await Promise.all([loadFounderActionCount(user.id),loadModuleStates(client),loadFounderWorkspace(client,user.id)]);
-  return <AppShell actionableNotifications={founderActionCount} modules={modules} userEmail={user.email} userName={profile.display_name||"Founder"} userRole={profile.role==="CEO"?"Founder":"Administrador"} workspace={workspace}><LegacyModalScrollGuard/>{children}</AppShell>;
+  return <AppShell actionableNotifications={founderActionCount} modules={modules} resilientSyncEnabled={process.env.RESILIENT_SYNC_ENABLED==="true"} userEmail={user.email} userId={user.id} userName={profile.display_name||"Founder"} userRole={profile.role==="CEO"?"Founder":"Administrador"} workspace={workspace}><LegacyModalScrollGuard/>{children}</AppShell>;
 }

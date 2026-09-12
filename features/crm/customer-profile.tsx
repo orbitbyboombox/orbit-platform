@@ -8,6 +8,7 @@ import type { CrmCustomerProfile } from "./types";
 import { updateCrmCustomerAction } from "./actions";
 import { RutInput } from "@/components/forms/rut-input";
 import { formatChileanRut } from "@/lib/chile/rut";
+import { useResilientSync } from "@/components/resilient-sync/resilient-sync-provider";
 
 const money = (value: number) => new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(value);
 const eventDate = (value: string) => new Intl.DateTimeFormat("es-CL", { timeZone: "UTC" }).format(new Date(`${value.slice(0, 10)}T12:00:00Z`));
@@ -15,11 +16,18 @@ const commercialDateTime = (value: string) => new Intl.DateTimeFormat("es-CL", {
 
 export function CustomerProfile({ customer }: { customer: CrmCustomerProfile }) {
   const router = useRouter();
+  const resilient = useResilientSync();
   const [editing, setEditing] = useState(false);
   const [customerType, setCustomerType] = useState(customer.customerType);
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
   const submit = (form: FormData) => startTransition(async () => {
+    if (!resilient.online) {
+      await resilient.enqueue({ resourceType: "CLIENT", resourceServerId: customer.id, baseVersion: customer.version, action: "UPDATE", payload: { full_name: String(form.get("fullName")), rut: String(form.get("rut")), company: String(form.get("company") ?? ""), phone: String(form.get("phone")), email: String(form.get("email")), secondary_email: String(form.get("secondaryEmail") ?? ""), address: String(form.get("address")) } });
+      setEditing(false);
+      window.alert("Cambio guardado en este dispositivo. Se sincronizará al recuperar conexión.");
+      return;
+    }
     const result = await updateCrmCustomerAction({ id: customer.id, customerType, fullName: String(form.get("fullName")), rut: String(form.get("rut")), company: String(form.get("company")??""), phone: String(form.get("phone")), email: String(form.get("email")), secondaryEmail: String(form.get("secondaryEmail")??""), address: String(form.get("address")), businessActivity:String(form.get("businessActivity")??""),billingAddress:String(form.get("billingAddress")??""),billingMunicipality:String(form.get("billingMunicipality")??""),billingEmail:String(form.get("billingEmail")??""),primaryContactFirstName:String(form.get("primaryContactFirstName")??""),primaryContactLastName:String(form.get("primaryContactLastName")??""),primaryContactPhone:String(form.get("primaryContactPhone")??""),primaryContactEmail:String(form.get("primaryContactEmail")??""), commercialNotes: String(form.get("commercialNotes")), contacts: parseContacts(String(form.get("contacts"))), reason: String(form.get("reason")) });
     if (!result.ok) return setError(result.error);
     setEditing(false); router.refresh();
