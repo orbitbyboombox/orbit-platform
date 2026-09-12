@@ -18,7 +18,7 @@ export async function loadCrmCustomerOperations(
       client.from("operational_assets").select("id,asset_code,asset_type,status").is("deleted_at", null).order("asset_code"),
       client.from("agreements").select("id,project_id,status,created_at").in("project_id", projectIds).order("created_at", { ascending: false }),
       client.from("documents").select("id,project_id,payment_id,document_type,storage_path,drive_file_id,drive_sync_status,drive_sync_error,drive_synced_at,original_filename,created_at,version,is_current,workflow_status").in("project_id", projectIds).is("deleted_at", null).order("created_at", { ascending: false }),
-      client.from("calendar_sync").select("project_id,status,external_event_id,external_url").in("project_id", projectIds),
+      client.from("calendar_sync").select("project_id,status,external_event_id,external_url,nova_external_event_id,nova_external_url").in("project_id", projectIds),
       client.from("customer_portal_tokens").select("project_id").in("project_id", projectIds).is("revoked_at", null),
       client.from("invoices").select("id,project_id,invoice_number,status,amount,due_date").in("project_id", projectIds).is("deleted_at", null).order("created_at", { ascending: false }),
       client.from("financial_event_records").select("project_id,revenue,personnel_cost,operational_resources_cost,total_operational_cost,net_profit,net_margin,cost_breakdown,calculated_at").in("project_id", projectIds),
@@ -136,7 +136,7 @@ export async function loadCrmCustomerOperations(
       },
       agreement: agreement ? { id: agreement.id, status: agreement.status, quotationId: quotation?.id } : null,
       documents: (documents.data ?? []).filter((item) => item.project_id === projectId).map((item) => ({ id: item.id, type: item.document_type, storagePath: item.storage_path, driveFileId: item.drive_file_id, createdAt: item.created_at, version: Number(item.version ?? 1), isCurrent: item.is_current !== false, workflowStatus: item.workflow_status ?? null })),
-      calendar: calendar ? { status: calendar.status, externalUrl: calendar.external_url, externalEventId: calendar.external_event_id } : null,
+      calendar: calendar ? { status: calendar.status, externalUrl: calendar.nova_external_url ?? calendar.external_url, externalEventId: calendar.nova_external_event_id ?? calendar.external_event_id } : null,
       portalActive: (portals.data ?? []).some((item) => item.project_id === projectId),
       invoices: (invoices.data ?? []).filter((item) => item.project_id === projectId).map((item) => ({ id: item.id, number: item.invoice_number, status: item.status, amount: Number(item.amount ?? 0), dueDate: item.due_date })),
       expenses: (expenses.data ?? []).filter((item) => item.project_id === projectId).map((item) => {

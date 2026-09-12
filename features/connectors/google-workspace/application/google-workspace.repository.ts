@@ -6,6 +6,7 @@ import type { GoogleWorkspaceProviderSession } from "../provider/google-workspac
 import type { GoogleWorkspaceConnection, GoogleWorkspaceService } from "../types/google-workspace.types";
 import { GoogleWorkspaceOAuthProvider } from "../provider/google-workspace-oauth.provider";
 import { getGoogleWorkspaceEnvironment } from "../provider/google-workspace.config";
+import { disconnectNOVAGoogle, loadNOVAGoogleAccessToken, loadNOVAGoogleHealth, usesNOVAGoogleCore } from "./google-nova-core";
 
 interface StoredConnection {
   id: string;
@@ -59,6 +60,27 @@ export async function saveGoogleWorkspaceSession(session: GoogleWorkspaceProvide
 }
 
 export async function loadGoogleWorkspaceConnection(): Promise<GoogleWorkspaceConnection> {
+  if (usesNOVAGoogleCore()) {
+    const health = await loadNOVAGoogleHealth();
+    const connected = health.health === "HEALTHY";
+    const granted = {
+      CALENDAR: health.services.calendar === "HEALTHY",
+      DRIVE: health.services.drive === "HEALTHY",
+      GMAIL: health.services.email === "HEALTHY",
+    } as const;
+    return {
+      workspaceAccount: health.account_email ?? undefined,
+      workspaceDomain: health.account_email?.split("@")[1],
+      connectionStatus: connected ? "CONNECTED" : "ERROR",
+      tokenStatus: connected ? "HEALTHY" : "REFRESH_REQUIRED",
+      health: connected ? "HEALTHY" : "ATTENTION_REQUIRED",
+      grantedServices: GOOGLE_WORKSPACE_SERVICES.map((service) => ({ ...service, granted: granted[service.id] })),
+      lastVerifiedAt: health.last_verified_at ?? undefined,
+      calendarId: health.provider_config.calendar_id ?? undefined,
+      driveRootFolderId: health.provider_config.drive_root_folder_id ?? undefined,
+      source: "NOVA",
+    };
+  }
   const admin = createAdminClient();
   const { data, error } = await admin.from("google_workspace_connections").select("id,workspace_account,workspace_domain,connection_status,access_token,refresh_token,token_expires_at,scopes,connected_at,last_verified_at").eq("singleton_key", "PRIMARY").maybeSingle<StoredConnection>();
   if (error) throw error;
@@ -89,10 +111,12 @@ export async function loadGoogleWorkspaceConnection(): Promise<GoogleWorkspaceCo
     tokenStatus,
     health: resolveConnectionHealth("CONNECTED", tokenStatus),
     grantedServices: GOOGLE_WORKSPACE_SERVICES.map((service) => ({ ...service, granted: services.includes(service.id) })),
+    source: "LEGACY",
   };
 }
 
 export async function loadGoogleWorkspaceAccessToken(): Promise<string> {
+  if (usesNOVAGoogleCore()) return loadNOVAGoogleAccessToken();
   const connection = await loadGoogleWorkspaceConnection();
   if (connection.connectionStatus !== "CONNECTED" || connection.tokenStatus !== "HEALTHY") throw new Error("Google Workspace requiere reconexión.");
   const { data, error } = await createAdminClient().from("google_workspace_connections").select("access_token").eq("singleton_key", "PRIMARY").single<{ access_token: string | null }>();
@@ -101,7 +125,18 @@ export async function loadGoogleWorkspaceAccessToken(): Promise<string> {
   return data.access_token;
 }
 
+export async function loadGoogleWorkspaceCalendarId(): Promise<string> {
+  const connection = await loadGoogleWorkspaceConnection();
+  if (connection.source === "NOVA" && connection.calendarId) return connection.calendarId;
+  return "primary";
+}
+
 export async function disconnectGoogleWorkspace(actorId: string) {
+  if (usesNOVAGoogleCore()) {
+    await disconnectNOVAGoogle();
+    await appendGoogleTimeline("GOOGLE_DISCONNECTED", "Google Workspace desconectado correctamente mediante NOVA.", actorId);
+    return;
+  }
   const admin = createAdminClient();
   const { data, error: readError } = await admin.from("google_workspace_connections").select("refresh_token,access_token").eq("singleton_key", "PRIMARY").maybeSingle<{ refresh_token: string | null; access_token: string | null }>();
   if (readError) throw readError;

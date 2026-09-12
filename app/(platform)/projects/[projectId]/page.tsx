@@ -166,7 +166,7 @@ export default async function ProjectWorkspacePage({
       .is("deleted_at", null),
     client
       .from("calendar_sync")
-      .select("status,external_event_id,external_url")
+      .select("status,external_event_id,external_url,nova_external_event_id,nova_external_url")
       .eq("project_id", projectId)
       .maybeSingle(),
     client
@@ -673,8 +673,8 @@ export default async function ProjectWorkspacePage({
       : undefined,
     calendar: {
       status: calendarSync?.status ?? "PENDING",
-      googleEventId: calendarSync?.external_event_id ?? undefined,
-      googleEventUrl: calendarSync?.external_url ?? undefined,
+      googleEventId: calendarSync?.nova_external_event_id ?? calendarSync?.external_event_id ?? undefined,
+      googleEventUrl: calendarSync?.nova_external_url ?? calendarSync?.external_url ?? undefined,
     },
     readiness: [
       {
@@ -878,7 +878,7 @@ export default async function ProjectWorkspacePage({
     })),
     google: {
       calendarStatus: calendarSync?.status ?? "PENDING",
-      calendarUrl: calendarSync?.external_url ?? undefined,
+      calendarUrl: calendarSync?.nova_external_url ?? calendarSync?.external_url ?? undefined,
       driveStatus: (driveSync ?? []).some((item) => item.status === "ERROR")
         ? "ERROR"
         : (driveSync ?? []).some((item) => item.status === "SYNCING")

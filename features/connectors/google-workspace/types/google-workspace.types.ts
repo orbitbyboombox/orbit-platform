@@ -21,6 +21,9 @@ export interface GoogleWorkspaceConnection {
   grantedServices: readonly GrantedGoogleService[];
   health: GoogleWorkspaceConnectionHealth;
   lastVerifiedAt?: string;
+  calendarId?: string;
+  driveRootFolderId?: string;
+  source?: "LEGACY" | "NOVA";
 }
 
 export interface GoogleWorkspaceAuthorizationRequest {

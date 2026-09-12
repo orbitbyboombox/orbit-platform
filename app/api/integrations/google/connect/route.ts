@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createGoogleWorkspaceAuthorization } from "@/features/connectors/google-workspace/application/google-workspace.authorization";
 import { getGoogleWorkspaceAdministrator } from "@/features/connectors/google-workspace/application/google-workspace.authorization.guard";
+import { createNOVAGoogleHandoff, usesNOVAGoogleCore } from "@/features/connectors/google-workspace/application/google-nova-core";
 
 export async function GET(request: NextRequest) {
   const user = await getGoogleWorkspaceAdministrator();
   if (!user) return NextResponse.redirect(new URL("/login", request.nextUrl.origin));
 
   try {
+    if (usesNOVAGoogleCore()) {
+      const returnUrl = new URL("/settings?section=connections", request.nextUrl.origin).toString();
+      return NextResponse.redirect(await createNOVAGoogleHandoff(returnUrl));
+    }
     const authorization = createGoogleWorkspaceAuthorization();
     const response = NextResponse.redirect(authorization.authorizationUrl);
     const secure = process.env.NODE_ENV === "production";

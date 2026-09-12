@@ -25,7 +25,7 @@ export async function deliverFounderReservationNotification(input: { projectId: 
   if (existing?.status === "SENT") return { status: "SKIPPED", messageId: existing.external_message_id ?? undefined };
   const [{ data: project, error: projectError }, { data: calendar }, { count: portalCount }, company, { data: operational }, { data: financial, error: financialError }] = await Promise.all([
     admin.from("projects").select("id,customer_id,orbit_event_id,name,project_type,event_date,operations,customers!inner(full_name,metadata),project_services(service_code,duration_hours),agreements(status),quotations(quotation_number,customer_type)").eq("id", input.projectId).is("deleted_at", null).single(),
-    admin.from("calendar_sync").select("external_event_id").eq("project_id", input.projectId).maybeSingle(),
+    admin.from("calendar_sync").select("external_event_id,nova_external_event_id").eq("project_id", input.projectId).maybeSingle(),
     admin.from("customer_portal_tokens").select("id", { count: "exact", head: true }).eq("project_id", input.projectId).is("revoked_at", null),
     loadCompanySettings(admin),
     admin.from("project_operational_contracts").select("service_start_at,service_end_at").eq("project_id", input.projectId).maybeSingle(),
@@ -67,7 +67,7 @@ export async function deliverFounderReservationNotification(input: { projectId: 
     integrations: [
       { label: "Cliente", ready: Boolean(customer?.full_name) },
       { label: "Evento", ready: Boolean(project.id && project.orbit_event_id) },
-      { label: "Google Calendar", ready: Boolean(calendar?.external_event_id) },
+      { label: "Google Calendar", ready: Boolean(calendar?.nova_external_event_id ?? calendar?.external_event_id) },
       { label: "Google Drive", ready: Boolean(drive.folderId) },
       { label: "Portal", ready: Boolean(portalCount) },
       { label: "Finanzas", ready: amount > 0 },
