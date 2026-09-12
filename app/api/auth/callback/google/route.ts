@@ -37,7 +37,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(destination);
   }
 
-  await saveGoogleWorkspaceSession(result.session, user.id);
+  try {
+    await saveGoogleWorkspaceSession(result.session, user.id);
+  } catch {
+    destination.searchParams.set("google", "persistence-error");
+    return NextResponse.redirect(destination);
+  }
   destination.searchParams.set("google", "connected");
   const response = NextResponse.redirect(destination);
   response.cookies.delete("orbit_google_oauth_state");

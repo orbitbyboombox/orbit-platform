@@ -1,7 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createDisconnectedGoogleWorkspaceConnection, GOOGLE_WORKSPACE_SERVICES, resolveConnectionHealth } from "./google-workspace.connector";
+import { createDisconnectedGoogleWorkspaceConnection, GOOGLE_WORKSPACE_SERVICES, resolveConnectionHealth, selectRefreshToken } from "./google-workspace.connector";
 import type { GoogleWorkspaceProviderSession } from "../provider/google-workspace.provider";
 import type { GoogleWorkspaceConnection, GoogleWorkspaceService } from "../types/google-workspace.types";
 import { GoogleWorkspaceOAuthProvider } from "../provider/google-workspace-oauth.provider";
@@ -29,20 +29,25 @@ function grantedServices(scopes: readonly string[]): GoogleWorkspaceService[] {
 }
 
 export async function saveGoogleWorkspaceSession(session: GoogleWorkspaceProviderSession, actorId: string) {
-  if (!session.tokens.refreshToken) throw new Error("Google did not return a refresh token.");
   const admin = createAdminClient();
+  const { data: existing, error: existingError } = await admin.from("google_workspace_connections").select("refresh_token").eq("singleton_key", "PRIMARY").maybeSingle<{ refresh_token: string | null }>();
+  if (existingError) throw existingError;
+  const refreshToken = selectRefreshToken(session.tokens.refreshToken, existing?.refresh_token);
+  if (!refreshToken) throw new Error("Google did not return a refresh token.");
+  const now = new Date().toISOString();
   const { error } = await admin.from("google_workspace_connections").upsert({
     singleton_key: "PRIMARY",
     workspace_account: session.account,
     workspace_domain: session.domain,
     connection_status: "CONNECTED",
     access_token: session.tokens.accessToken,
-    refresh_token: session.tokens.refreshToken,
+    refresh_token: refreshToken,
     token_expires_at: session.tokens.expiresAt,
     scopes: session.tokens.scopes,
     connected_at: session.connectedSince,
     disconnected_at: null,
-    last_verified_at: new Date().toISOString(),
+    last_verified_at: now,
+    updated_at: now,
     updated_by: actorId,
   }, { onConflict: "singleton_key" });
   if (error) throw error;
@@ -66,8 +71,10 @@ export async function loadGoogleWorkspaceConnection(): Promise<GoogleWorkspaceCo
     if (refreshed.ok) {
       scopes = [...refreshed.session.tokens.scopes];
       expiresAt = refreshed.session.tokens.expiresAt;
-      const { error: refreshError } = await admin.from("google_workspace_connections").update({ access_token: refreshed.session.tokens.accessToken, refresh_token: refreshed.session.tokens.refreshToken, token_expires_at: expiresAt, scopes, last_verified_at: new Date().toISOString() }).eq("singleton_key", "PRIMARY");
+      const { error: refreshError } = await admin.from("google_workspace_connections").update({ access_token: refreshed.session.tokens.accessToken, refresh_token: selectRefreshToken(refreshed.session.tokens.refreshToken, data.refresh_token), token_expires_at: expiresAt, scopes, last_verified_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("singleton_key", "PRIMARY");
       if (refreshError) throw refreshError;
+    } else {
+      console.error(JSON.stringify({ event: "google_workspace_token_refresh_failed", code: refreshed.error.code, message: refreshed.error.message.replace(/(access_token|refresh_token|client_secret|client_id)=[^\s&]+/gi, "$1=[redacted]") }));
     }
   }
   const services = grantedServices(scopes);
