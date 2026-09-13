@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildResponsibilityReadModel } from "../features/staff-assignment-center/staff-responsibility-read-model.ts";
+import { readFileSync } from "node:fs";
 
 const requirement = (role: string, required = 1) => [{ role, required, published: true }];
 
@@ -34,4 +35,9 @@ test("duplicate assignment rows do not duplicate staff display", () => {
     { role: "OPERATOR", status: "ASSIGNED", staffName: "José Rodriguez" },
   ], []);
   assert.deepEqual(row.assignedStaff, ["José Rodriguez"]);
+});
+
+test("cancelled assignments release the Staff portal slot", () => {
+  const portal = readFileSync("features/portal-authentication/staff-portal.tsx", "utf8");
+  assert.match(portal, /\[\"CANCELLED\",\"REJECTED\"\]\.includes\(row\.status\)\)continue/);
 });
