@@ -80,6 +80,7 @@ import {
   type EventProfitabilityData,
 } from "./event-profitability-panel";
 import { saveFounderWorkspaceAction } from "@/features/founder-workspace/actions";
+import { synchronizeProjectCalendarAction } from "@/features/connectors/google-calendar";
 import type {
   EventModuleKey,
   FounderWorkspacePreferences,
@@ -402,6 +403,18 @@ export function ProjectWorkspaceExperience(
     props.workspacePreferences,
   );
   const [, startWorkspaceTransition] = useTransition();
+  const syncCalendarFromQuickAction = () =>
+    startWorkspaceTransition(async () => {
+      const result = await synchronizeProjectCalendarAction(
+        props.projectKey ?? "",
+        "UPSERT",
+      );
+      setCustomerDeleteFeedback(
+        result.ok
+          ? `Google Calendar: ${result.operation.toLowerCase()}.`
+          : result.error,
+      );
+    });
   const event = props.event360;
   const photoStripEligible = requiresPhotoStripDesign(event.services.map((service) => service.code));
   const photoStripDocuments = event.documents
@@ -1472,7 +1485,7 @@ export function ProjectWorkspaceExperience(
               <ActionButton
                 icon={CalendarDays}
                 label="Generar Calendar"
-                onClick={() => scroll("event-readiness")}
+                onClick={syncCalendarFromQuickAction}
                 variant="outline"
               />
               <ActionButton
