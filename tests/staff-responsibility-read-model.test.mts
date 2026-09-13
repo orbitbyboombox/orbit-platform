@@ -65,3 +65,10 @@ test("multi-role preview uses the canonical combined assembly rate", () => {
   assert.match(ui, /roles\.includes\("ASSEMBLY"\)&&roles\.includes\("DISASSEMBLY"\)/);
   assert.match(ui, /selectableRoles=event\.available\.filter/);
 });
+
+test("operational PWA never serves a cached app shell", () => {
+  const sw = readFileSync("public/orbit-resilient-sync-sw.js", "utf8");
+  assert.match(sw, /orbit-resilient-sync-shell-v2/);
+  assert.doesNotMatch(sw, /\["document", "script"/);
+  assert.match(sw, /caches\.delete\(key\)/);
+});

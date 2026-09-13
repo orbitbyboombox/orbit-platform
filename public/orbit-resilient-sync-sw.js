@@ -1,4 +1,4 @@
-const CACHE = "orbit-resilient-sync-shell-v1";
+const CACHE = "orbit-resilient-sync-shell-v2";
 const SYNC_TAG = "orbit-resilient-sync";
 
 const safeRequest = (request) => {
@@ -8,11 +8,16 @@ const safeRequest = (request) => {
     && !url.pathname.startsWith("/api/")
     && !url.pathname.startsWith("/auth/")
     && !url.search
-    && ["document", "script", "style", "font", "image"].includes(request.destination);
+    // Never cache the operational app shell. Navigation must always observe
+    // the current deployment; hashed static assets remain safely cacheable.
+    && ["script", "style", "font", "image"].includes(request.destination);
 };
 
 self.addEventListener("install", (event) => event.waitUntil(self.skipWaiting()));
-self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
+self.addEventListener("activate", (event) => event.waitUntil((async () => {
+  for (const key of await caches.keys()) if (key !== CACHE) await caches.delete(key);
+  await self.clients.claim();
+})()));
 self.addEventListener("fetch", (event) => {
   if (!safeRequest(event.request)) return;
   event.respondWith((async () => {
