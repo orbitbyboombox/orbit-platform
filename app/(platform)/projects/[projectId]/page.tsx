@@ -13,6 +13,8 @@ import type { EquipmentAssignmentPanelProps } from "@/features/asset-management"
 import type { EventLogisticsData } from "@/features/operations/event-logistics-center";
 import { resolveReceivablePaymentCategory } from "@/features/accounts-receivable/payment-term-classification";
 import { requiresPhotoStripDesign } from "@/features/business-core/catalog/service.catalog";
+import { getCanonicalOrbitEventState } from "@/features/operations/canonical-event-state";
+import { chileDateTime } from "@/features/operations/event-operational-window";
 
 export interface ProjectWorkspacePageProps {
   params: Promise<{ projectId: string }>;
@@ -251,6 +253,7 @@ export default async function ProjectWorkspacePage({
     .eq("project_id", projectId)
     .maybeSingle();
   if (commercialOriginError) throw commercialOriginError;
+  const canonicalEvent = await getCanonicalOrbitEventState(client, projectId);
   const { data: staffRoleRequirements, error: staffRoleRequirementError } =
     await client
       .from("event_staff_requirements")
@@ -1263,9 +1266,10 @@ export default async function ProjectWorkspacePage({
           staffName: `${item.staff.first_name} ${item.staff.last_name}`,
           role: item.assignment_type,
           status: item.status,
-          arrivalTime: item.arrival_time?.slice(0, 5) ?? "",
-          startTime: item.start_time?.slice(0, 5) ?? "",
-          finishTime: item.finish_time?.slice(0, 5) ?? "",
+          arrivalTime: canonicalEvent ? chileDateTime(canonicalEvent.staffCallAt).time : "",
+          startTime: canonicalEvent ? chileDateTime(canonicalEvent.serviceStartAt).time : "",
+          finishTime: canonicalEvent ? chileDateTime(canonicalEvent.serviceEndAt).time : "",
+          canonical: canonicalEvent ? { serviceStartAt: canonicalEvent.serviceStartAt, serviceEndAt: canonicalEvent.serviceEndAt, staffCallAt: canonicalEvent.staffCallAt, staffCallSource: canonicalEvent.staffCallSource } : undefined,
           vehicleId: item.assigned_vehicle ?? "",
           vehicleName: item.operational_assets?.asset_code ?? "",
           observations: item.observations ?? "",

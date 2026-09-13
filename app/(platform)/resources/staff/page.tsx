@@ -27,6 +27,7 @@ import type {
   StaffDocumentView,
 } from "@/features/staff-documents/staff-document-model";
 import {mapStaffMonthlyAccount,STAFF_MONTHLY_ACCOUNT_SELECT} from "@/features/staff-monthly-account/model";
+import { getCanonicalOrbitEventStates } from "@/features/operations/canonical-event-state";
 
 export default async function StaffManagementPage({searchParams}:{searchParams:Promise<{reviewOnboarding?:string;reviewAccount?:string}>}) {
   const {reviewOnboarding,reviewAccount}=await searchParams;
@@ -126,6 +127,7 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
   if (staffDocumentsError) throw staffDocumentsError;
   if (staffExpenseDocumentsError) throw staffExpenseDocumentsError;
   if (monthlyAccountsError) throw monthlyAccountsError;
+  const canonicalEvents = await getCanonicalOrbitEventStates(client, (assignments ?? []).map((item) => item.project_id));
   const { data: expenseDocumentMetadata, error: expenseDocumentMetadataError } =
     await client
       .from("documents")
@@ -240,6 +242,7 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
               arrivalTime: item.arrival_time?.slice(0, 5) ?? "",
               startTime: item.start_time?.slice(0, 5) ?? "",
               finishTime: item.finish_time?.slice(0, 5) ?? "",
+              canonical: canonicalEvents.get(item.project_id) ?? undefined,
             },
           ];
         });

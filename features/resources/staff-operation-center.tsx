@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+const chileTime=(value:string|null|undefined)=>value?new Intl.DateTimeFormat("es-CL",{timeZone:"America/Santiago",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(new Date(value)):"—";
 import {
   CalendarPlus,
   Eye,
@@ -690,9 +691,7 @@ function AssignmentList({
               {assignment.vehicle} · {assignment.role} · {assignment.status}
             </p>
             <p className="mt-1 text-xs text-muted">
-              Llegada {assignment.arrivalTime || "—"} · Inicio{" "}
-              {assignment.startTime || "—"} · Término{" "}
-              {assignment.finishTime || "—"}
+              Citación Staff {chileTime(assignment.canonical?.staffCallAt)} · Inicio {chileTime(assignment.canonical?.serviceStartAt)} · Término {chileTime(assignment.canonical?.serviceEndAt)}
             </p>
           </div>
         ))}

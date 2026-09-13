@@ -14,6 +14,8 @@ import { loadModuleStates } from "@/features/module-manager/repository";
 import { PersonalWorkspaceSections } from "@/features/founder-workspace";
 import { ServiceAssetMappingManager } from "@/features/resources/service-asset-mapping";
 import type { ServiceAssetMapping } from "@/features/resources/service-asset-mapping.actions";
+import { getCanonicalOrbitEventStates } from "@/features/operations/canonical-event-state";
+import { chileDateTime } from "@/features/operations/event-operational-window";
 
 export default async function ResourcesPage() {
   const client = await createSupabaseServerClient();
@@ -42,9 +44,10 @@ export default async function ResourcesPage() {
   if (fuelError) throw fuelError;
   if (routeError) throw routeError;
   if (serviceMappingError) throw serviceMappingError;
+  const canonicalEvents = await getCanonicalOrbitEventStates(client, (projects ?? []).map((project) => project.id));
   const projectMap = new Map((projects ?? []).map((project) => [project.id, project.name]));
   const assetAssignmentMap = new Map<string, {projectId:string;eventName:string|null;eventDate:string|null;eventTime:string|null}>();
-  (assetAssignments ?? []).forEach((row: { asset_id: string; project_id: string; projects: unknown }) => { const project = (Array.isArray(row.projects) ? row.projects[0] : row.projects) as { name?: string|null; event_date?: string|null; event_time?: string|null }|null; if (!assetAssignmentMap.has(row.asset_id)) assetAssignmentMap.set(row.asset_id, { projectId: row.project_id, eventName: project?.name ?? null, eventDate: project?.event_date ?? null, eventTime: project?.event_time ?? null }); });
+  (assetAssignments ?? []).forEach((row: { asset_id: string; project_id: string; projects: unknown }) => { const project = (Array.isArray(row.projects) ? row.projects[0] : row.projects) as { name?: string|null; event_date?: string|null; event_time?: string|null }|null; const canonical=canonicalEvents.get(row.project_id); if (!assetAssignmentMap.has(row.asset_id)) assetAssignmentMap.set(row.asset_id, { projectId: row.project_id, eventName: project?.name ?? null, eventDate: project?.event_date ?? null, eventTime: canonical ? chileDateTime(canonical.serviceStartAt).time : project?.event_time ?? null }); });
   const status = (value: string): ResourceStatus => value === "APPROVED" || value === "ACCEPTED" ? "RESERVED" : value === "ACTIVE" ? "IN_USE" : "AVAILABLE";
   const resourceValues = (key: string) => [...new Set((assignments ?? []).map((item) => (item.resources as Record<string, unknown> | null)?.[key]).filter((value): value is string => typeof value === "string" && value.length > 0))];
   const input: OperationsBoardInput = {

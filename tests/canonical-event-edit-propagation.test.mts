@@ -44,9 +44,9 @@ test("hotfix does not mutate customer communications, historical agreements, or 
   assert.match(commercialFreeze,/if not commercial_locked then/);
   assert.doesNotMatch(commercialFreeze,/invoice_payments|paid_amount/i);
 });
-test("Staff portal and downloadable Calendar consume the current operational contract",()=>{
-  assert.match(staffPortal,/service_start_at,service_end_at,staff_arrival_at/);
+test("Staff portal and downloadable Calendar consume the canonical event read model",()=>{
+  assert.match(staffPortal,/getCanonicalOrbitEventStates/);
   assert.match(staffPortal,/canonicalStart/);
-  assert.match(staffCalendar,/project_operational_contracts/);
+  assert.match(staffCalendar,/getCanonicalOrbitEventState/);
   assert.match(staffCalendar,/compact\(end\.date,end\.time\)/);
 });
