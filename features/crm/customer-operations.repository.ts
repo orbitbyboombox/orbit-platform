@@ -127,7 +127,7 @@ export async function loadCrmCustomerOperations(
             id: item.id, staffId: item.staff_id,
             staffName: member ? `${member.first_name} ${member.last_name}` : "Staff sin ficha",
             role: item.assignment_type, status: item.status,
-            arrivalTime: item.staff_call_at?.slice(0, 5) ?? item.arrival_time?.slice(0, 5) ?? "", startTime: item.start_time?.slice(0, 5) ?? "", finishTime: item.finish_time?.slice(0, 5) ?? "",
+            arrivalTime: item.staff_call_at?.slice(0, 5) ?? "", startTime: item.start_time?.slice(0, 5) ?? "", finishTime: item.finish_time?.slice(0, 5) ?? "",
             vehicleId: item.assigned_vehicle ?? "", vehicleName: vehicle?.asset_code ?? "", observations: item.observations ?? "",
           };
         }),

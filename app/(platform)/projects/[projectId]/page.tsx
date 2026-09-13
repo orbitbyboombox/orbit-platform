@@ -13,6 +13,7 @@ import type { EquipmentAssignmentPanelProps } from "@/features/asset-management"
 import type { EventLogisticsData } from "@/features/operations/event-logistics-center";
 import { resolveReceivablePaymentCategory } from "@/features/accounts-receivable/payment-term-classification";
 import { requiresPhotoStripDesign } from "@/features/business-core/catalog/service.catalog";
+import { chileDateTime } from "@/features/operations/event-operational-window";
 
 export interface ProjectWorkspacePageProps {
   params: Promise<{ projectId: string }>;
@@ -1264,7 +1265,7 @@ export default async function ProjectWorkspacePage({
           staffName: `${item.staff.first_name} ${item.staff.last_name}`,
           role: item.assignment_type,
           status: item.status,
-          arrivalTime: item.staff_call_at?.slice(0, 5) ?? item.arrival_time?.slice(0, 5) ?? "",
+          arrivalTime: item.staff_call_at ? chileDateTime(item.staff_call_at).time : "",
           startTime: item.start_time?.slice(0, 5) ?? "",
           finishTime: item.finish_time?.slice(0, 5) ?? "",
           vehicleId: item.assigned_vehicle ?? "",

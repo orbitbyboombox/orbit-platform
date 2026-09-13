@@ -27,6 +27,7 @@ import type {
   StaffDocumentView,
 } from "@/features/staff-documents/staff-document-model";
 import {mapStaffMonthlyAccount,STAFF_MONTHLY_ACCOUNT_SELECT} from "@/features/staff-monthly-account/model";
+import { chileDateTime, resolveCanonicalStaffCallAt } from "@/features/operations/event-operational-window";
 
 export default async function StaffManagementPage({searchParams}:{searchParams:Promise<{reviewOnboarding?:string;reviewAccount?:string}>}) {
   const {reviewOnboarding,reviewAccount}=await searchParams;
@@ -55,7 +56,7 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
     client
       .from("assignments")
       .select(
-        "id,staff_id,project_id,assignment_type,status,resources,arrival_time,start_time,finish_time,assigned_vehicle,projects!inner(name,project_type,event_date),operational_assets(asset_code)",
+        "id,staff_id,project_id,assignment_type,status,resources,staff_call_at,staff_call_source,arrival_time,start_time,finish_time,assigned_vehicle,projects!inner(name,project_type,event_date,event_time),operational_assets(asset_code)",
       )
       .is("deleted_at", null)
       .order("created_at", { ascending: false }),
@@ -237,7 +238,11 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
                   : "Sin vehículo"),
               role: item.assignment_type,
               status: item.status,
-              arrivalTime: item.arrival_time?.slice(0, 5) ?? "",
+              arrivalTime: item.staff_call_at
+                ? chileDateTime(item.staff_call_at).time
+                : project?.event_date && project?.event_time
+                  ? chileDateTime(resolveCanonicalStaffCallAt({ serviceStartAt: `${project.event_date}T${project.event_time.slice(0, 5)}:00-04:00` }).staffCallAt).time
+                  : "",
               startTime: item.start_time?.slice(0, 5) ?? "",
               finishTime: item.finish_time?.slice(0, 5) ?? "",
             },
