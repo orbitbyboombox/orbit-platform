@@ -22,6 +22,41 @@ export type AssignmentInput = {
   staff_call_source?: string | null;
 };
 
+/** Builds the canonical read model from the shapes returned by Supabase joins. */
+export function buildCanonicalOrbitEventStateFromRecord(record: {
+  id?: string;
+  project_id?: string;
+  orbit_event_id?: string | null;
+  event_date: string;
+  event_time?: string | null;
+  location?: string | null;
+  city?: string | null;
+  operations?: Record<string, unknown> | null;
+  project_operational_contracts?: Array<{ service_start_at?: string | null; service_end_at?: string | null }> | { service_start_at?: string | null; service_end_at?: string | null } | null;
+  assignments?: readonly AssignmentInput[];
+  duration_hours?: number | null;
+}): CanonicalOrbitEventState {
+  const operations = record.operations ?? {};
+  const contract = Array.isArray(record.project_operational_contracts)
+    ? record.project_operational_contracts[0]
+    : record.project_operational_contracts;
+  const serviceStartAt = contract?.service_start_at ?? (typeof operations.service_start_at === "string" ? operations.service_start_at : null);
+  const serviceEndAt = contract?.service_end_at ?? (typeof operations.service_end_at === "string" ? operations.service_end_at : null);
+  return buildCanonicalOrbitEventState({
+    projectId: record.project_id ?? record.id ?? "",
+    orbitEventId: record.orbit_event_id,
+    eventDate: record.event_date,
+    eventTime: record.event_time,
+    durationHours: record.duration_hours,
+    serviceStartAt,
+    serviceEndAt,
+    location: record.location,
+    city: record.city,
+    publicationStatus: typeof operations.publicationStatus === "string" ? operations.publicationStatus : null,
+    assignments: record.assignments,
+  });
+}
+
 export function canonicalStaffCallGuard(state: Pick<CanonicalOrbitEventState, "serviceStartAt" | "staffCallAt" | "staffCallSource">): "OK" | "STAFF_CALL_INCONSISTENT" {
   if (state.staffCallSource === "FOUNDER_OVERRIDE") return "OK";
   const expected = resolveCanonicalStaffCallAt({ serviceStartAt: state.serviceStartAt }).staffCallAt;

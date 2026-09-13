@@ -14,6 +14,7 @@ import type { EventLogisticsData } from "@/features/operations/event-logistics-c
 import { resolveReceivablePaymentCategory } from "@/features/accounts-receivable/payment-term-classification";
 import { requiresPhotoStripDesign } from "@/features/business-core/catalog/service.catalog";
 import { chileDateTime } from "@/features/operations/event-operational-window";
+import { buildCanonicalOrbitEventStateFromRecord } from "@/features/operations/canonical-orbit-event-state";
 
 export interface ProjectWorkspacePageProps {
   params: Promise<{ projectId: string }>;
@@ -489,6 +490,20 @@ export default async function ProjectWorkspacePage({
   const productionAssignments = (
     (operatorAssignments ?? []) as unknown as StaffAssignment[]
   ).filter((item) => confirmedAssignmentStatuses.has(item.status));
+  const canonicalEventState = buildCanonicalOrbitEventStateFromRecord({
+    id: projectId,
+    orbit_event_id: rawProject?.orbit_event_id ?? null,
+    event_date: project.event.date,
+    event_time: project.event.time,
+    location: project.event.location,
+    city: project.event.city,
+    operations,
+    assignments: ((operatorAssignments ?? []) as unknown as StaffAssignment[]).map((item) => ({
+      status: item.status,
+      staff_call_at: item.staff_call_at,
+      staff_call_source: null,
+    })),
+  });
   const equipment: EquipmentAssignmentPanelProps = {
     projectId,
     orbitEventId: rawProject?.orbit_event_id ?? `ORB-${projectId}`,
@@ -1265,7 +1280,7 @@ export default async function ProjectWorkspacePage({
           staffName: `${item.staff.first_name} ${item.staff.last_name}`,
           role: item.assignment_type,
           status: item.status,
-          arrivalTime: item.staff_call_at ? chileDateTime(item.staff_call_at).time : "",
+          arrivalTime: canonicalEventState.staffCallAt ? chileDateTime(canonicalEventState.staffCallAt).time : "",
           startTime: item.start_time?.slice(0, 5) ?? "",
           finishTime: item.finish_time?.slice(0, 5) ?? "",
           vehicleId: item.assigned_vehicle ?? "",
