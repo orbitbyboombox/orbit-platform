@@ -58,3 +58,10 @@ test("Staff portal exposes multi-role selection and a consolidated estimate", ()
   assert.match(ui, /Aceptar responsabilidades/);
   assert.match(ui, /requestStaffResponsibilitiesAction/);
 });
+
+test("multi-role preview uses the canonical combined assembly rate", () => {
+  const ui = readFileSync("features/portal-authentication/staff-portal-dashboard.tsx", "utf8");
+  assert.match(ui, /event\.payments\.combined/);
+  assert.match(ui, /roles\.includes\("ASSEMBLY"\)&&roles\.includes\("DISASSEMBLY"\)/);
+  assert.match(ui, /selectableRoles=event\.available\.filter/);
+});
