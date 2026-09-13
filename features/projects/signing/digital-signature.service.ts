@@ -27,29 +27,51 @@ const withTimeout = async <T>(operation: Promise<T>, timeoutMs = 20_000): Promis
   }
 };
 
-export async function createSigningInvitation(agreementId: string, actorId: string): Promise<{ url: string; expiresAt: string }> {
+export type SigningInvitationResult = { url: string; expiresAt: string; draftPrepared: boolean; warning?: string };
+
+export class SigningInvitationError extends Error {
+  constructor(public readonly stage: string, public readonly code: string, message: string, public readonly details?: string, public readonly hint?: string) {
+    super(message);
+    this.name = "SigningInvitationError";
+  }
+}
+
+function stageError(stage: string, code: string, error: unknown, fallback: string): SigningInvitationError {
+  const value = typeof error === "object" && error !== null ? error as { message?: unknown; details?: unknown; hint?: unknown } : {};
+  return new SigningInvitationError(stage, code, typeof value.message === "string" ? value.message : error instanceof Error ? error.message : fallback, typeof value.details === "string" ? value.details : undefined, typeof value.hint === "string" ? value.hint : undefined);
+}
+
+export async function createSigningInvitation(agreementId: string, actorId: string): Promise<SigningInvitationResult> {
   const admin = createAdminClient();
   const company=await loadCompanySettings(admin);
   const { data: agreement, error } = await admin.from("agreements").select("id,status,project_id,projects!inner(name,event_date,customer_id,customers!inner(first_name,last_name,email))").eq("id", agreementId).single();
-  if (error) throw error; if (agreement.status === "SIGNED") throw new Error("El acuerdo ya está firmado.");
+  if (error) throw stageError("AGREEMENT_LOOKUP", "AGREEMENT_LOOKUP_FAILED", error, "No fue posible cargar el acuerdo."); if (agreement.status === "SIGNED") throw new SigningInvitationError("VALIDATION", "AGREEMENT_ALREADY_SIGNED", "El acuerdo ya está firmado.");
   const project = agreement.projects as unknown as { name: string; event_date: string; customer_id: string; customers: { first_name: string; last_name: string; email: string } };
-  if (!project.customers.email) throw new Error("El cliente necesita un correo antes de enviar el acuerdo.");
-  await admin.from("agreement_signing_tokens").update({ revoked_at: new Date().toISOString() }).eq("agreement_id", agreementId).is("consumed_at", null).is("revoked_at", null);
+  if (!project.customers.email) throw new SigningInvitationError("VALIDATION", "CUSTOMER_EMAIL_MISSING", "El cliente necesita un correo antes de preparar el acuerdo.");
+  const { error: revokeError } = await admin.from("agreement_signing_tokens").update({ revoked_at: new Date().toISOString() }).eq("agreement_id", agreementId).is("consumed_at", null).is("revoked_at", null);
+  if (revokeError) throw stageError("SIGNING_TOKEN_REVOKE", "SIGNING_TOKEN_REVOKE_FAILED", revokeError, "No fue posible invalidar el enlace anterior.");
   const token = randomBytes(32).toString("base64url"); const expiresAt = new Date(Date.now() + 7 * 86_400_000).toISOString();
   const { error: insertError } = await admin.from("agreement_signing_tokens").insert({ agreement_id: agreementId, token_hash: tokenHash(token), expires_at: expiresAt, created_by: actorId });
-  if (insertError) throw insertError;
+  if (insertError) throw stageError("SIGNING_TOKEN_INSERT", "SIGNING_TOKEN_CREATE_FAILED", insertError, "No fue posible crear el enlace de firma.");
   const url = `${appOrigin()}/sign/${token}`;
-  let draft;
+  let draft: { threadId?: string; messageId?: string } | null = null;
   try {
-    const accessToken = await withTimeout(loadGoogleWorkspaceAccessToken());
-    draft = await withTimeout(new GoogleGmailApiProvider(accessToken).createDraft({ to: project.customers.email, subject: `Tu acuerdo ${company.brandName} · ${project.name}`, textBody: `Revisa y firma tu acuerdo: ${url}`, htmlBody: `<p>Hola ${escapeHtml(project.customers.first_name)},</p><p>Tu acuerdo ${escapeHtml(company.brandName)} está listo para revisión y firma.</p><p><a href="${url}">Revisar y firmar acuerdo</a></p><p>Este enlace es personal, vence en 7 días y funciona una sola vez.</p>`, driveFileIds: [] }));
+    let accessToken: string;
+    try { accessToken = await withTimeout(loadGoogleWorkspaceAccessToken()); }
+    catch (error) { throw stageError("GOOGLE_TOKEN", "GOOGLE_TOKEN_FAILED", error, "No fue posible autenticar Google Workspace."); }
+    try { draft = await withTimeout(new GoogleGmailApiProvider(accessToken).createDraft({ to: project.customers.email, subject: `Tu acuerdo ${company.brandName} · ${project.name}`, textBody: `Revisa y firma tu acuerdo: ${url}`, htmlBody: `<p>Hola ${escapeHtml(project.customers.first_name)},</p><p>Tu acuerdo ${escapeHtml(company.brandName)} está listo para revisión y firma.</p><p><a href="${url}">Revisar y firmar acuerdo</a></p><p>Este enlace es personal, vence en 7 días y funciona una sola vez.</p>`, driveFileIds: [] })); }
+    catch (error) { throw stageError("GMAIL_DRAFT", "GMAIL_DRAFT_FAILED", error, "No fue posible preparar el borrador Gmail."); }
+  } catch (draftError) {
+    const typed = draftError instanceof SigningInvitationError ? draftError : stageError("GMAIL_DRAFT", "GMAIL_DRAFT_FAILED", draftError, "No fue posible preparar el borrador Gmail.");
+    console.error(JSON.stringify({ level: "error", event: "agreement.signing.gmail_draft_failed", agreementId, stage: typed.stage, code: typed.code, message: typed.message, details: typed.details, hint: typed.hint }));
+    const warning = typed.stage === "GOOGLE_TOKEN" ? `Enlace preparado. ${typed.message}` : "Enlace preparado. No fue posible preparar el borrador Gmail.";
+    return { url, expiresAt, draftPrepared: false, warning };
   }
-  catch (draftError) { await admin.from("agreement_signing_tokens").update({ revoked_at: new Date().toISOString() }).eq("token_hash", tokenHash(token)); throw draftError; }
   await Promise.all([
     admin.from("communications").insert({ customer_id: project.customer_id, project_id: agreement.project_id, channel: "GMAIL", direction: "OUTBOUND", communication_type: "CONTRACT", thread_key: draft.threadId, subject: `Tu acuerdo ${company.brandName} · ${project.name}`, body: "Borrador preparado para confirmación interna.", status: "DRAFT", external_message_id: draft.messageId, created_by: actorId }),
     timeline(admin, { projectId: agreement.project_id, agreementId, action: "AGREEMENT_SENT", message: "Acuerdo preparado y borrador Gmail creado.", actorId }),
   ]);
-  return { url, expiresAt };
+  return { url, expiresAt, draftPrepared: true };
 }
 
 export async function openSigningAgreement(token: string) {

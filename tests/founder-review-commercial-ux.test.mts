@@ -134,10 +134,13 @@ test("signature-link preparation fails safely instead of leaving an infinite pen
   assert.match(signedPdf, /status: "SIGNED"/);
 });
 
-test("signature provider timeout revokes the pending token and keeps the agreement unsigned", () => {
+test("signature link survives a Gmail failure and keeps the agreement unsigned", () => {
   assert.match(signedPdf, /withTimeout\(loadGoogleWorkspaceAccessToken\(\)\)/);
   assert.match(signedPdf, /withTimeout\(new GoogleGmailApiProvider/);
-  assert.match(signedPdf, /revoked_at: new Date\(\)\.toISOString\(\)/);
+  assert.match(signedPdf, /draftPrepared: false/);
+  assert.match(signedPdf, /Enlace preparado\. No fue posible preparar el borrador Gmail/);
+  assert.match(signedPdf, /stageError\("GMAIL_DRAFT", "GMAIL_DRAFT_FAILED"/);
+  assert.match(read("features/projects/signing/signing.actions.ts"), /SIGNATURE_LINK_PREP_FAILED/);
   assert.doesNotMatch(signedPdf.slice(0, signedPdf.indexOf("export async function openSigningAgreement")), /status: "SIGNED"/);
 });
 

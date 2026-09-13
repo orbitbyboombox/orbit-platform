@@ -71,7 +71,7 @@ export function AgreementSigningControl({ agreementId, quotationId, projectId, s
     ]);
     if (!result.ok) { setMessage(result.error); return; }
     setUrl(result.url);
-    setMessage("Borrador Gmail preparado. Revisa antes de enviarlo.");
+    setMessage(result.warning ?? "ENLACE DE FIRMA PREPARADO · Borrador Gmail preparado. Revisa antes de enviarlo.");
   });
 
   const deliver = (confirmResend: boolean) => {
