@@ -22,6 +22,12 @@ export type AssignmentInput = {
   staff_call_source?: string | null;
 };
 
+export function canonicalStaffCallGuard(state: Pick<CanonicalOrbitEventState, "serviceStartAt" | "staffCallAt" | "staffCallSource">): "OK" | "STAFF_CALL_INCONSISTENT" {
+  if (state.staffCallSource === "FOUNDER_OVERRIDE") return "OK";
+  const expected = resolveCanonicalStaffCallAt({ serviceStartAt: state.serviceStartAt }).staffCallAt;
+  return new Date(expected).getTime() === new Date(state.staffCallAt).getTime() ? "OK" : "STAFF_CALL_INCONSISTENT";
+}
+
 export function buildCanonicalOrbitEventState(input: {
   projectId: string;
   orbitEventId?: string | null;

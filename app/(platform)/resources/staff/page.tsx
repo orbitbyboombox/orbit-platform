@@ -27,7 +27,8 @@ import type {
   StaffDocumentView,
 } from "@/features/staff-documents/staff-document-model";
 import {mapStaffMonthlyAccount,STAFF_MONTHLY_ACCOUNT_SELECT} from "@/features/staff-monthly-account/model";
-import { chileDateTime, resolveCanonicalStaffCallAt } from "@/features/operations/event-operational-window";
+import { chileDateTime } from "@/features/operations/event-operational-window";
+import { buildCanonicalOrbitEventState } from "@/features/operations/canonical-orbit-event-state";
 
 export default async function StaffManagementPage({searchParams}:{searchParams:Promise<{reviewOnboarding?:string;reviewAccount?:string}>}) {
   const {reviewOnboarding,reviewAccount}=await searchParams;
@@ -238,11 +239,9 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
                   : "Sin vehículo"),
               role: item.assignment_type,
               status: item.status,
-              arrivalTime: item.staff_call_at
-                ? chileDateTime(item.staff_call_at).time
-                : project?.event_date && project?.event_time
-                  ? chileDateTime(resolveCanonicalStaffCallAt({ serviceStartAt: `${project.event_date}T${project.event_time.slice(0, 5)}:00-04:00` }).staffCallAt).time
-                  : "",
+              arrivalTime: project?.event_date
+                ? chileDateTime(buildCanonicalOrbitEventState({ projectId: item.project_id, eventDate: project.event_date, eventTime: project.event_time, assignments: [item] }).staffCallAt).time
+                : "",
               startTime: item.start_time?.slice(0, 5) ?? "",
               finishTime: item.finish_time?.slice(0, 5) ?? "",
             },
