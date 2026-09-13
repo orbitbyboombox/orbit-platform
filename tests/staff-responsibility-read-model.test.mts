@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { buildResponsibilityReadModel } from "../features/staff-assignment-center/staff-responsibility-read-model.ts";
 import { readFileSync } from "node:fs";
+const requirementsMigration = readFileSync("supabase/migrations/0264_boombox_three_role_staff_requirements.sql", "utf8");
 
 const requirement = (role: string, required = 1) => [{ role, required, published: true }];
 
@@ -40,4 +41,12 @@ test("duplicate assignment rows do not duplicate staff display", () => {
 test("cancelled assignments release the Staff portal slot", () => {
   const portal = readFileSync("features/portal-authentication/staff-portal.tsx", "utf8");
   assert.match(portal, /\[\"CANCELLED\",\"REJECTED\"\]\.includes\(row\.status\)\)continue/);
+});
+
+test("BOOMBOX publication defaults to three independent roles without overwriting overrides", () => {
+  assert.match(requirementsMigration, /resolve_boombox_default_staff_requirements/);
+  assert.match(requirementsMigration, /'ASSEMBLY', 1/);
+  assert.match(requirementsMigration, /'DISASSEMBLY', 1/);
+  assert.match(requirementsMigration, /role in \('ASSEMBLY', 'DISASSEMBLY'\)/);
+  assert.match(requirementsMigration, /on conflict \(project_id, role\)/);
 });
