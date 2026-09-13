@@ -18,6 +18,14 @@ import {
 const sha256 = (value: string | Uint8Array) => createHash("sha256").update(value).digest("hex");
 const tokenHash = (token: string) => sha256(token);
 const appOrigin = () => process.env.NEXT_PUBLIC_APP_URL ?? (process.env.GOOGLE_WORKSPACE_REDIRECT_URI ? new URL(process.env.GOOGLE_WORKSPACE_REDIRECT_URI).origin : process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "http://localhost:3000");
+const withTimeout = async <T>(operation: Promise<T>, timeoutMs = 20_000): Promise<T> => {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([operation, new Promise<T>((_, reject) => { timeout = setTimeout(() => reject(new Error("La preparación del enlace tardó demasiado. Intenta nuevamente.")), timeoutMs); })]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+};
 
 export async function createSigningInvitation(agreementId: string, actorId: string): Promise<{ url: string; expiresAt: string }> {
   const admin = createAdminClient();
@@ -30,9 +38,12 @@ export async function createSigningInvitation(agreementId: string, actorId: stri
   const token = randomBytes(32).toString("base64url"); const expiresAt = new Date(Date.now() + 7 * 86_400_000).toISOString();
   const { error: insertError } = await admin.from("agreement_signing_tokens").insert({ agreement_id: agreementId, token_hash: tokenHash(token), expires_at: expiresAt, created_by: actorId });
   if (insertError) throw insertError;
-  const url = `${appOrigin()}/sign/${token}`; const accessToken = await loadGoogleWorkspaceAccessToken();
+  const url = `${appOrigin()}/sign/${token}`;
   let draft;
-  try { draft = await new GoogleGmailApiProvider(accessToken).createDraft({ to: project.customers.email, subject: `Tu acuerdo ${company.brandName} · ${project.name}`, textBody: `Revisa y firma tu acuerdo: ${url}`, htmlBody: `<p>Hola ${escapeHtml(project.customers.first_name)},</p><p>Tu acuerdo ${escapeHtml(company.brandName)} está listo para revisión y firma.</p><p><a href="${url}">Revisar y firmar acuerdo</a></p><p>Este enlace es personal, vence en 7 días y funciona una sola vez.</p>`, driveFileIds: [] }); }
+  try {
+    const accessToken = await withTimeout(loadGoogleWorkspaceAccessToken());
+    draft = await withTimeout(new GoogleGmailApiProvider(accessToken).createDraft({ to: project.customers.email, subject: `Tu acuerdo ${company.brandName} · ${project.name}`, textBody: `Revisa y firma tu acuerdo: ${url}`, htmlBody: `<p>Hola ${escapeHtml(project.customers.first_name)},</p><p>Tu acuerdo ${escapeHtml(company.brandName)} está listo para revisión y firma.</p><p><a href="${url}">Revisar y firmar acuerdo</a></p><p>Este enlace es personal, vence en 7 días y funciona una sola vez.</p>`, driveFileIds: [] }));
+  }
   catch (draftError) { await admin.from("agreement_signing_tokens").update({ revoked_at: new Date().toISOString() }).eq("token_hash", tokenHash(token)); throw draftError; }
   await Promise.all([
     admin.from("communications").insert({ customer_id: project.customer_id, project_id: agreement.project_id, channel: "GMAIL", direction: "OUTBOUND", communication_type: "CONTRACT", thread_key: draft.threadId, subject: `Tu acuerdo ${company.brandName} · ${project.name}`, body: "Borrador preparado para confirmación interna.", status: "DRAFT", external_message_id: draft.messageId, created_by: actorId }),

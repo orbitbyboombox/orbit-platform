@@ -123,6 +123,22 @@ test("accepted snapshot fixes company net, VAT, total, and actual deposit percen
   }
 });
 
+test("signature-link preparation fails safely instead of leaving an infinite pending state", () => {
+  const signingControl = read("features/projects/signing/agreement-signing-control.tsx");
+  assert.match(signingControl, /Preparando…/);
+  assert.match(signingControl, /tardó demasiado/);
+  assert.match(signingControl, /Promise\.race/);
+  assert.doesNotMatch(signingControl, /status:\s*["']SIGNED["']/);
+  assert.match(signedPdf, /status: "SIGNED"/);
+});
+
+test("signature provider timeout revokes the pending token and keeps the agreement unsigned", () => {
+  assert.match(signedPdf, /withTimeout\(loadGoogleWorkspaceAccessToken\(\)\)/);
+  assert.match(signedPdf, /withTimeout\(new GoogleGmailApiProvider/);
+  assert.match(signedPdf, /revoked_at: new Date\(\)\.toISOString\(\)/);
+  assert.doesNotMatch(signedPdf.slice(0, signedPdf.indexOf("export async function openSigningAgreement")), /status: "SIGNED"/);
+});
+
 test("customer-facing labels and duration remain commercial and canonical", () => {
   const presentation = customerCommercialPresentation({
     serviceCodes: ["CLASSIC", "UNLIMITED_MAGNETS"],

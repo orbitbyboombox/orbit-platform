@@ -65,7 +65,10 @@ export function AgreementSigningControl({ agreementId, quotationId, projectId, s
   }, [projectId]);
 
   const create = () => agreementId && startTransition(async () => {
-    const result = await createSigningInvitationAction(agreementId, projectId);
+    const result = await Promise.race([
+      createSigningInvitationAction(agreementId, projectId),
+      new Promise<Awaited<ReturnType<typeof createSigningInvitationAction>>>((resolve) => setTimeout(() => resolve({ ok: false, error: "La preparación del enlace tardó demasiado. Intenta nuevamente." }), 25_000)),
+    ]);
     if (!result.ok) { setMessage(result.error); return; }
     setUrl(result.url);
     setMessage("Borrador Gmail preparado. Revisa antes de enviarlo.");
