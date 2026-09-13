@@ -15,6 +15,7 @@ import { resolveReceivablePaymentCategory } from "@/features/accounts-receivable
 import { requiresPhotoStripDesign } from "@/features/business-core/catalog/service.catalog";
 import { chileDateTime } from "@/features/operations/event-operational-window";
 import { buildCanonicalOrbitEventStateFromRecord } from "@/features/operations/canonical-orbit-event-state";
+import { buildResponsibilityReadModel } from "@/features/staff-assignment-center/staff-responsibility-read-model";
 
 export interface ProjectWorkspacePageProps {
   params: Promise<{ projectId: string }>;
@@ -479,6 +480,7 @@ export default async function ProjectWorkspacePage({
   const activeAssets = (assetAssignments ??
     []) as unknown as ActiveAssetAssignment[];
   const confirmedAssignmentStatuses = new Set([
+    "ASSIGNED",
     "CONFIRMED",
     "ACCEPTED",
     "EN_ROUTE",
@@ -490,6 +492,27 @@ export default async function ProjectWorkspacePage({
   const productionAssignments = (
     (operatorAssignments ?? []) as unknown as StaffAssignment[]
   ).filter((item) => confirmedAssignmentStatuses.has(item.status));
+  const responsibilityRequirements = buildResponsibilityReadModel(
+    (staffRoleRequirements ?? []).map((item) => ({
+      role: item.role,
+      required: Number(item.required_quantity),
+      published: item.published,
+    })),
+    productionAssignments
+      .filter((item) => item.project_id === projectId)
+      .map((item) => ({
+        role: item.assignment_type,
+        status: item.status,
+        staffName: `${item.staff?.first_name ?? ""} ${item.staff?.last_name ?? ""}`,
+      })),
+    (staffRequests ?? []).map((item) => {
+      const member = Array.isArray(item.staff) ? item.staff[0] : item.staff;
+      return {
+        role: item.responsibility,
+        staffName: member ? `${member.first_name} ${member.last_name}` : "Colaborador",
+      };
+    }),
+  );
   const canonicalEventState = buildCanonicalOrbitEventStateFromRecord({
     id: projectId,
     orbit_event_id: rawProject?.orbit_event_id ?? null,
@@ -1151,15 +1174,7 @@ export default async function ProjectWorkspacePage({
     staffAssignments: {
       projectId,
       published: staffPublication?.published ?? false,
-      requirements: (staffRoleRequirements ?? []).map((item: {
-        role: string;
-        required_quantity: number;
-        published: boolean;
-      }) => ({
-        role: item.role,
-        required: Number(item.required_quantity),
-        published: item.published,
-      })),
+      requirements: responsibilityRequirements,
       requests: (staffRequests ?? []).map((item) => {
         const member = Array.isArray(item.staff) ? item.staff[0] : item.staff;
         return {

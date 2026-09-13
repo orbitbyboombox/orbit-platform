@@ -27,6 +27,7 @@ import {
   updateStaffEventSettlementAction,
 } from "@/features/staff-payments/actions";
 import { reviewStaffRequestAction, setEventStaffRequirementAction } from "@/features/operations/operations-planning.actions";
+import type { ResponsibilityReadModel } from "./staff-responsibility-read-model";
 
 export type OperationalAssignment = {
   id: string;
@@ -103,7 +104,7 @@ export type StaffAssignmentCenterProps = {
   hasPendingRequest?: boolean;
   published?: boolean;
   settlements?: EventStaffSettlement[];
-  requirements?: Array<{ role: string; required: number; published: boolean }>;
+  requirements?: ResponsibilityReadModel[];
   requests?: Array<{ id: string; role: string; staffName: string; status: string }>;
 };
 const roles = [
@@ -289,10 +290,12 @@ export function StaffAssignmentCenter({
           const confirmed = assignments.filter((item) => item.role === role.value && !["CANCELLED", "REJECTED"].includes(item.status)).length;
           const configuredRequired = requirement?.required ?? (role.value === "OPERATOR" ? 1 : 0);
           const required = Math.max(configuredRequired, confirmed);
+          const assignedStaff = requirement?.assignedStaff ?? [];
+          const pendingStaff = requirement?.pendingStaff ?? [];
           const isPublished = requirement?.published ?? (role.value === "OPERATOR" && published);
           return <form action={(data)=>startTransition(async()=>{const result=await setEventStaffRequirementAction(data);setMessage(result.message);if(result.ok)router.refresh()})} className="rounded-xl border p-4" key={role.value}>
             <input name="projectId" type="hidden" value={projectId}/><input name="role" type="hidden" value={role.value}/>
-            <div className="flex items-center justify-between gap-3"><div><p className="font-semibold">{role.label}</p><p className="text-sm text-muted">{confirmed}/{required} asignado{required===1?"":"s"}</p></div><StatusBadge label={isPublished?"Publicado":"Interno"} variant={isPublished?"success":"info"}/></div>
+            <div className="flex items-center justify-between gap-3"><div><p className="font-semibold">{role.label}</p><p className="text-sm text-muted">{confirmed}/{required} asignado{required===1?"":"s"}</p>{assignedStaff.length ? <p className="mt-2 text-sm font-medium">Asignado a: {assignedStaff.join(", ")}</p> : pendingStaff.length ? <p className="mt-2 text-sm text-muted">Pendiente de Staff: {pendingStaff.join(", ")}</p> : <p className="mt-2 text-sm text-muted">Pendiente de Staff</p>}</div><StatusBadge label={isPublished?"Publicado":"Interno"} variant={isPublished?"success":"info"}/></div>
             <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end"><label className="grid min-w-0 gap-1 text-xs text-muted">Cantidad requerida<input className="min-h-10 min-w-0 rounded-lg border bg-background px-3 text-foreground" defaultValue={required} min="0" name="quantity" type="number"/></label><label className="flex min-h-10 items-center gap-2 text-sm"><input defaultChecked={isPublished} name="published" type="checkbox" value="true"/>Publicar</label><Button className="w-full sm:w-auto" disabled={pending} type="submit">Guardar</Button></div>
           </form>;
         })}
