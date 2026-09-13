@@ -429,8 +429,8 @@ function AvailableEvents({
     <section className="rounded-3xl border bg-card p-5 sm:p-7">
       <h2 className="text-xl font-semibold">Eventos disponibles</h2>
       <p className="mt-1 text-sm text-muted">
-        Solo aparecen eventos publicados por el Founder y responsabilidades aún
-        disponibles.
+        Solo aparecen eventos publicados por el Founder. Las responsabilidades
+        se habilitan cuando Operaciones publica una necesidad compatible.
       </p>
       {message ? (
         <p className="mt-4 rounded-xl border border-brand/20 bg-brand/10 p-3 text-sm">

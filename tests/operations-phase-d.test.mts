@@ -18,6 +18,7 @@ const lifecycleAction = readFileSync(`${root}/features/projects/actions/reservat
 const cancelledEventClosure = readFileSync(`${root}/supabase/migrations/0132_operations_phase_d_cancelled_event_closure.sql`, "utf8");
 const cancelledEventClosureFix = readFileSync(`${root}/supabase/migrations/0133_operations_phase_d_cancelled_event_closure_fix.sql`, "utf8");
 const cancellationBoundary = readFileSync(`${root}/features/operations/staff-assignment-cancellation.service.ts`, "utf8");
+const visibility = readFileSync(`${root}/features/portal-authentication/staff-portal-visibility.ts`, "utf8");
 
 test("Phase D preserves one canonical assignment and settlement transaction", () => {
   assert.match(migration, /assign_event_operational_responsibility/);
@@ -45,6 +46,13 @@ test("availability stays private before canonical confirmation", () => {
   assert.match(staffProjection, /customer:"Evento BOOMBOX"/);
   assert.match(staffProjection, /clientPhone:"Disponible después de confirmación"/);
   assert.match(staffProjection, /address:"Disponible después de confirmación"/);
+});
+
+test("published Staff visibility is explicit and does not require a role row", () => {
+  assert.match(visibility, /AVAILABLE/);
+  assert.match(visibility, /PUBLISHED_WITHOUT_REQUIREMENT/);
+  assert.match(staffProjection, /portalStaffVisibility/);
+  assert.match(staffProjection, /hasPublishedRequirement:requirements\.length>0/);
 });
 
 test("multiple slots reject overflow without creating a duplicate assignment", () => {
