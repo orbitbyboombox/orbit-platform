@@ -8,7 +8,7 @@ export {
   GoogleCalendarLive,
   mapOperationalEventToCalendar,
 } from "./application/google-calendar-live";
-export { synchronizeProjectCalendarAction } from "./application/google-calendar.actions";
+export { synchronizeProjectCalendarAction, retryCalendarSyncAction } from "./application/google-calendar.actions";
 export { GoogleCalendarApiProvider } from "./provider/google-calendar-live.provider";
 export type { GoogleCalendarLiveProvider } from "./provider/google-calendar-live.provider";
 export { SupabaseGoogleCalendarSyncRepository } from "./repository/google-calendar-sync.repository";

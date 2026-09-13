@@ -4,10 +4,27 @@ import {createSupabaseServerClient} from "@/lib/supabase/server";
 import {synchronizeConfirmedReservationCalendar} from "./google-calendar-sync.service";
 import {usesNOVAGoogleCore} from "@/features/connectors/google-workspace/application/google-nova-core";
 import type {GoogleCalendarSyncOperation} from "../types/google-calendar-live.types";
+import {syncStaleGoogleCalendarEvents} from "./google-calendar-resync.service";
 
 type Result={ok:true;operation:string}|{ok:false;error:string};
 export type CalendarReconciliationSummary={audited:number;matched:number;updated:number;failed:number;duplicates:number;missingRemote:number;created:number};
 export async function synchronizeProjectCalendarAction(projectId:string,operation:GoogleCalendarSyncOperation="UPSERT"):Promise<Result>{try{const client=await createSupabaseServerClient();const{data:auth,error:authError}=await client.auth.getUser();if(authError||!auth.user)throw authError??new Error("Inicia sesión para sincronizar el calendario.");const result=await synchronizeConfirmedReservationCalendar({client,projectId,actorId:auth.user.id,operation,policy:"NEW"});if(!result)throw new Error("No existe un evento de Calendar para esta reserva.");revalidatePath(`/projects/${projectId}`);return{ok:true,operation:result.operation};}catch(error){return{ok:false,error:error instanceof Error?error.message:"No fue posible sincronizar Google Calendar."}}}
+
+export async function retryCalendarSyncAction(projectId: string): Promise<Result> {
+  try {
+    const client = await createSupabaseServerClient();
+    const { data: auth } = await client.auth.getUser();
+    if (!auth.user) throw new Error("Inicia sesión para reintentar Calendar.");
+    const { data: profile } = await client.from("profiles").select("role").eq("id", auth.user.id).single();
+    if (!profile || !["CEO", "ADMINISTRATOR"].includes(profile.role)) throw new Error("Solo Founder/Admin puede reintentar Calendar.");
+    const { data: sync } = await client.from("calendar_sync").select("status,external_event_id,nova_external_event_id").eq("project_id", projectId).maybeSingle();
+    if (!sync || (!sync.external_event_id && !sync.nova_external_event_id)) throw new Error("No existe un evento remoto para actualizar.");
+    if (!["STALE", "PENDING", "FAILED"].includes(sync.status)) throw new Error("El evento no tiene cambios pendientes.");
+    const result = await syncStaleGoogleCalendarEvents({ client, actorId: auth.user.id, batchSize: 1 });
+    revalidatePath(`/projects/${projectId}`); revalidatePath("/calendar");
+    return result.synchronized ? { ok: true, operation: "UPDATED" } : { ok: false, error: "Calendar no pudo completar el reintento." };
+  } catch (error) { return { ok: false, error: error instanceof Error ? error.message : "No fue posible reintentar Calendar." }; }
+}
 
 /** Founder/Admin-only reconciliation of future mappings. Existing remote IDs are mandatory: this action is UPDATE-only. */
 export async function reconcileFutureGoogleCalendarAction(): Promise<CalendarReconciliationSummary | {ok:false;error:string}> {
