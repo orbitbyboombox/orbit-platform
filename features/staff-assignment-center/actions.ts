@@ -7,7 +7,7 @@ import { synchronizeConfirmedReservationCalendar } from "@/features/connectors/g
 import { deliverAssignmentCancellationBoundary } from "@/features/operations/staff-assignment-cancellation.service";
 import { requestEvidence } from "@/features/portal-authentication/portal-auth.service";
 import {deliverStaffAssignmentNotification} from "@/features/operations/staff-assignment-notification.service";
-import {calculateStaffCallAt} from "@/features/operations/event-operational-window";
+import {calculateStaffCallAt, chileLocalToIso} from "@/features/operations/event-operational-window";
 
 export type StaffAssignmentMutation = {
   id?: string;
@@ -117,7 +117,7 @@ export async function saveStaffAssignmentAction(
     };
     const automaticArrival =
       input.role === "OPERATOR" && ctx.project.event_date && eventStart
-        ? calculateStaffCallAt(`${ctx.project.event_date}T${eventStart}:00-04:00`)
+        ? calculateStaffCallAt(chileLocalToIso(`${ctx.project.event_date}T${eventStart}:00`))
         : null;
     const automaticFinish = clock(eventStart, duration * 60);
     const payload = {
