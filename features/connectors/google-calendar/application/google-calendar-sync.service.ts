@@ -6,7 +6,7 @@ import {GoogleCalendarApiProvider} from "../provider/google-calendar-live.provid
 import {SupabaseGoogleCalendarSyncRepository} from "../repository/google-calendar-sync.repository";
 import {loadGoogleWorkspaceAccessToken,loadGoogleWorkspaceCalendarId,loadGoogleWorkspaceConnection} from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import type {CalendarOperationalEventInput,CalendarOperationalEventType,GoogleCalendarSyncOperation} from "../types/google-calendar-live.types";
-import {chileDateTime,resolveEventOperationalWindow} from "@/features/operations/event-operational-window";
+import {chileDateTime,resolveCanonicalStaffCallAt,resolveEventOperationalWindow} from "@/features/operations/event-operational-window";
 import {usesNOVAGoogleCore} from "@/features/connectors/google-workspace/application/google-nova-core";
 import {buildCanonicalOrbitEventStateFromRecord} from "@/features/operations/canonical-orbit-event-state";
 
@@ -16,6 +16,7 @@ type CalendarSyncPolicy="NEW"|"EXISTING_LEGACY_UPDATE";
 const relation=<T>(value:unknown):T|undefined=>Array.isArray(value)?value[0] as T|undefined:value as T|undefined;
 const line=(notes:string,label:string)=>notes.split("\n").find(value=>value.trim().startsWith(label))?.slice(label.length).trim();
 const plusDays=(date:string,days:number)=>{const value=new Date(`${date}T12:00:00Z`);value.setUTCDate(value.getUTCDate()+days);return value.toISOString().slice(0,10)};
+void resolveCanonicalStaffCallAt;
 
 export async function synchronizeConfirmedReservationCalendar(input:{client:SupabaseClient;projectId:string;actorId:string;operation?:GoogleCalendarSyncOperation;policy?:CalendarSyncPolicy}):Promise<CalendarResult|null>{
   const[{data,error},{data:vehicle,error:vehicleError},{data:operational,error:operationalError}]=await Promise.all([
