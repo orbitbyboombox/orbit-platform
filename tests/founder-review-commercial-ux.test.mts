@@ -144,6 +144,12 @@ test("signature link survives a Gmail failure and keeps the agreement unsigned",
   assert.doesNotMatch(signedPdf.slice(0, signedPdf.indexOf("export async function openSigningAgreement")), /status: "SIGNED"/);
 });
 
+test("agreement signing lookup uses the canonical customer full name", () => {
+  assert.match(signedPdf, /customers!inner\(full_name,email\)/);
+  assert.match(signedPdf, /firstName\(project\.customers\.full_name/);
+  assert.doesNotMatch(signedPdf.slice(0, signedPdf.indexOf("export async function openSigningAgreement")), /customers!inner\(first_name,last_name,email\)/);
+});
+
 test("customer-facing labels and duration remain commercial and canonical", () => {
   const presentation = customerCommercialPresentation({
     serviceCodes: ["CLASSIC", "UNLIMITED_MAGNETS"],
