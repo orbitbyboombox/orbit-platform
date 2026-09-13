@@ -1,4 +1,4 @@
-import { resolveCanonicalStaffCallAt } from "./event-operational-window.ts";
+import { chileLocalToIso, resolveCanonicalStaffCallAt } from "./event-operational-window.ts";
 
 export type CanonicalOrbitEventState = {
   projectId: string;
@@ -77,7 +77,7 @@ export function buildCanonicalOrbitEventState(input: {
   assignments?: readonly AssignmentInput[];
 }): CanonicalOrbitEventState {
   const durationHours = Math.max(0, Number(input.durationHours ?? 0));
-  const serviceStartAt = input.serviceStartAt ?? `${input.eventDate}T${(input.eventTime ?? "00:00").slice(0, 5)}:00-04:00`;
+  const serviceStartAt = input.serviceStartAt ?? chileLocalToIso(`${input.eventDate}T${(input.eventTime ?? "00:00").slice(0, 5)}:00`);
   const serviceEndAt = input.serviceEndAt ?? new Date(new Date(serviceStartAt).getTime() + durationHours * 3600000).toISOString();
   const activeAssignments = (input.assignments ?? []).filter((assignment) => !["CANCELLED", "REJECTED"].includes(String(assignment.status ?? "").toUpperCase()));
   const call = resolveCanonicalStaffCallAt({
