@@ -8,6 +8,7 @@ import { deliverAssignmentCancellationBoundary } from "@/features/operations/sta
 import { requestEvidence } from "@/features/portal-authentication/portal-auth.service";
 import {deliverStaffAssignmentNotification} from "@/features/operations/staff-assignment-notification.service";
 import {calculateStaffCallAt, chileLocalToIso} from "@/features/operations/event-operational-window";
+import { invalidateCalendarSyncForProject } from "@/features/connectors/google-calendar/application/google-calendar-resync.service";
 
 export type StaffAssignmentMutation = {
   id?: string;
@@ -195,6 +196,7 @@ export async function saveStaffAssignmentAction(
       );
     }
     try{await deliverStaffAssignmentNotification(ctx.client,assignmentId)}catch(notificationError){console.error("[ORBIT][STAFF_ASSIGNMENT_NOTIFICATION]",{assignmentId,error:notificationError instanceof Error?notificationError.message:String(notificationError)})}
+    await invalidateCalendarSyncForProject(ctx.client, input.projectId);
     await synchronizeConfirmedReservationCalendar({
       client: ctx.client,
       projectId: input.projectId,
@@ -255,6 +257,7 @@ export async function updateStaffAssignmentStatusAction(input: {
     };
     const [action, message] = map[input.status];
     await timeline(ctx, input.id, action, message, item.staff_id);
+    await invalidateCalendarSyncForProject(ctx.client, input.projectId);
     await synchronizeConfirmedReservationCalendar({
       client: ctx.client,
       projectId: input.projectId,

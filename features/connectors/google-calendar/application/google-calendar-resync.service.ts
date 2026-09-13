@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { synchronizeConfirmedReservationCalendar } from "./google-calendar-sync.service";
+import { hashCanonicalCalendarFingerprint } from "./canonical-calendar-fingerprint";
 
 type QueueRow = { id: string; project_id: string; orbit_event_id: string; status: string; next_retry_at: string | null; sync_started_at: string | null; external_event_id: string | null; nova_external_event_id: string | null };
 
@@ -12,6 +13,23 @@ export async function invalidateCalendarSyncForCanonicalChange(input: { client: 
   const status = data.last_synced_payload_hash === input.currentPayloadHash ? "SYNCHRONIZED" : "STALE";
   const { error: updateError } = await input.client.from("calendar_sync").update({ current_payload_hash: input.currentPayloadHash, status, sync_started_at: null, updated_at: new Date().toISOString() }).eq("id", data.id);
   if (updateError) throw updateError;
+}
+
+/** Loads the final persisted operational state and invalidates exactly once. */
+export async function invalidateCalendarSyncForProject(client: SupabaseClient, projectId: string): Promise<void> {
+  const [{ data: project }, { data: contract }, { data: assignments }] = await Promise.all([
+    client.from("projects").select("orbit_event_id,location,event_date,event_time,operations,project_services(duration_hours)").eq("id", projectId).maybeSingle(),
+    client.from("project_operational_contracts").select("service_start_at,service_end_at").eq("project_id", projectId).maybeSingle(),
+    client.from("assignments").select("staff_call_at,staff_call_source,status").eq("project_id", projectId).is("deleted_at", null),
+  ]);
+  if (!project) return;
+  const ops = (project.operations ?? {}) as Record<string, unknown>;
+  const serviceStart = contract?.service_start_at ?? (typeof ops.service_start_at === "string" ? ops.service_start_at : `${project.event_date}T${String(project.event_time ?? "00:00").slice(0, 5)}:00`);
+  const duration = Number((Array.isArray(project.project_services) ? project.project_services[0] : project.project_services)?.duration_hours ?? 0);
+  const serviceEnd = contract?.service_end_at ?? new Date(new Date(serviceStart).getTime() + duration * 3600000).toISOString();
+  const active = (assignments ?? []).filter((item) => !["CANCELLED", "REJECTED"].includes(item.status));
+  const call = active.find((item) => item.staff_call_at)?.staff_call_at ?? new Date(new Date(serviceStart).getTime() - 3600000).toISOString();
+  await invalidateCalendarSyncForCanonicalChange({ client, projectId, currentPayloadHash: hashCanonicalCalendarFingerprint({ orbitEventId: project.orbit_event_id, serviceStartAt: serviceStart, serviceEndAt: serviceEnd, staffCallAt: call, staffCallSource: active.find((item) => item.staff_call_at)?.staff_call_source ?? "DEFAULT_60_MINUTES", location: project.location }) });
 }
 
 /** Processes only existing remote mappings. It never creates a Google event. */

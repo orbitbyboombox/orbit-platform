@@ -8,6 +8,7 @@ import {
   type ReservationLifecycleAction,
 } from "@/features/projects/actions/reservation-lifecycle.actions";
 import { synchronizeConfirmedReservationCalendar } from "@/features/connectors/google-calendar/application/google-calendar-sync.service";
+import { invalidateCalendarSyncForProject } from "@/features/connectors/google-calendar/application/google-calendar-resync.service";
 import { synchronizeConfirmedReservationDrive } from "@/features/connectors/google-drive/application/google-drive-sync.service";
 import { uploadReservationDocumentToDrive } from "@/features/connectors/google-drive/application/google-drive-document-routing.service";
 import type { GoogleDriveDocumentKind } from "@/features/connectors/google-drive/types/google-drive-live.types";
@@ -420,6 +421,7 @@ export async function updateCrmEventAction(input: {
       p_reason: input.reason,
     });
     if (error) throw error;
+    await invalidateCalendarSyncForProject(client, input.projectId);
     const synchronization = await Promise.allSettled([
       synchronizeConfirmedReservationCalendar({ client, projectId: input.projectId, actorId: user.id, operation: "UPSERT", policy: "EXISTING_LEGACY_UPDATE" }),
       synchronizeConfirmedReservationDrive({ client, projectId: input.projectId, actorId: user.id, recordTimeline: true }),
