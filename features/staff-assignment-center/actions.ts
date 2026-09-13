@@ -7,6 +7,7 @@ import { synchronizeConfirmedReservationCalendar } from "@/features/connectors/g
 import { deliverAssignmentCancellationBoundary } from "@/features/operations/staff-assignment-cancellation.service";
 import { requestEvidence } from "@/features/portal-authentication/portal-auth.service";
 import {deliverStaffAssignmentNotification} from "@/features/operations/staff-assignment-notification.service";
+import {calculateStaffCallAt} from "@/features/operations/event-operational-window";
 
 export type StaffAssignmentMutation = {
   id?: string;
@@ -53,7 +54,7 @@ async function context(projectId: string) {
   const { data: project, error } = await client
     .from("projects")
     .select(
-      "id,customer_id,orbit_event_id,name,event_time,project_services(duration_hours)",
+      "id,customer_id,orbit_event_id,name,event_date,event_time,project_services(duration_hours)",
     )
     .eq("id", projectId)
     .is("deleted_at", null)
@@ -115,7 +116,9 @@ export async function saveStaffAssignmentAction(
       return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
     };
     const automaticArrival =
-      input.role === "OPERATOR" ? clock(eventStart, -90) : null;
+      input.role === "OPERATOR" && ctx.project.event_date && eventStart
+        ? calculateStaffCallAt(`${ctx.project.event_date}T${eventStart}:00-04:00`)
+        : null;
     const automaticFinish = clock(eventStart, duration * 60);
     const payload = {
       project_id: input.projectId,
@@ -123,8 +126,8 @@ export async function saveStaffAssignmentAction(
       assignment_type: input.role,
       status: "ASSIGNED",
       arrival_time: value(input.arrivalTime) ?? automaticArrival,
-      staff_call_at:value(input.staffCallAt??""),
-      staff_call_source:value(input.staffCallAt??"")?"MANUAL_OVERRIDE":null,
+      staff_call_at:value(input.staffCallAt??"")||automaticArrival,
+      staff_call_source:value(input.staffCallAt??"")?"FOUNDER_OVERRIDE":(automaticArrival?"DEFAULT_60_MIN":null),
       start_time: value(input.startTime) ?? value(eventStart),
       finish_time: value(input.finishTime) ?? automaticFinish,
       assigned_vehicle: value(input.vehicleId),

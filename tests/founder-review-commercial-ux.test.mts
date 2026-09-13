@@ -90,7 +90,7 @@ test("event save has explicit success, refresh persistence, and downstream sync"
   assert.match(eventAction, /"\/operations"/);
   assert.match(eventAction, /"\/finance\/collections"/);
   assert.match(eventRepository, /event\.event_date/);
-  assert.match(eventRepository, /window\.source==='SERVICE_START'\?null/);
+  assert.match(eventRepository, /resolveCanonicalStaffCallAt/);
   assert.match(eventCenter, /const operationalDate = event\.serviceStartAt/);
 });
 

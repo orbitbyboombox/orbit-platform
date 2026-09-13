@@ -37,7 +37,7 @@ export function buildCalendarDescription(input: CalendarOperationalEventInput, o
     `Duración: ${input.contractedHours} horas`,
     `Extras: ${input.extras.join(", ") || "Sin extras"}`,
     `Cliente: ${input.customerName}`,
-    `Citación Staff: ${input.calendarStartDate} · ${input.calendarStartTime}`,
+    `Citación Staff: ${input.operatorCallTime}`,
     `Horario servicio: ${input.serviceStartDate} · ${input.serviceStart}–${input.serviceEnd}`,
     `Dirección: ${input.customerAddress}`,
     `Teléfonos cliente: ${input.customerPhone}`,
