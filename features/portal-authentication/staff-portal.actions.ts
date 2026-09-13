@@ -203,6 +203,26 @@ export async function requestStaffResponsibilityAction(
   return { ok: true, message: "Solicitud enviada al Founder." };
 }
 
+export async function requestStaffResponsibilitiesAction(
+  projectId: string,
+  responsibilities: string[],
+) {
+  const session = await loadPortalSession("STAFF");
+  if (!session?.staff_id) return { ok: false, message: "Tu sesión expiró." };
+  const roles = [...new Set(responsibilities.filter(Boolean))];
+  if (!roles.length) return { ok: false, message: "Selecciona al menos una responsabilidad." };
+  const { error } = await createAdminClient().rpc("request_staff_responsibilities", {
+    p_staff_id: session.staff_id,
+    p_project_id: projectId,
+    p_responsibilities: roles,
+  });
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/staff-portal");
+  revalidatePath("/operations");
+  revalidatePath(`/projects/${projectId}`);
+  return { ok: true, message: "Solicitudes enviadas al Founder." };
+}
+
 export async function declineStaffResponsibilityAction(form: FormData) {
   const session = await loadPortalSession("STAFF");
   if (!session?.staff_id) return { ok: false, message: "Tu sesión expiró." };

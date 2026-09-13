@@ -20,7 +20,7 @@ import {
   declineStaffResponsibilityAction,
   recordStaffCheckInAction,
   rejectAssignedStaffAssignmentAction,
-  requestStaffResponsibilityAction,
+  requestStaffResponsibilitiesAction,
   updateStaffLogisticsTripAction,
   submitStaffExpenseAction,
 } from "./staff-portal.actions";
@@ -419,9 +419,9 @@ function AvailableEvents({
   const [pending, start] = useTransition();
   const [message, setMessage] = useState("");
   const [selected, setSelected] = useState<AvailableStaffEvent | null>(null);
-  const request = (projectId: string, role: string) =>
+  const request = (projectId: string, roles: string | string[]) =>
     start(async () => {
-      const result = await requestStaffResponsibilityAction(projectId, role);
+      const result = await requestStaffResponsibilitiesAction(projectId, Array.isArray(roles) ? roles : [roles]);
       setMessage(result.message);
       if (result.ok) location.reload();
     });
