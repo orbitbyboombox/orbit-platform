@@ -79,3 +79,11 @@ test("Admin and Staff payment read models use consolidated settlement totals", (
   assert.match(admin, /originalNet = Number\(item\.total_internal_payment\)/);
   assert.match(staff, /originalNet = Number\(row\.total_internal_payment\)/);
 });
+
+test("pending unpaid settlement follows consolidated payment without rewriting paid snapshots", () => {
+  const sql = readFileSync("supabase/migrations/0266_sync_staff_settlement_financials.sql", "utf8");
+  assert.match(sql, /paid_amount,0\)=0 and p_settlement\.settlement_status='PENDING'/);
+  assert.match(sql, /p_settlement\.total_internal_payment/);
+  assert.match(sql, /original_operator_payment/);
+  assert.match(sql, /create view public\.staff_worked_events/);
+});
