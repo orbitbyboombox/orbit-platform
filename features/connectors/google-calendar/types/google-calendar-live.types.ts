@@ -1,6 +1,6 @@
 export type CalendarOperationalPlanStatus = "DRAFT" | "APPROVED";
 export type CalendarOperationalEventType = "WEDDING" | "CORPORATE" | "BIRTHDAY" | "GRADUATION" | "INTERNAL";
-export type GoogleCalendarSyncStatus = "PENDING" | "SYNCHRONIZED" | "UPDATE_REQUIRED" | "ERROR" | "CANCELLED" | "DELETED";
+export type GoogleCalendarSyncStatus = "PENDING" | "STALE" | "SYNCING" | "SYNCHRONIZED" | "FAILED" | "UPDATE_REQUIRED" | "ERROR" | "CANCELLED" | "DELETED";
 export type GoogleCalendarSyncOperation = "UPSERT" | "CANCEL" | "RESTORE";
 export type OperatorPaymentOperationalStatus = "PENDING" | "CONFIRMED" | "NOT_APPLICABLE";
 
@@ -80,6 +80,12 @@ export interface GoogleCalendarSyncRecord {
   sourceFingerprint: string;
   lastSynchronization?: string;
   errorMessage?: string;
+  currentPayloadHash?: string;
+  lastSyncedPayloadHash?: string;
+  retryCount?: number;
+  nextRetryAt?: string;
+  syncStartedAt?: string;
+  errorCode?: string;
 }
 
 export type GoogleCalendarLiveErrorCode = "PLAN_NOT_APPROVED" | "WORKSPACE_UNAVAILABLE" | "CALENDAR_SCOPE_MISSING" | "EVENT_NOT_FOUND" | "PROVIDER_ERROR";

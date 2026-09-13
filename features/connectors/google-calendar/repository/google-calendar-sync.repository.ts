@@ -14,14 +14,14 @@ export class SupabaseGoogleCalendarSyncRepository implements GoogleCalendarSyncR
     if (error) throw error;
     if (!data) return null;
     const nova = usesNOVAGoogleCore();
-    return { orbitEventId: data.orbit_event_id, sourceEventId: data.project_id, planId: data.project_id, status: data.status, googleEventId: (nova ? data.nova_external_event_id : data.external_event_id) ?? undefined, googleEventUrl: (nova ? data.nova_external_url : data.external_url) ?? undefined, sourceFingerprint: data.payload_hash ?? "", lastSynchronization: data.last_synced_at ?? undefined, errorMessage: data.last_error?.message } as GoogleCalendarSyncRecord;
+    return { orbitEventId: data.orbit_event_id, sourceEventId: data.project_id, planId: data.project_id, status: data.status, googleEventId: (nova ? data.nova_external_event_id : data.external_event_id) ?? undefined, googleEventUrl: (nova ? data.nova_external_url : data.external_url) ?? undefined, sourceFingerprint: data.payload_hash ?? "", lastSynchronization: data.last_synced_at ?? undefined, errorMessage: data.last_error?.message, currentPayloadHash: data.current_payload_hash ?? undefined, lastSyncedPayloadHash: data.last_synced_payload_hash ?? undefined, retryCount: data.retry_count ?? 0, nextRetryAt: data.next_retry_at ?? undefined, syncStartedAt: data.sync_started_at ?? undefined, errorCode: data.last_error_code ?? undefined } as GoogleCalendarSyncRecord;
   }
   async save(record: GoogleCalendarSyncRecord): Promise<GoogleCalendarSyncRecord> {
     const nova = usesNOVAGoogleCore();
     const providerFields = nova
       ? { nova_external_event_id: record.googleEventId, nova_external_url: record.googleEventUrl, nova_migration_status: record.googleEventId ? "MIGRATED" : "PENDING", nova_migrated_at: record.googleEventId ? new Date().toISOString() : null, nova_migration_error: null }
       : { external_event_id: record.googleEventId, external_url: record.googleEventUrl };
-    const { error } = await this.client.from("calendar_sync").upsert({ project_id: record.sourceEventId, orbit_event_id: record.orbitEventId, ...providerFields, status: record.status, payload_hash: record.sourceFingerprint, last_synced_at: record.lastSynchronization, last_error: record.errorMessage ? { message: record.errorMessage } : null }, { onConflict: "orbit_event_id" });
+    const { error } = await this.client.from("calendar_sync").upsert({ project_id: record.sourceEventId, orbit_event_id: record.orbitEventId, ...providerFields, status: record.status, payload_hash: record.sourceFingerprint, current_payload_hash: record.currentPayloadHash ?? record.sourceFingerprint, last_synced_payload_hash: record.lastSyncedPayloadHash ?? (record.status === "SYNCHRONIZED" ? record.sourceFingerprint : null), retry_count: record.retryCount ?? 0, next_retry_at: record.nextRetryAt ?? null, sync_started_at: record.syncStartedAt ?? null, last_error_code: record.errorCode ?? null, last_synced_at: record.lastSynchronization, last_error: record.errorMessage ? { message: record.errorMessage } : null }, { onConflict: "orbit_event_id" });
     if (error) throw error;
     return record;
   }

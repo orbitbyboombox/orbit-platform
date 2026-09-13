@@ -10,6 +10,7 @@ import type {
   GoogleCalendarSyncOperation,
   GoogleCalendarSyncRecord,
 } from "../types/google-calendar-live.types";
+import { hashCanonicalCalendarFingerprint } from "./canonical-calendar-fingerprint";
 
 export const GOOGLE_CALENDAR_EVENT_COLORS: Readonly<Record<CalendarOperationalEventType, GoogleCalendarEventColor>> = {
   WEDDING: { eventType: "WEDDING", label: "Matrimonio", googleColorId: "5" },
@@ -70,9 +71,10 @@ export function mapOperationalEventToCalendar(input: CalendarOperationalEventInp
 }
 
 function fingerprint(input: CalendarOperationalEventInput): string {
-  const calendarState: Partial<CalendarOperationalEventInput> = { ...input };
-  delete calendarState.updatedAt;
-  return JSON.stringify(calendarState);
+  const start = `${input.serviceStartDate}T${input.serviceStart}`;
+  const end = `${input.serviceEndDate ?? input.eventDate}T${input.serviceEnd}`;
+  const staffCall = input.operatorCallTime.includes("·") ? `${input.operatorCallTime.split("·")[0].trim()}T${input.operatorCallTime.split("·")[1].trim()}` : null;
+  return hashCanonicalCalendarFingerprint({ orbitEventId: input.orbitEventId, serviceStartAt: start, serviceEndAt: end, staffCallAt: staffCall, staffCallSource: input.operatorCallTime ? "CANONICAL" : null, location: input.customerAddress });
 }
 
 function pendingRecord(input: CalendarOperationalEventInput): GoogleCalendarSyncRecord {
@@ -143,5 +145,14 @@ export function getCommandCenterCalendarStatus(record: GoogleCalendarSyncRecord)
 }
 
 export function getOperationsBoardCalendarHealth(record: GoogleCalendarSyncRecord) {
-  return record.status === "ERROR" ? "ERROR" : record.status === "UPDATE_REQUIRED" ? "ATTENTION_REQUIRED" : record.status === "SYNCHRONIZED" ? "HEALTHY" : "PENDING";
+  if (record.currentPayloadHash && record.lastSyncedPayloadHash && record.currentPayloadHash !== record.lastSyncedPayloadHash) return "ATTENTION_REQUIRED";
+  return record.status === "ERROR" || record.status === "FAILED" ? "ERROR" : record.status === "UPDATE_REQUIRED" || record.status === "STALE" ? "ATTENTION_REQUIRED" : record.status === "SYNCHRONIZED" ? "HEALTHY" : "PENDING";
+}
+
+export function getCalendarSyncLabel(record: GoogleCalendarSyncRecord): string {
+  if (record.currentPayloadHash && record.lastSyncedPayloadHash && record.currentPayloadHash !== record.lastSyncedPayloadHash) return "Cambios pendientes de sincronizar con Google Calendar";
+  if (record.status === "SYNCING") return "Actualizando Google Calendar";
+  if (record.status === "FAILED" || record.status === "ERROR") return "Error de sincronización";
+  if (record.status === "STALE" || record.status === "PENDING" || record.status === "UPDATE_REQUIRED") return "Cambios pendientes de sincronizar con Google Calendar";
+  return "Sincronizado";
 }
