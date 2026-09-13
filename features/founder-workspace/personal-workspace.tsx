@@ -140,6 +140,7 @@ function WorkspaceSectionMenu({
 export function PersonalWorkspaceSections({
   moduleKey,
   reorderEnabled = true,
+  collapsible = false,
   sections,
   editing = false,
   draftConfig,
@@ -147,6 +148,7 @@ export function PersonalWorkspaceSections({
 }: {
   moduleKey: ModuleWorkspaceKey;
   reorderEnabled?: boolean;
+  collapsible?: boolean;
   sections: WorkspaceSection[];
   editing?: boolean;
   draftConfig?: ModuleWorkspacePreference;
@@ -154,6 +156,7 @@ export function PersonalWorkspaceSections({
 }) {
   const context = useContext(WorkspaceContext);
   const [dragged, setDragged] = useState<string | null>(null);
+  const [openSection, setOpenSection] = useState<string | null>(null);
   const persistedConfig = context?.preferences.moduleWorkspaces[moduleKey];
   const config = draftConfig ?? persistedConfig;
   useEffect(() => {
@@ -253,7 +256,12 @@ export function PersonalWorkspaceSections({
             onDragOver={(event) => editing && reorderEnabled && event.preventDefault()}
             onDrop={() => editing && reorderEnabled && drop(key)}
           >
-            {editing ? <div className="mb-2 flex items-center justify-between gap-2 rounded-lg border border-brand/30 bg-brand/[.04] px-2 py-1.5 text-[11px] text-muted">
+            {collapsible ? <details open={openSection === key} onToggle={(event) => { if ((event.currentTarget as HTMLDetailsElement).open) setOpenSection(key); }} className="overflow-hidden rounded-2xl border bg-card">
+              <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold marker:hidden hover:bg-brand/[.04]">
+                <span>{section.label}</span><span aria-hidden className="text-lg text-brand">{openSection === key ? "⌃" : "›"}</span>
+              </summary>
+              <div className="border-t p-4 sm:p-6">{section.content}</div>
+            </details> : <>{editing ? <div className="mb-2 flex items-center justify-between gap-2 rounded-lg border border-brand/30 bg-brand/[.04] px-2 py-1.5 text-[11px] text-muted">
               <span draggable={editing && reorderEnabled} onDragStart={() => editing && reorderEnabled && setDragged(key)} className="inline-flex cursor-grab items-center gap-1.5" aria-label={`Mover ${section.label}`}><span aria-hidden className="text-base">☰</span><span>Editando sección</span></span>
               <span className="flex items-center gap-1">
                 <button type="button" className="rounded-md border px-2 py-1 disabled:opacity-30" aria-label={`Subir ${section.label}`} disabled={orderedKeys.indexOf(key) === 0} onClick={() => saveConfig(reorderKeys(orderedKeys, key, -1), config.hiddenSections)}>↑</button>
@@ -261,7 +269,7 @@ export function PersonalWorkspaceSections({
                 <button type="button" className="rounded-md border px-2 py-1 text-red-400" aria-label={`Ocultar ${section.label}`} onClick={() => saveConfig(config.sectionOrder, [...new Set([...config.hiddenSections, key])])}>👁 Ocultar</button>
               </span>
             </div> : null}
-            {section.content}
+            {section.content}</>}
           </section>
         );
       })}

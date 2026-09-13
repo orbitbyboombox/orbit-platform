@@ -14,6 +14,17 @@ export type NOVAGoogleHealth = {
   last_verified_at: string | null;
 };
 
+export type NOVACertificationRun = {
+  id: string;
+  tenant_slug: string;
+  status: "PASS" | "PENDING" | "RUNNING" | "FAIL" | "BLOCKED_REAUTH" | string;
+  checks: Record<string, { pass?: boolean; detail?: unknown }>;
+  started_at: string | null;
+  finished_at: string | null;
+  error_code: string | null;
+  created_at: string;
+};
+
 function config() {
   const baseUrl = process.env.ORBIT_CONNECT_BASE_URL?.trim() || DEFAULT_CORE_URL;
   const organizationId = process.env.ORBIT_ORGANIZATION_ID?.trim();
@@ -38,6 +49,14 @@ export async function loadNOVAGoogleHealth(): Promise<NOVAGoogleHealth> {
   const body = await response.json().catch(() => null) as NOVAGoogleHealth | null;
   if (!response.ok || !body) throw new Error("NOVA Google Core no está saludable.");
   return body;
+}
+
+export async function loadNOVALatestCertification(): Promise<NOVACertificationRun | null> {
+  const value = config();
+  const response = await request(`/api/certification/latest?organization_id=${encodeURIComponent(value.organizationId!)}&client_slug=${encodeURIComponent(value.clientSlug!)}`);
+  const body = await response.json().catch(() => null) as { run?: NOVACertificationRun | null } | null;
+  if (!response.ok || !body) throw new Error("NOVA Certification Center no está disponible.");
+  return body.run ?? null;
 }
 
 export async function loadNOVAGoogleAccessToken() {

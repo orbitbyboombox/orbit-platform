@@ -44,6 +44,8 @@ import {
 import { loadBankingReadModel } from "@/features/finance/banking/repository";
 import { BankSettings } from "@/features/finance/banking/bank-settings";
 import { CommercialSettings } from "@/features/commercial-hub";
+import { loadNOVALatestCertification, usesNOVAGoogleCore } from "@/features/connectors/google-workspace/application/google-nova-core";
+import { ProductionCertificationStatus } from "@/features/certification/production-certification-status";
 
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ section?: string; category?: string; returnTo?: string }> }) {
   const query = await searchParams;
@@ -130,7 +132,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       commercialTemplatesError ??
       commercialDocumentsError
     );
-  const googleConfigured = Boolean(
+  const googleConfigured = usesNOVAGoogleCore() || Boolean(
     process.env.GOOGLE_WORKSPACE_CLIENT_ID &&
       process.env.GOOGLE_WORKSPACE_CLIENT_SECRET &&
       process.env.GOOGLE_WORKSPACE_REDIRECT_URI,
@@ -141,6 +143,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       )
     : createDisconnectedGoogleWorkspaceConnection();
   const whatsappConnection = await loadWhatsAppConnection().catch(() => disconnectedWhatsAppConnection("PROVIDER_UNAVAILABLE"));
+  const latestCertification = await loadNOVALatestCertification().catch(() => null);
   const commercialDocumentRows = (commercialDocuments ?? []).map((item) => ({
     id: item.id,
     name: item.name,
@@ -180,6 +183,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       {signatureOpen && <EmailSignatureSettings url={typeof companySettings.emailConfiguration.signatureGifUrl === "string" ? companySettings.emailConfiguration.signatureGifUrl : ""} />}
       {!commercialOpen && !signatureOpen && <PersonalWorkspaceSections
       moduleKey="SETTINGS"
+      collapsible
       sections={[
         {
           key: "SYSTEM_HEALTH",
@@ -204,6 +208,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
               <ArrowRight className="size-5 shrink-0 text-muted transition group-hover:translate-x-1 group-hover:text-brand" />
             </Link>
           ),
+        },
+        {
+          key: "CERTIFICATION_CENTER",
+          label: "Certificación del sistema",
+          content: <ProductionCertificationStatus run={latestCertification} />,
         },
         {
           key: "COMPANY_SETTINGS",
