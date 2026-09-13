@@ -72,3 +72,10 @@ test("operational PWA never serves a cached app shell", () => {
   assert.doesNotMatch(sw, /\["document", "script"/);
   assert.match(sw, /caches\.delete\(key\)/);
 });
+
+test("Admin and Staff payment read models use consolidated settlement totals", () => {
+  const admin = readFileSync("app/(platform)/projects/[projectId]/page.tsx", "utf8");
+  const staff = readFileSync("app/(platform)/resources/staff/page.tsx", "utf8");
+  assert.match(admin, /originalNet = Number\(item\.total_internal_payment\)/);
+  assert.match(staff, /originalNet = Number\(row\.total_internal_payment\)/);
+});

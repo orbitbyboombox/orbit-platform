@@ -1219,8 +1219,10 @@ export default async function ProjectWorkspacePage({
                 item.automatic_disassembly_payment ??
                 item.disassembly_payment,
             ),
-            originalNet =
-              originalOperator + originalAssembly + originalDisassembly,
+            // The settlement row is the canonical event+staff financial
+            // projection. Component amounts remain for the breakdown, but
+            // never derive the event total from an assignment-specific value.
+            originalNet = Number(item.total_internal_payment),
             adjustmentTotal = adjustments.reduce(
               (sum, value) => sum + Number(value.amount),
               0,

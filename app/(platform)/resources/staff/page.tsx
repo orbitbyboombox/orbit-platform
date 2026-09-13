@@ -415,7 +415,9 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
             row.automatic_disassembly_payment ??
             row.disassembly_payment,
         ),
-        originalNet = originalOperator + originalAssembly + originalDisassembly,
+        // Use the consolidated event+staff settlement as the displayed
+        // original amount; role fields are breakdown only.
+        originalNet = Number(row.total_internal_payment),
         adjustmentTotal = adjustments.reduce(
           (sum, item) => sum + Number(item.amount),
           0,
