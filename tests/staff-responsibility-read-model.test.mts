@@ -50,3 +50,11 @@ test("BOOMBOX publication defaults to three independent roles without overwritin
   assert.match(requirementsMigration, /role in \('ASSEMBLY', 'DISASSEMBLY'\)/);
   assert.match(requirementsMigration, /on conflict \(project_id, role\)/);
 });
+
+test("Staff portal exposes multi-role selection and a consolidated estimate", () => {
+  const ui = readFileSync("features/portal-authentication/staff-portal-dashboard.tsx", "utf8");
+  assert.match(ui, /MultiRoleEventPreview/);
+  assert.match(ui, /type=\"checkbox\"/);
+  assert.match(ui, /Aceptar responsabilidades/);
+  assert.match(ui, /requestStaffResponsibilitiesAction/);
+});
