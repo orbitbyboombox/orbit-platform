@@ -36,7 +36,7 @@ export async function runConfirmedReservationOperationalPipeline(input: {
       client: input.client,
       projectId: input.projectId,
       actorId: input.actorId,
-      requireCommercialReadiness: false,
+      policy: "EXISTING_LEGACY_UPDATE",
     }));
   }
   if (!input.completedStages?.has("GOOGLE_DRIVE")) {

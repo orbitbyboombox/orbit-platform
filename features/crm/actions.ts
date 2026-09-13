@@ -207,7 +207,7 @@ export async function updateCrmCustomerAction(input: {
     if (error) throw error;
     const projectIds = (current.projects ?? []).filter((project) => !project.deleted_at && !["CANCELLED", "CANCELED", "ARCHIVED"].includes(String(project.status).toUpperCase())).map((project) => project.id);
     await Promise.all(projectIds.flatMap((projectId) => [
-      synchronizeConfirmedReservationCalendar({ client, projectId, actorId: user.id, operation: "UPSERT", requireCommercialReadiness: false }),
+      synchronizeConfirmedReservationCalendar({ client, projectId, actorId: user.id, operation: "UPSERT", policy: "EXISTING_LEGACY_UPDATE" }),
       synchronizeConfirmedReservationDrive({ client, projectId, actorId: user.id, recordTimeline: true }),
     ]));
     revalidatePath(`/customers/${input.id}`);
@@ -421,7 +421,7 @@ export async function updateCrmEventAction(input: {
     });
     if (error) throw error;
     const synchronization = await Promise.allSettled([
-      synchronizeConfirmedReservationCalendar({ client, projectId: input.projectId, actorId: user.id, operation: "UPSERT", requireCommercialReadiness: false }),
+      synchronizeConfirmedReservationCalendar({ client, projectId: input.projectId, actorId: user.id, operation: "UPSERT", policy: "EXISTING_LEGACY_UPDATE" }),
       synchronizeConfirmedReservationDrive({ client, projectId: input.projectId, actorId: user.id, recordTimeline: true }),
     ]);
     revalidatePath(`/customers/${input.customerId}`);

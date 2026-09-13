@@ -196,7 +196,7 @@ export async function saveStaffAssignmentAction(
       client: ctx.client,
       projectId: input.projectId,
       actorId: ctx.user.id,
-      onlyExisting: true,
+      policy: "EXISTING_LEGACY_UPDATE",
     });
     revalidatePath(`/projects/${input.projectId}`);
     revalidatePath("/resources/staff");
@@ -256,7 +256,7 @@ export async function updateStaffAssignmentStatusAction(input: {
       client: ctx.client,
       projectId: input.projectId,
       actorId: ctx.user.id,
-      onlyExisting: true,
+      policy: "EXISTING_LEGACY_UPDATE",
     });
     revalidatePath(`/projects/${input.projectId}`);
     revalidatePath("/resources/staff");
@@ -319,7 +319,7 @@ export async function cancelStaffAssignmentByFounderAction(input: {
         client: ctx.client,
         projectId: input.projectId,
         actorId: ctx.user.id,
-        onlyExisting: true,
+      policy: "EXISTING_LEGACY_UPDATE",
       });
     } catch (calendarError) {
       console.error("[ORBIT][STAFF_CANCELLATION_BOUNDARY]", {

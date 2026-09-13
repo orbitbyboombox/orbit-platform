@@ -37,6 +37,13 @@ test("Calendar updates the existing event and rejects empty ranges",()=>{
   assert.match(mapper,/provider\.updateEvent\(existing\.googleEventId/);
   assert.match(mapper,/end <= start/);
 });
+test("new Calendar creation requires commercial readiness while legacy updates remain available",()=>{
+  assert.match(calendar,/type CalendarSyncPolicy="NEW"\|"EXISTING_LEGACY_UPDATE"/);
+  assert.match(calendar,/policy=input\.policy\?\?"NEW"/);
+  assert.match(calendar,/!eligible&&policy==="NEW"/);
+  assert.match(calendar,/!eligible&&policy==="EXISTING_LEGACY_UPDATE"&&!existing/);
+  assert.doesNotMatch(calendar,/requireCommercialReadiness/);
+});
 test("hotfix does not mutate customer communications, historical agreements, or payment ledger",()=>{
   assert.doesNotMatch(migration,/communications|agreements|quotations|invoice_payments|paid_amount/i);
   assert.match(commercialFreeze,/commercial_locked/);
