@@ -127,7 +127,7 @@ export async function saveStaffAssignmentAction(
       status: "ASSIGNED",
       arrival_time: value(input.arrivalTime) ?? automaticArrival,
       staff_call_at:value(input.staffCallAt??"")||automaticArrival,
-      staff_call_source:value(input.staffCallAt??"")?"FOUNDER_OVERRIDE":(automaticArrival?"DEFAULT_90_MINUTES":null),
+      staff_call_source:value(input.staffCallAt??"")?"FOUNDER_OVERRIDE":(automaticArrival?"DEFAULT_60_MINUTES":null),
       start_time: value(input.startTime) ?? value(eventStart),
       finish_time: value(input.finishTime) ?? automaticFinish,
       assigned_vehicle: value(input.vehicleId),
