@@ -1,5 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { GoogleGmailApiProvider } from "@/features/connectors/google-gmail/provider/google-gmail-live.provider";
 import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import { loadCompanySettings } from "@/features/company-settings/repository";
@@ -194,6 +195,10 @@ export async function deliverAssignmentCancellationBoundary(
     founderInitiated = cancellation.initiated_by === "FOUNDER",
     completed: BoundaryStage[] = [],
     failed: BoundaryResult["failed"] = [];
+  // The caller is already authorized by the canonical cancellation RPC. Use
+  // the service-role client for post-commit projections so RLS on the
+  // internal portal/timeline tables cannot leave a half-completed boundary.
+  const projectionClient = createAdminClient();
   const run = async (stage: BoundaryStage, operation: () => Promise<void>) => {
     try {
       await operation();
@@ -201,11 +206,15 @@ export async function deliverAssignmentCancellationBoundary(
     } catch (stageError) {
       const message =
         stageError instanceof Error ? stageError.message : String(stageError);
-      failed.push({ stage, error: message });
+      const diagnostic = stageError as { code?: string; details?: string; hint?: string };
+      failed.push({ stage, error: JSON.stringify({ message, code: diagnostic.code ?? null, details: diagnostic.details ?? null, hint: diagnostic.hint ?? null }) });
       console.error("[ORBIT][STAFF_CANCELLATION_BOUNDARY]", {
         cancellationId,
         stage,
-        error: message,
+        message,
+        code: diagnostic.code ?? null,
+        details: diagnostic.details ?? null,
+        hint: diagnostic.hint ?? null,
       });
     }
   };
@@ -218,7 +227,7 @@ export async function deliverAssignmentCancellationBoundary(
         String(project.status ?? "").toUpperCase(),
       );
     if (!cancellation.republish_allowed || projectClosed) return;
-    const { error: portalError } = await client
+    const { error: portalError } = await projectionClient
       .from("staff_event_publications")
       .upsert(
         {
@@ -240,7 +249,7 @@ export async function deliverAssignmentCancellationBoundary(
       message = founderInitiated
         ? "Founder canceló la asignación y el Evento volvió a requerir cobertura."
         : "URGENTE: Staff canceló su asignación. El Evento volvió a requerir cobertura.";
-    const { error: timelineError } = await client.from("timeline_events").upsert(
+    const { error: timelineError } = await projectionClient.from("timeline_events").upsert(
       {
         customer_id: project?.customer_id,
         project_id: cancellation.project_id,
@@ -268,7 +277,7 @@ export async function deliverAssignmentCancellationBoundary(
   });
 
   await run("notification", async () => {
-    const { error: notificationError } = await client
+    const { error: notificationError } = await projectionClient
       .from("internal_notifications")
       .upsert(
         {
