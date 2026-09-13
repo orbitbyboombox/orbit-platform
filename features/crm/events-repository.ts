@@ -43,7 +43,6 @@ export async function loadCrmOperationalEvents(client: SupabaseClient): Promise<
   const [{data:customers,error:customerError},{data:assignments,error:assignmentError}]=await Promise.all([
     customerIds.length?client.from("customers").select("id,full_name,company").in("id",customerIds):Promise.resolve({data:[],error:null}),
     projectIds.length?client.from("assignments").select("project_id,assignment_type,status,staff(first_name,last_name)").in("project_id",projectIds).is("deleted_at",null):Promise.resolve({data:[],error:null}),
-    Promise.resolve({data:[],error:null}),
   ]);
   if(customerError)throw customerError;if(assignmentError)throw assignmentError;
   const customerMap=new Map((customers??[]).map(customer=>[customer.id,customer]));
