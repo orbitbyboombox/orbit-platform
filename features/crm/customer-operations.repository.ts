@@ -13,7 +13,7 @@ export async function loadCrmCustomerOperations(
   const [receivables, assignments, staff, assets, agreements, documents, calendars, portals, invoices, financialTruth, quotations, expenses, services] =
     await Promise.all([
       client.from("accounts_receivable_projection").select("id,project_id,invoice_number,amount,paid_amount,outstanding_balance,due_date,effective_status,payment_history").in("project_id", projectIds),
-      client.from("assignments").select("id,project_id,staff_id,assignment_type,status,arrival_time,start_time,finish_time,assigned_vehicle,observations,staff(first_name,last_name),operational_assets(asset_code)").in("project_id", projectIds).is("deleted_at", null),
+      client.from("assignments").select("id,project_id,staff_id,assignment_type,status,staff_call_at,arrival_time,start_time,finish_time,assigned_vehicle,observations,staff(first_name,last_name),operational_assets(asset_code)").in("project_id", projectIds).is("deleted_at", null),
       client.from("staff").select("id,first_name,last_name,role,status,capabilities").is("deleted_at", null).order("last_name"),
       client.from("operational_assets").select("id,asset_code,asset_type,status").is("deleted_at", null).order("asset_code"),
       client.from("agreements").select("id,project_id,status,created_at").in("project_id", projectIds).order("created_at", { ascending: false }),
@@ -127,7 +127,7 @@ export async function loadCrmCustomerOperations(
             id: item.id, staffId: item.staff_id,
             staffName: member ? `${member.first_name} ${member.last_name}` : "Staff sin ficha",
             role: item.assignment_type, status: item.status,
-            arrivalTime: item.arrival_time?.slice(0, 5) ?? "", startTime: item.start_time?.slice(0, 5) ?? "", finishTime: item.finish_time?.slice(0, 5) ?? "",
+            arrivalTime: item.staff_call_at?.slice(0, 5) ?? item.arrival_time?.slice(0, 5) ?? "", startTime: item.start_time?.slice(0, 5) ?? "", finishTime: item.finish_time?.slice(0, 5) ?? "",
             vehicleId: item.assigned_vehicle ?? "", vehicleName: vehicle?.asset_code ?? "", observations: item.observations ?? "",
           };
         }),

@@ -161,7 +161,7 @@ export default async function ProjectWorkspacePage({
     client
       .from("assignments")
       .select(
-        "id,project_id,staff_id,assignment_type,status,arrival_time,start_time,finish_time,assigned_vehicle,observations,resources,staff(first_name,last_name),operational_assets(asset_code)",
+        "id,project_id,staff_id,assignment_type,status,staff_call_at,arrival_time,start_time,finish_time,assigned_vehicle,observations,resources,staff(first_name,last_name),operational_assets(asset_code)",
       )
       .is("deleted_at", null),
     client
@@ -464,6 +464,7 @@ export default async function ProjectWorkspacePage({
     staff_id: string;
     assignment_type: string;
     status: string;
+    staff_call_at: string | null;
     arrival_time: string | null;
     start_time: string | null;
     finish_time: string | null;
@@ -1263,7 +1264,7 @@ export default async function ProjectWorkspacePage({
           staffName: `${item.staff.first_name} ${item.staff.last_name}`,
           role: item.assignment_type,
           status: item.status,
-          arrivalTime: item.arrival_time?.slice(0, 5) ?? "",
+          arrivalTime: item.staff_call_at?.slice(0, 5) ?? item.arrival_time?.slice(0, 5) ?? "",
           startTime: item.start_time?.slice(0, 5) ?? "",
           finishTime: item.finish_time?.slice(0, 5) ?? "",
           vehicleId: item.assigned_vehicle ?? "",

@@ -314,7 +314,7 @@ export function StaffAssignmentCenter({
               />
             </div>
             <dl className="mt-4 grid grid-cols-3 gap-2 text-sm">
-              <Time label="Llegada" value={item.arrivalTime} />
+              <Time label="Citación Staff" value={item.arrivalTime} />
               <Time label="Inicio" value={item.startTime} />
               <Time label="Término" value={item.finishTime} />
             </dl>
@@ -1178,8 +1178,8 @@ function AssignmentDialog({
           <Field
             label={
               role === "OPERATOR"
-                ? "Llegada (automática si se deja vacía)"
-                : "Hora de llegada · manual"
+                ? "Citación Staff (automática si se deja vacía)"
+                : "Citación Staff · manual"
             }
             name="arrivalTime"
             type="time"
