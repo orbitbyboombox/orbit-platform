@@ -128,6 +128,8 @@ test("signature-link preparation fails safely instead of leaving an infinite pen
   assert.match(signingControl, /Preparando…/);
   assert.match(signingControl, /tardó demasiado/);
   assert.match(signingControl, /Promise\.race/);
+  assert.match(signingControl, /ENLACE DE FIRMA PREPARADO/);
+  assert.match(signingControl, /Abrir enlace/);
   assert.doesNotMatch(signingControl, /status:\s*["']SIGNED["']/);
   assert.match(signedPdf, /status: "SIGNED"/);
 });
