@@ -164,7 +164,7 @@ export default async function ProjectWorkspacePage({
     client
       .from("assignments")
       .select(
-        "id,project_id,staff_id,assignment_type,status,staff_call_at,arrival_time,start_time,finish_time,assigned_vehicle,observations,resources,staff(first_name,last_name),operational_assets(asset_code)",
+        "id,project_id,staff_id,assignment_type,status,created_at,staff_call_at,arrival_time,start_time,finish_time,assigned_vehicle,observations,resources,staff(first_name,last_name),operational_assets(asset_code)",
       )
       .is("deleted_at", null),
     client
@@ -227,7 +227,7 @@ export default async function ProjectWorkspacePage({
       .maybeSingle(),
     client
       .from("staff_assignment_requests")
-      .select("id,responsibility,status,staff(first_name,last_name)")
+      .select("id,staff_id,responsibility,status,staff(first_name,last_name)")
       .eq("project_id", projectId)
       .eq("status", "PENDING")
       .order("requested_at"),
@@ -462,6 +462,7 @@ export default async function ProjectWorkspacePage({
     operational_assets: { asset_code: string; status: string };
   };
   type StaffAssignment = {
+    created_at?: string;
     id: string;
     project_id: string;
     staff_id: string;
@@ -481,6 +482,8 @@ export default async function ProjectWorkspacePage({
     []) as unknown as ActiveAssetAssignment[];
   const confirmedAssignmentStatuses = new Set([
     "ASSIGNED",
+    "PENDING",
+    "PENDING_CONFIRMATION",
     "CONFIRMED",
     "ACCEPTED",
     "EN_ROUTE",
@@ -502,6 +505,7 @@ export default async function ProjectWorkspacePage({
       .filter((item) => item.project_id === projectId)
       .map((item) => ({
         role: item.assignment_type,
+        staffId: item.staff_id,
         status: item.status,
         staffName: `${item.staff?.first_name ?? ""} ${item.staff?.last_name ?? ""}`,
       })),
@@ -509,6 +513,7 @@ export default async function ProjectWorkspacePage({
       const member = Array.isArray(item.staff) ? item.staff[0] : item.staff;
       return {
         role: item.responsibility,
+        staffId: item.staff_id,
         staffName: member ? `${member.first_name} ${member.last_name}` : "Colaborador",
       };
     }),
@@ -1175,6 +1180,9 @@ export default async function ProjectWorkspacePage({
       projectId,
       published: staffPublication?.published ?? false,
       requirements: responsibilityRequirements,
+      roleCosts: Object.fromEntries(["OPERATOR", "ASSEMBLY", "DISASSEMBLY"].map((role) => [role,
+        (payroll ?? []).filter((item) => item.status !== "CANCELLED").reduce((sum, item) => sum + Number(role === "OPERATOR" ? item.operator_payment : role === "ASSEMBLY" ? item.assembly_payment : item.disassembly_payment), 0),
+      ])),
       requests: (staffRequests ?? []).map((item) => {
         const member = Array.isArray(item.staff) ? item.staff[0] : item.staff;
         return {
@@ -1294,6 +1302,7 @@ export default async function ProjectWorkspacePage({
         .map((item) => ({
           id: item.id,
           staffId: item.staff_id,
+          createdAt: item.created_at,
           staffName: `${item.staff.first_name} ${item.staff.last_name}`,
           role: item.assignment_type,
           status: item.status,

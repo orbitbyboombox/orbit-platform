@@ -5,12 +5,14 @@ export type ResponsibilityRequirement = {
 };
 
 export type ResponsibilityAssignment = {
+  staffId?: string;
   role: string;
   status: string;
   staffName: string;
 };
 
 export type ResponsibilityRequest = {
+  staffId?: string;
   role: string;
   staffName: string;
 };
@@ -31,17 +33,13 @@ export function buildResponsibilityReadModel(
   requests: ResponsibilityRequest[],
 ): ResponsibilityReadModel[] {
   return requirements.map((requirement) => {
+    const owners = new Map<string, string>();
+    for (const assignment of assignments) {
+      if (assignment.role !== requirement.role || INACTIVE_ASSIGNMENT_STATUSES.has(assignment.status) || !assignment.staffName.trim()) continue;
+      owners.set(assignment.staffId ?? assignment.staffName.trim(), assignment.staffName.trim());
+    }
     const assignedStaff = [
-      ...new Set(
-        assignments
-          .filter(
-            (assignment) =>
-              assignment.role === requirement.role &&
-              !INACTIVE_ASSIGNMENT_STATUSES.has(assignment.status) &&
-              assignment.staffName.trim(),
-          )
-          .map((assignment) => assignment.staffName.trim()),
-      ),
+      ...owners.values(),
     ];
     const pendingStaff = [
       ...new Set(
@@ -50,7 +48,7 @@ export function buildResponsibilityReadModel(
             (request) =>
               request.role === requirement.role &&
               request.staffName.trim() &&
-              !assignedStaff.includes(request.staffName.trim()),
+              !owners.has(request.staffId ?? request.staffName.trim()),
           )
           .map((request) => request.staffName.trim()),
       ),

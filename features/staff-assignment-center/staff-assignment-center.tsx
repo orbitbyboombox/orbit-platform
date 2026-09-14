@@ -28,6 +28,7 @@ import {
 } from "@/features/staff-payments/actions";
 import { reviewStaffRequestAction, setEventStaffRequirementAction } from "@/features/operations/operations-planning.actions";
 import type { ResponsibilityReadModel } from "./staff-responsibility-read-model";
+import { buildStaffRoleSlots, validStaffQuantity } from "./staff-role-slots";
 
 export type OperationalAssignment = {
   id: string;
@@ -42,6 +43,7 @@ export type OperationalAssignment = {
   vehicleName: string;
   observations: string;
   packageStatus?: Record<string, string>;
+  createdAt?: string;
 };
 export type AssignmentStaffOption = {
   id: string;
@@ -104,6 +106,7 @@ export type StaffAssignmentCenterProps = {
   hasPendingRequest?: boolean;
   published?: boolean;
   settlements?: EventStaffSettlement[];
+  roleCosts?: Record<string, number>;
   requirements?: ResponsibilityReadModel[];
   requests?: Array<{ id: string; role: string; staffName: string; status: string }>;
 };
@@ -177,6 +180,7 @@ export function StaffAssignmentCenter({
   hasPendingRequest = false,
   published = false,
   settlements = [],
+  roleCosts = {},
   requirements = [],
   requests = [],
 }: StaffAssignmentCenterProps) {
@@ -185,6 +189,8 @@ export function StaffAssignmentCenter({
   const [panel, setPanel] = useState<{
     mode: "create" | "edit" | "replace";
     item?: OperationalAssignment;
+    role?: string;
+    slot?: number;
   } | null>(null);
   const [settlement, setSettlement] = useState<EventStaffSettlement | null>(
     null,
@@ -269,12 +275,12 @@ export function StaffAssignmentCenter({
             </p>
           </div>
         </div>
-        {!hasPendingRequest ? (
+        {(
           <Button onClick={() => setPanel({ mode: "create" })}>
             <Plus className="size-4" />
             Asignar Staff
           </Button>
-        ) : null}
+        )}
       </header>
       {message && (
         <p
@@ -290,14 +296,20 @@ export function StaffAssignmentCenter({
           const confirmed = assignments.filter((item) => item.role === role.value && !["CANCELLED", "REJECTED"].includes(item.status)).length;
           const configuredRequired = requirement?.required ?? (role.value === "OPERATOR" ? 1 : 0);
           const required = Math.max(configuredRequired, confirmed);
-          const assignedStaff = requirement?.assignedStaff ?? [];
-          const pendingStaff = requirement?.pendingStaff ?? [];
           const isPublished = requirement?.published ?? (role.value === "OPERATOR" && published);
-          return <form action={(data)=>startTransition(async()=>{const result=await setEventStaffRequirementAction(data);setMessage(result.message);if(result.ok)router.refresh()})} className="rounded-xl border p-4" key={role.value}>
-            <input name="projectId" type="hidden" value={projectId}/><input name="role" type="hidden" value={role.value}/>
-            <div className="flex items-center justify-between gap-3"><div><p className="font-semibold">{role.label}</p><p className="text-sm text-muted">{confirmed}/{required} asignado{required===1?"":"s"}</p>{assignedStaff.length ? <p className="mt-2 text-sm font-medium">Asignado a: {assignedStaff.join(", ")}</p> : pendingStaff.length ? <p className="mt-2 text-sm text-muted">Pendiente de Staff: {pendingStaff.join(", ")}</p> : <p className="mt-2 text-sm text-muted">Pendiente de Staff</p>}</div><StatusBadge label={isPublished?"Publicado":"Interno"} variant={isPublished?"success":"info"}/></div>
-            <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end"><label className="grid min-w-0 gap-1 text-xs text-muted">Cantidad requerida<input className="min-h-10 min-w-0 rounded-lg border bg-background px-3 text-foreground" defaultValue={required} min="0" name="quantity" type="number"/></label><label className="flex min-h-10 items-center gap-2 text-sm"><input defaultChecked={isPublished} name="published" type="checkbox" value="true"/>Publicar</label><Button className="w-full sm:w-auto" disabled={pending} type="submit">Guardar</Button></div>
-          </form>;
+          return <StaffRoleRequirementCard
+            key={`${projectId}:${role.value}:${required}:${isPublished}`}
+            projectId={projectId} role={role} required={required} published={isPublished}
+            assignments={assignments} pending={pending}
+            cost={roleCosts[role.value] ?? 0}
+            onSave={(data) => startTransition(async () => {
+              const result = await setEventStaffRequirementAction(data);
+              setMessage(result.message);
+              if (result.ok) router.refresh();
+            })}
+            onAssign={(slot) => setPanel({ mode: "create", role: role.value, slot })}
+            onEdit={(item) => setPanel({ mode: "edit", item })}
+          />;
         })}
       </section>
       {requests.length ? <section className="mb-5 border-b pb-5"><h3 className="font-semibold">Solicitudes Staff</h3><div className="mt-3 grid gap-3 lg:grid-cols-2">{requests.map((request)=><article className="rounded-xl border p-4" key={request.id}><p className="font-semibold">{request.staffName}</p><p className="mt-1 text-sm text-muted">{roleLabel(request.role)} · Solicitud pendiente</p><div className="mt-3 flex gap-2"><form action={(data)=>startTransition(async()=>{const result=await reviewStaffRequestAction(data);setMessage(result.message);if(result.ok)router.refresh()})}><input name="requestId" type="hidden" value={request.id}/><input name="decision" type="hidden" value="approve"/><Button disabled={pending} type="submit">Aprobar</Button></form><form action={(data)=>startTransition(async()=>{const result=await reviewStaffRequestAction(data);setMessage(result.message);if(result.ok)router.refresh()})}><input name="requestId" type="hidden" value={request.id}/><input name="decision" type="hidden" value="reject"/><Button disabled={pending} type="submit" variant="outline">Rechazar</Button></form></div></article>)}</div></section>:null}
@@ -447,6 +459,9 @@ export function StaffAssignmentCenter({
         <AssignmentDialog
           mode={panel.mode}
           item={panel.item}
+          initialRole={panel.role}
+          slot={panel.slot}
+          assignments={assignments}
           projectId={projectId}
           staff={staff}
           vehicles={vehicles}
@@ -479,6 +494,66 @@ export function StaffAssignmentCenter({
 }
 
 void SettlementDialog;
+
+function StaffRoleRequirementCard({ projectId, role, required, published, assignments, pending, cost, onSave, onAssign, onEdit }: {
+  projectId: string;
+  role: { value: string; label: string };
+  required: number;
+  published: boolean;
+  assignments: OperationalAssignment[];
+  pending: boolean;
+  cost: number;
+  onSave: (data: FormData) => void;
+  onAssign: (slot: number) => void;
+  onEdit: (item: OperationalAssignment) => void;
+}) {
+  const [quantity, setQuantity] = useState(String(Math.max(required, 1)));
+  const [isPublished, setPublished] = useState(published);
+  const [page, setPage] = useState(0);
+  const slots = buildStaffRoleSlots(role.value, required, assignments, { offset: page * 12, limit: 12 });
+  const covered = new Set(assignments.filter((item) => item.role === role.value && !["CANCELLED", "REJECTED"].includes(item.status)).map((item) => item.staffId)).size;
+  const save = (remove = false) => {
+    const data = new FormData();
+    data.set("projectId", projectId);
+    data.set("role", role.value);
+    data.set("quantity", remove ? "0" : quantity);
+    data.set("published", String(!remove && isPublished));
+    data.set("removeRole", String(remove));
+    onSave(data);
+  };
+  return <article className="min-w-0 rounded-xl border p-4">
+    <div className="flex items-start justify-between gap-3">
+      <div><p className="font-semibold">{role.label}</p><p className="text-sm text-muted">{covered}/{required} cubiertos</p></div>
+      <StatusBadge label={published ? "Publicado" : "Interno"} variant={published ? "success" : "info"}/>
+    </div>
+    <p className="mt-2 text-xs text-muted">Costo Staff del rol: <strong className="text-foreground">{money(cost)}</strong> · colaboradores asignados</p>
+    <form onSubmit={(event) => { event.preventDefault(); save(); }} className="mt-3 grid gap-3">
+      <label className="grid min-w-0 gap-1 text-xs text-muted">Cantidad requerida · {role.label}
+        <div className="flex min-w-0 gap-2">
+          <Button type="button" variant="outline" aria-label={`Quitar slot de ${role.label}`} disabled={pending || Number(quantity) <= Math.max(covered, 1)} onClick={() => setQuantity(String(Number(quantity) - 1))}>−</Button>
+          <input className="min-h-10 w-full min-w-0 rounded-lg border bg-background px-3 text-foreground" value={quantity} onChange={(event) => setQuantity(event.target.value)} min={Math.max(covered, 1)} step="1" required name="quantity" type="number"/>
+          <Button type="button" variant="outline" aria-label={`Agregar slot de ${role.label}`} disabled={pending} onClick={() => setQuantity(String(Math.max(1, Number(quantity) || 0) + 1))}>+</Button>
+        </div>
+      </label>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <label className="flex min-h-10 items-center gap-2 text-sm"><input checked={isPublished} onChange={(event) => setPublished(event.target.checked)} name="published" type="checkbox"/>Publicar</label>
+        <Button disabled={pending || !validStaffQuantity(Number(quantity)) || Number(quantity) < covered} type="submit">Guardar</Button>
+      </div>
+    </form>
+    <ol className="mt-4 grid gap-2">
+      {slots.map((slot) => <li key={slot.assignment?.id ?? `${role.value}:${slot.number}`} className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-lg bg-background/60 p-3 text-sm">
+        <div className="min-w-0"><p className="font-medium">{role.label} {slot.number}</p><p className="break-words text-muted">{slot.assignment?.staffName ?? "Sin asignar"}</p>{slot.assignment ? <p className="text-xs text-muted">{statusLabel(slot.assignment.status)}</p> : null}</div>
+        <Button type="button" variant="outline" disabled={pending} aria-label={`${slot.assignment ? "Editar" : "Asignar"} ${role.label} ${slot.number}`} onClick={() => slot.assignment ? onEdit(slot.assignment) : onAssign(slot.number)}>{slot.assignment ? "Editar" : "Asignar"}</Button>
+      </li>)}
+    </ol>
+    {required > 12 ? <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
+      <Button type="button" variant="outline" disabled={page === 0} onClick={() => setPage((value) => value - 1)}>Anterior</Button>
+      <span>{page * 12 + 1}–{Math.min((page + 1) * 12, required)} de {required}</span>
+      <Button type="button" variant="outline" disabled={(page + 1) * 12 >= required} onClick={() => setPage((value) => value + 1)}>Siguiente</Button>
+    </div> : null}
+    {required > 0 && covered === 0 ? <Button className="mt-3" type="button" variant="outline" disabled={pending} onClick={() => save(true)}>Quitar rol</Button> : null}
+  </article>;
+}
 
 function AssignmentCancellationDialog({
   item,
@@ -1100,6 +1175,9 @@ function SettlementDialog({
 function AssignmentDialog({
   mode,
   item,
+  initialRole,
+  slot,
+  assignments,
   projectId,
   staff,
   vehicles,
@@ -1110,6 +1188,9 @@ function AssignmentDialog({
 }: {
   mode: "create" | "edit" | "replace";
   item?: OperationalAssignment;
+  initialRole?: string;
+  slot?: number;
+  assignments: OperationalAssignment[];
   projectId: string;
   staff: AssignmentStaffOption[];
   vehicles: AssignmentVehicleOption[];
@@ -1118,13 +1199,16 @@ function AssignmentDialog({
   onClose: () => void;
   onSubmit: (input: StaffAssignmentMutation) => void;
 }) {
-  const [role, setRole] = useState(item?.role ?? "OPERATOR");
+  const [role, setRole] = useState(item?.role ?? initialRole ?? "OPERATOR");
+  const [requestId] = useState(() => crypto.randomUUID());
   const compatible = staff.filter((member) =>
-    member.capabilities.includes(role),
+    member.capabilities.includes(role) && !assignments.some((assignment) =>
+      assignment.role === role && assignment.staffId === member.id && assignment.id !== item?.id &&
+      !["CANCELLED", "REJECTED"].includes(assignment.status)),
   );
   return (
     <MobileDialog
-      description="Solo Operador, Montaje y Desmontaje. La llegada del Operador se calcula 90 minutos antes del inicio real."
+      description="Una persona distinta por slot. Cada colaborador conserva su liquidación individual según las tarifas oficiales."
       dismissOnOverlayClick={false}
       eyebrow="STAFF · EVENT 360°"
       onClose={onClose}
@@ -1134,7 +1218,7 @@ function AssignmentDialog({
           ? "Reemplazar Staff"
           : mode === "edit"
             ? "Editar asignación"
-            : "Asignar responsabilidad"
+            : slot ? `Asignar ${roleLabel(role)} ${slot}` : "Asignar responsabilidad"
       }
     >
       <div className="max-h-[92dvh] w-full overflow-y-auto rounded-t-2xl border bg-card p-5 sm:max-w-2xl sm:rounded-2xl sm:p-7">
@@ -1145,6 +1229,7 @@ function AssignmentDialog({
             const data = new FormData(event.currentTarget);
             onSubmit({
               id: mode === "edit" ? item?.id : undefined,
+              requestId,
               replaceId: mode === "replace" ? item?.id : undefined,
               projectId,
               staffId: String(data.get("staffId") ?? ""),
@@ -1157,13 +1242,13 @@ function AssignmentDialog({
             });
           }}
         >
-          <Select
+          {initialRole ? <><input type="hidden" name="role" value={role}/><p className="text-sm font-semibold">{roleLabel(role)} {slot}</p></> : <Select
             label="Responsabilidad"
             name="role"
             value={role}
             onChange={setRole}
             options={roles}
-          />
+          />}
           <Select
             label="Staff compatible"
             name="staffId"

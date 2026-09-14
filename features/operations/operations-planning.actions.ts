@@ -4,6 +4,7 @@ import {revalidatePath} from "next/cache";
 import {createSupabaseServerActionClient} from "@/lib/supabase/server";
 import {deliverSmartAssignmentPackage} from "./smart-assignment-package.service";
 import {buildCanonicalOrbitEventStateFromRecord, canonicalStaffCallGuard} from "./canonical-orbit-event-state";
+import { validStaffQuantity } from "@/features/staff-assignment-center/staff-role-slots";
 
 type Result={ok:true;message:string}|{ok:false;message:string};
 async function context(){const client=await createSupabaseServerActionClient();const{data,error}=await client.auth.getUser();if(error||!data.user)throw new Error("Sesión requerida.");const{data:profile,error:profileError}=await client.from("profiles").select("role").eq("id",data.user.id).single();if(profileError||!["CEO","ADMINISTRATOR"].includes(profile?.role))throw new Error("Solo Administración puede asignar Staff.");return client;}
@@ -42,7 +43,7 @@ export async function setStaffEventPublicationAction(data: FormData): Promise<Re
   } catch (error) { return { ok: false, message: error instanceof Error ? error.message : "No fue posible cambiar la publicación." }; }
 }
 
-export async function setEventStaffRequirementAction(data:FormData):Promise<Result>{try{const client=await context(),projectId=value(data,"projectId"),role=value(data,"role"),quantity=Number(data.get("quantity")),published=value(data,"published")==="true";if(!Number.isInteger(quantity)||quantity<0)throw new Error("Ingresa una cantidad válida.");const{error}=await client.rpc("set_event_staff_requirement",{p_project_id:projectId,p_role:role,p_required_quantity:quantity,p_published:published});if(error)throw error;revalidatePath(`/projects/${projectId}`);revalidatePath("/operations");revalidatePath("/staff-portal");return{ok:true,message:published?"Necesidad publicada para Staff.":"Necesidad guardada sin publicar."};}catch(error){return{ok:false,message:error instanceof Error?error.message:"No fue posible configurar la necesidad de Staff."};}}
+export async function setEventStaffRequirementAction(data:FormData):Promise<Result>{try{const client=await context(),projectId=value(data,"projectId"),role=value(data,"role"),quantity=Number(data.get("quantity")),published=value(data,"published")==="true",removeRole=value(data,"removeRole")==="true";if(!validStaffQuantity(quantity)&&!(removeRole&&quantity===0&&!published))throw new Error("Ingresa una cantidad entera mayor o igual a 1.");const{error}=await client.rpc("set_event_staff_requirement",{p_project_id:projectId,p_role:role,p_required_quantity:quantity,p_published:published});if(error)throw new Error(error.message);revalidatePath(`/projects/${projectId}`);revalidatePath("/operations");revalidatePath("/staff-portal");revalidatePath("/resources/staff");revalidatePath("/finance");return{ok:true,message:removeRole?"Rol retirado sin alterar asignaciones.":published?`Cantidad ${quantity} guardada y publicada para Staff.`:`Cantidad ${quantity} guardada sin publicar.`};}catch(error){return{ok:false,message:error instanceof Error?error.message:"No fue posible configurar la necesidad de Staff."};}}
 
 export async function reviewStaffRequestAction(data:FormData):Promise<Result>{
   const reference=crypto.randomUUID().slice(0,8).toUpperCase(),requestId=value(data,"requestId"),decision=value(data,"decision"),approved=decision==="approve";

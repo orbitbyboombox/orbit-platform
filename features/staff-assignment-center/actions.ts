@@ -11,6 +11,7 @@ import {calculateStaffCallAt, chileLocalToIso} from "@/features/operations/event
 import { invalidateCalendarSyncForProject } from "@/features/connectors/google-calendar/application/google-calendar-resync.service";
 
 export type StaffAssignmentMutation = {
+  requestId?: string;
   id?: string;
   projectId: string;
   staffId: string;
@@ -126,7 +127,7 @@ export async function saveStaffAssignmentAction(
       staff_id: input.staffId,
       assignment_type: input.role,
       status: "ASSIGNED",
-      arrival_time: value(input.arrivalTime) ?? automaticArrival,
+      arrival_time: value(input.arrivalTime) ?? (automaticArrival ? clock(eventStart, -60) : null),
       staff_call_at:value(input.staffCallAt??"")||automaticArrival,
       staff_call_source:value(input.staffCallAt??"")?"FOUNDER_OVERRIDE":(automaticArrival?"DEFAULT_60_MINUTES":null),
       start_time: value(input.startTime) ?? value(eventStart),
@@ -137,59 +138,21 @@ export async function saveStaffAssignmentAction(
       reason: value(input.observations) ?? "Asignación operacional",
       updated_by: ctx.user.id,
     };
-    let assignmentId=input.id??"";
-    if (input.replaceId) {
-      const { data: old, error: oldError } = await ctx.client
-        .from("assignments")
-        .update({
-          status: "CANCELLED",
-          deleted_at: new Date().toISOString(),
-          updated_by: ctx.user.id,
-          reason: "Staff reemplazado",
-        })
-        .eq("id", input.replaceId)
-        .eq("project_id", input.projectId)
-        .is("deleted_at", null)
-        .select("id,staff_id")
-        .single();
-      if (oldError) throw oldError;
+    const { data: saved, error: saveError } = await ctx.client.rpc("save_event_staff_assignment", {
+      p_payload: payload,
+      p_assignment_id: input.id ?? null,
+      p_request_id: input.requestId ?? crypto.randomUUID(),
+      p_replace_id: input.replaceId ?? null,
+    });
+    if (saveError) throw new Error(saveError.message);
+    const result = saved as { id: string; replay: boolean };
+    const assignmentId = result.id;
+    if (!result.replay) {
       await timeline(
         ctx,
-        old.id,
-        "STAFF_REMOVED",
-        "Staff anterior removido por reemplazo.",
-        old.staff_id,
-      );
-    }
-    if (input.id) {
-      const { error } = await ctx.client
-        .from("assignments")
-        .update(payload)
-        .eq("id", input.id)
-        .eq("project_id", input.projectId)
-        .is("deleted_at", null);
-      if (error) throw error;
-      assignmentId=input.id;
-      await timeline(
-        ctx,
-        input.id,
-        "STAFF_ASSIGNMENT_UPDATED",
-        "Asignación de Staff actualizada.",
-        input.staffId,
-      );
-    } else {
-      const { data: created, error } = await ctx.client
-        .from("assignments")
-        .insert({ ...payload, created_by: ctx.user.id })
-        .select("id")
-        .single();
-      if (error) throw error;
-      assignmentId=created.id;
-      await timeline(
-        ctx,
-        created.id,
-        input.replaceId ? "STAFF_REPLACED" : "STAFF_ASSIGNED",
-        input.replaceId
+        assignmentId,
+        input.id ? "STAFF_ASSIGNMENT_UPDATED" : input.replaceId ? "STAFF_REPLACED" : "STAFF_ASSIGNED",
+        input.id ? "Asignación de Staff actualizada." : input.replaceId
           ? "Staff reemplazado en el evento."
           : "Staff asignado al evento.",
         input.staffId,
