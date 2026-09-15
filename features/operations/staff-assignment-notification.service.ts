@@ -3,6 +3,7 @@ import type {SupabaseClient} from "@supabase/supabase-js";
 import {GoogleGmailApiProvider} from "@/features/connectors/google-gmail/provider/google-gmail-live.provider";
 import {loadGoogleWorkspaceAccessToken} from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import {assignmentNotificationFingerprint,assignmentRoleLabel as role,buildStaffAssignmentEmail,chileAssignmentDateTime as chile} from "./staff-assignment-notification.model";
+import {isSpecialOperationalStaffId} from "./special-operational-staff-reminder.model";
 
 type Mail={to:string;subject:string;textBody:string;htmlBody:string;driveFileIds:string[]};
 type Sender={send(message:Mail):Promise<{messageId:string;threadId:string}>};
@@ -14,6 +15,7 @@ export async function deliverStaffAssignmentNotification(client:SupabaseClient,a
   const staff=Array.isArray(assignment.staff)?assignment.staff[0]:assignment.staff,project=Array.isArray(assignment.projects)?assignment.projects[0]:assignment.projects;
   if(!staff||staff.status!=="ACTIVE"||staff.deleted_at)throw new Error("El Staff no está activo.");
   if(!project)throw new Error("Evento no encontrado.");
+  if(isSpecialOperationalStaffId(assignment.staff_id))return{status:"SKIPPED" as const};
   const{data:contract}=await client.from("project_operational_contracts").select("service_start_at,service_end_at,staff_arrival_at").eq("project_id",project.id).maybeSingle();
   const call=assignment.staff_call_at??contract?.staff_arrival_at??null,start=contract?.service_start_at??null,end=contract?.service_end_at??null,location=[project.location,project.city].filter(Boolean).join(" · ")||null;
   const fingerprint=assignmentNotificationFingerprint({assignmentId:assignment.id,staffId:assignment.staff_id,role:assignment.assignment_type,staffCallAt:call,serviceStartAt:start,serviceEndAt:end,location});

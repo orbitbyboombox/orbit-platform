@@ -2,6 +2,7 @@ import "server-only";
 import type {SupabaseClient} from "@supabase/supabase-js";
 import {GoogleGmailApiProvider} from "@/features/connectors/google-gmail/provider/google-gmail-live.provider";
 import {loadGoogleWorkspaceAccessToken} from "@/features/connectors/google-workspace/application/google-workspace.repository";
+import {isSpecialOperationalStaffId} from "./special-operational-staff-reminder.model";
 
 type Client=SupabaseClient;
 type ServiceRow={service_code:string|null;duration_hours:number|null;extras:unknown};
@@ -32,10 +33,15 @@ export async function deliverSmartAssignmentPackage(client:Client,requestId:stri
   const{error:settlementTimelineError}=await client.from("timeline_events").upsert({customer_id:project.customer_id,project_id:project.id,staff_id:request.staff_id,orbit_event_id:project.orbit_event_id,event_type:"SETTLEMENT_CREATED",title:"Liquidación creada",description:"La liquidación canónica del Evento quedó confirmada.",actor_label:"ORBIT",source:"Operations",action:"SETTLEMENT_CREATED",entity_type:"EventStaffPayment",entity_id:settlement.id,human_message:"Liquidación oficial creada.",correlation_id:`${correlation}:settlement`},{onConflict:"correlation_id",ignoreDuplicates:true});
   if(settlementTimelineError)throw settlementTimelineError;
   if(profitability){const{error:profitabilityTimelineError}=await client.from("timeline_events").upsert({customer_id:project.customer_id,project_id:project.id,staff_id:request.staff_id,orbit_event_id:project.orbit_event_id,event_type:"EVENT_PROFITABILITY_UPDATED",title:"Rentabilidad del evento actualizada",description:"La rentabilidad incorporó la liquidación de Staff confirmada.",actor_label:"ORBIT",source:"Operations",action:"EVENT_PROFITABILITY_UPDATED",entity_type:"EventProfitability",entity_id:profitability.id,human_message:"Estado financiero del Evento recalculado automáticamente.",correlation_id:`profitability:${profitability.id}`},{onConflict:"correlation_id",ignoreDuplicates:true});if(profitabilityTimelineError)throw profitabilityTimelineError}
-  const{error:notificationError}=await client.from("internal_notifications").upsert({project_id:project.id,customer_id:project.customer_id,staff_id:request.staff_id,notification_type:"SMART_ASSIGNMENT_PACKAGE",title:"Nuevo evento asignado",message:`${customer?.full_name??project.name} · ${project.event_date} · ${role(request.responsibility)}`,status:"UNREAD",correlation_id:correlation,category:"OPERATIONS",priority:"HIGH",action_required:true,entity_type:"AssignmentRequest",entity_id:request.id,related_href:"/staff-portal",metadata:{delivery_status:"PENDING",portal,calendar,maps}},{onConflict:"correlation_id",ignoreDuplicates:true});
-  if(notificationError)throw notificationError;
+  if(!isSpecialOperationalStaffId(request.staff_id)){
+    const{error:notificationError}=await client.from("internal_notifications").upsert({project_id:project.id,customer_id:project.customer_id,staff_id:request.staff_id,notification_type:"SMART_ASSIGNMENT_PACKAGE",title:"Nuevo evento asignado",message:`${customer?.full_name??project.name} · ${project.event_date} · ${role(request.responsibility)}`,status:"UNREAD",correlation_id:correlation,category:"OPERATIONS",priority:"HIGH",action_required:true,entity_type:"AssignmentRequest",entity_id:request.id,related_href:"/staff-portal",metadata:{delivery_status:"PENDING",portal,calendar,maps}},{onConflict:"correlation_id",ignoreDuplicates:true});
+    if(notificationError)throw notificationError;
+  }
   await audit("PORTAL_UPDATED","Portal Staff actualizado","El Evento confirmado quedó disponible en Portal Staff.");
   await audit("CHECKLIST_CREATED","Checklist preparado","ORBIT preparó el checklist operacional del Evento.");
+  // Keep the canonical assignment, settlement, timeline and Portal projections;
+  // only the operational email package is excluded for these three Staff IDs.
+  if(isSpecialOperationalStaffId(request.staff_id))return{emailSent:false,alreadyDelivered:false};
   const{data:notification}=await client.from("internal_notifications").select("id,metadata").eq("correlation_id",correlation).single();
   if(!notification)return{emailSent:false,alreadyDelivered:false};
   const deliveryStatus=String((notification.metadata as Record<string,unknown>|null)?.delivery_status??"");if(deliveryStatus==="SENT")return{emailSent:false,alreadyDelivered:true};

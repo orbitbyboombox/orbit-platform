@@ -2,6 +2,7 @@ export interface GoogleGmailProviderMessage {
   to: string;
   cc?: readonly string[];
   idempotencyKey?: string;
+  maxSendAttempts?: number;
   subject: string;
   textBody: string;
   htmlBody: string;
@@ -70,11 +71,12 @@ export class GoogleGmailApiProvider implements GoogleGmailLiveProvider {
   }
   async send(message: GoogleGmailProviderMessage): Promise<GoogleGmailProviderResult> {
     const raw = await this.raw(message);
-    for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const maxAttempts = message.maxSendAttempts ?? 3;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/${encodeURIComponent(this.userId)}/messages/send`, { method: "POST", headers: { Authorization: `Bearer ${this.accessToken}`, "Content-Type": "application/json" }, body: JSON.stringify({ raw, threadId: message.threadId }) });
       if (response.ok) { const result = await response.json() as { id: string; threadId: string }; return { messageId: result.id, threadId: result.threadId }; }
       const detail = await response.text();
-      if (attempt === 3 || (response.status < 500 && response.status !== 429)) throw new Error(`Gmail request failed (${response.status}): ${detail}`);
+      if (attempt === maxAttempts || (response.status < 500 && response.status !== 429)) throw new Error(`Gmail request failed (${response.status}): ${detail}`);
       await new Promise((resolve) => setTimeout(resolve, attempt * 300));
     }
     throw new Error("Gmail request failed after retries.");

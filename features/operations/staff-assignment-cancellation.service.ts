@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { GoogleGmailApiProvider } from "@/features/connectors/google-gmail/provider/google-gmail-live.provider";
 import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import { loadCompanySettings } from "@/features/company-settings/repository";
+import { isSpecialOperationalStaffId } from "./special-operational-staff-reminder.model";
 
 const appUrl = () =>
   process.env.NEXT_PUBLIC_APP_URL ?? "https://orbit.boom-box.cl";
@@ -70,7 +71,7 @@ export async function deliverAssignmentCancellationEmail(
       company.supportEmail,
     recipients = [
       { email: founderRecipient, founder: true },
-      ...(cancellation.initiated_by === "FOUNDER"
+      ...(cancellation.initiated_by === "FOUNDER" && !isSpecialOperationalStaffId(cancellation.staff_id)
         ? [{ email: staff?.email ?? "", founder: false }]
         : []),
     ].filter(
