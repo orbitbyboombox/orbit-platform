@@ -6,7 +6,6 @@ import {
   ChevronRight,
   FileSignature,
   Link2,
-  LoaderCircle,
   PenLine,
   RotateCcw,
   Search,
@@ -27,6 +26,7 @@ import {
 } from "react";
 import { ActionButton } from "@/components/ui/action-button";
 import { Button } from "@/components/ui/button";
+import { OrbitLoader } from "@/components/ui/orbit-loader";
 import { MunicipalityCombobox } from "@/components/forms/municipality-combobox";
 import type { ActiveMunicipality } from "@/features/settings/master-data/municipality-master-data";
 import { cn } from "@/lib/utils";
@@ -1345,9 +1345,9 @@ export function NewProjectDrawer({
         className="fixed inset-y-0 right-0 z-50 flex w-full max-w-5xl flex-col border-l bg-card shadow-2xl"
       >
         {submitting && (
-          <div className="absolute inset-0 z-20 grid place-items-center bg-card p-6 text-center">
+          <div aria-busy="true" aria-live="polite" className="absolute inset-0 z-20 grid place-items-center bg-card p-6 text-center" role="status">
             <div className="max-w-lg">
-              <LoaderCircle className="mx-auto size-12 animate-spin text-brand" />
+              <OrbitLoader className="mx-auto" size="lg" variant="button" />
               <h2 className="mt-6 text-3xl font-semibold">
                 {retryingTransaction
                   ? "Reserva ya creada. Reanudando confirmación pendiente..."
@@ -2903,12 +2903,6 @@ export function NewProjectDrawer({
               disabled={!valid || submitting}
               onClick={() => void create()}
             >
-              {submitting && (
-                <LoaderCircle
-                  aria-hidden="true"
-                  className="size-4 animate-spin"
-                />
-              )}
               {submitting ? "Procesando reserva..." : "Confirmar reserva"}
             </Button>
           ) : (

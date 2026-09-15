@@ -9,11 +9,20 @@ const css=read("app/globals.css");
 test("one shared OrbitLoader provides inline, button, section and fullscreen variants",()=>{
   for(const variant of ["inline","button","section","fullscreen"])assert.match(loader,new RegExp(`variant===\\"${variant}\\"|${variant}:\\"size`));
   assert.match(loader,/orbit-loader-ring/);
+  assert.match(loader,/size\?: "sm" \| "md" \| "lg"/);
   assert.match(loader,/aria-live="polite"/);
   assert.match(loader,/aria-busy="true"/);
   assert.match(css,/--brand: #F78900/);
   assert.match(css,/prefers-reduced-motion: reduce/);
   assert.doesNotMatch(loader,/setTimeout|setInterval/);
+});
+
+test("operational reservation, signing, reminder and collection rings use the same OrbitLoader",()=>{
+  for(const path of ["features/automatic-booking/automatic-booking-experience.tsx","features/projects/components/new-project-drawer.tsx","features/projects/signing/agreement-signing-control.tsx","features/projects/communications/pre-event-reminder-control.tsx","features/projects/communications/digital-photo-delivery-control.tsx","features/accounts-receivable/collection-email-composer.tsx"]){
+    const source=read(path);
+    assert.match(source,/<OrbitLoader/,path);
+    assert.doesNotMatch(source,/LoaderCircle|Loader2|animate-spin/,path);
+  }
 });
 
 test("shared Button disables a real loading action and embeds the shared ring",()=>{

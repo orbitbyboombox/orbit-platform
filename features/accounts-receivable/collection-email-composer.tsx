@@ -1,9 +1,10 @@
 "use client";
 
-import { AlertCircle, CheckCircle2, Loader2, Mail, Send } from "lucide-react";
+import { AlertCircle, CheckCircle2, Mail, Send } from "lucide-react";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { OrbitLoader } from "@/components/ui/orbit-loader";
 import { MobileDialog } from "@/components/ui/mobile-dialog";
 import {
   buildCollectionEmailDraft,
@@ -183,7 +184,7 @@ export function CollectionEmailComposer({
                   ) : sendState.status === "error" ? (
                     <AlertCircle className="mt-0.5 size-4 shrink-0" />
                   ) : (
-                    <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin" />
+                    <span aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
                   )}
                   <div className="space-y-1">
                     <p className="font-medium">{sendState.message}</p>
@@ -323,7 +324,7 @@ export function CollectionEmailComposer({
                   {sendState.status === "success" ? (
                     <CheckCircle2 className="size-4" />
                   ) : pending ? (
-                    <Loader2 className="size-4 animate-spin" />
+                    <OrbitLoader variant="button" />
                   ) : (
                     <Send className="size-4" />
                   )}

@@ -8,10 +8,10 @@ import {
   CheckCircle2,
   ExternalLink,
   History,
-  LoaderCircle,
   Send,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { OrbitLoader } from "@/components/ui/orbit-loader";
 import { MobileDialog } from "@/components/ui/mobile-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { renderDigitalPhotoDeliveryPreviewHtml } from "@/features/connectors/google-gmail/application/digital-photo-delivery.template";
@@ -237,7 +237,7 @@ export function DigitalPhotoDeliveryControl({ projectId }: { projectId: string }
       </div>
       <div className="mt-5 flex flex-col gap-2 sm:flex-row">
         <Button disabled={!composer || pending} onClick={launch} type="button">
-          {pending ? <LoaderCircle className="size-4 animate-spin" /> : <Send className="size-4" />}
+          {pending ? <OrbitLoader variant="button" /> : <Send className="size-4" />}
           {actionLabel}
         </Button>
         <Button
@@ -315,7 +315,7 @@ export function DigitalPhotoDeliveryControl({ projectId }: { projectId: string }
                   ) : sendState.status === "error" ? (
                     <AlertCircle className="mt-0.5 size-4 shrink-0" />
                   ) : (
-                    <LoaderCircle className="mt-0.5 size-4 shrink-0 animate-spin" />
+                    <span aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
                   )}
                   <div>
                     <p className="font-medium">{sendState.message}</p>
@@ -370,7 +370,7 @@ export function DigitalPhotoDeliveryControl({ projectId }: { projectId: string }
                 type="button"
                 variant="outline"
               >
-                {pending ? <LoaderCircle className="size-4 animate-spin" /> : null}
+                {pending ? <OrbitLoader variant="button" /> : null}
                 ACTUALIZAR VISTA PREVIA
               </Button>
             </div>
@@ -427,7 +427,7 @@ export function DigitalPhotoDeliveryControl({ projectId }: { projectId: string }
                   onClick={requestDelivery}
                   type="button"
                 >
-                  {pending ? <LoaderCircle className="size-4 animate-spin" /> : <Send className="size-4" />}
+                  {pending ? <OrbitLoader variant="button" /> : <Send className="size-4" />}
                   {pending ? "ENVIANDO..." : actionLabel}
                 </Button>
               </div>

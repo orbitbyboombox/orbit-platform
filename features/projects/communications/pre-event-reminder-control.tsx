@@ -7,10 +7,10 @@ import {
   CalendarClock,
   CheckCircle2,
   History,
-  LoaderCircle,
   Send,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { OrbitLoader } from "@/components/ui/orbit-loader";
 import { MobileDialog } from "@/components/ui/mobile-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
@@ -201,7 +201,7 @@ export function PreEventReminderControl({ projectId }: { projectId: string }) {
       ) : null}
       <div className="mt-5 flex flex-col gap-2 sm:flex-row">
         <Button disabled={!composer || pending} onClick={() => refresh(true)} type="button">
-          {pending ? <LoaderCircle className="size-4 animate-spin" /> : <Send className="size-4" />}
+          {pending ? <OrbitLoader variant="button" /> : <Send className="size-4" />}
           {actionLabel}
         </Button>
         <Button
@@ -271,7 +271,7 @@ export function PreEventReminderControl({ projectId }: { projectId: string }) {
                   ) : sendState.status === "error" ? (
                     <AlertCircle className="mt-0.5 size-4 shrink-0" />
                   ) : (
-                    <LoaderCircle className="mt-0.5 size-4 shrink-0 animate-spin" />
+                    <span aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
                   )}
                   <div>
                     <p className="font-medium">{sendState.message}</p>
@@ -417,7 +417,7 @@ export function PreEventReminderControl({ projectId }: { projectId: string }) {
                   onClick={requestDelivery}
                   type="button"
                 >
-                  {pending ? <LoaderCircle className="size-4 animate-spin" /> : <Send className="size-4" />}
+                  {pending ? <OrbitLoader variant="button" /> : <Send className="size-4" />}
                   {pending ? "Enviando…" : actionLabel}
                 </Button>
               </div>
