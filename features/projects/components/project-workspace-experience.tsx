@@ -349,7 +349,7 @@ function TaskRow({ task }: { task: Event360Task }) {
             task.status === "COMPLETED" ? "Reabrir tarea" : "Completar tarea"
           }
           className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg border transition hover:border-brand disabled:opacity-50"
-          disabled={pending}
+          aria-busy={pending} disabled={pending}
           onClick={complete}
         >
           {task.status === "COMPLETED" ? (

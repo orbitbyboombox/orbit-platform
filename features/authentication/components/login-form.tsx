@@ -44,7 +44,7 @@ export function LoginForm({ initialMessage }: LoginFormProps) {
         <a className="forgot" href="mailto:admin@orbit.boom-box.cl?subject=Recuperar%20acceso%20a%20ORBIT">¿Olvidaste tu contraseña?</a>
       </div>
       {(serverError ?? initialMessage) && <p aria-live="polite" className="access-error" role="alert">{serverError ?? initialMessage}</p>}
-      <ActionButton className="access-submit" disabled={isPending} icon={LogIn} label={isPending ? "Verificando…" : "INGRESAR A ORBIT"} type="submit" />
+      <ActionButton className="access-submit" icon={LogIn} label={isPending ? "Verificando…" : "INGRESAR A ORBIT"} loading={isPending} type="submit" />
     </form>
   );
 }

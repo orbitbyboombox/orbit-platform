@@ -70,7 +70,7 @@ export function IntegrationHealthCenter({
           </div>
           <button
             className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-medium hover:bg-background disabled:opacity-60"
-            disabled={pending}
+            aria-busy={pending} disabled={pending}
             onClick={() => start(() => router.refresh())}
           >
             <RefreshCw className={`size-4 ${pending ? "animate-spin" : ""}`} />

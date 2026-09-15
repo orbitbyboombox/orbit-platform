@@ -318,7 +318,7 @@ export function StaffOnboardingForm({
               ) : null}
               <button
                 className="min-h-11 rounded-xl bg-brand px-5 font-semibold text-brand-foreground"
-                disabled={pending || capabilities.length === 0}
+                aria-busy={pending} disabled={pending|| capabilities.length === 0}
               >
                 {pending
                   ? "Enviando…"

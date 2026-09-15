@@ -228,7 +228,7 @@ export function StaffDocumentCenter({
             <p className="text-xs text-muted">JPG, PNG, WEBP o PDF · máximo 10 MB.</p>
             <button
               className="min-h-11 rounded-xl bg-brand px-5 text-sm font-semibold text-brand-foreground disabled:opacity-50"
-              disabled={pending}
+              aria-busy={pending} disabled={pending}
             >
               {pending ? `Guardando ${progress}%` : "Guardar documento"}
             </button>

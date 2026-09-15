@@ -8,5 +8,5 @@ export interface ActionButtonProps extends ButtonProps {
 }
 
 export function ActionButton({ icon: Icon, iconPosition = "start", label, ...props }: ActionButtonProps) {
-  return <Button {...props}>{Icon && iconPosition === "start" && <Icon aria-hidden="true" className="size-4" />}<span>{label}</span>{Icon && iconPosition === "end" && <Icon aria-hidden="true" className="size-4" />}</Button>;
+  return <Button {...props}>{Icon && !props.loading && iconPosition === "start" && <Icon aria-hidden="true" className="size-4" />}<span>{label}</span>{Icon && !props.loading && iconPosition === "end" && <Icon aria-hidden="true" className="size-4" />}</Button>;
 }

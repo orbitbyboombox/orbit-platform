@@ -45,6 +45,40 @@
   --color-brand: var(--brand);
 }
 
+@keyframes orbit-loader-spin { to { transform: rotate(360deg); } }
+
+.orbit-loader-ring {
+  display: inline-block;
+  border: 2px solid color-mix(in srgb, var(--muted) 32%, transparent);
+  border-top-color: var(--brand);
+  border-radius: 50%;
+  animation: orbit-loader-spin .78s linear infinite;
+}
+
+button .orbit-loader-ring { border-top-color: currentColor; }
+
+/* Native buttons whose real pending state sets aria-busy share the same ring.
+   A button with its own animated icon or OrbitLoader never gets a second ring. */
+button[aria-busy="true"]:not(:has(.orbit-loader-ring)):not(:has(.animate-spin))::after {
+  content: "";
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  margin-inline-start: .5rem;
+  vertical-align: -.2rem;
+  border: 2px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: orbit-loader-spin .78s linear infinite;
+}
+
+.orbit-loader-fullscreen { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+
+@media (prefers-reduced-motion: reduce) {
+  .orbit-loader-ring, button[aria-busy="true"]::after { animation: none; }
+  [aria-busy="true"] .animate-pulse { animation: none; }
+}
+
 @layer base {
 
 body {

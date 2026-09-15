@@ -339,7 +339,7 @@ export function DigitalPhotoDeliveryControl({ projectId }: { projectId: string }
               CC
               <textarea
                 className="mt-2 min-h-24 w-full min-w-0 rounded-xl border bg-background p-3 text-sm"
-                disabled={pending || sendState.status === "success"}
+                aria-busy={pending} disabled={pending|| sendState.status === "success"}
                 onChange={(event) => setCc(event.target.value)}
                 placeholder="Un correo por línea o separados por coma"
                 value={cc}
@@ -352,7 +352,7 @@ export function DigitalPhotoDeliveryControl({ projectId }: { projectId: string }
               LINK FOTOS DIGITALES
               <input
                 className="mt-2 min-h-11 w-full min-w-0 rounded-xl border bg-background px-3 text-sm"
-                disabled={pending || sendState.status === "success"}
+                aria-busy={pending} disabled={pending|| sendState.status === "success"}
                 inputMode="url"
                 onChange={(event) => updatePhotoUrl(event.target.value)}
                 placeholder="https://drive.google.com/..."
@@ -365,7 +365,7 @@ export function DigitalPhotoDeliveryControl({ projectId }: { projectId: string }
             </label>
             <div className="flex justify-end">
               <Button
-                disabled={pending || !photoUrl.trim() || sendState.status === "success"}
+                aria-busy={pending} disabled={pending|| !photoUrl.trim() || sendState.status === "success"}
                 onClick={preview}
                 type="button"
                 variant="outline"
@@ -396,10 +396,10 @@ export function DigitalPhotoDeliveryControl({ projectId }: { projectId: string }
                 <p className="font-semibold">¿Enviar nuevamente las fotos digitales a {composer.to}?</p>
                 <p className="mt-1 text-sm">Una confirmación explícita genera como máximo un email.</p>
                 <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                  <Button disabled={pending} onClick={() => deliver(true)} type="button">
+                  <Button aria-busy={pending} disabled={pending} onClick={() => deliver(true)} type="button">
                     Sí, enviar nuevamente
                   </Button>
-                  <Button disabled={pending} onClick={() => setConfirmingResend(false)} type="button" variant="outline">
+                  <Button aria-busy={pending} disabled={pending} onClick={() => setConfirmingResend(false)} type="button" variant="outline">
                     Volver
                   </Button>
                 </div>
@@ -412,7 +412,7 @@ export function DigitalPhotoDeliveryControl({ projectId }: { projectId: string }
                   : `Se enviará a ${composer.to}${cc.trim() ? ` · CC: ${cc.split(/[\n,;]+/).map((value) => value.trim()).filter(Boolean).join(", ")}` : ""}.`}
               </p>
               <div className="flex flex-col gap-2 sm:flex-row">
-                <Button disabled={pending} onClick={() => setOpen(false)} type="button" variant="outline">
+                <Button aria-busy={pending} disabled={pending} onClick={() => setOpen(false)} type="button" variant="outline">
                   Cerrar
                 </Button>
                 <Button

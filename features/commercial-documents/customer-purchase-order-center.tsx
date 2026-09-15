@@ -78,7 +78,7 @@ export function CustomerPurchaseOrderCenter({ projectId, document, onPreview }: 
           </p>
         </> : <p className="mt-1 text-sm text-muted">Opcional · pendiente</p>}
       </div>
-      <Button disabled={pending} onClick={openComposer} variant="outline">
+      <Button aria-busy={pending} disabled={pending} onClick={openComposer} variant="outline">
         <FileUp className="size-4"/>{document ? "REEMPLAZAR / ACTUALIZAR" : "ADJUNTAR OC CLIENTE"}
       </Button>
     </div>
@@ -92,7 +92,7 @@ export function CustomerPurchaseOrderCenter({ projectId, document, onPreview }: 
       {driveReady
         ? <span className="text-success">✓ Archivada en Drive</span>
         : <span className="text-amber-600">⚠ Archivo pendiente de sincronizar con Drive</span>}
-      {!driveReady ? <Button disabled={pending} onClick={retryDrive} size="sm" variant="outline">
+      {!driveReady ? <Button aria-busy={pending} disabled={pending} onClick={retryDrive} size="sm" variant="outline">
         <RefreshCw className="size-4"/>{pending ? "SINCRONIZANDO..." : "REINTENTAR DRIVE"}
       </Button> : null}
     </div> : null}
@@ -115,8 +115,8 @@ export function CustomerPurchaseOrderCenter({ projectId, document, onPreview }: 
           <input accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" className="min-h-11 min-w-0 max-w-full rounded-xl border bg-background p-2" name="file" required type="file"/>
         </label>
         <div className="flex flex-col-reverse gap-2 sm:flex-row">
-          <Button disabled={pending} onClick={() => setOpen(false)} type="button" variant="outline">Cancelar</Button>
-          <Button disabled={pending} type="submit">{pending ? "SUBIENDO OC..." : "GUARDAR OC CLIENTE"}</Button>
+          <Button aria-busy={pending} disabled={pending} onClick={() => setOpen(false)} type="button" variant="outline">Cancelar</Button>
+          <Button aria-busy={pending} disabled={pending} type="submit">{pending ? "SUBIENDO OC..." : "GUARDAR OC CLIENTE"}</Button>
         </div>
       </form>
     </MobileDialog> : null}

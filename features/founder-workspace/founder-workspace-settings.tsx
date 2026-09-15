@@ -148,7 +148,7 @@ export function FounderWorkspaceSettings({
             ? "Guardando…"
             : message || "Los cambios se aplican inmediatamente."}
         </p>
-        <Button disabled={pending} onClick={reset} variant="outline">
+        <Button aria-busy={pending} disabled={pending} onClick={reset} variant="outline">
           <RotateCcw className="mr-2 size-4" />
           Restaurar escritorio predeterminado
         </Button>

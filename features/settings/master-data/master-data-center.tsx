@@ -234,7 +234,7 @@ function Editor({
           </label>
           <div className="mt-3 flex items-center gap-3">
             <ActionButton
-              disabled={pending || !reason.trim()}
+              aria-busy={pending} disabled={pending|| !reason.trim()}
               label={pending ? "Guardando…" : "Guardar cambio"}
               onClick={() =>
                 startTransition(async () => {

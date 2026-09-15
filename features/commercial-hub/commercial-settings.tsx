@@ -58,7 +58,7 @@ export function CommercialSettings({
           return <article className={`min-w-0 rounded-2xl border bg-card p-5 ${selectedInitial === category ? "border-brand/60 ring-1 ring-brand/20" : ""}`} id={`document-category-${category.toLowerCase()}`} key={category}>
             <div className="flex items-start gap-3"><span className="rounded-xl border bg-background p-2.5 text-brand"><FileText className="size-5" /></span><div><h3 className="font-semibold">{labels[category]}</h3><p className={`mt-1 text-sm ${active ? "text-emerald-500" : latestPending ? "text-amber-500" : "text-muted"}`}>{active ? `Activo · ${active.name} ${active.version}` : latestPending ? `Pendiente de activación · ${latestPending.name} ${latestPending.version}` : "Sin catálogo"}</p></div></div>
             <div className="mt-5 grid gap-2">
-              {!active && latestPending && <Button disabled={pending} onClick={() => start(async () => { const result = await activateCommercialDocumentAction(latestPending.id); setMessage(result.ok ? result.message : result.error); if (result.ok) router.refresh(); })}><Check />Activar catálogo</Button>}
+              {!active && latestPending && <Button aria-busy={pending} disabled={pending} onClick={() => start(async () => { const result = await activateCommercialDocumentAction(latestPending.id); setMessage(result.ok ? result.message : result.error); if (result.ok) router.refresh(); })}><Check />Activar catálogo</Button>}
               <Button className="min-h-11 w-full" onClick={() => setUploadCategory(uploadCategory === category ? null : category)}><Upload />Subir nueva versión</Button>
               <div className="grid gap-2 sm:grid-cols-2">
                 <Button disabled={!active || pending} variant="outline" onClick={() => active && start(async () => { const result = await getCommercialDocumentUrlAction(active.id); if (result.ok) window.open(result.url, "_blank", "noopener,noreferrer"); else setMessage(result.error); })}><ExternalLink />Ver</Button>
@@ -87,7 +87,7 @@ export function CommercialSettings({
               <label className="grid gap-1 text-sm font-medium">Versión<input className="min-h-11 rounded-xl border bg-card px-3 text-base" name="version" placeholder="2026–2027" required /></label>
               <label className="grid gap-2 text-sm font-medium">Archivo PDF<input accept="application/pdf" className="min-h-11 w-full text-base file:mr-3 file:rounded-lg file:border-0 file:bg-brand/10 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-brand" name="file" required type="file" /></label>
               {uploading && <div aria-label="Progreso de carga" className="h-2 overflow-hidden rounded-full bg-muted/20"><div className="h-full bg-brand transition-[width]" style={{ width: `${uploadProgress}%` }} /></div>}
-              <Button disabled={pending || uploading}>{uploading ? `Subiendo catálogo… ${uploadProgress}%` : "Cargar PDF"}</Button>
+              <Button aria-busy={pending} disabled={pending|| uploading}>{uploading ? `Subiendo catálogo… ${uploadProgress}%` : "Cargar PDF"}</Button>
             </form>}
             {versionsCategory === category && <div className="mt-4 space-y-2 rounded-xl border bg-background p-3">
               {categoryDocuments.length === 0 ? <p className="text-sm text-muted">Aún no hay versiones cargadas.</p> : categoryDocuments.map((document) => <div className="rounded-lg border bg-card p-3" key={document.id}><p className="font-medium">{document.name} · {document.version}</p><p className="mt-1 text-xs text-muted">{document.status === "ACTIVE" ? "ACTIVO" : document.status === "ARCHIVED" ? "ARCHIVADO" : "PENDIENTE"} · {document.uploadedAt.slice(0, 10)}</p><div className="mt-2 flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => start(async () => { const result = await getCommercialDocumentUrlAction(document.id); if (result.ok) window.open(result.url, "_blank", "noopener,noreferrer"); else setMessage(result.error); })}>Ver</Button>{document.status !== "ACTIVE" && <Button size="sm" onClick={() => start(async () => { const result = await activateCommercialDocumentAction(document.id); setMessage(result.ok ? result.message : result.error); if (result.ok) router.refresh(); })}><Check />Activar</Button>}</div></div>)}
@@ -120,11 +120,11 @@ export function CommercialSettings({
               defaultValue={template.body}
               name="body"
             />
-            <Button className="mt-3" disabled={pending}>
+            <Button className="mt-3" aria-busy={pending} disabled={pending}>
               <Save />
               Guardar plantilla
             </Button>
-            <Button className="mt-3 ml-2" disabled={pending} type="button" variant="outline" onClick={() => start(async () => { const result = await restoreCommercialTemplateAction(template.id); setMessage(result.ok ? result.message : result.error); })}>
+            <Button className="mt-3 ml-2" aria-busy={pending} disabled={pending} type="button" variant="outline" onClick={() => start(async () => { const result = await restoreCommercialTemplateAction(template.id); setMessage(result.ok ? result.message : result.error); })}>
               <RotateCcw /> Restaurar original
             </Button>
           </form>

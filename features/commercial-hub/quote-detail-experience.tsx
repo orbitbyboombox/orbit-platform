@@ -144,13 +144,13 @@ export function CommercialQuoteDetailExperience({
               </Button>
             ) : null}
             {actions.canAccept ? (
-              <Button disabled={pending} onClick={accept}>
+              <Button aria-busy={pending} disabled={pending} onClick={accept}>
                 <CheckCircle2 />
                 {pending ? "GUARDANDO…" : "MARCAR COMO ACEPTADA"}
               </Button>
             ) : null}
             {actions.canConvert ? (
-              <Button disabled={pending} onClick={openConversion}>
+              <Button aria-busy={pending} disabled={pending} onClick={openConversion}>
                 {pending
                   ? "PREPARANDO…"
                   : "GENERAR RESERVA DESDE COTIZACIÓN"}

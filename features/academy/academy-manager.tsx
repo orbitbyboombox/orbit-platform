@@ -509,7 +509,7 @@ function ArticleEditor({
           </button>
           <button
             className="min-h-11 rounded-xl bg-brand px-4 font-semibold text-brand-foreground disabled:opacity-50"
-            disabled={pending || uploading}
+            aria-busy={pending} disabled={pending|| uploading}
           >
             {pending ? "Guardando…" : "Guardar versión"}
           </button>

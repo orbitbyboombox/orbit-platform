@@ -353,7 +353,7 @@ function InformationSender({
           >
             {preview ? "Cerrar vista previa" : "Previsualizar"}
           </Button>
-          <Button disabled={pending || !document || !email} onClick={send}>
+          <Button aria-busy={pending} disabled={pending|| !document || !email} onClick={send}>
             <Send />
             {pending ? "Enviando…" : "Enviar"}
           </Button>
@@ -813,7 +813,7 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
               <FileDown />
               Previsualizar cotización
             </Button>
-            <Button disabled={pending || !lines.length} onClick={create}>
+            <Button aria-busy={pending} disabled={pending|| !lines.length} onClick={create}>
               <FilePlus2 />
               {pending ? "Guardando…" : "Guardar borrador"}
             </Button>
@@ -889,7 +889,7 @@ function FormalQuoteDelivery({ quote, email, secondaryEmail, company, contact, c
       <Field label="Asunto"><input value={subject} onChange={(e) => setSubject(e.target.value)} /></Field>
       <Field label="Mensaje"><textarea className="min-h-44" value={body} onChange={(e) => setBody(e.target.value)} /></Field>
       <div className="rounded-xl border bg-background p-4 text-sm"><p className="font-semibold">Adjuntos</p><p className="mt-2">{quoteDisplayFilename(quote.number)}</p>{catalog && <label className="mt-3 flex items-center gap-2"><input type="checkbox" checked={attachCatalog} onChange={(e) => onAttachCatalog(e.target.checked)} />Catálogo vigente: {catalog.name} · {catalog.version}</label>}</div>
-      <div className="grid gap-3 sm:grid-cols-2"><Button onClick={() => setPdfOpen(true)} variant="outline"><FileDown />Abrir PDF</Button><Button disabled={pending} onClick={() => { if (!recipient.trim()) { setMessage("Ingresa un correo válido para enviar."); return; } const cc = ccInput.split(/[\n,;]+/).map((value) => value.trim()).filter(Boolean); const ccLabel = cc.length ? ` con copia a ${cc.join(", ")}` : ""; if (!window.confirm(`¿Enviar ${quote.number} a ${recipient}${ccLabel}?`)) return; start(async () => { const result = await sendFormalQuoteAction({ quoteId: quote.id, email: recipient, cc, subject, body: normalizeEmailNewlines(body), requestId, catalogDocumentId: attachCatalog ? catalog?.id : undefined }); setMessage(result.ok ? result.message : result.error); if (result.ok) setRequestId(uid()); }); }}><Send />{pending ? "Enviando…" : "Enviar email"}</Button></div>
+      <div className="grid gap-3 sm:grid-cols-2"><Button onClick={() => setPdfOpen(true)} variant="outline"><FileDown />Abrir PDF</Button><Button aria-busy={pending} disabled={pending} onClick={() => { if (!recipient.trim()) { setMessage("Ingresa un correo válido para enviar."); return; } const cc = ccInput.split(/[\n,;]+/).map((value) => value.trim()).filter(Boolean); const ccLabel = cc.length ? ` con copia a ${cc.join(", ")}` : ""; if (!window.confirm(`¿Enviar ${quote.number} a ${recipient}${ccLabel}?`)) return; start(async () => { const result = await sendFormalQuoteAction({ quoteId: quote.id, email: recipient, cc, subject, body: normalizeEmailNewlines(body), requestId, catalogDocumentId: attachCatalog ? catalog?.id : undefined }); setMessage(result.ok ? result.message : result.error); if (result.ok) setRequestId(uid()); }); }}><Send />{pending ? "Enviando…" : "Enviar email"}</Button></div>
       <p className="text-xs text-muted">La reserva se genera únicamente después de marcar la cotización como aceptada, desde “Cotizaciones recientes”.</p>
       {message && <p aria-live="polite" className="text-sm font-medium">{message}</p>}
       {pdfOpen && <PdfViewer title={quoteDisplayFilename(quote.number)} src={`/api/commercial/quotes/${quote.id}/pdf`} onClose={() => setPdfOpen(false)} />}
@@ -1008,8 +1008,8 @@ function RecentQuotes({
               <div className="flex min-w-0 flex-wrap gap-3 lg:justify-end">
                 <button className="min-h-11 font-medium text-brand" onClick={() => setOpenPdf({ id: q.id, number: q.number })}>PDF</button>
                 <Link className="inline-flex min-h-11 items-center font-medium text-brand" href={`/quotes/${q.id}`}>{q.draft ? "ABRIR / CONTINUAR" : "ABRIR"}</Link>
-                {["SENT","VIEWED"].includes(q.status) ? <button className="min-h-11 font-semibold text-brand" disabled={pending} onClick={() => { if(!window.confirm(`¿Confirmar que ${q.number} fue aceptada por el cliente?`))return; startTransition(async()=>{const result=await acceptCommercialQuoteAction(q.id);setMessage(result.ok?result.message:result.error);if(result.ok)window.location.reload()})}}>MARCAR COMO ACEPTADA</button>:null}
-                {q.status==="ACCEPTED" ? <button className="min-h-11 font-semibold text-brand" disabled={pending} onClick={()=>startTransition(async()=>{const result=await loadCommercialQuoteConversionReviewAction(q.id);if(!result.ok){setMessage(result.error);return}if(result.converted){window.location.assign(`/projects/${result.projectId}`);return}setReview(result.review)})}>GENERAR RESERVA DESDE COTIZACIÓN</button>:null}
+                {["SENT","VIEWED"].includes(q.status) ? <button className="min-h-11 font-semibold text-brand" aria-busy={pending} disabled={pending} onClick={() => { if(!window.confirm(`¿Confirmar que ${q.number} fue aceptada por el cliente?`))return; startTransition(async()=>{const result=await acceptCommercialQuoteAction(q.id);setMessage(result.ok?result.message:result.error);if(result.ok)window.location.reload()})}}>MARCAR COMO ACEPTADA</button>:null}
+                {q.status==="ACCEPTED" ? <button className="min-h-11 font-semibold text-brand" aria-busy={pending} disabled={pending} onClick={()=>startTransition(async()=>{const result=await loadCommercialQuoteConversionReviewAction(q.id);if(!result.ok){setMessage(result.error);return}if(result.converted){window.location.assign(`/projects/${result.projectId}`);return}setReview(result.review)})}>GENERAR RESERVA DESDE COTIZACIÓN</button>:null}
                 {q.status==="CONVERTED" ? <><span className="inline-flex min-h-11 items-center font-semibold text-success">RESERVA YA GENERADA</span>{q.projectId?<Link className="inline-flex min-h-11 items-center font-semibold text-brand" href={`/projects/${q.projectId}`}>VER EVENTO</Link>:null}</>:null}
               </div>
             </div>

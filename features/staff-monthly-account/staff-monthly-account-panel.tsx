@@ -162,7 +162,7 @@ export function StaffMonthlyAccountPanel({
                 name="reason"
                 required
               />
-              <Button disabled={pending} type="submit">
+              <Button aria-busy={pending} disabled={pending} type="submit">
                 Revisar y aprobar
               </Button>
             </form>
@@ -213,7 +213,7 @@ export function StaffMonthlyAccountPanel({
                 {mode === "FOUNDER" && !completed.has(item.projectId) && (
                   <button
                     className="mt-2 inline-flex min-h-11 items-center rounded-xl border px-3 font-semibold text-brand"
-                    disabled={pending || completing === item.projectId}
+                    aria-busy={pending} disabled={pending|| completing === item.projectId}
                     onClick={() =>
                       setConfirming({
                         projectId: item.projectId,
@@ -399,14 +399,14 @@ export function StaffMonthlyAccountPanel({
             <label className="text-sm">Referencia / nota<textarea className="mt-1 min-h-20 w-full rounded-xl border px-3" name="notes" /></label>
             <label className="text-sm">Comprobante de pago *<input accept="application/pdf,image/jpeg,image/png,image/webp" className="mt-1 block w-full text-sm" name="receipt" required type="file" /></label>
             <label className="text-sm">Boleta de honorarios (opcional)<input accept="application/pdf,image/jpeg,image/png,image/webp" className="mt-1 block w-full text-sm" name="boleta" type="file" /></label>
-            <Button disabled={pending} type="submit">{pending ? "Registrando…" : "Registrar adelanto"}</Button>
+            <Button aria-busy={pending} disabled={pending} type="submit">{pending ? "Registrando…" : "Registrar adelanto"}</Button>
           </form>
         </MobileDialog>
       ) : null}
       {mode === "FOUNDER" && account.settlementStatus === "DRAFT" ? (
         <form action={run(finalizeMonthlyStaffAccountAction)} className="mt-4">
           <input name="accountId" type="hidden" value={account.id} />
-          <Button disabled={pending || account.reviewRequired}>
+          <Button aria-busy={pending} disabled={pending|| account.reviewRequired}>
             Finalizar liquidación
           </Button>
         </form>
@@ -436,7 +436,7 @@ export function StaffMonthlyAccountPanel({
               type="file"
             />
           </label>
-          <Button disabled={pending} type="submit">
+          <Button aria-busy={pending} disabled={pending} type="submit">
             {account.boletaStatus === "REJECTED"
               ? "Subir boleta corregida"
               : "Subir boleta SII"}
@@ -478,11 +478,11 @@ export function StaffMonthlyAccountPanel({
             name="reason"
             placeholder="Motivo obligatorio si rechazas"
           />
-          <Button disabled={pending} name="action" value="APPROVE">
+          <Button aria-busy={pending} disabled={pending} name="action" value="APPROVE">
             Aprobar
           </Button>
           <Button
-            disabled={pending}
+            aria-busy={pending} disabled={pending}
             name="action"
             value="REJECT"
             variant="outline"
@@ -546,7 +546,7 @@ export function StaffMonthlyAccountPanel({
               type="file"
             />
           </label>
-          <Button className="sm:col-span-2" disabled={pending}>
+          <Button className="sm:col-span-2" aria-busy={pending} disabled={pending}>
             Registrar pago · {money(account.finalTransferAmount)}
           </Button>
         </form>
@@ -569,7 +569,7 @@ export function StaffMonthlyAccountPanel({
             <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button
                 className="min-h-11 rounded-xl border px-4 font-semibold"
-                disabled={pending}
+                aria-busy={pending} disabled={pending}
                 onClick={() => setConfirming(null)}
                 type="button"
               >
@@ -577,7 +577,7 @@ export function StaffMonthlyAccountPanel({
               </button>
               <button
                 className="min-h-11 rounded-xl bg-brand px-4 font-semibold text-brand-foreground"
-                disabled={pending}
+                aria-busy={pending} disabled={pending}
                 onClick={confirmCompletion}
                 type="button"
               >

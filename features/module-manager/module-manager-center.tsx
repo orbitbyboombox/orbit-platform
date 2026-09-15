@@ -104,7 +104,7 @@ export function ModuleManagerCenter({
                   </div>
                   <Button
                     aria-label={`${enabled ? "Desactivar" : "Activar"} ${item.name}`}
-                    disabled={pending}
+                    aria-busy={pending} disabled={pending}
                     onClick={() => toggle(item.key, item.name)}
                     size="sm"
                     variant={enabled ? "outline" : "default"}

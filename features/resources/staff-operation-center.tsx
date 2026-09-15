@@ -351,7 +351,7 @@ export function StaffOperationCenter({
               <Action
                 icon={<UserX />}
                 label="Deshabilitar"
-                disabled={pending || item.status === "DISABLED"}
+                aria-busy={pending} disabled={pending|| item.status === "DISABLED"}
                 onClick={() => disable(item)}
               />
               <Action
@@ -789,7 +789,7 @@ function StaffForm({
         defaultValue={item?.emergencyPhone}
       />
       {error && <p className="sm:col-span-2 text-sm text-red-600">{error}</p>}
-      <Button className="sm:col-span-2" disabled={pending}>
+      <Button className="sm:col-span-2" aria-busy={pending} disabled={pending}>
         {pending ? "Guardando..." : item ? "Guardar cambios" : "Agregar Staff"}
       </Button>
     </form>
@@ -874,7 +874,7 @@ function AssignmentForm({
         </div>
       </fieldset>
       {error && <p className="sm:col-span-2 text-sm text-red-600">{error}</p>}
-      <Button className="sm:col-span-2" disabled={pending}>
+      <Button className="sm:col-span-2" aria-busy={pending} disabled={pending}>
         {pending ? "Asignando..." : "Confirmar responsabilidades"}
       </Button>
     </form>

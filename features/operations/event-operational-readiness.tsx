@@ -59,7 +59,7 @@ export function EventOperationalReadiness({ data }: { data: OperationalReadiness
       <label className="grid gap-2 text-sm">Tótem físico<select aria-label="Tótem físico" className="min-h-11 rounded-xl border bg-background px-3" defaultValue={data.shell.type ?? ""} name="shellType"><option value="">Pendiente de asignar</option><option value="WHITE">WHITE · Tótem blanco</option><option value="BLACK">BLACK · Tótem negro</option></select><span className="text-xs text-muted">La carcasa se asigna aquí, independiente del servicio comercial.</span></label>
       <label className="grid gap-2 text-sm sm:col-span-2">Instrucciones de acceso<textarea className="min-h-24 rounded-xl border bg-background p-3" defaultValue={data.accessInstructions} name="accessInstructions"/></label>
       <label className="grid gap-2 text-sm sm:col-span-2">Notas operacionales<textarea className="min-h-24 rounded-xl border bg-background p-3" defaultValue={data.operationalNotes} name="operationalNotes"/></label>
-      <button className="min-h-11 rounded-xl bg-brand px-4 font-semibold text-brand-foreground sm:col-span-2" disabled={pending}>{pending ? "Guardando…" : "Guardar y recalcular"}</button>
+      <button className="min-h-11 rounded-xl bg-brand px-4 font-semibold text-brand-foreground sm:col-span-2" aria-busy={pending} disabled={pending}>{pending ? "Guardando…" : "Guardar y recalcular"}</button>
     </form> : null}
     {feedback ? <p className="mt-3 text-sm" role="status">{feedback}</p> : null}
     <div className="mt-6 grid gap-4 lg:grid-cols-2">

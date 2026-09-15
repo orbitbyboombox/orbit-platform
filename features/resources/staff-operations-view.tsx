@@ -158,14 +158,14 @@ export function StaffOperationsView({
                   ) : null}
                   <div className="mt-4 flex flex-wrap items-center gap-4 border-t pt-4">
                     {current === "READY" ? (
-                      <button className="rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-brand-foreground" disabled={pending} onClick={() => publication(event, true)}>
+                      <button className="rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-brand-foreground" aria-busy={pending} disabled={pending} onClick={() => publication(event, true)}>
                         {changing ? "Activando…" : "Activar para Staff"}
                       </button>
                     ) : null}
                     {current === "PUBLISHED" ? (
                       <>
                         <span className="text-sm font-semibold text-success">Publicado en Portal Staff</span>
-                        <button className="rounded-lg border px-3 py-2 text-sm font-semibold text-muted hover:text-foreground" disabled={pending} onClick={() => publication(event, false)}>
+                        <button className="rounded-lg border px-3 py-2 text-sm font-semibold text-muted hover:text-foreground" aria-busy={pending} disabled={pending} onClick={() => publication(event, false)}>
                           {changing ? "Desactivando…" : "Desactivar publicación"}
                         </button>
                       </>
@@ -190,10 +190,10 @@ export function StaffOperationsView({
                 <p className="font-semibold">{request.staff} · {request.responsibility}</p>
                 <p className="mt-1 text-sm text-muted">{request.event} · {request.date}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <button className="rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-brand-foreground disabled:opacity-50" disabled={pending} onClick={() => review(request.id, "approve")}>
+                  <button className="rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-brand-foreground disabled:opacity-50" aria-busy={pending} disabled={pending} onClick={() => review(request.id, "approve")}>
                     {pending && pendingId === request.id ? "Procesando…" : "Aprobar"}
                   </button>
-                  <button className="rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-50" disabled={pending} onClick={() => review(request.id, "reject")}>
+                  <button className="rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-50" aria-busy={pending} disabled={pending} onClick={() => review(request.id, "reject")}>
                     Rechazar
                   </button>
                   <Link className="px-2 py-2 text-sm font-semibold text-brand" href={`/projects/${request.projectId}`}>

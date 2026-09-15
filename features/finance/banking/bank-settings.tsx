@@ -25,7 +25,7 @@ export function BankSettings({ accounts, rules }: { accounts: BankAccount[]; rul
       <label className="text-sm"><span className="mb-1 block text-muted">Frecuencia</span><select className="min-h-11 w-full rounded-xl border bg-background px-3" name="frequency"><option value="MONTHLY">Mensual</option><option value="QUARTERLY">Trimestral</option><option value="ANNUAL">Anual</option></select></label>
       <input name="category" type="hidden" value="ADMINISTRATION" /><input name="dueDay" type="hidden" value="1" /><input name="active" type="hidden" value="on" />
       <label className="text-sm"><span className="mb-1 block text-muted">Primer vencimiento</span><input className="min-h-11 w-full rounded-xl border bg-background px-3" defaultValue={new Date().toISOString().slice(0, 10)} name="nextDueDate" required type="date" /></label>
-      <Button className="self-end" disabled={pending}>{pending ? "Guardando…" : "Crear regla recurrente"}</Button>
+      <Button className="self-end" aria-busy={pending} disabled={pending}>{pending ? "Guardando…" : "Crear regla recurrente"}</Button>
     </form>
     {message && <p className="mt-3 text-sm text-muted">{message}</p>}
   </section>;

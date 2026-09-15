@@ -358,7 +358,7 @@ export function EventCenter({
               </button>
               <button
                 className="min-h-11 flex-1 rounded-xl bg-primary px-4 text-primary-foreground"
-                disabled={pending}
+                aria-busy={pending} disabled={pending}
                 form="mobile-event-editor"
               >
                 {pending ? "Guardando y sincronizando…" : "Guardar cambios"}
@@ -466,8 +466,8 @@ export function EventCenter({
           dismissOnOverlayClick={!pending}
           footer={
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button className="min-h-11 rounded-xl border px-4" disabled={pending} onClick={closeDeleteDialog} type="button">Cancelar</button>
-              <button className="min-h-11 rounded-xl bg-red-600 px-4 font-semibold text-white disabled:opacity-50" disabled={pending || deleteConfirmation !== "ELIMINAR" || deleteReason.trim().length < 3} onClick={confirmDelete} type="button">{pending ? "Eliminando…" : "Eliminar definitivamente"}</button>
+              <button className="min-h-11 rounded-xl border px-4" aria-busy={pending} disabled={pending} onClick={closeDeleteDialog} type="button">Cancelar</button>
+              <button className="min-h-11 rounded-xl bg-red-600 px-4 font-semibold text-white disabled:opacity-50" aria-busy={pending} disabled={pending|| deleteConfirmation !== "ELIMINAR" || deleteReason.trim().length < 3} onClick={confirmDelete} type="button">{pending ? "Eliminando…" : "Eliminar definitivamente"}</button>
             </div>
           }
         >

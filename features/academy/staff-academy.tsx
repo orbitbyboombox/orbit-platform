@@ -229,7 +229,7 @@ function ArticleDetail({
                 >
                   <input
                     checked={checked}
-                    disabled={pending}
+                    aria-busy={pending} disabled={pending}
                     type="checkbox"
                     onChange={(event) => toggle(item.id, event.target.checked)}
                   />

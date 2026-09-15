@@ -2878,7 +2878,7 @@ export function NewProjectDrawer({
         <footer className="flex shrink-0 items-center justify-between gap-3 border-t bg-card p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:p-7" data-reservation-wizard-actions>
           {step > 0 && step < 6 ? (
             <ActionButton
-              disabled={submitting}
+              aria-busy={submitting} disabled={submitting}
               icon={ChevronLeft}
               label="Atrás"
               onClick={() => setStep((current) => current - 1)}

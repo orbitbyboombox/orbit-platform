@@ -196,7 +196,7 @@ export function RealCostOverridePanel({
             {feedback}
           </p>
           <ActionButton
-            disabled={pending}
+            aria-busy={pending} disabled={pending}
             icon={Save}
             label={pending ? "Guardando…" : "Guardar costos reales"}
             type="submit"

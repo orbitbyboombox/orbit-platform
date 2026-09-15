@@ -59,7 +59,7 @@ export function QuoteConversionReviewDialog({
       eyebrow="Cotización aceptada"
       footer={
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button disabled={pending} onClick={onClose} variant="outline">
+          <Button aria-busy={pending} disabled={pending} onClick={onClose} variant="outline">
             {outcome ? "CERRAR" : "Cancelar"}
           </Button>
           {outcome ? (
@@ -67,7 +67,7 @@ export function QuoteConversionReviewDialog({
               <Link href={`/projects/${outcome.projectId}`}>ABRIR EVENTO</Link>
             </Button>
           ) : (
-            <Button disabled={pending} onClick={submit}>
+            <Button aria-busy={pending} disabled={pending} onClick={submit}>
               {pending ? "Creando reserva…" : "CONFIRMAR Y CREAR RESERVA"}
             </Button>
           )}

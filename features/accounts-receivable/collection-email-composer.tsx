@@ -317,7 +317,7 @@ export function CollectionEmailComposer({
                   Cancelar
                 </Button>
                 <Button
-                  disabled={pending || !canSend || sendState.status === "success"}
+                  aria-busy={pending} disabled={pending|| !canSend || sendState.status === "success"}
                   type="submit"
                 >
                   {sendState.status === "success" ? (

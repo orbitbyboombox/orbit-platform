@@ -210,7 +210,7 @@ export function FleetCenter({
                   icon={<Power />}
                   label={vehicle.enabled ? "Deshabilitar" : "Habilitar"}
                   onClick={() => toggle(vehicle)}
-                  disabled={pending}
+                  aria-busy={pending} disabled={pending}
                 />
                 <Action
                   icon={<Trash2 />}
@@ -401,7 +401,7 @@ function VehicleForm({
         />
       </label>
       {error && <p className="sm:col-span-2 text-sm text-red-600">{error}</p>}
-      <Button className="sm:col-span-2" disabled={pending}>
+      <Button className="sm:col-span-2" aria-busy={pending} disabled={pending}>
         {pending
           ? "Guardando..."
           : vehicle
@@ -449,7 +449,7 @@ function FuelForm({
         />
       </label>
       {error && <p className="sm:col-span-2 text-sm text-red-600">{error}</p>}
-      <Button className="sm:col-span-2" disabled={pending}>
+      <Button className="sm:col-span-2" aria-busy={pending} disabled={pending}>
         {pending ? "Registrando..." : "Registrar combustible"}
       </Button>
     </form>
@@ -507,7 +507,7 @@ function AssignmentForm({
         required
       />
       {error && <p className="sm:col-span-2 text-sm text-red-600">{error}</p>}
-      <Button className="sm:col-span-2" disabled={pending}>
+      <Button className="sm:col-span-2" aria-busy={pending} disabled={pending}>
         {pending ? "Asignando..." : "Asignar vehículo"}
       </Button>
     </form>

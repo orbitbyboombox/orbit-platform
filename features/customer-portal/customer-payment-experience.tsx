@@ -1,5 +1,6 @@
 "use client";
 
+import {useState} from "react";
 import { Download, FileCheck2, Upload } from "lucide-react";
 import { ActionButton } from "@/components/ui/action-button";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -11,6 +12,7 @@ const money = (value: number | string | null | undefined) => new Intl.NumberForm
 const date = (value: string | null | undefined) => value ? new Intl.DateTimeFormat("es-CL", { dateStyle: "medium", timeZone: "America/Santiago" }).format(new Date(value.includes("T") ? value : `${value}T12:00:00Z`)) : "Por confirmar";
 
 export function CustomerPaymentExperience({ data, token }: { data: PortalData; token: string }) {
+  const [submittingReceipt,setSubmittingReceipt]=useState(false);
   const project = data.project as Project;
   const invoice = data.invoice;
   const contractTotal = Number(invoice?.amount ?? data.quotation?.final_customer_price ?? data.quotation?.grand_total ?? 0);
@@ -31,7 +33,7 @@ export function CustomerPaymentExperience({ data, token }: { data: PortalData; t
 
       <section className="rounded-2xl border border-border/80 bg-background/30 p-4 sm:p-5"><div className="flex items-center gap-2"><FileCheck2 className="size-5 text-brand"/><h3 className="font-semibold">Comprobantes</h3></div>{receipts.length ? <div className="mt-4 space-y-3">{receipts.map((receipt, index) => { const url = `/api/portal/${encodeURIComponent(token)}/payment-receipt/${receipt.id}?download=1`; return <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border/70 p-3" key={receipt.id}><div className="min-w-0 flex-1"><p className="text-sm font-semibold">Comprobante {index + 1}</p><p className="text-xs text-muted">Subido el {date(receipt.created_at)}</p></div><ActionButton icon={Download} label="Descargar" onClick={() => window.open(url, "_blank", "noopener,noreferrer")} variant="outline"/></div>})}</div> : <p className="mt-4 text-sm text-muted">Todavía no se han cargado comprobantes.</p>}</section>
 
-      {!paid && <section className="rounded-2xl border border-brand/20 bg-brand/5 p-4 sm:p-5"><div className="flex items-center justify-between gap-4"><div><p className="text-xs uppercase tracking-wide text-muted">Monto pendiente</p><p className="mt-1 text-2xl font-semibold text-brand">{money(remaining)}</p></div><Upload className="size-6 text-brand"/></div><form action={`/api/portal/${encodeURIComponent(token)}/payment-receipt`} className="mt-4 space-y-3" encType="multipart/form-data" method="post"><label className="flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-border p-4 text-center"><Upload className="size-5 text-brand"/><span className="mt-2 text-sm font-semibold">Subir comprobante</span><span className="mt-1 text-xs text-muted">JPG, PNG o PDF · máximo 20 MB</span><input accept="image/jpeg,image/png,application/pdf" className="sr-only" name="receipt" required type="file"/></label><ActionButton className="w-full" icon={Upload} label="Enviar comprobante" type="submit"/></form></section>}
+      {!paid && <section className="rounded-2xl border border-brand/20 bg-brand/5 p-4 sm:p-5"><div className="flex items-center justify-between gap-4"><div><p className="text-xs uppercase tracking-wide text-muted">Monto pendiente</p><p className="mt-1 text-2xl font-semibold text-brand">{money(remaining)}</p></div><Upload className="size-6 text-brand"/></div><form action={`/api/portal/${encodeURIComponent(token)}/payment-receipt`} aria-busy={submittingReceipt} className="mt-4 space-y-3" encType="multipart/form-data" method="post" onSubmit={()=>setSubmittingReceipt(true)}><label className="flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-border p-4 text-center"><Upload className="size-5 text-brand"/><span className="mt-2 text-sm font-semibold">Subir comprobante</span><span className="mt-1 text-xs text-muted">JPG, PNG o PDF · máximo 20 MB</span><input accept="image/jpeg,image/png,application/pdf" className="sr-only" name="receipt" required type="file"/></label><ActionButton className="w-full" icon={Upload} label={submittingReceipt?"Enviando comprobante…":"Enviar comprobante"} loading={submittingReceipt} type="submit"/></form></section>}
     </div>
   </section>;
 }

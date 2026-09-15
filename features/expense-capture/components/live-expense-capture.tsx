@@ -27,7 +27,7 @@ export function LiveExpenseCapture({ onClose, open }: LiveExpenseCaptureProps) {
         <label className="text-sm font-medium">Categoría<select className="mt-2 min-h-11 w-full rounded-lg border bg-background px-3" defaultValue="OTHER" name="category"><option value="FUEL">Combustible</option><option value="SUPPLIES">Insumos</option><option value="MAINTENANCE">Mantención</option><option value="TRANSPORT">Transporte</option><option value="OTHER">Otro</option></select></label>
         <label className="text-sm font-medium">Proveedor (opcional)<input className="mt-2 min-h-11 w-full rounded-lg border bg-background px-3" name="supplier"/></label>
         <label className="text-sm font-medium">Comentario<input className="mt-2 min-h-11 w-full rounded-lg border bg-background px-3" name="comment" placeholder="Contexto del gasto"/></label>
-        <Button className="mt-auto min-h-12" disabled={pending} type="submit"><Upload className="mr-2 size-4"/>{pending?"Guardando…":"Guardar comprobante"}</Button>
+        <Button className="mt-auto min-h-12" aria-busy={pending} disabled={pending} type="submit"><Upload className="mr-2 size-4"/>{pending?"Guardando…":"Guardar comprobante"}</Button>
         {message&&<p aria-live="polite" className="text-sm font-medium">{message}</p>}
       </form>
     </aside>

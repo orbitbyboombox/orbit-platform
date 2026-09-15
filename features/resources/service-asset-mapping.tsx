@@ -14,8 +14,8 @@ export function ServiceAssetMappingManager({ mappings }: { mappings: readonly Se
   });
   return <section className="space-y-5 rounded-2xl border bg-card p-5 sm:p-7" aria-labelledby="service-resource-mapping-title">
     <div><p className="text-xs font-medium uppercase tracking-[0.18em] text-brand">Configuración operacional</p><h2 className="mt-2 text-xl font-semibold" id="service-resource-mapping-title">Relación servicio–recurso físico</h2><p className="mt-2 text-sm text-muted">Define cuántos equipos exige cada servicio y el buffer que protege su disponibilidad. No asigna equipos automáticamente.</p></div>
-    <div className="space-y-3">{mappings.map((mapping) => <MappingForm disabled={pending} key={mapping.id} mapping={mapping} onSubmit={submit} />)}</div>
-    <details className="rounded-xl border p-4"><summary className="cursor-pointer font-medium">Agregar relación</summary><MappingForm disabled={pending} onSubmit={submit} /></details>
+    <div className="space-y-3">{mappings.map((mapping) => <MappingForm aria-busy={pending} disabled={pending} key={mapping.id} mapping={mapping} onSubmit={submit} />)}</div>
+    <details className="rounded-xl border p-4"><summary className="cursor-pointer font-medium">Agregar relación</summary><MappingForm aria-busy={pending} disabled={pending} onSubmit={submit} /></details>
     <p className="text-sm font-medium" aria-live="polite">{message}</p>
   </section>;
 }

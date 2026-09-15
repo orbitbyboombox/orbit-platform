@@ -31,7 +31,7 @@ export function ExperienceReviewEngine({projectId,existing,knowledge,staff}:{pro
         <Step active={step===10} icon={<Archive/>} title="Archivar y generar conocimiento"><div className="rounded-xl border border-brand/30 bg-brand/5 p-5"><p className="font-semibold">Esta acción es permanente.</p><p className="mt-2 text-sm leading-6 text-muted">ORBIT archivará el evento, guardará el aprendizaje, registrará la evidencia y generará eventos inmutables en Timeline y Auditoría.</p></div></Step>
       </div>
       {feedback&&<p aria-live="polite" className="mb-4 rounded-xl border px-4 py-3 text-sm">{feedback}</p>}
-      <footer className="flex items-center justify-between gap-3 border-t pt-5"><ActionButton disabled={step===1||pending} icon={ChevronLeft} label="Anterior" onClick={()=>setStep(value=>Math.max(1,value-1))} type="button" variant="outline"/>{step<10?<ActionButton icon={ChevronRight} label="Continuar" onClick={()=>setStep(value=>Math.min(10,value+1))} type="button"/>:<ActionButton disabled={pending} icon={Archive} label={pending?"Archivando…":"Archivar evento"} type="submit"/>}</footer>
+      <footer className="flex items-center justify-between gap-3 border-t pt-5"><ActionButton disabled={step===1||pending} icon={ChevronLeft} label="Anterior" onClick={()=>setStep(value=>Math.max(1,value-1))} type="button" variant="outline"/>{step<10?<ActionButton icon={ChevronRight} label="Continuar" onClick={()=>setStep(value=>Math.min(10,value+1))} type="button"/>:<ActionButton aria-busy={pending} disabled={pending} icon={Archive} label={pending?"Archivando…":"Archivar evento"} type="submit"/>}</footer>
     </form>
   </section>;
 }

@@ -312,7 +312,7 @@ export function StaffAssignmentCenter({
           />;
         })}
       </section>
-      {requests.length ? <section className="mb-5 border-b pb-5"><h3 className="font-semibold">Solicitudes Staff</h3><div className="mt-3 grid gap-3 lg:grid-cols-2">{requests.map((request)=><article className="rounded-xl border p-4" key={request.id}><p className="font-semibold">{request.staffName}</p><p className="mt-1 text-sm text-muted">{roleLabel(request.role)} · Solicitud pendiente</p><div className="mt-3 flex gap-2"><form action={(data)=>startTransition(async()=>{const result=await reviewStaffRequestAction(data);setMessage(result.message);if(result.ok)router.refresh()})}><input name="requestId" type="hidden" value={request.id}/><input name="decision" type="hidden" value="approve"/><Button disabled={pending} type="submit">Aprobar</Button></form><form action={(data)=>startTransition(async()=>{const result=await reviewStaffRequestAction(data);setMessage(result.message);if(result.ok)router.refresh()})}><input name="requestId" type="hidden" value={request.id}/><input name="decision" type="hidden" value="reject"/><Button disabled={pending} type="submit" variant="outline">Rechazar</Button></form></div></article>)}</div></section>:null}
+      {requests.length ? <section className="mb-5 border-b pb-5"><h3 className="font-semibold">Solicitudes Staff</h3><div className="mt-3 grid gap-3 lg:grid-cols-2">{requests.map((request)=><article className="rounded-xl border p-4" key={request.id}><p className="font-semibold">{request.staffName}</p><p className="mt-1 text-sm text-muted">{roleLabel(request.role)} · Solicitud pendiente</p><div className="mt-3 flex gap-2"><form action={(data)=>startTransition(async()=>{const result=await reviewStaffRequestAction(data);setMessage(result.message);if(result.ok)router.refresh()})}><input name="requestId" type="hidden" value={request.id}/><input name="decision" type="hidden" value="approve"/><Button aria-busy={pending} disabled={pending} type="submit">Aprobar</Button></form><form action={(data)=>startTransition(async()=>{const result=await reviewStaffRequestAction(data);setMessage(result.message);if(result.ok)router.refresh()})}><input name="requestId" type="hidden" value={request.id}/><input name="decision" type="hidden" value="reject"/><Button aria-busy={pending} disabled={pending} type="submit" variant="outline">Rechazar</Button></form></div></article>)}</div></section>:null}
       <div className="grid gap-3 lg:grid-cols-2">
         {assignments.map((item) => (
           <article className="rounded-xl border p-4" key={item.id}>
@@ -530,20 +530,20 @@ function StaffRoleRequirementCard({ projectId, role, required, published, assign
     <form onSubmit={(event) => { event.preventDefault(); save(); }} className="mt-3 grid gap-3">
       <label className="grid min-w-0 gap-1 text-xs text-muted">Cantidad requerida · {role.label}
         <div className="flex min-w-0 gap-2">
-          <Button type="button" variant="outline" aria-label={`Quitar slot de ${role.label}`} disabled={pending || Number(quantity) <= Math.max(covered, 1)} onClick={() => setQuantity(String(Number(quantity) - 1))}>−</Button>
+          <Button type="button" variant="outline" aria-label={`Quitar slot de ${role.label}`} aria-busy={pending} disabled={pending|| Number(quantity) <= Math.max(covered, 1)} onClick={() => setQuantity(String(Number(quantity) - 1))}>−</Button>
           <input className="min-h-10 w-full min-w-0 rounded-lg border bg-background px-3 text-foreground" value={quantity} onChange={(event) => setQuantity(event.target.value)} min={Math.max(covered, 1)} step="1" required name="quantity" type="number"/>
-          <Button type="button" variant="outline" aria-label={`Agregar slot de ${role.label}`} disabled={pending} onClick={() => setQuantity(String(Math.max(1, Number(quantity) || 0) + 1))}>+</Button>
+          <Button type="button" variant="outline" aria-label={`Agregar slot de ${role.label}`} aria-busy={pending} disabled={pending} onClick={() => setQuantity(String(Math.max(1, Number(quantity) || 0) + 1))}>+</Button>
         </div>
       </label>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <label className="flex min-h-10 items-center gap-2 text-sm"><input checked={isPublished} onChange={(event) => setPublished(event.target.checked)} name="published" type="checkbox"/>Publicar</label>
-        <Button disabled={pending || !validStaffQuantity(Number(quantity)) || Number(quantity) < covered} type="submit">Guardar</Button>
+        <Button aria-busy={pending} disabled={pending|| !validStaffQuantity(Number(quantity)) || Number(quantity) < covered} type="submit">Guardar</Button>
       </div>
     </form>
     <ol className="mt-4 grid gap-2">
       {slots.map((slot) => <li key={slot.assignment?.id ?? `${role.value}:${slot.number}`} className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-lg bg-background/60 p-3 text-sm">
         <div className="min-w-0"><p className="font-medium">{role.label} {slot.number}</p><p className="break-words text-muted">{slot.assignment?.staffName ?? "Sin asignar"}</p>{slot.assignment ? <p className="text-xs text-muted">{statusLabel(slot.assignment.status)}</p> : null}</div>
-        <Button type="button" variant="outline" disabled={pending} aria-label={`${slot.assignment ? "Editar" : "Asignar"} ${role.label} ${slot.number}`} onClick={() => slot.assignment ? onEdit(slot.assignment) : onAssign(slot.number)}>{slot.assignment ? "Editar" : "Asignar"}</Button>
+        <Button type="button" variant="outline" aria-busy={pending} disabled={pending} aria-label={`${slot.assignment ? "Editar" : "Asignar"} ${role.label} ${slot.number}`} onClick={() => slot.assignment ? onEdit(slot.assignment) : onAssign(slot.number)}>{slot.assignment ? "Editar" : "Asignar"}</Button>
       </li>)}
     </ol>
     {required > 12 ? <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
@@ -551,7 +551,7 @@ function StaffRoleRequirementCard({ projectId, role, required, published, assign
       <span>{page * 12 + 1}–{Math.min((page + 1) * 12, required)} de {required}</span>
       <Button type="button" variant="outline" disabled={(page + 1) * 12 >= required} onClick={() => setPage((value) => value + 1)}>Siguiente</Button>
     </div> : null}
-    {required > 0 && covered === 0 ? <Button className="mt-3" type="button" variant="outline" disabled={pending} onClick={() => save(true)}>Quitar rol</Button> : null}
+    {required > 0 && covered === 0 ? <Button className="mt-3" type="button" variant="outline" aria-busy={pending} disabled={pending} onClick={() => save(true)}>Quitar rol</Button> : null}
   </article>;
 }
 
@@ -624,7 +624,7 @@ function AssignmentCancellationDialog({
           />
         </label>
         <div className="mt-6 flex justify-end gap-2">
-          <Button disabled={pending} onClick={onClose} variant="outline">
+          <Button aria-busy={pending} disabled={pending} onClick={onClose} variant="outline">
             Volver
           </Button>
           <Button
@@ -771,7 +771,7 @@ function SettlementDetailDialog({
             />
             <Button
               className="sm:col-span-2"
-              disabled={pending}
+              aria-busy={pending} disabled={pending}
               variant="outline"
             >
               Agregar ajuste
@@ -855,7 +855,7 @@ function SettlementDetailDialog({
                 { value: "PAID", label: "Pagado" },
               ]}
             />
-            <Button disabled={pending} variant="outline">
+            <Button aria-busy={pending} disabled={pending} variant="outline">
               Agregar reembolso
             </Button>
           </form>
@@ -933,7 +933,7 @@ function SettlementDetailDialog({
                 { value: "RECEIVED", label: "Recibida" },
               ]}
             />
-            <Button className="sm:col-span-2" disabled={pending}>
+            <Button className="sm:col-span-2" aria-busy={pending} disabled={pending}>
               {pending ? "Guardando…" : "Registrar movimiento"}
             </Button>
           </form>
@@ -1030,7 +1030,7 @@ function SettlementDialog({
             type="number"
           />
           <Field defaultValue="" label="Comentario" name="adjustmentComment" />
-          <Button disabled={pending} variant="outline">
+          <Button aria-busy={pending} disabled={pending} variant="outline">
             Agregar ajuste
           </Button>
           {item.adjustments.length ? (
@@ -1099,7 +1099,7 @@ function SettlementDialog({
               { value: "PAID", label: "Pagado" },
             ]}
           />
-          <Button disabled={pending} variant="outline">
+          <Button aria-busy={pending} disabled={pending} variant="outline">
             Agregar reembolso
           </Button>
           {item.reimbursements.length ? (
@@ -1163,7 +1163,7 @@ function SettlementDialog({
               { value: "RECEIVED", label: "Recibida" },
             ]}
           />
-          <Button disabled={pending}>
+          <Button aria-busy={pending} disabled={pending}>
             {pending ? "Guardando…" : "Registrar movimiento"}
           </Button>
         </form>
@@ -1307,7 +1307,7 @@ function AssignmentDialog({
           )}
           <Button
             className="sm:col-span-2"
-            disabled={pending || !compatible.length}
+            aria-busy={pending} disabled={pending|| !compatible.length}
           >
             {pending
               ? "Guardando..."

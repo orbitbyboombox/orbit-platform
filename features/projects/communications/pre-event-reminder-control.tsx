@@ -318,7 +318,7 @@ export function PreEventReminderControl({ projectId }: { projectId: string }) {
               PARA
               <input
                 className="mt-2 min-h-11 w-full rounded-xl border bg-background px-3 text-sm"
-                disabled={pending || sendState.status === "success"}
+                aria-busy={pending} disabled={pending|| sendState.status === "success"}
                 onChange={(event) => setTo(event.target.value)}
                 placeholder="cliente@empresa.cl"
                 required
@@ -333,7 +333,7 @@ export function PreEventReminderControl({ projectId }: { projectId: string }) {
               CC
               <textarea
                 className="mt-2 min-h-24 w-full rounded-xl border bg-background p-3 text-sm"
-                disabled={pending || sendState.status === "success"}
+                aria-busy={pending} disabled={pending|| sendState.status === "success"}
                 onChange={(event) => setCc(event.target.value)}
                 placeholder="Un correo por línea o separados por coma"
                 value={cc}
@@ -346,7 +346,7 @@ export function PreEventReminderControl({ projectId }: { projectId: string }) {
               ASUNTO
               <input
                 className="mt-2 min-h-11 w-full rounded-xl border bg-background px-3 text-sm"
-                disabled={pending || sendState.status === "success"}
+                aria-busy={pending} disabled={pending|| sendState.status === "success"}
                 onChange={(event) => setSubject(event.target.value)}
                 value={subject}
               />
@@ -372,11 +372,11 @@ export function PreEventReminderControl({ projectId }: { projectId: string }) {
                   Esta confirmación explícita generará un nuevo registro inmutable.
                 </p>
                 <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                  <Button disabled={pending} onClick={() => deliver(true)} type="button">
+                  <Button aria-busy={pending} disabled={pending} onClick={() => deliver(true)} type="button">
                     Sí, reenviar
                   </Button>
                   <Button
-                    disabled={pending}
+                    aria-busy={pending} disabled={pending}
                     onClick={() => setConfirmingResend(false)}
                     type="button"
                     variant="outline"
@@ -403,7 +403,7 @@ export function PreEventReminderControl({ projectId }: { projectId: string }) {
                     : "Ingresa un destinatario válido para enviar."}
               </p>
               <div className="flex gap-2">
-                <Button disabled={pending} onClick={() => setOpen(false)} type="button" variant="outline">
+                <Button aria-busy={pending} disabled={pending} onClick={() => setOpen(false)} type="button" variant="outline">
                   Cerrar
                 </Button>
                 <Button

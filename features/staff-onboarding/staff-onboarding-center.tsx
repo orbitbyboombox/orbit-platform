@@ -167,7 +167,7 @@ export function StaffOnboardingCenter({
   );
 }
 function ResendDialog({ invitation, close, pending, submit }: { invitation: StaffOnboardingInvitation; close: () => void; pending: boolean; submit: () => void }) {
-  return <MobileDialog eyebrow="Onboarding Staff" title="REENVIAR INVITACIÓN" description={`¿Quieres reenviar la invitación de registro a ${invitation.firstName} ${invitation.lastName}?`} onClose={pending ? () => undefined : close} dismissOnOverlayClick={!pending} footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button className="min-h-11 rounded-xl border px-4 text-sm font-semibold" disabled={pending} onClick={close} type="button">CANCELAR</button><button className="min-h-11 rounded-xl bg-brand px-4 text-sm font-semibold text-brand-foreground" disabled={pending} onClick={submit} type="button">{pending ? "REENVIANDO…" : "REENVIAR"}</button></div>}><div className="rounded-xl border bg-background/40 p-4 text-sm"><p className="text-xs uppercase tracking-wider text-muted">Correo</p><p className="mt-1 break-all font-semibold">{invitation.email}</p><p className="mt-4 text-xs text-muted">Se usará un único enlace vigente de producción. El enlace anterior quedará inválido.</p></div></MobileDialog>;
+  return <MobileDialog eyebrow="Onboarding Staff" title="REENVIAR INVITACIÓN" description={`¿Quieres reenviar la invitación de registro a ${invitation.firstName} ${invitation.lastName}?`} onClose={pending ? () => undefined : close} dismissOnOverlayClick={!pending} footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button className="min-h-11 rounded-xl border px-4 text-sm font-semibold" aria-busy={pending} disabled={pending} onClick={close} type="button">CANCELAR</button><button className="min-h-11 rounded-xl bg-brand px-4 text-sm font-semibold text-brand-foreground" aria-busy={pending} disabled={pending} onClick={submit} type="button">{pending ? "REENVIANDO…" : "REENVIAR"}</button></div>}><div className="rounded-xl border bg-background/40 p-4 text-sm"><p className="text-xs uppercase tracking-wider text-muted">Correo</p><p className="mt-1 break-all font-semibold">{invitation.email}</p><p className="mt-4 text-xs text-muted">Se usará un único enlace vigente de producción. El enlace anterior quedará inválido.</p></div></MobileDialog>;
 }
 const label = (status: string) =>
   ({
@@ -209,7 +209,7 @@ function InviteDialog({
         </div>
         <button
           className="mt-6 w-full rounded-xl bg-brand py-3 font-semibold text-brand-foreground"
-          disabled={pending}
+          aria-busy={pending} disabled={pending}
         >
           {pending ? "Enviando…" : "Enviar invitación"}
         </button>
@@ -217,7 +217,7 @@ function InviteDialog({
     </div>
   );
 }
-function EditDialog({invitation,close,pending,submit}:{invitation:StaffOnboardingInvitation;close:()=>void;pending:boolean;submit:(form:FormData)=>void}){return <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4"><form action={submit} className="w-full max-w-lg rounded-2xl border bg-card p-6"><div className="flex justify-between"><h3 className="text-xl font-semibold">Editar invitación</h3><button aria-label="Cerrar" onClick={close} type="button"><X/></button></div><div className="mt-5 grid gap-4 sm:grid-cols-2"><Field defaultValue={invitation.firstName} name="firstName" label="Nombre"/><Field defaultValue={invitation.lastName} name="lastName" label="Apellido"/><Field defaultValue={invitation.email} name="email" label="Email" type="email"/><Field defaultValue={invitation.mobile} name="mobile" label="Móvil" type="tel"/></div><button className="mt-6 w-full rounded-xl bg-brand py-3 font-semibold text-brand-foreground" disabled={pending}>{pending?"Guardando…":"Guardar cambios"}</button></form></div>}
+function EditDialog({invitation,close,pending,submit}:{invitation:StaffOnboardingInvitation;close:()=>void;pending:boolean;submit:(form:FormData)=>void}){return <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4"><form action={submit} className="w-full max-w-lg rounded-2xl border bg-card p-6"><div className="flex justify-between"><h3 className="text-xl font-semibold">Editar invitación</h3><button aria-label="Cerrar" onClick={close} type="button"><X/></button></div><div className="mt-5 grid gap-4 sm:grid-cols-2"><Field defaultValue={invitation.firstName} name="firstName" label="Nombre"/><Field defaultValue={invitation.lastName} name="lastName" label="Apellido"/><Field defaultValue={invitation.email} name="email" label="Email" type="email"/><Field defaultValue={invitation.mobile} name="mobile" label="Móvil" type="tel"/></div><button className="mt-6 w-full rounded-xl bg-brand py-3 font-semibold text-brand-foreground" aria-busy={pending} disabled={pending}>{pending?"Guardando…":"Guardar cambios"}</button></form></div>}
 function Action({icon:Icon,label,onClick,primary=false}:{icon:typeof Eye;label:string;onClick:()=>void;primary?:boolean}){return <button className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold ${primary?"bg-brand text-brand-foreground":"border"}`} disabled={false} onClick={onClick}><Icon className="size-3.5"/>{label}</button>}
 function Field({
   name,
@@ -265,7 +265,7 @@ function ReviewDialog({
           <div className="flex flex-wrap justify-end gap-2">
             <button
               className="rounded-xl border px-4 py-2 text-sm font-semibold"
-              disabled={pending}
+              aria-busy={pending} disabled={pending}
               onClick={() => review("REJECT", notes)}
               type="button"
             >
@@ -273,7 +273,7 @@ function ReviewDialog({
             </button>
             <button
               className="rounded-xl border px-4 py-2 text-sm font-semibold"
-              disabled={pending}
+              aria-busy={pending} disabled={pending}
               onClick={() => review("REQUEST_CHANGES", notes)}
               type="button"
             >
@@ -281,7 +281,7 @@ function ReviewDialog({
             </button>
             <button
               className="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-brand-foreground"
-              disabled={pending}
+              aria-busy={pending} disabled={pending}
               onClick={() => review("APPROVE", notes)}
               type="button"
             >

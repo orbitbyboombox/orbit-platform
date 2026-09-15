@@ -120,7 +120,7 @@ function LogoUpload({
       />
       <ActionButton
         className="mt-3"
-        disabled={pending || !file}
+        aria-busy={pending} disabled={pending|| !file}
         icon={Upload}
         label={pending ? "Cargando…" : "Actualizar logo"}
         onClick={() =>
@@ -651,7 +651,7 @@ export function CompanySettingsCenter({
           </label>
           <div className="mt-4 flex items-center gap-3">
             <ActionButton
-              disabled={pending}
+              aria-busy={pending} disabled={pending}
               icon={Save}
               label={pending ? "Guardando…" : "Guardar configuración"}
               type="submit"

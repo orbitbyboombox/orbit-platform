@@ -151,7 +151,7 @@ export function EquipmentOperationCenter({ initialItems, historyEntries }: { ini
             <div className="mt-5 grid grid-cols-2 gap-2 border-t pt-4 sm:grid-cols-5 lg:grid-cols-2 xl:grid-cols-5">
               <button onClick={() => setPanel({ kind: "view", item })} className="rounded-lg border px-2 py-2 text-xs font-semibold hover:bg-accent"><Eye className="mx-auto mb-1 size-4" />Abrir</button>
               <button onClick={() => setPanel({ kind: "edit", item })} className="rounded-lg border px-2 py-2 text-xs font-semibold hover:bg-accent"><Pencil className="mx-auto mb-1 size-4" />Editar</button>
-              <button disabled={pending || item.status === "OUT_OF_SERVICE"} onClick={() => disable(item)} className="rounded-lg border px-2 py-2 text-xs font-semibold hover:bg-accent disabled:opacity-40"><X className="mx-auto mb-1 size-4" />Deshabilitar</button>
+              <button aria-busy={pending} disabled={pending|| item.status === "OUT_OF_SERVICE"} onClick={() => disable(item)} className="rounded-lg border px-2 py-2 text-xs font-semibold hover:bg-accent disabled:opacity-40"><X className="mx-auto mb-1 size-4" />Deshabilitar</button>
               <button onClick={() => remove(item)} className="rounded-lg border px-2 py-2 text-xs font-semibold text-red-600 hover:bg-red-500/10"><Trash2 className="mx-auto mb-1 size-4" />Eliminar</button>
               <button onClick={() => setPanel({ kind: "history", item })} className="col-span-2 rounded-lg border px-2 py-2 text-xs font-semibold hover:bg-accent sm:col-span-1 lg:col-span-2 xl:col-span-1"><History className="mx-auto mb-1 size-4" />Historial</button>
             </div>
@@ -178,7 +178,7 @@ function EquipmentPanel({ panel, historyEntries, pending, error, onClose, onSave
         <Select label="Categoría" name="category" defaultValue={item?.category ?? "CLASSIC_TOTEM"} options={categories} /><Field label="Número de serie (opcional)" name="serialNumber" defaultValue={item?.serialNumber??undefined} required={false} /><label className="block text-sm font-medium">Ubicación<select name="storageLocation" defaultValue={item?.storageLocation??""} className="mt-2 h-11 w-full rounded-xl border bg-background px-3"><option value="">Sin registrar</option>{["BODEGA","TALLER","EN_EVENTO","MANTENIMIENTO","OTRA"].map((value)=><option key={value} value={value}>{value.replaceAll("_"," ")}</option>)}</select></label><Field label="Fabricante (opcional)" name="manufacturer" defaultValue={item?.manufacturer??undefined} required={false} /><Field label="Modelo (opcional)" name="model" defaultValue={item?.model??undefined} required={false} /><label className="block text-sm font-medium">Notas operativas<textarea name="notes" defaultValue={item?.notes??""} className="mt-2 min-h-20 w-full rounded-xl border bg-background px-3 py-2" /></label>
         {editing && <Select label="Estado" name="status" defaultValue={item?.status ?? "AVAILABLE"} options={statuses} />}
         {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
-        <Button className="w-full" disabled={pending} type="submit">{pending ? "Guardando..." : editing ? "Guardar cambios" : "Agregar equipo"}</Button>
+        <Button className="w-full" aria-busy={pending} disabled={pending} type="submit">{pending ? "Guardando..." : editing ? "Guardar cambios" : "Agregar equipo"}</Button>
       </form>}
     </div>
   </div>;

@@ -183,7 +183,7 @@ function CostEditor({
           </label>
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <ActionButton
-              disabled={pending || !reason.trim()}
+              aria-busy={pending} disabled={pending|| !reason.trim()}
               label={pending ? "Guardando…" : "Guardar costo"}
               onClick={() =>
                 startTransition(async () => {
@@ -282,7 +282,7 @@ function OtherCostForm({ onSaved }: { onSaved: (message: string) => void }) {
       </div>
       <ActionButton
         className="mt-4"
-        disabled={pending || !name.trim() || !amount || !reason.trim()}
+        aria-busy={pending} disabled={pending|| !name.trim() || !amount || !reason.trim()}
         label={pending ? "Creando…" : "Crear costo"}
         type="submit"
       />
