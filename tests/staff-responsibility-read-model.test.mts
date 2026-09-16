@@ -40,7 +40,7 @@ test("duplicate assignment rows do not duplicate staff display", () => {
 
 test("cancelled assignments release the Staff portal slot", () => {
   const portal = readFileSync("features/portal-authentication/staff-portal.tsx", "utf8");
-  assert.match(portal, /\[\"CANCELLED\",\"REJECTED\"\]\.includes\(row\.status\)\)continue/);
+  assert.match(portal, /\[\"CANCELLED\",\s*\"REJECTED\"\]\.includes\(row\.status\)\)\s*continue/);
 });
 
 test("BOOMBOX publication defaults to three independent roles without overwriting overrides", () => {

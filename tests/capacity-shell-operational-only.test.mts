@@ -19,7 +19,7 @@ test("automatic booking does not expose or require shell selection", () => {
   const completion = read("features/automatic-booking/complete-automatic-booking.service.ts");
   assert.doesNotMatch(experience, /initialShell|event\.shell|shell: initialShell/);
   assert.doesNotMatch(completion, /La configuración física requiere revisión/);
-  assert.match(experience, /serviceCodes:\[service\.code\]/);
+  assert.match(experience, /serviceCodes:\s*\[service\.code\]/);
 });
 
 test("manual confirmation keeps shell as operational metadata only", () => {

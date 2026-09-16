@@ -19,6 +19,7 @@ import { BrandLogo } from "@/components/brand-logo";
 import { useModuleManager } from "@/features/module-manager";
 import type { NavigationKey } from "./navigation";
 import { ResilientSyncIndicator } from "@/components/resilient-sync/resilient-sync-provider";
+import { PendingSubmitButton } from "@/components/ui/pending-submit-button";
 
 export interface HeaderProps {
   userEmail: string;
@@ -92,7 +93,7 @@ export function Header({ userEmail, userName, userRole, actionableNotifications,
           <p className="max-w-40 truncate text-[10px] text-muted">{userRole}</p>
         </div>
         <ChevronDown aria-hidden="true" className="hidden size-3.5 text-muted lg:block" />
-        {userMenuOpen && <div className="absolute right-3 top-[4.1rem] z-50 w-56 rounded-xl border bg-card p-2 shadow-2xl sm:right-4"><Link className="flex min-h-11 items-center rounded-lg px-3 text-sm hover:bg-accent" href="/settings?section=profile" onClick={() => setUserMenuOpen(false)}>Perfil y configuración</Link><form action={signOutAction}><button className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-left text-sm hover:bg-accent" type="submit"><LogOut className="size-4" />Cerrar sesión</button></form></div>}
+        {userMenuOpen && <div className="absolute right-3 top-[4.1rem] z-50 w-56 rounded-xl border bg-card p-2 shadow-2xl sm:right-4"><Link className="flex min-h-11 items-center rounded-lg px-3 text-sm hover:bg-accent" href="/settings?section=profile" onClick={() => setUserMenuOpen(false)}>Perfil y configuración</Link><form action={signOutAction}><PendingSubmitButton className="min-h-11 w-full justify-start bg-transparent px-3 text-foreground shadow-none hover:bg-accent" pendingLabel="Cerrando sesión…" variant="ghost"><LogOut className="size-4" />Cerrar sesión</PendingSubmitButton></form></div>}
       </header>
       {menuOpen && (
         <div className="fixed inset-x-3 top-[4.75rem] z-40 rounded-2xl border bg-card/95 p-2 shadow-2xl backdrop-blur-xl md:hidden">

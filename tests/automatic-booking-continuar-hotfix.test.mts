@@ -103,7 +103,7 @@ test("customer token is preserved from page load through confirmation", () => {
 
 test("valid CONTINUAR opens the next step without submission", () => {
   assert.match(experience, /disabled=\{!valid\}/);
-  assert.match(experience, /setStep\(current=>current\+1\)/);
+  assert.match(experience, /setStep\(\s*\(?(?:current)\)?\s*=>\s*current\s*\+\s*1,?\s*\)/);
 });
 
 test("confirmation remains protected against repeated submission", () => {

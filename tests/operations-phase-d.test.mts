@@ -43,16 +43,16 @@ test("Portal Staff execution is role-aware and shares arrival", () => {
 
 test("availability stays private before canonical confirmation", () => {
   assert.match(staffProjection, /staff_available_event_projection/);
-  assert.match(staffProjection, /customer:"Evento BOOMBOX"/);
-  assert.match(staffProjection, /clientPhone:"Disponible después de confirmación"/);
-  assert.match(staffProjection, /address:"Disponible después de confirmación"/);
+  assert.match(staffProjection, /customer:\s*"Evento BOOMBOX"/);
+  assert.match(staffProjection, /clientPhone:\s*"Disponible después de confirmación"/);
+  assert.match(staffProjection, /address:\s*"Disponible después de confirmación"/);
 });
 
 test("published Staff visibility is explicit and does not require a role row", () => {
   assert.match(visibility, /AVAILABLE/);
   assert.match(visibility, /PUBLISHED_WITHOUT_REQUIREMENT/);
   assert.match(staffProjection, /portalStaffVisibility/);
-  assert.match(staffProjection, /hasPublishedRequirement:requirements\.length>0/);
+  assert.match(staffProjection, /hasPublishedRequirement:\s*requirements\.length\s*>\s*0/);
 });
 
 test("multiple slots reject overflow without creating a duplicate assignment", () => {

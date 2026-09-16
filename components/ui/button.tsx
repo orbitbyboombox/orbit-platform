@@ -12,12 +12,13 @@ const buttonVariants = cva("inline-flex items-center justify-center gap-2 whites
 export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & VariantProps<typeof buttonVariants> & { asChild?: boolean; loading?: boolean; loadingLabel?: string };
 export function Button({ className, variant, size, asChild, loading = false, loadingLabel, children, ...props }: ButtonProps) {
   const Comp = asChild ? Slot : "button";
-  const busyContent = loading ? <><OrbitLoader variant="button"/>{loadingLabel ?? children}</> : children;
+  const busy = loading || props["aria-busy"] === true || props["aria-busy"] === "true";
+  const busyContent = busy ? <><OrbitLoader variant="button"/>{loadingLabel ?? children}</> : children;
   if (asChild) {
     const child = Children.only(children);
     if (!isValidElement(child)) return null;
     const element = child as ReactElement<{ children?: React.ReactNode }>;
-    return <Comp {...props} aria-busy={loading || props["aria-busy"]} className={cn(buttonVariants({ variant, size }), className)} aria-disabled={loading || props.disabled}>{loading ? cloneElement(element, undefined, busyContent) : element}</Comp>;
+    return <Comp {...props} aria-busy={busy} className={cn(buttonVariants({ variant, size }), className)} aria-disabled={busy || props.disabled}>{busy ? cloneElement(element, undefined, busyContent) : element}</Comp>;
   }
-  return <Comp {...props} aria-busy={loading || props["aria-busy"]} className={cn(buttonVariants({ variant, size }), className)} disabled={loading || props.disabled}>{busyContent}</Comp>;
+  return <Comp {...props} aria-busy={busy} className={cn(buttonVariants({ variant, size }), className)} disabled={busy || props.disabled}>{busyContent}</Comp>;
 }

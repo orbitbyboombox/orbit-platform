@@ -2,10 +2,12 @@
 
 import { Check, Link2, PlugZap, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useTransition } from "react";
 import { SmartCard } from "@/components/cards/smart-card";
 import { BrandLogo } from "@/components/brand-logo";
 import { SectionTitle } from "@/components/layout/section-title";
 import { ActionButton } from "@/components/ui/action-button";
+import { PendingSubmitButton } from "@/components/ui/pending-submit-button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { CONNECTION_PROVIDERS } from "../data/connections";
 import type { ConnectionStatus } from "../types";
@@ -95,11 +97,11 @@ function GoogleWorkspaceCard({ connection, configured }: GoogleWorkspaceCardProp
       <div className="mt-5 flex flex-col gap-2 border-t pt-5 sm:flex-row sm:flex-wrap">
         {connected ? (
           <>
-            <form action="/api/integrations/google/connect" method="get"><ActionButton icon={Link2} label="Reconectar Google" type="submit" /></form>
-            <form action="/api/integrations/google/disconnect" method="post"><ActionButton icon={PlugZap} label="Desconectar" type="submit" variant="outline" /></form>
+            <form action="/api/integrations/google/connect" method="get"><PendingSubmitButton pendingLabel="Abriendo conexión…"><Link2 aria-hidden="true" className="size-4"/>Reconectar Google</PendingSubmitButton></form>
+            <form action="/api/integrations/google/disconnect" method="post"><PendingSubmitButton pendingLabel="Desconectando…" variant="outline"><PlugZap aria-hidden="true" className="size-4"/>Desconectar</PendingSubmitButton></form>
           </>
         ) : (
-          <form action="/api/integrations/google/connect" method="get"><ActionButton disabled={!configured} icon={Link2} label={configured ? "Conectar Google" : "Conexión pendiente"} type="submit" /></form>
+          <form action="/api/integrations/google/connect" method="get"><PendingSubmitButton disabled={!configured} pendingLabel="Abriendo conexión…"><Link2 aria-hidden="true" className="size-4"/>{configured ? "Conectar Google" : "Conexión pendiente"}</PendingSubmitButton></form>
         )}
       </div>
     </SmartCard>
@@ -108,6 +110,7 @@ function GoogleWorkspaceCard({ connection, configured }: GoogleWorkspaceCardProp
 
 function WhatsAppCard({ connection }: { connection: WhatsAppSafeConnection }) {
   const router = useRouter();
+  const [pending, startTransition] = useTransition();
   const presentation = connection.connectionStatus === "CONNECTED"
     ? { label: "Conectado", variant: "success" as const }
     : connection.connectionStatus === "ERROR"
@@ -138,7 +141,7 @@ function WhatsAppCard({ connection }: { connection: WhatsAppSafeConnection }) {
           <div><dt className="text-muted">Estado técnico</dt><dd className="mt-1 font-semibold">{technicalStatus}</dd></div>
         </dl>
         <div className="mt-auto flex flex-col gap-2 border-t pt-5 sm:flex-row sm:flex-wrap">
-          <ActionButton className="w-full sm:w-auto" disabled={!connection.controlsEnabled} icon={PlugZap} label={connection.controlsEnabled ? "Probar conexión" : "Conexión pendiente"} onClick={() => router.refresh()} type="button" variant="outline" />
+          <ActionButton className="w-full sm:w-auto" disabled={!connection.controlsEnabled} icon={PlugZap} label={connection.controlsEnabled ? "Probar conexión" : "Conexión pendiente"} loading={pending} loadingLabel="Comprobando…" onClick={() => startTransition(() => router.refresh())} type="button" variant="outline" />
         </div>
       </div>
     </SmartCard>
