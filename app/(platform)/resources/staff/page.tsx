@@ -29,9 +29,11 @@ import type {
 import {mapStaffMonthlyAccount,STAFF_MONTHLY_ACCOUNT_SELECT} from "@/features/staff-monthly-account/model";
 import { chileDateTime } from "@/features/operations/event-operational-window";
 import { buildCanonicalOrbitEventState } from "@/features/operations/canonical-orbit-event-state";
+import { StaffFinancialActions } from "@/features/staff-payments/staff-financial-actions";
+import type { StaffExpenseReviewItem } from "@/features/staff-expenses/staff-expense-review";
 
-export default async function StaffManagementPage({searchParams}:{searchParams:Promise<{reviewOnboarding?:string;reviewAccount?:string}>}) {
-  const {reviewOnboarding,reviewAccount}=await searchParams;
+export default async function StaffManagementPage({searchParams}:{searchParams:Promise<{reviewOnboarding?:string;reviewAccount?:string;reviewExpense?:string}>}) {
+  const {reviewOnboarding,reviewAccount,reviewExpense}=await searchParams;
   const client = await createSupabaseServerClient();
   const [
     { data: staff, error: staffError },
@@ -110,7 +112,7 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
     client
       .from("staff_expense_submissions")
       .select(
-        "staff_id,document_id,description,occurred_on,status,submitted_at",
+        "id,staff_id,project_id,document_id,category,amount,occurred_on,payment_method,description,notes,receipt_path,status,reimbursement,submitted_at,rejection_reason,materialized_expense_id,staff(first_name,last_name),projects(name,orbit_event_id)",
       )
       .not("document_id", "is", null)
       .order("submitted_at", { ascending: false }),
@@ -568,6 +570,44 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
     name: `${member.firstName} ${member.lastName}`,
     rut: member.rut,
   }));
+  const pendingExpenseItems: StaffExpenseReviewItem[] = (staffExpenseDocuments ?? [])
+    .filter((item) => item.status === "PENDING_REVIEW")
+    .map((item) => {
+      const project = Array.isArray(item.projects) ? item.projects[0] : item.projects;
+      const matchingAssignments = (assignments ?? []).filter(
+        (assignment) =>
+          assignment.project_id === item.project_id &&
+          assignment.staff_id === item.staff_id &&
+          ["CONFIRMED", "ACCEPTED", "COMPLETED"].includes(assignment.status),
+      );
+      const settlement = (paymentRows ?? []).find((payment) => {
+        const paymentProject = Array.isArray(payment.projects) ? payment.projects[0] : payment.projects;
+        return payment.staff_id === item.staff_id && paymentProject?.id === item.project_id;
+      });
+      return {
+        id: item.id,
+        project_id: item.project_id,
+        project_name: project?.name ?? "Evento",
+        orbit_event_id: project?.orbit_event_id ?? "",
+        category: item.category,
+        amount: Number(item.amount),
+        occurred_on: item.occurred_on,
+        payment_method: item.payment_method,
+        description: item.description,
+        notes: item.notes,
+        receipt_path: item.receipt_path,
+        status: item.status,
+        reimbursement: item.reimbursement,
+        submitted_at: item.submitted_at,
+        rejection_reason: item.rejection_reason,
+        materialized_expense_id: item.materialized_expense_id,
+        assignment_count: matchingAssignments.length,
+        assignment_status: matchingAssignments.length ? "CONFIRMED" : null,
+        settlement_id: settlement?.id ?? null,
+        settlement_status: settlement?.status ?? null,
+        staff: item.staff,
+      };
+    });
   const onboardingInvitations: StaffOnboardingInvitation[] = (
     onboarding ?? []
   ).map((item) => ({
@@ -590,9 +630,15 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
   const academyStats = await loadAcademyStats(client, academyArticles);
   return (
       <StaffWorkspaces
-        initialWorkspace={reviewAccount ? "PAYROLL" : undefined}
+        initialWorkspace={reviewAccount ? "PAYROLL" : reviewExpense ? "TEAM" : undefined}
       team={
         <div className="space-y-6">
+          <StaffFinancialActions
+            events={paymentEvents}
+            initialReviewExpenseId={reviewExpense}
+            pendingExpenses={pendingExpenseItems}
+            staff={paymentStaff}
+          />
           <StaffOnboardingCenter initialReviewId={reviewOnboarding} invitations={onboardingInvitations} />
           <StaffOperationCenter
             initialStaff={operationalStaff}

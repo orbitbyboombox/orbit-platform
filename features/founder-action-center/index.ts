@@ -7,6 +7,7 @@ import {
   overdueGroupDetail,
   type OverdueReceivableSummary,
 } from "./overdue-group";
+import { founderActionHref, isFounderActionVisible } from "./visibility";
 
 export type FounderActionPriority = "P0" | "P1" | "P2" | "P3";
 
@@ -103,14 +104,14 @@ const loadFounderActionCenterCached = cache(async (userId: string): Promise<Foun
       const project = Array.isArray(row.projects) ? row.projects[0] : row.projects;
       const operations = project?.operations && typeof project.operations === "object" ? project.operations as Record<string, unknown> : {};
       const stage = String(project?.pipeline_stage ?? operations.pipelineStage ?? "").toUpperCase();
-      return !["GANADO", "PERDIDO", "CANCELADO", "PRUEBA", "ARCHIVADO"].includes(stage);
+      return isFounderActionVisible(row.notification_type, stage);
     })
     .map((row) => ({
       id: row.id,
       type: row.notification_type,
       title: row.title,
       detail: row.message,
-      href: row.related_href ?? "/notifications",
+      href: founderActionHref(row.notification_type, row.entity_id, row.related_href),
       createdAt: row.created_at,
       priority: priority(row.notification_type, row.priority),
       category: row.category,

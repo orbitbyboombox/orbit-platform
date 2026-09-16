@@ -323,6 +323,7 @@ export async function registerStaffAdvanceAction(form: FormData) {
   const failureCorrelationId = randomUUID();
   let settlementId = "";
   try {
+    console.info(JSON.stringify({event:"staff_advance_registration_started",correlationId:failureCorrelationId}));
     const client = await adminContext();
     settlementId = String(form.get("settlementId") ?? "");
     const amount = Number(form.get("amount"));
@@ -356,14 +357,17 @@ export async function registerStaffAdvanceAction(form: FormData) {
       if (boletaUpload.error) throw boletaUpload.error;
       uploaded.push(boletaPath);
     }
-    const { error } = await client.rpc("register_staff_advance_with_documents", {
+    const { data, error } = await client.rpc("register_staff_advance_with_documents", {
       p_settlement_id:settlementId,p_amount:amount,p_date:date,p_method:method,p_notes:notes,p_idempotency_key:idempotencyKey,
       p_receipt_bucket:"orbit-documents",p_receipt_path:receiptPath,p_receipt_file_name:receipt.file.name,p_receipt_mime_type:receipt.mime,
       p_boleta_bucket:boletaPath?"orbit-documents":null,p_boleta_path:boletaPath,p_boleta_file_name:boleta?.file.name??null,p_boleta_mime_type:boleta?.mime??null,
     });
     if (error) throw error;
     refresh();
-    return { ok: true, message: "✓ Adelanto registrado y liquidación recalculada." };
+    for (const path of ["/operations", "/finance", "/reports", `/projects/${settlement.project_id}`]) revalidatePath(path);
+    const result = data && typeof data === "object" ? data as Record<string, unknown> : {};
+    console.info(JSON.stringify({event:"staff_advance_registration_completed",correlationId:failureCorrelationId,settlementId,idempotent:Boolean(result.idempotent)}));
+    return { ok: true, message: result.idempotent ? "✓ Este adelanto ya estaba registrado; no se duplicó." : "✓ Adelanto registrado y liquidación recalculada." };
   } catch (error) {
     if (uploaded.length) await createAdminClient().storage.from("orbit-documents").remove(uploaded);
     const info = errorInfo(error);

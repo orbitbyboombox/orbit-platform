@@ -277,7 +277,10 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
     { label: "Cotizaciones sin seguimiento", type: "SALES_QUOTE_NO_FOLLOWUP", href: "/leads?filter=quotes" },
     { label: "Reservas por cerrar", type: "SALES_RESERVATION_PENDING", href: "/leads?filter=reservation" },
   ];
-  const compactSummary = <div className="flex flex-wrap items-center gap-2 text-xs" aria-label="Resumen compacto de pendientes"><span className="rounded-full bg-brand px-3 py-1.5 font-bold text-brand-foreground">{founderActions.length} pendientes</span>{attentionSummary.map((item) => <Link className="rounded-full border px-3 py-1.5 font-medium text-muted hover:border-brand/40 hover:text-brand" href={item.href} key={item.label}>{founderActions.filter((action) => action.type === item.type).length} {item.label.toLowerCase()}</Link>)}</div>;
+  const pendingStaffExpenseCount = founderActions.filter(
+    (action) => action.type === "STAFF_EXPENSE_REVIEW_REQUIRED",
+  ).length;
+  const compactSummary = <div className="flex flex-wrap items-center gap-2 text-xs" aria-label="Resumen compacto de pendientes"><span className="rounded-full bg-brand px-3 py-1.5 font-bold text-brand-foreground">{founderActions.length} pendientes</span>{pendingStaffExpenseCount > 0 ? <Link className="rounded-full border border-brand/40 bg-brand/10 px-3 py-1.5 font-bold text-brand hover:bg-brand/15" href="/resources/staff?reviewExpense=all">{pendingStaffExpenseCount} {pendingStaffExpenseCount === 1 ? "gasto Staff pendiente de revisión" : "gastos Staff pendientes de revisión"}</Link> : null}{attentionSummary.map((item) => <Link className="rounded-full border px-3 py-1.5 font-medium text-muted hover:border-brand/40 hover:text-brand" href={item.href} key={item.label}>{founderActions.filter((action) => action.type === item.type).length} {item.label.toLowerCase()}</Link>)}</div>;
   const groupedActions = founderActions.reduce<Array<FounderActionItem & { count?: number }>>((groups, item) => {
     const repeatable = !["P0", "P1"].includes(item.priority);
     const existing = repeatable && groups.find((entry) => entry.type === item.type && entry.href === item.href);
