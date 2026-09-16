@@ -39,8 +39,11 @@ function MetricCard({ icon, label, value, detail, danger = false }: { icon: Reac
 }
 
 function DocumentLinks({ document }: { document: OfficeLeaseDocument }) {
+  const openHref = document.documentType === "INCOME_RECEIPT"
+    ? `/office-rent/documents/${document.id}`
+    : `/api/office-rent/documents/${document.id}?disposition=inline`;
   return <span className="inline-flex gap-1">
-    <Button asChild size="sm" variant="ghost"><a href={`/api/office-rent/documents/${document.id}?disposition=inline`} rel="noreferrer" target="_blank"><FileText className="size-3.5"/>Abrir</a></Button>
+    <Button asChild size="sm" variant="ghost"><a href={openHref}><FileText className="size-3.5"/>Abrir</a></Button>
     <Button asChild size="sm" variant="ghost"><a href={`/api/office-rent/documents/${document.id}?disposition=attachment`}><Download className="size-3.5"/><span className="sr-only">Descargar {document.originalFilename}</span></a></Button>
   </span>;
 }

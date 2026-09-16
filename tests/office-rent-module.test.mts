@@ -11,6 +11,9 @@ const navigationMigration = source("supabase/migrations/20260916101314_activate_
 const septemberMigration = source("supabase/migrations/20260916104753_office_lease_september_initial_income.sql");
 const actions = source("features/office-rent/actions.ts");
 const ui = source("features/office-rent/office-rent-center.tsx");
+const receiptPdf = source("features/office-rent/receipt-pdf.ts");
+const receiptViewer = source("features/office-rent/office-rent-receipt-viewer.tsx");
+const receiptPage = source("app/(platform)/office-rent/documents/[documentId]/page.tsx");
 const navigation = source("components/layout/navigation.ts");
 const workspace = source("features/founder-workspace/catalog.ts");
 const cashFlow = source("app/(platform)/finance/cash-flow/page.tsx");
@@ -89,6 +92,22 @@ test("September receipt renders as a professional one-page PDF", async () => {
   const pdf = await PDFDocument.load(bytes);
   assert.equal(pdf.getPageCount(), 1);
   assert.ok(bytes.byteLength > 1_500);
+  assert.match(receiptPdf, /`RECIBO \$\{receiptLabel\(payment\.receiptNumber\)\}`/);
+});
+
+test("income receipts open inside ORBIT with a dynamic number and non-printing controls", () => {
+  assert.match(ui, /document\.documentType === "INCOME_RECEIPT"/);
+  assert.match(ui, /`\/office-rent\/documents\/\$\{document\.id\}`/);
+  assert.match(receiptViewer, /href="\/office-rent"/);
+  assert.match(receiptViewer, /Volver a Arriendo Oficina/);
+  assert.match(receiptViewer, /`RECIBO N°\$\{String\(receiptNumber\)\.padStart\(3, "0"\)\}`/);
+  assert.match(receiptViewer, /print:hidden/);
+  assert.match(receiptViewer, /className="w-full sm:w-auto"/);
+  assert.match(receiptViewer, /disposition=attachment/);
+  assert.match(receiptViewer, /frameWindow\.print\(\)/);
+  assert.match(receiptPage, /params: Promise<\{ documentId: string \}>/);
+  assert.match(receiptPage, /document\.document_type !== "INCOME_RECEIPT"/);
+  assert.match(receiptPage, /receiptNumber=\{Number\(payment\.receipt_number\)\}/);
 });
 
 test("October payment receives the next unique receipt without reusing September", () => {

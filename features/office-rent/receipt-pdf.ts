@@ -92,8 +92,9 @@ export async function createOfficeLeaseReceiptPdf(input: OfficeLeaseReceiptInput
   page.drawText("COMPROBANTE DE PAGO", { x: 336, y: 788, size: 10, font: bold, color: dark });
   page.drawText("ARRIENDO DE OFICINA", { x: 336, y: 772, size: 9, font: regular, color: muted });
   page.drawLine({ start: { x: margin, y: 758 }, end: { x: PAGE.width - margin, y: 758 }, thickness: 1.6, color: orange });
-  page.drawText("RECIBO DE INGRESO", { x: 185, y: 717, size: 18, font: bold, color: dark });
-  page.drawText(`${receiptLabel(payment.receiptNumber)} · Comprobante de recepción conforme`, { x: 174, y: 698, size: 9, font: regular, color: muted });
+  const receiptTitle = `RECIBO ${receiptLabel(payment.receiptNumber)}`;
+  page.drawText(receiptTitle, { x: (PAGE.width - bold.widthOfTextAtSize(receiptTitle, 18)) / 2, y: 717, size: 18, font: bold, color: dark });
+  page.drawText("RECIBO DE INGRESO · Comprobante de recepción conforme", { x: 169, y: 698, size: 9, font: regular, color: muted });
 
   page.drawRectangle({ x: margin, y: 620, width: contentWidth, height: 58, color: rgb(0.965, 0.965, 0.97), borderColor: line, borderWidth: 0.6 });
   field(page, regular, bold, "Fecha de emisión", dateLabel(payment.paidOn), 55, 657, 145);
