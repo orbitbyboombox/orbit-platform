@@ -62,6 +62,8 @@ test("office rent SSR text is deterministic across server and browser runtimes",
   assert.equal(monthLabel("2026-10-01"), "Octubre de 2026");
   assert.doesNotMatch(ui, /new Date\(|toLocaleDateString|toLocaleString/);
   assert.match(ui, /defaultValue=\{data\.today\}/);
+  assert.match(ui, /if \(!hydrated\) return <div aria-busy="true"/);
+  assert.doesNotMatch(ui, /suppressHydrationWarning|setTimeout/);
 });
 
 test("September receipt renders as a professional one-page PDF", async () => {

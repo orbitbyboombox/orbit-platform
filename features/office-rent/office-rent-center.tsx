@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Building2, CalendarClock, CheckCircle2, Download, FileText, Landmark, Pencil, Plus, ReceiptText, Upload, WalletCards, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { cn } from "@/lib/utils";
 import { generateOfficeLeaseReceiptAction, registerOfficeLeasePaymentAction, saveOfficeLeaseSettingsAction, uploadOfficeLeaseDocumentAction } from "./actions";
@@ -45,6 +46,13 @@ function DocumentLinks({ document }: { document: OfficeLeaseDocument }) {
 }
 
 export function OfficeRentCenter({ data }: { data: OfficeLeaseDataset }) {
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => setHydrated(true), []);
+  if (!hydrated) return <div aria-busy="true" aria-label="Cargando Arriendo Oficina"><PageSkeleton/></div>;
+  return <OfficeRentHydrated data={data}/>;
+}
+
+function OfficeRentHydrated({ data }: { data: OfficeLeaseDataset }) {
   const router = useRouter();
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
