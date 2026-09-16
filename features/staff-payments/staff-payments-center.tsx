@@ -117,6 +117,9 @@ export function StaffPaymentsCenter({
     } | null>(null),
     [closeMessage, setCloseMessage] = useState(""),
     [reopenReason, setReopenReason] = useState(""),
+    [closeOperation, setCloseOperation] = useState<
+      "GENERATE" | "CLOSE" | "REOPEN" | null
+    >(null),
     [closing, startClosing] = useTransition();
   useEffect(() => {
     if (!initialReviewAccountId) return;
@@ -261,35 +264,52 @@ export function StaffPaymentsCenter({
             <form
               action={(form) =>
                 startClosing(async () => {
-                  const result = await generateMonthlyStaffAccountsAction(form);
-                  setCloseMessage(result.message);
-                  if (result.ok) location.reload();
+                  setCloseOperation("GENERATE");
+                  try {
+                    const result =
+                      await generateMonthlyStaffAccountsAction(form);
+                    setCloseMessage(result.message);
+                    if (result.ok) location.reload();
+                  } finally {
+                    setCloseOperation(null);
+                  }
                 })
               }
             >
               <input name="month" type="hidden" value={month} />
-              <Button loading={closing} loadingLabel="Actualizando…">
+              <Button
+                disabled={closing}
+                loading={closeOperation === "GENERATE"}
+                loadingLabel="Actualizando…"
+              >
                 Generar / actualizar liquidaciones
               </Button>
             </form>
             <Button
               disabled={
-                closeState?.status === "CLOSED" || closeState?.status === "PAID"
+                closing ||
+                closeState?.status === "CLOSED" ||
+                closeState?.status === "PAID"
               }
-              loading={closing}
+              loading={closeOperation === "CLOSE"}
               loadingLabel="Generando y enviando…"
               onClick={() =>
                 startClosing(async () => {
-                  const result = await closeStaffMonthAction(month);
-                  if (result.ok) {
-                    setCloseState(result.data);
-                    setCloseMessage(
-                      `Mes cerrado · ${result.delivered ?? 0} correo(s) enviado(s) · ${result.idempotent ?? 0} ya procesado(s).`,
-                    );
-                  } else
-                    setCloseMessage(
-                      result.error ?? "No fue posible cerrar el mes.",
-                    );
+                  setCloseOperation("CLOSE");
+                  try {
+                    const result = await closeStaffMonthAction(month);
+                    if (result.ok) {
+                      setCloseState(result.data);
+                      setCloseMessage(
+                        `Mes cerrado · ${result.delivered ?? 0} correo(s) enviado(s) · ${result.idempotent ?? 0} ya procesado(s).`,
+                      );
+                    } else
+                      setCloseMessage(
+                        result.error ?? "No fue posible cerrar el mes.",
+                      );
+                  } finally {
+                    setCloseOperation(null);
+                  }
                 })
               }
               variant="outline"
@@ -304,24 +324,30 @@ export function StaffPaymentsCenter({
             />
             <Button
               disabled={
+                closing ||
                 closeState?.status !== "CLOSED" ||
                 reopenReason.trim().length < 3
               }
-              loading={closing}
+              loading={closeOperation === "REOPEN"}
               loadingLabel="Reabriendo…"
               onClick={() =>
                 startClosing(async () => {
-                  const result = await reopenStaffMonthAction(
-                    month,
-                    reopenReason,
-                  );
-                  if (result.ok) {
-                    setCloseState(result.data);
-                    setCloseMessage("Mes reabierto con auditoría.");
-                  } else
-                    setCloseMessage(
-                      result.error ?? "No fue posible reabrir el mes.",
+                  setCloseOperation("REOPEN");
+                  try {
+                    const result = await reopenStaffMonthAction(
+                      month,
+                      reopenReason,
                     );
+                    if (result.ok) {
+                      setCloseState(result.data);
+                      setCloseMessage("Mes reabierto con auditoría.");
+                    } else
+                      setCloseMessage(
+                        result.error ?? "No fue posible reabrir el mes.",
+                      );
+                  } finally {
+                    setCloseOperation(null);
+                  }
                 })
               }
               variant="outline"
@@ -549,27 +575,39 @@ function PaymentSheet({
             <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
               <div>
                 <dt className="text-muted">Total generado</dt>
-                <dd className="font-semibold">{money.format(account.workNet)}</dd>
+                <dd className="font-semibold">
+                  {money.format(account.workNet)}
+                </dd>
               </div>
               <div>
                 <dt className="text-muted">Adelantos</dt>
-                <dd className="font-semibold">-{money.format(account.advancesTotal)}</dd>
+                <dd className="font-semibold">
+                  -{money.format(account.advancesTotal)}
+                </dd>
               </div>
               <div>
                 <dt className="text-muted">Reembolsos</dt>
-                <dd className="font-semibold">{money.format(account.reimbursementsTotal)}</dd>
+                <dd className="font-semibold">
+                  {money.format(account.reimbursementsTotal)}
+                </dd>
               </div>
               <div>
                 <dt className="text-muted">Total liquidación</dt>
-                <dd className="font-semibold">{money.format(account.workNet + account.reimbursementsTotal)}</dd>
+                <dd className="font-semibold">
+                  {money.format(account.workNet + account.reimbursementsTotal)}
+                </dd>
               </div>
               <div>
                 <dt className="text-muted">Valor con boleta</dt>
-                <dd className="font-semibold">{money.format(account.boletaGross)}</dd>
+                <dd className="font-semibold">
+                  {money.format(account.boletaGross)}
+                </dd>
               </div>
               <div>
                 <dt className="text-muted">Valor a depositar</dt>
-                <dd className="font-semibold">{money.format(account.finalTransferAmount)}</dd>
+                <dd className="font-semibold">
+                  {money.format(account.finalTransferAmount)}
+                </dd>
               </div>
               <div>
                 <dt className="text-muted">Estado boleta</dt>
@@ -614,14 +652,28 @@ function PaymentSheet({
           <tbody>
             {payable.map(({ member, account }) => (
               <tr className="border-b" key={account.id}>
-                <td className="p-3 font-semibold">{splitName(member.name).firstName}</td>
-                <td className="p-3 font-semibold">{splitName(member.name).lastName}</td>
+                <td className="p-3 font-semibold">
+                  {splitName(member.name).firstName}
+                </td>
+                <td className="p-3 font-semibold">
+                  {splitName(member.name).lastName}
+                </td>
                 <td className="p-3">{month}</td>
-                <td className="p-3 text-right">{money.format(account.workNet)}</td>
-                <td className="p-3 text-right">-{money.format(account.advancesTotal)}</td>
-                <td className="p-3 text-right">{money.format(account.reimbursementsTotal)}</td>
-                <td className="p-3 text-right">{money.format(account.workNet + account.reimbursementsTotal)}</td>
-                <td className="p-3 text-right">{money.format(account.boletaGross)}</td>
+                <td className="p-3 text-right">
+                  {money.format(account.workNet)}
+                </td>
+                <td className="p-3 text-right">
+                  -{money.format(account.advancesTotal)}
+                </td>
+                <td className="p-3 text-right">
+                  {money.format(account.reimbursementsTotal)}
+                </td>
+                <td className="p-3 text-right">
+                  {money.format(account.workNet + account.reimbursementsTotal)}
+                </td>
+                <td className="p-3 text-right">
+                  {money.format(account.boletaGross)}
+                </td>
                 <td className="p-3 text-right font-semibold">
                   {money.format(account.finalTransferAmount)}
                 </td>

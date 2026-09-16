@@ -7,15 +7,23 @@ import {
 } from "../features/staff-communications/staff-email.templates.ts";
 
 const read = (path: string) => readFileSync(path, "utf8");
-const monthlyService = read("features/staff-monthly-account/monthly-communication.service.ts");
+const monthlyService = read(
+  "features/staff-monthly-account/monthly-communication.service.ts",
+);
 const monthlyActions = read("features/staff-monthly-account/actions.ts");
 const closeActions = read("features/staff-payments/actions.ts");
 const paymentCenter = read("features/staff-payments/staff-payments-center.tsx");
-const closeMigration = read("supabase/migrations/20260916123837_staff_monthly_distribution_close.sql");
-const dashboard = read("features/founder-workspace/founder-workspace-experience.tsx");
+const closeMigration = read(
+  "supabase/migrations/20260916123837_staff_monthly_distribution_close.sql",
+);
+const dashboard = read(
+  "features/founder-workspace/founder-workspace-experience.tsx",
+);
 const actionCenter = read("features/founder-action-center/index.ts");
 const visibility = read("features/founder-action-center/visibility.ts");
-const receivables = read("features/accounts-receivable/accounts-receivable-center.tsx");
+const receivables = read(
+  "features/accounts-receivable/accounts-receivable-center.tsx",
+);
 const settlementPdf = read("features/staff-monthly-account/settlement-pdf.ts");
 
 test("monthly settlement email is premium and contains the exact company boleta data", () => {
@@ -36,7 +44,11 @@ test("monthly settlement email is premium and contains the exact company boleta 
     "contabilidad@bbox.cl",
     "EVENTOS BOOMBOX",
     "Subir boleta en ORBIT",
-  ]) assert.match(email.htmlBody + email.textBody, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  ])
+    assert.match(
+      email.htmlBody + email.textBody,
+      new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    );
 });
 
 test("payment completed email is branded and independent from the settlement request", () => {
@@ -48,7 +60,10 @@ test("payment completed email is branded and independent from the settlement req
     paidOn: "2026-09-16",
   });
   assert.match(email.subject, /PAGO REALIZADO/);
-  assert.match(email.htmlBody, /Muchas gracias por ser parte de nuestra empresa/);
+  assert.match(
+    email.htmlBody,
+    /Muchas gracias por ser parte de nuestra empresa/,
+  );
   assert.match(email.htmlBody, /Ver comprobante en ORBIT/);
 });
 
@@ -83,12 +98,29 @@ test("monthly payment refreshes the month and sends the exactly-once payment ema
 
 test("admin payroll sheet exposes every requested canonical column", () => {
   for (const label of [
-    "Nombre", "Apellido", "Mes", "Total generado", "Adelantos", "Reembolsos",
-    "Total liquidación", "Valor con boleta", "Valor a depositar", "Estado boleta", "Estado pago",
-  ]) assert.match(paymentCenter, new RegExp(label));
+    "Nombre",
+    "Apellido",
+    "Mes",
+    "Total generado",
+    "Adelantos",
+    "Reembolsos",
+    "Total liquidación",
+    "Valor con boleta",
+    "Valor a depositar",
+    "Estado boleta",
+    "Estado pago",
+  ])
+    assert.match(paymentCenter, new RegExp(label));
   assert.match(paymentCenter, /account\.finalTransferAmount/);
   assert.match(paymentCenter, /account\.advancesTotal/);
   assert.match(settlementPdf, /detail\.event\|\|detail\.service/);
+});
+
+test("monthly close loaders are scoped to the action that is actually running", () => {
+  assert.match(paymentCenter, /closeOperation === "GENERATE"/);
+  assert.match(paymentCenter, /closeOperation === "CLOSE"/);
+  assert.match(paymentCenter, /closeOperation === "REOPEN"/);
+  assert.doesNotMatch(paymentCenter, /loading=\{closing\}/);
 });
 
 test("Founder dashboard uses one accordion and exact review links", () => {
