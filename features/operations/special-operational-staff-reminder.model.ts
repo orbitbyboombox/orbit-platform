@@ -32,16 +32,16 @@ export function chileTomorrow(reference: Date): string {
 
 export function isChileD1ReminderWindow(reference: Date): boolean {
   const parts = new Intl.DateTimeFormat("en-CA", {
-      timeZone: "America/Santiago",
-      hour: "2-digit",
-      minute: "2-digit",
-      hourCycle: "h23",
-    }).formatToParts(reference);
+    timeZone: "America/Santiago",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(reference);
   const value = (type: string) =>
     Number(parts.find((part) => part.type === type)?.value ?? 0);
   const hour = value("hour");
   const minute = value("minute");
-  return hour === 19 || (hour === 20 && minute <= 10);
+  return hour === 19 || (hour === 20 && minute === 0);
 }
 
 export type SpecialReminderAssignment = {
