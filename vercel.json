@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/google-calendar-resync",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/office-lease-monthly",
+      "schedule": "5 5 1 * *"
     }
   ]
 }

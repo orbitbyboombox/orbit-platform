@@ -136,7 +136,7 @@ test("navigation and finance pages expose the new collection center", () => {
   assert.match(collectionPage, /CollectionCenter/);
   assert.match(receivablesPage, /resolveCollectionBankDetails/);
   assert.match(receivablesPage, /AccountsReceivableCenter/);
-  assert.match(founderWorkspaceCatalog, /hiddenNavigation: \[\]/);
+  assert.match(founderWorkspaceCatalog, /hiddenNavigation: \["OFFICE_RENT"\]/);
   assert.match(founderWorkspaceRepository, /newNavigation\.filter/);
   assert.match(founderWorkspaceRepository, /DEFAULT_WORKSPACE\.hiddenNavigation\.includes/);
 });

@@ -174,7 +174,7 @@ test("COBRAR CLIENTES is the direct second Founder navigation destination", () =
   assert.match(navigation, /label: "COBRAR CLIENTES"/);
   assert.match(navigation, /href: "\/finance\/collections"/);
   assert.match(workspace, /navigationOrder:\s*\[\s*"HOME",\s*"COLLECTIONS"/);
-  assert.match(workspace, /hiddenNavigation:\s*\[\]/);
+  assert.match(workspace, /hiddenNavigation:\s*\["OFFICE_RENT"\]/);
 });
 
 test("collection email is branded, complete, accessible, and mobile safe", () => {

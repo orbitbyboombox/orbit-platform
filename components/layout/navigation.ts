@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  Building2,
   CalendarDays,
   CircleDollarSign,
   FolderKanban,
@@ -43,6 +44,7 @@ export type NavigationKey =
   | "RECEIVABLES"
   | "COLLECTIONS"
   | "PAYABLES"
+  | "OFFICE_RENT"
   | "REPORTS"
   | "SETTINGS";
 
@@ -122,6 +124,13 @@ export const navigationItems: readonly NavigationItem[] = [
     label: "Cuentas por Pagar",
     href: "/finance/payables",
     icon: ReceiptText,
+    module: "FINANCE",
+  },
+  {
+    key: "OFFICE_RENT",
+    label: "Arriendo Oficina",
+    href: "/office-rent",
+    icon: Building2,
     module: "FINANCE",
   },
   {
