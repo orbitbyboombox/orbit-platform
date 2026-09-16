@@ -13,6 +13,7 @@ const ui = source("features/office-rent/office-rent-center.tsx");
 const navigation = source("components/layout/navigation.ts");
 const workspace = source("features/founder-workspace/catalog.ts");
 const cashFlow = source("app/(platform)/finance/cash-flow/page.tsx");
+const middleware = source("middleware.ts");
 
 const settings: OfficeLeaseSettings = {
   id: "lease",
@@ -88,6 +89,7 @@ test("monthly obligations are idempotent and keep historical amounts", () => {
   assert.match(migration, /on conflict\(settings_id,period\) do nothing/);
   assert.match(migration, /configuration\.monthly_amount/);
   assert.doesNotMatch(migration, /update public\.office_lease_obligations\s+set\s+amount_due/);
+  assert.match(middleware, /request\.nextUrl\.pathname === "\/api\/cron\/office-lease-monthly"/);
 });
 
 test("payment registration prevents overpayment and keeps proof plus generated receipt", () => {
