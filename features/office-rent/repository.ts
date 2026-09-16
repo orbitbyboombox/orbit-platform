@@ -4,6 +4,7 @@ import {
   buildOfficeLeaseMetrics,
   type OfficeLeaseDataset,
   type OfficeLeaseDocument,
+  type OfficeLeaseIncomeItem,
   type OfficeLeaseMonth,
   type OfficeLeasePayment,
   type OfficeLeaseSettings,
@@ -17,14 +18,15 @@ export async function loadOfficeLeaseDataset(client: SupabaseClient): Promise<Of
   const today = chileToday();
   const ensure = await client.rpc("ensure_office_lease_obligations", { p_through_month: today });
   if (ensure.error) throw ensure.error;
-  const [settingsResult, obligationsResult, financialsResult, paymentsResult, documentsResult] = await Promise.all([
+  const [settingsResult, obligationsResult, financialsResult, paymentsResult, incomeItemsResult, documentsResult] = await Promise.all([
     client.from("office_lease_settings").select("*").eq("settings_key", "PRIMARY").single(),
     client.from("office_lease_obligations").select("id,period,amount_due,due_date,status").order("period", { ascending: false }),
-    client.from("office_lease_monthly_financials").select("obligation_id,received_amount,outstanding_amount,effective_status"),
+    client.from("office_lease_monthly_financials").select("obligation_id,received_amount,guarantee_amount,cash_received_amount,outstanding_amount,effective_status"),
     client.from("office_lease_payments").select("id,obligation_id,amount,paid_on,payment_method,observation,receipt_number,created_at").order("created_at", { ascending: false }),
+    client.from("office_lease_income_items").select("id,payment_id,obligation_id,item_type,description,detail,period_start,period_end,amount,sort_order").order("sort_order", { ascending: true }),
     client.from("office_lease_documents").select("id,obligation_id,payment_id,document_type,original_filename,mime_type,created_at").is("deleted_at", null).order("created_at", { ascending: false }),
   ]);
-  const error = settingsResult.error ?? obligationsResult.error ?? financialsResult.error ?? paymentsResult.error ?? documentsResult.error;
+  const error = settingsResult.error ?? obligationsResult.error ?? financialsResult.error ?? paymentsResult.error ?? incomeItemsResult.error ?? documentsResult.error;
   if (error) throw error;
   const row = settingsResult.data;
   const settings: OfficeLeaseSettings = {
@@ -48,6 +50,18 @@ export async function loadOfficeLeaseDataset(client: SupabaseClient): Promise<Of
     commonExpensesCost: Number(row.common_expenses_cost),
     version: Number(row.version),
   };
+  const incomeItems: OfficeLeaseIncomeItem[] = (incomeItemsResult.data ?? []).map((item) => ({
+    id: item.id,
+    paymentId: item.payment_id,
+    obligationId: item.obligation_id,
+    itemType: item.item_type,
+    description: item.description,
+    detail: item.detail ?? "",
+    periodStart: item.period_start,
+    periodEnd: item.period_end,
+    amount: Number(item.amount),
+    sortOrder: Number(item.sort_order),
+  }));
   const payments: OfficeLeasePayment[] = (paymentsResult.data ?? []).map((payment) => ({
     id: payment.id,
     obligationId: payment.obligation_id,
@@ -57,6 +71,7 @@ export async function loadOfficeLeaseDataset(client: SupabaseClient): Promise<Of
     observation: payment.observation ?? "",
     receiptNumber: Number(payment.receipt_number),
     createdAt: payment.created_at,
+    lineItems: incomeItems.filter((item) => item.paymentId === payment.id),
   }));
   const financeByMonth = new Map((financialsResult.data ?? []).map((item) => [item.obligation_id, item]));
   const months: OfficeLeaseMonth[] = (obligationsResult.data ?? []).map((obligation) => {
@@ -74,6 +89,8 @@ export async function loadOfficeLeaseDataset(client: SupabaseClient): Promise<Of
       dueDate: obligation.due_date,
       amountDue: Number(obligation.amount_due),
       receivedAmount,
+      guaranteeAmount: Number(finance?.guarantee_amount ?? 0),
+      cashReceivedAmount: Number(finance?.cash_received_amount ?? receivedAmount),
       outstandingAmount,
       status: (finance?.effective_status as OfficeLeaseStatus | undefined) ?? fallbackStatus,
       payments: payments.filter((payment) => payment.obligationId === obligation.id),

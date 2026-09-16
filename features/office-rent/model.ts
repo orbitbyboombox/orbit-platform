@@ -31,6 +31,22 @@ export interface OfficeLeasePayment {
   observation: string;
   receiptNumber: number;
   createdAt: string;
+  lineItems: OfficeLeaseIncomeItem[];
+}
+
+export type OfficeLeaseIncomeType = "RENT" | "SECURITY_DEPOSIT";
+
+export interface OfficeLeaseIncomeItem {
+  id: string;
+  paymentId: string;
+  obligationId: string;
+  itemType: OfficeLeaseIncomeType;
+  description: string;
+  detail: string;
+  periodStart: string | null;
+  periodEnd: string | null;
+  amount: number;
+  sortOrder: number;
 }
 
 export interface OfficeLeaseDocument {
@@ -49,6 +65,8 @@ export interface OfficeLeaseMonth {
   dueDate: string;
   amountDue: number;
   receivedAmount: number;
+  guaranteeAmount: number;
+  cashReceivedAmount: number;
   outstandingAmount: number;
   status: OfficeLeaseStatus;
   payments: OfficeLeasePayment[];
@@ -60,6 +78,8 @@ export interface OfficeLeaseMetrics {
   currentOutstanding: number;
   nextDueDate: string | null;
   yearReceived: number;
+  yearGuaranteeReceived: number;
+  yearCashReceived: number;
   paidMonths: number;
   pendingMonths: number;
   grossOfficeCost: number;
@@ -128,6 +148,12 @@ export function buildOfficeLeaseMetrics(
     yearReceived: months
       .filter((month) => month.period.startsWith(year))
       .reduce((sum, month) => sum + month.receivedAmount, 0),
+    yearGuaranteeReceived: months
+      .filter((month) => month.period.startsWith(year))
+      .reduce((sum, month) => sum + month.guaranteeAmount, 0),
+    yearCashReceived: months
+      .filter((month) => month.period.startsWith(year))
+      .reduce((sum, month) => sum + month.cashReceivedAmount, 0),
     paidMonths: months.filter((month) => month.status === "PAID").length,
     pendingMonths: months.filter((month) => month.status !== "PAID").length,
     grossOfficeCost,

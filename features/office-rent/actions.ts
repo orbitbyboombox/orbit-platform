@@ -70,12 +70,14 @@ function mapSettings(row: Record<string, unknown>): OfficeLeaseSettings {
 }
 
 async function generateReceiptForPayment(client: SupabaseClient, paymentId: string) {
-  const [paymentResult, settingsResult, company] = await Promise.all([
+  const [paymentResult, itemsResult, settingsResult, company] = await Promise.all([
     client.from("office_lease_payments").select("id,obligation_id,amount,paid_on,payment_method,observation,receipt_number,office_lease_obligations(period)").eq("id", paymentId).single(),
+    client.from("office_lease_income_items").select("item_type,description,detail,amount,sort_order").eq("payment_id", paymentId).order("sort_order"),
     client.from("office_lease_settings").select("*").eq("settings_key", "PRIMARY").single(),
     loadCompanySettings(client),
   ]);
   if (paymentResult.error) throw paymentResult.error;
+  if (itemsResult.error) throw itemsResult.error;
   if (settingsResult.error) throw settingsResult.error;
   const obligationValue = paymentResult.data.office_lease_obligations;
   const obligation = Array.isArray(obligationValue) ? obligationValue[0] : obligationValue;
@@ -89,6 +91,12 @@ async function generateReceiptForPayment(client: SupabaseClient, paymentId: stri
       amount: Number(paymentResult.data.amount),
       paymentMethod: paymentResult.data.payment_method,
       observation: paymentResult.data.observation ?? "",
+      lineItems: (itemsResult.data ?? []).map((item) => ({
+        itemType: item.item_type,
+        description: item.description,
+        detail: item.detail ?? "",
+        amount: Number(item.amount),
+      })),
     },
     period: obligation.period,
   });

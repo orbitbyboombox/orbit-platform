@@ -8,6 +8,7 @@ import { createOfficeLeaseReceiptPdf } from "../features/office-rent/receipt-pdf
 const source = (path: string) => readFileSync(path, "utf8");
 const migration = source("supabase/migrations/20260916095845_office_lease_module.sql");
 const navigationMigration = source("supabase/migrations/20260916101314_activate_office_rent_navigation.sql");
+const septemberMigration = source("supabase/migrations/20260916104753_office_lease_september_initial_income.sql");
 const actions = source("features/office-rent/actions.ts");
 const ui = source("features/office-rent/office-rent-center.tsx");
 const navigation = source("components/layout/navigation.ts");
@@ -38,8 +39,8 @@ const settings: OfficeLeaseSettings = {
 };
 
 const months: OfficeLeaseMonth[] = [
-  { id: "sep", period: "2026-09-01", dueDate: "2026-09-05", amountDue: 450_000, receivedAmount: 450_000, outstandingAmount: 0, status: "PAID", payments: [] },
-  { id: "oct", period: "2026-10-01", dueDate: "2026-10-05", amountDue: 450_000, receivedAmount: 0, outstandingAmount: 450_000, status: "PENDING", payments: [] },
+  { id: "sep", period: "2026-09-01", dueDate: "2026-09-05", amountDue: 240_000, receivedAmount: 240_000, guaranteeAmount: 450_000, cashReceivedAmount: 690_000, outstandingAmount: 0, status: "PAID", payments: [] },
+  { id: "oct", period: "2026-10-01", dueDate: "2026-10-05", amountDue: 450_000, receivedAmount: 0, guaranteeAmount: 0, cashReceivedAmount: 0, outstandingAmount: 450_000, status: "PENDING", payments: [] },
 ];
 
 test("office cost projection preserves gross expenses and applies rent separately", () => {
@@ -47,7 +48,9 @@ test("office cost projection preserves gross expenses and applies rent separatel
   assert.equal(metrics.grossOfficeCost, 615_000);
   assert.equal(metrics.contractedRent, 450_000);
   assert.equal(metrics.netContractCost, 165_000);
-  assert.equal(metrics.yearReceived, 450_000);
+  assert.equal(metrics.yearReceived, 240_000);
+  assert.equal(metrics.yearGuaranteeReceived, 450_000);
+  assert.equal(metrics.yearCashReceived, 690_000);
 });
 
 test("receipt labels satisfy the initial and following correlation format", () => {
@@ -70,7 +73,17 @@ test("September receipt renders as a professional one-page PDF", async () => {
   const bytes = await createOfficeLeaseReceiptPdf({
     settings,
     company: { brandName: "BOOMBOX", legalName: "BOOMBOX SpA", taxId: "76.000.000-0", address: "Colina", city: "Santiago" },
-    payment: { receiptNumber: 1, paidOn: "2026-09-16", amount: 450_000, paymentMethod: "TRANSFERENCIA", observation: "" },
+    payment: {
+      receiptNumber: 1,
+      paidOn: "2026-09-15",
+      amount: 690_000,
+      paymentMethod: "NO INFORMADO",
+      observation: "",
+      lineItems: [
+        { itemType: "SECURITY_DEPOSIT", description: "Mes de garantía", detail: "Garantía asociada al contrato de arrendamiento", amount: 450_000 },
+        { itemType: "RENT", description: "Arriendo proporcional septiembre 15 al 30", detail: "Septiembre 2026 · periodo 15 al 30", amount: 240_000 },
+      ],
+    },
     period: "2026-09-01",
   });
   const pdf = await PDFDocument.load(bytes);
@@ -84,6 +97,17 @@ test("October payment receives the next unique receipt without reusing September
   assert.match(migration, /receipt_number integer not null unique/);
   assert.match(migration, /select \* into existing from public\.office_lease_payments where idempotency_key/);
   assert.ok(migration.indexOf("select * into existing") < migration.indexOf("select next_number into next_receipt"));
+});
+
+test("September 2026 is reconciled as proportional rent plus a separate one-time guarantee", () => {
+  assert.match(septemberMigration, /set amount_due=240000,status='PAID'/);
+  assert.match(septemberMigration, /'SECURITY_DEPOSIT','Mes de garantía'[\s\S]*450000/);
+  assert.match(septemberMigration, /'RENT','Arriendo proporcional septiembre 15 al 30'[\s\S]*240000/);
+  assert.match(septemberMigration, /amount,paid_on[\s\S]*690000,date '2026-09-15'/);
+  assert.match(septemberMigration, /receipt_number=1/);
+  assert.match(septemberMigration, /set next_number=greatest\(next_number,2\)/);
+  assert.match(septemberMigration, /date '2026-10-01',s\.monthly_amount/);
+  assert.match(septemberMigration, /on conflict\(settings_id,period\) do nothing/);
 });
 
 test("monthly obligations are idempotent and keep historical amounts", () => {
@@ -120,6 +144,8 @@ test("the module is registered without resetting Founder workspace visibility", 
   assert.match(navigationMigration, /array_remove\(workspace\.hidden_navigation,'OFFICE_RENT'\)/);
   assert.doesNotMatch(navigationMigration, /navigation_order\s*=\s*array\['HOME'/);
   assert.match(cashFlow, /office_lease_payments/);
+  assert.match(cashFlow, /office_lease_income_items/);
+  assert.match(cashFlow, /Garantía no recurrente/);
   assert.match(cashFlow, /kind:"INCOMING"/);
 });
 
@@ -129,4 +155,7 @@ test("RLS and grants restrict the lease owner to Founder and Admin", () => {
   assert.match(migration, /office_lease_payments_admin_select/);
   assert.match(migration, /public\.can_administer\(\)/);
   assert.match(migration, /with \(security_invoker=true\)/);
+  assert.match(septemberMigration, /alter table public\.office_lease_income_items enable row level security/);
+  assert.match(septemberMigration, /revoke all on table public\.office_lease_income_items from anon,authenticated/);
+  assert.match(septemberMigration, /office_lease_income_items_admin_select/);
 });

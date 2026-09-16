@@ -12,6 +12,12 @@ export interface OfficeLeaseReceiptInput {
     amount: number;
     paymentMethod: string;
     observation: string;
+    lineItems: Array<{
+      itemType: "RENT" | "SECURITY_DEPOSIT";
+      description: string;
+      detail: string;
+      amount: number;
+    }>;
   };
   period: string;
 }
@@ -76,6 +82,9 @@ export async function createOfficeLeaseReceiptPdf(input: OfficeLeaseReceiptInput
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
   const page = pdf.addPage([PAGE.width, PAGE.height]);
   const { settings, company, payment } = input;
+  const lineItems = payment.lineItems.length
+    ? payment.lineItems
+    : [{ itemType: "RENT" as const, description: settings.concept, detail: monthLabel(input.period), amount: payment.amount }];
   const margin = 46;
   const contentWidth = PAGE.width - margin * 2;
 
@@ -102,28 +111,35 @@ export async function createOfficeLeaseReceiptPdf(input: OfficeLeaseReceiptInput
   page.drawText("DETALLE DEL PAGO", { x: margin, y: 492, size: 8.5, font: bold, color: muted });
   page.drawRectangle({ x: margin, y: 446, width: contentWidth, height: 28, color: dark });
   page.drawText("CONCEPTO", { x: 55, y: 456, size: 7.5, font: bold, color: rgb(1, 1, 1) });
-  page.drawText("PERIODO / MÉTODO", { x: 263, y: 456, size: 7.5, font: bold, color: rgb(1, 1, 1) });
+  page.drawText("PERIODO / DETALLE", { x: 263, y: 456, size: 7.5, font: bold, color: rgb(1, 1, 1) });
   page.drawText("MONTO", { x: 476, y: 456, size: 7.5, font: bold, color: rgb(1, 1, 1) });
-  page.drawRectangle({ x: margin, y: 399, width: contentWidth, height: 47, borderColor: line, borderWidth: 0.7 });
-  drawWrapped(page, regular, settings.concept, 55, 425, 9.5, 195);
-  drawWrapped(page, regular, `${monthLabel(input.period)} · ${payment.paymentMethod}`, 263, 425, 9.2, 195);
-  page.drawText(formatClp(payment.amount), { x: 462, y: 418, size: 11, font: bold, color: dark });
-  page.drawRectangle({ x: margin, y: 354, width: contentWidth, height: 33, color: soft, borderColor: orange, borderWidth: 1 });
-  page.drawText("TOTAL RECIBIDO", { x: 56, y: 365, size: 12, font: bold, color: dark });
-  page.drawText(formatClp(payment.amount), { x: 446, y: 365, size: 13, font: bold, color: dark });
+  page.drawRectangle({ x: margin, y: 350, width: contentWidth, height: 96, borderColor: line, borderWidth: 0.7 });
+  lineItems.slice(0, 2).forEach((item, index) => {
+    const rowTop = 436 - index * 48;
+    if (index > 0) page.drawLine({ start: { x: margin, y: rowTop + 10 }, end: { x: PAGE.width - margin, y: rowTop + 10 }, thickness: 0.5, color: line });
+    drawWrapped(page, regular, item.description, 55, rowTop, 9.2, 195, dark, 11.5);
+    drawWrapped(page, regular, item.detail || monthLabel(input.period), 263, rowTop, 8.8, 180, muted, 11);
+    const amount = formatClp(item.amount);
+    page.drawText(amount, { x: 530 - bold.widthOfTextAtSize(amount, 10.5), y: rowTop - 7, size: 10.5, font: bold, color: dark });
+  });
+  page.drawRectangle({ x: margin, y: 305, width: contentWidth, height: 33, color: soft, borderColor: orange, borderWidth: 1 });
+  page.drawText("TOTAL RECIBIDO", { x: 56, y: 316, size: 12, font: bold, color: dark });
+  const total = formatClp(payment.amount);
+  page.drawText(total, { x: 530 - bold.widthOfTextAtSize(total, 13), y: 316, size: 13, font: bold, color: dark });
 
-  const statement = `Se deja constancia de la recepción conforme de la suma total indicada, correspondiente a ${settings.concept.toLowerCase()} del periodo ${monthLabel(input.period)}. El presente documento constituye un comprobante de ingreso y recepción de pago.${payment.observation ? ` Observación: ${payment.observation}` : ""}`;
-  drawWrapped(page, regular, statement, margin + 6, 325, 9.2, contentWidth - 12, dark, 13);
+  const concepts = lineItems.map((item) => item.description.toLowerCase()).join(" y ");
+  const statement = `Se deja constancia de la recepción conforme de la suma total indicada, correspondiente a ${concepts}. El presente documento constituye un comprobante de ingreso y recepción de pago.${payment.observation ? ` Observación: ${payment.observation}` : ""}`;
+  drawWrapped(page, regular, statement, margin + 6, 276, 9.2, contentWidth - 12, dark, 13);
 
-  page.drawLine({ start: { x: margin, y: 206 }, end: { x: 318, y: 206 }, thickness: 0.7, color: muted });
-  page.drawText(safe(company.legalName || company.brandName).toUpperCase(), { x: 52, y: 183, size: 9.5, font: bold, color: dark });
-  page.drawText(company.taxId ? `RUT ${safe(company.taxId)}` : "Arrendador BOOMBOX", { x: 52, y: 168, size: 8.8, font: regular, color: dark });
-  drawWrapped(page, regular, [company.address, company.city].filter(Boolean).join(", ") || settings.unitName, 52, 153, 8.3, 260, muted, 11);
+  page.drawLine({ start: { x: margin, y: 176 }, end: { x: 318, y: 176 }, thickness: 0.7, color: muted });
+  page.drawText(safe(company.legalName || company.brandName).toUpperCase(), { x: 52, y: 153, size: 9.5, font: bold, color: dark });
+  page.drawText(company.taxId ? `RUT ${safe(company.taxId)}` : "Arrendador BOOMBOX", { x: 52, y: 138, size: 8.8, font: regular, color: dark });
+  drawWrapped(page, regular, [company.address, company.city].filter(Boolean).join(", ") || settings.unitName, 52, 123, 8.3, 260, muted, 11);
 
-  page.drawRectangle({ x: 358, y: 137, width: 177, height: 78, borderColor: green, borderWidth: 1.8 });
-  page.drawText("PAGADO", { x: 397, y: 181, size: 19, font: bold, color: green });
-  page.drawText(shortDate(payment.paidOn), { x: 413, y: 162, size: 9, font: bold, color: green });
-  page.drawText("RECIBIDO CONFORME", { x: 402, y: 146, size: 7.5, font: regular, color: green });
+  page.drawRectangle({ x: 358, y: 107, width: 177, height: 78, borderColor: green, borderWidth: 1.8 });
+  page.drawText("PAGADO", { x: 397, y: 151, size: 19, font: bold, color: green });
+  page.drawText(shortDate(payment.paidOn), { x: 413, y: 132, size: 9, font: bold, color: green });
+  page.drawText("RECIBIDO CONFORME", { x: 402, y: 116, size: 7.5, font: regular, color: green });
 
   page.drawText("Documento emitido por BOOMBOX mediante ORBIT. Valores expresados en pesos chilenos (CLP).", { x: 106, y: 38, size: 7.4, font: regular, color: muted });
   page.drawText(`ID documental ${receiptLabel(payment.receiptNumber)}`, { x: 242, y: 24, size: 6.8, font: regular, color: muted });
