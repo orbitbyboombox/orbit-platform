@@ -1,5 +1,6 @@
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
+import { Children, cloneElement, isValidElement, type ReactElement } from "react";
 import { cn } from "@/lib/utils";
 import { OrbitLoader } from "./orbit-loader";
 
@@ -11,5 +12,12 @@ const buttonVariants = cva("inline-flex items-center justify-center gap-2 whites
 export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & VariantProps<typeof buttonVariants> & { asChild?: boolean; loading?: boolean; loadingLabel?: string };
 export function Button({ className, variant, size, asChild, loading = false, loadingLabel, children, ...props }: ButtonProps) {
   const Comp = asChild ? Slot : "button";
-  return <Comp {...props} aria-busy={loading || props["aria-busy"]} className={cn(buttonVariants({ variant, size }), className)} disabled={loading || props.disabled}>{loading ? <OrbitLoader variant="button"/> : null}{loading && loadingLabel ? loadingLabel : children}</Comp>;
+  const busyContent = loading ? <><OrbitLoader variant="button"/>{loadingLabel ?? children}</> : children;
+  if (asChild) {
+    const child = Children.only(children);
+    if (!isValidElement(child)) return null;
+    const element = child as ReactElement<{ children?: React.ReactNode }>;
+    return <Comp {...props} aria-busy={loading || props["aria-busy"]} className={cn(buttonVariants({ variant, size }), className)} aria-disabled={loading || props.disabled}>{loading ? cloneElement(element, undefined, busyContent) : element}</Comp>;
+  }
+  return <Comp {...props} aria-busy={loading || props["aria-busy"]} className={cn(buttonVariants({ variant, size }), className)} disabled={loading || props.disabled}>{busyContent}</Comp>;
 }

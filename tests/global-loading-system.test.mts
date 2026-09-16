@@ -34,6 +34,13 @@ test("shared Button disables a real loading action and embeds the shared ring",(
   assert.match(css,/button\[aria-busy="true"\]:not\(:has\(\.orbit-loader-ring\)\):not\(:has\(\.animate-spin\)\)::after/);
 });
 
+test("asChild loading keeps Radix Slot to one child",()=>{
+  const button=read("components/ui/button.tsx");
+  assert.match(button,/Children\.only\(children\)/);
+  assert.match(button,/cloneElement\(element/);
+  assert.match(button,/if \(asChild\)/);
+});
+
 test("navigation uses real Next loading boundaries across platform and both portals",()=>{
   for(const path of ["app/loading.tsx","app/(platform)/loading.tsx","app/(platform)/projects/[projectId]/loading.tsx","app/staff-portal/loading.tsx","app/staff-portal/academy/loading.tsx","app/staff/login/loading.tsx","app/portal/login/loading.tsx","app/p/[token]/loading.tsx","app/booking/[token]/loading.tsx"]){
     assert.match(read(path),/OrbitLoader|PageSkeleton/,path);
