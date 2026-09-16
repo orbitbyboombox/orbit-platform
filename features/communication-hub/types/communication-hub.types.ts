@@ -68,6 +68,7 @@ export interface ChannelDispatchRequest {
   participantId: string;
   content: string;
   correlationId: string;
+  serviceWindowExpiresAt?: string;
 }
 
 export interface CommunicationHubResult {

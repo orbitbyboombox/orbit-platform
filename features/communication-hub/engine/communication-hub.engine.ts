@@ -69,7 +69,14 @@ export class CommunicationHubEngine {
     await this.timeline.append(responseEvent);
 
     const conversation: UnifiedConversation = { id: communication.conversationId, customerId: communication.customerId, customerName: context.memory.customerName, status: nova.conversationStatus === "HUMAN_HANDOFF" ? "HUMAN_HANDOFF" : nova.conversationStatus === "WAITING_CUSTOMER" ? "WAITING_CUSTOMER" : "ACTIVE", novaState: { ...novaState, status: nova.conversationStatus, lastMessageAt: communication.occurredAt }, assignedHuman: current?.assignedHuman, lastChannel: communication.channel, lastInteractionAt: communication.occurredAt };
-    const dispatch = { channel: communication.channel, conversationId: communication.conversationId, participantId: communication.participantId, content: nova.response, correlationId: communication.id };
+    const dispatch = {
+      channel: communication.channel,
+      conversationId: communication.conversationId,
+      participantId: communication.participantId,
+      content: nova.response,
+      correlationId: communication.id,
+      serviceWindowExpiresAt: new Date(new Date(communication.occurredAt).getTime() + 24 * 60 * 60 * 1000).toISOString(),
+    };
     await this.dispatcher.dispatch(dispatch);
     return { nova, conversation, events: newestFirst([...(await this.timeline.getByCustomerId(communication.customerId))]), dispatch };
   }

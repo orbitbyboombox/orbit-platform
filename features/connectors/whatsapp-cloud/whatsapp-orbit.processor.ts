@@ -14,6 +14,8 @@ import { deliverCanonicalCatalogFromWhatsApp, type WhatsAppCatalogDeliveryResult
 import { whatsappAutomationEnabled } from "./meta-whatsapp-cloud";
 import { biancaCanProcessCustomerMessage } from "./bianca-policy";
 import { logWhatsApp } from "./whatsapp-observability";
+import { serializeWhatsAppError } from "./whatsapp-observability";
+import { WHATSAPP_TENANT_SLUG } from "./whatsapp-tenant";
 
 interface WebhookEventRow {
   id: string;
@@ -152,6 +154,7 @@ async function resolveConversation(client: SupabaseClient, customerId: string, s
     .from("conversation_states")
     .select("id,customer_id,status,nova_enabled,human_owner_id,context,updated_at")
     .eq("customer_id", customerId)
+    .eq("tenant_slug", WHATSAPP_TENANT_SLUG)
     .maybeSingle();
   if (readError) throw readError;
   if (existing) return existing as ConversationStateRow;
@@ -159,6 +162,7 @@ async function resolveConversation(client: SupabaseClient, customerId: string, s
   const { data, error } = await client
     .from("conversation_states")
     .insert({
+      tenant_slug: WHATSAPP_TENANT_SLUG,
       customer_id: customerId,
       status: automationEnabled ? "ACTIVE" : "HUMAN_HANDOFF",
       nova_enabled: automationEnabled,
@@ -191,6 +195,7 @@ async function loadConversationHistory(client: SupabaseClient, conversationId: s
     .from("communications")
     .select("direction,body,occurred_at")
     .eq("thread_key", conversationId)
+    .eq("tenant_slug", WHATSAPP_TENANT_SLUG)
     .order("occurred_at", { ascending: false })
     .limit(30);
   if (error) throw error;
@@ -203,6 +208,7 @@ async function loadConversationHistory(client: SupabaseClient, conversationId: s
 
 async function persistInboundCommunication(client: SupabaseClient, event: WebhookEventRow, conversationId: string, customerId: string) {
   const { error } = await client.from("communications").insert({
+    tenant_slug: WHATSAPP_TENANT_SLUG,
     customer_id: customerId,
     channel: "WHATSAPP_BUSINESS",
     direction: "INBOUND",
@@ -219,6 +225,7 @@ async function persistInboundCommunication(client: SupabaseClient, event: Webhoo
 async function persistOutboundCommunication(client: SupabaseClient, conversationId: string, customerId: string, response: string, occurredAt: string, correlationId: string) {
   if (!response.trim()) return;
   const { error } = await client.from("communications").insert({
+    tenant_slug: WHATSAPP_TENANT_SLUG,
     customer_id: customerId,
     channel: "WHATSAPP_BUSINESS",
     direction: "OUTBOUND",
@@ -236,7 +243,7 @@ async function replaceQueuedWhatsAppResponse(client: SupabaseClient, correlation
   const { error } = await client.from("whatsapp_outbound_messages").update({
     text_body: response,
     updated_at: new Date().toISOString(),
-  }).eq("correlation_id", correlationId).eq("status", "PENDING");
+  }).eq("tenant_slug", WHATSAPP_TENANT_SLUG).eq("correlation_id", correlationId).eq("status", "PENDING");
   if (error) throw error;
 }
 
@@ -294,7 +301,7 @@ async function persistAiDecision(
       whatsappAi: memoryContext.whatsappAi,
     },
     updated_at: new Date().toISOString(),
-  }).eq("id", conversationState.id);
+  }).eq("tenant_slug", WHATSAPP_TENANT_SLUG).eq("id", conversationState.id);
   if (stateError) throw stateError;
 }
 
@@ -329,7 +336,7 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
   const event = claimed as WebhookEventRow;
   try {
     if (event.message_type !== "text" || !event.text_body?.trim()) {
-      await client.from("whatsapp_webhook_events").update({ processing_status: "UNSUPPORTED", updated_at: new Date().toISOString() }).eq("id", event.id);
+      await client.from("whatsapp_webhook_events").update({ processing_status: "UNSUPPORTED", updated_at: new Date().toISOString() }).eq("tenant_slug", WHATSAPP_TENANT_SLUG).eq("id", event.id);
       return { ok: true as const, unsupported: true as const };
     }
 
@@ -352,7 +359,7 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
           lastMessageAt: event.occurred_at,
         },
         updated_at: new Date().toISOString(),
-      }).eq("id", conversationState.id);
+      }).eq("tenant_slug", WHATSAPP_TENANT_SLUG).eq("id", conversationState.id);
       if (stateError) throw stateError;
       const { error: finishError } = await client.from("whatsapp_webhook_events").update({
         processing_status: "PROCESSED",
@@ -360,7 +367,7 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
         conversation_id: conversationState.id,
         processing_error: null,
         updated_at: new Date().toISOString(),
-      }).eq("id", event.id);
+      }).eq("tenant_slug", WHATSAPP_TENANT_SLUG).eq("id", event.id);
       if (finishError) throw finishError;
       logWhatsApp("info", "whatsapp_event_processed", providerMessageId, { outcome: "HUMAN_REVIEW", automation: "DISABLED" });
       return { ok: true as const, suppressed: true as const, customerId: customer.id, conversationId: conversationState.id, finalStatus: "HUMAN_HANDOFF" as const };
@@ -440,7 +447,7 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
         lastMessageAt: event.occurred_at,
       },
       updated_at: new Date().toISOString(),
-    }).eq("id", conversationState.id);
+    }).eq("tenant_slug", WHATSAPP_TENANT_SLUG).eq("id", conversationState.id);
     if (conversationUpdateError) throw conversationUpdateError;
 
     if (!result.suppressed)
@@ -452,30 +459,19 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
       conversation_id: conversationState.id,
       processing_error: null,
       updated_at: new Date().toISOString(),
-    }).eq("id", event.id);
+    }).eq("tenant_slug", WHATSAPP_TENANT_SLUG).eq("id", event.id);
     if (finishError) throw finishError;
 
     logWhatsApp("info", "whatsapp_event_processed", providerMessageId, { outcome: finalStatus });
 
     return { ok: true as const, suppressed: Boolean(result.suppressed), customerId: customer.id, conversationId: conversationState.id, finalStatus };
   } catch (error) {
-    const detail = error instanceof Error
-      ? error.message
-      : (() => {
-        if (!error || typeof error !== "object") return String(error);
-        const candidate = error as { message?: unknown; code?: unknown; details?: unknown; hint?: unknown };
-        return JSON.stringify({
-          message: candidate.message ?? null,
-          code: candidate.code ?? null,
-          details: candidate.details ?? null,
-          hint: candidate.hint ?? null,
-        });
-      })();
+    const detail = serializeWhatsAppError(error);
     await client.from("whatsapp_webhook_events").update({
       processing_status: "FAILED",
       processing_error: detail.slice(0, 1000),
       updated_at: new Date().toISOString(),
-    }).eq("id", event.id);
+    }).eq("tenant_slug", WHATSAPP_TENANT_SLUG).eq("id", event.id);
     logWhatsApp("error", "whatsapp_event_processing_failed", providerMessageId, { detail });
     return { ok: false as const, error: detail };
   }

@@ -1,10 +1,11 @@
 "use client";
 
 import { Bot, CheckCheck, MessageCircle, UserRoundCheck } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import {
   takeCommunicationConversationAction,
   releaseCommunicationConversationAction,
+  sendWhatsAppHumanMessageAction,
 } from "../actions";
 import type {
   UnifiedCommunicationEvent,
@@ -52,6 +53,7 @@ export function WhatsAppInbox({
   const [filter, setFilter] = useState<Filter>("ALL");
   const [draft, setDraft] = useState("");
   const [draftNotice, setDraftNotice] = useState("");
+  const [pending, startTransition] = useTransition();
   const [selectedId, setSelectedId] = useState(
     () =>
       (workspaceMode && typeof window !== "undefined"
@@ -243,27 +245,31 @@ export function WhatsAppInbox({
           )}
           <div className="rounded-lg bg-accent/50 p-3 text-xs text-muted">
             <CheckCheck className="mb-1 size-4" />
-            Composer manual preparado. Envío desactivado hasta activación
-            oficial.
+            El envío humano respeta la ventana de 24 horas y queda registrado
+            en el outbox auditable.
+            <span className="mt-1 block">Envío desactivado hasta activación oficial</span>
           </div>
           <textarea
             aria-label="Borrador de respuesta WhatsApp"
             className="min-h-24 w-full rounded-lg border bg-background p-2 text-sm"
-            disabled={!selected}
+            disabled={!selected || selected.status !== "HUMAN_HANDOFF" || pending}
             onChange={(event) => setDraft(event.target.value)}
             placeholder="Escribe un borrador…"
             value={draft}
           />
           <button
-            className="min-h-10 w-full rounded-lg border px-3 text-xs font-semibold"
-            disabled={!draft.trim()}
-            onClick={() =>
-              setDraftNotice(
-                "Borrador guardado localmente; no se enviará mientras delivery esté OFF.",
-              )
-            }
+            className="min-h-10 w-full rounded-lg border px-3 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={!draft.trim() || selected?.status !== "HUMAN_HANDOFF" || pending}
+            onClick={() => {
+              if (!selected) return;
+              startTransition(async () => {
+                const result = await sendWhatsAppHumanMessageAction(selected.id, draft);
+                setDraftNotice(result.ok ? result.message : result.error);
+                if (result.ok) setDraft("");
+              });
+            }}
           >
-            GUARDAR BORRADOR
+            {pending ? "ENVIANDO…" : "ENVIAR WHATSAPP"}
           </button>
           {draftNotice && (
             <p aria-live="polite" className="text-[11px] text-muted">

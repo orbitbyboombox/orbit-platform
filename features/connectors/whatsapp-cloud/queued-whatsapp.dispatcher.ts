@@ -3,6 +3,7 @@ import type {
   ChannelDispatchRequest,
   CommunicationChannelDispatcher,
 } from "@/features/communication-hub";
+import { WHATSAPP_TENANT_SLUG } from "./whatsapp-tenant";
 
 export class QueuedWhatsAppDispatcher implements CommunicationChannelDispatcher {
   constructor(
@@ -17,12 +18,15 @@ export class QueuedWhatsAppDispatcher implements CommunicationChannelDispatcher 
 
     const { error } = await this.client.from("whatsapp_outbound_messages").upsert(
       {
+        tenant_slug: WHATSAPP_TENANT_SLUG,
         correlation_id: request.correlationId,
         conversation_id: request.conversationId,
         customer_id: this.customerId,
         recipient_wa_id: request.participantId,
         message_type: "text",
+        message_mode: "TEXT",
         text_body: request.content,
+        service_window_expires_at: request.serviceWindowExpiresAt ?? null,
         status: "PENDING",
         updated_at: new Date().toISOString(),
       },
