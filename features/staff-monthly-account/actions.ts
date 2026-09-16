@@ -36,6 +36,15 @@ const fileFrom = (form: Pick<FormData, "get">) => {
     throw new Error("Archivo inválido o superior a 15 MB.");
   return { file, mime };
 };
+const optionalFileFrom = (form: Pick<FormData, "get">, field: string) => {
+  const file = form.get(field);
+  if (!(file instanceof File) || !file.size) return null;
+  const extension = file.name.split(".").pop()?.toLowerCase() ?? "",
+    mime = allowed.has(file.type) ? file.type : extensionMime.get(extension);
+  if (!mime || file.size > 15 * 1024 * 1024)
+    throw new Error("El comprobante debe ser PDF o imagen y pesar hasta 15 MB.");
+  return { file, mime };
+};
 const refresh = () => {
   revalidatePath("/staff-portal");
   revalidatePath("/resources/staff");
@@ -159,6 +168,112 @@ async function adminContext() {
   if (!profile || !["CEO", "ADMINISTRATOR"].includes(profile.role))
     throw new Error("Acceso administrativo requerido.");
   return client;
+}
+
+export async function registerStaffReimbursementPaymentAction(form: FormData) {
+  const correlationId = randomUUID().slice(0, 8).toUpperCase();
+  let uploadedPath = "";
+  const fail = (stage: string, error: unknown) => {
+    const info = errorInfo(error);
+    console.error(JSON.stringify({
+      event: "staff_reimbursement_payment_failed",
+      stage,
+      correlationId,
+      code: info.code || info.name,
+      message: info.message,
+    }));
+    const duplicate = info.code === "23505" || /ya fue pagado/i.test(info.message);
+    const message = duplicate
+      ? "Este reembolso ya fue pagado; no se creó un duplicado."
+      : stage === "validation"
+        ? info.message
+        : "No fue posible registrar el pago del reembolso.";
+    return { ok: duplicate, message: `${message} Referencia: ${correlationId}` };
+  };
+  try {
+    const client = await adminContext();
+    const expenseId = String(form.get("expenseId") ?? "");
+    const amount = Number(form.get("amount"));
+    const paidOn = String(form.get("paidOn") ?? "");
+    const methodChoice = String(form.get("method") ?? "");
+    const method = methodChoice === "OTRO"
+      ? String(form.get("methodOther") ?? "").trim()
+      : methodChoice.trim();
+    const notes = String(form.get("notes") ?? "").trim();
+    const requestId = String(form.get("requestId") ?? "").trim();
+    if (!expenseId || !paidOn || !method || !requestId || !Number.isFinite(amount) || amount <= 0)
+      return fail("validation", new Error("Completa los datos requeridos del reembolso."));
+
+    const admin = createAdminClient();
+    const { data: expense, error: expenseError } = await admin
+      .from("expenses")
+      .select("id,total,status,expense_scope,responsible_staff_id,project_id")
+      .eq("id", expenseId)
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (expenseError || !expense) return fail("validation", expenseError ?? new Error("Reembolso no encontrado."));
+    if (expense.status !== "APPROVED" || expense.expense_scope !== "STAFF_REIMBURSEMENT")
+      return fail("validation", new Error("Solo se puede pagar un reembolso Staff aprobado."));
+    if (Number(expense.total) !== amount)
+      return fail("validation", new Error("El monto debe coincidir con el reembolso aprobado."));
+
+    const selected = optionalFileFrom(form, "receipt");
+    let receiptBucket: string | null = null;
+    let receiptName: string | null = null;
+    let receiptMime: string | null = null;
+    const idempotencyKey = createHash("sha256")
+      .update([expenseId, requestId].join("|"))
+      .digest("hex");
+    if (selected) {
+      const bytes = await selected.file.arrayBuffer();
+      const safeName = selected.file.name.replace(/[^a-zA-Z0-9._-]+/g, "-");
+      uploadedPath = `staff/${expense.responsible_staff_id}/05_COMPROBANTES_PAGO/reembolsos/${expenseId}/${idempotencyKey}-${safeName}`;
+      const upload = await admin.storage.from("orbit-documents").upload(uploadedPath, bytes, {
+        contentType: selected.mime,
+        upsert: true,
+      });
+      if (upload.error) return fail("storage", upload.error);
+      receiptBucket = "orbit-documents";
+      receiptName = selected.file.name;
+      receiptMime = selected.mime;
+    }
+    const { data, error } = await client.rpc("register_staff_reimbursement_payment", {
+      p_expense_id: expenseId,
+      p_amount: amount,
+      p_paid_on: paidOn,
+      p_method: method,
+      p_notes: notes || null,
+      p_idempotency_key: idempotencyKey,
+      p_receipt_bucket: receiptBucket,
+      p_receipt_path: uploadedPath || null,
+      p_receipt_file_name: receiptName,
+      p_receipt_mime_type: receiptMime,
+    });
+    if (error) {
+      if (uploadedPath) await admin.storage.from("orbit-documents").remove([uploadedPath]);
+      return fail("payment", error);
+    }
+    console.info(JSON.stringify({
+      event: "staff_reimbursement_payment_complete",
+      correlationId,
+      expenseId,
+      idempotent: Boolean((data as { idempotent?: boolean } | null)?.idempotent),
+    }));
+    refresh();
+    revalidatePath("/finance/cash-flow");
+    revalidatePath("/finance/payables");
+    revalidatePath("/reports");
+    revalidatePath(`/projects/${expense.project_id}`);
+    return {
+      ok: true,
+      message: (data as { idempotent?: boolean } | null)?.idempotent
+        ? "Este pago ya estaba registrado; no se creó un duplicado."
+        : "Reembolso pagado y registrado por separado de los honorarios.",
+    };
+  } catch (error) {
+    if (uploadedPath) await createAdminClient().storage.from("orbit-documents").remove([uploadedPath]);
+    return fail("unknown", error);
+  }
 }
 export async function reviewMonthlyBoletaAction(form: FormData) {
   const correlationId = randomUUID().slice(0, 8).toUpperCase();

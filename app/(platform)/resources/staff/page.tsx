@@ -29,7 +29,7 @@ import type {
 import {mapStaffMonthlyAccount,STAFF_MONTHLY_ACCOUNT_SELECT} from "@/features/staff-monthly-account/model";
 import { chileDateTime } from "@/features/operations/event-operational-window";
 import { buildCanonicalOrbitEventState } from "@/features/operations/canonical-orbit-event-state";
-import { StaffFinancialActions } from "@/features/staff-payments/staff-financial-actions";
+import { StaffFinancialActions, type StaffReimbursementPaymentItem } from "@/features/staff-payments/staff-financial-actions";
 import type { StaffExpenseReviewItem } from "@/features/staff-expenses/staff-expense-review";
 
 export default async function StaffManagementPage({searchParams}:{searchParams:Promise<{reviewOnboarding?:string;reviewAccount?:string;reviewExpense?:string}>}) {
@@ -48,6 +48,7 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
     { data: staffDocuments, error: staffDocumentsError },
     { data: staffExpenseDocuments, error: staffExpenseDocumentsError },
     { data: monthlyAccounts, error: monthlyAccountsError },
+    { data: reimbursementPayments, error: reimbursementPaymentsError },
   ] = await Promise.all([
     client
       .from("staff")
@@ -117,6 +118,7 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
       .not("document_id", "is", null)
       .order("submitted_at", { ascending: false }),
     client.from("staff_monthly_accounts").select(STAFF_MONTHLY_ACCOUNT_SELECT).order("accounting_month",{ascending:false}),
+    client.from("staff_reimbursement_payments").select("expense_id,staff_expense_submission_id,settlement_id,amount"),
   ]);
   if (staffError) throw staffError;
   if (assignmentError) throw assignmentError;
@@ -130,6 +132,7 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
   if (staffDocumentsError) throw staffDocumentsError;
   if (staffExpenseDocumentsError) throw staffExpenseDocumentsError;
   if (monthlyAccountsError) throw monthlyAccountsError;
+  if (reimbursementPaymentsError) throw reimbursementPaymentsError;
   const { data: expenseDocumentMetadata, error: expenseDocumentMetadataError } =
     await client
       .from("documents")
@@ -428,7 +431,13 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
           (sum, item) => sum + Number(item.total),
           0,
         ),
-        finalAmount = originalNet + adjustmentTotal + reimbursementTotal;
+        payrollNet = originalNet + adjustmentTotal,
+        payrollPaidAmount = Math.min(Number(row.paid_amount), payrollNet),
+        reimbursementPaidAmount = (reimbursementPayments ?? [])
+          .filter((item) => item.settlement_id === row.id)
+          .reduce((sum, item) => sum + Number(item.amount), 0),
+        reimbursementPendingAmount = Math.max(reimbursementTotal - reimbursementPaidAmount, 0),
+        finalAmount = payrollNet + reimbursementTotal;
       return [
         {
           id: row.id,
@@ -445,6 +454,10 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
           originalNet,
           adjustmentTotal,
           reimbursementTotal,
+          reimbursementPaidAmount,
+          reimbursementPendingAmount,
+          payrollNet,
+          payrollPaidAmount,
           finalAmount,
           operator: originalOperator,
           assembly: originalAssembly,
@@ -608,6 +621,32 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
         staff: item.staff,
       };
     });
+  const paidReimbursementExpenseIds = new Set((reimbursementPayments ?? []).map((item) => item.expense_id));
+  const approvedReimbursementItems: StaffReimbursementPaymentItem[] = (staffExpenseDocuments ?? [])
+    .filter((item) =>
+      item.status === "APPROVED" &&
+      item.reimbursement === true &&
+      Boolean(item.materialized_expense_id) &&
+      !paidReimbursementExpenseIds.has(item.materialized_expense_id),
+    )
+    .map((item) => {
+      const project = Array.isArray(item.projects) ? item.projects[0] : item.projects;
+      const member = Array.isArray(item.staff) ? item.staff[0] : item.staff;
+      return {
+        expenseId: item.materialized_expense_id as string,
+        submissionId: item.id,
+        staffId: item.staff_id,
+        staffName: member ? `${member.first_name} ${member.last_name}` : "Staff",
+        projectId: item.project_id,
+        eventName: project?.name ?? "Evento",
+        orbitEventId: project?.orbit_event_id ?? "",
+        category: item.category,
+        description: item.description ?? "",
+        amount: Number(item.amount),
+        occurredOn: item.occurred_on,
+        receiptPath: item.receipt_path,
+      };
+    });
   const onboardingInvitations: StaffOnboardingInvitation[] = (
     onboarding ?? []
   ).map((item) => ({
@@ -634,6 +673,7 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
       team={
         <div className="space-y-6">
           <StaffFinancialActions
+            approvedReimbursements={approvedReimbursementItems}
             events={paymentEvents}
             initialReviewExpenseId={reviewExpense}
             pendingExpenses={pendingExpenseItems}

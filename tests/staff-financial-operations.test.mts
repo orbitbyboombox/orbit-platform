@@ -32,7 +32,7 @@ test("Founder and Staff surfaces expose the required operational access", () => 
 
 test("advance form filters canonical events by collaborator and pending balance", () => {
   assert.match(financialActions, /events\.filter\(\(event\) => event\.staffId === staffId/);
-  assert.match(financialActions, /event\.finalAmount - event\.paidAmount/);
+  assert.match(financialActions, /event\.payrollNet - event\.payrollPaidAmount/);
   for (const field of ["settlementId", "amount", "date", "method", "notes", "receipt", "boleta"]) {
     assert.match(financialActions, new RegExp(`name=\\"${field}\\"`));
   }

@@ -26,6 +26,10 @@ export type StaffPaymentEvent = {
   originalNet: number;
   adjustmentTotal: number;
   reimbursementTotal: number;
+  reimbursementPaidAmount: number;
+  reimbursementPendingAmount: number;
+  payrollNet: number;
+  payrollPaidAmount: number;
   finalAmount: number;
   operator: number;
   assembly: number;
@@ -102,22 +106,29 @@ export function StaffPaymentsCenter({
               (sum, item) => sum + item.reimbursementTotal,
               0,
             ),
+            reimbursementsPaid = eventRows.reduce(
+              (sum, item) => sum + item.reimbursementPaidAmount,
+              0,
+            ),
+            reimbursementsPending = eventRows.reduce(
+              (sum, item) => sum + item.reimbursementPendingAmount,
+              0,
+            ),
             payrollNet = original + adjustments,
             finalAmount = payrollNet + reimbursements,
-            paid = eventRows.reduce((sum, item) => sum + item.paidAmount, 0);
+            payrollPaid = eventRows.reduce((sum, item) => sum + item.payrollPaidAmount, 0),
+            paid = payrollPaid + reimbursementsPaid;
           return {
             member,
             eventRows,
             original,
             adjustments,
             reimbursements,
+            reimbursementsPaid,
+            reimbursementsPending,
             finalAmount,
             paid,
-            outstanding: eventRows.reduce(
-              (sum, item) =>
-                sum + Math.max(0, item.finalAmount - item.paidAmount),
-              0,
-            ),
+            outstanding: Math.max(payrollNet - payrollPaid, 0) + reimbursementsPending,
             account: months.find(item=>item.staffId===member.id&&item.month.startsWith(month))?.account,
           };
         })
@@ -202,7 +213,9 @@ export function StaffPaymentsCenter({
               <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
                 <Metric label="Neto original" value={row.original} />
                 <Metric label="Ajustes" value={row.adjustments} />
-                <Metric label="Reembolsos" value={row.reimbursements} />
+                <Metric label="Reembolsos aprobados" value={row.reimbursements} />
+                <Metric label="Reembolsos pagados" value={row.reimbursementsPaid} />
+                <Metric label="Reembolsos pendientes" value={row.reimbursementsPending} />
                 <Metric label="Monto final" value={row.finalAmount} />
                 <Metric label="Ya pagado" value={row.paid} />
                 <Metric label="Saldo pendiente" value={row.outstanding} />
@@ -277,12 +290,14 @@ function EventRow({ item }: { item: StaffPaymentEvent }) {
       <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
         <Box label="Original" value={money.format(item.originalNet)} />
         <Box label="Ajustes" value={money.format(item.adjustmentTotal)} />
-        <Box label="Reembolsos" value={money.format(item.reimbursementTotal)} />
+        <Box label="Reembolsos aprobados" value={money.format(item.reimbursementTotal)} />
+        <Box label="Reembolsos pagados" value={money.format(item.reimbursementPaidAmount)} />
+        <Box label="Reembolsos pendientes" value={money.format(item.reimbursementPendingAmount)} />
         <Box label="Monto final" value={money.format(item.finalAmount)} />
         <Box label="Anticipo / pagado" value={money.format(item.paidAmount)} />
         <Box
-          label="Saldo"
-          value={money.format(Math.max(0, item.finalAmount - item.paidAmount))}
+          label="Saldo total"
+          value={money.format(Math.max(0, item.payrollNet - item.payrollPaidAmount) + item.reimbursementPendingAmount)}
         />
       </div>
       <p

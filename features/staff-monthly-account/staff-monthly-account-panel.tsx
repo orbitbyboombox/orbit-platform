@@ -247,7 +247,7 @@ export function StaffMonthlyAccountPanel({
           </div>
         </section>
       ) : null}
-      <dl className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-3">
+      <dl className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
         <Metric label="Total trabajado" value={account.workNet} />
         <Metric
           label="Retención"
@@ -256,12 +256,15 @@ export function StaffMonthlyAccountPanel({
         />
         <Metric label="Líquido según boleta" value={account.boletaNet} />
         <Metric label="Adelantos realizados" value={-account.advancesTotal} />
-        <Metric label="Reembolsos" value={account.reimbursementsTotal} />
+        <Metric label="Reembolsos aprobados" value={account.reimbursementsTotal} />
+        <Metric label="Reembolsos pagados" value={account.reimbursementsPaidTotal} />
+        <Metric label="Reembolsos pendientes" value={account.reimbursementsPendingTotal} />
         <Metric
-          label="Saldo final a transferir"
+          label="Saldo honorarios a transferir"
           value={account.finalTransferAmount}
         />
       </dl>
+      {account.reimbursementsTotal > 0 ? <p className="mt-3 rounded-xl border border-brand/25 bg-brand/5 p-3 text-sm">Los reembolsos se pagan y trazan por separado de honorarios y adelantos. Pendiente: <strong>{money(account.reimbursementsPendingTotal)}</strong>.</p> : null}
       {mode === "FOUNDER" ? (
         <section className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand/30 bg-brand/5 p-3">
           <p className="text-sm font-semibold">Adelantos realizados: {money(account.advancesTotal)}</p>
