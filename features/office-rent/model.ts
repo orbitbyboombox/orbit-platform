@@ -73,20 +73,39 @@ export interface OfficeLeaseDataset {
   documents: OfficeLeaseDocument[];
   metrics: OfficeLeaseMetrics;
   currentPeriod: string;
+  today: string;
 }
 
 export const formatClp = (value: number) =>
-  `$${Math.round(value).toLocaleString("es-CL")}`;
+  `$${String(Math.round(value)).replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
 
 export const receiptLabel = (receiptNumber: number) =>
   `N°${String(receiptNumber).padStart(3, "0")}`;
 
 export const monthLabel = (period: string) => {
-  const value = new Date(`${period.slice(0, 7)}-01T12:00:00Z`).toLocaleDateString("es-CL", {
-    month: "long",
-    year: "numeric",
-  });
-  return value.charAt(0).toUpperCase() + value.slice(1);
+  const [year, month] = period.slice(0, 7).split("-");
+  const monthName = [
+    "Enero",
+    "Febrero",
+    "Marzo",
+    "Abril",
+    "Mayo",
+    "Junio",
+    "Julio",
+    "Agosto",
+    "Septiembre",
+    "Octubre",
+    "Noviembre",
+    "Diciembre",
+  ][Number(month) - 1] ?? "Mes";
+  return `${monthName} de ${year}`;
+};
+
+export const formatOfficeDate = (value: string | null) => {
+  if (!value) return "Sin fecha";
+  const [year, month, day] = value.slice(0, 10).split("-");
+  const monthName = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sept", "oct", "nov", "dic"][Number(month) - 1] ?? "mes";
+  return `${day} ${monthName} ${year}`;
 };
 
 export function buildOfficeLeaseMetrics(

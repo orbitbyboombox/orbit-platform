@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { PDFDocument } from "pdf-lib";
-import { buildOfficeLeaseMetrics, receiptLabel, type OfficeLeaseMonth, type OfficeLeaseSettings } from "../features/office-rent/model.ts";
+import { buildOfficeLeaseMetrics, formatClp, formatOfficeDate, monthLabel, receiptLabel, type OfficeLeaseMonth, type OfficeLeaseSettings } from "../features/office-rent/model.ts";
 import { createOfficeLeaseReceiptPdf } from "../features/office-rent/receipt-pdf.ts";
 
 const source = (path: string) => readFileSync(path, "utf8");
@@ -53,6 +53,14 @@ test("receipt labels satisfy the initial and following correlation format", () =
   assert.equal(receiptLabel(1), "N°001");
   assert.equal(receiptLabel(2), "N°002");
   assert.equal(receiptLabel(12), "N°012");
+});
+
+test("office rent SSR text is deterministic across server and browser runtimes", () => {
+  assert.equal(formatClp(615_000), "$615.000");
+  assert.equal(formatOfficeDate("2026-09-05"), "05 sept 2026");
+  assert.equal(monthLabel("2026-10-01"), "Octubre de 2026");
+  assert.doesNotMatch(ui, /new Date\(|toLocaleDateString|toLocaleString/);
+  assert.match(ui, /defaultValue=\{data\.today\}/);
 });
 
 test("September receipt renders as a professional one-page PDF", async () => {

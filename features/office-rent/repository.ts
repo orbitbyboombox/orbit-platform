@@ -94,5 +94,6 @@ export async function loadOfficeLeaseDataset(client: SupabaseClient): Promise<Of
     documents,
     metrics: buildOfficeLeaseMetrics(settings, months, today),
     currentPeriod: `${today.slice(0, 7)}-01`,
+    today,
   };
 }
