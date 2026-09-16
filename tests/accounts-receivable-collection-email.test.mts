@@ -115,7 +115,7 @@ test("receivables center exposes the collection composer and last notice label",
   assert.match(center, /ENVIAR EMAIL/);
   assert.match(center, /REENVIAR COBRANZA/);
   assert.match(center, /Último aviso/);
-  assert.match(center, /PAYMENT_REMINDER"\|\|item\.type==="COLLECTION_EMAIL"/);
+  assert.match(center, /PAYMENT_REMINDER"\s*\|\|\s*item\.type\s*===\s*"COLLECTION_EMAIL"/);
 });
 
 test("collection center provides the founder operational workflow and bank details", () => {

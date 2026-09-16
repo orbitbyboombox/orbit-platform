@@ -9,9 +9,9 @@ const catalog = readFileSync(new URL("features/founder-workspace/catalog.ts", ro
 const expensePage = readFileSync(new URL("app/(platform)/finance/expenses/page.tsx", root), "utf8");
 
 test("Founder Command Center exposes the canonical expense action", () => {
-  assert.match(founder, /label: "\+ Ingresar gasto", href: "\/finance\/expenses\?create=1"/);
+  assert.match(founder, /label: "\+ Ingresar gasto",[\s\S]*href: "\/finance\/expenses\?create=1"/);
   assert.match(catalog, /label: "Ingresar gasto",\s+href: "\/finance\/expenses\?create=1"/);
-  assert.match(expensePage, /openCreate=\{\(await searchParams\)\.create==="1"\}/);
+  assert.match(expensePage, /openCreate=\{\(await searchParams\)\.create\s*===\s*"1"\}/);
 });
 
 test("quick action remains touch-friendly on mobile and desktop", () => {

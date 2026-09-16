@@ -27,7 +27,8 @@ test("expense alerts open the global Staff review queue", () => {
 test("Founder and Staff surfaces expose the required operational access", () => {
   assert.match(financialActions, /INGRESAR PAGO POR ADELANTADO/);
   assert.match(financialActions, /GASTOS PENDIENTES/);
-  assert.match(dashboard, /gasto Staff pendiente de revisión/);
+  assert.match(dashboard, /Pendientes por revisar/);
+  assert.match(dashboard, /<details/);
 });
 
 test("advance form filters canonical events by collaborator and pending balance", () => {

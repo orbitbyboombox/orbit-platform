@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
-  OVERDUE_INVOICE_GROUP_HREF,
   overdueGroupDetail,
   summarizeOverdueReceivables,
 } from "../features/founder-action-center/overdue-group.ts";
@@ -10,15 +9,13 @@ import {
 const repository = readFileSync("features/founder-action-center/index.ts", "utf8");
 const migration = readFileSync("supabase/migrations/0190_group_overdue_founder_action.sql", "utf8");
 const dashboard = readFileSync("features/founder-workspace/founder-workspace-experience.tsx", "utf8");
-const collectionPage = readFileSync("app/(platform)/finance/collections/page.tsx", "utf8");
-const collectionCenter = readFileSync("features/accounts-receivable/collection-center.tsx", "utf8");
 const notificationRepository = readFileSync("features/notification-center/repository.ts", "utf8");
 
 const today = "2026-08-27";
 
 test("zero overdue receivables produces no financial group", () => {
   assert.deepEqual(summarizeOverdueReceivables([], today), { count: 0, total: 0, oldestDueDate: null });
-  assert.match(repository, /if \(Number\(overdue\.count\) > 0\)/);
+  assert.match(repository, /for \(const invoice of overdueInvoices \?\? \[\]\)/);
 });
 
 test("one overdue receivable produces one grouped action", () => {
@@ -27,10 +24,11 @@ test("one overdue receivable produces one grouped action", () => {
   assert.equal(overdueGroupDetail(result), "1 pendiente · $1.000 por cobrar");
 });
 
-test("many overdue receivables still produce one stable card", () => {
+test("many overdue receivables produce exact stable invoice actions", () => {
   const rows = Array.from({ length: 10 }, (_, index) => ({ due_date: `2026-08-${String(index + 1).padStart(2, "0")}`, outstanding_balance: 1000, effective_status: "PARTIALLY_PAID" }));
   assert.equal(summarizeOverdueReceivables(rows, today).count, 10);
-  assert.match(repository, /OVERDUE_INVOICE_GROUP_ID/);
+  assert.match(repository, /founder-action:invoice:/);
+  assert.match(repository, /\/finance\/receivables\?invoice=/);
   assert.equal((repository.match(/items\.push\(/g) ?? []).length, 1);
 });
 
@@ -70,12 +68,13 @@ test("legacy reminder refresh is projection-only", () => {
   assert.doesNotMatch(migration, /update public\.invoices/);
 });
 
-test("group action opens Cobrar Clientes filtered to VENCIDOS", () => {
-  assert.equal(OVERDUE_INVOICE_GROUP_HREF, "/finance/collections?filter=OVERDUE");
-  assert.match(collectionPage, /initialFilter=\{initialFilter\}/);
-  assert.match(collectionCenter, /useState<CollectionFilter>\(initialFilter\)/);
-  assert.match(collectionCenter, /timeZone: "America\/Santiago"/);
-  assert.match(collectionCenter, /if \(filter === "OVERDUE"\) return isOverdue\(invoice, today\)/);
+test("each overdue action opens its exact receivable", () => {
+  assert.match(repository, /ABRIR FACTURA/);
+  assert.match(repository, /encodeURIComponent\(invoice\.id\)/);
+  const receivablePage=readFileSync("app/(platform)/finance/receivables/page.tsx","utf8");
+  const receivableCenter=readFileSync("features/accounts-receivable/accounts-receivable-center.tsx","utf8");
+  assert.match(receivablePage,/initialInvoiceId=\{invoice\}/);
+  assert.match(receivableCenter,/scrollIntoView/);
 });
 
 test("badge counts actionable cards rather than invoice rows", () => {
@@ -99,10 +98,10 @@ test("derived financial state cannot be manually archived or resolved", () => {
   assert.match(readFileSync("features/notification-center/notification-center.tsx", "utf8"), /!item\.derived/);
 });
 
-test("mobile group card wraps and keeps a reachable CTA", () => {
-  assert.match(dashboard, /min-w-0 rounded-xl/);
+test("mobile accordion wraps and keeps a reachable CTA", () => {
+  assert.match(dashboard, /<details/);
   assert.match(dashboard, /break-words/);
-  assert.match(dashboard, /min-h-11 w-full/);
+  assert.match(dashboard, /min-h-11/);
   assert.match(dashboard, /text-center/);
 });
 
@@ -111,7 +110,7 @@ test("grouping migration never changes ledger balances or payment history", () =
 });
 
 test("implementation has no production record-specific branching", () => {
-  for (const source of [repository, migration, collectionPage, collectionCenter]) {
+  for (const source of [repository, migration]) {
     assert.doesNotMatch(source, /F276DFD2|Jos[eé] Rodr[ií]guez|2026-826|e5cd5631/);
   }
 });

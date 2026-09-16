@@ -11,7 +11,7 @@ const catalog = readFileSync("features/founder-workspace/catalog.ts", "utf8");
 
 test("every Founder calendar entry opens the canonical Event center", () => {
   assert.match(sidebar, /label:"Calendario",href:"\/events"/);
-  assert.match(dashboard, /href="\/events">Ver calendario/);
+  assert.match(dashboard, /href="\/events"[\s\S]*?Ver calendario/);
   assert.match(catalog, /key: "CALENDAR"[\s\S]*?href: "\/events"/);
 });
 

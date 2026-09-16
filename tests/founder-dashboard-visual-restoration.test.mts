@@ -35,7 +35,7 @@ test("ordering wraps the original KPI and Quick Action components only in edit m
   assert.match(dashboard, /saveFounderDashboardLayoutAction/);
   assert.match(dashboard, /Mover arriba/);
   assert.match(dashboard, /Mover abajo/);
-  assert.match(dashboard, /controls \? <div[\s\S]*: <>\{children\}<\/>/);
+  assert.match(dashboard, /return controls \? \([\s\S]*<div[\s\S]*<>\{children\}<\/>/);
 });
 
 test("stable IDs cover every approved KPI and Quick Action without duplicates", () => {
@@ -69,7 +69,7 @@ test("financial values cannot wrap one character per line", () => {
 });
 
 test("the approved upcoming Events component is a first-priority sortable section", () => {
-  assert.match(dashboard, /const upcoming = <section data-command-card aria-labelledby="upcoming-events-title"/);
+  assert.match(dashboard, /const upcoming\s*=\s*\([\s\S]*<section[\s\S]*data-command-card[\s\S]*aria-labelledby="upcoming-events-title"/);
   assert.match(dashboard, /DASHBOARD_UPCOMING_EVENTS/);
   assert.match(dashboard, /moveCalendar/);
   assert.match(dashboard, /Mover arriba/);

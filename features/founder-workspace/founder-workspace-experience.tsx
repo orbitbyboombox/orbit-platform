@@ -16,16 +16,23 @@ import {
   ArrowDown,
   ArrowUp,
   GripVertical,
+  ChevronDown,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import type { FinanceDashboardReadModel, FinanceMetric } from "@/features/finance/finance-read-model";
+import type {
+  FinanceDashboardReadModel,
+  FinanceMetric,
+} from "@/features/finance/finance-read-model";
 import { PersonalWorkspaceSections } from "./personal-workspace";
 import { reviewStaffRequestAction } from "@/features/operations/operations-planning.actions";
 import { markNotificationReadAction } from "@/features/notification-center/actions";
-import { FinancialAlertCenter, type FinancialAlertView } from "@/features/financial-alerts/financial-alert-center";
+import {
+  FinancialAlertCenter,
+  type FinancialAlertView,
+} from "@/features/financial-alerts/financial-alert-center";
 import type { FounderActionItem } from "@/features/founder-action-center";
 import type { WhatsAppSummary } from "@/features/communication-hub";
 import type { BiancaOperationalStatus } from "@/features/bianca-workspace/bianca-status";
@@ -67,16 +74,45 @@ export type PendingStaffApproval = {
   estimatedPayment: number;
 };
 
-const expenseQuickAction = { label: "+ Ingresar gasto", href: "/finance/expenses?create=1", icon: WalletCards } as const;
-const quickActions: Array<{ id: DashboardQuickActionItemKey; label: string; href: string; icon: LucideIcon }> = [
-  { id: "action.new_customer", label: "+ Nuevo cliente", href: "/customers", icon: UsersRound },
-  { id: "action.new_reservation", label: "+ Nueva reserva", href: "/projects?reservation=new", icon: FilePlus2 },
+const expenseQuickAction = {
+  label: "+ Ingresar gasto",
+  href: "/finance/expenses?create=1",
+  icon: WalletCards,
+} as const;
+const quickActions: Array<{
+  id: DashboardQuickActionItemKey;
+  label: string;
+  href: string;
+  icon: LucideIcon;
+}> = [
+  {
+    id: "action.new_customer",
+    label: "+ Nuevo cliente",
+    href: "/customers",
+    icon: UsersRound,
+  },
+  {
+    id: "action.new_reservation",
+    label: "+ Nueva reserva",
+    href: "/projects?reservation=new",
+    icon: FilePlus2,
+  },
   { id: "action.quote", label: "Cotizar", href: "/leads", icon: ReceiptText },
   { id: "action.new_expense", ...expenseQuickAction },
 ] as const;
 
-const money = (value: number) => new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(value);
-const formatMetric = (metric: FinanceMetric) => metric.format === "money" ? money(metric.value) : metric.format === "percent" ? `${metric.value.toFixed(1)}%` : new Intl.NumberFormat("es-CL").format(metric.value);
+const money = (value: number) =>
+  new Intl.NumberFormat("es-CL", {
+    style: "currency",
+    currency: "CLP",
+    maximumFractionDigits: 0,
+  }).format(value);
+const formatMetric = (metric: FinanceMetric) =>
+  metric.format === "money"
+    ? money(metric.value)
+    : metric.format === "percent"
+      ? `${metric.value.toFixed(1)}%`
+      : new Intl.NumberFormat("es-CL").format(metric.value);
 const formatFounderActionTimestamp = (value: string) => {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Santiago",
@@ -100,7 +136,25 @@ const toneStyle = {
   danger: "bg-danger-soft text-danger",
 } as const;
 
-export function FounderWorkspaceExperience({ currentDate, finance, financialAlert, financialAlertHistory, founderName, founderActions, operationalAlerts, pendingStaffApprovals, pendingTasks, publicationConsole, recentActivity, todayEvents, todayOperation, upcomingEvents, whatsappSummary, biancaStatus, whatsappConnected }: {
+export function FounderWorkspaceExperience({
+  currentDate,
+  finance,
+  financialAlert,
+  financialAlertHistory,
+  founderName,
+  founderActions,
+  operationalAlerts,
+  pendingStaffApprovals,
+  pendingTasks,
+  publicationConsole,
+  recentActivity,
+  todayEvents,
+  todayOperation,
+  upcomingEvents,
+  whatsappSummary,
+  biancaStatus,
+  whatsappConnected,
+}: {
   currentDate: string;
   finance: FinanceDashboardReadModel;
   financialAlert: FinancialAlertView | null;
@@ -124,41 +178,202 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
   const [dashboardLayout, setDashboardLayout] = useState<DashboardLayout>(() =>
     reconcileDashboardLayout(workspace.preferences.dashboardLayout),
   );
-  const [draftDashboardLayout, setDraftDashboardLayout] = useState<DashboardLayout | null>(null);
-  const [savedDashboardLayout, setSavedDashboardLayout] = useState<DashboardLayout | null>(null);
+  const [draftDashboardLayout, setDraftDashboardLayout] =
+    useState<DashboardLayout | null>(null);
+  const [savedDashboardLayout, setSavedDashboardLayout] =
+    useState<DashboardLayout | null>(null);
   const [ordering, setOrdering] = useState(false);
-  const [draftDashboardConfig, setDraftDashboardConfig] = useState<ModuleWorkspacePreference | undefined>();
-  const [savedDashboardConfig, setSavedDashboardConfig] = useState<ModuleWorkspacePreference | undefined>();
+  const [draftDashboardConfig, setDraftDashboardConfig] = useState<
+    ModuleWorkspacePreference | undefined
+  >();
+  const [savedDashboardConfig, setSavedDashboardConfig] = useState<
+    ModuleWorkspacePreference | undefined
+  >();
   const [orderMessage, setOrderMessage] = useState("");
   const [orderPending, startOrderTransition] = useTransition();
-  const [resolvedApprovalIds, setResolvedApprovalIds] = useState<Set<string>>(() => new Set());
-  const [acknowledgedAlertIds, setAcknowledgedAlertIds] = useState<Set<string>>(() => new Set());
+  const [resolvedApprovalIds, setResolvedApprovalIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [acknowledgedAlertIds, setAcknowledgedAlertIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [alertPending, startAlertTransition] = useTransition();
   useEffect(() => {
     setDashboardLayout(
       reconcileDashboardLayout(workspace.preferences.dashboardLayout),
     );
   }, [workspace.preferences.dashboardLayout]);
-  const staffApprovalItems = pendingStaffApprovals.filter((item) => !resolvedApprovalIds.has(item.id));
-  const visibleOperationalAlerts = operationalAlerts.filter((item) => !acknowledgedAlertIds.has(item.id));
-  const biancaCard = whatsappSummary ? <section aria-labelledby="founder-bianca-card" className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">BIANCA</p><h2 id="founder-bianca-card" className="mt-2 text-xl font-semibold">WhatsApp · Ventas &amp; Atención</h2><p className="mt-1 text-sm text-muted">{biancaStatus ?? "PREPARADA"} · {whatsappConnected ? "WhatsApp conectado" : "Esperando conexión de WhatsApp"}</p></div><span className="rounded-full border px-3 py-1 text-xs font-semibold">{biancaStatus ?? "PREPARADA"}</span></div><div className="mt-5 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4"><div><p className="text-muted">Activas</p><b>{whatsappSummary.active}</b></div><div><p className="text-muted">BIANCA</p><b>{whatsappSummary.nova}</b></div><div><p className="text-muted">Control humano</p><b>{whatsappSummary.human}</b></div><div><p className="text-muted">Necesitan atención</p><b>{whatsappSummary.waitingBoombox}</b></div></div><div className="mt-5 flex flex-wrap items-center gap-3"><span className="rounded-full border px-2 py-1 text-xs">Mensajería clientes: Desactivada</span><span className="rounded-full border px-2 py-1 text-xs">Delivery: OFF</span><Link className="ml-auto inline-flex min-h-10 items-center rounded-lg bg-brand px-4 text-sm font-semibold text-brand-foreground" href="/bianca">ABRIR BIANCA <ArrowRight className="ml-2 size-4" /></Link><Link className="text-sm font-semibold text-brand hover:underline" href="/settings/bianca-lab">BIANCA Lab</Link></div></section> : null;
-  const acknowledgeAlert = (id: string) => startAlertTransition(async () => {
-    await markNotificationReadAction(id);
-    setAcknowledgedAlertIds((current) => new Set(current).add(id));
-    router.refresh();
+  const staffApprovalItems = pendingStaffApprovals.filter(
+    (item) => !resolvedApprovalIds.has(item.id),
+  );
+  const visibleOperationalAlerts = operationalAlerts.filter(
+    (item) => !acknowledgedAlertIds.has(item.id),
+  );
+  const biancaCard = whatsappSummary ? (
+    <section
+      aria-labelledby="founder-bianca-card"
+      className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">
+            BIANCA
+          </p>
+          <h2 id="founder-bianca-card" className="mt-2 text-xl font-semibold">
+            WhatsApp · Ventas &amp; Atención
+          </h2>
+          <p className="mt-1 text-sm text-muted">
+            {biancaStatus ?? "PREPARADA"} ·{" "}
+            {whatsappConnected
+              ? "WhatsApp conectado"
+              : "Esperando conexión de WhatsApp"}
+          </p>
+        </div>
+        <span className="rounded-full border px-3 py-1 text-xs font-semibold">
+          {biancaStatus ?? "PREPARADA"}
+        </span>
+      </div>
+      <div className="mt-5 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+        <div>
+          <p className="text-muted">Activas</p>
+          <b>{whatsappSummary.active}</b>
+        </div>
+        <div>
+          <p className="text-muted">BIANCA</p>
+          <b>{whatsappSummary.nova}</b>
+        </div>
+        <div>
+          <p className="text-muted">Control humano</p>
+          <b>{whatsappSummary.human}</b>
+        </div>
+        <div>
+          <p className="text-muted">Necesitan atención</p>
+          <b>{whatsappSummary.waitingBoombox}</b>
+        </div>
+      </div>
+      <div className="mt-5 flex flex-wrap items-center gap-3">
+        <span className="rounded-full border px-2 py-1 text-xs">
+          Mensajería clientes: Desactivada
+        </span>
+        <span className="rounded-full border px-2 py-1 text-xs">
+          Delivery: OFF
+        </span>
+        <Link
+          className="ml-auto inline-flex min-h-10 items-center rounded-lg bg-brand px-4 text-sm font-semibold text-brand-foreground"
+          href="/bianca"
+        >
+          ABRIR BIANCA <ArrowRight className="ml-2 size-4" />
+        </Link>
+        <Link
+          className="text-sm font-semibold text-brand hover:underline"
+          href="/settings/bianca-lab"
+        >
+          BIANCA Lab
+        </Link>
+      </div>
+    </section>
+  ) : null;
+  const acknowledgeAlert = (id: string) =>
+    startAlertTransition(async () => {
+      await markNotificationReadAction(id);
+      setAcknowledgedAlertIds((current) => new Set(current).add(id));
+      router.refresh();
+    });
+  const position = (label: string) =>
+    finance.position.find((item) => item.label === label);
+  const month = (label: string) =>
+    finance.month.find((item) => item.label === label);
+  const fallback = (label: string, href: string): FinanceMetric => ({
+    label,
+    value: 0,
+    format: "money",
+    detail: "Sin movimientos canónicos.",
+    href,
   });
-  const position = (label: string) => finance.position.find(item => item.label === label);
-  const month = (label: string) => finance.month.find(item => item.label === label);
-  const fallback = (label: string, href: string): FinanceMetric => ({ label, value: 0, format: "money", detail: "Sin movimientos canónicos.", href });
-  const kpis: Array<{ id: DashboardKpiItemKey; metric: FinanceMetric; icon: LucideIcon; tone: keyof typeof toneStyle }> = [
-    { id: "kpi.cash_registered", metric: position("Caja registrada") ?? fallback("Caja registrada", "/finance/cash-flow"), icon: WalletCards, tone: "info" },
-    { id: "kpi.total_receivables", metric: position("Por cobrar total") ?? fallback("Por cobrar total", "/finance/receivables"), icon: CircleDollarSign, tone: "warning" },
-    { id: "kpi.company_credit", metric: position("Crédito Empresas") ?? fallback("Crédito Empresas", "/finance/receivables?category=company-credit"), icon: CircleDollarSign, tone: "warning" },
-    { id: "kpi.customer_balances", metric: position("Saldos Clientes / Eventos") ?? fallback("Saldos Clientes / Eventos", "/finance/receivables?category=ordinary"), icon: WalletCards, tone: "info" },
-    { id: "kpi.month_sales", metric: month("Ventas del mes") ?? fallback("Ventas del mes", "/projects?period=month"), icon: TrendingUp, tone: "success" },
-    { id: "kpi.operating_result", metric: month("Resultado operativo") ?? fallback("Resultado operativo del mes", "/finance/expenses"), icon: TrendingUp, tone: "success" },
-    { id: "kpi.operating_margin", metric: month("Margen operativo") ?? { label: "Margen operativo del mes", value: 0, format: "percent", detail: "Resultado operativo sobre ventas del mes.", href: "/finance/expenses" }, icon: TrendingUp, tone: "info" },
-    { id: "kpi.events_today", metric: { label: "Eventos hoy", value: todayEvents, format: "count", detail: "Agenda operacional de hoy.", href: "/projects?date=today" }, icon: CalendarDays, tone: "default" },
+  const kpis: Array<{
+    id: DashboardKpiItemKey;
+    metric: FinanceMetric;
+    icon: LucideIcon;
+    tone: keyof typeof toneStyle;
+  }> = [
+    {
+      id: "kpi.cash_registered",
+      metric:
+        position("Caja registrada") ??
+        fallback("Caja registrada", "/finance/cash-flow"),
+      icon: WalletCards,
+      tone: "info",
+    },
+    {
+      id: "kpi.total_receivables",
+      metric:
+        position("Por cobrar total") ??
+        fallback("Por cobrar total", "/finance/receivables"),
+      icon: CircleDollarSign,
+      tone: "warning",
+    },
+    {
+      id: "kpi.company_credit",
+      metric:
+        position("Crédito Empresas") ??
+        fallback(
+          "Crédito Empresas",
+          "/finance/receivables?category=company-credit",
+        ),
+      icon: CircleDollarSign,
+      tone: "warning",
+    },
+    {
+      id: "kpi.customer_balances",
+      metric:
+        position("Saldos Clientes / Eventos") ??
+        fallback(
+          "Saldos Clientes / Eventos",
+          "/finance/receivables?category=ordinary",
+        ),
+      icon: WalletCards,
+      tone: "info",
+    },
+    {
+      id: "kpi.month_sales",
+      metric:
+        month("Ventas del mes") ??
+        fallback("Ventas del mes", "/projects?period=month"),
+      icon: TrendingUp,
+      tone: "success",
+    },
+    {
+      id: "kpi.operating_result",
+      metric:
+        month("Resultado operativo") ??
+        fallback("Resultado operativo del mes", "/finance/expenses"),
+      icon: TrendingUp,
+      tone: "success",
+    },
+    {
+      id: "kpi.operating_margin",
+      metric: month("Margen operativo") ?? {
+        label: "Margen operativo del mes",
+        value: 0,
+        format: "percent",
+        detail: "Resultado operativo sobre ventas del mes.",
+        href: "/finance/expenses",
+      },
+      icon: TrendingUp,
+      tone: "info",
+    },
+    {
+      id: "kpi.events_today",
+      metric: {
+        label: "Eventos hoy",
+        value: todayEvents,
+        format: "count",
+        detail: "Agenda operacional de hoy.",
+        href: "/projects?date=today",
+      },
+      icon: CalendarDays,
+      tone: "default",
+    },
   ];
 
   const saveOrder = (next: DashboardLayout) => {
@@ -176,8 +391,24 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
 
   const beginOrdering = () => {
     const current = workspace.preferences.moduleWorkspaces.DASHBOARD;
-    setSavedDashboardConfig(current ? { ...current, sectionOrder: [...current.sectionOrder], hiddenSections: [...current.hiddenSections] } : undefined);
-    setDraftDashboardConfig(current ? { ...current, sectionOrder: [...current.sectionOrder], hiddenSections: [...current.hiddenSections] } : undefined);
+    setSavedDashboardConfig(
+      current
+        ? {
+            ...current,
+            sectionOrder: [...current.sectionOrder],
+            hiddenSections: [...current.hiddenSections],
+          }
+        : undefined,
+    );
+    setDraftDashboardConfig(
+      current
+        ? {
+            ...current,
+            sectionOrder: [...current.sectionOrder],
+            hiddenSections: [...current.hiddenSections],
+          }
+        : undefined,
+    );
     setSavedDashboardLayout(dashboardLayout);
     setDraftDashboardLayout(dashboardLayout);
     setOrdering(true);
@@ -191,12 +422,29 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
     setOrderMessage("");
   };
   const saveWorkspaceOrdering = () => {
-    if (!draftDashboardConfig) { setOrdering(false); return; }
+    if (!draftDashboardConfig) {
+      setOrdering(false);
+      return;
+    }
     setOrderMessage("Guardando…");
     startOrderTransition(async () => {
-      const result = await workspace.update({ ...workspace.preferences, moduleWorkspaces: { ...workspace.preferences.moduleWorkspaces, DASHBOARD: draftDashboardConfig } });
-      const layoutResult = draftDashboardLayout ? await saveFounderDashboardLayoutAction(draftDashboardLayout) : { ok: true };
-      if (result && typeof result === "object" && "ok" in result && result.ok && layoutResult.ok) {
+      const result = await workspace.update({
+        ...workspace.preferences,
+        moduleWorkspaces: {
+          ...workspace.preferences.moduleWorkspaces,
+          DASHBOARD: draftDashboardConfig,
+        },
+      });
+      const layoutResult = draftDashboardLayout
+        ? await saveFounderDashboardLayoutAction(draftDashboardLayout)
+        : { ok: true };
+      if (
+        result &&
+        typeof result === "object" &&
+        "ok" in result &&
+        result.ok &&
+        layoutResult.ok
+      ) {
         if (draftDashboardLayout) setDashboardLayout(draftDashboardLayout);
         setOrdering(false);
         setOrderMessage("✓ Orden del escritorio guardado");
@@ -204,16 +452,33 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
     });
   };
   const resetWorkspaceOrdering = () => {
-    if (!window.confirm("¿Restablecer el orden y visibilidad del escritorio?")) return;
+    if (!window.confirm("¿Restablecer el orden y visibilidad del escritorio?"))
+      return;
     const defaultLayout = resetDashboardLayout();
     setDraftDashboardConfig(DEFAULT_WORKSPACE.moduleWorkspaces.DASHBOARD);
     setDashboardLayout(defaultLayout);
     setSavedDashboardConfig(undefined);
     setOrdering(false);
     startOrderTransition(async () => {
-      const result = await workspace.update({ ...workspace.preferences, moduleWorkspaces: { ...workspace.preferences.moduleWorkspaces, DASHBOARD: DEFAULT_WORKSPACE.moduleWorkspaces.DASHBOARD } });
-      const layoutResult = await saveFounderDashboardLayoutAction(resetDashboardLayout());
-      setOrderMessage(result && typeof result === "object" && "ok" in result && result.ok && layoutResult.ok ? "✓ Escritorio restablecido" : "No fue posible restablecer el escritorio");
+      const result = await workspace.update({
+        ...workspace.preferences,
+        moduleWorkspaces: {
+          ...workspace.preferences.moduleWorkspaces,
+          DASHBOARD: DEFAULT_WORKSPACE.moduleWorkspaces.DASHBOARD,
+        },
+      });
+      const layoutResult = await saveFounderDashboardLayoutAction(
+        resetDashboardLayout(),
+      );
+      setOrderMessage(
+        result &&
+          typeof result === "object" &&
+          "ok" in result &&
+          result.ok &&
+          layoutResult.ok
+          ? "✓ Escritorio restablecido"
+          : "No fue posible restablecer el escritorio",
+      );
     });
   };
 
@@ -222,7 +487,11 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
     id: DashboardKpiItemKey | DashboardQuickActionItemKey,
     direction: -1 | 1,
   ) => {
-    const order = [...(ordering && draftDashboardLayout ? draftDashboardLayout : dashboardLayout)[zone]] as string[];
+    const order = [
+      ...(ordering && draftDashboardLayout
+        ? draftDashboardLayout
+        : dashboardLayout)[zone],
+    ] as string[];
     const index = order.indexOf(id);
     const target = index + direction;
     if (index < 0 || target < 0 || target >= order.length) return;
@@ -237,7 +506,7 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
     const index = order.indexOf("DASHBOARD_UPCOMING_EVENTS");
     const visibleOrder = [
       ...document.querySelectorAll<HTMLElement>(
-        '[data-workspace-block][data-workspace-key]',
+        "[data-workspace-block][data-workspace-key]",
       ),
     ]
       .map((element) => element.dataset.workspaceKey ?? "")
@@ -259,87 +528,377 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
       const saved = Boolean(
         result && typeof result === "object" && "ok" in result && result.ok,
       );
-      setOrderMessage(saved ? "✓ Orden guardado" : "No fue posible guardar el orden.");
+      setOrderMessage(
+        saved ? "✓ Orden guardado" : "No fue posible guardar el orden.",
+      );
     });
   };
 
-  const activeDashboardLayout = ordering && draftDashboardLayout ? draftDashboardLayout : dashboardLayout;
+  const activeDashboardLayout =
+    ordering && draftDashboardLayout ? draftDashboardLayout : dashboardLayout;
   const orderedKpis = activeDashboardLayout.kpiOrder
     .map((id) => kpis.find((item) => item.id === id))
     .filter((item): item is (typeof kpis)[number] => Boolean(item));
   const orderedQuickActions = activeDashboardLayout.quickActionOrder
     .map((id) => quickActions.find((item) => item.id === id))
     .filter((item): item is (typeof quickActions)[number] => Boolean(item));
-  const attentionSummary = [
-    { label: "Leads nuevos", type: "SALES_LEAD_UNATTENDED", href: "/leads" },
-    { label: "Follow-ups vencidos", type: "SALES_FOLLOWUP_OVERDUE", href: "/leads?filter=overdue" },
-    { label: "Clientes esperando", type: "SALES_CUSTOMER_REPLIED", href: "/leads?filter=customer-replied" },
-    { label: "Cotizaciones sin seguimiento", type: "SALES_QUOTE_NO_FOLLOWUP", href: "/leads?filter=quotes" },
-    { label: "Reservas por cerrar", type: "SALES_RESERVATION_PENDING", href: "/leads?filter=reservation" },
-  ];
-  const pendingStaffExpenseCount = founderActions.filter(
-    (action) => action.type === "STAFF_EXPENSE_REVIEW_REQUIRED",
-  ).length;
-  const compactSummary = <div className="flex flex-wrap items-center gap-2 text-xs" aria-label="Resumen compacto de pendientes"><span className="rounded-full bg-brand px-3 py-1.5 font-bold text-brand-foreground">{founderActions.length} pendientes</span>{pendingStaffExpenseCount > 0 ? <Link className="rounded-full border border-brand/40 bg-brand/10 px-3 py-1.5 font-bold text-brand hover:bg-brand/15" href="/resources/staff?reviewExpense=all">{pendingStaffExpenseCount} {pendingStaffExpenseCount === 1 ? "gasto Staff pendiente de revisión" : "gastos Staff pendientes de revisión"}</Link> : null}{attentionSummary.map((item) => <Link className="rounded-full border px-3 py-1.5 font-medium text-muted hover:border-brand/40 hover:text-brand" href={item.href} key={item.label}>{founderActions.filter((action) => action.type === item.type).length} {item.label.toLowerCase()}</Link>)}</div>;
-  const groupedActions = founderActions.reduce<Array<FounderActionItem & { count?: number }>>((groups, item) => {
-    const repeatable = !["P0", "P1"].includes(item.priority);
-    const existing = repeatable && groups.find((entry) => entry.type === item.type && entry.href === item.href);
-    if (existing) existing.count = (existing.count ?? 1) + 1;
-    else groups.push({ ...item, count: 1 });
-    return groups;
-  }, []).sort((a,b) => a.priority.localeCompare(b.priority) || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()).slice(0, 8);
+  const groupedActions = founderActions
+    .reduce<Array<FounderActionItem & { count?: number }>>((groups, item) => {
+      const repeatable = !["P0", "P1"].includes(item.priority);
+      const existing =
+        repeatable &&
+        groups.find(
+          (entry) => entry.type === item.type && entry.href === item.href,
+        );
+      if (existing) existing.count = (existing.count ?? 1) + 1;
+      else groups.push({ ...item, count: 1 });
+      return groups;
+    }, [])
+    .sort(
+      (a, b) =>
+        a.priority.localeCompare(b.priority) ||
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+    )
+    .slice(0, 8);
 
-  const welcome = <header className="pb-1 pt-2 sm:pb-2 sm:pt-4">
-    <p data-command-label>Founder Command Center</p>
-    <h1 className="mt-3 text-[2rem] font-semibold leading-tight tracking-[-.05em] sm:text-[2.6rem]">Buenos días, {founderName} <span aria-hidden>👋</span></h1>
-    <p className="mt-2 text-sm capitalize text-muted">{currentDate}</p>
-    <p className="mt-4 text-sm text-muted">{todayEvents} eventos hoy <span className="px-1.5 text-border">·</span> {pendingTasks} prioridades pendientes</p>
-    {/* Compatibility label retained for existing dashboard controls: ordering ? "Terminar" : "Ordenar escritorio" */}
-    <span className="mt-4 flex flex-wrap items-center gap-2"><Link className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-brand/30 px-4 text-sm font-semibold text-brand" href={expenseQuickAction.href}><WalletCards className="size-4" />{expenseQuickAction.label}</Link>{ordering ? <><button className="inline-flex min-h-11 items-center rounded-xl bg-brand px-4 text-sm font-semibold text-brand-foreground" onClick={saveWorkspaceOrdering} type="button">Guardar</button><button className="inline-flex min-h-11 items-center rounded-xl border px-4 text-sm font-semibold text-muted" onClick={cancelOrdering} type="button">Cancelar</button><button className="inline-flex min-h-11 items-center rounded-xl border px-4 text-sm font-semibold text-muted" onClick={resetWorkspaceOrdering} type="button">Restablecer escritorio</button></> : <button aria-pressed={false} className="inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold text-muted transition hover:border-brand/40 hover:text-brand" onClick={beginOrdering} type="button"><GripVertical className="size-4" />Ordenar escritorio</button>}</span>
-    {ordering || orderMessage ? <p aria-live="polite" className="mt-2 text-xs text-muted">{ordering ? "EDITANDO ESCRITORIO · Usa arrastrar o las flechas para cambiar el orden." : null}{orderPending ? "Guardando…" : orderMessage}</p> : null}
-  </header>;
+  const welcome = (
+    <header className="pb-1 pt-2 sm:pb-2 sm:pt-4">
+      <p data-command-label>Founder Command Center</p>
+      <h1 className="mt-3 text-[2rem] font-semibold leading-tight tracking-[-.05em] sm:text-[2.6rem]">
+        Buenos días, {founderName} <span aria-hidden>👋</span>
+      </h1>
+      <p className="mt-2 text-sm capitalize text-muted">{currentDate}</p>
+      <p className="mt-4 text-sm text-muted">
+        {todayEvents} eventos hoy <span className="px-1.5 text-border">·</span>{" "}
+        {pendingTasks} prioridades pendientes
+      </p>
+      {/* Compatibility label retained for existing dashboard controls: ordering ? "Terminar" : "Ordenar escritorio" */}
+      <span className="mt-4 flex flex-wrap items-center gap-2">
+        <Link
+          className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-brand/30 px-4 text-sm font-semibold text-brand"
+          href={expenseQuickAction.href}
+        >
+          <WalletCards className="size-4" />
+          {expenseQuickAction.label}
+        </Link>
+        {ordering ? (
+          <>
+            <button
+              className="inline-flex min-h-11 items-center rounded-xl bg-brand px-4 text-sm font-semibold text-brand-foreground"
+              onClick={saveWorkspaceOrdering}
+              type="button"
+            >
+              Guardar
+            </button>
+            <button
+              className="inline-flex min-h-11 items-center rounded-xl border px-4 text-sm font-semibold text-muted"
+              onClick={cancelOrdering}
+              type="button"
+            >
+              Cancelar
+            </button>
+            <button
+              className="inline-flex min-h-11 items-center rounded-xl border px-4 text-sm font-semibold text-muted"
+              onClick={resetWorkspaceOrdering}
+              type="button"
+            >
+              Restablecer escritorio
+            </button>
+          </>
+        ) : (
+          <button
+            aria-pressed={false}
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold text-muted transition hover:border-brand/40 hover:text-brand"
+            onClick={beginOrdering}
+            type="button"
+          >
+            <GripVertical className="size-4" />
+            Ordenar escritorio
+          </button>
+        )}
+      </span>
+      {ordering || orderMessage ? (
+        <p aria-live="polite" className="mt-2 text-xs text-muted">
+          {ordering
+            ? "EDITANDO ESCRITORIO · Usa arrastrar o las flechas para cambiar el orden."
+            : null}
+          {orderPending ? "Guardando…" : orderMessage}
+        </p>
+      ) : null}
+    </header>
+  );
 
-  const founderKpis = <section aria-label="Indicadores principales" className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-    {orderedKpis.map(({ id, metric, icon: Icon, tone }, index) => <OrderableItem controls={ordering ? <OrderControls disableDown={index === orderedKpis.length - 1} disableUp={index === 0} label={metric.label} onDown={() => move("kpiOrder", id, 1)} onUp={() => move("kpiOrder", id, -1)} /> : null} key={id}><button data-command-card className="group min-h-[7.75rem] min-w-0 w-full rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 sm:p-[1.05rem]" onClick={() => router.push(metric.href)} style={{ containerType: "inline-size" }}>
-      <span className="flex items-center gap-3"><span className={`grid size-10 shrink-0 place-items-center rounded-xl ${toneStyle[tone]}`}><Icon className="size-[18px]" /></span><span className="text-[.7rem] font-medium leading-4 text-muted">{metric.label}</span></span>
-      <FounderKpiValue>{formatMetric(metric)}</FounderKpiValue>
-      <span className="mt-2 block truncate text-[10px] text-muted">{metric.detail}</span>
-    </button></OrderableItem>)}
-  </section>;
+  const founderKpis = (
+    <section
+      aria-label="Indicadores principales"
+      className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6"
+    >
+      {orderedKpis.map(({ id, metric, icon: Icon, tone }, index) => (
+        <OrderableItem
+          controls={
+            ordering ? (
+              <OrderControls
+                disableDown={index === orderedKpis.length - 1}
+                disableUp={index === 0}
+                label={metric.label}
+                onDown={() => move("kpiOrder", id, 1)}
+                onUp={() => move("kpiOrder", id, -1)}
+              />
+            ) : null
+          }
+          key={id}
+        >
+          <button
+            data-command-card
+            className="group min-h-[7.75rem] min-w-0 w-full rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 sm:p-[1.05rem]"
+            onClick={() => router.push(metric.href)}
+            style={{ containerType: "inline-size" }}
+          >
+            <span className="flex items-center gap-3">
+              <span
+                className={`grid size-10 shrink-0 place-items-center rounded-xl ${toneStyle[tone]}`}
+              >
+                <Icon className="size-[18px]" />
+              </span>
+              <span className="text-[.7rem] font-medium leading-4 text-muted">
+                {metric.label}
+              </span>
+            </span>
+            <FounderKpiValue>{formatMetric(metric)}</FounderKpiValue>
+            <span className="mt-2 block truncate text-[10px] text-muted">
+              {metric.detail}
+            </span>
+          </button>
+        </OrderableItem>
+      ))}
+    </section>
+  );
 
-  const today = <section data-command-card aria-labelledby="today-operation-title" className="rounded-2xl border p-5 sm:p-6">
-    <PanelTitle id="today-operation-title" label="Centro operacional · Hoy" />
-    <div className="relative mt-5 before:absolute before:bottom-5 before:left-[4.1rem] before:top-5 before:w-px before:bg-border">
-      {todayOperation.slice(0, 6).map(item => <Link className="group relative grid grid-cols-[3.25rem_1rem_1fr_auto] items-center gap-3 border-b border-border/70 py-4 first:pt-1 last:border-0 last:pb-1" href={item.href} key={item.id}>
-        <time className="font-mono text-xs font-semibold text-foreground">{item.time ?? "Ahora"}</time>
-        <span className={`relative z-10 size-2.5 rounded-full ring-4 ring-card ${item.tone === "danger" ? "bg-danger" : item.tone === "warning" ? "bg-warning" : "bg-brand"}`} />
-        <span className="min-w-0"><strong className="block truncate text-sm">{item.title}</strong><span className="mt-1 block truncate text-xs text-muted">{item.detail}</span></span>
-        <span className="flex items-center gap-3"><StatusPill tone={item.tone} /><span className="grid size-8 place-items-center rounded-lg border text-muted transition group-hover:border-brand/40 group-hover:text-brand"><ArrowRight className="size-4" /></span></span>
-      </Link>)}
-      {!todayOperation.length ? <Empty label="No hay prioridades operacionales para hoy." /> : null}
-    </div>
-  </section>;
+  const today = (
+    <section
+      data-command-card
+      aria-labelledby="today-operation-title"
+      className="rounded-2xl border p-5 sm:p-6"
+    >
+      <PanelTitle id="today-operation-title" label="Centro operacional · Hoy" />
+      <div className="relative mt-5 before:absolute before:bottom-5 before:left-[4.1rem] before:top-5 before:w-px before:bg-border">
+        {todayOperation.slice(0, 6).map((item) => (
+          <Link
+            className="group relative grid grid-cols-[3.25rem_1rem_1fr_auto] items-center gap-3 border-b border-border/70 py-4 first:pt-1 last:border-0 last:pb-1"
+            href={item.href}
+            key={item.id}
+          >
+            <time className="font-mono text-xs font-semibold text-foreground">
+              {item.time ?? "Ahora"}
+            </time>
+            <span
+              className={`relative z-10 size-2.5 rounded-full ring-4 ring-card ${item.tone === "danger" ? "bg-danger" : item.tone === "warning" ? "bg-warning" : "bg-brand"}`}
+            />
+            <span className="min-w-0">
+              <strong className="block truncate text-sm">{item.title}</strong>
+              <span className="mt-1 block truncate text-xs text-muted">
+                {item.detail}
+              </span>
+            </span>
+            <span className="flex items-center gap-3">
+              <StatusPill tone={item.tone} />
+              <span className="grid size-8 place-items-center rounded-lg border text-muted transition group-hover:border-brand/40 group-hover:text-brand">
+                <ArrowRight className="size-4" />
+              </span>
+            </span>
+          </Link>
+        ))}
+        {!todayOperation.length ? (
+          <Empty label="No hay prioridades operacionales para hoy." />
+        ) : null}
+      </div>
+    </section>
+  );
 
-  const actionCenter = <section data-command-card aria-labelledby="founder-action-center-title" className="rounded-2xl border border-brand/35 bg-brand/[.035] p-5 sm:p-6">
-    <div className="flex flex-wrap items-center justify-between gap-3"><div><p data-command-label>Requiere tu atención</p><h2 className="mt-1 text-xl font-semibold" id="founder-action-center-title">Pendientes por revisar</h2><p className="mt-2 text-xs text-muted">Prioridad real desde fuentes canónicas; se cierra al resolver el estado operativo.</p></div><span aria-label={`${founderActions.length} pendientes accionables`} className="grid min-h-11 min-w-11 place-items-center rounded-full bg-brand px-3 text-lg font-bold text-brand-foreground">{founderActions.length}</span></div>
-    <div className="mt-4 divide-y rounded-xl border bg-card min-w-0 rounded-xl break-words"><span className="sr-only">min-h-11 w-full lg:grid-cols-2</span>{groupedActions.map(item=>{const Icon=item.type==="STAFF_ONBOARDING_REVIEW_REQUIRED"?UserRoundCheck:item.type==="OVERDUE_INVOICE_GROUP"?CircleDollarSign:ReceiptText;return <div className="flex min-w-0 items-center gap-2 px-3 py-2.5 sm:gap-3" key={item.id}><span className={`grid size-7 shrink-0 place-items-center rounded-lg ${item.priority==="P0"?toneStyle.danger:toneStyle.warning}`}><Icon className="size-3.5"/></span><span className="min-w-0 flex-1 truncate text-xs"><span className="mr-1 rounded border px-1 py-0.5 text-[9px] font-bold">{item.priority}</span><strong>{item.count && item.count>1?`${item.count}× `:""}{item.title}</strong><span className="ml-1 text-muted">· {item.detail}</span></span><span className="hidden shrink-0 text-[10px] text-muted sm:inline">{formatFounderActionTimestamp(item.createdAt)}</span><Link className="shrink-0 rounded-lg border px-2.5 py-1.5 text-[10px] font-bold text-brand" href={item.href}>{item.count && item.count>1?"Ver grupo":item.cta}</Link></div>})}</div><Link className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-brand" href="/notifications">Ver todos los pendientes <ArrowRight className="size-3.5"/></Link>
-    {!founderActions.length?<Empty label="No hay decisiones pendientes del Founder."/>:null}
-  </section>;
+  const actionCenter = (
+    <details
+      data-command-card
+      className="group rounded-2xl border border-brand/35 bg-brand/[.035] p-5 sm:p-6"
+    >
+      <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60">
+        <div>
+          <p data-command-label>Requiere tu atención</p>
+          <h2
+            className="mt-1 text-xl font-semibold"
+            id="founder-action-center-title"
+          >
+            Pendientes por revisar
+          </h2>
+          <p className="mt-2 text-xs text-muted">Abrir para revisar cada pendiente en su elemento exacto.</p>
+        </div>
+        <span className="flex items-center gap-3">
+          <span aria-label={`${founderActions.length} pendientes accionables`} className="grid min-h-11 min-w-11 place-items-center rounded-full bg-brand px-3 text-lg font-bold text-brand-foreground">{founderActions.length}</span>
+          <ChevronDown className="size-5 text-muted transition-transform group-open:rotate-180" />
+        </span>
+      </summary>
+      <div className="mt-4 min-w-0 divide-y rounded-xl border bg-card break-words">
+        <span className="sr-only">min-h-11 w-full lg:grid-cols-2</span>
+        {groupedActions.map((item) => {
+          const Icon =
+            item.type === "STAFF_ONBOARDING_REVIEW_REQUIRED"
+              ? UserRoundCheck
+              : item.type === "INVOICE_OVERDUE"
+                ? CircleDollarSign
+                : ReceiptText;
+          return (
+            <div
+              className="flex min-w-0 items-center gap-2 px-3 py-2.5 sm:gap-3"
+              key={item.id}
+            >
+              <span
+                className={`grid size-7 shrink-0 place-items-center rounded-lg ${item.priority === "P0" ? toneStyle.danger : toneStyle.warning}`}
+              >
+                <Icon className="size-3.5" />
+              </span>
+              <span className="min-w-0 flex-1 truncate text-xs">
+                <span className="mr-1 rounded border px-1 py-0.5 text-[9px] font-bold">
+                  {item.priority}
+                </span>
+                <strong>
+                  {item.count && item.count > 1 ? `${item.count}× ` : ""}
+                  {item.title}
+                </strong>
+                <span className="ml-1 text-muted">· {item.detail}</span>
+              </span>
+              <span className="hidden shrink-0 text-[10px] text-muted sm:inline">
+                {formatFounderActionTimestamp(item.createdAt)}
+              </span>
+              <Link
+                className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg border px-3 py-2 text-center text-[10px] font-bold text-brand"
+                href={item.href}
+              >
+                {item.count && item.count > 1 ? "Ver grupo" : item.cta}
+              </Link>
+            </div>
+          );
+        })}
+      </div>
+      <Link
+        className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-brand"
+        href="/notifications"
+      >
+        Ver todos los pendientes <ArrowRight className="size-3.5" />
+      </Link>
+      {!founderActions.length ? (
+        <Empty label="No hay decisiones pendientes del Founder." />
+      ) : null}
+    </details>
+  );
 
-  const upcoming = <section data-command-card aria-labelledby="upcoming-events-title" className="rounded-2xl border p-5 sm:p-6">
-    <div className="flex items-center justify-between gap-3"><PanelTitle id="upcoming-events-title" label="Próximos eventos" /><span className="flex gap-3"><Link className="text-xs text-muted transition hover:text-brand" href="/operations/week">Agenda semanal</Link><Link className="text-xs text-muted transition hover:text-brand" href="/events">Ver calendario</Link></span></div>
-    <div className="mt-4 divide-y">{upcomingEvents.slice(0, 4).map(event => <Link className="group grid grid-cols-[3.25rem_1fr_auto] gap-3 py-3.5 first:pt-0 last:pb-0" href={event.href} key={event.id}>
-      <span className="grid min-h-14 place-items-center rounded-xl border bg-background/50 text-center"><strong className="block text-lg leading-none">{event.date.split(" ")[0]}</strong><span className="text-[9px] font-semibold uppercase text-muted">{event.date.split(" ").slice(1).join(" ")}</span></span>
-      <span className="min-w-0"><strong className="block truncate text-sm">{event.title}</strong><span className="mt-1 block truncate text-xs text-muted">{event.service}</span><span className="mt-1 block truncate text-[11px] text-muted">{event.location || "Ubicación pendiente"} · {event.staff}</span></span>
-      <span className="self-start rounded-lg bg-info-soft px-2 py-1 text-[9px] font-semibold uppercase text-info">{event.status}</span>
-    </Link>)}{!upcomingEvents.length ? <Empty label="No hay eventos próximos." /> : null}</div>
-    <Link className="mt-5 flex items-center justify-center gap-2 border-t pt-4 text-xs font-semibold text-brand" href="/events">Ver todos los eventos <ArrowRight className="size-3.5" /></Link>
-  </section>;
+  const upcoming = (
+    <section
+      data-command-card
+      aria-labelledby="upcoming-events-title"
+      className="rounded-2xl border p-5 sm:p-6"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <PanelTitle id="upcoming-events-title" label="Próximos eventos" />
+        <span className="flex gap-3">
+          <Link
+            className="text-xs text-muted transition hover:text-brand"
+            href="/operations/week"
+          >
+            Agenda semanal
+          </Link>
+          <Link
+            className="text-xs text-muted transition hover:text-brand"
+            href="/events"
+          >
+            Ver calendario
+          </Link>
+        </span>
+      </div>
+      <div className="mt-4 divide-y">
+        {upcomingEvents.slice(0, 4).map((event) => (
+          <Link
+            className="group grid grid-cols-[3.25rem_1fr_auto] gap-3 py-3.5 first:pt-0 last:pb-0"
+            href={event.href}
+            key={event.id}
+          >
+            <span className="grid min-h-14 place-items-center rounded-xl border bg-background/50 text-center">
+              <strong className="block text-lg leading-none">
+                {event.date.split(" ")[0]}
+              </strong>
+              <span className="text-[9px] font-semibold uppercase text-muted">
+                {event.date.split(" ").slice(1).join(" ")}
+              </span>
+            </span>
+            <span className="min-w-0">
+              <strong className="block truncate text-sm">{event.title}</strong>
+              <span className="mt-1 block truncate text-xs text-muted">
+                {event.service}
+              </span>
+              <span className="mt-1 block truncate text-[11px] text-muted">
+                {event.location || "Ubicación pendiente"} · {event.staff}
+              </span>
+            </span>
+            <span className="self-start rounded-lg bg-info-soft px-2 py-1 text-[9px] font-semibold uppercase text-info">
+              {event.status}
+            </span>
+          </Link>
+        ))}
+        {!upcomingEvents.length ? (
+          <Empty label="No hay eventos próximos." />
+        ) : null}
+      </div>
+      <Link
+        className="mt-5 flex items-center justify-center gap-2 border-t pt-4 text-xs font-semibold text-brand"
+        href="/events"
+      >
+        Ver todos los eventos <ArrowRight className="size-3.5" />
+      </Link>
+    </section>
+  );
 
-  const activity = <section data-command-card aria-labelledby="recent-activity-title" className="rounded-2xl border p-5 sm:p-6">
-    <div className="flex items-center justify-between"><PanelTitle id="recent-activity-title" label="Actividad reciente" /><Link className="text-xs text-muted hover:text-brand" href="/notifications">Ver todo</Link></div>
-    <div className="mt-4 space-y-4">{recentActivity.slice(0, 6).map((item, index) => <Link className="group flex items-start gap-3" href={item.href} key={item.id}><span className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded-full text-[10px] ${index % 3 === 0 ? toneStyle.success : index % 3 === 1 ? toneStyle.info : toneStyle.warning}`}>•</span><span className="min-w-0 flex-1"><strong className="block truncate text-xs font-medium">{item.title}</strong><span className="mt-1 block truncate text-[11px] text-muted">{item.detail}</span></span><ArrowRight className="mt-1 size-3.5 text-muted opacity-0 transition group-hover:opacity-100" /></Link>)}{!recentActivity.length ? <Empty label="Sin actividad reciente." /> : null}</div>
-  </section>;
+  const activity = (
+    <section
+      data-command-card
+      aria-labelledby="recent-activity-title"
+      className="rounded-2xl border p-5 sm:p-6"
+    >
+      <div className="flex items-center justify-between">
+        <PanelTitle id="recent-activity-title" label="Actividad reciente" />
+        <Link
+          className="text-xs text-muted hover:text-brand"
+          href="/notifications"
+        >
+          Ver todo
+        </Link>
+      </div>
+      <div className="mt-4 space-y-4">
+        {recentActivity.slice(0, 6).map((item, index) => (
+          <Link
+            className="group flex items-start gap-3"
+            href={item.href}
+            key={item.id}
+          >
+            <span
+              className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded-full text-[10px] ${index % 3 === 0 ? toneStyle.success : index % 3 === 1 ? toneStyle.info : toneStyle.warning}`}
+            >
+              •
+            </span>
+            <span className="min-w-0 flex-1">
+              <strong className="block truncate text-xs font-medium">
+                {item.title}
+              </strong>
+              <span className="mt-1 block truncate text-[11px] text-muted">
+                {item.detail}
+              </span>
+            </span>
+            <ArrowRight className="mt-1 size-3.5 text-muted opacity-0 transition group-hover:opacity-100" />
+          </Link>
+        ))}
+        {!recentActivity.length ? (
+          <Empty label="Sin actividad reciente." />
+        ) : null}
+      </div>
+    </section>
+  );
 
   const alertItems: CommandCenterItem[] = [
     ...visibleOperationalAlerts.slice(0, 2),
@@ -352,36 +911,290 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
       acknowledgeable: false,
     })),
   ].slice(0, 3);
-  const alerts = <section data-command-card aria-labelledby="founder-alerts-title" className="rounded-2xl border p-5 sm:p-6"><PanelTitle id="founder-alerts-title" label="Alertas y pendientes" /><div className="mt-4 grid gap-3 md:grid-cols-3">{
-    alertItems.map(alert => <article className="rounded-xl border bg-background/30 p-4 transition hover:border-brand/35" key={alert.id}><span className="flex items-start gap-3"><span className={`grid size-9 shrink-0 place-items-center rounded-xl ${alert.tone === "danger" ? toneStyle.danger : toneStyle.warning}`}><AlertTriangle className="size-4" /></span><span><strong className="block text-sm">{alert.title}</strong><span className="mt-1 block text-xs text-muted">{alert.detail}</span></span></span><span className="mt-3 flex flex-wrap items-center gap-2"><Link className="inline-flex min-h-9 items-center rounded-lg border border-brand/25 px-3 text-xs font-semibold text-brand" href={alert.href}>{alert.acknowledgeable ? "Abrir Evento / Cobertura Staff" : "Ver detalles"}</Link>{alert.acknowledgeable ? <button className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold disabled:opacity-50" disabled={alertPending} onClick={() => acknowledgeAlert(alert.id)}><Check className="size-3.5" />OK, visto</button> : null}</span></article>)
-  }</div>{!visibleOperationalAlerts.length && !finance.risks.length ? <Empty label="No hay alertas accionables." /> : null}</section>;
+  const alerts = (
+    <section
+      data-command-card
+      aria-labelledby="founder-alerts-title"
+      className="rounded-2xl border p-5 sm:p-6"
+    >
+      <PanelTitle id="founder-alerts-title" label="Alertas y pendientes" />
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        {alertItems.map((alert) => (
+          <article
+            className="rounded-xl border bg-background/30 p-4 transition hover:border-brand/35"
+            key={alert.id}
+          >
+            <span className="flex items-start gap-3">
+              <span
+                className={`grid size-9 shrink-0 place-items-center rounded-xl ${alert.tone === "danger" ? toneStyle.danger : toneStyle.warning}`}
+              >
+                <AlertTriangle className="size-4" />
+              </span>
+              <span>
+                <strong className="block text-sm">{alert.title}</strong>
+                <span className="mt-1 block text-xs text-muted">
+                  {alert.detail}
+                </span>
+              </span>
+            </span>
+            <span className="mt-3 flex flex-wrap items-center gap-2">
+              <Link
+                className="inline-flex min-h-9 items-center rounded-lg border border-brand/25 px-3 text-xs font-semibold text-brand"
+                href={alert.href}
+              >
+                {alert.acknowledgeable
+                  ? "Abrir Evento / Cobertura Staff"
+                  : "Ver detalles"}
+              </Link>
+              {alert.acknowledgeable ? (
+                <button
+                  className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold disabled:opacity-50"
+                  disabled={alertPending}
+                  onClick={() => acknowledgeAlert(alert.id)}
+                >
+                  <Check className="size-3.5" />
+                  OK, visto
+                </button>
+              ) : null}
+            </span>
+          </article>
+        ))}
+      </div>
+      {!visibleOperationalAlerts.length && !finance.risks.length ? (
+        <Empty label="No hay alertas accionables." />
+      ) : null}
+    </section>
+  );
 
-  const commandGrid = <section aria-label="Jornada operacional" className="space-y-5">{actionCenter}<div className="space-y-5">{today}{alerts}</div></section>;
+  const commandGrid = (
+    <section aria-label="Jornada operacional" className="space-y-5">
+      {actionCenter}
+      <div className="space-y-5">
+        {today}
+        {alerts}
+      </div>
+    </section>
+  );
 
-  const actions = <section aria-labelledby="quick-actions-title"><PanelTitle id="quick-actions-title" label="Acciones rápidas" /><div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">{orderedQuickActions.map((action, index) => { const Icon = action.icon; return <OrderableItem controls={ordering ? <OrderControls disableDown={index === orderedQuickActions.length - 1} disableUp={index === 0} label={action.label} onDown={() => move("quickActionOrder", action.id, 1)} onUp={() => move("quickActionOrder", action.id, -1)} /> : null} key={action.id}><Link data-command-card className="group flex min-h-[4.75rem] items-center gap-3 rounded-2xl border p-4 transition hover:-translate-y-0.5" href={action.href}><span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand"><Icon className="size-4" /></span><span className="text-xs font-semibold uppercase">{action.label}</span></Link></OrderableItem>; })}</div></section>;
+  const actions = (
+    <section aria-labelledby="quick-actions-title">
+      <PanelTitle id="quick-actions-title" label="Acciones rápidas" />
+      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+        {orderedQuickActions.map((action, index) => {
+          const Icon = action.icon;
+          return (
+            <OrderableItem
+              controls={
+                ordering ? (
+                  <OrderControls
+                    disableDown={index === orderedQuickActions.length - 1}
+                    disableUp={index === 0}
+                    label={action.label}
+                    onDown={() => move("quickActionOrder", action.id, 1)}
+                    onUp={() => move("quickActionOrder", action.id, -1)}
+                  />
+                ) : null
+              }
+              key={action.id}
+            >
+              <Link
+                data-command-card
+                className="group flex min-h-[4.75rem] items-center gap-3 rounded-2xl border p-4 transition hover:-translate-y-0.5"
+                href={action.href}
+              >
+                <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand">
+                  <Icon className="size-4" />
+                </span>
+                <span className="text-xs font-semibold uppercase">
+                  {action.label}
+                </span>
+              </Link>
+            </OrderableItem>
+          );
+        })}
+      </div>
+    </section>
+  );
 
-  const settings = <section className="flex flex-col gap-4 rounded-2xl border bg-card p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between"><div><PanelTitle id="workspace-settings-title" label="Founder Workspace" /><p className="mt-2 text-xs text-muted">Mueve, oculta y restaura cada bloque. Tu configuración permanece guardada.</p></div><Link className="inline-flex min-h-10 items-center justify-center rounded-xl border px-4 text-xs font-semibold hover:border-brand/40 hover:text-brand" href="/settings#founder-workspace"><Settings2 className="mr-2 size-4" />Configurar espacio</Link></section>;
-  const whatsapp = whatsappSummary ? <section aria-labelledby="founder-whatsapp-summary" className="rounded-2xl border bg-card px-4 py-3"><div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs"><strong id="founder-whatsapp-summary" className="text-sm">WhatsApp</strong><span>Activas: <b>{whatsappSummary.active}</b></span><span>BIANCA: <b>{whatsappSummary.nova}</b></span><span>Control humano: <b>{whatsappSummary.human}</b></span><span>Esperando BOOMBOX: <b>{whatsappSummary.waitingBoombox}</b></span><span>No leídas: <b>{whatsappSummary.unread}</b></span><span className="rounded-full border px-2 py-0.5 font-semibold">Delivery: OFF</span><Link className="ml-auto font-semibold text-brand hover:underline" href="/bianca">Ver conversaciones →</Link></div></section> : null;
+  const settings = (
+    <section className="flex flex-col gap-4 rounded-2xl border bg-card p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <PanelTitle id="workspace-settings-title" label="Founder Workspace" />
+        <p className="mt-2 text-xs text-muted">
+          Mueve, oculta y restaura cada bloque. Tu configuración permanece
+          guardada.
+        </p>
+      </div>
+      <Link
+        className="inline-flex min-h-10 items-center justify-center rounded-xl border px-4 text-xs font-semibold hover:border-brand/40 hover:text-brand"
+        href="/settings#founder-workspace"
+      >
+        <Settings2 className="mr-2 size-4" />
+        Configurar espacio
+      </Link>
+    </section>
+  );
+  const whatsapp = whatsappSummary ? (
+    <section
+      aria-labelledby="founder-whatsapp-summary"
+      className="rounded-2xl border bg-card px-4 py-3"
+    >
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+        <strong id="founder-whatsapp-summary" className="text-sm">
+          WhatsApp
+        </strong>
+        <span>
+          Activas: <b>{whatsappSummary.active}</b>
+        </span>
+        <span>
+          BIANCA: <b>{whatsappSummary.nova}</b>
+        </span>
+        <span>
+          Control humano: <b>{whatsappSummary.human}</b>
+        </span>
+        <span>
+          Esperando BOOMBOX: <b>{whatsappSummary.waitingBoombox}</b>
+        </span>
+        <span>
+          No leídas: <b>{whatsappSummary.unread}</b>
+        </span>
+        <span className="rounded-full border px-2 py-0.5 font-semibold">
+          Delivery: OFF
+        </span>
+        <Link
+          className="ml-auto font-semibold text-brand hover:underline"
+          href="/bianca"
+        >
+          Ver conversaciones →
+        </Link>
+      </div>
+    </section>
+  ) : null;
 
-  const staffApprovals = staffApprovalItems.length ? <PendingStaffApprovals items={staffApprovalItems} onResolved={(id) => setResolvedApprovalIds((current) => new Set(current).add(id))} /> : null;
-  const financialAlerts = financialAlert || financialAlertHistory.length ? <FinancialAlertCenter current={financialAlert} history={financialAlertHistory} /> : null;
-  const dashboardSections = workspace.preferences.moduleWorkspaces.DASHBOARD?.sectionOrder ?? [];
+  const staffApprovals = staffApprovalItems.length ? (
+    <PendingStaffApprovals
+      items={staffApprovalItems}
+      onResolved={(id) =>
+        setResolvedApprovalIds((current) => new Set(current).add(id))
+      }
+    />
+  ) : null;
+  const financialAlerts =
+    financialAlert || financialAlertHistory.length ? (
+      <FinancialAlertCenter
+        current={financialAlert}
+        history={financialAlertHistory}
+      />
+    ) : null;
+  const dashboardSections =
+    workspace.preferences.moduleWorkspaces.DASHBOARD?.sectionOrder ?? [];
   const calendarIndex = dashboardSections.indexOf("DASHBOARD_UPCOMING_EVENTS");
-  const calendarSection = <OrderableItem controls={ordering ? <OrderControls avoidWorkspaceMenu disableDown={calendarIndex < 0 || calendarIndex === dashboardSections.length - 1} disableUp={calendarIndex <= 1} label="Próximos eventos" onDown={() => moveCalendar(1)} onUp={() => moveCalendar(-1)} /> : null}>{upcoming}</OrderableItem>;
+  const calendarSection = (
+    <OrderableItem
+      controls={
+        ordering ? (
+          <OrderControls
+            avoidWorkspaceMenu
+            disableDown={
+              calendarIndex < 0 ||
+              calendarIndex === dashboardSections.length - 1
+            }
+            disableUp={calendarIndex <= 1}
+            label="Próximos eventos"
+            onDown={() => moveCalendar(1)}
+            onUp={() => moveCalendar(-1)}
+          />
+        ) : null
+      }
+    >
+      {upcoming}
+    </OrderableItem>
+  );
 
-  return <main className="orbit-command-center" id="founder-workspace"><PersonalWorkspaceSections moduleKey="DASHBOARD" reorderEnabled={ordering} sections={[
-    { key: "DASHBOARD_HEADER", label: "Bienvenida", content: <>{welcome}<div className="mt-4">{compactSummary}</div></> },
-    ...(biancaCard ? [{ key: "DASHBOARD_BIANCA", label: "BIANCA", content: biancaCard }] : []),
-    { key: "DASHBOARD_UPCOMING_EVENTS", label: "Próximos eventos", content: calendarSection },
-    { key: "DASHBOARD_WIDGETS", label: "KPIs del Founder", content: founderKpis },
-    ...(financialAlerts ? [{ key: "DASHBOARD_FINANCIAL_ALERTS", label: "Obligaciones financieras", content: financialAlerts }] : []),
-    ...(staffApprovals ? [{ key: "DASHBOARD_STAFF_APPROVALS", label: "Aprobaciones de Staff pendientes", content: staffApprovals }] : []),
-    { key: "DASHBOARD_QUICK_ACTIONS", label: "Acciones rápidas", content: actions },
-    { key: "DASHBOARD_TODAY", label: "Jornada operacional", content: commandGrid },
-    { key: "DASHBOARD_RECENT_ACTIVITY", label: "Actividad reciente", content: activity },
-    ...(publicationConsole ? [{ key: "PUBLICATION_CONSOLE", label: "Consola de publicación", content: publicationConsole }] : []),
-    { key: "DASHBOARD_WORKSPACE_SETTINGS", label: "Configuración del Workspace", content: settings },
-  ]} editing={ordering} draftConfig={draftDashboardConfig} onDraftConfigChange={setDraftDashboardConfig} /></main>;
+  return (
+    <main className="orbit-command-center" id="founder-workspace">
+      <PersonalWorkspaceSections
+        moduleKey="DASHBOARD"
+        reorderEnabled={ordering}
+        sections={[
+          {
+            key: "DASHBOARD_HEADER",
+            label: "Bienvenida",
+            content: welcome,
+          },
+          ...(biancaCard
+            ? [
+                {
+                  key: "DASHBOARD_BIANCA",
+                  label: "BIANCA",
+                  content: biancaCard,
+                },
+              ]
+            : []),
+          {
+            key: "DASHBOARD_UPCOMING_EVENTS",
+            label: "Próximos eventos",
+            content: calendarSection,
+          },
+          {
+            key: "DASHBOARD_WIDGETS",
+            label: "KPIs del Founder",
+            content: founderKpis,
+          },
+          ...(financialAlerts
+            ? [
+                {
+                  key: "DASHBOARD_FINANCIAL_ALERTS",
+                  label: "Obligaciones financieras",
+                  content: financialAlerts,
+                },
+              ]
+            : []),
+          ...(staffApprovals
+            ? [
+                {
+                  key: "DASHBOARD_STAFF_APPROVALS",
+                  label: "Aprobaciones de Staff pendientes",
+                  content: staffApprovals,
+                },
+              ]
+            : []),
+          {
+            key: "DASHBOARD_QUICK_ACTIONS",
+            label: "Acciones rápidas",
+            content: actions,
+          },
+          {
+            key: "DASHBOARD_TODAY",
+            label: "Jornada operacional",
+            content: commandGrid,
+          },
+          {
+            key: "DASHBOARD_RECENT_ACTIVITY",
+            label: "Actividad reciente",
+            content: activity,
+          },
+          ...(publicationConsole
+            ? [
+                {
+                  key: "PUBLICATION_CONSOLE",
+                  label: "Consola de publicación",
+                  content: publicationConsole,
+                },
+              ]
+            : []),
+          {
+            key: "DASHBOARD_WORKSPACE_SETTINGS",
+            label: "Configuración del Workspace",
+            content: settings,
+          },
+        ]}
+        editing={ordering}
+        draftConfig={draftDashboardConfig}
+        onDraftConfigChange={setDraftDashboardConfig}
+      />
+    </main>
+  );
 }
 
 const roleLabel: Record<string, string> = {
@@ -391,13 +1204,22 @@ const roleLabel: Record<string, string> = {
   ASSEMBLY_DISASSEMBLY: "Montaje + Desmontaje",
 };
 
-function PendingStaffApprovals({ items, onResolved }: { items: PendingStaffApproval[]; onResolved: (id: string) => void }) {
+function PendingStaffApprovals({
+  items,
+  onResolved,
+}: {
+  items: PendingStaffApproval[];
+  onResolved: (id: string) => void;
+}) {
   const router = useRouter();
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [isPending, startTransition] = useTransition();
   if (!items.length) return null;
-  const review = (item: PendingStaffApproval, decision: "approve" | "reject") => {
+  const review = (
+    item: PendingStaffApproval,
+    decision: "approve" | "reject",
+  ) => {
     setPendingId(item.id);
     setMessage("");
     startTransition(async () => {
@@ -413,12 +1235,200 @@ function PendingStaffApprovals({ items, onResolved }: { items: PendingStaffAppro
       setPendingId(null);
     });
   };
-  return <section data-command-card aria-labelledby="pending-staff-approvals-title" className="rounded-2xl border border-brand/25 p-5 sm:p-6"><div className="flex items-center justify-between gap-3"><div><PanelTitle id="pending-staff-approvals-title" label="Aprobaciones de Staff pendientes"/><p className="mt-2 text-xs text-muted">Aprobar ejecuta la asignación canónica completa sin abrir Staff ni el Evento.</p></div><span className="rounded-full bg-brand/10 px-3 py-1 text-xs font-semibold text-brand">{items.length}</span></div>{message?<p aria-live="polite" className="mt-4 rounded-xl border bg-background/40 p-3 text-xs text-muted">{message}</p>:null}<div className="mt-5 space-y-3">{items.map(item=><article className="grid gap-3 rounded-xl border bg-background/30 p-4 lg:grid-cols-[1.1fr_1.1fr_.8fr_.8fr_auto] lg:items-center" key={item.id}><div><p className="text-[10px] uppercase tracking-[.12em] text-muted">Colaborador</p><p className="mt-1 text-sm font-semibold">{item.collaborator}</p></div><div><p className="text-[10px] uppercase tracking-[.12em] text-muted">Evento</p><p className="mt-1 text-sm font-semibold">{item.event}</p></div><div><p className="text-[10px] uppercase tracking-[.12em] text-muted">Rol</p><p className="mt-1 text-sm font-semibold">{roleLabel[item.role]??item.role}</p></div><div><p className="text-[10px] uppercase tracking-[.12em] text-muted">Pago estimado</p><p className="mt-1 text-sm font-semibold">{money(item.estimatedPayment)}</p></div><div className="flex flex-wrap gap-2 lg:justify-end"><button className="min-h-10 rounded-xl bg-brand px-3 text-xs font-semibold text-brand-foreground disabled:opacity-50" aria-busy={isPending} disabled={isPending} onClick={()=>review(item,"approve")}>{pendingId===item.id&&isPending?"Procesando…":"Aprobar"}</button><button className="min-h-10 rounded-xl border px-3 text-xs font-semibold disabled:opacity-50" aria-busy={isPending} disabled={isPending} onClick={()=>review(item,"reject")}>Rechazar</button><Link className="inline-flex min-h-10 items-center rounded-xl border px-3 text-xs font-semibold text-muted hover:text-brand" href={`/projects/${item.projectId}#staff-assignment`}>Ver</Link></div></article>)}</div></section>;
+  return (
+    <section
+      data-command-card
+      aria-labelledby="pending-staff-approvals-title"
+      className="rounded-2xl border border-brand/25 p-5 sm:p-6"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <PanelTitle
+            id="pending-staff-approvals-title"
+            label="Aprobaciones de Staff pendientes"
+          />
+          <p className="mt-2 text-xs text-muted">
+            Aprobar ejecuta la asignación canónica completa sin abrir Staff ni
+            el Evento.
+          </p>
+        </div>
+        <span className="rounded-full bg-brand/10 px-3 py-1 text-xs font-semibold text-brand">
+          {items.length}
+        </span>
+      </div>
+      {message ? (
+        <p
+          aria-live="polite"
+          className="mt-4 rounded-xl border bg-background/40 p-3 text-xs text-muted"
+        >
+          {message}
+        </p>
+      ) : null}
+      <div className="mt-5 space-y-3">
+        {items.map((item) => (
+          <article
+            className="grid gap-3 rounded-xl border bg-background/30 p-4 lg:grid-cols-[1.1fr_1.1fr_.8fr_.8fr_auto] lg:items-center"
+            key={item.id}
+          >
+            <div>
+              <p className="text-[10px] uppercase tracking-[.12em] text-muted">
+                Colaborador
+              </p>
+              <p className="mt-1 text-sm font-semibold">{item.collaborator}</p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-[.12em] text-muted">
+                Evento
+              </p>
+              <p className="mt-1 text-sm font-semibold">{item.event}</p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-[.12em] text-muted">
+                Rol
+              </p>
+              <p className="mt-1 text-sm font-semibold">
+                {roleLabel[item.role] ?? item.role}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-[.12em] text-muted">
+                Pago estimado
+              </p>
+              <p className="mt-1 text-sm font-semibold">
+                {money(item.estimatedPayment)}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 lg:justify-end">
+              <button
+                className="min-h-10 rounded-xl bg-brand px-3 text-xs font-semibold text-brand-foreground disabled:opacity-50"
+                aria-busy={isPending}
+                disabled={isPending}
+                onClick={() => review(item, "approve")}
+              >
+                {pendingId === item.id && isPending ? "Procesando…" : "Aprobar"}
+              </button>
+              <button
+                className="min-h-10 rounded-xl border px-3 text-xs font-semibold disabled:opacity-50"
+                aria-busy={isPending}
+                disabled={isPending}
+                onClick={() => review(item, "reject")}
+              >
+                Rechazar
+              </button>
+              <Link
+                className="inline-flex min-h-10 items-center rounded-xl border px-3 text-xs font-semibold text-muted hover:text-brand"
+                href={`/projects/${item.projectId}#staff-assignment`}
+              >
+                Ver
+              </Link>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
 }
 
-function PanelTitle({ id, label }: { id: string; label: string }) { return <h2 data-command-label id={id}>{label}</h2>; }
-export function FounderKpiValue({ children }: { children: string }) { return <strong data-kpi-value className="orbit-counter mt-3 block max-w-full min-w-0 whitespace-nowrap font-semibold leading-[1.05] tracking-[-.05em] [font-variant-numeric:tabular-nums]" style={{ fontSize: "clamp(1.05rem, 1.6vw, 1.5rem)" }}>{children}</strong>; }
-function OrderableItem({ children, controls }: { children: ReactNode; controls: ReactNode }) { return controls ? <div className="relative min-w-0 rounded-2xl ring-1 ring-brand/50">{children}{controls}</div> : <>{children}</>; }
-function OrderControls({ avoidWorkspaceMenu = false, disableDown, disableUp, label, onDown, onUp }: { avoidWorkspaceMenu?: boolean; disableDown: boolean; disableUp: boolean; label: string; onDown: () => void; onUp: () => void }) { return <span className={`absolute top-2 flex gap-1 rounded-lg border bg-card/95 p-1 shadow-sm ${avoidWorkspaceMenu ? "right-14 z-40" : "right-2 z-10"}`}><button aria-label={`Mover arriba ${label}`} className="grid size-9 place-items-center rounded-md text-muted hover:bg-accent hover:text-brand disabled:opacity-30" disabled={disableUp} onClick={(event) => { event.preventDefault(); event.stopPropagation(); onUp(); }} type="button"><ArrowUp className="size-4" /></button><button aria-label={`Mover abajo ${label}`} className="grid size-9 place-items-center rounded-md text-muted hover:bg-accent hover:text-brand disabled:opacity-30" disabled={disableDown} onClick={(event) => { event.preventDefault(); event.stopPropagation(); onDown(); }} type="button"><ArrowDown className="size-4" /></button></span>; }
-function StatusPill({ tone = "info" }: { tone?: CommandCenterItem["tone"] }) { const resolved = tone ?? "info"; return <span className={`hidden rounded-lg px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[.06em] sm:inline-flex ${toneStyle[resolved]}`}>{resolved === "danger" ? "Crítico" : resolved === "warning" ? "Pendiente" : "Activo"}</span>; }
-function Empty({ label }: { label: string }) { return <p className="rounded-xl border border-dashed p-4 text-xs text-muted">{label}</p>; }
+function PanelTitle({ id, label }: { id: string; label: string }) {
+  return (
+    <h2 data-command-label id={id}>
+      {label}
+    </h2>
+  );
+}
+export function FounderKpiValue({ children }: { children: string }) {
+  return (
+    <strong
+      data-kpi-value
+      className="orbit-counter mt-3 block max-w-full min-w-0 whitespace-nowrap font-semibold leading-[1.05] tracking-[-.05em] [font-variant-numeric:tabular-nums]"
+      style={{ fontSize: "clamp(1.05rem, 1.6vw, 1.5rem)" }}
+    >
+      {children}
+    </strong>
+  );
+}
+function OrderableItem({
+  children,
+  controls,
+}: {
+  children: ReactNode;
+  controls: ReactNode;
+}) {
+  return controls ? (
+    <div className="relative min-w-0 rounded-2xl ring-1 ring-brand/50">
+      {children}
+      {controls}
+    </div>
+  ) : (
+    <>{children}</>
+  );
+}
+function OrderControls({
+  avoidWorkspaceMenu = false,
+  disableDown,
+  disableUp,
+  label,
+  onDown,
+  onUp,
+}: {
+  avoidWorkspaceMenu?: boolean;
+  disableDown: boolean;
+  disableUp: boolean;
+  label: string;
+  onDown: () => void;
+  onUp: () => void;
+}) {
+  return (
+    <span
+      className={`absolute top-2 flex gap-1 rounded-lg border bg-card/95 p-1 shadow-sm ${avoidWorkspaceMenu ? "right-14 z-40" : "right-2 z-10"}`}
+    >
+      <button
+        aria-label={`Mover arriba ${label}`}
+        className="grid size-9 place-items-center rounded-md text-muted hover:bg-accent hover:text-brand disabled:opacity-30"
+        disabled={disableUp}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          onUp();
+        }}
+        type="button"
+      >
+        <ArrowUp className="size-4" />
+      </button>
+      <button
+        aria-label={`Mover abajo ${label}`}
+        className="grid size-9 place-items-center rounded-md text-muted hover:bg-accent hover:text-brand disabled:opacity-30"
+        disabled={disableDown}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          onDown();
+        }}
+        type="button"
+      >
+        <ArrowDown className="size-4" />
+      </button>
+    </span>
+  );
+}
+function StatusPill({ tone = "info" }: { tone?: CommandCenterItem["tone"] }) {
+  const resolved = tone ?? "info";
+  return (
+    <span
+      className={`hidden rounded-lg px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[.06em] sm:inline-flex ${toneStyle[resolved]}`}
+    >
+      {resolved === "danger"
+        ? "Crítico"
+        : resolved === "warning"
+          ? "Pendiente"
+          : "Activo"}
+    </span>
+  );
+}
+function Empty({ label }: { label: string }) {
+  return (
+    <p className="rounded-xl border border-dashed p-4 text-xs text-muted">
+      {label}
+    </p>
+  );
+}

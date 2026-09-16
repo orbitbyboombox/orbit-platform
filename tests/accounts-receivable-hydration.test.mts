@@ -9,7 +9,7 @@ const center = readFileSync(
 
 test("Accounts Receivable SSR uses deterministic CLP and date text", () => {
   assert.match(center, /String\(Math\.abs\(rounded\)\)\.replace/);
-  assert.match(center, /value\.slice\(0,10\)\.split\("-"\)/);
+  assert.match(center, /value\.slice\(0,\s*10\)\.split\("-"\)/);
   assert.doesNotMatch(center, /const money=.*Intl\.NumberFormat/);
   assert.doesNotMatch(center, /const date=.*Intl\.DateTimeFormat/);
 });

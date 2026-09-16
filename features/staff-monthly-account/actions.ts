@@ -4,15 +4,12 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerActionClient } from "@/lib/supabase/server";
 import { loadPortalSession } from "@/features/portal-authentication/portal-auth.service";
-import {
-  mapStaffMonthlyAccount,
-  monthlyBoletaPath,
-  monthlyReceiptPath,
-  monthlySettlementPath,
-  STAFF_MONTHLY_ACCOUNT_SELECT,
-} from "./model";
+import { monthlyBoletaPath, monthlyReceiptPath } from "./model";
 import { syncStaffDocumentArchive } from "./drive-archive.service";
-import { createStaffMonthlySettlementPdf } from "./settlement-pdf";
+import {
+  prepareMonthlySettlementDocument,
+  sendMonthlyPaymentCompletedEmail,
+} from "./monthly-communication.service";
 const allowed = new Set([
   "application/pdf",
   "image/jpeg",
@@ -42,7 +39,9 @@ const optionalFileFrom = (form: Pick<FormData, "get">, field: string) => {
   const extension = file.name.split(".").pop()?.toLowerCase() ?? "",
     mime = allowed.has(file.type) ? file.type : extensionMime.get(extension);
   if (!mime || file.size > 15 * 1024 * 1024)
-    throw new Error("El comprobante debe ser PDF o imagen y pesar hasta 15 MB.");
+    throw new Error(
+      "El comprobante debe ser PDF o imagen y pesar hasta 15 MB.",
+    );
   return { file, mime };
 };
 const refresh = () => {
@@ -175,20 +174,26 @@ export async function registerStaffReimbursementPaymentAction(form: FormData) {
   let uploadedPath = "";
   const fail = (stage: string, error: unknown) => {
     const info = errorInfo(error);
-    console.error(JSON.stringify({
-      event: "staff_reimbursement_payment_failed",
-      stage,
-      correlationId,
-      code: info.code || info.name,
-      message: info.message,
-    }));
-    const duplicate = info.code === "23505" || /ya fue pagado/i.test(info.message);
+    console.error(
+      JSON.stringify({
+        event: "staff_reimbursement_payment_failed",
+        stage,
+        correlationId,
+        code: info.code || info.name,
+        message: info.message,
+      }),
+    );
+    const duplicate =
+      info.code === "23505" || /ya fue pagado/i.test(info.message);
     const message = duplicate
       ? "Este reembolso ya fue pagado; no se creó un duplicado."
       : stage === "validation"
         ? info.message
         : "No fue posible registrar el pago del reembolso.";
-    return { ok: duplicate, message: `${message} Referencia: ${correlationId}` };
+    return {
+      ok: duplicate,
+      message: `${message} Referencia: ${correlationId}`,
+    };
   };
   try {
     const client = await adminContext();
@@ -196,13 +201,24 @@ export async function registerStaffReimbursementPaymentAction(form: FormData) {
     const amount = Number(form.get("amount"));
     const paidOn = String(form.get("paidOn") ?? "");
     const methodChoice = String(form.get("method") ?? "");
-    const method = methodChoice === "OTRO"
-      ? String(form.get("methodOther") ?? "").trim()
-      : methodChoice.trim();
+    const method =
+      methodChoice === "OTRO"
+        ? String(form.get("methodOther") ?? "").trim()
+        : methodChoice.trim();
     const notes = String(form.get("notes") ?? "").trim();
     const requestId = String(form.get("requestId") ?? "").trim();
-    if (!expenseId || !paidOn || !method || !requestId || !Number.isFinite(amount) || amount <= 0)
-      return fail("validation", new Error("Completa los datos requeridos del reembolso."));
+    if (
+      !expenseId ||
+      !paidOn ||
+      !method ||
+      !requestId ||
+      !Number.isFinite(amount) ||
+      amount <= 0
+    )
+      return fail(
+        "validation",
+        new Error("Completa los datos requeridos del reembolso."),
+      );
 
     const admin = createAdminClient();
     const { data: expense, error: expenseError } = await admin
@@ -211,11 +227,24 @@ export async function registerStaffReimbursementPaymentAction(form: FormData) {
       .eq("id", expenseId)
       .is("deleted_at", null)
       .maybeSingle();
-    if (expenseError || !expense) return fail("validation", expenseError ?? new Error("Reembolso no encontrado."));
-    if (expense.status !== "APPROVED" || expense.expense_scope !== "STAFF_REIMBURSEMENT")
-      return fail("validation", new Error("Solo se puede pagar un reembolso Staff aprobado."));
+    if (expenseError || !expense)
+      return fail(
+        "validation",
+        expenseError ?? new Error("Reembolso no encontrado."),
+      );
+    if (
+      expense.status !== "APPROVED" ||
+      expense.expense_scope !== "STAFF_REIMBURSEMENT"
+    )
+      return fail(
+        "validation",
+        new Error("Solo se puede pagar un reembolso Staff aprobado."),
+      );
     if (Number(expense.total) !== amount)
-      return fail("validation", new Error("El monto debe coincidir con el reembolso aprobado."));
+      return fail(
+        "validation",
+        new Error("El monto debe coincidir con el reembolso aprobado."),
+      );
 
     const selected = optionalFileFrom(form, "receipt");
     let receiptBucket: string | null = null;
@@ -228,37 +257,47 @@ export async function registerStaffReimbursementPaymentAction(form: FormData) {
       const bytes = await selected.file.arrayBuffer();
       const safeName = selected.file.name.replace(/[^a-zA-Z0-9._-]+/g, "-");
       uploadedPath = `staff/${expense.responsible_staff_id}/05_COMPROBANTES_PAGO/reembolsos/${expenseId}/${idempotencyKey}-${safeName}`;
-      const upload = await admin.storage.from("orbit-documents").upload(uploadedPath, bytes, {
-        contentType: selected.mime,
-        upsert: true,
-      });
+      const upload = await admin.storage
+        .from("orbit-documents")
+        .upload(uploadedPath, bytes, {
+          contentType: selected.mime,
+          upsert: true,
+        });
       if (upload.error) return fail("storage", upload.error);
       receiptBucket = "orbit-documents";
       receiptName = selected.file.name;
       receiptMime = selected.mime;
     }
-    const { data, error } = await client.rpc("register_staff_reimbursement_payment", {
-      p_expense_id: expenseId,
-      p_amount: amount,
-      p_paid_on: paidOn,
-      p_method: method,
-      p_notes: notes || null,
-      p_idempotency_key: idempotencyKey,
-      p_receipt_bucket: receiptBucket,
-      p_receipt_path: uploadedPath || null,
-      p_receipt_file_name: receiptName,
-      p_receipt_mime_type: receiptMime,
-    });
+    const { data, error } = await client.rpc(
+      "register_staff_reimbursement_payment",
+      {
+        p_expense_id: expenseId,
+        p_amount: amount,
+        p_paid_on: paidOn,
+        p_method: method,
+        p_notes: notes || null,
+        p_idempotency_key: idempotencyKey,
+        p_receipt_bucket: receiptBucket,
+        p_receipt_path: uploadedPath || null,
+        p_receipt_file_name: receiptName,
+        p_receipt_mime_type: receiptMime,
+      },
+    );
     if (error) {
-      if (uploadedPath) await admin.storage.from("orbit-documents").remove([uploadedPath]);
+      if (uploadedPath)
+        await admin.storage.from("orbit-documents").remove([uploadedPath]);
       return fail("payment", error);
     }
-    console.info(JSON.stringify({
-      event: "staff_reimbursement_payment_complete",
-      correlationId,
-      expenseId,
-      idempotent: Boolean((data as { idempotent?: boolean } | null)?.idempotent),
-    }));
+    console.info(
+      JSON.stringify({
+        event: "staff_reimbursement_payment_complete",
+        correlationId,
+        expenseId,
+        idempotent: Boolean(
+          (data as { idempotent?: boolean } | null)?.idempotent,
+        ),
+      }),
+    );
     refresh();
     revalidatePath("/finance/cash-flow");
     revalidatePath("/finance/payables");
@@ -271,7 +310,10 @@ export async function registerStaffReimbursementPaymentAction(form: FormData) {
         : "Reembolso pagado y registrado por separado de los honorarios.",
     };
   } catch (error) {
-    if (uploadedPath) await createAdminClient().storage.from("orbit-documents").remove([uploadedPath]);
+    if (uploadedPath)
+      await createAdminClient()
+        .storage.from("orbit-documents")
+        .remove([uploadedPath]);
     return fail("unknown", error);
   }
 }
@@ -414,7 +456,8 @@ export async function completeSettlementEventAction(
       "complete_staff_settlement_event_operationally",
       { p_project_id: projectId, p_correlation_id: correlationId },
     );
-    if (error || !data) throw error ?? new Error("No se pudo completar el Evento.");
+    if (error || !data)
+      throw error ?? new Error("No se pudo completar el Evento.");
     refresh();
     return {
       ok: true,
@@ -425,7 +468,18 @@ export async function completeSettlementEventAction(
     };
   } catch (error) {
     const info = errorInfo(error);
-    console.error(JSON.stringify({event:"staff_event_completion_failed",stage:"atomic_completion",projectId,correlationId,code:info.code||info.name,message:info.message,details:info.details,hint:info.hint}));
+    console.error(
+      JSON.stringify({
+        event: "staff_event_completion_failed",
+        stage: "atomic_completion",
+        projectId,
+        correlationId,
+        code: info.code || info.name,
+        message: info.message,
+        details: info.details,
+        hint: info.hint,
+      }),
+    );
     return {
       ok: false,
       correlationId,
@@ -438,18 +492,37 @@ export async function registerStaffAdvanceAction(form: FormData) {
   const failureCorrelationId = randomUUID();
   let settlementId = "";
   try {
-    console.info(JSON.stringify({event:"staff_advance_registration_started",correlationId:failureCorrelationId}));
+    console.info(
+      JSON.stringify({
+        event: "staff_advance_registration_started",
+        correlationId: failureCorrelationId,
+      }),
+    );
     const client = await adminContext();
     settlementId = String(form.get("settlementId") ?? "");
     const amount = Number(form.get("amount"));
     const date = String(form.get("date") ?? "");
     const methodChoice = String(form.get("method") ?? "");
-    const method = methodChoice === "OTRO" ? String(form.get("methodOther") ?? "").trim() : methodChoice;
+    const method =
+      methodChoice === "OTRO"
+        ? String(form.get("methodOther") ?? "").trim()
+        : methodChoice;
     const notes = String(form.get("notes") ?? "").trim();
-    const receipt = fileFrom({ get: (key: string) => form.get(key === "file" ? "receipt" : key) });
+    const receipt = fileFrom({
+      get: (key: string) => form.get(key === "file" ? "receipt" : key),
+    });
     const boletaValue = form.get("boleta");
-    const boleta = boletaValue instanceof File && boletaValue.size ? fileFrom({ get: () => boletaValue }) : null;
-    if (!settlementId || !Number.isFinite(amount) || amount <= 0 || !date || !method)
+    const boleta =
+      boletaValue instanceof File && boletaValue.size
+        ? fileFrom({ get: () => boletaValue })
+        : null;
+    if (
+      !settlementId ||
+      !Number.isFinite(amount) ||
+      amount <= 0 ||
+      !date ||
+      !method
+    )
       throw new Error("Completa monto, fecha y método del adelanto.");
     const admin = createAdminClient();
     const { data: settlement, error: settlementError } = await admin
@@ -457,38 +530,118 @@ export async function registerStaffAdvanceAction(form: FormData) {
       .select("id,staff_id,project_id,status,deleted_at")
       .eq("id", settlementId)
       .maybeSingle();
-    if (settlementError || !settlement || settlement.status !== "CONFIRMED" || settlement.deleted_at)
+    if (
+      settlementError ||
+      !settlement ||
+      settlement.status !== "CONFIRMED" ||
+      settlement.deleted_at
+    )
       throw settlementError ?? new Error("Liquidación Staff no encontrada.");
-    const fileHash = async (file: File) => createHash("sha256").update(Buffer.from(await file.arrayBuffer())).digest("hex");
-    const idempotencyKey = createHash("sha256").update([settlementId, amount, date, method, notes, await fileHash(receipt.file), boleta ? await fileHash(boleta.file) : ""].join("|" )).digest("hex");
+    const fileHash = async (file: File) =>
+      createHash("sha256")
+        .update(Buffer.from(await file.arrayBuffer()))
+        .digest("hex");
+    const idempotencyKey = createHash("sha256")
+      .update(
+        [
+          settlementId,
+          amount,
+          date,
+          method,
+          notes,
+          await fileHash(receipt.file),
+          boleta ? await fileHash(boleta.file) : "",
+        ].join("|"),
+      )
+      .digest("hex");
     const receiptPath = `staff/advances/${settlement.staff_id}/${settlementId}/${idempotencyKey}/${receipt.file.name}`;
-    const receiptUpload = await admin.storage.from("orbit-documents").upload(receiptPath, await receipt.file.arrayBuffer(), {contentType:receipt.mime,upsert:true});
+    const receiptUpload = await admin.storage
+      .from("orbit-documents")
+      .upload(receiptPath, await receipt.file.arrayBuffer(), {
+        contentType: receipt.mime,
+        upsert: true,
+      });
     if (receiptUpload.error) throw receiptUpload.error;
     uploaded.push(receiptPath);
     let boletaPath: string | null = null;
     if (boleta) {
       boletaPath = `staff/advances/${settlement.staff_id}/${settlementId}/${idempotencyKey}/boleta-${boleta.file.name}`;
-      const boletaUpload = await admin.storage.from("orbit-documents").upload(boletaPath, await boleta.file.arrayBuffer(), {contentType:boleta.mime,upsert:true});
+      const boletaUpload = await admin.storage
+        .from("orbit-documents")
+        .upload(boletaPath, await boleta.file.arrayBuffer(), {
+          contentType: boleta.mime,
+          upsert: true,
+        });
       if (boletaUpload.error) throw boletaUpload.error;
       uploaded.push(boletaPath);
     }
-    const { data, error } = await client.rpc("register_staff_advance_with_documents", {
-      p_settlement_id:settlementId,p_amount:amount,p_date:date,p_method:method,p_notes:notes,p_idempotency_key:idempotencyKey,
-      p_receipt_bucket:"orbit-documents",p_receipt_path:receiptPath,p_receipt_file_name:receipt.file.name,p_receipt_mime_type:receipt.mime,
-      p_boleta_bucket:boletaPath?"orbit-documents":null,p_boleta_path:boletaPath,p_boleta_file_name:boleta?.file.name??null,p_boleta_mime_type:boleta?.mime??null,
-    });
+    const { data, error } = await client.rpc(
+      "register_staff_advance_with_documents",
+      {
+        p_settlement_id: settlementId,
+        p_amount: amount,
+        p_date: date,
+        p_method: method,
+        p_notes: notes,
+        p_idempotency_key: idempotencyKey,
+        p_receipt_bucket: "orbit-documents",
+        p_receipt_path: receiptPath,
+        p_receipt_file_name: receipt.file.name,
+        p_receipt_mime_type: receipt.mime,
+        p_boleta_bucket: boletaPath ? "orbit-documents" : null,
+        p_boleta_path: boletaPath,
+        p_boleta_file_name: boleta?.file.name ?? null,
+        p_boleta_mime_type: boleta?.mime ?? null,
+      },
+    );
     if (error) throw error;
     refresh();
-    for (const path of ["/operations", "/finance", "/reports", `/projects/${settlement.project_id}`]) revalidatePath(path);
-    const result = data && typeof data === "object" ? data as Record<string, unknown> : {};
-    console.info(JSON.stringify({event:"staff_advance_registration_completed",correlationId:failureCorrelationId,settlementId,idempotent:Boolean(result.idempotent)}));
-    return { ok: true, message: result.idempotent ? "✓ Este adelanto ya estaba registrado; no se duplicó." : "✓ Adelanto registrado y liquidación recalculada." };
+    for (const path of [
+      "/operations",
+      "/finance",
+      "/reports",
+      `/projects/${settlement.project_id}`,
+    ])
+      revalidatePath(path);
+    const result =
+      data && typeof data === "object" ? (data as Record<string, unknown>) : {};
+    console.info(
+      JSON.stringify({
+        event: "staff_advance_registration_completed",
+        correlationId: failureCorrelationId,
+        settlementId,
+        idempotent: Boolean(result.idempotent),
+      }),
+    );
+    return {
+      ok: true,
+      message: result.idempotent
+        ? "✓ Este adelanto ya estaba registrado; no se duplicó."
+        : "✓ Adelanto registrado y liquidación recalculada.",
+    };
   } catch (error) {
-    if (uploaded.length) await createAdminClient().storage.from("orbit-documents").remove(uploaded);
+    if (uploaded.length)
+      await createAdminClient()
+        .storage.from("orbit-documents")
+        .remove(uploaded);
     const info = errorInfo(error);
     const message = info.message || "No fue posible registrar el adelanto.";
-    console.error(JSON.stringify({event:"staff_advance_failed",stage:"payment",settlementId,correlationId:failureCorrelationId,code:info.code||info.name,message:info.message,details:info.details,hint:info.hint}));
-    return { ok: false, message: `${message} Referencia ${failureCorrelationId}` };
+    console.error(
+      JSON.stringify({
+        event: "staff_advance_failed",
+        stage: "payment",
+        settlementId,
+        correlationId: failureCorrelationId,
+        code: info.code || info.name,
+        message: info.message,
+        details: info.details,
+        hint: info.hint,
+      }),
+    );
+    return {
+      ok: false,
+      message: `${message} Referencia ${failureCorrelationId}`,
+    };
   }
 }
 export async function finalizeMonthlyStaffAccountAction(form: FormData) {
@@ -499,72 +652,7 @@ export async function finalizeMonthlyStaffAccountAction(form: FormData) {
         p_account_id: accountId,
       });
     if (error) throw error;
-    const admin = createAdminClient(),
-      { data: row, error: rowError } = await admin
-        .from("staff_monthly_accounts")
-        .select(STAFF_MONTHLY_ACCOUNT_SELECT)
-        .eq("id", accountId)
-        .single();
-    if (rowError) throw rowError;
-    const { data: staff, error: staffError } = await admin
-      .from("staff")
-      .select("first_name,last_name,rut,role")
-      .eq("id", row.staff_id)
-      .single();
-    if (staffError) throw staffError;
-    const account = mapStaffMonthlyAccount(row),
-      pdf = await createStaffMonthlySettlementPdf({
-        account,
-        staff: {
-          name: `${staff.first_name} ${staff.last_name}`,
-          rut: staff.rut ?? "",
-          role: staff.role ?? "",
-        },
-      }),
-      path = monthlySettlementPath(account.staffId, account.month),
-      upload = await admin.storage
-        .from("orbit-documents")
-        .upload(path, pdf, { contentType: "application/pdf", upsert: true });
-    if (upload.error) throw upload.error;
-    let { data: document } = await admin
-      .from("staff_onboarding_documents")
-      .select("id")
-      .eq("staff_id", account.staffId)
-      .eq("storage_bucket", "orbit-documents")
-      .eq("storage_path", path)
-      .eq("status", "ACTIVE")
-      .maybeSingle();
-    if (!document) {
-      const inserted = await admin
-        .from("staff_onboarding_documents")
-        .insert({
-          invitation_id: null,
-          staff_id: account.staffId,
-          document_type: "STAFF_MONTHLY_SETTLEMENT",
-          category: "LIQUIDACIONES",
-          applicable_month: account.month,
-          friendly_label: `Liquidación mensual ${account.month.slice(0, 7)}`,
-          status: "ACTIVE",
-          storage_bucket: "orbit-documents",
-          storage_path: path,
-          file_name: `liquidacion-staff-${account.month.slice(0, 7)}.pdf`,
-          mime_type: "application/pdf",
-        })
-        .select("id")
-        .single();
-      if (inserted.error) throw inserted.error;
-      document = inserted.data;
-    }
-    const link = await admin
-      .from("staff_monthly_accounts")
-      .update({ settlement_document_id: document.id })
-      .eq("id", accountId);
-    if (link.error) throw link.error;
-    try {
-      await syncStaffDocumentArchive(admin, document.id);
-    } catch (driveError) {
-      console.error("[ORBIT][STAFF_DRIVE_ARCHIVE]", driveError);
-    }
+    await prepareMonthlySettlementDocument(accountId);
     refresh();
     return {
       ok: true,
@@ -697,9 +785,10 @@ export async function registerMonthlyStaffPaymentAction(form: FormData) {
       amount = Number(form.get("amount")),
       paymentDate = String(form.get("paymentDate") ?? ""),
       methodChoice = String(form.get("method") ?? ""),
-      method = methodChoice === "OTRO"
-        ? String(form.get("methodOther") ?? "").trim()
-        : methodChoice,
+      method =
+        methodChoice === "OTRO"
+          ? String(form.get("methodOther") ?? "").trim()
+          : methodChoice,
       reference = String(form.get("reference") ?? ""),
       bytes = await file.arrayBuffer(),
       fileHash = createHash("sha256").update(Buffer.from(bytes)).digest("hex"),
@@ -735,11 +824,24 @@ export async function registerMonthlyStaffPaymentAction(form: FormData) {
       .eq("id", accountId)
       .maybeSingle();
     if (currentError) return fail("validation", currentError);
-    if (current?.payment_status === "PAID")
+    if (current?.payment_status === "PAID") {
+      try {
+        await sendMonthlyPaymentCompletedEmail(accountId);
+      } catch (emailError) {
+        console.error(
+          JSON.stringify({
+            event: "staff_payment_email_reconciliation_required",
+            accountId,
+            correlationId,
+            code: errorInfo(emailError).code || errorInfo(emailError).name,
+          }),
+        );
+      }
       return {
         ok: true,
         message: "Este pago ya estaba registrado; no se creó un duplicado.",
       };
+    }
     path = monthlyReceiptPath(staffId, month, key, file.name);
     const upload = await admin.storage
       .from("orbit-documents")
@@ -774,10 +876,32 @@ export async function registerMonthlyStaffPaymentAction(form: FormData) {
           }),
         );
       }
+    const { error: refreshError } = await client.rpc(
+      "refresh_staff_month_payment_state",
+      { p_month: `${month}-01` },
+    );
+    if (refreshError) throw refreshError;
+    let emailPending = false;
+    try {
+      await sendMonthlyPaymentCompletedEmail(accountId);
+    } catch (emailError) {
+      emailPending = true;
+      console.error(
+        JSON.stringify({
+          event: "staff_payment_email_reconciliation_required",
+          accountId,
+          correlationId,
+          code: errorInfo(emailError).code || errorInfo(emailError).name,
+          message: errorInfo(emailError).message,
+        }),
+      );
+    }
     refresh();
     return {
       ok: true,
-      message: "Pago final registrado una sola vez con comprobante.",
+      message: emailPending
+        ? "Pago final registrado. El correo quedó marcado para conciliación."
+        : "Pago final registrado una sola vez con comprobante y aviso enviado.",
     };
   } catch (error) {
     if (path)

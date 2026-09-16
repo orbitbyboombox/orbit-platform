@@ -1,12 +1,6 @@
 import "server-only";
 import { cache } from "react";
 import { createAdminClient } from "@/lib/supabase/admin";
-import {
-  OVERDUE_INVOICE_GROUP_HREF,
-  OVERDUE_INVOICE_GROUP_ID,
-  overdueGroupDetail,
-  type OverdueReceivableSummary,
-} from "./overdue-group";
 import { founderActionHref, isFounderActionVisible } from "./visibility";
 
 export type FounderActionPriority = "P0" | "P1" | "P2" | "P3";
@@ -31,7 +25,14 @@ export type FounderActionCenter = {
 
 const priority = (type: string, value: string): FounderActionPriority => {
   if (value === "CRITICAL") return "P0";
-  if (["STAFF_ONBOARDING_REVIEW_REQUIRED", "STAFF_EXPENSE_REVIEW_REQUIRED", "STAFF_BOLETA_REVIEW_REQUIRED"].includes(type)) return "P1";
+  if (
+    [
+      "STAFF_ONBOARDING_REVIEW_REQUIRED",
+      "STAFF_EXPENSE_REVIEW_REQUIRED",
+      "STAFF_BOLETA_REVIEW_REQUIRED",
+    ].includes(type)
+  )
+    return "P1";
   return value === "HIGH" ? "P2" : "P3";
 };
 
@@ -42,9 +43,11 @@ const cta = (type: string) =>
       ? "REVISAR GASTO"
       : type === "STAFF_BOLETA_REVIEW_REQUIRED"
         ? "REVISAR BOLETA"
-      : type === "PHYSICAL_CONFIGURATION_MISSING"
-        ? "DEFINIR CONFIGURACIÓN"
-      : type.startsWith("SALES_") ? "REVISAR LEAD" : "REVISAR";
+        : type === "PHYSICAL_CONFIGURATION_MISSING"
+          ? "DEFINIR CONFIGURACIÓN"
+          : type.startsWith("SALES_")
+            ? "REVISAR LEAD"
+            : "REVISAR";
 
 const canonicalFounderActionTypeList = [
   "STAFF_ONBOARDING_REVIEW_REQUIRED",
@@ -64,104 +67,189 @@ const canonicalFounderActionTypeList = [
   "WHATSAPP_UNREAD_CRITICAL",
   "PHYSICAL_CONFIGURATION_MISSING",
 ] as const;
-const canonicalFounderActionTypes = new Set<string>(canonicalFounderActionTypeList);
+const canonicalFounderActionTypes = new Set<string>(
+  canonicalFounderActionTypeList,
+);
 
-const loadFounderActionCenterCached = cache(async (userId: string): Promise<FounderActionCenter> => {
-  const admin = createAdminClient();
-  const { error: salesError } = await admin.rpc("reconcile_sales_pipeline_founder_alerts");
-  if (salesError && !["42883", "PGRST202"].includes(salesError.code ?? "")) throw salesError;
-  const { error: whatsappError } = await admin.rpc("reconcile_whatsapp_founder_alerts");
-  if (whatsappError && !["42883", "PGRST202"].includes(whatsappError.code ?? "")) throw whatsappError;
-  const { error: operationalError } = await admin.rpc("reconcile_operational_agenda_alerts");
-  if (operationalError && !["42883", "PGRST202"].includes(operationalError.code ?? "")) throw operationalError;
-  const { error: closedSalesError } = await admin.rpc("close_noncommercial_sales_alerts");
-  if (closedSalesError && !["42883", "PGRST202"].includes(closedSalesError.code ?? "")) throw closedSalesError;
-  const { error: closedStateError } = await admin.rpc("close_closed_sales_alerts");
-  if (closedStateError && !["42883", "PGRST202"].includes(closedStateError.code ?? "")) throw closedStateError;
-  const { error: reconciliationError } = await admin.rpc("reconcile_founder_action_alerts");
-  if (reconciliationError) throw reconciliationError;
-  const [
-    { data: rows, error },
-    { data: states, error: statesError },
-    { data: overdueData, error: overdueError },
-  ] = await Promise.all([
-    admin
-      .from("internal_notifications")
-      .select("id,notification_type,title,message,created_at,category,priority,related_href,entity_type,entity_id,projects(pipeline_stage,operations)")
-      .eq("action_required", true)
-      .neq("status", "RESOLVED")
-      .in("notification_type", [...canonicalFounderActionTypeList])
-      .order("created_at", { ascending: false })
-      .limit(250),
-    admin.from("notification_user_states").select("notification_id,read_at").eq("user_id", userId),
-    admin.rpc("get_overdue_receivable_summary"),
-  ]);
-  if (error || statesError || overdueError) throw error ?? statesError ?? overdueError;
-  const readIds = new Set((states ?? []).filter((state) => state.read_at).map((state) => state.notification_id));
-  const projected = (rows ?? [])
-    .filter((row) => {
-      if (!canonicalFounderActionTypes.has(row.notification_type)) return false;
-      const project = Array.isArray(row.projects) ? row.projects[0] : row.projects;
-      const operations = project?.operations && typeof project.operations === "object" ? project.operations as Record<string, unknown> : {};
-      const stage = String(project?.pipeline_stage ?? operations.pipelineStage ?? "").toUpperCase();
-      return isFounderActionVisible(row.notification_type, stage);
-    })
-    .map((row) => ({
-      id: row.id,
-      type: row.notification_type,
-      title: row.title,
-      detail: row.message,
-      href: founderActionHref(row.notification_type, row.entity_id, row.related_href),
-      createdAt: row.created_at,
-      priority: priority(row.notification_type, row.priority),
-      category: row.category,
-      read: readIds.has(row.id),
-      cta: cta(row.notification_type),
-      canonicalKey: `${row.entity_type ?? row.notification_type}:${row.entity_id ?? row.id}`,
-    }))
-    .sort((a, b) => a.priority.localeCompare(b.priority) || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-  const physicalItems = projected.filter((item) => item.type === "PHYSICAL_CONFIGURATION_MISSING");
-  const seen = new Set<string>();
-  const items: FounderActionItem[] = projected.filter((item) => item.type !== "PHYSICAL_CONFIGURATION_MISSING").filter((item) => {
-    if (seen.has(item.canonicalKey)) return false;
-    seen.add(item.canonicalKey);
-    return true;
-  });
-  if (physicalItems.length > 0) {
-    const first = physicalItems[0];
-    items.splice(items.length, 0, {
-      id: "PHYSICAL_CONFIGURATION_MISSING_GROUP",
-      type: "PHYSICAL_CONFIGURATION_MISSING",
-      title: `${physicalItems.length} eventos sin configuración física`,
-      detail: "Eventos próximos requieren definir una configuración física.",
-      href: "/operations/week#physical-configuration-missing",
-      createdAt: first.createdAt,
-      priority: physicalItems.some((item) => item.priority === "P0") ? "P0" : physicalItems.some((item) => item.priority === "P2") ? "P2" : "P3",
-      category: "OPERATIONS",
-      read: physicalItems.every((item) => item.read),
-      cta: "DEFINIR CONFIGURACIÓN",
-    });
-  }
-  const overdue = (overdueData ?? { count: 0, total: 0, oldestDueDate: null }) as OverdueReceivableSummary;
-  if (Number(overdue.count) > 0) {
-    items.push({
-      category: "PAYMENTS",
-      createdAt: overdue.oldestDueDate
-        ? `${overdue.oldestDueDate}T12:00:00-04:00`
-        : new Date().toISOString(),
-      cta: "VER FACTURAS VENCIDAS",
-      detail: overdueGroupDetail({ count: Number(overdue.count), total: Number(overdue.total) }),
-      href: OVERDUE_INVOICE_GROUP_HREF,
-      id: OVERDUE_INVOICE_GROUP_ID,
-      priority: "P2",
-      read: false,
-      title: "FACTURAS VENCIDAS",
-      type: "OVERDUE_INVOICE_GROUP",
-    });
-  }
-  items.sort((a, b) => a.priority.localeCompare(b.priority) || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-  return { count: items.length, items };
-});
+const loadFounderActionCenterCached = cache(
+  async (userId: string): Promise<FounderActionCenter> => {
+    const admin = createAdminClient();
+    const { error: salesError } = await admin.rpc(
+      "reconcile_sales_pipeline_founder_alerts",
+    );
+    if (salesError && !["42883", "PGRST202"].includes(salesError.code ?? ""))
+      throw salesError;
+    const { error: whatsappError } = await admin.rpc(
+      "reconcile_whatsapp_founder_alerts",
+    );
+    if (
+      whatsappError &&
+      !["42883", "PGRST202"].includes(whatsappError.code ?? "")
+    )
+      throw whatsappError;
+    const { error: operationalError } = await admin.rpc(
+      "reconcile_operational_agenda_alerts",
+    );
+    if (
+      operationalError &&
+      !["42883", "PGRST202"].includes(operationalError.code ?? "")
+    )
+      throw operationalError;
+    const { error: closedSalesError } = await admin.rpc(
+      "close_noncommercial_sales_alerts",
+    );
+    if (
+      closedSalesError &&
+      !["42883", "PGRST202"].includes(closedSalesError.code ?? "")
+    )
+      throw closedSalesError;
+    const { error: closedStateError } = await admin.rpc(
+      "close_closed_sales_alerts",
+    );
+    if (
+      closedStateError &&
+      !["42883", "PGRST202"].includes(closedStateError.code ?? "")
+    )
+      throw closedStateError;
+    const { error: reconciliationError } = await admin.rpc(
+      "reconcile_founder_action_alerts",
+    );
+    if (reconciliationError) throw reconciliationError;
+    const [
+      { data: rows, error },
+      { data: states, error: statesError },
+      { data: overdueInvoices, error: overdueError },
+    ] = await Promise.all([
+      admin
+        .from("internal_notifications")
+        .select(
+          "id,notification_type,title,message,created_at,category,priority,related_href,entity_type,entity_id,projects(pipeline_stage,operations)",
+        )
+        .eq("action_required", true)
+        .neq("status", "RESOLVED")
+        .in("notification_type", [...canonicalFounderActionTypeList])
+        .order("created_at", { ascending: false })
+        .limit(250),
+      admin
+        .from("notification_user_states")
+        .select("notification_id,read_at")
+        .eq("user_id", userId),
+      admin
+        .from("accounts_receivable_projection")
+        .select("id,invoice_number,due_date,outstanding_balance,projects(name)")
+        .gt("outstanding_balance", 0)
+        .lt("days_remaining", 0)
+        .not("effective_status", "in", "(PAID,CANCELLED,ARCHIVED)")
+        .order("due_date", { ascending: true })
+        .limit(100),
+    ]);
+    if (error || statesError || overdueError)
+      throw error ?? statesError ?? overdueError;
+    const readIds = new Set(
+      (states ?? [])
+        .filter((state) => state.read_at)
+        .map((state) => state.notification_id),
+    );
+    const projected = (rows ?? [])
+      .filter((row) => {
+        if (!canonicalFounderActionTypes.has(row.notification_type))
+          return false;
+        const project = Array.isArray(row.projects)
+          ? row.projects[0]
+          : row.projects;
+        const operations =
+          project?.operations && typeof project.operations === "object"
+            ? (project.operations as Record<string, unknown>)
+            : {};
+        const stage = String(
+          project?.pipeline_stage ?? operations.pipelineStage ?? "",
+        ).toUpperCase();
+        return isFounderActionVisible(row.notification_type, stage);
+      })
+      .map((row) => ({
+        id: row.id,
+        type: row.notification_type,
+        title: row.title,
+        detail: row.message,
+        href: founderActionHref(
+          row.notification_type,
+          row.entity_id,
+          row.related_href,
+        ),
+        createdAt: row.created_at,
+        priority: priority(row.notification_type, row.priority),
+        category: row.category,
+        read: readIds.has(row.id),
+        cta: cta(row.notification_type),
+        canonicalKey: `${row.entity_type ?? row.notification_type}:${row.entity_id ?? row.id}`,
+      }))
+      .sort(
+        (a, b) =>
+          a.priority.localeCompare(b.priority) ||
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      );
+    const physicalItems = projected.filter(
+      (item) => item.type === "PHYSICAL_CONFIGURATION_MISSING",
+    );
+    const seen = new Set<string>();
+    const items: FounderActionItem[] = projected
+      .filter((item) => item.type !== "PHYSICAL_CONFIGURATION_MISSING")
+      .filter((item) => {
+        if (seen.has(item.canonicalKey)) return false;
+        seen.add(item.canonicalKey);
+        return true;
+      });
+    if (physicalItems.length > 0) {
+      const first = physicalItems[0];
+      items.splice(items.length, 0, {
+        id: "PHYSICAL_CONFIGURATION_MISSING_GROUP",
+        type: "PHYSICAL_CONFIGURATION_MISSING",
+        title: `${physicalItems.length} eventos sin configuración física`,
+        detail: "Eventos próximos requieren definir una configuración física.",
+        href: "/operations/week#physical-configuration-missing",
+        createdAt: first.createdAt,
+        priority: physicalItems.some((item) => item.priority === "P0")
+          ? "P0"
+          : physicalItems.some((item) => item.priority === "P2")
+            ? "P2"
+            : "P3",
+        category: "OPERATIONS",
+        read: physicalItems.every((item) => item.read),
+        cta: "DEFINIR CONFIGURACIÓN",
+      });
+    }
+    for (const invoice of overdueInvoices ?? []) {
+      const project = Array.isArray(invoice.projects)
+        ? invoice.projects[0]
+        : invoice.projects;
+      const outstanding = new Intl.NumberFormat("es-CL", {
+        style: "currency",
+        currency: "CLP",
+        maximumFractionDigits: 0,
+      }).format(Number(invoice.outstanding_balance ?? 0));
+      items.push({
+        category: "PAYMENTS",
+        createdAt: invoice.due_date
+          ? `${invoice.due_date}T12:00:00-04:00`
+          : new Date().toISOString(),
+        cta: "ABRIR FACTURA",
+        detail: `${project?.name ?? "Evento"} · saldo ${outstanding} · venció ${invoice.due_date ?? "sin fecha"}`,
+        href: `/finance/receivables?invoice=${encodeURIComponent(invoice.id)}`,
+        id: `founder-action:invoice:${invoice.id}`,
+        priority: "P2",
+        read: false,
+        title: `Factura vencida · ${invoice.invoice_number}`,
+        type: "INVOICE_OVERDUE",
+      });
+    }
+    items.sort(
+      (a, b) =>
+        a.priority.localeCompare(b.priority) ||
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+    );
+    return { count: items.length, items };
+  },
+);
 
 export async function loadFounderActionCenter(userId: string) {
   return loadFounderActionCenterCached(userId);

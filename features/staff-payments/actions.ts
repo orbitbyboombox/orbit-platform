@@ -2,55 +2,139 @@
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerActionClient } from "@/lib/supabase/server";
+import {
+  prepareMonthlySettlementDocument,
+  sendMonthlySettlementReadyEmail,
+} from "@/features/staff-monthly-account/monthly-communication.service";
 
 type Result = { ok: true } | { ok: false; error: string };
-const text = (data: FormData, key: string) => String(data.get(key) ?? "").trim();
-const friendly = (error: unknown, fallback: string) => error instanceof Error && !/violates|constraint|postgres|supabase|invalid input/i.test(error.message) ? error.message : fallback;
+const text = (data: FormData, key: string) =>
+  String(data.get(key) ?? "").trim();
+const friendly = (error: unknown, fallback: string) =>
+  error instanceof Error &&
+  !/violates|constraint|postgres|supabase|invalid input/i.test(error.message)
+    ? error.message
+    : fallback;
 
 async function context() {
   const client = await createSupabaseServerActionClient();
   const { data } = await client.auth.getUser();
   if (!data.user) throw new Error("Tu sesión expiró. Vuelve a iniciar sesión.");
-  const { data: profile } = await client.from("profiles").select("role").eq("id", data.user.id).single();
-  if (!profile || !["CEO", "ADMINISTRATOR"].includes(profile.role)) throw new Error("Solo Administración puede gestionar pagos de Staff.");
+  const { data: profile } = await client
+    .from("profiles")
+    .select("role")
+    .eq("id", data.user.id)
+    .single();
+  if (!profile || !["CEO", "ADMINISTRATOR"].includes(profile.role))
+    throw new Error("Solo Administración puede gestionar pagos de Staff.");
   return { client, userId: data.user.id };
 }
 
-export async function addStaffSettlementAdjustmentAction(data: FormData): Promise<Result> {
+export async function addStaffSettlementAdjustmentAction(
+  data: FormData,
+): Promise<Result> {
   try {
     const { client } = await context();
-    const paymentId = text(data, "paymentId"), reason = text(data, "adjustmentReason"), comment = text(data, "adjustmentComment");
+    const paymentId = text(data, "paymentId"),
+      reason = text(data, "adjustmentReason"),
+      comment = text(data, "adjustmentComment");
     const direction = text(data, "adjustmentDirection") === "NEGATIVE" ? -1 : 1;
     const amount = Math.abs(Number(data.get("adjustmentAmount"))) * direction;
-    if (!paymentId || !Number.isFinite(amount) || amount === 0 || !comment) throw new Error("Ingresa el ajuste, motivo y comentario.");
-    const { data: payment, error: readError } = await client.from("event_staff_payments").select("project_id").eq("id", paymentId).is("deleted_at", null).single();
+    if (!paymentId || !Number.isFinite(amount) || amount === 0 || !comment)
+      throw new Error("Ingresa el ajuste, motivo y comentario.");
+    const { data: payment, error: readError } = await client
+      .from("event_staff_payments")
+      .select("project_id")
+      .eq("id", paymentId)
+      .is("deleted_at", null)
+      .single();
     if (readError) throw readError;
-    const { error } = await client.rpc("add_staff_settlement_adjustment", { p_settlement_id: paymentId, p_reason: reason, p_amount: amount, p_comment: comment });
+    const { error } = await client.rpc("add_staff_settlement_adjustment", {
+      p_settlement_id: paymentId,
+      p_reason: reason,
+      p_amount: amount,
+      p_comment: comment,
+    });
     if (error) throw error;
     revalidateSettlement(payment.project_id);
     return { ok: true };
   } catch (error) {
-    return { ok: false, error: friendly(error, "No fue posible registrar el ajuste.") };
+    return {
+      ok: false,
+      error: friendly(error, "No fue posible registrar el ajuste."),
+    };
   }
 }
 
-export async function addStaffSettlementReimbursementAction(data: FormData): Promise<Result> {
+export async function addStaffSettlementReimbursementAction(
+  data: FormData,
+): Promise<Result> {
   try {
     const { client, userId } = await context();
-    const paymentId = text(data, "paymentId"), category = text(data, "reimbursementCategory"), description = text(data, "reimbursementDescription"), status = text(data, "reimbursementStatus");
+    const paymentId = text(data, "paymentId"),
+      category = text(data, "reimbursementCategory"),
+      description = text(data, "reimbursementDescription"),
+      status = text(data, "reimbursementStatus");
     const amount = Number(data.get("reimbursementAmount"));
-    if (!paymentId || !description || !Number.isFinite(amount) || amount <= 0) throw new Error("Ingresa la descripción y monto del reembolso.");
-    if (!["FOOD", "PARKING", "FUEL", "TOLLS", "ACCOMMODATION", "OPERATIONAL_PURCHASES", "OTHER"].includes(category)) throw new Error("Categoría de reembolso inválida.");
-    if (!["PENDING", "PAID"].includes(status)) throw new Error("Estado de reembolso inválido.");
-    const { data: payment, error: readError } = await client.from("event_staff_payments").select("project_id,staff_id").eq("id", paymentId).eq("status", "CONFIRMED").is("deleted_at", null).single();
+    if (!paymentId || !description || !Number.isFinite(amount) || amount <= 0)
+      throw new Error("Ingresa la descripción y monto del reembolso.");
+    if (
+      ![
+        "FOOD",
+        "PARKING",
+        "FUEL",
+        "TOLLS",
+        "ACCOMMODATION",
+        "OPERATIONAL_PURCHASES",
+        "OTHER",
+      ].includes(category)
+    )
+      throw new Error("Categoría de reembolso inválida.");
+    if (!["PENDING", "PAID"].includes(status))
+      throw new Error("Estado de reembolso inválido.");
+    const { data: payment, error: readError } = await client
+      .from("event_staff_payments")
+      .select("project_id,staff_id")
+      .eq("id", paymentId)
+      .eq("status", "CONFIRMED")
+      .is("deleted_at", null)
+      .single();
     if (readError) throw readError;
-    const metadata = JSON.stringify({ description, source: "EVENT_STAFF_SETTLEMENT", reimbursementCategory: category, auditReason: "Reembolso operacional registrado desde la liquidación del Evento" });
-    const { error } = await client.from("expenses").insert({ project_id: payment.project_id, responsible_staff_id: payment.staff_id, event_staff_settlement_id: paymentId, occurred_on: text(data, "reimbursementDate") || new Date().toISOString().slice(0, 10), category, supplier: "Reembolso Staff", subtotal: amount, vat: 0, total: amount, currency: "CLP", status, approval_reason: metadata, created_by: userId, updated_by: userId });
+    const metadata = JSON.stringify({
+      description,
+      source: "EVENT_STAFF_SETTLEMENT",
+      reimbursementCategory: category,
+      auditReason:
+        "Reembolso operacional registrado desde la liquidación del Evento",
+    });
+    const { error } = await client
+      .from("expenses")
+      .insert({
+        project_id: payment.project_id,
+        responsible_staff_id: payment.staff_id,
+        event_staff_settlement_id: paymentId,
+        occurred_on:
+          text(data, "reimbursementDate") ||
+          new Date().toISOString().slice(0, 10),
+        category,
+        supplier: "Reembolso Staff",
+        subtotal: amount,
+        vat: 0,
+        total: amount,
+        currency: "CLP",
+        status,
+        approval_reason: metadata,
+        created_by: userId,
+        updated_by: userId,
+      });
     if (error) throw error;
     revalidateSettlement(payment.project_id);
     return { ok: true };
   } catch (error) {
-    return { ok: false, error: friendly(error, "No fue posible registrar el reembolso.") };
+    return {
+      ok: false,
+      error: friendly(error, "No fue posible registrar el reembolso."),
+    };
   }
 }
 
@@ -65,46 +149,193 @@ function revalidateSettlement(projectId: string) {
   revalidatePath("/");
 }
 
-export async function overrideStaffEventPaymentAction(data: FormData): Promise<Result> {
+export async function overrideStaffEventPaymentAction(
+  data: FormData,
+): Promise<Result> {
   try {
     const { client } = await context();
     const paymentId = text(data, "paymentId");
     const reason = text(data, "reason");
     const target = Math.max(0, Number(data.get("eventNet")));
-    if (!paymentId || !reason || !Number.isFinite(target)) throw new Error("Ingresa el neto del Evento y el motivo.");
-    const { data: payment, error: readError } = await client.from("event_staff_payments").select("project_id,operator_payment,assembly_payment,disassembly_payment").eq("id", paymentId).is("deleted_at", null).single();
+    if (!paymentId || !reason || !Number.isFinite(target))
+      throw new Error("Ingresa el neto del Evento y el motivo.");
+    const { data: payment, error: readError } = await client
+      .from("event_staff_payments")
+      .select(
+        "project_id,operator_payment,assembly_payment,disassembly_payment",
+      )
+      .eq("id", paymentId)
+      .is("deleted_at", null)
+      .single();
     if (readError) throw readError;
-    let operator = Number(payment.operator_payment), assembly = Number(payment.assembly_payment), disassembly = Number(payment.disassembly_payment);
+    let operator = Number(payment.operator_payment),
+      assembly = Number(payment.assembly_payment),
+      disassembly = Number(payment.disassembly_payment);
     if (operator > 0) operator = Math.max(0, target - assembly - disassembly);
     else if (assembly > 0) assembly = Math.max(0, target - disassembly);
     else disassembly = target;
-    const { error } = await client.rpc("set_staff_payment_override", { p_payment_id: paymentId, p_operator: operator, p_assembly: assembly, p_disassembly: disassembly, p_reason: reason });
+    const { error } = await client.rpc("set_staff_payment_override", {
+      p_payment_id: paymentId,
+      p_operator: operator,
+      p_assembly: assembly,
+      p_disassembly: disassembly,
+      p_reason: reason,
+    });
     if (error) throw error;
     revalidateSettlement(payment.project_id);
     return { ok: true };
   } catch (error) {
-    return { ok: false, error: friendly(error, "No fue posible ajustar el pago operacional.") };
+    return {
+      ok: false,
+      error: friendly(error, "No fue posible ajustar el pago operacional."),
+    };
   }
 }
 
-export async function updateStaffEventSettlementAction(data: FormData): Promise<Result> {
+export async function updateStaffEventSettlementAction(
+  data: FormData,
+): Promise<Result> {
   try {
     const { client } = await context();
-    const paymentId = text(data, "paymentId"), movementType = text(data, "movementType"), receiptStatus = text(data, "receiptStatus");
+    const paymentId = text(data, "paymentId"),
+      movementType = text(data, "movementType"),
+      receiptStatus = text(data, "receiptStatus");
     const amount = Math.max(0, Number(data.get("movementAmount")));
-    if (!paymentId || !amount) throw new Error("Ingresa el nuevo movimiento de pago.");
-    const { data: payment, error: readError } = await client.from("event_staff_payments").select("project_id").eq("id", paymentId).is("deleted_at", null).single();
+    if (!paymentId || !amount)
+      throw new Error("Ingresa el nuevo movimiento de pago.");
+    const { data: payment, error: readError } = await client
+      .from("event_staff_payments")
+      .select("project_id")
+      .eq("id", paymentId)
+      .is("deleted_at", null)
+      .single();
     if (readError) throw readError;
-    const { error } = await client.rpc("register_staff_settlement_movement", { p_settlement_id: paymentId, p_type: movementType, p_amount: amount, p_date: text(data, "paidAt") || null, p_method: text(data,"method"), p_notes: text(data,"notes") });
+    const { error } = await client.rpc("register_staff_settlement_movement", {
+      p_settlement_id: paymentId,
+      p_type: movementType,
+      p_amount: amount,
+      p_date: text(data, "paidAt") || null,
+      p_method: text(data, "method"),
+      p_notes: text(data, "notes"),
+    });
     if (error) throw error;
-    const{error:receiptError}=await client.rpc("update_staff_settlement_receipt",{p_settlement_id:paymentId,p_receipt_status:receiptStatus});if(receiptError)throw receiptError;
-    await client.rpc("refresh_staff_month_payment_state",{p_month:text(data,"accountingMonth")||new Date().toISOString().slice(0,7)+"-01"});revalidateSettlement(payment.project_id);
+    const { error: receiptError } = await client.rpc(
+      "update_staff_settlement_receipt",
+      { p_settlement_id: paymentId, p_receipt_status: receiptStatus },
+    );
+    if (receiptError) throw receiptError;
+    await client.rpc("refresh_staff_month_payment_state", {
+      p_month:
+        text(data, "accountingMonth") ||
+        new Date().toISOString().slice(0, 7) + "-01",
+    });
+    revalidateSettlement(payment.project_id);
     return { ok: true };
   } catch (error) {
-    return { ok: false, error: friendly(error, "No fue posible actualizar el pago del evento.") };
+    return {
+      ok: false,
+      error: friendly(error, "No fue posible actualizar el pago del evento."),
+    };
   }
 }
 
-export async function previewStaffMonthCloseAction(month:string){try{const{client}=await context();const{data,error}=await client.rpc("preview_staff_monthly_close",{p_month:`${month}-01`});if(error)throw error;return{ok:true,data}}catch(error){return{ok:false,error:friendly(error,"No fue posible revisar el cierre mensual.")}}}
-export async function closeStaffMonthAction(month:string){try{const{client}=await context();const{data,error}=await client.rpc("close_staff_month",{p_month:`${month}-01`});if(error)throw error;revalidatePath("/resources/staff");return{ok:true,data}}catch(error){return{ok:false,error:friendly(error,"No fue posible cerrar el mes Staff.")}}}
-export async function reopenStaffMonthAction(month:string,reason:string){try{const{client}=await context();const{data,error}=await client.rpc("reopen_staff_month",{p_month:`${month}-01`,p_reason:reason});if(error)throw error;revalidatePath("/resources/staff");return{ok:true,data}}catch(error){return{ok:false,error:friendly(error,"No fue posible reabrir el mes Staff.")}}}
+export async function previewStaffMonthCloseAction(month: string) {
+  try {
+    const { client } = await context();
+    const { data, error } = await client.rpc("preview_staff_monthly_close", {
+      p_month: `${month}-01`,
+    });
+    if (error) throw error;
+    return { ok: true, data };
+  } catch (error) {
+    return {
+      ok: false,
+      error: friendly(error, "No fue posible revisar el cierre mensual."),
+    };
+  }
+}
+export async function closeStaffMonthAction(month: string) {
+  try {
+    const { client } = await context();
+    const accountingMonth = `${month.slice(0, 7)}-01`;
+    const { data: preview, error: previewError } = await client.rpc(
+      "preview_staff_monthly_close",
+      { p_month: accountingMonth },
+    );
+    if (previewError) throw previewError;
+    if (preview?.status === "CLOSED" || preview?.status === "PAID") {
+      return { ok: true, data: preview, delivered: 0, idempotent: 0 };
+    }
+    const { error: generateError } = await client.rpc(
+      "generate_staff_monthly_accounts",
+      { p_month: accountingMonth },
+    );
+    if (generateError) throw generateError;
+    const { data: accounts, error: accountError } = await client
+      .from("staff_monthly_accounts")
+      .select("id,settlement_status,review_required,work_net")
+      .eq("accounting_month", accountingMonth)
+      .order("staff_id");
+    if (accountError) throw accountError;
+    if (!accounts?.length)
+      throw new Error("No existen liquidaciones Staff para el período.");
+    const blocked = accounts.filter(
+      (account) => account.review_required || Number(account.work_net) <= 0,
+    );
+    if (blocked.length) {
+      throw new Error(
+        `${blocked.length} liquidación(es) requieren revisión Founder antes del cierre.`,
+      );
+    }
+    let delivered = 0;
+    let idempotent = 0;
+    for (const account of accounts) {
+      if (account.settlement_status !== "FINALIZED") {
+        const { error: finalizeError } = await client.rpc(
+          "finalize_staff_monthly_account",
+          { p_account_id: account.id },
+        );
+        if (finalizeError) throw finalizeError;
+      }
+    }
+    for (const account of accounts) {
+      const prepared = await prepareMonthlySettlementDocument(account.id);
+      const delivery = await sendMonthlySettlementReadyEmail(prepared);
+      if (delivery.sent) delivered += 1;
+      if (delivery.idempotent) idempotent += 1;
+    }
+    const { data, error } = await client.rpc("close_staff_month", {
+      p_month: accountingMonth,
+    });
+    if (error) throw error;
+    revalidatePath("/resources/staff");
+    revalidatePath("/staff-portal");
+    revalidatePath("/");
+    return { ok: true, data, delivered, idempotent };
+  } catch (error) {
+    return {
+      ok: false,
+      error: friendly(
+        error,
+        "No fue posible cerrar y distribuir el mes Staff.",
+      ),
+    };
+  }
+}
+export async function reopenStaffMonthAction(month: string, reason: string) {
+  try {
+    const { client } = await context();
+    const { data, error } = await client.rpc("reopen_staff_month", {
+      p_month: `${month}-01`,
+      p_reason: reason,
+    });
+    if (error) throw error;
+    revalidatePath("/resources/staff");
+    return { ok: true, data };
+  } catch (error) {
+    return {
+      ok: false,
+      error: friendly(error, "No fue posible reabrir el mes Staff."),
+    };
+  }
+}

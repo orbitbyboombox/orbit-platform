@@ -5,11 +5,15 @@ import { ExternalLink, Search, TriangleAlert } from "lucide-react";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { MobileDialog } from "@/components/ui/mobile-dialog";
-import { closeStaffMonthAction, previewStaffMonthCloseAction, reopenStaffMonthAction } from "./actions";
-import {StaffMonthlyAccountPanel}from"@/features/staff-monthly-account/staff-monthly-account-panel";
-import {generateMonthlyStaffAccountsAction}from"@/features/staff-monthly-account/actions";
-import {registerMonthlyStaffPaymentAction}from"@/features/staff-monthly-account/actions";
-import type{StaffMonthlyAccount}from"@/features/staff-monthly-account/model";
+import {
+  closeStaffMonthAction,
+  previewStaffMonthCloseAction,
+  reopenStaffMonthAction,
+} from "./actions";
+import { StaffMonthlyAccountPanel } from "@/features/staff-monthly-account/staff-monthly-account-panel";
+import { generateMonthlyStaffAccountsAction } from "@/features/staff-monthly-account/actions";
+import { registerMonthlyStaffPaymentAction } from "@/features/staff-monthly-account/actions";
+import type { StaffMonthlyAccount } from "@/features/staff-monthly-account/model";
 
 export type StaffPaymentEvent = {
   id: string;
@@ -62,6 +66,27 @@ const roleLabel = (value: string) =>
   ({ OPERATOR: "Operador", ASSEMBLY: "Montaje", DISASSEMBLY: "Desmontaje" })[
     value
   ] ?? value;
+const splitName = (name: string) => {
+  const parts = name.trim().split(/\s+/);
+  return {
+    firstName: parts[0] ?? "",
+    lastName: parts.slice(1).join(" "),
+  };
+};
+const boletaLabel = (account: StaffMonthlyAccount) =>
+  account.boletaStatus === "APPROVED"
+    ? "APROBADA ✓"
+    : account.boletaStatus === "RECEIVED"
+      ? "EN REVISIÓN"
+      : account.boletaStatus === "REJECTED"
+        ? "RECHAZADA"
+        : "PENDIENTE";
+const paymentLabel = (account: StaffMonthlyAccount) =>
+  account.paymentStatus === "PAID"
+    ? "PAGADO ✓"
+    : account.paymentStatus === "READY_TO_PAY"
+      ? "PENDIENTE"
+      : "BLOQUEADO";
 
 export function StaffPaymentsCenter({
   staff,
@@ -75,11 +100,50 @@ export function StaffPaymentsCenter({
   initialReviewAccountId?: string;
 }) {
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
-  const [openStaffId,setOpenStaffId]=useState<string|null>(null);
+  const [openStaffId, setOpenStaffId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [closeState,setCloseState]=useState<{status?:string;dueDate?:string;eligible?:number;ineligible?:number;totals?:{people?:number;total?:number;paid?:number;pending?:number;receiptsPending?:number}}|null>(null),[closeMessage,setCloseMessage]=useState(""),[reopenReason,setReopenReason]=useState(""),[closing,startClosing]=useTransition();
-  useEffect(()=>{if(!initialReviewAccountId)return;const target=months.find(item=>item.account?.id===initialReviewAccountId);if(target){setMonth(target.month.slice(0,7));setOpenStaffId(target.staffId)}},[initialReviewAccountId,months]);
-  useEffect(()=>{let active=true;startClosing(async()=>{const result=await previewStaffMonthCloseAction(month);if(active){if(result.ok)setCloseState(result.data);else setCloseMessage(result.error??"No fue posible cargar el cierre mensual.")}});return()=>{active=false}},[month]);
+  const [closeState, setCloseState] = useState<{
+      status?: string;
+      dueDate?: string;
+      eligible?: number;
+      ineligible?: number;
+      totals?: {
+        people?: number;
+        total?: number;
+        paid?: number;
+        pending?: number;
+        receiptsPending?: number;
+      };
+    } | null>(null),
+    [closeMessage, setCloseMessage] = useState(""),
+    [reopenReason, setReopenReason] = useState(""),
+    [closing, startClosing] = useTransition();
+  useEffect(() => {
+    if (!initialReviewAccountId) return;
+    const target = months.find(
+      (item) => item.account?.id === initialReviewAccountId,
+    );
+    if (target) {
+      setMonth(target.month.slice(0, 7));
+      setOpenStaffId(target.staffId);
+    }
+  }, [initialReviewAccountId, months]);
+  useEffect(() => {
+    let active = true;
+    startClosing(async () => {
+      const result = await previewStaffMonthCloseAction(month);
+      if (active) {
+        if (result.ok) setCloseState(result.data);
+        else
+          setCloseMessage(
+            result.error ?? "No fue posible cargar el cierre mensual.",
+          );
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [month]);
   const rows = useMemo(
     () =>
       staff
@@ -91,8 +155,7 @@ export function StaffPaymentsCenter({
         .map((member) => {
           const eventRows = events.filter(
             (item) =>
-              item.staffId === member.id &&
-              item.eventDate.startsWith(month),
+              item.staffId === member.id && item.eventDate.startsWith(month),
           );
           const original = eventRows.reduce(
               (sum, item) => sum + item.originalNet,
@@ -116,7 +179,10 @@ export function StaffPaymentsCenter({
             ),
             payrollNet = original + adjustments,
             finalAmount = payrollNet + reimbursements,
-            payrollPaid = eventRows.reduce((sum, item) => sum + item.payrollPaidAmount, 0),
+            payrollPaid = eventRows.reduce(
+              (sum, item) => sum + item.payrollPaidAmount,
+              0,
+            ),
             paid = payrollPaid + reimbursementsPaid;
           return {
             member,
@@ -128,11 +194,15 @@ export function StaffPaymentsCenter({
             reimbursementsPending,
             finalAmount,
             paid,
-            outstanding: Math.max(payrollNet - payrollPaid, 0) + reimbursementsPending,
-            account: months.find(item=>item.staffId===member.id&&item.month.startsWith(month))?.account,
+            outstanding:
+              Math.max(payrollNet - payrollPaid, 0) + reimbursementsPending,
+            account: months.find(
+              (item) =>
+                item.staffId === member.id && item.month.startsWith(month),
+            )?.account,
           };
         })
-        .filter((row)=>row.eventRows.length>0||Boolean(row.account)),
+        .filter((row) => row.eventRows.length > 0 || Boolean(row.account)),
     [events, month, months, query, staff],
   );
   return (
@@ -146,7 +216,8 @@ export function StaffPaymentsCenter({
             Liquidación mensual Staff
           </h2>
           <p className="mt-2 text-sm text-muted">
-            Trabajo, boleta SII, adelantos y saldo final desde una sola fuente canónica.
+            Trabajo, boleta SII, adelantos y saldo final desde una sola fuente
+            canónica.
           </p>
         </div>
         <div className="grid gap-2 sm:grid-cols-2">
@@ -172,13 +243,136 @@ export function StaffPaymentsCenter({
           </label>
         </div>
       </header>
-      <section className="rounded-2xl border border-brand/25 bg-brand/5 p-4 sm:p-5"><div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Cierre mensual Staff</p><h3 className="mt-1 text-lg font-semibold">{month} · {closeState?.status??"OPEN"}</h3><p className="mt-1 text-sm text-muted">El período se determina por la fecha canónica del Evento.</p></div><div className="flex flex-wrap gap-2"><form action={form=>startClosing(async()=>{const result=await generateMonthlyStaffAccountsAction(form);setCloseMessage(result.message);if(result.ok)location.reload()})}><input name="month" type="hidden" value={month}/><Button disabled={closing}>Generar / actualizar liquidaciones</Button></form><Button disabled={closing||closeState?.status==='CLOSED'||closeState?.status==='PAID'} onClick={()=>startClosing(async()=>{const r=await closeStaffMonthAction(month);if(r.ok){setCloseState(r.data);setCloseMessage("Mes cerrado y universo congelado.")}else setCloseMessage(r.error??"No fue posible cerrar el mes.")})} variant="outline">Cerrar mes</Button><input className="min-h-11 rounded-xl border bg-background px-3" onChange={e=>setReopenReason(e.target.value)} placeholder="Motivo para reabrir" value={reopenReason}/><Button disabled={closing||closeState?.status!=='CLOSED'||reopenReason.trim().length<3} onClick={()=>startClosing(async()=>{const r=await reopenStaffMonthAction(month,reopenReason);if(r.ok){setCloseState(r.data);setCloseMessage("Mes reabierto con auditoría.")}else setCloseMessage(r.error??"No fue posible reabrir el mes.")})} variant="outline">Reabrir</Button></div></div><div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7"><Metric label="Personas" value={Number(closeState?.totals?.people??0)}/><Metric label="Total" value={Number(closeState?.totals?.total??0)}/><Metric label="Pagado" value={Number(closeState?.totals?.paid??0)}/><Metric label="Pendiente" value={Number(closeState?.totals?.pending??0)}/><Metric label="Boletas pendientes" value={Number(closeState?.totals?.receiptsPending??0)}/><Metric label="Elegibles" value={Number(closeState?.eligible??0)}/><Metric label="En revisión" value={Number(closeState?.ineligible??0)}/></div>{closeMessage&&<p aria-live="polite" className="mt-3 text-sm text-muted">{closeMessage}</p>}</section>
-      <PaymentSheet month={month} rows={rows}/>
+      <section className="rounded-2xl border border-brand/25 bg-brand/5 p-4 sm:p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">
+              Cierre mensual Staff
+            </p>
+            <h3 className="mt-1 text-lg font-semibold">
+              {month} · {closeState?.status ?? "OPEN"}
+            </h3>
+            <p className="mt-1 text-sm text-muted">
+              Al cerrar, ORBIT congela las liquidaciones, genera cada PDF y
+              solicita la boleta por correo.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <form
+              action={(form) =>
+                startClosing(async () => {
+                  const result = await generateMonthlyStaffAccountsAction(form);
+                  setCloseMessage(result.message);
+                  if (result.ok) location.reload();
+                })
+              }
+            >
+              <input name="month" type="hidden" value={month} />
+              <Button loading={closing} loadingLabel="Actualizando…">
+                Generar / actualizar liquidaciones
+              </Button>
+            </form>
+            <Button
+              disabled={
+                closeState?.status === "CLOSED" || closeState?.status === "PAID"
+              }
+              loading={closing}
+              loadingLabel="Generando y enviando…"
+              onClick={() =>
+                startClosing(async () => {
+                  const result = await closeStaffMonthAction(month);
+                  if (result.ok) {
+                    setCloseState(result.data);
+                    setCloseMessage(
+                      `Mes cerrado · ${result.delivered ?? 0} correo(s) enviado(s) · ${result.idempotent ?? 0} ya procesado(s).`,
+                    );
+                  } else
+                    setCloseMessage(
+                      result.error ?? "No fue posible cerrar el mes.",
+                    );
+                })
+              }
+              variant="outline"
+            >
+              CERRAR MES Y SOLICITAR BOLETAS
+            </Button>
+            <input
+              className="min-h-11 rounded-xl border bg-background px-3"
+              onChange={(event) => setReopenReason(event.target.value)}
+              placeholder="Motivo para reabrir"
+              value={reopenReason}
+            />
+            <Button
+              disabled={
+                closeState?.status !== "CLOSED" ||
+                reopenReason.trim().length < 3
+              }
+              loading={closing}
+              loadingLabel="Reabriendo…"
+              onClick={() =>
+                startClosing(async () => {
+                  const result = await reopenStaffMonthAction(
+                    month,
+                    reopenReason,
+                  );
+                  if (result.ok) {
+                    setCloseState(result.data);
+                    setCloseMessage("Mes reabierto con auditoría.");
+                  } else
+                    setCloseMessage(
+                      result.error ?? "No fue posible reabrir el mes.",
+                    );
+                })
+              }
+              variant="outline"
+            >
+              Reabrir
+            </Button>
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+          <Metric
+            label="Personas"
+            value={Number(closeState?.totals?.people ?? 0)}
+          />
+          <Metric
+            label="Total"
+            value={Number(closeState?.totals?.total ?? 0)}
+          />
+          <Metric
+            label="Pagado"
+            value={Number(closeState?.totals?.paid ?? 0)}
+          />
+          <Metric
+            label="Pendiente"
+            value={Number(closeState?.totals?.pending ?? 0)}
+          />
+          <Metric
+            label="Boletas pendientes"
+            value={Number(closeState?.totals?.receiptsPending ?? 0)}
+          />
+          <Metric label="Elegibles" value={Number(closeState?.eligible ?? 0)} />
+          <Metric
+            label="En revisión"
+            value={Number(closeState?.ineligible ?? 0)}
+          />
+        </div>
+        {closeMessage && (
+          <p aria-live="polite" className="mt-3 text-sm text-muted">
+            {closeMessage}
+          </p>
+        )}
+      </section>
+      <PaymentSheet month={month} rows={rows} />
       <div className="grid gap-4 xl:grid-cols-2">
         {rows.map((row) => (
-          <details open={openStaffId===row.member.id}
+          <details
+            open={openStaffId === row.member.id}
             className="rounded-2xl border p-4 sm:p-5"
-            onToggle={(event)=>{if(event.currentTarget.open)setOpenStaffId(row.member.id);else if(openStaffId===row.member.id)setOpenStaffId(null)}}
+            onToggle={(event) => {
+              if (event.currentTarget.open) setOpenStaffId(row.member.id);
+              else if (openStaffId === row.member.id) setOpenStaffId(null);
+            }}
             key={row.member.id}
           >
             <summary className="cursor-pointer list-none">
@@ -213,13 +407,25 @@ export function StaffPaymentsCenter({
               <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
                 <Metric label="Neto original" value={row.original} />
                 <Metric label="Ajustes" value={row.adjustments} />
-                <Metric label="Reembolsos aprobados" value={row.reimbursements} />
-                <Metric label="Reembolsos pagados" value={row.reimbursementsPaid} />
-                <Metric label="Reembolsos pendientes" value={row.reimbursementsPending} />
+                <Metric
+                  label="Reembolsos aprobados"
+                  value={row.reimbursements}
+                />
+                <Metric
+                  label="Reembolsos pagados"
+                  value={row.reimbursementsPaid}
+                />
+                <Metric
+                  label="Reembolsos pendientes"
+                  value={row.reimbursementsPending}
+                />
                 <Metric label="Monto final" value={row.finalAmount} />
                 <Metric label="Ya pagado" value={row.paid} />
                 <Metric label="Saldo pendiente" value={row.outstanding} />
-                <Metric label="Boleta SII" value={row.account?.boletaGross??0} />
+                <Metric
+                  label="Boleta SII"
+                  value={row.account?.boletaGross ?? 0}
+                />
                 <Metric
                   label="Boletas pendientes"
                   value={
@@ -240,11 +446,17 @@ export function StaffPaymentsCenter({
                 />
               </dl>
               <p className="mt-3 text-xs font-semibold text-brand">
-                  Ver liquidación
+                Ver liquidación
               </p>
             </summary>
             <div className="mt-4 space-y-3">
-              {row.account&&<StaffMonthlyAccountPanel account={row.account} mode="FOUNDER" onBack={()=>setOpenStaffId(null)}/>}
+              {row.account && (
+                <StaffMonthlyAccountPanel
+                  account={row.account}
+                  mode="FOUNDER"
+                  onBack={() => setOpenStaffId(null)}
+                />
+              )}
               {row.eventRows.map((item) => (
                 <EventRow item={item} key={item.id} />
               ))}
@@ -255,7 +467,295 @@ export function StaffPaymentsCenter({
     </section>
   );
 }
-function PaymentSheet({month,rows}:{month:string;rows:Array<{member:StaffPaymentMember;account?:StaffMonthlyAccount}>}){const[chosen,setChosen]=useState<{member:StaffPaymentMember;account:StaffMonthlyAccount}|null>(null),[pending,start]=useTransition(),[message,setMessage]=useState(""),router=useRouter();const payable=rows.filter(row=>row.account).map(row=>({member:row.member,account:row.account!})),total=payable.reduce((sum,row)=>sum+(row.account.boletaStatus==="APPROVED"&&row.account.paymentStatus==="READY_TO_PAY"?row.account.finalTransferAmount:0),0);const submit=async(form:FormData)=>{start(async()=>{const result=await registerMonthlyStaffPaymentAction(form);setMessage(result.message);if(result.ok){setChosen(null);router.refresh()}})};return <section className="rounded-2xl border bg-background/40 p-4 sm:p-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Planilla de pagos Staff</p><h3 className="mt-1 text-xl font-semibold capitalize">{new Date(`${month}-01T12:00:00Z`).toLocaleDateString("es-CL",{month:"long",year:"numeric"})}</h3></div><button className="min-h-11 rounded-xl border px-4 text-sm font-semibold print:hidden" onClick={()=>window.print()} type="button">Imprimir planilla</button></div><div className="mt-4 grid gap-2 sm:hidden">{payable.map(({member,account})=><article className="rounded-xl border bg-card p-4" key={account.id}><div className="flex items-start justify-between gap-3"><div><p className="font-semibold">{member.name}</p><p className="text-sm text-muted">{new Date(`${month}-01T12:00:00Z`).toLocaleDateString("es-CL",{month:"long",year:"numeric"})}</p></div><strong>{account.paymentStatus==="PAID"?"PAGADO ✓":account.paymentStatus==="READY_TO_PAY"?money.format(account.finalTransferAmount):"BLOQUEADO"}</strong></div><dl className="mt-3 grid grid-cols-2 gap-2 text-sm"><div><dt className="text-muted">Boleta</dt><dd className="font-semibold">{account.boletaStatus==="APPROVED"?"APROBADA ✓":account.boletaStatus==="RECEIVED"?"EN REVISIÓN":account.boletaStatus==="REJECTED"?"RECHAZADA":"PENDIENTE"}</dd></div><div><dt className="text-muted">Pago</dt><dd className="font-semibold">{account.paymentStatus==="PAID"?"PAGADO ✓":account.paymentStatus==="READY_TO_PAY"?"PENDIENTE":"BLOQUEADO"}</dd></div></dl>{account.paymentStatus==="READY_TO_PAY"&&account.boletaStatus==="APPROVED"?<button className="mt-3 min-h-11 w-full rounded-xl bg-brand px-4 font-semibold text-brand-foreground" onClick={()=>setChosen({member,account})} type="button">Pagar</button>:null}</article>)}</div><div className="mt-4 hidden overflow-x-auto sm:block"><table className="w-full text-left text-sm"><thead><tr className="border-b text-xs uppercase tracking-wider text-muted"><th className="p-3">Operador</th><th className="p-3">Período</th><th className="p-3 text-right">Saldo a pagar</th><th className="p-3">Boleta</th><th className="p-3">Pago</th><th className="p-3">Acción</th></tr></thead><tbody>{payable.map(({member,account})=><tr className="border-b" key={account.id}><td className="p-3 font-semibold">{member.name}</td><td className="p-3">{month}</td><td className="p-3 text-right font-semibold">{account.paymentStatus==="READY_TO_PAY"?money.format(account.finalTransferAmount):"—"}</td><td className="p-3">{account.boletaStatus==="APPROVED"?"APROBADA ✓":"PENDIENTE"}</td><td className="p-3">{account.paymentStatus==="PAID"?"PAGADO ✓":account.paymentStatus==="READY_TO_PAY"?"PENDIENTE":"BLOQUEADO"}</td><td className="p-3">{account.paymentStatus==="READY_TO_PAY"&&account.boletaStatus==="APPROVED"?<button className="min-h-11 rounded-xl bg-brand px-3 font-semibold text-brand-foreground" onClick={()=>setChosen({member,account})} type="button">Pagar</button>:account.paymentStatus==="PAID"?"Ver comprobante":"—"}</td></tr>)}</tbody></table></div><div className="mt-4 flex flex-col gap-1 rounded-xl bg-card p-4 sm:flex-row sm:items-center sm:justify-between"><strong>TOTAL GENERAL A DEPOSITAR</strong><strong className="text-2xl text-brand">{money.format(total)}</strong></div>{message?<p aria-live="polite" className="mt-3 text-sm text-muted">{message}</p>:null}{chosen?<MobileDialog eyebrow="Payment Ledger · Staff" title="REGISTRAR PAGO STAFF" description={`${chosen.member.name} · ${month}`} onClose={()=>!pending&&setChosen(null)}><form action={submit} className="space-y-3"><p className="text-sm">¿Confirmas el pago de {money.format(chosen.account.finalTransferAmount)} correspondiente a {month} para {chosen.member.name}?</p><dl className="grid grid-cols-2 gap-2 text-sm"><div><dt className="text-muted">Total trabajado</dt><dd className="font-semibold">{money.format(chosen.account.workNet)}</dd></div><div><dt className="text-muted">Boleta SII</dt><dd className="font-semibold">APROBADA ✓</dd></div><div><dt className="text-muted">Adelantos realizados</dt><dd className="font-semibold">{money.format(chosen.account.advancesTotal)}</dd></div><div><dt className="text-muted">Saldo final a pagar</dt><dd className="font-semibold">{money.format(chosen.account.finalTransferAmount)}</dd></div></dl><input name="accountId" type="hidden" value={chosen.account.id}/><input name="staffId" type="hidden" value={chosen.account.staffId}/><input name="month" type="hidden" value={month}/><input name="amount" type="hidden" value={chosen.account.finalTransferAmount}/><label className="block text-sm">Fecha de pago<input className="mt-1 min-h-11 w-full rounded-xl border px-3" name="paymentDate" required type="date"/></label><label className="block text-sm">Método<input className="mt-1 min-h-11 w-full rounded-xl border px-3" name="method" required/></label><label className="block text-sm">Referencia<input className="mt-1 min-h-11 w-full rounded-xl border px-3" name="reference" value="Pago mensual Staff" readOnly/></label><label className="block text-sm font-semibold">ADJUNTAR COMPROBANTE DE PAGO<input accept="application/pdf,image/jpeg,image/png,image/webp" className="mt-1 block w-full text-sm" name="file" required type="file"/></label><Button className="w-full" aria-busy={pending} disabled={pending} type="submit">{pending?"Registrando…":"REGISTRAR PAGO"}</Button></form></MobileDialog>:null}</section>}
+function PaymentSheet({
+  month,
+  rows,
+}: {
+  month: string;
+  rows: Array<{ member: StaffPaymentMember; account?: StaffMonthlyAccount }>;
+}) {
+  const [chosen, setChosen] = useState<{
+      member: StaffPaymentMember;
+      account: StaffMonthlyAccount;
+    } | null>(null),
+    [pending, start] = useTransition(),
+    [message, setMessage] = useState(""),
+    router = useRouter();
+  const payable = rows
+      .filter((row) => row.account)
+      .map((row) => ({ member: row.member, account: row.account! })),
+    total = payable.reduce(
+      (sum, row) =>
+        sum +
+        (row.account.boletaStatus === "APPROVED" &&
+        row.account.paymentStatus === "READY_TO_PAY"
+          ? row.account.finalTransferAmount
+          : 0),
+      0,
+    );
+  const submit = async (form: FormData) => {
+    start(async () => {
+      const result = await registerMonthlyStaffPaymentAction(form);
+      setMessage(result.message);
+      if (result.ok) {
+        setChosen(null);
+        router.refresh();
+      }
+    });
+  };
+  return (
+    <section className="rounded-2xl border bg-background/40 p-4 sm:p-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">
+            Planilla de pagos Staff
+          </p>
+          <h3 className="mt-1 text-xl font-semibold capitalize">
+            {new Date(`${month}-01T12:00:00Z`).toLocaleDateString("es-CL", {
+              month: "long",
+              year: "numeric",
+            })}
+          </h3>
+        </div>
+        <button
+          className="min-h-11 rounded-xl border px-4 text-sm font-semibold print:hidden"
+          onClick={() => window.print()}
+          type="button"
+        >
+          Imprimir planilla
+        </button>
+      </div>
+      <div className="mt-4 grid gap-2 sm:hidden">
+        {payable.map(({ member, account }) => (
+          <article className="rounded-xl border bg-card p-4" key={account.id}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-semibold">{member.name}</p>
+                <p className="text-sm text-muted">
+                  {new Date(`${month}-01T12:00:00Z`).toLocaleDateString(
+                    "es-CL",
+                    { month: "long", year: "numeric" },
+                  )}
+                </p>
+              </div>
+              <strong>
+                {account.paymentStatus === "PAID"
+                  ? "PAGADO ✓"
+                  : account.paymentStatus === "READY_TO_PAY"
+                    ? money.format(account.finalTransferAmount)
+                    : "BLOQUEADO"}
+              </strong>
+            </div>
+            <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
+              <div>
+                <dt className="text-muted">Total generado</dt>
+                <dd className="font-semibold">{money.format(account.workNet)}</dd>
+              </div>
+              <div>
+                <dt className="text-muted">Adelantos</dt>
+                <dd className="font-semibold">-{money.format(account.advancesTotal)}</dd>
+              </div>
+              <div>
+                <dt className="text-muted">Reembolsos</dt>
+                <dd className="font-semibold">{money.format(account.reimbursementsTotal)}</dd>
+              </div>
+              <div>
+                <dt className="text-muted">Total liquidación</dt>
+                <dd className="font-semibold">{money.format(account.workNet + account.reimbursementsTotal)}</dd>
+              </div>
+              <div>
+                <dt className="text-muted">Valor con boleta</dt>
+                <dd className="font-semibold">{money.format(account.boletaGross)}</dd>
+              </div>
+              <div>
+                <dt className="text-muted">Valor a depositar</dt>
+                <dd className="font-semibold">{money.format(account.finalTransferAmount)}</dd>
+              </div>
+              <div>
+                <dt className="text-muted">Estado boleta</dt>
+                <dd className="font-semibold">{boletaLabel(account)}</dd>
+              </div>
+              <div>
+                <dt className="text-muted">Estado pago</dt>
+                <dd className="font-semibold">{paymentLabel(account)}</dd>
+              </div>
+            </dl>
+            {account.paymentStatus === "READY_TO_PAY" &&
+            account.boletaStatus === "APPROVED" ? (
+              <button
+                className="mt-3 min-h-11 w-full rounded-xl bg-brand px-4 font-semibold text-brand-foreground"
+                onClick={() => setChosen({ member, account })}
+                type="button"
+              >
+                Pagar
+              </button>
+            ) : null}
+          </article>
+        ))}
+      </div>
+      <div className="mt-4 hidden overflow-x-auto sm:block">
+        <table className="w-full text-left text-sm">
+          <thead>
+            <tr className="border-b text-xs uppercase tracking-wider text-muted">
+              <th className="p-3">Nombre</th>
+              <th className="p-3">Apellido</th>
+              <th className="p-3">Mes</th>
+              <th className="p-3 text-right">Total generado</th>
+              <th className="p-3 text-right">Adelantos</th>
+              <th className="p-3 text-right">Reembolsos</th>
+              <th className="p-3 text-right">Total liquidación</th>
+              <th className="p-3 text-right">Valor con boleta</th>
+              <th className="p-3 text-right">Valor a depositar</th>
+              <th className="p-3">Estado boleta</th>
+              <th className="p-3">Estado pago</th>
+              <th className="p-3">Acción</th>
+            </tr>
+          </thead>
+          <tbody>
+            {payable.map(({ member, account }) => (
+              <tr className="border-b" key={account.id}>
+                <td className="p-3 font-semibold">{splitName(member.name).firstName}</td>
+                <td className="p-3 font-semibold">{splitName(member.name).lastName}</td>
+                <td className="p-3">{month}</td>
+                <td className="p-3 text-right">{money.format(account.workNet)}</td>
+                <td className="p-3 text-right">-{money.format(account.advancesTotal)}</td>
+                <td className="p-3 text-right">{money.format(account.reimbursementsTotal)}</td>
+                <td className="p-3 text-right">{money.format(account.workNet + account.reimbursementsTotal)}</td>
+                <td className="p-3 text-right">{money.format(account.boletaGross)}</td>
+                <td className="p-3 text-right font-semibold">
+                  {money.format(account.finalTransferAmount)}
+                </td>
+                <td className="p-3">{boletaLabel(account)}</td>
+                <td className="p-3">{paymentLabel(account)}</td>
+                <td className="p-3">
+                  {account.paymentStatus === "READY_TO_PAY" &&
+                  account.boletaStatus === "APPROVED" ? (
+                    <button
+                      className="min-h-11 rounded-xl bg-brand px-3 font-semibold text-brand-foreground"
+                      onClick={() => setChosen({ member, account })}
+                      type="button"
+                    >
+                      Pagar
+                    </button>
+                  ) : account.paymentStatus === "PAID" ? (
+                    "Ver comprobante"
+                  ) : (
+                    "—"
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="mt-4 flex flex-col gap-1 rounded-xl bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+        <strong>TOTAL GENERAL A DEPOSITAR</strong>
+        <strong className="text-2xl text-brand">{money.format(total)}</strong>
+      </div>
+      {message ? (
+        <p aria-live="polite" className="mt-3 text-sm text-muted">
+          {message}
+        </p>
+      ) : null}
+      {chosen ? (
+        <MobileDialog
+          eyebrow="Payment Ledger · Staff"
+          title="REGISTRAR PAGO STAFF"
+          description={`${chosen.member.name} · ${month}`}
+          onClose={() => !pending && setChosen(null)}
+        >
+          <form action={submit} className="space-y-3">
+            <p className="text-sm">
+              ¿Confirmas el pago de{" "}
+              {money.format(chosen.account.finalTransferAmount)} correspondiente
+              a {month} para {chosen.member.name}?
+            </p>
+            <dl className="grid grid-cols-2 gap-2 text-sm">
+              <div>
+                <dt className="text-muted">Total trabajado</dt>
+                <dd className="font-semibold">
+                  {money.format(chosen.account.workNet)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted">Boleta SII</dt>
+                <dd className="font-semibold">APROBADA ✓</dd>
+              </div>
+              <div>
+                <dt className="text-muted">Adelantos realizados</dt>
+                <dd className="font-semibold">
+                  {money.format(chosen.account.advancesTotal)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted">Saldo final a pagar</dt>
+                <dd className="font-semibold">
+                  {money.format(chosen.account.finalTransferAmount)}
+                </dd>
+              </div>
+            </dl>
+            <input name="accountId" type="hidden" value={chosen.account.id} />
+            <input
+              name="staffId"
+              type="hidden"
+              value={chosen.account.staffId}
+            />
+            <input name="month" type="hidden" value={month} />
+            <input
+              name="amount"
+              type="hidden"
+              value={chosen.account.finalTransferAmount}
+            />
+            <label className="block text-sm">
+              Fecha de pago
+              <input
+                className="mt-1 min-h-11 w-full rounded-xl border px-3"
+                name="paymentDate"
+                required
+                type="date"
+              />
+            </label>
+            <label className="block text-sm">
+              Método
+              <input
+                className="mt-1 min-h-11 w-full rounded-xl border px-3"
+                name="method"
+                required
+              />
+            </label>
+            <label className="block text-sm">
+              Referencia
+              <input
+                className="mt-1 min-h-11 w-full rounded-xl border px-3"
+                name="reference"
+                value="Pago mensual Staff"
+                readOnly
+              />
+            </label>
+            <label className="block text-sm font-semibold">
+              ADJUNTAR COMPROBANTE DE PAGO
+              <input
+                accept="application/pdf,image/jpeg,image/png,image/webp"
+                className="mt-1 block w-full text-sm"
+                name="file"
+                required
+                type="file"
+              />
+            </label>
+            <Button
+              className="w-full"
+              loading={pending}
+              loadingLabel="Registrando y notificando…"
+              type="submit"
+            >
+              REGISTRAR PAGO
+            </Button>
+          </form>
+        </MobileDialog>
+      ) : null}
+    </section>
+  );
+}
 function EventRow({ item }: { item: StaffPaymentEvent }) {
   return (
     <article className="rounded-xl border p-3 text-sm">
@@ -290,14 +790,26 @@ function EventRow({ item }: { item: StaffPaymentEvent }) {
       <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
         <Box label="Original" value={money.format(item.originalNet)} />
         <Box label="Ajustes" value={money.format(item.adjustmentTotal)} />
-        <Box label="Reembolsos aprobados" value={money.format(item.reimbursementTotal)} />
-        <Box label="Reembolsos pagados" value={money.format(item.reimbursementPaidAmount)} />
-        <Box label="Reembolsos pendientes" value={money.format(item.reimbursementPendingAmount)} />
+        <Box
+          label="Reembolsos aprobados"
+          value={money.format(item.reimbursementTotal)}
+        />
+        <Box
+          label="Reembolsos pagados"
+          value={money.format(item.reimbursementPaidAmount)}
+        />
+        <Box
+          label="Reembolsos pendientes"
+          value={money.format(item.reimbursementPendingAmount)}
+        />
         <Box label="Monto final" value={money.format(item.finalAmount)} />
         <Box label="Anticipo / pagado" value={money.format(item.paidAmount)} />
         <Box
           label="Saldo total"
-          value={money.format(Math.max(0, item.payrollNet - item.payrollPaidAmount) + item.reimbursementPendingAmount)}
+          value={money.format(
+            Math.max(0, item.payrollNet - item.payrollPaidAmount) +
+              item.reimbursementPendingAmount,
+          )}
         />
       </div>
       <p
