@@ -28,6 +28,7 @@ import { ActionButton } from "@/components/ui/action-button";
 import { Button } from "@/components/ui/button";
 import { OrbitLoader } from "@/components/ui/orbit-loader";
 import { MunicipalityCombobox } from "@/components/forms/municipality-combobox";
+import { VenueLocationPicker } from "@/components/forms/venue-location-picker";
 import type { ActiveMunicipality } from "@/features/settings/master-data/municipality-master-data";
 import { resolveCanonicalVenue } from "@/features/settings/master-data/venue-resolution";
 import type { CollectionBankDetails } from "@/features/accounts-receivable/collection-bank-details";
@@ -1805,39 +1806,7 @@ export function NewProjectDrawer({
                   </div>
                 </div>
                 <div className="grid gap-5 sm:grid-cols-2">
-                  <div>
-                    <Field
-                      autoComplete="off"
-                      label="Lugar"
-                      list="orbit-event-venues"
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        const venue = venues.find((item) => item.name === value) ?? resolveCanonicalVenue(value, draft.event.city, venues);
-                        setDraft((current) => ({
-                          ...current,
-                          event: {
-                            ...current.event,
-                            location: value,
-                            city: venue?.municipality ?? "",
-                          },
-                        }));
-                      }}
-                      placeholder="Escribe el nombre de la sede"
-                      value={draft.event.location}
-                    />
-                    <datalist id="orbit-event-venues">
-                      {venues.map((venue) => (
-                        <option key={venue.name} value={venue.name}>
-                          {venue.municipality}
-                        </option>
-                      ))}
-                    </datalist>
-                    {draft.event.location && !selectedVenue && (
-                      <p className="mt-2 text-xs text-muted">
-                        Selecciona una sede configurada en las sugerencias.
-                      </p>
-                    )}
-                  </div>
+                  <VenueLocationPicker municipalities={municipalities} municipality={draft.event.city} onMunicipalityChange={(value) => event("city", value)} onVenueChange={(value) => setDraft((current) => ({ ...current, event: { ...current.event, location: value } }))} venue={draft.event.location} venues={venues} />
                   <Field
                     label="Dirección del evento"
                     onChange={(e) => setEventAddress(e.target.value)}
