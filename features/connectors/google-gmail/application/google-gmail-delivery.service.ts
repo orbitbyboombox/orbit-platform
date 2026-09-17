@@ -7,7 +7,12 @@ import { GoogleGmailApiProvider } from "../provider/google-gmail-live.provider";
 import { renderFounderReservationNotification } from "./reservation-notification.presentation";
 import { sendReservationConfirmation } from "./reservation-confirmation.service";
 
-export async function deliverConfirmedReservationEmail(input: { projectId: string; actorId: string; portal?: { url: string; expiresAt: string } }): Promise<{ status: "SENT" | "PENDING"; messageId?: string }> {
+export async function deliverConfirmedReservationEmail(input: { projectId: string; actorId: string; portal?: { url: string; expiresAt: string }; smokeMode?: boolean }): Promise<{ status: "SENT" | "PENDING"; messageId?: string }> {
+  if (input.smokeMode) {
+    const messageId = `smoke-gmail-customer:${input.projectId}`;
+    console.info(JSON.stringify({ level: "info", event: "automatic_booking.smoke_sink", sink: "gmail_customer", projectId: input.projectId, messageId }));
+    return { status: "SENT", messageId };
+  }
   const result = await sendReservationConfirmation({
     projectId: input.projectId,
     actorId: input.actorId,
@@ -18,7 +23,12 @@ export async function deliverConfirmedReservationEmail(input: { projectId: strin
     : { status: "PENDING" };
 }
 
-export async function deliverFounderReservationNotification(input: { projectId: string; actorId: string }): Promise<{ status: "SENT" | "SKIPPED" | "FAILED"; messageId?: string }> {
+export async function deliverFounderReservationNotification(input: { projectId: string; actorId: string; smokeMode?: boolean }): Promise<{ status: "SENT" | "SKIPPED" | "FAILED"; messageId?: string }> {
+  if (input.smokeMode) {
+    const messageId = `smoke-gmail-founder:${input.projectId}`;
+    console.info(JSON.stringify({ level: "info", event: "automatic_booking.smoke_sink", sink: "gmail_founder", projectId: input.projectId, messageId }));
+    return { status: "SKIPPED", messageId };
+  }
   const admin = createAdminClient();
   const { data: existing, error: existingError } = await admin.from("communications").select("id,status,external_message_id").eq("project_id", input.projectId).eq("channel", "GMAIL").eq("communication_type", "INTERNAL_NOTIFICATION").eq("thread_key", `founder-reservation:${input.projectId}`).order("created_at",{ascending:false}).limit(1).maybeSingle();
   if (existingError) throw existingError;

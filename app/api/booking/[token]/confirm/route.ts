@@ -9,7 +9,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     const { token } = await params;
     const submission = await request.json() as AutomaticBookingSubmission;
     const result = await completeAutomaticBooking({ token, submission, ipAddress: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown", userAgent: request.headers.get("user-agent") ?? "unknown" });
-    return NextResponse.json({ ok: true, ...result });
+    return NextResponse.json({ ok: true, ...(result.alreadyConfirmed ? { code: "BOOKING_ALREADY_CONFIRMED" } : {}), ...result });
   } catch (error) {
     const failure = error instanceof AutomaticBookingConfirmationError
       ? error

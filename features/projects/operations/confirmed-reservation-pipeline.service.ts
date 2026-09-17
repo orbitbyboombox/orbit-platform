@@ -18,6 +18,7 @@ export async function runConfirmedReservationOperationalPipeline(input: {
     status: "STARTED" | "PASS" | "FAIL",
   ) => void | Promise<void>;
   continueOnError?: boolean;
+  smokeMode?: boolean;
 }) {
   let data: unknown = null;
   let calendar: unknown = null;
@@ -31,7 +32,7 @@ export async function runConfirmedReservationOperationalPipeline(input: {
     );if(result.error)throw result.error;return result.data;});
     data = result;
   }
-  if (!input.completedStages?.has("GOOGLE_CALENDAR")) {
+  if (!input.completedStages?.has("GOOGLE_CALENDAR") && !input.smokeMode) {
     calendar = await run("GOOGLE_CALENDAR",()=>synchronizeConfirmedReservationCalendar({
       client: input.client,
       projectId: input.projectId,
@@ -39,12 +40,13 @@ export async function runConfirmedReservationOperationalPipeline(input: {
       policy: "EXISTING_LEGACY_UPDATE",
     }));
   }
-  if (!input.completedStages?.has("GOOGLE_DRIVE")) {
+  if (!input.completedStages?.has("GOOGLE_DRIVE") && !input.smokeMode) {
     drive = await run("GOOGLE_DRIVE",()=>synchronizeConfirmedReservationDrive({
       client: input.client,
       projectId: input.projectId,
       actorId: input.actorId,
     }));
   }
+  if (input.smokeMode) console.info(JSON.stringify({ level: "info", event: "automatic_booking.smoke_sink", sink: "calendar_drive", projectId: input.projectId }));
   return { business: data, calendar, drive, failures };
 }

@@ -10,6 +10,7 @@ import { automaticBookingTokenHash } from "./automatic-booking.service";
 import { confirmPersistedReservation } from "@/features/projects/operations/confirmed-reservation-orchestrator.service";
 import { isValidChileanRut } from "@/lib/chile/rut";
 import { serializeWhatsAppError } from "@/features/connectors/whatsapp-cloud/whatsapp-observability";
+import { isAutomaticBookingSmokeMode, smokeSinkId } from "./automatic-booking-smoke";
 
 export interface AutomaticBookingSubmission {
   customer: { name: string; rut: string; phone: string; email: string; address: string };
@@ -63,7 +64,15 @@ export async function completeAutomaticBooking(input: { token: string; submissio
   const submittedEmail = input.submission?.customer?.email;
   if (typeof submittedEmail !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(submittedEmail)) throw new Error("La información enviada no es válida.");
   const tokenHash = automaticBookingTokenHash(input.token);
-  const { data: currentInvitation } = await admin.from("automatic_booking_invitations").select("id,status,project_id,processing_at").eq("token_hash", tokenHash).eq("customer_email", submittedEmail.trim().toLowerCase()).gt("expires_at", now).is("consumed_at", null).maybeSingle();
+  const { data: currentInvitation } = await admin.from("automatic_booking_invitations").select("id,status,state,project_id,processing_at,consumed_at,payload,expires_at,created_by,customer_email").eq("token_hash", tokenHash).eq("customer_email", submittedEmail.trim().toLowerCase()).maybeSingle();
+  if (currentInvitation?.status === "COMPLETED" && currentInvitation.state === "CONFIRMED" && currentInvitation.project_id) {
+    const { data: existingProject, error: existingProjectError } = await admin.from("projects").select("id,event_date,finance,project_services(service_code),quotations(quotation_number,grand_total,final_customer_price)").eq("id", currentInvitation.project_id).is("deleted_at", null).single();
+    if (existingProjectError) throw existingProjectError;
+    const quotation = Array.isArray(existingProject.quotations) ? existingProject.quotations[0] : existingProject.quotations;
+    const finance = existingProject.finance && typeof existingProject.finance === "object" ? existingProject.finance as Record<string, unknown> : {};
+    const services = Array.isArray(existingProject.project_services) ? existingProject.project_services : [];
+    return { alreadyConfirmed: true, projectId: existingProject.id, portalUrl: "/portal", contractUrl: `/projects/${existingProject.id}/documents`, reservationNumber: quotation?.quotation_number ?? null, eventDate: existingProject.event_date, service: services[0]?.service_code ?? null, reservation: Number(finance.reservationAmount ?? 0), balance: Number(finance.remainingBalance ?? 0), total: Number(quotation?.final_customer_price ?? quotation?.grand_total ?? finance.total ?? 0) };
+  }
   if (currentInvitation?.status === "PROCESSING" && currentInvitation.processing_at && Date.now() - new Date(currentInvitation.processing_at).getTime() < 10 * 60_000) throw new Error("BOOKING_IN_PROGRESS");
   if (currentInvitation?.status === "PROCESSING") await admin.from("automatic_booking_invitations").update({ status: "OPENED", processing_at: null }).eq("id", currentInvitation.id).eq("status", "PROCESSING");
   const { data: invitation, error: claimError } = await admin.from("automatic_booking_invitations").update({ status: "PROCESSING", processing_at: now }).eq("token_hash", tokenHash).eq("customer_email", submittedEmail.trim().toLowerCase()).gt("expires_at", now).is("consumed_at", null).in("status", ["SENT", "OPENED"]).select("id,created_by,customer_email,project_id,payload,status").maybeSingle();
@@ -72,6 +81,7 @@ export async function completeAutomaticBooking(input: { token: string; submissio
 
   let currentModule = "VALIDATION";
   let reservationId = invitation.project_id ?? invitation.id;
+  const smokeMode = isAutomaticBookingSmokeMode(invitation.payload);
   try {
     validate(input.submission);
     const actorId = invitation.created_by;
@@ -155,10 +165,12 @@ export async function completeAutomaticBooking(input: { token: string; submissio
     const existingReceipt = (await admin.from("documents").select("id,storage_path").eq("project_id", projectId).eq("document_type", "PAYMENT_RECEIPT").eq("checksum", receiptChecksum).is("deleted_at", null).maybeSingle()).data;
     let receiptDocument = existingReceipt;
     if (!receiptDocument) {
-      const receiptPath = `${projectId}/${receiptChecksum}-${input.submission.payment.receiptName.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
-      const receiptStorage = await measured("payment_receipt_storage", () => admin.storage.from("orbit-documents").upload(receiptPath, receiptBytes, { contentType: input.submission.payment.receiptType, upsert: true }));
-      if (receiptStorage.error) throw receiptStorage.error;
-      const inserted = await admin.from("documents").insert({ project_id: projectId, customer_id: customerId, document_type: "PAYMENT_RECEIPT", storage_bucket: "orbit-documents", storage_path: receiptPath, checksum: receiptChecksum, original_filename: input.submission.payment.receiptName, mime_type: input.submission.payment.receiptType, file_size: receiptBytes.length, uploaded_by: actorId, drive_sync_status: "PENDING", created_by: actorId }).select("id,storage_path").single();
+      const receiptPath = smokeMode ? smokeSinkId("receipt", `${projectId}/${receiptChecksum}`) : `${projectId}/${receiptChecksum}-${input.submission.payment.receiptName.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
+      if (!smokeMode) {
+        const receiptStorage = await measured("payment_receipt_storage", () => admin.storage.from("orbit-documents").upload(receiptPath, receiptBytes, { contentType: input.submission.payment.receiptType, upsert: true }));
+        if (receiptStorage.error) throw receiptStorage.error;
+      }
+      const inserted = await admin.from("documents").insert({ project_id: projectId, customer_id: customerId, document_type: "PAYMENT_RECEIPT", storage_bucket: "orbit-documents", storage_path: receiptPath, checksum: receiptChecksum, original_filename: input.submission.payment.receiptName, mime_type: input.submission.payment.receiptType, file_size: receiptBytes.length, uploaded_by: actorId, drive_sync_status: smokeMode ? "SYNCED" : "PENDING", metadata: smokeMode ? { smokeMode: true, externalSink: receiptPath } : undefined, created_by: actorId }).select("id,storage_path").single();
       receiptDocument = inserted.data;
       if (inserted.error || !receiptDocument) throw inserted.error ?? new Error("No fue posible guardar el comprobante.");
     }
@@ -174,9 +186,13 @@ export async function completeAutomaticBooking(input: { token: string; submissio
 
     currentModule = "GOOGLE_DRIVE";
     try {
+      if (smokeMode) {
+        console.info(JSON.stringify({ level: "info", event: "automatic_booking.smoke_sink", sink: "drive", projectId, documentId: receiptDocument.id }));
+      } else {
       const uploadedReceipt = await measured("payment_receipt_drive", () => uploadReservationDocumentToDrive({ client: admin, projectId, customerName: input.submission.customer.name, eventDate: input.submission.event.date, kind: "PAYMENT_PROOF", name: input.submission.payment.receiptName, mimeType: input.submission.payment.receiptType, bytes: receiptBytes }));
       const { error: receiptDriveLinkError } = await admin.from("documents").update({ drive_file_id: uploadedReceipt.id, drive_sync_status: "SYNCED", drive_sync_error: null, drive_synced_at: new Date().toISOString() }).eq("id", receiptDocument.id);
       if (receiptDriveLinkError) throw receiptDriveLinkError;
+      }
     } catch (driveError) {
       const message = serializeWhatsAppError(driveError);
       await admin.from("documents").update({ drive_sync_status: "FAILED", drive_sync_error: message }).eq("id", receiptDocument.id);
@@ -189,7 +205,7 @@ export async function completeAutomaticBooking(input: { token: string; submissio
     const { error: signingTokenError } = await admin.from("agreement_signing_tokens").insert({ agreement_id: agreementId, token_hash: automaticBookingTokenHash(signingToken), expires_at: new Date(Date.now() + 15 * 60_000).toISOString(), created_by: actorId });
     if (signingTokenError) throw signingTokenError;
     currentModule = "SIGNATURE_AND_DOCUMENT_DELIVERY";
-    const signatureResult = await measured("contract_and_signature", () => confirmDigitalSignature({ token: signingToken, signatureDataUrl: input.submission.signatureDataUrl, ipAddress: input.ipAddress, userAgent: input.userAgent, suppressCustomerDelivery: true }));
+    const signatureResult = await measured("contract_and_signature", () => confirmDigitalSignature({ token: signingToken, signatureDataUrl: input.submission.signatureDataUrl, ipAddress: input.ipAddress, userAgent: input.userAgent, suppressCustomerDelivery: true, smokeMode }));
     const portalToken = signatureResult.portalUrl.split("/p/")[1];
     if (!portalToken) throw new Error("El enlace del Portal no tiene un token válido.");
     currentModule = "UNIFIED_CONFIRMATION_PIPELINE";
@@ -199,6 +215,7 @@ export async function completeAutomaticBooking(input: { token: string; submissio
         projectId,
         actorId,
         sendCustomerCommunication:true,
+        smokeMode,
         portal: { url: signatureResult.portalUrl, expiresAt: "" },
       }),
     );

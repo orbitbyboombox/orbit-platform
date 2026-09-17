@@ -36,3 +36,28 @@ test("final capacity check is the shared database boundary", async () => {
   assert.match(migration, /_preflight_draft_capacity_core/);
   assert.match(migration, /preflight_reservation_capacity/);
 });
+
+test("smoke mode is server-side and fixture-scoped", async () => {
+  const [smoke, service, signature, pipeline] = await Promise.all([
+    read("features/automatic-booking/automatic-booking-smoke.ts"),
+    read("features/automatic-booking/complete-automatic-booking.service.ts"),
+    read("features/projects/signing/digital-signature.service.ts"),
+    read("features/projects/operations/confirmed-reservation-pipeline.service.ts"),
+  ]);
+  assert.match(smoke, /AUTOMATIC_BOOKING_SMOKE_MODE/);
+  assert.match(smoke, /smokeFixture/);
+  assert.match(service, /isAutomaticBookingSmokeMode\(invitation\.payload\)/);
+  assert.match(signature, /smokeMode\?/);
+  assert.match(pipeline, /!input\.smokeMode/);
+});
+
+test("completed invitations replay the existing booking", async () => {
+  const [service, route] = await Promise.all([
+    read("features/automatic-booking/complete-automatic-booking.service.ts"),
+    read("app/api/booking/[token]/confirm/route.ts"),
+  ]);
+  assert.match(service, /status === "COMPLETED"/);
+  assert.match(service, /state === "CONFIRMED"/);
+  assert.match(service, /alreadyConfirmed: true/);
+  assert.match(route, /BOOKING_ALREADY_CONFIRMED/);
+});
