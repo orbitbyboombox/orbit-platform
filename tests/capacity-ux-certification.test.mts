@@ -88,9 +88,10 @@ test("event occupancy includes confirmed current project without changing self-p
   assert.match(page, /capacityResult=\{capacityProjection\}/);
 });
 
-test("customer closing exposes safe availability language and gates confirmation", async () => {
+test("customer closing validates capacity silently and explains a race only when needed", async () => {
   const source = await read("features/automatic-booking/automatic-booking-experience.tsx");
   const resolver = await read("features/capacity/progressive-availability.ts");
-  for (const text of ["DISPONIBILIDAD DE TU FECHA", "HORARIO DISPONIBLE", "ESTE HORARIO YA NO SE ENCUENTRA DISPONIBLE", "ESTAMOS CONFIRMANDO TU DISPONIBILIDAD", "Selecciona un servicio para completar la validación.", "canConfirm"]) assert.match(`${source}\n${resolver}`, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  for (const text of ["Ese horario acaba de dejar de estar disponible", "capacityMessage", "canConfirm"]) assert.match(`${source}\n${resolver}`, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.doesNotMatch(source, /DISPONIBILIDAD DE TU FECHA/);
   assert.doesNotMatch(source, /caseCapacity|bboxCapacity|CASE.*disponibles/i);
 });

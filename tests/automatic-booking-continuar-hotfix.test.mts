@@ -45,7 +45,7 @@ test("required visible personal fields are validated", () => {
 
 test("optional customer address does not block CONTINUAR", () => {
   assert.deepEqual(automaticBookingStepIssues(validInput(0)), []);
-  assert.match(experience, /Dirección \(opcional\)/);
+  assert.match(experience, /Tu dirección particular \(opcional\)/);
 });
 
 test("hidden or unrelated values cannot block the active step", () => {
