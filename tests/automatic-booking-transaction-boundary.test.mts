@@ -7,7 +7,7 @@ const read = (path: string) => readFile(new URL(`../${path}`, import.meta.url), 
 test("automatic booking claims one invitation and resumes the same project", async () => {
   const source = await read("features/automatic-booking/complete-automatic-booking.service.ts");
   assert.match(source, /status: \"PROCESSING\"/);
-  assert.match(source, /in\(\"status\", \[\"SENT\", \"OPENED\"\]\)/);
+  assert.match(source, /in\(\"status\", \[\"SENT\", \"OPENED\", \"FAILED_RETRYABLE\"\]\)/);
   assert.match(source, /invitation\.project_id \?\?/);
   assert.match(source, /project_id: projectId/);
   assert.match(source, /BOOKING_IN_PROGRESS/);

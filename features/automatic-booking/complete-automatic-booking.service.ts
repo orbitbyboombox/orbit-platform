@@ -28,6 +28,43 @@ export class AutomaticBookingConfirmationError extends Error {
   }
 }
 
+type BookingInvitationRow = {
+  id: string;
+  status: string | null;
+  state: string | null;
+  project_id: string | null;
+  processing_at: string | null;
+  consumed_at: string | null;
+  payload: Record<string, unknown> | null;
+  expires_at: string | null;
+  created_by: string;
+  customer_email: string;
+};
+
+async function replayConfirmedBooking(admin: ReturnType<typeof createAdminClient>, projectId: string) {
+  const { data: existingProject, error } = await admin.from("projects").select("id,event_date,finance,project_services(service_code),quotations(quotation_number,grand_total,final_customer_price)").eq("id", projectId).is("deleted_at", null).single();
+  if (error) throw error;
+  const quotation = Array.isArray(existingProject.quotations) ? existingProject.quotations[0] : existingProject.quotations;
+  const finance = existingProject.finance && typeof existingProject.finance === "object" ? existingProject.finance as Record<string, unknown> : {};
+  const services = Array.isArray(existingProject.project_services) ? existingProject.project_services : [];
+  return { alreadyConfirmed: true as const, projectId: existingProject.id, portalUrl: "/portal", contractUrl: `/projects/${existingProject.id}/documents`, reservationNumber: quotation?.quotation_number ?? null, eventDate: existingProject.event_date, service: services[0]?.service_code ?? null, reservation: Number(finance.reservationAmount ?? 0), balance: Number(finance.remainingBalance ?? 0), total: Number(quotation?.final_customer_price ?? quotation?.grand_total ?? finance.total ?? 0) };
+}
+
+// Polling is bounded by the real confirmation pipeline latency. Each read
+// observes persisted invitation state; no artificial success delay is added.
+const PROCESSING_POLL_DELAYS_MS = [100, 200, 400, 800, 1200, 1500, 2000, 2500, 3000, 3000] as const;
+
+async function waitForInvitationResolution(admin: ReturnType<typeof createAdminClient>, invitationId: string) {
+  for (const delay of PROCESSING_POLL_DELAYS_MS) {
+    await new Promise<void>((resolve) => setTimeout(resolve, delay));
+    const { data } = await admin.from("automatic_booking_invitations").select("status,state,project_id,processing_at,consumed_at").eq("id", invitationId).maybeSingle();
+    if (!data) return null;
+    if ((data.status === "COMPLETED" || data.state === "CONFIRMED") && data.project_id) return { kind: "confirmed" as const, projectId: data.project_id };
+    if (data.status === "OPENED" || data.state === "FAILED_RETRYABLE") return { kind: "retryable" as const };
+  }
+  return { kind: "processing" as const };
+}
+
 function structuredError(error: unknown, fallbackCode: string) {
   const value = error as { code?: unknown; status?: unknown; message?: unknown };
   const code = typeof value?.code === "string" && value.code.trim() ? value.code : fallbackCode;
@@ -65,20 +102,28 @@ export async function completeAutomaticBooking(input: { token: string; submissio
   const submittedEmail = input.submission?.customer?.email;
   if (typeof submittedEmail !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(submittedEmail)) throw new Error("La información enviada no es válida.");
   const tokenHash = automaticBookingTokenHash(input.token);
-  const { data: currentInvitation } = await admin.from("automatic_booking_invitations").select("id,status,state,project_id,processing_at,consumed_at,payload,expires_at,created_by,customer_email").eq("token_hash", tokenHash).eq("customer_email", submittedEmail.trim().toLowerCase()).maybeSingle();
+  const { data: currentInvitation } = await admin.from("automatic_booking_invitations").select("id,status,state,project_id,processing_at,consumed_at,payload,expires_at,created_by,customer_email").eq("token_hash", tokenHash).eq("customer_email", submittedEmail.trim().toLowerCase()).maybeSingle() as { data: BookingInvitationRow | null };
   if (currentInvitation?.status === "COMPLETED" && currentInvitation.state === "CONFIRMED" && currentInvitation.project_id) {
-    const { data: existingProject, error: existingProjectError } = await admin.from("projects").select("id,event_date,finance,project_services(service_code),quotations(quotation_number,grand_total,final_customer_price)").eq("id", currentInvitation.project_id).is("deleted_at", null).single();
-    if (existingProjectError) throw existingProjectError;
-    const quotation = Array.isArray(existingProject.quotations) ? existingProject.quotations[0] : existingProject.quotations;
-    const finance = existingProject.finance && typeof existingProject.finance === "object" ? existingProject.finance as Record<string, unknown> : {};
-    const services = Array.isArray(existingProject.project_services) ? existingProject.project_services : [];
-    return { alreadyConfirmed: true, projectId: existingProject.id, portalUrl: "/portal", contractUrl: `/projects/${existingProject.id}/documents`, reservationNumber: quotation?.quotation_number ?? null, eventDate: existingProject.event_date, service: services[0]?.service_code ?? null, reservation: Number(finance.reservationAmount ?? 0), balance: Number(finance.remainingBalance ?? 0), total: Number(quotation?.final_customer_price ?? quotation?.grand_total ?? finance.total ?? 0) };
+    return replayConfirmedBooking(admin, currentInvitation.project_id);
   }
-  if (currentInvitation?.status === "PROCESSING" && currentInvitation.processing_at && Date.now() - new Date(currentInvitation.processing_at).getTime() < 10 * 60_000) throw new Error("BOOKING_IN_PROGRESS");
+  if (currentInvitation?.status === "PROCESSING" && currentInvitation.processing_at && Date.now() - new Date(currentInvitation.processing_at).getTime() < 10 * 60_000) {
+    const resolution = await waitForInvitationResolution(admin, currentInvitation.id);
+    if (resolution?.kind === "confirmed") return replayConfirmedBooking(admin, resolution.projectId);
+    if (resolution?.kind === "processing") throw new Error("BOOKING_IN_PROGRESS");
+  }
   if (currentInvitation?.status === "PROCESSING") await admin.from("automatic_booking_invitations").update({ status: "OPENED", processing_at: null }).eq("id", currentInvitation.id).eq("status", "PROCESSING");
-  const { data: invitation, error: claimError } = await admin.from("automatic_booking_invitations").update({ status: "PROCESSING", processing_at: now }).eq("token_hash", tokenHash).eq("customer_email", submittedEmail.trim().toLowerCase()).gt("expires_at", now).is("consumed_at", null).in("status", ["SENT", "OPENED"]).select("id,created_by,customer_email,project_id,payload,status").maybeSingle();
+  const { data: invitation, error: claimError } = await admin.from("automatic_booking_invitations").update({ status: "PROCESSING", processing_at: now }).eq("token_hash", tokenHash).eq("customer_email", submittedEmail.trim().toLowerCase()).gt("expires_at", now).is("consumed_at", null).in("status", ["SENT", "OPENED", "FAILED_RETRYABLE"]).select("id,created_by,customer_email,project_id,payload,status").maybeSingle();
   if (claimError) throw claimError;
-  if (!invitation) throw new Error("BOOKING_TOKEN_INVALID");
+  if (!invitation) {
+    const raced = await admin.from("automatic_booking_invitations").select("id,status,state,project_id,processing_at,consumed_at").eq("token_hash", tokenHash).eq("customer_email", submittedEmail.trim().toLowerCase()).maybeSingle();
+    if ((raced.data?.status === "COMPLETED" || raced.data?.state === "CONFIRMED") && raced.data.project_id) return replayConfirmedBooking(admin, raced.data.project_id);
+    if (raced.data?.status === "PROCESSING") {
+      const resolution = await waitForInvitationResolution(admin, raced.data.id);
+      if (resolution?.kind === "confirmed") return replayConfirmedBooking(admin, resolution.projectId);
+      throw new Error("BOOKING_IN_PROGRESS");
+    }
+    throw new Error("BOOKING_TOKEN_INVALID");
+  }
 
   let currentModule = "VALIDATION";
   let reservationId = invitation.project_id ?? invitation.id;
