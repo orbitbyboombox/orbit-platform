@@ -11,6 +11,7 @@ import { confirmPersistedReservation } from "@/features/projects/operations/conf
 import { isValidChileanRut } from "@/lib/chile/rut";
 import { serializeWhatsAppError } from "@/features/connectors/whatsapp-cloud/whatsapp-observability";
 import { isAutomaticBookingSmokeMode, smokeSinkId } from "./automatic-booking-smoke";
+import { BookingTimeInvalidError, normalizeEventWindow } from "@/features/time-intelligence/event-window";
 
 export interface AutomaticBookingSubmission {
   customer: { name: string; rut: string; phone: string; email: string; address: string };
@@ -84,6 +85,7 @@ export async function completeAutomaticBooking(input: { token: string; submissio
   const smokeMode = isAutomaticBookingSmokeMode(invitation.payload);
   try {
     validate(input.submission);
+    const normalizedWindow = normalizeEventWindow({ eventDate: input.submission.event.date, serviceStart: input.submission.event.time, durationHours: input.submission.service.hours });
     const actorId = invitation.created_by;
     const normalizedRut = input.submission.customer.rut.replace(/[^0-9K]/gi, "").toUpperCase();
     const [{ data: customerCandidates, error: customerLookupError }, pricing] = await measured("validation_and_pricing", () => Promise.all([
@@ -116,7 +118,7 @@ export async function completeAutomaticBooking(input: { token: string; submissio
     // confirmed commercial/operational state.
     const finance = { total: pricing.total, reservationAmount: Math.round(pricing.total / 2), remainingBalance: pricing.total - Math.round(pricing.total / 2), paymentMethod: input.submission.payment.method, paymentStatus: "PENDING" };
     currentModule = "PROJECT_AND_EVENT360";
-    const { error: projectError } = await measured("project_and_event360", async () => existingProject ? { error: null } : await admin.from("projects").insert({ id: projectId, customer_id: customerId, orbit_event_id: orbitEventId, name: input.submission.customer.name.trim(), project_type: input.submission.event.type, status: "Upcoming", health: "Healthy", event_date: input.submission.event.date, event_time: input.submission.event.time, location: input.submission.event.venue, city: input.submission.event.municipality, operations: { stage: "Capacidad pendiente", commercialStage: "Waiting", reservationMethod: "AUTOMATIC", automaticBookingInvitationId: invitation.id, notes, durationHours: input.submission.service.hours, extras: persistedExtras, brandingFaces:input.submission.service.extras.includes("Branding")?Math.max(1,input.submission.service.brandingQuantity):0 }, finance, created_by: actorId, updated_by: actorId }));
+    const { error: projectError } = await measured("project_and_event360", async () => existingProject ? { error: null } : await admin.from("projects").insert({ id: projectId, customer_id: customerId, orbit_event_id: orbitEventId, name: input.submission.customer.name.trim(), project_type: input.submission.event.type, status: "Upcoming", health: "Healthy", event_date: input.submission.event.date, event_time: input.submission.event.time, location: input.submission.event.venue, city: input.submission.event.municipality, operations: { stage: "Capacidad pendiente", commercialStage: "Waiting", reservationMethod: "AUTOMATIC", automaticBookingInvitationId: invitation.id, notes, durationHours: input.submission.service.hours, serviceStartAt: normalizedWindow.startAt, serviceEndAt: normalizedWindow.endAt, extras: persistedExtras, brandingFaces:input.submission.service.extras.includes("Branding")?Math.max(1,input.submission.service.brandingQuantity):0 }, finance, created_by: actorId, updated_by: actorId }));
     if (projectError) throw projectError;
     const checkpoint = await admin.from("automatic_booking_invitations").update({ project_id: projectId, state: "VALIDATING", last_request_id: requestId, payload: { ...(invitation.payload ?? {}), projectId, state: "VALIDATING", requestId } }).eq("id", invitation.id);
     if (checkpoint.error) throw checkpoint.error;
@@ -225,7 +227,7 @@ export async function completeAutomaticBooking(input: { token: string; submissio
     console.info(JSON.stringify({ level: "info", event: "automatic_booking.confirmation_timing", requestId, projectId, durationMs: Math.round(performance.now() - confirmationStartedAt), stages: timings }));
     return { projectId, portalUrl: signatureResult.portalUrl, contractUrl: `/api/portal/${encodeURIComponent(portalToken)}/contract?download=1`, reservationNumber: quotationNumber, eventDate: input.submission.event.date, service: input.submission.service.code, reservation: finance.reservationAmount, balance: finance.remainingBalance, total: pricing.total };
   } catch (error) {
-    const failure = structuredError(error, currentModule === "CAPACITY_GATE" || currentModule === "CONFIRMING" ? "CAPACITY_UNAVAILABLE" : currentModule === "PAYMENT_LEDGER" ? "PAYMENT_VALIDATION_FAILED" : currentModule === "CUSTOMER" ? "CUSTOMER_CREATION_FAILED" : currentModule === "TIMELINE" ? "RESERVATION_CONFLICT" : "INTERNAL_BOOKING_ERROR");
+    const failure = structuredError(error, error instanceof BookingTimeInvalidError ? "BOOKING_TIME_INVALID" : currentModule === "CAPACITY_GATE" || currentModule === "CONFIRMING" ? "CAPACITY_UNAVAILABLE" : currentModule === "PAYMENT_LEDGER" ? "PAYMENT_VALIDATION_FAILED" : currentModule === "CUSTOMER" ? "CUSTOMER_CREATION_FAILED" : currentModule === "TIMELINE" ? "RESERVATION_CONFLICT" : "INTERNAL_BOOKING_ERROR");
     await admin.from("automatic_booking_invitations").update({ status: "OPENED", state: "FAILED_RETRYABLE", failure_code: failure.code, failure_stage: currentModule, last_request_id: requestId, processing_at: null, payload: { ...(invitation.payload ?? {}), projectId: invitation.project_id ?? null, state: "FAILED_RETRYABLE", failureCode: failure.code, failureStage: currentModule, requestId } }).eq("id", invitation.id).is("consumed_at", null);
     console.error(JSON.stringify({ level: "error", event: "automatic_booking.transaction_failed", requestId, stage: currentModule, code: failure.code, module: currentModule, reservationId, timestamp: new Date().toISOString(), durationMs: Math.round(performance.now() - confirmationStartedAt), stages: timings, exception: failure.message }));
     throw new AutomaticBookingConfirmationError(currentModule, reservationId, error, failure.code, requestId);
