@@ -33,4 +33,18 @@ begin
   return jsonb_build_object('status','AVAILABLE','reasonCode','CAPACITY_CONFIRMED','humanSafeReason','Disponibilidad confirmada para este horario.','caseCapacity',jsonb_build_object('total',case_pool,'committed',case_committed,'available',greatest(case_pool-case_committed,0)),'bboxCapacity',jsonb_build_object('total',bbox_pool,'committed',bbox_committed,'available',greatest(bbox_pool-bbox_committed,0)),'logistics',jsonb_build_object('commune',trim(p_city),'communeDeterministic',commune_deterministic,'venueOverride',nullif(trim(p_address),'')),'shell',jsonb_build_object('preferred',shell,'status',case when shell is null then 'NOT_REQUIRED' else 'OPERATIONAL_ONLY' end));
 end $$;
 
+create or replace function public.preflight_reservation_capacity(p_project_id uuid)
+returns jsonb language plpgsql security definer set search_path=public,extensions as $$
+declare p public.projects%rowtype; w record; service_codes text[]; address text; shell text; result jsonb;
+begin
+  select * into p from public.projects where id=p_project_id and deleted_at is null;
+  if not found then return jsonb_build_object('status','REVIEW_REQUIRED','reasonCode','PROJECT_NOT_FOUND','humanSafeReason','No encontramos la reserva que se debe validar.'); end if;
+  select * into w from public.event_operational_window(p_project_id) limit 1;
+  select coalesce(array_agg(ps.service_code), '{}'::text[]) into service_codes from public.project_services ps where ps.project_id=p_project_id;
+  address:=coalesce(nullif(trim(p.operations->>'eventAddress'),''),nullif(trim(p.location),''),'');
+  shell:=nullif(upper(trim(coalesce(p.operations->>'shell',p.operations->>'shellType'))),'');
+  result:=public._preflight_draft_capacity_core(service_codes,p.project_type,p.event_date,w.window_start,w.window_end,address,coalesce(p.city,''),shell);
+  return result;
+end $$;
+
 commit;
