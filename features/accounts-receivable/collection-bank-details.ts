@@ -24,8 +24,11 @@ export function resolveCollectionBankDetails(
   settings: CompanySettings,
 ): CollectionBankDetails {
   const bank = object(settings.pdfConfiguration.commercialBank);
+  // Legal identity is the canonical value for payment instructions.  The
+  // brand name is still available elsewhere, but must not replace the legal
+  // company name in copy/paste bank details.
   const companyLabel =
-    settings.brandName || settings.legalName || settings.companyName || "BOOMBOX";
+    settings.legalName || settings.companyName || settings.brandName || "BOOMBOX";
   const bankName = text(bank.bankName) || "Banco no configurado";
   const accountType = text(bank.accountType) || "Cuenta Corriente";
   const accountNumber = text(bank.accountNumber) || "Sin número configurado";

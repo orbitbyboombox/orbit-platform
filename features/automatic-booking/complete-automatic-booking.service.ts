@@ -12,6 +12,7 @@ import { isValidChileanRut } from "@/lib/chile/rut";
 import { serializeWhatsAppError } from "@/features/connectors/whatsapp-cloud/whatsapp-observability";
 import { isAutomaticBookingSmokeMode, smokeSinkId } from "./automatic-booking-smoke";
 import { BookingTimeInvalidError, normalizeEventWindow } from "@/features/time-intelligence/event-window";
+import { resolveCanonicalVenue, type CanonicalVenue } from "@/features/settings/master-data/venue-resolution";
 
 export interface AutomaticBookingSubmission {
   customer: { name: string; rut: string; phone: string; email: string; address: string };
@@ -306,8 +307,8 @@ async function calculatePricing(admin: ReturnType<typeof createAdminClient>, inp
   const municipality = municipalities.find((item) => item.name.localeCompare(input.event.municipality.trim(), "es", { sensitivity: "base" }) === 0);
   if (!municipality) throw new Error("La comuna seleccionada no tiene una configuración de transporte vigente.");
   const transport = municipality.transport;
-  const venues = ((venuesResult.data?.configuration as { venues?: Array<Record<string, unknown>> } | null)?.venues ?? []);
-  const venue = venues.find((item) => String(item.name ?? "").localeCompare(input.event.venue.trim(), "es", { sensitivity: "base" }) === 0);
+  const venues = ((venuesResult.data?.configuration as { venues?: Array<Record<string, unknown>> } | null)?.venues ?? []) as CanonicalVenue[];
+  const venue = resolveCanonicalVenue(input.event.venue, input.event.municipality, venues);
   const venueSurcharge = Number(venue?.surcharge ?? 0);
   const subtotal = Number(exact.unit_price) + extras + transport + venueSurcharge;
   const total = Math.round(subtotal * (input.payment.method === "MERCADO_PAGO" ? 1.05 : 1));

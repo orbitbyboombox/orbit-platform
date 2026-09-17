@@ -29,6 +29,8 @@ import { Button } from "@/components/ui/button";
 import { OrbitLoader } from "@/components/ui/orbit-loader";
 import { MunicipalityCombobox } from "@/components/forms/municipality-combobox";
 import type { ActiveMunicipality } from "@/features/settings/master-data/municipality-master-data";
+import { resolveCanonicalVenue } from "@/features/settings/master-data/venue-resolution";
+import type { CollectionBankDetails } from "@/features/accounts-receivable/collection-bank-details";
 import { cn } from "@/lib/utils";
 import { filterExtrasForEventType, includedExtrasForEventType, resolveBrandingMinimum } from "../reservation-business-rules";
 import { formatChileanRut, isValidChileanRut, normalizeChileanMobileLocal, normalizeChileanPhone } from "@/lib/chile/rut";
@@ -208,6 +210,8 @@ export interface ReservationVenue {
   municipality: string;
   province: string;
   surcharge: number;
+  aliases?: string[];
+  explanation?: string;
 }
 export interface ReservationService {
   code: string;
@@ -252,6 +256,7 @@ const masterExtraToReservation = (code: string): ServiceExtra | null =>
           : null;
 export interface NewProjectDrawerProps {
   canNegotiate: boolean;
+  bankDetails: CollectionBankDetails;
   commercialPrices: ReservationCommercialPrice[];
   crmCustomers: ReservationCrmCustomer[];
   municipalities: ActiveMunicipality[];
@@ -476,6 +481,7 @@ function CommercialSummary({
 
 export function NewProjectDrawer({
   canNegotiate,
+  bankDetails,
   commercialPrices,
   crmCustomers,
   municipalities,
@@ -591,13 +597,7 @@ export function NewProjectDrawer({
 
   const selectedMunicipality =
     municipalities.find((item) => item.name === draft.event.city) ?? null;
-  const selectedVenue =
-    venues.find(
-      (venue) =>
-        venue.name.localeCompare(draft.event.location.trim(), "es", {
-          sensitivity: "base",
-        }) === 0,
-    ) ?? null;
+  const selectedVenue = resolveCanonicalVenue(draft.event.location, draft.event.city, venues);
   const transportTotal =
     selectedMunicipality?.pricingStatus === "DEFINED"
       ? selectedMunicipality.transport
@@ -1812,12 +1812,7 @@ export function NewProjectDrawer({
                       list="orbit-event-venues"
                       onChange={(e) => {
                         const value = e.target.value;
-                        const venue = venues.find(
-                          (item) =>
-                            item.name.localeCompare(value.trim(), "es", {
-                              sensitivity: "base",
-                            }) === 0,
-                        );
+                        const venue = venues.find((item) => item.name === value) ?? resolveCanonicalVenue(value, draft.event.city, venues);
                         setDraft((current) => ({
                           ...current,
                           event: {
@@ -2715,26 +2710,24 @@ export function NewProjectDrawer({
                 </section>
                 {paymentMethod === "TRANSFER" ? (
                   <div className="rounded-2xl border p-5 text-sm">
-                    <p className="font-semibold">
-                      PRODUCCIONES BOOMBOX COMPANY SPA
-                    </p>
+                    <p className="font-semibold">{bankDetails.companyLabel}</p>
                     <dl className="mt-4 grid gap-3 sm:grid-cols-2">
                       <div>
                         <dt className="text-muted">RUT</dt>
-                        <dd className="font-medium">76.565.272-3</dd>
+                        <dd className="font-medium">{bankDetails.rut}</dd>
                       </div>
                       <div>
                         <dt className="text-muted">Banco</dt>
-                        <dd className="font-medium">BCI</dd>
+                        <dd className="font-medium">{bankDetails.bankName}</dd>
                       </div>
                       <div>
-                        <dt className="text-muted">Cuenta Corriente</dt>
-                        <dd className="font-medium">52093409</dd>
+                        <dt className="text-muted">{bankDetails.accountType}</dt>
+                        <dd className="font-medium">{bankDetails.accountNumber}</dd>
                       </div>
                       <div>
                         <dt className="text-muted">Correo</dt>
                         <dd className="font-medium">
-                          contabilidad@boom-box.cl
+                          {bankDetails.email}
                         </dd>
                       </div>
                     </dl>
