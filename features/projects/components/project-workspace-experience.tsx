@@ -282,18 +282,18 @@ function Section({
 }) {
   return (
     <section
-      className={`scroll-mt-24 rounded-2xl border bg-card p-5 sm:p-6 ${className}`}
+      className={`scroll-mt-24 min-w-0 rounded-2xl border bg-card p-5 sm:p-6 ${className}`}
       id={id}
     >
-      <header className="mb-5 flex items-start gap-3 border-b pb-4">
+      <header className="mb-5 flex min-w-0 items-start gap-3 border-b pb-4">
         <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand">
           {icon}
         </span>
-        <div>
+        <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-[.18em] text-muted">
             {eyebrow}
           </p>
-          <h2 className="mt-1 text-xl font-semibold tracking-tight">{title}</h2>
+          <h2 className="mt-1 break-words text-xl font-semibold tracking-tight">{title}</h2>
         </div>
       </header>
       {children}
@@ -597,10 +597,10 @@ export function ProjectWorkspaceExperience(
       timeline={null}
       copilot={null}
       mainContent={
-        <div className="space-y-6 pb-8">
-          <section className="overflow-hidden rounded-3xl border bg-card">
-            <div className="grid gap-6 p-5 sm:p-7 lg:grid-cols-[1fr_auto] lg:items-end">
-              <div>
+        <div className="min-w-0 space-y-6 pb-8">
+          <section className="min-w-0 overflow-hidden rounded-3xl border bg-card">
+            <div className="grid min-w-0 gap-6 p-5 sm:p-7 lg:grid-cols-[minmax(0,1fr)_minmax(0,auto)] lg:items-end">
+              <div className="min-w-0">
                 <div className="flex flex-wrap gap-2">
                   <StatusBadge label={event.status} variant="info" />
                   <StatusBadge label={healthLabel} variant={healthVariant} />
@@ -608,14 +608,14 @@ export function ProjectWorkspaceExperience(
                 <p className="mt-5 text-xs font-semibold uppercase tracking-[.2em] text-brand">
                   Event 360° · {event.orbitEventId}
                 </p>
-                <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
+                <h1 className="mt-2 break-words text-3xl font-semibold tracking-tight sm:text-4xl">
                   {props.projectName}
                 </h1>
                 <p className="mt-2 text-base text-muted">
                   {props.projectType} · {props.clientName}
                 </p>
               </div>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:min-w-[500px]">
+              <div className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-4 lg:w-full lg:max-w-[40rem]">
                 <HeroMetric label="Fecha" value={props.eventDate} />
                 <HeroMetric
                   label="Cuenta regresiva"
@@ -645,7 +645,7 @@ export function ProjectWorkspaceExperience(
           </section>
           <div>{capacityPanel}</div>
 
-          <section className="grid gap-6 xl:grid-cols-2">
+          <section className="grid min-w-0 gap-6 xl:grid-cols-2">
             {moduleVisible("GENERAL_INFORMATION") && (
               <Section
                 eyebrow="01 · Relación"
@@ -1210,7 +1210,7 @@ export function ProjectWorkspaceExperience(
                       const operatingProfit = netRevenue - event.profit.costs.totalOperationalCost;
                       const operatingMargin = netRevenue > 0 ? operatingProfit / netRevenue * 100 : 0;
                       return <>
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                    <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
                       <MiniMoney
                         label="Ingresos netos"
                         value={netRevenue}
@@ -1405,7 +1405,7 @@ export function ProjectWorkspaceExperience(
                 id="health"
                 title="Event Health"
               >
-                <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
+                <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,220px)_minmax(0,1fr)]">
                   <div className="grid place-items-center rounded-2xl border bg-background/30 p-6 text-center">
                     <p className="text-5xl font-semibold tracking-tight">
                       {health}%
@@ -1684,17 +1684,17 @@ function HeroMetric({ label, value }: { label: string; value: string }) {
 }
 function MiniMetric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl border bg-background/30 p-4">
-      <p className="text-2xl font-semibold">{value}</p>
-      <p className="mt-1 text-xs text-muted">{label}</p>
+    <div className="min-w-0 rounded-xl border bg-background/30 p-4">
+      <p className="min-w-0 break-words text-[clamp(1rem,1.8vw,1.5rem)] font-semibold leading-tight tabular-nums [overflow-wrap:anywhere]">{value}</p>
+      <p className="mt-1 break-words text-xs text-muted">{label}</p>
     </div>
   );
 }
 function MiniMoney({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl border bg-background/30 p-4">
-      <p className="text-xl font-semibold sm:text-2xl">{money(value)}</p>
-      <p className="mt-1 text-xs text-muted">{label}</p>
+    <div className="min-w-0 rounded-xl border bg-background/30 p-4">
+      <p className="min-w-0 break-words text-[clamp(1rem,1.8vw,1.5rem)] font-semibold leading-tight tabular-nums [overflow-wrap:anywhere]">{money(value)}</p>
+      <p className="mt-1 break-words text-xs text-muted">{label}</p>
     </div>
   );
 }

@@ -407,7 +407,7 @@ export function AccountsReceivableCenter({
             </p>
           </section>
           <section
-            className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-7"
+            className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-7"
             data-workspace-label="Resumen Inteligente"
             data-workspace-section="RECEIVABLES_KPIS"
           >

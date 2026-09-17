@@ -58,7 +58,7 @@ export function SmartCard({
       aria-busy={loading || undefined}
       data-disabled={disabled || undefined}
       className={cn(
-        "orbit-enter rounded-2xl border border-border/80 bg-card p-5 shadow-[var(--shadow-card)] sm:p-6",
+        "orbit-enter min-w-0 rounded-2xl border border-border/80 bg-card p-5 shadow-[var(--shadow-card)] sm:p-6",
         (interactive || usesStructuredLayout) &&
           !disabled &&
           "transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:border-foreground/10 hover:shadow-[0_12px_30px_rgba(0,0,0,0.08)]",
@@ -69,7 +69,7 @@ export function SmartCard({
     >
       {usesStructuredLayout ? (
         <>
-          <header className="flex items-start justify-between gap-4">
+          <header className="flex min-w-0 flex-wrap items-start justify-between gap-4">
             <div className="flex min-w-0 items-start gap-3">
               {icon && (
                 <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground">
@@ -80,7 +80,7 @@ export function SmartCard({
                 {loading ? (
                   <div aria-hidden="true" className="h-5 w-28 animate-pulse rounded bg-accent" />
                 ) : (
-                  title && <h3 className="truncate text-sm font-semibold tracking-tight">{title}</h3>
+                  title && <h3 className="break-words text-sm font-semibold tracking-tight">{title}</h3>
                 )}
                 {description && !loading && <p className="mt-1 text-sm text-muted">{description}</p>}
               </div>
@@ -96,8 +96,8 @@ export function SmartCard({
               </div>
             ) : (
               <>
-                {primaryValue && <p className="text-2xl font-semibold tracking-tight sm:text-3xl">{primaryValue}</p>}
-                {secondaryValue && <p className="mt-2 text-sm text-muted">{secondaryValue}</p>}
+                {primaryValue && <p className="min-w-0 break-words text-[clamp(1.25rem,2vw,1.875rem)] font-semibold leading-tight tracking-tight tabular-nums [overflow-wrap:anywhere]">{primaryValue}</p>}
+                {secondaryValue && <p className="mt-2 break-words text-sm text-muted">{secondaryValue}</p>}
               </>
             )}
           </div>
@@ -153,9 +153,9 @@ export function SmartCard({
                   {icon}
                 </span>
               )}
-              <div>
-                {title && <h3 className="text-sm font-semibold tracking-tight">{title}</h3>}
-                {description && <p className="mt-1 text-sm text-muted">{description}</p>}
+              <div className="min-w-0">
+                {title && <h3 className="break-words text-sm font-semibold tracking-tight">{title}</h3>}
+                {description && <p className="mt-1 break-words text-sm text-muted">{description}</p>}
               </div>
             </header>
           )}

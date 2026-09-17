@@ -104,7 +104,7 @@ function OfficeRentHydrated({ data }: { data: OfficeLeaseDataset }) {
 
     {notice ? <div className={cn("rounded-2xl border p-4 text-sm", notice.ok ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-200" : "border-red-500/25 bg-red-500/10 text-red-200")} role={notice.ok ? "status" : "alert"}>{notice.text}</div> : null}
 
-    <section className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+    <section className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
       <MetricCard detail={data.settings.commonExpensesIncluded ? "Gastos comunes incluidos" : "Gastos comunes no incluidos"} icon={<WalletCards className="size-4 text-brand"/>} label="Arriendo mensual" value={formatClp(data.settings.monthlyAmount)}/>
       <MetricCard danger={data.metrics.currentStatus === "OVERDUE"} detail={data.metrics.currentOutstanding > 0 ? `${formatClp(data.metrics.currentOutstanding)} pendiente` : "Mes completamente cubierto"} icon={<CheckCircle2 className="size-4 text-brand"/>} label="Estado este mes" value={statusMeta[data.metrics.currentStatus].label}/>
       <MetricCard detail={`${data.metrics.paidMonths} meses pagados · ${data.metrics.pendingMonths} pendientes`} icon={<ReceiptText className="size-4 text-brand"/>} label="Arriendo recibido año" value={formatClp(data.metrics.yearReceived)}/>
