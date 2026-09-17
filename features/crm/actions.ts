@@ -357,12 +357,14 @@ export async function transitionCrmEventAction(input: {
   action: Extract<ReservationLifecycleAction, "ARCHIVE" | "PERMANENT_DELETE">;
   reason: string;
   confirmation?: string;
+  deleteOrphanCustomer?: boolean;
 }) {
   const result = await transitionReservationLifecycleAction(
     input.projectId,
     input.action,
     input.reason,
     input.confirmation,
+    input.deleteOrphanCustomer ?? false,
   );
   revalidatePath(`/customers/${input.customerId}`);
   revalidatePath("/customers");

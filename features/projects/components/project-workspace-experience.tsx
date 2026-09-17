@@ -490,14 +490,9 @@ export function ProjectWorkspaceExperience(
     };
     if (
       !window.confirm(
-        `¿Confirmas ${labels[action]} el Evento?\n\nCliente: ${props.clientName}\nORB: ${event.orbitEventId}\nFecha: ${props.eventDateIso ?? "sin fecha"}\nServicio: ${event.services.map((service) => service.code).join(", ") || "sin servicio"}${action === "PERMANENT_DELETE" ? "\n\nEsta acción elimina los registros operacionales asociados y no se puede deshacer." : ""}`,
-      )
-    )
-      return;
-    if (
-      action === "PERMANENT_DELETE" &&
-      !window.confirm(
-        "Confirmación final: el proyecto, factura, saldos, Portal y Timeline serán eliminados permanentemente.",
+        action === "PERMANENT_DELETE"
+          ? `ELIMINAR EVENTO Y TODOS SUS DATOS\n\nCliente: ${props.clientName}\nORB: ${event.orbitEventId}\nFecha: ${props.eventDateIso ?? "sin fecha"}\nServicio: ${event.services.map((service) => service.code).join(", ") || "sin servicio"}\n\nEsta acción elimina el evento de ORBIT y sus dependencias operacionales. ¿Continuar?`
+          : `¿Confirmas ${labels[action]} el Evento?\n\nCliente: ${props.clientName}\nORB: ${event.orbitEventId}\nFecha: ${props.eventDateIso ?? "sin fecha"}\nServicio: ${event.services.map((service) => service.code).join(", ") || "sin servicio"}`,
       )
     )
       return;
@@ -505,7 +500,9 @@ export function ProjectWorkspaceExperience(
       ? window.prompt("Escribe ELIMINAR para habilitar la purga definitiva:")?.trim()
       : undefined;
     if (action === "PERMANENT_DELETE" && purgeConfirmation !== "ELIMINAR") return;
-    const reason = window.prompt("Motivo obligatorio de la acción:")?.trim();
+    const reason = action === "PERMANENT_DELETE"
+      ? "Eliminación integral solicitada por Founder."
+      : window.prompt("Motivo obligatorio de la acción:")?.trim();
     if (!reason) return;
     setCustomerDeleteFeedback("Sincronizando ciclo de vida…");
     const result = await transitionReservationLifecycleAction(

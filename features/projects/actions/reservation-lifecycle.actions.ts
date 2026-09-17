@@ -9,7 +9,7 @@ import { deliverAssignmentCancellationBoundary } from "@/features/operations/sta
 export type ReservationLifecycleAction="ARCHIVE"|"RESTORE"|"CANCEL"|"PERMANENT_DELETE";
 const paths=["/projects","/events","/customers","/operations","/finance","/finance/receivables","/notifications"];
 
-export async function transitionReservationLifecycleAction(projectId:string,action:ReservationLifecycleAction,reason:string,confirmation?:string):Promise<{ok:boolean;message:string}>{
+export async function transitionReservationLifecycleAction(projectId:string,action:ReservationLifecycleAction,reason:string,confirmation?:string,deleteOrphanCustomer=false):Promise<{ok:boolean;message:string}>{
   try{
     if(!projectId||reason.trim().length<3)throw new Error("Registra un motivo para continuar.");
     const client=await createSupabaseServerClient();const{data:auth,error:authError}=await client.auth.getUser();if(authError||!auth.user)throw new Error("Tu sesión expiró. Vuelve a iniciar sesión.");
@@ -20,7 +20,7 @@ export async function transitionReservationLifecycleAction(projectId:string,acti
     }
     if(action==="PERMANENT_DELETE"){
       if(confirmation!=="ELIMINAR")return{ok:false,message:"Purga cancelada: confirmación no válida."};
-      const{data,error}=await client.rpc("purge_event_controlled",{p_project_id:projectId,p_confirmation:confirmation,p_reason:reason.trim()});
+      const{data,error}=await client.rpc("purge_event_controlled",{p_project_id:projectId,p_confirmation:confirmation,p_reason:reason.trim(),p_delete_orphan_customer:deleteOrphanCustomer});
       if(error)throw error;
       if(data?.status==="ALREADY_DELETED")return{ok:true,message:"El Evento ya estaba eliminado."};
     }else{

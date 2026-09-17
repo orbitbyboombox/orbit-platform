@@ -13,6 +13,7 @@ import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { MobileDialog } from "@/components/ui/mobile-dialog";
+import { OrbitLoader } from "@/components/ui/orbit-loader";
 import type { CrmOperationalEvent } from "./types";
 import {
   duplicateCrmEventAction,
@@ -44,8 +45,10 @@ const statusOf = (event: CrmOperationalEvent): View => {
 };
 
 export function EventCenter({
+  canForceDelete,
   initialEvents,
 }: {
+  canForceDelete: boolean;
   initialEvents: CrmOperationalEvent[];
 }) {
   const router = useRouter();
@@ -54,7 +57,6 @@ export function EventCenter({
   const [editing, setEditing] = useState<CrmOperationalEvent | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CrmOperationalEvent | null>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
-  const [deleteReason, setDeleteReason] = useState("");
   const [editDate, setEditDate] = useState("");
   const [serviceEndAt, setServiceEndAt] = useState("");
   const [staffCallAt, setStaffCallAt] = useState("");
@@ -110,7 +112,9 @@ export function EventCenter({
       ? window.prompt("Escribe ELIMINAR para confirmar la purga definitiva:")?.trim()
       : undefined;
     if (action === "PERMANENT_DELETE" && confirmation !== "ELIMINAR") return;
-    const reason = window.prompt("Motivo obligatorio:")?.trim();
+    const reason = action === "PERMANENT_DELETE"
+      ? "Eliminación integral solicitada por Founder."
+      : window.prompt("Motivo obligatorio:")?.trim();
     if (!reason) return;
     start(async () => {
       const result = await transitionCrmEventAction({
@@ -127,24 +131,22 @@ export function EventCenter({
   const openDeleteDialog = (event: CrmOperationalEvent) => {
     setDeleteTarget(event);
     setDeleteConfirmation("");
-    setDeleteReason("");
   };
   const closeDeleteDialog = () => {
     if (!pending) {
       setDeleteTarget(null);
       setDeleteConfirmation("");
-      setDeleteReason("");
     }
   };
   const confirmDelete = () => {
-    if (!deleteTarget || deleteConfirmation !== "ELIMINAR" || deleteReason.trim().length < 3) return;
+    if (!deleteTarget || deleteConfirmation !== "ELIMINAR") return;
     const target = deleteTarget;
     start(async () => {
       const result = await transitionCrmEventAction({
         customerId: target.customerId,
         projectId: target.projectId,
         action: "PERMANENT_DELETE",
-        reason: deleteReason.trim(),
+        reason: "Eliminación integral solicitada por Founder.",
         confirmation: deleteConfirmation,
       });
       if (!result.ok) setError(result.message);
@@ -309,12 +311,12 @@ export function EventCenter({
                   >
                     <ExternalLink className="size-4" />Abrir Evento
                   </Link>
-                  <button
+                  {canForceDelete ? <button
                     className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent"
                     onClick={() => openEditor(event)}
                   >
                     Editar Evento
-                  </button>
+                  </button> : null}
                   <button
                     className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent"
                     onClick={() => duplicate(event)}
@@ -461,17 +463,18 @@ export function EventCenter({
         <MobileDialog
           eyebrow="Acción irreversible"
           title="Eliminar Evento"
-          description="Esta acción eliminará definitivamente este Evento y sus dependencias permitidas. El Cliente permanecerá en el CRM."
+          description="Esta acción eliminará el evento de ORBIT, Calendar, Drive y los módulos operacionales asociados. El cliente permanecerá en el CRM."
           onClose={closeDeleteDialog}
           dismissOnOverlayClick={!pending}
           footer={
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button className="min-h-11 rounded-xl border px-4" aria-busy={pending} disabled={pending} onClick={closeDeleteDialog} type="button">Cancelar</button>
-              <button className="min-h-11 rounded-xl bg-red-600 px-4 font-semibold text-white disabled:opacity-50" aria-busy={pending} disabled={pending|| deleteConfirmation !== "ELIMINAR" || deleteReason.trim().length < 3} onClick={confirmDelete} type="button">{pending ? "Eliminando…" : "Eliminar definitivamente"}</button>
+              <button className="min-h-11 rounded-xl bg-red-600 px-4 font-semibold text-white disabled:opacity-50" aria-busy={pending} disabled={pending || deleteConfirmation !== "ELIMINAR"} onClick={confirmDelete} type="button">{pending ? "Eliminando…" : "ELIMINAR TODO"}</button>
             </div>
           }
         >
           <div className="grid gap-4 text-sm">
+            {pending ? <div aria-live="polite" aria-busy="true" className="rounded-xl border border-brand/30 bg-brand/5 p-4"><OrbitLoader label="Eliminando evento · liberando recursos · limpiando documentos · sincronizando integraciones…" variant="inline" /></div> : null}
             <dl className="grid gap-2 rounded-xl border p-4 sm:grid-cols-2">
               <div><dt className="text-muted">Cliente</dt><dd className="font-medium">{deleteTarget.customerName}</dd></div>
               <div><dt className="text-muted">Empresa</dt><dd className="font-medium">{deleteTarget.company || "Sin empresa"}</dd></div>
@@ -480,7 +483,6 @@ export function EventCenter({
               <div className="sm:col-span-2"><dt className="text-muted">ORB</dt><dd className="font-medium">{deleteTarget.orbitEventId || "Sin código"}</dd></div>
             </dl>
             <label className="grid gap-2 font-medium">Escribe ELIMINAR<input autoComplete="off" className="min-h-11 rounded-xl border bg-background px-3" value={deleteConfirmation} onChange={(event) => setDeleteConfirmation(event.target.value)} /></label>
-            <label className="grid gap-2 font-medium">Motivo obligatorio<textarea className="min-h-24 rounded-xl border bg-background p-3" value={deleteReason} onChange={(event) => setDeleteReason(event.target.value)} /></label>
           </div>
         </MobileDialog>
       ) : null}

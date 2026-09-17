@@ -17,6 +17,8 @@ export interface GoogleDriveLiveProvider {
   getFolderParents?(id: string): Promise<string[]>;
   updateFolder(input: { id: string; name: string; parentFolderId?: string; previousParentFolderId?: string }): Promise<GoogleDriveCreatedFolder>;
   uploadFile(input: { name: string; mimeType: string; bytes: Uint8Array; parentFolderId?: string }): Promise<GoogleDriveUploadedFile>;
+  deleteFile?(id: string): Promise<void>;
+  listChildren?(parentId: string): Promise<Array<{ id: string; mimeType?: string }>>;
 }
 
 export class InMemoryGoogleDriveLiveProvider implements GoogleDriveLiveProvider {
@@ -65,6 +67,10 @@ export class InMemoryGoogleDriveLiveProvider implements GoogleDriveLiveProvider 
     }
     return created;
   }
+
+  async deleteFile(id: string) { this.folders.forEach((value, key) => { if (value.id === id) this.folders.delete(key); }); this.files.forEach((value, key) => { if (value.some((file) => file.id === id)) this.files.delete(key); }); this.parents.delete(id); }
+
+  async listChildren(parentId: string) { return [...this.parents.entries()].filter(([, parents]) => parents.includes(parentId)).map(([id]) => ({ id, mimeType: "application/vnd.google-apps.folder" })); }
 }
 
 export class GoogleDriveApiProvider implements GoogleDriveLiveProvider {
@@ -170,5 +176,20 @@ export class GoogleDriveApiProvider implements GoogleDriveLiveProvider {
     });
     if (!response.ok) throw new Error(`Google Drive upload failed (${response.status}): ${await response.text()}`);
     return response.json() as Promise<GoogleDriveUploadedFile>;
+  }
+
+  async deleteFile(id: string): Promise<void> {
+    const response = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}`, { method: "DELETE", headers: { Authorization: `Bearer ${this.accessToken}` } });
+    if (!response.ok && response.status !== 404) throw new Error(`Google Drive delete failed (${response.status}): ${await response.text()}`);
+  }
+
+  async listChildren(parentId: string): Promise<Array<{ id: string; mimeType?: string }>> {
+    const url = new URL("https://www.googleapis.com/drive/v3/files");
+    url.searchParams.set("q", `'${parentId.replace(/'/g, "\\'")}' in parents and trashed = false`);
+    url.searchParams.set("fields", "files(id,mimeType)");
+    const response = await fetch(url, { headers: { Authorization: `Bearer ${this.accessToken}` } });
+    if (!response.ok) throw new Error(`Google Drive children lookup failed (${response.status}): ${await response.text()}`);
+    const body = await response.json() as { files?: Array<{ id: string; mimeType?: string }> };
+    return body.files ?? [];
   }
 }
