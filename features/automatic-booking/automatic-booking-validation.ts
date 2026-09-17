@@ -52,7 +52,6 @@ export function automaticBookingStepIssues(input: {
     if (!input.event.date) issues.push("Selecciona la fecha del evento.");
     if (!input.event.time) issues.push("Selecciona la hora de inicio.");
     if (!input.event.venue.trim()) issues.push("Completa el lugar del evento.");
-    if (!input.event.address.trim()) issues.push("Completa la dirección del evento.");
     if (!input.validMunicipality) issues.push("Selecciona una comuna de la lista.");
     if (!input.event.operationalContact.trim()) issues.push("Completa el contacto operacional.");
     if (!/^\+569\d{8}$/.test(input.event.operationalPhone)) issues.push("Ingresa un teléfono operacional válido de 8 dígitos.");
