@@ -30,4 +30,7 @@ test("booking confirmation gives persistent real-work feedback with accessible m
   assert.match(source, /label="Procesando…".*variant="inline"/);
   assert.match(styles, /prefers-reduced-motion/);
   assert.match(styles, /orbit-loader-ring/);
+  assert.match(styles, /orbit-loader-pulse/);
+  assert.match(styles, /will-change: transform/);
+  assert.match(source, /label="Procesando…" size="md".*variant="inline"/);
 });

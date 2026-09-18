@@ -46,6 +46,7 @@
 }
 
 @keyframes orbit-loader-spin { to { transform: rotate(360deg); } }
+@keyframes orbit-loader-pulse { 0%, 100% { opacity: .5; transform: scale(.9); } 50% { opacity: 1; transform: scale(1); } }
 
 .orbit-loader-ring {
   display: inline-block;
@@ -53,6 +54,7 @@
   border-top-color: var(--brand);
   border-radius: 50%;
   animation: orbit-loader-spin .78s linear infinite;
+  will-change: transform;
 }
 
 button .orbit-loader-ring { border-top-color: currentColor; }
@@ -75,8 +77,9 @@ button[aria-busy="true"]:not(:has(.orbit-loader-ring)):not(:has(.animate-spin)):
 .orbit-loader-fullscreen { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
 
 @media (prefers-reduced-motion: reduce) {
-  .orbit-loader-ring, button[aria-busy="true"]::after { animation: none; }
-  [aria-busy="true"] .animate-pulse { animation: none; }
+  /* Reduced motion remains visibly alive without continuous rotation. */
+  .orbit-loader-ring, button[aria-busy="true"]::after { animation: orbit-loader-pulse 1.4s ease-in-out infinite; }
+  [aria-busy="true"] .animate-pulse { animation: orbit-loader-pulse 1.4s ease-in-out infinite; }
 }
 
 @layer base {
