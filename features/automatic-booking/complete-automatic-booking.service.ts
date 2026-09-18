@@ -13,6 +13,7 @@ import { serializeWhatsAppError } from "@/features/connectors/whatsapp-cloud/wha
 import { isAutomaticBookingSmokeMode, smokeSinkId } from "./automatic-booking-smoke";
 import { BookingTimeInvalidError, normalizeEventWindow } from "@/features/time-intelligence/event-window";
 import { resolveCanonicalVenue, type CanonicalVenue } from "@/features/settings/master-data/venue-resolution";
+import { resolveServicePrice, ServicePriceUnavailableError } from "./service-pricing";
 
 export interface AutomaticBookingSubmission {
   customer: { name: string; rut: string; phone: string; email: string; address: string };
@@ -89,6 +90,7 @@ function friendlyConfirmationMessage(module: string, code?: string) {
     CAPACITY_GATE: "Estamos confirmando la disponibilidad de tu fecha antes de registrar el abono. Nuestro equipo revisará tu solicitud y te contactará a la brevedad.",
     GMAIL_AND_PORTAL: "No fue posible preparar el acceso del cliente. Inténtalo nuevamente en unos minutos.",
     SIGNATURE_AND_DOCUMENT_DELIVERY: "No fue posible guardar la firma y completar los documentos. Revisa la firma e inténtalo nuevamente.",
+    SERVICE_PRICE_UNAVAILABLE: "No pudimos validar el precio de uno de los servicios seleccionados.",
   };
   return messages[module] ?? "No fue posible registrar la reserva. Tus datos continúan disponibles para volver a intentarlo.";
 }
@@ -189,7 +191,8 @@ export async function completeAutomaticBooking(input: { token: string; submissio
     currentModule = "TIMELINE";
     await measured("reservation_records", async () => {
       for (const serviceCode of selectedServiceCodes) {
-        const result = await admin.from("project_services").upsert({ project_id: projectId, service_code: serviceCode, duration_hours: input.submission.service.hours, extras: serviceCode === input.submission.service.code ? persistedExtras : [] }, { onConflict: "project_id,service_code" });
+        const line = pricing.serviceLines.find((item) => item.code === serviceCode);
+        const result = await admin.from("project_services").upsert({ project_id: projectId, service_code: serviceCode, duration_hours: line?.hours ?? null, extras: serviceCode === input.submission.service.code ? persistedExtras : [] }, { onConflict: "project_id,service_code" });
         if (result.error) throw result.error;
       }
       if (!existingQuotation) { const result = await admin.from("quotations").insert({ id: quotationId, quotation_number: quotationNumber, customer_id: customerId, project_id: projectId, orbit_event_id: orbitEventId, status: "DRAFT", customer_type: input.submission.event.type === "Corporate" ? "COMPANY" : "PRIVATE", event_type: input.submission.event.type, issue_date: issueDate, expiration_date: input.submission.event.date, subtotal: pricing.subtotal, transport_total: pricing.transport, discount_total: 0, tax_total: 0, grand_total: pricing.total, official_price: pricing.total, final_customer_price: pricing.total, price_difference: 0, pricing_snapshot: pricing, blockers: [], created_by: actorId, updated_by: actorId }); if (result.error) throw result.error; }
@@ -282,7 +285,10 @@ export async function completeAutomaticBooking(input: { token: string; submissio
   } catch (error) {
     const failure = structuredError(error, error instanceof BookingTimeInvalidError ? "BOOKING_TIME_INVALID" : currentModule === "CAPACITY_GATE" || currentModule === "CONFIRMING" ? "CAPACITY_UNAVAILABLE" : currentModule === "PAYMENT_LEDGER" ? "PAYMENT_VALIDATION_FAILED" : currentModule === "CUSTOMER" ? "CUSTOMER_CREATION_FAILED" : currentModule === "TIMELINE" ? "RESERVATION_CONFLICT" : "INTERNAL_BOOKING_ERROR");
     await admin.from("automatic_booking_invitations").update({ status: "OPENED", state: "FAILED_RETRYABLE", failure_code: failure.code, failure_stage: currentModule, last_request_id: requestId, processing_at: null, payload: { ...(invitation.payload ?? {}), projectId: invitation.project_id ?? null, state: "FAILED_RETRYABLE", failureCode: failure.code, failureStage: currentModule, requestId } }).eq("id", invitation.id).is("consumed_at", null);
-    console.error(JSON.stringify({ level: "error", event: "automatic_booking.transaction_failed", requestId, stage: currentModule, code: failure.code, module: currentModule, reservationId, timestamp: new Date().toISOString(), durationMs: Math.round(performance.now() - confirmationStartedAt), stages: timings, exception: failure.message }));
+    const pricingFailure = error instanceof ServicePriceUnavailableError
+      ? { serviceCode: error.serviceCode, pricingMode: error.pricingMode, requestedDuration: error.requestedDuration }
+      : undefined;
+    console.error(JSON.stringify({ level: "error", event: "automatic_booking.transaction_failed", requestId, stage: currentModule, code: failure.code, module: currentModule, reservationId, timestamp: new Date().toISOString(), durationMs: Math.round(performance.now() - confirmationStartedAt), stages: timings, exception: failure.message, pricingFailure }));
     throw new AutomaticBookingConfirmationError(currentModule, reservationId, error, failure.code, requestId);
   }
 }
@@ -310,9 +316,8 @@ async function calculatePricing(admin: ReturnType<typeof createAdminClient>, inp
     const serviceRows = prices.filter((price) => price.category === "SERVICE" && price.code === code);
     const serviceConfiguration = (master?.configuration ?? {}) as Record<string, unknown>;
     const fixedHours = Number(serviceConfiguration.minimumHours ?? serviceConfiguration.defaultDuration ?? 0);
-    const exact = serviceRows.find((price) => Number(price.duration_hours) === input.service.hours) ?? (input.service.hours === fixedHours ? serviceRows.find((price) => price.duration_hours === null) : undefined);
-    if (!exact?.unit_price) throw new Error(`El servicio ${code} no tiene precio aprobado.`);
-    return { code, hours: input.service.hours, amount: Number(exact.unit_price) };
+    const resolved = resolveServicePrice({ serviceCode: code, requestedDuration: input.service.hours, rows: serviceRows, fixedHours });
+    return { code, ...resolved };
   });
   const extraCodes: Record<string, string> = { QR: "QR", Branding: "BRANDING", Imanes: "UNLIMITED_MAGNETS", Scrapbook: "SCRAPBOOK" };
   const extras = input.service.extras.reduce((sum, extra) => { const row = prices.find((price) => price.category === "EXTRA" && price.code === extraCodes[extra]); return sum + Number(row?.unit_price ?? 0) * (extra === "Branding" ? Math.max(2, input.service.brandingQuantity) : 1); }, 0);
