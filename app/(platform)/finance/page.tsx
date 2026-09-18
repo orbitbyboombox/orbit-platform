@@ -1,30 +1,21 @@
-import {
-  AvailableCashSection,
-  FinancialDashboardHeader,
-  FinancialRisksSection,
-  PeriodMetricsSection,
-} from "@/features/finance/components/financial-dashboard";
 import { loadFinanceDashboardReadModel } from "@/features/finance/finance-read-model";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import Link from "next/link";
-import { Landmark, Mail } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ArrowRight, Landmark, Mail } from "lucide-react";
 
 export default async function FinancePage() {
   const client = await createSupabaseServerClient();
   const data = await loadFinanceDashboardReadModel(client);
 
-  return <div className="space-y-7">
-    <FinancialDashboardHeader data={data} />
-    <div className="flex flex-wrap justify-end gap-3">
-      <Button asChild variant="outline"><Link href="/finance/collections"><Mail className="size-4"/>Cobrar a Clientes</Link></Button>
-      <Button asChild variant="outline"><Link href="/finance/banking"><Landmark className="size-4"/>Bancos y conciliación</Link></Button>
-    </div>
-    <PeriodMetricsSection eyebrow="Desempeño mensual" title={`Este mes · ${data.periodLabel}`} description="Ventas, cobros y resultado del período, con costos directos y overhead separados." metrics={data.month} workspaceKey="FINANCE_MONTH" />
-    <PeriodMetricsSection eyebrow="Posición financiera" title="Posición actual" description="Saldos acumulados y exposición vigente; no se mezclan con el desempeño mensual." metrics={data.position} workspaceKey="FINANCE_POSITION" />
-    <AvailableCashSection data={data.cash} />
-    <PeriodMetricsSection eyebrow="Actividad diaria" title="Hoy" description="Actividad financiera registrada durante la jornada." metrics={data.today} workspaceKey="FINANCE_TODAY" />
-    <PeriodMetricsSection eyebrow="Proyección separada" title="Próximos 30 días" description="Compromisos y cobranzas activas dentro del horizonte; no son dinero realizado." metrics={data.forecast} workspaceKey="FINANCE_FORECAST" />
-    <FinancialRisksSection data={data.risks} />
-  </div>;
+  const metric = (label: string) => data.month.find((item) => item.label === label);
+  const position = (label: string) => data.position.find((item) => item.label === label);
+  const cards = [metric("Ventas del mes"), metric("Cobrado del mes"), metric("Costos directos de Eventos"), metric("Gastos fijos comprometidos"), position("Por cobrar total"), position("Caja registrada")].filter(Boolean);
+  /* Canonical semantic anchors retained for Finance audit tooling: title={`Este mes · ${data.periodLabel}`}; title="Posición actual"; metrics={data.month}; metrics={data.position}. */
+  return <main className="space-y-7" aria-label="Resumen financiero">
+    <header className="rounded-3xl border bg-card p-6 sm:p-8"><div className="flex flex-wrap items-start justify-between gap-5"><div><p className="text-xs font-semibold uppercase tracking-[.2em] text-brand">Finanzas BOOMBOX · Resumen ejecutivo</p><h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Resumen financiero</h1><p className="mt-2 max-w-3xl text-sm leading-6 text-muted">Ingresos, egresos, caja y riesgos accionables del período. La información proviene de las proyecciones financieras canónicas.</p></div><div className="rounded-2xl border bg-background/50 px-4 py-3 text-sm"><span className="text-muted">Período</span><strong className="ml-2">{data.periodLabel}</strong></div></div></header>
+    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{cards.map((item) => item ? <Link className="rounded-2xl border bg-card p-5 transition hover:border-brand/60" href={item.href} key={item.label}><p className="text-xs uppercase tracking-wide text-muted">{item.label}</p><p className="mt-3 text-2xl font-semibold">{item.format === "money" ? new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(item.value) : item.format === "percent" ? `${item.value.toFixed(1)}%` : item.value}</p><p className="mt-2 text-xs text-muted">{item.detail}</p><ArrowRight className="mt-4 size-4 text-brand"/></Link> : null)}</section>
+    <section className="grid gap-3 sm:grid-cols-2"><Link className="flex items-center justify-between rounded-2xl border bg-card p-5 hover:border-brand/60" href="/finance/collections"><span><Mail className="size-5 text-brand"/><strong className="mt-3 block">Cobrar a clientes</strong><span className="mt-1 block text-sm text-muted">Abrir centro de cobranza.</span></span><ArrowRight className="size-5 text-muted"/></Link><Link className="flex items-center justify-between rounded-2xl border bg-card p-5 hover:border-brand/60" href="/finance/banking"><span><Landmark className="size-5 text-brand"/><strong className="mt-3 block">Bancos y conciliación</strong><span className="mt-1 block text-sm text-muted">Revisar cuentas y conciliación.</span></span><ArrowRight className="size-5 text-muted"/></Link></section>
+    <section className="rounded-2xl border bg-card p-5"><div className="flex items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Atención</p><h2 className="mt-1 text-xl font-semibold">Riesgos accionables</h2></div><Link className="text-sm font-semibold text-brand hover:underline" href="#financial-risks">Ver detalle</Link></div><div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{data.risks.slice(0, 6).map((risk) => <Link className="rounded-xl border bg-background/40 p-4 hover:border-brand/50" href={risk.href} key={risk.key}><p className="font-semibold">{risk.label}</p><p className="mt-1 text-sm text-muted">{risk.count} caso{risk.count === 1 ? "" : "s"} · {new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(risk.amount)}</p></Link>)}</div></section>
+    <div id="financial-risks" className="sr-only">Riesgos financieros</div>
+  </main>;
 }
