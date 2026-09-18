@@ -15,7 +15,8 @@ test("venue suggestions keep surcharge outside the dropdown", () => {
   assert.match(source, /Escribe el nombre del lugar del evento/);
   assert.match(source, /role=\"combobox\"/);
   assert.match(source, /\$\{item\.name\} - \$\{candidate\.name\}/);
-  const venueField = source.slice(source.indexOf("Lugar del evento"), source.indexOf("</label>"));
+  const venueStart = source.indexOf(">Lugar del evento<input");
+  const venueField = source.slice(venueStart, source.indexOf("</label>", venueStart));
   assert.doesNotMatch(venueField, /municipalit|filteredOptions|role=\"combobox\"/);
 });
 
