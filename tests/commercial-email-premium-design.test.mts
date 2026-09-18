@@ -38,6 +38,29 @@ test("shared premium commercial shell is email-client safe and branded", () => {
   assert.doesNotMatch(html, /class=|<style/);
 });
 
+test("automatic booking invitation uses the canonical BOOMBOX welcome base", () => {
+  const service = source("features/automatic-booking/automatic-booking.service.ts");
+  const html = renderBoomboxCommercialEmail({
+    preheader: "Tu acceso ya está listo.",
+    eyebrow: "BOOMBOX",
+    title: "¡Bienvenido a BOOMBOX!",
+    headerLabel: "EVENTOS QUE CONECTAN",
+    stackedHeader: true,
+    contentHtml: "<p>Tu experiencia comienza aquí.</p>",
+    benefits: ["Completar los datos de tu evento", "Elegir tus servicios", "Revisar tu contrato", "Confirmar tu reserva"],
+    closingLine: "Cada evento cuenta. Tu experiencia comienza con BOOMBOX.",
+    website: "https://boom-box.cl",
+    primaryAction: { href: "https://app.bbox.cl/booking/fixture", label: "COMPLETAR MI RESERVA  →" },
+  });
+  assert.match(service, /renderBoomboxCommercialEmail\(/);
+  assert.doesNotMatch(service, /<div style=\"font-family:Arial,sans-serif;max-width:560px/);
+  assert.match(html, /¡Bienvenido a BOOMBOX!/);
+  assert.match(html, /Una vez dentro podrás:/);
+  assert.match(html, /EXPERIENCIAS<br>RECUERDOS<br>MOMENTOS/);
+  assert.match(html, /background:#0b0c0e/);
+  assert.match(html, /COMPLETAR MI RESERVA/);
+});
+
 test("Empresa reservation uses the shared premium shell and safe portal CTA", () => {
   const html = renderReservationConfirmationHtml(
     "Hola Cliente,\n\nBIENVENIDOS A BOOMBOX\n\nSERVICIO CONTRATADO\n\nServicio\nClassic\n\nABRIR EVENTO EN ORBIT\n\nEquipo BOOMBOX",
