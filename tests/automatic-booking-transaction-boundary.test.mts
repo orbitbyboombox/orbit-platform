@@ -31,6 +31,18 @@ test("automatic booking exposes structured stage/code/request diagnostics", asyn
   assert.doesNotMatch(service, /exception:\s*String\(error\)/);
 });
 
+test("capacity gate distinguishes real exhaustion from an unconfirmed gate", async () => {
+  const [service, route] = await Promise.all([
+    read("features/automatic-booking/complete-automatic-booking.service.ts"),
+    read("app/api/booking/[token]/confirm/route.ts"),
+  ]);
+  for (const code of ["CAPACITY_UNAVAILABLE_REAL", "CAPACITY_GATE_NOT_CONFIRMED", "CAPACITY_TECHNICAL_ERROR"]) {
+    assert.match(`${service}\n${route}`, new RegExp(code));
+  }
+  assert.match(service, /eventAddress: input\.submission\.event\.address/);
+  assert.match(service, /capacityResult\.status !== "AVAILABLE"/);
+});
+
 test("final capacity check is the shared database boundary", async () => {
   const migration = await read("supabase/migrations/20260917110000_automatic_booking_transaction_boundary.sql");
   assert.match(migration, /_preflight_draft_capacity_core/);

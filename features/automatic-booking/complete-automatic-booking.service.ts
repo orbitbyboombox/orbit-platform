@@ -31,6 +31,24 @@ export class AutomaticBookingConfirmationError extends Error {
   }
 }
 
+class CapacityGateError extends Error {
+  constructor(public readonly code: "CAPACITY_UNAVAILABLE_REAL" | "CAPACITY_GATE_NOT_CONFIRMED" | "CAPACITY_TECHNICAL_ERROR", message: string, cause?: unknown) {
+    super(message, { cause });
+    this.name = "CapacityGateError";
+  }
+}
+
+function classifyCapacityRpcError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/capacidad operativa|CAPACITY_(?:EXHAUSTED|UNAVAILABLE)|CASE_CAPACITY|BBOX360_CAPACITY/i.test(message)) {
+    return new CapacityGateError("CAPACITY_UNAVAILABLE_REAL", "Ese horario acaba de dejar de estar disponible.", error);
+  }
+  if (/capacidad|capacity|disponibilidad/i.test(message)) {
+    return new CapacityGateError("CAPACITY_TECHNICAL_ERROR", "No fue posible completar la validación de capacidad.", error);
+  }
+  return error;
+}
+
 type BookingInvitationRow = {
   id: string;
   status: string | null;
@@ -80,7 +98,10 @@ function structuredError(error: unknown, fallbackCode: string) {
 }
 
 function friendlyConfirmationMessage(module: string, code?: string) {
-  if (code === "CAPACITY_UNAVAILABLE") return "La fecha ya no está disponible para este horario. Tus datos siguen guardados y puedes elegir otra alternativa.";
+  if (code === "CAPACITY_UNAVAILABLE_REAL") return "Ese horario acaba de dejar de estar disponible. Tus datos siguen guardados para que puedas elegir otro horario.";
+  if (code === "CAPACITY_GATE_NOT_CONFIRMED") return "No pudimos completar la validación final. Tus datos siguen guardados para reintentar.";
+  if (code === "CAPACITY_TECHNICAL_ERROR") return "No pudimos completar la validación de capacidad. Tus datos siguen guardados para reintentar.";
+  if (code === "CAPACITY_UNAVAILABLE") return "Ese horario acaba de dejar de estar disponible. Tus datos siguen guardados para que puedas elegir otro horario.";
   if (code === "BOOKING_IN_PROGRESS") return "Tu reserva ya se está procesando. Espera unos segundos antes de volver a intentarlo.";
   if (code === "PAYMENT_VALIDATION_FAILED") return "No pudimos validar el comprobante o el abono. Tus datos siguen guardados para reintentar.";
   if (code === "RESERVATION_CONFLICT") return "La reserva ya está siendo confirmada. Tus datos siguen guardados para reintentar de forma segura.";
@@ -149,7 +170,7 @@ export async function completeAutomaticBooking(input: { token: string; submissio
     if (customerLookupError) throw customerLookupError;
     const existingCustomer = (customerCandidates ?? []).find((customer) => String(customer.rut ?? "").replace(/[^0-9K]/gi, "").toUpperCase() === normalizedRut);
     const existingProject = invitation.project_id
-      ? (await admin.from("projects").select("id,customer_id,orbit_event_id").eq("id", invitation.project_id).is("deleted_at", null).maybeSingle()).data
+      ? (await admin.from("projects").select("id,customer_id,orbit_event_id,operations").eq("id", invitation.project_id).is("deleted_at", null).maybeSingle()).data
       : null;
     const customerId = existingProject?.customer_id ?? existingCustomer?.id ?? randomUUID();
     const projectId = existingProject?.id ?? randomUUID();
@@ -173,8 +194,13 @@ export async function completeAutomaticBooking(input: { token: string; submissio
     // confirmed commercial/operational state.
     const finance = { total: pricing.total, reservationAmount: Math.round(pricing.total / 2), remainingBalance: pricing.total - Math.round(pricing.total / 2), paymentMethod: input.submission.payment.method, paymentStatus: "PENDING" };
     currentModule = "PROJECT_AND_EVENT360";
-    const { error: projectError } = await measured("project_and_event360", async () => existingProject ? { error: null } : await admin.from("projects").insert({ id: projectId, customer_id: customerId, orbit_event_id: orbitEventId, name: input.submission.customer.name.trim(), project_type: input.submission.event.type, status: "Upcoming", health: "Healthy", event_date: input.submission.event.date, event_time: input.submission.event.time, location: input.submission.event.venue, city: input.submission.event.municipality, operations: { stage: "Capacidad pendiente", commercialStage: "Waiting", reservationMethod: "AUTOMATIC", automaticBookingInvitationId: invitation.id, notes, durationHours: input.submission.service.hours, serviceStartAt: normalizedWindow.startAt, serviceEndAt: normalizedWindow.endAt, shell: input.submission.event.shell ?? null, specialVenue: input.submission.event.specialVenue ?? null, services: selectedServiceCodes, extras: persistedExtras, brandingFaces:input.submission.service.extras.includes("Branding")?Math.max(1,input.submission.service.brandingQuantity):0 }, finance, created_by: actorId, updated_by: actorId }));
+    const { error: projectError } = await measured("project_and_event360", async () => existingProject ? { error: null } : await admin.from("projects").insert({ id: projectId, customer_id: customerId, orbit_event_id: orbitEventId, name: input.submission.customer.name.trim(), project_type: input.submission.event.type, status: "Upcoming", health: "Healthy", event_date: input.submission.event.date, event_time: input.submission.event.time, location: input.submission.event.venue, city: input.submission.event.municipality, operations: { stage: "Capacidad pendiente", commercialStage: "Waiting", reservationMethod: "AUTOMATIC", automaticBookingInvitationId: invitation.id, notes, eventAddress: input.submission.event.address, durationHours: input.submission.service.hours, serviceStartAt: normalizedWindow.startAt, serviceEndAt: normalizedWindow.endAt, shell: input.submission.event.shell ?? null, specialVenue: input.submission.event.specialVenue ?? null, services: selectedServiceCodes, extras: persistedExtras, brandingFaces:input.submission.service.extras.includes("Branding")?Math.max(1,input.submission.service.brandingQuantity):0 }, finance, created_by: actorId, updated_by: actorId }));
     if (projectError) throw projectError;
+    if (existingProject) {
+      const existingOperations = existingProject.operations && typeof existingProject.operations === "object" ? existingProject.operations as Record<string, unknown> : {};
+      const { error: projectContextError } = await admin.from("projects").update({ location: input.submission.event.venue, city: input.submission.event.municipality, operations: { ...existingOperations, eventAddress: input.submission.event.address, serviceStartAt: normalizedWindow.startAt, serviceEndAt: normalizedWindow.endAt, durationHours: input.submission.service.hours, shell: input.submission.event.shell ?? existingOperations.shell ?? null, specialVenue: input.submission.event.specialVenue ?? existingOperations.specialVenue ?? null, services: selectedServiceCodes } }).eq("id", projectId);
+      if (projectContextError) throw projectContextError;
+    }
     const checkpoint = await admin.from("automatic_booking_invitations").update({ project_id: projectId, state: "VALIDATING", last_request_id: requestId, payload: { ...(invitation.payload ?? {}), projectId, state: "VALIDATING", requestId } }).eq("id", invitation.id);
     if (checkpoint.error) throw checkpoint.error;
     currentModule = "RESERVATION_AND_CONTRACT";
@@ -210,14 +236,21 @@ export async function completeAutomaticBooking(input: { token: string; submissio
     // database gate (including its concurrency lock).
     currentModule = "CAPACITY_GATE";
     const { data: capacity, error: capacityError } = await admin.rpc("preflight_reservation_capacity", { p_project_id: projectId });
-    if (capacityError) throw capacityError;
-    if (!capacity || typeof capacity !== "object" || (capacity as { status?: string }).status !== "AVAILABLE") {
-      throw new Error("La disponibilidad debe confirmarse antes de registrar el abono.");
+    if (capacityError) throw new CapacityGateError("CAPACITY_TECHNICAL_ERROR", "No fue posible consultar el motor de capacidad.", capacityError);
+    const capacityResult = capacity && typeof capacity === "object" ? capacity as { status?: string; reasonCode?: string; humanSafeReason?: string } : null;
+    if (!capacityResult || capacityResult.status !== "AVAILABLE") {
+      const reason = capacityResult?.reasonCode ?? "CAPACITY_GATE_NOT_CONFIRMED";
+      const realUnavailable = capacityResult?.status === "UNAVAILABLE" && /EXHAUSTED|UNAVAILABLE/i.test(reason);
+      throw new CapacityGateError(
+        realUnavailable ? "CAPACITY_UNAVAILABLE_REAL" : "CAPACITY_GATE_NOT_CONFIRMED",
+        capacityResult?.humanSafeReason ?? "La disponibilidad debe confirmarse antes de registrar el abono.",
+        capacityResult,
+      );
     }
 
     currentModule = "CONFIRMING";
     const { error: canonicalRecordError } = await admin.rpc("prepare_confirmed_reservation_records", { p_project_id: projectId, p_actor_id: actorId });
-    if (canonicalRecordError) throw canonicalRecordError;
+    if (canonicalRecordError) throw classifyCapacityRpcError(canonicalRecordError);
     await admin.from("automatic_booking_invitations").update({ payload: { ...(invitation.payload ?? {}), projectId, state: "CONFIRMING", requestId } }).eq("id", invitation.id);
 
     currentModule = "PAYMENT_RECEIPT";
@@ -284,7 +317,7 @@ export async function completeAutomaticBooking(input: { token: string; submissio
     console.info(JSON.stringify({ level: "info", event: "automatic_booking.confirmation_timing", requestId, projectId, durationMs: Math.round(performance.now() - confirmationStartedAt), stages: timings }));
     return { projectId, portalUrl: signatureResult.portalUrl, contractUrl: portalToken ? `/api/portal/${encodeURIComponent(portalToken)}/contract?download=1` : null, reservationNumber: quotationNumber, eventDate: input.submission.event.date, service: selectedServiceCodes.join(" + "), reservation: finance.reservationAmount, balance: finance.remainingBalance, total: pricing.total };
   } catch (error) {
-    const failure = structuredError(error, error instanceof BookingTimeInvalidError ? "BOOKING_TIME_INVALID" : currentModule === "CAPACITY_GATE" || currentModule === "CONFIRMING" ? "CAPACITY_UNAVAILABLE" : currentModule === "PAYMENT_LEDGER" ? "PAYMENT_VALIDATION_FAILED" : currentModule === "CUSTOMER" ? "CUSTOMER_CREATION_FAILED" : currentModule === "TIMELINE" ? "RESERVATION_CONFLICT" : "INTERNAL_BOOKING_ERROR");
+    const failure = structuredError(error, error instanceof BookingTimeInvalidError ? "BOOKING_TIME_INVALID" : currentModule === "CAPACITY_GATE" || currentModule === "CONFIRMING" ? "CAPACITY_GATE_NOT_CONFIRMED" : currentModule === "PAYMENT_LEDGER" ? "PAYMENT_VALIDATION_FAILED" : currentModule === "CUSTOMER" ? "CUSTOMER_CREATION_FAILED" : currentModule === "TIMELINE" ? "RESERVATION_CONFLICT" : "INTERNAL_BOOKING_ERROR");
     await admin.from("automatic_booking_invitations").update({ status: "OPENED", state: "FAILED_RETRYABLE", failure_code: failure.code, failure_stage: currentModule, last_request_id: requestId, processing_at: null, payload: { ...(invitation.payload ?? {}), projectId: invitation.project_id ?? null, state: "FAILED_RETRYABLE", failureCode: failure.code, failureStage: currentModule, requestId } }).eq("id", invitation.id).is("consumed_at", null);
     const pricingFailure = error instanceof ServicePriceUnavailableError
       ? { serviceCode: error.serviceCode, pricingMode: error.pricingMode, requestedDuration: error.requestedDuration }
