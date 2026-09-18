@@ -1,10 +1,10 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { loadGoogleWorkspaceAccessToken, loadGoogleWorkspaceCalendarId } from "@/features/connectors/google-workspace/application/google-workspace.repository";
-import { GoogleCalendarApiProvider } from "@/features/connectors/google-calendar/provider/google-calendar-live.provider";
+import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-workspace/application/google-workspace.repository";
+import { deleteCalendarEventForProject } from "@/features/connectors/google-calendar/application/google-calendar-delete.service";
 import { GoogleDriveApiProvider } from "@/features/connectors/google-drive/provider/google-drive-live.provider";
 
-type CleanupJob = { id:string; project_id:string; status:string; external_cleanup:Record<string, unknown>; attempt_count:number };
+type CleanupJob = { id:string; project_id:string; status:string; external_cleanup:Record<string, unknown>; attempt_count:number; actor_id?:string|null };
 type CleanupResidual = { provider:"google_drive"; resourceId:string; resourceType:"file"|"folder"; code:string; message:string; owner?:string|null; requiresManualAction:boolean; actionRequired?:string };
 const arrayOfStrings = (value: unknown) => Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.length > 0) : [];
 const serializeError = (error: unknown) => ({
@@ -48,7 +48,7 @@ async function removeDriveTree(drive: GoogleDriveApiProvider, id: string, residu
 
 export async function processEventDeletionJobs(limit = 20) {
   const client = createAdminClient();
-  const { data: jobs, error } = await client.from("event_deletion_jobs").select("id,project_id,status,external_cleanup,attempt_count").in("status", ["REMOVED_FROM_OPERATION", "EXTERNAL_CLEANUP", "FAILED", "FAILED_RETRYABLE"]).lte("next_retry_at", new Date().toISOString()).order("requested_at").limit(limit);
+  const { data: jobs, error } = await client.from("event_deletion_jobs").select("id,project_id,status,external_cleanup,attempt_count,actor_id").in("status", ["REMOVED_FROM_OPERATION", "EXTERNAL_CLEANUP", "FAILED", "FAILED_RETRYABLE"]).lte("next_retry_at", new Date().toISOString()).order("requested_at").limit(limit);
   if (error) throw error;
   const results: Array<Record<string, unknown>> = [];
   for (const job of (jobs ?? []) as CleanupJob[]) {
@@ -58,10 +58,7 @@ export async function processEventDeletionJobs(limit = 20) {
       const cleanup = job.external_cleanup ?? {};
       const residuals: CleanupResidual[] = [];
       const calendarIds = arrayOfStrings(cleanup.calendarEventIds);
-      if (calendarIds.length) {
-        const calendar = new GoogleCalendarApiProvider(await loadGoogleWorkspaceAccessToken(), await loadGoogleWorkspaceCalendarId());
-        for (const id of calendarIds) await calendar.deleteEvent(id);
-      }
+      await deleteCalendarEventForProject({ client, projectId: job.project_id, eventIds: calendarIds, actorId: job.actor_id });
       const storageObjects = Array.isArray(cleanup.storageObjects) ? cleanup.storageObjects.filter((item): item is { bucket:string; path:string } => Boolean(item) && typeof item === "object" && typeof (item as { bucket?:unknown }).bucket === "string" && typeof (item as { path?:unknown }).path === "string") : [];
       for (const object of storageObjects) await client.storage.from(object.bucket).remove([object.path]);
       const driveFileIds = arrayOfStrings(cleanup.driveFileIds);

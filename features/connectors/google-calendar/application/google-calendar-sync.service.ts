@@ -7,7 +7,7 @@ import {SupabaseGoogleCalendarSyncRepository} from "../repository/google-calenda
 import {loadGoogleWorkspaceAccessToken,loadGoogleWorkspaceCalendarId,loadGoogleWorkspaceConnection} from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import type {CalendarOperationalEventInput,CalendarOperationalEventType,GoogleCalendarSyncOperation} from "../types/google-calendar-live.types";
 import {chileDateTime,resolveCanonicalStaffCallAt,resolveEventOperationalWindow} from "@/features/operations/event-operational-window";
-import {usesNOVAGoogleCore} from "@/features/connectors/google-workspace/application/google-nova-core";
+import {deleteCalendarEventForProject} from "./google-calendar-delete.service";
 import {buildCanonicalOrbitEventStateFromRecord} from "@/features/operations/canonical-orbit-event-state";
 
 type ProjectRecord={id:string;name:string;status:string;orbit_event_id:string;project_type:string;event_date:string;event_time:string;location:string|null;city:string|null;updated_at:string;operations:Record<string,unknown>|null;customers:unknown;project_services:Array<{service_code:string;duration_hours:number|null;extras:unknown}>;quotations:Array<{status:string}>;agreements:Array<{status:string;signed_at:string|null}>;assignments:Array<{assignment_type:string;status:string;staff_call_at:string|null;staff:{first_name:string;last_name:string}|null}>};
@@ -39,11 +39,6 @@ export async function synchronizeConfirmedReservationCalendar(input:{client:Supa
 }
 
 export async function removeCancelledReservationCalendar(input:{client:SupabaseClient;projectId:string;actorId:string}):Promise<{removed:boolean;googleEventId?:string}>{
-  const{data:project,error:projectError}=await input.client.from("projects").select("id,customer_id,orbit_event_id").eq("id",input.projectId).single();if(projectError)throw projectError;
-  const{data:sync,error:syncError}=await input.client.from("calendar_sync").select("external_event_id,nova_external_event_id,status").eq("project_id",input.projectId).maybeSingle();if(syncError)throw syncError;
-  const googleEventId=(usesNOVAGoogleCore()?sync?.nova_external_event_id:sync?.external_event_id)??undefined;if(!googleEventId||sync?.status==="DELETED")return{removed:false,googleEventId};
-  const provider=new GoogleCalendarApiProvider(await loadGoogleWorkspaceAccessToken(),await loadGoogleWorkspaceCalendarId());await provider.deleteEvent(googleEventId);const synchronizedAt=new Date().toISOString();
-  const{error:updateError}=await input.client.from("calendar_sync").update({status:"DELETED",...(usesNOVAGoogleCore()?{nova_external_url:null}:{external_url:null}),last_synced_at:synchronizedAt,last_error:null}).eq("project_id",input.projectId);if(updateError)throw updateError;
-  const message="Evento eliminado de Google Calendar al cancelar la reserva.";const{error:timelineError}=await input.client.from("timeline_events").insert({customer_id:project.customer_id,project_id:project.id,event_type:"CALENDAR_EVENT_REMOVED",title:message,description:message,orbit_event_id:project.orbit_event_id,actor_id:input.actorId,actor_label:"Administrador",source:"Calendar",action:"CALENDAR_EVENT_REMOVED",entity_type:"CalendarSync",entity_id:googleEventId,human_message:message,correlation_id:`calendar:${project.orbit_event_id}:deleted:${randomUUID()}`,created_by:input.actorId});if(timelineError)throw timelineError;
-  return{removed:true,googleEventId};
+  const result=await deleteCalendarEventForProject(input);
+  return{removed:result.removed,googleEventId:result.googleEventIds[0]};
 }
