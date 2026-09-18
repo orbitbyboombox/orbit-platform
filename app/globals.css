@@ -306,6 +306,91 @@ aside[aria-label="Nueva reserva"] aside {
   }
 }
 
+/* Automatic Booking processing feedback: these animations intentionally do
+   not depend on Tailwind's animate-spin or the shared OrbitLoader ring. */
+@keyframes orbitBookingSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes orbitBookingPulse {
+  0%, 100% { opacity: .48; transform: scale(.94); }
+  50% { opacity: 1; transform: scale(1); }
+}
+@keyframes orbitBookingDotPulse {
+  0%, 80%, 100% { opacity: .28; transform: scale(.78); }
+  40% { opacity: 1; transform: scale(1.12); }
+}
+.booking-processing-orbit {
+  position: relative;
+  display: grid;
+  width: clamp(72px, 18vw, 88px);
+  height: clamp(72px, 18vw, 88px);
+  place-items: center;
+  border: 3px solid rgb(255 255 255 / .15);
+  border-radius: 999px;
+  animation-name: orbitBookingSpin;
+  animation-duration: 1.05s;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  animation-play-state: running;
+  will-change: transform;
+}
+.booking-processing-orbit__arc {
+  position: absolute;
+  inset: -3px;
+  border: 5px solid transparent;
+  border-top-color: var(--brand);
+  border-right-color: color-mix(in srgb, var(--brand) 72%, transparent);
+  border-radius: inherit;
+  filter: drop-shadow(0 0 8px rgb(247 137 0 / .6));
+}
+.booking-processing-orbit--stopped { animation-play-state: paused; opacity: .65; }
+.booking-processing-dots { display: inline-flex; gap: .45rem; margin-top: .75rem; color: var(--brand); font-size: .75rem; }
+.booking-processing-dots span {
+  display: inline-block;
+  animation-name: orbitBookingDotPulse;
+  animation-duration: 1.15s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  animation-play-state: running;
+  will-change: opacity, transform;
+}
+.booking-processing-dots span:nth-child(2) { animation-delay: .16s; }
+.booking-processing-dots span:nth-child(3) { animation-delay: .32s; }
+.booking-processing-dots--stopped span { animation-play-state: paused; opacity: .45; }
+.booking-processing-step-spinner {
+  display: inline-block;
+  width: 1.35rem;
+  height: 1.35rem;
+  border: 3px solid rgb(255 255 255 / .2);
+  border-top-color: var(--brand);
+  border-radius: 999px;
+  animation-name: orbitBookingSpin;
+  animation-duration: .82s;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  animation-play-state: running;
+  will-change: transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  .booking-processing-orbit,
+  .booking-processing-step-spinner {
+    animation-name: orbitBookingPulse !important;
+    animation-duration: 1.15s !important;
+    animation-timing-function: ease-in-out !important;
+    animation-iteration-count: infinite !important;
+    animation-play-state: running !important;
+  }
+  .booking-processing-dots span {
+    animation-name: orbitBookingDotPulse !important;
+    animation-duration: 1.25s !important;
+    animation-iteration-count: infinite !important;
+    animation-play-state: running !important;
+  }
+  .booking-processing-orbit--stopped,
+  .booking-processing-dots--stopped span { animation-play-state: paused !important; }
+}
+
 /* BOOMBOX access portal: direct visual port of PIXMEDIA's approved access system. */
 .access-redesign-shell{min-height:100dvh;background:#05070a;display:grid;place-items:center;padding:44px 24px;position:relative;overflow:hidden;color:#f2f3f1}
 .access-redesign-shell:before{content:"";position:absolute;inset:-30%;background:radial-gradient(ellipse at 27% 50%,#f7890013,transparent 29%),radial-gradient(ellipse at 80% 18%,#22324719,transparent 32%),linear-gradient(120deg,transparent 0 49%,#f7890008 50%,transparent 51%);pointer-events:none}

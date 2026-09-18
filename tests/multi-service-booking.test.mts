@@ -16,7 +16,7 @@ test("automatic booking presents additional operational services and a line-item
   assert.match(automatic, /serviceLines/);
   assert.match(automatic, /Resumen Comercial/);
   assert.match(automatic, /setPending\(true\);setProgressState\("VALIDATING"\)/);
-  assert.match(automatic, /aria-busy=\{state!=="FAILED"\}/);
+  assert.match(automatic, /aria-busy=\{working\}/);
 });
 
 test("multi-service booking persists canonical project_services and prices each service", () => {
