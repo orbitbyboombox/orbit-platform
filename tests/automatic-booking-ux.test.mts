@@ -26,9 +26,11 @@ test("booking confirmation gives persistent real-work feedback with accessible m
   assert.match(source, /Este proceso puede durar un par de minutos/);
   assert.match(source, /aria-busy=\{working\}/);
   assert.match(source, /data-testid="booking-processing-indicator"/);
-  assert.match(source, /booking-processing-orbit/);
+  assert.match(source, /booking-processing-clock/);
   assert.match(source, /booking-processing-step-spinner/);
-  assert.match(source, /booking-processing-dots/);
+  assert.match(source, /booking-processing-heartbeat/);
+  assert.match(source, /createProcessingActivityTicker/);
+  assert.match(source, /formatElapsedSeconds/);
   assert.match(styles, /prefers-reduced-motion/);
   assert.match(styles, /@keyframes orbitBookingSpin/);
   assert.match(styles, /@keyframes orbitBookingDotPulse/);

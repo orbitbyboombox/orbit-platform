@@ -77,7 +77,8 @@ test("automatic booking is tied to real pending state and never simulates server
   assert.match(booking,/finally\s*\{\s*setPending\(false\)/);
   assert.match(booking,/receiptReading/);
   assert.match(booking,/Procesando comprobante…/);
-  assert.doesNotMatch(booking,/progressIndex|setInterval\(/);
+  assert.doesNotMatch(booking,/progressIndex/);
+  assert.match(booking,/createProcessingActivityTicker/);
 });
 
 test("server-action forms inherit pending state from the submitting form",()=>{
