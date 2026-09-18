@@ -14,6 +14,7 @@ import { isAutomaticBookingSmokeMode, smokeSinkId } from "./automatic-booking-sm
 import { BookingTimeInvalidError, normalizeEventWindow } from "@/features/time-intelligence/event-window";
 import { resolveCanonicalVenue, type CanonicalVenue } from "@/features/settings/master-data/venue-resolution";
 import { resolveServicePrice, ServicePriceUnavailableError } from "./service-pricing";
+import { createCustomerPortalAccess } from "@/features/customer-portal/customer-portal.service";
 
 export interface AutomaticBookingSubmission {
   customer: { name: string; rut: string; phone: string; email: string; address: string };
@@ -48,12 +49,13 @@ function requestedServiceCodes(submission: AutomaticBookingSubmission) {
 }
 
 async function replayConfirmedBooking(admin: ReturnType<typeof createAdminClient>, projectId: string) {
-  const { data: existingProject, error } = await admin.from("projects").select("id,event_date,finance,project_services(service_code),quotations(quotation_number,grand_total,final_customer_price)").eq("id", projectId).is("deleted_at", null).single();
+  const { data: existingProject, error } = await admin.from("projects").select("id,event_date,created_by,finance,project_services(service_code),quotations(quotation_number,grand_total,final_customer_price)").eq("id", projectId).is("deleted_at", null).single();
   if (error) throw error;
+  const portal = await createCustomerPortalAccess(projectId, existingProject.created_by ?? "automatic-booking-replay", { preserveExisting: false });
   const quotation = Array.isArray(existingProject.quotations) ? existingProject.quotations[0] : existingProject.quotations;
   const finance = existingProject.finance && typeof existingProject.finance === "object" ? existingProject.finance as Record<string, unknown> : {};
   const services = Array.isArray(existingProject.project_services) ? existingProject.project_services : [];
-  return { alreadyConfirmed: true as const, projectId: existingProject.id, portalUrl: "/portal", contractUrl: `/projects/${existingProject.id}/documents`, reservationNumber: quotation?.quotation_number ?? null, eventDate: existingProject.event_date, service: services.map((item) => item.service_code).join(" + ") || null, reservation: Number(finance.reservationAmount ?? 0), balance: Number(finance.remainingBalance ?? 0), total: Number(quotation?.final_customer_price ?? quotation?.grand_total ?? finance.total ?? 0) };
+  return { alreadyConfirmed: true as const, projectId: existingProject.id, portalUrl: portal.url, contractUrl: `/projects/${existingProject.id}/documents`, reservationNumber: quotation?.quotation_number ?? null, eventDate: existingProject.event_date, service: services.map((item) => item.service_code).join(" + ") || null, reservation: Number(finance.reservationAmount ?? 0), balance: Number(finance.remainingBalance ?? 0), total: Number(quotation?.final_customer_price ?? quotation?.grand_total ?? finance.total ?? 0) };
 }
 
 // Polling is bounded by the real confirmation pipeline latency. Each read
@@ -264,8 +266,7 @@ export async function completeAutomaticBooking(input: { token: string; submissio
     if (signingTokenError) throw signingTokenError;
     currentModule = "SIGNATURE_AND_DOCUMENT_DELIVERY";
     const signatureResult = await measured("contract_and_signature", () => confirmDigitalSignature({ token: signingToken, signatureDataUrl: input.submission.signatureDataUrl, ipAddress: input.ipAddress, userAgent: input.userAgent, suppressCustomerDelivery: true, smokeMode }));
-    const portalToken = signatureResult.portalUrl.split("/p/")[1];
-    if (!portalToken) throw new Error("El enlace del Portal no tiene un token válido.");
+    const portalToken = signatureResult.portalUrl?.split("/p/")[1] ?? null;
     currentModule = "UNIFIED_CONFIRMATION_PIPELINE";
     await measured("unified_confirmation_pipeline", () =>
       confirmPersistedReservation({
@@ -274,14 +275,14 @@ export async function completeAutomaticBooking(input: { token: string; submissio
         actorId,
         sendCustomerCommunication:true,
         smokeMode,
-        portal: { url: signatureResult.portalUrl, expiresAt: "" },
+        portal: { url: signatureResult.portalUrl ?? "", expiresAt: "" },
       }),
     );
     currentModule = "RESERVATION";
     const { error: completionError } = await admin.from("automatic_booking_invitations").update({ status: "COMPLETED", state: "CONFIRMED", consumed_at: new Date().toISOString(), processing_at: null, project_id: projectId, last_request_id: requestId, failure_code: null, failure_stage: null, payload: { ...(invitation.payload ?? {}), projectId, state: "CONFIRMED", service: input.submission.service.code, services: selectedServiceCodes, eventDate: input.submission.event.date, total: pricing.total, requestId } }).eq("id", invitation.id);
     if (completionError) throw completionError;
     console.info(JSON.stringify({ level: "info", event: "automatic_booking.confirmation_timing", requestId, projectId, durationMs: Math.round(performance.now() - confirmationStartedAt), stages: timings }));
-    return { projectId, portalUrl: signatureResult.portalUrl, contractUrl: `/api/portal/${encodeURIComponent(portalToken)}/contract?download=1`, reservationNumber: quotationNumber, eventDate: input.submission.event.date, service: selectedServiceCodes.join(" + "), reservation: finance.reservationAmount, balance: finance.remainingBalance, total: pricing.total };
+    return { projectId, portalUrl: signatureResult.portalUrl, contractUrl: portalToken ? `/api/portal/${encodeURIComponent(portalToken)}/contract?download=1` : null, reservationNumber: quotationNumber, eventDate: input.submission.event.date, service: selectedServiceCodes.join(" + "), reservation: finance.reservationAmount, balance: finance.remainingBalance, total: pricing.total };
   } catch (error) {
     const failure = structuredError(error, error instanceof BookingTimeInvalidError ? "BOOKING_TIME_INVALID" : currentModule === "CAPACITY_GATE" || currentModule === "CONFIRMING" ? "CAPACITY_UNAVAILABLE" : currentModule === "PAYMENT_LEDGER" ? "PAYMENT_VALIDATION_FAILED" : currentModule === "CUSTOMER" ? "CUSTOMER_CREATION_FAILED" : currentModule === "TIMELINE" ? "RESERVATION_CONFLICT" : "INTERNAL_BOOKING_ERROR");
     await admin.from("automatic_booking_invitations").update({ status: "OPENED", state: "FAILED_RETRYABLE", failure_code: failure.code, failure_stage: currentModule, last_request_id: requestId, processing_at: null, payload: { ...(invitation.payload ?? {}), projectId: invitation.project_id ?? null, state: "FAILED_RETRYABLE", failureCode: failure.code, failureStage: currentModule, requestId } }).eq("id", invitation.id).is("consumed_at", null);

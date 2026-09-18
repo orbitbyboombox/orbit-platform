@@ -3,9 +3,9 @@ import { createHash, randomBytes } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadCustomerGallery } from "./customer-gallery.service";
 import { loadCustomerDocuments } from "./customer-documents.service";
+import { buildCustomerPortalUrl } from "./customer-portal-url";
 
 export const portalTokenHash = (token: string) => createHash("sha256").update(token).digest("hex");
-const origin = () => process.env.NEXT_PUBLIC_APP_URL ?? process.env.APP_URL ?? (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "http://localhost:3000");
 
 export async function createCustomerPortalAccess(projectId: string, actorId: string, options: { preserveExisting?: boolean } = {}) {
   const admin = createAdminClient();
@@ -16,7 +16,7 @@ export async function createCustomerPortalAccess(projectId: string, actorId: str
   const expiresAt = new Date(Date.now() + 30 * 86_400_000).toISOString();
   const { error: insertError } = await admin.from("customer_portal_tokens").insert({ project_id: project.id, customer_id: project.customer_id, token_hash: portalTokenHash(token), expires_at: expiresAt, created_by: actorId, updated_by: actorId });
   if (insertError) throw insertError;
-  return { url: `${origin()}/p/${token}`, expiresAt };
+  return { url: buildCustomerPortalUrl(token), expiresAt };
 }
 
 export async function loadCustomerPortal(token: string) {

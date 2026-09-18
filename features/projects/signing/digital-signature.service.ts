@@ -150,12 +150,12 @@ export async function confirmDigitalSignature(input: { token: string; signatureD
       try { return await createCustomerPortalAccess(agreement.project_id, deliveryActorId); }
       catch (error) {
         console.error(JSON.stringify({ level: "error", event: "agreement.boundary_b.portal_failed", agreementId: agreement.id, error: error instanceof Error ? error.message : String(error) }));
-        return { url: `${appOrigin()}/portal`, expiresAt: signedAt };
+        return { url: null, expiresAt: signedAt };
       }
     });
     if (!input.suppressCustomerDelivery) after(async () => {
       const startedAt = performance.now();
-      try { await deliverConfirmedReservationEmail({ projectId: agreement.project_id, actorId: deliveryActorId, portal }); }
+      try { await deliverConfirmedReservationEmail({ projectId: agreement.project_id, actorId: deliveryActorId, portal: portal.url ? portal : { url: "", expiresAt: portal.expiresAt } }); }
       catch (error) { console.error(JSON.stringify({ level: "error", event: "automatic_booking.background_email_failed", projectId: agreement.project_id, error: error instanceof Error ? error.message : String(error) })); }
       finally { console.info(JSON.stringify({ level: "info", event: "automatic_booking.background_email_timing", projectId: agreement.project_id, durationMs: Math.round(performance.now() - startedAt) })); }
     });

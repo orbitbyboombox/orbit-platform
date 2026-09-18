@@ -525,7 +525,7 @@ export async function createCustomerProjectAction(
           formalization: draft.commercialFormalization,
         });
         preparedPortal = {
-          url: "url" in result ? result.url : result.portalUrl,
+          url: ("url" in result ? result.url : result.portalUrl) ?? "",
           expiresAt: "expiresAt" in result ? result.expiresAt : "",
         };
       }
