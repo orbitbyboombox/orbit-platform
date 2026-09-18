@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { removeCancelledReservationCalendar, synchronizeConfirmedReservationCalendar } from "@/features/connectors/google-calendar/application/google-calendar-sync.service";
+import { deleteCalendarEventForProject } from "@/features/connectors/google-calendar/application/google-calendar-delete.service";
 import { archiveCancelledReservationDrive, synchronizeConfirmedReservationDrive } from "@/features/connectors/google-drive/application/google-drive-sync.service";
 import { deliverAssignmentCancellationBoundary } from "@/features/operations/staff-assignment-cancellation.service";
 import { assertFounderForceDeleteConfirmation, serializeForceDeleteError } from "@/features/founder-force-delete/policy";
@@ -22,6 +23,20 @@ export async function founderForceDeleteEventAction(projectId: string, reason: s
     if (profile?.role !== "CEO") throw new Error("Solo Founder/CEO puede eliminar definitivamente.");
     const { data, error } = await client.rpc("purge_event_controlled", { p_project_id: projectId, p_confirmation: confirmation, p_reason: reason.trim(), p_delete_orphan_customer: false });
     if (error) throw error;
+    // Founder Force Delete removes the internal record transactionally, but
+    // must not wait for the five-minute cron before converging Google Calendar.
+    // The same canonical delete helper remains the retry path for transient
+    // provider failures and for jobs interrupted after this request returns.
+    if (String(data?.status ?? "") === "REMOVED_FROM_OPERATION") {
+      try {
+        const calendarResult = await deleteCalendarEventForProject({ client, projectId, actorId: auth.user.id });
+        console.log(JSON.stringify({ level: "info", event: "founder_force_delete.calendar_cleanup", projectId, status: calendarResult.status, googleEventIds: calendarResult.googleEventIds.length }));
+      } catch (calendarError) {
+        const details = serializeForceDeleteError(calendarError);
+        console.error(JSON.stringify({ level: "error", event: "founder_force_delete.calendar_cleanup_failed", projectId, code: details.code, message: details.message, retryable: true }));
+        await client.from("event_deletion_jobs").update({ status: "FAILED_RETRYABLE", next_retry_at: new Date(Date.now() + 60_000).toISOString(), last_error: { ...details, projectId, cleanupStage: "CALENDAR", integration: "GOOGLE_CALENDAR" } }).eq("project_id", projectId);
+      }
+    }
     paths.forEach((path) => revalidatePath(path));
     const status = String(data?.status ?? "REMOVED_FROM_OPERATION");
     const terminal = ["ALREADY_DELETED", "COMPLETED", "COMPLETED_WITH_EXTERNAL_RESIDUALS", "FAILED_MANUAL_ACTION_REQUIRED"].includes(status);

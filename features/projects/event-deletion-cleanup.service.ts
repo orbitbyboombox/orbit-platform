@@ -58,7 +58,8 @@ export async function processEventDeletionJobs(limit = 20) {
       const cleanup = job.external_cleanup ?? {};
       const residuals: CleanupResidual[] = [];
       const calendarIds = arrayOfStrings(cleanup.calendarEventIds);
-      await deleteCalendarEventForProject({ client, projectId: job.project_id, eventIds: calendarIds, actorId: job.actor_id });
+      const calendarResult = await deleteCalendarEventForProject({ client, projectId: job.project_id, eventIds: calendarIds, actorId: job.actor_id });
+      console.log(JSON.stringify({ level: "info", event: "event_deletion_cleanup.calendar", jobId: job.id, projectId: job.project_id, status: calendarResult.status, googleEventIds: calendarResult.googleEventIds.length }));
       const storageObjects = Array.isArray(cleanup.storageObjects) ? cleanup.storageObjects.filter((item): item is { bucket:string; path:string } => Boolean(item) && typeof item === "object" && typeof (item as { bucket?:unknown }).bucket === "string" && typeof (item as { path?:unknown }).path === "string") : [];
       for (const object of storageObjects) await client.storage.from(object.bucket).remove([object.path]);
       const driveFileIds = arrayOfStrings(cleanup.driveFileIds);
