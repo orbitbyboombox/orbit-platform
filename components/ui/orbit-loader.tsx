@@ -6,7 +6,7 @@ export interface OrbitLoaderProps {
   variant?: OrbitLoaderVariant;
   label?: string;
   className?: string;
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "xl";
 }
 
 const sizes:Record<OrbitLoaderVariant,string>={
@@ -16,7 +16,7 @@ const sizes:Record<OrbitLoaderVariant,string>={
   fullscreen:"size-10",
 };
 
-const customSizes={sm:"size-4",md:"size-8",lg:"size-10"};
+const customSizes={sm:"size-4",md:"size-8",lg:"size-10",xl:"size-16"};
 
 export function OrbitLoader({variant="inline",label="Cargando…",className,size}:OrbitLoaderProps){
   const ring=<span aria-hidden="true" className={cn("orbit-loader-ring shrink-0",size?customSizes[size]:sizes[variant])}/>;

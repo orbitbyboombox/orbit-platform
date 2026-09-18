@@ -25,7 +25,9 @@ test("booking confirmation gives persistent real-work feedback with accessible m
   assert.match(source, /Procesando tu reserva/);
   assert.match(source, /Este proceso puede durar un par de minutos/);
   assert.match(source, /aria-busy=\{state!=="FAILED"\}/);
-  assert.match(source, /size="lg".*variant="section"/);
+  assert.match(source, /size="xl".*variant="section"/);
+  assert.match(source, /data-testid="booking-processing-indicator"/);
+  assert.match(source, /label="Procesando…".*variant="inline"/);
   assert.match(styles, /prefers-reduced-motion/);
   assert.match(styles, /orbit-loader-ring/);
 });
