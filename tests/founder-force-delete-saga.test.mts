@@ -22,7 +22,7 @@ test("financial evidence is preserved while operational exposure is removed", ()
 
 test("external cleanup is retryable and serializes structured errors", () => {
   assert.match(cleanup, /status: \"EXTERNAL_CLEANUP\"/);
-  assert.match(cleanup, /status: \"FAILED\"/);
+  assert.match(cleanup, /FAILED_RETRYABLE/);
   assert.match(cleanup, /projectId/);
   assert.match(cleanup, /cleanupStage/);
   assert.match(cleanup, /correlationId/);

@@ -24,7 +24,11 @@ export async function founderForceDeleteEventAction(projectId: string, reason: s
     if (error) throw error;
     paths.forEach((path) => revalidatePath(path));
     const status = String(data?.status ?? "REMOVED_FROM_OPERATION");
-    return { ok: true, status, message: status === "ALREADY_DELETED" ? "Ya fue eliminado." : "El registro fue eliminado de ORBIT. La limpieza externa continúa en segundo plano." };
+    const terminal = ["ALREADY_DELETED", "COMPLETED", "COMPLETED_WITH_EXTERNAL_RESIDUALS", "FAILED_MANUAL_ACTION_REQUIRED"].includes(status);
+    const { data: job } = data?.jobId ? await client.from("event_deletion_jobs").select("cleanup_residuals").eq("id", String(data.jobId)).maybeSingle() : { data: null };
+    const residualCount = Array.isArray(job?.cleanup_residuals) ? job.cleanup_residuals.filter((item: unknown) => Boolean((item as { requiresManualAction?: unknown })?.requiresManualAction)).length : 0;
+    const message = status === "ALREADY_DELETED" || status === "COMPLETED" ? "Ya fue eliminado." : status === "COMPLETED_WITH_EXTERNAL_RESIDUALS" ? `Evento eliminado de ORBIT. Quedaron ${residualCount} archivos históricos en Google Drive que requieren eliminación manual por su propietario.` : terminal ? "Evento eliminado de ORBIT. La limpieza externa requiere una acción manual del propietario." : "El registro fue eliminado de ORBIT. La limpieza externa continúa en segundo plano.";
+    return { ok: true, status, message };
   } catch (error) {
     const details = serializeForceDeleteError(error);
     console.error("[ORBIT][FOUNDER_FORCE_DELETE]", { ...details, projectId, timestamp: new Date().toISOString() });
