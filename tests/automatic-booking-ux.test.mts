@@ -38,9 +38,10 @@ test("booking confirmation gives persistent real-work feedback with accessible m
   assert.match(styles, /animation-iteration-count: infinite/);
 });
 
-test("booking confirmation routes contract review through the customer portal", async () => {
+test("booking confirmation keeps contract access in the email and removes tokenized CTAs", async () => {
   const source = await read("features/automatic-booking/automatic-booking-experience.tsx");
-  assert.match(source, /REVISAR CONTRATO EN MI PORTAL/);
-  assert.match(source, /href=\{result\.portalUrl\}/);
+  assert.match(source, /Te enviamos por correo la confirmación, tu acceso al Portal y tu contrato/);
+  assert.doesNotMatch(source, /REVISAR CONTRATO EN MI PORTAL/);
+  assert.doesNotMatch(source, /portalUrl\?:string/);
   assert.doesNotMatch(source, />Descargar contrato<\//);
 });
