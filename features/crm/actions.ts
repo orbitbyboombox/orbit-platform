@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   transitionReservationLifecycleAction,
+  founderForceDeleteEventAction,
   type ReservationLifecycleAction,
 } from "@/features/projects/actions/reservation-lifecycle.actions";
 import { synchronizeConfirmedReservationCalendar } from "@/features/connectors/google-calendar/application/google-calendar-sync.service";
@@ -359,13 +360,9 @@ export async function transitionCrmEventAction(input: {
   confirmation?: string;
   deleteOrphanCustomer?: boolean;
 }) {
-  const result = await transitionReservationLifecycleAction(
-    input.projectId,
-    input.action,
-    input.reason,
-    input.confirmation,
-    input.deleteOrphanCustomer ?? false,
-  );
+  const result = input.action === "PERMANENT_DELETE"
+    ? await founderForceDeleteEventAction(input.projectId, input.reason, input.confirmation ?? "")
+    : await transitionReservationLifecycleAction(input.projectId, input.action, input.reason, input.confirmation, input.deleteOrphanCustomer ?? false);
   revalidatePath(`/customers/${input.customerId}`);
   revalidatePath("/customers");
   revalidatePath("/events");

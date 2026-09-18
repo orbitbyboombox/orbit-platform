@@ -64,6 +64,7 @@ import {
 import { EventCompletionAction } from "@/features/event-operations-checklist/event-completion-action";
 import {
   transitionReservationLifecycleAction,
+  founderForceDeleteEventAction,
   type ReservationLifecycleAction,
 } from "@/features/projects/actions/reservation-lifecycle.actions";
 import {
@@ -491,7 +492,7 @@ export function ProjectWorkspaceExperience(
     if (
       !window.confirm(
         action === "PERMANENT_DELETE"
-          ? `ELIMINAR EVENTO Y TODOS SUS DATOS\n\nCliente: ${props.clientName}\nORB: ${event.orbitEventId}\nFecha: ${props.eventDateIso ?? "sin fecha"}\nServicio: ${event.services.map((service) => service.code).join(", ") || "sin servicio"}\n\nEsta acción elimina el evento de ORBIT y sus dependencias operacionales. ¿Continuar?`
+          ? `ELIMINAR EVENTO Y TODOS SUS DATOS\n\nCliente: ${props.clientName}\nORB: ${event.orbitEventId}\nFecha: ${props.eventDateIso ?? "sin fecha"}\nServicio: ${event.services.map((service) => service.code).join(", ") || "sin servicio"}\n\nEsta acción eliminará definitivamente este registro y sus dependencias operacionales. ¿Continuar?`
           : `¿Confirmas ${labels[action]} el Evento?\n\nCliente: ${props.clientName}\nORB: ${event.orbitEventId}\nFecha: ${props.eventDateIso ?? "sin fecha"}\nServicio: ${event.services.map((service) => service.code).join(", ") || "sin servicio"}`,
       )
     )
@@ -505,12 +506,9 @@ export function ProjectWorkspaceExperience(
       : window.prompt("Motivo obligatorio de la acción:")?.trim();
     if (!reason) return;
     setCustomerDeleteFeedback("Sincronizando ciclo de vida…");
-    const result = await transitionReservationLifecycleAction(
-      props.projectKey,
-      action,
-      reason,
-      purgeConfirmation,
-    );
+    const result = action === "PERMANENT_DELETE"
+      ? await founderForceDeleteEventAction(props.projectKey, reason, purgeConfirmation ?? "")
+      : await transitionReservationLifecycleAction(props.projectKey, action, reason, purgeConfirmation);
     if (result.ok) {
       window.alert(result.message);
       router.push("/projects");

@@ -463,7 +463,7 @@ export function EventCenter({
         <MobileDialog
           eyebrow="Acción irreversible"
           title="Eliminar Evento"
-          description="Esta acción eliminará el evento de ORBIT, Calendar, Drive y los módulos operacionales asociados. El cliente permanecerá en el CRM."
+          description="Esta acción eliminará definitivamente este registro y sus dependencias operacionales. El cliente permanecerá en el CRM."
           onClose={closeDeleteDialog}
           dismissOnOverlayClick={!pending}
           footer={
