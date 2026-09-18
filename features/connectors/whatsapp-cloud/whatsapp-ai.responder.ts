@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { NovaChannelInput, NovaChannelOutput, NovaNextAction } from "@/features/nova-channel";
 import type { NovaResponder } from "@/features/nova-channel/engine/nova-responder";
 import { NovaChannelEngine } from "@/features/nova-channel";
-import { BIANCA_INTRODUCTION, founderRequestResponse, isFounderRequest } from "./bianca-policy";
+import { BIANCA_INTRODUCTION, founderRequestResponse, isFounderRequest, officialSalesHandoffCopy } from "./bianca-policy";
 
 const INTENTS = [
   "CONSULTA_GENERAL",
@@ -148,6 +148,10 @@ function actionFromDecision(decision: WhatsAppAiDecision): NovaNextAction {
   return "NONE";
 }
 
+function withOfficialSalesHandoff(response: string) {
+  return `${response.trim()}\n\n${officialSalesHandoffCopy()}`;
+}
+
 function statusFromDecision(decision: WhatsAppAiDecision): NovaChannelOutput["conversationStatus"] {
   if (decision.requestedAction === "HUMAN_HANDOFF") return "HUMAN_HANDOFF";
   if (decision.waitForMoreData || decision.requestedAction === "WAIT_FOR_CUSTOMER") return "WAITING_CUSTOMER";
@@ -195,7 +199,7 @@ export class WhatsAppAiResponder implements NovaResponder {
         conversationSummary: "Cliente solicita continuar con Matías o una persona de BOOMBOX.",
       };
       return {
-        response: founderRequestResponse(),
+        response: withOfficialSalesHandoff(founderRequestResponse()),
         nextRecommendedAction: "WAIT_FOR_HUMAN",
         conversationStatus: "HUMAN_HANDOFF",
         timelineEvent: {
@@ -234,8 +238,11 @@ export class WhatsAppAiResponder implements NovaResponder {
       const response = MONEY_OR_AVAILABILITY_CLAIM.test(decision.responseText)
         ? safeCommercialFallback(input, decision)
         : decision.responseText.trim();
+      const customerResponse = decision.requestedAction === "HUMAN_HANDOFF" || decision.requestedAction === "MANUAL_REVIEW"
+        ? withOfficialSalesHandoff(response)
+        : response;
       return {
-        response,
+        response: customerResponse,
         nextRecommendedAction: actionFromDecision(decision),
         conversationStatus: statusFromDecision(decision),
         timelineEvent: {

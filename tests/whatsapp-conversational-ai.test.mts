@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const responderUrl = new URL("../features/connectors/whatsapp-cloud/whatsapp-ai.responder.ts", import.meta.url);
+const policyUrl = new URL("../features/connectors/whatsapp-cloud/bianca-policy.ts", import.meta.url);
 const processorUrl = new URL("../features/connectors/whatsapp-cloud/whatsapp-orbit.processor.ts", import.meta.url);
 const catalogUrl = new URL("../features/connectors/whatsapp-cloud/whatsapp-catalog.delivery.ts", import.meta.url);
 const hubUrl = new URL("../features/communication-hub/engine/communication-hub.engine.ts", import.meta.url);
@@ -76,4 +77,15 @@ test("customer request for a person can stop automation", async () => {
   assert.match(source, /HABLAR_CON_PERSONA/);
   assert.match(source, /requestedAction === "HUMAN_HANDOFF"/);
   assert.match(source, /return "HUMAN_HANDOFF"/);
+});
+
+test("BIANCA handoff points to the official human number without migrating it", async () => {
+  const policy = await readFile(policyUrl, "utf8");
+  const responder = await readFile(responderUrl, "utf8");
+  assert.match(policy, /BIANCA_WHATSAPP_NUMBER = "\+56930130927"/);
+  assert.match(policy, /OFFICIAL_SALES_WHATSAPP_NUMBER = "\+56963040989"/);
+  assert.match(policy, /HABLAR CON EQUIPO BOOMBOX/);
+  assert.match(policy, /wa\.me\/56963040989/);
+  assert.match(responder, /officialSalesHandoffCopy/);
+  assert.doesNotMatch(responder, /migrate|transfer.*conversation|copy.*conversation/i);
 });

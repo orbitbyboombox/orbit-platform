@@ -32,6 +32,17 @@ export function biancaCanProcessCustomerMessage() {
 
 export const BIANCA_INTRODUCTION = "¡Hola! Soy BIANCA de BOOMBOX 😊";
 
+// The automated number and the official human sales number are deliberately
+// separate. BIANCA only offers a wa.me handoff; it never attempts to migrate
+// or copy the conversation between WhatsApp numbers.
+export const BIANCA_WHATSAPP_NUMBER = "+56930130927";
+export const OFFICIAL_SALES_WHATSAPP_NUMBER = "+56963040989";
+export const OFFICIAL_SALES_WHATSAPP_URL = "https://wa.me/56963040989?text=Hola%20BOOMBOX%2C%20vengo%20desde%20BIANCA%20y%20necesito%20atenci%C3%B3n%20de%20su%20equipo.";
+
+export function officialSalesHandoffCopy() {
+  return `HABLAR CON EQUIPO BOOMBOX: ${OFFICIAL_SALES_WHATSAPP_URL}`;
+}
+
 const FOUNDER_REQUEST = /\b(?:hola\s+)?mat[ií]as\b|\b(?:quiero|necesito|puedo)\s+hablar\s+con\s+(?:mat[ií]as|el\s+fundador|una\s+persona)\b|\b(?:est[aá]|se\s+encuentra)\s+mat[ií]as\b/i;
 
 export function isFounderRequest(text: string) {
