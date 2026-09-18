@@ -28,13 +28,14 @@ test("shared premium commercial shell is email-client safe and branded", () => {
   assert.match(html, /min-width:260px/);
   assert.match(html, /background:#111214/);
   assert.match(html, /background:#f78900/);
-  assert.match(html, /boombox-official-logo\.png/);
+  assert.equal((html.match(/boombox-official-logo\.png/g) ?? []).length, 2);
   assert.match(html, /alt="BOOMBOX®"/);
   assert.match(html, />VER COTIZACIÓN</);
   assert.match(html, /PDF ADJUNTO/);
-  assert.match(html, /BOOMBOX · Comunicación emitida mediante ORBIT/);
-  assert.match(html, /ORBIT · Software desarrollado por BOOMBOX/);
-  assert.match(html, />www\.bbox\.cl</);
+  assert.match(html, /<a href="https:\/\/www\.bbox\.cl"[^>]*>www\.bbox\.cl<\/a>/);
+  assert.match(html, /COMUNICACIÓN EMITIDA MEDIANTE ORBIT SOFTWARE DESARROLLADO POR BOOMBOX®/);
+  assert.doesNotMatch(html, /PRODUCCIONES BOOMBOX COMPANY SPA/);
+  assert.doesNotMatch(html, />BOOMBOX</);
   assert.doesNotMatch(html, /Documento y comunicación emitidos/);
   assert.doesNotMatch(html, /class=|<style/);
 });
@@ -43,24 +44,28 @@ test("automatic booking invitation uses the canonical BOOMBOX welcome base", () 
   const service = source("features/automatic-booking/automatic-booking.service.ts");
   const html = renderBoomboxCommercialEmail({
     preheader: "Tu acceso ya está listo.",
-    eyebrow: "BOOMBOX",
+    eyebrow: "",
     title: "¡Bienvenido a BOOMBOX!",
     headerLabel: "EVENTOS QUE CONECTAN",
     stackedHeader: true,
     contentHtml: "<p>Tu experiencia comienza aquí.</p>",
     benefits: ["Completar los datos de tu evento", "Elegir tus servicios", "Revisar tu contrato", "Confirmar tu reserva"],
     closingLine: "Cada evento cuenta. Tu experiencia comienza con BOOMBOX.",
-    website: "https://boom-box.cl",
+    website: "https://www.bbox.cl",
     primaryAction: { href: "https://app.bbox.cl/booking/fixture", label: "COMPLETAR MI RESERVA  →" },
   });
   assert.match(service, /renderBoomboxCommercialEmail\(/);
   assert.doesNotMatch(service, /<div style=\"font-family:Arial,sans-serif;max-width:560px/);
-  assert.match(html, /¡Bienvenido a BOOMBOX!/);
+  assert.match(html, /<h1[^>]*>¡Bienvenido a BOOMBOX!<\/h1>/);
+  assert.doesNotMatch(html, /<p[^>]*color:#f78900[^>]*>BOOMBOX<\/p>/);
   assert.match(html, /Una vez dentro podrás:/);
   assert.match(html, /EXPERIENCIAS<br>RECUERDOS<br>MOMENTOS/);
   assert.match(html, /background:#0b0c0e/);
   assert.match(html, /COMPLETAR MI RESERVA/);
   assert.match(html, /boombox-official-logo\.png/);
+  assert.equal((html.match(/boombox-official-logo\.png/g) ?? []).length, 2);
+  assert.match(html, /<a href="https:\/\/www\.bbox\.cl"[^>]*>www\.bbox\.cl<\/a>/);
+  assert.match(html, /COMUNICACIÓN EMITIDA MEDIANTE ORBIT SOFTWARE DESARROLLADO POR BOOMBOX®/);
   assert.match(html, /margin-top:4px[^>]*>EVENTOS QUE CONECTAN/);
   assert.match(html, /margin:38px 0 0;border-top:1px solid #343538;padding-top:30px/);
 });
@@ -169,9 +174,8 @@ test("Matrimonio and social categories share one premium Planes y Valores render
     assert.doesNotMatch(rendered.html, /servicio que te interesa|Respóndenos indicando:|lugar del evento/);
     assert.match(rendered.html, /Si alguna alternativa te interesa, respóndenos este correo/);
     assert.match(rendered.html, /Importante:<\/strong> Las fechas se confirman mediante reserva y están sujetas a disponibilidad/);
-    assert.match(rendered.html, /BOOMBOX · Comunicación emitida mediante ORBIT/);
-    assert.match(rendered.html, /ORBIT · Software desarrollado por BOOMBOX/);
-    assert.match(rendered.html, />www\.bbox\.cl</);
+    assert.match(rendered.html, /COMUNICACIÓN EMITIDA MEDIANTE ORBIT SOFTWARE DESARROLLADO POR BOOMBOX®/);
+    assert.match(rendered.html, /<a href="https:\/\/www\.bbox\.cl"[^>]*>www\.bbox\.cl<\/a>/);
     assert.ok(rendered.html.indexOf("Encontrarás el detalle completo") < rendered.html.indexOf("VER PLANES Y VALORES"));
     assert.ok(rendered.html.indexOf("VER PLANES Y VALORES") < rendered.html.indexOf("Si alguna alternativa te interesa"));
   }

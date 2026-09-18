@@ -23,14 +23,14 @@ export async function createAutomaticBookingInvitation(email: string, actorId: s
     const subject = "✨ Completa tu Reserva BOOMBOX";
     const htmlBody = renderBoomboxCommercialEmail({
       preheader: "Tu acceso ya está listo para completar tu reserva de forma rápida, clara y segura.",
-      eyebrow: "BOOMBOX",
+      eyebrow: "",
       title: "¡Bienvenido a BOOMBOX!",
       headerLabel: "EVENTOS QUE CONECTAN",
       stackedHeader: true,
       contentHtml: `<p style="margin:0 0 18px;font-family:Arial,sans-serif;font-size:22px;line-height:1.35;font-weight:700;color:#f78900">Tu experiencia comienza aquí.</p><p style="margin:0;font-family:Arial,sans-serif;font-size:15px;line-height:1.85;color:#d7d7d9">Completa los datos de tu evento, elige tu servicio, revisa tu contrato y confirma tu reserva desde un único proceso simple, seguro y pensado para ti.</p>`,
       benefits: ["Completar los datos de tu evento", "Elegir tus servicios y complementos", "Revisar tu contrato", "Confirmar tu reserva de forma segura"],
       closingLine: "Cada evento cuenta. Tu experiencia comienza con BOOMBOX.",
-      website: "https://boom-box.cl",
+      website: "https://www.bbox.cl",
       primaryAction: { href: url, label: "COMPLETAR MI RESERVA  →" },
       primaryActionFallback: "Si tienes problemas con el botón, puedes abrir tu reserva",
     });

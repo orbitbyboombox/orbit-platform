@@ -135,7 +135,7 @@ test("Founder backup uses the premium BOOMBOX family", () => {
   assert.match(rendered.htmlBody, /NUEVA RESERVA CONFIRMADA/);
   assert.match(rendered.htmlBody, /ESTADO OPERACIONAL/);
   assert.match(rendered.htmlBody, /ABRIR EVENTO EN ORBIT/);
-  assert.match(rendered.htmlBody, /BOOMBOX · Comunicación emitida mediante ORBIT/);
+  assert.match(rendered.htmlBody, /COMUNICACIÓN EMITIDA MEDIANTE ORBIT SOFTWARE DESARROLLADO POR BOOMBOX®/);
   assert.match(rendered.textBody, /Fecha del evento: 15 de enero de 2027/);
   assert.match(rendered.textBody, /Pago recibido: \$270\.000/);
   assert.match(rendered.textBody, /Saldo: \$270\.000/);
