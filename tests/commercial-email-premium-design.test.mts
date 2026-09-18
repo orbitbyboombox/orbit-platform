@@ -61,6 +61,8 @@ test("automatic booking invitation uses the canonical BOOMBOX welcome base", () 
   assert.match(html, /background:#0b0c0e/);
   assert.match(html, /COMPLETAR MI RESERVA/);
   assert.match(html, /boombox-official-logo\.png/);
+  assert.match(html, /margin-top:4px[^>]*>EVENTOS QUE CONECTAN/);
+  assert.match(html, /margin:38px 0 0;border-top:1px solid #343538;padding-top:30px/);
 });
 
 test("official BOOMBOX logo asset and confirmation finance/portal contrast are canonical", () => {
