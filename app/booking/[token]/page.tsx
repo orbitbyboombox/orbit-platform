@@ -32,7 +32,7 @@ export default async function AutomaticBookingPage({ params }: { params: Promise
     const minimum = Number(configuration.minimumHours ?? configuration.defaultDuration ?? 2);
     const maximum = Number(configuration.maximumHours ?? minimum);
     const configuredHours = Array.from({ length: Math.max(1, maximum - minimum + 1) }, (_, index) => minimum + index);
-    return { code: item.code, name: item.label, configuration, availableHours: Array.from(new Set(pricedHours.length ? pricedHours : configuredHours)).sort((a, b) => a - b) };
+    return { code: item.code, name: item.label, configuration, description: typeof configuration.description === "string" ? configuration.description : undefined, availableHours: Array.from(new Set(pricedHours.length ? pricedHours : configuredHours)).sort((a, b) => a - b) };
   });
   const venues = (venuesConfig.venues ?? []).filter((item) => typeof item.name === "string" && (item.enabled ?? true) !== false).map((item) => ({ name: String(item.name), municipality: String(item.municipality ?? ""), province: String(item.province ?? ""), aliases: Array.isArray(item.aliases) ? item.aliases.filter((alias): alias is string => typeof alias === "string") : [], explanation: typeof item.explanation === "string" ? item.explanation : undefined, surcharge: Number(item.surcharge ?? 0) }));
   return <AutomaticBookingExperience bankDetails={resolveCollectionBankDetails(company)} email={invitation.customer_email} municipalities={municipalities} prices={prices} services={services} token={token} venues={venues}/>;

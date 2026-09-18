@@ -29,6 +29,8 @@ export interface CustomerMemoryRecord {
   estimatedGuests?: number;
   recommendedHours?: number;
   selectedService?: string;
+  /** Additional BOOMBOX services selected for the same commercial event. */
+  selectedServices?: readonly string[];
   currentTimelineStage?: string;
   quotationStatus?: QuotationStatus;
   reservationStatus?: ReservationMemoryStatus;

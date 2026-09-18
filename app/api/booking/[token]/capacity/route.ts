@@ -9,7 +9,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
   try {
     const { token } = await params;
     const input = await request.json() as { customer?: { name?: unknown; phone?: unknown }; serviceCodes?: unknown; eventType?: unknown; eventDate?: unknown; serviceStart?: unknown; serviceEnd?: unknown; durationHours?: unknown; address?: unknown; city?: unknown; shell?: unknown };
-    const serviceCodes = Array.isArray(input.serviceCodes) ? input.serviceCodes.filter((v): v is string => typeof v === "string").slice(0, 3) : [];
+    const serviceCodes = Array.isArray(input.serviceCodes) ? [...new Set(input.serviceCodes.filter((v): v is string => typeof v === "string").map((code) => code.trim().toUpperCase()).filter(Boolean))] : [];
     const admin = createAdminClient();
     const { data: invitation } = await admin.from("automatic_booking_invitations").select("id").eq("token_hash", automaticBookingTokenHash(token)).gt("expires_at", new Date().toISOString()).is("consumed_at", null).in("status", ["SENT", "OPENED"]).maybeSingle();
     if (!invitation) return NextResponse.json({ ok: false, status: "BLOCKED", reasonCode: "BOOKING_TOKEN_INVALID", message: "Esta invitación ya no está disponible." }, { status: 403 });

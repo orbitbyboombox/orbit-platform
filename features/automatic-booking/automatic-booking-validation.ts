@@ -19,6 +19,7 @@ type EventStep = {
 type ServiceStep = {
   code: string;
   total: number;
+  additionalCodes?: string[];
 };
 
 type ContractStep = {

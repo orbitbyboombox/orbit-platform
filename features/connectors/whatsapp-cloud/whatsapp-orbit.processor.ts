@@ -73,6 +73,9 @@ function memoryRecord(customerId: string, customerName: string, context: Record<
     estimatedGuests: typeof context.estimatedGuests === "number" ? context.estimatedGuests : undefined,
     recommendedHours: typeof context.recommendedHours === "number" ? context.recommendedHours : undefined,
     selectedService: typeof context.selectedService === "string" ? context.selectedService : undefined,
+    selectedServices: Array.isArray(context.selectedServices)
+      ? context.selectedServices.filter((item): item is string => typeof item === "string")
+      : undefined,
     currentTimelineStage: typeof context.currentTimelineStage === "string" ? context.currentTimelineStage : undefined,
     quotationStatus: context.quotationStatus as CustomerMemoryRecord["quotationStatus"],
     reservationStatus: context.reservationStatus as CustomerMemoryRecord["reservationStatus"],
@@ -251,13 +254,26 @@ function canonicalMemoryUpdates(decision: WhatsAppAiDecision, occurredAt: string
   const updates: Record<string, unknown> = { lastConversationDate: occurredAt };
   const confirmed = new Set<CustomerMemoryField>(["lastConversationDate"]);
   const locationParts: string[] = [];
+  const primaryService = decision.fields.find((item) => item.confidence === "CONFIRMED" && item.field === "requestedService" && typeof item.value === "string");
+  const secondaryServices = decision.fields
+    .filter((item) => item.confidence === "CONFIRMED" && item.field === "secondaryServices" && Array.isArray(item.value))
+    .flatMap((item) => item.value)
+    .filter((value): value is string => typeof value === "string")
+    .map((value) => value.trim().toUpperCase())
+    .filter(Boolean);
+  if (primaryService && typeof primaryService.value === "string") {
+    updates.selectedService = primaryService.value;
+    confirmed.add("selectedService");
+  }
+  if (secondaryServices.length) {
+    updates.selectedServices = [...new Set([typeof primaryService?.value === "string" ? primaryService.value.trim().toUpperCase() : "", ...secondaryServices].filter(Boolean))];
+  }
   for (const item of decision.fields) {
     if (item.confidence !== "CONFIRMED") continue;
     if (item.field === "name" && typeof item.value === "string") { updates.customerName = item.value; confirmed.add("customerName"); }
     if (item.field === "eventType" && typeof item.value === "string") { updates.eventType = item.value; confirmed.add("eventType"); }
     if (item.field === "eventDate" && typeof item.value === "string") { updates.eventDate = item.value; confirmed.add("eventDate"); }
     if (item.field === "attendees" && typeof item.value === "number") { updates.estimatedGuests = item.value; confirmed.add("estimatedGuests"); }
-    if (item.field === "requestedService" && typeof item.value === "string") { updates.selectedService = item.value; confirmed.add("selectedService"); }
     if (["venue", "commune", "city"].includes(item.field) && typeof item.value === "string") locationParts.push(item.value);
   }
   if (locationParts.length) { updates.eventLocation = [...new Set(locationParts)].join(", "); confirmed.add("eventLocation"); }

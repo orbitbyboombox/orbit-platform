@@ -416,6 +416,10 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
   const addCatalog = (code: string) => {
     const item = data.catalog.find((row) => row.code === code);
     if (!item) return;
+    if (lines.some((line) => !line.manual && line.code === code)) {
+      setMessage("Ese servicio ya está agregado a la cotización.");
+      return;
+    }
     setLines((current) => [
       ...current,
       {

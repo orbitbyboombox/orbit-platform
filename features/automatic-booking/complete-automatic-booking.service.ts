@@ -17,7 +17,7 @@ import { resolveCanonicalVenue, type CanonicalVenue } from "@/features/settings/
 export interface AutomaticBookingSubmission {
   customer: { name: string; rut: string; phone: string; email: string; address: string };
   event: { type: string; date: string; time: string; venue: string; address: string; municipality: string; specialVenue?: string; operationalContact: string; operationalPhone: string; shell?: "WHITE" | "BLACK" };
-  service: { code: string; hours: number; extras: string[]; brandingQuantity: number };
+  service: { code: string; hours: number; extras: string[]; brandingQuantity: number; additionalCodes?: string[] };
   payment: { method: "TRANSFER" | "MERCADO_PAGO"; receiptName: string; receiptType: string; receiptBase64: string };
   signatureDataUrl: string;
 }
@@ -42,13 +42,17 @@ type BookingInvitationRow = {
   customer_email: string;
 };
 
+function requestedServiceCodes(submission: AutomaticBookingSubmission) {
+  return [...new Set([submission.service.code, ...(submission.service.additionalCodes ?? [])].map((code) => code.trim().toUpperCase()).filter(Boolean))];
+}
+
 async function replayConfirmedBooking(admin: ReturnType<typeof createAdminClient>, projectId: string) {
   const { data: existingProject, error } = await admin.from("projects").select("id,event_date,finance,project_services(service_code),quotations(quotation_number,grand_total,final_customer_price)").eq("id", projectId).is("deleted_at", null).single();
   if (error) throw error;
   const quotation = Array.isArray(existingProject.quotations) ? existingProject.quotations[0] : existingProject.quotations;
   const finance = existingProject.finance && typeof existingProject.finance === "object" ? existingProject.finance as Record<string, unknown> : {};
   const services = Array.isArray(existingProject.project_services) ? existingProject.project_services : [];
-  return { alreadyConfirmed: true as const, projectId: existingProject.id, portalUrl: "/portal", contractUrl: `/projects/${existingProject.id}/documents`, reservationNumber: quotation?.quotation_number ?? null, eventDate: existingProject.event_date, service: services[0]?.service_code ?? null, reservation: Number(finance.reservationAmount ?? 0), balance: Number(finance.remainingBalance ?? 0), total: Number(quotation?.final_customer_price ?? quotation?.grand_total ?? finance.total ?? 0) };
+  return { alreadyConfirmed: true as const, projectId: existingProject.id, portalUrl: "/portal", contractUrl: `/projects/${existingProject.id}/documents`, reservationNumber: quotation?.quotation_number ?? null, eventDate: existingProject.event_date, service: services.map((item) => item.service_code).join(" + ") || null, reservation: Number(finance.reservationAmount ?? 0), balance: Number(finance.remainingBalance ?? 0), total: Number(quotation?.final_customer_price ?? quotation?.grand_total ?? finance.total ?? 0) };
 }
 
 // Polling is bounded by the real confirmation pipeline latency. Each read
@@ -158,13 +162,14 @@ export async function completeAutomaticBooking(input: { token: string; submissio
       : await admin.from("customers").insert({ id: customerId, ...customerValues, created_by: actorId }));
     if (customerError) throw customerError;
     const notes = [`Dirección evento: ${input.submission.event.address}`, `Contacto operacional: ${input.submission.event.operationalContact} · ${input.submission.event.operationalPhone}`, "Solicitud automática en validación de capacidad.", "Términos BOOMBOX aceptados."].join("\n");
+    const selectedServiceCodes = requestedServiceCodes(input.submission);
     const persistedExtras=input.submission.service.extras.map(extra=>extra==="Branding"?`Branding · ${Math.max(1,input.submission.service.brandingQuantity)} caras`:extra);
     // Everything written before the final capacity gate is resumable draft
     // state. The commit boundary is the only place allowed to expose a
     // confirmed commercial/operational state.
     const finance = { total: pricing.total, reservationAmount: Math.round(pricing.total / 2), remainingBalance: pricing.total - Math.round(pricing.total / 2), paymentMethod: input.submission.payment.method, paymentStatus: "PENDING" };
     currentModule = "PROJECT_AND_EVENT360";
-    const { error: projectError } = await measured("project_and_event360", async () => existingProject ? { error: null } : await admin.from("projects").insert({ id: projectId, customer_id: customerId, orbit_event_id: orbitEventId, name: input.submission.customer.name.trim(), project_type: input.submission.event.type, status: "Upcoming", health: "Healthy", event_date: input.submission.event.date, event_time: input.submission.event.time, location: input.submission.event.venue, city: input.submission.event.municipality, operations: { stage: "Capacidad pendiente", commercialStage: "Waiting", reservationMethod: "AUTOMATIC", automaticBookingInvitationId: invitation.id, notes, durationHours: input.submission.service.hours, serviceStartAt: normalizedWindow.startAt, serviceEndAt: normalizedWindow.endAt, shell: input.submission.event.shell ?? null, specialVenue: input.submission.event.specialVenue ?? null, extras: persistedExtras, brandingFaces:input.submission.service.extras.includes("Branding")?Math.max(1,input.submission.service.brandingQuantity):0 }, finance, created_by: actorId, updated_by: actorId }));
+    const { error: projectError } = await measured("project_and_event360", async () => existingProject ? { error: null } : await admin.from("projects").insert({ id: projectId, customer_id: customerId, orbit_event_id: orbitEventId, name: input.submission.customer.name.trim(), project_type: input.submission.event.type, status: "Upcoming", health: "Healthy", event_date: input.submission.event.date, event_time: input.submission.event.time, location: input.submission.event.venue, city: input.submission.event.municipality, operations: { stage: "Capacidad pendiente", commercialStage: "Waiting", reservationMethod: "AUTOMATIC", automaticBookingInvitationId: invitation.id, notes, durationHours: input.submission.service.hours, serviceStartAt: normalizedWindow.startAt, serviceEndAt: normalizedWindow.endAt, shell: input.submission.event.shell ?? null, specialVenue: input.submission.event.specialVenue ?? null, services: selectedServiceCodes, extras: persistedExtras, brandingFaces:input.submission.service.extras.includes("Branding")?Math.max(1,input.submission.service.brandingQuantity):0 }, finance, created_by: actorId, updated_by: actorId }));
     if (projectError) throw projectError;
     const checkpoint = await admin.from("automatic_booking_invitations").update({ project_id: projectId, state: "VALIDATING", last_request_id: requestId, payload: { ...(invitation.payload ?? {}), projectId, state: "VALIDATING", requestId } }).eq("id", invitation.id);
     if (checkpoint.error) throw checkpoint.error;
@@ -183,8 +188,10 @@ export async function completeAutomaticBooking(input: { token: string; submissio
     const memory = { customer_id: customerId, context: { customerName: input.submission.customer.name, eventType: input.submission.event.type, eventDate: input.submission.event.date, currentTimelineStage: "Reserva confirmada", nextRecommendedAction: "Preparar operación" }, created_by: actorId, updated_by: actorId };
     currentModule = "TIMELINE";
     await measured("reservation_records", async () => {
-      const service = await admin.from("project_services").select("id").eq("project_id", projectId).limit(1).maybeSingle();
-      if (!service.data) { const result = await admin.from("project_services").insert({ project_id: projectId, service_code: input.submission.service.code, duration_hours: input.submission.service.hours, extras: persistedExtras }); if (result.error) throw result.error; }
+      for (const serviceCode of selectedServiceCodes) {
+        const result = await admin.from("project_services").upsert({ project_id: projectId, service_code: serviceCode, duration_hours: input.submission.service.hours, extras: serviceCode === input.submission.service.code ? persistedExtras : [] }, { onConflict: "project_id,service_code" });
+        if (result.error) throw result.error;
+      }
       if (!existingQuotation) { const result = await admin.from("quotations").insert({ id: quotationId, quotation_number: quotationNumber, customer_id: customerId, project_id: projectId, orbit_event_id: orbitEventId, status: "DRAFT", customer_type: input.submission.event.type === "Corporate" ? "COMPANY" : "PRIVATE", event_type: input.submission.event.type, issue_date: issueDate, expiration_date: input.submission.event.date, subtotal: pricing.subtotal, transport_total: pricing.transport, discount_total: 0, tax_total: 0, grand_total: pricing.total, official_price: pricing.total, final_customer_price: pricing.total, price_difference: 0, pricing_snapshot: pricing, blockers: [], created_by: actorId, updated_by: actorId }); if (result.error) throw result.error; }
       if (!existingAgreement) { const result = await admin.from("agreements").insert({ id: agreementId, project_id: projectId, status: "SENT", template_version: "1.0", rendered_contract: { quotationNumber, termsAccepted: true, commercialSummary: pricing }, created_by: actorId, updated_by: actorId }); if (result.error) throw result.error; }
       const memoryWrite = await admin.from("customer_memory").upsert(memory, { onConflict: "customer_id" });
@@ -268,10 +275,10 @@ export async function completeAutomaticBooking(input: { token: string; submissio
       }),
     );
     currentModule = "RESERVATION";
-    const { error: completionError } = await admin.from("automatic_booking_invitations").update({ status: "COMPLETED", state: "CONFIRMED", consumed_at: new Date().toISOString(), processing_at: null, project_id: projectId, last_request_id: requestId, failure_code: null, failure_stage: null, payload: { ...(invitation.payload ?? {}), projectId, state: "CONFIRMED", service: input.submission.service.code, eventDate: input.submission.event.date, total: pricing.total, requestId } }).eq("id", invitation.id);
+    const { error: completionError } = await admin.from("automatic_booking_invitations").update({ status: "COMPLETED", state: "CONFIRMED", consumed_at: new Date().toISOString(), processing_at: null, project_id: projectId, last_request_id: requestId, failure_code: null, failure_stage: null, payload: { ...(invitation.payload ?? {}), projectId, state: "CONFIRMED", service: input.submission.service.code, services: selectedServiceCodes, eventDate: input.submission.event.date, total: pricing.total, requestId } }).eq("id", invitation.id);
     if (completionError) throw completionError;
     console.info(JSON.stringify({ level: "info", event: "automatic_booking.confirmation_timing", requestId, projectId, durationMs: Math.round(performance.now() - confirmationStartedAt), stages: timings }));
-    return { projectId, portalUrl: signatureResult.portalUrl, contractUrl: `/api/portal/${encodeURIComponent(portalToken)}/contract?download=1`, reservationNumber: quotationNumber, eventDate: input.submission.event.date, service: input.submission.service.code, reservation: finance.reservationAmount, balance: finance.remainingBalance, total: pricing.total };
+    return { projectId, portalUrl: signatureResult.portalUrl, contractUrl: `/api/portal/${encodeURIComponent(portalToken)}/contract?download=1`, reservationNumber: quotationNumber, eventDate: input.submission.event.date, service: selectedServiceCodes.join(" + "), reservation: finance.reservationAmount, balance: finance.remainingBalance, total: pricing.total };
   } catch (error) {
     const failure = structuredError(error, error instanceof BookingTimeInvalidError ? "BOOKING_TIME_INVALID" : currentModule === "CAPACITY_GATE" || currentModule === "CONFIRMING" ? "CAPACITY_UNAVAILABLE" : currentModule === "PAYMENT_LEDGER" ? "PAYMENT_VALIDATION_FAILED" : currentModule === "CUSTOMER" ? "CUSTOMER_CREATION_FAILED" : currentModule === "TIMELINE" ? "RESERVATION_CONFLICT" : "INTERNAL_BOOKING_ERROR");
     await admin.from("automatic_booking_invitations").update({ status: "OPENED", state: "FAILED_RETRYABLE", failure_code: failure.code, failure_stage: currentModule, last_request_id: requestId, processing_at: null, payload: { ...(invitation.payload ?? {}), projectId: invitation.project_id ?? null, state: "FAILED_RETRYABLE", failureCode: failure.code, failureStage: currentModule, requestId } }).eq("id", invitation.id).is("consumed_at", null);
@@ -283,25 +290,30 @@ export async function completeAutomaticBooking(input: { token: string; submissio
 function validate(input: AutomaticBookingSubmission) {
   if (!input.customer.name.trim() || !isValidChileanRut(input.customer.rut) || !/^\+569\d{8}$/.test(input.customer.phone)) throw new Error("Revisa tus datos personales.");
   if (!input.event.type || !input.event.date || !input.event.time || !input.event.venue || !input.event.municipality) throw new Error("Revisa la información del evento.");
-  if (!input.service.code || input.service.hours < 1 || !input.signatureDataUrl.startsWith("data:image/png;base64,")) throw new Error("Revisa el servicio y la firma.");
+  if (!input.service.code || input.service.hours < 1 || (input.service.additionalCodes ?? []).some((code) => !code || code === input.service.code) || !input.signatureDataUrl.startsWith("data:image/png;base64,")) throw new Error("Revisa los servicios y la firma.");
   if (!input.payment.receiptBase64 || !["image/jpeg", "image/png", "image/webp", "application/pdf"].includes(input.payment.receiptType)) throw new Error("Adjunta un comprobante válido.");
 }
 
 async function calculatePricing(admin: ReturnType<typeof createAdminClient>, input: AutomaticBookingSubmission) {
+  const serviceCodes = requestedServiceCodes(input);
   const [pricesResult, serviceResult, venuesResult, municipalities] = await Promise.all([
     admin.from("commercial_prices").select("category,code,duration_hours,destination,unit_price,rules").eq("enabled", true).is("deleted_at", null),
-    admin.from("master_data_entries").select("code,configuration").eq("domain", "SERVICES").eq("code", input.service.code).eq("enabled", true).maybeSingle(),
+    admin.from("master_data_entries").select("code,configuration").eq("domain", "SERVICES").in("code", serviceCodes).eq("enabled", true),
     admin.from("master_data_entries").select("configuration").eq("domain", "SYSTEM_PARAMETERS").eq("code", "EVENT_VENUES").eq("enabled", true).maybeSingle(),
     loadActiveMunicipalities(admin),
   ]);
   if (pricesResult.error || serviceResult.error || venuesResult.error) throw pricesResult.error ?? serviceResult.error ?? venuesResult.error;
-  if (!serviceResult.data) throw new Error("El servicio seleccionado ya no se encuentra disponible.");
+  if (!serviceResult.data || serviceResult.data.length !== serviceCodes.length) throw new Error("Uno de los servicios seleccionados ya no se encuentra disponible.");
   const prices = pricesResult.data ?? [];
-  const serviceRows = prices.filter((price) => price.category === "SERVICE" && price.code === input.service.code);
-  const serviceConfiguration = (serviceResult.data.configuration ?? {}) as Record<string, unknown>;
-  const fixedHours = Number(serviceConfiguration.minimumHours ?? serviceConfiguration.defaultDuration ?? 0);
-  const exact = serviceRows.find((price) => Number(price.duration_hours) === input.service.hours) ?? (input.service.hours === fixedHours ? serviceRows.find((price) => price.duration_hours === null) : undefined);
-  if (!exact?.unit_price) throw new Error("El servicio seleccionado no tiene precio aprobado.");
+  const serviceLines = serviceCodes.map((code) => {
+    const master = serviceResult.data.find((item) => item.code === code);
+    const serviceRows = prices.filter((price) => price.category === "SERVICE" && price.code === code);
+    const serviceConfiguration = (master?.configuration ?? {}) as Record<string, unknown>;
+    const fixedHours = Number(serviceConfiguration.minimumHours ?? serviceConfiguration.defaultDuration ?? 0);
+    const exact = serviceRows.find((price) => Number(price.duration_hours) === input.service.hours) ?? (input.service.hours === fixedHours ? serviceRows.find((price) => price.duration_hours === null) : undefined);
+    if (!exact?.unit_price) throw new Error(`El servicio ${code} no tiene precio aprobado.`);
+    return { code, hours: input.service.hours, amount: Number(exact.unit_price) };
+  });
   const extraCodes: Record<string, string> = { QR: "QR", Branding: "BRANDING", Imanes: "UNLIMITED_MAGNETS", Scrapbook: "SCRAPBOOK" };
   const extras = input.service.extras.reduce((sum, extra) => { const row = prices.find((price) => price.category === "EXTRA" && price.code === extraCodes[extra]); return sum + Number(row?.unit_price ?? 0) * (extra === "Branding" ? Math.max(2, input.service.brandingQuantity) : 1); }, 0);
   const municipality = municipalities.find((item) => item.name.localeCompare(input.event.municipality.trim(), "es", { sensitivity: "base" }) === 0);
@@ -310,7 +322,8 @@ async function calculatePricing(admin: ReturnType<typeof createAdminClient>, inp
   const venues = ((venuesResult.data?.configuration as { venues?: Array<Record<string, unknown>> } | null)?.venues ?? []) as CanonicalVenue[];
   const venue = resolveCanonicalVenue(input.event.specialVenue ?? "", input.event.municipality, venues);
   const venueSurcharge = Number(venue?.surcharge ?? 0);
-  const subtotal = Number(exact.unit_price) + extras + transport + venueSurcharge;
+  const serviceTotal = serviceLines.reduce((sum, line) => sum + line.amount, 0);
+  const subtotal = serviceTotal + extras + transport + venueSurcharge;
   const total = Math.round(subtotal * (input.payment.method === "MERCADO_PAGO" ? 1.05 : 1));
-  return { service: Number(exact.unit_price), extras, transport, venueSurcharge, subtotal, paymentCommission: total - subtotal, total };
+  return { service: serviceTotal, serviceLines, extras, transport, venueSurcharge, subtotal, paymentCommission: total - subtotal, total };
 }
