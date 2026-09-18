@@ -46,7 +46,7 @@ export function renderReservationConfirmationHtml(
         return "";
       const [label, ...detail] = value.split("\n");
       if (label === "Valor total" && detail.length)
-        return `<p style="margin:0 0 16px;font-size:28px;line-height:1.2;font-weight:800;color:#171717">${escapeHtml(detail.join(" "))}</p>`;
+        return `<p style="margin:0 0 16px;font-size:28px;line-height:1.2;font-weight:800;color:#ffffff">${escapeHtml(detail.join(" "))}</p>`;
       if (
         detail.length &&
         [
@@ -60,7 +60,7 @@ export function renderReservationConfirmationHtml(
           "Saldo pendiente",
         ].includes(label)
       )
-        return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;table-layout:fixed;margin:0 0 12px"><tr><td style="width:40%;padding-right:12px;color:#777;font-size:14px;vertical-align:top">${escapeHtml(label)}</td><td align="right" style="font-size:15px;font-weight:700;vertical-align:top;overflow-wrap:anywhere;word-break:break-word">${escapeHtml(detail.join(" "))}</td></tr></table>`;
+        return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;table-layout:fixed;margin:0 0 12px"><tr><td style="width:40%;padding-right:12px;color:#b8b8ba;font-size:14px;vertical-align:top">${escapeHtml(label)}</td><td align="right" style="color:#ffffff;font-size:15px;font-weight:700;vertical-align:top;overflow-wrap:anywhere;word-break:break-word">${escapeHtml(detail.join(" "))}</td></tr></table>`;
       return `<p style="margin:0 0 18px">${escapeHtml(value).replaceAll("\n", "<br>")}</p>`;
     })
     .join("");
@@ -75,6 +75,7 @@ export function renderReservationConfirmationHtml(
     primaryAction: options.portalUrl
       ? { href: options.portalUrl, label: "ABRIR EVENTO EN ORBIT" }
       : undefined,
+    contentAfterActionsHtml: `<p style="margin:18px 0 0;padding:14px 16px;border:1px solid #343538;border-radius:12px;background:#151619;font-family:Arial,sans-serif;font-size:13px;line-height:1.6;color:#e9e9ea">Para ingresar a tu Portal BOOMBOX, utiliza tu RUT y la fecha de tu evento.</p>`,
     attachmentNote: options.companyCommercial
       ? "Tu documento comercial oficial se encuentra adjunto a este correo."
       : undefined,

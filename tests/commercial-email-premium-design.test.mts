@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 import { renderBoomboxCommercialEmail } from "../features/connectors/google-gmail/application/boombox-commercial-email.html.ts";
 import { renderReservationConfirmationHtml } from "../features/connectors/google-gmail/application/reservation-confirmation.html.ts";
@@ -28,7 +28,8 @@ test("shared premium commercial shell is email-client safe and branded", () => {
   assert.match(html, /min-width:260px/);
   assert.match(html, /background:#111214/);
   assert.match(html, /background:#f78900/);
-  assert.match(html, />BOOMBOX</);
+  assert.match(html, /boombox-official-logo\.png/);
+  assert.match(html, /alt="BOOMBOX®"/);
   assert.match(html, />VER COTIZACIÓN</);
   assert.match(html, /PDF ADJUNTO/);
   assert.match(html, /BOOMBOX · Comunicación emitida mediante ORBIT/);
@@ -59,6 +60,21 @@ test("automatic booking invitation uses the canonical BOOMBOX welcome base", () 
   assert.match(html, /EXPERIENCIAS<br>RECUERDOS<br>MOMENTOS/);
   assert.match(html, /background:#0b0c0e/);
   assert.match(html, /COMPLETAR MI RESERVA/);
+  assert.match(html, /boombox-official-logo\.png/);
+});
+
+test("official BOOMBOX logo asset and confirmation finance/portal contrast are canonical", () => {
+  assert.equal(existsSync("public/branding/boombox-official-logo.png"), true);
+  const html = renderReservationConfirmationHtml(
+    "Hola Cliente,\n\nBIENVENIDOS A BOOMBOX\n\nSERVICIO CONTRATADO\n\nValor total\n$450.000\n\nAbono recibido\n$225.000\n\nSaldo pendiente\n$225.000\n\nABRIR EVENTO EN ORBIT",
+    "https://www.bbox.cl",
+    { companyCommercial: false, portalUrl: "https://orbit.boom-box.cl/portal" },
+  );
+  assert.match(html, /color:#ffffff[^>]*>\$450\.000/);
+  assert.match(html, /color:#ffffff;font-size:15px[^>]*>\$225\.000/);
+  assert.match(html, /Para ingresar a tu Portal BOOMBOX, utiliza tu RUT y la fecha de tu evento\./);
+  assert.match(html, /boombox-official-logo\.png/);
+  assert.match(source("components/brand-logo.tsx"), /boombox-official-logo\.png/);
 });
 
 test("Empresa reservation uses the shared premium shell and safe portal CTA", () => {
