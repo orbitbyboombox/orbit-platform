@@ -12,7 +12,11 @@ test("venue suggestions keep surcharge outside the dropdown", () => {
   assert.match(source, /Valor adicional de traslado/);
   assert.match(source, /specialVenue/);
   assert.match(source, /onSpecialVenueChange/);
-  assert.match(source, /Escribe cualquier lugar o recinto/);
+  assert.match(source, /Escribe el nombre del lugar del evento/);
+  assert.match(source, /role=\"combobox\"/);
+  assert.match(source, /\$\{item\.name\} - \$\{candidate\.name\}/);
+  const venueField = source.slice(source.indexOf("Lugar del evento"), source.indexOf("</label>"));
+  assert.doesNotMatch(venueField, /municipalit|filteredOptions|role=\"combobox\"/);
 });
 
 test("automatic and manual booking reuse the same venue selector", () => {
