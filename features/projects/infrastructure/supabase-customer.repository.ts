@@ -188,6 +188,7 @@ export class SupabaseCustomerRepository implements CustomerRepository {
             time: row.event_time?.slice(0, 5) ?? "00:00",
             location: row.location ?? "Por confirmar",
             city: row.city ?? customer.city ?? "",
+            specialVenue: asString(row.operations.specialVenue, "") || undefined,
           },
           services: serviceMap.get(row.id) ?? [],
           status: projectStatus(row.status),

@@ -494,6 +494,7 @@ export async function createCustomerProjectAction(
           finance: { ...currentFinance, ...negotiation },
           operations: {
             ...currentOperations,
+            specialVenue: draft.event.specialVenue ?? null,
             commercialNegotiation: adjustment,
             paymentClause:
               adjustment.paymentCondition === "CASH"

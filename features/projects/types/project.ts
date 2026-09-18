@@ -64,6 +64,7 @@ export interface Project {
     time: string;
     location: string;
     city: string;
+    specialVenue?: string;
     durationHours?: number;
     extras?: string[];
   };

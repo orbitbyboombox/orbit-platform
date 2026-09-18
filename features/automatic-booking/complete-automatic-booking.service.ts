@@ -16,7 +16,7 @@ import { resolveCanonicalVenue, type CanonicalVenue } from "@/features/settings/
 
 export interface AutomaticBookingSubmission {
   customer: { name: string; rut: string; phone: string; email: string; address: string };
-  event: { type: string; date: string; time: string; venue: string; address: string; municipality: string; operationalContact: string; operationalPhone: string; shell?: "WHITE" | "BLACK" };
+  event: { type: string; date: string; time: string; venue: string; address: string; municipality: string; specialVenue?: string; operationalContact: string; operationalPhone: string; shell?: "WHITE" | "BLACK" };
   service: { code: string; hours: number; extras: string[]; brandingQuantity: number };
   payment: { method: "TRANSFER" | "MERCADO_PAGO"; receiptName: string; receiptType: string; receiptBase64: string };
   signatureDataUrl: string;
@@ -164,7 +164,7 @@ export async function completeAutomaticBooking(input: { token: string; submissio
     // confirmed commercial/operational state.
     const finance = { total: pricing.total, reservationAmount: Math.round(pricing.total / 2), remainingBalance: pricing.total - Math.round(pricing.total / 2), paymentMethod: input.submission.payment.method, paymentStatus: "PENDING" };
     currentModule = "PROJECT_AND_EVENT360";
-    const { error: projectError } = await measured("project_and_event360", async () => existingProject ? { error: null } : await admin.from("projects").insert({ id: projectId, customer_id: customerId, orbit_event_id: orbitEventId, name: input.submission.customer.name.trim(), project_type: input.submission.event.type, status: "Upcoming", health: "Healthy", event_date: input.submission.event.date, event_time: input.submission.event.time, location: input.submission.event.venue, city: input.submission.event.municipality, operations: { stage: "Capacidad pendiente", commercialStage: "Waiting", reservationMethod: "AUTOMATIC", automaticBookingInvitationId: invitation.id, notes, durationHours: input.submission.service.hours, serviceStartAt: normalizedWindow.startAt, serviceEndAt: normalizedWindow.endAt, shell: input.submission.event.shell ?? null, extras: persistedExtras, brandingFaces:input.submission.service.extras.includes("Branding")?Math.max(1,input.submission.service.brandingQuantity):0 }, finance, created_by: actorId, updated_by: actorId }));
+    const { error: projectError } = await measured("project_and_event360", async () => existingProject ? { error: null } : await admin.from("projects").insert({ id: projectId, customer_id: customerId, orbit_event_id: orbitEventId, name: input.submission.customer.name.trim(), project_type: input.submission.event.type, status: "Upcoming", health: "Healthy", event_date: input.submission.event.date, event_time: input.submission.event.time, location: input.submission.event.venue, city: input.submission.event.municipality, operations: { stage: "Capacidad pendiente", commercialStage: "Waiting", reservationMethod: "AUTOMATIC", automaticBookingInvitationId: invitation.id, notes, durationHours: input.submission.service.hours, serviceStartAt: normalizedWindow.startAt, serviceEndAt: normalizedWindow.endAt, shell: input.submission.event.shell ?? null, specialVenue: input.submission.event.specialVenue ?? null, extras: persistedExtras, brandingFaces:input.submission.service.extras.includes("Branding")?Math.max(1,input.submission.service.brandingQuantity):0 }, finance, created_by: actorId, updated_by: actorId }));
     if (projectError) throw projectError;
     const checkpoint = await admin.from("automatic_booking_invitations").update({ project_id: projectId, state: "VALIDATING", last_request_id: requestId, payload: { ...(invitation.payload ?? {}), projectId, state: "VALIDATING", requestId } }).eq("id", invitation.id);
     if (checkpoint.error) throw checkpoint.error;
@@ -308,7 +308,7 @@ async function calculatePricing(admin: ReturnType<typeof createAdminClient>, inp
   if (!municipality) throw new Error("La comuna seleccionada no tiene una configuración de transporte vigente.");
   const transport = municipality.transport;
   const venues = ((venuesResult.data?.configuration as { venues?: Array<Record<string, unknown>> } | null)?.venues ?? []) as CanonicalVenue[];
-  const venue = resolveCanonicalVenue(input.event.venue, input.event.municipality, venues);
+  const venue = resolveCanonicalVenue(input.event.specialVenue ?? "", input.event.municipality, venues);
   const venueSurcharge = Number(venue?.surcharge ?? 0);
   const subtotal = Number(exact.unit_price) + extras + transport + venueSurcharge;
   const total = Math.round(subtotal * (input.payment.method === "MERCADO_PAGO" ? 1.05 : 1));

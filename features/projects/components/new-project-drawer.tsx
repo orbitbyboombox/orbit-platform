@@ -27,7 +27,6 @@ import {
 import { ActionButton } from "@/components/ui/action-button";
 import { Button } from "@/components/ui/button";
 import { OrbitLoader } from "@/components/ui/orbit-loader";
-import { MunicipalityCombobox } from "@/components/forms/municipality-combobox";
 import { VenueLocationPicker } from "@/components/forms/venue-location-picker";
 import type { ActiveMunicipality } from "@/features/settings/master-data/municipality-master-data";
 import { resolveCanonicalVenue } from "@/features/settings/master-data/venue-resolution";
@@ -72,6 +71,7 @@ const initialDraft: ProjectDraft = {
     time: "",
     location: "",
     city: "",
+    specialVenue: "",
     durationHours: 2,
     extras: [],
   },
@@ -598,7 +598,7 @@ export function NewProjectDrawer({
 
   const selectedMunicipality =
     municipalities.find((item) => item.name === draft.event.city) ?? null;
-  const selectedVenue = resolveCanonicalVenue(draft.event.location, draft.event.city, venues);
+  const selectedVenue = resolveCanonicalVenue(draft.event.specialVenue ?? "", draft.event.city, venues);
   const transportTotal =
     selectedMunicipality?.pricingStatus === "DEFINED"
       ? selectedMunicipality.transport
@@ -1806,16 +1806,11 @@ export function NewProjectDrawer({
                   </div>
                 </div>
                 <div className="grid gap-5 sm:grid-cols-2">
-                  <VenueLocationPicker municipalities={municipalities} municipality={draft.event.city} onMunicipalityChange={(value) => event("city", value)} onVenueChange={(value) => setDraft((current) => ({ ...current, event: { ...current.event, location: value } }))} venue={draft.event.location} venues={venues} />
+                  <VenueLocationPicker municipalities={municipalities} municipality={draft.event.city} specialVenue={draft.event.specialVenue ?? ""} onMunicipalityChange={(value) => event("city", value)} onSpecialVenueChange={(value) => event("specialVenue", value)} onVenueChange={(value) => event("location", value)} venue={draft.event.location} venues={venues} />
                   <Field
                     label="Dirección del evento"
                     onChange={(e) => setEventAddress(e.target.value)}
                     value={eventAddress}
-                  />
-                  <MunicipalityCombobox
-                    items={municipalities}
-                    onChange={(value) => event("city", value)}
-                    value={draft.event.city}
                   />
                   <Field
                     label="Fecha del evento"
