@@ -1826,11 +1826,11 @@ export function NewProjectDrawer({
                     value={draft.event.time}
                   />
                   <Field
-                    label="Contacto operacional"
+                    label="Encargado de tu evento"
                     onChange={(e) => setOperationalContact(e.target.value)}
                     value={operationalContact}
                   />
-                  <PhoneField label="Teléfono del contacto operacional" onChange={setOperationalPhone} value={operationalPhone} />
+                  <PhoneField label="Teléfono encargado de tu evento" onChange={setOperationalPhone} value={operationalPhone} />
                   {draft.type === "Wedding" ? (
                     <>
                       <Field

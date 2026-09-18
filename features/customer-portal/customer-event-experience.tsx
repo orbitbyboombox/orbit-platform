@@ -22,7 +22,7 @@ export function CustomerEventExperience({ data }: { data: PortalData }) {
       <Detail icon={MapPin} label="Dirección" value={address}/>
       <Detail icon={Sparkles} label="Servicio" value={services.map((item) => item.service_code).join(" + ") || "Por confirmar"}/>
       <Detail icon={Clock3} label="Horas" value={services.map((item) => item.duration_hours ? `${item.duration_hours} horas` : null).filter(Boolean).join(" · ") || "Por confirmar"}/>
-      <Detail icon={UserRound} label="Contacto operacional" value={contact}/>
+      <Detail icon={UserRound} label="Encargado de tu evento" value={contact}/>
     </dl>
   </section>;
 }
