@@ -20,7 +20,8 @@ test("Founder deletion uses the canonical mapping, tombstones it, and never crea
   assert.match(cleanupSource, /calendarEventIds/);
   assert.doesNotMatch(cleanupSource, /calendar\.createEvent|calendar\.updateEvent/);
   assert.match(lifecycleSource, /purge_event_controlled/);
-  assert.match(lifecycleSource, /deleteCalendarEventForProject\(\{ client, projectId, actorId/);
+  assert.match(lifecycleSource, /external_cleanup/);
+  assert.match(lifecycleSource, /deleteCalendarEventForProject\(\{ client, projectId, actorId: auth\.user\.id, eventIds: capturedCalendarIds \}/);
   assert.match(lifecycleSource, /founder_force_delete\.calendar_cleanup/);
   assert.match(lifecycleSource, /FAILED_RETRYABLE/);
 });

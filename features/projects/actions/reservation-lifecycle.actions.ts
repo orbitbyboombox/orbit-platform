@@ -27,9 +27,15 @@ export async function founderForceDeleteEventAction(projectId: string, reason: s
     // must not wait for the five-minute cron before converging Google Calendar.
     // The same canonical delete helper remains the retry path for transient
     // provider failures and for jobs interrupted after this request returns.
+    const { data: jobSnapshot } = data?.jobId
+      ? await client.from("event_deletion_jobs").select("external_cleanup").eq("id", String(data.jobId)).maybeSingle()
+      : { data: null };
+    const capturedCalendarIds = Array.isArray((jobSnapshot?.external_cleanup as { calendarEventIds?: unknown } | null)?.calendarEventIds)
+      ? ((jobSnapshot?.external_cleanup as { calendarEventIds: unknown[] }).calendarEventIds.filter((id): id is string => typeof id === "string" && id.length > 0))
+      : [];
     if (String(data?.status ?? "") === "REMOVED_FROM_OPERATION") {
       try {
-        const calendarResult = await deleteCalendarEventForProject({ client, projectId, actorId: auth.user.id });
+        const calendarResult = await deleteCalendarEventForProject({ client, projectId, actorId: auth.user.id, eventIds: capturedCalendarIds });
         console.log(JSON.stringify({ level: "info", event: "founder_force_delete.calendar_cleanup", projectId, status: calendarResult.status, googleEventIds: calendarResult.googleEventIds.length }));
       } catch (calendarError) {
         const details = serializeForceDeleteError(calendarError);
