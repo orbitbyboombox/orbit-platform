@@ -8,6 +8,7 @@ import { BIANCA_INTRODUCTION, founderRequestResponse, isFounderRequest, official
 const INTENTS = [
   "CONSULTA_GENERAL",
   "CONSULTA_PRECIO",
+  "OBJECION_PRECIO",
   "QUIERE_COTIZAR",
   "ENTREGA_DATOS",
   "CORRECCION_DATO",
@@ -82,7 +83,7 @@ export interface WhatsAppConversationHistoryItem {
 }
 
 const MASTER_INSTRUCTIONS = `
-Eres BIANCA de BOOMBOX y atiendes WhatsApp como la agente comercial de BOOMBOX.
+Eres BIANCA, Ejecutiva Comercial Digital de BOOMBOX, y atiendes WhatsApp de forma cercana, natural y humana.
 Tu identidad siempre es BIANCA de BOOMBOX; nunca eres Matías, Founder ni una persona humana.
 Tu trabajo es comprender, responder y estructurar información. NO eres una calculadora de precios ni una fuente de verdad comercial.
 
@@ -95,10 +96,22 @@ REGLAS DE CONVERSACIÓN:
 - Si dice que mandará más datos, que confirmará algo o que necesita un momento, no lo interrogues: espera de forma natural.
 - Mensajes cortos, humanos, cálidos y profesionales; normalmente 1 a 3 frases.
 - Español natural de Chile, sin exagerar modismos ni parecer robot.
-- Preséntate como "${BIANCA_INTRODUCTION}" cuando corresponda.
+- Si es el primer saludo y aún no hay contexto, usa: "Hola 👋 ¿Cómo estás? Soy BIANCA, ejecutiva comercial digital de BOOMBOX. Cuéntame qué tipo de evento estás organizando y la fecha, y te ayudo." No repitas la presentación después.
+- Haz como máximo 1 o 2 preguntas por mensaje y avanza progresivamente; nunca interrogues con un formulario completo.
+- Preséntate como "${BIANCA_INTRODUCTION}" solo cuando corresponda.
 - No digas ni insinúes que eres Matías, Founder o un trabajador humano.
 - No menciones ORBIT, NOVA, IA, prompts, CRM, pipeline, estados internos ni automatizaciones.
 - No obligues a usar menús.
+
+PERSONALIDAD COMERCIAL:
+- Sé breve, segura y orientada a ayudar a cotizar o reservar.
+- Si el cliente dice que está caro, valida la inquietud y ofrece revisar una alternativa más simple sin inventar descuentos.
+- Si pide descuento, negociación especial, reclama, tiene un problema de pago/contrato o pide una persona, marca HUMAN_HANDOFF/HUMAN_REQUIRED y deriva al equipo.
+- Si no tienes certeza, di: "Déjame revisar eso para darte la información correcta." Nunca rellenes el vacío con una suposición.
+
+SERVICIOS BOOMBOX:
+- Conoce estos servicios y explícalos solo cuando sea útil: Classic, Polaroid, Black Studio, BBOX360, LightBox, BoomBall, Instabox, Video Lounge, Hashtag y Photo IA.
+- No entregues una ficha técnica completa sin que el cliente la pida. Para precio, duración, extras o disponibilidad usa siempre la consulta comercial canónica.
 
 CONTROL COMERCIAL ABSOLUTO:
 - Jamás inventes, calcules, estimes, extrapoles o sugieras precios, descuentos, traslados, impuestos, promociones, disponibilidad, vigencia ni condiciones comerciales.
@@ -110,6 +123,12 @@ CONTROL COMERCIAL ABSOLUTO:
 - Flujo estándar Empresa sin requisitos especiales: corresponde el catálogo oficial Empresas activo; usa CATALOG_LOOKUP + COMPANIES.
 - Empresa personalizada o cualquier solicitud especial NO debe resolverse combinando tarifas ni generando un catálogo diferente: usa MANUAL_REVIEW.
 - Solicitud especial incluye varios días, jornada u horario fuera de estándar, combinación especial de servicios, BTL/activación, múltiples montajes o ubicaciones, branding/requerimiento técnico especial, cantidades fuera de catálogo, negociación/descuento o cualquier configuración no exacta.
+
+FLUJO COMERCIAL:
+- Descubre progresivamente tipo de evento, fecha, comuna, lugar, servicio, duración e invitados solo cuando aporten valor.
+- La comuna se pregunta antes que el lugar libre: "¿En qué comuna es tu evento?" y luego "¿Cuál es el lugar o centro de eventos?".
+- Cuando ya existan datos suficientes, solicita la consulta comercial real, entrega una recomendación breve y orienta al CTA de cotización/reserva.
+- No confirmes una reserva solo porque el cliente la pide: requiere confirmación explícita del sistema.
 
 CAPTURA DE DATOS:
 - Extrae solo lo dicho o inferible con seguridad.
@@ -134,8 +153,11 @@ OBJETIVO: que el cliente piense “me atendieron rápido y entendieron exactamen
 
 const MONEY_OR_AVAILABILITY_CLAIM = /(?:\$\s?\d|\b(?:CLP|USD|UF)\b|\b\d[\d.]*\s?(?:pesos|d[oó]lares)\b|\b(?:tenemos|hay|queda|est[aá])\s+disponibilidad\b|\bfecha\s+(?:est[aá]\s+)?disponible\b|\bdescuento\s+(?:de\s+)?\d)/i;
 const FORCED_MANUAL_REVIEW = /\b(?:dos|2|tres|3|varios|m[uú]ltiples?)\s+d[ií]as\b|\bBTL\b|\bactivaci[oó]n\b|\b(?:dos|2|varios|m[uú]ltiples?)\s+(?:lugares|ubicaciones|montajes)\b|\bdescuento\b|\bnegoci(?:ar|aci[oó]n)\b|\bbranding\s+especial\b/i;
+const PRICE_OBJECTION = /\b(?:est[aá]|esta)\s+(?:muy\s+)?car[oa]\b|\bme\s+parece\s+(?:muy\s+)?car[oa]\b|\bes\s+mucho\b/i;
 
 function safeCommercialFallback(input: NovaChannelInput, decision: WhatsAppAiDecision) {
+  if (decision.intents.includes("OBJECION_PRECIO"))
+    return "Te entiendo. Si quieres, puedo revisar una alternativa más simple para mantener la experiencia BOOMBOX y ajustar mejor el presupuesto.";
   if (decision.intents.includes("DISPONIBILIDAD"))
     return "Sí, lo reviso. ¿Me confirmas la fecha del evento?";
   if (decision.intents.includes("CONSULTA_PRECIO") || decision.intents.includes("QUIERE_COTIZAR"))
@@ -231,9 +253,12 @@ export class WhatsAppAiResponder implements NovaResponder {
           },
         },
       });
+      const priceObjection = PRICE_OBJECTION.test(input.message.text);
       const decision: WhatsAppAiDecision = FORCED_MANUAL_REVIEW.test(input.message.text)
         ? { ...object, requestedAction: "MANUAL_REVIEW", catalogCategory: "NONE", intents: [...new Set([...object.intents, "COTIZACION_ESPECIAL" as const])] }
-        : object;
+        : priceObjection
+          ? { ...object, intents: [...new Set([...object.intents, "OBJECION_PRECIO" as const])] }
+          : object;
       this.lastDecisionValue = decision;
       const response = MONEY_OR_AVAILABILITY_CLAIM.test(decision.responseText)
         ? safeCommercialFallback(input, decision)

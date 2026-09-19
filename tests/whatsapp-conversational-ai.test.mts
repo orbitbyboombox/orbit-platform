@@ -15,6 +15,28 @@ test("WhatsApp AI is conversation-first and waits when the customer will send mo
   assert.match(source, /no lo interrogues/);
   assert.match(source, /CLIENTE_ENVIARA_MAS_DATOS/);
   assert.match(source, /WAIT_FOR_CUSTOMER/);
+  assert.match(source, /Haz como máximo 1 o 2 preguntas por mensaje/);
+  assert.match(source, /Cuéntame qué tipo de evento estás organizando y la fecha/);
+});
+
+test("BIANCA uses the canonical BOOMBOX commercial education and service vocabulary", async () => {
+  const source = await readFile(responderUrl, "utf8");
+  for (const service of ["Classic", "Polaroid", "Black Studio", "BBOX360", "LightBox", "BoomBall", "Instabox", "Video Lounge", "Hashtag", "Photo IA"]) {
+    assert.match(source, new RegExp(service.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")));
+  }
+  assert.match(source, /Ejecutiva Comercial Digital de BOOMBOX/);
+  assert.match(source, /alternativa más simple/);
+  assert.match(source, /HUMAN_HANDOFF\/HUMAN_REQUIRED/);
+  assert.match(source, /¿En qué comuna es tu evento\?/);
+  assert.match(source, /¿Cuál es el lugar o centro de eventos\?/);
+});
+
+test("price objections get an empathetic safe response without inventing a discount", async () => {
+  const source = await readFile(responderUrl, "utf8");
+  assert.match(source, /const PRICE_OBJECTION/);
+  assert.match(source, /OBJECION_PRECIO/);
+  assert.match(source, /Te entiendo\. Si quieres, puedo revisar una alternativa más simple/);
+  assert.match(source, /FORCED_MANUAL_REVIEW/);
 });
 
 test("the model has no authority to invent commercial truth", async () => {
