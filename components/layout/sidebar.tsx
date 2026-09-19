@@ -41,7 +41,7 @@ export function NavigationList({ onNavigate, compact, navigationOrder, hiddenNav
           aria-current={isActive ? "page" : undefined}
           className={cn(
             "group flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-muted transition-all hover:bg-accent/75 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60",
-            compact && "justify-center lg:justify-start",
+            compact && (iconOnly ? "justify-center" : "justify-center lg:justify-start"),
             iconOnly && "justify-center px-0",
             isActive && "border border-brand/20 bg-[linear-gradient(90deg,rgba(255,149,0,.20),rgba(255,149,0,.08))] text-foreground shadow-[0_10px_30px_rgba(255,149,0,.08)]",
           )}
@@ -50,7 +50,7 @@ export function NavigationList({ onNavigate, compact, navigationOrder, hiddenNav
           onClick={onNavigate}
         >
           <Icon aria-hidden="true" className={cn("size-[18px] shrink-0 transition-colors group-hover:text-brand", isActive && "text-brand")} />
-          <span className={cn(compact && "hidden lg:inline", iconOnly && "hidden")}>{label}</span>
+          <span className={cn(iconOnly ? "hidden" : compact ? "hidden lg:inline" : undefined)}>{label}</span>
         </Link>;
       })}
     </nav>
