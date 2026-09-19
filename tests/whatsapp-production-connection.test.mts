@@ -91,6 +91,19 @@ test("production health check is Founder/Admin-only and never returns secrets", 
   assert.doesNotMatch(source, /return.*accessToken/i);
 });
 
+test("AI health probe is Founder/Admin-only, uses generateObject and never sends WhatsApp", async () => {
+  const route = await readFile(new URL("../app/api/integrations/whatsapp/ai-health/route.ts", import.meta.url), "utf8");
+  const source = await readFile(new URL("../features/connectors/whatsapp-cloud/whatsapp-ai.responder.ts", import.meta.url), "utf8");
+  assert.match(route, /getConnectorAdministrator/);
+  assert.match(route, /status: 401/);
+  assert.match(route, /runWhatsAppAiHealthCheck/);
+  assert.match(source, /AI_PROVIDER_REACHABLE/);
+  assert.match(source, /generateObject\(\{/);
+  assert.match(source, /orbit-whatsapp-ai-health/);
+  assert.doesNotMatch(route, /WHATSAPP_ACCESS_TOKEN|OPENAI_API_KEY|AI_GATEWAY_API_KEY/);
+  assert.doesNotMatch(source, /sendMetaWhatsApp/);
+});
+
 test("automation and all customer delivery remain disabled unless separately authorized", async () => {
   const [transport, processor, catalog] = await Promise.all([
     read("features/connectors/whatsapp-cloud/meta-whatsapp-cloud.ts"),

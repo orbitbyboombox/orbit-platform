@@ -74,6 +74,57 @@ const aiDecisionSchema = z.object({
   conversationSummary: z.string().max(1200),
 });
 
+const aiHealthSchema = z.object({ ok: z.boolean() });
+
+export interface WhatsAppAiHealthResult {
+  AI_PROVIDER_REACHABLE: boolean;
+  AI_MODEL: string;
+  AI_GATEWAY_USED: boolean;
+  GENERATE_OBJECT_SMOKE: boolean;
+  ERROR_CODE: string | null;
+  ERROR_TYPE: string | null;
+  ERROR_MESSAGE: string | null;
+}
+
+function sanitizeAiDiagnostic(value: unknown) {
+  if (typeof value !== "string") return null;
+  return value
+    .replace(/(?:api[_-]?key|authorization|bearer|token|secret)\s*[:=]\s*[^\s,}]+/gi, "[redacted]")
+    .replace(/https?:\/\/[^\s)]+/gi, "[url-redacted]")
+    .slice(0, 500);
+}
+
+function aiErrorDiagnostic(error: unknown) {
+  const record = error && typeof error === "object" ? error as Record<string, unknown> : {};
+  const message = error instanceof Error ? error.message : typeof record.message === "string" ? record.message : String(error);
+  return {
+    code: typeof record.code === "string" ? record.code : typeof record.errorCode === "string" ? record.errorCode : null,
+    type: typeof record.type === "string" ? record.type : error instanceof Error ? error.name : null,
+    message: sanitizeAiDiagnostic(message),
+  };
+}
+
+/** Founder/Admin-only connectivity probe. It never sends a WhatsApp message. */
+export async function runWhatsAppAiHealthCheck(): Promise<WhatsAppAiHealthResult> {
+  const model = process.env.ORBIT_WHATSAPP_AI_MODEL?.trim() || "openai/gpt-5.6-sol";
+  const gatewayUsed = model.includes("/");
+  try {
+    await generateObject({
+      model,
+      schema: aiHealthSchema,
+      system: "Return only a valid health result.",
+      prompt: "Return { ok: true }.",
+      providerOptions: {
+        gateway: { user: "orbit-whatsapp-ai-health", tags: ["feature:boombox-whatsapp-health"] },
+      },
+    });
+    return { AI_PROVIDER_REACHABLE: true, AI_MODEL: model, AI_GATEWAY_USED: gatewayUsed, GENERATE_OBJECT_SMOKE: true, ERROR_CODE: null, ERROR_TYPE: null, ERROR_MESSAGE: null };
+  } catch (error) {
+    const diagnostic = aiErrorDiagnostic(error);
+    return { AI_PROVIDER_REACHABLE: false, AI_MODEL: model, AI_GATEWAY_USED: gatewayUsed, GENERATE_OBJECT_SMOKE: false, ERROR_CODE: diagnostic.code, ERROR_TYPE: diagnostic.type, ERROR_MESSAGE: diagnostic.message };
+  }
+}
+
 export type WhatsAppAiDecision = z.infer<typeof aiDecisionSchema>;
 
 export interface WhatsAppConversationHistoryItem {
