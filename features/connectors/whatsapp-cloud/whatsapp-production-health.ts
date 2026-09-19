@@ -161,8 +161,8 @@ export async function runWhatsAppProductionHealthCheck(): Promise<WhatsAppProduc
     // Meta Graph does not expose a valid `/{phone_id}/whatsapp_business_account`
     // edge for this object/version. Do not treat it as a mapping signal.
     result.PHONE_WABA_MAPPING_STATUS = "UNSUPPORTED_ENDPOINT";
-    let actualSubscriptions = subscriptions;
-    let actualTemplates = templates;
+    const actualSubscriptions = subscriptions;
+    const actualTemplates = templates;
     result.ACTUAL_WABA_API_ACCESS = false;
     const subscribed = Array.isArray(actualSubscriptions.body.data) ? actualSubscriptions.body.data : [];
     result.SUBSCRIBED_APP_FOUND = actualSubscriptions.status === 200 && subscribed.some((item) => {
