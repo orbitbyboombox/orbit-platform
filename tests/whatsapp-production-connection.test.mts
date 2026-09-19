@@ -56,6 +56,21 @@ test("connection status is server-derived, read-only, and safe for the browser",
   assert.doesNotMatch(ui, /ACCESS_TOKEN|APP_SECRET|VERIFY_TOKEN/);
 });
 
+test("production health check is Founder/Admin-only and never returns secrets", async () => {
+  const route = await readFile(new URL("../app/api/integrations/whatsapp/health/route.ts", import.meta.url), "utf8");
+  const source = await readFile(new URL("../features/connectors/whatsapp-cloud/whatsapp-production-health.ts", import.meta.url), "utf8");
+  assert.match(route, /getConnectorAdministrator/);
+  assert.match(route, /status: 401/);
+  assert.doesNotMatch(route, /WHATSAPP_ACCESS_TOKEN/);
+  assert.match(source, /debug_token/);
+  assert.match(source, /whatsapp_business_messaging/);
+  assert.match(source, /whatsapp_business_management/);
+  assert.match(source, /subscribed_apps/);
+  assert.match(source, /EXPECTED_BIANCA_PHONE/);
+  assert.doesNotMatch(source, /console\.(log|error).*token/i);
+  assert.doesNotMatch(source, /return.*accessToken/i);
+});
+
 test("automation and all customer delivery remain disabled unless separately authorized", async () => {
   const [transport, processor, catalog] = await Promise.all([
     read("features/connectors/whatsapp-cloud/meta-whatsapp-cloud.ts"),
