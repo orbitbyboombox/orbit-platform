@@ -50,7 +50,7 @@ export function Header({ userEmail, userName, userRole, actionableNotifications,
         </Button>
         <Link
           aria-label="Ir al Dashboard"
-          className="flex h-9 w-24 shrink-0 items-center px-1 sm:w-28 lg:hidden"
+          className="flex h-9 w-32 shrink-0 items-center px-1 sm:w-36 lg:hidden"
           href="/operations"
         >
           <BrandLogo className="w-full" surface="dark" />

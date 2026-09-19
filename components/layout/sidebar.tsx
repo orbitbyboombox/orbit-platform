@@ -60,13 +60,13 @@ export function NavigationList({ onNavigate, compact, navigationOrder, hiddenNav
 export function Sidebar({ navigationOrder, hiddenNavigation }: Pick<NavigationListProps,"navigationOrder"|"hiddenNavigation">) {
   const [collapsed, setCollapsed] = useState(false);
   return (
-    <aside className={cn("peer fixed inset-y-0 left-0 z-30 hidden w-20 border-r border-border/70 bg-[#090c11]/97 shadow-[14px_0_48px_rgba(0,0,0,.2)] backdrop-blur-xl transition-[width] duration-200 md:flex md:flex-col", collapsed ? "lg:w-20" : "lg:w-[15.25rem]")} data-collapsed={collapsed}>
-      <div className="relative flex h-[4.5rem] items-center justify-center border-b border-border/70 px-3">
-      <Link aria-label="Ir al Dashboard" className="flex h-11 items-center justify-center px-1 lg:px-3" href="/operations">
-        <BrandLogo className={cn("w-full max-w-[10.5rem]", collapsed ? "hidden" : "hidden lg:block")} surface="dark" />
-        <BrandLogo className={cn("w-full max-w-[2.25rem]", collapsed ? "lg:block" : "lg:hidden")} surface="dark" variant="isotype" />
+    <aside className={cn("peer fixed inset-y-0 left-0 z-30 hidden w-20 border-r border-border/70 bg-[#090c11]/97 shadow-[14px_0_48px_rgba(0,0,0,.2)] backdrop-blur-xl transition-[width] duration-200 md:flex md:flex-col", collapsed ? "lg:w-20" : "md:w-[14rem] lg:w-[16.5rem]")} data-collapsed={collapsed}>
+      <div className="relative flex h-20 shrink-0 items-center justify-center overflow-hidden border-b border-border/70 px-4 lg:h-24" data-brand-header>
+      <Link aria-label="Ir al Dashboard" className="flex min-w-0 w-full items-center justify-center" href="/operations">
+        <BrandLogo className={cn("w-full max-w-[13rem] lg:max-w-[15rem]", collapsed ? "hidden" : "block")} priority surface="dark" />
+        <BrandLogo className={cn("w-full max-w-[3rem] lg:max-w-[3.25rem]", collapsed ? "block" : "hidden")} priority surface="dark" variant="isotype" />
       </Link>
-      <button aria-label={collapsed ? "Expandir navegación" : "Contraer navegación"} className="absolute -right-3 top-1/2 hidden size-7 -translate-y-1/2 place-items-center rounded-full border bg-card text-muted shadow-md transition hover:border-brand/40 hover:text-brand lg:grid" onClick={() => setCollapsed(value => !value)} type="button">{collapsed ? <ChevronRight className="size-3.5" /> : <ChevronLeft className="size-3.5" />}</button>
+      <button aria-label={collapsed ? "Expandir navegación" : "Contraer navegación"} className="absolute -right-3 top-1/2 hidden size-7 -translate-y-1/2 place-items-center rounded-full border border-border/80 bg-card text-muted shadow-sm transition hover:border-brand/40 hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 lg:grid" onClick={() => setCollapsed(value => !value)} type="button">{collapsed ? <ChevronRight className="size-3.5" /> : <ChevronLeft className="size-3.5" />}</button>
       </div>
       <div className="px-3 pb-3 pt-5"><NavigationList compact hiddenNavigation={hiddenNavigation} iconOnly={collapsed} navigationOrder={navigationOrder} /></div>
       <div className={cn("mx-3 mt-3 border-t pt-4", collapsed && "lg:hidden")}>

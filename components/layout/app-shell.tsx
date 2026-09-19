@@ -25,7 +25,7 @@ export function AppShell({ children, userEmail, userId, userName, userRole, acti
   return (
     <ResilientSyncProvider enabled={resilientSyncEnabled} organizationId="b00b0000-0000-4000-8000-000000000001" userId={userId}><ModuleManagerProvider modules={modules}><PersonalWorkspaceProvider initialPreferences={workspace}><div className="min-h-screen bg-background">
       <Sidebar hiddenNavigation={workspace.hiddenNavigation} navigationOrder={workspace.navigationOrder} />
-      <div className="transition-[padding] duration-200 md:pl-20 lg:pl-[15.25rem] peer-data-[collapsed=true]:lg:pl-20">
+      <div className="transition-[padding] duration-200 md:pl-[14rem] lg:pl-[16.5rem] peer-data-[collapsed=true]:md:pl-[14rem] peer-data-[collapsed=true]:lg:pl-20">
         <Header actionableNotifications={actionableNotifications} hiddenNavigation={workspace.hiddenNavigation} navigationOrder={workspace.navigationOrder} resilientSyncEnabled={resilientSyncEnabled} userEmail={userEmail} userName={userName} userRole={userRole} />
         <main className="min-h-[calc(100vh-4rem)] pb-20 sm:pb-24 md:pb-0">
           <PageContainer id="platform-workspace-content"><GlobalLayoutEngine/><ModuleAvailabilityGuard>{children}</ModuleAvailabilityGuard></PageContainer>
