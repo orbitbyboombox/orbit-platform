@@ -48,6 +48,14 @@ export interface WhatsAppProductionHealth {
   WABA_VALID: boolean;
   PHONE_VALID: boolean;
   PHONE_WABA_MAPPING_VALID: boolean;
+  PHONE_WABA_ACTUAL_ID: string | null;
+  PHONE_WABA_EXPECTED_ID: string;
+  PHONE_WABA_MATCH: boolean;
+  WABA_ACCESS_STATUS: "PASS" | "NOT_FOUND" | "FORBIDDEN" | "ERROR" | "NOT_CHECKED";
+  EXPECTED_WABA_API_ACCESS: boolean;
+  ACTUAL_WABA_API_ACCESS: boolean;
+  SUBSCRIBED_APP_FOUND: boolean;
+  TEMPLATES_API_STATUS: "PASS" | "FORBIDDEN" | "ERROR" | "NOT_CHECKED";
   MESSAGES_SUBSCRIBED: boolean;
   approvedTemplates: Array<{ name: string; language: string; category: string }>;
   checkedAt: string;
@@ -69,6 +77,14 @@ export async function runWhatsAppProductionHealthCheck(): Promise<WhatsAppProduc
     WABA_VALID: false,
     PHONE_VALID: false,
     PHONE_WABA_MAPPING_VALID: false,
+    PHONE_WABA_ACTUAL_ID: null,
+    PHONE_WABA_EXPECTED_ID: wabaId,
+    PHONE_WABA_MATCH: false,
+    WABA_ACCESS_STATUS: "NOT_CHECKED",
+    EXPECTED_WABA_API_ACCESS: false,
+    ACTUAL_WABA_API_ACCESS: false,
+    SUBSCRIBED_APP_FOUND: false,
+    TEMPLATES_API_STATUS: "NOT_CHECKED",
     MESSAGES_SUBSCRIBED: false,
     approvedTemplates: [],
     checkedAt: new Date().toISOString(),
@@ -98,24 +114,42 @@ export async function runWhatsAppProductionHealthCheck(): Promise<WhatsAppProduc
       }),
     );
     result.WABA_VALID = waba.status === 200 && (waba.body.id === wabaId || (waba.body.error as Record<string, unknown> | undefined)?.code === 0);
+    result.EXPECTED_WABA_API_ACCESS = waba.status === 200;
+    result.WABA_ACCESS_STATUS = waba.status === 200 ? "PASS" : waba.status === 403 ? "FORBIDDEN" : waba.status === 404 ? "NOT_FOUND" : "ERROR";
     result.PHONE_VALID = phone.status === 200 && phone.body.id === phoneId && digits(phone.body.display_phone_number) === EXPECTED_BIANCA_PHONE;
     const phoneWabaRows = Array.isArray(phoneWaba.body.data) ? phoneWaba.body.data : [];
-    result.PHONE_WABA_MAPPING_VALID = phoneWaba.status === 200 && phoneWabaRows.some((item) => item && typeof item === "object" && (item as { id?: unknown }).id === wabaId);
-    const subscribed = Array.isArray(subscriptions.body.data) ? subscriptions.body.data : [];
-    result.MESSAGES_SUBSCRIBED = subscriptions.status === 200 && subscribed.some((item) => {
+    const actualWabaId = phoneWabaRows.find((item) => item && typeof item === "object" && typeof (item as { id?: unknown }).id === "string") as { id?: string } | undefined;
+    result.PHONE_WABA_ACTUAL_ID = actualWabaId?.id ?? null;
+    result.PHONE_WABA_MATCH = Boolean(result.PHONE_WABA_ACTUAL_ID && result.PHONE_WABA_ACTUAL_ID === wabaId);
+    result.PHONE_WABA_MAPPING_VALID = phoneWaba.status === 200 && result.PHONE_WABA_MATCH;
+    let actualWabaResponse: MetaResponse | null = null;
+    let actualSubscriptions = subscriptions;
+    let actualTemplates = templates;
+    if (result.PHONE_WABA_ACTUAL_ID) {
+      [actualWabaResponse, actualSubscriptions, actualTemplates] = await Promise.all([
+        getMeta(base, token, `/${result.PHONE_WABA_ACTUAL_ID}`, { fields: "id,name" }),
+        getMeta(base, token, `/${result.PHONE_WABA_ACTUAL_ID}/subscribed_apps`),
+        getMeta(base, token, `/${result.PHONE_WABA_ACTUAL_ID}/message_templates`, { fields: "name,language,status,category" }),
+      ]);
+    }
+    result.ACTUAL_WABA_API_ACCESS = actualWabaResponse?.status === 200;
+    const subscribed = Array.isArray(actualSubscriptions.body.data) ? actualSubscriptions.body.data : [];
+    result.SUBSCRIBED_APP_FOUND = actualSubscriptions.status === 200 && subscribed.some((item) => {
       if (!item || typeof item !== "object") return false;
       const apiData = (item as { whatsapp_business_api_data?: { id?: unknown } }).whatsapp_business_api_data;
       // Meta returns the subscribed application's id here, not the WABA id.
       return apiData?.id === appId;
     });
-    const templateRows = Array.isArray(templates.body.data) ? templates.body.data : [];
+    result.MESSAGES_SUBSCRIBED = result.SUBSCRIBED_APP_FOUND;
+    const templateRows = Array.isArray(actualTemplates.body.data) ? actualTemplates.body.data : [];
     result.approvedTemplates = templateRows.flatMap((item) => {
       if (!item || typeof item !== "object") return [];
       const row = item as { name?: unknown; language?: unknown; status?: unknown; category?: unknown };
       if (row.status !== "APPROVED" || typeof row.name !== "string") return [];
       return [{ name: row.name, language: typeof row.language === "string" ? row.language : "", category: typeof row.category === "string" ? row.category : "" }];
     });
-    if (templates.status !== 200 && templates.status !== 403) result.errorCode = "TEMPLATES_UNAVAILABLE";
+    result.TEMPLATES_API_STATUS = actualTemplates.status === 200 ? "PASS" : actualTemplates.status === 403 ? "FORBIDDEN" : "ERROR";
+    if (actualTemplates.status !== 200 && actualTemplates.status !== 403) result.errorCode = "TEMPLATES_UNAVAILABLE";
   } catch (error) {
     result.errorCode = errorCode(error);
   }
