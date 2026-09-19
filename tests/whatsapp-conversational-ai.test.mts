@@ -19,6 +19,24 @@ test("WhatsApp AI is conversation-first and waits when the customer will send mo
   assert.match(source, /Cuéntame qué tipo de evento estás organizando y la fecha/);
 });
 
+test("BIANCA behaves as a short, natural commercial executive", async () => {
+  const source = await readFile(responderUrl, "utf8");
+  assert.match(source, /no empieces automáticamente con \"Perfecto\"/);
+  assert.match(source, /Cada respuesta debe mover la conversación un paso comercial/);
+  assert.match(source, /BIANCA es la ejecutiva comercial digital oficial/);
+  assert.match(source, /No quiero darte una respuesta al lote/);
+  assert.match(source, /mensajes cortos consecutivos/);
+  assert.match(source, /máximo 1 o 2 preguntas/);
+  for (const stage of ["NEW_LEAD", "QUALIFYING", "QUOTING", "QUOTE_SENT", "RESERVATION_INTENT", "RESERVATION_STARTED", "FOLLOW_UP", "HUMAN_REQUIRED", "CLOSED_WON", "CLOSED_LOST"]) {
+    assert.match(source, new RegExp(stage));
+  }
+});
+
+test("commercial stage is persisted as internal conversation context", async () => {
+  const processor = await readFile(processorUrl, "utf8");
+  assert.match(processor, /commercialStage: decision\.commercialStage/);
+});
+
 test("BIANCA uses the canonical BOOMBOX commercial education and service vocabulary", async () => {
   const source = await readFile(responderUrl, "utf8");
   for (const service of ["Classic", "Polaroid", "Black Studio", "BBOX360", "LightBox", "BoomBall", "Instabox", "Video Lounge", "Hashtag", "Photo IA"]) {

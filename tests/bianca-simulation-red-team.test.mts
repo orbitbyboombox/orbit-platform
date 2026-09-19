@@ -43,3 +43,40 @@ test("Founder request and simulator delivery are always non-sending", () => {
   assert.match(result.proposedResponse, /BIANCA de BOOMBOX/);
   assert.doesNotMatch(result.proposedResponse, /Soy Matías/);
 });
+
+test("premium QA matrix covers the 25 required commercial conversation scenarios", () => {
+  const scenarios = [
+    "Hola",
+    "Quiero cotizar una cabina",
+    "Cuánto sale",
+    "Matrimonio el 20 de octubre",
+    "Es para un cumpleaños",
+    "Es un evento de empresa",
+    "Todavía no sé la fecha",
+    "Será en Santiago",
+    "Está caro",
+    "¿Me haces un descuento?",
+    "Cambiamos la fecha al 27 de octubre",
+    "Mejor quiero BBOX360",
+    "¿Está disponible este sábado?",
+    "Quiero reservar",
+    "Quiero hablar con una persona",
+    "¿Cómo funciona técnicamente?",
+    "Estoy muy molesto con esto",
+    "cuanto sla",
+    "es pa matrimonio jajaja",
+    "Matrimonio el 20 en Pirque a las 20:00",
+    "Hola, para un matri",
+    "¿Me puedes repetir el precio?",
+    "No sé cuál servicio elegir",
+    "Classic y BBOX360",
+    "Te respondo mañana",
+  ];
+  for (const message of scenarios) {
+    const result = simulateBiancaMessage(message);
+    assert.ok(result.proposedResponse.length > 0, message);
+    assert.equal(result.externalFounderWhatsApp === "WOULD_BE_PREPARED", result.escalation, message);
+    assert.doesNotMatch(result.proposedResponse, /\$\s?\d|\b\d[\d.]*\s?(?:pesos|CLP)\b/i, message);
+    assert.doesNotMatch(result.proposedResponse, /prompt|CRM|OpenAI|como IA/i, message);
+  }
+});

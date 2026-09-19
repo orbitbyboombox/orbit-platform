@@ -300,6 +300,7 @@ async function persistAiDecision(
     confirmedFields: [...new Set([...priorConfirmed, ...canonical.confirmed])],
     whatsappAi: {
       summary: decision.conversationSummary,
+      commercialStage: decision.commercialStage,
       intents: decision.intents,
       fields: decision.fields,
       requestedAction: decision.requestedAction,
@@ -456,6 +457,7 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
         ...conversationState.context,
         ...(decision ? { whatsappAi: {
           summary: decision.conversationSummary,
+          commercialStage: decision.commercialStage,
           intents: decision.intents,
           fields: decision.fields,
           requestedAction: decision.requestedAction,
