@@ -198,3 +198,79 @@ export async function runWhatsAppProductionHealthCheck(): Promise<WhatsAppProduc
   }
   return result;
 }
+
+export interface OfficialWhatsAppAudit {
+  OFFICIAL_WABA_ID: string;
+  OFFICIAL_WABA_ACCESS: boolean;
+  OFFICIAL_PHONE_NUMBER_ID: string | null;
+  OFFICIAL_PHONE_NUMBER_FOUND: boolean;
+  SYSTEM_USER_ACCESS: boolean;
+  SUBSCRIBED_APPS: boolean;
+  TEMPLATES: boolean;
+  CURRENT_CONNECTION_MODE: string;
+  COEXISTENCE_SAFE: "YES" | "NO" | "UNKNOWN";
+  RISK_TO_CURRENT_WHATSAPP_APP: "LOW" | "MEDIUM" | "HIGH";
+  diagnostics: WhatsAppMetaDiagnostic[];
+  checkedAt: string;
+}
+
+/** Read-only audit for the existing human BOOMBOX number. It never mutates Meta. */
+export async function runOfficialWhatsAppAudit(): Promise<OfficialWhatsAppAudit> {
+  const officialWabaId = "110815468374911";
+  const expectedDigits = "56963040989";
+  const base = `https://graph.facebook.com/${env("WHATSAPP_GRAPH_VERSION")}`;
+  const token = env("WHATSAPP_ACCESS_TOKEN");
+  const appId = env("WHATSAPP_APP_ID");
+  const appSecret = env("WHATSAPP_APP_SECRET");
+  const result: OfficialWhatsAppAudit = {
+    OFFICIAL_WABA_ID: officialWabaId,
+    OFFICIAL_WABA_ACCESS: false,
+    OFFICIAL_PHONE_NUMBER_ID: null,
+    OFFICIAL_PHONE_NUMBER_FOUND: false,
+    SYSTEM_USER_ACCESS: false,
+    SUBSCRIBED_APPS: false,
+    TEMPLATES: false,
+    CURRENT_CONNECTION_MODE: "UNKNOWN",
+    COEXISTENCE_SAFE: "UNKNOWN",
+    RISK_TO_CURRENT_WHATSAPP_APP: "HIGH",
+    diagnostics: [],
+    checkedAt: new Date().toISOString(),
+  };
+
+  try {
+    const [waba, phoneNumbers, debug, subscriptions, templates] = await Promise.all([
+      getMeta(base, token, `/${officialWabaId}`, { fields: "id,name" }),
+      getMeta(base, token, `/${officialWabaId}/phone_numbers`, { fields: "id,display_phone_number,status,verified_name,code_verification_status,quality_rating,platform" }),
+      getMeta(base, token, "/debug_token", { input_token: token, access_token: `${appId}|${appSecret}` }),
+      getMeta(base, token, `/${officialWabaId}/subscribed_apps`),
+      getMeta(base, token, `/${officialWabaId}/message_templates`, { fields: "name,language,status,category" }),
+    ]);
+    result.diagnostics.push(...[waba, phoneNumbers, debug, subscriptions, templates].map(diagnostic));
+    result.OFFICIAL_WABA_ACCESS = waba.status === 200 && waba.body.id === officialWabaId;
+    const phoneRows = Array.isArray(phoneNumbers.body.data) ? phoneNumbers.body.data : [];
+    const officialPhone = phoneRows.find((item) => item && typeof item === "object" && digits((item as { display_phone_number?: unknown }).display_phone_number) === expectedDigits) as Record<string, unknown> | undefined;
+    if (officialPhone && typeof officialPhone.id === "string") {
+      result.OFFICIAL_PHONE_NUMBER_ID = officialPhone.id;
+      result.OFFICIAL_PHONE_NUMBER_FOUND = true;
+      result.CURRENT_CONNECTION_MODE = typeof officialPhone.platform === "string" ? officialPhone.platform : "UNKNOWN";
+      result.COEXISTENCE_SAFE = result.CURRENT_CONNECTION_MODE.toUpperCase().includes("COEXIST") ? "YES" : "UNKNOWN";
+      result.RISK_TO_CURRENT_WHATSAPP_APP = result.CURRENT_CONNECTION_MODE.toUpperCase().includes("CLOUD") ? "MEDIUM" : "HIGH";
+      const detail = await getMeta(base, token, `/${officialPhone.id}`, { fields: "id,display_phone_number,status,verified_name,code_verification_status,quality_rating,platform" });
+      result.diagnostics.push(diagnostic(detail));
+    }
+    const debugData = (debug.body.data ?? {}) as Record<string, unknown>;
+    const scopes = Array.isArray(debugData.scopes) ? debugData.scopes.filter((value): value is string => typeof value === "string") : [];
+    const granular = Array.isArray(debugData.granular_scopes) ? debugData.granular_scopes : [];
+    result.SYSTEM_USER_ACCESS = result.OFFICIAL_WABA_ACCESS && debugData.is_valid === true && ["whatsapp_business_management", "whatsapp_business_messaging"].every((scope) => scopes.includes(scope) && granular.some((item) => {
+      if (!item || typeof item !== "object" || (item as { scope?: unknown }).scope !== scope) return false;
+      const targetIds = (item as { target_ids?: unknown }).target_ids;
+      return !Array.isArray(targetIds) || targetIds.length === 0 || targetIds.includes(officialWabaId);
+    }));
+    const subscribed = Array.isArray(subscriptions.body.data) ? subscriptions.body.data : [];
+    result.SUBSCRIBED_APPS = subscriptions.status === 200 && subscribed.some((item) => item && typeof item === "object" && (item as { whatsapp_business_api_data?: { id?: unknown } }).whatsapp_business_api_data?.id === appId);
+    result.TEMPLATES = templates.status === 200;
+  } catch {
+    result.diagnostics.push({ endpoint: "audit", httpStatus: null, errorCode: "META_HEALTH_UNAVAILABLE", errorSubcode: null, errorType: null, errorMessage: "Meta audit unavailable" });
+  }
+  return result;
+}
