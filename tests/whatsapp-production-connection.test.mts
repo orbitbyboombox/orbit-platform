@@ -73,6 +73,10 @@ test("production health check is Founder/Admin-only and never returns secrets", 
   assert.match(source, /SUBSCRIBED_APP_FOUND/);
   assert.match(source, /NOT_FOUND/);
   assert.match(source, /FORBIDDEN/);
+  assert.match(source, /errorSubcode/);
+  assert.match(source, /owned_whatsapp_business_accounts/);
+  assert.match(source, /ACCESSIBLE_WABA_IDS/);
+  assert.doesNotMatch(source, /console\.(log|error).*WHATSAPP_ACCESS_TOKEN/);
   assert.match(source, /EXPECTED_BIANCA_PHONE/);
   assert.doesNotMatch(source, /console\.(log|error).*token/i);
   assert.doesNotMatch(source, /return.*accessToken/i);

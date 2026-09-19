@@ -4,9 +4,19 @@ const REQUIRED_SCOPES = ["whatsapp_business_messaging", "whatsapp_business_manag
 const EXPECTED_BIANCA_PHONE = "56930130927";
 
 type MetaResponse = {
+  endpoint: string;
   status: number;
   body: Record<string, unknown>;
 };
+
+export interface WhatsAppMetaDiagnostic {
+  endpoint: string;
+  httpStatus: number | null;
+  errorCode: string | null;
+  errorSubcode: string | null;
+  errorType: string | null;
+  errorMessage: string | null;
+}
 
 function env(name: string) {
   const value = process.env[name]?.trim();
@@ -38,7 +48,20 @@ async function getMeta(base: string, token: string, path: string, params?: Recor
   } catch {
     // The public result remains sanitized below.
   }
-  return { status: response.status, body };
+  return { endpoint: `${path}${url.search ? url.search.replace(/access_token=[^&]+/g, "access_token=[redacted]") : ""}`, status: response.status, body };
+}
+
+function diagnostic(response: MetaResponse): WhatsAppMetaDiagnostic {
+  const error = response.body.error && typeof response.body.error === "object" ? response.body.error as Record<string, unknown> : null;
+  const message = typeof error?.message === "string" ? error.message.replace(/access_token=[^\s&]+/gi, "access_token=[redacted]").replace(/Bearer\s+[^\s]+/gi, "Bearer [redacted]") : null;
+  return {
+    endpoint: response.endpoint,
+    httpStatus: response.status,
+    errorCode: error?.code === undefined ? null : String(error.code),
+    errorSubcode: error?.error_subcode === undefined ? null : String(error.error_subcode),
+    errorType: typeof error?.type === "string" ? error.type : null,
+    errorMessage: message,
+  };
 }
 
 export interface WhatsAppProductionHealth {
@@ -56,6 +79,8 @@ export interface WhatsAppProductionHealth {
   ACTUAL_WABA_API_ACCESS: boolean;
   SUBSCRIBED_APP_FOUND: boolean;
   TEMPLATES_API_STATUS: "PASS" | "FORBIDDEN" | "ERROR" | "NOT_CHECKED";
+  diagnostics: WhatsAppMetaDiagnostic[];
+  ACCESSIBLE_WABA_IDS: string[];
   MESSAGES_SUBSCRIBED: boolean;
   approvedTemplates: Array<{ name: string; language: string; category: string }>;
   checkedAt: string;
@@ -86,19 +111,23 @@ export async function runWhatsAppProductionHealthCheck(): Promise<WhatsAppProduc
     SUBSCRIBED_APP_FOUND: false,
     TEMPLATES_API_STATUS: "NOT_CHECKED",
     MESSAGES_SUBSCRIBED: false,
+    diagnostics: [],
+    ACCESSIBLE_WABA_IDS: [],
     approvedTemplates: [],
     checkedAt: new Date().toISOString(),
   };
 
   try {
-    const [debug, waba, phone, phoneWaba, subscriptions, templates] = await Promise.all([
+    const [debug, waba, phone, phoneWaba, subscriptions, templates, businesses] = await Promise.all([
       getMeta(base, token, "/debug_token", { input_token: token, access_token: `${appId}|${appSecret}` }),
       getMeta(base, token, `/${wabaId}`, { fields: "id" }),
       getMeta(base, token, `/${phoneId}`, { fields: "id,display_phone_number" }),
       getMeta(base, token, `/${phoneId}/whatsapp_business_account`),
       getMeta(base, token, `/${wabaId}/subscribed_apps`),
       getMeta(base, token, `/${wabaId}/message_templates`, { fields: "name,language,status,category" }),
+      getMeta(base, token, "/me/businesses", { fields: "id,name" }),
     ]);
+    result.diagnostics.push(...[debug, waba, phone, phoneWaba, subscriptions, templates, businesses].map(diagnostic));
 
     const debugData = (debug.body.data ?? {}) as Record<string, unknown>;
     const scopes = Array.isArray(debugData.scopes) ? debugData.scopes.filter((value): value is string => typeof value === "string") : [];
@@ -131,6 +160,7 @@ export async function runWhatsAppProductionHealthCheck(): Promise<WhatsAppProduc
         getMeta(base, token, `/${result.PHONE_WABA_ACTUAL_ID}/subscribed_apps`),
         getMeta(base, token, `/${result.PHONE_WABA_ACTUAL_ID}/message_templates`, { fields: "name,language,status,category" }),
       ]);
+      result.diagnostics.push(...[actualWabaResponse, actualSubscriptions, actualTemplates].filter((item): item is MetaResponse => Boolean(item)).map(diagnostic));
     }
     result.ACTUAL_WABA_API_ACCESS = actualWabaResponse?.status === 200;
     const subscribed = Array.isArray(actualSubscriptions.body.data) ? actualSubscriptions.body.data : [];
@@ -150,6 +180,18 @@ export async function runWhatsAppProductionHealthCheck(): Promise<WhatsAppProduc
     });
     result.TEMPLATES_API_STATUS = actualTemplates.status === 200 ? "PASS" : actualTemplates.status === 403 ? "FORBIDDEN" : "ERROR";
     if (actualTemplates.status !== 200 && actualTemplates.status !== 403) result.errorCode = "TEMPLATES_UNAVAILABLE";
+
+    const businessRows = Array.isArray(businesses.body.data) ? businesses.body.data : [];
+    for (const business of businessRows) {
+      if (!business || typeof business !== "object" || typeof (business as { id?: unknown }).id !== "string") continue;
+      const owned = await getMeta(base, token, `/${(business as { id: string }).id}/owned_whatsapp_business_accounts`, { fields: "id,name" });
+      result.diagnostics.push(diagnostic(owned));
+      if (owned.status !== 200 || !Array.isArray(owned.body.data)) continue;
+      for (const item of owned.body.data) {
+        if (item && typeof item === "object" && typeof (item as { id?: unknown }).id === "string") result.ACCESSIBLE_WABA_IDS.push((item as { id: string }).id);
+      }
+    }
+    result.ACCESSIBLE_WABA_IDS = [...new Set(result.ACCESSIBLE_WABA_IDS)];
   } catch (error) {
     result.errorCode = errorCode(error);
   }
