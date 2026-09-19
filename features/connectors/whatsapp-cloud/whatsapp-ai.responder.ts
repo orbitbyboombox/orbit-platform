@@ -77,10 +77,12 @@ const aiDecisionSchema = z.object({
 const aiHealthSchema = z.object({ ok: z.boolean() });
 
 export interface WhatsAppAiHealthResult {
+  AI_PROVIDER: string;
   AI_PROVIDER_REACHABLE: boolean;
   AI_MODEL: string;
   AI_GATEWAY_USED: boolean;
   GENERATE_OBJECT_SMOKE: boolean;
+  HTTP_STATUS: number | null;
   ERROR_CODE: string | null;
   ERROR_TYPE: string | null;
   ERROR_MESSAGE: string | null;
@@ -97,7 +99,10 @@ function sanitizeAiDiagnostic(value: unknown) {
 function aiErrorDiagnostic(error: unknown) {
   const record = error && typeof error === "object" ? error as Record<string, unknown> : {};
   const message = error instanceof Error ? error.message : typeof record.message === "string" ? record.message : String(error);
+  const statusValue = record.statusCode ?? record.status ?? (record.response && typeof record.response === "object" ? (record.response as Record<string, unknown>).status : null);
+  const status = typeof statusValue === "number" && Number.isFinite(statusValue) ? statusValue : null;
   return {
+    status,
     code: typeof record.code === "string" ? record.code : typeof record.errorCode === "string" ? record.errorCode : null,
     type: typeof record.type === "string" ? record.type : error instanceof Error ? error.name : null,
     message: sanitizeAiDiagnostic(message),
@@ -108,6 +113,7 @@ function aiErrorDiagnostic(error: unknown) {
 export async function runWhatsAppAiHealthCheck(): Promise<WhatsAppAiHealthResult> {
   const model = process.env.ORBIT_WHATSAPP_AI_MODEL?.trim() || "openai/gpt-5.6-sol";
   const gatewayUsed = model.includes("/");
+  const provider = gatewayUsed ? "Vercel AI Gateway" : model.split("/")[0] || "unknown";
   try {
     await generateObject({
       model,
@@ -118,10 +124,10 @@ export async function runWhatsAppAiHealthCheck(): Promise<WhatsAppAiHealthResult
         gateway: { user: "orbit-whatsapp-ai-health", tags: ["feature:boombox-whatsapp-health"] },
       },
     });
-    return { AI_PROVIDER_REACHABLE: true, AI_MODEL: model, AI_GATEWAY_USED: gatewayUsed, GENERATE_OBJECT_SMOKE: true, ERROR_CODE: null, ERROR_TYPE: null, ERROR_MESSAGE: null };
+    return { AI_PROVIDER: provider, AI_PROVIDER_REACHABLE: true, AI_MODEL: model, AI_GATEWAY_USED: gatewayUsed, GENERATE_OBJECT_SMOKE: true, HTTP_STATUS: null, ERROR_CODE: null, ERROR_TYPE: null, ERROR_MESSAGE: null };
   } catch (error) {
     const diagnostic = aiErrorDiagnostic(error);
-    return { AI_PROVIDER_REACHABLE: false, AI_MODEL: model, AI_GATEWAY_USED: gatewayUsed, GENERATE_OBJECT_SMOKE: false, ERROR_CODE: diagnostic.code, ERROR_TYPE: diagnostic.type, ERROR_MESSAGE: diagnostic.message };
+    return { AI_PROVIDER: provider, AI_PROVIDER_REACHABLE: false, AI_MODEL: model, AI_GATEWAY_USED: gatewayUsed, GENERATE_OBJECT_SMOKE: false, HTTP_STATUS: diagnostic.status, ERROR_CODE: diagnostic.code, ERROR_TYPE: diagnostic.type, ERROR_MESSAGE: diagnostic.message };
   }
 }
 

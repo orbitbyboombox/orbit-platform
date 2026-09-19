@@ -98,6 +98,8 @@ test("AI health probe is Founder/Admin-only, uses generateObject and never sends
   assert.match(route, /status: 401/);
   assert.match(route, /runWhatsAppAiHealthCheck/);
   assert.match(source, /AI_PROVIDER_REACHABLE/);
+  assert.match(source, /HTTP_STATUS/);
+  assert.match(source, /Vercel AI Gateway/);
   assert.match(source, /generateObject\(\{/);
   assert.match(source, /orbit-whatsapp-ai-health/);
   assert.doesNotMatch(route, /WHATSAPP_ACCESS_TOKEN|OPENAI_API_KEY|AI_GATEWAY_API_KEY/);
