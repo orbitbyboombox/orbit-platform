@@ -89,7 +89,9 @@ export async function loadWhatsAppConnection(): Promise<WhatsAppSafeConnection> 
       return disconnectedWhatsAppConnection("PROVIDER_UNAVAILABLE");
     }
     const subscriptions = await subscriptionResponse.json() as MetaSubscriptionResource;
-    const subscriptionActive = (subscriptions.data ?? []).some((item) => item.whatsapp_business_api_data?.id === wabaId);
+    // `subscribed_apps` lists subscribed applications; the nested id is the
+    // App ID, not the WABA ID being queried.
+    const subscriptionActive = (subscriptions.data ?? []).some((item) => item.whatsapp_business_api_data?.id === appId);
     if (!subscriptionActive) {
       logWhatsApp("warn", "whatsapp_waba_subscription_check", correlationId, { status: "NOT_SUBSCRIBED" });
       return disconnectedWhatsAppConnection("PROVIDER_UNAVAILABLE");

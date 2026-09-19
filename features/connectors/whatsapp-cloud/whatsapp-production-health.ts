@@ -43,9 +43,11 @@ async function getMeta(base: string, token: string, path: string, params?: Recor
 
 export interface WhatsAppProductionHealth {
   TOKEN_VALID: boolean;
+  APP_ID_VALID: boolean;
   SCOPES_VALID: boolean;
   WABA_VALID: boolean;
   PHONE_VALID: boolean;
+  PHONE_WABA_MAPPING_VALID: boolean;
   MESSAGES_SUBSCRIBED: boolean;
   approvedTemplates: Array<{ name: string; language: string; category: string }>;
   checkedAt: string;
@@ -62,19 +64,22 @@ export async function runWhatsAppProductionHealthCheck(): Promise<WhatsAppProduc
 
   const result: WhatsAppProductionHealth = {
     TOKEN_VALID: false,
+    APP_ID_VALID: false,
     SCOPES_VALID: false,
     WABA_VALID: false,
     PHONE_VALID: false,
+    PHONE_WABA_MAPPING_VALID: false,
     MESSAGES_SUBSCRIBED: false,
     approvedTemplates: [],
     checkedAt: new Date().toISOString(),
   };
 
   try {
-    const [debug, waba, phone, subscriptions, templates] = await Promise.all([
+    const [debug, waba, phone, phoneWaba, subscriptions, templates] = await Promise.all([
       getMeta(base, token, "/debug_token", { input_token: token, access_token: `${appId}|${appSecret}` }),
       getMeta(base, token, `/${wabaId}`, { fields: "id" }),
       getMeta(base, token, `/${phoneId}`, { fields: "id,display_phone_number" }),
+      getMeta(base, token, `/${phoneId}/whatsapp_business_account`),
       getMeta(base, token, `/${wabaId}/subscribed_apps`),
       getMeta(base, token, `/${wabaId}/message_templates`, { fields: "name,language,status,category" }),
     ]);
@@ -82,7 +87,8 @@ export async function runWhatsAppProductionHealthCheck(): Promise<WhatsAppProduc
     const debugData = (debug.body.data ?? {}) as Record<string, unknown>;
     const scopes = Array.isArray(debugData.scopes) ? debugData.scopes.filter((value): value is string => typeof value === "string") : [];
     const granular = Array.isArray(debugData.granular_scopes) ? debugData.granular_scopes : [];
-    result.TOKEN_VALID = debug.status === 200 && debugData.is_valid === true && debugData.app_id === appId;
+    result.APP_ID_VALID = debug.status === 200 && debugData.app_id === appId;
+    result.TOKEN_VALID = result.APP_ID_VALID && debugData.is_valid === true;
     result.SCOPES_VALID = result.TOKEN_VALID && REQUIRED_SCOPES.every((scope) => scopes.includes(scope)) && REQUIRED_SCOPES.every((scope) =>
       granular.some((item) => {
         if (!item || typeof item !== "object") return false;
@@ -93,11 +99,14 @@ export async function runWhatsAppProductionHealthCheck(): Promise<WhatsAppProduc
     );
     result.WABA_VALID = waba.status === 200 && (waba.body.id === wabaId || (waba.body.error as Record<string, unknown> | undefined)?.code === 0);
     result.PHONE_VALID = phone.status === 200 && phone.body.id === phoneId && digits(phone.body.display_phone_number) === EXPECTED_BIANCA_PHONE;
+    const phoneWabaRows = Array.isArray(phoneWaba.body.data) ? phoneWaba.body.data : [];
+    result.PHONE_WABA_MAPPING_VALID = phoneWaba.status === 200 && phoneWabaRows.some((item) => item && typeof item === "object" && (item as { id?: unknown }).id === wabaId);
     const subscribed = Array.isArray(subscriptions.body.data) ? subscriptions.body.data : [];
     result.MESSAGES_SUBSCRIBED = subscriptions.status === 200 && subscribed.some((item) => {
       if (!item || typeof item !== "object") return false;
       const apiData = (item as { whatsapp_business_api_data?: { id?: unknown } }).whatsapp_business_api_data;
-      return apiData?.id === wabaId;
+      // Meta returns the subscribed application's id here, not the WABA id.
+      return apiData?.id === appId;
     });
     const templateRows = Array.isArray(templates.body.data) ? templates.body.data : [];
     result.approvedTemplates = templateRows.flatMap((item) => {
