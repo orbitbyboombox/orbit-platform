@@ -18,6 +18,15 @@ export interface WhatsAppMetaDiagnostic {
   errorMessage: string | null;
 }
 
+function sanitizeMessage(value: unknown) {
+  if (typeof value !== "string") return null;
+  return value
+    .replace(/EAAg[A-Za-z0-9_-]+/g, "[redacted]")
+    .replace(/(?:input_token|access_token|appsecret_proof|authorization)\s*=\s*[^\s&]+/gi, "[redacted]")
+    .replace(/Bearer\s+[^\s]+/gi, "Bearer [redacted]")
+    .replace(/(?:input_token|access_token|appsecret_proof|authorization)/gi, "redacted");
+}
+
 function env(name: string) {
   const value = process.env[name]?.trim();
   if (!value) throw new Error(`MISSING_${name}`);
@@ -48,12 +57,14 @@ async function getMeta(base: string, token: string, path: string, params?: Recor
   } catch {
     // The public result remains sanitized below.
   }
-  return { endpoint: `${path}${url.search ? url.search.replace(/access_token=[^&]+/g, "access_token=[redacted]") : ""}`, status: response.status, body };
+  // Diagnostics never echo query strings. This prevents input_token,
+  // access_token, appsecret_proof or any future credential from leaking.
+  return { endpoint: path, status: response.status, body };
 }
 
 function diagnostic(response: MetaResponse): WhatsAppMetaDiagnostic {
   const error = response.body.error && typeof response.body.error === "object" ? response.body.error as Record<string, unknown> : null;
-  const message = typeof error?.message === "string" ? error.message.replace(/access_token=[^\s&]+/gi, "access_token=[redacted]").replace(/Bearer\s+[^\s]+/gi, "Bearer [redacted]") : null;
+  const message = sanitizeMessage(error?.message);
   return {
     endpoint: response.endpoint,
     httpStatus: response.status,
@@ -71,6 +82,7 @@ export interface WhatsAppProductionHealth {
   WABA_VALID: boolean;
   PHONE_VALID: boolean;
   PHONE_WABA_MAPPING_VALID: boolean;
+  PHONE_WABA_MAPPING_STATUS: "NOT_CHECKED" | "UNSUPPORTED_ENDPOINT";
   PHONE_WABA_ACTUAL_ID: string | null;
   PHONE_WABA_EXPECTED_ID: string;
   PHONE_WABA_MATCH: boolean;
@@ -102,6 +114,7 @@ export async function runWhatsAppProductionHealthCheck(): Promise<WhatsAppProduc
     WABA_VALID: false,
     PHONE_VALID: false,
     PHONE_WABA_MAPPING_VALID: false,
+    PHONE_WABA_MAPPING_STATUS: "NOT_CHECKED",
     PHONE_WABA_ACTUAL_ID: null,
     PHONE_WABA_EXPECTED_ID: wabaId,
     PHONE_WABA_MATCH: false,
@@ -118,16 +131,15 @@ export async function runWhatsAppProductionHealthCheck(): Promise<WhatsAppProduc
   };
 
   try {
-    const [debug, waba, phone, phoneWaba, subscriptions, templates, businesses] = await Promise.all([
+    const [debug, waba, phone, subscriptions, templates, businesses] = await Promise.all([
       getMeta(base, token, "/debug_token", { input_token: token, access_token: `${appId}|${appSecret}` }),
       getMeta(base, token, `/${wabaId}`, { fields: "id" }),
       getMeta(base, token, `/${phoneId}`, { fields: "id,display_phone_number" }),
-      getMeta(base, token, `/${phoneId}/whatsapp_business_account`),
       getMeta(base, token, `/${wabaId}/subscribed_apps`),
       getMeta(base, token, `/${wabaId}/message_templates`, { fields: "name,language,status,category" }),
       getMeta(base, token, "/me/businesses", { fields: "id,name" }),
     ]);
-    result.diagnostics.push(...[debug, waba, phone, phoneWaba, subscriptions, templates, businesses].map(diagnostic));
+    result.diagnostics.push(...[debug, waba, phone, subscriptions, templates, businesses].map(diagnostic));
 
     const debugData = (debug.body.data ?? {}) as Record<string, unknown>;
     const scopes = Array.isArray(debugData.scopes) ? debugData.scopes.filter((value): value is string => typeof value === "string") : [];
@@ -146,23 +158,12 @@ export async function runWhatsAppProductionHealthCheck(): Promise<WhatsAppProduc
     result.EXPECTED_WABA_API_ACCESS = waba.status === 200;
     result.WABA_ACCESS_STATUS = waba.status === 200 ? "PASS" : waba.status === 403 ? "FORBIDDEN" : waba.status === 404 ? "NOT_FOUND" : "ERROR";
     result.PHONE_VALID = phone.status === 200 && phone.body.id === phoneId && digits(phone.body.display_phone_number) === EXPECTED_BIANCA_PHONE;
-    const phoneWabaRows = Array.isArray(phoneWaba.body.data) ? phoneWaba.body.data : [];
-    const actualWabaId = phoneWabaRows.find((item) => item && typeof item === "object" && typeof (item as { id?: unknown }).id === "string") as { id?: string } | undefined;
-    result.PHONE_WABA_ACTUAL_ID = actualWabaId?.id ?? null;
-    result.PHONE_WABA_MATCH = Boolean(result.PHONE_WABA_ACTUAL_ID && result.PHONE_WABA_ACTUAL_ID === wabaId);
-    result.PHONE_WABA_MAPPING_VALID = phoneWaba.status === 200 && result.PHONE_WABA_MATCH;
-    let actualWabaResponse: MetaResponse | null = null;
+    // Meta Graph does not expose a valid `/{phone_id}/whatsapp_business_account`
+    // edge for this object/version. Do not treat it as a mapping signal.
+    result.PHONE_WABA_MAPPING_STATUS = "UNSUPPORTED_ENDPOINT";
     let actualSubscriptions = subscriptions;
     let actualTemplates = templates;
-    if (result.PHONE_WABA_ACTUAL_ID) {
-      [actualWabaResponse, actualSubscriptions, actualTemplates] = await Promise.all([
-        getMeta(base, token, `/${result.PHONE_WABA_ACTUAL_ID}`, { fields: "id,name" }),
-        getMeta(base, token, `/${result.PHONE_WABA_ACTUAL_ID}/subscribed_apps`),
-        getMeta(base, token, `/${result.PHONE_WABA_ACTUAL_ID}/message_templates`, { fields: "name,language,status,category" }),
-      ]);
-      result.diagnostics.push(...[actualWabaResponse, actualSubscriptions, actualTemplates].filter((item): item is MetaResponse => Boolean(item)).map(diagnostic));
-    }
-    result.ACTUAL_WABA_API_ACCESS = actualWabaResponse?.status === 200;
+    result.ACTUAL_WABA_API_ACCESS = false;
     const subscribed = Array.isArray(actualSubscriptions.body.data) ? actualSubscriptions.body.data : [];
     result.SUBSCRIBED_APP_FOUND = actualSubscriptions.status === 200 && subscribed.some((item) => {
       if (!item || typeof item !== "object") return false;
