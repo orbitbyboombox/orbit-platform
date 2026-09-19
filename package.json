@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@ai-sdk/gateway": "^3.0.191",
+    "@ai-sdk/openai": "^3.0.114",
     "@hookform/resolvers": "^5.2.1",
     "@orbitnova/resilient-sync": "file:vendor/orbitnova-resilient-sync-1.0.1.tgz",
     "@radix-ui/react-slot": "^1.2.3",

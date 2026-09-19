@@ -1,4 +1,5 @@
 import { generateObject } from "ai";
+import { createOpenAI } from "@ai-sdk/openai";
 import { z } from "zod";
 import type { NovaChannelInput, NovaChannelOutput, NovaNextAction } from "@/features/nova-channel";
 import type { NovaResponder } from "@/features/nova-channel/engine/nova-responder";
@@ -76,6 +77,20 @@ const aiDecisionSchema = z.object({
 
 const aiHealthSchema = z.object({ ok: z.boolean() });
 
+const openaiDirect = createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+function resolveOpenAiDirectModel() {
+  const providerMode = process.env.ORBIT_WHATSAPP_AI_PROVIDER?.trim().toLowerCase() || "openai-direct";
+  if (providerMode !== "openai-direct") {
+    throw new Error(`Unsupported WhatsApp AI provider: ${providerMode}`);
+  }
+  if (!process.env.OPENAI_API_KEY?.trim()) throw new Error("OPENAI_API_KEY_MISSING");
+  const configuredModel = process.env.ORBIT_WHATSAPP_AI_MODEL?.trim() || "gpt-5-mini";
+  const modelId = configuredModel.replace(/^openai\//i, "");
+  if (!modelId) throw new Error("ORBIT_WHATSAPP_AI_MODEL is empty");
+  return { configuredModel, model: openaiDirect(modelId) };
+}
+
 export interface WhatsAppAiHealthResult {
   AI_PROVIDER: string;
   AI_PROVIDER_REACHABLE: boolean;
@@ -111,23 +126,18 @@ function aiErrorDiagnostic(error: unknown) {
 
 /** Founder/Admin-only connectivity probe. It never sends a WhatsApp message. */
 export async function runWhatsAppAiHealthCheck(): Promise<WhatsAppAiHealthResult> {
-  const model = process.env.ORBIT_WHATSAPP_AI_MODEL?.trim() || "openai/gpt-5.6-sol";
-  const gatewayUsed = model.includes("/");
-  const provider = gatewayUsed ? "Vercel AI Gateway" : model.split("/")[0] || "unknown";
   try {
+    const { configuredModel, model } = resolveOpenAiDirectModel();
     await generateObject({
       model,
       schema: aiHealthSchema,
       system: "Return only a valid health result.",
       prompt: "Return { ok: true }.",
-      providerOptions: {
-        gateway: { user: "orbit-whatsapp-ai-health", tags: ["feature:boombox-whatsapp-health"] },
-      },
     });
-    return { AI_PROVIDER: provider, AI_PROVIDER_REACHABLE: true, AI_MODEL: model, AI_GATEWAY_USED: gatewayUsed, GENERATE_OBJECT_SMOKE: true, HTTP_STATUS: null, ERROR_CODE: null, ERROR_TYPE: null, ERROR_MESSAGE: null };
+    return { AI_PROVIDER: "OpenAI Direct", AI_PROVIDER_REACHABLE: true, AI_MODEL: configuredModel, AI_GATEWAY_USED: false, GENERATE_OBJECT_SMOKE: true, HTTP_STATUS: null, ERROR_CODE: null, ERROR_TYPE: null, ERROR_MESSAGE: null };
   } catch (error) {
     const diagnostic = aiErrorDiagnostic(error);
-    return { AI_PROVIDER: provider, AI_PROVIDER_REACHABLE: false, AI_MODEL: model, AI_GATEWAY_USED: gatewayUsed, GENERATE_OBJECT_SMOKE: false, HTTP_STATUS: diagnostic.status, ERROR_CODE: diagnostic.code, ERROR_TYPE: diagnostic.type, ERROR_MESSAGE: diagnostic.message };
+    return { AI_PROVIDER: "OpenAI Direct", AI_PROVIDER_REACHABLE: false, AI_MODEL: process.env.ORBIT_WHATSAPP_AI_MODEL?.trim() || "gpt-5-mini", AI_GATEWAY_USED: false, GENERATE_OBJECT_SMOKE: false, HTTP_STATUS: diagnostic.status, ERROR_CODE: diagnostic.code, ERROR_TYPE: diagnostic.type, ERROR_MESSAGE: diagnostic.message };
   }
 }
 
@@ -292,7 +302,7 @@ export class WhatsAppAiResponder implements NovaResponder {
       };
     }
     try {
-      const model = process.env.ORBIT_WHATSAPP_AI_MODEL?.trim() || "openai/gpt-5.6-sol";
+      const { model } = resolveOpenAiDirectModel();
       const history = this.history
         .slice(-30)
         .map((item) => `${item.direction === "INBOUND" ? "CLIENTE" : item.direction === "OUTBOUND" ? "BOOMBOX" : "SISTEMA"} [${item.occurredAt}]: ${item.body}`)
@@ -303,12 +313,6 @@ export class WhatsAppAiResponder implements NovaResponder {
         schema: aiDecisionSchema,
         system: MASTER_INSTRUCTIONS,
         prompt: `HISTORIAL RECIENTE:\n${history || "(sin historial previo)"}\n\nDATOS ESTRUCTURADOS YA CONOCIDOS:\n${knownMemory}\n\nMENSAJE ACTUAL DEL CLIENTE:\n${input.message.text}\n\nDevuelve la mejor respuesta y la extracción estructurada. No inventes información comercial.`,
-        providerOptions: {
-          gateway: {
-            user: input.message.customerId,
-            tags: ["feature:boombox-whatsapp", "channel:whatsapp"],
-          },
-        },
       });
       const priceObjection = PRICE_OBJECTION.test(input.message.text);
       const decision: WhatsAppAiDecision = FORCED_MANUAL_REVIEW.test(input.message.text)
