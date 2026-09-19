@@ -76,6 +76,20 @@ test("only confirmed AI fields enter canonical customer memory", async () => {
   assert.match(source, /conversationSummary/);
 });
 
+test("QA-scoped BIANCA can resume after takeover without weakening global handoff", async () => {
+  const [processor, policy, hub] = await Promise.all([
+    readFile(processorUrl, "utf8"),
+    readFile(policyUrl, "utf8"),
+    readFile(hubUrl, "utf8"),
+  ]);
+  assert.match(policy, /biancaQaModeEnabled/);
+  assert.match(processor, /const qaOverride = biancaCanProcessCustomerMessage\(conversationState\.id\) && biancaQaModeEnabled\(\)/);
+  assert.match(processor, /currentConversation\(conversationState, customer\.full_name, event\.occurred_at, qaOverride\)/);
+  assert.match(processor, /effectiveHandoff = handoff && !qaOverride/);
+  assert.match(hub, /const handledBy = current\?\.assignedHuman \?\? novaState\.handledBy;/);
+  assert.doesNotMatch(hub, /current\?\.assignedHuman \?\? novaState\.handledBy \?\? "BOOMBOX"/);
+});
+
 test("catalog confirmation is based on real send result", async () => {
   const source = await readFile(processorUrl, "utf8");
   assert.match(source, /result\.status === "SENT" \|\| result\.status === "ALREADY_SENT"/);

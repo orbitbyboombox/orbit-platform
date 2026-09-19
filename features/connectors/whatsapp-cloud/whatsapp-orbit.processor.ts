@@ -12,7 +12,7 @@ import { QueuedWhatsAppDispatcher } from "./queued-whatsapp.dispatcher";
 import { WhatsAppAiResponder, type WhatsAppAiDecision, type WhatsAppConversationHistoryItem } from "./whatsapp-ai.responder";
 import { deliverCanonicalCatalogFromWhatsApp, type WhatsAppCatalogDeliveryResult } from "./whatsapp-catalog.delivery";
 import { whatsappAutomationEnabled } from "./meta-whatsapp-cloud";
-import { biancaCanProcessCustomerMessage } from "./bianca-policy";
+import { biancaCanProcessCustomerMessage, biancaQaModeEnabled } from "./bianca-policy";
 import { logWhatsApp } from "./whatsapp-observability";
 import { serializeWhatsAppError } from "./whatsapp-observability";
 import { WHATSAPP_TENANT_SLUG } from "./whatsapp-tenant";
@@ -86,9 +86,13 @@ function memoryRecord(customerId: string, customerName: string, context: Record<
   };
 }
 
-function currentConversation(row: ConversationStateRow, customerName: string, occurredAt: string): UnifiedConversation {
+function currentConversation(row: ConversationStateRow, customerName: string, occurredAt: string, qaOverride = false): UnifiedConversation {
   const handoff = row.status === "HUMAN_HANDOFF" || row.nova_enabled === false;
-  const status = handoff ? "HUMAN_HANDOFF" as const : row.status === "WAITING_CUSTOMER" ? "WAITING_CUSTOMER" as const : row.status === "COMPLETED" ? "COMPLETED" as const : "ACTIVE" as const;
+  // QA mode is scoped to one persisted conversation and must be able to
+  // resume BIANCA after a previous human takeover or manual-review result.
+  // Global conversations retain the hard human-handoff gate.
+  const effectiveHandoff = handoff && !qaOverride;
+  const status = effectiveHandoff ? "HUMAN_HANDOFF" as const : row.status === "WAITING_CUSTOMER" && !qaOverride ? "WAITING_CUSTOMER" as const : row.status === "COMPLETED" && !qaOverride ? "COMPLETED" as const : "ACTIVE" as const;
   return {
     id: row.id,
     customerId: row.customer_id,
@@ -99,12 +103,12 @@ function currentConversation(row: ConversationStateRow, customerName: string, oc
       customerId: row.customer_id,
       channel: "WHATSAPP_BUSINESS",
       status,
-      humanHandoff: handoff,
-      handledBy: row.human_owner_id ?? undefined,
+      humanHandoff: effectiveHandoff,
+      handledBy: effectiveHandoff ? row.human_owner_id ?? undefined : undefined,
       startedAt: typeof row.context.startedAt === "string" ? row.context.startedAt : row.updated_at,
       lastMessageAt: occurredAt,
     },
-    assignedHuman: row.human_owner_id ?? undefined,
+    assignedHuman: effectiveHandoff ? row.human_owner_id ?? undefined : undefined,
     lastChannel: "WHATSAPP_BUSINESS",
     lastInteractionAt: occurredAt,
   };
@@ -400,7 +404,8 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
       new SupabaseCommunicationTimelineRepository(client),
       new QueuedWhatsAppDispatcher(client, customer.id),
     );
-    const current = currentConversation(conversationState, customer.full_name, event.occurred_at);
+    const qaOverride = biancaCanProcessCustomerMessage(conversationState.id) && biancaQaModeEnabled();
+    const current = currentConversation(conversationState, customer.full_name, event.occurred_at, qaOverride);
     const result = await engine.receive(
       {
         id: event.provider_message_id,

@@ -18,7 +18,10 @@ export class CommunicationHubEngine {
     // Founder/staff takeover is a hard backend gate. While active we keep recording
     // inbound messages and context, but BIANCA is not invoked and nothing is dispatched.
     if (novaState.humanHandoff || current?.status === "HUMAN_HANDOFF") {
-      const handledBy = current?.assignedHuman ?? novaState.handledBy ?? "BOOMBOX";
+      // `assignedHuman`/`handledBy` are persisted UUIDs. Keep the display
+      // label out of this field; writing "BOOMBOX" here can turn a suppressed
+      // inbound into a UUID cast failure before the webhook is acknowledged.
+      const handledBy = current?.assignedHuman ?? novaState.handledBy;
       const conversation: UnifiedConversation = {
         id: communication.conversationId,
         customerId: communication.customerId,
@@ -28,7 +31,7 @@ export class CommunicationHubEngine {
           ...novaState,
           status: "HUMAN_HANDOFF",
           humanHandoff: true,
-          handledBy,
+            handledBy,
           lastMessageAt: communication.occurredAt,
         },
         assignedHuman: handledBy,
