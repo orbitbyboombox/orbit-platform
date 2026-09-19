@@ -4,6 +4,7 @@ import { getBiancaDeliveryLabels, getBiancaOperationalStatus } from "@/features/
 import { loadCommunicationHubProjection } from "@/features/communication-hub";
 import { loadIntegrationHealth } from "@/features/integration-health/repository";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { whatsappDeliveryEnabled } from "@/features/connectors/whatsapp-cloud/meta-whatsapp-cloud";
 
 export const dynamic = "force-dynamic";
 
@@ -17,5 +18,5 @@ export default async function BiancaPage({ searchParams }: { searchParams: Promi
   const whatsappConnected = health.whatsapp.some((item) => item.label === "Configuración webhook" && item.status === "PASS");
   const status = getBiancaOperationalStatus({ whatsappConnected, active: projection.whatsappSummary.active, human: projection.whatsappSummary.human });
   void searchParams;
-  return <BiancaWorkspace deliveryLabels={getBiancaDeliveryLabels()} projection={projection} status={status} whatsappConnected={whatsappConnected} />;
+  return <BiancaWorkspace deliveryEnabled={whatsappDeliveryEnabled()} deliveryLabels={getBiancaDeliveryLabels()} projection={projection} status={status} whatsappConnected={whatsappConnected} />;
 }

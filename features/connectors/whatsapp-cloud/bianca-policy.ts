@@ -16,6 +16,19 @@ export function biancaOutboundEnabled() {
   return process.env.BIANCA_OUTBOUND_ENABLED?.trim().toLowerCase() === "true";
 }
 
+/**
+ * Controlled certification escape hatch. It is server-side only and scoped to
+ * one persisted conversation, so enabling it cannot turn on customer
+ * automation globally.
+ */
+export function biancaQaConversationId() {
+  return process.env.BIANCA_QA_CONVERSATION_ID?.trim() || "";
+}
+
+export function biancaQaModeEnabled() {
+  return process.env.BIANCA_QA_MODE?.trim().toLowerCase() === "true";
+}
+
 export function biancaFounderNotificationsEnabled() {
   return process.env.BIANCA_FOUNDER_NOTIFICATIONS_ENABLED?.trim().toLowerCase() === "true";
 }
@@ -26,7 +39,8 @@ export function biancaSimulationEnabled() {
   return process.env.BIANCA_SIMULATION_ENABLED?.trim().toLowerCase() !== "false";
 }
 
-export function biancaCanProcessCustomerMessage() {
+export function biancaCanProcessCustomerMessage(conversationId?: string) {
+  if (biancaQaModeEnabled() && conversationId && conversationId === biancaQaConversationId()) return true;
   return biancaCustomerMessagingEnabled() && biancaAiEnabled() && biancaOutboundEnabled();
 }
 

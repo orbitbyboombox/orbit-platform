@@ -41,3 +41,30 @@ test("customer-facing delivery remains independently disabled by WHATSAPP_DELIVE
   if (before === undefined) delete process.env.WHATSAPP_DELIVERY_ENABLED;
   else process.env.WHATSAPP_DELIVERY_ENABLED = before;
 });
+
+test("QA mode can authorize exactly one conversation without opening global BIANCA", () => {
+  const before = {
+    mode: process.env.BIANCA_QA_MODE,
+    conversation: process.env.BIANCA_QA_CONVERSATION_ID,
+    messaging: process.env.BIANCA_CUSTOMER_MESSAGING_ENABLED,
+    ai: process.env.BIANCA_AI_ENABLED,
+    outbound: process.env.BIANCA_OUTBOUND_ENABLED,
+  };
+  process.env.BIANCA_QA_MODE = "true";
+  process.env.BIANCA_QA_CONVERSATION_ID = "qa-conversation";
+  delete process.env.BIANCA_CUSTOMER_MESSAGING_ENABLED;
+  delete process.env.BIANCA_AI_ENABLED;
+  delete process.env.BIANCA_OUTBOUND_ENABLED;
+  assert.equal(biancaCanProcessCustomerMessage("qa-conversation"), true);
+  assert.equal(biancaCanProcessCustomerMessage("other-conversation"), false);
+  assert.equal(biancaCanProcessCustomerMessage(), false);
+  for (const [key, value] of Object.entries({
+    BIANCA_QA_MODE: before.mode,
+    BIANCA_QA_CONVERSATION_ID: before.conversation,
+    BIANCA_CUSTOMER_MESSAGING_ENABLED: before.messaging,
+    BIANCA_AI_ENABLED: before.ai,
+    BIANCA_OUTBOUND_ENABLED: before.outbound,
+  })) {
+    if (value === undefined) delete process.env[key]; else process.env[key] = value;
+  }
+});

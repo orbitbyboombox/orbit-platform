@@ -358,9 +358,11 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
 
     // WhatsApp automation is never sufficient by itself. BIANCA customer
     // messaging is a separate, server-side, fail-closed gate.
-    const automationEnabled = whatsappAutomationEnabled() && biancaCanProcessCustomerMessage();
+    const initialAutomationEnabled = whatsappAutomationEnabled() && biancaCanProcessCustomerMessage();
     const customer = await resolveCustomer(client, event);
-    const conversationState = await resolveConversation(client, customer.id, event.sender_wa_id, event.occurred_at, automationEnabled);
+    const conversationState = await resolveConversation(client, customer.id, event.sender_wa_id, event.occurred_at, initialAutomationEnabled);
+    const automationEnabled = biancaCanProcessCustomerMessage(conversationState.id) ||
+      (whatsappAutomationEnabled() && biancaCanProcessCustomerMessage());
     await persistInboundCommunication(client, event, conversationState.id, customer.id);
 
     if (!automationEnabled) {

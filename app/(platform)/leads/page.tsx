@@ -9,6 +9,7 @@ import {
 import { WhatsAppInbox } from "@/features/communication-hub/components/whatsapp-inbox";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { loadSalesPipeline, SalesPipeline } from "@/features/sales-pipeline";
+import { whatsappDeliveryEnabled } from "@/features/connectors/whatsapp-cloud/meta-whatsapp-cloud";
 
 export default async function LeadsPage() {
   const client = await createSupabaseServerClient();
@@ -27,7 +28,7 @@ export default async function LeadsPage() {
           events={communication.events}
           indicators={communication.indicators}
         />
-        <div className="mt-6"><WhatsAppInbox conversations={communication.conversations} events={communication.events} /></div>
+        <div className="mt-6"><WhatsAppInbox conversations={communication.conversations} deliveryEnabled={whatsappDeliveryEnabled()} events={communication.events} /></div>
       </div>
       <SalesPipeline data={pipeline} />
     </>

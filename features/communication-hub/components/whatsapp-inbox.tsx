@@ -36,10 +36,12 @@ export function WhatsAppInbox({
   conversations,
   events,
   workspaceMode = false,
+  deliveryEnabled = false,
 }: {
   conversations: readonly UnifiedConversation[];
   events: readonly UnifiedCommunicationEvent[];
   workspaceMode?: boolean;
+  deliveryEnabled?: boolean;
 }) {
   const whatsapp = conversations.filter(
     (conversation) =>
@@ -112,7 +114,7 @@ export function WhatsAppInbox({
           {workspaceMode ? "Conversaciones BIANCA" : "Inbox WhatsApp"}
         </h2>
         <span className="ml-auto rounded-full border px-2 py-1 text-[10px] font-semibold uppercase">
-          Delivery OFF
+          {deliveryEnabled ? "Delivery ON" : "Delivery OFF"}
         </span>
       </div>
       <div className="flex flex-wrap gap-2">
