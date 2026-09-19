@@ -1059,7 +1059,7 @@ export function ProjectWorkspaceExperience(
             </OptionalModule>
           )}
 
-          <section className="grid gap-6 xl:grid-cols-2">
+          <section className="grid min-w-0 gap-6 xl:grid-cols-1 2xl:grid-cols-[minmax(0,1.1fr)_minmax(520px,0.9fr)]">
             {moduleVisible("TIMELINE") && (
               <OptionalModule moduleKey="TIMELINE" onHide={hideModule}>
                 <Section
@@ -1202,7 +1202,7 @@ export function ProjectWorkspaceExperience(
                 title="Resumen financiero del evento"
               >
                 {event.profit ? (
-                  <div className="space-y-5">
+                  <div className="space-y-5 [&_dd]:overflow-hidden [&_dd]:text-ellipsis [&_dd]:whitespace-nowrap">
                     {(() => {
                       const netRevenue = event.profit.revenue.contractedService + event.profit.revenue.extras + event.profit.revenue.transport - event.profit.revenue.discount;
                       const operatingProfit = netRevenue - event.profit.costs.totalOperationalCost;
@@ -1683,16 +1683,16 @@ function HeroMetric({ label, value }: { label: string; value: string }) {
 function MiniMetric({ label, value }: { label: string; value: number }) {
   return (
     <div className="min-w-0 rounded-xl border bg-background/30 p-4">
-      <p className="min-w-0 break-words text-[clamp(1rem,1.8vw,1.5rem)] font-semibold leading-tight tabular-nums [overflow-wrap:anywhere]">{value}</p>
-      <p className="mt-1 break-words text-xs text-muted">{label}</p>
+      <p className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[clamp(1rem,1.8vw,1.5rem)] font-semibold leading-tight tabular-nums">{value}</p>
+      <p className="mt-1 line-clamp-2 break-words text-xs text-muted">{label}</p>
     </div>
   );
 }
 function MiniMoney({ label, value }: { label: string; value: number }) {
   return (
     <div className="min-w-0 rounded-xl border bg-background/30 p-4">
-      <p className="min-w-0 break-words text-[clamp(1rem,1.8vw,1.5rem)] font-semibold leading-tight tabular-nums [overflow-wrap:anywhere]">{money(value)}</p>
-      <p className="mt-1 break-words text-xs text-muted">{label}</p>
+      <p className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[clamp(1rem,1.8vw,1.5rem)] font-semibold leading-tight tabular-nums">{money(value)}</p>
+      <p className="mt-1 line-clamp-2 break-words text-xs text-muted">{label}</p>
     </div>
   );
 }
