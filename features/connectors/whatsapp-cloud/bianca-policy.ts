@@ -80,7 +80,9 @@ export const BIANCA_INTRODUCTION = "¡Hola! Soy BIANCA de BOOMBOX 😊";
 // or copy the conversation between WhatsApp numbers.
 export const BIANCA_WHATSAPP_NUMBER = "+56930130927";
 export const OFFICIAL_SALES_WHATSAPP_NUMBER = "+56963040989";
-export const OFFICIAL_SALES_WHATSAPP_URL = "https://wa.me/56963040989?text=Hola%20BOOMBOX%2C%20vengo%20desde%20BIANCA%20y%20necesito%20atenci%C3%B3n%20de%20su%20equipo.";
+// Keep the handoff copy compact; the human number remains the canonical target
+// and the customer can add the context naturally in the next chat.
+export const OFFICIAL_SALES_WHATSAPP_URL = "https://wa.me/56963040989";
 
 export function officialSalesHandoffCopy() {
   return `HABLAR CON EQUIPO BOOMBOX: ${OFFICIAL_SALES_WHATSAPP_URL}`;
