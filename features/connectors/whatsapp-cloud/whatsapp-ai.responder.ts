@@ -185,6 +185,11 @@ REGLAS DE CONVERSACIÓN:
 - Alterna pregunta con valor: después de obtener uno o dos datos relevantes, entrega una recomendación, explica una opción o solicita CATALOG_LOOKUP para que el sistema entregue el catálogo/link canónico antes de continuar preguntando.
 - Cuando corresponda compartir planes, solicita CATALOG_LOOKUP y usa exclusivamente el link canónico que entregue ORBIT; nunca escribas una URL inventada.
 - Si llegan mensajes cortos consecutivos, intégralos con el historial y evita responder como si fueran conversaciones nuevas o bombardear con preguntas repetidas.
+- Trata mensajes consecutivos del mismo cliente dentro de una misma ventana breve como un solo turno lógico. Si el primer mensaje es solo una confirmación ("Sí", "Dale", "Ok"), espera el siguiente contenido antes de responder.
+- Una afirmación aislada no necesita un acuse automático: no respondas "Dale, estoy revisando" ni otra frase vacía. Responde solo cuando haya una pregunta, dato o acción comercial que atender.
+- No narres procesos internos. Evita "déjame revisar", "estoy revisando", "voy a verificar" o "te confirmo" salvo que exista una operación real iniciada en ese mismo turno y debas esperar su resultado. Si falta un dato, pregunta ese dato; si ya están los datos, entrega la respuesta disponible.
+- No repitas fecha, comuna, servicio y tipo de evento en cada turno. Usa esos datos internamente y menciona solo lo estrictamente útil para responder o avanzar.
+- Varía naturalmente las aperturas: no comiences todos los mensajes con "Perfecto", "Buenísimo" o "Claro".
 - Si el mensaje inicia una nueva intención de cotización (por ejemplo, "quiero cotizar" o "quiero ver opciones") sin decir "sobre lo mismo", "el mismo" o referirse explícitamente a algo anterior, trátalo como una oportunidad nueva: no reutilices automáticamente servicio, fecha, comuna, duración ni cotización histórica. Pide solo el dato mínimo que falta.
 - La memoria histórica puede orientar, pero ACTIVE_CONTEXT contiene únicamente datos confirmados de la oportunidad actual. Recupera un dato histórico solo cuando el cliente lo referencia explícitamente (por ejemplo, "el tótem que vimos" o "sigamos con lo del 12").
 - En el primer turno de una nueva cotización, si ACTIVE_CONTEXT no contiene un preferred_name confirmado, saluda y pregunta primero el nombre. No uses profile_name, nickname ni nombre histórico y no avances todavía a fecha, comuna o servicio. Después de que el cliente entregue su nombre, continúa con una sola pregunta comercial.
@@ -267,6 +272,7 @@ const FORCED_MANUAL_REVIEW = /\b(?:dos|2|tres|3|varios|m[uú]ltiples?)\s+d[ií]a
 const PRICE_OBJECTION = /\b(?:est[aá]|esta)\s+(?:muy\s+)?car[oa]\b|\bme\s+parece\s+(?:muy\s+)?car[oa]\b|\bes\s+mucho\b/i;
 const IDENTITY_QUESTION = /\b(?:y\s+t[uú]|qui[eé]n\s+(?:eres|me\s+responde)|c[oó]mo\s+te\s+llamas|cu[aá]l\s+es\s+tu\s+nombre|eres\s+bianca|tu\s+nombre)\b/i;
 const SELF_INTRODUCTION = /^\s*(?:soy|me\s+llamo)\s+([A-Za-zÁÉÍÓÚáéíóúÑñ][A-Za-zÁÉÍÓÚáéíóúÑñ'-]{1,39})(?:\s+y\s+t[uú].*)?\s*$/i;
+const EMPTY_ACKNOWLEDGEMENT = /^\s*(?:s[ií]|ok(?:ay)?|dale|perfecto|ya|listo|bueno|buen[ií]simo)[.!\s]*$/i;
 
 function isIdentityQuestion(text: string) {
   return IDENTITY_QUESTION.test(text.trim());
@@ -275,6 +281,10 @@ function isIdentityQuestion(text: string) {
 function extractSelfIntroducedName(text: string) {
   const match = text.match(SELF_INTRODUCTION);
   return match?.[1]?.trim() || undefined;
+}
+
+export function isEmptyBiancaAcknowledgement(text: string) {
+  return EMPTY_ACKNOWLEDGEMENT.test(text.trim());
 }
 
 function identityResponse(name?: string) {
@@ -422,6 +432,12 @@ export class WhatsAppAiResponder implements NovaResponder {
         decision.waitForMoreData = true;
         decision.requestedAction = "WAIT_FOR_CUSTOMER";
         decision.commercialStage = "NEW_LEAD";
+      }
+      if (isEmptyBiancaAcknowledgement(input.message.text) && !identityTurn && !selfIntroducedName) {
+        decision.responseText = "";
+        decision.waitForMoreData = true;
+        decision.requestedAction = "WAIT_FOR_CUSTOMER";
+        decision.commercialStage = "QUALIFYING";
       }
       this.lastDecisionValue = decision;
       const response = MONEY_OR_AVAILABILITY_CLAIM.test(decision.responseText)

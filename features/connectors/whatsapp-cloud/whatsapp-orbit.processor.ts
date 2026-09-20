@@ -514,3 +514,59 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
     return { ok: false as const, error: detail };
   }
 }
+
+const WHATSAPP_TURN_DEBOUNCE_MS = 3_500;
+type DebouncedTurn = {
+  providerMessageIds: Set<string>;
+  waiters: Map<string, Array<(result: Awaited<ReturnType<typeof processWhatsAppWebhookEvent>>) => void>>;
+  timer: ReturnType<typeof setTimeout>;
+};
+const debouncedTurns = new Map<string, DebouncedTurn>();
+
+/**
+ * Gives consecutive inbound messages a short coalescing window before invoking
+ * the AI. The webhook has already persisted every message, so the responder
+ * sees the complete recent turn history. Isolated acknowledgements are then
+ * intentionally silent and the substantive follow-up is answered once.
+ */
+export async function processWhatsAppWebhookEventDebounced(providerMessageId: string) {
+  const client = createAdminClient();
+  const { data: event } = await client
+    .from("whatsapp_webhook_events")
+    .select("sender_wa_id")
+    .eq("tenant_slug", WHATSAPP_TENANT_SLUG)
+    .eq("provider", "META_CLOUD_API")
+    .eq("provider_message_id", providerMessageId)
+    .maybeSingle();
+  const key = typeof event?.sender_wa_id === "string" && event.sender_wa_id.trim() ? event.sender_wa_id : providerMessageId;
+  return new Promise<Awaited<ReturnType<typeof processWhatsAppWebhookEvent>>>((resolve) => {
+    const existing = debouncedTurns.get(key);
+    if (existing) {
+      existing.providerMessageIds.add(providerMessageId);
+      const waiters = existing.waiters.get(providerMessageId) ?? [];
+      waiters.push(resolve);
+      existing.waiters.set(providerMessageId, waiters);
+      clearTimeout(existing.timer);
+      existing.timer = setTimeout(() => flushDebouncedTurn(key), WHATSAPP_TURN_DEBOUNCE_MS);
+      return;
+    }
+    const waiters = new Map<string, Array<(result: Awaited<ReturnType<typeof processWhatsAppWebhookEvent>>) => void>>();
+    waiters.set(providerMessageId, [resolve]);
+    const turn: DebouncedTurn = {
+      providerMessageIds: new Set([providerMessageId]),
+      waiters,
+      timer: setTimeout(() => flushDebouncedTurn(key), WHATSAPP_TURN_DEBOUNCE_MS),
+    };
+    debouncedTurns.set(key, turn);
+  });
+}
+
+async function flushDebouncedTurn(key: string) {
+  const turn = debouncedTurns.get(key);
+  if (!turn) return;
+  debouncedTurns.delete(key);
+  for (const providerMessageId of turn.providerMessageIds) {
+    const result = await processWhatsAppWebhookEvent(providerMessageId);
+    for (const resolve of turn.waiters.get(providerMessageId) ?? []) resolve(result);
+  }
+}

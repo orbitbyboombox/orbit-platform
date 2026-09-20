@@ -7,7 +7,7 @@ import {
   verifyMetaChallenge,
   verifyMetaWebhookSignature,
 } from "@/features/connectors/whatsapp-cloud/meta-whatsapp-cloud";
-import { processWhatsAppWebhookEvent } from "@/features/connectors/whatsapp-cloud/whatsapp-orbit.processor";
+import { processWhatsAppWebhookEventDebounced } from "@/features/connectors/whatsapp-cloud/whatsapp-orbit.processor";
 import { deliverWhatsAppOutboxMessage, updateWhatsAppOutboxStatus } from "@/features/connectors/whatsapp-cloud/whatsapp-outbox.sender";
 import { logWhatsApp } from "@/features/connectors/whatsapp-cloud/whatsapp-observability";
 import { WHATSAPP_TENANT_SLUG } from "@/features/connectors/whatsapp-cloud/whatsapp-tenant";
@@ -129,7 +129,7 @@ export async function POST(request: Request) {
 
   after(async () => {
     for (const providerMessageId of acceptedIds) {
-      const processed = await processWhatsAppWebhookEvent(providerMessageId);
+      const processed = await processWhatsAppWebhookEventDebounced(providerMessageId);
       const skipped = "skipped" in processed && processed.skipped;
       const unsupported = "unsupported" in processed && processed.unsupported;
       const suppressed = "suppressed" in processed && processed.suppressed;

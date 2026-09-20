@@ -5,6 +5,7 @@ import test from "node:test";
 const responderUrl = new URL("../features/connectors/whatsapp-cloud/whatsapp-ai.responder.ts", import.meta.url);
 const policyUrl = new URL("../features/connectors/whatsapp-cloud/bianca-policy.ts", import.meta.url);
 const processorUrl = new URL("../features/connectors/whatsapp-cloud/whatsapp-orbit.processor.ts", import.meta.url);
+const webhookUrl = new URL("../app/api/integrations/whatsapp/webhook/route.ts", import.meta.url);
 const catalogUrl = new URL("../features/connectors/whatsapp-cloud/whatsapp-catalog.delivery.ts", import.meta.url);
 const hubUrl = new URL("../features/communication-hub/engine/communication-hub.engine.ts", import.meta.url);
 
@@ -36,6 +37,28 @@ test("BIANCA behaves as a short, natural commercial executive", async () => {
   for (const stage of ["NEW_LEAD", "QUALIFYING", "QUOTING", "QUOTE_SENT", "RESERVATION_INTENT", "RESERVATION_STARTED", "FOLLOW_UP", "HUMAN_REQUIRED", "CLOSED_WON", "CLOSED_LOST"]) {
     assert.match(source, new RegExp(stage));
   }
+});
+
+test("isolated acknowledgements do not create empty bot turns", async () => {
+  const source = await readFile(responderUrl, "utf8");
+  assert.match(source, /EMPTY_ACKNOWLEDGEMENT/);
+  assert.match(source, /decision\.responseText = \"\"/);
+  assert.match(source, /Una afirmaci[oó]n aislada no necesita un acuse autom[aá]tico/);
+});
+
+test("consecutive inbound messages are treated as one logical conversational turn", async () => {
+  const source = await readFile(responderUrl, "utf8");
+  assert.match(source, /mensajes cortos consecutivos/);
+  assert.match(source, /un solo turno l[oó]gico/);
+  assert.match(source, /No repitas fecha, comuna, servicio/);
+});
+
+test("webhook processing has a short server-side coalescing window", async () => {
+  const processor = await readFile(processorUrl, "utf8");
+  const webhook = await readFile(webhookUrl, "utf8");
+  assert.match(processor, /WHATSAPP_TURN_DEBOUNCE_MS = 3_500/);
+  assert.match(processor, /processWhatsAppWebhookEventDebounced/);
+  assert.match(webhook, /processWhatsAppWebhookEventDebounced/);
 });
 
 test("commercial stage is persisted as internal conversation context", async () => {
