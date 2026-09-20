@@ -27,6 +27,12 @@ test("BIANCA behaves as a short, natural commercial executive", async () => {
   assert.match(source, /No quiero darte una respuesta al lote/);
   assert.match(source, /mensajes cortos consecutivos/);
   assert.match(source, /máximo 1 o 2 preguntas/);
+  assert.match(source, /¿Con quién hablo/);
+  assert.match(source, /profile_name/);
+  assert.match(source, /no lo repitas como pregunta de confirmación/);
+  assert.match(source, /Alterna pregunta con valor/);
+  assert.match(source, /CATALOG_LOOKUP.*link canónico/);
+  assert.match(source, /No uses "Qué lindo"/);
   for (const stage of ["NEW_LEAD", "QUALIFYING", "QUOTING", "QUOTE_SENT", "RESERVATION_INTENT", "RESERVATION_STARTED", "FOLLOW_UP", "HUMAN_REQUIRED", "CLOSED_WON", "CLOSED_LOST"]) {
     assert.match(source, new RegExp(stage));
   }

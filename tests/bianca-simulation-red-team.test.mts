@@ -10,6 +10,14 @@ test("standard matrimonio simulation collects minimum context without inventing 
   assert.doesNotMatch(result.proposedResponse, /\$\s?\d/);
 });
 
+test("name discovery does not assume the WhatsApp profile name", () => {
+  const unknown = simulateBiancaMessage("Un matrimonio para el 12 de diciembre");
+  assert.match(unknown.proposedResponse, /nombre|con qui[eé]n hablo/i);
+  assert.doesNotMatch(unknown.proposedResponse, /12 de diciembre\?/i);
+  const known = simulateBiancaMessage("Soy Matías, matrimonio para el 12 de diciembre");
+  assert.doesNotMatch(known.proposedResponse, /nombre|con qui[eé]n hablo/i);
+});
+
 test("capacity outcomes are respected", () => {
   assert.equal(simulateBiancaMessage("fixture 9/9 sin disponibilidad").capacity, "UNAVAILABLE");
   assert.equal(simulateBiancaMessage("fixture REVIEW_REQUIRED logística mismo día").capacity, "REVIEW_REQUIRED");
