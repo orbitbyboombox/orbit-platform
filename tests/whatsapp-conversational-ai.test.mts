@@ -8,6 +8,7 @@ const processorUrl = new URL("../features/connectors/whatsapp-cloud/whatsapp-orb
 const webhookUrl = new URL("../app/api/integrations/whatsapp/webhook/route.ts", import.meta.url);
 const catalogUrl = new URL("../features/connectors/whatsapp-cloud/whatsapp-catalog.delivery.ts", import.meta.url);
 const hubUrl = new URL("../features/communication-hub/engine/communication-hub.engine.ts", import.meta.url);
+const webLeadContextUrl = new URL("../features/connectors/whatsapp-cloud/bianca-web-lead-context.ts", import.meta.url);
 
 test("WhatsApp AI is conversation-first and waits when the customer will send more data", async () => {
   const source = await readFile(responderUrl, "utf8");
@@ -143,6 +144,30 @@ test("new quote without confirmed preferred name asks for name before commercial
   assert.match(source, /commercialStage = "NEW_LEAD"/);
   assert.match(source, /preferredNameConfirmed/);
   assert.match(source, /No uses profile_name/);
+});
+
+test("web form leads reuse structured context and do not ask redundant questions", async () => {
+  const [source, types, leadContext] = await Promise.all([
+    readFile(responderUrl, "utf8"),
+    readFile(new URL("../features/nova-channel/types/nova-channel.types.ts", import.meta.url), "utf8"),
+    readFile(webLeadContextUrl, "utf8"),
+  ]);
+  assert.match(types, /BiancaMessageSource = "DIRECT_WHATSAPP" \| "WEB_FORM_LEAD"/);
+  assert.match(types, /BiancaWebLeadContext/);
+  assert.match(source, /input\.source === "WEB_FORM_LEAD"/);
+  assert.match(source, /webLeadNameConfirmed/);
+  assert.match(leadContext, /Reutiliza los campos del formulario/);
+  assert.match(leadContext, /no vuelvas a preguntar nombre, tipo de evento, correo, comuna o fecha/);
+  assert.match(leadContext, /extractBiancaLeadDateParts/);
+  assert.match(leadContext, /pide únicamente confirmarlo/);
+  assert.match(leadContext, /preferred_name CONFIRMED/);
+});
+
+test("web lead date extraction never invents a year", async () => {
+  const source = await readFile(webLeadContextUrl, "utf8");
+  assert.match(source, /PARTIAL_DATE_PATTERN/);
+  assert.match(source, /No inventes el año/);
+  assert.match(source, /WEB_FORM_LEAD/);
 });
 
 test("identity questions never get confused with human handoff", async () => {

@@ -5,6 +5,19 @@ import type { ProfitRecommendation } from "@/features/profit-engine";
 export type NovaChannel = "WHATSAPP_BUSINESS" | "INSTAGRAM_DIRECT" | "WEB_CHAT" | "EMAIL_ASSISTANT" | "FUTURE";
 export type NovaConversationStatus = "ACTIVE" | "WAITING_CUSTOMER" | "READY_FOR_QUOTATION" | "READY_FOR_PORTAL" | "HUMAN_HANDOFF" | "COMPLETED";
 export type NovaNextAction = "ASK_EVENT_TYPE" | "ASK_LOCATION" | "ASK_EVENT_DATE" | "ASK_ESTIMATED_GUESTS" | "RECOMMEND_HOURS" | "RECOMMEND_SERVICE" | "GENERATE_QUOTATION" | "GENERATE_RESERVATION_PORTAL" | "WAIT_FOR_HUMAN" | "NONE";
+export type BiancaMessageSource = "DIRECT_WHATSAPP" | "WEB_FORM_LEAD";
+
+/** Structured fields captured by the public web lead form. */
+export interface BiancaWebLeadContext {
+  name?: string;
+  phone?: string;
+  email?: string;
+  eventType?: string;
+  eventDate?: string;
+  commune?: string;
+  venue?: string;
+  message?: string;
+}
 
 export interface NovaNormalizedMessage {
   id: string;
@@ -52,6 +65,9 @@ export interface NovaChannelInput {
   conversation?: NovaConversationState;
   operationsRecommendation?: OperationalRecommendation;
   profitRecommendation?: ProfitRecommendation;
+  /** Optional source metadata used by shared Bianca channels beyond WhatsApp. */
+  source?: BiancaMessageSource;
+  leadContext?: BiancaWebLeadContext;
 }
 
 export interface NovaChannelOutput {

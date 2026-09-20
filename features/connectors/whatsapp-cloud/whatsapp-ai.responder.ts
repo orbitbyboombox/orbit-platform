@@ -2,6 +2,7 @@ import { generateObject } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { z } from "zod";
 import type { NovaChannelInput, NovaChannelOutput, NovaNextAction } from "@/features/nova-channel";
+import { buildBiancaWebLeadPrompt, normalizeBiancaWebLeadContext } from "./bianca-web-lead-context";
 import type { NovaResponder } from "@/features/nova-channel/engine/nova-responder";
 import { NovaChannelEngine } from "@/features/nova-channel";
 import { BIANCA_INTRODUCTION, founderRequestResponse, isFounderRequest, officialSalesHandoffCopy } from "./bianca-policy";
@@ -215,6 +216,13 @@ PERSONALIDAD COMERCIAL:
 - Si el cliente pregunta por tu identidad ("y tú", "quién eres", "cómo te llamas"), responde quién eres como BIANCA y continúa la calificación comercial; eso no es una solicitud de humano.
 - Solo ofrece seguimiento cuando exista una política autorizada y una intención comercial real; nunca envíes spam ni presión artificial.
 
+LEADS DESDE FORMULARIO WEB:
+- Cuando la fuente sea WEB_FORM_LEAD, trata el formulario como contexto estructurado de alta intención y reutiliza sus datos sin pedirlos de nuevo.
+- El nombre explícito del formulario es un preferred_name confirmado para la oportunidad actual; saluda con ese nombre de forma natural, sin convertirlo en apodo.
+- Si falta el año de una fecha parcial escrita en el mensaje libre (por ejemplo, 21.11), pide solo la confirmación del año; nunca inventes uno.
+- Para matrimonios usa el catálogo canónico Novios/Matrimonios, para empresas el catálogo Empresas y para eventos generales el catálogo Eventos. Solicita CATALOG_LOOKUP; nunca inventes enlaces ni prometas un email si la acción no está realmente disponible.
+- El lead web no termina al enviar un correo: continúa la conversación por WhatsApp con el siguiente paso comercial.
+
 SERVICIOS BOOMBOX:
 - Conoce estos servicios y explícalos solo cuando sea útil: Classic, Polaroid, Black Studio, BBOX360, LightBox, BoomBall, Instabox, Video Lounge, Hashtag y Photo IA.
 - Photo IA es una oferta vigente, no legacy, aunque su ServiceId aún no esté normalizado. Puede ofrecer 2 horas o hasta 100 fotos IA por $500.000 y adicionales de 1 hora o 50 fotos por $190.000 cuando ese conocimiento contextual aplique; no inventes otras condiciones ni crees IDs internos.
@@ -393,6 +401,8 @@ export class WhatsAppAiResponder implements NovaResponder {
         .map((item) => `${item.direction === "INBOUND" ? "CLIENTE" : item.direction === "OUTBOUND" ? "BOOMBOX" : "SISTEMA"} [${item.occurredAt}]: ${item.body}`)
         .join("\n");
       const knownMemory = JSON.stringify(input.memory);
+      const leadContext = input.source === "WEB_FORM_LEAD" ? normalizeBiancaWebLeadContext(input.leadContext) : undefined;
+      const leadPrompt = input.source === "WEB_FORM_LEAD" ? buildBiancaWebLeadPrompt(leadContext) : "FUENTE DEL TURNO: DIRECT_WHATSAPP.";
       const commercialKnowledge = selectBiancaCommercialKnowledge({
         messageText: input.message.text,
         historyText: history,
@@ -401,7 +411,7 @@ export class WhatsAppAiResponder implements NovaResponder {
         model,
         schema: aiDecisionSchema,
         system: MASTER_INSTRUCTIONS,
-        prompt: `HISTORIAL RECIENTE:\n${history || "(sin historial previo)"}\n\nDATOS ESTRUCTURADOS YA CONOCIDOS:\n${knownMemory}\n\n${commercialKnowledge}\n\nMENSAJE ACTUAL DEL CLIENTE:\n${input.message.text}\n\nDevuelve la mejor respuesta y la extracción estructurada. No inventes información comercial.`,
+        prompt: `HISTORIAL RECIENTE:\n${history || "(sin historial previo)"}\n\nDATOS ESTRUCTURADOS YA CONOCIDOS:\n${knownMemory}\n\n${leadPrompt}\n\n${commercialKnowledge}\n\nMENSAJE ACTUAL DEL CLIENTE:\n${input.message.text}\n\nDevuelve la mejor respuesta y la extracción estructurada. No inventes información comercial.`,
       });
       const priceObjection = PRICE_OBJECTION.test(input.message.text);
       const decision: WhatsAppAiDecision = FORCED_MANUAL_REVIEW.test(input.message.text)
@@ -417,6 +427,20 @@ export class WhatsAppAiResponder implements NovaResponder {
           { field: "name", value: selfIntroducedName, confidence: "CONFIRMED", correction: false },
         ];
       }
+      if (leadContext) {
+        const leadFieldMap = [
+          ["name", leadContext.name],
+          ["email", leadContext.email],
+          ["eventType", leadContext.eventType],
+          ["eventDate", leadContext.eventDate],
+          ["commune", leadContext.commune],
+          ["venue", leadContext.venue],
+        ] as const;
+        for (const [field, value] of leadFieldMap) {
+          if (!value || decision.fields.some((item) => item.field === field)) continue;
+          decision.fields.push({ field, value, confidence: "CONFIRMED", correction: false });
+        }
+      }
       if (identityTurn) {
         decision.responseText = identityResponse(selfIntroducedName);
         decision.waitForMoreData = true;
@@ -426,7 +450,8 @@ export class WhatsAppAiResponder implements NovaResponder {
       }
       const confirmedName = decision.fields.some((field) => field.field === "name" && field.confidence === "CONFIRMED" && typeof field.value === "string" && field.value.trim());
       const preferredNameConfirmed = typeof input.memory.customerName === "string" && input.memory.customerName.trim().length > 0;
-      const firstContactNeedsName = isNewBiancaCommercialOpportunity(input.message.text) && !preferredNameConfirmed && !confirmedName;
+      const webLeadNameConfirmed = input.source === "WEB_FORM_LEAD" && Boolean(leadContext?.name);
+      const firstContactNeedsName = input.source !== "WEB_FORM_LEAD" && isNewBiancaCommercialOpportunity(input.message.text) && !preferredNameConfirmed && !confirmedName && !webLeadNameConfirmed;
       if (firstContactNeedsName) {
         decision.responseText = firstContactNameResponse(input.message.text);
         decision.waitForMoreData = true;
