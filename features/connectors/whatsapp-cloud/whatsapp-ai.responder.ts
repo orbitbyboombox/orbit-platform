@@ -5,6 +5,7 @@ import type { NovaChannelInput, NovaChannelOutput, NovaNextAction } from "@/feat
 import type { NovaResponder } from "@/features/nova-channel/engine/nova-responder";
 import { NovaChannelEngine } from "@/features/nova-channel";
 import { BIANCA_INTRODUCTION, founderRequestResponse, isFounderRequest, officialSalesHandoffCopy } from "./bianca-policy";
+import { selectBiancaCommercialKnowledge } from "./bianca-commercial-knowledge";
 
 const INTENTS = [
   "CONSULTA_GENERAL",
@@ -343,11 +344,15 @@ export class WhatsAppAiResponder implements NovaResponder {
         .map((item) => `${item.direction === "INBOUND" ? "CLIENTE" : item.direction === "OUTBOUND" ? "BOOMBOX" : "SISTEMA"} [${item.occurredAt}]: ${item.body}`)
         .join("\n");
       const knownMemory = JSON.stringify(input.memory);
+      const commercialKnowledge = selectBiancaCommercialKnowledge({
+        messageText: input.message.text,
+        historyText: history,
+      });
       const { object } = await generateObject({
         model,
         schema: aiDecisionSchema,
         system: MASTER_INSTRUCTIONS,
-        prompt: `HISTORIAL RECIENTE:\n${history || "(sin historial previo)"}\n\nDATOS ESTRUCTURADOS YA CONOCIDOS:\n${knownMemory}\n\nMENSAJE ACTUAL DEL CLIENTE:\n${input.message.text}\n\nDevuelve la mejor respuesta y la extracción estructurada. No inventes información comercial.`,
+        prompt: `HISTORIAL RECIENTE:\n${history || "(sin historial previo)"}\n\nDATOS ESTRUCTURADOS YA CONOCIDOS:\n${knownMemory}\n\n${commercialKnowledge}\n\nMENSAJE ACTUAL DEL CLIENTE:\n${input.message.text}\n\nDevuelve la mejor respuesta y la extracción estructurada. No inventes información comercial.`,
       });
       const priceObjection = PRICE_OBJECTION.test(input.message.text);
       const decision: WhatsAppAiDecision = FORCED_MANUAL_REVIEW.test(input.message.text)
