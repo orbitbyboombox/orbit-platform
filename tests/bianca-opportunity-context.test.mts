@@ -35,7 +35,9 @@ test("unconfirmed historical nickname is not retained as active customer name", 
 });
 
 test("explicitly confirmed name survives soft reset without changing its spelling", () => {
-  const next = resetBiancaActiveContext({ customerName: "Matías", confirmedFields: ["customerName"], selectedService: "TOTEM" }, "2026-09-19T20:00:00.000Z");
+  const next = resetBiancaActiveContext({ customerName: "Matías", preferredName: "Matías", preferredNameConfirmed: true, confirmedFields: ["customerName"], selectedService: "TOTEM" }, "2026-09-19T20:00:00.000Z");
   assert.equal(next.customerName, "Matías");
+  assert.equal(next.preferredName, "Matías");
+  assert.equal(next.preferredNameConfirmed, true);
   assert.deepEqual(next.confirmedFields, ["customerName"]);
 });

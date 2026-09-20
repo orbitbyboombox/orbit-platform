@@ -67,7 +67,9 @@ function memoryRecord(customerId: string, customerName: string, context: Record<
     : [];
   return {
     customerId,
-    customerName: confirmedFields.includes("customerName") && typeof context.customerName === "string" ? context.customerName : undefined,
+    customerName: context.preferredNameConfirmed === true && typeof context.preferredName === "string"
+      ? context.preferredName
+      : undefined,
     eventType: typeof context.eventType === "string" ? context.eventType : undefined,
     eventDate: typeof context.eventDate === "string" ? context.eventDate : undefined,
     eventLocation: typeof context.eventLocation === "string" ? context.eventLocation : undefined,
@@ -276,7 +278,13 @@ function canonicalMemoryUpdates(decision: WhatsAppAiDecision, occurredAt: string
   }
   for (const item of decision.fields) {
     if (item.confidence !== "CONFIRMED") continue;
-    if (item.field === "name" && typeof item.value === "string") { updates.customerName = item.value; updates.nameSource = "EXPLICIT"; confirmed.add("customerName"); }
+    if (item.field === "name" && typeof item.value === "string") {
+      updates.customerName = item.value;
+      updates.preferredName = item.value;
+      updates.preferredNameConfirmed = true;
+      updates.nameSource = "EXPLICIT";
+      confirmed.add("customerName");
+    }
     if (item.field === "eventType" && typeof item.value === "string") { updates.eventType = item.value; confirmed.add("eventType"); }
     if (item.field === "eventDate" && typeof item.value === "string") { updates.eventDate = item.value; confirmed.add("eventDate"); }
     if (item.field === "attendees" && typeof item.value === "number") { updates.estimatedGuests = item.value; confirmed.add("estimatedGuests"); }

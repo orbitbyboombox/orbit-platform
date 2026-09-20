@@ -112,6 +112,16 @@ test("new commercial intent resets active opportunity context before AI", async 
   assert.match(context, /historicalOpportunities/);
 });
 
+test("new quote without confirmed preferred name asks for name before commercial data", async () => {
+  const source = await readFile(responderUrl, "utf8");
+  assert.match(source, /firstContactNeedsName/);
+  assert.match(source, /firstContactNameResponse/);
+  assert.match(source, /requestedAction = "WAIT_FOR_CUSTOMER"/);
+  assert.match(source, /commercialStage = "NEW_LEAD"/);
+  assert.match(source, /preferredNameConfirmed/);
+  assert.match(source, /No uses profile_name/);
+});
+
 test("QA-scoped BIANCA can resume after takeover without weakening global handoff", async () => {
   const [processor, policy, hub] = await Promise.all([
     readFile(processorUrl, "utf8"),

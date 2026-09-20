@@ -6,6 +6,7 @@ import type { NovaResponder } from "@/features/nova-channel/engine/nova-responde
 import { NovaChannelEngine } from "@/features/nova-channel";
 import { BIANCA_INTRODUCTION, founderRequestResponse, isFounderRequest, officialSalesHandoffCopy } from "./bianca-policy";
 import { selectBiancaCommercialKnowledge } from "./bianca-commercial-knowledge";
+import { isNewBiancaCommercialOpportunity } from "./bianca-opportunity-context";
 
 const INTENTS = [
   "CONSULTA_GENERAL",
@@ -186,6 +187,8 @@ REGLAS DE CONVERSACIÓN:
 - Si llegan mensajes cortos consecutivos, intégralos con el historial y evita responder como si fueran conversaciones nuevas o bombardear con preguntas repetidas.
 - Si el mensaje inicia una nueva intención de cotización (por ejemplo, "quiero cotizar" o "quiero ver opciones") sin decir "sobre lo mismo", "el mismo" o referirse explícitamente a algo anterior, trátalo como una oportunidad nueva: no reutilices automáticamente servicio, fecha, comuna, duración ni cotización histórica. Pide solo el dato mínimo que falta.
 - La memoria histórica puede orientar, pero ACTIVE_CONTEXT contiene únicamente datos confirmados de la oportunidad actual. Recupera un dato histórico solo cuando el cliente lo referencia explícitamente (por ejemplo, "el tótem que vimos" o "sigamos con lo del 12").
+- En el primer turno de una nueva cotización, si ACTIVE_CONTEXT no contiene un preferred_name confirmado, saluda y pregunta primero el nombre. No uses profile_name, nickname ni nombre histórico y no avances todavía a fecha, comuna o servicio. Después de que el cliente entregue su nombre, continúa con una sola pregunta comercial.
+- Conserva exactamente el nombre confirmado por el cliente: "Matías" no se convierte en "Mati" salvo que el cliente pida explícitamente que lo llamen así.
 - Entiende mensajes informales, abreviaturas y faltas de ortografía cuando la intención sea clara; no corrijas al cliente ni lo hagas repetir lo evidente.
 - Usa como máximo un emoji ocasional cuando aporte calidez; no llenes la conversación de emojis.
 - Si el nombre del cliente está disponible, úsalo de vez en cuando y nunca en cada respuesta.
@@ -278,6 +281,15 @@ function withOfficialSalesHandoff(response: string) {
   return `${response.trim()}\n\n${officialSalesHandoffCopy()}`;
 }
 
+export function firstContactNameResponse(messageText: string) {
+  const variants = [
+    "¡Hola! 😊 ¿Cómo estás? Antes de mandarte la info, ¿cómo te llamas?",
+    "¡Hola! Qué bueno que nos escribas 😊 ¿Con quién tengo el gusto?",
+    "¡Hola! 😊 Feliz de ayudarte. Para partir, ¿cómo te llamas?",
+  ];
+  return variants[messageText.trim().length % variants.length];
+}
+
 function statusFromDecision(decision: WhatsAppAiDecision): NovaChannelOutput["conversationStatus"] {
   if (decision.requestedAction === "HUMAN_HANDOFF") return "HUMAN_HANDOFF";
   if (decision.waitForMoreData || decision.requestedAction === "WAIT_FOR_CUSTOMER") return "WAITING_CUSTOMER";
@@ -362,6 +374,15 @@ export class WhatsAppAiResponder implements NovaResponder {
         : priceObjection
           ? { ...object, intents: [...new Set([...object.intents, "OBJECION_PRECIO" as const])] }
           : object;
+      const confirmedName = decision.fields.some((field) => field.field === "name" && field.confidence === "CONFIRMED" && typeof field.value === "string" && field.value.trim());
+      const preferredNameConfirmed = typeof input.memory.customerName === "string" && input.memory.customerName.trim().length > 0;
+      const firstContactNeedsName = isNewBiancaCommercialOpportunity(input.message.text) && !preferredNameConfirmed && !confirmedName;
+      if (firstContactNeedsName) {
+        decision.responseText = firstContactNameResponse(input.message.text);
+        decision.waitForMoreData = true;
+        decision.requestedAction = "WAIT_FOR_CUSTOMER";
+        decision.commercialStage = "NEW_LEAD";
+      }
       this.lastDecisionValue = decision;
       const response = MONEY_OR_AVAILABILITY_CLAIM.test(decision.responseText)
         ? safeCommercialFallback(input, decision)

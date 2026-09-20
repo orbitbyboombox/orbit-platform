@@ -73,6 +73,10 @@ export function resetBiancaActiveContext(context: Record<string, unknown>, occur
     delete next.customerName;
     delete next.nameSource;
   }
+  if (context.preferredNameConfirmed !== true || typeof context.preferredName !== "string" || !context.preferredName.trim()) {
+    delete next.preferredName;
+    delete next.preferredNameConfirmed;
+  }
   next.quotationStatus = "NOT_STARTED";
   next.reservationStatus = "NOT_STARTED";
   next.paymentStatus = "NOT_STARTED";
