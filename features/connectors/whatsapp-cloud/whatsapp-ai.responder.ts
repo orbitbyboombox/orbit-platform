@@ -261,6 +261,27 @@ OBJETIVO: que el cliente piense “me atendieron rápido y entendieron exactamen
 const MONEY_OR_AVAILABILITY_CLAIM = /(?:\$\s?\d|\b(?:CLP|USD|UF)\b|\b\d[\d.]*\s?(?:pesos|d[oó]lares)\b|\b(?:tenemos|hay|queda|est[aá])\s+disponibilidad\b|\bfecha\s+(?:est[aá]\s+)?disponible\b|\bdescuento\s+(?:de\s+)?\d)/i;
 const FORCED_MANUAL_REVIEW = /\b(?:dos|2|tres|3|varios|m[uú]ltiples?)\s+d[ií]as\b|\bBTL\b|\bactivaci[oó]n\b|\b(?:dos|2|varios|m[uú]ltiples?)\s+(?:lugares|ubicaciones|montajes)\b|\bdescuento\b|\bnegoci(?:ar|aci[oó]n)\b|\bbranding\s+especial\b/i;
 const PRICE_OBJECTION = /\b(?:est[aá]|esta)\s+(?:muy\s+)?car[oa]\b|\bme\s+parece\s+(?:muy\s+)?car[oa]\b|\bes\s+mucho\b/i;
+const IDENTITY_QUESTION = /\b(?:y\s+t[uú]|qui[eé]n\s+(?:eres|me\s+responde)|c[oó]mo\s+te\s+llamas|cu[aá]l\s+es\s+tu\s+nombre|eres\s+bianca|tu\s+nombre)\b/i;
+const SELF_INTRODUCTION = /^\s*(?:soy|me\s+llamo)\s+([A-Za-zÁÉÍÓÚáéíóúÑñ][A-Za-zÁÉÍÓÚáéíóúÑñ'-]{1,39})(?:\s+y\s+t[uú].*)?\s*$/i;
+
+function isIdentityQuestion(text: string) {
+  return IDENTITY_QUESTION.test(text.trim());
+}
+
+function extractSelfIntroducedName(text: string) {
+  const match = text.match(SELF_INTRODUCTION);
+  return match?.[1]?.trim() || undefined;
+}
+
+function identityResponse(name?: string) {
+  const greeting = name ? `¡Mucho gusto, ${name}!` : "¡Claro!";
+  const variants = [
+    `${greeting} 😊 Soy BIANCA, ejecutiva comercial de BOOMBOX. ¿Qué fecha tienes para tu matrimonio?`,
+    `${greeting} 😊 Soy BIANCA de BOOMBOX y te voy a ayudar con la cotización. ¿Para qué fecha es tu matrimonio?`,
+    `${greeting} Soy BIANCA, ejecutiva comercial de BOOMBOX. Cuéntame, ¿qué fecha tienes para el matrimonio?`,
+  ];
+  return variants[(name?.length ?? 0) % variants.length];
+}
 
 function safeCommercialFallback(input: NovaChannelInput, decision: WhatsAppAiDecision) {
   if (decision.intents.includes("OBJECION_PRECIO"))
@@ -374,6 +395,21 @@ export class WhatsAppAiResponder implements NovaResponder {
         : priceObjection
           ? { ...object, intents: [...new Set([...object.intents, "OBJECION_PRECIO" as const])] }
           : object;
+      const selfIntroducedName = extractSelfIntroducedName(input.message.text);
+      const identityTurn = isIdentityQuestion(input.message.text) && !isFounderRequest(input.message.text);
+      if (selfIntroducedName) {
+        decision.fields = [
+          ...decision.fields.filter((field) => field.field !== "name"),
+          { field: "name", value: selfIntroducedName, confidence: "CONFIRMED", correction: false },
+        ];
+      }
+      if (identityTurn) {
+        decision.responseText = identityResponse(selfIntroducedName);
+        decision.waitForMoreData = true;
+        decision.requestedAction = "WAIT_FOR_CUSTOMER";
+        decision.commercialStage = "QUALIFYING";
+        decision.intents = [...new Set([...decision.intents.filter((intent) => intent !== "HABLAR_CON_PERSONA"), "CONSULTA_GENERAL" as const])];
+      }
       const confirmedName = decision.fields.some((field) => field.field === "name" && field.confidence === "CONFIRMED" && typeof field.value === "string" && field.value.trim());
       const preferredNameConfirmed = typeof input.memory.customerName === "string" && input.memory.customerName.trim().length > 0;
       const firstContactNeedsName = isNewBiancaCommercialOpportunity(input.message.text) && !preferredNameConfirmed && !confirmedName;

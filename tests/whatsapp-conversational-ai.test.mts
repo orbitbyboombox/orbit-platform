@@ -122,6 +122,14 @@ test("new quote without confirmed preferred name asks for name before commercial
   assert.match(source, /No uses profile_name/);
 });
 
+test("identity questions never get confused with human handoff", async () => {
+  const source = await readFile(responderUrl, "utf8");
+  assert.match(source, /IDENTITY_QUESTION/);
+  assert.match(source, /identityTurn = isIdentityQuestion/);
+  assert.match(source, /identityResponse/);
+  assert.match(source, /selfIntroducedName/);
+});
+
 test("QA-scoped BIANCA can resume after takeover without weakening global handoff", async () => {
   const [processor, policy, hub] = await Promise.all([
     readFile(processorUrl, "utf8"),

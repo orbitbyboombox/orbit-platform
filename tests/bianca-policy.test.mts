@@ -24,7 +24,10 @@ test("BIANCA gates are fail-closed and require both customer messaging and AI", 
 
 test("Founder request is deterministic and never impersonates Matías", () => {
   assert.equal(isFounderRequest("Hola Matías, ¿estás?"), true);
+  assert.equal(isFounderRequest("Soy Matías y tú"), false);
+  assert.equal(isFounderRequest("¿Y tú cómo te llamas?"), false);
   assert.equal(isFounderRequest("Quiero hablar con una persona"), true);
+  assert.equal(isFounderRequest("Necesito hablar con el director comercial"), true);
   assert.equal(isFounderRequest("¿Qué servicios tienen?"), false);
   const response = founderRequestResponse();
   assert.match(response, /BIANCA de BOOMBOX/);

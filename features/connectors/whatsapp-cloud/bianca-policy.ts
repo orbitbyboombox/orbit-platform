@@ -86,7 +86,7 @@ export function officialSalesHandoffCopy() {
   return `HABLAR CON EQUIPO BOOMBOX: ${OFFICIAL_SALES_WHATSAPP_URL}`;
 }
 
-const FOUNDER_REQUEST = /\b(?:hola\s+)?mat[ií]as\b|\b(?:quiero|necesito|puedo)\s+hablar\s+con\s+(?:mat[ií]as|el\s+fundador|una\s+persona)\b|\b(?:est[aá]|se\s+encuentra)\s+mat[ií]as\b/i;
+const FOUNDER_REQUEST = /\b(?:hola|oye|buenas)\s+mat[ií]as\b|\b(?:quiero|necesito|puedo)\s+hablar\s+con\s+(?:mat[ií]as|el\s+fundador|una\s+persona)\b|\b(?:p[aá]same|p[aá]senme)\s+con\s+(?:alguien|una\s+persona)\b|\b(?:quiero\s+un\s+ejecutivo|necesito\s+hablar\s+con\s+(?:el\s+)?director\s+comercial)\b|\b(?:est[aá]|se\s+encuentra)\s+mat[ií]as\b/i;
 
 export function isFounderRequest(text: string) {
   return FOUNDER_REQUEST.test(text.trim());
