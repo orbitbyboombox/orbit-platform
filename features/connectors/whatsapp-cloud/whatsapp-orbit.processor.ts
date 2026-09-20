@@ -88,8 +88,9 @@ function memoryRecord(customerId: string, customerName: string, context: Record<
 
 function currentConversation(row: ConversationStateRow, customerName: string, occurredAt: string, qaOverride = false): UnifiedConversation {
   const handoff = row.status === "HUMAN_HANDOFF" || row.nova_enabled === false;
-  // QA mode is scoped to one persisted conversation and must be able to
-  // resume BIANCA after a previous human takeover or manual-review result.
+  // QA mode is scoped to an explicit conversation or phone allow-list and
+  // must be able to resume BIANCA after a previous human takeover or
+  // manual-review result.
   // Global conversations retain the hard human-handoff gate.
   const effectiveHandoff = handoff && !qaOverride;
   const status = effectiveHandoff ? "HUMAN_HANDOFF" as const : row.status === "WAITING_CUSTOMER" && !qaOverride ? "WAITING_CUSTOMER" as const : row.status === "COMPLETED" && !qaOverride ? "COMPLETED" as const : "ACTIVE" as const;
@@ -363,11 +364,12 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
 
     // WhatsApp automation is never sufficient by itself. BIANCA customer
     // messaging is a separate, server-side, fail-closed gate.
-    const initialAutomationEnabled = whatsappAutomationEnabled() && biancaCanProcessCustomerMessage();
+    const globalAutomationEnabled = whatsappAutomationEnabled() && biancaCanProcessCustomerMessage();
+    const initialAutomationEnabled = globalAutomationEnabled;
     const customer = await resolveCustomer(client, event);
     const conversationState = await resolveConversation(client, customer.id, event.sender_wa_id, event.occurred_at, initialAutomationEnabled);
-    const automationEnabled = biancaCanProcessCustomerMessage(conversationState.id) ||
-      (whatsappAutomationEnabled() && biancaCanProcessCustomerMessage());
+    const qaAuthorized = biancaQaModeEnabled() && biancaCanProcessCustomerMessage(conversationState.id, event.sender_wa_id);
+    const automationEnabled = qaAuthorized || globalAutomationEnabled;
     await persistInboundCommunication(client, event, conversationState.id, customer.id);
 
     if (!automationEnabled) {
@@ -405,7 +407,7 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
       new SupabaseCommunicationTimelineRepository(client),
       new QueuedWhatsAppDispatcher(client, customer.id),
     );
-    const qaOverride = biancaCanProcessCustomerMessage(conversationState.id) && biancaQaModeEnabled();
+    const qaOverride = qaAuthorized;
     const current = currentConversation(conversationState, customer.full_name, event.occurred_at, qaOverride);
     const result = await engine.receive(
       {

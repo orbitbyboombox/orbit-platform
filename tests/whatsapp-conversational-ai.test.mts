@@ -107,7 +107,9 @@ test("QA-scoped BIANCA can resume after takeover without weakening global handof
     readFile(hubUrl, "utf8"),
   ]);
   assert.match(policy, /biancaQaModeEnabled/);
-  assert.match(processor, /const qaOverride = biancaCanProcessCustomerMessage\(conversationState\.id\) && biancaQaModeEnabled\(\)/);
+  assert.match(processor, /const qaAuthorized = biancaQaModeEnabled\(\) && biancaCanProcessCustomerMessage\(conversationState\.id, event\.sender_wa_id\)/);
+  assert.match(processor, /const automationEnabled = qaAuthorized \|\| globalAutomationEnabled/);
+  assert.match(processor, /const qaOverride = qaAuthorized/);
   assert.match(processor, /currentConversation\(conversationState, customer\.full_name, event\.occurred_at, qaOverride\)/);
   assert.match(processor, /effectiveHandoff = handoff && !qaOverride/);
   assert.match(hub, /const handledBy = current\?\.assignedHuman \?\? novaState\.handledBy;/);

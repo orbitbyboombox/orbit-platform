@@ -29,6 +29,35 @@ export function biancaQaModeEnabled() {
   return process.env.BIANCA_QA_MODE?.trim().toLowerCase() === "true";
 }
 
+/**
+ * Normalize Founder QA phone numbers at the server boundary. Meta normally
+ * sends E.164 digits, but the allow-list is intentionally tolerant of the
+ * common Chilean forms used when configuring an environment variable.
+ */
+export function normalizeBiancaQaPhone(value: string) {
+  const raw = value.trim();
+  if (!raw) return "";
+  const compact = raw.replace(/[\s().-]/g, "");
+  const digits = compact.replace(/^\+/, "");
+  if (!/^\d+$/.test(digits)) return "";
+  if (digits.length === 9 && digits.startsWith("9")) return `+56${digits}`;
+  if (digits.length >= 8 && digits.length <= 15) return `+${digits}`;
+  return "";
+}
+
+export function biancaQaPhoneNumbers() {
+  const values = (process.env.BIANCA_QA_PHONE_NUMBERS ?? "")
+    .split(",")
+    .map(normalizeBiancaQaPhone)
+    .filter(Boolean);
+  return [...new Set(values)];
+}
+
+export function biancaQaPhoneAuthorized(phoneNumber?: string) {
+  const normalized = phoneNumber ? normalizeBiancaQaPhone(phoneNumber) : "";
+  return Boolean(normalized && biancaQaPhoneNumbers().includes(normalized));
+}
+
 export function biancaFounderNotificationsEnabled() {
   return process.env.BIANCA_FOUNDER_NOTIFICATIONS_ENABLED?.trim().toLowerCase() === "true";
 }
@@ -39,8 +68,8 @@ export function biancaSimulationEnabled() {
   return process.env.BIANCA_SIMULATION_ENABLED?.trim().toLowerCase() !== "false";
 }
 
-export function biancaCanProcessCustomerMessage(conversationId?: string) {
-  if (biancaQaModeEnabled() && conversationId && conversationId === biancaQaConversationId()) return true;
+export function biancaCanProcessCustomerMessage(conversationId?: string, phoneNumber?: string) {
+  if (biancaQaModeEnabled() && ((Boolean(conversationId) && conversationId === biancaQaConversationId()) || biancaQaPhoneAuthorized(phoneNumber))) return true;
   return biancaCustomerMessagingEnabled() && biancaAiEnabled() && biancaOutboundEnabled();
 }
 
