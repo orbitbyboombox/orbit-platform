@@ -12,12 +12,14 @@ test("selects compact totem and photo format knowledge without treating totem as
   assert.doesNotMatch(context, /CLASSIC.*250\.000/);
 });
 
-test("Photo IA is current but explicitly not normalized", () => {
+test("Photo IA is a current active offer while its service id remains unnormalized", () => {
   const context = selectBiancaCommercialKnowledge({ messageText: "¿Cuánto cuesta Photo IA?" });
   assert.match(context, /PHOTO IA: oferta comercial vigente/);
-  assert.match(context, /SERVICE REGISTRY STATUS = NOT NORMALIZED/);
+  assert.match(context, /SERVICE REGISTRY STATUS = NOT NORMALIZED \/ PENDING CANONICAL SERVICE ID/);
+  assert.match(context, /2 horas o hasta 100 fotos IA por \$500\.000/);
+  assert.match(context, /adicional de 1 hora o 50 fotos por \$190\.000/);
   assert.match(context, /fuente comercial autorizada/);
-  assert.doesNotMatch(context, /500\.000|190\.000/);
+  assert.match(context, /No clasificar como legacy/);
 });
 
 test("special quote services are fail-closed", () => {

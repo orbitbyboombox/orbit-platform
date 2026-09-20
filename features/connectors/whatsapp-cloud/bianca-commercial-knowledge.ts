@@ -3,8 +3,11 @@ import { catalogPublicUrl } from "../../commercial-hub/catalogs.ts";
 /**
  * Stable, non-sensitive commercial vocabulary for BIANCA.
  *
- * Prices and availability are intentionally absent: those come from the
- * canonical commercial lookup (`commercial_prices`) at runtime.
+ * Prices and availability are intentionally absent for normalized services:
+ * those come from the canonical commercial lookup (`commercial_prices`) at
+ * runtime. Photo IA is kept here as an explicitly Founder-authorized offer
+ * because it is commercially active while its service registry entry is still
+ * pending normalization.
  */
 
 export const BIANCA_CANONICAL_CATALOG_LINKS = {
@@ -23,6 +26,7 @@ const SERVICE_CONTEXT: Record<string, string> = {
   hashtag: "Hashtag: servicio BOOMBOX; duración, precio y capacidad solo desde consulta comercial.",
   instabox: "Instabox: requiere cotización oficial según evento; nunca inventar precio.",
   "video lounge": "Video Lounge: requiere cotización oficial según evento; nunca inventar precio.",
+  "photo ia": "Photo IA: oferta comercial vigente; registro de servicio aún no normalizado.",
 };
 
 const TOPIC_PATTERNS = {
@@ -72,8 +76,9 @@ export function selectBiancaCommercialKnowledge(input: BiancaCommercialKnowledge
 
   if (hasPhotoIa) {
     sections.push([
-      "PHOTO IA: oferta comercial vigente, pero SERVICE REGISTRY STATUS = NOT NORMALIZED.",
-      "No crear un ServiceId ni inventar una tarifa desde memoria; para precio/configuración usar la fuente comercial autorizada o escalar a revisión Founder.",
+      "PHOTO IA: oferta comercial vigente y activa; SERVICE REGISTRY STATUS = NOT NORMALIZED / PENDING CANONICAL SERVICE ID.",
+      "Oferta autorizada: 2 horas o hasta 100 fotos IA por $500.000; adicional de 1 hora o 50 fotos por $190.000.",
+      "No clasificar como legacy ni crear un ServiceId. Al cerrar una cotización, confirmar el monto y las condiciones mediante la fuente comercial autorizada; si no está disponible, escalar a revisión Founder.",
     ].join("\n"));
   }
 
