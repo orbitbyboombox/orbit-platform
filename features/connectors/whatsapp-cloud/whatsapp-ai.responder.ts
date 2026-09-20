@@ -3,6 +3,8 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { z } from "zod";
 import type { NovaChannelInput, NovaChannelOutput, NovaNextAction } from "@/features/nova-channel";
 import { buildBiancaWebLeadPrompt, normalizeBiancaWebLeadContext } from "./bianca-web-lead-context";
+import { selectBiancaSalesPlaybook } from "./bianca-sales-playbook";
+import { responseStylePrompt } from "./bianca-response-style-bank";
 import type { NovaResponder } from "@/features/nova-channel/engine/nova-responder";
 import { NovaChannelEngine } from "@/features/nova-channel";
 import { BIANCA_INTRODUCTION, founderRequestResponse, isFounderRequest, officialSalesHandoffCopy } from "./bianca-policy";
@@ -403,6 +405,12 @@ export class WhatsAppAiResponder implements NovaResponder {
       const knownMemory = JSON.stringify(input.memory);
       const leadContext = input.source === "WEB_FORM_LEAD" ? normalizeBiancaWebLeadContext(input.leadContext) : undefined;
       const leadPrompt = input.source === "WEB_FORM_LEAD" ? buildBiancaWebLeadPrompt(leadContext) : "FUENTE DEL TURNO: DIRECT_WHATSAPP.";
+      const playbook = selectBiancaSalesPlaybook({
+        messageText: input.message.text,
+        source: input.source,
+        hasConfirmedName: Boolean(input.memory.customerName?.trim() || leadContext?.name),
+        hasHistory: this.history.length > 0,
+      });
       const commercialKnowledge = selectBiancaCommercialKnowledge({
         messageText: input.message.text,
         historyText: history,
@@ -411,7 +419,7 @@ export class WhatsAppAiResponder implements NovaResponder {
         model,
         schema: aiDecisionSchema,
         system: MASTER_INSTRUCTIONS,
-        prompt: `HISTORIAL RECIENTE:\n${history || "(sin historial previo)"}\n\nDATOS ESTRUCTURADOS YA CONOCIDOS:\n${knownMemory}\n\n${leadPrompt}\n\n${commercialKnowledge}\n\nMENSAJE ACTUAL DEL CLIENTE:\n${input.message.text}\n\nDevuelve la mejor respuesta y la extracción estructurada. No inventes información comercial.`,
+        prompt: `HISTORIAL RECIENTE:\n${history || "(sin historial previo)"}\n\nDATOS ESTRUCTURADOS YA CONOCIDOS:\n${knownMemory}\n\n${leadPrompt}\n\nPLAYBOOK DEL TURNO:\n${playbook}\n\n${responseStylePrompt()}\n\n${commercialKnowledge}\n\nMENSAJE ACTUAL DEL CLIENTE:\n${input.message.text}\n\nDevuelve la mejor respuesta y la extracción estructurada. No inventes información comercial.`,
       });
       const priceObjection = PRICE_OBJECTION.test(input.message.text);
       const decision: WhatsAppAiDecision = FORCED_MANUAL_REVIEW.test(input.message.text)
