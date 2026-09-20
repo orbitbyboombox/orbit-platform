@@ -15,6 +15,7 @@ export interface BiancaWebLeadContext {
   eventType?: string;
   eventDate?: string;
   commune?: string;
+  specialVenue?: string;
   venue?: string;
   message?: string;
 }

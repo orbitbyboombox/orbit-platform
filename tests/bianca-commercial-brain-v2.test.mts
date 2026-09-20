@@ -53,3 +53,15 @@ test("red-team matrix provides at least 100 deterministic scenarios", () => {
     assert.doesNotMatch(message, /api[_-]?key|access[_-]?token/i);
   }
 });
+
+test("runtime pricing and availability wiring stays outside the LLM prompt", async () => {
+  const source = await readFile(new URL("../features/connectors/whatsapp-cloud/whatsapp-ai.responder.ts", import.meta.url), "utf8");
+  const tools = await readFile(new URL("../features/connectors/whatsapp-cloud/bianca-runtime-tools.ts", import.meta.url), "utf8");
+  assert.match(source, /lookupBiancaPrice/);
+  assert.match(source, /lookupBiancaAvailability/);
+  assert.match(source, /RESULTADOS DE TOOLS ORBIT/);
+  assert.match(tools, /from\("commercial_prices"\)/);
+  assert.match(tools, /resolveServicePrice/);
+  assert.match(tools, /preflight_draft_capacity/);
+  assert.match(tools, /QUOTE_REQUIRED/);
+});

@@ -5,6 +5,8 @@ import type { NovaChannelInput, NovaChannelOutput, NovaNextAction } from "@/feat
 import { buildBiancaWebLeadPrompt, normalizeBiancaWebLeadContext } from "./bianca-web-lead-context";
 import { selectBiancaSalesPlaybook } from "./bianca-sales-playbook";
 import { responseStylePrompt } from "./bianca-response-style-bank";
+import { inferServiceCodes, lookupBiancaAvailability, lookupBiancaPrice } from "./bianca-runtime-tools";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { NovaResponder } from "@/features/nova-channel/engine/nova-responder";
 import { NovaChannelEngine } from "@/features/nova-channel";
 import { BIANCA_INTRODUCTION, founderRequestResponse, isFounderRequest, officialSalesHandoffCopy } from "./bianca-policy";
@@ -364,6 +366,7 @@ export class WhatsAppAiResponder implements NovaResponder {
   constructor(
     private readonly fallback: NovaChannelEngine,
     private readonly history: readonly WhatsAppConversationHistoryItem[],
+    private readonly runtimeClient?: SupabaseClient,
   ) {}
 
   get lastDecision() {
@@ -411,6 +414,13 @@ export class WhatsAppAiResponder implements NovaResponder {
         hasConfirmedName: Boolean(input.memory.customerName?.trim() || leadContext?.name),
         hasHistory: this.history.length > 0,
       });
+      const priceLookup = this.runtimeClient && /(?:cu[aá]nto|precio|valor|cotiz|sale|cuesta)/i.test(input.message.text)
+        ? await lookupBiancaPrice(this.runtimeClient, { text: input.message.text, serviceCodes: inferServiceCodes(input.message.text, input.memory.selectedServices ?? (input.memory.selectedService ? [input.memory.selectedService] : [])), durationHours: input.memory.recommendedHours, commune: input.leadContext?.commune, specialVenue: input.leadContext?.specialVenue })
+        : null;
+      const availabilityLookup = this.runtimeClient && /(?:disponib|fecha)/i.test(input.message.text)
+        ? await lookupBiancaAvailability(this.runtimeClient, { eventDate: input.leadContext?.eventDate ?? input.memory.eventDate, durationHours: input.memory.recommendedHours, serviceCodes: inferServiceCodes(input.message.text, input.memory.selectedServices ?? (input.memory.selectedService ? [input.memory.selectedService] : [])), commune: input.leadContext?.commune, venue: input.leadContext?.venue })
+        : null;
+      const runtimeToolResult = JSON.stringify({ PRICE_LOOKUP: priceLookup, AVAILABILITY_LOOKUP: availabilityLookup });
       const commercialKnowledge = selectBiancaCommercialKnowledge({
         messageText: input.message.text,
         historyText: history,
@@ -419,7 +429,7 @@ export class WhatsAppAiResponder implements NovaResponder {
         model,
         schema: aiDecisionSchema,
         system: MASTER_INSTRUCTIONS,
-        prompt: `HISTORIAL RECIENTE:\n${history || "(sin historial previo)"}\n\nDATOS ESTRUCTURADOS YA CONOCIDOS:\n${knownMemory}\n\n${leadPrompt}\n\nPLAYBOOK DEL TURNO:\n${playbook}\n\n${responseStylePrompt()}\n\n${commercialKnowledge}\n\nMENSAJE ACTUAL DEL CLIENTE:\n${input.message.text}\n\nDevuelve la mejor respuesta y la extracción estructurada. No inventes información comercial.`,
+        prompt: `HISTORIAL RECIENTE:\n${history || "(sin historial previo)"}\n\nDATOS ESTRUCTURADOS YA CONOCIDOS:\n${knownMemory}\n\n${leadPrompt}\n\nPLAYBOOK DEL TURNO:\n${playbook}\n\n${responseStylePrompt()}\n\nRESULTADOS DE TOOLS ORBIT (fuente de verdad; no inventes ni recalcules):\n${runtimeToolResult}\nSi un resultado es ERROR, QUOTE_REQUIRED, MISSING_DURATION o INSUFFICIENT_DATA, no afirmes precio/disponibilidad: pide solo el dato faltante o deriva según corresponda.\n\n${commercialKnowledge}\n\nMENSAJE ACTUAL DEL CLIENTE:\n${input.message.text}\n\nDevuelve la mejor respuesta y la extracción estructurada. No inventes información comercial.`,
       });
       const priceObjection = PRICE_OBJECTION.test(input.message.text);
       const decision: WhatsAppAiDecision = FORCED_MANUAL_REVIEW.test(input.message.text)

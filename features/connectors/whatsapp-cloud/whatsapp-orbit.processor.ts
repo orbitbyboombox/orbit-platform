@@ -412,7 +412,7 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
     const activeMemory = memoryRecord(customer.id, customer.full_name, opportunity.context);
     const history = await loadConversationHistory(client, conversationState.id);
     const memoryEngine = new CustomerMemoryEngine(ORBIT_TIME_ENGINE);
-    const aiResponder = new WhatsAppAiResponder(new NovaChannelEngine(memoryEngine), opportunity.reset ? [] : history);
+    const aiResponder = new WhatsAppAiResponder(new NovaChannelEngine(memoryEngine), opportunity.reset ? [] : history, client);
     const engine = new CommunicationHubEngine(
       aiResponder,
       new SupabaseCommunicationTimelineRepository(client),

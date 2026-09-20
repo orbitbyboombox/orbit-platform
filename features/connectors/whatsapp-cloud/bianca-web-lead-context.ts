@@ -38,6 +38,7 @@ export function buildBiancaWebLeadPrompt(context?: BiancaWebLeadContext) {
     ["Tipo de evento", lead.eventType],
     ["Fecha estructurada", lead.eventDate],
     ["Comuna", lead.commune],
+    ["Recinto especial estructurado", lead.specialVenue],
     ["Lugar", lead.venue],
     ["Mensaje libre", lead.message],
   ].filter(([, value]) => value);
