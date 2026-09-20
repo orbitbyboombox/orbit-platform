@@ -100,6 +100,18 @@ test("only confirmed AI fields enter canonical customer memory", async () => {
   assert.match(source, /conversationSummary/);
 });
 
+test("new commercial intent resets active opportunity context before AI", async () => {
+  const [processor, context] = await Promise.all([
+    readFile(processorUrl, "utf8"),
+    readFile(new URL("../features/connectors/whatsapp-cloud/bianca-opportunity-context.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(processor, /prepareBiancaOpportunityContext/);
+  assert.match(processor, /opportunity\.reset \? \[\] : history/);
+  assert.match(processor, /persistAiDecision\(client, customer\.id, conversationState, opportunity\.context/);
+  assert.match(context, /isNewBiancaCommercialOpportunity/);
+  assert.match(context, /historicalOpportunities/);
+});
+
 test("QA-scoped BIANCA can resume after takeover without weakening global handoff", async () => {
   const [processor, policy, hub] = await Promise.all([
     readFile(processorUrl, "utf8"),

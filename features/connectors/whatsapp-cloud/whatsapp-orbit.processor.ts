@@ -13,6 +13,7 @@ import { WhatsAppAiResponder, type WhatsAppAiDecision, type WhatsAppConversation
 import { deliverCanonicalCatalogFromWhatsApp, type WhatsAppCatalogDeliveryResult } from "./whatsapp-catalog.delivery";
 import { whatsappAutomationEnabled } from "./meta-whatsapp-cloud";
 import { biancaCanProcessCustomerMessage, biancaQaModeEnabled } from "./bianca-policy";
+import { prepareBiancaOpportunityContext } from "./bianca-opportunity-context";
 import { logWhatsApp } from "./whatsapp-observability";
 import { serializeWhatsAppError } from "./whatsapp-observability";
 import { WHATSAPP_TENANT_SLUG } from "./whatsapp-tenant";
@@ -66,7 +67,7 @@ function memoryRecord(customerId: string, customerName: string, context: Record<
     : [];
   return {
     customerId,
-    customerName: typeof context.customerName === "string" ? context.customerName : customerName,
+    customerName: confirmedFields.includes("customerName") && typeof context.customerName === "string" ? context.customerName : undefined,
     eventType: typeof context.eventType === "string" ? context.eventType : undefined,
     eventDate: typeof context.eventDate === "string" ? context.eventDate : undefined,
     eventLocation: typeof context.eventLocation === "string" ? context.eventLocation : undefined,
@@ -275,7 +276,7 @@ function canonicalMemoryUpdates(decision: WhatsAppAiDecision, occurredAt: string
   }
   for (const item of decision.fields) {
     if (item.confidence !== "CONFIRMED") continue;
-    if (item.field === "name" && typeof item.value === "string") { updates.customerName = item.value; confirmed.add("customerName"); }
+    if (item.field === "name" && typeof item.value === "string") { updates.customerName = item.value; updates.nameSource = "EXPLICIT"; confirmed.add("customerName"); }
     if (item.field === "eventType" && typeof item.value === "string") { updates.eventType = item.value; confirmed.add("eventType"); }
     if (item.field === "eventDate" && typeof item.value === "string") { updates.eventDate = item.value; confirmed.add("eventDate"); }
     if (item.field === "attendees" && typeof item.value === "number") { updates.estimatedGuests = item.value; confirmed.add("estimatedGuests"); }
@@ -399,9 +400,11 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
     }
 
     const memoryState = await loadMemory(client, customer.id, customer.full_name);
+    const opportunity = prepareBiancaOpportunityContext(memoryState.context, event.text_body, event.occurred_at);
+    const activeMemory = memoryRecord(customer.id, customer.full_name, opportunity.context);
     const history = await loadConversationHistory(client, conversationState.id);
     const memoryEngine = new CustomerMemoryEngine(ORBIT_TIME_ENGINE);
-    const aiResponder = new WhatsAppAiResponder(new NovaChannelEngine(memoryEngine), history);
+    const aiResponder = new WhatsAppAiResponder(new NovaChannelEngine(memoryEngine), opportunity.reset ? [] : history);
     const engine = new CommunicationHubEngine(
       aiResponder,
       new SupabaseCommunicationTimelineRepository(client),
@@ -419,13 +422,13 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
         content: event.text_body,
         occurredAt: event.occurred_at,
       },
-      { memory: memoryState.record },
+      { memory: activeMemory },
       current,
     );
 
     const decision = aiResponder.lastDecision;
     if (!result.suppressed && decision)
-      await persistAiDecision(client, customer.id, conversationState, memoryState.context, decision, event.occurred_at);
+      await persistAiDecision(client, customer.id, conversationState, opportunity.context, decision, event.occurred_at);
 
     let finalResponse = result.nova.response;
     let commercialAction: Record<string, unknown> | null = null;
