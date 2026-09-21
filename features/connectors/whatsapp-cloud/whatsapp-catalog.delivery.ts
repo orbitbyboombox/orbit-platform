@@ -11,9 +11,9 @@ import { biancaCustomerMessagingEnabled } from "./bianca-policy";
 export type WhatsAppCatalogDeliveryResult =
   | { status: "NOT_REQUESTED" }
   | { status: "DISABLED" }
-  | { status: "MISSING_EMAIL" }
-  | { status: "ALREADY_SENT"; email: string; category: CommercialCatalogCategory }
-  | { status: "SENT"; email: string; category: CommercialCatalogCategory }
+  | { status: "MISSING_EMAIL"; catalogUrl?: string; category?: CommercialCatalogCategory }
+  | { status: "ALREADY_SENT"; email?: string; category: CommercialCatalogCategory; catalogUrl: string }
+  | { status: "SENT"; email?: string; category: CommercialCatalogCategory; catalogUrl: string }
   | { status: "FAILED"; error: string };
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
@@ -69,9 +69,9 @@ export async function deliverCanonicalCatalogFromWhatsApp(input: {
   const quickCategory = quickSendCategory(input.decision);
   if (!quickCategory) return { status: "FAILED", error: "No se pudo clasificar el catálogo comercial." };
   const category = input.decision.catalogCategory as CommercialCatalogCategory;
+  const catalogUrl = catalogPublicUrl(category, process.env.NEXT_PUBLIC_APP_URL ?? "https://orbit.boom-box.cl");
   const confirmedEmail = confirmedString(input.decision, "email").toLowerCase();
   const email = EMAIL.test(confirmedEmail) ? confirmedEmail : (input.customerEmail?.trim().toLowerCase() ?? "");
-  if (!EMAIL.test(email)) return { status: "MISSING_EMAIL" };
 
   const client = createAdminClient();
   let claimId: string | null = null;
@@ -87,8 +87,13 @@ export async function deliverCanonicalCatalogFromWhatsApp(input: {
     const idempotencyKey = deterministicUuid(`whatsapp-catalog:${input.providerMessageId}:${category}`);
     const { data: existing, error: existingError } = await client.from("commercial_sends").select("id,status,recipient_email").eq("idempotency_key", idempotencyKey).maybeSingle();
     if (existingError) throw existingError;
-    if (existing?.status === "SENT") return { status: "ALREADY_SENT", email: existing.recipient_email, category };
+    if (existing?.status === "SENT") return { status: "ALREADY_SENT", email: existing.recipient_email || undefined, category, catalogUrl };
     if (existing) throw new Error(`El envío comercial previo quedó en estado ${existing.status}. Requiere revisión.`);
+
+    // SEND_CATALOG is a WhatsApp action, not an email promise. The canonical
+    // public URL is the verified result that BIANCA can include immediately.
+    // Email remains an optional secondary delivery when a real address exists.
+    if (!EMAIL.test(email)) return { status: "MISSING_EMAIL", catalogUrl, category };
 
     const name = confirmedString(input.decision, "name") || input.customerName || "";
     const subject = replaceVars(template.subject, name).replaceAll("\n", " ").trim();
@@ -113,7 +118,7 @@ export async function deliverCanonicalCatalogFromWhatsApp(input: {
     const downloaded = await client.storage.from("orbit-documents").download(document.storage_path);
     if (downloaded.error) throw downloaded.error;
     const pdf = new Uint8Array(await downloaded.data.arrayBuffer());
-    const publicUrl = catalogPublicUrl(category, process.env.NEXT_PUBLIC_APP_URL ?? "https://orbit.boom-box.cl");
+    const publicUrl = catalogUrl;
     const paragraphs = body.split(/\n{2,}/).map((paragraph) => `<p style="margin:0 0 16px">${escapeHtml(paragraph).replaceAll("\n", "<br>")}</p>`).join("");
     const signatureUrl = typeof company.emailConfiguration.signatureGifUrl === "string" ? company.emailConfiguration.signatureGifUrl : "";
     const signatureHtml = signatureUrl
@@ -150,7 +155,7 @@ export async function deliverCanonicalCatalogFromWhatsApp(input: {
       const { error: customerError } = await client.from("customers").update({ email, updated_at: sentAt }).eq("id", input.customerId);
       if (customerError) console.error("whatsapp.catalog.customer_email_sync_failed", { customerId: input.customerId, error: customerError.message });
     }
-    return { status: "SENT", email, category };
+    return { status: "SENT", email, category, catalogUrl };
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     if (claimId) await client.from("commercial_sends").update({ status: "FAILED" }).eq("id", claimId);

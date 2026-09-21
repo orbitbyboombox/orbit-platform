@@ -1,11 +1,13 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { assertSupabaseEnvironmentSafe } from "./environment-guard";
 
 async function getSupabaseServerConfig() {
   const cookieStore = await cookies();
   const url = process.env.SUPABASE_URL;
   const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY;
   if (!url || !publishableKey) throw new Error("Missing Supabase environment variables.");
+  assertSupabaseEnvironmentSafe(url);
   return { cookieStore, publishableKey, url };
 }
 

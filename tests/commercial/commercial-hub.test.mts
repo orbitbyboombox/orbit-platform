@@ -54,9 +54,11 @@ test("canonical RUT presentation accepts legacy representations", () => {
 });
 test("quote create and edit use the canonical authenticated session RPC with explicit success text", () => {
   const actions = readFileSync(new URL("../../features/commercial-hub/actions.ts", import.meta.url), "utf8");
+  const service = readFileSync(new URL("../../features/commercial-hub/canonical-quote.service.ts", import.meta.url), "utf8");
   const hub = readFileSync(new URL("../../features/commercial-hub/commercial-hub.tsx", import.meta.url), "utf8");
   assert.match(actions, /const \{ client, user \} = await founder\(\);/);
-  assert.match(actions, /client\.rpc\(\s*"save_commercial_quote_draft"/);
+  assert.match(actions, /executeCanonicalQuoteDraft/);
+  assert.match(service, /client\.rpc\("save_commercial_quote_draft"/);
   assert.doesNotMatch(actions, /admin\.rpc\(\s*"save_commercial_quote_draft"/);
   assert.match(hub, /Cotización actualizada correctamente/);
 });

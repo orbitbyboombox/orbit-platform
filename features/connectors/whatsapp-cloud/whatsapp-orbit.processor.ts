@@ -10,7 +10,8 @@ import {
 import { createAdminClient } from "@/lib/supabase/admin";
 import { QueuedWhatsAppDispatcher } from "./queued-whatsapp.dispatcher";
 import { WhatsAppAiResponder, type WhatsAppAiDecision, type WhatsAppConversationHistoryItem } from "./whatsapp-ai.responder";
-import { deliverCanonicalCatalogFromWhatsApp, type WhatsAppCatalogDeliveryResult } from "./whatsapp-catalog.delivery";
+import type { WhatsAppCatalogDeliveryResult } from "./whatsapp-catalog.delivery";
+import { BiancaAgentOrchestrator } from "./bianca-agent-orchestrator";
 import { whatsappAutomationEnabled } from "./meta-whatsapp-cloud";
 import { biancaCanProcessCustomerMessage, biancaQaModeEnabled } from "./bianca-policy";
 import { prepareBiancaOpportunityContext } from "./bianca-opportunity-context";
@@ -337,10 +338,12 @@ async function persistAiDecision(
 }
 
 function responseAfterCatalog(result: WhatsAppCatalogDeliveryResult, fallback: string) {
-  if (result.status === "SENT" || result.status === "ALREADY_SENT")
-    return `Listo, ya te enviamos el catálogo al correo ${result.email}. Si no lo ves en unos minutos, revisa también spam y me avisas por acá.`;
+  if (result.status === "SENT" || result.status === "ALREADY_SENT") {
+    const emailNote = result.email ? ` También te lo enviamos al correo ${result.email}.` : "";
+    return `Sí 😊 Te dejo acá el catálogo: ${result.catalogUrl}${emailNote}`;
+  }
   if (result.status === "MISSING_EMAIL")
-    return "Perfecto. ¿A qué correo te enviamos el catálogo?";
+    return `Sí 😊 Te dejo acá el catálogo: ${result.catalogUrl}\n\nSi quieres que también te lo envíe por correo, ¿qué dirección usamos?`;
   if (result.status === "FAILED")
     return "Perfecto, ya tengo tus datos. Voy a revisar el envío y te confirmamos por acá.";
   return fallback;
@@ -348,6 +351,7 @@ function responseAfterCatalog(result: WhatsAppCatalogDeliveryResult, fallback: s
 
 export async function processWhatsAppWebhookEvent(providerMessageId: string) {
   const client = createAdminClient();
+  const orchestrator = new BiancaAgentOrchestrator(client);
   const now = new Date().toISOString();
 
   const { data: claimed, error: claimError } = await client
@@ -443,7 +447,7 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
     let forcedHumanReview = false;
 
     if (!result.suppressed && decision) {
-      const catalogResult = await deliverCanonicalCatalogFromWhatsApp({
+      const catalogResult = await orchestrator.sendCatalog({
         decision,
         customerId: customer.id,
         customerName: customer.full_name,
@@ -451,8 +455,17 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
         providerMessageId: event.provider_message_id,
       });
       finalResponse = responseAfterCatalog(catalogResult, finalResponse);
+      const claimViolations = orchestrator.verifyResponse(finalResponse, {
+        catalogSent: catalogResult.status === "SENT" || catalogResult.status === "ALREADY_SENT" || catalogResult.status === "MISSING_EMAIL",
+        emailSent: catalogResult.status === "SENT" || catalogResult.status === "ALREADY_SENT" ? Boolean(catalogResult.email) : false,
+      });
+      if (claimViolations.length) {
+        finalResponse = "No pude completar esa acción de forma segura. Dejé la conversación lista para que nuestro equipo la revise.";
+        forcedHumanReview = true;
+        logWhatsApp("warn", "bianca_unsupported_claim_blocked", event.provider_message_id, { claimViolations });
+      }
       commercialAction = { type: decision.requestedAction, catalogCategory: decision.catalogCategory, result: catalogResult.status, updatedAt: new Date().toISOString() };
-      forcedHumanReview = decision.requestedAction === "MANUAL_REVIEW" || catalogResult.status === "FAILED";
+      forcedHumanReview ||= decision.requestedAction === "MANUAL_REVIEW" || catalogResult.status === "FAILED";
       if (finalResponse !== result.nova.response)
         await replaceQueuedWhatsAppResponse(client, event.provider_message_id, finalResponse);
     }

@@ -197,7 +197,7 @@ test("QA-scoped BIANCA can resume after takeover without weakening global handof
 test("catalog confirmation is based on real send result", async () => {
   const source = await readFile(processorUrl, "utf8");
   assert.match(source, /result\.status === "SENT" \|\| result\.status === "ALREADY_SENT"/);
-  assert.match(source, /ya te enviamos el catálogo al correo/);
+  assert.match(source, /Te dejo ac[aá] el cat[aá]logo/);
   assert.match(source, /result\.status === "MISSING_EMAIL"/);
   assert.match(source, /result\.status === "FAILED"/);
   assert.match(source, /forcedHumanReview/);

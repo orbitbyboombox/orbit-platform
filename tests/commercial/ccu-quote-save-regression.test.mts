@@ -117,6 +117,7 @@ test("customer transport revenue remains in quote pricing without internal real-
 test("canonical RPC is atomic, authenticated and idempotent by draft id", () => {
   const migration = readFileSync(new URL("../../supabase/migrations/0165_commercial_quote_draft_persistence_fix.sql", import.meta.url), "utf8");
   const action = readFileSync(new URL("../../features/commercial-hub/actions.ts", import.meta.url), "utf8");
+  const canonicalService = readFileSync(new URL("../../features/commercial-hub/canonical-quote.service.ts", import.meta.url), "utf8");
   const hub = readFileSync(new URL("../../features/commercial-hub/commercial-hub.tsx", import.meta.url), "utf8");
   assert.match(migration, /save_commercial_quote_draft/);
   assert.match(migration, /security definer/);
@@ -125,8 +126,9 @@ test("canonical RPC is atomic, authenticated and idempotent by draft id", () => 
   assert.match(migration, /insert into public\.quotation_items/);
   assert.match(migration, /old\.status <> 'DRAFT' or new\.status <> 'DRAFT'/);
   assert.match(migration, /deposit_percent_value < 0 or deposit_percent_value > 100/);
-  assert.match(action, /client\.rpc\(\s*"save_commercial_quote_draft"/);
-  assert.match(action, /input\.quoteId \?\? input\.requestId \?\? crypto\.randomUUID\(\)/);
+  assert.match(action, /executeCanonicalQuoteDraft/);
+  assert.match(canonicalService, /client\.rpc\(\s*"save_commercial_quote_draft"/);
+  assert.match(canonicalService, /draft\.quoteId \?\? draft\.requestId \?\? crypto\.randomUUID\(\)/);
   assert.doesNotMatch(action, /client\.rpc\("update_commercial_quote_draft"/);
   assert.match(hub, /saveInFlightRef\.current/);
   assert.match(hub, /setPersistedQuoteId\(result\.id\)/);

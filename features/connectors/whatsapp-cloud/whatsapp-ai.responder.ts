@@ -12,6 +12,7 @@ import { NovaChannelEngine } from "@/features/nova-channel";
 import { BIANCA_INTRODUCTION, founderRequestResponse, isFounderRequest, officialSalesHandoffCopy } from "./bianca-policy";
 import { selectBiancaCommercialKnowledge } from "./bianca-commercial-knowledge";
 import { isNewBiancaCommercialOpportunity } from "./bianca-opportunity-context";
+import { planBiancaTurn } from "./bianca-commercial-planner";
 
 const INTENTS = [
   "CONSULTA_GENERAL",
@@ -439,6 +440,21 @@ export class WhatsAppAiResponder implements NovaResponder {
           : object;
       const selfIntroducedName = extractSelfIntroducedName(input.message.text);
       const identityTurn = isIdentityQuestion(input.message.text) && !isFounderRequest(input.message.text);
+      const directCatalogRequest = /\b(?:cat[aá]logo|planes|folleto|opciones)\b/i.test(input.message.text);
+      const planner = planBiancaTurn({
+        text: input.message.text,
+        known: {
+          preferredName: input.memory.customerName ?? leadContext?.name,
+          eventType: input.memory.eventType ?? leadContext?.eventType,
+          eventDate: input.memory.eventDate ?? leadContext?.eventDate,
+          commune: leadContext?.commune,
+          venue: leadContext?.venue,
+          serviceCodes: input.memory.selectedServices ?? (input.memory.selectedService ? [input.memory.selectedService] : []),
+          durationHours: input.memory.recommendedHours,
+          priceResolved: priceLookup?.status === "RESOLVED",
+          availability: availabilityLookup?.status === "AVAILABLE" || availabilityLookup?.status === "UNAVAILABLE" ? availabilityLookup.status : undefined,
+        },
+      });
       if (selfIntroducedName) {
         decision.fields = [
           ...decision.fields.filter((field) => field.field !== "name"),
@@ -469,7 +485,7 @@ export class WhatsAppAiResponder implements NovaResponder {
       const confirmedName = decision.fields.some((field) => field.field === "name" && field.confidence === "CONFIRMED" && typeof field.value === "string" && field.value.trim());
       const preferredNameConfirmed = typeof input.memory.customerName === "string" && input.memory.customerName.trim().length > 0;
       const webLeadNameConfirmed = input.source === "WEB_FORM_LEAD" && Boolean(leadContext?.name);
-      const firstContactNeedsName = input.source !== "WEB_FORM_LEAD" && isNewBiancaCommercialOpportunity(input.message.text) && !preferredNameConfirmed && !confirmedName && !webLeadNameConfirmed;
+      const firstContactNeedsName = input.source !== "WEB_FORM_LEAD" && isNewBiancaCommercialOpportunity(input.message.text) && !directCatalogRequest && !preferredNameConfirmed && !confirmedName && !webLeadNameConfirmed;
       if (firstContactNeedsName) {
         decision.responseText = firstContactNameResponse(input.message.text);
         decision.waitForMoreData = true;
@@ -481,6 +497,18 @@ export class WhatsAppAiResponder implements NovaResponder {
         decision.waitForMoreData = true;
         decision.requestedAction = "WAIT_FOR_CUSTOMER";
         decision.commercialStage = "QUALIFYING";
+      }
+      // Deterministic controls outrank a non-committal LLM action proposal.
+      // The model still writes the language, but the planner owns the action.
+      if (planner.nextBestAction === "HANDOFF") {
+        decision.requestedAction = "HUMAN_HANDOFF";
+        decision.commercialStage = "HUMAN_REQUIRED";
+      } else if (directCatalogRequest && decision.requestedAction !== "HUMAN_HANDOFF") {
+        decision.requestedAction = "CATALOG_LOOKUP";
+        if (decision.catalogCategory === "NONE") {
+          const eventText = `${input.message.text} ${input.memory.eventType ?? ""} ${leadContext?.eventType ?? ""}`.toLowerCase();
+          decision.catalogCategory = /matrimonio|novio|boda/.test(eventText) ? "WEDDINGS" : /empresa|corporativ/.test(eventText) ? "COMPANIES" : "EVENTS";
+        }
       }
       this.lastDecisionValue = decision;
       const response = MONEY_OR_AVAILABILITY_CLAIM.test(decision.responseText)

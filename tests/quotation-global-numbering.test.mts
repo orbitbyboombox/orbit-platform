@@ -6,6 +6,7 @@ const root = process.cwd();
 const sql = readFileSync(`${root}/supabase/migrations/0157_quotation_global_sequence.sql`, "utf8");
 const commercialSave = readFileSync(`${root}/supabase/migrations/0165_commercial_quote_draft_persistence_fix.sql`, "utf8");
 const commercial = readFileSync(`${root}/features/commercial-hub/actions.ts`, "utf8");
+const quoteService = readFileSync(`${root}/features/commercial-hub/canonical-quote.service.ts`, "utf8");
 const automatic = readFileSync(`${root}/features/automatic-booking/complete-automatic-booking.service.ts`, "utf8");
 const reservation = readFileSync(`${root}/features/projects/actions/customer.actions.ts`, "utf8");
 const repository = readFileSync(`${root}/features/quotation-engine/supabase-quotation.repository.ts`, "utf8");
@@ -45,9 +46,10 @@ test("all application quotation writers use the canonical allocator", () => {
     assert.match(source, /allocate_quotation_number/);
     assert.doesNotMatch(source, /COT-AUTO-|COT-\$\{|next_commercial_quote_number/);
   }
-  assert.match(commercial, /save_commercial_quote_draft/);
+  assert.match(commercial, /canonical-quote\.service/);
+  assert.match(readFileSync(new URL("../features/commercial-hub/canonical-quote.service.ts", import.meta.url), "utf8"), /save_commercial_quote_draft/);
   assert.doesNotMatch(commercial, /next_commercial_quote_number/);
-  assert.match(commercial, /America\/Santiago/);
+  assert.match(quoteService, /America\/Santiago/);
   assert.match(automatic, /America\/Santiago/);
   assert.match(reservation, /America\/Santiago/);
 });

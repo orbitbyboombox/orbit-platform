@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { assertSupabaseEnvironmentSafe } from "./environment-guard";
 
 /** Server-only Supabase client for trusted background and connector operations. */
 export function createAdminClient(): SupabaseClient {
@@ -8,6 +9,7 @@ export function createAdminClient(): SupabaseClient {
   if (!url || !secretKey) {
     throw new Error("Missing Supabase administrative environment variables.");
   }
+  assertSupabaseEnvironmentSafe(url);
 
   return createClient(url, secretKey, {
     auth: {

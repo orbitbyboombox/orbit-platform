@@ -8,7 +8,7 @@ import { renderBoomboxCommercialEmail } from "@/features/connectors/google-gmail
 import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import type { CommercialCategory, FormalQuoteDraft } from "./types";
 import { isCommercialEmail } from "./quote-calculation";
-import { prepareFormalQuotePersistence } from "./quote-persistence";
+import { executeCanonicalQuoteDraft } from "./canonical-quote.service";
 import { createFormalQuotePdf } from "./formal-quote-pdf";
 import { resolveCommercialBreakdown } from "./commercial-breakdown";
 import { loadCompanySettings } from "@/features/company-settings";
@@ -272,7 +272,6 @@ export async function createFormalQuoteAction(input: FormalQuoteDraft) {
     normalizeOptionalEmail(input.secondaryEmail, "email secundario / CC");
     if (!input.existingCustomerId && input.saveTemporaryCustomer && !input.company.trim() && !input.contact.trim()) throw new Error("Ingresa un nombre antes de guardar el cliente.");
     const admin = createAdminClient();
-    const quoteId = input.quoteId ?? input.requestId ?? crypto.randomUUID();
     let customerId = input.existingCustomerId;
     if (!customerId && input.saveTemporaryCustomer) {
       const { data, error } = await admin
@@ -294,42 +293,15 @@ export async function createFormalQuoteAction(input: FormalQuoteDraft) {
       if (error) throw error;
       customerId = data.id;
     }
-    const issueDate = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(new Date());
-    const expiration = new Date(`${issueDate}T12:00:00Z`);
-    expiration.setUTCDate(expiration.getUTCDate() + input.validityDays);
-    const prepared = prepareFormalQuotePersistence(input);
-    const { data: saved, error: saveError } = await client.rpc(
-      "save_commercial_quote_draft",
-      {
-        p_quotation_id: quoteId,
-        p_quote: {
-          issueDate,
-          customerId,
-          customerSnapshot: prepared.customerSnapshot,
-          commercialSnapshot: prepared.commercialSnapshot,
-          expirationDate: expiration.toISOString().slice(0, 10),
-          subtotal: prepared.calculation.subtotal,
-          discountTotal: prepared.calculation.discount,
-          taxTotal: prepared.calculation.vat,
-          grandTotal: prepared.calculation.total,
-          validityDays: input.validityDays,
-          depositPercent: input.depositPercent,
-          globalDiscountType: input.globalDiscountType,
-          globalDiscountValue: input.globalDiscountValue,
-        },
-        p_items: prepared.items,
-      },
-    );
-    if (saveError) throw saveError;
-    const result = saved as {
-      quotationId?: string;
-      quotationNumber?: string;
-      operation?: "CREATED" | "UPDATED";
-    } | null;
-    if (!result?.quotationId || !result.quotationNumber || !result.operation)
-      throw new Error("La persistencia no confirmó la cotización.");
-    const number = result.quotationNumber;
-    const operation = result.operation;
+    const execution = await executeCanonicalQuoteDraft({
+      client,
+      draft: input,
+      customerId,
+      actor: { actorType: "HUMAN", actorId: "HUMAN_USER", source: "FOUNDER_UI" },
+    });
+    const quoteId = execution.quotationId;
+    const number = execution.quotationNumber;
+    const operation = execution.operation;
     const correlationId = `commercial-quote:${quoteId}:${operation.toLowerCase()}:${input.requestId ?? quoteId}`;
     after(async () => {
       try {
@@ -358,9 +330,9 @@ export async function createFormalQuoteAction(input: FormalQuoteDraft) {
     revalidatePath("/leads");
     return {
       ok: true as const,
-      id: result.quotationId,
+      id: execution.quotationId,
       number,
-      total: prepared.calculation.total,
+      total: execution.total,
       operation,
     };
   } catch (error) {

@@ -1,4 +1,5 @@
 const ACTIVE_OPPORTUNITY_FIELDS = [
+  "activeOpportunityId",
   "eventType",
   "eventName",
   "eventDate",
@@ -81,10 +82,14 @@ export function resetBiancaActiveContext(context: Record<string, unknown>, occur
   next.reservationStatus = "NOT_STARTED";
   next.paymentStatus = "NOT_STARTED";
   next.portalStatus = "NOT_CREATED";
+  next.activeOpportunityId = crypto.randomUUID();
   return next;
 }
 
 export function prepareBiancaOpportunityContext(context: Record<string, unknown>, messageText: string, occurredAt: string) {
-  if (!isNewBiancaCommercialOpportunity(messageText)) return { context, reset: false as const };
+  if (!isNewBiancaCommercialOpportunity(messageText)) {
+    if (typeof context.activeOpportunityId === "string" && context.activeOpportunityId.trim()) return { context, reset: false as const };
+    return { context: { ...context, activeOpportunityId: crypto.randomUUID() }, reset: false as const };
+  }
   return { context: resetBiancaActiveContext(context, occurredAt), reset: true as const };
 }
