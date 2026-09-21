@@ -18,7 +18,7 @@ import { biancaCanProcessCustomerMessage, biancaQaModeEnabled } from "./bianca-p
 import { prepareBiancaOpportunityContext } from "./bianca-opportunity-context";
 import { biancaShadowModeEnabled, createBiancaShadowDecision, shadowConfidence } from "./bianca-shadow-mode.ts";
 import { persistBiancaShadowDecision } from "./bianca-shadow-persistence.ts";
-import { biancaSafeReplyConfiguration, evaluateBiancaSafeReply, safeReplyEvidenceFromDecision } from "./bianca-safe-reply";
+import { biancaSafeReplyConfiguration, evaluateBiancaSafeReply, resolveCanonicalBiancaSafeReplyEvidence } from "./bianca-safe-reply";
 import { persistBiancaSafeReply } from "./bianca-safe-reply-persistence";
 import { planBiancaTurn } from "./bianca-commercial-planner";
 import { logWhatsApp } from "./whatsapp-observability";
@@ -500,19 +500,36 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
       return { ok: true as const, shadow: true as const, suppressed: true as const, customerId: customer.id, conversationId: conversationState.id, finalStatus: "SHADOW_PROPOSED" as const };
     }
     if (safeReplyMode && decision) {
-      const evidence = safeReplyEvidenceFromDecision(decision);
-      const claimViolations = orchestrator.verifyResponse(result.nova.response, {});
+      const evidence = await resolveCanonicalBiancaSafeReplyEvidence({
+        client,
+        decision,
+        messageText: event.text_body,
+        known: {
+          eventDate: activeMemory.eventDate,
+          durationHours: activeMemory.recommendedHours,
+          serviceCodes: activeMemory.selectedServices ?? (activeMemory.selectedService ? [activeMemory.selectedService] : []),
+          commune: activeMemory.eventLocation,
+        },
+      });
+      const finalSafeReply = evidence.kind === "CANONICAL_CATALOG" && evidence.sourceRef
+        ? `Sí 😊 Te dejo nuestro catálogo: ${evidence.sourceRef}`
+        : result.nova.response;
+      const claimViolations = orchestrator.verifyResponse(finalSafeReply, {
+        catalogSent: evidence.kind === "CANONICAL_CATALOG",
+        priceResolved: evidence.kind === "CANONICAL_PRICE",
+        availability: evidence.kind === "CANONICAL_AVAILABILITY" ? evidence.availability : undefined,
+      });
       const evaluation = evaluateBiancaSafeReply({
         decision,
-        response: result.nova.response,
+        response: finalSafeReply,
         confidence: shadowConfidence(decision),
         evidence,
         claimViolations,
       });
-      const outgoingReply = evaluation.allowed ? result.nova.response : null;
+      const outgoingReply = evaluation.allowed ? finalSafeReply : null;
       if (evaluation.allowed) {
-        await new QueuedWhatsAppDispatcher(client, customer.id).dispatch(result.dispatch);
-        await persistOutboundCommunication(client, conversationState.id, customer.id, result.nova.response, event.occurred_at, result.dispatch.correlationId);
+        await new QueuedWhatsAppDispatcher(client, customer.id).dispatch({ ...result.dispatch, content: finalSafeReply });
+        await persistOutboundCommunication(client, conversationState.id, customer.id, finalSafeReply, event.occurred_at, result.dispatch.correlationId);
       }
       await persistBiancaSafeReply({
         client,
@@ -543,7 +560,7 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
         updated_at: new Date().toISOString(),
       }).eq("tenant_slug", WHATSAPP_TENANT_SLUG).eq("id", event.id);
       if (safeFinishError) throw safeFinishError;
-      logWhatsApp(evaluation.allowed ? "info" : "warn", "whatsapp_safe_reply_evaluated", providerMessageId, { conversationId: conversationState.id, customerId: customer.id, status: evaluation.allowed ? "SENT" : "BLOCKED", reason: evaluation.reason, confidence: evaluation.confidenceBand });
+      logWhatsApp(evaluation.allowed ? "info" : "warn", evaluation.allowed ? "bianca_safe_reply_allowed" : "bianca_safe_reply_blocked", providerMessageId, { conversationId: conversationState.id, customerId: customer.id, status: evaluation.allowed ? "SENT" : "BLOCKED", reason: evaluation.reason, evidenceKind: evidence.kind, confidenceBand: evaluation.confidenceBand });
       return { ok: true as const, safeReply: evaluation.allowed, suppressed: !evaluation.allowed, customerId: customer.id, conversationId: conversationState.id, finalStatus: safeFinalStatus };
     }
     if (!result.suppressed && decision)

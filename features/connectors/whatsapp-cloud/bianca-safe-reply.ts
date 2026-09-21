@@ -1,6 +1,8 @@
 import { biancaGlobalKillSwitchEnabled, biancaShadowModeEnabled } from "./bianca-shadow-mode.ts";
 import type { BiancaActionEvidence } from "./bianca-claim-guards.ts";
 import type { WhatsAppAiDecision } from "./whatsapp-ai.responder.ts";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { catalogPublicUrl, type CommercialCatalogCategory } from "../../commercial-hub/catalogs.ts";
 
 export type BiancaSafeReplyConfidence = "LOW" | "MEDIUM" | "HIGH";
 export type BiancaSafeReplyEvidenceKind =
@@ -16,6 +18,7 @@ export type BiancaSafeReplyEvidence = {
   verified: boolean;
   kind: BiancaSafeReplyEvidenceKind;
   sourceRef?: string | null;
+  availability?: "AVAILABLE" | "UNAVAILABLE";
 };
 
 export type BiancaSafeReplyGuardDecisions = {
@@ -133,4 +136,91 @@ export function safeReplyEvidenceFromDecision(decision: WhatsAppAiDecision): Bia
   // verified evidence explicitly before catalog, price, availability, payment
   // or location claims can be released.
   return { verified: false, kind: "NONE" };
+}
+
+function confirmedField(decision: WhatsAppAiDecision, field: WhatsAppAiDecision["fields"][number]["field"]) {
+  const value = [...decision.fields].reverse().find((item) => item.field === field && item.confidence === "CONFIRMED")?.value;
+  return typeof value === "string" ? value.trim() : undefined;
+}
+
+function confirmedNumber(decision: WhatsAppAiDecision, field: WhatsAppAiDecision["fields"][number]["field"]) {
+  const value = [...decision.fields].reverse().find((item) => item.field === field && item.confidence === "CONFIRMED")?.value;
+  return typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : undefined;
+}
+
+function noEvidence(): BiancaSafeReplyEvidence {
+  return { verified: false, kind: "NONE", sourceRef: null };
+}
+
+export async function resolveCanonicalBiancaSafeReplyEvidence(input: {
+  client: SupabaseClient;
+  decision: WhatsAppAiDecision;
+  messageText: string;
+  known?: {
+    eventDate?: string;
+    startTime?: string;
+    durationHours?: number;
+    serviceCodes?: readonly string[];
+    commune?: string;
+    venue?: string;
+  };
+}): Promise<BiancaSafeReplyEvidence> {
+  try {
+    if (input.decision.requestedAction === "CATALOG_LOOKUP") {
+      if (input.decision.catalogCategory === "NONE") return noEvidence();
+      const category = input.decision.catalogCategory as CommercialCatalogCategory;
+      const { data, error } = await input.client.from("commercial_documents").select("id,version,status,category").eq("category", category).eq("status", "ACTIVE").single();
+      if (error || !data || data.category !== category) return noEvidence();
+      return { verified: true, kind: "CANONICAL_CATALOG", sourceRef: catalogPublicUrl(category, process.env.NEXT_PUBLIC_APP_URL ?? "https://orbit.boom-box.cl") };
+    }
+
+    if (input.decision.requestedAction === "COMMERCIAL_LOOKUP") {
+      const text = input.messageText.toLocaleLowerCase("es-CL");
+      if (input.decision.intents.includes("PAGO") || /\b(?:pago|pagar|abono|saldo|transferencia|tarjeta|webpay)\b/i.test(text)) {
+        const { PAYMENT_METHOD_RULES } = await import("../../business-core/rules/payment.rules.ts");
+        const primary = PAYMENT_METHOD_RULES.BANK_TRANSFER;
+        return { verified: true, kind: "CANONICAL_PAYMENT", sourceRef: `business-core:payment.rules:${primary.id}:${primary.availability}` };
+      }
+      if (input.decision.intents.includes("DISPONIBILIDAD") || /\bdisponib(?:le|ilidad)\b|\bfecha\b/i.test(text)) {
+        const { lookupBiancaAvailability } = await import("./bianca-runtime-tools.ts");
+        const result = await lookupBiancaAvailability(input.client, {
+          eventDate: input.known?.eventDate ?? confirmedField(input.decision, "eventDate"),
+          startTime: input.known?.startTime ?? confirmedField(input.decision, "startTime"),
+          durationHours: input.known?.durationHours ?? confirmedNumber(input.decision, "durationHours"),
+          serviceCodes: input.known?.serviceCodes,
+          commune: input.known?.commune ?? confirmedField(input.decision, "commune"),
+          venue: input.known?.venue ?? confirmedField(input.decision, "venue"),
+        });
+        if (result.status === "AVAILABLE" || result.status === "UNAVAILABLE") return { verified: true, kind: "CANONICAL_AVAILABILITY", availability: result.status, sourceRef: "bianca-runtime-tools:lookupBiancaAvailability" };
+        return noEvidence();
+      }
+      if (input.decision.intents.includes("CONSULTA_PRECIO") || /\b(?:precio|valor|cu[aá]nto|cuesta|sale)\b/i.test(text)) {
+        const { lookupBiancaPrice } = await import("./bianca-runtime-tools.ts");
+        const result = await lookupBiancaPrice(input.client, {
+          text: input.messageText,
+          serviceCodes: input.known?.serviceCodes,
+          durationHours: input.known?.durationHours ?? confirmedNumber(input.decision, "durationHours"),
+          commune: input.known?.commune ?? confirmedField(input.decision, "commune"),
+          specialVenue: input.known?.venue ?? confirmedField(input.decision, "venue"),
+        });
+        if (result.status === "RESOLVED") return { verified: true, kind: "CANONICAL_PRICE", sourceRef: "bianca-runtime-tools:lookupBiancaPrice" };
+        return noEvidence();
+      }
+      if (/\b(?:comuna|regi[oó]n|traslado|transporte|peaje|vi[nñ]a|valpara[ií]so|concepci[oó]n)\b/i.test(text)) {
+        const { data, error } = await input.client.from("master_data_entries").select("code,configuration").eq("domain", "MUNICIPALITIES").eq("enabled", true);
+        if (error || !data?.length) return noEvidence();
+        const needle = (input.known?.commune ?? text).toLocaleLowerCase("es-CL");
+        const matched = data.some((row) => JSON.stringify(row).toLocaleLowerCase("es-CL").includes(needle));
+        return matched ? { verified: true, kind: "CANONICAL_LOCATION", sourceRef: "master_data_entries:MUNICIPALITIES" } : noEvidence();
+      }
+      return noEvidence();
+    }
+
+    if (input.decision.requestedAction === "NONE" || input.decision.requestedAction === "WAIT_FOR_CUSTOMER") {
+      return { verified: true, kind: "GENERAL_KNOWLEDGE", sourceRef: "bianca-commercial-knowledge:authorized" };
+    }
+    return noEvidence();
+  } catch {
+    return noEvidence();
+  }
 }

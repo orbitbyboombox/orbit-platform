@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { evaluateBiancaSafeReply } from "../features/connectors/whatsapp-cloud/bianca-safe-reply.ts";
+import { evaluateBiancaSafeReply, resolveCanonicalBiancaSafeReplyEvidence } from "../features/connectors/whatsapp-cloud/bianca-safe-reply.ts";
 import type { WhatsAppAiDecision } from "../features/connectors/whatsapp-cloud/whatsapp-ai.responder.ts";
 
 const baseDecision: WhatsAppAiDecision = {
@@ -56,4 +56,51 @@ test("catalog requires canonical catalog evidence and kill switch blocks all rep
   assert.equal(blocked.allowed, false);
   assert.equal(blocked.reason, "GLOBAL_KILL_SWITCH_ACTIVE");
   process.env.BIANCA_GLOBAL_KILL_SWITCH = "false";
+});
+
+test("services question resolves canonical catalog evidence and queues the safe WhatsApp reply", async () => {
+  process.env.BIANCA_STAGE = "SAFE_REPLY";
+  process.env.WHATSAPP_REAL_RESPONSE = "ON";
+  process.env.BIANCA_SHADOW_MODE = "false";
+  process.env.BIANCA_GLOBAL_KILL_SWITCH = "false";
+  const client = {
+    from() {
+      return {
+        select() { return this; },
+        eq() { return this; },
+        single: async () => ({ data: { id: "doc-1", version: 3, status: "ACTIVE", category: "EVENTS" }, error: null }),
+      };
+    },
+  } as never;
+  const catalogDecision = decision({ requestedAction: "CATALOG_LOOKUP", catalogCategory: "EVENTS" });
+  const evidence = await resolveCanonicalBiancaSafeReplyEvidence({ client, decision: catalogDecision, messageText: "Hola, ¿qué servicios tienen?" });
+  assert.deepEqual(evidence, { verified: true, kind: "CANONICAL_CATALOG", sourceRef: "https://orbit.boom-box.cl/catalogo/eventos" });
+  const response = `Sí 😊 Te dejo nuestro catálogo: ${evidence.sourceRef}`;
+  const evaluation = evaluateBiancaSafeReply({ decision: catalogDecision, response, confidence: 0.99, evidence, claimViolations: [] });
+  assert.equal(evaluation.allowed, true);
+  const outbox: Array<{ content: string; channel: "WHATSAPP_BUSINESS" }> = [];
+  if (evaluation.allowed) outbox.push({ channel: "WHATSAPP_BUSINESS", content: response });
+  assert.equal(outbox[0]?.content, response);
+});
+
+test("catalog adapter failure leaves evidence unverified and sends nothing", async () => {
+  process.env.BIANCA_STAGE = "SAFE_REPLY";
+  process.env.WHATSAPP_REAL_RESPONSE = "ON";
+  process.env.BIANCA_SHADOW_MODE = "false";
+  process.env.BIANCA_GLOBAL_KILL_SWITCH = "false";
+  const client = {
+    from() {
+      return {
+        select() { return this; },
+        eq() { return this; },
+        single: async () => ({ data: null, error: new Error("catalog unavailable") }),
+      };
+    },
+  } as never;
+  const catalogDecision = decision({ requestedAction: "CATALOG_LOOKUP", catalogCategory: "EVENTS" });
+  const evidence = await resolveCanonicalBiancaSafeReplyEvidence({ client, decision: catalogDecision, messageText: "Hola, ¿qué servicios tienen?" });
+  const evaluation = evaluateBiancaSafeReply({ decision: catalogDecision, response: "Te dejo el catálogo", confidence: 0.99, evidence, claimViolations: [] });
+  assert.equal(evidence.verified, false);
+  assert.equal(evaluation.allowed, false);
+  assert.equal(evaluation.reason, "CANONICAL_EVIDENCE_REQUIRED");
 });
