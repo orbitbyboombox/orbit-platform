@@ -37,3 +37,13 @@ test("quote evidence cannot be created from an unverifiable RPC result", async (
   const client = { rpc: async () => ({ data: { operation: "CREATED" }, error: null }) } as never;
   await assert.rejects(() => executeCanonicalQuoteDraft({ client, draft, customerId: "customer-1", actor: biancaSystemActor() }), /QUOTE_RESULT_NOT_VERIFIABLE/);
 });
+
+test("BIANCA cannot submit a price override to the canonical quote service", async () => {
+  const { client, calls } = fakeClient();
+  const overrideDraft = { ...draft, lines: draft.lines.map((line) => ({ ...line, quotedPrice: 499_000 })) };
+  await assert.rejects(
+    executeCanonicalQuoteDraft({ client, draft: overrideDraft, customerId: "customer-1", actor: biancaSystemActor() }),
+    /BIANCA_PRICE_OVERRIDE_DENIED/,
+  );
+  assert.deepEqual(calls, []);
+});

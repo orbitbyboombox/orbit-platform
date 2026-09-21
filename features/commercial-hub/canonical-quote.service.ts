@@ -20,6 +20,18 @@ function quoteDates(validityDays: number) {
   return { issueDate, expirationDate: expiration.toISOString().slice(0, 10) };
 }
 
+function assertBiancaUsesCanonicalPricing(draft: FormalQuoteDraft) {
+  const hasGlobalDiscount = draft.globalDiscountType !== null || draft.globalDiscountValue !== 0;
+  const hasOverride = draft.lines.some((line) =>
+    line.manual ||
+    line.catalogPrice === null ||
+    line.quotedPrice !== line.catalogPrice ||
+    line.discountType !== null ||
+    line.discountValue !== 0,
+  );
+  if (hasGlobalDiscount || hasOverride) throw new Error("BIANCA_PRICE_OVERRIDE_DENIED");
+}
+
 export async function executeCanonicalQuoteDraft(input: {
   client: SupabaseClient;
   draft: FormalQuoteDraft;
@@ -29,6 +41,7 @@ export async function executeCanonicalQuoteDraft(input: {
   const { draft, actor } = input;
   if (!draft.lines.length) throw new Error("QUOTE_REQUIRES_LINE_ITEM");
   if (actor.actorType === "SYSTEM_AGENT" && actor.actorId !== "BIANCA") throw new Error("BIANCA_ACTOR_INVALID");
+  if (actor.actorType === "SYSTEM_AGENT") assertBiancaUsesCanonicalPricing(draft);
   const quoteId = draft.quoteId ?? draft.requestId ?? crypto.randomUUID();
   const issue = quoteDates(draft.validityDays);
   const prepared = prepareFormalQuotePersistence(draft);

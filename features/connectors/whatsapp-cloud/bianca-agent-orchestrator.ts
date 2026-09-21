@@ -10,11 +10,13 @@ import { actionRunIdempotencyKey } from "./bianca-action-runs";
 import { BiancaActionRunRepository } from "./bianca-action-runs.repository";
 import type { FormalQuoteDraft } from "../../commercial-hub/types";
 
-export type BiancaQuoteExecutionEvidence = CanonicalQuoteExecutionResult & {
+export type QuoteExecutionEvidence = CanonicalQuoteExecutionResult & {
   actionRunId: string;
   opportunityId: string;
   status: "SUCCESS" | "ALREADY_DONE";
+  createdAt: string;
 };
+export type BiancaQuoteExecutionEvidence = QuoteExecutionEvidence;
 
 /**
  * Central boundary for BIANCA's action-first turn. Language remains an LLM
@@ -73,14 +75,14 @@ export class BiancaAgentOrchestrator {
     });
     if (claim.status === "ALREADY_DONE") {
       const existing = await runs.findById(claim.runId);
-      const result = existing?.result_summary as Partial<BiancaQuoteExecutionEvidence> | null;
+      const result = existing?.result_summary as Partial<QuoteExecutionEvidence> | null;
       if (result?.quotationId && result.quotationNumber) return { ...result as BiancaQuoteExecutionEvidence, actionRunId: claim.runId, status: "ALREADY_DONE" };
       throw new Error("BIANCA_QUOTE_EVIDENCE_MISSING");
     }
     if (claim.status !== "CLAIMED") throw new Error("BIANCA_QUOTE_ACTION_RUNNING");
     try {
       const execution = await executeCanonicalQuoteDraft({ client: this.client, draft: input.draft, customerId: input.customerId, actor });
-      const evidence: BiancaQuoteExecutionEvidence = { ...execution, actionRunId: claim.runId, opportunityId: input.opportunityId, status: "SUCCESS" };
+      const evidence: QuoteExecutionEvidence = { ...execution, actionRunId: claim.runId, opportunityId: input.opportunityId, status: "SUCCESS", createdAt: new Date().toISOString() };
       await runs.finish(claim.runId, { status: "SUCCESS", resultSummary: evidence, externalRef: execution.quotationId });
       return evidence;
     } catch (error) {
