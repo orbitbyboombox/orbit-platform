@@ -10,7 +10,7 @@ export async function loadCrmCustomerOperations(
   projectIds: string[],
 ): Promise<CrmCustomerEventOperations[]> {
   if (!projectIds.length) return [];
-  const [receivables, assignments, staff, assets, agreements, documents, calendars, portals, invoices, financialTruth, quotations, expenses, services] =
+  const [receivables, assignments, staff, assets, agreements, documents, calendars, portals, invoices, financialTruth, quotations, expenses, services, staffRequirements] =
     await Promise.all([
       client.from("accounts_receivable_projection").select("id,project_id,invoice_number,amount,paid_amount,outstanding_balance,due_date,effective_status,payment_history").in("project_id", projectIds),
       client.from("assignments").select("id,project_id,staff_id,assignment_type,status,staff_call_at,arrival_time,start_time,finish_time,assigned_vehicle,observations,staff(first_name,last_name),operational_assets(asset_code)").in("project_id", projectIds).is("deleted_at", null),
@@ -25,8 +25,9 @@ export async function loadCrmCustomerOperations(
       client.from("quotations").select("id,project_id,subtotal,transport_total,tax_total,grand_total,final_customer_price,pricing_snapshot,created_at,quotation_items(item_type,code,label,quantity,final_total,metadata)").in("project_id", projectIds).is("deleted_at", null).order("created_at", { ascending: false }),
       client.from("expenses").select("id,project_id,occurred_on,category,approval_reason,total,status").in("project_id", projectIds).is("deleted_at", null).order("occurred_on", { ascending: false }),
       client.from("project_services").select("project_id,service_code,duration_hours,extras").in("project_id", projectIds),
+      client.from("event_staff_requirements").select("project_id,role,required_quantity,published").in("project_id", projectIds),
     ]);
-  const failures = [receivables, assignments, staff, assets, agreements, documents, calendars, portals, invoices, financialTruth, quotations, expenses, services].filter((result) => result.error);
+  const failures = [receivables, assignments, staff, assets, agreements, documents, calendars, portals, invoices, financialTruth, quotations, expenses, services, staffRequirements].filter((result) => result.error);
   if (failures.length) throw failures[0].error;
   const activeStaff = (staff.data ?? []).filter((member) => member.status === "ACTIVE").map((member) => ({
     id: member.id,
@@ -133,6 +134,9 @@ export async function loadCrmCustomerOperations(
         }),
         staff: activeStaff,
         vehicles,
+        requirements: (staffRequirements.data ?? [])
+          .filter((item) => item.project_id === projectId)
+          .map((item) => ({ role: item.role, required: Number(item.required_quantity), published: Boolean(item.published) })),
       },
       agreement: agreement ? { id: agreement.id, status: agreement.status, quotationId: quotation?.id } : null,
       documents: (documents.data ?? []).filter((item) => item.project_id === projectId).map((item) => ({ id: item.id, type: item.document_type, storagePath: item.storage_path, driveFileId: item.drive_file_id, createdAt: item.created_at, version: Number(item.version ?? 1), isCurrent: item.is_current !== false, workflowStatus: item.workflow_status ?? null })),

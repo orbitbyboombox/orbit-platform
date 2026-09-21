@@ -93,6 +93,7 @@ export interface CrmCustomerEventOperations {
     }>;
     staff: Array<{ id: string; name: string; role: string; capabilities: string[] }>;
     vehicles: Array<{ id: string; name: string }>;
+    requirements?: Array<{ role: string; required: number; published: boolean }>;
   };
   agreement: { id: string; status: string; quotationId?: string } | null;
   documents: Array<{
