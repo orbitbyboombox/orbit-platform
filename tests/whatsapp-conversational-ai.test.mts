@@ -190,7 +190,8 @@ test("QA-scoped BIANCA can resume after takeover without weakening global handof
   assert.match(processor, /safeReplyMode/);
   assert.match(processor, /const qaOverride = qaAuthorized/);
   assert.match(processor, /currentConversation\(conversationState, customer\.full_name, event\.occurred_at, qaOverride\)/);
-  assert.match(processor, /effectiveHandoff = handoff && !qaOverride/);
+  assert.match(processor, /const effectiveHandoff = isActiveHumanTakeover\(row\)/);
+  assert.doesNotMatch(processor, /row\.status === "HUMAN_HANDOFF" \|\| row\.nova_enabled === false/);
   assert.match(hub, /const handledBy = current\?\.assignedHuman \?\? novaState\.handledBy;/);
   assert.doesNotMatch(hub, /current\?\.assignedHuman \?\? novaState\.handledBy \?\? "BOOMBOX"/);
 });

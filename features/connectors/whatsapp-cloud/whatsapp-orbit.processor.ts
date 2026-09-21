@@ -18,7 +18,7 @@ import { biancaCanProcessCustomerMessage, biancaQaModeEnabled } from "./bianca-p
 import { prepareBiancaOpportunityContext } from "./bianca-opportunity-context";
 import { biancaShadowModeEnabled, createBiancaShadowDecision, shadowConfidence } from "./bianca-shadow-mode.ts";
 import { persistBiancaShadowDecision } from "./bianca-shadow-persistence.ts";
-import { biancaAutomationRouting, biancaSafeReplyConfiguration, evaluateBiancaSafeReply, resolveCanonicalBiancaSafeReplyEvidence } from "./bianca-safe-reply";
+import { biancaAutomationRouting, biancaSafeReplyConfiguration, evaluateBiancaSafeReply, isActiveHumanTakeover, resolveCanonicalBiancaSafeReplyEvidence } from "./bianca-safe-reply";
 import { persistBiancaSafeReply } from "./bianca-safe-reply-persistence";
 import { planBiancaTurn } from "./bianca-commercial-planner";
 import { logWhatsApp } from "./whatsapp-observability";
@@ -103,12 +103,11 @@ function memoryRecord(customerId: string, customerName: string, context: Record<
 }
 
 function currentConversation(row: ConversationStateRow, customerName: string, occurredAt: string, qaOverride = false): UnifiedConversation {
-  const handoff = row.status === "HUMAN_HANDOFF" || row.nova_enabled === false;
-  // QA mode is scoped to an explicit conversation or phone allow-list and
-  // must be able to resume BIANCA after a previous human takeover or
-  // manual-review result.
-  // Global conversations retain the hard human-handoff gate.
-  const effectiveHandoff = handoff && !qaOverride;
+  // Status/nova_enabled can be stale after a blocked safe reply or an older
+  // deployment. Only an explicit active takeover is a hard suppression gate;
+  // QA must not bypass a real human takeover.
+  void qaOverride;
+  const effectiveHandoff = isActiveHumanTakeover(row);
   const status = effectiveHandoff ? "HUMAN_HANDOFF" as const : row.status === "WAITING_CUSTOMER" && !qaOverride ? "WAITING_CUSTOMER" as const : row.status === "COMPLETED" && !qaOverride ? "COMPLETED" as const : "ACTIVE" as const;
   return {
     id: row.id,
@@ -546,7 +545,7 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
         outgoingReply,
         handoffStatus: evaluation.handoffRequired ? "REQUIRED" : "NONE",
       });
-      const safeFinalStatus = evaluation.handoffRequired ? "HUMAN_HANDOFF" : result.conversation.status;
+      const safeFinalStatus = evaluation.handoffRequired ? "HUMAN_HANDOFF" : result.conversation.status === "HUMAN_HANDOFF" ? "ACTIVE" : result.conversation.status;
       const { error: safeStateError } = await client.from("conversation_states").update({
         status: safeFinalStatus,
         nova_enabled: !evaluation.handoffRequired,

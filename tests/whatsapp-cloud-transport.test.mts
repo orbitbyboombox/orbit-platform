@@ -43,7 +43,7 @@ test("WhatsApp CRM identity is phone-canonical and service-role only", async () 
 
 test("human takeover remains a hard suppression boundary", async () => {
   const processor = await readFile(processorUrl, "utf8");
-  assert.match(processor, /row\.status === "HUMAN_HANDOFF" \|\| row\.nova_enabled === false/);
+  assert.match(processor, /isActiveHumanTakeover\(row\)/);
   assert.match(processor, /if \(!result\.suppressed\)/);
 });
 

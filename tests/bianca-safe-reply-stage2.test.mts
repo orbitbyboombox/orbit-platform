@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { biancaAutomationRouting, evaluateBiancaSafeReply, resolveCanonicalBiancaSafeReplyEvidence } from "../features/connectors/whatsapp-cloud/bianca-safe-reply.ts";
+import { biancaAutomationRouting, evaluateBiancaSafeReply, isActiveHumanTakeover, resolveCanonicalBiancaSafeReplyEvidence } from "../features/connectors/whatsapp-cloud/bianca-safe-reply.ts";
 import type { WhatsAppAiDecision } from "../features/connectors/whatsapp-cloud/whatsapp-ai.responder.ts";
 
 const baseDecision: WhatsAppAiDecision = {
@@ -42,6 +42,7 @@ test("low confidence, missing evidence, claims and commercial side effects fail 
   assert.equal(quote.reason, "HUMAN_HANDOFF_REQUIRED");
   const claim = evaluateBiancaSafeReply({ decision: decision(), response: "Te confirmo la reserva", confidence: 0.99, evidence: { verified: true, kind: "GENERAL_KNOWLEDGE" }, claimViolations: ["RESERVATION_START_REQUIRED"] });
   assert.equal(claim.reason, "UNSUPPORTED_CLAIM_BLOCKED");
+  assert.equal(claim.handoffRequired, false);
 });
 
 test("catalog requires canonical catalog evidence and kill switch blocks all replies", () => {
@@ -119,4 +120,25 @@ test("Shadow routing never opens outbound processing", () => {
   const outbox: string[] = [];
   if (!routing.automationEnabled) outbox.push("NO_OUTBOUND");
   assert.deepEqual(outbox, ["NO_OUTBOUND"]);
+});
+
+test("stale HUMAN_HANDOFF state is recoverable when no human takeover is active", () => {
+  const stale = { status: "HUMAN_HANDOFF", nova_enabled: false, human_owner_id: null, context: { humanTakeover: { active: false } } };
+  assert.equal(isActiveHumanTakeover(stale), false);
+});
+
+test("active human takeover remains a hard suppression boundary", () => {
+  const active = { status: "HUMAN_HANDOFF", nova_enabled: false, human_owner_id: "staff-1", context: { humanTakeover: { active: true } } };
+  assert.equal(isActiveHumanTakeover(active), true);
+});
+
+test("historical handoff can recover the catalog safe-reply path without manual DB mutation", async () => {
+  const historical = { status: "HUMAN_HANDOFF", nova_enabled: false, human_owner_id: null, context: { humanTakeover: { active: false } } };
+  assert.equal(isActiveHumanTakeover(historical), false);
+  const catalogDecision = decision({ requestedAction: "CATALOG_LOOKUP", catalogCategory: "EVENTS" });
+  const evidence = { verified: true as const, kind: "CANONICAL_CATALOG" as const, sourceRef: "https://orbit.boom-box.cl/catalogo/eventos" };
+  const evaluation = evaluateBiancaSafeReply({ decision: catalogDecision, response: `Sí 😊 Te dejo nuestro catálogo: ${evidence.sourceRef}`, confidence: 0.99, evidence, claimViolations: [] });
+  assert.equal(evaluation.allowed, true);
+  assert.equal(evaluation.handoffRequired, false);
+  assert.equal(evaluation.guardDecisions.evidenceAllowed, true);
 });

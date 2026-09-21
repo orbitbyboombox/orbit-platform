@@ -96,6 +96,11 @@ export function biancaAutomationRouting(input: {
   };
 }
 
+export function isActiveHumanTakeover(conversationState: { context?: Record<string, unknown> | null }) {
+  const takeover = conversationState.context?.humanTakeover;
+  return Boolean(takeover && typeof takeover === "object" && (takeover as Record<string, unknown>).active === true);
+}
+
 export function evaluateBiancaSafeReply(input: {
   decision: WhatsAppAiDecision;
   response: string;
@@ -126,7 +131,10 @@ export function evaluateBiancaSafeReply(input: {
   else if (!confidenceAllowed) reason = "MEDIUM_CONFIDENCE_NOT_SAFE";
   return {
     allowed,
-    handoffRequired: !allowed,
+    // A guard block is deliberately not a human takeover. It is recorded as
+    // BLOCKED and the conversation may be evaluated again on the next inbound.
+    // Only an explicit human policy/action creates persistent handoff state.
+    handoffRequired: handoffAction || disallowedIntent,
     reason,
     confidenceBand: band,
     evidence: input.evidence,
