@@ -88,14 +88,12 @@ test("12 missing operational fields are requested", () => {
   assert.throws(() => assertQuoteConversionReady(incomplete, {}), /Completa antes de crear|configuración física/);
   assert.equal(resolveQuoteConversionEvent(incomplete, { name:"Evento",date:"2026-10-10",time:"18:00",location:"Lugar",city:"Santiago",durationHours:3 }).durationHours, 3);
 });
-test("12b CASE-backed quote requires shell before project creation", () => {
+test("12b CASE-backed quote does not require shell before project creation", () => {
   const withoutShell = structuredClone(acceptedSnapshot) as typeof acceptedSnapshot;
   delete (withoutShell.commercial.event as { shellType?: string }).shellType;
   const pending = buildQuoteConversionReview({ quoteId: "q-shell", status: "ACCEPTED", snapshot: withoutShell });
-  assert.equal(pending.shellRequired, true);
-  assert.ok(pending.missing.some((item) => /configuración física/i.test(item)));
-  assert.throws(() => assertQuoteConversionReady(pending, {}), /configuración física/i);
-  assert.doesNotThrow(() => assertQuoteConversionReady(pending, { shellType: "BLACK" }));
+  assert.equal(pending.shellRequired, false);
+  assert.doesNotThrow(() => assertQuoteConversionReady(pending, {}));
 });
 test("13 double click uses one quote conversion transaction", () => { assert.match(migration, /pg_advisory_xact_lock/); assert.match(migration, /conversion_transaction_id=tx_id/); });
 test("14 browser retry resumes one reservation transaction", () => { assert.match(actions, /reservationTransactionId: claim\.transactionId/); assert.match(actions, /reservationResumed/); });

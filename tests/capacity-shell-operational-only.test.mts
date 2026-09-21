@@ -14,6 +14,14 @@ test("commercial capacity uses one CASE pool regardless of shell", () => {
   assert.match(migration, /asset_type='BBOX360'/);
 });
 
+test("latest capacity migration uses service quantities and removes shell gating", () => {
+  const migration = read("supabase/migrations/20260921180000_capacity_by_resource_quantity_no_shell.sql");
+  assert.doesNotMatch(migration, /SHELL_CONFIGURATION_REQUIRED/);
+  assert.match(migration, /ps\.quantity\*map\.units_per_service/);
+  assert.match(migration, /requiredResources/);
+  assert.match(migration, /'NOT_REQUIRED'/);
+});
+
 test("automatic booking does not expose or require shell selection", () => {
   const experience = read("features/automatic-booking/automatic-booking-experience.tsx");
   const completion = read("features/automatic-booking/complete-automatic-booking.service.ts");

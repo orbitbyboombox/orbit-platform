@@ -141,24 +141,9 @@ export function QuoteConversionReviewDialog({
           <p className="mt-3 text-xs text-muted">
             Los datos ya importados permanecen bloqueados en esta revisión. Corrige la cotización antes de aceptarla si el origen comercial es incorrecto.
           </p>
-          {review.shellRequired ? (
-            <label className="mt-4 grid gap-1.5 text-sm">
-              <span className="font-medium">Configuración física del tótem</span>
-              <select
-                className="min-h-11 rounded-xl border bg-background px-3"
-                defaultValue={review.shellType ?? ""}
-                name="shellType"
-                required
-              >
-                <option disabled value="">Seleccionar configuración</option>
-                <option value="WHITE">WHITE · Tótem blanco</option>
-                <option value="BLACK">BLACK · Tótem negro</option>
-              </select>
-              <span className="text-xs text-muted">
-                Este dato operativo se confirma antes de reservar; no modifica el precio comercial.
-              </span>
-            </label>
-          ) : null}
+          <p className="mt-4 rounded-xl border border-brand/20 bg-brand/5 p-3 text-xs text-muted">
+            La disponibilidad se valida por servicio, cantidad, horario y recursos operacionales disponibles. La configuración de color del equipo se gestiona operacionalmente y no bloquea la conversión comercial.
+          </p>
         </ReviewSection>
 
         <ReviewSection title="Servicios y productos aceptados">

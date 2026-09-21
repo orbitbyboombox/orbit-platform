@@ -41,8 +41,9 @@ export type QuoteConversionReview = {
     city: string;
     durationHours: number | null;
   };
-  /** Physical shell required by CASE-backed services before conversion. */
+  /** Legacy physical-shell metadata, retained for historical records only. */
   shellType: "WHITE" | "BLACK" | null;
+  /** Deprecated compatibility field; shell is no longer a conversion gate. */
   shellRequired: boolean;
   items: AcceptedQuoteLine[];
   financial: {
@@ -86,13 +87,6 @@ const number = (value: unknown, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
 };
-
-const caseBackedServiceCodes = new Set([
-  "CLASSIC",
-  "POLAROID",
-  "BLACK_STUDIO",
-  "INSTABOX",
-]);
 
 export function buildQuoteConversionReview(input: {
   quoteId: string;
@@ -153,9 +147,9 @@ export function buildQuoteConversionReview(input: {
   const shellType = rawShellType === "WHITE" || rawShellType === "BLACK"
     ? rawShellType
     : null;
-  const shellRequired = items.some(
-    (item) => item.itemType === "SERVICE" && caseBackedServiceCodes.has(item.code),
-  );
+  // Shell/color is operational metadata only. Capacity is derived from the
+  // canonical service-to-resource mapping and persisted quantities.
+  const shellRequired = false;
   const rawPaymentCondition = text(commercial.paymentCondition).toUpperCase();
   const paymentCondition = (rawPaymentCondition === "CORPORATE_CREDIT" || rawPaymentCondition === "CASH" || rawPaymentCondition === "FIFTY_FIFTY"
     ? rawPaymentCondition
@@ -213,8 +207,6 @@ export function buildQuoteConversionReview(input: {
     missing: [],
   };
   review.missing = missingQuoteConversionFields(review);
-  if (review.shellRequired && !review.shellType)
-    review.missing.push("Configuración física del tótem (blanco o negro)");
   return review;
 }
 
@@ -289,7 +281,6 @@ export function assertQuoteConversionReady(
   const event = resolveQuoteConversionEvent(review, overrides);
   const customer = resolveQuoteConversionCustomer(review, overrides);
   const paymentTerms = resolveQuoteConversionPaymentTerms(review, overrides);
-  const shellType = overrides.shellType || review.shellType;
   const missing = missingQuoteConversionFields({
     ...review,
     customer,
@@ -298,8 +289,6 @@ export function assertQuoteConversionReady(
   });
   if (review.status !== "ACCEPTED")
     throw new Error("La cotización debe estar ACEPTADA.");
-  if (review.shellRequired && shellType !== "WHITE" && shellType !== "BLACK")
-    throw new Error("Selecciona la configuración física del tótem antes de crear la reserva.");
   if (missing.length)
     throw new Error(`Completa antes de crear: ${missing.join(", ")}.`);
   return event as Required<QuoteConversionReview["event"]>;

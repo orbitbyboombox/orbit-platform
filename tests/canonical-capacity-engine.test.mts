@@ -15,8 +15,7 @@ test("CASE and BBOX360 use independent temporal pools", () => {
   assert.match(sql, /event_operational_window/);
   assert.match(sql, /status='CONFIRMED'/);
 });
-test("shell and logistics uncertainty never create false availability", () => {
-  assert.match(sql, /SHELL_CONFIGURATION_REQUIRED/);
+test("resource and logistics uncertainty never create false availability", () => {
   assert.match(sql, /TRAVEL_TIME_UNVERIFIABLE/);
   assert.match(sql, /LOGISTICS_DATA_INCOMPLETE/);
   assert.doesNotMatch(sql, /WHITE_SHELL_CAPACITY_EXCEEDED/);

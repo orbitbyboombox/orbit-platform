@@ -24,15 +24,17 @@ const snapshot = {
   items: [{ id: "service", itemType: "SERVICE", code: "CLASSIC", label: "Classic", quantity: 2, total: 580000 }],
 };
 
-test("quote conversion review blocks CASE-backed conversion until shell is selected", () => {
+test("quote conversion review does not block CASE-backed conversion on shell", () => {
   const review = buildQuoteConversionReview({ quoteId: "q", status: "ACCEPTED", snapshot });
-  assert.equal(review.shellRequired, true);
-  assert.throws(() => assertQuoteConversionReady(review, {}), /configuración física/i);
-  assert.doesNotThrow(() => assertQuoteConversionReady(review, { shellType: "WHITE" }));
+  assert.equal(review.shellRequired, false);
+  assert.doesNotThrow(() => assertQuoteConversionReady(review, {}));
 });
 
-test("review exposes shell selection before the confirmation submit", () => {
-  assert.match(reviewUi, /name="shellType"/);
+test("review explains that resource capacity, not shell colour, gates conversion", () => {
+  assert.doesNotMatch(reviewUi, /name="shellType"/);
+  assert.doesNotMatch(reviewUi, /WHITE · Tótem blanco/);
+  assert.doesNotMatch(reviewUi, /BLACK · Tótem negro/);
+  assert.match(reviewUi, /recursos operacionales disponibles/);
   assert.match(reviewUi, /CONFIRMAR Y CREAR RESERVA/);
 });
 
