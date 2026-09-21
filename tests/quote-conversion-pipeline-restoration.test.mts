@@ -57,6 +57,7 @@ test("Calendar is gated by operational reservation, not contract signature", () 
   assert.match(calendarSync, /crm_reservations/);
   assert.match(calendarSync, /reservationConfirmed/);
   assert.match(calendarSync, /RESERVATION_NOT_CONFIRMED/);
+  assert.doesNotMatch(calendarSync, /crm_reservations[\s\S]*deleted_at/);
   assert.doesNotMatch(calendarSync, /AGREEMENT_NOT_SIGNED/);
 });
 

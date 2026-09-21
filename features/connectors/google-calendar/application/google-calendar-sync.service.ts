@@ -23,7 +23,7 @@ export async function synchronizeConfirmedReservationCalendar(input:{client:Supa
     input.client.from("projects").select("id,name,status,orbit_event_id,project_type,event_date,event_time,location,city,updated_at,operations,customers!inner(full_name,phone,email,metadata),project_services(service_code,duration_hours,extras),quotations(status),agreements(status,signed_at),assignments(staff_id,assignment_type,status,staff_call_at,staff_call_source,staff(first_name,last_name))").eq("id",input.projectId).single(),
     input.client.from("event_vehicle_assignments").select("status,operational_assets(asset_code,metadata,vehicle_profiles(model))").eq("project_id",input.projectId).eq("status","ASSIGNED").is("deleted_at",null).limit(1).maybeSingle(),
     input.client.from("project_operational_contracts").select("contact_status,contact_first_name,contact_last_name,contact_phone,contact_email,service_start_at,service_end_at,staff_arrival_at,assembly_start_at,disassembly_start_at,operational_end_at,access_instructions,operational_notes").eq("project_id",input.projectId).maybeSingle(),
-    input.client.from("crm_reservations").select("status").eq("project_id",input.projectId).is("deleted_at",null),
+    input.client.from("crm_reservations").select("status").eq("project_id",input.projectId),
   ]);
   if(error)throw error;if(vehicleError)throw vehicleError;if(operationalError)throw operationalError;if(reservationsError)throw reservationsError;const project=data as unknown as ProjectRecord;const policy=input.policy??"NEW";
   const customer=relation<{full_name:string;phone:string|null;email:string|null;metadata:unknown}>(project.customers);if(!customer)throw new Error("La reserva no tiene un cliente asociado.");
