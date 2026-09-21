@@ -74,8 +74,11 @@ export async function createNOVAGoogleHandoff(returnUrl: string) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ organization_id: value.organizationId, client_slug: value.clientSlug, return_url: returnUrl }),
   });
-  const body = await response.json().catch(() => null) as { authorization_url?: string } | null;
-  if (!response.ok || !body?.authorization_url) throw new Error("No fue posible iniciar la conexión Google mediante NOVA.");
+  const body = await response.json().catch(() => null) as { authorization_url?: string; error?: { code?: string; message?: string }; code?: string } | null;
+  if (!response.ok || !body?.authorization_url) {
+    const code = body?.error?.code ?? body?.code ?? `HTTP_${response.status}`;
+    throw new Error(`NOVA_HANDOFF_FAILED:${String(code).replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 80)}`);
+  }
   return body.authorization_url;
 }
 
