@@ -239,6 +239,31 @@ test("17 converted quote exposes View Event instead of conversion", () => {
   assert.match(detailUi, /VER EVENTO/);
 });
 
+test("18 incomplete conversion is truthful and exposes the canonical resume action", () => {
+  const detail = buildCommercialQuoteDetail({
+    ...sentRow,
+    id: "quote-partial",
+    quotation_number: "2026-820",
+    status: "ACCEPTED",
+    project_id: "project-1",
+    conversion: {
+      transactionId: "tx-1",
+      status: "FAILED",
+      currentStep: "Google Calendar",
+      lastError: "Calendar access pending",
+      completedSteps: ["Project Create"],
+      pendingSteps: ["Google Calendar", "Google Drive", "Confirmation"],
+    },
+  });
+  const actions = quoteDetailActions(detail.status, detail.projectId, detail.conversion);
+  assert.equal(actions.isConverted, false);
+  assert.equal(actions.conversionIncomplete, true);
+  assert.equal(actions.canResume, true);
+  assert.match(detailUi, /REANUDAR CONVERSIÓN/);
+  assert.match(detailUi, /resumeQuotationConversionAction/);
+  assert.match(detailUi, /RESERVA CREADA · CONFIGURACIÓN PENDIENTE/);
+});
+
 test("18 accepted quote PDF remains protected and accessible", () => {
   assert.match(detailUi, /href=\{`\/quotes\/\$\{quote\.id\}\/pdf`\}/);
   const pdfRoute = source("app/api/commercial/quotes/[quoteId]/pdf/route.ts");

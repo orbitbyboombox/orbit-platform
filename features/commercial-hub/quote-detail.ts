@@ -57,6 +57,14 @@ export type CommercialQuoteDetail = {
   };
   conditions: string[];
   history: CommercialQuoteHistoryEntry[];
+  conversion?: {
+    transactionId: string | null;
+    status: string | null;
+    currentStep: string | null;
+    lastError: string | null;
+    completedSteps: string[];
+    pendingSteps: string[];
+  };
   draft?: FormalQuoteDraft;
 };
 
@@ -82,12 +90,23 @@ export function commercialQuoteHref(quoteId: string) {
   return `/quotes/${encodeURIComponent(quoteId)}`;
 }
 
-export function quoteDetailActions(status: string, projectId: string | null) {
+export function quoteDetailActions(
+  status: string,
+  projectId: string | null,
+  conversion?: CommercialQuoteDetail["conversion"],
+) {
+  const conversionComplete = conversion
+    ? conversion.status === "COMPLETED"
+    : Boolean(projectId);
   return {
     canEdit: status === "DRAFT",
     canAccept: ["SENT", "VIEWED"].includes(status),
     canConvert: status === "ACCEPTED" && !projectId,
-    isConverted: Boolean(projectId),
+    isConverted: Boolean(projectId) && conversionComplete,
+    canResume: Boolean(
+      projectId && conversion?.transactionId && conversion.status !== "COMPLETED",
+    ),
+    conversionIncomplete: Boolean(projectId) && !conversionComplete,
   };
 }
 
@@ -283,6 +302,20 @@ export function buildCommercialQuoteDetail(
       ? commercial.conditions.map(text).filter(Boolean)
       : [],
     history,
+    conversion: row.conversion
+      ? {
+          transactionId: text(record(row.conversion).transactionId) || null,
+          status: text(record(row.conversion).status) || null,
+          currentStep: text(record(row.conversion).currentStep) || null,
+          lastError: text(record(row.conversion).lastError) || null,
+          completedSteps: Array.isArray(record(row.conversion).completedSteps)
+            ? (record(row.conversion).completedSteps as unknown[]).map(text).filter(Boolean)
+            : [],
+          pendingSteps: Array.isArray(record(row.conversion).pendingSteps)
+            ? (record(row.conversion).pendingSteps as unknown[]).map(text).filter(Boolean)
+            : [],
+        }
+      : undefined,
     ...(status === "DRAFT"
       ? {
           draft: {

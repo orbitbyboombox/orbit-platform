@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import {
   acceptCommercialQuoteAction,
   loadCommercialQuoteConversionReviewAction,
+  resumeQuotationConversionAction,
 } from "./actions";
 import {
   quoteDetailActions,
@@ -46,7 +47,7 @@ export function CommercialQuoteDetailExperience({
   const [review, setReview] = useState<QuoteConversionReview | null>(null);
   const [message, setMessage] = useState("");
   const [pending, startTransition] = useTransition();
-  const actions = quoteDetailActions(quote.status, quote.projectId);
+  const actions = quoteDetailActions(quote.status, quote.projectId, quote.conversion);
 
   if (editing && quote.draft && hubData) {
     return (
@@ -89,6 +90,14 @@ export function CommercialQuoteDetailExperience({
         return;
       }
       setReview(result.review);
+    });
+  };
+
+  const resumeConversion = () => {
+    startTransition(async () => {
+      const result = await resumeQuotationConversionAction(quote.id);
+      setMessage(result.ok ? result.message : result.error);
+      if (result.ok) router.refresh();
     });
   };
 
@@ -163,6 +172,26 @@ export function CommercialQuoteDetailExperience({
                   </Link>
                 </Button>
               </>
+            ) : null}
+            {actions.conversionIncomplete ? (
+              <div className="flex w-full flex-col gap-2 rounded-xl border border-warning/40 bg-warning/5 p-3 text-left sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-semibold text-warning">RESERVA CREADA · CONFIGURACIÓN PENDIENTE</p>
+                  <p className="mt-1 text-xs text-muted">
+                    {quote.conversion?.currentStep
+                      ? `La conversión se detuvo en: ${quote.conversion.currentStep}.`
+                      : "La reserva existe, pero su pipeline todavía no está completo."}
+                  </p>
+                  {quote.conversion?.lastError ? (
+                    <p className="mt-1 break-words text-xs text-danger">{quote.conversion.lastError}</p>
+                  ) : null}
+                </div>
+                {actions.canResume ? (
+                  <Button aria-busy={pending} disabled={pending} onClick={resumeConversion}>
+                    {pending ? "REANUDANDO…" : "REANUDAR CONVERSIÓN"}
+                  </Button>
+                ) : null}
+              </div>
             ) : null}
           </div>
         </div>
