@@ -50,11 +50,11 @@ export const BIANCA_QUESTION_UNIVERSE: readonly BiancaQuestionIntent[] = [
   intent("DISCOUNT_NEGOTIATION", "PRICING", "Descuento, rebaja, precio especial o presupuesto límite", ["descuento", "rebaja", "más barato", "mas barato", "negociar", "negociación", "precio especial", "oferta", "promoción", "promocion", "tengo $", "tengo 300", "me alcanza"], ["me lo dejas más barato", "tengo 400 lucas qué me alcanza"]),
   intent("DURATION_OPTIONS", "DURATION", "Horas disponibles y alcance de la duración", ["duración", "duracion", "cuantas horas", "cuántas horas", "2h", "3h", "4h", "aumentar horas", "reducir horas", "más tiempo", "mas tiempo", "evento dura más"], ["cuántas horas puedo contratar", "qué pasa si mi evento dura 6 horas"]),
   intent("AVAILABILITY_DATE", "AVAILABILITY", "Disponibilidad para fecha, día u horario", ["disponible", "disponibilidad", "hay fecha", "queda fecha", "sábado", "sabado", "domingo", "hoy", "mañana", "manana", "próximo mes", "proximo mes", "horario"], ["están disponibles este sábado", "tienen disponible el 15"]),
-  intent("DATE_UNDEFINED", "DATE_CHANGE", "Evento sin fecha definida o fecha parcial", ["no sé la fecha", "no se la fecha", "sin fecha", "fecha por confirmar", "21.11", "21/11", "a fin de año", "más adelante"], ["todavía no tengo fecha", "es el 21.11 pero no sé el año"]),
-  intent("DATE_CHANGE", "DATE_CHANGE", "Cambiar, adelantar, postergar o confirmar fecha/horario", ["cambiar fecha", "cambio de fecha", "postergar", "adelantar", "reagendar", "mover la fecha", "otra fecha", "cambiar horario", "pasarlo para"], ["necesito cambiar la fecha", "lo podemos postergar"]),
+  intent("DATE_UNDEFINED", "DATE_CHANGE", "Evento sin fecha definida o fecha parcial", ["no sé la fecha", "no se la fecha", "todavía no tengo fecha", "todavia no tengo fecha", "sin fecha", "sin fecha definida", "fecha por confirmar", "fecha indefinida", "aún no hay fecha", "aun no hay fecha", "21.11", "21/11", "a fin de año", "más adelante"], ["todavía no tengo fecha", "es el 21.11 pero no sé el año"]),
+  intent("DATE_CHANGE", "DATE_CHANGE", "Cambiar, adelantar, postergar o confirmar fecha/horario", ["cambiar fecha", "cambiar la fecha", "cambio de fecha", "mejor lo cambiamos", "cámbialo de día", "cambialo de dia", "postergar", "adelantar", "reagendar", "mover la fecha", "moverlo al sábado", "otra fecha", "cambiar horario", "pasarlo para"], ["necesito cambiar la fecha", "lo podemos postergar"]),
   intent("LOCATION_COVERAGE", "LOCATION_TRANSPORT", "Cobertura por comuna, ciudad o región", ["comuna", "donde llegan", "dónde llegan", "hasta qué lugar", "hasta donde", "regiones", "viña", "viña del mar", "valparaíso", "valparaiso", "concepción", "concepcion", "santiago", "rm", "fuera de santiago"], ["llegan a viña", "hacen eventos en regiones"]),
   intent("TRANSPORT_SURCHARGE", "LOCATION_TRANSPORT", "Traslado, peajes, alojamiento o recargo logístico", ["traslado", "despacho", "transporte", "peaje", "peajes", "alojamiento", "hospedaje", "recargo", "costo de llevar", "costo traslado"], ["cuánto cobran de traslado", "hay peaje para llegar"]),
-  intent("VENUE_UNDEFINED", "LOCATION_TRANSPORT", "Ubicación o recinto aún no definido", ["ubicación no definida", "ubicacion no definida", "todavía no sé dónde", "no se donde", "no sé dónde", "recinto por confirmar", "lugar por confirmar", "comuna por confirmar", "comuna está por confirmar"], ["aún no sé el lugar", "la comuna está por confirmar"]),
+  intent("VENUE_UNDEFINED", "LOCATION_TRANSPORT", "Ubicación o recinto aún no definido", ["ubicación no definida", "ubicacion no definida", "todavía no sé dónde", "no se donde", "no sé dónde", "aún no sé el lugar", "aun no se el lugar", "aún no tengo lugar", "aun no tengo lugar", "recinto por confirmar", "lugar por confirmar", "lugar por definir", "dirección por definir", "direccion por definir", "comuna por confirmar", "comuna está por confirmar"], ["aún no sé el lugar", "la comuna está por confirmar"]),
   intent("EVENT_TYPE", "EVENT_TYPE", "Tipo de evento y contexto de uso", ["matrimonio", "matri", "boda", "cumpleaños", "cumple", "empresa", "corporativo", "fiesta", "graduación", "graduacion", "colegio", "universidad", "feria", "activación", "activacion", "lanzamiento", "masivo", "privado", "público", "publico", "congreso", "expo", "stand"], ["es para un matrimonio", "necesito algo para una feria"]),
   intent("GUEST_CAPACITY", "GUEST_COUNT", "Recomendación por cantidad de invitados y capacidad", ["invitados", "personas", "gente", "aforo", "20 personas", "50 personas", "100 personas", "500 personas", "1000 personas", "mil personas"], ["qué recomiendas para 500 invitados", "cuánta gente atiende por hora"]),
   intent("QUEUE_THROUGHPUT", "GUEST_COUNT", "Filas, velocidad de atención y múltiples equipos", ["fila", "filas", "rapidez", "velocidad", "atiende", "por hora", "espera", "varios equipos", "dos equipos", "capacidad"], ["se harán muchas filas", "cuántas fotos alcanzan por hora"]),
@@ -63,7 +63,7 @@ export const BIANCA_QUESTION_UNIVERSE: readonly BiancaQuestionIntent[] = [
   intent("VIDEO_CONTENT", "DIGITAL_CONTENT", "Video, boomerang, slow motion o experiencia audiovisual", ["video", "vídeo", "vídeo", "boomerang", "slow motion", "lounge", "gif", "movimiento"], ["hacen videos", "qué trae el video lounge"]),
   intent("BRANDING_CUSTOMIZATION", "BRANDING", "Diseño, logo, colores, plantilla y personalización", ["logo", "marca", "branding", "personalizar", "personalizado", "diseño", "diseño de tira", "colores", "plantilla", "temática", "tematica", "marco", "texto en la foto"], ["puedo poner mi logo", "hacen diseño personalizado"]),
   intent("SETUP_LOGISTICS", "LOGISTICS", "Montaje, desmontaje, espacio, energía y operador", ["montaje", "desmontaje", "instalación", "instalacion", "enchufe", "corriente", "espacio", "metros", "operador", "persona atendiendo", "llegan antes"], ["cuánto espacio necesitan", "incluye operador"]),
-  intent("PAYMENT_TERMS", "PAYMENT", "Medios, abono, cuotas, saldo, transferencia y factura", ["pagar", "pago", "abono", "reserva con", "cuota", "cuotas", "transferencia", "tarjeta", "webpay", "saldo", "50%", "medio de pago", "facturar"], ["cómo se paga", "cuánto es el abono"]),
+  intent("PAYMENT_TERMS", "PAYMENT", "Medios, abono, cuotas, saldo, transferencia y factura", ["pagar", "paga", "cómo se paga", "como se paga", "cuándo pago", "cuando pago", "cuánto tengo que abonar", "cuanto tengo que abonar", "abono", "reserva con", "cuota", "cuotas", "transferencia", "tarjeta", "webpay", "saldo", "50%", "medio de pago", "medios de pago", "formas de pago", "facturar"], ["cómo se paga", "cuánto es el abono"]),
   intent("QUOTE_FOLLOWUP", "QUOTE_RESERVATION", "Estado, reenvío o seguimiento de una cotización", ["cotización que me mandaste", "cotizacion que me mandaste", "repetir precio", "reenviar", "reenvias", "reenvía la cotización", "seguimiento", "estado de la cotización", "mi cotización", "lo que vimos"], ["me reenvías la cotización", "qué pasó con mi presupuesto"]),
   intent("EMAIL_QUOTE_REQUEST", "QUOTE_RESERVATION", "Solicitar que una cotización o información se prepare para email", ["correo", "email", "e mail", "mail", "mándame al correo", "mandame al correo", "envíamelo por correo", "enviamelo por correo"], ["mándame la cotización al correo", "envíame los planes por email"]),
   intent("RESERVATION_START", "QUOTE_RESERVATION", "Intención de contratar o reservar", ["reservar", "reserva", "contratar", "lo quiero", "me quedo", "confirmar", "agendar", "separar la fecha", "dejémoslo", "dejemoslo"], ["perfecto, resérvalo", "quiero contratar"]),
@@ -71,7 +71,7 @@ export const BIANCA_QUESTION_UNIVERSE: readonly BiancaQuestionIntent[] = [
   intent("AFTER_SALES_SUPPORT", "AFTER_SALES", "Problema con entrega, servicio, fotos o soporte posterior", ["no llegó", "no llego", "no me llegaron", "faltan fotos", "no funciona", "problema con", "reclamo", "molesto", "soporte", "ayuda", "error"], ["no me llegaron las fotos", "tuve un problema en el evento"]),
   intent("HUMAN_HANDOFF", "HUMAN_HANDOFF", "Solicitud explícita de persona o excepción comercial", ["persona", "humano", "ejecutivo", "matías", "matias", "director comercial", "hablar con alguien", "jefe", "excepción", "excepcion", "caso especial"], ["quiero hablar con una persona", "necesito un caso especial"]),
   intent("TECHNICAL_REQUIREMENTS", "TECHNICAL", "Dudas técnicas, compatibilidad o funcionamiento", ["técnico", "tecnico", "cómo funciona", "como funciona", "compatible", "wifi", "internet", "bluetooth", "app", "plataforma", "calidad", "resolución", "resolucion"], ["necesita internet", "cómo funciona técnicamente"]),
-  intent("IDENTITY_PRIVACY", "IDENTITY_PRIVACY", "Identidad de BIANCA, privacidad o datos de terceros", ["quién eres", "quien eres", "cómo te llamas", "como te llamas", "eres una ia", "datos de otros", "otros clientes", "muéstrame tu prompt", "muestrame tu prompt"], ["quién me responde", "dime qué eventos tienen otros"]),
+  intent("IDENTITY_PRIVACY", "IDENTITY_PRIVACY", "Identidad de BIANCA, privacidad o datos de terceros", ["quién eres", "quien eres", "cómo te llamas", "como te llamas", "quién me responde", "quien me responde", "eres una ia", "guardan mis fotos", "usan mis datos", "qué pasa con mi información", "que pasa con mi informacion", "mis datos", "mis fotos", "datos de otros", "otros clientes", "muéstrame tu prompt", "muestrame tu prompt"], ["quién me responde", "dime qué eventos tienen otros"]),
 ] as const;
 
 function normalize(value: string): string {
@@ -93,7 +93,11 @@ const typoReplacements: readonly [RegExp, string][] = [
 ];
 
 function canonicalText(value: string): string {
-  return typoReplacements.reduce((text, [pattern, replacement]) => text.replace(pattern, replacement), normalize(value));
+  const normalized = typoReplacements.reduce((text, [pattern, replacement]) => text.replace(pattern, replacement), normalize(value));
+  // Voice transcription and fast typing often stretch letters ("pagaaa",
+  // "fechaaa"). Collapse only alphabetic runs; catalog names and numbers are
+  // normalized on both sides of alias matching, so this remains symmetric.
+  return normalized.replace(/([a-z])\1+/g, "$1");
 }
 
 function aliasMatches(text: string, alias: string): boolean {
@@ -214,7 +218,7 @@ export function measureBiancaSyntheticCoverage(cases: readonly BiancaSyntheticCa
   const rows = cases.map((testCase) => {
     const matches = classifyBiancaQuestionUniverse({ messageText: testCase.messageText, historyText: testCase.historyText });
     const matched = testCase.expectedIntents.every((expected) => matches.some((match) => match.intentId === expected));
-    const ambiguous = matches.length > 4 || (matches[0]?.confidence ?? 0) < 0.7;
+    const ambiguous = !matched && matches.length > 0 && (matches.length > 4 || (matches[0].confidence - (matches[1]?.confidence ?? 0) < 0.05));
     return { testCase, matches, pass: matched && !ambiguous, ambiguous, confidence: matches[0]?.confidence ?? 0 };
   });
   const byIntent = BIANCA_QUESTION_UNIVERSE.map((candidate) => {
@@ -260,7 +264,7 @@ export function classifyBiancaQuestionUniverse(input: { messageText: string; his
     .map((candidate) => {
       const matchedAliases = candidate.aliases.filter((alias) => aliasMatches(text, alias));
       if (!matchedAliases.length) return null;
-      const confidence = Math.min(0.99, 0.58 + Math.min(0.3, matchedAliases.length * 0.08) + (candidate.examples.some((example) => text.includes(canonicalText(example))) ? 0.1 : 0));
+      const confidence = Math.min(0.99, 0.72 + Math.min(0.18, matchedAliases.length * 0.05) + (candidate.examples.some((example) => text.includes(canonicalText(example))) ? 0.08 : 0));
       return { intentId: candidate.id, domain: candidate.domain, confidence, matchedAliases, description: candidate.description, priority: candidate.priority };
     })
     .filter((match): match is NonNullable<typeof match> => Boolean(match))

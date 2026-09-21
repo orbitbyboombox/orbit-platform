@@ -123,3 +123,25 @@ test("understood question without canonical evidence routes to human handoff", (
   assert.equal(result.gap?.nextAction, "HUMAN_HANDOFF");
   assert.equal(result.responsePolicy, "CANONICAL_EVIDENCE_REQUIRED");
 });
+
+test("weak-intent regressions preserve semantic distinctions", () => {
+  const cases: Array<[string, string]> = [
+    ["todavía no sé la fecha", "DATE_UNDEFINED"],
+    ["fecha por confirmar", "DATE_UNDEFINED"],
+    ["mejor lo cambiamos al sábado", "DATE_CHANGE"],
+    ["cámbialo de día", "DATE_CHANGE"],
+    ["aún no tengo lugar", "VENUE_UNDEFINED"],
+    ["dirección por definir", "VENUE_UNDEFINED"],
+    ["cómo se paga", "PAYMENT_TERMS"],
+    ["cuándo pago", "PAYMENT_TERMS"],
+    ["cuánto tengo que abonar", "PAYMENT_TERMS"],
+    ["guardan mis fotos?", "IDENTITY_PRIVACY"],
+    ["usan mis datos?", "IDENTITY_PRIVACY"],
+    ["qué pasa con mi información?", "IDENTITY_PRIVACY"],
+  ];
+  for (const [message, expected] of cases) assert.ok(classifyBiancaQuestionUniverse({ messageText: message }).some((match) => match.intentId === expected), `${expected}: ${message}`);
+  assert.ok(classifyBiancaQuestionUniverse({ messageText: "todavía no sé la fecha" }).every((match) => match.intentId !== "CANCELLATION_REFUND"));
+  assert.ok(classifyBiancaQuestionUniverse({ messageText: "cámbialo de día" }).every((match) => match.intentId !== "CANCELLATION_REFUND"));
+  assert.ok(classifyBiancaQuestionUniverse({ messageText: "aún no tengo lugar" }).some((match) => match.intentId === "VENUE_UNDEFINED"));
+  assert.ok(classifyBiancaQuestionUniverse({ messageText: "cómoo see paagaa" }).some((match) => match.intentId === "PAYMENT_TERMS"));
+});
