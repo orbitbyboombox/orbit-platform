@@ -27,14 +27,19 @@ interface OutboxRow {
 }
 
 export async function deliverWhatsAppOutboxMessage(correlationId: string) {
+  const client = createAdminClient();
   if (!whatsappDeliveryEnabled()) {
     console.warn("whatsapp_delivery_disabled", { correlationId, reason: "WHATSAPP_DELIVERY_ENABLED=false" });
-    return { ok: true as const, disabled: true as const };
+    await client.from("whatsapp_outbound_messages").update({
+      status: "FAILED",
+      last_error: "DELIVERY_DISABLED",
+      updated_at: new Date().toISOString(),
+    }).eq("correlation_id", correlationId).eq("status", "PENDING");
+    return { ok: false as const, disabled: true as const, error: "DELIVERY_DISABLED" };
   }
   const deliveryStartedAt = Date.now();
   logWhatsApp("info", "whatsapp_meta_send_started", correlationId, { correlationId });
 
-  const client = createAdminClient();
   const { data: claimed, error: claimError } = await client
     .from("whatsapp_outbound_messages")
     .update({

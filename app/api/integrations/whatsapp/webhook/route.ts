@@ -133,8 +133,18 @@ export async function POST(request: Request) {
       const skipped = "skipped" in processed && processed.skipped;
       const unsupported = "unsupported" in processed && processed.unsupported;
       const suppressed = "suppressed" in processed && processed.suppressed;
-      if (processed.ok && !skipped && !unsupported && !suppressed)
-        await deliverWhatsAppOutboxMessage(providerMessageId);
+      if (processed.ok && !skipped && !unsupported && !suppressed) {
+        const delivery = await deliverWhatsAppOutboxMessage(providerMessageId);
+        if (!delivery.ok) {
+          const error = "error" in delivery && delivery.error ? delivery.error : "DELIVERY_FAILED";
+          await client.from("whatsapp_webhook_events").update({
+            processing_status: "FAILED",
+            processing_error: error,
+            updated_at: new Date().toISOString(),
+          }).eq("tenant_slug", WHATSAPP_TENANT_SLUG).eq("provider_message_id", providerMessageId);
+          logWhatsApp("error", "whatsapp_response_delivery_failed", providerMessageId, { error });
+        }
+      }
     }
   });
 

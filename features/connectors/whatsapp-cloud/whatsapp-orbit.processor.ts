@@ -16,7 +16,9 @@ import { BiancaAgentOrchestrator } from "./bianca-agent-orchestrator";
 import { whatsappAutomationEnabled } from "./meta-whatsapp-cloud";
 import { biancaCanProcessCustomerMessage, biancaQaModeEnabled } from "./bianca-policy";
 import { prepareBiancaOpportunityContext, resetBiancaActiveContext } from "./bianca-opportunity-context";
-import { parseBiancaStructuredWebLead } from "./bianca-web-lead-context";
+import { parseBiancaStructuredWebLead } from "./bianca-web-lead-context.ts";
+import { normalizeBiancaTurnState } from "./bianca-turn-state.ts";
+import { responseContract } from "./bianca-response-contract.ts";
 import { biancaShadowModeEnabled, createBiancaShadowDecision, shadowConfidence } from "./bianca-shadow-mode.ts";
 import { persistBiancaShadowDecision } from "./bianca-shadow-persistence.ts";
 import { biancaAutomationRouting, biancaSafeReplyConfiguration, evaluateBiancaSafeReply, isActiveHumanTakeover, resolveCanonicalBiancaSafeReplyEvidence, safeReplyConfidence } from "./bianca-safe-reply";
@@ -485,6 +487,16 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
     );
 
     const decision = aiResponder.lastDecision;
+    const initialTurnState = decision ? normalizeBiancaTurnState({
+      conversationId: conversationState.id,
+      customerId: customer.id,
+      opportunityId: typeof opportunity.context.activeOpportunityId === "string" ? opportunity.context.activeOpportunityId : undefined,
+      source: structuredLead ? "WEB_FORM_LEAD" : "DIRECT_WHATSAPP",
+      decision,
+      memory: activeMemory,
+      leadContext: structuredLead?.context,
+      activeHumanTakeover: isActiveHumanTakeover(conversationState),
+    }) : null;
     logWhatsApp("info", "bianca_ai_decision", providerMessageId, {
       conversationId: conversationState.id,
       requestedAction: decision?.requestedAction ?? null,
@@ -521,7 +533,7 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
       });
       await persistBiancaShadowDecision({ client, providerMessageId: event.provider_message_id, webhookEventId: event.id, decision: shadowDecision });
       const { error: shadowStateError } = await client.from("conversation_states").update({
-        context: { ...conversationState.context, shadowLastDecision: { status: "SHADOW_PROPOSED", proposedAction: shadowDecision.proposedAction, detectedIntents: shadowDecision.detectedIntents, confidence: shadowDecision.confidence, updatedAt: event.occurred_at } },
+        context: { ...conversationState.context, biancaTurnState: initialTurnState, shadowLastDecision: { status: "SHADOW_PROPOSED", proposedAction: shadowDecision.proposedAction, detectedIntents: shadowDecision.detectedIntents, confidence: shadowDecision.confidence, updatedAt: event.occurred_at } },
         updated_at: new Date().toISOString(),
       }).eq("tenant_slug", WHATSAPP_TENANT_SLUG).eq("id", conversationState.id);
       if (shadowStateError) throw shadowStateError;
@@ -552,6 +564,18 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
         ? `Sí 😊 Te dejo nuestro catálogo: ${evidence.sourceRef}`
         : result.nova.response;
       const semanticConfidence = safeReplyConfidence({ decision, messageText: event.text_body, evidence });
+      const turnState = normalizeBiancaTurnState({
+        conversationId: conversationState.id,
+        customerId: customer.id,
+        opportunityId: typeof opportunity.context.activeOpportunityId === "string" ? opportunity.context.activeOpportunityId : undefined,
+        source: structuredLead ? "WEB_FORM_LEAD" : "DIRECT_WHATSAPP",
+        decision,
+        memory: activeMemory,
+        leadContext: structuredLead?.context,
+        activeHumanTakeover: isActiveHumanTakeover(conversationState),
+        evidence,
+        confidence: semanticConfidence,
+      });
       logWhatsApp("info", "bianca_evidence_resolved", providerMessageId, {
         conversationId: conversationState.id,
         evidenceKind: evidence.kind,
@@ -595,10 +619,11 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
         handoffStatus: evaluation.handoffRequired ? "REQUIRED" : "NONE",
       });
       const safeFinalStatus = evaluation.handoffRequired ? "HUMAN_HANDOFF" : result.conversation.status === "HUMAN_HANDOFF" ? "ACTIVE" : result.conversation.status;
+      const contract = responseContract({ responseSent: evaluation.allowed, humanWaiting: evaluation.handoffRequired, intentionallySilent: !evaluation.allowed });
       const { error: safeStateError } = await client.from("conversation_states").update({
         status: safeFinalStatus,
         nova_enabled: !evaluation.handoffRequired,
-        context: { ...conversationState.context, safeReply: { status: evaluation.allowed ? "SENT" : "BLOCKED", guardDecisions: evaluation.guardDecisions, updatedAt: event.occurred_at } },
+        context: { ...conversationState.context, biancaTurnState: turnState, responseContract: contract, safeReply: { status: evaluation.allowed ? "SENT" : "BLOCKED", guardDecisions: evaluation.guardDecisions, updatedAt: event.occurred_at } },
         updated_at: new Date().toISOString(),
       }).eq("tenant_slug", WHATSAPP_TENANT_SLUG).eq("id", conversationState.id);
       if (safeStateError) throw safeStateError;
@@ -611,7 +636,7 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
       }).eq("tenant_slug", WHATSAPP_TENANT_SLUG).eq("id", event.id);
       if (safeFinishError) throw safeFinishError;
       logWhatsApp(evaluation.allowed ? "info" : "warn", evaluation.allowed ? "bianca_safe_reply_allowed" : "bianca_safe_reply_blocked", providerMessageId, { conversationId: conversationState.id, customerId: customer.id, status: evaluation.allowed ? "SENT" : "BLOCKED", reason: evaluation.reason, evidenceKind: evidence.kind, confidenceBand: evaluation.confidenceBand });
-      return { ok: true as const, safeReply: evaluation.allowed, suppressed: !evaluation.allowed, customerId: customer.id, conversationId: conversationState.id, finalStatus: safeFinalStatus };
+      return { ok: true as const, safeReply: evaluation.allowed, suppressed: !evaluation.allowed, responseContract: contract, customerId: customer.id, conversationId: conversationState.id, finalStatus: safeFinalStatus };
     }
     if (!result.suppressed && decision)
       await persistAiDecision(client, customer.id, conversationState, opportunity.context, decision, event.occurred_at);
@@ -689,7 +714,7 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
 
     logWhatsApp("info", "whatsapp_event_processed", providerMessageId, { outcome: finalStatus });
 
-    return { ok: true as const, suppressed: Boolean(result.suppressed), customerId: customer.id, conversationId: conversationState.id, finalStatus };
+    return { ok: true as const, suppressed: Boolean(result.suppressed), responseContract: responseContract({ responseSent: !result.suppressed, humanWaiting: finalStatus === "HUMAN_HANDOFF", intentionallySilent: Boolean(result.suppressed) }), customerId: customer.id, conversationId: conversationState.id, finalStatus };
   } catch (error) {
     const detail = serializeWhatsAppError(error);
     await client.from("whatsapp_webhook_events").update({
@@ -702,7 +727,7 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
   }
 }
 
-const WHATSAPP_TURN_DEBOUNCE_MS = 3_500;
+const WHATSAPP_TURN_DEBOUNCE_MS = 1_200;
 type DebouncedTurn = {
   providerMessageIds: Set<string>;
   waiters: Map<string, Array<(result: Awaited<ReturnType<typeof processWhatsAppWebhookEvent>>) => void>>;
@@ -720,11 +745,17 @@ export async function processWhatsAppWebhookEventDebounced(providerMessageId: st
   const client = createAdminClient();
   const { data: event } = await client
     .from("whatsapp_webhook_events")
-    .select("sender_wa_id")
+    .select("sender_wa_id,text_body")
     .eq("tenant_slug", WHATSAPP_TENANT_SLUG)
     .eq("provider", "META_CLOUD_API")
     .eq("provider_message_id", providerMessageId)
     .maybeSingle();
+  const fastTurn = typeof event?.text_body === "string" && (
+    Boolean(parseBiancaStructuredWebLead(event.text_body))
+    || /^(?:hola|holi|buenas|buenos dias|buenas tardes|buenas noches)[!.\s]*$/i.test(event.text_body.trim())
+    || /\b(?:que servicios tienen|qué servicios tienen|me mandas?.*cat[aá]logo|medios? de pago|cómo se paga|como se paga|quiero hablar con una persona)\b/i.test(event.text_body)
+  );
+  if (fastTurn) return processWhatsAppWebhookEvent(providerMessageId);
   const key = typeof event?.sender_wa_id === "string" && event.sender_wa_id.trim() ? event.sender_wa_id : providerMessageId;
   return new Promise<Awaited<ReturnType<typeof processWhatsAppWebhookEvent>>>((resolve) => {
     const existing = debouncedTurns.get(key);

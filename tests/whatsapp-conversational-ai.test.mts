@@ -58,7 +58,7 @@ test("consecutive inbound messages are treated as one logical conversational tur
 test("webhook processing has a short server-side coalescing window", async () => {
   const processor = await readFile(processorUrl, "utf8");
   const webhook = await readFile(webhookUrl, "utf8");
-  assert.match(processor, /WHATSAPP_TURN_DEBOUNCE_MS = 3_500/);
+  assert.match(processor, /WHATSAPP_TURN_DEBOUNCE_MS = 1_200/);
   assert.match(processor, /processWhatsAppWebhookEventDebounced/);
   assert.match(webhook, /processWhatsAppWebhookEventDebounced/);
 });

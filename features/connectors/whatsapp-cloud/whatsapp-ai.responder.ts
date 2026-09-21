@@ -2,7 +2,7 @@ import { generateObject } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { z } from "zod";
 import type { NovaChannelInput, NovaChannelOutput, NovaNextAction } from "@/features/nova-channel";
-import { buildBiancaWebLeadPrompt, normalizeBiancaWebLeadContext } from "./bianca-web-lead-context";
+import { buildBiancaWebLeadPrompt, normalizeBiancaWebLeadContext } from "./bianca-web-lead-context.ts";
 import { selectBiancaSalesPlaybook } from "./bianca-sales-playbook";
 import { responseStylePrompt } from "./bianca-response-style-bank";
 import { inferServiceCodes, lookupBiancaAvailability, lookupBiancaPrice } from "./bianca-runtime-tools";
@@ -13,6 +13,7 @@ import { BIANCA_INTRODUCTION, founderRequestResponse, isFounderRequest, official
 import { selectBiancaCommercialKnowledge } from "./bianca-commercial-knowledge";
 import { isNewBiancaCommercialOpportunity } from "./bianca-opportunity-context";
 import { planBiancaTurn } from "./bianca-commercial-planner";
+import { biancaFastPath } from "./bianca-fast-path.ts";
 
 const INTENTS = [
   "CONSULTA_GENERAL",
@@ -397,6 +398,24 @@ export class WhatsAppAiResponder implements NovaResponder {
           type: "HUMAN_HANDOFF_REQUESTED",
           occurredAt: input.message.receivedAt,
           description: "Solicitud explícita de atención de Matías/persona derivada a Founder.",
+        },
+      };
+    }
+    const fastDecision = biancaFastPath(input);
+    if (fastDecision) {
+      this.lastDecisionValue = fastDecision;
+      const handoff = fastDecision.requestedAction === "HUMAN_HANDOFF";
+      return {
+        response: handoff ? withOfficialSalesHandoff(fastDecision.responseText) : fastDecision.responseText,
+        nextRecommendedAction: handoff ? "WAIT_FOR_HUMAN" : "NONE",
+        conversationStatus: handoff ? "HUMAN_HANDOFF" : fastDecision.waitForMoreData ? "WAITING_CUSTOMER" : "ACTIVE",
+        timelineEvent: {
+          id: `${input.message.id}-fast-path-response`,
+          conversationId: input.message.conversationId,
+          customerId: input.message.customerId,
+          type: handoff ? "HUMAN_HANDOFF_REQUESTED" : "INFORMATION_REQUESTED",
+          occurredAt: input.message.receivedAt,
+          description: handoff ? "Solicitud humana procesada por el fast path." : "Turno procesado por el fast path determinístico.",
         },
       };
     }

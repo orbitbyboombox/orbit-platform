@@ -38,8 +38,9 @@ test("low confidence, missing evidence, claims and commercial side effects fail 
   assert.equal(low.reason, "LOW_CONFIDENCE");
   const price = evaluateBiancaSafeReply({ decision: decision({ intents: ["CONSULTA_PRECIO"], requestedAction: "COMMERCIAL_LOOKUP" }), response: "$100", confidence: 0.95, evidence: { verified: false, kind: "NONE" } });
   assert.equal(price.reason, "CANONICAL_EVIDENCE_REQUIRED");
-  const quote = evaluateBiancaSafeReply({ decision: decision({ intents: ["QUIERE_COTIZAR"] }), response: "Avancemos", confidence: 0.99, evidence: { verified: true, kind: "GENERAL_KNOWLEDGE" } });
-  assert.equal(quote.reason, "HUMAN_HANDOFF_REQUIRED");
+  const quote = evaluateBiancaSafeReply({ decision: decision({ intents: ["QUIERE_COTIZAR"], requestedAction: "WAIT_FOR_CUSTOMER", waitForMoreData: true }), response: "¿Qué fecha tienes?", confidence: 0.5, evidence: { verified: true, kind: "GENERAL_KNOWLEDGE" } });
+  assert.equal(quote.allowed, true);
+  assert.equal(quote.runtimeAction, "ASK_MISSING_FIELD");
   const claim = evaluateBiancaSafeReply({ decision: decision(), response: "Te confirmo la reserva", confidence: 0.99, evidence: { verified: true, kind: "GENERAL_KNOWLEDGE" }, claimViolations: ["RESERVATION_START_REQUIRED"] });
   assert.equal(claim.reason, "UNSUPPORTED_CLAIM_BLOCKED");
   assert.equal(claim.handoffRequired, false);

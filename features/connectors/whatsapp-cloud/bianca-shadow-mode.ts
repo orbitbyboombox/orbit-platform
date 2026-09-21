@@ -26,7 +26,8 @@ export function biancaShadowModeEnabled() {
 }
 
 export function biancaGlobalKillSwitchEnabled() {
-  return process.env.BIANCA_GLOBAL_KILL_SWITCH?.trim().toLowerCase() !== "false";
+  const value = (process.env.BIANCA_KILL_SWITCH ?? process.env.BIANCA_GLOBAL_KILL_SWITCH)?.trim().toLowerCase();
+  return value !== "false";
 }
 
 export function createBiancaShadowDecision(input: {

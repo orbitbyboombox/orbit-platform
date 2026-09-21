@@ -3,6 +3,8 @@ import type { BiancaActionEvidence } from "./bianca-claim-guards.ts";
 import type { WhatsAppAiDecision } from "./whatsapp-ai.responder.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { catalogPublicUrl, type CommercialCatalogCategory } from "../../commercial-hub/catalogs.ts";
+import { actionPolicyReason, isSafeBiancaAction } from "./bianca-action-policy.ts";
+import { runtimeActionForDecision, type BiancaRuntimeAction } from "./bianca-turn-state.ts";
 
 export type BiancaSafeReplyConfidence = "LOW" | "MEDIUM" | "HIGH";
 export type BiancaSafeReplyEvidenceKind =
@@ -39,23 +41,15 @@ export type BiancaSafeReplyEvaluation = {
   confidenceBand: BiancaSafeReplyConfidence;
   evidence: BiancaSafeReplyEvidence;
   guardDecisions: BiancaSafeReplyGuardDecisions;
+  runtimeAction: BiancaRuntimeAction;
 };
-
-const BLOCKED_INTENTS = new Set<WhatsAppAiDecision["intents"][number]>([
-  "OBJECION_PRECIO",
-  "QUIERE_COTIZAR",
-  "COTIZACION_ESPECIAL",
-  "SEGUIMIENTO_COTIZACION",
-  "MODIFICAR_COTIZACION",
-  "CLIENTE_QUIERE_RESERVAR",
-]);
 
 function stage() {
   return process.env.BIANCA_STAGE?.trim().toUpperCase() || "SHADOW";
 }
 
 function realResponseFlagEnabled() {
-  const value = process.env.WHATSAPP_REAL_RESPONSE?.trim().toLowerCase();
+  const value = (process.env.BIANCA_RESPONSES_ENABLED ?? process.env.WHATSAPP_REAL_RESPONSE)?.trim().toLowerCase();
   return value === "on" || value === "true";
 }
 
@@ -145,20 +139,23 @@ export function evaluateBiancaSafeReply(input: {
 }): BiancaSafeReplyEvaluation {
   const config = biancaSafeReplyConfiguration();
   const band = confidenceBand(input.confidence);
-  const disallowedIntent = input.decision.intents.some((intent) => BLOCKED_INTENTS.has(intent));
+  const runtimeAction = runtimeActionForDecision(input.decision);
+  const actionReason = actionPolicyReason(runtimeAction);
   const handoffAction = input.decision.requestedAction === "HUMAN_HANDOFF" || input.decision.requestedAction === "MANUAL_REVIEW";
-  const allowlisted = !disallowedIntent && !handoffAction && ["NONE", "WAIT_FOR_CUSTOMER", "CATALOG_LOOKUP", "COMMERCIAL_LOOKUP"].includes(input.decision.requestedAction);
+  const allowlisted = isSafeBiancaAction(runtimeAction);
   const evidenceAllowed = evidenceMatchesDecision(input.decision, input.evidence);
   const claimAllowed = (input.claimViolations?.length ?? 0) === 0;
-  const confidenceAllowed = band === "HIGH" || (band === "MEDIUM" && allowlisted && evidenceAllowed);
+  const clarificationAction = runtimeAction === "ASK_MISSING_FIELD" || runtimeAction === "WAIT_FOR_CUSTOMER";
+  const confidenceAllowed = band === "HIGH" || (allowlisted && evidenceAllowed && (band === "MEDIUM" || clarificationAction));
   const killSwitchBlocked = config.killSwitchEnabled;
   const executionFlagsBlocked = !config.sideEffectToolsEnabled;
   const configured = config.stage === "SAFE_REPLY" && config.realResponseEnabled && !config.shadowMode;
-  const allowed = configured && !killSwitchBlocked && allowlisted && evidenceAllowed && claimAllowed && confidenceAllowed;
+  const allowed = configured && !killSwitchBlocked && !handoffAction && allowlisted && !actionReason && evidenceAllowed && claimAllowed && confidenceAllowed;
   let reason: string | null = null;
   if (!configured) reason = "SAFE_REPLY_NOT_ENABLED";
   else if (killSwitchBlocked) reason = "GLOBAL_KILL_SWITCH_ACTIVE";
-  else if (handoffAction || disallowedIntent) reason = "HUMAN_HANDOFF_REQUIRED";
+  else if (handoffAction) reason = "HUMAN_HANDOFF_REQUIRED";
+  else if (actionReason) reason = actionReason;
   else if (!evidenceAllowed) reason = "CANONICAL_EVIDENCE_REQUIRED";
   else if (!claimAllowed) reason = "UNSUPPORTED_CLAIM_BLOCKED";
   else if (band === "LOW") reason = "LOW_CONFIDENCE";
@@ -168,10 +165,11 @@ export function evaluateBiancaSafeReply(input: {
     // A guard block is deliberately not a human takeover. It is recorded as
     // BLOCKED and the conversation may be evaluated again on the next inbound.
     // Only an explicit human policy/action creates persistent handoff state.
-    handoffRequired: handoffAction || disallowedIntent,
+    handoffRequired: handoffAction || runtimeAction === "HUMAN_HANDOFF",
     reason,
     confidenceBand: band,
     evidence: input.evidence,
+    runtimeAction,
     guardDecisions: {
       stage: config.stage === "SAFE_REPLY" ? "SAFE_REPLY" : config.stage === "SHADOW" ? "SHADOW" : "OTHER",
       allowlisted,

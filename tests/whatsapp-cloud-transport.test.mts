@@ -77,3 +77,12 @@ test("WhatsApp live path emits stage latency observability", async () => {
   assert.match(sender, /whatsapp_meta_status_\$\{event\.status\}/);
   assert.match(sender, /inboundToStatusLatencyMs/);
 });
+
+test("every processing result has an explicit response contract", async () => {
+  const [processor, contract] = await Promise.all([
+    readFile(processorUrl, "utf8"),
+    readFile(new URL("../features/connectors/whatsapp-cloud/bianca-response-contract.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(processor, /responseContract/);
+  for (const value of ["RESPONSE_SENT", "WAITING_HUMAN", "INTENTIONALLY_SILENT", "FAILED"]) assert.match(contract, new RegExp(value));
+});
