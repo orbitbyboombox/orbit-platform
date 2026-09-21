@@ -1216,6 +1216,9 @@ export default async function ProjectWorkspacePage({
           rate: block?.start_at && block?.end_at && item.role === "OPERATOR"
             ? resolveOfficialOperatorRate(staffRates ?? [], Math.round((new Date(block.end_at).getTime() - new Date(block.start_at).getTime()) / 60000)).amount
             : null,
+          projectedCost: block?.start_at && block?.end_at && item.role === "OPERATOR"
+            ? (() => { const rate = resolveOfficialOperatorRate(staffRates ?? [], Math.round((new Date(block.end_at).getTime() - new Date(block.start_at).getTime()) / 60000)).amount; return rate == null ? null : rate * Number(item.required_quantity); })()
+            : null,
         };
       }),
       roleCosts: Object.fromEntries(["OPERATOR", "ASSEMBLY", "DISASSEMBLY"].map((role) => [role,

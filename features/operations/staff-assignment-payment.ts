@@ -1,5 +1,11 @@
 export type OfficialStaffRate = { code: string; amount: number | string };
 
+export function formatOperationalBlockDuration(minutes: number | null | undefined) {
+  if (!Number.isInteger(minutes) || Number(minutes) <= 0) return null;
+  const value = Number(minutes);
+  return `${Math.floor(value / 60)}h${String(value % 60).padStart(2, "0")}`;
+}
+
 export function officialStaffRateCodeForMinutes(minutes: number) {
   if (!Number.isInteger(minutes) || minutes < 120 || minutes > 600 || minutes % 60 !== 0) return null;
   return `OPERATOR_${minutes / 60}_HOURS`;

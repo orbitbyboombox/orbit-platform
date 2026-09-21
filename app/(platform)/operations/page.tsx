@@ -13,7 +13,7 @@ import {
   FounderWorkspaceExperience,
 } from "@/features/founder-workspace";
 import { StaffOperationsView } from "@/features/resources/staff-operations-view";
-import { officialStaffAssignmentPayment } from "@/features/operations/staff-assignment-payment";
+import { formatOperationalBlockDuration, officialStaffAssignmentPayment, resolveOfficialOperatorRate } from "@/features/operations/staff-assignment-payment";
 import { isInsideOperationalWindow } from "@/features/operations/operational-window";
 import { loadFounderActionCenter } from "@/features/founder-action-center";
 import { loadCommunicationHubProjection } from "@/features/communication-hub";
@@ -35,6 +35,7 @@ type PlanningEvent = {
   customer: string;
   service: string;
   hours: number;
+  blockDurationLabel?: string;
   address: string;
   district: string;
   venue: string;
@@ -95,6 +96,7 @@ export default async function OperationsPage() {
     publicationsResult,
     staffRequestsResult,
     staffRatesResult,
+    operationalBlocksResult,
     operationalContractsResult,
     resourceRequirementsResult,
     cancellationAlertsResult,
@@ -104,7 +106,7 @@ export default async function OperationsPage() {
     client
       .from("assignments")
       .select(
-        "id,project_id,staff_id,assignment_type,status,resources,staff(first_name,last_name)",
+        "id,project_id,block_id,staff_id,assignment_type,status,resources,staff(first_name,last_name)",
       )
       .is("deleted_at", null),
     client
@@ -182,7 +184,7 @@ export default async function OperationsPage() {
     client
       .from("staff_assignment_requests")
       .select(
-        "id,project_id,responsibility,requested_at,staff(first_name,last_name),projects(name,event_date,project_services(service_code,duration_hours),customers(full_name))",
+        "id,project_id,block_id,responsibility,requested_at,staff(first_name,last_name),projects(name,event_date,project_services(service_code,duration_hours),customers(full_name))",
       )
       .eq("status", "PENDING")
       .order("requested_at", { ascending: true }),
@@ -191,6 +193,9 @@ export default async function OperationsPage() {
       .select("code,amount")
       .eq("enabled", true)
       .is("deleted_at", null),
+    client
+      .from("event_operational_blocks")
+      .select("project_id,id,name,start_at,end_at"),
     client
       .from("project_operational_contracts")
       .select("project_id,operational_status,readiness_status,readiness_reasons"),
@@ -1151,6 +1156,13 @@ export default async function OperationsPage() {
           !["CANCELLED", "REJECTED"].includes(item.status),
       );
       const hours = Number(services[0]?.duration_hours ?? 0);
+      const eventBlocks = (operationalBlocksResult.data ?? []).filter((block) => block.project_id === project.id);
+      const blockDurations = eventBlocks
+        .map((block) => Math.round((new Date(block.end_at).getTime() - new Date(block.start_at).getTime()) / 60000))
+        .filter((minutes) => minutes > 0);
+      const blockDurationLabel = blockDurations.length
+        ? [...new Set(blockDurations.map((minutes) => formatOperationalBlockDuration(minutes)).filter(Boolean))].join(" · ")
+        : undefined;
       const findRole = (
         code: "OPERATOR" | "ASSEMBLY" | "DISASSEMBLY",
         label: string,
@@ -1203,6 +1215,7 @@ export default async function OperationsPage() {
           official?.project_type ||
           "Servicio BOOMBOX",
         hours,
+        blockDurationLabel,
         address: String(operations.eventAddress ?? official?.location ?? ""),
         district: official?.city ?? "",
         venue: String(
@@ -1276,6 +1289,9 @@ export default async function OperationsPage() {
     const officialProject = officialEventMap.get(row.project_id);
     const operations = (officialProject?.operations ?? {}) as Record<string, unknown>;
     const hours = Number(services[0]?.duration_hours ?? 0);
+    const requestBlock = row.block_id ? (operationalBlocksResult.data ?? []).find((block) => block.id === row.block_id) : null;
+    const requestMinutes = requestBlock ? Math.round((new Date(requestBlock.end_at).getTime() - new Date(requestBlock.start_at).getTime()) / 60000) : hours * 60;
+    const requestOperatorRate = row.responsibility === "OPERATOR" ? resolveOfficialOperatorRate(staffRatesResult.data ?? [], requestMinutes).amount : null;
     return {
       id: row.id,
       projectId: row.project_id,
@@ -1284,12 +1300,9 @@ export default async function OperationsPage() {
         : "Staff",
       event: customer?.full_name ?? project?.name ?? "Evento",
       role: row.responsibility,
-      estimatedPayment: officialStaffAssignmentPayment(
-        staffRatesResult.data ?? [],
-        hours,
-        row.responsibility,
-        Number(operations.transportationBonus ?? operations.staffTransportBonus ?? 0),
-      ),
+      estimatedPayment: row.responsibility === "OPERATOR" && requestOperatorRate != null
+        ? Number(requestOperatorRate) + Number(operations.transportationBonus ?? operations.staffTransportBonus ?? 0)
+        : officialStaffAssignmentPayment(staffRatesResult.data ?? [], hours, row.responsibility, Number(operations.transportationBonus ?? operations.staffTransportBonus ?? 0)),
     };
   });
   const publicationConsole = (
@@ -1298,7 +1311,7 @@ export default async function OperationsPage() {
         id: event.id,
         date: event.date,
         customer: event.customer,
-        service: `${event.service} · ${event.hours} horas`,
+        service: `${event.service} · ${event.blockDurationLabel ? `bloques ${event.blockDurationLabel}` : `${event.hours} horas`}`,
         published: event.published,
         readinessPending: event.readinessPending,
         resourcesRequired:event.resourcesRequired,
@@ -1398,10 +1411,10 @@ export default async function OperationsPage() {
     (event) => ({
       id: event.id,
       title: event.customer,
-      detail: `${event.service} · ${event.hours} horas`,
+      detail: `${event.service} · ${event.blockDurationLabel ? `bloques ${event.blockDurationLabel}` : `${event.hours} horas`}`,
       href: `/projects/${event.id}`,
       date: event.date,
-      service: `${event.service} · ${event.hours} horas`,
+      service: `${event.service} · ${event.blockDurationLabel ? `bloques ${event.blockDurationLabel}` : `${event.hours} horas`}`,
       location: [event.venue, event.district].filter(Boolean).join(" · "),
       staff:
         [

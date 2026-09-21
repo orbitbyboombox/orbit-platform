@@ -2,13 +2,14 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { officialStaffRateCodeForMinutes, resolveOfficialOperatorRate } from "../features/operations/staff-assignment-payment.ts";
+import { formatOperationalBlockDuration, officialStaffRateCodeForMinutes, resolveOfficialOperatorRate } from "../features/operations/staff-assignment-payment.ts";
 
 const root = join(process.cwd());
 const migration = readFileSync(join(root, "supabase/migrations/20260922113000_staff_block_assignment_rates.sql"), "utf8");
 const officialRateMigration = readFileSync(join(root, "supabase/migrations/20260922121000_official_operator_rate_table.sql"), "utf8");
 const scopeMigration = readFileSync(join(root, "supabase/migrations/20260922114000_staff_block_payment_scope.sql"), "utf8");
 const ui = readFileSync(join(root, "features/staff-assignment-center/staff-assignment-center.tsx"), "utf8");
+const operationsUi = readFileSync(join(root, "app/(platform)/operations/page.tsx"), "utf8");
 
 const officialRates = [
   [2, 14000], [3, 19000], [4, 24000], [5, 27000], [6, 32000],
@@ -35,6 +36,15 @@ test("unknown duration fails closed to REVIEW_REQUIRED", () => {
   assert.match(migration, /REVIEW_REQUIRED/);
 });
 
+test("Fantasilandia block projection uses 270 minutes, not the legacy 2-hour fallback", () => {
+  assert.equal(formatOperationalBlockDuration(270), "4h30");
+  const unit = resolveOfficialOperatorRate(officialRates, 270).amount;
+  assert.equal(unit, 25500);
+  assert.equal(Number(unit) * 7, 178500);
+  assert.equal(Number(unit) * 7 * 2, 357000);
+  assert.notEqual(formatOperationalBlockDuration(270), "2h00");
+});
+
 test("official rate migration contains the Founder table and interpolation", () => {
   assert.match(officialRateMigration, /\(5,27000::numeric\)/);
   assert.match(officialRateMigration, /resolve_staff_operator_rate/);
@@ -59,6 +69,12 @@ test("Founder UI assigns explicitly inside each operational block", () => {
   assert.match(ui, /name="blockId"/);
   assert.match(ui, /Planificación por bloques/);
   assert.match(ui, /\{item\.assigned\}\/\{item\.required\}/);
+});
+
+test("operations UI uses block duration when blocks exist", () => {
+  assert.match(operationsUi, /blockDurationLabel/);
+  assert.match(operationsUi, /bloques \$\{event\.blockDurationLabel\}/);
+  assert.match(operationsUi, /resolveOfficialOperatorRate/);
 });
 
 test("legacy event-level assignments remain separate from block assignments", () => {

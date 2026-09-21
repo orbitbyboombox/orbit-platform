@@ -80,6 +80,7 @@ export interface CrmCustomerEventOperations {
     projectId: string;
     assignments: Array<{
       id: string;
+      blockId?: string | null;
       staffId: string;
       staffName: string;
       role: string;
@@ -94,6 +95,19 @@ export interface CrmCustomerEventOperations {
     staff: Array<{ id: string; name: string; role: string; capabilities: string[] }>;
     vehicles: Array<{ id: string; name: string }>;
     requirements?: Array<{ role: string; required: number; published: boolean }>;
+    blockRequirements?: Array<{
+      blockId: string;
+      role: string;
+      required: number;
+      assigned: number;
+      published: boolean;
+      blockName?: string;
+      startAt?: string;
+      endAt?: string;
+      durationMinutes?: number;
+      rate?: number | null;
+      projectedCost?: number | null;
+    }>;
   };
   agreement: { id: string; status: string; quotationId?: string } | null;
   documents: Array<{
