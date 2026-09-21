@@ -6,6 +6,7 @@ import {
   CommunicationHubEngine,
   SupabaseCommunicationTimelineRepository,
   type UnifiedConversation,
+  type CommunicationChannelDispatcher,
 } from "@/features/communication-hub";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { QueuedWhatsAppDispatcher } from "./queued-whatsapp.dispatcher";
@@ -15,6 +16,9 @@ import { BiancaAgentOrchestrator } from "./bianca-agent-orchestrator";
 import { whatsappAutomationEnabled } from "./meta-whatsapp-cloud";
 import { biancaCanProcessCustomerMessage, biancaQaModeEnabled } from "./bianca-policy";
 import { prepareBiancaOpportunityContext } from "./bianca-opportunity-context";
+import { biancaShadowModeEnabled, createBiancaShadowDecision, shadowConfidence } from "./bianca-shadow-mode.ts";
+import { persistBiancaShadowDecision } from "./bianca-shadow-persistence.ts";
+import { planBiancaTurn } from "./bianca-commercial-planner";
 import { logWhatsApp } from "./whatsapp-observability";
 import { serializeWhatsAppError } from "./whatsapp-observability";
 import { WHATSAPP_TENANT_SLUG } from "./whatsapp-tenant";
@@ -61,6 +65,12 @@ const MEMORY_FIELDS = new Set<CustomerMemoryField>([
   "portalStatus",
   "lastConversationDate",
 ]);
+
+class ShadowWhatsAppDispatcher implements CommunicationChannelDispatcher {
+  async dispatch() {
+    // Deliberately no-op. Shadow Mode must never enqueue an outbound message.
+  }
+}
 
 function memoryRecord(customerId: string, customerName: string, context: Record<string, unknown>): CustomerMemoryRecord {
   const confirmedFields = Array.isArray(context.confirmedFields)
@@ -377,15 +387,18 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
 
     // WhatsApp automation is never sufficient by itself. BIANCA customer
     // messaging is a separate, server-side, fail-closed gate.
+    const shadowMode = biancaShadowModeEnabled();
     const globalAutomationEnabled = whatsappAutomationEnabled() && biancaCanProcessCustomerMessage();
-    const initialAutomationEnabled = globalAutomationEnabled;
+    const initialAutomationEnabled = shadowMode || globalAutomationEnabled;
     const customer = await resolveCustomer(client, event);
     const conversationState = await resolveConversation(client, customer.id, event.sender_wa_id, event.occurred_at, initialAutomationEnabled);
     const qaAuthorized = biancaQaModeEnabled() && biancaCanProcessCustomerMessage(conversationState.id, event.sender_wa_id);
     const automationEnabled = qaAuthorized || globalAutomationEnabled;
     await persistInboundCommunication(client, event, conversationState.id, customer.id);
 
-    if (!automationEnabled) {
+    // Shadow Mode intentionally bypasses the legacy if (!automationEnabled)
+    // customer handoff branch while keeping that branch fail-closed normally.
+    if (!automationEnabled && !shadowMode) {
       const { error: stateError } = await client.from("conversation_states").update({
         status: "HUMAN_HANDOFF",
         nova_enabled: false,
@@ -420,9 +433,9 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
     const engine = new CommunicationHubEngine(
       aiResponder,
       new SupabaseCommunicationTimelineRepository(client),
-      new QueuedWhatsAppDispatcher(client, customer.id),
+      shadowMode ? new ShadowWhatsAppDispatcher() : new QueuedWhatsAppDispatcher(client, customer.id),
     );
-    const qaOverride = qaAuthorized;
+    const qaOverride = qaAuthorized || shadowMode;
     const current = currentConversation(conversationState, customer.full_name, event.occurred_at, qaOverride);
     const result = await engine.receive(
       {
@@ -439,6 +452,50 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
     );
 
     const decision = aiResponder.lastDecision;
+    if (shadowMode && decision) {
+      const plan = planBiancaTurn({
+        text: event.text_body,
+        known: {
+          preferredName: activeMemory.customerName,
+          eventType: activeMemory.eventType,
+          eventDate: activeMemory.eventDate,
+          commune: activeMemory.eventLocation,
+          serviceCodes: activeMemory.selectedServices ?? (activeMemory.selectedService ? [activeMemory.selectedService] : []),
+          priceResolved: Boolean(activeMemory.quotationStatus),
+        },
+      });
+      const actualResponse = [...history].reverse().find((item) => item.direction === "OUTBOUND")?.body ?? null;
+      const shadowDecision = createBiancaShadowDecision({
+        conversationId: conversationState.id,
+        customerId: customer.id,
+        clientMessage: event.text_body,
+        actualResponse,
+        detectedIntents: plan.intents,
+        intent: plan.intent,
+        plan,
+        proposedResponse: decision.responseText,
+        confidence: shadowConfidence(decision),
+        proposedTools: [decision.requestedAction, ...(decision.catalogCategory !== "NONE" ? [`CATALOG_${decision.catalogCategory}`] : [])],
+        handoffReason: decision.requestedAction === "HUMAN_HANDOFF" || decision.requestedAction === "MANUAL_REVIEW" ? decision.requestedAction : null,
+        recordedAt: event.occurred_at,
+      });
+      await persistBiancaShadowDecision({ client, providerMessageId: event.provider_message_id, webhookEventId: event.id, decision: shadowDecision });
+      const { error: shadowStateError } = await client.from("conversation_states").update({
+        context: { ...conversationState.context, shadowLastDecision: { status: "SHADOW_PROPOSED", proposedAction: shadowDecision.proposedAction, detectedIntents: shadowDecision.detectedIntents, confidence: shadowDecision.confidence, updatedAt: event.occurred_at } },
+        updated_at: new Date().toISOString(),
+      }).eq("tenant_slug", WHATSAPP_TENANT_SLUG).eq("id", conversationState.id);
+      if (shadowStateError) throw shadowStateError;
+      const { error: shadowFinishError } = await client.from("whatsapp_webhook_events").update({
+        processing_status: "PROCESSED",
+        customer_id: customer.id,
+        conversation_id: conversationState.id,
+        processing_error: null,
+        updated_at: new Date().toISOString(),
+      }).eq("tenant_slug", WHATSAPP_TENANT_SLUG).eq("id", event.id);
+      if (shadowFinishError) throw shadowFinishError;
+      logWhatsApp("info", "whatsapp_shadow_decision_recorded", providerMessageId, { conversationId: conversationState.id, customerId: customer.id, proposedAction: shadowDecision.proposedAction, status: shadowDecision.status });
+      return { ok: true as const, shadow: true as const, suppressed: true as const, customerId: customer.id, conversationId: conversationState.id, finalStatus: "SHADOW_PROPOSED" as const };
+    }
     if (!result.suppressed && decision)
       await persistAiDecision(client, customer.id, conversationState, opportunity.context, decision, event.occurred_at);
 
