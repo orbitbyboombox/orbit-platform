@@ -20,7 +20,7 @@ export interface AutomaticBookingSubmission {
   customer: { name: string; rut: string; phone: string; email: string; address: string };
   event: { type: string; date: string; time: string; venue: string; address: string; municipality: string; specialVenue?: string; operationalContact: string; operationalPhone: string; shell?: "WHITE" | "BLACK" };
   service: { code: string; hours: number; extras: string[]; brandingQuantity: number; additionalCodes?: string[] };
-  payment: { method: "TRANSFER" | "MERCADO_PAGO"; receiptName: string; receiptType: string; receiptBase64: string };
+  payment: { method: "TRANSFER" | "MERCADO_PAGO"; receiptName: string; receiptType: string; receiptBase64: string; providerPaymentId?: string; externalReference?: string };
   signatureDataUrl: string;
 }
 
@@ -118,7 +118,7 @@ function friendlyConfirmationMessage(module: string, code?: string) {
   return messages[module] ?? "No fue posible registrar la reserva. Tus datos continúan disponibles para volver a intentarlo.";
 }
 
-export async function completeAutomaticBooking(input: { token: string; submission: AutomaticBookingSubmission; ipAddress: string; userAgent: string }) {
+export async function completeAutomaticBooking(input: { token: string; tokenHashOverride?: string; submission: AutomaticBookingSubmission; ipAddress: string; userAgent: string }) {
   const admin = createAdminClient();
   const requestId = randomUUID();
   const confirmationStartedAt = performance.now();
@@ -131,7 +131,7 @@ export async function completeAutomaticBooking(input: { token: string; submissio
   const now = new Date().toISOString();
   const submittedEmail = input.submission?.customer?.email;
   if (typeof submittedEmail !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(submittedEmail)) throw new Error("La información enviada no es válida.");
-  const tokenHash = automaticBookingTokenHash(input.token);
+  const tokenHash = input.tokenHashOverride ?? automaticBookingTokenHash(input.token);
   const { data: currentInvitation } = await admin.from("automatic_booking_invitations").select("id,status,state,project_id,processing_at,consumed_at,payload,expires_at,created_by,customer_email").eq("token_hash", tokenHash).eq("customer_email", submittedEmail.trim().toLowerCase()).maybeSingle() as { data: BookingInvitationRow | null };
   if (currentInvitation?.status === "COMPLETED" && currentInvitation.state === "CONFIRMED" && currentInvitation.project_id) {
     return replayConfirmedBooking(admin, currentInvitation.project_id);
@@ -159,13 +159,13 @@ export async function completeAutomaticBooking(input: { token: string; submissio
   let reservationId = invitation.project_id ?? invitation.id;
   const smokeMode = isAutomaticBookingSmokeMode(invitation.payload);
   try {
-    validate(input.submission);
+    validateAutomaticBookingSubmission(input.submission);
     const normalizedWindow = normalizeEventWindow({ eventDate: input.submission.event.date, serviceStart: input.submission.event.time, durationHours: input.submission.service.hours });
     const actorId = invitation.created_by;
     const normalizedRut = input.submission.customer.rut.replace(/[^0-9K]/gi, "").toUpperCase();
     const [{ data: customerCandidates, error: customerLookupError }, pricing] = await measured("validation_and_pricing", () => Promise.all([
       admin.from("customers").select("id,rut").is("deleted_at", null),
-      calculatePricing(admin, input.submission),
+      calculateAutomaticBookingPricing(admin, input.submission),
     ]));
     if (customerLookupError) throw customerLookupError;
     const existingCustomer = (customerCandidates ?? []).find((customer) => String(customer.rut ?? "").replace(/[^0-9K]/gi, "").toUpperCase() === normalizedRut);
@@ -177,8 +177,8 @@ export async function completeAutomaticBooking(input: { token: string; submissio
     reservationId = projectId;
     const orbitEventId = existingProject?.orbit_event_id ?? generateOrbitEventId(input.submission.event.date, (Number.parseInt(projectId.replaceAll("-", "").slice(-8), 16) % 999999) + 1);
     currentModule = "FINANCE";
-    const receiptBytes = Uint8Array.from(Buffer.from(input.submission.payment.receiptBase64, "base64"));
-    if (receiptBytes.length < 20 || receiptBytes.length > 10_000_000) throw new Error("El comprobante no tiene un tamaño válido.");
+    const receiptBytes = Uint8Array.from(Buffer.from(input.submission.payment.receiptBase64 ?? "", "base64"));
+    if (input.submission.payment.method === "TRANSFER" && (receiptBytes.length < 20 || receiptBytes.length > 10_000_000)) throw new Error("El comprobante no tiene un tamaño válido.");
 
     const customerValues = { full_name: input.submission.customer.name.trim(), email: invitation.customer_email, phone: input.submission.customer.phone, rut: input.submission.customer.rut, city: input.submission.event.municipality, metadata: { address: input.submission.customer.address }, updated_by: actorId };
     currentModule = "CUSTOMER";
@@ -254,10 +254,12 @@ export async function completeAutomaticBooking(input: { token: string; submissio
     await admin.from("automatic_booking_invitations").update({ payload: { ...(invitation.payload ?? {}), projectId, state: "CONFIRMING", requestId } }).eq("id", invitation.id);
 
     currentModule = "PAYMENT_RECEIPT";
-    const receiptChecksum = automaticBookingTokenHash(input.submission.payment.receiptBase64);
-    const existingReceipt = (await admin.from("documents").select("id,storage_path").eq("project_id", projectId).eq("document_type", "PAYMENT_RECEIPT").eq("checksum", receiptChecksum).is("deleted_at", null).maybeSingle()).data;
+    const receiptChecksum = automaticBookingTokenHash(input.submission.payment.receiptBase64 ?? "");
+    const existingReceipt = input.submission.payment.method === "TRANSFER"
+      ? (await admin.from("documents").select("id,storage_path").eq("project_id", projectId).eq("document_type", "PAYMENT_RECEIPT").eq("checksum", receiptChecksum).is("deleted_at", null).maybeSingle()).data
+      : null;
     let receiptDocument = existingReceipt;
-    if (!receiptDocument) {
+    if (input.submission.payment.method === "TRANSFER" && !receiptDocument) {
       const receiptPath = smokeMode ? smokeSinkId("receipt", `${projectId}/${receiptChecksum}`) : `${projectId}/${receiptChecksum}-${input.submission.payment.receiptName.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
       if (!smokeMode) {
         const receiptStorage = await measured("payment_receipt_storage", () => admin.storage.from("orbit-documents").upload(receiptPath, receiptBytes, { contentType: input.submission.payment.receiptType, upsert: true }));
@@ -269,26 +271,28 @@ export async function completeAutomaticBooking(input: { token: string; submissio
     }
 
     currentModule = "PAYMENT_LEDGER";
-    const { error: paymentError } = await admin.rpc("register_automatic_booking_deposit", {
-      p_project_id: projectId,
-      p_receipt_document_id: receiptDocument.id,
-      p_actor_id: actorId,
-      p_method: input.submission.payment.method,
-    });
+    const paymentError = input.submission.payment.method === "TRANSFER"
+      ? (await admin.rpc("register_automatic_booking_deposit", { p_project_id: projectId, p_receipt_document_id: receiptDocument?.id, p_actor_id: actorId, p_method: input.submission.payment.method })).error
+      : (await admin.rpc("register_automatic_booking_mercado_pago_deposit", { p_project_id: projectId, p_actor_id: actorId, p_provider_payment_id: input.submission.payment.providerPaymentId ?? "", p_external_reference: input.submission.payment.externalReference ?? "", p_method: "MERCADO_PAGO" })).error;
     if (paymentError) throw paymentError;
 
     currentModule = "GOOGLE_DRIVE";
     try {
-      if (smokeMode) {
+      if (input.submission.payment.method !== "TRANSFER") {
+        // Mercado Pago has no receipt document; provider evidence is stored in
+        // the payment ledger by the canonical RPC above.
+      } else if (smokeMode) {
+        if (!receiptDocument) throw new Error("Comprobante no disponible.");
         console.info(JSON.stringify({ level: "info", event: "automatic_booking.smoke_sink", sink: "drive", projectId, documentId: receiptDocument.id }));
       } else {
       const uploadedReceipt = await measured("payment_receipt_drive", () => uploadReservationDocumentToDrive({ client: admin, projectId, customerName: input.submission.customer.name, eventDate: input.submission.event.date, kind: "PAYMENT_PROOF", name: input.submission.payment.receiptName, mimeType: input.submission.payment.receiptType, bytes: receiptBytes }));
-      const { error: receiptDriveLinkError } = await admin.from("documents").update({ drive_file_id: uploadedReceipt.id, drive_sync_status: "SYNCED", drive_sync_error: null, drive_synced_at: new Date().toISOString() }).eq("id", receiptDocument.id);
+      const { error: receiptDriveLinkError } = await admin.from("documents").update({ drive_file_id: uploadedReceipt.id, drive_sync_status: "SYNCED", drive_sync_error: null, drive_synced_at: new Date().toISOString() }).eq("id", receiptDocument?.id);
       if (receiptDriveLinkError) throw receiptDriveLinkError;
       }
     } catch (driveError) {
       const message = serializeWhatsAppError(driveError);
-      await admin.from("documents").update({ drive_sync_status: "FAILED", drive_sync_error: message }).eq("id", receiptDocument.id);
+      if (receiptDocument?.id) await admin.from("documents").update({ drive_sync_status: "FAILED", drive_sync_error: message }).eq("id", receiptDocument.id);
+      if (!receiptDocument?.id) throw driveError;
       await admin.from("internal_notifications").upsert({ project_id: projectId, customer_id: customerId, notification_type: "AUTOMATIC_BOOKING_RECEIPT_DRIVE_FAILED", title: "Comprobante pendiente de archivar en Drive", message: "El abono quedó registrado correctamente. Reintenta solamente el archivo del comprobante en Drive.", status: "UNREAD", correlation_id: `automatic-booking-receipt-drive:${projectId}`, category: "SYSTEM", priority: "HIGH", action_required: true, entity_type: "Document", entity_id: receiptDocument.id, related_href: `/projects/${projectId}`, metadata: { documentId: receiptDocument.id, error: message } }, { onConflict: "correlation_id" });
       console.error(JSON.stringify({ level: "error", event: "automatic_booking.receipt_drive_failed", projectId, documentId: receiptDocument.id, error: message, timestamp: new Date().toISOString() }));
     }
@@ -327,14 +331,14 @@ export async function completeAutomaticBooking(input: { token: string; submissio
   }
 }
 
-function validate(input: AutomaticBookingSubmission) {
+export function validateAutomaticBookingSubmission(input: AutomaticBookingSubmission) {
   if (!input.customer.name.trim() || !isValidChileanRut(input.customer.rut) || !/^\+569\d{8}$/.test(input.customer.phone)) throw new Error("Revisa tus datos personales.");
   if (!input.event.type || !input.event.date || !input.event.time || !input.event.venue || !input.event.municipality) throw new Error("Revisa la información del evento.");
   if (!input.service.code || input.service.hours < 1 || (input.service.additionalCodes ?? []).some((code) => !code || code === input.service.code) || !input.signatureDataUrl.startsWith("data:image/png;base64,")) throw new Error("Revisa los servicios y la firma.");
-  if (!input.payment.receiptBase64 || !["image/jpeg", "image/png", "image/webp", "application/pdf"].includes(input.payment.receiptType)) throw new Error("Adjunta un comprobante válido.");
+  if (input.payment.method === "TRANSFER" && (!input.payment.receiptBase64 || !["image/jpeg", "image/png", "image/webp", "application/pdf"].includes(input.payment.receiptType))) throw new Error("Adjunta un comprobante válido.");
 }
 
-async function calculatePricing(admin: ReturnType<typeof createAdminClient>, input: AutomaticBookingSubmission) {
+export async function calculateAutomaticBookingPricing(admin: ReturnType<typeof createAdminClient>, input: AutomaticBookingSubmission) {
   const serviceCodes = requestedServiceCodes(input);
   const [pricesResult, serviceResult, venuesResult, municipalities] = await Promise.all([
     admin.from("commercial_prices").select("category,code,duration_hours,destination,unit_price,rules").eq("enabled", true).is("deleted_at", null),
@@ -363,6 +367,11 @@ async function calculatePricing(admin: ReturnType<typeof createAdminClient>, inp
   const venueSurcharge = Number(venue?.surcharge ?? 0);
   const serviceTotal = serviceLines.reduce((sum, line) => sum + line.amount, 0);
   const subtotal = serviceTotal + extras + transport + venueSurcharge;
-  const total = Math.round(subtotal * (input.payment.method === "MERCADO_PAGO" ? 1.05 : 1));
-  return { service: serviceTotal, serviceLines, extras, transport, venueSurcharge, subtotal, paymentCommission: total - subtotal, total };
+  // The commercial total remains the canonical ORBIT amount. Mercado Pago's
+  // customer-facing fee is calculated only on the payable amount by the
+  // Checkout Pro intent, never folded into revenue or the deposit rule.
+  const total = subtotal;
+  const reservation = Math.round(total / 2);
+  const paymentCommission = input.payment.method === "MERCADO_PAGO" ? Math.round(reservation * 0.05) : 0;
+  return { service: serviceTotal, serviceLines, extras, transport, venueSurcharge, subtotal, paymentCommission, total, reservation };
 }
