@@ -256,5 +256,24 @@ export async function loadFounderActionCenter(userId: string) {
 }
 
 export async function loadFounderActionCount(userId: string) {
-  return (await loadFounderActionCenter(userId)).count;
+  // The shell only needs a badge count. Do not reconcile and materialize the
+  // complete Founder action center on every internal navigation; that work is
+  // reserved for the notifications view itself.
+  void userId;
+  const admin = createAdminClient();
+  const [{ count: notificationCount, error: notificationError }, { count: overdueCount, error: overdueError }] = await Promise.all([
+    admin
+      .from("internal_notifications")
+      .select("id", { count: "exact", head: true })
+      .eq("action_required", true)
+      .neq("status", "RESOLVED"),
+    admin
+      .from("accounts_receivable_projection")
+      .select("id", { count: "exact", head: true })
+      .gt("outstanding_balance", 0)
+      .lt("days_remaining", 0)
+      .not("effective_status", "in", "(PAID,CANCELLED,ARCHIVED)"),
+  ]);
+  if (notificationError || overdueError) throw notificationError ?? overdueError;
+  return (notificationCount ?? 0) + (overdueCount ?? 0);
 }
