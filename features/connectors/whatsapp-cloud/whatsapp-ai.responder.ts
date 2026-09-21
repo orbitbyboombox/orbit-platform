@@ -14,6 +14,7 @@ import { selectBiancaCommercialKnowledge } from "./bianca-commercial-knowledge";
 import { isNewBiancaCommercialOpportunity } from "./bianca-opportunity-context";
 import { planBiancaTurn } from "./bianca-commercial-planner";
 import { biancaFastPath } from "./bianca-fast-path.ts";
+import { eventTypeCatalogCategory } from "./bianca-sales-onboarding.ts";
 
 const INTENTS = [
   "CONSULTA_GENERAL",
@@ -339,6 +340,23 @@ export function firstContactNameResponse(messageText: string) {
   return variants[messageText.trim().length % variants.length];
 }
 
+function confirmedNameForTurn(input: NovaChannelInput, leadContext?: ReturnType<typeof normalizeBiancaWebLeadContext>) {
+  return input.memory.customerName?.trim() || leadContext?.name?.trim() || undefined;
+}
+
+function confirmedEventTypeForTurn(input: NovaChannelInput, decision: WhatsAppAiDecision, leadContext?: ReturnType<typeof normalizeBiancaWebLeadContext>) {
+  const field = [...decision.fields].reverse().find((item) => item.field === "eventType" && typeof item.value === "string" && item.confidence === "CONFIRMED");
+  const explicitText = input.message.text.toLocaleLowerCase("es-CL");
+  const textEventType = /\bmatrimonio|boda|novios?\b/.test(explicitText)
+    ? "Matrimonio"
+    : /\bcumple(?:a[nñ]os)?\b/.test(explicitText)
+      ? "Cumpleaños"
+      : /\b(?:evento\s+de\s+)?empresa|corporativ[oa]\b/.test(explicitText)
+        ? "Empresa"
+        : undefined;
+  return (typeof field?.value === "string" ? field.value : undefined) || textEventType || input.memory.eventType?.trim() || leadContext?.eventType?.trim() || undefined;
+}
+
 function statusFromDecision(decision: WhatsAppAiDecision): NovaChannelOutput["conversationStatus"] {
   if (decision.requestedAction === "HUMAN_HANDOFF") return "HUMAN_HANDOFF";
   if (decision.waitForMoreData || decision.requestedAction === "WAIT_FOR_CUSTOMER") return "WAITING_CUSTOMER";
@@ -497,6 +515,11 @@ export class WhatsAppAiResponder implements NovaResponder {
           decision.fields.push({ field, value, confidence: "CONFIRMED", correction: false });
         }
       }
+      const preferredNameConfirmed = Boolean(confirmedNameForTurn(input, leadContext));
+      const currentEventType = confirmedEventTypeForTurn(input, decision, leadContext);
+      const eventTypeJustCaptured = Boolean(currentEventType && !input.memory.eventType && !leadContext?.eventType && (decision.fields.some((field) => field.field === "eventType" && field.confidence === "CONFIRMED") || /\bmatrimonio|boda|novios?|cumple(?:a[nñ]os)?|evento\s+de\s+empresa|corporativ[oa]\b/i.test(input.message.text)));
+      const availabilityTurn = decision.intents.includes("DISPONIBILIDAD") || /\b(?:disponib|fecha)\b/i.test(input.message.text);
+      const catalogTurn = decision.requestedAction === "CATALOG_LOOKUP" || directCatalogRequest;
       if (identityTurn) {
         decision.responseText = identityResponse(selfIntroducedName);
         decision.waitForMoreData = true;
@@ -504,15 +527,24 @@ export class WhatsAppAiResponder implements NovaResponder {
         decision.commercialStage = "QUALIFYING";
         decision.intents = [...new Set([...decision.intents.filter((intent) => intent !== "HABLAR_CON_PERSONA"), "CONSULTA_GENERAL" as const])];
       }
-      const confirmedName = decision.fields.some((field) => field.field === "name" && field.confidence === "CONFIRMED" && typeof field.value === "string" && field.value.trim());
-      const preferredNameConfirmed = typeof input.memory.customerName === "string" && input.memory.customerName.trim().length > 0;
       const webLeadNameConfirmed = input.source === "WEB_FORM_LEAD" && Boolean(leadContext?.name);
-      const firstContactNeedsName = input.source !== "WEB_FORM_LEAD" && isNewBiancaCommercialOpportunity(input.message.text) && !directCatalogRequest && !preferredNameConfirmed && !confirmedName && !webLeadNameConfirmed;
+      const firstContactNeedsName = input.source !== "WEB_FORM_LEAD"
+        && !preferredNameConfirmed
+        && !webLeadNameConfirmed
+        && !availabilityTurn
+        && (isNewBiancaCommercialOpportunity(input.message.text) || eventTypeJustCaptured || catalogTurn);
       if (firstContactNeedsName) {
         decision.responseText = firstContactNameResponse(input.message.text);
         decision.waitForMoreData = true;
         decision.requestedAction = "WAIT_FOR_CUSTOMER";
         decision.commercialStage = "NEW_LEAD";
+      }
+      const nameJustConfirmed = Boolean(selfIntroducedName && currentEventType && !availabilityTurn && !identityTurn);
+      if (nameJustConfirmed && !firstContactNeedsName) {
+        decision.requestedAction = "CATALOG_LOOKUP";
+        decision.catalogCategory = eventTypeCatalogCategory(currentEventType);
+        decision.waitForMoreData = false;
+        decision.commercialStage = "QUALIFYING";
       }
       if (isEmptyBiancaAcknowledgement(input.message.text) && !identityTurn && !selfIntroducedName) {
         decision.responseText = "";

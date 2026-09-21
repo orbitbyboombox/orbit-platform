@@ -11,6 +11,7 @@ import {
 import { createAdminClient } from "@/lib/supabase/admin";
 import { QueuedWhatsAppDispatcher } from "./queued-whatsapp.dispatcher";
 import { WhatsAppAiResponder, type WhatsAppAiDecision, type WhatsAppConversationHistoryItem } from "./whatsapp-ai.responder";
+import { catalogAssistanceResponse } from "./bianca-sales-onboarding.ts";
 import type { WhatsAppCatalogDeliveryResult } from "./whatsapp-catalog.delivery";
 import { BiancaAgentOrchestrator } from "./bianca-agent-orchestrator";
 import { whatsappAutomationEnabled } from "./meta-whatsapp-cloud";
@@ -588,8 +589,13 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
           commune: activeMemory.eventLocation,
         },
       });
+      const decisionField = (fieldName: string) => [...decision.fields].reverse().find((field) => field.field === fieldName && typeof field.value === "string" && field.confidence === "CONFIRMED")?.value;
+      const nameField = decisionField("name");
+      const eventTypeField = decisionField("eventType");
+      const catalogName = typeof nameField === "string" ? nameField : activeMemory.customerName;
+      const catalogEventType = typeof eventTypeField === "string" ? eventTypeField : activeMemory.eventType;
       const finalSafeReply = evidence.kind === "CANONICAL_CATALOG" && evidence.sourceRef
-        ? `Sí 😊 Te dejo nuestro catálogo: ${evidence.sourceRef}`
+        ? catalogAssistanceResponse({ name: catalogName, eventType: catalogEventType, sourceRef: evidence.sourceRef })
         : result.nova.response;
       const semanticConfidence = safeReplyConfidence({ decision, messageText: event.text_body, evidence });
       await updateBiancaLiveRuntimeCertification({ client, providerMessageId: event.provider_message_id, patch: { evidence_done_at: new Date().toISOString(), confidence: semanticConfidence } });
@@ -653,7 +659,7 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
       const { error: safeStateError } = await client.from("conversation_states").update({
         status: safeFinalStatus,
         nova_enabled: !evaluation.handoffRequired,
-        context: { ...conversationState.context, biancaTurnState: turnState, responseContract: contract, safeReply: { status: evaluation.allowed ? "SENT" : "BLOCKED", guardDecisions: evaluation.guardDecisions, updatedAt: event.occurred_at } },
+        context: { ...conversationState.context, biancaTurnState: turnState, ...(evaluation.allowed && decision.requestedAction === "CATALOG_LOOKUP" ? { catalogConversationState: "CATALOG_SHARED_AWAITING_GUIDANCE" } : {}), responseContract: contract, safeReply: { status: evaluation.allowed ? "SENT" : "BLOCKED", guardDecisions: evaluation.guardDecisions, updatedAt: event.occurred_at } },
         updated_at: new Date().toISOString(),
       }).eq("tenant_slug", WHATSAPP_TENANT_SLUG).eq("id", conversationState.id);
       if (safeStateError) throw safeStateError;
