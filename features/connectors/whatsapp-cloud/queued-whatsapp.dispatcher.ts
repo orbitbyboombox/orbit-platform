@@ -28,6 +28,7 @@ export class QueuedWhatsAppDispatcher implements CommunicationChannelDispatcher 
         text_body: request.content,
         service_window_expires_at: request.serviceWindowExpiresAt ?? null,
         status: "PENDING",
+        last_inbound_at: request.inboundOccurredAt ?? null,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "correlation_id", ignoreDuplicates: true },

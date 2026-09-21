@@ -63,3 +63,17 @@ test("disabled WhatsApp delivery is explicitly observable", async () => {
   assert.match(sender, /whatsapp_delivery_disabled/);
   assert.match(sender, /WHATSAPP_DELIVERY_ENABLED=false/);
 });
+
+test("WhatsApp live path emits stage latency observability", async () => {
+  const [processor, sender] = await Promise.all([
+    readFile(processorUrl, "utf8"),
+    readFile(outboxUrl, "utf8"),
+  ]);
+  assert.match(processor, /bianca_ai_decision/);
+  assert.match(processor, /bianca_evidence_resolved/);
+  assert.match(processor, /whatsapp_outbox_created/);
+  assert.match(sender, /whatsapp_meta_send_sent/);
+  assert.match(sender, /inboundToSendLatencyMs/);
+  assert.match(sender, /whatsapp_meta_status_\$\{event\.status\}/);
+  assert.match(sender, /inboundToStatusLatencyMs/);
+});

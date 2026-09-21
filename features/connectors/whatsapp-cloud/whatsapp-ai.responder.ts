@@ -441,8 +441,9 @@ export class WhatsAppAiResponder implements NovaResponder {
       const selfIntroducedName = extractSelfIntroducedName(input.message.text);
       const identityTurn = isIdentityQuestion(input.message.text) && !isFounderRequest(input.message.text);
       const directCatalogRequest = /\b(?:cat[aá]logo|planes|folleto|opciones)\b/i.test(input.message.text);
-      const genericServicesRequest = /\b(?:qu[eé]|que)\s+(?:servicios?|opciones?)\s+(?:tienen|ofrecen|hay|manejan)\b/i.test(input.message.text)
-        || /\bservicios?\s+(?:tienen|ofrecen|hay|manejan)\b/i.test(input.message.text);
+      const genericServicesRequest = ( /\b(?:qu[eé]|que)\s+(?:servicios?|opciones?)\s+(?:tienen|ofrecen|hay|manejan)\b/i.test(input.message.text)
+        || /\bservicios?\s+(?:tienen|ofrecen|hay|manejan)\b/i.test(input.message.text) )
+        && !/\b(?:precio|valor|cu[aá]nto|cotiz|reserv|descuento)\b/i.test(input.message.text);
       const planner = planBiancaTurn({
         text: input.message.text,
         known: {
@@ -505,7 +506,14 @@ export class WhatsAppAiResponder implements NovaResponder {
       if (planner.nextBestAction === "HANDOFF") {
         decision.requestedAction = "HUMAN_HANDOFF";
         decision.commercialStage = "HUMAN_REQUIRED";
-      } else if ((directCatalogRequest || genericServicesRequest) && decision.requestedAction !== "HUMAN_HANDOFF") {
+      } else if (genericServicesRequest && decision.requestedAction !== "HUMAN_HANDOFF") {
+        decision.requestedAction = "NONE";
+        decision.catalogCategory = "NONE";
+        decision.intents = [...new Set([...decision.intents.filter((intent) => intent !== "QUIERE_COTIZAR"), "CONSULTA_GENERAL" as const])];
+        decision.responseText = "¡Hola! 😊 Tenemos cabinas de fotos, Black Studio, 360, Photo IA, LightBox, BoomBall y otras experiencias. ¿Es para un matrimonio, evento de empresa, cumpleaños u otro tipo de evento? Así te recomiendo lo que mejor calza.";
+        decision.waitForMoreData = true;
+        decision.commercialStage = "QUALIFYING";
+      } else if (directCatalogRequest && decision.requestedAction !== "HUMAN_HANDOFF") {
         decision.requestedAction = "CATALOG_LOOKUP";
         // The current turn owns catalog specificity. Historical wedding or
         // corporate context may inform a recommendation, but must not hijack

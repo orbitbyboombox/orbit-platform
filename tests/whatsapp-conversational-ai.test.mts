@@ -113,6 +113,15 @@ test("generic catalog turns do not inherit historical wedding specificity", asyn
   assert.match(responder, /: "EVENTS"/);
 });
 
+test("generic services questions use progressive discovery before any catalog lookup", async () => {
+  const responder = await readFile(responderUrl, "utf8");
+  assert.match(responder, /genericServicesRequest/);
+  assert.match(responder, /decision\.requestedAction = "NONE"/);
+  assert.match(responder, /decision\.waitForMoreData = true/);
+  assert.match(responder, /tipo de evento|matrimonio, evento de empresa, cumpleaños/i);
+  assert.match(responder, /decision\.intents\.filter\(\(intent\) => intent !== "QUIERE_COTIZAR"\)/);
+});
+
 test("catalog delivery uses active ORBIT documents and is fail-closed", async () => {
   const source = await readFile(catalogUrl, "utf8");
   assert.match(source, /WHATSAPP_COMMERCIAL_ACTIONS_ENABLED/);

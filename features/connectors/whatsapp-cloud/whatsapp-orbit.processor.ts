@@ -379,7 +379,8 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
     return { ok: true as const, skipped: true as const };
   }
 
-  const event = claimed as WebhookEventRow;
+    const event = claimed as WebhookEventRow;
+  const processingStartedAt = Date.now();
   try {
     if (event.message_type !== "text" || !event.text_body?.trim()) {
       await client.from("whatsapp_webhook_events").update({ processing_status: "UNSUPPORTED", updated_at: new Date().toISOString() }).eq("tenant_slug", WHATSAPP_TENANT_SLUG).eq("id", event.id);
@@ -456,6 +457,13 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
     );
 
     const decision = aiResponder.lastDecision;
+    logWhatsApp("info", "bianca_ai_decision", providerMessageId, {
+      conversationId: conversationState.id,
+      requestedAction: decision?.requestedAction ?? null,
+      intentCount: decision?.intents.length ?? 0,
+      latencyMsFromInbound: Math.max(0, Date.now() - new Date(event.occurred_at).getTime()),
+      processingLatencyMs: Date.now() - processingStartedAt,
+    });
     if (shadowMode && decision) {
       const plan = planBiancaTurn({
         text: event.text_body,
@@ -516,6 +524,12 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
         ? `Sí 😊 Te dejo nuestro catálogo: ${evidence.sourceRef}`
         : result.nova.response;
       const semanticConfidence = safeReplyConfidence({ decision, messageText: event.text_body, evidence });
+      logWhatsApp("info", "bianca_evidence_resolved", providerMessageId, {
+        conversationId: conversationState.id,
+        evidenceKind: evidence.kind,
+        verified: evidence.verified,
+        latencyMsFromInbound: Math.max(0, Date.now() - new Date(event.occurred_at).getTime()),
+      });
       const claimViolations = orchestrator.verifyResponse(finalSafeReply, {
         catalogSent: evidence.kind === "CANONICAL_CATALOG",
         priceResolved: evidence.kind === "CANONICAL_PRICE",
@@ -532,6 +546,12 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
       if (evaluation.allowed) {
         await new QueuedWhatsAppDispatcher(client, customer.id).dispatch({ ...result.dispatch, content: finalSafeReply });
         await persistOutboundCommunication(client, conversationState.id, customer.id, finalSafeReply, event.occurred_at, result.dispatch.correlationId);
+        logWhatsApp("info", "whatsapp_outbox_created", providerMessageId, {
+          conversationId: conversationState.id,
+          correlationId: result.dispatch.correlationId,
+          status: "PENDING",
+          latencyMsFromInbound: Math.max(0, Date.now() - new Date(event.occurred_at).getTime()),
+        });
       }
       await persistBiancaSafeReply({
         client,

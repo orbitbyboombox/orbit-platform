@@ -78,6 +78,7 @@ export class CommunicationHubEngine {
       participantId: communication.participantId,
       content: nova.response,
       correlationId: communication.id,
+      inboundOccurredAt: communication.occurredAt,
       serviceWindowExpiresAt: new Date(new Date(communication.occurredAt).getTime() + 24 * 60 * 60 * 1000).toISOString(),
     };
     await this.dispatcher.dispatch(dispatch);

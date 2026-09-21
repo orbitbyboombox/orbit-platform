@@ -6,7 +6,7 @@ import {
   whatsappDeliveryEnabled,
 } from "./meta-whatsapp-cloud";
 import type { MetaWhatsAppStatusEvent } from "./meta-whatsapp-cloud";
-import { serializeWhatsAppError } from "./whatsapp-observability";
+import { logWhatsApp, serializeWhatsAppError } from "./whatsapp-observability";
 import { WHATSAPP_TENANT_SLUG } from "./whatsapp-tenant";
 
 interface OutboxRow {
@@ -22,6 +22,7 @@ interface OutboxRow {
   template_name: string | null;
   template_language: string | null;
   template_parameters: string[];
+  last_inbound_at: string | null;
   service_window_expires_at: string | null;
 }
 
@@ -30,6 +31,8 @@ export async function deliverWhatsAppOutboxMessage(correlationId: string) {
     console.warn("whatsapp_delivery_disabled", { correlationId, reason: "WHATSAPP_DELIVERY_ENABLED=false" });
     return { ok: true as const, disabled: true as const };
   }
+  const deliveryStartedAt = Date.now();
+  logWhatsApp("info", "whatsapp_meta_send_started", correlationId, { correlationId });
 
   const client = createAdminClient();
   const { data: claimed, error: claimError } = await client
@@ -42,7 +45,7 @@ export async function deliverWhatsAppOutboxMessage(correlationId: string) {
     })
     .eq("correlation_id", correlationId)
     .eq("status", "PENDING")
-    .select("id,correlation_id,conversation_id,customer_id,recipient_wa_id,text_body,status,attempt_count,message_mode,template_name,template_language,template_parameters,service_window_expires_at")
+    .select("id,correlation_id,conversation_id,customer_id,recipient_wa_id,text_body,status,attempt_count,message_mode,template_name,template_language,template_parameters,last_inbound_at,service_window_expires_at")
     .maybeSingle();
   if (claimError) throw claimError;
   if (!claimed) return { ok: true as const, skipped: true as const };
@@ -87,6 +90,13 @@ export async function deliverWhatsAppOutboxMessage(correlationId: string) {
       .eq("direction", "OUTBOUND")
       .eq("external_message_id", correlationId);
 
+    logWhatsApp("info", "whatsapp_meta_send_sent", correlationId, {
+      conversationId: row.conversation_id,
+      providerMessageId: sent.providerMessageId,
+      deliveryLatencyMs: Date.now() - deliveryStartedAt,
+      inboundToSendLatencyMs: row.last_inbound_at ? Math.max(0, Date.now() - new Date(row.last_inbound_at).getTime()) : null,
+    });
+
     return { ok: true as const, sent: true as const, providerMessageId: sent.providerMessageId };
   } catch (error) {
     const detail = serializeWhatsAppError(error);
@@ -125,10 +135,15 @@ export async function updateWhatsAppOutboxStatus(event: Pick<MetaWhatsAppStatusE
     .update(patch)
     .eq("tenant_slug", WHATSAPP_TENANT_SLUG)
     .eq("provider_message_id", event.providerMessageId)
-    .select("conversation_id,correlation_id")
+    .select("conversation_id,correlation_id,last_inbound_at")
     .maybeSingle();
   if (error) throw error;
   if (!data) return { ok: true as const, matched: false as const };
+  logWhatsApp("info", `whatsapp_meta_status_${event.status}`, event.providerMessageId, {
+    providerMessageId: event.providerMessageId,
+    status: event.status,
+    inboundToStatusLatencyMs: data.last_inbound_at ? Math.max(0, Date.now() - new Date(data.last_inbound_at).getTime()) : null,
+  });
   await client.from("communications").update({
     status: event.status === "failed" ? "FAILED" : event.status.toUpperCase(),
   }).eq("thread_key", data.conversation_id)
