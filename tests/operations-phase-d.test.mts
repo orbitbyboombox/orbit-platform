@@ -90,7 +90,7 @@ test("approval and rejection both produce Staff-facing notifications", () => {
 
 test("Event Workspace reads canonical Staff requirements", () => {
   assert.match(eventWorkspace, /from\("event_staff_requirements"\)/);
-  assert.match(eventWorkspace, /select\("role,required_quantity,published"\)/);
+  assert.match(eventWorkspace, /select\("role,required_quantity,published,block_id"\)/);
   assert.match(assignmentCenter, /Math\.max\(configuredRequired, confirmed\)/);
   assert.match(assignmentCenter, /role\.value === "OPERATOR" && published/);
 });
