@@ -1,5 +1,6 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerActionClient } from "@/lib/supabase/server";
 import { validateOperationalBlock, type OperationalBlockStatus } from "./operational-blocks";
@@ -14,7 +15,7 @@ const fail = (error: unknown): Result => ({ ok: false, error: error instanceof E
 async function audit(client: Awaited<ReturnType<typeof createSupabaseServerActionClient>>, projectId: string, action: string, entityId: string, description: string) {
   const { data: project } = await client.from("projects").select("customer_id,orbit_event_id").eq("id", projectId).single();
   if (!project) return;
-  const { error } = await client.from("timeline_events").upsert({
+  const { error } = await client.from("timeline_events").insert({
     customer_id: project.customer_id,
     project_id: projectId,
     orbit_event_id: project.orbit_event_id,
@@ -27,8 +28,8 @@ async function audit(client: Awaited<ReturnType<typeof createSupabaseServerActio
     entity_type: "OperationalBlock",
     entity_id: entityId,
     human_message: description,
-    correlation_id: `operational-block:${entityId}:${action}`,
-  }, { onConflict: "correlation_id", ignoreDuplicates: true });
+    correlation_id: `operational-block:${entityId}:${action}:${randomUUID()}`,
+  });
   if (error) throw error;
 }
 
@@ -37,6 +38,10 @@ function refresh(projectId: string) { revalidatePath(`/projects/${projectId}`); 
 export async function saveOperationalBlockAction(data: FormData): Promise<Result> {
   try {
     const client = await createSupabaseServerActionClient();
+    const { data: auth } = await client.auth.getUser();
+    if (!auth.user) throw new Error("Sesión requerida.");
+    const { data: profile } = await client.from("profiles").select("role").eq("id", auth.user.id).single();
+    if (!profile || !["CEO", "ADMINISTRATOR"].includes(profile.role)) throw new Error("Solo Founder o Administración puede gestionar bloques.");
     const projectId = value(data, "projectId");
     const id = optional(data, "id");
     const name = value(data, "name");
@@ -57,7 +62,7 @@ export async function saveOperationalBlockAction(data: FormData): Promise<Result
 export async function deleteOperationalBlockAction(projectId: string, blockId: string): Promise<Result> {
   try {
     const client = await createSupabaseServerActionClient();
-    const { error } = await client.from("event_operational_blocks").delete().eq("id", blockId).eq("project_id", projectId);
+    const { error } = await client.rpc("delete_event_operational_block", { p_project_id: projectId, p_block_id: blockId });
     if (error) throw error;
     await audit(client, projectId, "OPERATIONAL_BLOCK_DELETED", blockId, "Bloque operacional eliminado.");
     refresh(projectId);
@@ -68,10 +73,8 @@ export async function deleteOperationalBlockAction(projectId: string, blockId: s
 export async function reorderOperationalBlocksAction(projectId: string, orderedIds: string[]): Promise<Result> {
   try {
     const client = await createSupabaseServerActionClient();
-    for (const [index, id] of orderedIds.entries()) {
-      const { error } = await client.from("event_operational_blocks").update({ sequence: index + 1 }).eq("id", id).eq("project_id", projectId);
-      if (error) throw error;
-    }
+    const { error } = await client.rpc("reorder_event_operational_blocks", { p_project_id: projectId, p_ordered_ids: orderedIds });
+    if (error) throw error;
     await audit(client, projectId, "OPERATIONAL_BLOCKS_REORDERED", projectId, "Orden de bloques operacionales actualizado.");
     refresh(projectId);
     return { ok: true, message: "Orden actualizado." };

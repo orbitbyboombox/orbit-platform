@@ -57,6 +57,26 @@ export type BlockCostResolution = {
   status: "RESOLVED" | "REVIEW_REQUIRED";
 };
 
+export type OperationalRequirementScope = "EVENT" | "BLOCK";
+
+export type OperationalRequirementProjection = {
+  id: string;
+  blockId?: string | null;
+  scope: OperationalRequirementScope;
+  requiredQuantity: number;
+  assignedQuantity: number;
+  code?: string | null;
+};
+
+export type BlockResourceMapping = {
+  blockId: string;
+  resourceType: string;
+  unitsPerService: number;
+  serviceQuantity: number;
+  startAt: string;
+  endAt: string;
+};
+
 const instant = (value: string): number => {
   const result = Date.parse(value);
   if (!Number.isFinite(result)) throw new Error("Fecha operacional inválida.");
@@ -108,6 +128,37 @@ export function calculatePeakConcurrent(segments: readonly ResourceSegment[]): n
     peak = Math.max(peak, current);
   }
   return peak;
+}
+
+/** Canonical weighted capacity projection used by every block-aware view. */
+export const calculateMaxConcurrentUnits = calculatePeakConcurrent;
+
+export function buildBlockResourceSegments(mappings: readonly BlockResourceMapping[]): ResourceSegment[] {
+  return mappings.map((mapping) => ({
+    blockId: mapping.blockId,
+    resourceType: mapping.resourceType,
+    quantity: Math.max(0, mapping.unitsPerService) * Math.max(0, mapping.serviceQuantity),
+    startAt: mapping.startAt,
+    endAt: mapping.endAt,
+  }));
+}
+
+export function splitOperationalRequirements(
+  requirements: readonly OperationalRequirementProjection[],
+): { eventLevel: OperationalRequirementProjection[]; blockLevel: OperationalRequirementProjection[] } {
+  return {
+    eventLevel: requirements.filter((requirement) => !requirement.blockId || requirement.scope === "EVENT"),
+    blockLevel: requirements.filter((requirement) => Boolean(requirement.blockId) && requirement.scope === "BLOCK"),
+  };
+}
+
+export function canDeleteOperationalBlock(
+  dependencies: { requirementCount: number; assignmentCount: number; assetAssignmentCount: number },
+): { allowed: true } | { allowed: false; reason: string } {
+  if (dependencies.requirementCount || dependencies.assignmentCount || dependencies.assetAssignmentCount) {
+    return { allowed: false, reason: "El bloque tiene requisitos o asignaciones dependientes y no puede eliminarse." };
+  }
+  return { allowed: true };
 }
 
 export function findStaffBlockConflicts(assignments: readonly StaffBlockAssignment[]): StaffBlockAssignment[][] {

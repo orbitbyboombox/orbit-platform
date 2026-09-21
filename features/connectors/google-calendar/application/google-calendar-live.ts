@@ -33,6 +33,8 @@ export function buildGoogleMapsLink(address: string): string {
 }
 
 export function buildCalendarDescription(input: CalendarOperationalEventInput, orbitEventId: string): string {
+  const blocks = input.operationalBlocks ?? [];
+  const blockLines = blocks.length ? ["", "PLANIFICACIÓN OPERACIONAL", ...blocks.map((block) => `- ${block.name}: ${block.startAt}–${block.endAt}`)] : [];
   return [
     `Servicio: ${input.service}`,
     `Duración: ${input.contractedHours} horas`,
@@ -45,6 +47,7 @@ export function buildCalendarDescription(input: CalendarOperationalEventInput, o
     `Contacto producción: ${input.operationalContact ?? input.operator}`,
     `Google Maps: ${buildGoogleMapsLink(input.customerAddress)}`,
     `ORBIT Event ID: ${orbitEventId}`,
+    ...blockLines,
   ].join("\n");
 }
 

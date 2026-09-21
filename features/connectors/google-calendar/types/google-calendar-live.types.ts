@@ -40,6 +40,7 @@ export interface CalendarOperationalEventInput {
   operationalContact?: string;
   assignedStaff?: readonly string[];
   commercialNotes?: string;
+  operationalBlocks?: readonly { name: string; startAt: string; endAt: string }[];
   portalUrl: string;
   orbitProjectUrl: string;
   updatedAt: string;
