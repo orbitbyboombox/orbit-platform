@@ -16,6 +16,7 @@ import { requiresPhotoStripDesign } from "@/features/business-core/catalog/servi
 import { chileDateTime } from "@/features/operations/event-operational-window";
 import { buildCanonicalOrbitEventStateFromRecord } from "@/features/operations/canonical-orbit-event-state";
 import { buildResponsibilityReadModel } from "@/features/staff-assignment-center/staff-responsibility-read-model";
+import type { OperationalBlock } from "@/features/operations/operational-blocks";
 
 export interface ProjectWorkspacePageProps {
   params: Promise<{ projectId: string }>;
@@ -254,6 +255,16 @@ export default async function ProjectWorkspacePage({
     .eq("project_id", projectId)
     .maybeSingle();
   if (commercialOriginError) throw commercialOriginError;
+  const { data: operationalBlockRows, error: operationalBlocksError } = await client
+    .from("event_operational_blocks")
+    .select("id,project_id,name,sequence,start_at,end_at,status,notes")
+    .eq("project_id", projectId)
+    .order("sequence");
+  // The migration is additive and intentionally staged for Founder Review.
+  // Until it is applied, legacy Events must continue to render normally.
+  if (operationalBlocksError && !["42P01", "PGRST205"].includes(operationalBlocksError.code ?? "")) {
+    throw operationalBlocksError;
+  }
   const { data: staffRoleRequirements, error: staffRoleRequirementError } =
     await client
       .from("event_staff_requirements")
@@ -1480,6 +1491,16 @@ export default async function ProjectWorkspacePage({
     capacityResult={capacityProjection}
       workspaceData={workspaceData}
       workspacePreferences={founderWorkspace}
+      operationalBlocks={(operationalBlockRows ?? []).map((row) => ({
+        id: row.id,
+        projectId: row.project_id,
+        name: row.name,
+        sequence: Number(row.sequence),
+        startAt: row.start_at,
+        endAt: row.end_at,
+        status: row.status as OperationalBlock["status"],
+        notes: row.notes,
+      }))}
     />
   );
 }

@@ -98,6 +98,8 @@ import { EventLogisticsCenter, type EventLogisticsData } from "@/features/operat
 import { requiresPhotoStripDesign } from "@/features/business-core/catalog/service.catalog";
 import { PhotoStripDesignCenter } from "@/features/photo-strip-design";
 import { CapacityStatusPanel, type CapacityResult } from "@/features/capacity/capacity-status-panel";
+import { OperationalBlocksPanel } from "@/features/operations/operational-blocks-panel";
+import type { OperationalBlock } from "@/features/operations/operational-blocks";
 
 type Event360Task = {
   id: string;
@@ -244,6 +246,7 @@ export type ProjectWorkspaceExperienceProps = Omit<
     lastQuotation: string;
   };
   capacityResult?: CapacityResult | null;
+  operationalBlocks?: readonly OperationalBlock[];
 };
 
 const money = (value: number) =>
@@ -890,6 +893,7 @@ export function ProjectWorkspaceExperience(
 
           {props.operationalReadiness ? <EventOperationalReadiness data={props.operationalReadiness}/> : null}
           <EventLogisticsCenter data={props.logistics}/>
+          <OperationalBlocksPanel projectId={props.projectKey ?? ""} initialBlocks={props.operationalBlocks ?? []} />
 
           <section className="scroll-mt-24" id="event-control-center">
             <div className="mb-3"><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Centro operativo</p><h2 className="mt-1 text-2xl font-semibold">Gestión completa del Evento</h2><p className="mt-1 text-sm text-muted">Pagos, costos, Staff, documentos, Portal y Calendar pertenecen a este Evento.</p></div>
