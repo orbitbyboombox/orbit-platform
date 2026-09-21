@@ -94,7 +94,7 @@ type PreferenceInput = {
 };
 
 export async function createMercadoPagoPreference(input: PreferenceInput) {
-  const { accessToken } = getMercadoPagoConfig();
+  const { accessToken, mode } = getMercadoPagoConfig();
   const response = await fetch("https://api.mercadopago.com/checkout/preferences", {
     method: "POST",
     headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
@@ -110,7 +110,10 @@ export async function createMercadoPagoPreference(input: PreferenceInput) {
   });
   const body = await response.json().catch(() => ({})) as { id?: string; init_point?: string; sandbox_init_point?: string; message?: string };
   if (!response.ok || !body.id) throw new Error(`Mercado Pago preference failed (${response.status}).`);
-  return { id: body.id, checkoutUrl: body.sandbox_init_point ?? body.init_point ?? null };
+  const checkoutUrl = mode === "TEST"
+    ? body.sandbox_init_point ?? body.init_point ?? null
+    : body.init_point ?? body.sandbox_init_point ?? null;
+  return { id: body.id, checkoutUrl };
 }
 
 export async function fetchMercadoPagoPayment(paymentId: string) {
