@@ -15,7 +15,8 @@ import type { WhatsAppCatalogDeliveryResult } from "./whatsapp-catalog.delivery"
 import { BiancaAgentOrchestrator } from "./bianca-agent-orchestrator";
 import { whatsappAutomationEnabled } from "./meta-whatsapp-cloud";
 import { biancaCanProcessCustomerMessage, biancaQaModeEnabled } from "./bianca-policy";
-import { prepareBiancaOpportunityContext } from "./bianca-opportunity-context";
+import { prepareBiancaOpportunityContext, resetBiancaActiveContext } from "./bianca-opportunity-context";
+import { parseBiancaStructuredWebLead } from "./bianca-web-lead-context";
 import { biancaShadowModeEnabled, createBiancaShadowDecision, shadowConfidence } from "./bianca-shadow-mode.ts";
 import { persistBiancaShadowDecision } from "./bianca-shadow-persistence.ts";
 import { biancaAutomationRouting, biancaSafeReplyConfiguration, evaluateBiancaSafeReply, isActiveHumanTakeover, resolveCanonicalBiancaSafeReplyEvidence, safeReplyConfidence } from "./bianca-safe-reply";
@@ -429,8 +430,31 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
       return { ok: true as const, suppressed: true as const, customerId: customer.id, conversationId: conversationState.id, finalStatus: "HUMAN_HANDOFF" as const };
     }
 
+    const structuredLead = parseBiancaStructuredWebLead(event.text_body, event.sender_wa_id);
     const memoryState = await loadMemory(client, customer.id, customer.full_name);
-    const opportunity = prepareBiancaOpportunityContext(memoryState.context, event.text_body, event.occurred_at);
+    const opportunity = structuredLead
+      ? { context: resetBiancaActiveContext(memoryState.context, event.occurred_at), reset: true as const }
+      : prepareBiancaOpportunityContext(memoryState.context, event.text_body, event.occurred_at);
+    if (structuredLead) {
+      const { error: leadContextError } = await client.from("conversation_states").update({
+        context: {
+          ...conversationState.context,
+          webLeadIntake: {
+            source: structuredLead.source,
+            ...structuredLead.context,
+            receivedAt: event.occurred_at,
+          },
+        },
+        updated_at: new Date().toISOString(),
+      }).eq("tenant_slug", WHATSAPP_TENANT_SLUG).eq("id", conversationState.id);
+      if (leadContextError) throw leadContextError;
+      logWhatsApp("info", "bianca_web_lead_structured_detected", providerMessageId, {
+        conversationId: conversationState.id,
+        source: structuredLead.source,
+        phoneMismatch: structuredLead.context.declaredPhoneMismatch === true,
+        newOpportunity: true,
+      });
+    }
     const activeMemory = memoryRecord(customer.id, customer.full_name, opportunity.context);
     const history = await loadConversationHistory(client, conversationState.id);
     const memoryEngine = new CustomerMemoryEngine(ORBIT_TIME_ENGINE);
@@ -449,10 +473,14 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
         conversationId: conversationState.id,
         customerId: customer.id,
         externalParticipantId: event.sender_wa_id,
-        content: event.text_body,
+        content: structuredLead?.context.message || event.text_body,
         occurredAt: event.occurred_at,
       },
-      { memory: activeMemory },
+      {
+        memory: activeMemory,
+        source: structuredLead ? "WEB_FORM_LEAD" : "DIRECT_WHATSAPP",
+        leadContext: structuredLead?.context,
+      },
       current,
     );
 

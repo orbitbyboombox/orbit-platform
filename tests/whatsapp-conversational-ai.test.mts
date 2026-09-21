@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { parseBiancaStructuredWebLead } from "../features/connectors/whatsapp-cloud/bianca-web-lead-context.ts";
 
 const responderUrl = new URL("../features/connectors/whatsapp-cloud/whatsapp-ai.responder.ts", import.meta.url);
 const policyUrl = new URL("../features/connectors/whatsapp-cloud/bianca-policy.ts", import.meta.url);
@@ -184,6 +185,54 @@ test("web lead date extraction never invents a year", async () => {
   assert.match(source, /PARTIAL_DATE_PATTERN/);
   assert.match(source, /No inventes el año/);
   assert.match(source, /WEB_FORM_LEAD/);
+});
+
+test("structured web leads parse fields, recover free-text date/location and protect sender identity", () => {
+  const complete = parseBiancaStructuredWebLead(`NUEVA COTIZACIÓN BOOMBOX
+Nombre: Andres Vadillo Reich
+Teléfono: +56911111111
+Correo: andres@example.com
+Tipo de evento: Matrimonio
+Fecha:
+Comuna / Lugar: Colina
+
+Mensaje:
+Hola! me gustaria cotizar para nuestro matrimonio. El dia 21.11 em Piedra roja`, "+56911111111");
+  assert.equal(complete?.source, "WEB_FORM_WHATSAPP");
+  assert.equal(complete?.context.name, "Andres Vadillo Reich");
+  assert.equal(complete?.context.eventType, "Matrimonio");
+  assert.deepEqual(complete?.context.eventDateParts, { day: 21, month: 11 });
+  assert.equal(complete?.context.eventDateYearPending, true);
+  assert.equal(complete?.context.venue, "Piedra roja");
+  assert.equal(complete?.context.locationContext, "Piedra roja, Colina");
+  assert.equal(complete?.context.declaredPhoneMismatch, false);
+
+  const missingEmail = parseBiancaStructuredWebLead(`NUEVA COTIZACIÓN BOOMBOX
+Nombre: Camila
+Teléfono: +56922222222
+Tipo de evento: Cumpleaños
+Fecha: 2027/03/12
+Comuna / Lugar: Ñuñoa
+Mensaje:
+Necesito opciones`, "+56922222222");
+  assert.equal(missingEmail?.context.email, undefined);
+  assert.equal(missingEmail?.context.eventType, "Cumpleaños");
+
+  const mismatch = parseBiancaStructuredWebLead(`NUEVA COTIZACIÓN BOOMBOX
+Nombre: Empresa Demo
+Teléfono: +56999999999
+Correo: contacto@example.com
+Tipo de evento: Empresa
+Mensaje:
+Activación`, "+56933333333");
+  assert.equal(mismatch?.context.declaredPhoneMismatch, true);
+
+  const consecutive = ["Matrimonio", "Empresa", ""].map((eventType) => parseBiancaStructuredWebLead(`NUEVA COTIZACIÓN BOOMBOX
+Nombre: Lead
+Tipo de evento: ${eventType}
+Mensaje:
+Consulta`, "+56944444444")?.context.eventType);
+  assert.deepEqual(consecutive, ["Matrimonio", "Empresa", undefined]);
 });
 
 test("identity questions never get confused with human handoff", async () => {

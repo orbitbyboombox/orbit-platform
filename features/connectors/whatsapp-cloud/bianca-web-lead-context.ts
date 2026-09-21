@@ -7,6 +7,73 @@ export interface BiancaLeadDateParts {
   month: number;
 }
 
+export interface ParsedBiancaWebLead {
+  context: BiancaWebLeadContext;
+  source: "WEB_FORM_WHATSAPP";
+  structured: true;
+}
+
+const STRUCTURED_LEAD_HEADER = /^\s*NUEVA\s+COTIZACI(?:[ÓO])N\s+BOOMBOX\s*$/i;
+const LABELS: Array<[keyof BiancaWebLeadContext, RegExp]> = [
+  ["name", /^nombre\s*:/i],
+  ["phone", /^(?:tel[eé]fono|telefono|celular|whatsapp)\s*:/i],
+  ["email", /^(?:correo|email)\s*:/i],
+  ["eventType", /^(?:tipo\s+de\s+evento|tipo\s+evento)\s*:/i],
+  ["eventDate", /^fecha\s*:/i],
+  ["commune", /^(?:comuna\s*\/\s*lugar|comuna|lugar)\s*:/i],
+  ["message", /^mensaje\s*:/i],
+];
+
+function labelFor(line: string) {
+  return LABELS.find(([, pattern]) => pattern.test(line));
+}
+
+function locationFromMessage(message: string) {
+  const match = message.match(/\b(?:en|em)\s+([^,.\n]+(?:\s+roja)?)/i);
+  return match?.[1]?.trim().replace(/\s+/g, " ");
+}
+
+/** Recognizes the real BOOMBOX web-form payload pasted into WhatsApp. */
+export function parseBiancaStructuredWebLead(text: string, senderWaId?: string): ParsedBiancaWebLead | undefined {
+  const normalized = text.replace(/\r\n?/g, "\n").trim();
+  const header = normalized.split("\n").find((line) => STRUCTURED_LEAD_HEADER.test(line));
+  if (!header) return undefined;
+
+  const values: Record<string, string> = {};
+  let current: keyof BiancaWebLeadContext | undefined;
+  for (const line of normalized.split("\n").slice(normalized.split("\n").indexOf(header) + 1)) {
+    const found = labelFor(line.trim());
+    if (found) {
+      current = found[0];
+      const value = line.replace(LABELS.find(([, pattern]) => pattern === found[1])?.[1] ?? /^$/, "").trim();
+      values[current] = value;
+    } else if (current === "message" && line.trim()) {
+      values.message = `${values.message ?? ""} ${line.trim()}`.trim();
+    }
+  }
+
+  const message = values.message?.trim() || undefined;
+  const dateParts = !values.eventDate && message ? extractBiancaLeadDateParts(message) : undefined;
+  const venueFromMessage = !values.venue && message ? locationFromMessage(message) : undefined;
+  const commune = values.commune?.trim() || undefined;
+  const venue = values.venue?.trim() || venueFromMessage;
+  const context: BiancaWebLeadContext = {
+    name: values.name?.trim() || undefined,
+    phone: values.phone?.trim() || undefined,
+    email: values.email?.trim() || undefined,
+    eventType: values.eventType?.trim() || undefined,
+    eventDate: values.eventDate?.trim() || undefined,
+    eventDateParts: dateParts,
+    eventDateYearPending: Boolean(dateParts && !values.eventDate),
+    commune,
+    venue,
+    locationContext: [venue, commune].filter(Boolean).join(", ") || undefined,
+    message,
+    declaredPhoneMismatch: Boolean(senderWaId && values.phone && senderWaId.replace(/\D/g, "") !== values.phone.replace(/\D/g, "")),
+  };
+  return { context: normalizeBiancaWebLeadContext(context) ?? {}, source: "WEB_FORM_WHATSAPP", structured: true };
+}
+
 /** Extracts only a day/month from a lead's free text; a year is never guessed. */
 export function extractBiancaLeadDateParts(text: string): BiancaLeadDateParts | undefined {
   const match = text.match(PARTIAL_DATE_PATTERN);
@@ -29,8 +96,9 @@ export function buildBiancaWebLeadPrompt(context?: BiancaWebLeadContext) {
   const lead = normalizeBiancaWebLeadContext(context);
   if (!lead) return "";
   const dateParts = !lead.eventDate && lead.message ? extractBiancaLeadDateParts(lead.message) : undefined;
-  const dateInstruction = dateParts
-    ? `El mensaje libre menciona el día ${dateParts.day} y mes ${dateParts.month}, pero no el año. No inventes el año: pide únicamente confirmarlo.`
+  const effectiveDateParts = lead.eventDateParts ?? dateParts;
+  const dateInstruction = effectiveDateParts
+    ? `El mensaje libre menciona el día ${effectiveDateParts.day} y mes ${effectiveDateParts.month}, pero no el año. No inventes el año: pide únicamente confirmarlo cuando sea necesario para disponibilidad o cotización.`
     : "";
   const fields = [
     ["Nombre confirmado por formulario", lead.name],
@@ -40,6 +108,7 @@ export function buildBiancaWebLeadPrompt(context?: BiancaWebLeadContext) {
     ["Comuna", lead.commune],
     ["Recinto especial estructurado", lead.specialVenue],
     ["Lugar", lead.venue],
+    ["Contexto de ubicación", lead.locationContext],
     ["Mensaje libre", lead.message],
   ].filter(([, value]) => value);
   return [

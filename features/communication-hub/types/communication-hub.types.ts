@@ -3,6 +3,7 @@ import type { OperationalRecommendation } from "@/features/operations-intelligen
 import type { ProfitRecommendation } from "@/features/profit-engine";
 import type { ConfirmedMemoryUpdate } from "@/features/customer-memory";
 import type { NovaChannelOutput, NovaConversationState } from "@/features/nova-channel";
+import type { BiancaMessageSource, BiancaWebLeadContext } from "@/features/nova-channel";
 
 export type CommunicationChannel = "GOOGLE_GMAIL" | "WHATSAPP_BUSINESS" | "INSTAGRAM_DIRECT" | "WEB_CHAT" | "PHONE_LOG" | "FUTURE";
 export type CommunicationDirection = "INBOUND" | "OUTBOUND" | "SYSTEM";
@@ -60,6 +61,8 @@ export interface CommunicationHubContext {
   memory: CustomerMemoryRecord;
   operationsRecommendation?: OperationalRecommendation;
   profitRecommendation?: ProfitRecommendation;
+  source?: BiancaMessageSource;
+  leadContext?: BiancaWebLeadContext;
 }
 
 export interface ChannelDispatchRequest {

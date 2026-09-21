@@ -18,6 +18,10 @@ export interface BiancaWebLeadContext {
   specialVenue?: string;
   venue?: string;
   message?: string;
+  eventDateParts?: { day: number; month: number };
+  eventDateYearPending?: boolean;
+  locationContext?: string;
+  declaredPhoneMismatch?: boolean;
 }
 
 export interface NovaNormalizedMessage {

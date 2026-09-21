@@ -67,7 +67,7 @@ export class CommunicationHubEngine {
       };
     }
 
-    const nova = await this.nova.respond({ message: { id: communication.id, channel: toNovaChannel(communication.channel), conversationId: communication.conversationId, customerId: communication.customerId, senderExternalId: communication.participantId, text: communication.content, receivedAt: communication.occurredAt, confirmedInformation: communication.confirmedInformation }, memory: context.memory, conversation: novaState, operationsRecommendation: context.operationsRecommendation, profitRecommendation: context.profitRecommendation });
+    const nova = await this.nova.respond({ message: { id: communication.id, channel: toNovaChannel(communication.channel), conversationId: communication.conversationId, customerId: communication.customerId, senderExternalId: communication.participantId, text: communication.content, receivedAt: communication.occurredAt, confirmedInformation: communication.confirmedInformation }, memory: context.memory, conversation: novaState, operationsRecommendation: context.operationsRecommendation, profitRecommendation: context.profitRecommendation, source: context.source, leadContext: context.leadContext });
     const responseEvent: UnifiedCommunicationEvent = { id: `${communication.id}-nova-response`, conversationId: communication.conversationId, customerId: communication.customerId, channel: communication.channel, direction: "OUTBOUND", type: "NOVA_RESPONSE", occurredAt: communication.occurredAt, summary: nova.response };
     await this.timeline.append(responseEvent);
 
