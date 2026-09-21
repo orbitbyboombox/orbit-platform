@@ -88,6 +88,7 @@ export default async function ProjectWorkspacePage({
     { data: calendarSync },
     { data: driveSync },
     { data: payroll },
+    { data: staffRates },
     { data: profit },
     { data: invoice },
     { data: checklist },
@@ -180,9 +181,15 @@ export default async function ProjectWorkspacePage({
     client
       .from("event_staff_payments")
       .select(
-        "id,status,tasks,settlement_status,paid_amount,paid_at,sii_receipt_status,original_assembly_payment,original_operator_payment,original_disassembly_payment,automatic_assembly_payment,automatic_operator_payment,automatic_disassembly_payment,assembly_payment,operator_payment,disassembly_payment,transport_bonus,parking_payment,total_internal_payment,staff(first_name,last_name)",
+        "id,status,tasks,settlement_status,paid_amount,paid_at,sii_receipt_status,original_assembly_payment,original_operator_payment,original_disassembly_payment,automatic_assembly_payment,automatic_operator_payment,automatic_disassembly_payment,assembly_payment,operator_payment,disassembly_payment,transport_bonus,parking_payment,total_internal_payment,block_id,contracted_minutes,event_operational_blocks(name,start_at,end_at),staff(first_name,last_name)",
       )
       .eq("project_id", projectId)
+      .is("deleted_at", null),
+    client
+      .from("cost_master_entries")
+      .select("code,amount,enabled")
+      .in("code", ["OPERATOR_2_HOURS", "OPERATOR_3_HOURS", "OPERATOR_4_HOURS", "OPERATOR_4_5_HOURS", "OPERATOR_5_HOURS", "OPERATOR_6_HOURS"])
+      .eq("enabled", true)
       .is("deleted_at", null),
     client
       .from("financial_event_records")
@@ -1204,6 +1211,10 @@ export default async function ProjectWorkspacePage({
           blockName: block?.name,
           startAt: block?.start_at,
           endAt: block?.end_at,
+          durationMinutes: block?.start_at && block?.end_at ? Math.round((new Date(block.end_at).getTime() - new Date(block.start_at).getTime()) / 60000) : undefined,
+          rate: block?.start_at && block?.end_at && item.role === "OPERATOR"
+            ? (staffRates ?? []).find((rate) => rate.code === (Math.round((new Date(block.end_at).getTime() - new Date(block.start_at).getTime()) / 60000) % 60 === 30 ? `OPERATOR_${Math.floor((new Date(block.end_at).getTime() - new Date(block.start_at).getTime()) / 3600000)}_5_HOURS` : `OPERATOR_${Math.round((new Date(block.end_at).getTime() - new Date(block.start_at).getTime()) / 3600000)}_HOURS`))?.amount ?? null
+            : null,
         };
       }),
       roleCosts: Object.fromEntries(["OPERATOR", "ASSEMBLY", "DISASSEMBLY"].map((role) => [role,
@@ -1238,6 +1249,10 @@ export default async function ProjectWorkspacePage({
           const movements = (settlementMovements ?? []).filter(
             (value) => value.settlement_id === item.id,
           );
+          const eventBlock = item.event_operational_blocks as unknown as
+            | { name?: string }
+            | { name?: string }[]
+            | null;
           const originalOperator = Number(
               item.original_operator_payment ??
                 item.automatic_operator_payment ??
@@ -1285,6 +1300,11 @@ export default async function ProjectWorkspacePage({
             settlementStatus: item.settlement_status,
             paidAt: item.paid_at ?? "",
             receiptStatus: item.sii_receipt_status,
+            blockId: item.block_id ?? null,
+            blockName: Array.isArray(eventBlock)
+              ? eventBlock[0]?.name ?? null
+              : eventBlock?.name ?? null,
+            contractedMinutes: item.contracted_minutes ?? null,
             adjustments: adjustments.map((value) => ({
               id: value.id,
               reason: value.reason,
@@ -1327,6 +1347,7 @@ export default async function ProjectWorkspacePage({
         .filter((item) => item.project_id === projectId)
         .map((item) => ({
           id: item.id,
+          blockId: item.block_id,
           staffId: item.staff_id,
           createdAt: item.created_at,
           staffName: `${item.staff.first_name} ${item.staff.last_name}`,

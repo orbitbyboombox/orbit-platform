@@ -1,5 +1,24 @@
 export type OfficialStaffRate = { code: string; amount: number | string };
 
+export function officialStaffRateCodeForMinutes(minutes: number) {
+  if (!Number.isFinite(minutes) || minutes <= 0) return null;
+  const whole = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  if (remainder === 0) return `OPERATOR_${whole}_HOURS`;
+  if (remainder === 30) return `OPERATOR_${whole}_5_HOURS`;
+  return null;
+}
+
+export function resolveOfficialOperatorRate(
+  rates: readonly OfficialStaffRate[],
+  minutes: number,
+) {
+  const code = officialStaffRateCodeForMinutes(minutes);
+  if (!code) return { code: null, amount: null };
+  const amount = rates.find((item) => item.code === code)?.amount;
+  return { code, amount: amount === undefined ? null : Number(amount) };
+}
+
 export function officialStaffAssignmentPayment(
   rates: readonly OfficialStaffRate[],
   hours: number,

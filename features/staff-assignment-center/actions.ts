@@ -14,6 +14,7 @@ export type StaffAssignmentMutation = {
   requestId?: string;
   id?: string;
   projectId: string;
+  blockId?: string;
   staffId: string;
   role: string;
   arrivalTime: string;
@@ -56,7 +57,7 @@ async function context(projectId: string) {
   const { data: project, error } = await client
     .from("projects")
     .select(
-      "id,customer_id,orbit_event_id,name,event_date,event_time,project_services(duration_hours)",
+      "id,customer_id,orbit_event_id,name,event_date,event_time,project_services(duration_hours),event_operational_blocks(id,start_at,end_at,name)",
     )
     .eq("id", projectId)
     .is("deleted_at", null)
@@ -106,7 +107,22 @@ export async function saveStaffAssignmentAction(
     )
       throw new Error("Selecciona Staff, rol y evento.");
     const ctx = await context(input.projectId);
-    const eventStart = ctx.project.event_time?.slice(0, 5) ?? "";
+    const selectedBlock = input.blockId
+      ? (Array.isArray(ctx.project.event_operational_blocks)
+          ? ctx.project.event_operational_blocks
+          : ctx.project.event_operational_blocks
+            ? [ctx.project.event_operational_blocks]
+            : []
+        ).find((block) => block.id === input.blockId)
+      : null;
+    const eventStart = selectedBlock
+      ? new Intl.DateTimeFormat("en-GB", {
+          timeZone: "America/Santiago",
+          hour: "2-digit",
+          minute: "2-digit",
+          hourCycle: "h23",
+        }).format(new Date(selectedBlock.start_at))
+      : ctx.project.event_time?.slice(0, 5) ?? "";
     const service = Array.isArray(ctx.project.project_services)
       ? ctx.project.project_services[0]
       : ctx.project.project_services;
@@ -124,6 +140,7 @@ export async function saveStaffAssignmentAction(
     const automaticFinish = clock(eventStart, duration * 60);
     const payload = {
       project_id: input.projectId,
+      block_id: input.blockId || null,
       staff_id: input.staffId,
       assignment_type: input.role,
       status: "ASSIGNED",

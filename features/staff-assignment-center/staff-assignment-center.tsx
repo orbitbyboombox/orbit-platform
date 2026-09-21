@@ -32,6 +32,10 @@ import { buildStaffRoleSlots, validStaffQuantity } from "./staff-role-slots";
 
 export type OperationalAssignment = {
   id: string;
+  blockId?: string | null;
+  blockName?: string;
+  blockStartAt?: string;
+  blockEndAt?: string;
   staffId: string;
   staffName: string;
   role: string;
@@ -81,6 +85,9 @@ export type EventStaffSettlementPayment = {
 export type EventStaffSettlement = {
   id: string;
   staffName: string;
+  blockId?: string | null;
+  blockName?: string | null;
+  contractedMinutes?: number | null;
   roles: string[];
   originalOperator: number;
   originalAssembly: number;
@@ -108,7 +115,7 @@ export type StaffAssignmentCenterProps = {
   settlements?: EventStaffSettlement[];
   roleCosts?: Record<string, number>;
   requirements?: ResponsibilityReadModel[];
-  blockRequirements?: Array<{ blockId: string; role: string; required: number; assigned: number; published: boolean; blockName?: string; startAt?: string; endAt?: string }>;
+  blockRequirements?: Array<{ blockId: string; role: string; required: number; assigned: number; published: boolean; blockName?: string; startAt?: string; endAt?: string; durationMinutes?: number; rate?: number | null }>;
   requests?: Array<{ id: string; role: string; staffName: string; status: string }>;
 };
 const roles = [
@@ -193,6 +200,10 @@ export function StaffAssignmentCenter({
     item?: OperationalAssignment;
     role?: string;
     slot?: number;
+    blockId?: string;
+    blockName?: string;
+    blockStartAt?: string;
+    blockEndAt?: string;
   } | null>(null);
   const [settlement, setSettlement] = useState<EventStaffSettlement | null>(
     null,
@@ -314,7 +325,7 @@ export function StaffAssignmentCenter({
           />;
         })}
       </section>
-      {blockRequirements.length ? <section className="mb-5 border-b pb-5"><h3 className="font-semibold">Planificación por bloques</h3><div className="mt-3 grid gap-3 lg:grid-cols-2">{blockRequirements.map((item) => <article className="rounded-xl border p-4" key={`${item.blockId}:${item.role}`}><p className="font-semibold">{item.blockName ?? "Bloque operacional"}</p><p className="mt-1 text-sm text-muted">{item.startAt ? `${new Date(item.startAt).toLocaleTimeString("es-CL", { timeZone: "America/Santiago", hour: "2-digit", minute: "2-digit" })}–${item.endAt ? new Date(item.endAt).toLocaleTimeString("es-CL", { timeZone: "America/Santiago", hour: "2-digit", minute: "2-digit" }) : ""}` : ""}</p><p className="mt-3 text-sm">{roleLabel(item.role)} <strong>{item.assigned}/{item.required}</strong></p><p className="mt-1 text-xs uppercase tracking-wide text-muted">{item.required === 0 ? "Sin necesidad" : item.required >= 0 ? "Requerimiento por bloque" : ""}</p></article>)}</div></section> : null}
+      {blockRequirements.length ? <section className="mb-5 border-b pb-5"><h3 className="font-semibold">Planificación por bloques</h3><p className="mt-1 text-sm text-muted">Cada asignación queda asociada al bloque y conserva su tarifa según duración.</p><div className="mt-3 grid gap-3 lg:grid-cols-2">{blockRequirements.map((item) => <article className="rounded-xl border p-4" key={`${item.blockId}:${item.role}`}><p className="font-semibold">{item.blockName ?? "Bloque operacional"}</p><p className="mt-1 text-sm text-muted">{item.startAt ? `${new Date(item.startAt).toLocaleTimeString("es-CL", { timeZone: "America/Santiago", hour: "2-digit", minute: "2-digit" })}–${item.endAt ? new Date(item.endAt).toLocaleTimeString("es-CL", { timeZone: "America/Santiago", hour: "2-digit", minute: "2-digit" }) : ""}` : ""}</p><div className="mt-3 flex flex-wrap items-center justify-between gap-2"><p className="text-sm">{roleLabel(item.role)} <strong>{item.assigned}/{item.required}</strong></p><p className="text-sm font-semibold">{item.rate == null ? "REVIEW_REQUIRED" : money(item.rate)}</p></div><p className="mt-1 text-xs uppercase tracking-wide text-muted">{item.durationMinutes ? `${Math.floor(item.durationMinutes / 60)}h${String(item.durationMinutes % 60).padStart(2,"0")} · tarifa unitaria` : "Duración pendiente"}</p><Button className="mt-3" type="button" variant="outline" disabled={pending || item.required <= item.assigned} onClick={() => setPanel({ mode: "create", role: item.role, blockId: item.blockId, blockName: item.blockName, blockStartAt: item.startAt, blockEndAt: item.endAt })}><Plus className="size-4"/>Asignar {roleLabel(item.role)}</Button></article>)}</div></section> : null}
       {requests.length ? <section className="mb-5 border-b pb-5"><h3 className="font-semibold">Solicitudes Staff</h3><div className="mt-3 grid gap-3 lg:grid-cols-2">{requests.map((request)=><article className="rounded-xl border p-4" key={request.id}><p className="font-semibold">{request.staffName}</p><p className="mt-1 text-sm text-muted">{roleLabel(request.role)} · Solicitud pendiente</p><div className="mt-3 flex gap-2"><form action={(data)=>startTransition(async()=>{const result=await reviewStaffRequestAction(data);setMessage(result.message);if(result.ok)router.refresh()})}><input name="requestId" type="hidden" value={request.id}/><input name="decision" type="hidden" value="approve"/><Button aria-busy={pending} disabled={pending} type="submit">Aprobar</Button></form><form action={(data)=>startTransition(async()=>{const result=await reviewStaffRequestAction(data);setMessage(result.message);if(result.ok)router.refresh()})}><input name="requestId" type="hidden" value={request.id}/><input name="decision" type="hidden" value="reject"/><Button aria-busy={pending} disabled={pending} type="submit" variant="outline">Rechazar</Button></form></div></article>)}</div></section>:null}
       <div className="grid gap-3 lg:grid-cols-2">
         {assignments.map((item) => (
@@ -417,6 +428,14 @@ export function StaffAssignmentCenter({
                     <p className="mt-1 text-sm text-muted">
                       {item.roles.map(roleLabel).join(" + ")}
                     </p>
+                    {item.blockName ? (
+                      <p className="mt-1 text-xs text-muted">
+                        Bloque: {item.blockName}
+                        {item.contractedMinutes
+                          ? ` · ${Math.floor(item.contractedMinutes / 60)}h${String(item.contractedMinutes % 60).padStart(2, "0")}`
+                          : ""}
+                      </p>
+                    ) : null}
                   </div>
                   <StatusBadge
                     label={
@@ -464,6 +483,10 @@ export function StaffAssignmentCenter({
           item={panel.item}
           initialRole={panel.role}
           slot={panel.slot}
+          initialBlockId={panel.blockId}
+          initialBlockName={panel.blockName}
+          initialBlockStartAt={panel.blockStartAt}
+          initialBlockEndAt={panel.blockEndAt}
           assignments={assignments}
           projectId={projectId}
           staff={staff}
@@ -1181,6 +1204,10 @@ function AssignmentDialog({
   item,
   initialRole,
   slot,
+  initialBlockId,
+  initialBlockName,
+  initialBlockStartAt,
+  initialBlockEndAt,
   assignments,
   projectId,
   staff,
@@ -1194,6 +1221,10 @@ function AssignmentDialog({
   item?: OperationalAssignment;
   initialRole?: string;
   slot?: number;
+  initialBlockId?: string;
+  initialBlockName?: string;
+  initialBlockStartAt?: string;
+  initialBlockEndAt?: string;
   assignments: OperationalAssignment[];
   projectId: string;
   staff: AssignmentStaffOption[];
@@ -1205,10 +1236,14 @@ function AssignmentDialog({
 }) {
   const [role, setRole] = useState(item?.role ?? initialRole ?? "OPERATOR");
   const [requestId] = useState(() => crypto.randomUUID());
+  const effectiveBlockId = initialBlockId ?? item?.blockId ?? undefined;
+  const effectiveBlockName = initialBlockName ?? item?.blockName;
+  const effectiveBlockStartAt = initialBlockStartAt ?? item?.blockStartAt;
+  const effectiveBlockEndAt = initialBlockEndAt ?? item?.blockEndAt;
   const compatible = staff.filter((member) =>
-    member.capabilities.includes(role) && !assignments.some((assignment) =>
+    member.capabilities.includes(role) && (effectiveBlockId ? true : !assignments.some((assignment) =>
       assignment.role === role && assignment.staffId === member.id && assignment.id !== item?.id &&
-      !["CANCELLED", "REJECTED"].includes(assignment.status)),
+      !["CANCELLED", "REJECTED"].includes(assignment.status))),
   );
   return (
     <MobileDialog
@@ -1238,6 +1273,7 @@ function AssignmentDialog({
               projectId,
               staffId: String(data.get("staffId") ?? ""),
               role: String(data.get("role") ?? ""),
+              blockId: String(data.get("blockId") ?? "") || undefined,
               arrivalTime: String(data.get("arrivalTime") ?? ""),
               startTime: String(data.get("startTime") ?? ""),
               finishTime: String(data.get("finishTime") ?? ""),
@@ -1253,6 +1289,7 @@ function AssignmentDialog({
             onChange={setRole}
             options={roles}
           />}
+          {effectiveBlockId ? <div className="rounded-xl border border-brand/30 bg-brand/5 p-3 text-sm sm:col-span-2"><input type="hidden" name="blockId" value={effectiveBlockId}/><p className="font-semibold">Bloque: {effectiveBlockName ?? "Operacional"}</p><p className="mt-1 text-muted">{effectiveBlockStartAt ? `${new Date(effectiveBlockStartAt).toLocaleTimeString("es-CL", { timeZone: "America/Santiago", hour: "2-digit", minute: "2-digit" })}–${effectiveBlockEndAt ? new Date(effectiveBlockEndAt).toLocaleTimeString("es-CL", { timeZone: "America/Santiago", hour: "2-digit", minute: "2-digit" }) : ""}` : ""}</p></div> : null}
           <Select
             label="Staff compatible"
             name="staffId"
