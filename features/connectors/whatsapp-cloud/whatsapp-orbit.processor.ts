@@ -18,7 +18,7 @@ import { biancaCanProcessCustomerMessage, biancaQaModeEnabled } from "./bianca-p
 import { prepareBiancaOpportunityContext } from "./bianca-opportunity-context";
 import { biancaShadowModeEnabled, createBiancaShadowDecision, shadowConfidence } from "./bianca-shadow-mode.ts";
 import { persistBiancaShadowDecision } from "./bianca-shadow-persistence.ts";
-import { biancaSafeReplyConfiguration, evaluateBiancaSafeReply, resolveCanonicalBiancaSafeReplyEvidence } from "./bianca-safe-reply";
+import { biancaAutomationRouting, biancaSafeReplyConfiguration, evaluateBiancaSafeReply, resolveCanonicalBiancaSafeReplyEvidence } from "./bianca-safe-reply";
 import { persistBiancaSafeReply } from "./bianca-safe-reply-persistence";
 import { planBiancaTurn } from "./bianca-commercial-planner";
 import { logWhatsApp } from "./whatsapp-observability";
@@ -392,11 +392,13 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
     const shadowMode = biancaShadowModeEnabled();
     const safeReplyMode = biancaSafeReplyConfiguration().stage === "SAFE_REPLY" && biancaSafeReplyConfiguration().realResponseEnabled && !shadowMode;
     const globalAutomationEnabled = whatsappAutomationEnabled() && biancaCanProcessCustomerMessage();
-    const initialAutomationEnabled = shadowMode || globalAutomationEnabled;
+    const initialRouting = biancaAutomationRouting({ shadowMode, safeReplyMode, globalAutomationEnabled, qaAuthorized: false });
+    const initialAutomationEnabled = initialRouting.initialAutomationEnabled;
     const customer = await resolveCustomer(client, event);
     const conversationState = await resolveConversation(client, customer.id, event.sender_wa_id, event.occurred_at, initialAutomationEnabled);
     const qaAuthorized = biancaQaModeEnabled() && biancaCanProcessCustomerMessage(conversationState.id, event.sender_wa_id);
-    const automationEnabled = qaAuthorized || globalAutomationEnabled;
+    const routing = biancaAutomationRouting({ shadowMode, safeReplyMode, globalAutomationEnabled, qaAuthorized });
+    const automationEnabled = routing.automationEnabled;
     await persistInboundCommunication(client, event, conversationState.id, customer.id);
 
     // Shadow Mode intentionally bypasses the legacy if (!automationEnabled)

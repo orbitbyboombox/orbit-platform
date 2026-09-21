@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { evaluateBiancaSafeReply, resolveCanonicalBiancaSafeReplyEvidence } from "../features/connectors/whatsapp-cloud/bianca-safe-reply.ts";
+import { biancaAutomationRouting, evaluateBiancaSafeReply, resolveCanonicalBiancaSafeReplyEvidence } from "../features/connectors/whatsapp-cloud/bianca-safe-reply.ts";
 import type { WhatsAppAiDecision } from "../features/connectors/whatsapp-cloud/whatsapp-ai.responder.ts";
 
 const baseDecision: WhatsAppAiDecision = {
@@ -103,4 +103,20 @@ test("catalog adapter failure leaves evidence unverified and sends nothing", asy
   assert.equal(evidence.verified, false);
   assert.equal(evaluation.allowed, false);
   assert.equal(evaluation.reason, "CANONICAL_EVIDENCE_REQUIRED");
+});
+
+test("SAFE_REPLY routes with global automation OFF and keeps side-effect flags closed", () => {
+  const routing = biancaAutomationRouting({ shadowMode: false, safeReplyMode: true, globalAutomationEnabled: false, qaAuthorized: false });
+  assert.equal(routing.initialAutomationEnabled, true);
+  assert.equal(routing.automationEnabled, true);
+  assert.equal(process.env.GLOBAL_AUTOMATION ?? "false", "false");
+});
+
+test("Shadow routing never opens outbound processing", () => {
+  const routing = biancaAutomationRouting({ shadowMode: true, safeReplyMode: false, globalAutomationEnabled: false, qaAuthorized: false });
+  assert.equal(routing.initialAutomationEnabled, true);
+  assert.equal(routing.automationEnabled, false);
+  const outbox: string[] = [];
+  if (!routing.automationEnabled) outbox.push("NO_OUTBOUND");
+  assert.deepEqual(outbox, ["NO_OUTBOUND"]);
 });

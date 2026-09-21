@@ -84,6 +84,18 @@ export function biancaSafeReplyConfiguration() {
   };
 }
 
+export function biancaAutomationRouting(input: {
+  shadowMode: boolean;
+  safeReplyMode: boolean;
+  globalAutomationEnabled: boolean;
+  qaAuthorized: boolean;
+}) {
+  return {
+    initialAutomationEnabled: input.shadowMode || input.safeReplyMode || input.globalAutomationEnabled,
+    automationEnabled: input.qaAuthorized || input.safeReplyMode || input.globalAutomationEnabled,
+  };
+}
+
 export function evaluateBiancaSafeReply(input: {
   decision: WhatsAppAiDecision;
   response: string;
