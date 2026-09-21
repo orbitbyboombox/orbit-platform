@@ -14,6 +14,7 @@ import { resolveCommercialBreakdown } from "./commercial-breakdown";
 import { loadCompanySettings } from "@/features/company-settings";
 import { createCustomerProjectAction } from "@/features/projects/actions/customer.actions";
 import type { ProjectDraft } from "@/features/projects/types/project";
+import { confirmPersistedReservation, type ConfirmationStage } from "@/features/projects/operations/confirmed-reservation-orchestrator.service";
 import { QUICK_SEND_CTA_LABEL, commercialSignatureMode, emailParagraphs, formalQuoteSubject, normalizeEmailNewlines, quickSendBodyParagraphs, quoteDisplayFilename, quoteStorageKey, resolveQuickSendBody, withoutDuplicateSignature } from "./presentation";
 import { catalogCategoryForQuickSend, catalogPublicUrl, isCommercialCatalogCategory } from "./catalogs";
 import { normalizeQuoteOperationalConditions } from "./operational-conditions";
@@ -127,6 +128,99 @@ async function recoverCommittedQuoteConversion(
     }
   }
   return conversionSuccess(project.id, true, warnings);
+}
+
+/**
+ * Resume an accepted quote whose project/transaction was created but whose
+ * canonical reservation pipeline stopped at a retryable stage. This is a
+ * read-before-write, idempotent recovery path: it reuses the existing project
+ * and transaction and never creates a second event.
+ */
+export async function resumeQuotationConversion(
+  quoteId: string,
+  client: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  actorId: string,
+) {
+  const { data: quote, error: quoteError } = await client
+    .from("quotations")
+    .select("id,status,project_id,conversion_transaction_id,accepted_snapshot")
+    .eq("id", quoteId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (quoteError || !quote?.project_id || !quote.conversion_transaction_id)
+    return null;
+  const { data: transaction, error: transactionError } = await client
+    .from("reservation_transactions")
+    .select("status,project_id,completed_steps")
+    .eq("id", quote.conversion_transaction_id)
+    .maybeSingle();
+  if (transactionError || !transaction || transaction.project_id !== quote.project_id)
+    return null;
+  if (transaction.status === "COMPLETED")
+    return conversionSuccess(quote.project_id, true);
+
+  const snapshot = (quote.accepted_snapshot ?? {}) as Record<string, unknown>;
+  const rawItems = Array.isArray(snapshot.items) ? snapshot.items : [];
+  const serviceLinesByCode = new Map<string, {
+    project_id: string;
+    service_code: string;
+    quantity: number;
+    duration_hours: number;
+    extras: string[];
+  }>();
+  for (const item of rawItems
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object")
+    .filter((item) => String(item.itemType ?? "SERVICE") === "SERVICE")) {
+    const serviceCode = String(item.code ?? "").trim();
+    const quantity = Math.max(1, Number(item.quantity ?? 1));
+    if (!serviceCode || !Number.isFinite(quantity)) continue;
+    const existing = serviceLinesByCode.get(serviceCode);
+    if (existing) existing.quantity += quantity;
+    else serviceLinesByCode.set(serviceCode, {
+      project_id: quote.project_id!,
+      service_code: serviceCode,
+      quantity,
+      duration_hours: 2,
+      extras: [],
+    });
+  }
+  const serviceLines = [...serviceLinesByCode.values()];
+  if (serviceLines.length) {
+    const { error: serviceError } = await client
+      .from("project_services")
+      .upsert(serviceLines, { onConflict: "project_id,service_code" });
+    if (serviceError) throw serviceError;
+  }
+
+  const completed = new Set<ConfirmationStage>();
+  const done = Array.isArray(transaction.completed_steps) ? transaction.completed_steps : [];
+  if (done.includes("Reservation Records")) completed.add("RECORDS");
+  if (done.includes("Business Engine")) completed.add("BUSINESS_ENGINE");
+  if (done.includes("Google Calendar")) completed.add("GOOGLE_CALENDAR");
+  if (done.includes("Google Drive")) completed.add("GOOGLE_DRIVE");
+  if (done.includes("Portal")) completed.add("PORTAL");
+  if (done.includes("Customer Email")) completed.add("CUSTOMER_EMAIL");
+  if (done.includes("Founder Email")) completed.add("FOUNDER_EMAIL");
+  if (done.includes("Dashboard")) completed.add("DASHBOARD");
+  await confirmPersistedReservation({
+    client,
+    projectId: quote.project_id,
+    actorId,
+    completedStages: completed,
+  });
+  return conversionSuccess(quote.project_id, true);
+}
+
+export async function resumeQuotationConversionAction(quoteId: string) {
+  try {
+    const { client, user, role } = await founder();
+    if (!["CEO", "ADMINISTRATOR"].includes(role))
+      throw new Error("Solo Founder o Administración puede reanudar la conversión.");
+    const resumed = await resumeQuotationConversion(quoteId, client, user.id);
+    return resumed ?? { ok: false as const, error: "No existe una conversión parcial reanudable." };
+  } catch (error) {
+    return fail(error, "No fue posible reanudar la conversión.");
+  }
 }
 
 export async function recoverCommercialQuoteConversionAction(quoteId: string) {
@@ -508,6 +602,10 @@ export async function confirmCommercialQuoteConversionAction(
       throw new Error("Solo Founder o Administración puede generar la reserva.");
     const quoteId = String(formData.get("quoteId") ?? "");
     const overrides: QuoteConversionOverrides = {
+      shellType: (() => {
+        const value = String(formData.get("shellType") ?? "").toUpperCase();
+        return value === "WHITE" || value === "BLACK" ? value : "";
+      })(),
       name: String(formData.get("eventName") ?? ""),
       date: String(formData.get("eventDate") ?? ""),
       time: String(formData.get("eventTime") ?? ""),
@@ -589,6 +687,9 @@ export async function confirmCommercialQuoteConversionAction(
     );
     const difference = review.financial.net - official;
     const draft: ProjectDraft = {
+      shellType: overrides.shellType === "WHITE" || overrides.shellType === "BLACK"
+        ? overrides.shellType
+        : review.shellType ?? undefined,
       commercialSourceQuotationId: quoteId,
       reservationTransactionId: claim.transactionId,
       crmCustomerId: review.customerId ?? undefined,
@@ -733,6 +834,11 @@ export async function confirmCommercialQuoteConversionAction(
       try {
         const { client, role } = await founder();
         if (["CEO", "ADMINISTRATOR"].includes(role)) {
+          const auth = await client.auth.getUser();
+          if (auth.data.user) {
+            const resumed = await resumeQuotationConversion(quoteId, client, auth.data.user.id);
+            if (resumed) return resumed;
+          }
           const recovered = await recoverCommittedQuoteConversion(quoteId, client);
           if (recovered) return recovered;
         }

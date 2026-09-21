@@ -641,7 +641,7 @@ export async function createCustomerProjectAction(
     if (completedSteps.has("Dashboard")) completedStages.add("DASHBOARD");
     if (completedSteps.has("Reservation Records"))
       completedStages.add("RECORDS");
-    await confirmPersistedReservation({
+    const confirmation = await confirmPersistedReservation({
       client,
       projectId: project.id,
       actorId: auth.user.id,
@@ -669,9 +669,19 @@ export async function createCustomerProjectAction(
           mark(label, "PASS");
           log(label, "PASS", { projectId });
           await checkpoint(label, "PASS");
+        } else if (status === "FAIL") {
+          mark(label, "FAIL");
+          log(label, "FAIL", { projectId });
+          await checkpoint(label, "FAIL", `La etapa ${label} requiere reintento.`);
         }
       },
     });
+    if (confirmation.warnings.length) {
+      const pending = confirmation.warnings
+        .map((warning) => `${warning.stage}: ${warning.error}`)
+        .join(" · ");
+      throw new Error(`La reserva quedó creada, pero requiere reintento de integración: ${pending}`);
+    }
     currentStep = "Confirmation";
     mark("Confirmation", "PASS");
     log("Confirmation", "PASS", { projectId });

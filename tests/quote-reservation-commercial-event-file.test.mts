@@ -47,6 +47,7 @@ const acceptedSnapshot = {
       location: "Centro de Eventos",
       city: "Las Condes",
       durationHours: 4,
+      shellType: "WHITE",
     },
     subtotal: 500000,
     discount: 50000,
@@ -84,8 +85,17 @@ test("11 internal real transport cost stays outside conversion", () => { assert.
 test("12 missing operational fields are requested", () => {
   const incomplete = buildQuoteConversionReview({ quoteId:"q2",status:"ACCEPTED",snapshot:{...acceptedSnapshot,commercial:{...acceptedSnapshot.commercial,event:{}}} });
   assert.ok(incomplete.missing.includes("Fecha del evento"));
-  assert.throws(() => assertQuoteConversionReady(incomplete, {}), /Completa antes de crear/);
+  assert.throws(() => assertQuoteConversionReady(incomplete, {}), /Completa antes de crear|configuración física/);
   assert.equal(resolveQuoteConversionEvent(incomplete, { name:"Evento",date:"2026-10-10",time:"18:00",location:"Lugar",city:"Santiago",durationHours:3 }).durationHours, 3);
+});
+test("12b CASE-backed quote requires shell before project creation", () => {
+  const withoutShell = structuredClone(acceptedSnapshot) as typeof acceptedSnapshot;
+  delete (withoutShell.commercial.event as { shellType?: string }).shellType;
+  const pending = buildQuoteConversionReview({ quoteId: "q-shell", status: "ACCEPTED", snapshot: withoutShell });
+  assert.equal(pending.shellRequired, true);
+  assert.ok(pending.missing.some((item) => /configuración física/i.test(item)));
+  assert.throws(() => assertQuoteConversionReady(pending, {}), /configuración física/i);
+  assert.doesNotThrow(() => assertQuoteConversionReady(pending, { shellType: "BLACK" }));
 });
 test("13 double click uses one quote conversion transaction", () => { assert.match(migration, /pg_advisory_xact_lock/); assert.match(migration, /conversion_transaction_id=tx_id/); });
 test("14 browser retry resumes one reservation transaction", () => { assert.match(actions, /reservationTransactionId: claim\.transactionId/); assert.match(actions, /reservationResumed/); });
