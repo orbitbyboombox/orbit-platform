@@ -17,6 +17,7 @@ import { chileDateTime } from "@/features/operations/event-operational-window";
 import { buildCanonicalOrbitEventStateFromRecord } from "@/features/operations/canonical-orbit-event-state";
 import { buildResponsibilityReadModel } from "@/features/staff-assignment-center/staff-responsibility-read-model";
 import type { OperationalBlock } from "@/features/operations/operational-blocks";
+import { resolveOfficialOperatorRate } from "@/features/operations/staff-assignment-payment";
 
 export interface ProjectWorkspacePageProps {
   params: Promise<{ projectId: string }>;
@@ -188,7 +189,7 @@ export default async function ProjectWorkspacePage({
     client
       .from("cost_master_entries")
       .select("code,amount,enabled")
-      .in("code", ["OPERATOR_2_HOURS", "OPERATOR_3_HOURS", "OPERATOR_4_HOURS", "OPERATOR_4_5_HOURS", "OPERATOR_5_HOURS", "OPERATOR_6_HOURS"])
+      .in("code", ["OPERATOR_2_HOURS", "OPERATOR_3_HOURS", "OPERATOR_4_HOURS", "OPERATOR_5_HOURS", "OPERATOR_6_HOURS", "OPERATOR_7_HOURS", "OPERATOR_8_HOURS", "OPERATOR_9_HOURS", "OPERATOR_10_HOURS"])
       .eq("enabled", true)
       .is("deleted_at", null),
     client
@@ -1213,7 +1214,7 @@ export default async function ProjectWorkspacePage({
           endAt: block?.end_at,
           durationMinutes: block?.start_at && block?.end_at ? Math.round((new Date(block.end_at).getTime() - new Date(block.start_at).getTime()) / 60000) : undefined,
           rate: block?.start_at && block?.end_at && item.role === "OPERATOR"
-            ? (staffRates ?? []).find((rate) => rate.code === (Math.round((new Date(block.end_at).getTime() - new Date(block.start_at).getTime()) / 60000) % 60 === 30 ? `OPERATOR_${Math.floor((new Date(block.end_at).getTime() - new Date(block.start_at).getTime()) / 3600000)}_5_HOURS` : `OPERATOR_${Math.round((new Date(block.end_at).getTime() - new Date(block.start_at).getTime()) / 3600000)}_HOURS`))?.amount ?? null
+            ? resolveOfficialOperatorRate(staffRates ?? [], Math.round((new Date(block.end_at).getTime() - new Date(block.start_at).getTime()) / 60000)).amount
             : null,
         };
       }),

@@ -6,25 +6,39 @@ import { officialStaffRateCodeForMinutes, resolveOfficialOperatorRate } from "..
 
 const root = join(process.cwd());
 const migration = readFileSync(join(root, "supabase/migrations/20260922113000_staff_block_assignment_rates.sql"), "utf8");
-const fiveHourMigration = readFileSync(join(root, "supabase/migrations/20260922115000_staff_five_hour_rate.sql"), "utf8");
+const officialRateMigration = readFileSync(join(root, "supabase/migrations/20260922121000_official_operator_rate_table.sql"), "utf8");
 const scopeMigration = readFileSync(join(root, "supabase/migrations/20260922114000_staff_block_payment_scope.sql"), "utf8");
 const ui = readFileSync(join(root, "features/staff-assignment-center/staff-assignment-center.tsx"), "utf8");
 
-test("270 minutes resolve the canonical 4.5h operator tariff", () => {
-  assert.equal(officialStaffRateCodeForMinutes(270), "OPERATOR_4_5_HOURS");
-  assert.deepEqual(resolveOfficialOperatorRate([{ code: "OPERATOR_4_5_HOURS", amount: 26500 }], 270), { code: "OPERATOR_4_5_HOURS", amount: 26500 });
+const officialRates = [
+  [2, 14000], [3, 19000], [4, 24000], [5, 27000], [6, 32000],
+  [7, 37000], [8, 42000], [9, 47000], [10, 52000],
+].map(([hours, amount]) => ({ code: `OPERATOR_${hours}_HOURS`, amount }));
+
+test("official whole-hour operator tariffs resolve exactly", () => {
+  for (const [hours, amount] of [[2, 14000], [3, 19000], [4, 24000], [5, 27000], [6, 32000], [7, 37000], [8, 42000], [9, 47000], [10, 52000]]) {
+    assert.equal(officialStaffRateCodeForMinutes(hours * 60), `OPERATOR_${hours}_HOURS`);
+    assert.equal(resolveOfficialOperatorRate(officialRates, hours * 60).amount, amount);
+  }
 });
 
-test("300 minutes resolve the existing 5h operator tariff", () => {
-  assert.equal(officialStaffRateCodeForMinutes(300), "OPERATOR_5_HOURS");
-  assert.equal(resolveOfficialOperatorRate([{ code: "OPERATOR_5_HOURS", amount: 28000 }], 300).amount, 28000);
-  assert.match(fiveHourMigration, /amount=28000/);
+test("270 minutes interpolate the official 4.5h operator tariff", () => {
+  assert.equal(officialStaffRateCodeForMinutes(270), null);
+  assert.equal(resolveOfficialOperatorRate(officialRates, 270).amount, 25500);
+  assert.equal(resolveOfficialOperatorRate(officialRates, 330).amount, 29500);
+  assert.match(officialRateMigration, /\(5,27000::numeric\)/);
 });
 
 test("unknown duration fails closed to REVIEW_REQUIRED", () => {
-  assert.equal(officialStaffRateCodeForMinutes(255), null);
-  assert.equal(resolveOfficialOperatorRate([], 255).amount, null);
+  assert.equal(resolveOfficialOperatorRate(officialRates, 119).amount, null);
+  assert.equal(resolveOfficialOperatorRate(officialRates, 601).amount, null);
   assert.match(migration, /REVIEW_REQUIRED/);
+});
+
+test("official rate migration contains the Founder table and interpolation", () => {
+  assert.match(officialRateMigration, /\(5,27000::numeric\)/);
+  assert.match(officialRateMigration, /resolve_staff_operator_rate/);
+  assert.match(officialRateMigration, /amount=25500/);
 });
 
 test("block assignment allows non-overlap and guards overlap server-side", () => {
