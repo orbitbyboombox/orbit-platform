@@ -8,6 +8,7 @@ import {
 import type { MetaWhatsAppStatusEvent } from "./meta-whatsapp-cloud";
 import { logWhatsApp, serializeWhatsAppError } from "./whatsapp-observability";
 import { WHATSAPP_TENANT_SLUG } from "./whatsapp-tenant";
+import { markBiancaLiveRuntimeDelivered, markBiancaLiveRuntimeMetaSent } from "./bianca-live-runtime-certification.ts";
 
 interface OutboxRow {
   id: string;
@@ -87,6 +88,7 @@ export async function deliverWhatsAppOutboxMessage(correlationId: string) {
       updated_at: sentAt,
     }).eq("id", row.id).eq("status", "SENDING");
     if (error) throw error;
+    await markBiancaLiveRuntimeMetaSent(client, correlationId, sentAt);
 
     await client.from("communications").update({
       status: "SENT",
@@ -149,6 +151,7 @@ export async function updateWhatsAppOutboxStatus(event: Pick<MetaWhatsAppStatusE
     status: event.status,
     inboundToStatusLatencyMs: data.last_inbound_at ? Math.max(0, Date.now() - new Date(data.last_inbound_at).getTime()) : null,
   });
+  if (event.status === "delivered") await markBiancaLiveRuntimeDelivered(client, data.correlation_id, now);
   await client.from("communications").update({
     status: event.status === "failed" ? "FAILED" : event.status.toUpperCase(),
   }).eq("thread_key", data.conversation_id)

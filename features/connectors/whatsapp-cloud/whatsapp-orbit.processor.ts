@@ -27,6 +27,7 @@ import { planBiancaTurn } from "./bianca-commercial-planner";
 import { logWhatsApp } from "./whatsapp-observability";
 import { serializeWhatsAppError } from "./whatsapp-observability";
 import { WHATSAPP_TENANT_SLUG } from "./whatsapp-tenant";
+import { BIANCA_RUNTIME_VERSION, createBiancaLiveRuntimeCertification, finalizeBiancaLiveRuntimeCertification, markStalledBiancaRuntimeOutboxes, updateBiancaLiveRuntimeCertification } from "./bianca-live-runtime-certification.ts";
 
 interface WebhookEventRow {
   id: string;
@@ -36,6 +37,7 @@ interface WebhookEventRow {
   message_type: string;
   text_body: string | null;
   occurred_at: string;
+  created_at: string;
   processing_status: string;
 }
 
@@ -367,6 +369,12 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
   const client = createAdminClient();
   const orchestrator = new BiancaAgentOrchestrator(client);
   const now = new Date().toISOString();
+  try {
+    const stalled = await markStalledBiancaRuntimeOutboxes(client);
+    if (stalled) logWhatsApp("warn", "bianca_runtime_orphan_outboxes_failed", providerMessageId, { count: stalled, thresholdSeconds: 60 });
+  } catch (error) {
+    logWhatsApp("error", "bianca_runtime_orphan_detector_failed", providerMessageId, { detail: serializeWhatsAppError(error) });
+  }
 
   const { data: claimed, error: claimError } = await client
     .from("whatsapp_webhook_events")
@@ -374,7 +382,7 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
     .eq("provider", "META_CLOUD_API")
     .eq("provider_message_id", providerMessageId)
     .eq("processing_status", "RECEIVED")
-    .select("id,provider_message_id,sender_wa_id,profile_name,message_type,text_body,occurred_at,processing_status")
+    .select("id,provider_message_id,sender_wa_id,profile_name,message_type,text_body,occurred_at,created_at,processing_status")
     .maybeSingle();
   if (claimError) throw claimError;
   if (!claimed) {
@@ -383,7 +391,8 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
   }
 
     const event = claimed as WebhookEventRow;
-  const processingStartedAt = Date.now();
+  const processingStartedAtMs = Date.now();
+  const processingStartedAt = new Date(processingStartedAtMs).toISOString();
   try {
     if (event.message_type !== "text" || !event.text_body?.trim()) {
       await client.from("whatsapp_webhook_events").update({ processing_status: "UNSUPPORTED", updated_at: new Date().toISOString() }).eq("tenant_slug", WHATSAPP_TENANT_SLUG).eq("id", event.id);
@@ -399,6 +408,8 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
     const initialAutomationEnabled = initialRouting.initialAutomationEnabled;
     const customer = await resolveCustomer(client, event);
     const conversationState = await resolveConversation(client, customer.id, event.sender_wa_id, event.occurred_at, initialAutomationEnabled);
+    await createBiancaLiveRuntimeCertification({ client, providerMessageId: event.provider_message_id, webhookReceivedAt: event.created_at, processingStartedAt });
+    await updateBiancaLiveRuntimeCertification({ client, providerMessageId: event.provider_message_id, patch: { conversation_id: conversationState.id, customer_id: customer.id, source: "DIRECT_WHATSAPP" } });
     const qaAuthorized = biancaQaModeEnabled() && biancaCanProcessCustomerMessage(conversationState.id, event.sender_wa_id);
     const routing = biancaAutomationRouting({ shadowMode, safeReplyMode, globalAutomationEnabled, qaAuthorized });
     const automationEnabled = routing.automationEnabled;
@@ -428,11 +439,13 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
         updated_at: new Date().toISOString(),
       }).eq("tenant_slug", WHATSAPP_TENANT_SLUG).eq("id", event.id);
       if (finishError) throw finishError;
+      await finalizeBiancaLiveRuntimeCertification({ client, providerMessageId: event.provider_message_id, state: "WAITING_HUMAN" });
       logWhatsApp("info", "whatsapp_event_processed", providerMessageId, { outcome: "HUMAN_REVIEW", automation: "DISABLED" });
       return { ok: true as const, suppressed: true as const, customerId: customer.id, conversationId: conversationState.id, finalStatus: "HUMAN_HANDOFF" as const };
     }
 
     const structuredLead = parseBiancaStructuredWebLead(event.text_body, event.sender_wa_id);
+    await updateBiancaLiveRuntimeCertification({ client, providerMessageId: event.provider_message_id, patch: { parser_done_at: new Date().toISOString(), source: structuredLead ? "WEB_FORM_LEAD" : "DIRECT_WHATSAPP" } });
     const memoryState = await loadMemory(client, customer.id, customer.full_name);
     const opportunity = structuredLead
       ? { context: resetBiancaActiveContext(memoryState.context, event.occurred_at), reset: true as const }
@@ -468,6 +481,8 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
     );
     const qaOverride = qaAuthorized || shadowMode;
     const current = currentConversation(conversationState, customer.full_name, event.occurred_at, qaOverride);
+    const aiStartedAt = new Date().toISOString();
+    await updateBiancaLiveRuntimeCertification({ client, providerMessageId: event.provider_message_id, patch: { ai_started_at: aiStartedAt } });
     const result = await engine.receive(
       {
         id: event.provider_message_id,
@@ -485,8 +500,20 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
       },
       current,
     );
+    const aiCompletedAt = new Date().toISOString();
 
     const decision = aiResponder.lastDecision;
+    await updateBiancaLiveRuntimeCertification({
+      client,
+      providerMessageId: event.provider_message_id,
+      patch: {
+        ai_completed_at: aiCompletedAt,
+        requested_action: decision?.requestedAction ?? null,
+        intents: decision?.intents ?? [],
+        confidence: decision ? safeReplyConfidence({ decision, messageText: event.text_body, evidence: { verified: false, kind: "NONE" } }) : null,
+        opportunity_id: typeof opportunity.context.activeOpportunityId === "string" ? opportunity.context.activeOpportunityId : null,
+      },
+    });
     const initialTurnState = decision ? normalizeBiancaTurnState({
       conversationId: conversationState.id,
       customerId: customer.id,
@@ -502,7 +529,7 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
       requestedAction: decision?.requestedAction ?? null,
       intentCount: decision?.intents.length ?? 0,
       latencyMsFromInbound: Math.max(0, Date.now() - new Date(event.occurred_at).getTime()),
-      processingLatencyMs: Date.now() - processingStartedAt,
+      processingLatencyMs: Date.now() - processingStartedAtMs,
     });
     if (shadowMode && decision) {
       const plan = planBiancaTurn({
@@ -545,6 +572,7 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
         updated_at: new Date().toISOString(),
       }).eq("tenant_slug", WHATSAPP_TENANT_SLUG).eq("id", event.id);
       if (shadowFinishError) throw shadowFinishError;
+      await finalizeBiancaLiveRuntimeCertification({ client, providerMessageId: event.provider_message_id, state: "INTENTIONALLY_SILENT" });
       logWhatsApp("info", "whatsapp_shadow_decision_recorded", providerMessageId, { conversationId: conversationState.id, customerId: customer.id, proposedAction: shadowDecision.proposedAction, status: shadowDecision.status });
       return { ok: true as const, shadow: true as const, suppressed: true as const, customerId: customer.id, conversationId: conversationState.id, finalStatus: "SHADOW_PROPOSED" as const };
     }
@@ -564,6 +592,7 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
         ? `Sí 😊 Te dejo nuestro catálogo: ${evidence.sourceRef}`
         : result.nova.response;
       const semanticConfidence = safeReplyConfidence({ decision, messageText: event.text_body, evidence });
+      await updateBiancaLiveRuntimeCertification({ client, providerMessageId: event.provider_message_id, patch: { evidence_done_at: new Date().toISOString(), confidence: semanticConfidence } });
       const turnState = normalizeBiancaTurnState({
         conversationId: conversationState.id,
         customerId: customer.id,
@@ -598,6 +627,7 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
       if (evaluation.allowed) {
         await new QueuedWhatsAppDispatcher(client, customer.id).dispatch({ ...result.dispatch, content: finalSafeReply });
         await persistOutboundCommunication(client, conversationState.id, customer.id, finalSafeReply, event.occurred_at, result.dispatch.correlationId);
+        await updateBiancaLiveRuntimeCertification({ client, providerMessageId: event.provider_message_id, patch: { outbox_created_at: new Date().toISOString() } });
         logWhatsApp("info", "whatsapp_outbox_created", providerMessageId, {
           conversationId: conversationState.id,
           correlationId: result.dispatch.correlationId,
@@ -635,6 +665,7 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
         updated_at: new Date().toISOString(),
       }).eq("tenant_slug", WHATSAPP_TENANT_SLUG).eq("id", event.id);
       if (safeFinishError) throw safeFinishError;
+      await finalizeBiancaLiveRuntimeCertification({ client, providerMessageId: event.provider_message_id, state: contract === "RESPONSE_SENT" ? "RESPONSE_SENT" : contract === "WAITING_HUMAN" ? "WAITING_HUMAN" : "INTENTIONALLY_SILENT" });
       logWhatsApp(evaluation.allowed ? "info" : "warn", evaluation.allowed ? "bianca_safe_reply_allowed" : "bianca_safe_reply_blocked", providerMessageId, { conversationId: conversationState.id, customerId: customer.id, status: evaluation.allowed ? "SENT" : "BLOCKED", reason: evaluation.reason, evidenceKind: evidence.kind, confidenceBand: evaluation.confidenceBand });
       return { ok: true as const, safeReply: evaluation.allowed, suppressed: !evaluation.allowed, responseContract: contract, customerId: customer.id, conversationId: conversationState.id, finalStatus: safeFinalStatus };
     }
@@ -712,11 +743,22 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
     }).eq("tenant_slug", WHATSAPP_TENANT_SLUG).eq("id", event.id);
     if (finishError) throw finishError;
 
-    logWhatsApp("info", "whatsapp_event_processed", providerMessageId, { outcome: finalStatus });
+    await finalizeBiancaLiveRuntimeCertification({
+      client,
+      providerMessageId: event.provider_message_id,
+      state: result.suppressed || finalStatus === "HUMAN_HANDOFF" ? (finalStatus === "HUMAN_HANDOFF" ? "WAITING_HUMAN" : "INTENTIONALLY_SILENT") : "RESPONSE_SENT",
+    });
+
+    logWhatsApp("info", "whatsapp_event_processed", providerMessageId, { outcome: finalStatus, runtimeVersion: BIANCA_RUNTIME_VERSION, processingLatencyMs: Date.now() - processingStartedAtMs });
 
     return { ok: true as const, suppressed: Boolean(result.suppressed), responseContract: responseContract({ responseSent: !result.suppressed, humanWaiting: finalStatus === "HUMAN_HANDOFF", intentionallySilent: Boolean(result.suppressed) }), customerId: customer.id, conversationId: conversationState.id, finalStatus };
   } catch (error) {
     const detail = serializeWhatsAppError(error);
+    try {
+      await finalizeBiancaLiveRuntimeCertification({ client, providerMessageId: event.provider_message_id, state: "FAILED", failureCode: "PROCESSING_FAILED", failureDetail: detail.slice(0, 1000) });
+    } catch (certificationError) {
+      logWhatsApp("error", "bianca_runtime_certification_failed", providerMessageId, { detail: serializeWhatsAppError(certificationError) });
+    }
     await client.from("whatsapp_webhook_events").update({
       processing_status: "FAILED",
       processing_error: detail.slice(0, 1000),
