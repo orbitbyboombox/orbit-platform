@@ -102,14 +102,15 @@ export async function loadGoogleWorkspaceConnection(): Promise<GoogleWorkspaceCo
   const services = grantedServices(scopes);
   const stillExpired = !expiresAt || new Date(expiresAt).getTime() <= Date.now();
   const tokenStatus = stillExpired ? "REFRESH_REQUIRED" : "HEALTHY";
+  const connectionStatus = stillExpired ? "ERROR" : "CONNECTED";
   return {
     workspaceAccount: data.workspace_account,
     workspaceDomain: data.workspace_domain,
-    connectionStatus: "CONNECTED",
+    connectionStatus,
     connectedSince: data.connected_at ?? undefined,
     lastVerifiedAt: data.last_verified_at ?? undefined,
     tokenStatus,
-    health: resolveConnectionHealth("CONNECTED", tokenStatus),
+    health: resolveConnectionHealth(connectionStatus, tokenStatus),
     grantedServices: GOOGLE_WORKSPACE_SERVICES.map((service) => ({ ...service, granted: services.includes(service.id) })),
     source: "LEGACY",
   };
