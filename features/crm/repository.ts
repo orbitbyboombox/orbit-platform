@@ -4,7 +4,7 @@ import type {
   CrmCustomerSummary,
   CrmEventSummary,
 } from "./types";
-import { formatChileanPhone, formatChileanRut } from "@/lib/chile/rut";
+import { formatChileanPhone, formatChileanRut, normalizeChileanRut } from "@/lib/chile/rut";
 import { groupByOwnerId } from "./relations";
 import { commercialQuoteHref } from "@/features/commercial-hub/quote-detail";
 
@@ -133,21 +133,41 @@ export async function loadCrmCustomerProfile(
       .order("created_at", { ascending: false }),
     client
       .from("quotations")
-      .select("id,project_id,customer_id,quotation_number,version,status,issue_date,expiration_date,created_at,updated_at,approved_at,converted_at,accepted_snapshot,final_customer_price,grand_total,quotation_items(code,label,item_type,quantity,duration_hours,total,final_total),projects(name,event_date,event_time,location,city,project_services(service_code,duration_hours))")
-      .eq("customer_id", customerId)
+      .select("id,project_id,customer_id,customer_snapshot,quotation_number,version,status,issue_date,expiration_date,created_at,updated_at,approved_at,converted_at,accepted_snapshot,final_customer_price,grand_total,quotation_items(code,label,item_type,quantity,total,final_total),projects(name,event_date,event_time,location,city,project_services(service_code,duration_hours))")
       .is("deleted_at", null)
       .order("created_at", { ascending: false }),
   ]);
   if (error) throw error;
   if (!customer) return null;
-  const quotationRows = (quotations ?? []) as unknown as Array<{
+  const { data: customerProjects } = await client
+    .from("projects")
+    .select("id")
+    .eq("customer_id", customerId)
+    .is("deleted_at", null);
+  const customerProjectIds = new Set(
+    ((events ?? []) as Array<{ project_id?: string | null }>)
+      .map((event) => event.project_id)
+      .filter((id): id is string => Boolean(id)),
+  );
+  for (const project of customerProjects ?? []) customerProjectIds.add(project.id);
+  const quotationRows = ((quotations ?? []) as unknown as Array<{
     id: string; project_id: string | null; customer_id: string; quotation_number: string | null;
     version: number | null; status: string | null; issue_date: string | null; expiration_date: string | null;
     created_at: string; updated_at: string | null; approved_at: string | null; converted_at: string | null;
-    final_customer_price: number | null; grand_total: number | null;
+    final_customer_price: number | null; grand_total: number | null; customer_snapshot?: unknown;
     quotation_items?: Array<{ code: string | null; label: string | null; item_type: string | null; quantity: number | null; duration_hours?: number | null; total: number | null; final_total?: number | null }>;
     projects?: { name: string | null; event_date: string | null; event_time: string | null; location: string | null; city: string | null; project_services?: Array<{ service_code: string | null; duration_hours: number | null }> } | Array<{ name: string | null; event_date: string | null; event_time: string | null; location: string | null; city: string | null; project_services?: Array<{ service_code: string | null; duration_hours: number | null }> }> | null;
-  }>;
+  }>).filter((item) => {
+    if (item.customer_id === customerId) return true;
+    if (item.project_id && customerProjectIds.has(item.project_id)) return true;
+    const snapshot = item.customer_snapshot && typeof item.customer_snapshot === "object" && !Array.isArray(item.customer_snapshot)
+      ? item.customer_snapshot as Record<string, unknown>
+      : {};
+    const snapshotCustomerId = String(snapshot.customerId ?? snapshot.customer_id ?? snapshot.id ?? "");
+    if (snapshotCustomerId === customerId) return true;
+    const snapshotRut = normalizeChileanRut(String(snapshot.rut ?? snapshot.customerRut ?? ""));
+    return Boolean(snapshotRut) && snapshotRut === normalizeChileanRut(String(customer.rut ?? ""));
+  });
   const quotationIds = quotationRows.map((item) => item.id);
   const { data: quotationSends } = quotationIds.length
     ? await client.from("commercial_sends").select("quotation_id,sent_at,created_at,status").in("quotation_id", quotationIds).order("sent_at", { ascending: false })

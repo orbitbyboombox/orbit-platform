@@ -87,8 +87,7 @@ export async function loadCommercialHubData(
       .select(
         "id,quotation_number,status,grand_total,issue_date,project_id,customer_id,customer_snapshot,commercial_snapshot,validity_days,deposit_percent,global_discount_type,global_discount_value,customers(full_name,company),quotation_items(code,description,label,quantity,catalog_price,quoted_price,unit_price,discount_type,discount_value,is_manual,display_order)",
       )
-      .order("created_at", { ascending: false })
-      .limit(20),
+      .order("created_at", { ascending: false }),
     client.from("commercial_sends").select("id,recipient_email,cc_recipients,category,subject,status,sent_at,external_message_id,quotation_id,project_id,customer_id").order("sent_at", { ascending: false }).limit(20),
     loadCompanySettings(client),
   ]);
@@ -143,6 +142,7 @@ export async function loadCommercialHubData(
       return {
         id: row.id,
         number: row.quotation_number,
+        customerId: row.customer_id,
         customer: String(
           customer?.company ||
             customer?.full_name ||

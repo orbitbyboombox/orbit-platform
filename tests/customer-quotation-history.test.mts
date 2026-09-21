@@ -10,6 +10,9 @@ test("customer profile exposes canonical quotation history in newest-first order
   assert.match(repository, /from\("quotations"\)/);
   assert.match(repository, /order\("created_at", \{ ascending: false \}\)/);
   assert.match(repository, /commercial_sends/);
+  assert.match(repository, /customerProjectIds/);
+  assert.match(repository, /snapshotCustomerId/);
+  assert.doesNotMatch(repository, /quotation_items\([^)]*duration_hours/);
   for (const field of ["quotation_number", "status", "expiration_date", "final_customer_price", "converted_at"]) {
     assert.match(repository, new RegExp(field));
   }
@@ -31,4 +34,13 @@ test("customers default to server-side alphabetical ordering", () => {
   const page = source("app/(platform)/customers/page.tsx");
   assert.match(repository, /order\("full_name", \{ ascending: options\.sort !== "name_desc" \}\)/);
   assert.match(page, /sort=params\.sort==="name_desc"\?"name_desc":"name_asc"/);
+});
+
+test("global quotations view does not cap history and exposes safe filters", () => {
+  const repository = source("features/commercial-hub/repository.ts");
+  const ui = source("features/commercial-hub/commercial-hub.tsx");
+  assert.doesNotMatch(repository, /from\("quotations"\)[\s\S]{0,500}\.limit\(20\)/);
+  assert.match(ui, /WITH_RESERVATION/);
+  assert.match(ui, /WITHOUT_RESERVATION/);
+  assert.match(ui, /LEGACY/);
 });

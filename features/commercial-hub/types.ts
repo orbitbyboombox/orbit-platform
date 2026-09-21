@@ -41,6 +41,7 @@ export interface RecentCommercialQuote {
   id: string;
   number: string;
   customer: string;
+  customerId: string | null;
   total: number;
   status: string;
   issuedAt: string;

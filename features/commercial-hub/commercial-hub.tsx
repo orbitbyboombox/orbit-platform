@@ -994,11 +994,20 @@ function RecentQuotes({
   const [expanded, setExpanded] = useState(false);
   const [review, setReview] = useState<QuoteConversionReview | null>(null);
   const [message, setMessage] = useState("");
+  const [filter, setFilter] = useState("ALL");
+  const filteredQuotes = quotes.filter((quote) => {
+    if (filter === "ALL") return true;
+    if (filter === "WITH_RESERVATION") return Boolean(quote.projectId);
+    if (filter === "WITHOUT_RESERVATION") return !quote.projectId;
+    if (filter === "LEGACY") return !quote.customerId;
+    return quote.status === filter;
+  });
   const [pending, startTransition] = useTransition();
-  const visibleQuotes = expanded ? quotes : quotes.slice(0, 5);
+  const visibleQuotes = expanded ? filteredQuotes : filteredQuotes.slice(0, 5);
   return (
     <section className="rounded-2xl border bg-card p-5">
       <h2 className="font-semibold">Cotizaciones recientes</h2>
+      <div className="mt-3 flex flex-wrap gap-2"><select aria-label="Filtrar cotizaciones" className="h-10 rounded-lg border bg-background px-3 text-sm" onChange={(event) => setFilter(event.target.value)} value={filter}><option value="ALL">Todas</option><option value="SENT">Enviadas</option><option value="ACCEPTED">Aceptadas</option><option value="REJECTED">Rechazadas</option><option value="EXPIRED">Vencidas</option><option value="WITH_RESERVATION">Con reserva</option><option value="WITHOUT_RESERVATION">Sin reserva</option><option value="LEGACY">Legacy</option></select></div>
       <div className="mt-4 divide-y">
         {quotes.length ? (
           visibleQuotes.map((q) => (
@@ -1022,7 +1031,7 @@ function RecentQuotes({
           <p className="py-5 text-sm text-muted">Aún no hay cotizaciones.</p>
         )}
       </div>
-      {quotes.length > 5 && <button className="mt-3 text-sm font-semibold text-brand" onClick={() => setExpanded((value) => !value)}>{expanded ? "Ver menos" : "Ver todas"}</button>}
+      {filteredQuotes.length > 5 && <button className="mt-3 text-sm font-semibold text-brand" onClick={() => setExpanded((value) => !value)}>{expanded ? "Ver menos" : "Ver todas"}</button>}
       {message?<p aria-live="polite" className="mt-3 text-sm font-medium">{message}</p>:null}
       {openPdf && <PdfViewer title={quoteDisplayFilename(openPdf.number)} src={`/api/commercial/quotes/${openPdf.id}/pdf`} onClose={() => setOpenPdf(null)} />}
       {review?<QuoteConversionReviewDialog review={review} onClose={()=>setReview(null)}/>:null}
