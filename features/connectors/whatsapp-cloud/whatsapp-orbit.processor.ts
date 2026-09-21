@@ -18,6 +18,8 @@ import { biancaCanProcessCustomerMessage, biancaQaModeEnabled } from "./bianca-p
 import { prepareBiancaOpportunityContext } from "./bianca-opportunity-context";
 import { biancaShadowModeEnabled, createBiancaShadowDecision, shadowConfidence } from "./bianca-shadow-mode.ts";
 import { persistBiancaShadowDecision } from "./bianca-shadow-persistence.ts";
+import { biancaSafeReplyConfiguration, evaluateBiancaSafeReply, safeReplyEvidenceFromDecision } from "./bianca-safe-reply";
+import { persistBiancaSafeReply } from "./bianca-safe-reply-persistence";
 import { planBiancaTurn } from "./bianca-commercial-planner";
 import { logWhatsApp } from "./whatsapp-observability";
 import { serializeWhatsAppError } from "./whatsapp-observability";
@@ -388,6 +390,7 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
     // WhatsApp automation is never sufficient by itself. BIANCA customer
     // messaging is a separate, server-side, fail-closed gate.
     const shadowMode = biancaShadowModeEnabled();
+    const safeReplyMode = biancaSafeReplyConfiguration().stage === "SAFE_REPLY" && biancaSafeReplyConfiguration().realResponseEnabled && !shadowMode;
     const globalAutomationEnabled = whatsappAutomationEnabled() && biancaCanProcessCustomerMessage();
     const initialAutomationEnabled = shadowMode || globalAutomationEnabled;
     const customer = await resolveCustomer(client, event);
@@ -433,7 +436,7 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
     const engine = new CommunicationHubEngine(
       aiResponder,
       new SupabaseCommunicationTimelineRepository(client),
-      shadowMode ? new ShadowWhatsAppDispatcher() : new QueuedWhatsAppDispatcher(client, customer.id),
+      shadowMode || safeReplyMode ? new ShadowWhatsAppDispatcher() : new QueuedWhatsAppDispatcher(client, customer.id),
     );
     const qaOverride = qaAuthorized || shadowMode;
     const current = currentConversation(conversationState, customer.full_name, event.occurred_at, qaOverride);
@@ -495,6 +498,53 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
       if (shadowFinishError) throw shadowFinishError;
       logWhatsApp("info", "whatsapp_shadow_decision_recorded", providerMessageId, { conversationId: conversationState.id, customerId: customer.id, proposedAction: shadowDecision.proposedAction, status: shadowDecision.status });
       return { ok: true as const, shadow: true as const, suppressed: true as const, customerId: customer.id, conversationId: conversationState.id, finalStatus: "SHADOW_PROPOSED" as const };
+    }
+    if (safeReplyMode && decision) {
+      const evidence = safeReplyEvidenceFromDecision(decision);
+      const claimViolations = orchestrator.verifyResponse(result.nova.response, {});
+      const evaluation = evaluateBiancaSafeReply({
+        decision,
+        response: result.nova.response,
+        confidence: shadowConfidence(decision),
+        evidence,
+        claimViolations,
+      });
+      const outgoingReply = evaluation.allowed ? result.nova.response : null;
+      if (evaluation.allowed) {
+        await new QueuedWhatsAppDispatcher(client, customer.id).dispatch(result.dispatch);
+        await persistOutboundCommunication(client, conversationState.id, customer.id, result.nova.response, event.occurred_at, result.dispatch.correlationId);
+      }
+      await persistBiancaSafeReply({
+        client,
+        webhookEventId: event.id,
+        providerMessageId: event.provider_message_id,
+        conversationId: conversationState.id,
+        customerId: customer.id,
+        inboundMessage: event.text_body,
+        decision,
+        confidence: shadowConfidence(decision),
+        evaluation,
+        outgoingReply,
+        handoffStatus: evaluation.handoffRequired ? "REQUIRED" : "NONE",
+      });
+      const safeFinalStatus = evaluation.handoffRequired ? "HUMAN_HANDOFF" : result.conversation.status;
+      const { error: safeStateError } = await client.from("conversation_states").update({
+        status: safeFinalStatus,
+        nova_enabled: !evaluation.handoffRequired,
+        context: { ...conversationState.context, safeReply: { status: evaluation.allowed ? "SENT" : "BLOCKED", guardDecisions: evaluation.guardDecisions, updatedAt: event.occurred_at } },
+        updated_at: new Date().toISOString(),
+      }).eq("tenant_slug", WHATSAPP_TENANT_SLUG).eq("id", conversationState.id);
+      if (safeStateError) throw safeStateError;
+      const { error: safeFinishError } = await client.from("whatsapp_webhook_events").update({
+        processing_status: "PROCESSED",
+        customer_id: customer.id,
+        conversation_id: conversationState.id,
+        processing_error: null,
+        updated_at: new Date().toISOString(),
+      }).eq("tenant_slug", WHATSAPP_TENANT_SLUG).eq("id", event.id);
+      if (safeFinishError) throw safeFinishError;
+      logWhatsApp(evaluation.allowed ? "info" : "warn", "whatsapp_safe_reply_evaluated", providerMessageId, { conversationId: conversationState.id, customerId: customer.id, status: evaluation.allowed ? "SENT" : "BLOCKED", reason: evaluation.reason, confidence: evaluation.confidenceBand });
+      return { ok: true as const, safeReply: evaluation.allowed, suppressed: !evaluation.allowed, customerId: customer.id, conversationId: conversationState.id, finalStatus: safeFinalStatus };
     }
     if (!result.suppressed && decision)
       await persistAiDecision(client, customer.id, conversationState, opportunity.context, decision, event.occurred_at);
