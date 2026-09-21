@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   const rawBody = await request.text();
+  console.info(JSON.stringify({ event: "mp.webhook.received", hasSignature: Boolean(request.headers.get("x-signature")), bodyBytes: rawBody.length }));
   let payload: { type?: string; action?: string; data?: { id?: string | number } } = {};
   try { payload = JSON.parse(rawBody) as typeof payload; } catch { return NextResponse.json({ ok: false }, { status: 400 }); }
   const dataId = String(payload.data?.id ?? new URL(request.url).searchParams.get("data.id") ?? "");

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { test } from "node:test";
-import { calculateMercadoPagoAmounts, mapMercadoPagoStatus, verifyMercadoPagoSignature } from "../features/payments/mercadopago/mercadopago.service.ts";
+import { calculateMercadoPagoAmounts, canonicalMercadoPagoMode, mapMercadoPagoStatus, verifyMercadoPagoSignature } from "../features/payments/mercadopago/mercadopago.service.ts";
 
 test("Mercado Pago fee is deterministic in CLP", () => {
   assert.deepEqual(calculateMercadoPagoAmounts(100_000), { subtotal: 100_000, fee: 5_000, total: 105_000 });
@@ -27,4 +27,10 @@ test("webhook signature accepts valid manifest and rejects tampering", () => {
   assert.equal(verifyMercadoPagoSignature(base), true);
   assert.equal(verifyMercadoPagoSignature({ ...base, dataId: "tampered" }), false);
   assert.equal(verifyMercadoPagoSignature({ ...base, signature: "ts=1,v1=bad" }), false);
+});
+
+test("production mode is canonical and never exposes credentials", () => {
+  assert.equal(canonicalMercadoPagoMode("production"), "PRODUCTION");
+  assert.equal(canonicalMercadoPagoMode("TEST"), "TEST");
+  assert.equal(canonicalMercadoPagoMode("sandbox"), "INVALID");
 });

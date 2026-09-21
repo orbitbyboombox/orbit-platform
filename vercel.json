@@ -21,6 +21,10 @@
     {
       "path": "/api/cron/event-deletion-cleanup",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/mercadopago-health",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

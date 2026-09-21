@@ -32,10 +32,30 @@ export function getMercadoPagoConfig() {
   return { accessToken, webhookSecret, appUrl, mode: (process.env.MERCADOPAGO_MODE ?? "TEST").toUpperCase() };
 }
 
+export function canonicalMercadoPagoMode(value: string | undefined) {
+  const mode = (value ?? "").trim().toUpperCase();
+  return mode === "PRODUCTION" || mode === "TEST" ? mode : "INVALID";
+}
+
 export async function checkMercadoPagoApiHealth() {
-  const config = getMercadoPagoConfig();
-  const response = await fetch("https://api.mercadopago.com/users/me", { headers: { Authorization: `Bearer ${config.accessToken}` }, cache: "no-store" });
-  return { reachable: response.ok, status: response.status, mode: config.mode, webhookSecretConfigured: Boolean(config.webhookSecret) };
+  const mode = canonicalMercadoPagoMode(process.env.MERCADOPAGO_MODE);
+  const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN?.trim();
+  const webhookSecretConfigured = Boolean(process.env.MERCADOPAGO_WEBHOOK_SECRET?.trim());
+  const started = Date.now();
+  console.info(JSON.stringify({ event: "mp.health.started", mode }));
+  if (!accessToken) {
+    console.warn(JSON.stringify({ event: "mp.health.failed", reason: "ACCESS_TOKEN_MISSING", mode }));
+    return { reachable: false, apiAuth: false, status: null, mode, modeValid: mode !== "INVALID", accessTokenPresent: false, webhookSecretConfigured };
+  }
+  try {
+    const response = await fetch("https://api.mercadopago.com/users/me", { headers: { Authorization: `Bearer ${accessToken}` }, cache: "no-store" });
+    const result = { reachable: response.ok, apiAuth: response.status !== 401 && response.status !== 403 && response.ok, status: response.status, mode, modeValid: mode !== "INVALID", accessTokenPresent: true, webhookSecretConfigured };
+    console.info(JSON.stringify({ event: result.reachable ? "mp.health.success" : "mp.health.failed", mode, status: result.status, reachable: result.reachable, elapsedMs: Date.now() - started }));
+    return result;
+  } catch {
+    console.warn(JSON.stringify({ event: "mp.health.failed", reason: "MP_API_UNREACHABLE", mode, elapsedMs: Date.now() - started }));
+    return { reachable: false, apiAuth: false, status: null, mode, modeValid: mode !== "INVALID", accessTokenPresent: true, webhookSecretConfigured };
+  }
 }
 
 export function verifyMercadoPagoSignature(input: {
