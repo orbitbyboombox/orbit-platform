@@ -130,13 +130,9 @@ export function CommercialQuoteDetailExperience({
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
             <Button asChild variant="outline">
-              <a
-                href={`/api/commercial/quotes/${quote.id}/pdf`}
-                rel="noreferrer"
-                target="_blank"
-              >
+              <Link href={`/quotes/${quote.id}/pdf`}>
                 <FileText /> VER PDF
-              </a>
+              </Link>
             </Button>
             {actions.canEdit && quote.draft && hubData ? (
               <Button onClick={() => setEditing(true)}>

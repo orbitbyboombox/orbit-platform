@@ -29,7 +29,7 @@ export function normalizeGlobalSearchTerm(value: string) {
 export function globalSearchHref(kind: GlobalSearchKind, id: string) {
   if (kind === "CUSTOMER" || kind === "COMPANY") return `/customers/${id}`;
   if (kind === "EVENT") return `/projects/${id}`;
-  return `/api/commercial/quotes/${id}/pdf`;
+  return `/quotes/${id}`;
 }
 
 export function globalSearchNoResultsMessage(query: string) {

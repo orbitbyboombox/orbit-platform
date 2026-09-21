@@ -90,9 +90,7 @@ export function QuoteConversionReviewDialog({
             </div>
             <a
               className="inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold"
-              href={`/api/commercial/quotes/${review.quoteId}/pdf`}
-              rel="noreferrer"
-              target="_blank"
+              href={`/quotes/${review.quoteId}/pdf`}
             >
               <FileText className="size-4" /> VER PDF
             </a>
