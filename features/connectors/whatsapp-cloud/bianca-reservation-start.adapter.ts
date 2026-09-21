@@ -19,10 +19,12 @@ export type BiancaReservationStartInput = {
 
 export type BiancaReservationStartEvidence = {
   actionRunId: string;
+  conversationId: string;
+  opportunityId: string;
   reservationId: string;
   status: "STARTED" | "ALREADY_DONE";
   startedAt: string;
-  deliveryMode: "MOCK" | "LIVE";
+  deliveryMode: "MOCK" | "SANDBOX" | "LIVE";
 };
 
 export type BiancaReservationStartResult =
@@ -59,9 +61,9 @@ function missingFields(input: BiancaReservationStartInput) {
 
 export class BiancaReservationStartAdapter {
   private readonly starter: ReservationStarter;
-  private readonly deliveryMode: "MOCK" | "LIVE";
+  private readonly deliveryMode: "MOCK" | "SANDBOX" | "LIVE";
 
-  constructor(client: SupabaseClient, starter: ReservationStarter, deliveryMode: "MOCK" | "LIVE") {
+  constructor(client: SupabaseClient, starter: ReservationStarter, deliveryMode: "MOCK" | "SANDBOX" | "LIVE") {
     this.client = client;
     this.starter = starter;
     this.deliveryMode = deliveryMode;
@@ -101,7 +103,7 @@ export class BiancaReservationStartAdapter {
     if (claim.status !== "CLAIMED") throw new Error("BIANCA_RESERVATION_ACTION_RUNNING");
     try {
       const started = await this.starter(input);
-      const evidence: BiancaReservationStartEvidence & { url: string | null } = { actionRunId: claim.runId, reservationId: started.reservationId, status: "STARTED", startedAt: new Date().toISOString(), deliveryMode: this.deliveryMode, url: started.url };
+      const evidence: BiancaReservationStartEvidence & { url: string | null } = { actionRunId: claim.runId, conversationId: input.conversationId, opportunityId: input.opportunityId, reservationId: started.reservationId, status: "STARTED", startedAt: new Date().toISOString(), deliveryMode: this.deliveryMode, url: started.url };
       await runs.finish(claim.runId, { status: "SUCCESS", resultSummary: evidence, externalRef: started.reservationId });
       return evidence;
     } catch (error) {

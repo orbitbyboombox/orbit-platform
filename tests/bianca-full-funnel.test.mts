@@ -3,8 +3,8 @@ import test from "node:test";
 import { executeBiancaFullFunnel, reservationEvidenceForClaim } from "../features/connectors/whatsapp-cloud/bianca-full-funnel.ts";
 
 const quote = { quotationId: "quote-1", quotationNumber: "COT-1", operation: "CREATED" as const, total: 119000, currency: "CLP" as const, actorType: "SYSTEM_AGENT" as const, actorId: "BIANCA" as const, actionRunId: "run-quote", opportunityId: "op-1", status: "SUCCESS" as const, createdAt: new Date().toISOString() };
-const email = { actionRunId: "run-email", emailType: "QUOTE" as const, recipient: "bianca.qa.invalid@example.invalid", relatedQuoteId: "quote-1", providerMessageId: "mock-email", status: "SENT" as const, sentAt: new Date().toISOString(), deliveryMode: "MOCK" as const };
-const reservation = { actionRunId: "run-reservation", reservationId: "reservation-1", status: "STARTED" as const, startedAt: new Date().toISOString(), deliveryMode: "MOCK" as const, url: null };
+const email = { actionRunId: "run-email", conversationId: "conversation-1", opportunityId: "op-1", emailType: "QUOTE" as const, recipient: "bianca.qa.invalid@example.invalid", relatedQuoteId: "quote-1", providerMessageId: "mock-email", status: "SENT" as const, sentAt: new Date().toISOString(), deliveryMode: "MOCK" as const };
+const reservation = { actionRunId: "run-reservation", conversationId: "conversation-1", opportunityId: "op-1", reservationId: "reservation-1", status: "STARTED" as const, startedAt: new Date().toISOString(), deliveryMode: "MOCK" as const, url: null };
 
 test("full funnel composes quote, email and reservation in order", async () => {
   const order: string[] = [];

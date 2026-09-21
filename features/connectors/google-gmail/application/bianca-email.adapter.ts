@@ -6,10 +6,12 @@ import type { GoogleGmailLiveProvider, GoogleGmailProviderResult } from "../prov
 
 export const BIANCA_EMAIL_TYPES = ["QUOTE", "CATALOG", "COMMERCIAL_INFORMATION"] as const;
 export type BiancaEmailType = (typeof BIANCA_EMAIL_TYPES)[number];
-export type BiancaEmailDeliveryMode = "MOCK" | "LIVE";
+export type BiancaEmailDeliveryMode = "MOCK" | "SANDBOX" | "LIVE";
 
 export type BiancaEmailEvidence = {
   actionRunId: string;
+  conversationId: string;
+  opportunityId: string;
   emailType: BiancaEmailType;
   recipient: string;
   relatedQuoteId: string | null;
@@ -62,6 +64,8 @@ function evidenceFromStored(input: BiancaEmailInput, actionRunId: string, stored
   if (stored.status !== "SENT" || !stored.external_message_id) return null;
   return {
     actionRunId,
+    conversationId: input.conversationId,
+    opportunityId: input.opportunityId,
     emailType: input.emailType,
     recipient: input.recipient.trim().toLowerCase(),
     relatedQuoteId: input.relatedQuoteId ?? null,
@@ -152,7 +156,7 @@ export class BiancaEmailAdapter {
       if (!sendId) throw new Error("BIANCA_EMAIL_CLAIM_NOT_VERIFIABLE");
       const delivered: GoogleGmailProviderResult = await this.provider.send({ to: input.recipient.trim().toLowerCase(), idempotencyKey, subject: input.subject, textBody: input.textBody, htmlBody: input.htmlBody, driveFileIds: [] });
       const sentAt = new Date().toISOString();
-      const evidence: BiancaEmailEvidence = { actionRunId: claim.runId, emailType: input.emailType, recipient: input.recipient.trim().toLowerCase(), relatedQuoteId: input.relatedQuoteId ?? null, providerMessageId: delivered.messageId, status: "SENT", sentAt, deliveryMode: this.deliveryMode };
+      const evidence: BiancaEmailEvidence = { actionRunId: claim.runId, conversationId: input.conversationId, opportunityId: input.opportunityId, emailType: input.emailType, recipient: input.recipient.trim().toLowerCase(), relatedQuoteId: input.relatedQuoteId ?? null, providerMessageId: delivered.messageId, status: "SENT", sentAt, deliveryMode: this.deliveryMode };
       const finished = await this.client.from("commercial_sends").update({ status: "SENT", external_message_id: delivered.messageId, sent_at: sentAt }).eq("id", sendId);
       if (finished.error) throw finished.error;
       await runs.finish(claim.runId, { status: "SUCCESS", resultSummary: evidence, externalRef: delivered.messageId });

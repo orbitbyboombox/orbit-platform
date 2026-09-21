@@ -9,7 +9,9 @@ import { renderBoomboxCommercialEmail } from "@/features/connectors/google-gmail
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 const appOrigin = () => process.env.NEXT_PUBLIC_APP_URL ?? "https://orbit.boom-box.cl";
 
-export async function createAutomaticBookingInvitation(email: string, actorId: string) {
+export type AutomaticBookingInvitationDeliveryMode = "LIVE" | "SANDBOX";
+
+export async function createAutomaticBookingInvitation(email: string, actorId: string, options: { deliveryMode?: AutomaticBookingInvitationDeliveryMode } = {}) {
   const customerEmail = email.trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) throw new Error("Ingresa un correo válido.");
   const admin = createAdminClient();
@@ -19,6 +21,12 @@ export async function createAutomaticBookingInvitation(email: string, actorId: s
   const { data: invitation, error } = await admin.from("automatic_booking_invitations").insert({ customer_email: customerEmail, token_hash: hash(token), expires_at: expiresAt, created_by: actorId }).select("id").single();
   if (error) throw error;
   const url = `${appOrigin()}/booking/${token}`;
+  if (options.deliveryMode === "SANDBOX") {
+    const sandboxMessageId = `sandbox-gmail:${invitation.id}`;
+    const { error: sandboxEvidenceError } = await admin.from("automatic_booking_invitations").update({ invitation_message_id: sandboxMessageId }).eq("id", invitation.id);
+    if (sandboxEvidenceError) throw sandboxEvidenceError;
+    return { invitationId: invitation.id, url, expiresAt, providerMessageId: sandboxMessageId, deliveryMode: "SANDBOX" as const };
+  }
   try {
     const subject = "✨ Completa tu Reserva BOOMBOX";
     const htmlBody = renderBoomboxCommercialEmail({
@@ -36,7 +44,7 @@ export async function createAutomaticBookingInvitation(email: string, actorId: s
     });
     const result = await new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken()).send({ to: customerEmail, subject, textBody: `¡Bienvenido a BOOMBOX!\n\nTu experiencia comienza aquí. Completa los datos de tu evento, elige tus servicios, revisa tu contrato y confirma tu reserva desde un único proceso seguro.\n\nCOMPLETAR MI RESERVA: ${url}\n\nEste enlace personal vence en 7 días y funciona una sola vez.`, htmlBody, driveFileIds: [] });
     await admin.from("automatic_booking_invitations").update({ invitation_message_id: result.messageId }).eq("id", invitation.id);
-    return { url, expiresAt };
+    return { invitationId: invitation.id, url, expiresAt, providerMessageId: result.messageId, deliveryMode: "LIVE" as const };
   } catch (cause) {
     await admin.from("automatic_booking_invitations").update({ status: "REVOKED" }).eq("id", invitation.id);
     throw cause;

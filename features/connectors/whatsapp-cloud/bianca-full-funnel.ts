@@ -19,13 +19,34 @@ export type BiancaFullFunnelResult = {
   quote: BiancaQuoteExecutionEvidence;
   email: BiancaEmailEvidence | null;
   reservation: BiancaReservationStartResult | null;
+  correlation: {
+    conversationId: string;
+    opportunityId: string;
+    actionRunId: string;
+    quoteId: string | null;
+    emailRef: string | null;
+    reservationId: string | null;
+  };
 };
 
 export async function executeBiancaFullFunnel(input: BiancaFullFunnelInput, dependencies: BiancaFullFunnelDependencies): Promise<BiancaFullFunnelResult> {
   const quote = await dependencies.createQuote(input.quote);
   const email = input.email ? await dependencies.sendEmail(input.email) : null;
   const reservation = input.reservation ? await dependencies.startReservation(input.reservation) : null;
-  return { quote, email, reservation };
+  const reservationEvidence = reservation && reservation.status !== "NEEDS_INFORMATION" ? reservation : null;
+  return {
+    quote,
+    email,
+    reservation,
+    correlation: {
+      conversationId: input.quote.conversationId,
+      opportunityId: input.quote.opportunityId,
+      actionRunId: reservationEvidence?.actionRunId ?? email?.actionRunId ?? quote.actionRunId,
+      quoteId: quote.quotationId ?? null,
+      emailRef: email?.providerMessageId ?? null,
+      reservationId: reservationEvidence?.reservationId ?? null,
+    },
+  };
 }
 
 export function reservationEvidenceForClaim(result: BiancaReservationStartResult): BiancaReservationStartEvidence | null {
