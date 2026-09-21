@@ -108,6 +108,7 @@ export type StaffAssignmentCenterProps = {
   settlements?: EventStaffSettlement[];
   roleCosts?: Record<string, number>;
   requirements?: ResponsibilityReadModel[];
+  blockRequirements?: Array<{ blockId: string; role: string; required: number; assigned: number; published: boolean; blockName?: string; startAt?: string; endAt?: string }>;
   requests?: Array<{ id: string; role: string; staffName: string; status: string }>;
 };
 const roles = [
@@ -182,6 +183,7 @@ export function StaffAssignmentCenter({
   settlements = [],
   roleCosts = {},
   requirements = [],
+  blockRequirements = [],
   requests = [],
 }: StaffAssignmentCenterProps) {
   const router = useRouter();
@@ -312,6 +314,7 @@ export function StaffAssignmentCenter({
           />;
         })}
       </section>
+      {blockRequirements.length ? <section className="mb-5 border-b pb-5"><h3 className="font-semibold">Planificación por bloques</h3><div className="mt-3 grid gap-3 lg:grid-cols-2">{blockRequirements.map((item) => <article className="rounded-xl border p-4" key={`${item.blockId}:${item.role}`}><p className="font-semibold">{item.blockName ?? "Bloque operacional"}</p><p className="mt-1 text-sm text-muted">{item.startAt ? `${new Date(item.startAt).toLocaleTimeString("es-CL", { timeZone: "America/Santiago", hour: "2-digit", minute: "2-digit" })}–${item.endAt ? new Date(item.endAt).toLocaleTimeString("es-CL", { timeZone: "America/Santiago", hour: "2-digit", minute: "2-digit" }) : ""}` : ""}</p><p className="mt-3 text-sm">{roleLabel(item.role)} <strong>{item.assigned}/{item.required}</strong></p><p className="mt-1 text-xs uppercase tracking-wide text-muted">{item.required === 0 ? "Sin necesidad" : item.required >= 0 ? "Requerimiento por bloque" : ""}</p></article>)}</div></section> : null}
       {requests.length ? <section className="mb-5 border-b pb-5"><h3 className="font-semibold">Solicitudes Staff</h3><div className="mt-3 grid gap-3 lg:grid-cols-2">{requests.map((request)=><article className="rounded-xl border p-4" key={request.id}><p className="font-semibold">{request.staffName}</p><p className="mt-1 text-sm text-muted">{roleLabel(request.role)} · Solicitud pendiente</p><div className="mt-3 flex gap-2"><form action={(data)=>startTransition(async()=>{const result=await reviewStaffRequestAction(data);setMessage(result.message);if(result.ok)router.refresh()})}><input name="requestId" type="hidden" value={request.id}/><input name="decision" type="hidden" value="approve"/><Button aria-busy={pending} disabled={pending} type="submit">Aprobar</Button></form><form action={(data)=>startTransition(async()=>{const result=await reviewStaffRequestAction(data);setMessage(result.message);if(result.ok)router.refresh()})}><input name="requestId" type="hidden" value={request.id}/><input name="decision" type="hidden" value="reject"/><Button aria-busy={pending} disabled={pending} type="submit" variant="outline">Rechazar</Button></form></div></article>)}</div></section>:null}
       <div className="grid gap-3 lg:grid-cols-2">
         {assignments.map((item) => (

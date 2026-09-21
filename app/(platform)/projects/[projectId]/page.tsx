@@ -165,7 +165,7 @@ export default async function ProjectWorkspacePage({
     client
       .from("assignments")
       .select(
-        "id,project_id,staff_id,assignment_type,status,created_at,staff_call_at,arrival_time,start_time,finish_time,assigned_vehicle,observations,resources,staff(first_name,last_name),operational_assets(asset_code)",
+        "id,project_id,block_id,staff_id,assignment_type,status,created_at,staff_call_at,arrival_time,start_time,finish_time,assigned_vehicle,observations,resources,staff(first_name,last_name),operational_assets(asset_code)",
       )
       .is("deleted_at", null),
     client
@@ -268,7 +268,7 @@ export default async function ProjectWorkspacePage({
   const { data: staffRoleRequirements, error: staffRoleRequirementError } =
     await client
       .from("event_staff_requirements")
-      .select("role,required_quantity,published")
+      .select("role,required_quantity,published,block_id")
       .eq("project_id", projectId)
       .order("role");
   if (staffRoleRequirementError) throw staffRoleRequirementError;
@@ -465,6 +465,7 @@ export default async function ProjectWorkspacePage({
   type ActiveAssetAssignment = {
     id: string;
     project_id: string;
+    block_id: string | null;
     asset_id: string;
     operational_requirement_id: string | null;
     planned_start_at: string | null;
@@ -476,6 +477,7 @@ export default async function ProjectWorkspacePage({
     created_at?: string;
     id: string;
     project_id: string;
+    block_id: string | null;
     staff_id: string;
     assignment_type: string;
     status: string;
@@ -507,7 +509,7 @@ export default async function ProjectWorkspacePage({
     (operatorAssignments ?? []) as unknown as StaffAssignment[]
   ).filter((item) => confirmedAssignmentStatuses.has(item.status));
   const responsibilityRequirements = buildResponsibilityReadModel(
-    (staffRoleRequirements ?? []).map((item) => ({
+    (staffRoleRequirements ?? []).filter((item) => !item.block_id).map((item) => ({
       role: item.role,
       required: Number(item.required_quantity),
       published: item.published,
@@ -1191,6 +1193,19 @@ export default async function ProjectWorkspacePage({
       projectId,
       published: staffPublication?.published ?? false,
       requirements: responsibilityRequirements,
+      blockRequirements: (staffRoleRequirements ?? []).filter((item) => item.block_id).map((item) => {
+        const block = (operationalBlockRows ?? []).find((candidate) => candidate.id === item.block_id);
+        return {
+          blockId: item.block_id as string,
+          role: item.role,
+          required: Number(item.required_quantity),
+          published: item.published,
+          assigned: ((operatorAssignments ?? []) as unknown as StaffAssignment[]).filter((assignment) => assignment.block_id === item.block_id && assignment.assignment_type === item.role && !["CANCELLED", "REJECTED"].includes(assignment.status)).length,
+          blockName: block?.name,
+          startAt: block?.start_at,
+          endAt: block?.end_at,
+        };
+      }),
       roleCosts: Object.fromEntries(["OPERATOR", "ASSEMBLY", "DISASSEMBLY"].map((role) => [role,
         (payroll ?? []).filter((item) => item.status !== "CANCELLED").reduce((sum, item) => sum + Number(role === "OPERATOR" ? item.operator_payment : role === "ASSEMBLY" ? item.assembly_payment : item.disassembly_payment), 0),
       ])),
