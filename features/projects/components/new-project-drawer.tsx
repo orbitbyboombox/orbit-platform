@@ -803,7 +803,8 @@ export function NewProjectDrawer({
   useEffect(() => {
     if (!open || recoveryChecked.current) return;
     recoveryChecked.current = true;
-    const saved = window.localStorage.getItem(manualReservationDraftKey);
+    let saved: string | null = null;
+    try { saved = window.localStorage.getItem(manualReservationDraftKey); } catch { return; }
     if (!saved) return;
     if (
       !window.confirm(
