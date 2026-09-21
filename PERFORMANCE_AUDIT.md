@@ -1,8 +1,8 @@
 # Auditoría de performance no destructiva — ORBIT BOOMBOX
 
-Fecha: 2026-09-19  
+Fecha: 2026-09-21 (P0 recovery)  
 Entorno observado: Production (`https://app.bbox.cl`)  
-Deployment observado: `dpl_8XvwyqHZzHHSHRMRWW5CwgGQypVH` (READY, alias `app.bbox.cl`)  
+Deployment observado: `dpl_5BCjoWpc12LM78xX4PHeEz8St1Eg` (READY, alias `app.bbox.cl`)  
 Proyecto Vercel: `orbit-platform-v1`
 
 ## Alcance y límites
@@ -180,8 +180,24 @@ No se atribuye impacto de estos assets a rutas protegidas sin un waterfall auten
 ## Estado final de esta auditoría
 
 - **AUDITORÍA NO DESTRUCTIVA:** COMPLETADA.
-- **OPTIMIZACIONES APLICADAS:** NINGUNA.
-- **CAMBIOS DE LÓGICA/DB/AUTH/INTEGRACIONES:** NINGUNO.
+- **OPTIMIZACIONES APLICADAS:** índice parcial para `audit_events` y eliminación de reconciliación/escritura del shell en cada navegación.
+- **CAMBIOS DE LÓGICA/DB/AUTH/INTEGRACIONES:** solo acceso de datos/performance; sin cambios comerciales ni de integraciones.
 - **CWV AUTENTICADOS:** PENDIENTES de navegador/sesión real.
 - **Evidencia principal:** tiempos curl, `vercel inspect`, logs Production y revisión estática del repositorio.
 
+## P0 recovery 2026-09-21
+
+La consulta crítica de Staff era:
+
+```sql
+select id, entity_id, action, occurred_at
+from audit_events
+where entity_type = 'staff'
+order by occurred_at desc
+limit 500;
+```
+
+Antes: secuencial sobre 93.373 filas, `Execution Time: 6289.087 ms`, con `57014` observado en Production.
+Después: índice parcial `audit_events_staff_entity_time_idx`, 159 filas candidatas, `Execution Time: 3.361 ms`.
+
+Además, el shell dejó de ejecutar `synchronizeModuleCatalog` (upsert) en cada navegación y el badge de acciones Founder pasó a dos lecturas `count` acotadas, sin reconciliaciones mutantes. La ruta Staff fue verificada autenticada en Production y el smoke de rutas no mostró error boundary; los logs post-deploy no reportaron `57014` ni respuestas `5xx` durante la verificación.
