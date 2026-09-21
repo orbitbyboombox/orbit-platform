@@ -106,6 +106,13 @@ test("standard flows route to canonical catalogs and special flows force manual 
   assert.match(source, /requestedAction: "MANUAL_REVIEW"/);
 });
 
+test("generic catalog turns do not inherit historical wedding specificity", async () => {
+  const responder = await readFile(responderUrl, "utf8");
+  assert.match(responder, /genericServicesRequest/);
+  assert.match(responder, /currentTurnText/);
+  assert.match(responder, /: "EVENTS"/);
+});
+
 test("catalog delivery uses active ORBIT documents and is fail-closed", async () => {
   const source = await readFile(catalogUrl, "utf8");
   assert.match(source, /WHATSAPP_COMMERCIAL_ACTIONS_ENABLED/);

@@ -18,7 +18,7 @@ import { biancaCanProcessCustomerMessage, biancaQaModeEnabled } from "./bianca-p
 import { prepareBiancaOpportunityContext } from "./bianca-opportunity-context";
 import { biancaShadowModeEnabled, createBiancaShadowDecision, shadowConfidence } from "./bianca-shadow-mode.ts";
 import { persistBiancaShadowDecision } from "./bianca-shadow-persistence.ts";
-import { biancaAutomationRouting, biancaSafeReplyConfiguration, evaluateBiancaSafeReply, isActiveHumanTakeover, resolveCanonicalBiancaSafeReplyEvidence } from "./bianca-safe-reply";
+import { biancaAutomationRouting, biancaSafeReplyConfiguration, evaluateBiancaSafeReply, isActiveHumanTakeover, resolveCanonicalBiancaSafeReplyEvidence, safeReplyConfidence } from "./bianca-safe-reply";
 import { persistBiancaSafeReply } from "./bianca-safe-reply-persistence";
 import { planBiancaTurn } from "./bianca-commercial-planner";
 import { logWhatsApp } from "./whatsapp-observability";
@@ -515,6 +515,7 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
       const finalSafeReply = evidence.kind === "CANONICAL_CATALOG" && evidence.sourceRef
         ? `Sí 😊 Te dejo nuestro catálogo: ${evidence.sourceRef}`
         : result.nova.response;
+      const semanticConfidence = safeReplyConfidence({ decision, messageText: event.text_body, evidence });
       const claimViolations = orchestrator.verifyResponse(finalSafeReply, {
         catalogSent: evidence.kind === "CANONICAL_CATALOG",
         priceResolved: evidence.kind === "CANONICAL_PRICE",
@@ -523,7 +524,7 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
       const evaluation = evaluateBiancaSafeReply({
         decision,
         response: finalSafeReply,
-        confidence: shadowConfidence(decision),
+        confidence: semanticConfidence,
         evidence,
         claimViolations,
       });
@@ -540,7 +541,7 @@ export async function processWhatsAppWebhookEvent(providerMessageId: string) {
         customerId: customer.id,
         inboundMessage: event.text_body,
         decision,
-        confidence: shadowConfidence(decision),
+        confidence: semanticConfidence,
         evaluation,
         outgoingReply,
         handoffStatus: evaluation.handoffRequired ? "REQUIRED" : "NONE",

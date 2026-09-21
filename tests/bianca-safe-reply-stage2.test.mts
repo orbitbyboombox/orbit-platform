@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { biancaAutomationRouting, evaluateBiancaSafeReply, isActiveHumanTakeover, resolveCanonicalBiancaSafeReplyEvidence } from "../features/connectors/whatsapp-cloud/bianca-safe-reply.ts";
+import { biancaAutomationRouting, evaluateBiancaSafeReply, isActiveHumanTakeover, resolveCanonicalBiancaSafeReplyEvidence, safeReplyConfidence } from "../features/connectors/whatsapp-cloud/bianca-safe-reply.ts";
 import type { WhatsAppAiDecision } from "../features/connectors/whatsapp-cloud/whatsapp-ai.responder.ts";
 
 const baseDecision: WhatsAppAiDecision = {
@@ -141,4 +141,13 @@ test("historical handoff can recover the catalog safe-reply path without manual 
   assert.equal(evaluation.allowed, true);
   assert.equal(evaluation.handoffRequired, false);
   assert.equal(evaluation.guardDecisions.evidenceAllowed, true);
+});
+
+test("SAFE_REPLY semantic confidence is high for clear catalog and payment questions", () => {
+  const catalog = safeReplyConfidence({ decision: decision({ requestedAction: "CATALOG_LOOKUP", catalogCategory: "EVENTS" }), messageText: "Que servicios tienen", evidence: { verified: true, kind: "CANONICAL_CATALOG" } });
+  const payment = safeReplyConfidence({ decision: decision({ requestedAction: "COMMERCIAL_LOOKUP", intents: ["PAGO"] }), messageText: "Qué medios de pago tienen?", evidence: { verified: true, kind: "CANONICAL_PAYMENT" } });
+  const ambiguous = safeReplyConfidence({ decision: decision({ requestedAction: "NONE" }), messageText: "eso", evidence: { verified: true, kind: "GENERAL_KNOWLEDGE" } });
+  assert.equal(catalog, 0.95);
+  assert.equal(payment, 0.95);
+  assert.equal(ambiguous, 0.5);
 });

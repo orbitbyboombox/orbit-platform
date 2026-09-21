@@ -441,6 +441,8 @@ export class WhatsAppAiResponder implements NovaResponder {
       const selfIntroducedName = extractSelfIntroducedName(input.message.text);
       const identityTurn = isIdentityQuestion(input.message.text) && !isFounderRequest(input.message.text);
       const directCatalogRequest = /\b(?:cat[aá]logo|planes|folleto|opciones)\b/i.test(input.message.text);
+      const genericServicesRequest = /\b(?:qu[eé]|que)\s+(?:servicios?|opciones?)\s+(?:tienen|ofrecen|hay|manejan)\b/i.test(input.message.text)
+        || /\bservicios?\s+(?:tienen|ofrecen|hay|manejan)\b/i.test(input.message.text);
       const planner = planBiancaTurn({
         text: input.message.text,
         known: {
@@ -503,12 +505,17 @@ export class WhatsAppAiResponder implements NovaResponder {
       if (planner.nextBestAction === "HANDOFF") {
         decision.requestedAction = "HUMAN_HANDOFF";
         decision.commercialStage = "HUMAN_REQUIRED";
-      } else if (directCatalogRequest && decision.requestedAction !== "HUMAN_HANDOFF") {
+      } else if ((directCatalogRequest || genericServicesRequest) && decision.requestedAction !== "HUMAN_HANDOFF") {
         decision.requestedAction = "CATALOG_LOOKUP";
-        if (decision.catalogCategory === "NONE") {
-          const eventText = `${input.message.text} ${input.memory.eventType ?? ""} ${leadContext?.eventType ?? ""}`.toLowerCase();
-          decision.catalogCategory = /matrimonio|novio|boda/.test(eventText) ? "WEDDINGS" : /empresa|corporativ/.test(eventText) ? "COMPANIES" : "EVENTS";
-        }
+        // The current turn owns catalog specificity. Historical wedding or
+        // corporate context may inform a recommendation, but must not hijack
+        // a generic services/catalog question.
+        const currentTurnText = input.message.text.toLowerCase();
+        decision.catalogCategory = /matrimonio|novio|boda/.test(currentTurnText)
+          ? "WEDDINGS"
+          : /empresa|corporativ/.test(currentTurnText)
+            ? "COMPANIES"
+            : "EVENTS";
       }
       this.lastDecisionValue = decision;
       const response = MONEY_OR_AVAILABILITY_CLAIM.test(decision.responseText)

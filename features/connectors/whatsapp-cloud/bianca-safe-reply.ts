@@ -96,6 +96,40 @@ export function biancaAutomationRouting(input: {
   };
 }
 
+function normalizedTurnText(text: string) {
+  return text.toLocaleLowerCase("es-CL").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function isAmbiguousTurn(text: string) {
+  return /^(?:eso|ese|esa|ahi|all[ií]|lo mismo|dale|si|ya)$/i.test(text.trim());
+}
+
+export function safeReplyConfidence(input: {
+  decision: WhatsAppAiDecision;
+  messageText: string;
+  evidence: BiancaSafeReplyEvidence;
+}) {
+  const text = normalizedTurnText(input.messageText);
+  if (isAmbiguousTurn(text)) return 0.5;
+
+  const clearCatalog = input.decision.requestedAction === "CATALOG_LOOKUP"
+    && /\b(?:servicios?|opciones?|catalogo|planes?|folleto|muestra)\b/.test(text);
+  const clearPayment = input.decision.requestedAction === "COMMERCIAL_LOOKUP"
+    && (input.decision.intents.includes("PAGO") || /\b(?:pago|pagar|abono|saldo|transferencia|tarjeta|webpay)\b/.test(text));
+  const clearCommercialLookup = input.decision.requestedAction === "COMMERCIAL_LOOKUP"
+    && (input.decision.intents.includes("CONSULTA_PRECIO") || input.decision.intents.includes("DISPONIBILIDAD"));
+  const clearGeneral = ["NONE", "WAIT_FOR_CUSTOMER"].includes(input.decision.requestedAction)
+    && input.decision.intents.includes("CONSULTA_GENERAL")
+    && text.length >= 8;
+  const evidenceMatches = evidenceMatchesDecision(input.decision, input.evidence);
+  if ((clearCatalog && input.evidence.kind === "CANONICAL_CATALOG") || (clearPayment && input.evidence.kind === "CANONICAL_PAYMENT") || (clearCommercialLookup && evidenceMatches) || (clearGeneral && input.evidence.kind === "GENERAL_KNOWLEDGE")) {
+    return 0.95;
+  }
+  if (input.decision.requestedAction === "HUMAN_HANDOFF" || input.decision.requestedAction === "MANUAL_REVIEW") return 0.9;
+  if (evidenceMatches && text.length >= 8) return 0.8;
+  return 0.5;
+}
+
 export function isActiveHumanTakeover(conversationState: { context?: Record<string, unknown> | null }) {
   const takeover = conversationState.context?.humanTakeover;
   return Boolean(takeover && typeof takeover === "object" && (takeover as Record<string, unknown>).active === true);
