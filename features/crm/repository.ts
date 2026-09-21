@@ -26,6 +26,7 @@ const text = (value: string | null) => value ?? "";
 
 export async function loadCrmCustomers(
   client: SupabaseClient,
+  options: { sort?: "name_asc" | "name_desc" } = {},
 ): Promise<CrmCustomerSummary[]> {
   const [{ data: customers, error }, { data: events, error: eventError }] =
     await Promise.all([
@@ -35,7 +36,7 @@ export async function loadCrmCustomers(
           "id,full_name,rut,company,phone,email,secondary_email,address,city,metadata,version,updated_at",
         )
         .is("deleted_at", null)
-        .order("updated_at", { ascending: false }),
+        .order("full_name", { ascending: options.sort !== "name_desc" }),
       client
         .from("crm_events")
         .select("customer_id,event_date,status")
@@ -132,13 +133,59 @@ export async function loadCrmCustomerProfile(
       .order("created_at", { ascending: false }),
     client
       .from("quotations")
-      .select("id,project_id,quotation_number,status,final_customer_price,grand_total,created_at")
+      .select("id,project_id,customer_id,quotation_number,version,status,issue_date,expiration_date,created_at,updated_at,approved_at,converted_at,accepted_snapshot,final_customer_price,grand_total,quotation_items(code,label,item_type,quantity,duration_hours,total,final_total),projects(name,event_date,event_time,location,city,project_services(service_code,duration_hours))")
       .eq("customer_id", customerId)
       .is("deleted_at", null)
       .order("created_at", { ascending: false }),
   ]);
   if (error) throw error;
   if (!customer) return null;
+  const quotationRows = (quotations ?? []) as unknown as Array<{
+    id: string; project_id: string | null; customer_id: string; quotation_number: string | null;
+    version: number | null; status: string | null; issue_date: string | null; expiration_date: string | null;
+    created_at: string; updated_at: string | null; approved_at: string | null; converted_at: string | null;
+    final_customer_price: number | null; grand_total: number | null;
+    quotation_items?: Array<{ code: string | null; label: string | null; item_type: string | null; quantity: number | null; duration_hours?: number | null; total: number | null; final_total?: number | null }>;
+    projects?: { name: string | null; event_date: string | null; event_time: string | null; location: string | null; city: string | null; project_services?: Array<{ service_code: string | null; duration_hours: number | null }> } | Array<{ name: string | null; event_date: string | null; event_time: string | null; location: string | null; city: string | null; project_services?: Array<{ service_code: string | null; duration_hours: number | null }> }> | null;
+  }>;
+  const quotationIds = quotationRows.map((item) => item.id);
+  const { data: quotationSends } = quotationIds.length
+    ? await client.from("commercial_sends").select("quotation_id,sent_at,created_at,status").in("quotation_id", quotationIds).order("sent_at", { ascending: false })
+    : { data: [] as Array<{ quotation_id: string; sent_at: string | null; created_at: string; status: string | null }> };
+  const latestSend = new Map<string, string>();
+  for (const send of quotationSends ?? []) {
+    if (!send.quotation_id || latestSend.has(send.quotation_id)) continue;
+    latestSend.set(send.quotation_id, send.sent_at ?? send.created_at);
+  }
+  const quotationHistory = quotationRows.map((item) => {
+    const project = Array.isArray(item.projects) ? item.projects[0] : item.projects;
+    const services = (item.quotation_items ?? []).filter((line) => String(line.item_type ?? "").toUpperCase() === "SERVICE").map((line) => String(line.label ?? line.code ?? "Servicio")).filter(Boolean);
+    const projectServices = project?.project_services ?? [];
+    const duration = projectServices.map((service) => Number(service.duration_hours ?? 0)).find((value) => value > 0) ?? null;
+    const status = String(item.status ?? "UNKNOWN").toUpperCase();
+    const reservationCreated = Boolean(item.project_id || item.converted_at);
+    return {
+      id: item.id,
+      number: item.quotation_number ?? item.id,
+      version: Number(item.version ?? 1),
+      status,
+      statusLabel: quotationStatusLabel(status, reservationCreated),
+      customerId: item.customer_id,
+      projectId: item.project_id,
+      eventName: project?.name ?? "Evento por confirmar",
+      eventDate: project?.event_date ?? null,
+      services,
+      durationHours: duration,
+      total: Number(item.final_customer_price ?? item.grand_total ?? 0),
+      issuedAt: item.issue_date ?? item.created_at,
+      sentAt: latestSend.get(item.id) ?? null,
+      expirationDate: item.expiration_date ?? null,
+      acceptedAt: item.approved_at ?? null,
+      convertedAt: item.converted_at ?? null,
+      reservationCreated,
+      href: commercialQuoteHref(item.id),
+    };
+  });
   const optionalErrors = [
     { component: "Integrity Verification", error: integrityError },
     { component: "Customer Events", error: eventError },
@@ -392,11 +439,11 @@ export async function loadCrmCustomerProfile(
           }))
       : [],
     commercialHistory: [
-      ...(quotations ?? []).map((item) => ({
+      ...quotationRows.map((item) => ({
         id: `quotation-${item.id}`,
         href: commercialQuoteHref(item.id),
         type: "Cotización",
-        title: item.quotation_number,
+        title: item.quotation_number ?? item.id,
         detail: `${item.status} · ${Number(item.final_customer_price ?? item.grand_total ?? 0).toLocaleString("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 })}`,
         date: item.created_at,
       })),
@@ -451,7 +498,23 @@ export async function loadCrmCustomerProfile(
         : "Usuario ORBIT",
       timestamp: item.created_at,
     })),
+    quotations: quotationHistory,
   };
+}
+
+function quotationStatusLabel(status: string, reservationCreated: boolean) {
+  if (reservationCreated) return "Reserva generada";
+  const labels: Record<string, string> = {
+    DRAFT: "Borrador",
+    SENT: "Enviada",
+    VIEWED: "Vista",
+    ACCEPTED: "Aceptada",
+    REJECTED: "Rechazada",
+    EXPIRED: "Vencida",
+    CANCELLED: "Cancelada",
+    CONVERTED: "Convertida en reserva",
+  };
+  return labels[status] ?? status.replaceAll("_", " ");
 }
 
 function toCorporateBilling(value: unknown) {

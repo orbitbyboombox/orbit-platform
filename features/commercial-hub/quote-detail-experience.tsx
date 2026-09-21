@@ -120,7 +120,7 @@ export function CommercialQuoteDetailExperience({
         </div>
       </header>
 
-      <section className="rounded-2xl border border-brand/30 bg-card p-4 sm:p-5">
+      <section className="scroll-mt-24 rounded-2xl border border-brand/30 bg-card p-4 sm:p-5" id="accion-comercial">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="font-semibold">Acción comercial</h2>

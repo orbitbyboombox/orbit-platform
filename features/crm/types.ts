@@ -192,4 +192,27 @@ export interface CrmCustomerProfile extends CrmCustomerSummary {
   profitabilityRecords: number;
   timeline: Array<{ id: string; title: string; message: string; date: string }>;
   negotiations: CrmCommercialNegotiation[];
+  quotations: CrmQuotationHistory[];
+}
+
+export interface CrmQuotationHistory {
+  id: string;
+  number: string;
+  version: number;
+  status: string;
+  statusLabel: string;
+  customerId: string;
+  projectId: string | null;
+  eventName: string;
+  eventDate: string | null;
+  services: string[];
+  durationHours: number | null;
+  total: number;
+  issuedAt: string | null;
+  sentAt: string | null;
+  expirationDate: string | null;
+  acceptedAt: string | null;
+  convertedAt: string | null;
+  reservationCreated: boolean;
+  href: string;
 }

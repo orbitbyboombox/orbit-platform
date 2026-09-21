@@ -1,2 +1,2 @@
 import{CustomerCenter,loadCrmCustomers}from"@/features/crm";import{createSupabaseServerClient}from"@/lib/supabase/server";
-export default async function CustomersPage(){const client=await createSupabaseServerClient();return<CustomerCenter customers={await loadCrmCustomers(client)}/>}
+export default async function CustomersPage({searchParams}:{searchParams:Promise<{sort?:string}>}){const client=await createSupabaseServerClient();const params=await searchParams;const sort=params.sort==="name_desc"?"name_desc":"name_asc";return<CustomerCenter customers={await loadCrmCustomers(client,{sort})}/>} 
