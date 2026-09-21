@@ -1,4 +1,5 @@
 import { catalogPublicUrl } from "../../commercial-hub/catalogs.ts";
+import { renderBiancaQuestionUniverseContext } from "./bianca-question-universe.ts";
 
 /**
  * Stable, non-sensitive commercial vocabulary for BIANCA.
@@ -56,6 +57,7 @@ export interface BiancaCommercialKnowledgeInput {
 export function selectBiancaCommercialKnowledge(input: BiancaCommercialKnowledgeInput): string {
   const text = `${input.messageText}\n${input.historyText ?? ""}`;
   const sections: string[] = [];
+  sections.push(renderBiancaQuestionUniverseContext(input));
   const hasTotem = TOPIC_PATTERNS.totem.test(text);
   const hasFormats = TOPIC_PATTERNS.formats.test(text);
   const hasPhotoIa = TOPIC_PATTERNS.photoIa.test(text);
@@ -94,7 +96,7 @@ export function selectBiancaCommercialKnowledge(input: BiancaCommercialKnowledge
     ].join("\n"));
   }
 
-  if (!sections.length) return "SIN CONTEXTO COMERCIAL ESPECIAL: usa el catálogo y pricing canónicos solo si la intención los requiere.";
+  if (sections.length === 1) sections.push("SIN CONTEXTO COMERCIAL ESPECIAL: usa el catálogo y pricing canónicos solo si la intención los requiere.");
   return [
     "CONOCIMIENTO COMERCIAL CONTEXTUAL (no es fuente de precios):",
     ...sections,
