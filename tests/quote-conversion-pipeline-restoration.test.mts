@@ -13,6 +13,7 @@ const reviewUi = source("features/commercial-hub/quote-conversion-review.tsx");
 const orchestrator = source("features/projects/operations/confirmed-reservation-orchestrator.service.ts");
 const operational = source("features/projects/operations/confirmed-reservation-pipeline.service.ts");
 const customerActions = source("features/projects/actions/customer.actions.ts");
+const calendarSync = source("features/connectors/google-calendar/application/google-calendar-sync.service.ts");
 
 const snapshot = {
   quotation: { number: "QA-1", version: 1, acceptedAt: "2026-09-01T00:00:00Z" },
@@ -50,6 +51,13 @@ test("canonical orchestrator contains reservation, portal, Calendar and Drive st
     assert.match(orchestrator, new RegExp(stage));
   assert.match(operational, /synchronizeConfirmedReservationCalendar/);
   assert.match(operational, /synchronizeConfirmedReservationDrive/);
+});
+
+test("Calendar is gated by operational reservation, not contract signature", () => {
+  assert.match(calendarSync, /crm_reservations/);
+  assert.match(calendarSync, /reservationConfirmed/);
+  assert.match(calendarSync, /RESERVATION_NOT_CONFIRMED/);
+  assert.doesNotMatch(calendarSync, /AGREEMENT_NOT_SIGNED/);
 });
 
 test("secondary integration failures stay retryable instead of marking the saga completed", () => {
