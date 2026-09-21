@@ -20,6 +20,8 @@ test("latest capacity migration uses service quantities and removes shell gating
   assert.match(migration, /ps\.quantity\*map\.units_per_service/);
   assert.match(migration, /requiredResources/);
   assert.match(migration, /'NOT_REQUIRED'/);
+  assert.doesNotMatch(migration, /TRAVEL_TIME_UNVERIFIABLE/);
+  assert.doesNotMatch(migration, /same_day_commitment|same_day boolean/);
 });
 
 test("automatic booking does not expose or require shell selection", () => {
