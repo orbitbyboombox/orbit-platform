@@ -57,3 +57,9 @@ test("real WhatsApp delivery is fail-closed and ambiguous sends are not silently
   assert.match(sender, /status: safelyRejected \? "FAILED" : "AMBIGUOUS"/);
   assert.match(sender, /\.eq\("status", "PENDING"\)/);
 });
+
+test("disabled WhatsApp delivery is explicitly observable", async () => {
+  const sender = await readFile(outboxUrl, "utf8");
+  assert.match(sender, /whatsapp_delivery_disabled/);
+  assert.match(sender, /WHATSAPP_DELIVERY_ENABLED=false/);
+});

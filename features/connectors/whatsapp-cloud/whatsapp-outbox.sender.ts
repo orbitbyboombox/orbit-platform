@@ -26,7 +26,10 @@ interface OutboxRow {
 }
 
 export async function deliverWhatsAppOutboxMessage(correlationId: string) {
-  if (!whatsappDeliveryEnabled()) return { ok: true as const, disabled: true as const };
+  if (!whatsappDeliveryEnabled()) {
+    console.warn("whatsapp_delivery_disabled", { correlationId, reason: "WHATSAPP_DELIVERY_ENABLED=false" });
+    return { ok: true as const, disabled: true as const };
+  }
 
   const client = createAdminClient();
   const { data: claimed, error: claimError } = await client
