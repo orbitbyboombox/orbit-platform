@@ -1,4 +1,10 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "git": {
+    "deploymentEnabled": {
+      "feat/bianca-v3-canonical-bridge": false
+    }
+  },
   "crons": [
     {
       "path": "/api/cron/staff-assignment-reminders",
