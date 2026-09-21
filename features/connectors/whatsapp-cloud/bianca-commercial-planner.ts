@@ -1,6 +1,19 @@
 import { detectBiancaIntents } from "./bianca-intent-engine.ts";
 import type { BiancaActionPlan, BiancaKnownOpportunity } from "./bianca-agent.types.ts";
 
+const STRONG_BUYING_SIGNAL = /\b(?:me\s+interesa|me\s+gusta|dale|hag[aá]moslo|avancemos|quiero\s+(?:ese|esa|eso)|ese\s+me\s+sirve|c[oó]mo\s+reservo|m[aá]ndamelo|m[aá]ndame\s+(?:la\s+)?cotizaci[oó]n|ok\s+vamos|cerr[eé]moslo)\b/i;
+const SHORT_ACCEPTANCE = /^(?:s[ií]|dale|ese|esa|eso|vamos|perfecto|listo|de\s+una|ya)[.!\s]*$/iu;
+const COMMERCIAL_CONTEXT = /(?:precio|valor|cotiz|disponib|reserva|reservar|servicio|classic|polaroid|bbox|fecha|horas|cat[aá]logo|opci[oó]n|propuesta|presupuesto)/iu;
+
+/** Detects buying intent without treating courtesy, questions or negotiations as acceptance. */
+export function detectBiancaBuyingSignal(input: { text: string; previousText?: string; activeStep?: BiancaActionPlan["nextBestAction"] }): boolean {
+  const text = input.text.trim();
+  const decisionText = text.replace(/\s*,?\s*¿?te\s+parece\??$/iu, "").trim();
+  if (!decisionText || /\?/.test(decisionText) || /\b(?:descuento|rebaja|m[aá]s\s+barato|cambiar\s+(?:la\s+)?fecha|postergar|duda|no\s+s[eé])\b/i.test(decisionText)) return false;
+  if (STRONG_BUYING_SIGNAL.test(decisionText)) return true;
+  return SHORT_ACCEPTANCE.test(decisionText) && Boolean(input.previousText && COMMERCIAL_CONTEXT.test(input.previousText) && ["OFFER_RESERVATION", "OFFER_QUOTE", "PRICE_LOOKUP", "AVAILABILITY_LOOKUP", "CATALOG_LOOKUP"].includes(input.activeStep ?? ""));
+}
+
 function hasDate(value?: string) { return Boolean(value?.trim()); }
 function hasService(value?: readonly string[]) { return Boolean(value?.length); }
 

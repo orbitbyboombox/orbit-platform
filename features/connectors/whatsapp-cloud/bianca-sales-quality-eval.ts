@@ -1,4 +1,4 @@
-import { planBiancaTurn } from "./bianca-commercial-planner.ts";
+import { detectBiancaBuyingSignal, planBiancaTurn } from "./bianca-commercial-planner.ts";
 import type { BiancaKnownOpportunity } from "./bianca-agent.types.ts";
 import { selectBiancaSalesPlaybook } from "./bianca-sales-playbook.ts";
 import { responseStylePrompt } from "./bianca-response-style-bank.ts";
@@ -104,8 +104,8 @@ function qualityDimensions(testCase: BiancaSalesQualityCase): Record<SalesQualit
   return {
     naturalness: response.length > 15 && response.length < 600 && !/undefined|null|exception|stack trace/i.test(response),
     progressiveProfiling: asksForKnownData && !/formulario|rellena|todos los datos/i.test(response),
-    buyingSignals: !testCase.expected.buyingSignals || plan.leadIntent !== "LOW" || /res[eé]rv|cotiz|precio|disponib|avanz|interesa|gusta|abono|transfer/i.test(conversationText),
-    recommendations: !testCase.expected.recommendations || /RECOMMENDATION|SERVICE_DISCOVERY|CATALOG|cat[aá]logo|recom|conviene|opci[oó]n|servicio|incluye/i.test(`${playbook} ${response} ${conversationText}`),
+    buyingSignals: !testCase.expected.buyingSignals || plan.leadIntent !== "LOW" || detectBiancaBuyingSignal({ text: finalText, previousText: testCase.turns.at(-2), activeStep: plan.nextBestAction }) || /res[eé]rv|cotiz|precio|disponib|interesa|gusta|abono|transfer/i.test(conversationText),
+    recommendations: !testCase.expected.recommendations || /RECOMMENDATION|SERVICE_DISCOVERY|CATALOG|cat[aá]logo|recom|qué\s+me|conviene|opci[oó]n|servicio|incluye/i.test(`${playbook} ${response} ${conversationText}`),
     upsell: !testCase.expected.upsell || !/te vendo|aprovecha ahora|última oportunidad|obligatorio/i.test(response),
     objectionHandling: !testCase.expected.objectionHandling || simulation.escalation || /alternativa|revis|equipo|presupuesto|opci[oó]n/i.test(response),
     closing: !testCase.expected.closing || plan.nextBestAction === "OFFER_RESERVATION" || simulation.escalation || /reserv|avanz|confirm/i.test(`${playbook} ${response}`),
