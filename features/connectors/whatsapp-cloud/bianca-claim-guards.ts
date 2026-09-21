@@ -1,7 +1,7 @@
 const PRICE_CLAIM = /(?:\$\s?[\d.]+|\b(?:CLP|USD|UF)\b|\b\d[\d.]*\s?pesos\b)/i;
 const AVAILABILITY_CLAIM = /\b(?:est[aá]|hay|tenemos|queda)\s+disponib(?:le|ilidad)\b|\bfecha\s+(?:est[aá]\s+)?disponible\b/i;
 const CATALOG_CLAIM = /\b(?:te\s+)?(?:envi[eé]|mand[eé]|compart[ií])\s+(?:el\s+)?cat[aá]logo\b/i;
-const EMAIL_CLAIM = /\b(?:te\s+)?(?:envi[eé]|mand[eé])\s+(?:el\s+)?correo\b/i;
+const EMAIL_CLAIM = /\b(?:te\s+)?(?:envi[eé]|mand[eé])\s+(?:(?:el\s+)?correo|la\s+cotizaci[oó]n\s+por\s+correo)\b/i;
 const QUOTE_CLAIM = /\b(?:cotizaci[oó]n|propuesta)\s+(?:est[aá]\s+)?(?:lista|preparada|creada)\b/i;
 const RESERVATION_CLAIM = /\b(?:reserva|proceso de reserva)\s+(?:est[aá]\s+)?(?:iniciad[oa]|cread[oa]|confirmad[oa])\b/i;
 const PROMISE_CLAIM = /\b(?:te\s+)?(?:enviar[eé]|mandar[eé]|compartir[eé]|avisar[eé]|confirmar[eé])\b/i;
