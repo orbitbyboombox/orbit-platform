@@ -33,7 +33,7 @@ test("builds canonical navigation targets", () => {
   assert.equal(globalSearchHref("CUSTOMER", "customer-id"), "/customers/customer-id");
   assert.equal(globalSearchHref("COMPANY", "customer-id"), "/customers/customer-id");
   assert.equal(globalSearchHref("EVENT", "event-id"), "/projects/event-id");
-  assert.equal(globalSearchHref("QUOTE", "quote-id"), "/api/commercial/quotes/quote-id/pdf");
+  assert.equal(globalSearchHref("QUOTE", "quote-id"), "/quotes/quote-id");
 });
 
 test("returns the required no-result state", () => {

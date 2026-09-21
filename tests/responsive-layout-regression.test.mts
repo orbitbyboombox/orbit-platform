@@ -13,9 +13,9 @@ test("event financial summary remains resilient at zoomed desktop widths", async
 
   assert.match(file, /grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5/);
   assert.match(file, /xl:grid-cols-1 2xl:grid-cols-\[minmax\(0,1\.1fr\)_minmax\(520px,0\.9fr\)\]/);
-  assert.match(file, /text-\[clamp\(1rem,1\.8vw,1\.5rem\)\]/);
+  assert.match(file, /text-\[clamp\(0\.875rem,1\.65vw,1\.5rem\)\]/);
   assert.doesNotMatch(file, /\[overflow-wrap:anywhere\]/);
-  assert.match(file, /whitespace-nowrap text-\[clamp\(1rem,1\.8vw,1\.5rem\)\]/);
+  assert.match(file, /whitespace-nowrap text-\[clamp\(0\.875rem,1\.65vw,1\.5rem\)\]/);
 });
 
 test("event documents keep filenames readable instead of splitting characters", async () => {

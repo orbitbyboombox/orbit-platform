@@ -60,7 +60,7 @@ test("historical active assignments are never hidden by smaller demand", () => {
 });
 
 test("large quantities page their slots without allocating an unbounded DOM", () => {
-  const slots = buildStaffRoleSlots("OPERATOR", 2147483647, [], { offset: 12, limit: 12 });
+  const slots = buildStaffRoleSlots("OPERATOR", 99, [], { offset: 12, limit: 12 });
   assert.equal(slots.length, 12);
   assert.equal(slots[0].number, 13);
   assert.equal(slots[11].number, 24);
@@ -73,9 +73,9 @@ test("different collaborators with identical names are both counted", () => {
   assert.equal(row.remaining, 0);
 });
 
-test("quantity accepts positive integers without a one-person or 99-person cap", () => {
-  for (const count of [1, 2, 5, 12, 100, 1000]) assert.equal(validStaffQuantity(count), true);
-  for (const count of [0, -1, 1.5, NaN, Infinity, 2147483648]) assert.equal(validStaffQuantity(count), false);
+test("quantity accepts positive integers up to the technical 99-person cap", () => {
+  for (const count of [1, 2, 5, 12, 99]) assert.equal(validStaffQuantity(count), true);
+  for (const count of [0, -1, 1.5, NaN, Infinity, 100, 2147483648]) assert.equal(validStaffQuantity(count), false);
 });
 
 test("quantity form is controlled and prevents React action automatic reset", () => {
@@ -85,6 +85,8 @@ test("quantity form is controlled and prevents React action automatic reset", ()
   assert.match(ui, /cubiertos/);
   assert.match(ui, /Agregar slot/);
   assert.match(ui, /Quitar slot/);
+  assert.match(ui, /Asignados \{covered\}\/\{required\} cubiertos · Requeridos \{required\} · Faltan \{missing\}/);
+  assert.match(ui, /max="99"/);
 });
 
 test("individual assignment UI excludes occupied collaborators and uses retry-stable UUID", () => {
