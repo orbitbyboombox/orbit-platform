@@ -619,6 +619,16 @@ export async function confirmCommercialQuoteConversionAction(
             .map((item) => item.code),
         ),
       ),
+      serviceLines: items
+        .filter((item) => item.itemType === "SERVICE")
+        .map((item) => ({
+          serviceCode: item.code,
+          quantity: item.quantity,
+          durationHours: Number(event.durationHours),
+          extras: items
+            .filter((entry) => entry.itemType !== "SERVICE" && entry.itemType !== "TRANSPORT")
+            .map((entry) => entry.code),
+        })),
       origin: "Other",
       notes: [
         `Reserva convertida desde ${review.number} · revisión ${review.version}.`,
@@ -687,27 +697,6 @@ export async function confirmCommercialQuoteConversionAction(
       if (snapshotWriteError) throw snapshotWriteError;
     } catch (snapshotError) {
       conversionWarning(warnings, "Ficha comercial del Evento", snapshotError);
-    }
-    try {
-      for (const item of items.filter(
-        (entry) => entry.itemType !== "TRANSPORT",
-      )) {
-        const { error: quantityError } = await client
-          .from("project_services")
-          .upsert(
-            {
-              project_id: projectId,
-              service_code: item.code,
-              quantity: item.quantity,
-              duration_hours: Number(event.durationHours),
-              extras: draft.event.extras ?? [],
-            },
-            { onConflict: "project_id,service_code" },
-          );
-        if (quantityError) throw quantityError;
-      }
-    } catch (serviceError) {
-      conversionWarning(warnings, "Servicios del Evento", serviceError);
     }
     const ocFile = formData.get("purchaseOrderFile");
     if (ocFile instanceof File && ocFile.size) {

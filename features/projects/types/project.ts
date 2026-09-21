@@ -40,6 +40,17 @@ export const projectOrigins = [
 
 export type ProjectType = (typeof projectTypes)[number];
 export type ProjectService = string;
+/**
+ * Commercial service line carried into the operational reservation pipeline.
+ * Unlike `services` (the legacy list of service codes), this preserves the
+ * quantity that was accepted on a quotation before capacity/calendar run.
+ */
+export interface ProjectServiceLine {
+  serviceCode: string;
+  quantity: number;
+  durationHours?: number;
+  extras?: string[];
+}
 export type ProjectStatus = (typeof projectStatuses)[number];
 export type ProjectHealth = (typeof projectHealthLevels)[number];
 export type ProjectCommercialStage = (typeof projectCommercialStages)[number];
@@ -95,6 +106,9 @@ export interface ProjectDraft {
   client: Project["client"];
   event: Project["event"];
   services: ProjectService[];
+  /** Optional canonical quantities for quote conversion. Existing manual
+   * reservation callers continue using the legacy `services` list. */
+  serviceLines?: ProjectServiceLine[];
   origin?: ProjectOrigin;
   notes: string;
   commercialFormalization?: {

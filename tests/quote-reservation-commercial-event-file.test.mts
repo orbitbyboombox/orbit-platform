@@ -11,6 +11,7 @@ const source = (path: string) =>
   readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const migration = source("supabase/migrations/0167_quote_reservation_commercial_event_file.sql");
 const actions = source("features/commercial-hub/actions.ts");
+const customerActions = source("features/projects/actions/customer.actions.ts");
 const hub = source("features/commercial-hub/commercial-hub.tsx");
 const reviewUi = source("features/commercial-hub/quote-conversion-review.tsx");
 const eventHub = source("features/external-tax-documents/event-commercial-document-hub.tsx");
@@ -100,6 +101,14 @@ test("23 payment receipts display without ledger mutation", () => { assert.match
 test("24 commercial progress derives canonical states", () => { for(const label of ["COTIZACIÓN","OC CLIENTE","CONTRATO","FACTURA / SII","PAGO"]) assert.match(eventHub,new RegExp(label)); assert.match(eventHub,/NO REQUERIDA/); });
 test("25 existing quotation lifecycle remains canonical", () => { assert.match(hub, /MARCAR COMO ACEPTADA/); assert.match(migration, /q\.status not in \('SENT','VIEWED','ACCEPTED'\)/); });
 test("26 existing reservation pipeline is reused", () => { assert.match(actions, /createCustomerProjectAction\(draft\)/); assert.doesNotMatch(actions, /\.from\("projects"\)\.insert/); });
+test("27 quote conversion preserves accepted service quantities before confirmation", () => {
+  assert.match(actions, /serviceLines:/);
+  assert.match(actions, /serviceCode: item\.code/);
+  assert.match(actions, /quantity: item\.quantity/);
+  assert.match(customerActions, /draft\.serviceLines\?\.length/);
+  assert.match(customerActions, /onConflict: "project_id,service_code"/);
+  assert.doesNotMatch(actions, /Servicios del Evento/);
+});
 test("27 Payment Ledger code and schema are untouched", () => { assert.doesNotMatch(migration, /invoice_payments|receivable_movements|paid_amount/); assert.doesNotMatch(ocActions, /invoice_payments|receivable_movements|paid_amount/); });
 test("28 Secondary Email CC regression remains unchanged", () => { assert.match(actions, /secondaryEmail: customer\.secondaryEmail/); assert.match(actions, /cc_recipients: recipients\.cc/); assert.doesNotMatch(migration, /secondary_email|cc_recipients|communications/); });
 test("29 mobile conversion uses fullscreen MobileDialog and reachable footer", () => { assert.match(reviewUi, /variant="fullscreen-mobile"/); assert.match(reviewUi, /footer=/); assert.match(reviewUi, /CONFIRMAR Y CREAR RESERVA/); assert.match(reviewUi, /min-w-0/); });

@@ -228,6 +228,43 @@ export async function createCustomerProjectAction(
       throw new Error("El motivo de la negociación es obligatorio.");
     const repository = new SupabaseCustomerRepository(client);
     const project = await repository.createWithProject(draft);
+    // Quote conversion carries accepted quantities separately from the legacy
+    // service-code list. Persist those lines before any confirmation stage so
+    // capacity, operational requirements, cost sheets and Calendar all read
+    // the same canonical project_services rows.
+    if (draft.serviceLines?.length) {
+      const lines = new Map<string, {
+        project_id: string;
+        service_code: string;
+        quantity: number;
+        duration_hours: number;
+        extras: string[];
+      }>();
+      for (const line of draft.serviceLines) {
+        const serviceCode = line.serviceCode.trim();
+        if (!serviceCode) continue;
+        const quantity = Number(line.quantity);
+        if (!Number.isFinite(quantity) || quantity <= 0) continue;
+        const existing = lines.get(serviceCode);
+        if (existing) {
+          existing.quantity += quantity;
+          continue;
+        }
+        lines.set(serviceCode, {
+          project_id: project.id,
+          service_code: serviceCode,
+          quantity,
+          duration_hours: Number(line.durationHours ?? draft.event.durationHours ?? 2),
+          extras: line.extras ?? draft.event.extras ?? [],
+        });
+      }
+      if (lines.size) {
+        const { error: serviceLinesError } = await client
+          .from("project_services")
+          .upsert([...lines.values()], { onConflict: "project_id,service_code" });
+        if (serviceLinesError) throw serviceLinesError;
+      }
+    }
     const { data: transaction, error: transactionError } = await client
       .from("reservation_transactions")
       .select("completed_steps,status")
