@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { test } from "node:test";
-import { calculateMercadoPagoAmounts, canonicalMercadoPagoMode, mapMercadoPagoStatus, verifyMercadoPagoSignature } from "../features/payments/mercadopago/mercadopago.service.ts";
+import { calculateMercadoPagoAmounts, canonicalMercadoPagoMode, extractMercadoPagoDataId, mapMercadoPagoStatus, verifyMercadoPagoSignature } from "../features/payments/mercadopago/mercadopago.service.ts";
 
 test("Mercado Pago fee is deterministic in CLP", () => {
   assert.deepEqual(calculateMercadoPagoAmounts(100_000), { subtotal: 100_000, fee: 5_000, total: 105_000 });
@@ -27,6 +27,36 @@ test("webhook signature accepts valid manifest and rejects tampering", () => {
   assert.equal(verifyMercadoPagoSignature(base), true);
   assert.equal(verifyMercadoPagoSignature({ ...base, dataId: "tampered" }), false);
   assert.equal(verifyMercadoPagoSignature({ ...base, signature: "ts=1,v1=bad" }), false);
+});
+
+test("webhook signature follows Mercado Pago manifest exactly and rejects wrong credentials", () => {
+  const secret = "production-webhook-secret";
+  const ts = 1_700_000_123;
+  const dataId = "180270844830";
+  const requestId = "req-qa-1";
+  const manifest = `id:${dataId};request-id:${requestId};ts:${ts};`;
+  const digest = createHmac("sha256", secret).update(manifest).digest("hex");
+  const base = { signature: `ts=${ts},v1=${digest}`, requestId, dataId, secret, nowSeconds: ts };
+  assert.equal(verifyMercadoPagoSignature(base), true);
+  assert.equal(verifyMercadoPagoSignature({ ...base, secret: "wrong-secret" }), false);
+  assert.equal(verifyMercadoPagoSignature({ ...base, requestId: "wrong-request" }), false);
+  assert.equal(verifyMercadoPagoSignature({ ...base, dataId: "999" }), false);
+  assert.equal(verifyMercadoPagoSignature({ ...base, nowSeconds: ts + 301 }), false);
+});
+
+test("data.id prefers signed query value and safely falls back to payload data.id", () => {
+  assert.equal(extractMercadoPagoDataId({
+    requestUrl: "https://orbit.test/api/payments/mercadopago/webhook?data.id=180270844830&type=payment",
+    payload: { data: { id: "body-id" } },
+  }), "180270844830");
+  assert.equal(extractMercadoPagoDataId({
+    requestUrl: "https://orbit.test/api/payments/mercadopago/webhook",
+    payload: { data: { id: 180270844830 } },
+  }), "180270844830");
+  assert.equal(extractMercadoPagoDataId({
+    requestUrl: "https://orbit.test/api/payments/mercadopago/webhook?id=envelope-id",
+    payload: { data: {} },
+  }), "");
 });
 
 test("production mode is canonical and never exposes credentials", () => {

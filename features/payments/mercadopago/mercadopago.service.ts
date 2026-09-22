@@ -67,19 +67,36 @@ export function verifyMercadoPagoSignature(input: {
   toleranceSeconds?: number;
 }) {
   if (!input.signature || !input.requestId || !input.secret || !input.dataId) return false;
-  const parts = Object.fromEntries(input.signature.split(",").map((part) => {
-    const [key, value] = part.trim().split("=", 2);
-    return [key, value];
-  }).filter(([key, value]) => key && value));
-  const timestamp = Number(parts.ts);
+  const parts = new Map<string, string>(input.signature.split(",").flatMap((part) => {
+    const [key, ...valueParts] = part.trim().split("=");
+    return key && valueParts.length ? [[key, valueParts.join("=")] as [string, string]] : [];
+  }));
+  const timestampValue = parts.get("ts");
+  const received = parts.get("v1");
+  const timestamp = Number(timestampValue);
   if (!Number.isFinite(timestamp)) return false;
   const now = input.nowSeconds ?? Math.floor(Date.now() / 1000);
   if (Math.abs(now - timestamp) > (input.toleranceSeconds ?? 300)) return false;
-  const manifest = `id:${input.dataId};request-id:${input.requestId};ts:${timestamp};`;
+  const manifest = `id:${input.dataId};request-id:${input.requestId};ts:${timestampValue};`;
   const expected = createHmac("sha256", input.secret).update(manifest).digest("hex");
-  const received = String(parts.v1 ?? "").toLowerCase();
-  if (!/^[a-f0-9]{64}$/.test(received)) return false;
-  return timingSafeEqual(Buffer.from(expected, "utf8"), Buffer.from(received, "utf8"));
+  const normalizedReceived = String(received ?? "").toLowerCase();
+  if (!/^[a-f0-9]{64}$/.test(normalizedReceived)) return false;
+  const expectedBuffer = Buffer.from(expected, "utf8");
+  const receivedBuffer = Buffer.from(normalizedReceived, "utf8");
+  return expectedBuffer.length === receivedBuffer.length && timingSafeEqual(expectedBuffer, receivedBuffer);
+}
+
+/** Mercado Pago signs the payment id from the data.id query parameter. Some
+ * notification variants only include it in the JSON payload, so use that as
+ * a safe fallback; never use the notification envelope id as a payment id. */
+export function extractMercadoPagoDataId(input: {
+  requestUrl: string;
+  payload?: { data?: { id?: string | number } } | null;
+}) {
+  const queryId = new URL(input.requestUrl).searchParams.get("data.id")?.trim();
+  if (queryId) return queryId;
+  const bodyId = input.payload?.data?.id;
+  return bodyId === undefined || bodyId === null || String(bodyId).trim() === "" ? "" : String(bodyId).trim();
 }
 
 type PreferenceInput = {

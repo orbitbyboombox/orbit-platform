@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { completeAutomaticBooking, type AutomaticBookingSubmission } from "@/features/automatic-booking/complete-automatic-booking.service";
-import { fetchMercadoPagoPayment, getMercadoPagoConfig, mapMercadoPagoStatus, verifyMercadoPagoSignature } from "@/features/payments/mercadopago/mercadopago.service";
+import { extractMercadoPagoDataId, fetchMercadoPagoPayment, getMercadoPagoConfig, mapMercadoPagoStatus, verifyMercadoPagoSignature } from "@/features/payments/mercadopago/mercadopago.service";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +10,7 @@ export async function POST(request: Request) {
   console.info(JSON.stringify({ event: "mp.webhook.received", hasSignature: Boolean(request.headers.get("x-signature")), bodyBytes: rawBody.length }));
   let payload: { type?: string; action?: string; data?: { id?: string | number } } = {};
   try { payload = JSON.parse(rawBody) as typeof payload; } catch { return NextResponse.json({ ok: false }, { status: 400 }); }
-  const dataId = String(payload.data?.id ?? new URL(request.url).searchParams.get("data.id") ?? "");
+  const dataId = extractMercadoPagoDataId({ requestUrl: request.url, payload });
   let config: ReturnType<typeof getMercadoPagoConfig>;
   try { config = getMercadoPagoConfig(); } catch { return NextResponse.json({ ok: false }, { status: 503 }); }
   if (!config.webhookSecret) return NextResponse.json({ ok: false }, { status: 503 });
