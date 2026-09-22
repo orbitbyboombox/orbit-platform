@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { automaticBookingTokenHash } from "@/features/automatic-booking/automatic-booking.service";
+import { completeReconciledMercadoPagoIntent, reconcileMercadoPagoPayment } from "@/features/payments/mercadopago/mercadopago-reconciliation.service";
 
 export const dynamic = "force-dynamic";
 
@@ -8,8 +9,22 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
   const { token } = await params;
   const intentId = new URL(request.url).searchParams.get("payment_intent");
   if (!intentId) return NextResponse.json({ ok: false }, { status: 400 });
-  const { data, error } = await createAdminClient().from("mercado_pago_payment_intents").select("status,amount_base,fee_amount,amount_total,currency,booking_completed_at,provider_payment_id,external_reference,checkout_url,submission").eq("id", intentId).eq("token_hash", automaticBookingTokenHash(token)).maybeSingle();
+  const admin = createAdminClient();
+  const { data, error } = await admin.from("mercado_pago_payment_intents").select("*").eq("id", intentId).eq("token_hash", automaticBookingTokenHash(token)).maybeSingle();
   if (error || !data) return NextResponse.json({ ok: false, status: "UNKNOWN" }, { status: 404 });
+  if (data.status !== "PAID" && data.status !== "REVIEW_REQUIRED") {
+    try {
+      const reconciliation = await reconcileMercadoPagoPayment({ admin, intent: data });
+      if (reconciliation.outcome === "PAID" && reconciliation.providerPaymentId) {
+        await completeReconciledMercadoPagoIntent({ admin, intent: { ...data, status: "PAID", provider_payment_id: reconciliation.providerPaymentId }, providerPaymentId: reconciliation.providerPaymentId, requestMeta: { ipAddress: "mercadopago-return", userAgent: request.headers.get("user-agent") ?? "mercadopago-return" } });
+        data.status = "PAID";
+        data.provider_payment_id = reconciliation.providerPaymentId;
+        data.booking_completed_at = data.booking_completed_at ?? new Date().toISOString();
+      }
+    } catch (reconciliationError) {
+      console.warn(JSON.stringify({ event: "mp.return.reconciliation_failed", intentId, error: reconciliationError instanceof Error ? reconciliationError.message : "unknown" }));
+    }
+  }
   // The browser may have been away in Checkout Pro long enough for every
   // React state value to be gone. Return only the persisted booking snapshot
   // needed to rebuild the public summary; never return signature/receipt data.

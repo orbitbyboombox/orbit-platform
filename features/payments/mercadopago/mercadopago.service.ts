@@ -161,6 +161,19 @@ export async function fetchMercadoPagoPayment(paymentId: string) {
   };
 }
 
+export async function searchMercadoPagoPayments(externalReference: string) {
+  const { accessToken } = getMercadoPagoConfig();
+  const url = new URL("https://api.mercadopago.com/v1/payments/search");
+  url.searchParams.set("external_reference", externalReference);
+  url.searchParams.set("sort", "date_created");
+  url.searchParams.set("criteria", "desc");
+  url.searchParams.set("limit", "20");
+  const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` }, cache: "no-store" });
+  const body = await response.json().catch(() => ({})) as { results?: unknown[] };
+  if (!response.ok) throw new Error(`Mercado Pago payment search failed (${response.status}).`);
+  return (body.results ?? []) as Array<{ id?: number | string; status?: MercadoPagoStatus; status_detail?: string; transaction_amount?: number; currency_id?: string; external_reference?: string }>;
+}
+
 export function mapMercadoPagoStatus(status: string | undefined) {
   switch (status) {
     case "approved": return "PAID" as const;
