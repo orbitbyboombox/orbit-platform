@@ -29,6 +29,7 @@ type ContractStep = {
 };
 
 type PaymentStep = {
+  method?: "TRANSFER" | "MERCADO_PAGO";
   receiptBase64: string;
 };
 
@@ -68,7 +69,11 @@ export function automaticBookingStepIssues(input: {
     if (input.contract.termsAccepted && !input.contract.signature) issues.push("Firma dentro del recuadro para continuar.");
   }
 
-  if (input.step === 4 && !input.payment.receiptBase64) {
+  if (
+    input.step === 4 &&
+    input.payment.method !== "MERCADO_PAGO" &&
+    !input.payment.receiptBase64
+  ) {
     issues.push("Adjunta el comprobante de pago.");
   }
 
