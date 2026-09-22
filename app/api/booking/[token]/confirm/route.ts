@@ -15,7 +15,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
       ? error
       : new AutomaticBookingConfirmationError("VALIDATION", "pending", error, error instanceof Error && error.message === "BOOKING_IN_PROGRESS" ? "BOOKING_IN_PROGRESS" : "INTERNAL_BOOKING_ERROR");
     console.error(JSON.stringify({ level: "error", event: "automatic_booking.confirmation_request_failed", requestId: failure.requestId, stage: failure.module, code: failure.code, reservationId: failure.reservationId, error: serializeWhatsAppError(failure.cause) }));
-    const status = failure.code === "CAPACITY_UNAVAILABLE" || failure.code === "CAPACITY_UNAVAILABLE_REAL" || failure.code === "CAPACITY_GATE_NOT_CONFIRMED" || failure.code === "CAPACITY_TECHNICAL_ERROR" || failure.code === "BOOKING_IN_PROGRESS" ? 409 : failure.code === "BOOKING_ALREADY_CONFIRMED" ? 200 : 400;
+    const status = failure.code === "PAYMENT_REQUIRED" ? 402 : failure.code === "CAPACITY_UNAVAILABLE" || failure.code === "CAPACITY_UNAVAILABLE_REAL" || failure.code === "CAPACITY_GATE_NOT_CONFIRMED" || failure.code === "CAPACITY_TECHNICAL_ERROR" || failure.code === "BOOKING_IN_PROGRESS" ? 409 : failure.code === "BOOKING_ALREADY_CONFIRMED" ? 200 : 400;
     return NextResponse.json({ ok: false, message: failure.message, code: failure.code, stage: failure.module, requestId: failure.requestId, reservationId: failure.reservationId }, { status });
   }
 }

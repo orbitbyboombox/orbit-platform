@@ -8,7 +8,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
   const { token } = await params;
   const intentId = new URL(request.url).searchParams.get("payment_intent");
   if (!intentId) return NextResponse.json({ ok: false }, { status: 400 });
-  const { data, error } = await createAdminClient().from("mercado_pago_payment_intents").select("status,amount_total,currency,booking_completed_at").eq("id", intentId).eq("token_hash", automaticBookingTokenHash(token)).maybeSingle();
+  const { data, error } = await createAdminClient().from("mercado_pago_payment_intents").select("status,amount_total,currency,booking_completed_at,provider_payment_id,external_reference,checkout_url").eq("id", intentId).eq("token_hash", automaticBookingTokenHash(token)).maybeSingle();
   if (error || !data) return NextResponse.json({ ok: false, status: "UNKNOWN" }, { status: 404 });
-  return NextResponse.json({ ok: true, status: data.status, amount: data.amount_total, currency: data.currency, bookingCompleted: Boolean(data.booking_completed_at) }, { headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json({ ok: true, status: data.status, amount: data.amount_total, currency: data.currency, bookingCompleted: Boolean(data.booking_completed_at), providerPaymentId: data.provider_payment_id, externalReference: data.external_reference, checkoutUrl: data.checkout_url }, { headers: { "Cache-Control": "no-store" } });
 }

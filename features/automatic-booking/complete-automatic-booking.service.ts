@@ -104,6 +104,7 @@ function friendlyConfirmationMessage(module: string, code?: string) {
   if (code === "CAPACITY_UNAVAILABLE") return "Ese horario acaba de dejar de estar disponible. Tus datos siguen guardados para que puedas elegir otro horario.";
   if (code === "BOOKING_IN_PROGRESS") return "Tu reserva ya se está procesando. Espera unos segundos antes de volver a intentarlo.";
   if (code === "PAYMENT_VALIDATION_FAILED") return "No pudimos validar el comprobante o el abono. Tus datos siguen guardados para reintentar.";
+  if (code === "PAYMENT_REQUIRED") return "Primero completa el pago con Mercado Pago para confirmar tu reserva. Tus datos siguen guardados para reintentar.";
   if (code === "RESERVATION_CONFLICT") return "La reserva ya está siendo confirmada. Tus datos siguen guardados para reintentar de forma segura.";
   const messages: Record<string, string> = {
     SIGNATURE: "No fue posible guardar tu firma. Revisa el trazo e inténtalo nuevamente.",
@@ -116,6 +117,20 @@ function friendlyConfirmationMessage(module: string, code?: string) {
     SERVICE_PRICE_UNAVAILABLE: "No pudimos validar el precio de uno de los servicios seleccionados.",
   };
   return messages[module] ?? "No fue posible registrar la reserva. Tus datos continúan disponibles para volver a intentarlo.";
+}
+
+async function assertMercadoPagoPaymentApproved(admin: ReturnType<typeof createAdminClient>, tokenHash: string, payment: AutomaticBookingSubmission["payment"]) {
+  if (!payment.providerPaymentId || !payment.externalReference) {
+    throw new AutomaticBookingConfirmationError("PAYMENT", "pending", new Error("Mercado Pago payment proof is missing."), "PAYMENT_REQUIRED");
+  }
+  const { data: intent, error } = await admin.from("mercado_pago_payment_intents")
+    .select("status,provider_payment_id,external_reference,token_hash")
+    .eq("token_hash", tokenHash)
+    .eq("external_reference", payment.externalReference)
+    .maybeSingle();
+  if (error || !intent || intent.status !== "PAID" || String(intent.provider_payment_id ?? "") !== String(payment.providerPaymentId) || String(intent.external_reference) !== String(payment.externalReference)) {
+    throw new AutomaticBookingConfirmationError("PAYMENT", "pending", error ?? new Error("Mercado Pago payment is not approved."), "PAYMENT_REQUIRED");
+  }
 }
 
 export async function completeAutomaticBooking(input: { token: string; tokenHashOverride?: string; submission: AutomaticBookingSubmission; ipAddress: string; userAgent: string }) {
@@ -141,6 +156,10 @@ export async function completeAutomaticBooking(input: { token: string; tokenHash
     if (resolution?.kind === "confirmed") return replayConfirmedBooking(admin, resolution.projectId);
     if (resolution?.kind === "processing") throw new Error("BOOKING_IN_PROGRESS");
   }
+  // Mercado Pago completion is only allowed after the signed webhook has
+  // verified the provider payment and persisted a PAID intent. This guard is
+  // deliberately before the invitation claim and all customer/project writes.
+  if (input.submission.payment.method === "MERCADO_PAGO") await assertMercadoPagoPaymentApproved(admin, tokenHash, input.submission.payment);
   if (currentInvitation?.status === "PROCESSING") await admin.from("automatic_booking_invitations").update({ status: "OPENED", processing_at: null }).eq("id", currentInvitation.id).eq("status", "PROCESSING");
   const { data: invitation, error: claimError } = await admin.from("automatic_booking_invitations").update({ status: "PROCESSING", processing_at: now }).eq("token_hash", tokenHash).eq("customer_email", submittedEmail.trim().toLowerCase()).gt("expires_at", now).is("consumed_at", null).in("status", ["SENT", "OPENED", "FAILED_RETRYABLE"]).select("id,created_by,customer_email,project_id,payload,status").maybeSingle();
   if (claimError) throw claimError;
