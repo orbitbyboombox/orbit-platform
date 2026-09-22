@@ -1,20 +1,37 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { completeAutomaticBooking, type AutomaticBookingSubmission } from "@/features/automatic-booking/complete-automatic-booking.service";
-import { extractMercadoPagoDataId, fetchMercadoPagoPayment, getMercadoPagoConfig, mapMercadoPagoStatus, verifyMercadoPagoSignature } from "@/features/payments/mercadopago/mercadopago.service";
+import { fetchMercadoPagoPayment, getMercadoPagoConfig, mapMercadoPagoStatus, resolveMercadoPagoDataId, verifyMercadoPagoSignature } from "@/features/payments/mercadopago/mercadopago.service";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   const rawBody = await request.text();
-  console.info(JSON.stringify({ event: "mp.webhook.received", hasSignature: Boolean(request.headers.get("x-signature")), bodyBytes: rawBody.length }));
+  const signatureHeader = request.headers.get("x-signature");
+  const requestIdHeader = request.headers.get("x-request-id");
   let payload: { type?: string; action?: string; data?: { id?: string | number } } = {};
   try { payload = JSON.parse(rawBody) as typeof payload; } catch { return NextResponse.json({ ok: false }, { status: 400 }); }
-  const dataId = extractMercadoPagoDataId({ requestUrl: request.url, payload });
+  const dataIdentity = resolveMercadoPagoDataId({ requestUrl: request.url, payload });
+  const dataId = dataIdentity.id;
+  const signatureParts = new Map<string, string>(String(signatureHeader ?? "").split(",").flatMap((part) => {
+    const [key, ...valueParts] = part.trim().split("=");
+    return key && valueParts.length ? [[key, valueParts.join("=")] as [string, string]] : [];
+  }));
+  console.info(JSON.stringify({
+    event: "mp.webhook.received",
+    hasSignature: Boolean(signatureHeader),
+    hasRequestId: Boolean(requestIdHeader),
+    hasTimestamp: Boolean(signatureParts.get("ts")),
+    hasV1: Boolean(signatureParts.get("v1")),
+    dataIdSource: dataIdentity.source,
+    dataIdPresent: Boolean(dataId),
+    bodyBytes: rawBody.length,
+  }));
   let config: ReturnType<typeof getMercadoPagoConfig>;
   try { config = getMercadoPagoConfig(); } catch { return NextResponse.json({ ok: false }, { status: 503 }); }
   if (!config.webhookSecret) return NextResponse.json({ ok: false }, { status: 503 });
-  const valid = verifyMercadoPagoSignature({ signature: request.headers.get("x-signature"), requestId: request.headers.get("x-request-id"), dataId, secret: config.webhookSecret });
+  const valid = verifyMercadoPagoSignature({ signature: signatureHeader, requestId: requestIdHeader, dataId, secret: config.webhookSecret });
+  console.info(JSON.stringify({ event: "mp.webhook.signature_checked", signatureMatch: valid, dataIdSource: dataIdentity.source, dataIdPresent: Boolean(dataId) }));
   if (!valid) {
     console.warn(JSON.stringify({ event: "mp.webhook.invalid_signature", dataId: dataId || "unknown" }));
     return NextResponse.json({ ok: false }, { status: 401 });

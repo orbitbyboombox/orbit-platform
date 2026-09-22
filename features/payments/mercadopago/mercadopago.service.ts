@@ -89,14 +89,23 @@ export function verifyMercadoPagoSignature(input: {
 /** Mercado Pago signs the payment id from the data.id query parameter. Some
  * notification variants only include it in the JSON payload, so use that as
  * a safe fallback; never use the notification envelope id as a payment id. */
-export function extractMercadoPagoDataId(input: {
+export function resolveMercadoPagoDataId(input: {
   requestUrl: string;
   payload?: { data?: { id?: string | number } } | null;
 }) {
   const queryId = new URL(input.requestUrl).searchParams.get("data.id")?.trim();
-  if (queryId) return queryId;
+  if (queryId) return { id: queryId, source: "QUERY" as const };
   const bodyId = input.payload?.data?.id;
-  return bodyId === undefined || bodyId === null || String(bodyId).trim() === "" ? "" : String(bodyId).trim();
+  return bodyId === undefined || bodyId === null || String(bodyId).trim() === ""
+    ? { id: "", source: "ABSENT" as const }
+    : { id: String(bodyId).trim(), source: "BODY" as const };
+}
+
+export function extractMercadoPagoDataId(input: {
+  requestUrl: string;
+  payload?: { data?: { id?: string | number } } | null;
+}) {
+  return resolveMercadoPagoDataId(input).id;
 }
 
 type PreferenceInput = {

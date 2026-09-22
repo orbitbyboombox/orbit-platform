@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { test } from "node:test";
-import { calculateMercadoPagoAmounts, canonicalMercadoPagoMode, extractMercadoPagoDataId, mapMercadoPagoStatus, verifyMercadoPagoSignature } from "../features/payments/mercadopago/mercadopago.service.ts";
+import { calculateMercadoPagoAmounts, canonicalMercadoPagoMode, extractMercadoPagoDataId, mapMercadoPagoStatus, resolveMercadoPagoDataId, verifyMercadoPagoSignature } from "../features/payments/mercadopago/mercadopago.service.ts";
 
 test("Mercado Pago fee is deterministic in CLP", () => {
   assert.deepEqual(calculateMercadoPagoAmounts(100_000), { subtotal: 100_000, fee: 5_000, total: 105_000 });
@@ -45,6 +45,10 @@ test("webhook signature follows Mercado Pago manifest exactly and rejects wrong 
 });
 
 test("data.id prefers signed query value and safely falls back to payload data.id", () => {
+  assert.deepEqual(resolveMercadoPagoDataId({
+    requestUrl: "https://orbit.test/api/payments/mercadopago/webhook?data.id=180270844830",
+    payload: { data: { id: "body-id" } },
+  }), { id: "180270844830", source: "QUERY" });
   assert.equal(extractMercadoPagoDataId({
     requestUrl: "https://orbit.test/api/payments/mercadopago/webhook?data.id=180270844830&type=payment",
     payload: { data: { id: "body-id" } },
@@ -57,6 +61,7 @@ test("data.id prefers signed query value and safely falls back to payload data.i
     requestUrl: "https://orbit.test/api/payments/mercadopago/webhook?id=envelope-id",
     payload: { data: {} },
   }), "");
+  assert.deepEqual(resolveMercadoPagoDataId({ requestUrl: "https://orbit.test/api/payments/mercadopago/webhook", payload: { data: {} } }), { id: "", source: "ABSENT" });
 });
 
 test("production mode is canonical and never exposes credentials", () => {
