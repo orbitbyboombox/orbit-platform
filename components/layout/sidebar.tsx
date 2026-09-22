@@ -63,7 +63,7 @@ export function Sidebar({ navigationOrder, hiddenNavigation }: Pick<NavigationLi
     <aside className={cn("peer fixed inset-y-0 left-0 z-30 hidden w-20 border-r border-border/70 bg-[#090c11]/97 shadow-[14px_0_48px_rgba(0,0,0,.2)] backdrop-blur-xl transition-[width] duration-200 md:flex md:flex-col", collapsed ? "lg:w-20" : "lg:w-[15.25rem]")} data-collapsed={collapsed}>
       <div className="relative flex h-[4.5rem] items-center justify-center border-b border-border/70 px-3">
       <Link aria-label="Ir al Dashboard" className="flex h-11 items-center justify-center px-1 lg:px-3" href="/operations">
-        <BrandLogo className={cn("w-full max-w-[10.5rem]", collapsed ? "hidden" : "hidden lg:block")} surface="dark" />
+        <BrandLogo className={cn("w-full max-w-[13.25rem]", collapsed ? "hidden" : "hidden lg:block")} surface="dark" />
         <BrandLogo className={cn("w-full max-w-[2.25rem]", collapsed ? "lg:block" : "lg:hidden")} surface="dark" variant="isotype" />
       </Link>
       <button aria-label={collapsed ? "Expandir navegación" : "Contraer navegación"} className="absolute -right-3 top-1/2 hidden size-7 -translate-y-1/2 place-items-center rounded-full border bg-card text-muted shadow-md transition hover:border-brand/40 hover:text-brand lg:grid" onClick={() => setCollapsed(value => !value)} type="button">{collapsed ? <ChevronRight className="size-3.5" /> : <ChevronLeft className="size-3.5" />}</button>
