@@ -19,7 +19,7 @@ export function BrandLogo({ variant = "horizontal", surface = "auto", className,
   const [source,setSource]=useState(configuredSource||fallbackSource);
   useEffect(()=>setSource(configuredSource||fallbackSource),[configuredSource,fallbackSource]);
   return (
-    <span aria-label={isIsotype ? settings.productName : `${settings.productName}® ${settings.productVersion} · Developed by ${settings.developedBy} · Powered by ${settings.poweredBy}`} className={cn("relative block h-auto min-h-8 shrink-0", isIsotype ? "aspect-square" : "aspect-[1998/787]", className)} data-surface={surface} data-variant={variant} role="img">
+    <span aria-label={isIsotype ? settings.productName : `${settings.productName}® ${settings.productVersion} · Developed by ${settings.developedBy} · Powered by ${settings.poweredBy}`} className={cn("relative block h-auto min-h-8 shrink-0", isIsotype ? "aspect-square" : "aspect-[1672/941]", className)} data-surface={surface} data-variant={variant} role="img">
       <Image alt="" className="object-contain" fill onError={()=>setSource(fallbackSource)} priority={priority} sizes={isIsotype ? "72px" : "(max-width: 768px) 320px, 400px"} src={source} unoptimized />
     </span>
   );
