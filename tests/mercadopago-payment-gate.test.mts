@@ -9,6 +9,8 @@ const statusRoute = readFileSync("app/api/booking/[token]/mercadopago/status/rou
 const confirmRoute = readFileSync("app/api/booking/[token]/confirm/route.ts", "utf8");
 const completeRoute = readFileSync("app/api/booking/[token]/mercadopago/complete/route.ts", "utf8");
 const validation = readFileSync("features/automatic-booking/automatic-booking-validation.ts", "utf8");
+const reconciliation = readFileSync("features/payments/mercadopago/mercadopago-reconciliation.service.ts", "utf8");
+const webhookRoute = readFileSync("app/api/payments/mercadopago/webhook/route.ts", "utf8");
 
 test("Mercado Pago completion is server-gated by a PAID intent before writes", () => {
   assert.match(completion, /assertMercadoPagoPaymentApproved/);
@@ -60,6 +62,23 @@ test("Mercado Pago UI does not render the transfer receipt component", () => {
   assert.match(experience, /payment\.method==="TRANSFER"&&\<\>\<BankDetails/);
   assert.match(experience, /Adjuntar comprobante de transferencia/);
   assert.match(experience, /Serás redirigido a Mercado Pago para completar el pago de forma segura/);
+});
+
+test("return and webhook share provider reconciliation and canonical completion", () => {
+  assert.match(statusRoute, /reconcileMercadoPagoPayment/);
+  assert.match(webhookRoute, /reconcileMercadoPagoPayment/);
+  assert.match(reconciliation, /transaction_amount/);
+  assert.match(reconciliation, /currency_id === "CLP"/);
+  assert.match(reconciliation, /external_reference === input\.intent\.external_reference/);
+  assert.match(reconciliation, /status: "REVIEW_REQUIRED"/);
+  assert.match(reconciliation, /completeAutomaticBooking/);
+  assert.match(reconciliation, /booking_completed_at/);
+});
+
+test("return reconciliation waits 90 seconds without offering a second payment", () => {
+  assert.match(experience, /attempts\+\+<30/);
+  assert.match(experience, /setTimeout\(poll,\s*3000\)/);
+  assert.match(experience, /No vuelvas a pagar/);
 });
 
 const paymentGateInput = (method: "TRANSFER" | "MERCADO_PAGO", receiptBase64 = "") => automaticBookingStepIssues({
