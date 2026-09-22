@@ -6,6 +6,7 @@ const completion = readFileSync("features/automatic-booking/complete-automatic-b
 const experience = readFileSync("features/automatic-booking/automatic-booking-experience.tsx", "utf8");
 const statusRoute = readFileSync("app/api/booking/[token]/mercadopago/status/route.ts", "utf8");
 const confirmRoute = readFileSync("app/api/booking/[token]/confirm/route.ts", "utf8");
+const completeRoute = readFileSync("app/api/booking/[token]/mercadopago/complete/route.ts", "utf8");
 
 test("Mercado Pago completion is server-gated by a PAID intent before writes", () => {
   assert.match(completion, /assertMercadoPagoPaymentApproved/);
@@ -24,6 +25,8 @@ test("automatic booking returns to a payment verification state and carries prov
   assert.match(experience, /El pago sigue pendiente/);
   assert.match(statusRoute, /provider_payment_id/);
   assert.match(statusRoute, /external_reference/);
+  assert.match(completeRoute, /intent\.submission/);
+  assert.match(completeRoute, /status !== "PAID"/);
 });
 
 test("confirm endpoint exposes a distinct payment-required response", () => {
