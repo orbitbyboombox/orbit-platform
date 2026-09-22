@@ -495,7 +495,7 @@ export function ProjectWorkspaceExperience(
     if (
       !window.confirm(
         action === "PERMANENT_DELETE"
-          ? `ELIMINAR EVENTO Y TODOS SUS DATOS\n\nCliente: ${props.clientName}\nORB: ${event.orbitEventId}\nFecha: ${props.eventDateIso ?? "sin fecha"}\nServicio: ${event.services.map((service) => service.code).join(", ") || "sin servicio"}\n\nEsta acción eliminará definitivamente este registro y sus dependencias operacionales. ¿Continuar?`
+          ? `ELIMINAR EVENTO Y SUS DATOS OPERACIONALES\n\nCliente: ${props.clientName}\nORB: ${event.orbitEventId}\nFecha: ${props.eventDateIso ?? "sin fecha"}\nServicio: ${event.services.map((service) => service.code).join(", ") || "sin servicio"}\n\nSe eliminará la operación del evento (reservas, Staff, bloques e integraciones). La cotización y el historial comercial se conservarán como registro histórico. ¿Continuar?`
           : `¿Confirmas ${labels[action]} el Evento?\n\nCliente: ${props.clientName}\nORB: ${event.orbitEventId}\nFecha: ${props.eventDateIso ?? "sin fecha"}\nServicio: ${event.services.map((service) => service.code).join(", ") || "sin servicio"}`,
       )
     )
