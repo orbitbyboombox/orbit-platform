@@ -15,7 +15,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     const { data: intent, error } = await admin.from("mercado_pago_payment_intents").select("id,status,token_hash,external_reference,provider_payment_id,submission,booking_completed_at").eq("id", intentId).eq("token_hash", tokenHash).maybeSingle();
     if (error) throw error;
     if (!intent || intent.status !== "PAID" || !intent.provider_payment_id || !intent.external_reference) return NextResponse.json({ ok: false, code: "PAYMENT_REQUIRED", status: intent?.status ?? "UNKNOWN" }, { status: 402 });
-    if (intent.booking_completed_at) return NextResponse.json({ ok: true, alreadyConfirmed: true });
     const submission = intent.submission as AutomaticBookingSubmission;
     submission.payment = { ...submission.payment, method: "MERCADO_PAGO", providerPaymentId: String(intent.provider_payment_id), externalReference: String(intent.external_reference) };
     const result = await completeAutomaticBooking({ token: "__payment_intent__", tokenHashOverride: tokenHash, submission, ipAddress: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown", userAgent: request.headers.get("user-agent") ?? "automatic-booking-mercadopago" });

@@ -31,6 +31,19 @@ test("automatic booking returns to a payment verification state and carries prov
   assert.match(completeRoute, /status !== "PAID"/);
 });
 
+test("Checkout Pro return rehydrates the persisted booking snapshot before rendering payment", () => {
+  assert.match(statusRoute, /bookingSnapshot/);
+  assert.match(statusRoute, /persisted\.customer/);
+  assert.match(statusRoute, /persisted\.event/);
+  assert.match(statusRoute, /persisted\.service/);
+  assert.match(experience, /paymentReturnHydrating/);
+  assert.match(experience, /setCustomer\(current=>/);
+  assert.match(experience, /setEvent\(current=>/);
+  assert.match(experience, /setService\(current=>/);
+  assert.match(experience, /PaymentReturnVerification/);
+  assert.doesNotMatch(experience, /bookingSnapshot[\s\S]{0,500}signatureDataUrl/);
+});
+
 test("confirm endpoint exposes a distinct payment-required response", () => {
   assert.match(confirmRoute, /failure\.code === "PAYMENT_REQUIRED"/);
   assert.match(confirmRoute, /failure\.code === "PAYMENT_REQUIRED" \? 402/);
