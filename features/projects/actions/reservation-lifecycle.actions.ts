@@ -70,7 +70,7 @@ export async function testFullPurgeEventAction(projectId: string, reason: string
     const { data, error } = await client.rpc("purge_event_test_full", { p_project_id: projectId, p_confirmation: confirmation, p_reason: reason.trim() });
     if (error) throw error;
     paths.forEach((path) => revalidatePath(path));
-    return { ok: true, status: String(data?.status ?? "PURGED_QA"), message: "Prueba QA purgada. La auditoría histórica append-only fue preservada." };
+    return { ok: true, status: String(data?.status ?? "PURGED_QA_TOTAL"), message: "Prueba eliminada completamente." };
   } catch (error) {
     const details = serializeForceDeleteError(error);
     console.error("[ORBIT][TEST_FULL_PURGE]", { ...details, projectId, timestamp: new Date().toISOString() });
