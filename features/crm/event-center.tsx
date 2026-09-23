@@ -57,6 +57,7 @@ export function EventCenter({
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<CrmOperationalEvent | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CrmOperationalEvent | null>(null);
+  const [testPurgeRequested, setTestPurgeRequested] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [editDate, setEditDate] = useState("");
   const [serviceEndAt, setServiceEndAt] = useState("");
@@ -132,15 +133,17 @@ export function EventCenter({
   const openDeleteDialog = (event: CrmOperationalEvent) => {
     setDeleteTarget(event);
     setDeleteConfirmation("");
+    setTestPurgeRequested(event.dataClassification === "QA" || event.dataClassification === "TEST");
   };
   const closeDeleteDialog = () => {
     if (!pending) {
       setDeleteTarget(null);
       setDeleteConfirmation("");
+      setTestPurgeRequested(false);
     }
   };
   const confirmDelete = () => {
-    const isTestPurge = deleteTarget?.dataClassification === "QA" || deleteTarget?.dataClassification === "TEST";
+    const isTestPurge = testPurgeRequested || deleteTarget?.dataClassification === "QA" || deleteTarget?.dataClassification === "TEST";
     const requiredConfirmation = isTestPurge ? TEST_FULL_PURGE_CONFIRMATION : FOUNDER_FORCE_DELETE_CONFIRMATION;
     if (!deleteTarget || deleteConfirmation !== requiredConfirmation) return;
     const target = deleteTarget;
@@ -155,6 +158,7 @@ export function EventCenter({
       if (!result.ok) setError(result.message);
       else {
         setDeleteTarget(null);
+        setTestPurgeRequested(false);
         router.refresh();
       }
     });
@@ -486,6 +490,7 @@ export function EventCenter({
               <div><dt className="text-muted">Hora</dt><dd className="font-medium">{deleteTarget.serviceStartAt?.slice(11, 16) || "Sin hora"}</dd></div>
               <div className="sm:col-span-2"><dt className="text-muted">ORB</dt><dd className="font-medium">{deleteTarget.orbitEventId || "Sin código"}</dd></div>
             </dl>
+            {!isTestPurge && canForceDelete ? <button className="rounded-xl border border-red-300 px-4 py-3 text-left text-sm text-red-700" type="button" onClick={() => { setTestPurgeRequested(true); setDeleteConfirmation(""); }}>Purgar prueba total…<span className="mt-1 block text-xs text-muted">Solo Founder/CEO. Elimina físicamente todo el grafo QA/TEST y exige PURGAR PRUEBA TOTAL.</span></button> : null}
             <label className="grid gap-2 font-medium">Escribe {requiredConfirmation}<input autoComplete="off" className="min-h-11 rounded-xl border bg-background px-3" value={deleteConfirmation} onChange={(event) => setDeleteConfirmation(event.target.value)} /></label>
           </div>
         </MobileDialog>
