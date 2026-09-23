@@ -4,6 +4,7 @@ import test from "node:test";
 
 const normal = readFileSync("supabase/migrations/20260922150000_founder_force_delete_preserve_commercial_history.sql", "utf8");
 const repair = readFileSync("supabase/migrations/20260923120000_founder_force_delete_status_safe_qa.sql", "utf8");
+const timelineFix = readFileSync("supabase/migrations/20260923193000_founder_force_delete_timeline_append_only_safe.sql", "utf8");
 const policy = readFileSync("features/founder-force-delete/policy.ts", "utf8");
 const action = readFileSync("features/projects/actions/reservation-lifecycle.actions.ts", "utf8");
 
@@ -24,4 +25,12 @@ test("QA purge is isolated, CEO-gated and requires the exact second confirmation
 test("canonical reservation transaction check remains unchanged", () => {
   assert.match(repair, /STARTED|CREATED|PROCESSING|FAILED|COMPLETED/);
   assert.doesNotMatch(repair, /status='CANCELLED', current_step='EVENT_DELETED'/);
+});
+
+test("timeline audit remains append-only during QA purge", () => {
+  assert.match(timelineFix, /ddl := replace\(ddl,[\s\S]*timeline_events is intentionally preserved/);
+  assert.match(timelineFix, /ddl := replace\(ddl,[\s\S]*update public\.crm_events/);
+  assert.match(timelineFix, /ddl := replace\(ddl,[\s\S]*update public\.projects/);
+  assert.match(timelineFix, /timeline_events.*append-only|append-only.*timeline_events/i);
+  assert.match(policy, /auditoría histórica está protegida/);
 });
