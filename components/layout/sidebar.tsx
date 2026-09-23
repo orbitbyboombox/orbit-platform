@@ -60,7 +60,7 @@ export function NavigationList({ onNavigate, compact, navigationOrder, hiddenNav
 export function Sidebar({ navigationOrder, hiddenNavigation }: Pick<NavigationListProps,"navigationOrder"|"hiddenNavigation">) {
   const [collapsed, setCollapsed] = useState(false);
   return (
-    <aside className={cn("peer fixed inset-y-0 left-0 z-30 hidden w-20 border-r border-border/70 bg-[#090c11]/97 shadow-[14px_0_48px_rgba(0,0,0,.2)] backdrop-blur-xl transition-[width] duration-200 md:flex md:flex-col", collapsed ? "lg:w-20" : "lg:w-[15.25rem]")} data-collapsed={collapsed}>
+    <aside className={cn("peer fixed inset-y-0 left-0 z-30 hidden h-dvh min-h-0 w-20 overflow-hidden border-r border-border/70 bg-[#090c11]/97 shadow-[14px_0_48px_rgba(0,0,0,.2)] backdrop-blur-xl transition-[width] duration-200 md:flex md:flex-col", collapsed ? "lg:w-20" : "lg:w-[15.25rem]")} data-collapsed={collapsed}>
       <div className="relative flex h-[5.75rem] items-center justify-center border-b border-border/70 px-3">
       <Link aria-label="Ir al Dashboard" className="flex h-full w-full items-center justify-center px-1 lg:px-2" href="/operations">
         <BrandLogo className={cn("w-full max-w-[11rem]", collapsed ? "hidden" : "hidden lg:block")} surface="dark" />
@@ -68,12 +68,14 @@ export function Sidebar({ navigationOrder, hiddenNavigation }: Pick<NavigationLi
       </Link>
       <button aria-label={collapsed ? "Expandir navegación" : "Contraer navegación"} className="absolute -right-3 top-1/2 hidden size-7 -translate-y-1/2 place-items-center rounded-full border bg-card text-muted shadow-md transition hover:border-brand/40 hover:text-brand lg:grid" onClick={() => setCollapsed(value => !value)} type="button">{collapsed ? <ChevronRight className="size-3.5" /> : <ChevronLeft className="size-3.5" />}</button>
       </div>
-      <div className="px-3 pb-3 pt-5"><NavigationList compact hiddenNavigation={hiddenNavigation} iconOnly={collapsed} navigationOrder={navigationOrder} /></div>
-      <div className={cn("mx-3 mt-3 border-t pt-4", collapsed && "lg:hidden")}>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3 pt-5 [scrollbar-width:thin]">
+        <NavigationList compact hiddenNavigation={hiddenNavigation} iconOnly={collapsed} navigationOrder={navigationOrder} />
+        <div className={cn("mx-0 mt-3 border-t pt-4", collapsed && "lg:hidden")}>
         <p className="mb-2 px-2 text-[9px] font-semibold uppercase tracking-[.12em] text-muted">Accesos rápidos</p>
         <nav aria-label="Accesos rápidos" className="space-y-1">
           {[{label:"Nuevo Evento",href:"/projects?reservation=new",icon:PlusCircle},{label:"Buscar Cliente",href:"/customers",icon:Contact},{label:"Calendario",href:"/events",icon:CalendarDays},{label:"Cobros pendientes",href:"/finance/receivables",icon:CircleDollarSign}].map(item=><Link className="group flex min-h-9 items-center gap-3 rounded-xl px-2 text-xs text-muted transition hover:bg-accent/70 hover:text-foreground" href={item.href} key={item.label}><item.icon className="size-4 transition group-hover:text-brand"/><span>{item.label}</span></Link>)}
         </nav>
+        </div>
       </div>
       <div className="mt-auto border-t px-4 py-5 text-center lg:text-left"><Link aria-label="Ir al Dashboard" href="/operations">{collapsed ? <BrandLogo className="mx-auto size-7" surface="dark" variant="isotype" /> : <><BrandSignature className="hidden lg:block" /><BrandLogo className="mx-auto size-7 lg:hidden" surface="dark" variant="isotype" /></>}</Link></div>
     </aside>
