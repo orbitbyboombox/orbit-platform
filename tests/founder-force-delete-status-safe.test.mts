@@ -5,6 +5,7 @@ import test from "node:test";
 const normal = readFileSync("supabase/migrations/20260922150000_founder_force_delete_preserve_commercial_history.sql", "utf8");
 const repair = readFileSync("supabase/migrations/20260923120000_founder_force_delete_status_safe_qa.sql", "utf8");
 const timelineFix = readFileSync("supabase/migrations/20260923193000_founder_force_delete_timeline_append_only_safe.sql", "utf8");
+const taskFix = readFileSync("supabase/migrations/20260923201500_founder_force_delete_task_tombstone_safe.sql", "utf8");
 const policy = readFileSync("features/founder-force-delete/policy.ts", "utf8");
 const action = readFileSync("features/projects/actions/reservation-lifecycle.actions.ts", "utf8");
 
@@ -33,4 +34,12 @@ test("timeline audit remains append-only during QA purge", () => {
   assert.match(timelineFix, /ddl := replace\(ddl,[\s\S]*update public\.projects/);
   assert.match(timelineFix, /timeline_events.*append-only|append-only.*timeline_events/i);
   assert.match(policy, /auditoría histórica está protegida/);
+});
+
+test("normal purge tombstones timeline-linked tasks instead of cascading into audit", () => {
+  assert.match(taskFix, /update public\.tasks/);
+  assert.match(taskFix, /project_id=null/);
+  assert.match(taskFix, /deleted_at=now\(\)/);
+  assert.match(taskFix, /ddl := replace\(ddl, expected/);
+  assert.match(taskFix, /tasks\.timeline_reference|timeline-linked tasks|append-only audit/i);
 });
