@@ -1,4 +1,5 @@
 export const FOUNDER_FORCE_DELETE_CONFIRMATION = "ELIMINAR" as const;
+export const TEST_FULL_PURGE_CONFIRMATION = "PURGAR PRUEBA" as const;
 
 export function isFounderRole(role: string | null | undefined): boolean {
   return role === "CEO";
@@ -7,6 +8,12 @@ export function isFounderRole(role: string | null | undefined): boolean {
 export function assertFounderForceDeleteConfirmation(value: string | null | undefined): void {
   if (value?.trim().toUpperCase() !== FOUNDER_FORCE_DELETE_CONFIRMATION) {
     throw new Error("Escribe ELIMINAR para confirmar la eliminación definitiva.");
+  }
+}
+
+export function assertTestFullPurgeConfirmation(value: string | null | undefined): void {
+  if (value?.trim().toUpperCase() !== TEST_FULL_PURGE_CONFIRMATION) {
+    throw new Error("Escribe PURGAR PRUEBA para confirmar la purga QA.");
   }
 }
 
