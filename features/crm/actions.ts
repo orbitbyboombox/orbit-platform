@@ -6,6 +6,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   transitionReservationLifecycleAction,
   founderForceDeleteEventAction,
+  testFullPurgeEventAction,
   type ReservationLifecycleAction,
 } from "@/features/projects/actions/reservation-lifecycle.actions";
 import { synchronizeConfirmedReservationCalendar } from "@/features/connectors/google-calendar/application/google-calendar-sync.service";
@@ -355,12 +356,14 @@ export async function mergeCrmCustomersAction(
 export async function transitionCrmEventAction(input: {
   customerId: string;
   projectId: string;
-  action: Extract<ReservationLifecycleAction, "ARCHIVE" | "PERMANENT_DELETE">;
+  action: Extract<ReservationLifecycleAction, "ARCHIVE" | "PERMANENT_DELETE"> | "TEST_FULL_PURGE";
   reason: string;
   confirmation?: string;
   deleteOrphanCustomer?: boolean;
 }) {
-  const result = input.action === "PERMANENT_DELETE"
+  const result = input.action === "TEST_FULL_PURGE"
+    ? await testFullPurgeEventAction(input.projectId, input.reason, input.confirmation ?? "")
+    : input.action === "PERMANENT_DELETE"
     ? await founderForceDeleteEventAction(input.projectId, input.reason, input.confirmation ?? "")
     : await transitionReservationLifecycleAction(input.projectId, input.action, input.reason, input.confirmation, input.deleteOrphanCustomer ?? false);
   revalidatePath(`/customers/${input.customerId}`);

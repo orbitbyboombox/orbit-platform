@@ -185,7 +185,10 @@ begin
     delete from public.invoices where project_id=p_project_id;
   end if;
 
-  update public.reservation_transactions set project_id=null, orbit_event_id=null, status='CANCELLED', current_step='EVENT_DELETED', last_error='SOURCE_EVENT_DELETED', updated_at=now() where project_id=p_project_id;
+  -- Reservation transactions are append-only lifecycle records. Detach the
+  -- operational linkage, but never write an event-deletion status: the table
+  -- check only permits STARTED, CREATED, PROCESSING, FAILED, COMPLETED.
+  update public.reservation_transactions set project_id=null, orbit_event_id=null, current_step='EVENT_DELETED', last_error='SOURCE_EVENT_DELETED', updated_at=now() where project_id=p_project_id;
   update public.projects set status='DELETED', pipeline_stage='ARCHIVADO', health='BLOCKED', deleted_at=now(), deleted_by=actor, approval_reason=trim(p_reason), updated_by=actor, updated_at=now() where id=p_project_id;
   select exists(select 1 from public.projects where customer_id=project_row.customer_id and id<>p_project_id and deleted_at is null) into customer_has_other_events;
   if p_delete_orphan_customer and not customer_has_other_events then

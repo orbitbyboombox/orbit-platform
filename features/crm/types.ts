@@ -146,6 +146,7 @@ export interface CrmCustomerEventOperations {
   } | null;
 }
 export interface CrmOperationalEvent extends CrmEventSummary {
+  dataClassification: string;
   customerId: string;
   customerName: string;
   company: string;

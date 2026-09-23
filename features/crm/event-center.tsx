@@ -21,6 +21,7 @@ import {
   updateCrmEventAction,
 } from "./actions";
 import { shiftEventScheduleDate } from "./event-schedule";
+import { FOUNDER_FORCE_DELETE_CONFIRMATION, TEST_FULL_PURGE_CONFIRMATION } from "@/features/founder-force-delete/policy";
 
 type View =
   | "TODAY"
@@ -139,14 +140,16 @@ export function EventCenter({
     }
   };
   const confirmDelete = () => {
-    if (!deleteTarget || deleteConfirmation !== "ELIMINAR") return;
+    const isTestPurge = deleteTarget?.dataClassification === "QA" || deleteTarget?.dataClassification === "TEST";
+    const requiredConfirmation = isTestPurge ? TEST_FULL_PURGE_CONFIRMATION : FOUNDER_FORCE_DELETE_CONFIRMATION;
+    if (!deleteTarget || deleteConfirmation !== requiredConfirmation) return;
     const target = deleteTarget;
     start(async () => {
       const result = await transitionCrmEventAction({
         customerId: target.customerId,
         projectId: target.projectId,
-        action: "PERMANENT_DELETE",
-        reason: "Eliminación integral solicitada por Founder.",
+        action: isTestPurge ? "TEST_FULL_PURGE" : "PERMANENT_DELETE",
+        reason: isTestPurge ? "Purga completa QA solicitada por Founder." : "Eliminación integral solicitada por Founder.",
         confirmation: deleteConfirmation,
       });
       if (!result.ok) setError(result.message);
@@ -460,16 +463,17 @@ export function EventCenter({
         </MobileDialog>
       )}
       {deleteTarget ? (
+        (() => { const isTestPurge = deleteTarget.dataClassification === "QA" || deleteTarget.dataClassification === "TEST"; const requiredConfirmation = isTestPurge ? TEST_FULL_PURGE_CONFIRMATION : FOUNDER_FORCE_DELETE_CONFIRMATION; return (
         <MobileDialog
           eyebrow="Acción irreversible"
           title="Eliminar Evento"
-          description="Esta acción eliminará definitivamente este registro y sus dependencias operacionales. El cliente permanecerá en el CRM."
+          description={isTestPurge ? "Esta acción eliminará definitivamente la prueba QA y sus dependencias exclusivas. El cliente permanecerá en el CRM." : "Esta acción eliminará definitivamente este registro y sus dependencias operacionales. El cliente permanecerá en el CRM."}
           onClose={closeDeleteDialog}
           dismissOnOverlayClick={!pending}
           footer={
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button className="min-h-11 rounded-xl border px-4" aria-busy={pending} disabled={pending} onClick={closeDeleteDialog} type="button">Cancelar</button>
-              <button className="min-h-11 rounded-xl bg-red-600 px-4 font-semibold text-white disabled:opacity-50" aria-busy={pending} disabled={pending || deleteConfirmation !== "ELIMINAR"} onClick={confirmDelete} type="button">{pending ? "Eliminando…" : "ELIMINAR TODO"}</button>
+              <button className="min-h-11 rounded-xl bg-red-600 px-4 font-semibold text-white disabled:opacity-50" aria-busy={pending} disabled={pending || deleteConfirmation !== requiredConfirmation} onClick={confirmDelete} type="button">{pending ? "Eliminando…" : isTestPurge ? "PURGAR PRUEBA" : "ELIMINAR TODO"}</button>
             </div>
           }
         >
@@ -482,9 +486,10 @@ export function EventCenter({
               <div><dt className="text-muted">Hora</dt><dd className="font-medium">{deleteTarget.serviceStartAt?.slice(11, 16) || "Sin hora"}</dd></div>
               <div className="sm:col-span-2"><dt className="text-muted">ORB</dt><dd className="font-medium">{deleteTarget.orbitEventId || "Sin código"}</dd></div>
             </dl>
-            <label className="grid gap-2 font-medium">Escribe ELIMINAR<input autoComplete="off" className="min-h-11 rounded-xl border bg-background px-3" value={deleteConfirmation} onChange={(event) => setDeleteConfirmation(event.target.value)} /></label>
+            <label className="grid gap-2 font-medium">Escribe {requiredConfirmation}<input autoComplete="off" className="min-h-11 rounded-xl border bg-background px-3" value={deleteConfirmation} onChange={(event) => setDeleteConfirmation(event.target.value)} /></label>
           </div>
         </MobileDialog>
+        ); })()
       ) : null}
     </div>
   );
