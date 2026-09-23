@@ -14,6 +14,6 @@ begin
     raise exception 'Los acuerdos firmados son inmutables.';
   end if;
 
-  return old;
+  return new;
 end;
 $$;
