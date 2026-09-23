@@ -43,3 +43,12 @@ test("normal purge tombstones timeline-linked tasks instead of cascading into au
   assert.match(taskFix, /ddl := replace\(ddl, expected/);
   assert.match(taskFix, /tasks\.timeline_reference|timeline-linked tasks|append-only audit/i);
 });
+
+test("successful normal delete uses the human success message", () => {
+  assert.match(action, /Evento eliminado correctamente\./);
+});
+
+
+test("successful normal delete uses the human success message", () => {
+  assert.match(action, /Evento eliminado correctamente\\./);
+});
