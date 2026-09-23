@@ -6,7 +6,7 @@ import { removeCancelledReservationCalendar, synchronizeConfirmedReservationCale
 import { deleteCalendarEventForProject } from "@/features/connectors/google-calendar/application/google-calendar-delete.service";
 import { archiveCancelledReservationDrive, synchronizeConfirmedReservationDrive } from "@/features/connectors/google-drive/application/google-drive-sync.service";
 import { deliverAssignmentCancellationBoundary } from "@/features/operations/staff-assignment-cancellation.service";
-import { assertFounderForceDeleteConfirmation, serializeForceDeleteError } from "@/features/founder-force-delete/policy";
+import { assertFounderForceDeleteConfirmation, assertTestFullPurgeConfirmation, serializeForceDeleteError } from "@/features/founder-force-delete/policy";
 
 export type ReservationLifecycleAction="ARCHIVE"|"RESTORE"|"CANCEL"|"PERMANENT_DELETE";
 const paths=["/projects","/events","/customers","/operations","/finance","/finance/receivables","/notifications"];
@@ -53,6 +53,27 @@ export async function founderForceDeleteEventAction(projectId: string, reason: s
   } catch (error) {
     const details = serializeForceDeleteError(error);
     console.error("[ORBIT][FOUNDER_FORCE_DELETE]", { ...details, projectId, timestamp: new Date().toISOString() });
+    return { ok: false, message: details.message };
+  }
+}
+
+export async function testFullPurgeEventAction(projectId: string, reason: string, confirmation: string): Promise<{ok:boolean;message:string;status?:string}> {
+  try {
+    assertTestFullPurgeConfirmation(confirmation);
+    if (!projectId || reason.trim().length < 3) throw new Error("Registra un motivo para continuar.");
+    const client = await createSupabaseServerClient();
+    const { data: auth, error: authError } = await client.auth.getUser();
+    if (authError || !auth.user) throw new Error("Tu sesión expiró. Vuelve a iniciar sesión.");
+    const { data: profile, error: profileError } = await client.from("profiles").select("role").eq("id", auth.user.id).single();
+    if (profileError) throw profileError;
+    if (profile?.role !== "CEO") throw new Error("Solo Founder/CEO puede purgar una prueba.");
+    const { data, error } = await client.rpc("purge_event_test_full", { p_project_id: projectId, p_confirmation: confirmation, p_reason: reason.trim() });
+    if (error) throw error;
+    paths.forEach((path) => revalidatePath(path));
+    return { ok: true, status: String(data?.status ?? "PURGED_QA"), message: "Prueba QA purgada completamente." };
+  } catch (error) {
+    const details = serializeForceDeleteError(error);
+    console.error("[ORBIT][TEST_FULL_PURGE]", { ...details, projectId, timestamp: new Date().toISOString() });
     return { ok: false, message: details.message };
   }
 }
