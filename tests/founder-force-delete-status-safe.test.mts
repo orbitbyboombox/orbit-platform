@@ -7,6 +7,7 @@ const repair = readFileSync("supabase/migrations/20260923120000_founder_force_de
 const timelineFix = readFileSync("supabase/migrations/20260923193000_founder_force_delete_timeline_append_only_safe.sql", "utf8");
 const taskFix = readFileSync("supabase/migrations/20260923201500_founder_force_delete_task_tombstone_safe.sql", "utf8");
 const graphFix = readFileSync("supabase/migrations/20260923213000_founder_force_delete_graph_preflight.sql", "utf8");
+const hardPurge = readFileSync("supabase/migrations/20260923230000_founder_hard_purge_test_graph.sql", "utf8");
 const policy = readFileSync("features/founder-force-delete/policy.ts", "utf8");
 const action = readFileSync("features/projects/actions/reservation-lifecycle.actions.ts", "utf8");
 
@@ -20,7 +21,7 @@ test("QA purge is isolated, CEO-gated and requires the exact second confirmation
   assert.match(repair, /current_orbit_role\(\) <> 'CEO'/);
   assert.match(repair, /PURGAR PRUEBA/);
   assert.match(repair, /data_classification not in \('QA','TEST'\)/);
-  assert.match(policy, /TEST_FULL_PURGE_CONFIRMATION = "PURGAR PRUEBA"/);
+  assert.match(policy, /TEST_FULL_PURGE_CONFIRMATION = "PURGAR PRUEBA TOTAL"/);
   assert.match(action, /client\.rpc\("purge_event_test_full"/);
 });
 
@@ -58,4 +59,18 @@ test("canonical graph fix keeps task scope valid and preflights append-only pare
 
 test("successful normal delete uses the human success message", () => {
   assert.match(action, /Evento eliminado correctamente\./);
+});
+
+test("hard purge is a separate Founder-only transaction-local QA mode", () => {
+  assert.match(hardPurge, /purge_event_test_full/);
+  assert.match(hardPurge, /PURGAR PRUEBA TOTAL/);
+  assert.match(hardPurge, /current_orbit_role\(\) <> 'CEO'/);
+  assert.match(hardPurge, /set_config\('app\.hard_purge_test_mode','on',true\)/);
+  assert.match(hardPurge, /set_config\('app\.hard_purge_test_mode','off',true\)/);
+  assert.match(hardPurge, /delete from public\.timeline_events/);
+  assert.match(hardPurge, /column_name='project_id'/);
+  assert.match(hardPurge, /delete from public\.mercado_pago_payment_intents/);
+  assert.match(hardPurge, /delete from public\.projects/);
+  assert.match(hardPurge, /Prueba eliminada completamente/);
+  assert.match(policy, /PURGAR PRUEBA TOTAL/);
 });
