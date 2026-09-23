@@ -6,6 +6,7 @@ const normal = readFileSync("supabase/migrations/20260922150000_founder_force_de
 const repair = readFileSync("supabase/migrations/20260923120000_founder_force_delete_status_safe_qa.sql", "utf8");
 const timelineFix = readFileSync("supabase/migrations/20260923193000_founder_force_delete_timeline_append_only_safe.sql", "utf8");
 const taskFix = readFileSync("supabase/migrations/20260923201500_founder_force_delete_task_tombstone_safe.sql", "utf8");
+const graphFix = readFileSync("supabase/migrations/20260923213000_founder_force_delete_graph_preflight.sql", "utf8");
 const policy = readFileSync("features/founder-force-delete/policy.ts", "utf8");
 const action = readFileSync("features/projects/actions/reservation-lifecycle.actions.ts", "utf8");
 
@@ -38,17 +39,23 @@ test("timeline audit remains append-only during QA purge", () => {
 
 test("normal purge tombstones timeline-linked tasks instead of cascading into audit", () => {
   assert.match(taskFix, /update public\.tasks/);
-  assert.match(taskFix, /project_id=null/);
+  assert.match(taskFix, /where project_id=p_project_id/);
   assert.match(taskFix, /deleted_at=now\(\)/);
   assert.match(taskFix, /ddl := replace\(ddl, expected/);
   assert.match(taskFix, /tasks\.timeline_reference|timeline-linked tasks|append-only audit/i);
 });
 
-test("successful normal delete uses the human success message", () => {
-  assert.match(action, /Evento eliminado correctamente\./);
+test("canonical graph fix keeps task scope valid and preflights append-only parents", () => {
+  assert.match(graphFix, /preflight_purge_event_controlled/);
+  assert.match(graphFix, /TASK_SCOPE_INVALID_BEFORE_PURGE/);
+  assert.match(graphFix, /SOFT_DELETE_PROJECT_PRESERVE_APPEND_ONLY_PARENTS/);
+  assert.match(graphFix, /status='COMPLETED'/);
+  assert.doesNotMatch(graphFix, /set project_id=null,\s*orbit_event_id=null,\s*status='COMPLETED'/);
+  assert.match(graphFix, /timeline_events where communication_id=public\.communications\.id/);
+  assert.match(graphFix, /not exists \(select 1 from public\.timeline_events where agreement_id=public\.agreements\.id\)/);
+  assert.match(graphFix, /Founder purge preflight blocked/);
 });
 
-
 test("successful normal delete uses the human success message", () => {
-  assert.match(action, /Evento eliminado correctamente\\./);
+  assert.match(action, /Evento eliminado correctamente\./);
 });
