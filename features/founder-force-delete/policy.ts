@@ -18,10 +18,17 @@ export function assertTestFullPurgeConfirmation(value: string | null | undefined
 }
 
 export function serializeForceDeleteError(error: unknown): { code: string; message: string; details?: unknown } {
-  if (error instanceof Error) return { code: "FOUNDER_FORCE_DELETE_FAILED", message: error.message, details: error.stack };
+  const humanMessage = (message: string): string => {
+    if (/timeline_events is append-only|append-only|check constraint|violates foreign key/i.test(message)) {
+      return "No fue posible completar la eliminación porque la auditoría histórica está protegida. No se aplicó una eliminación parcial.";
+    }
+    return message;
+  };
+  if (error instanceof Error) return { code: "FOUNDER_FORCE_DELETE_FAILED", message: humanMessage(error.message), details: error.stack };
   if (error && typeof error === "object") {
     const value = error as Record<string, unknown>;
-    return { code: typeof value.code === "string" ? value.code : "FOUNDER_FORCE_DELETE_FAILED", message: typeof value.message === "string" ? value.message : JSON.stringify(value), details: value.details ?? value.hint };
+    const message = typeof value.message === "string" ? value.message : JSON.stringify(value);
+    return { code: typeof value.code === "string" ? value.code : "FOUNDER_FORCE_DELETE_FAILED", message: humanMessage(message), details: value.details ?? value.hint };
   }
   return { code: "FOUNDER_FORCE_DELETE_FAILED", message: String(error) };
 }
