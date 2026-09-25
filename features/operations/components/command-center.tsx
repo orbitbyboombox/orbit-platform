@@ -45,7 +45,7 @@ export interface CommandCenterProjectReadiness {
   customerName: string;
   projectName: string;
   eventDate: string;
-  eventTime: string;
+  eventTime: string | null;
   paymentReady: boolean;
   statuses: readonly { label: string; state: ReadinessState }[];
 }

@@ -21,7 +21,7 @@ export interface ProjectHeaderProps {
   clientName: string;
   projectType: ProjectType;
   eventDate: string;
-  eventTime: string;
+  eventTime: string | null;
   location: string;
   services: readonly string[];
   status: ProjectStatus;
@@ -103,7 +103,7 @@ export function ProjectHeader({
 }: ProjectHeaderProps) {
   const details: ProjectDetail[] = [
     { label: "Fecha del evento", value: eventDate, icon: CalendarDays },
-    { label: "Hora", value: eventTime, icon: Clock3 },
+    { label: "Hora", value: eventTime ?? "Horario pendiente", icon: Clock3 },
     { label: "Ubicación", value: location, icon: MapPin },
     { label: "Servicios", value: formatServiceSummary(services), icon: Sparkles },
   ];

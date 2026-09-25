@@ -387,6 +387,8 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
   const [eventName, setEventName] = useState(initialDraft?.eventName ?? "");
   const [eventDate, setEventDate] = useState(initialDraft?.eventDate ?? "");
   const [eventTime, setEventTime] = useState(initialDraft?.eventTime ?? "");
+  const [eventTimeMode, setEventTimeMode] = useState<"CONFIRMED" | "TBD">(initialDraft?.eventTimeMode ?? (initialDraft?.eventTime ? "CONFIRMED" : "TBD"));
+  const [eventTimeWindow, setEventTimeWindow] = useState<"MORNING" | "AFTERNOON" | "EVENING" | "UNKNOWN">(initialDraft?.eventTimeWindow ?? "UNKNOWN");
   const [eventLocation, setEventLocation] = useState(initialDraft?.eventLocation ?? "");
   const [eventCity, setEventCity] = useState(initialDraft?.eventCity ?? "");
   const [attachCatalog, setAttachCatalog] = useState(initialDraft?.attachCatalog ?? false);
@@ -398,12 +400,15 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
   const [capacityLoading, setCapacityLoading] = useState(false);
   const capacityRequest = useRef(0);
   const capacityServiceCodes = lines.map((line) => line.code).filter((code) => !code.startsWith("MANUAL-"));
-  const capacityMissingInputs = !(eventDate && eventTime && eventLocation.trim() && eventCity.trim() && capacityServiceCodes.length);
-  const capacityState = progressiveAvailabilityState({ date: eventDate, time: eventTime, location: eventLocation.trim() && eventCity.trim() ? eventLocation : "", service: capacityServiceCodes.length > 0, loading: capacityLoading, result: capacityResult?.status });
+  const capacityMissingInputs = !(eventDate && eventLocation.trim() && eventCity.trim() && capacityServiceCodes.length);
+  const capacityState = eventTimeMode === "TBD" && eventDate
+    ? "PENDING_TIME"
+    : progressiveAvailabilityState({ date: eventDate, time: eventTime, location: eventLocation.trim() && eventCity.trim() ? eventLocation : "", service: capacityServiceCodes.length > 0, loading: capacityLoading, result: capacityResult?.status === "CAPACITY_PENDING_TIME" ? null : capacityResult?.status });
   useEffect(() => {
     const requestId = ++capacityRequest.current;
     setCapacityResult(null);
     if (capacityMissingInputs) { setCapacityLoading(false); return; }
+    if (eventTimeMode === "TBD") { setCapacityLoading(false); setCapacityResult({ status: "CAPACITY_PENDING_TIME", humanSafeReason: "La disponibilidad se confirmará cuando exista un horario exacto." }); return; }
     const startAt = new Date(`${eventDate}T${eventTime}:00`);
     const endAt = new Date(startAt.getTime() + 2 * 60 * 60 * 1000);
     if (Number.isNaN(startAt.getTime())) { setCapacityLoading(false); return; }
@@ -411,7 +416,7 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
     void draftCapacityPreflightAction({ serviceCodes: capacityServiceCodes, eventType: eventName || "", eventDate, serviceStart: startAt.toISOString(), serviceEnd: endAt.toISOString(), address: eventLocation, city: eventCity })
       .then((response) => { if (requestId === capacityRequest.current) setCapacityResult(response.ok ? (response.result as CapacityResult | null) : null); })
       .finally(() => { if (requestId === capacityRequest.current) setCapacityLoading(false); });
-  }, [capacityMissingInputs, eventDate, eventTime, eventLocation, eventCity, eventName, lines]);
+  }, [capacityMissingInputs, eventDate, eventTime, eventTimeMode, eventLocation, eventCity, eventName, lines]);
   const selected = data.customers.find((item) => item.id === customerId);
   const addCatalog = (code: string) => {
     const item = data.catalog.find((row) => row.code === code);
@@ -489,6 +494,8 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
           eventName,
           eventDate,
           eventTime,
+          eventTimeMode,
+          eventTimeWindow,
           eventLocation,
           eventCity,
           validityDays,
@@ -612,7 +619,13 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
           <Field label="Fecha del evento (opcional)">
             <input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} />
           </Field>
-          <Field label="Hora del evento (opcional)"><input type="time" value={eventTime} onChange={(e) => setEventTime(e.target.value)} /></Field>
+          <Field label="Modo de horario">
+            <select value={eventTimeMode} onChange={(e) => { const mode = e.target.value as "CONFIRMED" | "TBD"; setEventTimeMode(mode); if (mode === "TBD") setEventTime(""); }}>
+              <option value="CONFIRMED">Hora confirmada</option>
+              <option value="TBD">Por definir</option>
+            </select>
+          </Field>
+          {eventTimeMode === "CONFIRMED" ? <Field label="Hora del evento"><input required type="time" value={eventTime} onChange={(e) => setEventTime(e.target.value)} /></Field> : <Field label="Ventana informativa"><select value={eventTimeWindow} onChange={(e) => setEventTimeWindow(e.target.value as typeof eventTimeWindow)}><option value="UNKNOWN">Aún no sé</option><option value="MORNING">Mañana</option><option value="AFTERNOON">Tarde</option><option value="EVENING">Noche</option></select></Field>}
           <Field label="Dirección del evento (opcional)"><input value={eventLocation} onChange={(e) => setEventLocation(e.target.value)} /></Field>
           <Field label="Comuna / Ciudad (opcional)"><input value={eventCity} onChange={(e) => setEventCity(e.target.value)} /></Field>
         </div>

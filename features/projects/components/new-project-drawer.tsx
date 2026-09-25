@@ -67,6 +67,8 @@ const initialDraft: ProjectDraft = {
   event: {
     date: "",
     time: "",
+    timeMode: "TBD",
+    timeWindow: "UNKNOWN",
     location: "",
     city: "",
     durationHours: 2,
@@ -546,8 +548,9 @@ export function NewProjectDrawer({
   const [capacityLoading, setCapacityLoading] = useState(false);
   const capacityRequest = useRef(0);
   const recoveryChecked = useRef(false);
-  const capacityMissingInputs = !(draft.event.date && draft.event.time && eventAddress.trim() && draft.event.city && draft.services.length);
-  const capacityState = progressiveAvailabilityState({ date: draft.event.date, time: draft.event.time, location: eventAddress.trim() && draft.event.city ? eventAddress : "", service: draft.services.length > 0, loading: capacityLoading, result: capacityResult?.status });
+  const timeTbd = draft.event.timeMode === "TBD" || !draft.event.time;
+  const capacityMissingInputs = !(draft.event.date && eventAddress.trim() && draft.event.city && draft.services.length);
+  const capacityState = timeTbd && draft.event.date ? "PENDING_TIME" : progressiveAvailabilityState({ date: draft.event.date, time: draft.event.time ?? "", location: eventAddress.trim() && draft.event.city ? eventAddress : "", service: draft.services.length > 0, loading: capacityLoading, result: capacityResult?.status === "CAPACITY_PENDING_TIME" ? null : capacityResult?.status });
   // Capacity is intentionally neutral until the event step has supplied its inputs.
   // The final confirmation gate below remains unchanged and still requires AVAILABLE.
   const capacityDisplayState = capacityMissingInputs ? "PENDING_INPUT" : capacityState;
@@ -556,6 +559,11 @@ export function NewProjectDrawer({
     setCapacityResult(null);
     if (capacityMissingInputs) {
       setCapacityLoading(false);
+      return;
+    }
+    if (timeTbd) {
+      setCapacityLoading(false);
+      setCapacityResult({ status: "CAPACITY_PENDING_TIME", humanSafeReason: "La disponibilidad se confirmará cuando exista un horario exacto." });
       return;
     }
     const start = new Date(`${draft.event.date}T${draft.event.time}:00`);
@@ -573,7 +581,7 @@ export function NewProjectDrawer({
       .finally(() => {
         if (requestId === capacityRequest.current) setCapacityLoading(false);
       });
-  }, [capacityMissingInputs, draft.event.date, draft.event.time, draft.event.durationHours, draft.event.city, draft.services, draft.type, draft.shellType, eventAddress]);
+  }, [capacityMissingInputs, draft.event.date, draft.event.time, draft.event.timeMode, draft.event.durationHours, draft.event.city, draft.services, draft.type, draft.shellType, eventAddress]);
   const serviceByCode = new Map(
     services.map((service) => [service.code, service]),
   );
@@ -993,7 +1001,7 @@ export function NewProjectDrawer({
   };
   const event = (
     field: keyof ProjectDraft["event"],
-    value: string | number | string[],
+    value: string | number | string[] | null,
   ) =>
     setDraft((current) => ({
       ...current,
@@ -1119,7 +1127,7 @@ export function NewProjectDrawer({
                 eventAddress &&
                 draft.event.city &&
                 draft.event.date &&
-                draft.event.time &&
+                (draft.event.timeMode === "TBD" || draft.event.time) &&
                 operationalContact &&
                 /^569\d{8}$/.test(normalizeChileanPhone(operationalPhone)) &&
                 (draft.type === "Wedding" ? bride && groom : mainContact),
@@ -1860,12 +1868,34 @@ export function NewProjectDrawer({
                     type="date"
                     value={draft.event.date}
                   />
-                  <Field
+                  <label className="block text-sm font-medium">Modo de horario<select
+                    className="mt-2 h-11 w-full rounded-lg border bg-background px-3 text-sm"
+                    onChange={(e) => {
+                      const mode = e.target.value as "CONFIRMED" | "TBD";
+                      event("timeMode", mode);
+                      if (mode === "TBD") event("time", null);
+                    }}
+                    value={draft.event.timeMode ?? (draft.event.time ? "CONFIRMED" : "TBD")}
+                  >
+                    <option value="CONFIRMED">Hora confirmada</option>
+                    <option value="TBD">Por definir</option>
+                  </select></label>
+                  {draft.event.timeMode === "TBD" ? <label className="block text-sm font-medium">Ventana informativa<select
+                    className="mt-2 h-11 w-full rounded-lg border bg-background px-3 text-sm"
+                    onChange={(e) => event("timeWindow", e.target.value as "MORNING" | "AFTERNOON" | "EVENING" | "UNKNOWN")}
+                    value={draft.event.timeWindow ?? "UNKNOWN"}
+                  >
+                    <option value="UNKNOWN">Aún no sé</option>
+                    <option value="MORNING">Mañana</option>
+                    <option value="AFTERNOON">Tarde</option>
+                    <option value="EVENING">Noche</option>
+                  </select></label> : <Field
                     label="Inicio del servicio BOOMBOX"
                     onChange={(e) => event("time", e.target.value)}
+                    required
                     type="time"
-                    value={draft.event.time}
-                  />
+                    value={draft.event.time ?? ""}
+                  />}
                   <Field
                     label="Contacto operacional"
                     onChange={(e) => setOperationalContact(e.target.value)}

@@ -61,7 +61,9 @@ export interface Project {
   };
   event: {
     date: string;
-    time: string;
+    time: string | null;
+    timeMode?: "CONFIRMED" | "TBD";
+    timeWindow?: "MORNING" | "AFTERNOON" | "EVENING" | "UNKNOWN";
     location: string;
     city: string;
     durationHours?: number;

@@ -50,7 +50,7 @@ export function CustomerOnboardingExperience({ project, qrIncluded, vatLabel, on
     whatsapp: project.client.phone,
     address: [project.event.location, project.event.city].filter(Boolean).join(", "),
     date: project.event.date,
-    time: project.event.time,
+    time: project.event.time ?? "",
   });
   const recommendation = recommendations[step];
   const dataComplete = Object.values(customer).every((value) => value.trim().length > 0);

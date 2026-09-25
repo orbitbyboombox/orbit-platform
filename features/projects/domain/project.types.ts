@@ -58,7 +58,10 @@ export interface Project {
   status: ProjectStatus;
   health: ProjectHealth;
   eventDate: string;
-  eventTime: string;
+  eventTime: string | null;
+  eventTimeMode: "CONFIRMED" | "TBD";
+  eventTimeWindow: "MORNING" | "AFTERNOON" | "EVENING" | "UNKNOWN";
+  eventTimeConfirmationDeadline: string | null;
   location: string;
   city: string;
   services: string[];
