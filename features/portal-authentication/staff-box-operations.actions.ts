@@ -12,12 +12,15 @@ async function staffContext(projectId: string, allowedRoles?: string[]) {
   const session = await loadPortalSession("STAFF");
   if (!session?.staff_id) throw new Error("Tu sesión expiró.");
   const admin = createAdminClient();
+  const { data: staff, error: staffError } = await admin.from("staff").select("id,status,portal_enabled,deleted_at").eq("id", session.staff_id).maybeSingle();
+  if (staffError) throw staffError;
+  if (!staff || staff.status !== "ACTIVE" || !staff.portal_enabled || staff.deleted_at) throw new Error("Tu acceso operacional ya no está habilitado.");
   const query = admin.from("assignments").select("assignment_type").eq("project_id", projectId).eq("staff_id", session.staff_id).in("status", ["CONFIRMED", "ACCEPTED", "COMPLETED"]).is("deleted_at", null);
   const { data, error } = await query;
   if (error) throw error;
   const roles = (data ?? []).map((row) => row.assignment_type);
   if (!roles.length || (allowedRoles && !roles.some((role) => allowedRoles.includes(role)))) throw new Error("No tienes la responsabilidad operacional requerida para este paso.");
-  return { admin, staffId: session.staff_id, roles };
+  return { admin, staffId: session.staff_id, portalSessionId: session.id, roles };
 }
 
 export async function loadStaffBoxOperationsAction(projectId: string): Promise<{ ok: true; assignment: StaffBoxAssignment; roles: string[] } | { ok: false; message: string }> {
@@ -41,9 +44,9 @@ export async function loadStaffBoxOperationsAction(projectId: string): Promise<{
 
 export async function recordStaffBoxCheckOutAction(input: { projectId: string; assignmentId: string; components: StaffComponentInput[] }) {
   try {
-    const { admin, staffId } = await staffContext(input.projectId, ["OPERATOR", "ASSEMBLY"]);
+    const { admin, staffId, portalSessionId } = await staffContext(input.projectId, ["OPERATOR", "ASSEMBLY"]);
     const key = `staff-box-checkout:${input.projectId}:${input.assignmentId}`;
-    const { data, error } = await admin.rpc("record_staff_box_check_out", { p_project_id: input.projectId, p_asset_assignment_id: input.assignmentId, p_components: input.components, p_idempotency_key: key, p_staff_id: staffId });
+    const { data, error } = await admin.rpc("record_staff_box_check_out", { p_project_id: input.projectId, p_asset_assignment_id: input.assignmentId, p_components: input.components, p_idempotency_key: key, p_staff_id: staffId, p_portal_session_id: portalSessionId });
     if (error) throw error;
     revalidatePath("/staff-portal");
     return { ok: true as const, data };
@@ -52,10 +55,10 @@ export async function recordStaffBoxCheckOutAction(input: { projectId: string; a
 
 export async function recordStaffBoxCheckInAction(input: { projectId: string; assignmentId: string; mediaLotId: string; remaining: number; components: StaffComponentInput[]; note: string; incident: boolean }) {
   try {
-    const { admin, staffId } = await staffContext(input.projectId, ["OPERATOR", "DISASSEMBLY"]);
+    const { admin, staffId, portalSessionId } = await staffContext(input.projectId, ["OPERATOR", "DISASSEMBLY"]);
     if (!Number.isFinite(input.remaining) || input.remaining < 0) return { ok: false as const, message: "Ingresa un saldo de retorno válido." };
     const key = `staff-box-checkin:${input.projectId}:${input.assignmentId}:${input.remaining}`;
-    const { data, error } = await admin.rpc("record_staff_box_check_in", { p_project_id: input.projectId, p_asset_assignment_id: input.assignmentId, p_media_lot_id: input.mediaLotId, p_remaining_photo_capacity: input.remaining, p_components: input.components, p_note: input.note.trim() || null, p_incident: input.incident, p_idempotency_key: key, p_staff_id: staffId });
+    const { data, error } = await admin.rpc("record_staff_box_check_in", { p_project_id: input.projectId, p_asset_assignment_id: input.assignmentId, p_media_lot_id: input.mediaLotId, p_remaining_photo_capacity: input.remaining, p_components: input.components, p_note: input.note.trim() || null, p_incident: input.incident, p_idempotency_key: key, p_staff_id: staffId, p_portal_session_id: portalSessionId });
     if (error) throw error;
     revalidatePath("/staff-portal");
     return { ok: true as const, data };

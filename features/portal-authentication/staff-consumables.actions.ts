@@ -21,10 +21,13 @@ async function staffContext(projectId: string) {
   const session = await loadPortalSession("STAFF");
   if (!session?.staff_id) throw new Error("Tu sesión expiró.");
   const admin = createAdminClient();
+  const { data: staff, error: staffError } = await admin.from("staff").select("id,status,portal_enabled,deleted_at").eq("id", session.staff_id).maybeSingle();
+  if (staffError) throw staffError;
+  if (!staff || staff.status !== "ACTIVE" || !staff.portal_enabled || staff.deleted_at) throw new Error("Tu acceso operacional ya no está habilitado.");
   const { count, error } = await admin.from("assignments").select("id", { count: "exact", head: true }).eq("project_id", projectId).eq("staff_id", session.staff_id).in("status", ["CONFIRMED", "ACCEPTED", "COMPLETED"]).is("deleted_at", null);
   if (error) throw error;
   if (!count) throw new Error("No tienes una asignación activa para este Evento.");
-  return { admin, staffId: session.staff_id };
+  return { admin, staffId: session.staff_id, portalSessionId: session.id };
 }
 
 export async function loadStaffConsumablesAction(projectId: string): Promise<{ ok: true; items: StaffConsumable[] } | { ok: false; message: string }> {
@@ -48,10 +51,10 @@ export async function loadStaffConsumablesAction(projectId: string): Promise<{ o
 
 export async function recordStaffConsumableReturnAction(input: { projectId: string; mediaLotId: string; remaining: number; note: string; incident: boolean }) {
   try {
-    const { admin, staffId } = await staffContext(input.projectId);
+    const { admin, staffId, portalSessionId } = await staffContext(input.projectId);
     if (!Number.isFinite(input.remaining) || input.remaining < 0) return { ok: false, message: "Ingresa un saldo de retorno válido." };
     const idempotencyKey = `staff-media-return:${input.projectId}:${input.mediaLotId}:${input.remaining}`;
-    const { data, error } = await admin.rpc("record_staff_box_media_return", { p_project_id: input.projectId, p_media_lot_id: input.mediaLotId, p_remaining_photo_capacity: input.remaining, p_note: input.note.trim() || null, p_incident_flag: input.incident, p_idempotency_key: idempotencyKey, p_staff_id: staffId });
+    const { data, error } = await admin.rpc("record_staff_box_media_return", { p_project_id: input.projectId, p_media_lot_id: input.mediaLotId, p_remaining_photo_capacity: input.remaining, p_note: input.note.trim() || null, p_incident_flag: input.incident, p_idempotency_key: idempotencyKey, p_staff_id: staffId, p_portal_session_id: portalSessionId });
     if (error) return { ok: false, message: error.message };
     revalidatePath("/staff-portal");
     return { ok: true, data };
