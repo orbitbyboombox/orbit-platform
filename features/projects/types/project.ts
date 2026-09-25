@@ -73,6 +73,8 @@ export interface Project {
   event: {
     date: string;
     time: string;
+    timeMode?: "ESTIMATED" | "CONFIRMED";
+    timeWindow?: "MORNING" | "AFTERNOON" | "EVENING" | "UNKNOWN";
     location: string;
     city: string;
     specialVenue?: string;

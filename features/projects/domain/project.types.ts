@@ -58,7 +58,8 @@ export interface Project {
   status: ProjectStatus;
   health: ProjectHealth;
   eventDate: string;
-  eventTime: string;
+  eventTime: string | null;
+  eventTimeMode?: "ESTIMATED" | "CONFIRMED";
   location: string;
   city: string;
   services: string[];

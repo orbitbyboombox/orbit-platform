@@ -68,7 +68,8 @@ const initialDraft: ProjectDraft = {
   client: { name: "", email: "", secondaryEmail: "", phone: "", rut: "", address: "" },
   event: {
     date: "",
-    time: "",
+    time: "22:00",
+    timeMode: "ESTIMATED",
     location: "",
     city: "",
     specialVenue: "",
@@ -1826,6 +1827,11 @@ export function NewProjectDrawer({
                     type="time"
                     value={draft.event.time}
                   />
+                  {draft.event.timeMode === "ESTIMATED" ? (
+                    <p className="text-sm text-muted sm:col-span-2">
+                      ¿Todavía no sabes la hora exacta? Puedes reservar utilizando un horario estimado y confirmarlo hasta 7 días antes del evento. Recomendamos comenzar el servicio después de la cena, al inicio de la fiesta. Podrás modificar este horario posteriormente sin afectar tu reserva.
+                    </p>
+                  ) : null}
                   <Field
                     label="Encargado de tu evento"
                     onChange={(e) => setOperationalContact(e.target.value)}
