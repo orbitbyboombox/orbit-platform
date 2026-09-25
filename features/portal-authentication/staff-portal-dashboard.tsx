@@ -27,6 +27,7 @@ import {
 import { MobileDialog } from "@/components/ui/mobile-dialog";
 import { StaffMonthlyAccountPanel } from "@/features/staff-monthly-account/staff-monthly-account-panel";
 import type { StaffMonthlyAccount } from "@/features/staff-monthly-account/model";
+import { StaffConsumablesPanel } from "./staff-consumables-panel";
 
 export type StaffPortalEvent = {
   id: string;
@@ -808,6 +809,7 @@ function EventDetail({
         ) : null}
         {message ? <p className="mt-3 text-sm text-muted">{message}</p> : null}
         <section className="mt-6 grid gap-4 lg:grid-cols-2">
+          <StaffConsumablesPanel projectId={event.id} />
           <div className="rounded-2xl border p-4">
             <h3 className="font-semibold">Documentos operacionales</h3>
             <div className="mt-3 space-y-2">
