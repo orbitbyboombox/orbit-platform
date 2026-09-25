@@ -24,7 +24,7 @@ test("automatic closing revalidates live capacity before payment", () => {
 
 test("pre-commit automatic records remain resumable and cannot look confirmed", () => {
   assert.match(service, /paymentStatus: "PENDING"/);
-  assert.match(service, /stage: "Capacidad pendiente"/);
+  assert.match(service, /stage: "Capacidad preliminar"/);
   assert.match(service, /commercialStage: "Waiting"/);
   assert.match(service, /status: "DRAFT", customer_type/);
   assert.ok(service.indexOf('status: "DRAFT", customer_type') < service.indexOf('rpc("preflight_reservation_capacity"'));

@@ -1,12 +1,12 @@
 export type ProgressiveAvailabilityState = "PENDING_INPUT" | "MISSING_DATE" | "MISSING_TIME" | "PENDING_TIME" | "PRELIMINARY" | "MISSING_LOCATION" | "MISSING_SERVICE" | "VALIDATING" | "AVAILABLE" | "UNAVAILABLE" | "REVIEW_REQUIRED" | "TECHNICAL_ERROR";
 
-export function progressiveAvailabilityState(input: { date?: string; time?: string; location?: string; service?: boolean; loading?: boolean; result?: "AVAILABLE" | "UNAVAILABLE" | "REVIEW_REQUIRED" | "TECHNICAL_ERROR" | null }): ProgressiveAvailabilityState {
+export function progressiveAvailabilityState(input: { date?: string; time?: string; location?: string; service?: boolean; loading?: boolean; result?: "AVAILABLE" | "UNAVAILABLE" | "REVIEW_REQUIRED" | "TECHNICAL_ERROR" | "CAPACITY_PRELIMINARY" | null }): ProgressiveAvailabilityState {
   if (!input.date) return "MISSING_DATE";
   if (!input.time) return "MISSING_TIME";
   if (!input.location?.trim()) return "PRELIMINARY";
   if (!input.service) return "MISSING_SERVICE";
   if (input.loading) return "VALIDATING";
-  return input.result ?? "REVIEW_REQUIRED";
+  return input.result === "CAPACITY_PRELIMINARY" ? "PRELIMINARY" : input.result ?? "REVIEW_REQUIRED";
 }
 
 export function progressiveAvailabilityMessage(state: ProgressiveAvailabilityState) {

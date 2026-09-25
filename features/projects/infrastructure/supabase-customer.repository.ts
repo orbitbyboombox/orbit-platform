@@ -185,7 +185,7 @@ export class SupabaseCustomerRepository implements CustomerRepository {
           },
           event: {
             date: row.event_date ?? "",
-            time: row.event_time?.slice(0, 5) ?? "00:00",
+            time: row.event_time?.slice(0, 5) ?? "",
             location: row.location ?? "Por confirmar",
             city: row.city ?? customer.city ?? "",
           },

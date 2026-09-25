@@ -386,8 +386,8 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
   const [saveCustomer, setSaveCustomer] = useState(initialDraft?.saveTemporaryCustomer ?? false);
   const [eventName, setEventName] = useState(initialDraft?.eventName ?? "");
   const [eventDate, setEventDate] = useState(initialDraft?.eventDate ?? "");
-  const [eventTime, setEventTime] = useState(initialDraft?.eventTime ?? "");
-  const [eventTimeMode, setEventTimeMode] = useState<"CONFIRMED" | "TBD">(initialDraft?.eventTimeMode ?? (initialDraft?.eventTime ? "CONFIRMED" : "TBD"));
+  const [eventTime, setEventTime] = useState(initialDraft?.eventTime ?? "22:00");
+  const [eventTimeMode, setEventTimeMode] = useState<"ESTIMATED" | "CONFIRMED">(initialDraft?.eventTimeMode ?? "ESTIMATED");
   const [eventTimeWindow, setEventTimeWindow] = useState<"MORNING" | "AFTERNOON" | "EVENING" | "UNKNOWN">(initialDraft?.eventTimeWindow ?? "UNKNOWN");
   const [eventLocation, setEventLocation] = useState(initialDraft?.eventLocation ?? "");
   const [eventCity, setEventCity] = useState(initialDraft?.eventCity ?? "");
@@ -401,14 +401,11 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
   const capacityRequest = useRef(0);
   const capacityServiceCodes = lines.map((line) => line.code).filter((code) => !code.startsWith("MANUAL-"));
   const capacityMissingInputs = !(eventDate && eventLocation.trim() && eventCity.trim() && capacityServiceCodes.length);
-  const capacityState = eventTimeMode === "TBD" && eventDate
-    ? "PENDING_TIME"
-    : progressiveAvailabilityState({ date: eventDate, time: eventTime, location: eventLocation.trim() && eventCity.trim() ? eventLocation : "", service: capacityServiceCodes.length > 0, loading: capacityLoading, result: capacityResult?.status === "CAPACITY_PENDING_TIME" ? null : capacityResult?.status });
+  const capacityState = progressiveAvailabilityState({ date: eventDate, time: eventTime, location: eventLocation.trim() && eventCity.trim() ? eventLocation : "", service: capacityServiceCodes.length > 0, loading: capacityLoading, result: capacityResult?.status === "CAPACITY_PENDING_TIME" ? "CAPACITY_PRELIMINARY" : capacityResult?.status });
   useEffect(() => {
     const requestId = ++capacityRequest.current;
     setCapacityResult(null);
     if (capacityMissingInputs) { setCapacityLoading(false); return; }
-    if (eventTimeMode === "TBD") { setCapacityLoading(false); setCapacityResult({ status: "CAPACITY_PENDING_TIME", humanSafeReason: "La disponibilidad se confirmará cuando exista un horario exacto." }); return; }
     const startAt = new Date(`${eventDate}T${eventTime}:00`);
     const endAt = new Date(startAt.getTime() + 2 * 60 * 60 * 1000);
     if (Number.isNaN(startAt.getTime())) { setCapacityLoading(false); return; }
@@ -620,12 +617,13 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
             <input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} />
           </Field>
           <Field label="Modo de horario">
-            <select value={eventTimeMode} onChange={(e) => { const mode = e.target.value as "CONFIRMED" | "TBD"; setEventTimeMode(mode); if (mode === "TBD") setEventTime(""); }}>
-              <option value="CONFIRMED">Hora confirmada</option>
-              <option value="TBD">Por definir</option>
+            <select value={eventTimeMode} onChange={(e) => setEventTimeMode(e.target.value as "ESTIMATED" | "CONFIRMED")}>
+              <option value="ESTIMATED">Horario estimado</option>
+              <option value="CONFIRMED">Horario confirmado</option>
             </select>
           </Field>
-          {eventTimeMode === "CONFIRMED" ? <Field label="Hora del evento"><input required type="time" value={eventTime} onChange={(e) => setEventTime(e.target.value)} /></Field> : <Field label="Ventana informativa"><select value={eventTimeWindow} onChange={(e) => setEventTimeWindow(e.target.value as typeof eventTimeWindow)}><option value="UNKNOWN">Aún no sé</option><option value="MORNING">Mañana</option><option value="AFTERNOON">Tarde</option><option value="EVENING">Noche</option></select></Field>}
+          <Field label="Hora del evento"><input required type="time" value={eventTime} onChange={(e) => setEventTime(e.target.value)} /></Field>
+          {eventTimeMode === "ESTIMATED" ? <p className="text-sm text-muted sm:col-span-2">¿Todavía no sabes la hora exacta? Puedes reservar utilizando un horario estimado y confirmarlo hasta 7 días antes del evento. Recomendamos comenzar el servicio después de la cena, al inicio de la fiesta. Podrás modificar este horario posteriormente sin afectar tu reserva.</p> : null}
           <Field label="Dirección del evento (opcional)"><input value={eventLocation} onChange={(e) => setEventLocation(e.target.value)} /></Field>
           <Field label="Comuna / Ciudad (opcional)"><input value={eventCity} onChange={(e) => setEventCity(e.target.value)} /></Field>
         </div>

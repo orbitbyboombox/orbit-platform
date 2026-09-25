@@ -83,7 +83,7 @@ export interface FormalQuoteDraft {
   eventName: string;
   eventDate: string;
   eventTime: string;
-  eventTimeMode?: "CONFIRMED" | "TBD";
+  eventTimeMode?: "ESTIMATED" | "CONFIRMED";
   eventTimeWindow?: "MORNING" | "AFTERNOON" | "EVENING" | "UNKNOWN";
   eventLocation: string;
   eventCity: string;

@@ -4,7 +4,7 @@ export function shiftEventScheduleDate(
   toDate: string,
 ) {
   if (!value || !fromDate || !toDate || fromDate === toDate) return value ?? "";
-  const [datePart, timePart = "00:00"] = value.slice(0, 16).split("T");
+  const [datePart, timePart = ""] = value.slice(0, 16).split("T");
   if (!datePart) return value;
   const from = new Date(`${fromDate}T12:00:00Z`);
   const to = new Date(`${toDate}T12:00:00Z`);

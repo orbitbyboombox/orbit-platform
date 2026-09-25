@@ -9,7 +9,7 @@ export async function draftCapacityPreflightAction(input: DraftCapacityInput) {
   const { data: auth } = await client.auth.getUser();
   if (!auth.user) return { ok: false as const, error: "Sesión requerida." };
   if (!input.eventDate || !input.serviceCodes.length) return { ok: true as const, result: null };
-  if (!input.serviceStart || !input.serviceEnd) return { ok: true as const, result: { status: "CAPACITY_PENDING_TIME", reasonCode: "EVENT_TIME_PENDING", humanSafeReason: "La disponibilidad se confirmará cuando exista un horario exacto." } };
+  if (!input.serviceStart || !input.serviceEnd) return { ok: true as const, result: { status: "CAPACITY_PRELIMINARY", reasonCode: "EVENT_TIME_REQUIRED", humanSafeReason: "La disponibilidad preliminar requiere un horario estimado." } };
   const { data, error } = await client.rpc("preflight_draft_capacity", {
     p_service_codes: input.serviceCodes,
     p_event_type: input.eventType ?? null,

@@ -66,8 +66,8 @@ const initialDraft: ProjectDraft = {
   client: { name: "", email: "", secondaryEmail: "", phone: "", rut: "", address: "" },
   event: {
     date: "",
-    time: "",
-    timeMode: "TBD",
+    time: "22:00",
+    timeMode: "ESTIMATED",
     timeWindow: "UNKNOWN",
     location: "",
     city: "",
@@ -548,9 +548,8 @@ export function NewProjectDrawer({
   const [capacityLoading, setCapacityLoading] = useState(false);
   const capacityRequest = useRef(0);
   const recoveryChecked = useRef(false);
-  const timeTbd = draft.event.timeMode === "TBD" || !draft.event.time;
   const capacityMissingInputs = !(draft.event.date && eventAddress.trim() && draft.event.city && draft.services.length);
-  const capacityState = timeTbd && draft.event.date ? "PENDING_TIME" : progressiveAvailabilityState({ date: draft.event.date, time: draft.event.time ?? "", location: eventAddress.trim() && draft.event.city ? eventAddress : "", service: draft.services.length > 0, loading: capacityLoading, result: capacityResult?.status === "CAPACITY_PENDING_TIME" ? null : capacityResult?.status });
+  const capacityState = progressiveAvailabilityState({ date: draft.event.date, time: draft.event.time, location: eventAddress.trim() && draft.event.city ? eventAddress : "", service: draft.services.length > 0, loading: capacityLoading, result: capacityResult?.status === "CAPACITY_PENDING_TIME" ? "CAPACITY_PRELIMINARY" : capacityResult?.status });
   // Capacity is intentionally neutral until the event step has supplied its inputs.
   // The final confirmation gate below remains unchanged and still requires AVAILABLE.
   const capacityDisplayState = capacityMissingInputs ? "PENDING_INPUT" : capacityState;
@@ -559,11 +558,6 @@ export function NewProjectDrawer({
     setCapacityResult(null);
     if (capacityMissingInputs) {
       setCapacityLoading(false);
-      return;
-    }
-    if (timeTbd) {
-      setCapacityLoading(false);
-      setCapacityResult({ status: "CAPACITY_PENDING_TIME", humanSafeReason: "La disponibilidad se confirmará cuando exista un horario exacto." });
       return;
     }
     const start = new Date(`${draft.event.date}T${draft.event.time}:00`);
@@ -1127,7 +1121,7 @@ export function NewProjectDrawer({
                 eventAddress &&
                 draft.event.city &&
                 draft.event.date &&
-                (draft.event.timeMode === "TBD" || draft.event.time) &&
+                draft.event.time &&
                 operationalContact &&
                 /^569\d{8}$/.test(normalizeChileanPhone(operationalPhone)) &&
                 (draft.type === "Wedding" ? bride && groom : mainContact),
@@ -1871,31 +1865,22 @@ export function NewProjectDrawer({
                   <label className="block text-sm font-medium">Modo de horario<select
                     className="mt-2 h-11 w-full rounded-lg border bg-background px-3 text-sm"
                     onChange={(e) => {
-                      const mode = e.target.value as "CONFIRMED" | "TBD";
+                      const mode = e.target.value as "ESTIMATED" | "CONFIRMED";
                       event("timeMode", mode);
-                      if (mode === "TBD") event("time", null);
                     }}
-                    value={draft.event.timeMode ?? (draft.event.time ? "CONFIRMED" : "TBD")}
+                    value={draft.event.timeMode ?? "ESTIMATED"}
                   >
-                    <option value="CONFIRMED">Hora confirmada</option>
-                    <option value="TBD">Por definir</option>
+                    <option value="ESTIMATED">Horario estimado</option>
+                    <option value="CONFIRMED">Horario confirmado</option>
                   </select></label>
-                  {draft.event.timeMode === "TBD" ? <label className="block text-sm font-medium">Ventana informativa<select
-                    className="mt-2 h-11 w-full rounded-lg border bg-background px-3 text-sm"
-                    onChange={(e) => event("timeWindow", e.target.value as "MORNING" | "AFTERNOON" | "EVENING" | "UNKNOWN")}
-                    value={draft.event.timeWindow ?? "UNKNOWN"}
-                  >
-                    <option value="UNKNOWN">Aún no sé</option>
-                    <option value="MORNING">Mañana</option>
-                    <option value="AFTERNOON">Tarde</option>
-                    <option value="EVENING">Noche</option>
-                  </select></label> : <Field
+                  <Field
                     label="Inicio del servicio BOOMBOX"
                     onChange={(e) => event("time", e.target.value)}
                     required
                     type="time"
-                    value={draft.event.time ?? ""}
-                  />}
+                    value={draft.event.time}
+                  />
+                  {draft.event.timeMode === "ESTIMATED" ? <p className="text-sm text-muted sm:col-span-2">¿Todavía no sabes la hora exacta? Puedes reservar utilizando un horario estimado y confirmarlo hasta 7 días antes del evento. Recomendamos comenzar el servicio después de la cena, al inicio de la fiesta. Podrás modificar este horario posteriormente sin afectar tu reserva.</p> : null}
                   <Field
                     label="Contacto operacional"
                     onChange={(e) => setOperationalContact(e.target.value)}
