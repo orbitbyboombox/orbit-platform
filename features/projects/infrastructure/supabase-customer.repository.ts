@@ -35,6 +35,7 @@ interface ProjectRow {
   health: string;
   event_date: string | null;
   event_time: string | null;
+  event_time_mode: "ESTIMATED" | "CONFIRMED" | null;
   location: string | null;
   city: string | null;
   operations: Record<string, unknown>;
@@ -125,7 +126,7 @@ export class SupabaseCustomerRepository implements CustomerRepository {
       this.client
         .from("projects")
         .select(
-          "id,customer_id,name,project_type,status,health,event_date,event_time,location,city,operations,communication_recipient_snapshot",
+          "id,customer_id,name,project_type,status,health,event_date,event_time,event_time_mode,location,city,operations,communication_recipient_snapshot",
         )
         .is("deleted_at", null)
         .order("event_date", { ascending: true }),
@@ -186,6 +187,7 @@ export class SupabaseCustomerRepository implements CustomerRepository {
           event: {
             date: row.event_date ?? "",
             time: row.event_time?.slice(0, 5) ?? "",
+            timeMode: row.event_time_mode ?? "ESTIMATED",
             location: row.location ?? "Por confirmar",
             city: row.city ?? customer.city ?? "",
           },

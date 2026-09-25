@@ -80,6 +80,7 @@ import {
   type EventProfitabilityData,
 } from "./event-profitability-panel";
 import { saveFounderWorkspaceAction } from "@/features/founder-workspace/actions";
+import { confirmEventTimeAction } from "@/features/projects/actions/event-time.actions";
 import type {
   EventModuleKey,
   FounderWorkspacePreferences,
@@ -395,14 +396,17 @@ export function ProjectWorkspaceExperience(
   props: ProjectWorkspaceExperienceProps,
 ) {
   const router = useRouter();
+  const event = props.event360;
   const [portalUrl, setPortalUrl] = useState("");
   const [portalFeedback, setPortalFeedback] = useState("");
   const [customerDeleteFeedback, setCustomerDeleteFeedback] = useState("");
+  const [eventTimeDraft, setEventTimeDraft] = useState(props.eventTime?.slice(0, 5) ?? "22:00");
+  const [eventTimeFeedback, setEventTimeFeedback] = useState("");
+  const [eventTimePending, startEventTimeTransition] = useTransition();
   const [workspacePreferences, setWorkspacePreferences] = useState(
     props.workspacePreferences,
   );
   const [, startWorkspaceTransition] = useTransition();
-  const event = props.event360;
   const photoStripEligible = requiresPhotoStripDesign(event.services.map((service) => service.code));
   const photoStripDocuments = event.documents
     .filter((document) => document.type === "PHOTO_STRIP_DESIGN")
@@ -440,6 +444,12 @@ export function ProjectWorkspaceExperience(
     health >= 90 ? "READY" : health >= 60 ? "ATTENTION" : "BLOCKED";
   const healthVariant =
     health >= 90 ? "success" : health >= 60 ? "warning" : "danger";
+  const confirmationDeadline = (() => {
+    if (!props.eventDateIso) return "7 días antes del evento";
+    const deadline = new Date(`${props.eventDateIso}T12:00:00Z`);
+    deadline.setUTCDate(deadline.getUTCDate() - 7);
+    return new Intl.DateTimeFormat("es-CL").format(deadline);
+  })();
   const capacityPanel = <CapacityStatusPanel result={props.capacityResult} missingInputs={!props.eventDateIso} />;
   const currentAssets = props.equipment.requirements.flatMap((requirement) =>
     requirement.assignments.map((assignment) => ({
@@ -466,6 +476,19 @@ export function ProjectWorkspaceExperience(
       setPortalUrl(result.url);
       setPortalFeedback("Portal disponible");
     } else setPortalFeedback(result.error);
+  };
+  const confirmEventTime = () => {
+    if (!props.projectKey || eventTimePending) return;
+    setEventTimeFeedback("Guardando y recalculando…");
+    startEventTimeTransition(async () => {
+      const result = await confirmEventTimeAction(props.projectKey!, eventTimeDraft);
+      if (!result.ok) {
+        setEventTimeFeedback(result.message);
+        return;
+      }
+      setEventTimeFeedback("Horario confirmado y dependencias recalculadas.");
+      router.refresh();
+    });
   };
   const lifecycle = async (action: ReservationLifecycleAction) => {
     if (!props.projectKey) return;
@@ -604,6 +627,24 @@ export function ProjectWorkspaceExperience(
                 <p className="mt-2 text-base text-muted">
                   {props.projectType} · {props.clientName}
                 </p>
+                <div className="mt-4 rounded-2xl border border-brand/20 bg-brand/5 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">
+                    {props.eventTimeMode === "CONFIRMED" ? "HORARIO CONFIRMADO" : "HORARIO ESTIMADO"}
+                  </p>
+                  <p className="mt-1 text-lg font-semibold">{eventTimeDraft} hrs</p>
+                  {props.eventTimeMode !== "CONFIRMED" ? (
+                    <>
+                      <p className="mt-1 text-sm text-muted">Confirmar antes de {confirmationDeadline}.</p>
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <input aria-label="Horario final" className="min-h-10 rounded-xl border bg-background px-3 text-sm" type="time" value={eventTimeDraft} onChange={(input) => setEventTimeDraft(input.target.value)} />
+                        <button className="min-h-10 rounded-xl bg-brand px-4 text-sm font-semibold text-brand-foreground disabled:opacity-60" disabled={eventTimePending} onClick={confirmEventTime} type="button">
+                          {eventTimePending ? "Guardando…" : "CONFIRMAR / MODIFICAR HORARIO"}
+                        </button>
+                      </div>
+                    </>
+                  ) : null}
+                  {eventTimeFeedback ? <p aria-live="polite" className="mt-2 text-sm text-muted">{eventTimeFeedback}</p> : null}
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:min-w-[500px]">
                 <HeroMetric label="Fecha" value={props.eventDate} />

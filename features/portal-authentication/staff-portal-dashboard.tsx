@@ -42,6 +42,7 @@ export type StaffPortalEvent = {
   date: string;
   staffCallAt: string | null;
   start: string;
+  timeMode?: "ESTIMATED" | "CONFIRMED";
   finish: string;
   address: string;
   district: string;
@@ -81,6 +82,7 @@ export type AvailableStaffEvent = {
   duration: number;
   date: string;
   start: string;
+  timeMode?: "ESTIMATED" | "CONFIRMED";
   finish: string;
   address: string;
   district: string;
@@ -289,7 +291,7 @@ export function StaffPortalDashboard({
                 </p>
                 <p>
                   <Clock3 className="mr-2 inline size-4 text-brand" />
-                  {event.start}–{event.finish}
+                  {event.timeMode === "CONFIRMED" ? "HORARIO CONFIRMADO" : "HORARIO ESTIMADO"} · {event.start}–{event.finish}
                 </p>
                 <p className="sm:col-span-2">
                   <MapPin className="mr-2 inline size-4 text-brand" />
@@ -446,7 +448,7 @@ function AvailableEvents({
                 <p className="mt-1 text-sm text-muted">{event.service}</p>
               </div>
               <span className="text-xs font-semibold text-brand">
-                {event.date} · {event.start}
+                {event.date} · {event.timeMode === "CONFIRMED" ? "HORARIO CONFIRMADO" : "HORARIO ESTIMADO"} · {event.start}
               </span>
             </div>
             <p className="mt-3 text-sm">

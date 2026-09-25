@@ -397,6 +397,7 @@ export default async function ProjectWorkspacePage({
     clientName: query.client ?? project.client.name,
     eventDate: formattedDate,
     eventTime: query.time ?? project.event.time,
+    eventTimeMode: project.event.timeMode ?? "ESTIMATED",
     health: ProjectHealth.HEALTHY,
     location:
       [query.venue ?? project.event.location, query.city ?? project.event.city]
@@ -679,6 +680,7 @@ export default async function ProjectWorkspacePage({
       googleEventId: calendarSync?.nova_external_event_id ?? calendarSync?.external_event_id ?? undefined,
       googleEventUrl: calendarSync?.nova_external_url ?? calendarSync?.external_url ?? undefined,
     },
+    eventTimeMode: project.event.timeMode ?? "ESTIMATED",
     readiness: [
       {
         label: "Cliente confirmado",
