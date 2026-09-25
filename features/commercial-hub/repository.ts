@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CommercialHubData } from "./types";
 import { normalizeEmailNewlines } from "./presentation";
 import { loadCompanySettings } from "@/features/company-settings";
+import { formatPhoneE164 } from "@/lib/phone/e164";
 import {
   buildCommercialQuoteDetail,
   type CommercialQuoteDetail,
@@ -11,7 +12,7 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const quoteDetailSelect =
-  "id,quotation_number,version,status,customer_id,project_id,conversion_transaction_id,issue_date,expiration_date,created_at,updated_at,approved_at,approved_by,approval_reason,converted_at,customer_snapshot,commercial_snapshot,pricing_snapshot,accepted_snapshot,validity_days,deposit_percent,global_discount_type,global_discount_value,subtotal,discount_total,tax_total,grand_total,final_customer_price,transport_total,customers(full_name,company,rut,email,secondary_email,phone,address),quotation_items(id,item_type,code,description,label,quantity,catalog_price,quoted_price,unit_price,total,discount_type,discount_value,is_manual,display_order)";
+  "id,quotation_number,version,status,customer_id,project_id,conversion_transaction_id,issue_date,expiration_date,created_at,updated_at,approved_at,approved_by,approval_reason,converted_at,customer_snapshot,commercial_snapshot,pricing_snapshot,accepted_snapshot,validity_days,deposit_percent,global_discount_type,global_discount_value,subtotal,discount_total,tax_total,grand_total,final_customer_price,transport_total,customers(full_name,company,rut,email,secondary_email,phone,phone_e164,address),quotation_items(id,item_type,code,description,label,quantity,catalog_price,quoted_price,unit_price,total,discount_type,discount_value,is_manual,display_order)";
 
 export async function loadCommercialQuoteDetail(
   client: SupabaseClient,
@@ -83,7 +84,7 @@ export async function loadCommercialHubData(
   const [customers, catalog, templates, documents, quotes, sends, company] = await Promise.all([
     client
       .from("customers")
-      .select("id,full_name,company,rut,email,secondary_email,phone,address")
+      .select("id,full_name,company,rut,email,secondary_email,phone,phone_e164,address")
       .is("deleted_at", null)
       .order("updated_at", { ascending: false }),
     client
@@ -128,7 +129,7 @@ export async function loadCommercialHubData(
       rut: row.rut ?? "",
       email: row.email ?? "",
       secondaryEmail: row.secondary_email ?? "",
-      phone: row.phone ?? "",
+      phone: formatPhoneE164(row.phone_e164 ?? row.phone),
       address: row.address ?? "",
     })),
     catalog: (catalog.data ?? []).map((row) => ({
