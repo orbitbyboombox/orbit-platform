@@ -239,6 +239,47 @@ export async function updateCrmCustomerAction(input: {
   }
 }
 
+export type PhoneReviewDecision =
+  | "CANONICALIZED"
+  | "KEEP_SEPARATE"
+  | "MARK_REVIEWED"
+  | "NO_PHONE"
+  | "LEFT_UNRESOLVED";
+
+export async function reviewCustomerPhoneAction(input: {
+  customerIds: string[];
+  decision: PhoneReviewDecision;
+  phone?: string;
+}) {
+  try {
+    const { client } = await founderClient();
+    if (input.decision === "CANONICALIZED") {
+      const normalized = optionalPhoneE164(input.phone ?? "");
+      if (!normalized) throw new Error("Ingresa un teléfono internacional válido con prefijo +.");
+      input = { ...input, phone: normalized };
+    }
+    const { data, error } = await client.rpc("review_customer_phone", {
+      p_customer_ids: input.customerIds,
+      p_decision: input.decision,
+      p_phone: input.decision === "CANONICALIZED" ? input.phone : null,
+    });
+    if (error) {
+      if (error.message.includes("PHONE_CANONICAL_CONFLICT")) {
+        throw new Error("Este número ya está asociado a otro cliente. Revisa ambos registros antes de continuar.");
+      }
+      throw error;
+    }
+    revalidatePath("/customers");
+    revalidatePath("/customers/phone-review");
+    return { ok: true as const, data };
+  } catch (error) {
+    return {
+      ok: false as const,
+      error: message(error, "No fue posible guardar la revisión del teléfono."),
+    };
+  }
+}
+
 export async function getCrmDocumentUrlAction(documentId: string) {
   try {
     const { client } = await founderClient();
