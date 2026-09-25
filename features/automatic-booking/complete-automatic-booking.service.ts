@@ -9,6 +9,7 @@ import { loadActiveMunicipalities } from "@/features/settings/master-data/munici
 import { automaticBookingTokenHash } from "./automatic-booking.service";
 import { confirmPersistedReservation } from "@/features/projects/operations/confirmed-reservation-orchestrator.service";
 import { isValidChileanRut } from "@/lib/chile/rut";
+import { requirePhoneE164 } from "@/lib/phone/e164";
 import { serializeWhatsAppError } from "@/features/connectors/whatsapp-cloud/whatsapp-observability";
 import { isAutomaticBookingSmokeMode, smokeSinkId } from "./automatic-booking-smoke";
 import { BookingTimeInvalidError, normalizeEventWindow } from "@/features/time-intelligence/event-window";
@@ -199,7 +200,8 @@ export async function completeAutomaticBooking(input: { token: string; tokenHash
     const receiptBytes = Uint8Array.from(Buffer.from(input.submission.payment.receiptBase64 ?? "", "base64"));
     if (input.submission.payment.method === "TRANSFER" && (receiptBytes.length < 20 || receiptBytes.length > 10_000_000)) throw new Error("El comprobante no tiene un tamaño válido.");
 
-    const customerValues = { full_name: input.submission.customer.name.trim(), email: invitation.customer_email, phone: input.submission.customer.phone, rut: input.submission.customer.rut, city: input.submission.event.municipality, metadata: { address: input.submission.customer.address }, updated_by: actorId };
+    const customerPhoneE164 = requirePhoneE164(input.submission.customer.phone);
+    const customerValues = { full_name: input.submission.customer.name.trim(), email: invitation.customer_email, phone: customerPhoneE164, phone_e164: customerPhoneE164, phone_e164_status: "VALID_E164", rut: input.submission.customer.rut, city: input.submission.event.municipality, metadata: { address: input.submission.customer.address }, updated_by: actorId };
     currentModule = "CUSTOMER";
     const { error: customerError } = await measured("customer", async () => existingProject || existingCustomer
       ? await admin.from("customers").update(customerValues).eq("id", customerId)
@@ -351,7 +353,7 @@ export async function completeAutomaticBooking(input: { token: string; tokenHash
 }
 
 export function validateAutomaticBookingSubmission(input: AutomaticBookingSubmission) {
-  if (!input.customer.name.trim() || !isValidChileanRut(input.customer.rut) || !/^\+569\d{8}$/.test(input.customer.phone)) throw new Error("Revisa tus datos personales.");
+  if (!input.customer.name.trim() || !isValidChileanRut(input.customer.rut) || !requirePhoneE164(input.customer.phone)) throw new Error("Revisa tus datos personales.");
   if (!input.event.type || !input.event.date || !input.event.time || !input.event.venue || !input.event.municipality) throw new Error("Revisa la información del evento.");
   if (!input.service.code || input.service.hours < 1 || (input.service.additionalCodes ?? []).some((code) => !code || code === input.service.code) || !input.signatureDataUrl.startsWith("data:image/png;base64,")) throw new Error("Revisa los servicios y la firma.");
   if (input.payment.method === "TRANSFER" && (!input.payment.receiptBase64 || !["image/jpeg", "image/png", "image/webp", "application/pdf"].includes(input.payment.receiptType))) throw new Error("Adjunta un comprobante válido.");

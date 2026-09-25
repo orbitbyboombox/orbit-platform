@@ -36,7 +36,7 @@ import type {
 } from "./types";
 import { calculateFormalQuote } from "./quote-calculation";
 import { QUICK_SEND_CTA_FALLBACK, QUICK_SEND_CTA_LABEL, commercialGreeting, displayChileanPhone, formalQuoteSubject, formatChileanRutInput, inlineCommercialText, moneyInputNumber, normalizeEmailNewlines, quickSendBodyParagraphs, quickSendInitialBody, quoteDisplayFilename, titleCasePerson, withoutDuplicateSignature } from "./presentation";
-import { ChileanMobileInput } from "@/components/forms/chilean-mobile-input";
+import { InternationalPhoneInput } from "@/components/forms/international-phone-input";
 import { PdfViewer } from "./pdf-viewer";
 import { getCommercialDocumentUrlAction } from "./settings.actions";
 import { activeCommercialDocument, catalogCategoryForQuickSend, catalogPublicPath, pendingCommercialDocuments } from "./catalogs";
@@ -590,7 +590,7 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
                 />
               </Field>
               <Field label="Teléfono (opcional)">
-                <ChileanMobileInput value={temporary.phone} onChange={(phone) => setTemporary((v) => ({ ...v, phone }))} />
+                <InternationalPhoneInput value={temporary.phone} onChange={(phone) => setTemporary((v) => ({ ...v, phone }))} />
               </Field>
               <Field label="Dirección">
                 <input

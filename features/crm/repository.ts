@@ -4,7 +4,8 @@ import type {
   CrmCustomerSummary,
   CrmEventSummary,
 } from "./types";
-import { formatChileanPhone, formatChileanRut, normalizeChileanRut } from "@/lib/chile/rut";
+import { formatChileanRut, normalizeChileanRut } from "@/lib/chile/rut";
+import { formatPhoneE164 } from "@/lib/phone/e164";
 import { groupByOwnerId } from "./relations";
 import { commercialQuoteHref } from "@/features/commercial-hub/quote-detail";
 
@@ -14,6 +15,7 @@ type CustomerRow = {
   rut: string | null;
   company: string | null;
   phone: string | null;
+  phone_e164: string | null;
   email: string | null;
   secondary_email: string | null;
   address: string | null;
@@ -33,7 +35,7 @@ export async function loadCrmCustomers(
       client
         .from("customers")
         .select(
-          "id,full_name,rut,company,phone,email,secondary_email,address,city,metadata,version,updated_at",
+          "id,full_name,rut,company,phone,phone_e164,email,secondary_email,address,city,metadata,version,updated_at",
         )
         .is("deleted_at", null)
         .order("full_name", { ascending: options.sort !== "name_desc" }),
@@ -53,7 +55,7 @@ export async function loadCrmCustomers(
       fullName: row.full_name,
       rut: formatChileanRut(text(row.rut)),
       company: text(row.company),
-      phone: formatChileanPhone(text(row.phone)),
+      phone: formatPhoneE164(row.phone_e164 ?? row.phone),
       email: text(row.email),
       secondaryEmail: text(row.secondary_email),
       address: text(row.address),
@@ -94,7 +96,7 @@ export async function loadCrmCustomerProfile(
     client
       .from("customers")
       .select(
-        "id,full_name,rut,company,phone,email,secondary_email,address,city,metadata,version,updated_at",
+        "id,full_name,rut,company,phone,phone_e164,email,secondary_email,address,city,metadata,version,updated_at",
       )
       .eq("id", customerId)
       .is("deleted_at", null)
@@ -426,7 +428,7 @@ export async function loadCrmCustomerProfile(
     fullName: row.full_name,
     rut: formatChileanRut(text(row.rut)),
     company: text(row.company),
-    phone: formatChileanPhone(text(row.phone)),
+    phone: formatPhoneE164(row.phone_e164 ?? row.phone),
     email: text(row.email),
     secondaryEmail: text(row.secondary_email),
     address: text(row.address),
@@ -552,7 +554,7 @@ function toPrimaryContact(value: unknown) {
   return {
     firstName: String(contact.firstName ?? ""),
     lastName: String(contact.lastName ?? ""),
-    phone: formatChileanPhone(String(contact.phone ?? "")),
+    phone: formatPhoneE164(String(contact.phone ?? "")),
     email: String(contact.email ?? ""),
   };
 }

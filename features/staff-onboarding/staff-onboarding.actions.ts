@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerActionClient } from "@/lib/supabase/server";
 import { GoogleGmailApiProvider } from "@/features/connectors/google-gmail/provider/google-gmail-live.provider";
 import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-workspace/application/google-workspace.repository";
-import { normalizeChileanPhone } from "@/lib/chile/rut";
+import { requirePhoneE164 } from "@/lib/phone/e164";
 
 const appUrl = () =>
   process.env.NEXT_PUBLIC_APP_URL ?? "https://orbit.boom-box.cl";
@@ -32,7 +32,7 @@ export async function inviteStaffAction(form: FormData) {
       email = String(form.get("email") ?? "")
         .trim()
         .toLowerCase(),
-      mobile = normalizeChileanPhone(String(form.get("mobile") ?? "").trim());
+      mobile = requirePhoneE164(String(form.get("mobile") ?? "").trim());
     if (
       !firstName ||
       !lastName ||
@@ -155,7 +155,7 @@ export async function manageStaffInvitationAction(form:FormData){
     if(action==="RESEND") console.info(JSON.stringify({event:"staff_invitation_resend_candidate_ok",invitationId:id,status:item.status}));
     if(item.status==="APPROVED")throw new Error("Un colaborador aprobado no se elimina. Desactívalo o archívalo desde su perfil Staff.");
     if(action==="EDIT"){
-      const payload={first_name:String(form.get("firstName")??"").trim(),last_name:String(form.get("lastName")??"").trim(),email:String(form.get("email")??"").trim().toLowerCase(),mobile:normalizeChileanPhone(String(form.get("mobile")??"").trim()),updated_at:new Date().toISOString()};
+      const payload={first_name:String(form.get("firstName")??"").trim(),last_name:String(form.get("lastName")??"").trim(),email:String(form.get("email")??"").trim().toLowerCase(),mobile:requirePhoneE164(String(form.get("mobile")??"").trim()),updated_at:new Date().toISOString()};
       if(!payload.first_name||!payload.last_name||!payload.mobile||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email))throw new Error("Completa los datos de la invitación.");
       const{error}=await client.from("staff_onboarding_invitations").update(payload).eq("id",id);if(error)throw error;
     }else if(action==="RESEND"){

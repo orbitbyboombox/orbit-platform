@@ -8,7 +8,7 @@ import {
   manageStaffInvitationAction,
   reviewStaffOnboardingAction,
 } from "./staff-onboarding.actions";
-import { formatChileanPhone } from "@/lib/chile/rut";
+import { formatPhoneE164 } from "@/lib/phone/e164";
 import { MobileDialog } from "@/components/ui/mobile-dialog";
 
 export type StaffOnboardingInvitation = {
@@ -121,7 +121,7 @@ export function StaffOnboardingCenter({
                     {item.firstName} {item.lastName}
                   </h3>
                   <p className="mt-1 text-xs text-muted">
-                    {item.email} · {formatChileanPhone(item.mobile)}
+                    {item.email} · {formatPhoneE164(item.mobile)}
                   </p>
                 </div>
                 <span className="rounded-full bg-brand/10 px-2.5 py-1 text-xs font-semibold text-brand">

@@ -15,10 +15,17 @@ import { synchronizeConfirmedReservationDrive } from "@/features/connectors/goog
 import { uploadReservationDocumentToDrive } from "@/features/connectors/google-drive/application/google-drive-document-routing.service";
 import type { GoogleDriveDocumentKind } from "@/features/connectors/google-drive/types/google-drive-live.types";
 import { createCustomerPortalAccess } from "@/features/customer-portal/customer-portal.service";
-import { normalizeChileanPhone, requireValidChileanRut } from "@/lib/chile/rut";
+import { requireValidChileanRut } from "@/lib/chile/rut";
+import { normalizePhoneE164 } from "@/lib/phone/e164";
 import { normalizeOptionalEmail } from "@/lib/email/recipients";
 const message = (error: unknown, fallback: string) =>
   error instanceof Error && !/coerce|json object|pgrst|schema|constraint|violates|column/i.test(error.message) ? error.message : fallback;
+const optionalPhoneE164 = (value: string) => {
+  if (!value.trim()) return null;
+  const normalized = normalizePhoneE164(value);
+  if (!normalized) throw new Error("Ingresa un teléfono internacional válido con prefijo +.");
+  return normalized;
+};
 async function founderClient() {
   const client = await createSupabaseServerClient();
   const { data } = await client.auth.getUser();
@@ -68,6 +75,8 @@ export async function createCrmCustomerAction(input: {
     )
       throw new Error("Completa la facturación y el contacto principal de la empresa.");
     const normalized = requireValidChileanRut(input.rut);
+    const phoneE164 = optionalPhoneE164(input.phone);
+    const primaryContactPhoneE164 = optionalPhoneE164(input.primaryContactPhone);
     const { data: existing, error: lookup } = await client
       .from("customers")
       .select("id")
@@ -82,7 +91,9 @@ export async function createCrmCustomerAction(input: {
         full_name: input.fullName.trim(),
         rut: normalized,
         company: input.company.trim() || null,
-        phone: normalizeChileanPhone(input.phone) || null,
+        phone: phoneE164,
+        phone_e164: phoneE164,
+        phone_e164_status: phoneE164 ? "VALID_E164" : "EMPTY",
         email: normalizeOptionalEmail(input.email, "email principal"),
         secondary_email: normalizeOptionalEmail(input.secondaryEmail, "email secundario / CC"),
         address: input.address.trim() || null,
@@ -103,7 +114,7 @@ export async function createCrmCustomerAction(input: {
               ? {
                   firstName: input.primaryContactFirstName.trim(),
                   lastName: input.primaryContactLastName.trim(),
-                  phone: normalizeChileanPhone(input.primaryContactPhone),
+                  phone: primaryContactPhoneE164,
                   email: input.primaryContactEmail.trim().toLowerCase(),
                 }
               : null,
@@ -161,6 +172,8 @@ export async function updateCrmCustomerAction(input: {
     )
       throw new Error("Completa la facturación y el contacto principal de la empresa.");
     const normalized = requireValidChileanRut(input.rut);
+    const phoneE164 = optionalPhoneE164(input.phone);
+    const primaryContactPhoneE164 = optionalPhoneE164(input.primaryContactPhone);
     const { data: current, error: readError } = await client
       .from("customers")
       .select("metadata,projects(id,status,deleted_at)")
@@ -173,7 +186,9 @@ export async function updateCrmCustomerAction(input: {
         full_name: input.fullName.trim(),
         rut: normalized,
         company: input.company.trim() || null,
-        phone: normalizeChileanPhone(input.phone) || null,
+        phone: phoneE164,
+        phone_e164: phoneE164,
+        phone_e164_status: phoneE164 ? "VALID_E164" : "EMPTY",
         email: normalizeOptionalEmail(input.email, "email principal"),
         secondary_email: normalizeOptionalEmail(input.secondaryEmail, "email secundario / CC"),
         address: input.address.trim() || null,
@@ -195,7 +210,7 @@ export async function updateCrmCustomerAction(input: {
               ? {
                   firstName: input.primaryContactFirstName.trim(),
                   lastName: input.primaryContactLastName.trim(),
-                  phone: normalizeChileanPhone(input.primaryContactPhone),
+                  phone: primaryContactPhoneE164,
                   email: input.primaryContactEmail.trim().toLowerCase(),
                 }
               : null,

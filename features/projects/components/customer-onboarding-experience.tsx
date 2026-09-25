@@ -9,8 +9,7 @@ import { ActionButton } from "@/components/ui/action-button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { cn } from "@/lib/utils";
 import { formatServiceSummary } from "@/lib/format-service-summary";
-import { normalizeChileanPhone } from "@/lib/chile/rut";
-import { ChileanMobileInput } from "@/components/forms/chilean-mobile-input";
+import { InternationalPhoneInput } from "@/components/forms/international-phone-input";
 import type { Project } from "../types/project";
 
 export interface CustomerOnboardingExperienceProps {
@@ -102,8 +101,8 @@ function CustomerForm({ customer, onChange }: { customer: CustomerData; onChange
 
 function EditableField({ label, value, onChange, type = "text" }: { label: string; value: string; onChange: (value: string) => void; type?: string }) {
   const id = useId();
-  if (type === "tel") return <label className="grid gap-2 text-sm font-medium">{label}<ChileanMobileInput id={id} onChange={onChange} value={value} /></label>;
-  return <label className="grid gap-2 text-sm font-medium" htmlFor={id}>{label}<input className="h-12 rounded-xl border bg-background px-4 text-base outline-none transition placeholder:text-muted focus:border-brand focus:ring-2 focus:ring-brand/20" id={id} inputMode={type === "tel" ? "numeric" : undefined} onChange={(event) => onChange(type === "tel" ? normalizeChileanPhone(event.target.value) : event.target.value)} type={type} value={value} /></label>;
+  if (type === "tel") return <label className="grid gap-2 text-sm font-medium">{label}<InternationalPhoneInput id={id} onChange={onChange} value={value} /></label>;
+  return <label className="grid gap-2 text-sm font-medium" htmlFor={id}>{label}<input className="h-12 rounded-xl border bg-background px-4 text-base outline-none transition placeholder:text-muted focus:border-brand focus:ring-2 focus:ring-brand/20" id={id} onChange={(event) => onChange(event.target.value)} type={type} value={value} /></label>;
 }
 
 function ExperienceSummary({ project, qrIncluded, vatLabel }: { project: Project; qrIncluded: boolean; vatLabel: string }) {

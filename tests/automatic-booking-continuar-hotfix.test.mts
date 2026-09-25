@@ -39,7 +39,7 @@ test("required visible personal fields are validated", () => {
   assert.deepEqual(automaticBookingStepIssues(input), [
     "Completa tu nombre y apellido.",
     "Ingresa un RUT válido.",
-    "Ingresa un teléfono válido de 8 dígitos.",
+    "Ingresa un teléfono internacional válido con prefijo +.",
   ]);
 });
 
@@ -82,8 +82,8 @@ test("changing an invalid RUT to valid updates validation immediately", () => {
 
 test("mobile phone completion uses the same immediate predicate", () => {
   const input = validInput(0);
-  input.customer.phone = "+5691234567";
-  assert.deepEqual(automaticBookingStepIssues(input), ["Ingresa un teléfono válido de 8 dígitos."]);
+  input.customer.phone = "+1234567";
+  assert.deepEqual(automaticBookingStepIssues(input), ["Ingresa un teléfono internacional válido con prefijo +."]);
   input.customer.phone = "+56912345678";
   assert.deepEqual(automaticBookingStepIssues(input), []);
 });

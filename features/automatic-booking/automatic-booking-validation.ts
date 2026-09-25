@@ -1,4 +1,5 @@
 import { isValidChileanRut } from "../../lib/chile/rut.ts";
+import { isPhoneE164 } from "../../lib/phone/e164.ts";
 
 type CustomerStep = {
   name: string;
@@ -47,7 +48,7 @@ export function automaticBookingStepIssues(input: {
   if (input.step === 0) {
     if (!input.customer.name.trim()) issues.push("Completa tu nombre y apellido.");
     if (!isValidChileanRut(input.customer.rut)) issues.push("Ingresa un RUT válido.");
-    if (!/^\+569\d{8}$/.test(input.customer.phone)) issues.push("Ingresa un teléfono válido de 8 dígitos.");
+    if (!isPhoneE164(input.customer.phone)) issues.push("Ingresa un teléfono internacional válido con prefijo +.");
   }
 
   if (input.step === 1) {
@@ -56,7 +57,7 @@ export function automaticBookingStepIssues(input: {
     if (!input.event.venue.trim()) issues.push("Completa el lugar del evento.");
     if (!input.validMunicipality) issues.push("Selecciona una comuna de la lista.");
     if (!input.event.operationalContact.trim()) issues.push("Completa el contacto operacional.");
-    if (!/^\+569\d{8}$/.test(input.event.operationalPhone)) issues.push("Ingresa un teléfono operacional válido de 8 dígitos.");
+    if (!isPhoneE164(input.event.operationalPhone)) issues.push("Ingresa un teléfono operacional válido con prefijo +.");
   }
 
   if (input.step === 2 && (!input.service.code || input.service.total <= 0)) {

@@ -16,7 +16,7 @@ import {
   UserCheck,
   X,
 } from "lucide-react";
-import { ChileanMobileInput } from "@/components/forms/chilean-mobile-input";
+import { InternationalPhoneInput } from "@/components/forms/international-phone-input";
 import {
   useEffect,
   useId,
@@ -33,7 +33,8 @@ import { resolveCanonicalVenue } from "@/features/settings/master-data/venue-res
 import type { CollectionBankDetails } from "@/features/accounts-receivable/collection-bank-details";
 import { cn } from "@/lib/utils";
 import { filterExtrasForEventType, includedExtrasForEventType, resolveBrandingMinimum } from "../reservation-business-rules";
-import { formatChileanRut, isValidChileanRut, normalizeChileanMobileLocal, normalizeChileanPhone } from "@/lib/chile/rut";
+import { formatChileanRut, isValidChileanRut } from "@/lib/chile/rut";
+import { cleanPhoneInput, isPhoneE164 } from "@/lib/phone/e164";
 import { isValidOptionalEmail } from "@/lib/email/recipients";
 import { sendAutomaticBookingInvitationAction } from "@/features/automatic-booking/actions";
 import { draftCapacityPreflightAction } from "@/features/capacity/draft-capacity.actions";
@@ -290,7 +291,7 @@ function Field({
 }
 
 function PhoneField({ label, value, onChange, disabled, required }: { label: string; value: string; onChange: (value: string) => void; disabled?: boolean; required?: boolean }) {
-  return <label className="block text-sm font-medium">{label}<span className="mt-2 block"><ChileanMobileInput disabled={disabled} onChange={onChange} required={required} value={value} /></span></label>;
+  return <label className="block text-sm font-medium">{label}<span className="mt-2 block"><InternationalPhoneInput disabled={disabled} onChange={onChange} required={required} value={value} /></span></label>;
 }
 
 function TextArea({
@@ -509,7 +510,7 @@ export function NewProjectDrawer({
   >({});
   const [eventAddress, setEventAddress] = useState("");
   const [operationalContact, setOperationalContact] = useState("");
-  const [operationalPhone, setOperationalPhone] = useState("+569");
+  const [operationalPhone, setOperationalPhone] = useState("+");
   const [mainContact, setMainContact] = useState("");
   const [bride, setBride] = useState("");
   const [groom, setGroom] = useState("");
@@ -834,8 +835,7 @@ export function NewProjectDrawer({
       if (typeof value.operationalContact === "string")
         setOperationalContact(value.operationalContact);
       if (typeof value.operationalPhone === "string") {
-        const recoveredLocal = normalizeChileanMobileLocal(value.operationalPhone);
-        setOperationalPhone(/^9{8}$/.test(recoveredLocal) ? "+569" : value.operationalPhone);
+        setOperationalPhone(cleanPhoneInput(value.operationalPhone));
       }
       if (typeof value.mainContact === "string")
         setMainContact(value.mainContact);
@@ -1016,7 +1016,7 @@ export function NewProjectDrawer({
     setConfigurations({});
     setEventAddress("");
     setOperationalContact("");
-    setOperationalPhone("+569");
+    setOperationalPhone("+");
     setMainContact("");
     setBride("");
     setGroom("");
@@ -1124,7 +1124,7 @@ export function NewProjectDrawer({
                 draft.event.date &&
                 draft.event.time &&
                 operationalContact &&
-                /^569\d{8}$/.test(normalizeChileanPhone(operationalPhone)) &&
+                isPhoneE164(operationalPhone) &&
                 (draft.type === "Wedding" ? bride && groom : mainContact),
             )
           : step === 3
