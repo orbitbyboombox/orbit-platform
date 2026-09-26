@@ -45,7 +45,7 @@ test("Staff logistics has a compact mobile week label and contained controls", (
   assert.match(view, /compactWeekLabel/);
   assert.match(view, /sm:hidden/);
   assert.match(view, /AGRUPAR POR SECTOR/);
-  assert.match(view, /grid grid-cols-2 gap-2 rounded-2xl/);
+  assert.match(view, /grid w-full max-w-full min-w-0 grid-cols-2 gap-2 rounded-2xl/);
   assert.match(view, /GENERAR RUTA/);
 });
 
@@ -61,9 +61,13 @@ test("Staff logistics mobile rows restore the desktop preview row with left-alig
   assert.match(view, /transform: `scale\(\$\{scale\}\)`/);
   assert.match(view, /origin-top-left/);
   assert.doesNotMatch(view, /ml-\[calc\(50%-50vw\+12px\)\]/);
-  assert.match(view, /w-\[calc\(100vw-24px\)\]/);
-  assert.match(view, /style=\{\{ marginLeft: "calc\(50% - 50vw \+ 12px\)", transform: "translateX\(-220px\)" \}\}/);
-  assert.match(view, /transform: "translateX\(-220px\)"/);
+  assert.doesNotMatch(view, /w-\[calc\(100vw-24px\)\]/);
+  assert.doesNotMatch(view, /translateX\(/);
+  assert.doesNotMatch(view, /marginLeft: "calc\(50% - 50vw \+ 12px\)"/);
+  assert.match(view, /filtersWrapperRef/);
+  assert.match(view, /eventListWrapperRef/);
+  assert.match(view, /filters: \{ left: filtersRect\.left, right: filtersRect\.right, width: filtersRect\.width \}/);
+  assert.match(view, /list: \{ left: listRect\.left, right: listRect\.right, width: listRect\.width \}/);
   assert.match(view, /getBoundingClientRect\(\)/);
   assert.match(view, /grid-cols-\[72px_5px_96px_minmax\(0,1\.25fr\)_minmax\(0,1fr\)_110px_auto_20px\]/);
   assert.match(view, /w-full max-w-full min-w-0/);

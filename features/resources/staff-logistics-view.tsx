@@ -175,6 +175,8 @@ export function StaffLogisticsView({ events }: { events: StaffLogisticsEvent[] }
   const [mappingOpen, setMappingOpen] = useState(false);
   const [sectorOverrides, setSectorOverrides] = useState<Record<string, LogisticsSector>>({});
   const [anchor, setAnchor] = useState(() => dateOnly(chileCurrentWeek().start));
+  const filtersWrapperRef = useRef<HTMLDivElement>(null);
+  const eventListWrapperRef = useRef<HTMLDivElement>(null);
   const days = useMemo(() => weekDays(anchor), [anchor]);
   const weekSet = useMemo(() => new Set(days), [days]);
 
@@ -207,6 +209,18 @@ export function StaffLogisticsView({ events }: { events: StaffLogisticsEvent[] }
     if (sortBy === "DISASSEMBLY") return teardownCompare || a.time.localeCompare(b.time);
     return `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`);
   }), [box, commune, events, groupBySector, operator, search, sectorOverrides, service, sortBy, status, weekSet]);
+
+  useEffect(() => {
+    const filtersWrapper = filtersWrapperRef.current;
+    const eventListWrapper = eventListWrapperRef.current;
+    if (!filtersWrapper || !eventListWrapper) return;
+    const filtersRect = filtersWrapper.getBoundingClientRect();
+    const listRect = eventListWrapper.getBoundingClientRect();
+    console.log({
+      filters: { left: filtersRect.left, right: filtersRect.right, width: filtersRect.width },
+      list: { left: listRect.left, right: listRect.right, width: listRect.width },
+    });
+  }, [events.length, visible.length, groupBySector, mappingOpen, routeOpen]);
 
   const selected = visible.find((event) => event.id === selectedId) ?? null;
   const counts = useMemo(() => events.filter((event) => weekSet.has(event.date)).reduce((result, event) => {
@@ -264,7 +278,7 @@ export function StaffLogisticsView({ events }: { events: StaffLogisticsEvent[] }
         </div>
       </header>
 
-      <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-[#111214] p-2 sm:flex sm:flex-wrap">
+      <div ref={filtersWrapperRef} className="grid w-full max-w-full min-w-0 grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-[#111214] p-2 sm:flex sm:flex-wrap">
         <select aria-label="Filtrar por estado" className={`${selectClass} min-w-0 w-full`} onChange={(event) => setStatus(event.target.value)} value={status}><option value="ALL">Todos los estados</option><option value="CONFIRMED">Confirmado</option><option value="PENDING">Por confirmar</option><option value="CANCELLED">Cancelado</option></select>
         <select aria-label="Filtrar por servicio" className={`${selectClass} min-w-0 w-full`} onChange={(event) => setService(event.target.value)} value={service}><option value="ALL">Todos los servicios</option>{values.services.map((item) => <option key={item} value={item}>{item}</option>)}</select>
         <select aria-label="Filtrar por comuna" className={`${selectClass} min-w-0 w-full`} onChange={(event) => setCommune(event.target.value)} value={commune}><option value="ALL">Todas las comunas</option>{values.communes.map((item) => <option key={item} value={item}>{item}</option>)}</select>
@@ -277,18 +291,17 @@ export function StaffLogisticsView({ events }: { events: StaffLogisticsEvent[] }
 
       {routeOpen && <RoutePlanner days={days} draft={routeDraft} events={events} onChange={setRouteDraft} />}
 
-      <LogisticsEventList events={visible} groupBySector={groupBySector} overrides={sectorOverrides} onSelect={setSelectedId} selectedId={selectedId} />
+      <LogisticsEventList listRef={eventListWrapperRef} events={visible} groupBySector={groupBySector} overrides={sectorOverrides} onSelect={setSelectedId} selectedId={selectedId} />
       {selected && <LogisticsDetail event={selected} onClose={() => setSelectedId(null)} overrides={sectorOverrides} routeDraft={routeDraft} />}
     </section>
   );
 }
 
-function LogisticsEventList({ events, groupBySector, overrides, onSelect, selectedId }: { events: StaffLogisticsEvent[]; groupBySector: boolean; overrides: Record<string, LogisticsSector>; onSelect: (id: string) => void; selectedId: string | null }) {
+function LogisticsEventList({ listRef, events, groupBySector, overrides, onSelect, selectedId }: { listRef: React.RefObject<HTMLDivElement | null>; events: StaffLogisticsEvent[]; groupBySector: boolean; overrides: Record<string, LogisticsSector>; onSelect: (id: string) => void; selectedId: string | null }) {
   if (!events.length) return <EmptyState />;
   const desktopRow = (event: StaffLogisticsEvent) => <div key={event.id}><LogisticsEventRow event={event} sector={sectorForCommune(event.commune, overrides)} onSelect={() => onSelect(event.id)} selected={selectedId === event.id} /></div>;
   const mobileRow = (event: StaffLogisticsEvent) => <div className="w-full max-w-full min-w-0 overflow-x-hidden overflow-y-visible" key={event.id}><ScaledLogisticsEventRow event={event} sector={sectorForCommune(event.commune, overrides)} onSelect={() => onSelect(event.id)} selected={selectedId === event.id} /></div>;
-  const mobileShell = (children: ReactNode) => <MobileLogisticsListShell>{children}</MobileLogisticsListShell>;
-  if (!groupBySector) return <><div className="hidden w-full max-w-full min-w-0 space-y-2 lg:block">{events.map(desktopRow)}</div>{mobileShell(<div className="w-full max-w-full min-w-0 space-y-2">{events.map(mobileRow)}</div>)}</>;
+  if (!groupBySector) return <div ref={listRef} className="w-full max-w-full min-w-0"><div className="hidden w-full max-w-full min-w-0 space-y-2 lg:block">{events.map(desktopRow)}</div><div className="w-full max-w-full min-w-0 space-y-2 lg:hidden">{events.map(mobileRow)}</div></div>;
   const grouped = new Map<LogisticsSector, Map<string, StaffLogisticsEvent[]>>();
   for (const event of events) {
     const sector = sectorForCommune(event.commune, overrides);
@@ -297,20 +310,7 @@ function LogisticsEventList({ events, groupBySector, overrides, onSelect, select
     grouped.set(sector, communes);
   }
   const groupedRows = (renderRow: (event: StaffLogisticsEvent) => ReactNode) => <div className="w-full max-w-full min-w-0 space-y-3">{sectorOrder.filter((sector) => grouped.has(sector)).map((sector) => <details className="rounded-2xl border border-white/10 bg-[#111214] p-0 lg:p-3" key={sector} open><summary className="cursor-pointer list-none px-1 py-2 text-sm font-semibold text-white lg:px-0"><span className="text-brand">SECTOR {sector}</span><span className="ml-2 text-xs font-normal text-white/45">{[...(grouped.get(sector)?.values() ?? [])].reduce((total, items) => total + items.length, 0)} eventos</span></summary><div className="mt-2 space-y-3 lg:mt-3">{[...(grouped.get(sector)?.entries() ?? [])].sort(([a], [b]) => a.localeCompare(b)).map(([commune, communeEvents]) => <details className="rounded-xl border border-white/10 bg-[#17181a] p-0 lg:p-2" key={commune} open><summary className="cursor-pointer list-none px-1 py-1 text-xs font-semibold uppercase tracking-[.16em] text-white/60 lg:px-2">{commune}<span className="ml-2 text-[10px] font-normal text-white/35">({communeEvents.length})</span></summary><div className="mt-2 space-y-2">{communeEvents.map(renderRow)}</div></details>)}</div></details>)}</div>;
-  return <><div className="hidden lg:block">{groupedRows(desktopRow)}</div>{mobileShell(groupedRows(mobileRow))}</>;
-}
-
-function MobileLogisticsListShell({ children }: { children: ReactNode }) {
-  const wrapperRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const wrapper = wrapperRef.current;
-    if (!wrapper) return;
-    const rect = wrapper.getBoundingClientRect();
-    console.log({ left: rect.left, right: rect.right, width: rect.width });
-  }, []);
-
-  return <div ref={wrapperRef} className="relative w-[calc(100vw-24px)] max-w-none min-w-0 lg:hidden" style={{ marginLeft: "calc(50% - 50vw + 12px)", transform: "translateX(-220px)" }}>{children}</div>;
+  return <div ref={listRef} className="w-full max-w-full min-w-0"><div className="hidden w-full max-w-full min-w-0 lg:block">{groupedRows(desktopRow)}</div><div className="w-full max-w-full min-w-0 lg:hidden">{groupedRows(mobileRow)}</div></div>;
 }
 
 function SectorMappingEditor({ communes, overrides, onChange }: { communes: string[]; overrides: Record<string, LogisticsSector>; onChange: (next: Record<string, LogisticsSector>) => void }) {
