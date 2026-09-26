@@ -300,7 +300,7 @@ export function StaffLogisticsView({ events }: { events: StaffLogisticsEvent[] }
 function LogisticsEventList({ listRef, events, groupBySector, overrides, onSelect, selectedId }: { listRef: React.RefObject<HTMLDivElement | null>; events: StaffLogisticsEvent[]; groupBySector: boolean; overrides: Record<string, LogisticsSector>; onSelect: (id: string) => void; selectedId: string | null }) {
   if (!events.length) return <EmptyState />;
   const desktopRow = (event: StaffLogisticsEvent) => <div key={event.id}><LogisticsEventRow event={event} sector={sectorForCommune(event.commune, overrides)} onSelect={() => onSelect(event.id)} selected={selectedId === event.id} /></div>;
-  const mobileRow = (event: StaffLogisticsEvent) => <div className="w-full max-w-full min-w-0 overflow-x-hidden overflow-y-visible" key={event.id}><ScaledLogisticsEventRow event={event} sector={sectorForCommune(event.commune, overrides)} onSelect={() => onSelect(event.id)} selected={selectedId === event.id} /></div>;
+  const mobileRow = (event: StaffLogisticsEvent) => <div className="relative w-full max-w-full min-w-0 overflow-visible" style={{ left: "-100px" }} key={event.id}><ScaledLogisticsEventRow event={event} sector={sectorForCommune(event.commune, overrides)} onSelect={() => onSelect(event.id)} selected={selectedId === event.id} /></div>;
   if (!groupBySector) return <div ref={listRef} className="w-full max-w-full min-w-0"><div className="hidden w-full max-w-full min-w-0 space-y-2 lg:block">{events.map(desktopRow)}</div><div className="w-full max-w-full min-w-0 space-y-2 lg:hidden">{events.map(mobileRow)}</div></div>;
   const grouped = new Map<LogisticsSector, Map<string, StaffLogisticsEvent[]>>();
   for (const event of events) {

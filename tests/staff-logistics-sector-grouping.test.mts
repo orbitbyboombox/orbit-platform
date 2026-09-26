@@ -68,6 +68,9 @@ test("Staff logistics mobile rows restore the desktop preview row with left-alig
   assert.match(view, /eventListWrapperRef/);
   assert.match(view, /filters: \{ left: filtersRect\.left, right: filtersRect\.right, width: filtersRect\.width \}/);
   assert.match(view, /list: \{ left: listRect\.left, right: listRect\.right, width: listRect\.width \}/);
+  assert.match(view, /className="relative w-full max-w-full min-w-0 overflow-visible" style=\{\{ left: "-100px" \}\}/);
+  assert.doesNotMatch(view, /translateX\(-220px\)/);
+  assert.doesNotMatch(view, /left: "-(?:1[5-9]\d|2\d\d)px"/);
   assert.match(view, /getBoundingClientRect\(\)/);
   assert.match(view, /grid-cols-\[72px_5px_96px_minmax\(0,1\.25fr\)_minmax\(0,1fr\)_110px_auto_20px\]/);
   assert.match(view, /w-full max-w-full min-w-0/);
