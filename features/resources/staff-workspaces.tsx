@@ -5,15 +5,17 @@ import {
   CalendarRange,
   CircleDollarSign,
   GraduationCap,
+  Route,
   ShieldCheck,
   UsersRound,
 } from "lucide-react";
 
-type Workspace = "TEAM" | "OPERATIONS" | "PORTAL" | "PAYROLL" | "ACADEMY";
+export type Workspace = "TEAM" | "OPERATIONS" | "LOGISTICS" | "PORTAL" | "PAYROLL" | "ACADEMY";
 
 const workspaces = [
   { key: "TEAM" as const, label: "Equipo", icon: UsersRound },
   { key: "OPERATIONS" as const, label: "Operaciones", icon: CalendarRange },
+  { key: "LOGISTICS" as const, label: "Logística", icon: Route },
   { key: "PORTAL" as const, label: "Portal Staff", icon: ShieldCheck },
   { key: "PAYROLL" as const, label: "Nómina Mensual", icon: CircleDollarSign },
   { key: "ACADEMY" as const, label: "Academy Manager", icon: GraduationCap },
@@ -22,6 +24,7 @@ const workspaces = [
 export function StaffWorkspaces({
   team,
   operations,
+  logistics,
   portal,
   payroll,
   academy,
@@ -29,6 +32,7 @@ export function StaffWorkspaces({
 }: {
   team: ReactNode;
   operations: ReactNode;
+  logistics: ReactNode;
   portal: ReactNode;
   payroll: ReactNode;
   academy: ReactNode;
@@ -38,6 +42,7 @@ export function StaffWorkspaces({
   const content = {
     TEAM: team,
     OPERATIONS: operations,
+    LOGISTICS: logistics,
     PORTAL: portal,
     PAYROLL: payroll,
     ACADEMY: academy,
@@ -51,7 +56,7 @@ export function StaffWorkspaces({
         <h1 className="mt-2 text-3xl font-semibold">Operación de Staff</h1>
         <nav
           aria-label="Espacios operacionales de Staff"
-          className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-5"
+          className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-6"
         >
           {workspaces.map(({ key, label, icon: Icon }) => (
             <button

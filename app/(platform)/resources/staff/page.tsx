@@ -8,6 +8,8 @@ import {
 } from "@/features/staff-payments";
 import { StaffPinReset } from "@/features/portal-authentication/staff-pin-reset";
 import { StaffWorkspaces } from "@/features/resources/staff-workspaces";
+import { StaffLogisticsView, type StaffLogisticsEvent } from "@/features/resources/staff-logistics-view";
+import { loadCrmOperationalEvents } from "@/features/crm/events-repository";
 import {
   StaffOperationsView,
   type StaffOperationsEvent,
@@ -32,8 +34,8 @@ import { buildCanonicalOrbitEventState } from "@/features/operations/canonical-o
 import { StaffFinancialActions, type StaffReimbursementPaymentItem } from "@/features/staff-payments/staff-financial-actions";
 import type { StaffExpenseReviewItem } from "@/features/staff-expenses/staff-expense-review";
 
-export default async function StaffManagementPage({searchParams}:{searchParams:Promise<{reviewOnboarding?:string;reviewAccount?:string;reviewExpense?:string}>}) {
-  const {reviewOnboarding,reviewAccount,reviewExpense}=await searchParams;
+export default async function StaffManagementPage({searchParams}:{searchParams:Promise<{reviewOnboarding?:string;reviewAccount?:string;reviewExpense?:string;view?:string}>}) {
+  const {reviewOnboarding,reviewAccount,reviewExpense,view}=await searchParams;
   const client = await createSupabaseServerClient();
   const [
     { data: staff, error: staffError },
@@ -667,9 +669,46 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
   }));
   const academyArticles = await loadAcademyArticles(client);
   const academyStats = await loadAcademyStats(client, academyArticles);
+  const crmEvents = await loadCrmOperationalEvents(client);
+  const eventIds = crmEvents.map((event) => event.projectId);
+  const { data: boxAssignments, error: boxAssignmentError } = eventIds.length
+    ? await client
+        .from("asset_assignments")
+        .select("project_id,assignment_status,operational_assets!inner(asset_code,asset_type)")
+        .in("project_id", eventIds)
+        .eq("assignment_status", "ASSIGNED")
+        .eq("operational_assets.asset_type", "BOX")
+        .is("deleted_at", null)
+    : { data: [], error: null };
+  if (boxAssignmentError) throw boxAssignmentError;
+  const boxByProject = new Map<string, string>();
+  for (const assignment of boxAssignments ?? []) {
+    const asset = Array.isArray(assignment.operational_assets)
+      ? assignment.operational_assets[0]
+      : assignment.operational_assets;
+    if (asset?.asset_code && !boxByProject.has(assignment.project_id)) boxByProject.set(assignment.project_id, asset.asset_code);
+  }
+  const logisticsEvents: StaffLogisticsEvent[] = crmEvents.map((event) => ({
+    id: event.id,
+    projectId: event.projectId,
+    orbitEventId: event.orbitEventId,
+    date: event.date ?? "",
+    time: event.time ?? "",
+    customer: event.customerName,
+    service: event.service || event.type,
+    duration: event.duration,
+    location: event.location ?? "Lugar por confirmar",
+    commune: event.municipality ?? "Comuna por confirmar",
+    status: event.status,
+    operator: event.operator || "Sin asignar",
+    staffCallAt: event.staffCallAt ?? "",
+    box: boxByProject.get(event.projectId) ?? "Sin asignar",
+    extras: event.extras,
+    address: event.eventAddress || event.location || "",
+  }));
   return (
       <StaffWorkspaces
-        initialWorkspace={reviewAccount ? "PAYROLL" : reviewExpense ? "TEAM" : undefined}
+        initialWorkspace={view === "logistics" ? "LOGISTICS" : reviewAccount ? "PAYROLL" : reviewExpense ? "TEAM" : undefined}
       team={
         <div className="space-y-6">
           <StaffFinancialActions
@@ -696,6 +735,7 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
           requests={operationsRequests}
         />
       }
+      logistics={<StaffLogisticsView events={logisticsEvents} />}
       portal={<StaffPinReset members={portalAccess} />}
       payroll={
         <StaffPaymentsCenter
