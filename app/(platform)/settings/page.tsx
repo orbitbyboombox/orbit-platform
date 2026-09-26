@@ -9,6 +9,7 @@ import {
   loadCommunicationHubProjection,
 } from "@/features/communication-hub";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isReadOnlyVisualPreview } from "@/lib/supabase/environment-guard";
 import { createDisconnectedGoogleWorkspaceConnection } from "@/features/connectors";
 import { loadGoogleWorkspaceConnection } from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import { loadWhatsAppConnection } from "@/features/connectors/whatsapp-cloud/whatsapp-connection";
@@ -53,7 +54,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const { data: auth, error: authError } = await client.auth.getUser();
   if (authError || !auth.user)
     throw authError ?? new Error("Sesión requerida.");
-  await client.rpc("validate_financial_integrity");
+  if (!isReadOnlyVisualPreview()) await client.rpc("validate_financial_integrity");
   const [
     communication,
     masterData,

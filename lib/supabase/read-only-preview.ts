@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 const blockedDatabaseMethods = new Set(["insert", "upsert", "update", "delete"]);
 const blockedStorageMethods = new Set(["upload", "update", "remove", "move", "copy"]);
+const readOnlyRpcNames = new Set(["get_event_asset_availability", "get_event_capacity"]);
 const readOnlyError = () => {
   throw new Error("READ_ONLY_VISUAL_PREVIEW: mutation blocked.");
 };
@@ -37,7 +38,13 @@ export function makeReadOnlyVisualPreviewClient<T extends SupabaseClient>(client
       if (property === "from") {
         return (table: string) => readOnlyBuilder((target as SupabaseClient).from(table));
       }
-      if (property === "rpc" || property === "functions") return readOnlyError;
+      if (property === "rpc") {
+        return (functionName: string, ...args: unknown[]) => {
+          if (!readOnlyRpcNames.has(functionName)) return readOnlyError();
+          return (target as SupabaseClient).rpc(functionName, ...(args as [Record<string, unknown>?, Record<string, unknown>?]));
+        };
+      }
+      if (property === "functions") return readOnlyError;
       if (property === "storage") return readOnlyStorage((target as SupabaseClient).storage);
       if (property === "auth") {
         const auth = (target as SupabaseClient).auth;

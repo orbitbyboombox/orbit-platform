@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isReadOnlyVisualPreview } from "@/lib/supabase/environment-guard";
 import { reminderProjection } from "@/features/operations-agenda-v11/domain";
 import { buildCanonicalOrbitEventStateFromRecord } from "@/features/operations/canonical-orbit-event-state";
 import { chileDateTime } from "@/features/operations/event-operational-window";
@@ -11,7 +12,7 @@ export default async function OperationsWeekPage() {
   const client = await createSupabaseServerClient();
   const { data: auth, error: authError } = await client.auth.getUser();
   if (authError || !auth.user) throw authError ?? new Error("Sesión requerida.");
-  await client.rpc("reconcile_operational_agenda_alerts");
+  if (!isReadOnlyVisualPreview()) await client.rpc("reconcile_operational_agenda_alerts");
   const today = new Date(); today.setHours(0,0,0,0);
   const end = new Date(today); end.setDate(end.getDate()+7);
   const { data, error } = await client.from("projects").select("id,orbit_event_id,name,event_date,event_time,location,city,status,pipeline_stage,customers(full_name,phone),project_services(service_code),crm_reservations(status),operations,event_checklists(status,event_checklist_items(completed,mandatory))").gte("event_date",today.toISOString().slice(0,10)).lt("event_date",end.toISOString().slice(0,10)).is("deleted_at",null).order("event_date",{ascending:true});

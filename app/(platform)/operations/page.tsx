@@ -5,6 +5,7 @@ import {
 } from "@/features/operations/components";
 import { SupabaseCustomerRepository } from "@/features/projects/infrastructure";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isReadOnlyVisualPreview } from "@/lib/supabase/environment-guard";
 import { loadFinancialTruth } from "@/features/business-engine";
 import { loadFinanceDashboardReadModel } from "@/features/finance/finance-read-model";
 import {
@@ -1471,8 +1472,10 @@ export default async function OperationsPage() {
           : ("warning" as const),
     }),
   )];
-  const { error: financialAlertEnsureError } = await client.rpc("ensure_financial_alerts", { p_now: new Date().toISOString() });
-  if (financialAlertEnsureError) throw financialAlertEnsureError;
+  if (!isReadOnlyVisualPreview()) {
+    const { error: financialAlertEnsureError } = await client.rpc("ensure_financial_alerts", { p_now: new Date().toISOString() });
+    if (financialAlertEnsureError) throw financialAlertEnsureError;
+  }
   const { data: financialAlertRows, error: financialAlertError } = await client
     .from("financial_alert_obligations")
     .select("id,obligation_key,accounting_period,status,paid_at,financial_alert_rules(name,escalation_day,timezone)")

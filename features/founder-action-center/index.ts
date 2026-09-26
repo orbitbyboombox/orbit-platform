@@ -1,6 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isReadOnlyVisualPreview } from "@/lib/supabase/environment-guard";
 import { founderActionHref, isFounderActionVisible } from "./visibility";
 
 export type FounderActionPriority = "P0" | "P1" | "P2" | "P3";
@@ -74,6 +75,7 @@ const canonicalFounderActionTypes = new Set<string>(
 const loadFounderActionCenterCached = cache(
   async (userId: string): Promise<FounderActionCenter> => {
     const admin = createAdminClient();
+    if (!isReadOnlyVisualPreview()) {
     const { error: salesError } = await admin.rpc(
       "reconcile_sales_pipeline_founder_alerts",
     );
@@ -115,6 +117,7 @@ const loadFounderActionCenterCached = cache(
       "reconcile_founder_action_alerts",
     );
     if (reconciliationError) throw reconciliationError;
+    }
     const [
       { data: rows, error },
       { data: states, error: statesError },
