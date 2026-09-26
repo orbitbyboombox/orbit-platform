@@ -221,13 +221,13 @@ export function EventCenter({
   return (
     <div className="space-y-7">
       <header className="rounded-[28px] border border-white/10 bg-[#111214] p-6 text-white shadow-[0_20px_70px_rgba(0,0,0,.18)] sm:p-8">
-        <p className="text-xs uppercase tracking-[.18em] text-[#ff8a55]">
+        <p className="text-xs uppercase tracking-[.18em] text-brand">
           BOOMBOX · OPERACIÓN
         </p>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div><h1 className="mt-2 text-3xl font-semibold">Eventos</h1>
           <p className="mt-2 text-sm text-white/60">Vista semanal · operación activa</p></div>
-          <Link className="inline-flex min-h-11 items-center rounded-xl bg-[#ff6b2c] px-4 text-sm font-semibold text-black" href="/projects/new">Nuevo evento</Link>
+          <Link className="inline-flex min-h-11 items-center rounded-xl bg-brand px-4 text-sm font-semibold text-black" href="/projects/new">Nuevo evento</Link>
         </div>
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
           {[["TOTAL", events.length], ["PRÓXIMOS", events.filter((event) => statusOf(event) === "UPCOMING").length], ["HOY", events.filter((event) => statusOf(event) === "TODAY").length]].map(([label, value]) => <div className="rounded-2xl border border-white/10 bg-white/[.04] p-4" key={String(label)}><p className="text-xs tracking-[.16em] text-white/45">{label}</p><p className="mt-2 text-2xl font-semibold">{value}</p></div>)}
@@ -277,11 +277,11 @@ export function EventCenter({
       <section className="space-y-3">
         {filtered.map((event) => (
           <article
-            className="group grid min-w-0 gap-4 rounded-2xl border border-white/10 bg-[#191a1d] p-4 text-white shadow-[0_10px_35px_rgba(0,0,0,.12)] transition hover:border-[#ff6b2c]/70 sm:p-5 md:grid-cols-[72px_minmax(0,1fr)_auto] md:items-center"
+            className="group grid min-w-0 gap-4 rounded-2xl border border-white/10 bg-[#191a1d] p-4 text-white shadow-[0_10px_35px_rgba(0,0,0,.12)] transition hover:border-brand/70 sm:p-5 md:grid-cols-[72px_minmax(0,1fr)_auto] md:items-center"
             key={event.projectId}
           >
             <div className="grid size-16 shrink-0 place-items-center rounded-xl bg-[#0d0e10] text-center ring-1 ring-white/10">
-              <span className="text-[10px] uppercase tracking-[.16em] text-[#ff8a55]">{event.date ? new Date(`${event.date}T12:00:00Z`).toLocaleDateString("es-CL", { weekday: "short" }) : "—"}</span>
+              <span className="text-[10px] uppercase tracking-[.16em] text-brand">{event.date ? new Date(`${event.date}T12:00:00Z`).toLocaleDateString("es-CL", { weekday: "short" }) : "—"}</span>
               <strong className="text-2xl leading-none">{event.date?.slice(8, 10) ?? "—"}</strong>
               <span className="text-[10px] text-white/50">{event.date?.slice(5, 7) ?? ""}</span>
             </div>

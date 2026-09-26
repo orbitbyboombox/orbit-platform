@@ -278,12 +278,12 @@ export function StaffPortalDashboard({
         <div className="mt-5 space-y-2">
           {events.map((event) => (
             <button
-              className="group grid w-full gap-4 rounded-2xl border border-white/10 bg-[#191a1d] p-4 text-left transition hover:border-[#ff6b2c]/70 sm:grid-cols-[72px_minmax(0,1fr)_auto] sm:items-center"
+              className="group grid w-full gap-4 rounded-2xl border border-white/10 bg-[#191a1d] p-4 text-left transition hover:border-brand/70 sm:grid-cols-[72px_minmax(0,1fr)_auto] sm:items-center"
               key={event.id}
               onClick={() => setSelected(event)}
             >
               <div className="grid size-16 shrink-0 place-items-center rounded-xl bg-[#0d0e10] text-center ring-1 ring-white/10">
-                <span className="text-[10px] uppercase tracking-[.16em] text-[#ff8a55]">{new Date(`${event.date}T12:00:00Z`).toLocaleDateString("es-CL", { weekday: "short" })}</span>
+                <span className="text-[10px] uppercase tracking-[.16em] text-brand">{new Date(`${event.date}T12:00:00Z`).toLocaleDateString("es-CL", { weekday: "short" })}</span>
                 <strong className="text-2xl leading-none">{event.date.slice(8, 10)}</strong>
                 <span className="text-[10px] text-white/50">{event.date.slice(5, 7)}</span>
               </div>
@@ -298,7 +298,7 @@ export function StaffPortalDashboard({
               </div>
               <div className="flex items-center gap-3 sm:justify-end">
                 <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-xs font-semibold text-emerald-300">{stateLabel(event)}</span>
-                <ChevronRight className="size-5 text-white/40 transition group-hover:text-[#ff8a55]" />
+                <ChevronRight className="size-5 text-white/40 transition group-hover:text-brand" />
               </div>
             </button>
           ))}
@@ -583,7 +583,7 @@ function EventDetail({
       <article className="max-h-[94dvh] w-full overflow-y-auto rounded-t-3xl border border-white/10 bg-[#111214] p-5 text-white shadow-[0_30px_100px_rgba(0,0,0,.45)] sm:max-w-5xl sm:rounded-3xl sm:p-7">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[.18em] text-[#ff8a55]">
+            <p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">
               Evento · paquete operacional
             </p>
             <h2 className="mt-2 text-2xl font-semibold">{event.customer}</h2>
@@ -631,14 +631,14 @@ function EventDetail({
         </div>
         <section className="mt-6 grid gap-3 sm:grid-cols-2">
           <div className="rounded-2xl border border-white/10 bg-[#191a1d] p-4">
-            <p className="text-xs font-semibold uppercase tracking-[.16em] text-[#ff8a55]">Caja Negra</p>
+            <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Caja Negra</p>
             <h3 className="mt-2 font-semibold">Equipamiento del evento</h3>
             <div className="mt-3 grid grid-cols-2 gap-2 text-sm text-white/70">
               {["Caja Negra", "Impresora", "Cámara", "Pantalla", "Operador", "Montaje", "Desmontaje"].map((item) => <span className="rounded-xl border border-white/10 px-3 py-2" key={item}>{item}</span>)}
             </div>
           </div>
           <div className="rounded-2xl border border-white/10 bg-[#191a1d] p-4">
-            <p className="text-xs font-semibold uppercase tracking-[.16em] text-[#ff8a55]">Operación</p>
+            <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Operación</p>
             <h3 className="mt-2 font-semibold">Estado del servicio</h3>
             <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
               {["CHECK-OUT", "EVENTO", "PAPEL", "CHECK-IN"].map((item) => <span className="rounded-full border border-white/10 px-3 py-2 text-center text-white/70" key={item}>{item}</span>)}

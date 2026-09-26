@@ -8,7 +8,7 @@ test("Phase C.6 keeps the PDF event language in admin and Staff surfaces", () =>
   const admin = read("features/projects/components/event-ui-replica.tsx");
   const list = read("features/crm/event-center.tsx");
   const staff = read("features/portal-authentication/staff-portal-dashboard.tsx");
-  for (const marker of ["Caja Negra", "CHECK-OUT", "CHECK-IN", "COBRAR CLIENTE", "bg-[#111214]", "bg-[#ff6b2c]"]) assert.match(admin, new RegExp(marker.replace(/[\[\]#]/g, "\\$&")));
+  for (const marker of ["Caja Negra", "CHECK-OUT", "CHECK-IN", "COBRAR CLIENTE", "bg-[#111214]", "bg-brand"]) assert.match(admin, new RegExp(marker.replace(/[\[\]#]/g, "\\$&")));
   assert.match(list, /Nuevo evento/);
   assert.match(list, /bg-\[#191a1d\]/);
   assert.match(staff, /initialEventId/);
