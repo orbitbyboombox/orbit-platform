@@ -15,11 +15,11 @@ test("Phase C.6 keeps the PDF event language in admin and Staff surfaces", () =>
   assert.match(staff, /HORARIO CONFIRMADO/);
   assert.doesNotMatch(staff, /<Small label="Pago neto"/);
   assert.doesNotMatch(admin, /Fórmula C\.5/);
-  assert.match(admin, /lg:col-span-7/);
   assert.match(admin, /sm:grid-cols-3/);
-  assert.match(admin, /Caja Negra \/ equipamiento/);
-  assert.match(admin, /operation: true, paper: false, equipment: false, collection: false/);
-  assert.match(admin, /aria-expanded=\{open\}/);
+  assert.match(admin, /\[operationOpen, setOperationOpen\] = useState\(false\)/);
+  assert.match(admin, /ABRIR OPERACIÓN DEL EVENTO/);
+  assert.match(admin, /CERRAR OPERACIÓN DEL EVENTO/);
+  assert.doesNotMatch(admin, /AccordionSection/);
   assert.match(admin, /VER EQUIPAMIENTO/);
 });
 
