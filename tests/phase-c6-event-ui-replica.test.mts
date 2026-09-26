@@ -14,6 +14,9 @@ test("Phase C.6 keeps the PDF event language in admin and Staff surfaces", () =>
   assert.match(staff, /initialEventId/);
   assert.match(staff, /HORARIO CONFIRMADO/);
   assert.doesNotMatch(staff, /<Small label="Pago neto"/);
+  assert.doesNotMatch(admin, /Fórmula C\.5/);
+  assert.match(admin, /divide-y divide-white\/10/);
+  assert.match(admin, /VER EQUIPAMIENTO/);
 });
 
 test("Phase C.5 remains wired to the paper ledger and closeout guard", () => {
@@ -47,6 +50,6 @@ test("C.6 paper variant is event metadata and never reinterprets inventory forma
   assert.match(migration, /old\.format_key is distinct from new\.format_key/);
   assert.match(admin, /4x6 NORMAL/);
   assert.match(admin, /4x6 PREPICADO/);
-  assert.match(admin, /format_key/);
+  assert.match(migration, /format_key/);
   assert.match(staff, /paper\.variant/);
 });
