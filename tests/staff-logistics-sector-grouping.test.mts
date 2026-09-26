@@ -50,10 +50,12 @@ test("Staff logistics has a compact mobile week label and contained controls", (
 });
 
 test("Staff logistics mobile cards use an integrated date tile without a horizontal status bar", () => {
-  assert.match(view, /grid-cols-\[54px_4px_minmax\(0,1fr\)_auto_16px\]/);
+  assert.match(view, /grid-cols-\[54px_4px_minmax\(0,1fr\)_16px\]/);
   assert.match(view, /h-14 w-1 rounded-full/);
   assert.match(view, /date\.weekday/);
   assert.match(view, /event\.operator.*event\.box/);
-  assert.match(view, /max-w-20.*rounded-full/);
+  assert.match(view, /state\.color/);
+  assert.match(view, /max-w-16.*rounded-full/);
+  assert.match(view, /event\.customer.*event\.location/);
   assert.doesNotMatch(view, /function LogisticsMobileCard[\s\S]*border-r-4/);
 });
