@@ -5,7 +5,7 @@ import { BiancaReservationStartAdapter } from "../features/connectors/whatsapp-c
 function fakeClient() {
   const rows: Record<string, unknown>[] = [];
   const client = { from() {
-    let filter: Record<string, unknown> = {};
+    const filter: Record<string, unknown> = {};
     let mode = "select";
     let payload: Record<string, unknown> = {};
     const builder = {

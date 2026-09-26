@@ -7,7 +7,7 @@ function fakeClient() {
   const tables: Record<string, Record<string, unknown>[]> = { bianca_action_runs: [], commercial_sends: [] };
   const client = {
     from(table: string) {
-      let filters: Record<string, unknown> = {};
+      const filters: Record<string, unknown> = {};
       let operation: "select" | "insert" | "update" | "upsert" = "select";
       let payload: Record<string, unknown> | null = null;
       const builder = {
