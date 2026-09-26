@@ -49,19 +49,17 @@ test("Staff logistics has a compact mobile week label and contained controls", (
   assert.match(view, /GENERAR RUTA/);
 });
 
-test("Staff logistics mobile rows reuse the desktop row through uniform scaling", () => {
+test("Staff logistics mobile rows reuse the desktop row with native full-width grid", () => {
   assert.match(view, /function LogisticsEventRow/);
   assert.match(view, /<LogisticsEventRow event=\{event\} sector=\{sectorForCommune\(event\.commune, overrides\)\}/);
-  assert.match(view, /<ScaledLogisticsEventRow availableWidth=\{mobileListWidth\} event=\{event\} sector=\{sectorForCommune\(event\.commune, overrides\)\}/);
-  assert.match(view, /LOGICAL_ROW_WIDTH_PX = 680/);
-  assert.match(view, /ResizeObserver/);
-  assert.match(view, /transform: `scale\(\$\{scale\}\)`/);
-  assert.match(view, /origin-top-left/);
+  assert.match(view, /<LogisticsEventRow event=\{event\} mobileCompact sector=\{sectorForCommune\(event\.commune, overrides\)\}/);
+  assert.match(view, /grid-cols-\[38px_4px_58px_minmax\(0,1\.2fr\)_minmax\(0,1fr\)_64px_58px_16px\]/);
   assert.match(view, /grid-cols-\[72px_5px_96px_minmax\(0,1\.25fr\)_minmax\(0,1fr\)_110px_auto_20px\]/);
+  assert.match(view, /w-full max-w-full min-w-0/);
   assert.match(view, /event\.customer/);
   assert.match(view, /event\.location/);
   assert.match(view, /event\.service/);
   assert.match(view, /ChevronRight/);
-  assert.doesNotMatch(view, /LogisticsMobileCard/);
-  assert.doesNotMatch(view, /lg:hidden[\s\S]*flex-col/);
+  assert.doesNotMatch(view, /LogisticsMobileCard|ScaledLogisticsEventRow|ResizeObserver|transform: `scale/);
+  assert.doesNotMatch(view, /mobileListRef|mobileListWidth|LOGICAL_ROW_WIDTH_PX|LOGICAL_MOBILE_ROW_HEIGHT_PX/);
 });
