@@ -49,15 +49,19 @@ test("Staff logistics has a compact mobile week label and contained controls", (
   assert.match(view, /GENERAR RUTA/);
 });
 
-test("Staff logistics mobile rows replicate the compact desktop agenda anatomy", () => {
-  assert.match(view, /min-h-\[72px\].*grid-cols-\[38px_3px_54px_72px_68px_55px_43px_14px\]/);
-  assert.match(view, /h-12 w-1 self-center rounded-full/);
-  assert.match(view, /date\.weekday/);
-  assert.match(view, /state\.color/);
+test("Staff logistics mobile rows reuse the desktop row through uniform scaling", () => {
+  assert.match(view, /function LogisticsEventRow/);
+  assert.match(view, /<LogisticsEventRow event=\{event\} sector=\{sectorForCommune\(event\.commune, overrides\)\}/);
+  assert.match(view, /<ScaledLogisticsEventRow event=\{event\} sector=\{sectorForCommune\(event\.commune, overrides\)\}/);
+  assert.match(view, /LOGICAL_ROW_WIDTH_PX = 680/);
+  assert.match(view, /ResizeObserver/);
+  assert.match(view, /transform: `scale\(\$\{scale\}\)`/);
+  assert.match(view, /origin-top-left/);
+  assert.match(view, /grid-cols-\[72px_5px_96px_minmax\(0,1\.25fr\)_minmax\(0,1fr\)_110px_auto_20px\]/);
   assert.match(view, /event\.customer/);
   assert.match(view, /event\.location/);
-  assert.match(view, /event\.commune.*sector/);
   assert.match(view, /event\.service/);
   assert.match(view, /ChevronRight/);
-  assert.doesNotMatch(view, /function LogisticsMobileCard[\s\S]*border-r-4/);
+  assert.doesNotMatch(view, /LogisticsMobileCard/);
+  assert.doesNotMatch(view, /lg:hidden[\s\S]*flex-col/);
 });
