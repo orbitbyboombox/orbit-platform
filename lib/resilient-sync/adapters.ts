@@ -6,6 +6,8 @@ import { prepareFormalQuotePersistence } from "@/features/commercial-hub/quote-p
 import type { FormalQuoteDraft } from "@/features/commercial-hub/types";
 import { SupabaseCustomerRepository } from "@/features/projects/infrastructure";
 import type { ProjectDraft } from "@/features/projects/types/project";
+import { assertSupabaseEnvironmentSafe, isReadOnlyVisualPreview } from "@/lib/supabase/environment-guard";
+import { makeReadOnlyVisualPreviewClient } from "@/lib/supabase/read-only-preview";
 
 type Result = { resource_server_id: string; server_version: number; server_snapshot: JsonObject };
 type Conflict = { error_code: "VERSION_CONFLICT"; server_version: number; server_snapshot: JsonObject };
@@ -14,7 +16,9 @@ function actorClient(token: string) {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_PUBLISHABLE_KEY;
   if (!url || !key || !token) throw new Error("SYNC_ACTOR_TOKEN_REQUIRED");
-  return createClient(url, key, { global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false, autoRefreshToken: false } });
+  assertSupabaseEnvironmentSafe(url);
+  const client = createClient(url, key, { global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false, autoRefreshToken: false } });
+  return isReadOnlyVisualPreview() ? makeReadOnlyVisualPreviewClient(client) : client;
 }
 
 const versionOf = (row: Record<string, unknown>) => Math.max(1, Number(row.version) || Date.parse(String(row.updated_at ?? row.created_at ?? "")) || 1);

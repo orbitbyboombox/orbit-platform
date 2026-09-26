@@ -39,6 +39,15 @@ export function makeReadOnlyVisualPreviewClient<T extends SupabaseClient>(client
       }
       if (property === "rpc" || property === "functions") return readOnlyError;
       if (property === "storage") return readOnlyStorage((target as SupabaseClient).storage);
+      if (property === "auth") {
+        const auth = (target as SupabaseClient).auth;
+        return new Proxy(auth, {
+          get(authTarget, authProperty, authReceiver) {
+            if (authProperty === "admin") return readOnlyError;
+            return Reflect.get(authTarget, authProperty, authReceiver);
+          },
+        });
+      }
       return Reflect.get(target, property, receiver);
     },
   });
