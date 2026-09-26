@@ -223,7 +223,7 @@ export function StaffLogisticsView({ events }: { events: StaffLogisticsEvent[] }
   });
 
   return (
-    <section className="min-w-0 max-w-full overflow-x-clip" aria-labelledby="staff-logistics-title">
+    <section className="min-w-0 max-w-full overflow-x-clip" data-debug="logistics-root" aria-labelledby="staff-logistics-title">
       <header className="rounded-2xl border border-white/10 bg-[#111214] p-4 sm:p-5">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
@@ -264,8 +264,8 @@ export function StaffLogisticsView({ events }: { events: StaffLogisticsEvent[] }
         </div>
       </header>
 
-      <div className="w-full min-w-0 max-w-full space-y-5">
-      <div className="grid w-full max-w-full min-w-0 grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-[#111214] p-2 sm:flex sm:flex-wrap">
+      <div className="w-full min-w-0 max-w-full space-y-5" data-debug="logistics-shared">
+      <div className="grid w-full max-w-full min-w-0 grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-[#111214] p-2 sm:flex sm:flex-wrap" data-debug="filters">
         <select aria-label="Filtrar por estado" className={`${selectClass} min-w-0 w-full`} onChange={(event) => setStatus(event.target.value)} value={status}><option value="ALL">Todos los estados</option><option value="CONFIRMED">Confirmado</option><option value="PENDING">Por confirmar</option><option value="CANCELLED">Cancelado</option></select>
         <select aria-label="Filtrar por servicio" className={`${selectClass} min-w-0 w-full`} onChange={(event) => setService(event.target.value)} value={service}><option value="ALL">Todos los servicios</option>{values.services.map((item) => <option key={item} value={item}>{item}</option>)}</select>
         <select aria-label="Filtrar por comuna" className={`${selectClass} min-w-0 w-full`} onChange={(event) => setCommune(event.target.value)} value={commune}><option value="ALL">Todas las comunas</option>{values.communes.map((item) => <option key={item} value={item}>{item}</option>)}</select>
@@ -281,15 +281,217 @@ export function StaffLogisticsView({ events }: { events: StaffLogisticsEvent[] }
       <LogisticsEventList events={visible} groupBySector={groupBySector} overrides={sectorOverrides} onSelect={setSelectedId} selectedId={selectedId} />
       </div>
       {selected && <LogisticsDetail event={selected} onClose={() => setSelectedId(null)} overrides={sectorOverrides} routeDraft={routeDraft} />}
+      <LayoutDebugPanel />
     </section>
   );
+}
+
+type LayoutDebugNode = {
+  name: string;
+  tag: string;
+  left: number;
+  right: number;
+  width: number;
+  height: number;
+  display: string;
+  position: string;
+  computedWidth: string;
+  minWidth: string;
+  maxWidth: string;
+  marginLeft: string;
+  marginRight: string;
+  paddingLeft: string;
+  paddingRight: string;
+  transform: string;
+  transformOrigin: string;
+  overflow: string;
+  overflowX: string;
+  overflowY: string;
+  boxSizing: string;
+  flex: string;
+  flexBasis: string;
+  flexGrow: string;
+  flexShrink: string;
+  alignSelf: string;
+  justifySelf: string;
+  gridColumn: string;
+  gridTemplateColumns: string;
+  zoom: string;
+  offsetWidth: number;
+  clientWidth: number;
+  scrollWidth: number;
+  parent: string;
+  className: string;
+  inlineStyle: string;
+  dataAttributes: Record<string, string>;
+};
+
+function inspectLayoutNode(name: string, element: HTMLElement): LayoutDebugNode {
+  const rect = element.getBoundingClientRect();
+  const computed = getComputedStyle(element);
+  const computedStyles = {
+    display: computed.display,
+    position: computed.position,
+    computedWidth: computed.width,
+    minWidth: computed.minWidth,
+    maxWidth: computed.maxWidth,
+    marginLeft: computed.marginLeft,
+    marginRight: computed.marginRight,
+    paddingLeft: computed.paddingLeft,
+    paddingRight: computed.paddingRight,
+    transform: computed.transform,
+    transformOrigin: computed.transformOrigin,
+    overflow: computed.overflow,
+    overflowX: computed.overflowX,
+    overflowY: computed.overflowY,
+    boxSizing: computed.boxSizing,
+    flex: computed.flex,
+    flexBasis: computed.flexBasis,
+    flexGrow: computed.flexGrow,
+    flexShrink: computed.flexShrink,
+    alignSelf: computed.alignSelf,
+    justifySelf: computed.justifySelf,
+    gridColumn: computed.gridColumn,
+    gridTemplateColumns: computed.gridTemplateColumns,
+    zoom: computed.zoom,
+  };
+  const dataAttributes = Object.fromEntries(
+    Array.from(element.attributes).filter((attribute) => attribute.name.startsWith("data-")).map((attribute) => [attribute.name, attribute.value]),
+  );
+  return {
+    name,
+    tag: element.tagName,
+    left: rect.left,
+    right: rect.right,
+    width: rect.width,
+    height: rect.height,
+    ...computedStyles,
+    offsetWidth: element.offsetWidth,
+    clientWidth: element.clientWidth,
+    scrollWidth: element.scrollWidth,
+    parent: element.parentElement?.dataset.debug ?? element.parentElement?.tagName ?? "NONE",
+    className: element.className,
+    inlineStyle: element.getAttribute("style") ?? "",
+    dataAttributes,
+  };
+}
+
+function LayoutDebugPanel() {
+  const [enabled, setEnabled] = useState(false);
+  const [diagnostic, setDiagnostic] = useState<Record<string, unknown> | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    setEnabled(new URLSearchParams(window.location.search).get("layoutDebug") === "1");
+  }, []);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const page = document.getElementById("platform-workspace-content");
+    if (page) page.dataset.debug = "page-container";
+    const update = () => {
+      const find = (name: string) => document.querySelector<HTMLElement>(`[data-debug="${name}"]`);
+      const pageElement = page;
+      const staff = find("staff-workspaces");
+      const logistics = find("logistics-root");
+      const shared = find("logistics-shared");
+      const filters = find("filters");
+      const list = find("event-list");
+      const row = find("mobile-row");
+      const host = find("scaled-host");
+      const inner = find("scaled-inner");
+      const button = find("event-button");
+      if (!filters || !list || !row || !host || !inner || !button) return;
+      const nodes = [
+        ["page-container", pageElement], ["staff-workspaces", staff], ["logistics-root", logistics],
+        ["logistics-shared", shared], ["filters", filters], ["event-list", list], ["mobile-row", row],
+        ["scaled-host", host], ["scaled-inner", inner], ["event-button", button],
+      ].filter((entry): entry is [string, HTMLElement] => Boolean(entry[1])).map(([name, element]) => [name, inspectLayoutNode(name, element)] as const);
+      const filterRect = filters.getBoundingClientRect();
+      const hostRect = host.getBoundingClientRect();
+      const innerRect = inner.getBoundingClientRect();
+      const buttonRect = button.getBoundingClientRect();
+      const ancestors: LayoutDebugNode[] = [];
+      let current: HTMLElement | null = button.parentElement;
+      while (current) {
+        ancestors.push(inspectLayoutNode(`ancestor-${ancestors.length}`, current));
+        if (current.id === "platform-workspace-content") break;
+        current = current.parentElement;
+      }
+      const firstNarrowing = ancestors.find((node) => node.width < filterRect.width - 4)?.name ?? "NONE";
+      const firstOffset = ancestors.find((node) => node.left - filterRect.left > 4)?.name ?? "NONE";
+      const engineTouched = ancestors.filter((node) => Object.keys(node.dataAttributes).some((key) => ["data-workspace-ordering-parent", "data-workspace-key", "data-workspace-label"].includes(key)) || ["workspace-draggable", "workspace-menu-host"].some((name) => node.className.includes(name))).map((node) => node.name);
+      const viewport = {
+        windowInnerWidth: window.innerWidth,
+        windowOuterWidth: window.outerWidth,
+        documentClientWidth: document.documentElement.clientWidth,
+        documentScrollWidth: document.documentElement.scrollWidth,
+        devicePixelRatio: window.devicePixelRatio,
+        visualViewportWidth: window.visualViewport?.width ?? null,
+        visualViewportScale: window.visualViewport?.scale ?? null,
+      };
+      setDiagnostic({
+        viewport,
+        nodes: Object.fromEntries(nodes),
+        scale: {
+          logicalRowWidthPx: Number(host.dataset.debugLogicalWidth),
+          availableWidthState: Number(host.dataset.debugAvailableWidth),
+          hostWidth: hostRect.width,
+          calculatedScale: Number(host.dataset.debugScale),
+          innerLayoutWidth: parseFloat(getComputedStyle(inner).width),
+          innerVisualWidth: innerRect.width,
+          buttonWidth: buttonRect.width,
+          expectedVisualWidth: 680 * Number(host.dataset.debugScale),
+          deltaInnerHost: innerRect.width - hostRect.width,
+        },
+        comparison: {
+          filter: { left: filterRect.left, right: filterRect.right, width: filterRect.width },
+          eventList: (() => { const rect = list.getBoundingClientRect(); return { left: rect.left, right: rect.right, width: rect.width }; })(),
+          mobileRow: (() => { const rect = row.getBoundingClientRect(); return { left: rect.left, right: rect.right, width: rect.width }; })(),
+          scaledHost: { left: hostRect.left, right: hostRect.right, width: hostRect.width },
+          eventButton: { left: buttonRect.left, right: buttonRect.right, width: buttonRect.width },
+        },
+        firstNarrowingAncestor: firstNarrowing,
+        firstHorizontalOffsetAncestor: firstOffset,
+        globalLayoutEngineTouchesLogisticsTree: engineTouched.length > 0 ? "YES" : "NO",
+        elementsTouchedByGlobalLayoutEngine: engineTouched,
+        ancestors,
+      });
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(document.documentElement);
+    const mutationObserver = new MutationObserver(update);
+    if (page) mutationObserver.observe(page, { attributes: true, attributeFilter: ["style", "class", "data-workspace-key", "data-workspace-ordering-parent"], subtree: true });
+    window.addEventListener("resize", update);
+    window.visualViewport?.addEventListener("resize", update);
+    const timer = window.setInterval(update, 500);
+    return () => {
+      observer.disconnect();
+      mutationObserver.disconnect();
+      window.removeEventListener("resize", update);
+      window.visualViewport?.removeEventListener("resize", update);
+      window.clearInterval(timer);
+      if (page?.dataset.debug === "page-container") delete page.dataset.debug;
+    };
+  }, [enabled]);
+
+  if (!enabled) return null;
+  const text = JSON.stringify(diagnostic, null, 2);
+  return <aside style={{ position: "fixed", zIndex: 2147483647, left: 8, right: 8, bottom: 8, maxHeight: "70vh", overflow: "auto", border: "1px solid #f78900", borderRadius: 8, background: "#050607", color: "#f5f5f5", padding: 8, fontFamily: "monospace", fontSize: 10, lineHeight: 1.35, whiteSpace: "pre-wrap" }}>
+    <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", position: "sticky", top: 0, background: "#050607", paddingBottom: 6 }}>
+      <button type="button" onClick={() => { void navigator.clipboard?.writeText(text); setCopied(true); }}>[{copied ? "COPIADO" : "COPIAR DIAGNÓSTICO"}]</button>
+      <button type="button" onClick={() => setEnabled(false)}>[CERRAR]</button>
+    </div>
+    <pre style={{ margin: 0 }}>{text || "Recolectando diagnóstico…"}</pre>
+  </aside>;
 }
 
 function LogisticsEventList({ events, groupBySector, overrides, onSelect, selectedId }: { events: StaffLogisticsEvent[]; groupBySector: boolean; overrides: Record<string, LogisticsSector>; onSelect: (id: string) => void; selectedId: string | null }) {
   if (!events.length) return <EmptyState />;
   const desktopRow = (event: StaffLogisticsEvent) => <div key={event.id}><LogisticsEventRow event={event} sector={sectorForCommune(event.commune, overrides)} onSelect={() => onSelect(event.id)} selected={selectedId === event.id} /></div>;
-  const mobileRow = (event: StaffLogisticsEvent) => <div className="w-full min-w-0 max-w-full overflow-visible" key={event.id}><ScaledLogisticsEventRow event={event} sector={sectorForCommune(event.commune, overrides)} onSelect={() => onSelect(event.id)} selected={selectedId === event.id} /></div>;
-  if (!groupBySector) return <><div className="hidden w-full min-w-0 max-w-full space-y-2 lg:block">{events.map(desktopRow)}</div><div className="w-full min-w-0 max-w-full lg:hidden"><div className="w-full min-w-0 max-w-full space-y-2">{events.map(mobileRow)}</div></div></>;
+  const mobileRow = (event: StaffLogisticsEvent) => <div className="w-full min-w-0 max-w-full overflow-visible" data-debug="mobile-row" key={event.id}><ScaledLogisticsEventRow event={event} sector={sectorForCommune(event.commune, overrides)} onSelect={() => onSelect(event.id)} selected={selectedId === event.id} /></div>;
+  if (!groupBySector) return <><div className="hidden w-full min-w-0 max-w-full space-y-2 lg:block">{events.map(desktopRow)}</div><div className="w-full min-w-0 max-w-full lg:hidden" data-debug="event-list"><div className="w-full min-w-0 max-w-full space-y-2">{events.map(mobileRow)}</div></div></>;
   const grouped = new Map<LogisticsSector, Map<string, StaffLogisticsEvent[]>>();
   for (const event of events) {
     const sector = sectorForCommune(event.commune, overrides);
@@ -298,7 +500,7 @@ function LogisticsEventList({ events, groupBySector, overrides, onSelect, select
     grouped.set(sector, communes);
   }
   const groupedRows = (renderRow: (event: StaffLogisticsEvent) => ReactNode) => <div className="w-full max-w-full min-w-0 space-y-3">{sectorOrder.filter((sector) => grouped.has(sector)).map((sector) => <details className="rounded-2xl border border-white/10 bg-[#111214] p-0 lg:p-3" key={sector} open><summary className="cursor-pointer list-none px-1 py-2 text-sm font-semibold text-white lg:px-0"><span className="text-brand">SECTOR {sector}</span><span className="ml-2 text-xs font-normal text-white/45">{[...(grouped.get(sector)?.values() ?? [])].reduce((total, items) => total + items.length, 0)} eventos</span></summary><div className="mt-2 space-y-3 lg:mt-3">{[...(grouped.get(sector)?.entries() ?? [])].sort(([a], [b]) => a.localeCompare(b)).map(([commune, communeEvents]) => <details className="rounded-xl border border-white/10 bg-[#17181a] p-0 lg:p-2" key={commune} open><summary className="cursor-pointer list-none px-1 py-1 text-xs font-semibold uppercase tracking-[.16em] text-white/60 lg:px-2">{commune}<span className="ml-2 text-[10px] font-normal text-white/35">({communeEvents.length})</span></summary><div className="mt-2 space-y-2">{communeEvents.map(renderRow)}</div></details>)}</div></details>)}</div>;
-  return <><div className="hidden w-full min-w-0 max-w-full lg:block">{groupedRows(desktopRow)}</div><div className="w-full min-w-0 max-w-full lg:hidden">{groupedRows(mobileRow)}</div></>;
+  return <><div className="hidden w-full min-w-0 max-w-full lg:block">{groupedRows(desktopRow)}</div><div className="w-full min-w-0 max-w-full lg:hidden" data-debug="event-list">{groupedRows(mobileRow)}</div></>;
 }
 
 function SectorMappingEditor({ communes, overrides, onChange }: { communes: string[]; overrides: Record<string, LogisticsSector>; onChange: (next: Record<string, LogisticsSector>) => void }) {
@@ -335,8 +537,8 @@ function ScaledLogisticsEventRow({ event, sector, onSelect, selected }: { event:
   }, []);
 
   const scale = Math.min(1, (availableWidth || 358) / LOGICAL_ROW_WIDTH_PX);
-  return <div ref={hostRef} className="w-full min-w-0 max-w-full overflow-visible" style={{ width: "100%", height: `${naturalHeight * scale}px` }}>
-    <div ref={innerRef} className="origin-top-left" style={{ width: `${LOGICAL_ROW_WIDTH_PX}px`, transform: `scale(${scale})` }}>
+  return <div ref={hostRef} className="w-full min-w-0 max-w-full overflow-visible" data-debug="scaled-host" data-debug-available-width={availableWidth} data-debug-scale={scale} data-debug-logical-width={LOGICAL_ROW_WIDTH_PX} style={{ width: "100%", height: `${naturalHeight * scale}px` }}>
+    <div ref={innerRef} className="origin-top-left" data-debug="scaled-inner" style={{ width: `${LOGICAL_ROW_WIDTH_PX}px`, transform: `scale(${scale})` }}>
       <LogisticsEventRow event={event} sector={sector} onSelect={onSelect} selected={selected} />
     </div>
   </div>;
@@ -345,7 +547,7 @@ function ScaledLogisticsEventRow({ event, sector, onSelect, selected }: { event:
 function LogisticsEventRow({ event, sector, onSelect, selected }: { event: StaffLogisticsEvent; sector: LogisticsSector; onSelect: () => void; selected: boolean }) {
   const state = statusView[normalizeStatus(event.status)];
   const date = dateParts(event.date);
-  return <button className={`grid w-full min-w-0 grid-cols-[72px_5px_96px_minmax(0,1.25fr)_minmax(0,1fr)_110px_auto_20px] items-center gap-3 overflow-hidden rounded-2xl border border-white/10 bg-[#111214] px-4 py-3 text-left transition hover:border-white/20 hover:bg-white/[.03] ${selected ? "border-brand/60 bg-brand/5" : ""}`} onClick={onSelect}>
+  return <button data-debug="event-button" className={`grid w-full min-w-0 grid-cols-[72px_5px_96px_minmax(0,1.25fr)_minmax(0,1fr)_110px_auto_20px] items-center gap-3 overflow-hidden rounded-2xl border border-white/10 bg-[#111214] px-4 py-3 text-left transition hover:border-white/20 hover:bg-white/[.03] ${selected ? "border-brand/60 bg-brand/5" : ""}`} onClick={onSelect}>
     <span className="text-xs font-semibold leading-tight text-white"><strong className="block text-lg">{date.day}</strong><span className="block text-[10px] text-white/50">{date.weekday} · {date.month}</span></span><span className={`h-12 w-1 rounded-full ${state.bar}`} /><span className="text-sm font-medium text-white/90">{formatTime(event.time)} → {formatTime(event.endTime)}<span className="block text-[10px] text-white/40">Citación {formatTime(event.staffCallAt)}</span></span><span className="min-w-0"><strong className="block truncate text-sm text-white">{event.customer}</strong><span className="mt-0.5 block truncate text-[11px] text-white/45">{event.operator === "Sin asignar" ? "Sin operador" : `Operador · ${event.operator}`} · {event.box === "Sin asignar" ? "Sin caja" : event.box}</span><span className="block truncate text-[10px] text-white/35">M {formatTime(event.setupTime)} · D {formatTime(event.teardownTime)}</span></span><span className="flex min-w-0 items-start gap-1.5 text-xs text-white/65"><MapPin className="mt-0.5 size-3.5 shrink-0 text-white/45" /><span className="min-w-0 truncate">{event.location}<span className="block truncate text-white/35">{event.commune} · {sector}</span></span></span><span className={`inline-flex items-center gap-1.5 text-xs font-medium ${state.color}`}><i className={`size-2 shrink-0 rounded-full ${state.dot}`} />{state.label}</span><span className="whitespace-nowrap rounded-full border border-white/10 bg-white/[.05] px-2.5 py-1 text-[11px] font-semibold text-white/75">{event.service}{event.duration ? ` · ${event.duration}h` : ""}</span><ChevronRight className="size-4 text-brand" />
   </button>;
 }

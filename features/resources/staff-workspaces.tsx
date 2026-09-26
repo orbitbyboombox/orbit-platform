@@ -48,7 +48,7 @@ export function StaffWorkspaces({
     ACADEMY: academy,
   }[active];
   return (
-    <section className="space-y-6">
+    <section className="space-y-6" data-debug="staff-workspaces">
       <header className="rounded-2xl border bg-card p-4 sm:p-5">
         <p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">
           Staff · Centro de ejecución BOOMBOX
