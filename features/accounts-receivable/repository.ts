@@ -9,6 +9,7 @@ import {
   summarizeReceivablePaymentCategories,
 } from "./payment-term-classification";
 import { resolveCollectionEventDetail } from "./collection-event-detail";
+import { isReadOnlyVisualPreview } from "@/lib/supabase/environment-guard";
 
 function relation<T>(value: T | T[] | null | undefined): T | null {
   return Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
@@ -54,7 +55,7 @@ function eventDetail(project: {
 export async function loadAccountsReceivable(
   client: SupabaseClient,
 ): Promise<ReceivableDataset> {
-  await client.rpc("refresh_receivable_notifications");
+  if (!isReadOnlyVisualPreview()) await client.rpc("refresh_receivable_notifications");
   const [
     invoicesResult,
     historyResult,

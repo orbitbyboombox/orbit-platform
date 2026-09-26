@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 const blockedDatabaseMethods = new Set(["insert", "upsert", "update", "delete"]);
 const blockedStorageMethods = new Set(["upload", "update", "remove", "move", "copy"]);
-const readOnlyRpcNames = new Set(["get_event_asset_availability", "get_event_capacity"]);
+const readOnlyRpcNames = new Set(["get_event_asset_availability", "get_event_capacity", "invoice_payment_cash_impact"]);
 const readOnlyError = () => {
   throw new Error("READ_ONLY_VISUAL_PREVIEW: mutation blocked.");
 };
