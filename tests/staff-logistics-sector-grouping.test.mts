@@ -60,8 +60,8 @@ test("Staff logistics mobile rows restore the desktop preview row with left-alig
   assert.match(view, /ResizeObserver/);
   assert.match(view, /transform: `scale\(\$\{scale\}\)`/);
   assert.match(view, /origin-top-left/);
+  assert.match(view, /ml-\[calc\(50%-50vw\+12px\)\]/);
   assert.match(view, /w-\[calc\(100vw-24px\)\]/);
-  assert.match(view, /calc\(50% - 50vw \+ 12px\)/);
   assert.match(view, /grid-cols-\[72px_5px_96px_minmax\(0,1\.25fr\)_minmax\(0,1fr\)_110px_auto_20px\]/);
   assert.match(view, /w-full max-w-full min-w-0/);
   assert.match(view, /event\.customer/);
