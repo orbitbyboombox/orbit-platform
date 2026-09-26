@@ -19,3 +19,16 @@ test("Staff logistics rows retain operational time windows", () => {
   assert.match(view, /formatTime\(event\.teardownTime\)/);
   assert.match(view, /formatTime\(event\.endTime\)/);
 });
+
+test("Staff logistics keeps date navigation together and exposes the primary controls", () => {
+  assert.match(view, /aria-label="Navegación de rango de fechas"/);
+  assert.match(view, /AGRUPAR POR SECTOR/);
+  assert.match(view, /GENERAR RUTA/);
+  assert.match(view, /Más opciones de logística/);
+});
+
+test("Staff logistics detail exposes commune and mapped sector", () => {
+  assert.match(view, /DetailItem label="COMUNA"/);
+  assert.match(view, /DetailItem label="SECTOR"/);
+  assert.match(view, /sectorForCommune\(event\.commune, overrides\)/);
+});
