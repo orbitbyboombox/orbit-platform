@@ -175,6 +175,7 @@ export function StaffLogisticsView({ events }: { events: StaffLogisticsEvent[] }
   const [mappingOpen, setMappingOpen] = useState(false);
   const [sectorOverrides, setSectorOverrides] = useState<Record<string, LogisticsSector>>({});
   const [anchor, setAnchor] = useState(() => dateOnly(chileCurrentWeek().start));
+  const logisticsRootRef = useRef<HTMLElement>(null);
   const filtersWrapperRef = useRef<HTMLDivElement>(null);
   const eventListWrapperRef = useRef<HTMLDivElement>(null);
   const days = useMemo(() => weekDays(anchor), [anchor]);
@@ -213,12 +214,19 @@ export function StaffLogisticsView({ events }: { events: StaffLogisticsEvent[] }
   useEffect(() => {
     const filtersWrapper = filtersWrapperRef.current;
     const eventListWrapper = eventListWrapperRef.current;
-    if (!filtersWrapper || !eventListWrapper) return;
+    const root = logisticsRootRef.current;
+    const mobileRowWrapper = root?.querySelector<HTMLElement>("[data-logistics-mobile-row-wrapper]");
+    const scaledHost = root?.querySelector<HTMLElement>("[data-logistics-scaled-row-host]");
+    if (!filtersWrapper || !eventListWrapper || !mobileRowWrapper || !scaledHost) return;
     const filtersRect = filtersWrapper.getBoundingClientRect();
     const listRect = eventListWrapper.getBoundingClientRect();
+    const mobileRowRect = mobileRowWrapper.getBoundingClientRect();
+    const scaledHostRect = scaledHost.getBoundingClientRect();
     console.log({
       filters: { left: filtersRect.left, right: filtersRect.right, width: filtersRect.width },
       list: { left: listRect.left, right: listRect.right, width: listRect.width },
+      mobileRow: { left: mobileRowRect.left, right: mobileRowRect.right, width: mobileRowRect.width },
+      scaledHost: { left: scaledHostRect.left, right: scaledHostRect.right, width: scaledHostRect.width },
     });
   }, [events.length, visible.length, groupBySector, mappingOpen, routeOpen]);
 
@@ -237,7 +245,7 @@ export function StaffLogisticsView({ events }: { events: StaffLogisticsEvent[] }
   });
 
   return (
-    <section className="min-w-0 max-w-full space-y-5 overflow-x-clip" aria-labelledby="staff-logistics-title">
+    <section ref={logisticsRootRef} className="min-w-0 max-w-full space-y-5 overflow-x-clip" aria-labelledby="staff-logistics-title">
       <header className="rounded-2xl border border-white/10 bg-[#111214] p-4 sm:p-5">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
@@ -300,8 +308,8 @@ export function StaffLogisticsView({ events }: { events: StaffLogisticsEvent[] }
 function LogisticsEventList({ listRef, events, groupBySector, overrides, onSelect, selectedId }: { listRef: React.RefObject<HTMLDivElement | null>; events: StaffLogisticsEvent[]; groupBySector: boolean; overrides: Record<string, LogisticsSector>; onSelect: (id: string) => void; selectedId: string | null }) {
   if (!events.length) return <EmptyState />;
   const desktopRow = (event: StaffLogisticsEvent) => <div key={event.id}><LogisticsEventRow event={event} sector={sectorForCommune(event.commune, overrides)} onSelect={() => onSelect(event.id)} selected={selectedId === event.id} /></div>;
-  const mobileRow = (event: StaffLogisticsEvent) => <div className="relative w-full max-w-full min-w-0 overflow-visible" style={{ left: "-100px" }} key={event.id}><ScaledLogisticsEventRow event={event} sector={sectorForCommune(event.commune, overrides)} onSelect={() => onSelect(event.id)} selected={selectedId === event.id} /></div>;
-  if (!groupBySector) return <div ref={listRef} className="w-full max-w-full min-w-0"><div className="hidden w-full max-w-full min-w-0 space-y-2 lg:block">{events.map(desktopRow)}</div><div className="w-full max-w-full min-w-0 space-y-2 lg:hidden">{events.map(mobileRow)}</div></div>;
+  const mobileRow = (event: StaffLogisticsEvent) => <div data-logistics-mobile-row-wrapper className="w-full max-w-full min-w-0 overflow-visible" key={event.id}><ScaledLogisticsEventRow event={event} sector={sectorForCommune(event.commune, overrides)} onSelect={() => onSelect(event.id)} selected={selectedId === event.id} /></div>;
+  if (!groupBySector) return <div ref={listRef} data-logistics-event-list-wrapper className="w-full max-w-full min-w-0"><div className="hidden w-full max-w-full min-w-0 space-y-2 lg:block">{events.map(desktopRow)}</div><div className="w-full max-w-full min-w-0 space-y-2 lg:hidden">{events.map(mobileRow)}</div></div>;
   const grouped = new Map<LogisticsSector, Map<string, StaffLogisticsEvent[]>>();
   for (const event of events) {
     const sector = sectorForCommune(event.commune, overrides);
@@ -310,7 +318,7 @@ function LogisticsEventList({ listRef, events, groupBySector, overrides, onSelec
     grouped.set(sector, communes);
   }
   const groupedRows = (renderRow: (event: StaffLogisticsEvent) => ReactNode) => <div className="w-full max-w-full min-w-0 space-y-3">{sectorOrder.filter((sector) => grouped.has(sector)).map((sector) => <details className="rounded-2xl border border-white/10 bg-[#111214] p-0 lg:p-3" key={sector} open><summary className="cursor-pointer list-none px-1 py-2 text-sm font-semibold text-white lg:px-0"><span className="text-brand">SECTOR {sector}</span><span className="ml-2 text-xs font-normal text-white/45">{[...(grouped.get(sector)?.values() ?? [])].reduce((total, items) => total + items.length, 0)} eventos</span></summary><div className="mt-2 space-y-3 lg:mt-3">{[...(grouped.get(sector)?.entries() ?? [])].sort(([a], [b]) => a.localeCompare(b)).map(([commune, communeEvents]) => <details className="rounded-xl border border-white/10 bg-[#17181a] p-0 lg:p-2" key={commune} open><summary className="cursor-pointer list-none px-1 py-1 text-xs font-semibold uppercase tracking-[.16em] text-white/60 lg:px-2">{commune}<span className="ml-2 text-[10px] font-normal text-white/35">({communeEvents.length})</span></summary><div className="mt-2 space-y-2">{communeEvents.map(renderRow)}</div></details>)}</div></details>)}</div>;
-  return <div ref={listRef} className="w-full max-w-full min-w-0"><div className="hidden w-full max-w-full min-w-0 lg:block">{groupedRows(desktopRow)}</div><div className="w-full max-w-full min-w-0 lg:hidden">{groupedRows(mobileRow)}</div></div>;
+  return <div ref={listRef} data-logistics-event-list-wrapper className="w-full max-w-full min-w-0"><div className="hidden w-full max-w-full min-w-0 lg:block">{groupedRows(desktopRow)}</div><div className="w-full max-w-full min-w-0 lg:hidden">{groupedRows(mobileRow)}</div></div>;
 }
 
 function SectorMappingEditor({ communes, overrides, onChange }: { communes: string[]; overrides: Record<string, LogisticsSector>; onChange: (next: Record<string, LogisticsSector>) => void }) {
@@ -347,7 +355,7 @@ function ScaledLogisticsEventRow({ event, sector, onSelect, selected }: { event:
   }, []);
 
   const scale = Math.min(1, (availableWidth || 358) / LOGICAL_ROW_WIDTH_PX);
-  return <div ref={hostRef} className="w-full max-w-full min-w-0 overflow-x-hidden overflow-y-visible" style={{ height: `${naturalHeight * scale}px` }}>
+  return <div ref={hostRef} data-logistics-scaled-row-host className="w-full max-w-full min-w-0 overflow-x-hidden overflow-y-visible" style={{ height: `${naturalHeight * scale}px` }}>
     <div ref={innerRef} className="origin-top-left" style={{ width: `${LOGICAL_ROW_WIDTH_PX}px`, transform: `scale(${scale})` }}>
       <LogisticsEventRow event={event} sector={sector} onSelect={onSelect} selected={selected} />
     </div>
