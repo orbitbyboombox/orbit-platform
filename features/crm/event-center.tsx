@@ -277,12 +277,12 @@ export function EventCenter({
       <section className="space-y-3">
         {filtered.map((event) => (
           <article
-            className="group grid min-w-0 gap-4 rounded-2xl border border-white/10 bg-[#191a1d] p-4 text-white shadow-[0_10px_35px_rgba(0,0,0,.12)] transition hover:border-brand/70 sm:p-5 md:grid-cols-[72px_minmax(0,1fr)_auto] md:items-center"
+            className="group grid min-w-0 grid-cols-[56px_minmax(0,1fr)] gap-x-3 gap-y-2 rounded-2xl border border-white/10 bg-[#191a1d] p-3 text-white shadow-[0_10px_35px_rgba(0,0,0,.12)] transition hover:border-brand/70 sm:p-5 md:grid-cols-[72px_minmax(0,1fr)_auto] md:items-center md:gap-4"
             key={event.projectId}
           >
-            <div className="grid size-16 shrink-0 place-items-center rounded-xl bg-[#0d0e10] text-center ring-1 ring-white/10">
+            <div className="grid size-14 shrink-0 place-items-center rounded-xl bg-[#0d0e10] text-center ring-1 ring-white/10 md:size-16">
               <span className="text-[10px] uppercase tracking-[.16em] text-brand">{event.date ? new Date(`${event.date}T12:00:00Z`).toLocaleDateString("es-CL", { weekday: "short" }) : "—"}</span>
-              <strong className="text-2xl leading-none">{event.date?.slice(8, 10) ?? "—"}</strong>
+              <strong className="text-xl leading-none md:text-2xl">{event.date?.slice(8, 10) ?? "—"}</strong>
               <span className="text-[10px] text-white/50">{event.date?.slice(5, 7) ?? ""}</span>
             </div>
             <div className="min-w-0">
@@ -295,7 +295,7 @@ export function EventCenter({
                   {event.status}
                 </span>
               </div>
-              <p className="mt-2 break-words text-sm text-white/60">
+              <p className="mt-1 break-words text-xs text-white/60 md:mt-2 md:text-sm">
                 {event.company || "Cliente particular"} ·{" "}
                 {event.date
                   ? new Date(`${event.date}T12:00:00Z`).toLocaleDateString(
@@ -303,7 +303,7 @@ export function EventCenter({
                     )
                   : "Sin fecha"} · {event.time?.slice(0, 5) || "Sin hora"}
               </p>
-              <p className="mt-1 break-words text-sm font-semibold text-white/80">
+              <p className="mt-1 break-words text-xs font-semibold text-white/80 md:text-sm">
                 {event.service || "Servicio por confirmar"}
                 {event.duration ? ` · ${event.duration}h` : ""} · {event.time?.slice(0, 5) || "Sin hora"}–{event.serviceEndAt?.slice(11, 16) || "—"}
               </p>
@@ -314,7 +314,7 @@ export function EventCenter({
                 Citación {event.staffCallAt?.slice(11, 16) || "por confirmar"} · {event.extras.length ? event.extras.join(" + ") : "Sin extras"} · Operador: {event.operator}
               </p>
             </div>
-            <div className="flex min-w-0 items-center justify-end gap-2">
+            <div className="col-start-2 row-start-2 flex min-w-0 items-center justify-end gap-2 md:col-start-auto md:row-start-auto">
               <span className="hidden text-xs text-white/45 md:block">Abrir</span>
               <Link
                 className="rounded-xl border px-3 py-2 text-sm"
