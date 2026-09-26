@@ -20,6 +20,7 @@ test("Phase C.5 remains wired to the paper ledger and closeout guard", () => {
   const migration = read("supabase/migrations/20260926004605_phase_c5_event_paper_consumption.sql");
   const panel = read("features/portal-authentication/staff-box-operations-panel.tsx");
   assert.match(migration, /event_paper_snapshots/);
+  assert.match(migration, /from public\.projects p\s+where p\.id=new\.project_id/);
   assert.match(migration, /EVENT_USAGE/);
   assert.match(migration, /Falta registrar el papel restante/);
   assert.match(panel, /Falta registrar el papel restante/);

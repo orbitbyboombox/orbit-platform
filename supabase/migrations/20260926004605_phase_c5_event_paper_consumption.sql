@@ -71,7 +71,10 @@ begin
   )
   select p.id,p.orbit_event_id,new.id,new.asset_id,coalesce(lot_row.printer_asset_id,printer_id),lot_row.id,
     lot_row.format_key,lot_row.lot,requires_paper,coalesce(lot_row.remaining_photo_capacity,0),
-    'PENDING' where not exists(select 1 from public.event_paper_snapshots s where s.asset_assignment_id=new.id);
+    'PENDING'
+  from public.projects p
+  where p.id=new.project_id
+    and not exists(select 1 from public.event_paper_snapshots s where s.asset_assignment_id=new.id);
   return new;
 end $$;
 
