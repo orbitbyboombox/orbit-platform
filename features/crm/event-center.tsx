@@ -45,6 +45,32 @@ const statusOf = (event: CrmOperationalEvent): View => {
   return "UPCOMING";
 };
 
+const mobileStatusView = (status: string) => {
+  const normalized = status.toUpperCase();
+  if (["CANCELLED", "CANCELED"].includes(normalized)) {
+    return {
+      label: "Cancelado",
+      dot: "bg-red-400",
+      accent: "bg-red-500",
+      text: "text-red-300",
+    };
+  }
+  if (["PENDING", "PENDING_CONFIRMATION", "DRAFT"].includes(normalized)) {
+    return {
+      label: "Por confirmar",
+      dot: "bg-orange-400",
+      accent: "bg-orange-500",
+      text: "text-orange-300",
+    };
+  }
+  return {
+    label: "Confirmado",
+    dot: "bg-emerald-400",
+    accent: "bg-emerald-400",
+    text: "text-emerald-300",
+  };
+};
+
 export function EventCenter({
   canForceDelete,
   initialEvents,
@@ -274,96 +300,85 @@ export function EventCenter({
           {error}
         </p>
       ) : null}
-      <section className="space-y-3">
+      <section className="min-w-0 max-w-full space-y-3 overflow-x-clip">
         {filtered.map((event) => (
-          <article
-            className="group grid min-w-0 grid-cols-[52px_minmax(0,1fr)] gap-x-3 rounded-2xl border border-white/10 bg-[#191a1d] p-3 text-white shadow-[0_10px_35px_rgba(0,0,0,.12)] transition hover:border-brand/70 sm:p-5 md:grid-cols-[72px_minmax(0,1fr)_auto] md:items-center md:gap-4"
-            key={event.projectId}
-          >
-            <div className="grid size-[52px] shrink-0 place-items-center rounded-xl bg-[#0d0e10] text-center ring-1 ring-white/10 md:size-16">
-              <span className="text-[10px] uppercase tracking-[.16em] text-brand">{event.date ? new Date(`${event.date}T12:00:00Z`).toLocaleDateString("es-CL", { weekday: "short" }) : "—"}</span>
-              <strong className="text-xl leading-none md:text-2xl">{event.date?.slice(8, 10) ?? "—"}</strong>
-              <span className="text-[10px] text-white/50">{event.date?.slice(5, 7) ?? ""}</span>
-            </div>
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <CalendarDays className="size-4 shrink-0 text-brand" />
-                <h2 className="min-w-0 break-words font-semibold">
-                  {event.customerName}
-                </h2>
-                <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-xs text-emerald-300">
-                  {event.status}
-                </span>
+          <div key={event.projectId}>
+            <article className="grid min-h-[92px] w-full min-w-0 grid-cols-[48px_4px_minmax(0,1fr)_16px] items-center gap-x-2 rounded-2xl border border-white/10 bg-[#191a1d] px-2.5 py-2 text-white shadow-[0_10px_35px_rgba(0,0,0,.12)] transition hover:border-brand/70 md:hidden">
+              {(() => {
+                const status = mobileStatusView(event.status);
+                return (
+                  <>
+                    <div className="flex min-h-[72px] flex-col items-center justify-center text-center">
+                      <span className="text-[9px] font-semibold uppercase tracking-[.12em] text-brand">
+                        {event.date ? new Date(`${event.date}T12:00:00Z`).toLocaleDateString("es-CL", { weekday: "short" }) : "—"}
+                      </span>
+                      <strong className="text-2xl leading-none">{event.date?.slice(8, 10) ?? "—"}</strong>
+                      <span className="text-[9px] uppercase text-white/50">{event.date ? new Date(`${event.date}T12:00:00Z`).toLocaleDateString("es-CL", { month: "short" }) : "—"}</span>
+                    </div>
+                    <span aria-hidden="true" className={`h-14 w-1 self-center rounded-full ${status.accent}`} />
+                    <div className="min-w-0 py-0.5">
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <p className="min-w-0 truncate text-[11px] font-semibold text-white/90">
+                          {event.time?.slice(0, 5) || "—"} → {event.serviceEndAt?.slice(11, 16) || "—"}
+                          {event.duration ? ` · ${event.duration}h` : ""}
+                        </p>
+                        <span className="max-w-[82px] shrink-0 truncate rounded-full border border-white/15 bg-white/[.06] px-1.5 py-0.5 text-[9px] text-white/70">
+                          {event.service || "Servicio"}
+                        </span>
+                      </div>
+                      <p className="truncate text-[13px] font-semibold leading-tight">{event.customerName}</p>
+                      <p className="truncate text-[10px] leading-tight text-white/55">
+                        {event.location || "Lugar por confirmar"} · {event.municipality || "Comuna por confirmar"}
+                      </p>
+                      <div className="flex min-w-0 items-center gap-1.5 text-[9px] leading-tight text-white/45">
+                        <p className="min-w-0 flex-1 truncate">
+                          Citación {event.staffCallAt?.slice(11, 16) || "—"} · {event.operator || "Sin asignar"}
+                        </p>
+                        <span className={`inline-flex shrink-0 items-center gap-1 ${status.text}`}>
+                          <span className={`size-1.5 rounded-full ${status.dot}`} />{status.label}
+                        </span>
+                      </div>
+                    </div>
+                    <Link aria-label={`Abrir evento ${event.customerName}`} className="grid size-7 place-items-center text-white/75" href={`/projects/${event.projectId}`}>
+                      <span aria-hidden="true" className="text-xl leading-none">›</span>
+                    </Link>
+                  </>
+                );
+              })()}
+            </article>
+            <article className="group hidden min-w-0 md:grid-cols-[72px_minmax(0,1fr)_auto] gap-4 rounded-2xl border border-white/10 bg-[#191a1d] p-5 text-white shadow-[0_10px_35px_rgba(0,0,0,.12)] transition hover:border-brand/70 md:grid md:items-center">
+              <div className="grid size-16 shrink-0 place-items-center rounded-xl bg-[#0d0e10] text-center ring-1 ring-white/10">
+                <span className="text-[10px] uppercase tracking-[.16em] text-brand">{event.date ? new Date(`${event.date}T12:00:00Z`).toLocaleDateString("es-CL", { weekday: "short" }) : "—"}</span>
+                <strong className="text-2xl leading-none">{event.date?.slice(8, 10) ?? "—"}</strong>
+                <span className="text-[10px] text-white/50">{event.date?.slice(5, 7) ?? ""}</span>
               </div>
-              <p className="mt-0.5 break-words text-[11px] leading-snug text-white/60 md:mt-2 md:text-sm">
-                {event.company || "Cliente particular"} ·{" "}
-                {event.date
-                  ? new Date(`${event.date}T12:00:00Z`).toLocaleDateString(
-                      "es-CL",
-                    )
-                  : "Sin fecha"} · {event.time?.slice(0, 5) || "Sin hora"}
-              </p>
-              <p className="mt-0.5 break-words text-[11px] leading-snug font-semibold text-white/80 md:mt-1 md:text-sm">
-                {event.service || "Servicio por confirmar"}
-                {event.duration ? ` · ${event.duration}h` : ""} · {event.time?.slice(0, 5) || "Sin hora"}–{event.serviceEndAt?.slice(11, 16) || "—"}
-              </p>
-              <p className="mt-0.5 break-words text-[11px] leading-snug text-white/60 md:mt-1 md:text-xs">
-                {event.location || "Lugar por confirmar"} · {event.municipality || "Comuna por confirmar"}
-              </p>
-              <p className="mt-0.5 break-words text-[11px] leading-snug text-white/45 md:mt-1 md:text-xs">
-                Citación {event.staffCallAt?.slice(11, 16) || "por confirmar"} · {event.extras.length ? event.extras.join(" + ") : "Sin extras"} · Operador: {event.operator}
-              </p>
-            </div>
-            <div className="col-start-2 row-start-2 mt-1 flex min-w-0 items-center justify-end gap-2 md:col-start-auto md:row-start-auto md:mt-0">
-              <span className="hidden text-xs text-white/45 md:block">Abrir</span>
-              <Link
-                className="min-h-9 rounded-xl border px-3 py-1.5 text-xs sm:text-sm"
-                href={`/customers/${event.customerId}`}
-              >
-                Cliente
-              </Link>
-              <details className="relative">
-                <summary
-                  aria-label={`Acciones para ${event.name}`}
-                  className="grid size-10 cursor-pointer list-none place-items-center rounded-xl border"
-                >
-                  <MoreVertical className="size-4" />
-                </summary>
-                <div className="absolute right-0 z-20 mt-2 w-56 max-w-[calc(100vw-3rem)] rounded-xl border bg-card p-2 shadow-xl">
-                  <Link
-                    className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-accent"
-                    href={`/projects/${event.projectId}`}
-                  >
-                    <ExternalLink className="size-4" />Abrir Evento
-                  </Link>
-                  {canForceDelete ? <button
-                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent"
-                    onClick={() => openEditor(event)}
-                  >
-                    Editar Evento
-                  </button> : null}
-                  <button
-                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent"
-                    onClick={() => duplicate(event)}
-                  >
-                    <Copy className="size-4" />Duplicar Evento
-                  </button>
-                  <button
-                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent"
-                    onClick={() => lifecycle(event, "ARCHIVE")}
-                  >
-                    <Archive className="size-4" />Archivar Evento
-                  </button>
-                  <button
-                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-red-400 hover:bg-red-500/10"
-                    onClick={() => openDeleteDialog(event)}
-                  >
-                    <Trash2 className="size-4" />Eliminar Evento
-                  </button>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <CalendarDays className="size-4 shrink-0 text-brand" />
+                  <h2 className="min-w-0 break-words font-semibold">{event.customerName}</h2>
+                  <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-xs text-emerald-300">{event.status}</span>
                 </div>
-              </details>
-            </div>
-          </article>
+                <p className="mt-2 break-words text-sm leading-snug text-white/60">{event.company || "Cliente particular"} · {event.date ? new Date(`${event.date}T12:00:00Z`).toLocaleDateString("es-CL") : "Sin fecha"} · {event.time?.slice(0, 5) || "Sin hora"}</p>
+                <p className="mt-1 break-words text-sm font-semibold leading-snug text-white/80">{event.service || "Servicio por confirmar"}{event.duration ? ` · ${event.duration}h` : ""} · {event.time?.slice(0, 5) || "Sin hora"}–{event.serviceEndAt?.slice(11, 16) || "—"}</p>
+                <p className="mt-1 break-words text-xs leading-snug text-white/60">{event.location || "Lugar por confirmar"} · {event.municipality || "Comuna por confirmar"}</p>
+                <p className="mt-1 break-words text-xs leading-snug text-white/45">Citación {event.staffCallAt?.slice(11, 16) || "por confirmar"} · {event.extras.length ? event.extras.join(" + ") : "Sin extras"} · Operador: {event.operator}</p>
+              </div>
+              <div className="flex min-w-0 items-center justify-end gap-2">
+                <span className="text-xs text-white/45">Abrir</span>
+                <Link className="min-h-9 rounded-xl border px-3 py-1.5 text-xs sm:text-sm" href={`/customers/${event.customerId}`}>Cliente</Link>
+                <details className="relative">
+                  <summary aria-label={`Acciones para ${event.name}`} className="grid size-10 cursor-pointer list-none place-items-center rounded-xl border"><MoreVertical className="size-4" /></summary>
+                  <div className="absolute right-0 z-20 mt-2 w-56 max-w-[calc(100vw-3rem)] rounded-xl border bg-card p-2 shadow-xl">
+                    <Link className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-accent" href={`/projects/${event.projectId}`}><ExternalLink className="size-4" />Abrir Evento</Link>
+                    {canForceDelete ? <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => openEditor(event)}>Editar Evento</button> : null}
+                    <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => duplicate(event)}><Copy className="size-4" />Duplicar Evento</button>
+                    <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => lifecycle(event, "ARCHIVE")}><Archive className="size-4" />Archivar Evento</button>
+                    <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-red-400 hover:bg-red-500/10" onClick={() => openDeleteDialog(event)}><Trash2 className="size-4" />Eliminar Evento</button>
+                  </div>
+                </details>
+              </div>
+            </article>
+          </div>
         ))}
         {filtered.length === 0 && (
           <p className="rounded-2xl border border-dashed p-10 text-center text-muted">
