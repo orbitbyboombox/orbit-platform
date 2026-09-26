@@ -9,6 +9,15 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { updateCommuneSectorAction } from "./logistics-commune-sector-actions";
+import {
+  LOGISTICS_SECTORS,
+  canonicalCommuneName,
+  defaultSectorForCommune,
+  normalizeCommune,
+  type CommuneSectorMapping,
+  type LogisticsSector,
+} from "./logistics-commune-catalog";
 
 export type StaffLogisticsEvent = {
   id: string;
@@ -43,32 +52,9 @@ export type LogisticsRouteDraft = {
 };
 
 export type LogisticsSort = "TIME" | "COMMUNE" | "SECTOR" | "ASSEMBLY" | "DISASSEMBLY";
-export type LogisticsSector = "NORTE" | "ORIENTE" | "CENTRO" | "PONIENTE" | "SUR" | "OTROS";
-
-// Founder-editable defaults. Unknown live communes intentionally fall into OTROS
-// until Founder assigns them in the local logistics view.
-export const DEFAULT_COMMUNE_SECTOR_MAP: Record<string, LogisticsSector> = {
-  Colina: "NORTE",
-  Chicureo: "NORTE",
-  Lampa: "NORTE",
-  Tiltil: "NORTE",
-  "Las Condes": "ORIENTE",
-  Vitacura: "ORIENTE",
-  "Lo Barnechea": "ORIENTE",
-  "La Reina": "ORIENTE",
-  Santiago: "CENTRO",
-  Providencia: "CENTRO",
-  Ñuñoa: "CENTRO",
-  Pudahuel: "PONIENTE",
-  Maipú: "PONIENTE",
-  Cerrillos: "PONIENTE",
-  "La Florida": "SUR",
-  "Puente Alto": "SUR",
-  "San Bernardo": "SUR",
-};
-
-const sectorOrder: LogisticsSector[] = ["NORTE", "ORIENTE", "CENTRO", "PONIENTE", "SUR", "OTROS"];
-const sectorForCommune = (commune: string, overrides: Record<string, LogisticsSector>) => overrides[commune] ?? DEFAULT_COMMUNE_SECTOR_MAP[commune] ?? "OTROS";
+const sectorOrder: LogisticsSector[] = [...LOGISTICS_SECTORS];
+export { DEFAULT_COMMUNE_SECTOR_MAP } from "./logistics-commune-catalog";
+const sectorForCommune = (commune: string, overrides: Record<string, LogisticsSector>) => overrides[normalizeCommune(commune)] ?? defaultSectorForCommune(commune);
 
 const CHILE_TIME_ZONE = "America/Santiago";
 const longDayFormatter = new Intl.DateTimeFormat("es-CL", { weekday: "long", day: "2-digit", month: "long", year: "numeric", timeZone: "UTC" });
@@ -160,7 +146,7 @@ const routeWarnings = (events: readonly StaffLogisticsEvent[], eventIds: readonl
   return [...warnings];
 };
 
-export function StaffLogisticsView({ events }: { events: StaffLogisticsEvent[] }) {
+export function StaffLogisticsView({ events, initialCommuneSectorMappings }: { events: StaffLogisticsEvent[]; initialCommuneSectorMappings: CommuneSectorMapping[] }) {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("ALL");
   const [service, setService] = useState("ALL");
@@ -173,7 +159,9 @@ export function StaffLogisticsView({ events }: { events: StaffLogisticsEvent[] }
   const [sortBy, setSortBy] = useState<LogisticsSort>("TIME");
   const [groupBySector, setGroupBySector] = useState(false);
   const [mappingOpen, setMappingOpen] = useState(false);
-  const [sectorOverrides, setSectorOverrides] = useState<Record<string, LogisticsSector>>({});
+  const initialOverrides = useMemo(() => Object.fromEntries(initialCommuneSectorMappings.map((mapping) => [normalizeCommune(mapping.commune), mapping.sector])), [initialCommuneSectorMappings]);
+  const [sectorOverrides, setSectorOverrides] = useState<Record<string, LogisticsSector>>(initialOverrides);
+  const [mappingStatus, setMappingStatus] = useState<Record<string, "GUARDANDO" | "GUARDADO" | "ERROR">>({});
   const [anchor, setAnchor] = useState(() => dateOnly(chileCurrentWeek().start));
   const days = useMemo(() => weekDays(anchor), [anchor]);
   const weekSet = useMemo(() => new Set(days), [days]);
@@ -274,7 +262,17 @@ export function StaffLogisticsView({ events }: { events: StaffLogisticsEvent[] }
         {(search || status !== "ALL" || service !== "ALL" || commune !== "ALL" || operator !== "ALL" || box !== "ALL") && <button className="col-span-2 inline-flex min-h-10 items-center justify-center gap-1 rounded-xl border border-brand/40 px-3 text-xs font-semibold text-brand sm:col-auto" onClick={() => { setSearch(""); setStatus("ALL"); setService("ALL"); setCommune("ALL"); setOperator("ALL"); setBox("ALL"); }}><X className="size-3.5" />Limpiar</button>}
       </div>
 
-      {groupBySector && mappingOpen && <SectorMappingEditor communes={values.communes} overrides={sectorOverrides} onChange={(next) => setSectorOverrides(next)} />}
+      {groupBySector && mappingOpen && <SectorMappingEditor mappings={initialCommuneSectorMappings} overrides={sectorOverrides} statuses={mappingStatus} onChange={async (commune, nextSector) => {
+        const key = normalizeCommune(commune);
+        const previous = sectorOverrides[key];
+        setSectorOverrides((current) => ({ ...current, [key]: nextSector }));
+        setMappingStatus((current) => ({ ...current, [key]: "GUARDANDO" }));
+        const result = await updateCommuneSectorAction({ commune, sector: nextSector });
+        if (!result.ok) {
+          setSectorOverrides((current) => ({ ...current, [key]: previous ?? "OTROS" }));
+          setMappingStatus((current) => ({ ...current, [key]: "ERROR" }));
+        } else setMappingStatus((current) => ({ ...current, [key]: "GUARDADO" }));
+      }} />}
 
       {routeOpen && <RoutePlanner days={days} draft={routeDraft} events={events} onChange={setRouteDraft} />}
 
@@ -496,15 +494,23 @@ function LogisticsEventList({ events, groupBySector, overrides, onSelect, select
   for (const event of events) {
     const sector = sectorForCommune(event.commune, overrides);
     const communes = grouped.get(sector) ?? new Map<string, StaffLogisticsEvent[]>();
-    communes.set(event.commune, [...(communes.get(event.commune) ?? []), event]);
+    const canonicalCommune = canonicalCommuneName(event.commune);
+    communes.set(canonicalCommune, [...(communes.get(canonicalCommune) ?? []), event]);
     grouped.set(sector, communes);
   }
   const groupedRows = (renderRow: (event: StaffLogisticsEvent) => ReactNode) => <div className="w-full max-w-full min-w-0 space-y-3">{sectorOrder.filter((sector) => grouped.has(sector)).map((sector) => <details className="rounded-2xl border border-white/10 bg-[#111214] p-0 lg:p-3" key={sector} open><summary className="cursor-pointer list-none px-1 py-2 text-sm font-semibold text-white lg:px-0"><span className="text-brand">SECTOR {sector}</span><span className="ml-2 text-xs font-normal text-white/45">{[...(grouped.get(sector)?.values() ?? [])].reduce((total, items) => total + items.length, 0)} eventos</span></summary><div className="mt-2 space-y-3 lg:mt-3">{[...(grouped.get(sector)?.entries() ?? [])].sort(([a], [b]) => a.localeCompare(b)).map(([commune, communeEvents]) => <details className="rounded-xl border border-white/10 bg-[#17181a] p-0 lg:p-2" key={commune} open><summary className="cursor-pointer list-none px-1 py-1 text-xs font-semibold uppercase tracking-[.16em] text-white/60 lg:px-2">{commune}<span className="ml-2 text-[10px] font-normal text-white/35">({communeEvents.length})</span></summary><div className="mt-2 space-y-2">{communeEvents.map(renderRow)}</div></details>)}</div></details>)}</div>;
   return <><div className="hidden w-full min-w-0 max-w-full lg:block">{groupedRows(desktopRow)}</div><div className="w-full min-w-0 max-w-full lg:hidden" data-debug="event-list">{groupedRows(mobileRow)}</div></>;
 }
 
-function SectorMappingEditor({ communes, overrides, onChange }: { communes: string[]; overrides: Record<string, LogisticsSector>; onChange: (next: Record<string, LogisticsSector>) => void }) {
-  return <section className="rounded-2xl border border-brand/20 bg-[#111214] p-3" aria-label="Ajustes de sector por comuna"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Mapping comuna → sector</p><p className="mt-1 text-xs text-white/45">Ajuste local para la vista de Founder; no modifica datos del evento.</p></div><span className="text-[10px] uppercase tracking-[.14em] text-white/35">{communes.length} comunas</span></div><div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{communes.map((commune) => <label className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-[#17181a] px-3 py-2 text-xs text-white/70" key={commune}><span className="truncate">{commune}</span><select aria-label={`Sector de ${commune}`} className="max-w-28 bg-transparent text-right text-xs text-brand outline-none" onChange={(event) => onChange({ ...overrides, [commune]: event.target.value as LogisticsSector })} value={overrides[commune] ?? DEFAULT_COMMUNE_SECTOR_MAP[commune] ?? "OTROS"}>{sectorOrder.map((sector) => <option key={sector} value={sector}>{sector}</option>)}</select></label>)}</div></section>;
+function SectorMappingEditor({ mappings, overrides, statuses, onChange }: { mappings: CommuneSectorMapping[]; overrides: Record<string, LogisticsSector>; statuses: Record<string, "GUARDANDO" | "GUARDADO" | "ERROR">; onChange: (commune: string, sector: LogisticsSector) => Promise<void> }) {
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<LogisticsSector | "ALL">("ALL");
+  const visible = mappings.filter((mapping) => {
+    const selected = overrides[normalizeCommune(mapping.commune)] ?? mapping.sector;
+    return (!search.trim() || mapping.commune.toLocaleLowerCase("es-CL").includes(search.trim().toLocaleLowerCase("es-CL"))) && (filter === "ALL" || selected === filter);
+  });
+  const configured = mappings.filter((mapping) => mapping.source === "PERSISTED").length;
+  return <section className="rounded-2xl border border-brand/20 bg-[#111214] p-3" aria-label="Ajustes de sector por comuna"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Mapping comuna → sector</p><p className="mt-1 text-xs text-white/45">Catálogo persistente para Founder; cada cambio se guarda inmediatamente.</p></div><span className="text-[10px] uppercase tracking-[.14em] text-white/35">{mappings.length} COMUNAS · REGIÓN METROPOLITANA · {configured} CONFIGURADAS</span></div><div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]"><input aria-label="Buscar comuna" className={`${selectClass} w-full`} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar comuna…" value={search} /><select aria-label="Filtrar comunas por sector" className={selectClass} onChange={(event) => setFilter(event.target.value as LogisticsSector | "ALL")} value={filter}><option value="ALL">TODOS</option>{sectorOrder.map((sector) => <option key={sector} value={sector}>{sector}</option>)}</select></div><div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{visible.map((mapping) => { const key = normalizeCommune(mapping.commune); const selected = overrides[key] ?? mapping.sector; const state = statuses[key]; return <label className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-[#17181a] px-3 py-2 text-xs text-white/70" key={mapping.commune}><span className="min-w-0 truncate">{mapping.commune}</span><span className="flex shrink-0 items-center gap-2"><span className={state === "ERROR" ? "text-red-400" : "text-white/35"}>{state === "GUARDANDO" ? "GUARDANDO" : state === "GUARDADO" ? "GUARDADO ✓" : state === "ERROR" ? "ERROR AL GUARDAR" : ""}</span><select aria-label={`Sector de ${mapping.commune}`} className="max-w-28 bg-transparent text-right text-xs text-brand outline-none" onChange={(event) => { void onChange(mapping.commune, event.target.value as LogisticsSector); }} value={selected}>{sectorOrder.map((sector) => <option key={sector} value={sector}>{sector}</option>)}</select></span></label>; })}</div></section>;
 }
 
 const LOGICAL_ROW_WIDTH_PX = 680;
