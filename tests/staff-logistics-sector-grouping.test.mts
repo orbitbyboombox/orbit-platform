@@ -49,13 +49,15 @@ test("Staff logistics has a compact mobile week label and contained controls", (
   assert.match(view, /GENERAR RUTA/);
 });
 
-test("Staff logistics mobile cards use an integrated date tile without a horizontal status bar", () => {
-  assert.match(view, /min-h-\[88px\].*grid-cols-\[48px_4px_minmax\(0,1fr\)_16px\]/);
-  assert.match(view, /h-14 w-1 rounded-full/);
+test("Staff logistics mobile rows replicate the compact desktop agenda anatomy", () => {
+  assert.match(view, /min-h-\[72px\].*grid-cols-\[38px_3px_54px_72px_68px_55px_43px_14px\]/);
+  assert.match(view, /h-12 w-1 self-center rounded-full/);
   assert.match(view, /date\.weekday/);
-  assert.match(view, /event\.operator.*event\.box/);
   assert.match(view, /state\.color/);
-  assert.match(view, /max-w-16.*rounded-full/);
-  assert.match(view, /event\.customer.*event\.location/);
+  assert.match(view, /event\.customer/);
+  assert.match(view, /event\.location/);
+  assert.match(view, /event\.commune.*sector/);
+  assert.match(view, /event\.service/);
+  assert.match(view, /ChevronRight/);
   assert.doesNotMatch(view, /function LogisticsMobileCard[\s\S]*border-r-4/);
 });
