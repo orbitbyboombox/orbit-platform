@@ -8,7 +8,7 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 export type StaffLogisticsEvent = {
   id: string;
@@ -285,9 +285,10 @@ export function StaffLogisticsView({ events }: { events: StaffLogisticsEvent[] }
 
 function LogisticsEventList({ events, groupBySector, overrides, onSelect, selectedId }: { events: StaffLogisticsEvent[]; groupBySector: boolean; overrides: Record<string, LogisticsSector>; onSelect: (id: string) => void; selectedId: string | null }) {
   if (!events.length) return <EmptyState />;
-  const row = (event: StaffLogisticsEvent) => <><div className="hidden lg:block"><LogisticsEventRow event={event} sector={sectorForCommune(event.commune, overrides)} onSelect={() => onSelect(event.id)} selected={selectedId === event.id} /></div><div className="w-full max-w-full min-w-0 overflow-x-hidden overflow-y-visible lg:hidden"><ScaledLogisticsEventRow event={event} sector={sectorForCommune(event.commune, overrides)} onSelect={() => onSelect(event.id)} selected={selectedId === event.id} /></div></>;
-  const mobileListShellClass = "relative ml-[calc(50%-50vw+12px)] w-[calc(100vw-24px)] max-w-none min-w-0 lg:ml-0 lg:w-full lg:max-w-full";
-  if (!groupBySector) return <div className={mobileListShellClass}><div className="w-full max-w-full min-w-0 space-y-2">{events.map(row)}</div></div>;
+  const desktopRow = (event: StaffLogisticsEvent) => <div key={event.id}><LogisticsEventRow event={event} sector={sectorForCommune(event.commune, overrides)} onSelect={() => onSelect(event.id)} selected={selectedId === event.id} /></div>;
+  const mobileRow = (event: StaffLogisticsEvent) => <div className="w-full max-w-full min-w-0 overflow-x-hidden overflow-y-visible" key={event.id}><ScaledLogisticsEventRow event={event} sector={sectorForCommune(event.commune, overrides)} onSelect={() => onSelect(event.id)} selected={selectedId === event.id} /></div>;
+  const mobileShell = (children: ReactNode) => <div className="relative w-[calc(100vw-24px)] max-w-none min-w-0 lg:hidden" style={{ marginLeft: "calc(50% - 50vw + 12px)" }}>{children}</div>;
+  if (!groupBySector) return <><div className="hidden w-full max-w-full min-w-0 space-y-2 lg:block">{events.map(desktopRow)}</div>{mobileShell(<div className="w-full max-w-full min-w-0 space-y-2">{events.map(mobileRow)}</div>)}</>;
   const grouped = new Map<LogisticsSector, Map<string, StaffLogisticsEvent[]>>();
   for (const event of events) {
     const sector = sectorForCommune(event.commune, overrides);
@@ -295,7 +296,8 @@ function LogisticsEventList({ events, groupBySector, overrides, onSelect, select
     communes.set(event.commune, [...(communes.get(event.commune) ?? []), event]);
     grouped.set(sector, communes);
   }
-  return <div className={mobileListShellClass}><div className="w-full max-w-full min-w-0 space-y-3">{sectorOrder.filter((sector) => grouped.has(sector)).map((sector) => <details className="rounded-2xl border border-white/10 bg-[#111214] p-0 lg:p-3" key={sector} open><summary className="cursor-pointer list-none px-1 py-2 text-sm font-semibold text-white lg:px-0"><span className="text-brand">SECTOR {sector}</span><span className="ml-2 text-xs font-normal text-white/45">{[...(grouped.get(sector)?.values() ?? [])].reduce((total, items) => total + items.length, 0)} eventos</span></summary><div className="mt-2 space-y-3 lg:mt-3">{[...(grouped.get(sector)?.entries() ?? [])].sort(([a], [b]) => a.localeCompare(b)).map(([commune, communeEvents]) => <details className="rounded-xl border border-white/10 bg-[#17181a] p-0 lg:p-2" key={commune} open><summary className="cursor-pointer list-none px-1 py-1 text-xs font-semibold uppercase tracking-[.16em] text-white/60 lg:px-2">{commune}<span className="ml-2 text-[10px] font-normal text-white/35">({communeEvents.length})</span></summary><div className="mt-2 space-y-2">{communeEvents.map(row)}</div></details>)}</div></details>)}</div></div>;
+  const groupedRows = (renderRow: (event: StaffLogisticsEvent) => ReactNode) => <div className="w-full max-w-full min-w-0 space-y-3">{sectorOrder.filter((sector) => grouped.has(sector)).map((sector) => <details className="rounded-2xl border border-white/10 bg-[#111214] p-0 lg:p-3" key={sector} open><summary className="cursor-pointer list-none px-1 py-2 text-sm font-semibold text-white lg:px-0"><span className="text-brand">SECTOR {sector}</span><span className="ml-2 text-xs font-normal text-white/45">{[...(grouped.get(sector)?.values() ?? [])].reduce((total, items) => total + items.length, 0)} eventos</span></summary><div className="mt-2 space-y-3 lg:mt-3">{[...(grouped.get(sector)?.entries() ?? [])].sort(([a], [b]) => a.localeCompare(b)).map(([commune, communeEvents]) => <details className="rounded-xl border border-white/10 bg-[#17181a] p-0 lg:p-2" key={commune} open><summary className="cursor-pointer list-none px-1 py-1 text-xs font-semibold uppercase tracking-[.16em] text-white/60 lg:px-2">{commune}<span className="ml-2 text-[10px] font-normal text-white/35">({communeEvents.length})</span></summary><div className="mt-2 space-y-2">{communeEvents.map(renderRow)}</div></details>)}</div></details>)}</div>;
+  return <><div className="hidden lg:block">{groupedRows(desktopRow)}</div>{mobileShell(groupedRows(mobileRow))}</>;
 }
 
 function SectorMappingEditor({ communes, overrides, onChange }: { communes: string[]; overrides: Record<string, LogisticsSector>; onChange: (next: Record<string, LogisticsSector>) => void }) {
