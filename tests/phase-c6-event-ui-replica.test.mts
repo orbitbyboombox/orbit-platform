@@ -36,3 +36,17 @@ test("Phase C.5 reminder uses the canonical worker and is idempotent", () => {
   assert.match(cron, /onConflict: "correlation_id"/);
   assert.match(cron, /assignment_type\", \"OPERATOR\"/);
 });
+
+test("C.6 paper variant is event metadata and never reinterprets inventory format_key", () => {
+  const migration = read("supabase/migrations/20260926130000_phase_c6_event_paper_variant.sql");
+  const admin = read("features/projects/components/event-ui-replica.tsx");
+  const staff = read("features/portal-authentication/staff-box-operations-panel.tsx");
+  assert.match(migration, /paper_variant text/);
+  assert.match(migration, /NORMAL_4X6.*PRECUT_4X6/);
+  assert.match(migration, /old\.status in \('CONFIRMED','OVERRIDDEN'\)/);
+  assert.match(migration, /old\.format_key is distinct from new\.format_key/);
+  assert.match(admin, /4x6 NORMAL/);
+  assert.match(admin, /4x6 PREPICADO/);
+  assert.match(admin, /format_key/);
+  assert.match(staff, /paper\.variant/);
+});

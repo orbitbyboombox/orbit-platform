@@ -276,13 +276,24 @@ export default async function ProjectWorkspacePage({
     throw operationalBlocksError;
   }
   const adminReadClient = createAdminClient();
-  const { data: paperSnapshot, error: paperSnapshotError } = await adminReadClient
+  let { data: paperSnapshot, error: paperSnapshotError } = await adminReadClient
     .from("event_paper_snapshots")
-    .select("id,opening_balance,final_remaining_balance,event_usage,status,format_key,created_at")
+    .select("id,opening_balance,final_remaining_balance,event_usage,status,format_key,paper_variant,created_at")
     .eq("project_id", projectId)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
+  if (paperSnapshotError && ["42703", "PGRST204"].includes(paperSnapshotError.code ?? "")) {
+    const fallback = await adminReadClient
+      .from("event_paper_snapshots")
+      .select("id,opening_balance,final_remaining_balance,event_usage,status,format_key,created_at")
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    paperSnapshot = fallback.data ? { ...fallback.data, paper_variant: null } : null;
+    paperSnapshotError = fallback.error;
+  }
   if (paperSnapshotError && !["42P01", "PGRST205"].includes(paperSnapshotError.code ?? "")) {
     throw paperSnapshotError;
   }
@@ -1575,7 +1586,7 @@ export default async function ProjectWorkspacePage({
       operationalContactName={[operationalContract?.contact_first_name, operationalContract?.contact_last_name].filter(Boolean).join(" ")}
       operationalContactPhone={operationalContract?.contact_phone ?? ""}
       operators={eventOperators}
-      paper={paperSnapshot ? { opening: Number(paperSnapshot.opening_balance), final: paperSnapshot.final_remaining_balance === null ? null : Number(paperSnapshot.final_remaining_balance), usage: paperSnapshot.event_usage === null ? null : Number(paperSnapshot.event_usage), reloads: paperReloads, format: paperSnapshot.format_key, status: paperSnapshot.status } : null}
+      paper={paperSnapshot ? { opening: Number(paperSnapshot.opening_balance), final: paperSnapshot.final_remaining_balance === null ? null : Number(paperSnapshot.final_remaining_balance), usage: paperSnapshot.event_usage === null ? null : Number(paperSnapshot.event_usage), reloads: paperReloads, format: paperSnapshot.format_key, variant: paperSnapshot.paper_variant === "NORMAL_4X6" || paperSnapshot.paper_variant === "PRECUT_4X6" ? paperSnapshot.paper_variant : null, status: paperSnapshot.status } : null}
       equipment={equipment.requirements.map((item) => item.label)}
       invoice={invoice ? { invoiceNumber: invoice.invoice_number, outstandingBalance: Number(invoice.outstanding_balance), status: invoice.effective_status } : undefined}
     />
