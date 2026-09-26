@@ -49,7 +49,7 @@ test("Staff logistics has a compact mobile week label and contained controls", (
   assert.match(view, /GENERAR RUTA/);
 });
 
-test("Staff logistics mobile rows restore the desktop preview row with left-aligned scaling", () => {
+test("Staff logistics uses one shared flow container for filters and mobile rows", () => {
   assert.match(view, /function LogisticsEventRow/);
   assert.match(view, /<LogisticsEventRow event=\{event\} sector=\{sectorForCommune\(event\.commune, overrides\)\}/);
   assert.match(view, /<ScaledLogisticsEventRow event=\{event\} sector=\{sectorForCommune\(event\.commune, overrides\)\}/);
@@ -64,22 +64,15 @@ test("Staff logistics mobile rows restore the desktop preview row with left-alig
   assert.doesNotMatch(view, /w-\[calc\(100vw-24px\)\]/);
   assert.doesNotMatch(view, /translateX\(/);
   assert.doesNotMatch(view, /marginLeft: "calc\(50% - 50vw \+ 12px\)"/);
-  assert.match(view, /filtersWrapperRef/);
-  assert.match(view, /eventListWrapperRef/);
-  assert.match(view, /setMobileGeometry\(\{ width: filtersRect\.width, left: filtersRect\.left - rootRect\.left \}\)/);
-  assert.match(view, /observer\.observe\(filtersWrapper\)/);
-  assert.match(view, /mobileWidth=\{mobileGeometry\.width\} mobileLeft=\{mobileGeometry\.left\}/);
-  assert.match(view, /const mobileStyle = \{ width: mobileWidth > 0 \? `\$\{mobileWidth\}px` : "100%", marginLeft: `\$\{mobileLeft\}px` \}/);
-  assert.match(view, /filters: \{ left: filtersRect\.left, right: filtersRect\.right, width: filtersRect\.width \}/);
-  assert.match(view, /list: \{ left: listRect\.left, right: listRect\.right, width: listRect\.width \}/);
-  assert.match(view, /data-logistics-mobile-row-wrapper className="w-full max-w-full min-w-0 overflow-visible"/);
-  assert.match(view, /data-logistics-event-list-wrapper className="w-full max-w-full min-w-0 lg:hidden"/);
-  assert.match(view, /data-logistics-scaled-row-host className="w-full max-w-full min-w-0/);
-  assert.doesNotMatch(view, /left: "-100px"/);
+  assert.match(view, /<div className="w-full min-w-0 max-w-full space-y-5">/);
+  assert.match(view, /<div className="grid w-full max-w-full min-w-0 grid-cols-2/);
+  assert.match(view, /<div className="w-full min-w-0 max-w-full lg:hidden"><div className="w-full min-w-0 max-w-full space-y-2">/);
+  assert.match(view, /className="w-full min-w-0 max-w-full overflow-visible" style=\{\{ width: "100%"/);
+  assert.doesNotMatch(view, /logisticsRootRef|filtersWrapperRef|eventListWrapperRef|mobileGeometry|mobileLeft|mobileWidth|mobileStyle/);
+  assert.doesNotMatch(view, /marginLeft|translateX\(|left: "-/);
   assert.doesNotMatch(view, /translateX\(-220px\)/);
-  assert.doesNotMatch(view, /data-logistics-scaled-row-host className="[^"]*overflow-x-hidden/);
-  assert.doesNotMatch(view, /left: "-(?:1[5-9]\d|2\d\d)px"/);
-  assert.match(view, /getBoundingClientRect\(\)/);
+  assert.match(view, /setAvailableWidth\(host\.getBoundingClientRect\(\)\.width\)/);
+  assert.doesNotMatch(view, /filtersRect|rootRect|listRect|mobileRowRect|scaledHostRect|console\.log/);
   assert.match(view, /grid-cols-\[72px_5px_96px_minmax\(0,1\.25fr\)_minmax\(0,1fr\)_110px_auto_20px\]/);
   assert.match(view, /w-full max-w-full min-w-0/);
   assert.match(view, /event\.customer/);
