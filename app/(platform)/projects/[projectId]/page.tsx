@@ -1464,6 +1464,21 @@ export default async function ProjectWorkspacePage({
       }
     : undefined;
   const primaryService = (serviceRows ?? [])[0];
+  const eventExtras = Array.isArray(primaryService?.extras)
+    ? primaryService.extras
+        .map((item) => {
+          if (typeof item === "string") return item;
+          if (typeof item === "object" && item !== null) {
+            const value = item as { label?: unknown; name?: unknown };
+            return String(value.label ?? value.name ?? "");
+          }
+          return String(item ?? "");
+        })
+        .filter(Boolean)
+    : [];
+  const serviceStartTime = chileDateTime(canonicalEventState.serviceStartAt).time;
+  const serviceEndTime = chileDateTime(canonicalEventState.serviceEndAt).time;
+  const staffCallTime = chileDateTime(canonicalEventState.staffCallAt).time;
   const eventControl = {
     event: {
       id: projectId,
@@ -1511,11 +1526,18 @@ export default async function ProjectWorkspacePage({
       projectId={projectId}
       customer={query.client ?? project.client.name}
       date={date}
-      time={query.time ?? project.event.time}
+      serviceDuration={primaryService?.duration_hours ?? null}
+      serviceStartTime={serviceStartTime}
+      serviceEndTime={serviceEndTime}
+      staffCallTime={staffCallTime}
       venue={query.venue ?? project.event.location}
+      municipality={query.city ?? project.event.city}
       status={String(project.status ?? "ACTIVO")}
       service={services.join(" · ")}
       eventType={typeLabel}
+      extras={eventExtras}
+      operationalContactName={[operationalContract?.contact_first_name, operationalContract?.contact_last_name].filter(Boolean).join(" ")}
+      operationalContactPhone={operationalContract?.contact_phone ?? ""}
       equipment={equipment.requirements.map((item) => item.label)}
       invoice={invoice ? { invoiceNumber: invoice.invoice_number, outstandingBalance: Number(invoice.outstanding_balance), status: invoice.effective_status } : undefined}
     />

@@ -303,10 +303,15 @@ export function EventCenter({
                     )
                   : "Sin fecha"} · {event.time?.slice(0, 5) || "Sin hora"}
               </p>
-              <p className="mt-1 break-words text-sm text-white/80">
+              <p className="mt-1 break-words text-sm font-semibold text-white/80">
                 {event.service || "Servicio por confirmar"}
-                {event.duration ? ` · ${event.duration} horas` : ""} · Operador:{" "}
-                {event.operator}
+                {event.duration ? ` · ${event.duration}h` : ""} · {event.time?.slice(0, 5) || "Sin hora"}–{event.serviceEndAt?.slice(11, 16) || "—"}
+              </p>
+              <p className="mt-1 break-words text-xs text-white/60">
+                {event.location || "Lugar por confirmar"} · {event.municipality || "Comuna por confirmar"}
+              </p>
+              <p className="mt-1 break-words text-xs text-white/45">
+                Citación {event.staffCallAt?.slice(11, 16) || "por confirmar"} · {event.extras.length ? event.extras.join(" + ") : "Sin extras"} · Operador: {event.operator}
               </p>
             </div>
             <div className="flex min-w-0 items-center justify-end gap-2">

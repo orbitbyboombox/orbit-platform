@@ -9,6 +9,7 @@ import {
   Download,
   MapPin,
   Navigation,
+  Phone,
   Upload,
   X,
 } from "lucide-react";
@@ -290,11 +291,12 @@ export function StaffPortalDashboard({
               <div className="min-w-0">
                 <div>
                   <p className="font-semibold">{event.customer}</p>
-                  <p className="mt-1 text-sm text-white/60">
-                    {event.start}–{event.finish} · {event.venue || event.address}
+                  <p className="mt-1 text-sm font-semibold text-white/80">
+                    {event.service} · {event.duration}h · {event.start}–{event.finish}
                   </p>
+                  <p className="mt-1 text-sm text-white/60">{event.venue || event.address} · {event.district}</p>
                 </div>
-                <p className="mt-2 text-xs text-white/45">{event.timeMode === "CONFIRMED" ? "HORARIO CONFIRMADO" : "HORARIO ESTIMADO"} · {event.service}</p>
+                <p className="mt-2 text-xs text-white/45">Citación {event.staffCallAt?.slice(11, 16) || "por confirmar"} · {event.extras.length ? event.extras.join(" + ") : "Sin extras"} · {event.timeMode === "CONFIRMED" ? "HORARIO CONFIRMADO" : "HORARIO ESTIMADO"}</p>
               </div>
               <div className="flex items-center gap-3 sm:justify-end">
                 <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-xs font-semibold text-emerald-300">{stateLabel(event)}</span>
@@ -610,11 +612,7 @@ function EventDetail({
             value={event.extras.join(" · ") || "Sin extras"}
           />
           <Small
-            label="Cliente"
-            value={`${event.customer} · ${event.clientPhone}`}
-          />
-          <Small
-            label="Producción"
+            label="Encargado del evento"
             value={`${event.productionContact} · ${event.productionPhone}`}
           />
           <Small
@@ -628,6 +626,10 @@ function EventDetail({
           />
           <Small label="ORBIT Event ID" value={event.orbitEventId} />
           <Small label="Estado" value={stateLabel(event)} />
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <a className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand px-4 text-sm font-semibold text-brand-foreground" href={maps}><Navigation className="size-4"/>VER UBICACIÓN</a>
+          {event.productionPhone && event.productionPhone !== "Por confirmar" ? <a className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-brand/40 px-4 text-sm font-semibold text-brand" href={`tel:${event.productionPhone.replace(/[^+\d]/g, "")}`}><Phone className="size-4"/>CONTACTAR</a> : null}
         </div>
         <section className="mt-6 grid gap-3 sm:grid-cols-2">
           <div className="rounded-2xl border border-white/10 bg-[#191a1d] p-4">
