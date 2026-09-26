@@ -26,6 +26,7 @@ test("Phase C.6 keeps the PDF event language in admin and Staff surfaces", () =>
   assert.match(admin, /ChevronRight aria-hidden="true"/);
   assert.match(admin, /lg:col-span-7/);
   assert.match(admin, /md:grid-cols-12 md:\[&>\*:nth-child\(1\)\]:col-span-7/);
+  assert.match(admin, /event-detail-split-grid/);
   assert.match(admin, /Papel final evento/);
   assert.match(admin, /VER EQUIPAMIENTO/);
 });

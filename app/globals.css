@@ -449,6 +449,20 @@ aside[aria-label="Nueva reserva"] aside {
 @media(max-width:760px){.access-redesign-shell{display:block;min-height:100dvh;overflow-x:hidden;overflow-y:auto;padding:12px}.access-redesign-card{height:auto;min-height:calc(100dvh - 24px);margin:0 auto;display:block;border-radius:20px}.access-brand-panel{padding:29px 24px 24px;border-right:0;border-bottom:1px solid #27313c}.brand-panel-main{padding:30px 0 21px}.brand-panel-logo{width:min(100%,300px);margin:0 auto}.brand-overline{font-size:8px;margin-top:22px;text-align:center}.brand-panel-main h2{font-size:25px;text-align:center;margin:12px 0 8px}.brand-panel-main p{font-size:12px;text-align:center;margin:auto}.brand-panel-bottom{justify-content:center;gap:15px;font-size:9px}.access-form-panel{padding:27px 24px 23px}.access-tabs{margin-top:28px}.access-tabs button{font-size:9px;padding:0 2px}.access-heading{margin:30px 0 25px}.access-heading h1{font-size:31px}.access-heading p{font-size:13px}.access-form{gap:19px}.access-form .input-wrap{height:52px}.access-footer{font-size:8px;margin-top:25px;gap:12px;line-height:1.5}.access-submit{height:54px!important}.access-form .input-wrap input{font-size:16px}}
 
 }
+@media (min-width: 768px) {
+  .event-detail-split-grid {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+
+  .event-detail-split-grid > :nth-child(1) {
+    grid-column: span 7 / span 7;
+  }
+
+  .event-detail-split-grid > :nth-child(2) {
+    grid-column: span 5 / span 5;
+  }
+}
+
 /* ORBIT Resilient Sync master UI */
 .orbit-sync-indicator{min-height:44px;max-width:250px;display:flex;align-items:center;gap:7px;border:1px solid color-mix(in srgb,#f78900 34%,transparent);border-radius:12px;background:color-mix(in srgb,#f78900 7%,transparent);padding:7px 10px;color:inherit;cursor:pointer;text-align:left}
 .orbit-sync-indicator i{width:8px;height:8px;flex:none;border-radius:999px;background:#65d49a}
