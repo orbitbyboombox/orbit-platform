@@ -9,6 +9,7 @@ import {
 import { StaffPinReset } from "@/features/portal-authentication/staff-pin-reset";
 import { StaffWorkspaces } from "@/features/resources/staff-workspaces";
 import { StaffLogisticsView, type StaffLogisticsEvent } from "@/features/resources/staff-logistics-view";
+import { loadLogisticsCommuneSectorMappings } from "@/features/resources/logistics-commune-sector-repository";
 import { loadCrmOperationalEvents } from "@/features/crm/events-repository";
 import {
   StaffOperationsView,
@@ -728,6 +729,7 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
     extras: event.extras,
     address: event.eventAddress || event.location || "",
   }));
+  const communeSectorMappings = await loadLogisticsCommuneSectorMappings(client);
   return (
       <StaffWorkspaces
         initialWorkspace={view === "logistics" ? "LOGISTICS" : reviewAccount ? "PAYROLL" : reviewExpense ? "TEAM" : undefined}
@@ -757,7 +759,7 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
           requests={operationsRequests}
         />
       }
-      logistics={<StaffLogisticsView events={logisticsEvents} />}
+      logistics={<StaffLogisticsView events={logisticsEvents} initialCommuneSectorMappings={communeSectorMappings} />}
       portal={<StaffPinReset members={portalAccess} />}
       payroll={
         <StaffPaymentsCenter
