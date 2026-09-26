@@ -32,3 +32,19 @@ test("Staff logistics detail exposes commune and mapped sector", () => {
   assert.match(view, /DetailItem label="SECTOR"/);
   assert.match(view, /sectorForCommune\(event\.commune, overrides\)/);
 });
+
+test("Staff logistics starts from the current Chile week, never the first event", () => {
+  assert.match(view, /CHILE_TIME_ZONE = "America\/Santiago"/);
+  assert.match(view, /export const chileTodayIso/);
+  assert.match(view, /export const chileCurrentWeek/);
+  assert.match(view, /useState\(\(\) => dateOnly\(chileCurrentWeek\(\)\.start\)\)/);
+  assert.doesNotMatch(view, /useState\(\(\) => monday\(events\[0\]/);
+});
+
+test("Staff logistics has a compact mobile week label and contained controls", () => {
+  assert.match(view, /compactWeekLabel/);
+  assert.match(view, /sm:hidden/);
+  assert.match(view, /AGRUPAR POR SECTOR/);
+  assert.match(view, /grid grid-cols-2 gap-2 rounded-2xl/);
+  assert.match(view, /GENERAR RUTA/);
+});

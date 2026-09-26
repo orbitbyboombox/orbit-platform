@@ -70,11 +70,13 @@ export const DEFAULT_COMMUNE_SECTOR_MAP: Record<string, LogisticsSector> = {
 const sectorOrder: LogisticsSector[] = ["NORTE", "ORIENTE", "CENTRO", "PONIENTE", "SUR", "OTROS"];
 const sectorForCommune = (commune: string, overrides: Record<string, LogisticsSector>) => overrides[commune] ?? DEFAULT_COMMUNE_SECTOR_MAP[commune] ?? "OTROS";
 
-const longDayFormatter = new Intl.DateTimeFormat("es-CL", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
+const CHILE_TIME_ZONE = "America/Santiago";
+const longDayFormatter = new Intl.DateTimeFormat("es-CL", { weekday: "long", day: "2-digit", month: "long", year: "numeric", timeZone: "UTC" });
+const compactDayFormatter = new Intl.DateTimeFormat("es-CL", { day: "2-digit", month: "short", timeZone: "UTC" });
 
-const dateOnly = (value: string) => new Date(`${value}T12:00:00`);
+const dateOnly = (value: string) => new Date(`${value}T12:00:00Z`);
 const dateParts = (value: string) => {
-  const parts = new Intl.DateTimeFormat("es-CL", { weekday: "short", day: "2-digit", month: "short" }).formatToParts(dateOnly(value));
+  const parts = new Intl.DateTimeFormat("es-CL", { weekday: "short", day: "2-digit", month: "short", timeZone: "UTC" }).formatToParts(dateOnly(value));
   return {
     weekday: parts.find((part) => part.type === "weekday")?.value.replaceAll(".", "").toUpperCase() ?? "--",
     day: parts.find((part) => part.type === "day")?.value ?? "--",
@@ -95,20 +97,35 @@ const statusView = {
   CANCELLED: { label: "Cancelado", color: "text-red-400", dot: "bg-red-400", bar: "bg-red-400" },
 } as const;
 
-const monday = (value: Date) => {
+export const monday = (value: Date) => {
   const result = new Date(value);
-  const day = result.getDay();
-  result.setDate(result.getDate() - (day === 0 ? 6 : day - 1));
-  result.setHours(12, 0, 0, 0);
+  const day = result.getUTCDay();
+  result.setUTCDate(result.getUTCDate() - (day === 0 ? 6 : day - 1));
+  result.setUTCHours(12, 0, 0, 0);
   return result;
 };
 
 const iso = (value: Date) => value.toISOString().slice(0, 10);
 const weekDays = (anchor: Date) => Array.from({ length: 7 }, (_, index) => {
   const value = new Date(anchor);
-  value.setDate(value.getDate() + index);
+  value.setUTCDate(value.getUTCDate() + index);
   return iso(value);
 });
+
+export const chileTodayIso = (now: Date = new Date()) => {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: CHILE_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
+  const year = parts.find((part) => part.type === "year")?.value ?? "0000";
+  const month = parts.find((part) => part.type === "month")?.value ?? "01";
+  const day = parts.find((part) => part.type === "day")?.value ?? "01";
+  return `${year}-${month}-${day}`;
+};
+
+export const chileCurrentWeek = (now: Date = new Date()) => {
+  const start = monday(dateOnly(chileTodayIso(now)));
+  return { start: iso(start), end: iso(new Date(start.getTime() + 6 * 86400000)) };
+};
+
+const compactWeekLabel = (start: string, end: string) => `${compactDayFormatter.format(dateOnly(start))} – ${compactDayFormatter.format(dateOnly(end))}`.replaceAll(".", "").toUpperCase();
 
 const selectClass = "min-h-10 rounded-xl border border-white/10 bg-[#111214] px-3 text-xs text-white/80 outline-none focus:border-brand";
 const clockMinutes = (value: string) => {
@@ -157,7 +174,7 @@ export function StaffLogisticsView({ events }: { events: StaffLogisticsEvent[] }
   const [groupBySector, setGroupBySector] = useState(false);
   const [mappingOpen, setMappingOpen] = useState(false);
   const [sectorOverrides, setSectorOverrides] = useState<Record<string, LogisticsSector>>({});
-  const [anchor, setAnchor] = useState(() => monday(events[0] ? dateOnly(events[0].date) : new Date()));
+  const [anchor, setAnchor] = useState(() => dateOnly(chileCurrentWeek().start));
   const days = useMemo(() => weekDays(anchor), [anchor]);
   const weekSet = useMemo(() => new Set(days), [days]);
 
@@ -198,9 +215,10 @@ export function StaffLogisticsView({ events }: { events: StaffLogisticsEvent[] }
     return result;
   }, { total: 0, CONFIRMED: 0, PENDING: 0, CANCELLED: 0 }), [events, weekSet]);
 
+  const resetToCurrentWeek = () => setAnchor(dateOnly(chileCurrentWeek().start));
   const shiftWeek = (amount: number) => setAnchor((current) => {
     const next = new Date(current);
-    next.setDate(next.getDate() + amount * 7);
+    next.setUTCDate(next.getUTCDate() + amount * 7);
     return next;
   });
 
@@ -219,18 +237,19 @@ export function StaffLogisticsView({ events }: { events: StaffLogisticsEvent[] }
                 <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/40" />
                 <input aria-label="Buscar evento, cliente o lugar" className={`${selectClass} w-full pl-9`} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar evento, cliente o lugar…" value={search} />
               </label>
-              <div className="inline-flex min-h-10 min-w-max flex-nowrap items-center gap-1 rounded-xl border border-white/10 p-1 text-xs text-white/75" aria-label="Navegación de rango de fechas">
+              <div className="inline-flex min-h-10 w-full min-w-0 flex-1 flex-nowrap items-center justify-between gap-1 rounded-xl border border-white/10 p-1 text-xs text-white/75 sm:w-auto sm:min-w-max sm:flex-none" aria-label="Navegación de rango de fechas">
                 <button aria-label="Semana anterior" className="grid size-8 shrink-0 place-items-center rounded-lg text-white/70 hover:bg-white/10 hover:text-brand" onClick={() => shiftWeek(-1)}><ChevronLeft className="size-4" /></button>
-                <button className="min-h-8 shrink-0 rounded-lg border border-brand/50 px-2.5 text-xs font-semibold text-brand hover:bg-brand/10" onClick={() => setAnchor(monday(new Date()))}>Esta semana</button>
-                <span className="inline-flex min-h-8 shrink-0 items-center gap-2 px-2"><CalendarDays className="size-4 text-brand" />{longDayFormatter.format(dateOnly(days[0]))} – {longDayFormatter.format(dateOnly(days[6]))}</span>
+                <button className="min-h-8 shrink-0 rounded-lg border border-brand/50 px-2.5 text-xs font-semibold text-brand hover:bg-brand/10" onClick={resetToCurrentWeek}>Esta semana</button>
+                <span className="hidden min-h-8 shrink-0 items-center gap-2 px-2 sm:inline-flex"><CalendarDays className="size-4 text-brand" />{longDayFormatter.format(dateOnly(days[0]))} – {longDayFormatter.format(dateOnly(days[6]))}</span>
+                <span className="inline-flex min-h-8 shrink-0 items-center px-1 text-[11px] font-semibold text-white/80 sm:hidden">{compactWeekLabel(days[0], days[6])}</span>
                 <button aria-label="Semana siguiente" className="grid size-8 shrink-0 place-items-center rounded-lg text-white/70 hover:bg-white/10 hover:text-brand" onClick={() => shiftWeek(1)}><ChevronRight className="size-4" /></button>
               </div>
             </div>
             <div className="flex w-full flex-wrap justify-end gap-2">
-              <label className="flex min-h-10 items-center gap-2 rounded-xl border border-white/10 px-3 text-xs text-white/55">Ordenar por<select aria-label="Ordenar por" className="bg-transparent text-xs text-white/85 outline-none" onChange={(event) => setSortBy(event.target.value as LogisticsSort)} value={sortBy}><option value="TIME">Hora</option><option value="COMMUNE">Comuna</option><option value="SECTOR">Sector</option><option value="ASSEMBLY">Montaje</option><option value="DISASSEMBLY">Desmontaje</option></select></label>
-              <button aria-pressed={groupBySector} className={`min-h-10 rounded-xl border px-3 text-xs font-semibold ${groupBySector ? "border-brand bg-brand/15 text-brand" : "border-white/10 text-white/65 hover:border-brand/50 hover:text-brand"}`} onClick={() => setGroupBySector((value) => !value)}>AGRUPAR POR SECTOR</button>
+              <label className="flex min-h-10 w-full items-center justify-between gap-2 rounded-xl border border-white/10 px-3 text-xs text-white/55 sm:w-auto sm:justify-start">Ordenar por<select aria-label="Ordenar por" className="min-w-0 bg-transparent text-xs text-white/85 outline-none" onChange={(event) => setSortBy(event.target.value as LogisticsSort)} value={sortBy}><option value="TIME">Hora</option><option value="COMMUNE">Comuna</option><option value="SECTOR">Sector</option><option value="ASSEMBLY">Montaje</option><option value="DISASSEMBLY">Desmontaje</option></select></label>
+              <button aria-pressed={groupBySector} className={`min-h-10 w-full rounded-xl border px-3 text-xs font-semibold sm:w-auto ${groupBySector ? "border-brand bg-brand/15 text-brand" : "border-white/10 text-white/65 hover:border-brand/50 hover:text-brand"}`} onClick={() => setGroupBySector((value) => !value)}>AGRUPAR POR SECTOR</button>
               {groupBySector && <button className="min-h-10 rounded-xl border border-white/10 px-3 text-xs text-white/65 hover:border-brand/50 hover:text-brand" onClick={() => setMappingOpen((value) => !value)}>{mappingOpen ? "CERRAR AJUSTES" : "AJUSTAR SECTORES"}</button>}
-              <button className="min-h-10 rounded-xl border border-brand/50 px-3 text-xs font-bold text-brand hover:bg-brand/10" onClick={() => setRouteOpen((open) => !open)}>{routeOpen ? "CERRAR RUTA" : "GENERAR RUTA"}</button>
+              <button className="min-h-10 w-full rounded-xl border border-brand/50 px-3 text-xs font-semibold text-brand hover:bg-brand/10 sm:w-auto sm:font-bold" onClick={() => setRouteOpen((open) => !open)}>{routeOpen ? "CERRAR RUTA" : "GENERAR RUTA"}</button>
               <button aria-label="Más opciones de logística" className="grid size-10 place-items-center rounded-xl border border-white/10 text-lg text-white/55 hover:border-brand hover:text-brand">⋯</button>
             </div>
           </div>
@@ -245,12 +264,12 @@ export function StaffLogisticsView({ events }: { events: StaffLogisticsEvent[] }
         </div>
       </header>
 
-      <div className="flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-[#111214] p-2">
-        <select aria-label="Filtrar por estado" className={selectClass} onChange={(event) => setStatus(event.target.value)} value={status}><option value="ALL">Todos los estados</option><option value="CONFIRMED">Confirmado</option><option value="PENDING">Por confirmar</option><option value="CANCELLED">Cancelado</option></select>
-        <select aria-label="Filtrar por servicio" className={selectClass} onChange={(event) => setService(event.target.value)} value={service}><option value="ALL">Todos los servicios</option>{values.services.map((item) => <option key={item} value={item}>{item}</option>)}</select>
-        <select aria-label="Filtrar por comuna" className={selectClass} onChange={(event) => setCommune(event.target.value)} value={commune}><option value="ALL">Todas las comunas</option>{values.communes.map((item) => <option key={item} value={item}>{item}</option>)}</select>
-        <select aria-label="Filtrar por operador" className={selectClass} onChange={(event) => setOperator(event.target.value)} value={operator}><option value="ALL">Todos los operadores</option>{values.operators.map((item) => <option key={item} value={item}>{item}</option>)}</select>
-        <select aria-label="Filtrar por Caja Negra" className={selectClass} onChange={(event) => setBox(event.target.value)} value={box}><option value="ALL">Todas las cajas</option>{values.boxes.map((item) => <option key={item} value={item}>{item}</option>)}</select>
+      <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-[#111214] p-2 sm:flex sm:flex-wrap">
+        <select aria-label="Filtrar por estado" className={`${selectClass} min-w-0 w-full`} onChange={(event) => setStatus(event.target.value)} value={status}><option value="ALL">Todos los estados</option><option value="CONFIRMED">Confirmado</option><option value="PENDING">Por confirmar</option><option value="CANCELLED">Cancelado</option></select>
+        <select aria-label="Filtrar por servicio" className={`${selectClass} min-w-0 w-full`} onChange={(event) => setService(event.target.value)} value={service}><option value="ALL">Todos los servicios</option>{values.services.map((item) => <option key={item} value={item}>{item}</option>)}</select>
+        <select aria-label="Filtrar por comuna" className={`${selectClass} min-w-0 w-full`} onChange={(event) => setCommune(event.target.value)} value={commune}><option value="ALL">Todas las comunas</option>{values.communes.map((item) => <option key={item} value={item}>{item}</option>)}</select>
+        <select aria-label="Filtrar por operador" className={`${selectClass} min-w-0 w-full`} onChange={(event) => setOperator(event.target.value)} value={operator}><option value="ALL">Todos los operadores</option>{values.operators.map((item) => <option key={item} value={item}>{item}</option>)}</select>
+        <select aria-label="Filtrar por Caja Negra" className={`${selectClass} min-w-0 w-full`} onChange={(event) => setBox(event.target.value)} value={box}><option value="ALL">Todas las cajas</option>{values.boxes.map((item) => <option key={item} value={item}>{item}</option>)}</select>
         {(search || status !== "ALL" || service !== "ALL" || commune !== "ALL" || operator !== "ALL" || box !== "ALL") && <button className="inline-flex min-h-10 items-center gap-1 rounded-xl border border-brand/40 px-3 text-xs font-semibold text-brand" onClick={() => { setSearch(""); setStatus("ALL"); setService("ALL"); setCommune("ALL"); setOperator("ALL"); setBox("ALL"); }}><X className="size-3.5" />Limpiar</button>}
       </div>
 
@@ -293,7 +312,7 @@ function LogisticsRow({ event, sector, onSelect, selected }: { event: StaffLogis
 function LogisticsMobileCard({ event, sector, onSelect, selected }: { event: StaffLogisticsEvent; sector: LogisticsSector; onSelect: () => void; selected: boolean }) {
   const state = statusView[normalizeStatus(event.status)];
   const date = dateParts(event.date);
-  return <button className={`grid w-full grid-cols-[54px_minmax(0,1fr)_18px] gap-3 rounded-2xl border border-white/10 bg-[#111214] p-3 text-left ${selected ? "border-brand/60 bg-brand/5" : ""}`} onClick={onSelect}><span className={`border-r-4 pr-2 ${state.bar}`}><strong className="block text-base text-white">{date.day}</strong><span className="text-[10px] font-semibold text-white/45">{date.weekday}</span></span><span className="min-w-0"><strong className="block truncate text-sm text-white">{event.customer}</strong><span className="mt-0.5 block text-xs text-white/70">{formatTime(event.time)} → {formatTime(event.endTime)} · {event.service}{event.duration ? ` · ${event.duration}h` : ""}</span><span className="mt-1 block truncate text-[11px] text-white/45">{event.location} · {event.commune} · {sector}</span><span className="mt-1 block truncate text-[11px] text-white/45">Citación {formatTime(event.staffCallAt)} · {event.operator} · {event.box}</span><span className="mt-1 block truncate text-[11px] text-white/45">M {formatTime(event.setupTime)} · D {formatTime(event.teardownTime)}</span><span className={`mt-1 inline-flex items-center gap-1 text-[11px] ${state.color}`}><i className={`size-1.5 rounded-full ${state.dot}`} />{state.label}</span></span><ChevronRight className="mt-1 size-4 text-brand" /></button>;
+  return <button className={`grid w-full grid-cols-[50px_minmax(0,1fr)_16px] gap-2 rounded-2xl border border-white/10 bg-[#111214] p-2.5 text-left ${selected ? "border-brand/60 bg-brand/5" : ""}`} onClick={onSelect}><span className={`border-r-4 pr-1.5 ${state.bar}`}><strong className="block text-base text-white">{date.day}</strong><span className="text-[10px] font-semibold text-white/45">{date.weekday}</span></span><span className="min-w-0"><strong className="block truncate text-sm text-white">{event.customer}</strong><span className="mt-0.5 block truncate text-xs text-white/70">{formatTime(event.time)} → {formatTime(event.endTime)} · {event.service}{event.duration ? ` · ${event.duration}h` : ""}</span><span className="mt-0.5 block truncate text-[11px] text-white/45">{event.location} · {event.commune} · {sector}</span><span className="mt-0.5 block truncate text-[11px] text-white/45">Citación {formatTime(event.staffCallAt)} · {event.operator} · {event.box}</span><span className="mt-0.5 block truncate text-[11px] text-white/45">M {formatTime(event.setupTime)} · D {formatTime(event.teardownTime)}</span><span className={`mt-0.5 inline-flex items-center gap-1 text-[11px] ${state.color}`}><i className={`size-1.5 rounded-full ${state.dot}`} />{state.label}</span></span><ChevronRight className="mt-1 size-4 text-brand" /></button>;
 }
 
 function RoutePlanner({ days, draft, events, onChange }: { days: string[]; draft: LogisticsRouteDraft | null; events: StaffLogisticsEvent[]; onChange: (draft: LogisticsRouteDraft | null) => void }) {
