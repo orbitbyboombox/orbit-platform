@@ -33,6 +33,7 @@ type Props = {
   } | null;
   invoice?: { invoiceNumber: string; outstandingBalance: number; status: string };
   equipment: string[];
+  operationContent?: ReactNode;
 };
 
 const clp = (value: number) => new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(value);
@@ -59,7 +60,7 @@ const roleLabel = (role: string) => ({ OPERATOR: "OPERATOR", ASSEMBLY: "MONTAJE"
 type DetailKey = "overview" | "client" | "staff" | "service" | "paper" | "equipment" | "finance";
 const DETAIL_KEYS: DetailKey[] = ["overview", "client", "staff", "service", "paper", "equipment", "finance"];
 
-export function EventUiReplica({ projectId, customer, date, service, serviceDuration, serviceStartTime, serviceEndTime, staffCallTime, venue, municipality, status, eventType, extras, operationalContactName, operationalContactPhone, operators, paper, invoice, equipment }: Props) {
+export function EventUiReplica({ projectId, customer, date, service, serviceDuration, serviceStartTime, serviceEndTime, staffCallTime, venue, municipality, status, eventType, extras, operationalContactName, operationalContactPhone, operators, paper, invoice, equipment, operationContent }: Props) {
   const [paperMessage, setPaperMessage] = useState("");
   const [paperPending, startPaperTransition] = useTransition();
   const [operationOpen, setOperationOpen] = useState(false);
@@ -98,7 +99,7 @@ export function EventUiReplica({ projectId, customer, date, service, serviceDura
     {operationOpen ? <div className="space-y-2 rounded-2xl border border-brand/25 bg-[#0f1012] p-3 sm:p-4">
       <div className="flex items-center justify-between gap-3 px-1"><p className="text-[11px] uppercase tracking-[.16em] text-brand">Event 360°</p><span className="text-xs text-white/50">Detalle completo</span></div>
       <div className="space-y-2">
-        <AccordionSection eyebrow="00 · Resumen" title="Event 360°" summary={`${display(status, "Estado pendiente")} · ${date}`} open={detailOpen.overview} onToggle={() => toggleDetail("overview")}><div className="grid gap-2 sm:grid-cols-3"><Info label="Cliente" value={customer}/><Info label="Lugar" value={display(venue)}/><Info label="Comuna" value={display(municipality)}/></div></AccordionSection>
+        <AccordionSection eyebrow="00 · Resumen" title="Event 360° / Resumen general" summary={`${display(status, "Estado pendiente")} · ${date}`} open={detailOpen.overview} onToggle={() => toggleDetail("overview")}><div className="space-y-3"><div className="grid gap-2 sm:grid-cols-3"><Info label="Cliente" value={customer}/><Info label="Lugar" value={display(venue)}/><Info label="Comuna" value={display(municipality)}/></div>{operationContent ? <div className="overflow-hidden rounded-xl border border-white/10">{operationContent}</div> : null}</div></AccordionSection>
         <AccordionSection eyebrow="01 · Relación" title="Cliente" summary={customer} open={detailOpen.client} onToggle={() => toggleDetail("client")}><div className="grid gap-2 sm:grid-cols-3"><Info label="Cliente" value={customer}/><Info label="Tipo de evento" value={eventType}/><Info label="Contacto operacional" value={contactName}/></div></AccordionSection>
         <AccordionSection eyebrow="03 · Experiencia" title="Servicio contratado" summary={serviceLabel} open={detailOpen.service} onToggle={() => toggleDetail("service")}><div className="grid gap-2 sm:grid-cols-3"><Info label="Servicio" value={display(service)}/><Info label="Duración" value={serviceDuration ? `${serviceDuration} horas` : "Por confirmar"}/><Info label="Horario" value={timeRange}/></div></AccordionSection>
         <AccordionSection eyebrow="Staff" title="Operadores del evento" summary={`${operators.length} roles`} open={detailOpen.staff} onToggle={() => toggleDetail("staff")}><div className="grid gap-2 sm:grid-cols-3">{operators.map((operator) => <div className="rounded-xl border border-white/10 bg-white/[.02] px-2.5 py-2" key={operator.role}><p className="text-[10px] uppercase tracking-[.14em] text-white/45">{roleLabel(operator.role)}</p><p className="mt-1 truncate text-xs font-semibold">{operator.name || "Sin asignar"}</p><p className="mt-1 text-[11px] text-white/55">{operator.callTime ? `${operator.callTime} hrs` : "Sin citación"}</p></div>)}</div><div className="mt-2 grid grid-cols-4 gap-1 text-[10px]">{["CHECK-OUT", "EVENTO", "PAPEL", "CHECK-IN"].map((item) => <span className="rounded-full border border-white/10 px-1 py-1 text-center text-white/65" key={item}>{item}</span>)}</div></AccordionSection>

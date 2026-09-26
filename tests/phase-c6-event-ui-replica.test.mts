@@ -20,7 +20,7 @@ test("Phase C.6 keeps the PDF event language in admin and Staff surfaces", () =>
   assert.match(admin, /ABRIR OPERACIÓN DEL EVENTO/);
   assert.match(admin, /CERRAR OPERACIÓN DEL EVENTO/);
   assert.match(admin, /function AccordionSection/);
-  assert.match(admin, /title="Event 360°" summary=\{`\$\{display\(status/);
+  assert.match(admin, /title="Event 360° \/ Resumen general" summary=\{`\$\{display\(status/);
   assert.match(admin, /detailOpen\.overview/);
   assert.match(admin, /Object\.fromEntries\(DETAIL_KEYS\.map/);
   assert.match(admin, /ChevronRight aria-hidden="true"/);

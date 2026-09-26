@@ -1589,8 +1589,7 @@ export default async function ProjectWorkspacePage({
       paper={paperSnapshot ? { opening: Number(paperSnapshot.opening_balance), final: paperSnapshot.final_remaining_balance === null ? null : Number(paperSnapshot.final_remaining_balance), usage: paperSnapshot.event_usage === null ? null : Number(paperSnapshot.event_usage), reloads: paperReloads, format: paperSnapshot.format_key, variant: paperSnapshot.paper_variant === "NORMAL_4X6" || paperSnapshot.paper_variant === "PRECUT_4X6" ? paperSnapshot.paper_variant : null, status: paperSnapshot.status } : null}
       equipment={equipment.requirements.map((item) => item.label)}
       invoice={invoice ? { invoiceNumber: invoice.invoice_number, outstandingBalance: Number(invoice.outstanding_balance), status: invoice.effective_status } : undefined}
-    />
-    <ProjectWorkspaceExperience
+      operationContent={<ProjectWorkspaceExperience
       customerId={rawProject?.customer_id ?? ""}
       reconciliationId={query.reconciliation}
       {...experienceProps}
@@ -1628,6 +1627,7 @@ export default async function ProjectWorkspacePage({
         status: row.status as OperationalBlock["status"],
         notes: row.notes,
       }))}
+      />}
     />
     </>
   );
