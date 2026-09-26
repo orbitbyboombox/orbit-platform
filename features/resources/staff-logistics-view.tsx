@@ -42,6 +42,34 @@ export type LogisticsRouteDraft = {
   eventIds: string[];
 };
 
+export type LogisticsSort = "TIME" | "COMMUNE" | "SECTOR" | "ASSEMBLY" | "DISASSEMBLY";
+export type LogisticsSector = "NORTE" | "ORIENTE" | "CENTRO" | "PONIENTE" | "SUR" | "OTROS";
+
+// Founder-editable defaults. Unknown live communes intentionally fall into OTROS
+// until Founder assigns them in the local logistics view.
+export const DEFAULT_COMMUNE_SECTOR_MAP: Record<string, LogisticsSector> = {
+  Colina: "NORTE",
+  Chicureo: "NORTE",
+  Lampa: "NORTE",
+  Tiltil: "NORTE",
+  "Las Condes": "ORIENTE",
+  Vitacura: "ORIENTE",
+  "Lo Barnechea": "ORIENTE",
+  "La Reina": "ORIENTE",
+  Santiago: "CENTRO",
+  Providencia: "CENTRO",
+  Ñuñoa: "CENTRO",
+  Pudahuel: "PONIENTE",
+  Maipú: "PONIENTE",
+  Cerrillos: "PONIENTE",
+  "La Florida": "SUR",
+  "Puente Alto": "SUR",
+  "San Bernardo": "SUR",
+};
+
+const sectorOrder: LogisticsSector[] = ["NORTE", "ORIENTE", "CENTRO", "PONIENTE", "SUR", "OTROS"];
+const sectorForCommune = (commune: string, overrides: Record<string, LogisticsSector>) => overrides[commune] ?? DEFAULT_COMMUNE_SECTOR_MAP[commune] ?? "OTROS";
+
 const longDayFormatter = new Intl.DateTimeFormat("es-CL", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
 
 const dateOnly = (value: string) => new Date(`${value}T12:00:00`);
@@ -125,6 +153,10 @@ export function StaffLogisticsView({ events }: { events: StaffLogisticsEvent[] }
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [routeOpen, setRouteOpen] = useState(false);
   const [routeDraft, setRouteDraft] = useState<LogisticsRouteDraft | null>(null);
+  const [sortBy, setSortBy] = useState<LogisticsSort>("TIME");
+  const [groupBySector, setGroupBySector] = useState(false);
+  const [mappingOpen, setMappingOpen] = useState(false);
+  const [sectorOverrides, setSectorOverrides] = useState<Record<string, LogisticsSector>>({});
   const [anchor, setAnchor] = useState(() => monday(events[0] ? dateOnly(events[0].date) : new Date()));
   const days = useMemo(() => weekDays(anchor), [anchor]);
   const weekSet = useMemo(() => new Set(days), [days]);
@@ -146,7 +178,13 @@ export function StaffLogisticsView({ events }: { events: StaffLogisticsEvent[] }
       (commune === "ALL" || event.commune === commune) &&
       (operator === "ALL" || event.operator === operator) &&
       (box === "ALL" || event.box === box);
-  }).sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`)), [box, commune, events, operator, search, service, status, weekSet]);
+  }).sort((a, b) => {
+    if (sortBy === "COMMUNE") return a.commune.localeCompare(b.commune) || a.time.localeCompare(b.time);
+    if (sortBy === "SECTOR") return sectorForCommune(a.commune, sectorOverrides).localeCompare(sectorForCommune(b.commune, sectorOverrides)) || a.commune.localeCompare(b.commune) || a.time.localeCompare(b.time);
+    if (sortBy === "ASSEMBLY") return clockMinutes(a.setupTime) - clockMinutes(b.setupTime) || a.time.localeCompare(b.time);
+    if (sortBy === "DISASSEMBLY") return clockMinutes(a.teardownTime) - clockMinutes(b.teardownTime) || a.time.localeCompare(b.time);
+    return `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`);
+  }), [box, commune, events, operator, search, sectorOverrides, service, sortBy, status, weekSet]);
 
   const selected = visible.find((event) => event.id === selectedId) ?? null;
   const counts = useMemo(() => events.filter((event) => weekSet.has(event.date)).reduce((result, event) => {
@@ -179,7 +217,7 @@ export function StaffLogisticsView({ events }: { events: StaffLogisticsEvent[] }
             <button className="min-h-10 rounded-xl border border-brand/50 px-3 text-xs font-semibold text-brand hover:bg-brand/10" onClick={() => setAnchor(monday(new Date()))}>Esta semana</button>
             <div className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/10 px-3 text-xs text-white/75"><CalendarDays className="size-4 text-brand" />{longDayFormatter.format(dateOnly(days[0]))} – {longDayFormatter.format(dateOnly(days[6]))}</div>
             <button aria-label="Semana siguiente" className="grid size-10 place-items-center rounded-xl border border-white/10 text-white/70 hover:border-brand hover:text-brand" onClick={() => shiftWeek(1)}><ChevronRight className="size-4" /></button>
-            <button className="min-h-10 rounded-xl bg-brand px-3 text-xs font-bold text-brand-foreground hover:bg-brand/90" onClick={() => setRouteOpen((open) => !open)}>{routeOpen ? "CERRAR RUTA" : "GENERAR RUTA"}</button>
+            <button className="min-h-10 rounded-xl border border-brand/50 px-3 text-xs font-bold text-brand hover:bg-brand/10" onClick={() => setRouteOpen((open) => !open)}>{routeOpen ? "CERRAR RUTA" : "RUTA AVANZADA"}</button>
           </div>
         </div>
         <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -193,6 +231,9 @@ export function StaffLogisticsView({ events }: { events: StaffLogisticsEvent[] }
       </header>
 
       <div className="flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-[#111214] p-2">
+        <label className="flex min-h-10 items-center gap-2 rounded-xl border border-white/10 px-3 text-xs text-white/55">Ordenar por<select aria-label="Ordenar por" className="bg-transparent text-xs text-white/85 outline-none" onChange={(event) => setSortBy(event.target.value as LogisticsSort)} value={sortBy}><option value="TIME">Hora</option><option value="COMMUNE">Comuna</option><option value="SECTOR">Sector</option><option value="ASSEMBLY">Montaje</option><option value="DISASSEMBLY">Desmontaje</option></select></label>
+        <button aria-pressed={groupBySector} className={`min-h-10 rounded-xl border px-3 text-xs font-semibold ${groupBySector ? "border-brand bg-brand/15 text-brand" : "border-white/10 text-white/65 hover:border-brand/50 hover:text-brand"}`} onClick={() => setGroupBySector((value) => !value)}>AGRUPAR POR SECTOR</button>
+        {groupBySector && <button className="min-h-10 rounded-xl border border-white/10 px-3 text-xs text-white/65 hover:border-brand/50 hover:text-brand" onClick={() => setMappingOpen((value) => !value)}>{mappingOpen ? "CERRAR AJUSTES" : "AJUSTAR SECTORES"}</button>}
         <select aria-label="Filtrar por estado" className={selectClass} onChange={(event) => setStatus(event.target.value)} value={status}><option value="ALL">Todos los estados</option><option value="CONFIRMED">Confirmado</option><option value="PENDING">Por confirmar</option><option value="CANCELLED">Cancelado</option></select>
         <select aria-label="Filtrar por servicio" className={selectClass} onChange={(event) => setService(event.target.value)} value={service}><option value="ALL">Todos los servicios</option>{values.services.map((item) => <option key={item} value={item}>{item}</option>)}</select>
         <select aria-label="Filtrar por comuna" className={selectClass} onChange={(event) => setCommune(event.target.value)} value={commune}><option value="ALL">Todas las comunas</option>{values.communes.map((item) => <option key={item} value={item}>{item}</option>)}</select>
@@ -201,30 +242,46 @@ export function StaffLogisticsView({ events }: { events: StaffLogisticsEvent[] }
         {(search || status !== "ALL" || service !== "ALL" || commune !== "ALL" || operator !== "ALL" || box !== "ALL") && <button className="inline-flex min-h-10 items-center gap-1 rounded-xl border border-brand/40 px-3 text-xs font-semibold text-brand" onClick={() => { setSearch(""); setStatus("ALL"); setService("ALL"); setCommune("ALL"); setOperator("ALL"); setBox("ALL"); }}><X className="size-3.5" />Limpiar</button>}
       </div>
 
+      {groupBySector && mappingOpen && <SectorMappingEditor communes={values.communes} overrides={sectorOverrides} onChange={(next) => setSectorOverrides(next)} />}
+
       {routeOpen && <RoutePlanner days={days} draft={routeDraft} events={events} onChange={setRouteDraft} />}
 
-      <div className="hidden space-y-2 lg:block">
-        {visible.length ? visible.map((event) => <LogisticsRow event={event} key={event.id} onSelect={() => setSelectedId(event.id)} selected={selectedId === event.id} />) : <EmptyState />}
-      </div>
-
-      <div className="space-y-2 lg:hidden">{visible.length ? visible.map((event) => <LogisticsMobileCard event={event} key={event.id} onSelect={() => setSelectedId(event.id)} selected={selectedId === event.id} />) : <EmptyState />}</div>
+      <LogisticsEventList events={visible} groupBySector={groupBySector} overrides={sectorOverrides} onSelect={setSelectedId} selectedId={selectedId} />
       {selected && <LogisticsDetail event={selected} onClose={() => setSelectedId(null)} routeDraft={routeDraft} />}
     </section>
   );
 }
 
-function LogisticsRow({ event, onSelect, selected }: { event: StaffLogisticsEvent; onSelect: () => void; selected: boolean }) {
+function LogisticsEventList({ events, groupBySector, overrides, onSelect, selectedId }: { events: StaffLogisticsEvent[]; groupBySector: boolean; overrides: Record<string, LogisticsSector>; onSelect: (id: string) => void; selectedId: string | null }) {
+  if (!events.length) return <EmptyState />;
+  const row = (event: StaffLogisticsEvent) => <><div className="hidden lg:block"><LogisticsRow event={event} sector={sectorForCommune(event.commune, overrides)} onSelect={() => onSelect(event.id)} selected={selectedId === event.id} /></div><div className="lg:hidden"><LogisticsMobileCard event={event} sector={sectorForCommune(event.commune, overrides)} onSelect={() => onSelect(event.id)} selected={selectedId === event.id} /></div></>;
+  if (!groupBySector) return <div className="space-y-2">{events.map(row)}</div>;
+  const grouped = new Map<LogisticsSector, Map<string, StaffLogisticsEvent[]>>();
+  for (const event of events) {
+    const sector = sectorForCommune(event.commune, overrides);
+    const communes = grouped.get(sector) ?? new Map<string, StaffLogisticsEvent[]>();
+    communes.set(event.commune, [...(communes.get(event.commune) ?? []), event]);
+    grouped.set(sector, communes);
+  }
+  return <div className="space-y-3">{sectorOrder.filter((sector) => grouped.has(sector)).map((sector) => <details className="rounded-2xl border border-white/10 bg-[#111214] p-3" key={sector} open><summary className="cursor-pointer list-none text-sm font-semibold text-white"><span className="text-brand">SECTOR {sector}</span><span className="ml-2 text-xs font-normal text-white/45">{[...(grouped.get(sector)?.values() ?? [])].reduce((total, items) => total + items.length, 0)} eventos</span></summary><div className="mt-3 space-y-3">{[...(grouped.get(sector)?.entries() ?? [])].sort(([a], [b]) => a.localeCompare(b)).map(([commune, communeEvents]) => <details className="rounded-xl border border-white/10 bg-[#17181a] p-2" key={commune} open><summary className="cursor-pointer list-none px-2 py-1 text-xs font-semibold uppercase tracking-[.16em] text-white/60">{commune}<span className="ml-2 text-[10px] font-normal text-white/35">({communeEvents.length})</span></summary><div className="mt-2 space-y-2">{communeEvents.map(row)}</div></details>)}</div></details>)}</div>;
+}
+
+function SectorMappingEditor({ communes, overrides, onChange }: { communes: string[]; overrides: Record<string, LogisticsSector>; onChange: (next: Record<string, LogisticsSector>) => void }) {
+  return <section className="rounded-2xl border border-brand/20 bg-[#111214] p-3" aria-label="Ajustes de sector por comuna"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Mapping comuna → sector</p><p className="mt-1 text-xs text-white/45">Ajuste local para la vista de Founder; no modifica datos del evento.</p></div><span className="text-[10px] uppercase tracking-[.14em] text-white/35">{communes.length} comunas</span></div><div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{communes.map((commune) => <label className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-[#17181a] px-3 py-2 text-xs text-white/70" key={commune}><span className="truncate">{commune}</span><select aria-label={`Sector de ${commune}`} className="max-w-28 bg-transparent text-right text-xs text-brand outline-none" onChange={(event) => onChange({ ...overrides, [commune]: event.target.value as LogisticsSector })} value={overrides[commune] ?? DEFAULT_COMMUNE_SECTOR_MAP[commune] ?? "OTROS"}>{sectorOrder.map((sector) => <option key={sector} value={sector}>{sector}</option>)}</select></label>)}</div></section>;
+}
+
+function LogisticsRow({ event, sector, onSelect, selected }: { event: StaffLogisticsEvent; sector: LogisticsSector; onSelect: () => void; selected: boolean }) {
   const state = statusView[normalizeStatus(event.status)];
   const date = dateParts(event.date);
   return <button className={`grid w-full grid-cols-[72px_5px_96px_minmax(0,1.25fr)_minmax(0,1fr)_110px_auto_20px] items-center gap-3 rounded-2xl border border-white/10 bg-[#111214] px-4 py-3 text-left transition hover:border-white/20 hover:bg-white/[.03] ${selected ? "border-brand/60 bg-brand/5" : ""}`} onClick={onSelect}>
-    <span className="text-xs font-semibold leading-tight text-white"><strong className="block text-lg">{date.day}</strong><span className="block text-[10px] text-white/50">{date.weekday} · {date.month}</span></span><span className={`h-12 w-1 rounded-full ${state.bar}`} /><span className="text-sm font-medium text-white/90">{formatTime(event.time)} → {formatTime(event.endTime)}<span className="block text-[10px] text-white/40">Citación {formatTime(event.staffCallAt)}</span></span><span className="min-w-0"><strong className="block truncate text-sm text-white">{event.customer}</strong><span className="mt-0.5 block truncate text-[11px] text-white/45">{event.operator === "Sin asignar" ? "Sin operador" : `Operador · ${event.operator}`} · {event.box === "Sin asignar" ? "Sin caja" : event.box}</span><span className="block truncate text-[10px] text-white/35">M {formatTime(event.setupTime)} · D {formatTime(event.teardownTime)}</span></span><span className="flex min-w-0 items-start gap-1.5 text-xs text-white/65"><MapPin className="mt-0.5 size-3.5 shrink-0 text-white/45" /><span className="min-w-0 truncate">{event.location}<span className="block truncate text-white/35">{event.commune}</span></span></span><span className={`inline-flex items-center gap-1.5 text-xs font-medium ${state.color}`}><i className={`size-2 shrink-0 rounded-full ${state.dot}`} />{state.label}</span><span className="whitespace-nowrap rounded-full border border-white/10 bg-white/[.05] px-2.5 py-1 text-[11px] font-semibold text-white/75">{event.service}{event.duration ? ` · ${event.duration}h` : ""}</span><ChevronRight className="size-4 text-brand" />
+    <span className="text-xs font-semibold leading-tight text-white"><strong className="block text-lg">{date.day}</strong><span className="block text-[10px] text-white/50">{date.weekday} · {date.month}</span></span><span className={`h-12 w-1 rounded-full ${state.bar}`} /><span className="text-sm font-medium text-white/90">{formatTime(event.time)} → {formatTime(event.endTime)}<span className="block text-[10px] text-white/40">Citación {formatTime(event.staffCallAt)}</span></span><span className="min-w-0"><strong className="block truncate text-sm text-white">{event.customer}</strong><span className="mt-0.5 block truncate text-[11px] text-white/45">{event.operator === "Sin asignar" ? "Sin operador" : `Operador · ${event.operator}`} · {event.box === "Sin asignar" ? "Sin caja" : event.box}</span><span className="block truncate text-[10px] text-white/35">M {formatTime(event.setupTime)} · D {formatTime(event.teardownTime)}</span></span><span className="flex min-w-0 items-start gap-1.5 text-xs text-white/65"><MapPin className="mt-0.5 size-3.5 shrink-0 text-white/45" /><span className="min-w-0 truncate">{event.location}<span className="block truncate text-white/35">{event.commune} · {sector}</span></span></span><span className={`inline-flex items-center gap-1.5 text-xs font-medium ${state.color}`}><i className={`size-2 shrink-0 rounded-full ${state.dot}`} />{state.label}</span><span className="whitespace-nowrap rounded-full border border-white/10 bg-white/[.05] px-2.5 py-1 text-[11px] font-semibold text-white/75">{event.service}{event.duration ? ` · ${event.duration}h` : ""}</span><ChevronRight className="size-4 text-brand" />
   </button>;
 }
 
-function LogisticsMobileCard({ event, onSelect, selected }: { event: StaffLogisticsEvent; onSelect: () => void; selected: boolean }) {
+function LogisticsMobileCard({ event, sector, onSelect, selected }: { event: StaffLogisticsEvent; sector: LogisticsSector; onSelect: () => void; selected: boolean }) {
   const state = statusView[normalizeStatus(event.status)];
   const date = dateParts(event.date);
-  return <button className={`grid w-full grid-cols-[54px_minmax(0,1fr)_18px] gap-3 rounded-2xl border border-white/10 bg-[#111214] p-3 text-left ${selected ? "border-brand/60 bg-brand/5" : ""}`} onClick={onSelect}><span className={`border-r-4 pr-2 ${state.bar}`}><strong className="block text-base text-white">{date.day}</strong><span className="text-[10px] font-semibold text-white/45">{date.weekday}</span></span><span className="min-w-0"><strong className="block truncate text-sm text-white">{event.customer}</strong><span className="mt-0.5 block text-xs text-white/70">{formatTime(event.time)} → {formatTime(event.endTime)} · {event.service}{event.duration ? ` · ${event.duration}h` : ""}</span><span className="mt-1 block truncate text-[11px] text-white/45">{event.location} · {event.commune}</span><span className="mt-1 block truncate text-[11px] text-white/45">Citación {formatTime(event.staffCallAt)} · {event.operator} · {event.box}</span><span className="mt-1 block truncate text-[11px] text-white/45">M {formatTime(event.setupTime)} · D {formatTime(event.teardownTime)}</span><span className={`mt-1 inline-flex items-center gap-1 text-[11px] ${state.color}`}><i className={`size-1.5 rounded-full ${state.dot}`} />{state.label}</span></span><ChevronRight className="mt-1 size-4 text-brand" /></button>;
+  return <button className={`grid w-full grid-cols-[54px_minmax(0,1fr)_18px] gap-3 rounded-2xl border border-white/10 bg-[#111214] p-3 text-left ${selected ? "border-brand/60 bg-brand/5" : ""}`} onClick={onSelect}><span className={`border-r-4 pr-2 ${state.bar}`}><strong className="block text-base text-white">{date.day}</strong><span className="text-[10px] font-semibold text-white/45">{date.weekday}</span></span><span className="min-w-0"><strong className="block truncate text-sm text-white">{event.customer}</strong><span className="mt-0.5 block text-xs text-white/70">{formatTime(event.time)} → {formatTime(event.endTime)} · {event.service}{event.duration ? ` · ${event.duration}h` : ""}</span><span className="mt-1 block truncate text-[11px] text-white/45">{event.location} · {event.commune} · {sector}</span><span className="mt-1 block truncate text-[11px] text-white/45">Citación {formatTime(event.staffCallAt)} · {event.operator} · {event.box}</span><span className="mt-1 block truncate text-[11px] text-white/45">M {formatTime(event.setupTime)} · D {formatTime(event.teardownTime)}</span><span className={`mt-1 inline-flex items-center gap-1 text-[11px] ${state.color}`}><i className={`size-1.5 rounded-full ${state.dot}`} />{state.label}</span></span><ChevronRight className="mt-1 size-4 text-brand" /></button>;
 }
 
 function RoutePlanner({ days, draft, events, onChange }: { days: string[]; draft: LogisticsRouteDraft | null; events: StaffLogisticsEvent[]; onChange: (draft: LogisticsRouteDraft | null) => void }) {
