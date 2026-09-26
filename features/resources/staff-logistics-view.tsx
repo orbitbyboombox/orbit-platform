@@ -285,7 +285,7 @@ export function StaffLogisticsView({ events }: { events: StaffLogisticsEvent[] }
 
 function LogisticsEventList({ events, groupBySector, overrides, onSelect, selectedId }: { events: StaffLogisticsEvent[]; groupBySector: boolean; overrides: Record<string, LogisticsSector>; onSelect: (id: string) => void; selectedId: string | null }) {
   if (!events.length) return <EmptyState />;
-  const row = (event: StaffLogisticsEvent) => <><div className="hidden lg:block"><LogisticsEventRow event={event} sector={sectorForCommune(event.commune, overrides)} onSelect={() => onSelect(event.id)} selected={selectedId === event.id} /></div><div className="w-full max-w-full min-w-0 overflow-hidden lg:hidden"><ScaledLogisticsEventRow event={event} sector={sectorForCommune(event.commune, overrides)} onSelect={() => onSelect(event.id)} selected={selectedId === event.id} /></div></>;
+  const row = (event: StaffLogisticsEvent) => <><div className="hidden lg:block"><LogisticsEventRow event={event} sector={sectorForCommune(event.commune, overrides)} onSelect={() => onSelect(event.id)} selected={selectedId === event.id} /></div><div className="relative w-[calc(100vw-24px)] max-w-none min-w-0 overflow-x-hidden overflow-y-visible lg:hidden" style={{ marginLeft: "calc(50% - 50vw + 12px)" }}><ScaledLogisticsEventRow event={event} sector={sectorForCommune(event.commune, overrides)} onSelect={() => onSelect(event.id)} selected={selectedId === event.id} /></div></>;
   if (!groupBySector) return <div className="w-full max-w-full min-w-0 space-y-2">{events.map(row)}</div>;
   const grouped = new Map<LogisticsSector, Map<string, StaffLogisticsEvent[]>>();
   for (const event of events) {
@@ -302,11 +302,13 @@ function SectorMappingEditor({ communes, overrides, onChange }: { communes: stri
 }
 
 const LOGICAL_ROW_WIDTH_PX = 680;
-const LOGICAL_ROW_HEIGHT_PX = 88;
+const LOGICAL_ROW_HEIGHT_PX = 112;
 
 function ScaledLogisticsEventRow({ event, sector, onSelect, selected }: { event: StaffLogisticsEvent; sector: LogisticsSector; onSelect: () => void; selected: boolean }) {
   const hostRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
   const [availableWidth, setAvailableWidth] = useState(0);
+  const [naturalHeight, setNaturalHeight] = useState(LOGICAL_ROW_HEIGHT_PX);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -318,9 +320,19 @@ function ScaledLogisticsEventRow({ event, sector, onSelect, selected }: { event:
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    const row = innerRef.current?.querySelector("button");
+    if (!row) return;
+    const updateHeight = () => setNaturalHeight(Math.max(LOGICAL_ROW_HEIGHT_PX, Math.ceil(row.scrollHeight)));
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(row);
+    return () => observer.disconnect();
+  }, []);
+
   const scale = Math.min(1, (availableWidth || 358) / LOGICAL_ROW_WIDTH_PX);
-  return <div ref={hostRef} className="w-full max-w-full min-w-0 overflow-hidden" style={{ height: `${LOGICAL_ROW_HEIGHT_PX * scale}px` }}>
-    <div className="origin-top-left" style={{ width: `${LOGICAL_ROW_WIDTH_PX}px`, transform: `scale(${scale})` }}>
+  return <div ref={hostRef} className="w-full max-w-full min-w-0 overflow-x-hidden overflow-y-visible" style={{ height: `${naturalHeight * scale}px` }}>
+    <div ref={innerRef} className="origin-top-left" style={{ width: `${LOGICAL_ROW_WIDTH_PX}px`, transform: `scale(${scale})` }}>
       <LogisticsEventRow event={event} sector={sector} onSelect={onSelect} selected={selected} />
     </div>
   </div>;

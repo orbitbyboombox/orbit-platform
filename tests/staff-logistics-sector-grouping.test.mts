@@ -54,9 +54,14 @@ test("Staff logistics mobile rows restore the desktop preview row with left-alig
   assert.match(view, /<LogisticsEventRow event=\{event\} sector=\{sectorForCommune\(event\.commune, overrides\)\}/);
   assert.match(view, /<ScaledLogisticsEventRow event=\{event\} sector=\{sectorForCommune\(event\.commune, overrides\)\}/);
   assert.match(view, /LOGICAL_ROW_WIDTH_PX = 680/);
+  assert.match(view, /LOGICAL_ROW_HEIGHT_PX = 112/);
+  assert.match(view, /naturalHeight/);
+  assert.match(view, /querySelector\("button"\)/);
   assert.match(view, /ResizeObserver/);
   assert.match(view, /transform: `scale\(\$\{scale\}\)`/);
   assert.match(view, /origin-top-left/);
+  assert.match(view, /w-\[calc\(100vw-24px\)\]/);
+  assert.match(view, /calc\(50% - 50vw \+ 12px\)/);
   assert.match(view, /grid-cols-\[72px_5px_96px_minmax\(0,1\.25fr\)_minmax\(0,1fr\)_110px_auto_20px\]/);
   assert.match(view, /w-full max-w-full min-w-0/);
   assert.match(view, /event\.customer/);
