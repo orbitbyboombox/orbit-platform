@@ -76,3 +76,13 @@ test("the approved upcoming Events component is a first-priority sortable sectio
   assert.match(dashboard, /Mover abajo/);
   assert.doesNotMatch(dashboard, /new calendar|CalendarCard|SortableCalendar/);
 });
+
+test("upcoming events use a compact localized date card instead of ISO text", () => {
+  assert.match(dashboard, /formatUpcomingEventDate/);
+  assert.match(dashboard, /upcomingMonthLabels = \["ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"\]/);
+  assert.match(dashboard, /grid-cols-\[4rem_1fr_auto\][\s\S]*sm:grid-cols-\[4\.5rem_1fr_auto\]/);
+  assert.match(dashboard, /formattedDate\.weekday/);
+  assert.match(dashboard, /formattedDate\.day/);
+  assert.match(dashboard, /formattedDate\.month/);
+  assert.doesNotMatch(dashboard, /event\.date\.split\(" "\)/);
+});

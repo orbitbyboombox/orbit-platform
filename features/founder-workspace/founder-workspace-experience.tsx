@@ -65,6 +65,22 @@ export type CommandCenterEvent = CommandCenterItem & {
   status: string;
 };
 
+const upcomingMonthLabels = ["ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"];
+
+function formatUpcomingEventDate(value: string) {
+  const date = new Date(`${value}T12:00:00Z`);
+  const parts = new Intl.DateTimeFormat("es-CL", {
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "UTC",
+  }).formatToParts(date);
+  const weekday = parts.find((part) => part.type === "weekday")?.value.replaceAll(".", "").toUpperCase() ?? "--";
+  const day = parts.find((part) => part.type === "day")?.value ?? "--";
+  const monthNumber = Number(parts.find((part) => part.type === "month")?.value ?? 0);
+  return { weekday, day, month: upcomingMonthLabels[monthNumber - 1] ?? "--" };
+}
+
 export type PendingStaffApproval = {
   id: string;
   projectId: string;
@@ -814,18 +830,22 @@ export function FounderWorkspaceExperience({
         </span>
       </div>
       <div className="mt-4 divide-y">
-        {upcomingEvents.slice(0, 4).map((event) => (
-          <Link
-            className="group grid grid-cols-[3.25rem_1fr_auto] gap-3 py-3.5 first:pt-0 last:pb-0"
+        {upcomingEvents.slice(0, 4).map((event) => {
+          const formattedDate = formatUpcomingEventDate(event.date);
+          return <Link
+            className="group grid grid-cols-[4rem_1fr_auto] gap-3 py-3.5 first:pt-0 last:pb-0 sm:grid-cols-[4.5rem_1fr_auto]"
             href={event.href}
             key={event.id}
           >
-            <span className="grid min-h-14 place-items-center rounded-xl border bg-background/50 text-center">
-              <strong className="block text-lg leading-none">
-                {event.date.split(" ")[0]}
+            <span className="grid min-h-[4.5rem] w-16 shrink-0 place-items-center rounded-xl border border-white/10 bg-background/70 py-2 text-center sm:min-h-[4.75rem] sm:w-[4.5rem]">
+              <span className="text-[9px] font-semibold uppercase tracking-[.12em] text-muted">
+                {formattedDate.weekday}
+              </span>
+              <strong className="block text-2xl leading-none text-white">
+                {formattedDate.day}
               </strong>
-              <span className="text-[9px] font-semibold uppercase text-muted">
-                {event.date.split(" ").slice(1).join(" ")}
+              <span className="text-[10px] font-semibold uppercase tracking-[.12em] text-brand">
+                {formattedDate.month}
               </span>
             </span>
             <span className="min-w-0">
@@ -840,8 +860,8 @@ export function FounderWorkspaceExperience({
             <span className="self-start rounded-lg bg-info-soft px-2 py-1 text-[9px] font-semibold uppercase text-info">
               {event.status}
             </span>
-          </Link>
-        ))}
+          </Link>;
+        })}
         {!upcomingEvents.length ? (
           <Empty label="No hay eventos próximos." />
         ) : null}
