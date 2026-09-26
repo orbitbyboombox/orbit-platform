@@ -688,7 +688,29 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
       : assignment.operational_assets;
     if (asset?.asset_code && !boxByProject.has(assignment.project_id)) boxByProject.set(assignment.project_id, asset.asset_code);
   }
+  const formatAssignmentTime = (value: string | null | undefined, fallback: string) =>
+    value ? value.slice(11, 16) || value.slice(0, 5) : fallback;
+  const activeAssignmentFor = (projectId: string, assignmentType: string) =>
+    (assignments ?? []).find(
+      (item) =>
+        item.project_id === projectId &&
+        item.assignment_type === assignmentType &&
+        !["CANCELLED", "REJECTED"].includes(item.status),
+    );
   const logisticsEvents: StaffLogisticsEvent[] = crmEvents.map((event) => ({
+    ...(() => {
+      const assembly = activeAssignmentFor(event.projectId, "ASSEMBLY");
+      const disassembly = activeAssignmentFor(event.projectId, "DISASSEMBLY");
+      const setupFallback = event.staffCallAt ?? event.time ?? "";
+      const teardownFallback = event.serviceEndAt ?? event.time ?? "";
+      return {
+        endTime: event.serviceEndAt ?? event.time ?? "",
+        setupTime: formatAssignmentTime(assembly?.start_time ?? assembly?.arrival_time, formatAssignmentTime(setupFallback, "")),
+        setupStaff: assembly?.staff_id ? staffNameById.get(assembly.staff_id) ?? "Sin asignar" : "Sin asignar",
+        teardownTime: formatAssignmentTime(disassembly?.finish_time ?? disassembly?.start_time, formatAssignmentTime(teardownFallback, "")),
+        teardownStaff: disassembly?.staff_id ? staffNameById.get(disassembly.staff_id) ?? "Sin asignar" : "Sin asignar",
+      };
+    })(),
     id: event.id,
     projectId: event.projectId,
     orbitEventId: event.orbitEventId,
