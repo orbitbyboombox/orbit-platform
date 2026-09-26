@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assertSupabaseEnvironmentSafe, productionSupabaseProjectRef, resolveOrbitEnvironment } from "../lib/supabase/environment-guard.ts";
+import { assertSupabaseEnvironmentSafe, isReadOnlyVisualPreview, productionSupabaseProjectRef, resolveOrbitEnvironment } from "../lib/supabase/environment-guard.ts";
 
 const productionUrl = `https://${productionSupabaseProjectRef}.supabase.co`;
 const testUrl = "https://bianca-test-project.supabase.co";
@@ -24,4 +24,18 @@ test("environment classification is explicit and fail-closed for unknown values"
   assert.equal(resolveOrbitEnvironment({ ORBIT_ENVIRONMENT: "test" }), "test");
   assert.equal(resolveOrbitEnvironment({ ORBIT_ENVIRONMENT: "production" }), "production");
   assert.equal(resolveOrbitEnvironment({}), "unknown");
+});
+
+test("allows production target only for explicit read-only visual preview", () => {
+  const env = { VERCEL_ENV: "preview", ORBIT_READ_ONLY_VISUAL_PREVIEW: "true" };
+  assert.equal(isReadOnlyVisualPreview(env), true);
+  assert.deepEqual(assertSupabaseEnvironmentSafe(productionUrl, env), {
+    environment: "preview",
+    projectRef: productionSupabaseProjectRef,
+    productionMatch: true,
+  });
+});
+
+test("does not treat an ordinary preview as read-only visual preview", () => {
+  assert.equal(isReadOnlyVisualPreview({ VERCEL_ENV: "preview" }), false);
 });

@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { assertSupabaseEnvironmentSafe } from "./environment-guard";
+import { assertSupabaseEnvironmentSafe, isReadOnlyVisualPreview } from "./environment-guard";
+import { makeReadOnlyVisualPreviewClient } from "./read-only-preview";
 
 /** Server-only Supabase client for trusted background and connector operations. */
 export function createAdminClient(): SupabaseClient {
@@ -11,10 +12,11 @@ export function createAdminClient(): SupabaseClient {
   }
   assertSupabaseEnvironmentSafe(url);
 
-  return createClient(url, secretKey, {
+  const client = createClient(url, secretKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
     },
   });
+  return isReadOnlyVisualPreview() ? makeReadOnlyVisualPreviewClient(client) : client;
 }

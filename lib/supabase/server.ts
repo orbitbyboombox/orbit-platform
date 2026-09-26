@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import { assertSupabaseEnvironmentSafe } from "./environment-guard";
+import { assertSupabaseEnvironmentSafe, isReadOnlyVisualPreview } from "./environment-guard";
+import { makeReadOnlyVisualPreviewClient } from "./read-only-preview";
 
 async function getSupabaseServerConfig() {
   const cookieStore = await cookies();
@@ -15,16 +16,17 @@ const authCookieOptions={httpOnly:true,path:"/",maxAge:60*60*24*365,sameSite:"la
 
 export async function createSupabaseServerClient() {
   const { cookieStore, publishableKey, url } = await getSupabaseServerConfig();
-  return createServerClient(url, publishableKey, {
+  const client = createServerClient(url, publishableKey, {
     cookies: {
       getAll: () => cookieStore.getAll(),
     },
   });
+  return isReadOnlyVisualPreview() ? makeReadOnlyVisualPreviewClient(client) : client;
 }
 
 export async function createSupabaseServerActionClient() {
   const { cookieStore, publishableKey, url } = await getSupabaseServerConfig();
-  return createServerClient(url, publishableKey, {
+  const client = createServerClient(url, publishableKey, {
     cookieOptions: authCookieOptions,
     cookies: {
       getAll: () => cookieStore.getAll(),
@@ -33,6 +35,7 @@ export async function createSupabaseServerActionClient() {
       },
     },
   });
+  return isReadOnlyVisualPreview() ? makeReadOnlyVisualPreviewClient(client) : client;
 }
 
 export async function hasSupabaseAuthCookie() {
