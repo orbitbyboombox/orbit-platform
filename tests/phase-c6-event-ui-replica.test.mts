@@ -11,9 +11,9 @@ test("Phase C.6 keeps the PDF event language in admin and Staff surfaces", () =>
   for (const marker of ["Caja Negra", "CHECK-OUT", "CHECK-IN", "COBRAR CLIENTE", "bg-[#111214]", "bg-brand"]) assert.match(admin, new RegExp(marker.replace(/[\[\]#]/g, "\\$&")));
   assert.match(list, /Nuevo evento/);
   assert.match(list, /bg-\[#191a1d\]/);
-  assert.match(list, /grid-cols-\[48px_4px_minmax\(0,1fr\)_16px\]/);
-  assert.match(list, /h-14 w-1 self-center rounded-full/);
-  assert.match(list, /min-h-\[92px\]/);
+  assert.match(list, /grid-cols-\[38px_3px_54px_72px_68px_55px_43px_14px\]/);
+  assert.match(list, /h-12 w-1 self-center rounded-full/);
+  assert.match(list, /min-h-\[72px\]/);
   assert.match(list, /overflow-x-clip/);
   assert.match(list, /md:grid-cols-\[72px_minmax\(0,1fr\)_auto\]/);
   assert.match(staff, /initialEventId/);

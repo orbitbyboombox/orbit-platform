@@ -303,42 +303,32 @@ export function EventCenter({
       <section className="min-w-0 max-w-full space-y-3 overflow-x-clip">
         {filtered.map((event) => (
           <div key={event.projectId}>
-            <article className="grid min-h-[92px] w-full min-w-0 grid-cols-[48px_4px_minmax(0,1fr)_16px] items-center gap-x-2 rounded-2xl border border-white/10 bg-[#191a1d] px-2.5 py-2 text-white shadow-[0_10px_35px_rgba(0,0,0,.12)] transition hover:border-brand/70 md:hidden">
+            <article className="grid min-h-[72px] w-full min-w-0 grid-cols-[38px_3px_54px_72px_68px_55px_43px_14px] items-center gap-x-1 overflow-hidden rounded-2xl border border-white/10 bg-[#191a1d] px-1.5 py-1.5 text-white shadow-[0_10px_35px_rgba(0,0,0,.12)] transition hover:border-brand/70 md:hidden">
               {(() => {
                 const status = mobileStatusView(event.status);
                 return (
                   <>
-                    <div className="flex min-h-[72px] flex-col items-center justify-center text-center">
+                    <div className="flex min-h-[58px] flex-col items-center justify-center text-center">
                       <span className="text-[9px] font-semibold uppercase tracking-[.12em] text-brand">
                         {event.date ? new Date(`${event.date}T12:00:00Z`).toLocaleDateString("es-CL", { weekday: "short" }) : "—"}
                       </span>
-                      <strong className="text-2xl leading-none">{event.date?.slice(8, 10) ?? "—"}</strong>
+                      <strong className="text-[19px] leading-none">{event.date?.slice(8, 10) ?? "—"}</strong>
                       <span className="text-[9px] uppercase text-white/50">{event.date ? new Date(`${event.date}T12:00:00Z`).toLocaleDateString("es-CL", { month: "short" }) : "—"}</span>
                     </div>
-                    <span aria-hidden="true" className={`h-14 w-1 self-center rounded-full ${status.accent}`} />
-                    <div className="min-w-0 py-0.5">
-                      <div className="flex min-w-0 items-center gap-1.5">
-                        <p className="min-w-0 truncate text-[11px] font-semibold text-white/90">
-                          {event.time?.slice(0, 5) || "—"} → {event.serviceEndAt?.slice(11, 16) || "—"}
-                          {event.duration ? ` · ${event.duration}h` : ""}
-                        </p>
-                        <span className="max-w-[82px] shrink-0 truncate rounded-full border border-white/15 bg-white/[.06] px-1.5 py-0.5 text-[9px] text-white/70">
-                          {event.service || "Servicio"}
-                        </span>
-                      </div>
-                      <p className="truncate text-[13px] font-semibold leading-tight">{event.customerName}</p>
-                      <p className="truncate text-[10px] leading-tight text-white/55">
-                        {event.location || "Lugar por confirmar"} · {event.municipality || "Comuna por confirmar"}
-                      </p>
-                      <div className="flex min-w-0 items-center gap-1.5 text-[9px] leading-tight text-white/45">
-                        <p className="min-w-0 flex-1 truncate">
-                          Citación {event.staffCallAt?.slice(11, 16) || "—"} · {event.operator || "Sin asignar"}
-                        </p>
-                        <span className={`inline-flex shrink-0 items-center gap-1 ${status.text}`}>
-                          <span className={`size-1.5 rounded-full ${status.dot}`} />{status.label}
-                        </span>
-                      </div>
-                    </div>
+                    <span aria-hidden="true" className={`h-12 w-1 self-center rounded-full ${status.accent}`} />
+                    <p className="min-w-0 truncate text-[10px] font-semibold text-white/85">
+                      {event.time?.slice(0, 5) || "—"} → {event.serviceEndAt?.slice(11, 16) || "—"}
+                    </p>
+                    <p className="min-w-0 truncate text-[10px] font-semibold leading-tight">{event.customerName}</p>
+                    <p className="min-w-0 line-clamp-2 text-[9px] leading-tight text-white/55">
+                      {event.location || "Lugar por confirmar"}<br />{event.municipality || "Comuna por confirmar"}
+                    </p>
+                    <span className={`inline-flex min-w-0 items-center gap-1 truncate text-[9px] ${status.text}`}>
+                      <span className={`size-1.5 shrink-0 rounded-full ${status.dot}`} />{status.label}
+                    </span>
+                    <span className="min-w-0 truncate rounded-full border border-white/15 bg-white/[.06] px-1 py-0.5 text-center text-[8px] text-white/70">
+                      {event.service || "Servicio"}
+                    </span>
                     <Link aria-label={`Abrir evento ${event.customerName}`} className="grid size-7 place-items-center text-white/75" href={`/projects/${event.projectId}`}>
                       <span aria-hidden="true" className="text-xl leading-none">›</span>
                     </Link>
