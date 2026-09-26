@@ -18,6 +18,7 @@ import { buildCanonicalOrbitEventStateFromRecord } from "@/features/operations/c
 import { buildResponsibilityReadModel } from "@/features/staff-assignment-center/staff-responsibility-read-model";
 import type { OperationalBlock } from "@/features/operations/operational-blocks";
 import { resolveOfficialOperatorRate } from "@/features/operations/staff-assignment-payment";
+import { EventUiReplica } from "@/features/projects/components/event-ui-replica";
 
 export interface ProjectWorkspacePageProps {
   params: Promise<{ projectId: string }>;
@@ -1505,6 +1506,19 @@ export default async function ProjectWorkspacePage({
     expenses:(logisticsExpensesResult.data??[]).map(row=>{let description="";try{const metadata=JSON.parse(row.approval_reason??"{}");description=String(metadata.description??"")}catch{}return{id:row.id,tripId:String(row.vehicle_trip_id),category:row.category,description,total:Number(row.total),status:row.status,receiptPath:row.receipt_path??""}}),
   };
   return (
+    <>
+    <EventUiReplica
+      projectId={projectId}
+      customer={query.client ?? project.client.name}
+      date={date}
+      time={query.time ?? project.event.time}
+      venue={query.venue ?? project.event.location}
+      status={String(project.status ?? "ACTIVO")}
+      service={services.join(" · ")}
+      eventType={typeLabel}
+      equipment={equipment.requirements.map((item) => item.label)}
+      invoice={invoice ? { invoiceNumber: invoice.invoice_number, outstandingBalance: Number(invoice.outstanding_balance), status: invoice.effective_status } : undefined}
+    />
     <ProjectWorkspaceExperience
       customerId={rawProject?.customer_id ?? ""}
       reconciliationId={query.reconciliation}
@@ -1544,6 +1558,7 @@ export default async function ProjectWorkspacePage({
         notes: row.notes,
       }))}
     />
+    </>
   );
 }
 

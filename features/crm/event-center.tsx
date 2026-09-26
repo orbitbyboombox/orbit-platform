@@ -220,12 +220,19 @@ export function EventCenter({
 
   return (
     <div className="space-y-7">
-      <header className="border-b pb-7">
-        <p className="text-xs uppercase tracking-[.18em] text-muted">
-          CRM · OPERACIÓN
+      <header className="rounded-[28px] border border-white/10 bg-[#111214] p-6 text-white shadow-[0_20px_70px_rgba(0,0,0,.18)] sm:p-8">
+        <p className="text-xs uppercase tracking-[.18em] text-[#ff8a55]">
+          BOOMBOX · OPERACIÓN
         </p>
-        <h1 className="mt-2 text-3xl font-semibold">Eventos</h1>
-        <p className="mt-2 text-sm text-muted">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div><h1 className="mt-2 text-3xl font-semibold">Eventos</h1>
+          <p className="mt-2 text-sm text-white/60">Vista semanal · operación activa</p></div>
+          <Link className="inline-flex min-h-11 items-center rounded-xl bg-[#ff6b2c] px-4 text-sm font-semibold text-black" href="/projects/new">Nuevo evento</Link>
+        </div>
+        <div className="mt-6 grid gap-3 sm:grid-cols-3">
+          {[["TOTAL", events.length], ["PRÓXIMOS", events.filter((event) => statusOf(event) === "UPCOMING").length], ["HOY", events.filter((event) => statusOf(event) === "TODAY").length]].map(([label, value]) => <div className="rounded-2xl border border-white/10 bg-white/[.04] p-4" key={String(label)}><p className="text-xs tracking-[.16em] text-white/45">{label}</p><p className="mt-2 text-2xl font-semibold">{value}</p></div>)}
+        </div>
+        <p className="mt-5 text-sm text-white/60">
           Gestiona todos los eventos BOOMBOX sin salir del CRM.
         </p>
       </header>
@@ -242,7 +249,7 @@ export function EventCenter({
           </button>
         ))}
       </div>
-      <label className="flex h-12 items-center gap-3 rounded-xl border bg-card px-4">
+      <label className="flex h-12 items-center gap-3 rounded-xl border border-white/10 bg-[#191a1d] px-4 text-white">
         <Search className="size-4 text-muted" />
         <input
           className="min-w-0 flex-1 bg-transparent outline-none"
@@ -270,20 +277,25 @@ export function EventCenter({
       <section className="space-y-3">
         {filtered.map((event) => (
           <article
-            className="grid min-w-0 gap-4 rounded-2xl border bg-card p-4 sm:p-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center"
+            className="group grid min-w-0 gap-4 rounded-2xl border border-white/10 bg-[#191a1d] p-4 text-white shadow-[0_10px_35px_rgba(0,0,0,.12)] transition hover:border-[#ff6b2c]/70 sm:p-5 md:grid-cols-[72px_minmax(0,1fr)_auto] md:items-center"
             key={event.projectId}
           >
+            <div className="grid size-16 shrink-0 place-items-center rounded-xl bg-[#0d0e10] text-center ring-1 ring-white/10">
+              <span className="text-[10px] uppercase tracking-[.16em] text-[#ff8a55]">{event.date ? new Date(`${event.date}T12:00:00Z`).toLocaleDateString("es-CL", { weekday: "short" }) : "—"}</span>
+              <strong className="text-2xl leading-none">{event.date?.slice(8, 10) ?? "—"}</strong>
+              <span className="text-[10px] text-white/50">{event.date?.slice(5, 7) ?? ""}</span>
+            </div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <CalendarDays className="size-4 shrink-0 text-brand" />
                 <h2 className="min-w-0 break-words font-semibold">
                   {event.customerName}
                 </h2>
-                <span className="rounded-full border px-2.5 py-1 text-xs">
+                <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-xs text-emerald-300">
                   {event.status}
                 </span>
               </div>
-              <p className="mt-2 break-words text-sm text-muted">
+              <p className="mt-2 break-words text-sm text-white/60">
                 {event.company || "Cliente particular"} ·{" "}
                 {event.date
                   ? new Date(`${event.date}T12:00:00Z`).toLocaleDateString(
@@ -291,13 +303,14 @@ export function EventCenter({
                     )
                   : "Sin fecha"} · {event.time?.slice(0, 5) || "Sin hora"}
               </p>
-              <p className="mt-1 break-words text-sm">
+              <p className="mt-1 break-words text-sm text-white/80">
                 {event.service || "Servicio por confirmar"}
                 {event.duration ? ` · ${event.duration} horas` : ""} · Operador:{" "}
                 {event.operator}
               </p>
             </div>
             <div className="flex min-w-0 items-center justify-end gap-2">
+              <span className="hidden text-xs text-white/45 md:block">Abrir</span>
               <Link
                 className="rounded-xl border px-3 py-2 text-sm"
                 href={`/customers/${event.customerId}`}

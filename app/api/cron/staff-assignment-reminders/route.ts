@@ -75,6 +75,56 @@ export async function GET(request: Request) {
   if (error)
     return NextResponse.json({ error: error.message }, { status: 500 });
 
+  // C.5 paper closeout reminder. This uses the existing notification/email
+  // channel and claims a unique correlation before invoking the provider.
+  let paperDelivered = 0;
+  const { data: paperSnapshots, error: paperError } = await admin
+    .from("event_paper_snapshots")
+    .select("id,project_id,asset_assignment_id,status,paper_required,reminder_sent_at")
+    .eq("paper_required", true)
+    .in("status", ["PENDING", "READY_TO_CLOSE"])
+    .is("reminder_sent_at", null);
+  if (paperError && paperError.code !== "42P01")
+    return NextResponse.json({ error: paperError.message }, { status: 500 });
+  for (const snapshot of paperSnapshots ?? []) {
+    if (!snapshot.project_id || !snapshot.asset_assignment_id) continue;
+    const [{ data: assignment }, { data: project }] = await Promise.all([
+      admin.from("assignments").select("staff_id,status,deleted_at,assignment_type,staff(first_name,email,status,deleted_at)").eq("project_id", snapshot.project_id).eq("assignment_type", "OPERATOR").is("deleted_at", null).in("status", ["CONFIRMED", "ACCEPTED", "COMPLETED"]).limit(1).maybeSingle(),
+      admin.from("projects").select("id,customer_id,name,event_date,event_time,status,deleted_at,project_services(duration_hours)").eq("id", snapshot.project_id).maybeSingle(),
+    ]);
+    const staff = (assignment?.staff && Array.isArray(assignment.staff) ? assignment.staff[0] : assignment?.staff) as { first_name?: string; email?: string } | null;
+    const projectRecord = project as typeof project & { project_services?: Array<{ duration_hours?: number }> };
+    if (!assignment?.staff_id || !staff?.email || !projectRecord || projectRecord.deleted_at) continue;
+    if (["CANCELLED", "CANCELED", "ARCHIVED", "CLOSED"].includes(String(projectRecord.status ?? "").toUpperCase())) continue;
+    const duration = Number(projectRecord.project_services?.[0]?.duration_hours ?? 0);
+    const endMinutes = localMinutes(projectRecord.event_date, projectRecord.event_time ?? "00:00") + duration * 60;
+    const nowMinutes = localMinutes(now.date, now.time);
+    if (nowMinutes < endMinutes - 5 || nowMinutes >= endMinutes) continue;
+    const correlation = `staff-paper-closeout:${snapshot.id}:${assignment.staff_id}`;
+    const { data: inserted, error: insertError } = await admin.from("internal_notifications").upsert({
+      project_id: projectRecord.id, customer_id: projectRecord.customer_id, staff_id: assignment.staff_id,
+      notification_type: "STAFF_PAPER_CLOSEOUT_REMINDER", title: "RECUERDA CERRAR TU EVENTO",
+      message: "Antes de retirarte, ingresa en tu Portal la cantidad de papel que quedó en la impresora. Este dato actualizará automáticamente el consumo del evento y el inventario de la Caja Negra asignada.",
+      status: "UNREAD", correlation_id: correlation, category: "OPERATIONS", priority: "HIGH",
+      action_required: true, entity_type: "EventPaperSnapshot", entity_id: snapshot.id,
+      related_href: `/staff-portal?event=${projectRecord.id}#paper`, metadata: { reminder: "PAPER_CLOSEOUT_MINUS_5" },
+    }, { onConflict: "correlation_id", ignoreDuplicates: true }).select("id").maybeSingle();
+    if (insertError || !inserted) continue;
+    try {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.bbox.cl";
+      const sent = await new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken()).send({
+        to: staff.email, subject: "RECUERDA CERRAR TU EVENTO",
+        textBody: `Hola ${staff.first_name ?? ""}.\n\nRECUERDA CERRAR TU EVENTO\n\nAntes de retirarte, ingresa en tu Portal la cantidad de papel que quedó en la impresora.\n\nEste dato actualizará automáticamente el consumo del evento y el inventario de la Caja Negra asignada.\n\nINGRESAR PAPEL RESTANTE: ${appUrl}/staff-portal?event=${projectRecord.id}#paper`,
+        htmlBody: `<main style="font-family:Arial,sans-serif;line-height:1.6"><h1>RECUERDA CERRAR TU EVENTO</h1><p>Antes de retirarte, ingresa en tu Portal la cantidad de papel que quedó en la impresora.</p><p>Este dato actualizará automáticamente el consumo del evento y el inventario de la Caja Negra asignada.</p><p><a href="${appUrl}/staff-portal?event=${projectRecord.id}#paper">INGRESAR PAPEL RESTANTE</a></p></main>`, driveFileIds: [], idempotencyKey: correlation, maxSendAttempts: 1,
+      });
+      await admin.from("internal_notifications").update({ metadata: { reminder: "PAPER_CLOSEOUT_MINUS_5", email_status: "SENT", message_id: sent.messageId } }).eq("id", inserted.id);
+      await admin.from("event_paper_snapshots").update({ reminder_sent_at: reference.toISOString() }).eq("id", snapshot.id).is("reminder_sent_at", null);
+      paperDelivered++;
+    } catch (sendError) {
+      await admin.from("internal_notifications").update({ metadata: { reminder: "PAPER_CLOSEOUT_MINUS_5", email_status: "FAILED", error: sendError instanceof Error ? sendError.message : "Unknown" } }).eq("id", inserted.id);
+    }
+  }
+
   // Other Staff retain assignment-based 48/2-hour emails; D-1 is the single
   // person/event communication below so multiple roles cannot duplicate it.
   let delivered = 0;
@@ -367,6 +417,7 @@ export async function GET(request: Request) {
     {
       ok: specialFailed === 0,
       delivered,
+      paperDelivered,
       d1Delivered: specialDelivered,
       d1Failed: specialFailed,
       specialDelivered,

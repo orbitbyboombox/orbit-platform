@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import {
   CalendarDays,
   CheckCircle2,
@@ -185,6 +185,7 @@ export function StaffPortalDashboard({
   expenseSubmissions,
   monthlyAccounts,
   mustChangePassword,
+  initialEventId,
 }: {
   name: string;
   events: StaffPortalEvent[];
@@ -200,8 +201,14 @@ export function StaffPortalDashboard({
   expenseSubmissions: StaffExpenseSubmission[];
   monthlyAccounts: StaffMonthlyAccount[];
   mustChangePassword: boolean;
+  initialEventId?: string;
 }) {
   const [selected, setSelected] = useState<StaffPortalEvent | null>(null);
+  useEffect(() => {
+    if (initialEventId) {
+      setSelected(events.find((event) => event.id === initialEventId) ?? null);
+    }
+  }, [events, initialEventId]);
   const today = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Santiago",
   }).format(new Date());
@@ -263,48 +270,35 @@ export function StaffPortalDashboard({
         />
       </section>
       <AvailableEvents events={availableEvents} requests={requests} />
-      <section className="rounded-3xl border bg-card p-5 sm:p-7">
+      <section className="rounded-3xl border border-white/10 bg-[#111214] p-5 text-white shadow-[0_20px_70px_rgba(0,0,0,.22)] sm:p-7">
         <h2 className="text-xl font-semibold">Mis eventos asignados</h2>
-        <p className="mt-1 text-sm text-muted">
+        <p className="mt-1 text-sm text-white/60">
           Las asignaciones nuevas aparecen primero y requieren tu aceptación.
         </p>
-        <div className="mt-5 grid gap-4 lg:grid-cols-2">
+        <div className="mt-5 space-y-2">
           {events.map((event) => (
             <button
-              className="rounded-2xl border p-4 text-left transition hover:border-brand/50"
+              className="group grid w-full gap-4 rounded-2xl border border-white/10 bg-[#191a1d] p-4 text-left transition hover:border-[#ff6b2c]/70 sm:grid-cols-[72px_minmax(0,1fr)_auto] sm:items-center"
               key={event.id}
               onClick={() => setSelected(event)}
             >
-              <div className="flex items-start justify-between gap-3">
+              <div className="grid size-16 shrink-0 place-items-center rounded-xl bg-[#0d0e10] text-center ring-1 ring-white/10">
+                <span className="text-[10px] uppercase tracking-[.16em] text-[#ff8a55]">{new Date(`${event.date}T12:00:00Z`).toLocaleDateString("es-CL", { weekday: "short" })}</span>
+                <strong className="text-2xl leading-none">{event.date.slice(8, 10)}</strong>
+                <span className="text-[10px] text-white/50">{event.date.slice(5, 7)}</span>
+              </div>
+              <div className="min-w-0">
                 <div>
                   <p className="font-semibold">{event.customer}</p>
-                  <p className="mt-1 text-sm text-muted">
-                    {event.eventType} · {event.service}
+                  <p className="mt-1 text-sm text-white/60">
+                    {event.start}–{event.finish} · {event.venue || event.address}
                   </p>
                 </div>
-                <span className="rounded-full bg-brand/10 px-2.5 py-1 text-xs font-semibold text-brand">
-                  {stateLabel(event)}
-                </span>
+                <p className="mt-2 text-xs text-white/45">{event.timeMode === "CONFIRMED" ? "HORARIO CONFIRMADO" : "HORARIO ESTIMADO"} · {event.service}</p>
               </div>
-              <div className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
-                <p>
-                  <CalendarDays className="mr-2 inline size-4 text-brand" />
-                  {event.date}
-                </p>
-                <p>
-                  <Clock3 className="mr-2 inline size-4 text-brand" />
-                  {event.timeMode === "CONFIRMED" ? "HORARIO CONFIRMADO" : "HORARIO ESTIMADO"} · {event.start}–{event.finish}
-                </p>
-                <p className="sm:col-span-2">
-                  <MapPin className="mr-2 inline size-4 text-brand" />
-                  {event.address}, {event.district}
-                </p>
-              </div>
-              <div className="mt-4 flex items-center justify-between border-t pt-3 text-sm">
-                <span>
-                  {event.roles.map((role) => ROLE[role] ?? role).join(" + ")}
-                </span>
-                <strong>{money(event.net)}</strong>
+              <div className="flex items-center gap-3 sm:justify-end">
+                <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-xs font-semibold text-emerald-300">{stateLabel(event)}</span>
+                <ChevronRight className="size-5 text-white/40 transition group-hover:text-[#ff8a55]" />
               </div>
             </button>
           ))}
@@ -586,14 +580,14 @@ function EventDetail({
       role="dialog"
       aria-modal="true"
     >
-      <article className="max-h-[94dvh] w-full overflow-y-auto rounded-t-3xl border bg-card p-5 sm:max-w-4xl sm:rounded-3xl sm:p-7">
+      <article className="max-h-[94dvh] w-full overflow-y-auto rounded-t-3xl border border-white/10 bg-[#111214] p-5 text-white shadow-[0_30px_100px_rgba(0,0,0,.45)] sm:max-w-5xl sm:rounded-3xl sm:p-7">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">
-              Paquete operacional
+            <p className="text-xs font-semibold uppercase tracking-[.18em] text-[#ff8a55]">
+              Evento · paquete operacional
             </p>
             <h2 className="mt-2 text-2xl font-semibold">{event.customer}</h2>
-            <p className="mt-1 text-sm text-muted">
+            <p className="mt-1 text-sm text-white/60">
               {event.eventType} · {event.service} · {event.duration} horas
             </p>
           </div>
@@ -633,9 +627,25 @@ function EventDetail({
             value={event.equipment.join(" · ") || "No asignado"}
           />
           <Small label="ORBIT Event ID" value={event.orbitEventId} />
-          <Small label="Pago neto" value={money(event.net)} />
           <Small label="Estado" value={stateLabel(event)} />
         </div>
+        <section className="mt-6 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-2xl border border-white/10 bg-[#191a1d] p-4">
+            <p className="text-xs font-semibold uppercase tracking-[.16em] text-[#ff8a55]">Caja Negra</p>
+            <h3 className="mt-2 font-semibold">Equipamiento del evento</h3>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-sm text-white/70">
+              {["Caja Negra", "Impresora", "Cámara", "Pantalla", "Operador", "Montaje", "Desmontaje"].map((item) => <span className="rounded-xl border border-white/10 px-3 py-2" key={item}>{item}</span>)}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-[#191a1d] p-4">
+            <p className="text-xs font-semibold uppercase tracking-[.16em] text-[#ff8a55]">Operación</p>
+            <h3 className="mt-2 font-semibold">Estado del servicio</h3>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+              {["CHECK-OUT", "EVENTO", "PAPEL", "CHECK-IN"].map((item) => <span className="rounded-full border border-white/10 px-3 py-2 text-center text-white/70" key={item}>{item}</span>)}
+            </div>
+            <p className="mt-3 text-xs text-white/45">El cierre de papel se completa desde el módulo operativo.</p>
+          </div>
+        </section>
         {event.logistics.length?<section className="mt-6 rounded-2xl border p-4"><h3 className="font-semibold">Mis viajes logísticos</h3><div className="mt-3 space-y-3">{event.logistics.map(trip=>{const nextStatus=trip.status==="PLANNED"?"IN_PROGRESS":trip.status==="IN_PROGRESS"?"ARRIVED":trip.status==="ARRIVED"?"COMPLETED":null;const nextLabel=nextStatus==="IN_PROGRESS"?"Iniciar viaje":nextStatus==="ARRIVED"?"Llegué":"Finalizar viaje";return <article className="rounded-xl border p-3" key={trip.id}><div className="flex flex-wrap items-start justify-between gap-2"><div><p className="font-semibold">{trip.sequence}. {trip.type.replaceAll("_"," ")}</p><p className="text-sm text-muted">{trip.vehicle} · {trip.driver}</p></div><span className="rounded-full border px-2.5 py-1 text-xs font-semibold">{trip.status}</span></div><div className="mt-3 grid gap-2 sm:grid-cols-2"><Small label="Salida" value={trip.departure}/><Small label="Llegada estimada" value={trip.arrival}/><Small label="Punto de encuentro" value={trip.meetingPoint}/><Small label="Ruta" value={trip.route}/><Small label="Instrucciones" value={trip.instructions}/></div><div className="mt-3 flex flex-wrap gap-2">{nextStatus?<button className="min-h-11 rounded-xl bg-brand px-4 text-sm font-semibold text-brand-foreground disabled:opacity-50" aria-busy={pending} disabled={pending} onClick={()=>run(()=>updateStaffLogisticsTripAction(trip.id,nextStatus))}>{pending?"Actualizando…":nextLabel}</button>:<span className="text-sm font-semibold text-emerald-500">Viaje completado</span>}<a className="inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold" href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(trip.route.split("→").at(-1)?.trim()??event.address)}`} rel="noreferrer" target="_blank"><Navigation className="size-4"/>Abrir en Maps</a></div></article>})}</div></section>:null}
         <div className="mt-4 flex flex-wrap gap-2">
           <a
