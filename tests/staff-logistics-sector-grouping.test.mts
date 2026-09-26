@@ -69,6 +69,7 @@ test("Staff logistics uses one shared flow container for filters and mobile rows
   assert.match(view, /layoutDebug/);
   assert.match(view, /COPIAR DIAGNÓSTICO/);
   assert.match(view, /data-debug="logistics-root"/);
+  assert.match(view, /className="min-w-0 max-w-full overflow-x-clip" data-debug="logistics-root"/);
   assert.match(view, /data-debug="filters"/);
   assert.match(view, /data-debug="event-list"/);
   assert.match(view, /data-debug="mobile-row"/);
@@ -77,7 +78,8 @@ test("Staff logistics uses one shared flow container for filters and mobile rows
   assert.match(view, /data-debug="event-button"/);
   assert.match(view, /<div className="grid w-full max-w-full min-w-0 grid-cols-2/);
   assert.match(view, /<div className="w-full min-w-0 max-w-full lg:hidden" data-debug="event-list"><div className="w-full min-w-0 max-w-full space-y-2">/);
-  assert.match(view, /className="w-full min-w-0 max-w-full overflow-visible" data-debug="scaled-host"[^>]*style=\{\{ width: "100%"/);
+  assert.match(view, /className="w-full min-w-0 max-w-full overflow-x-clip" data-debug="scaled-host"[^>]*style=\{\{ width: "100%"/);
+  assert.doesNotMatch(view, /data-debug="scaled-host"[^>]*overflow-visible/);
   assert.doesNotMatch(view, /logisticsRootRef|filtersWrapperRef|eventListWrapperRef|mobileGeometry|mobileLeft|mobileWidth|mobileStyle/);
   assert.doesNotMatch(view, /style=\{\{[^}]*marginLeft/);
   assert.doesNotMatch(view, /translateX\(|left: "-/);

@@ -537,7 +537,7 @@ function ScaledLogisticsEventRow({ event, sector, onSelect, selected }: { event:
   }, []);
 
   const scale = Math.min(1, (availableWidth || 358) / LOGICAL_ROW_WIDTH_PX);
-  return <div ref={hostRef} className="w-full min-w-0 max-w-full overflow-visible" data-debug="scaled-host" data-debug-available-width={availableWidth} data-debug-scale={scale} data-debug-logical-width={LOGICAL_ROW_WIDTH_PX} style={{ width: "100%", height: `${naturalHeight * scale}px` }}>
+  return <div ref={hostRef} className="w-full min-w-0 max-w-full overflow-x-clip" data-debug="scaled-host" data-debug-available-width={availableWidth} data-debug-scale={scale} data-debug-logical-width={LOGICAL_ROW_WIDTH_PX} style={{ width: "100%", height: `${naturalHeight * scale}px` }}>
     <div ref={innerRef} className="origin-top-left" data-debug="scaled-inner" style={{ width: `${LOGICAL_ROW_WIDTH_PX}px`, transform: `scale(${scale})` }}>
       <LogisticsEventRow event={event} sector={sector} onSelect={onSelect} selected={selected} />
     </div>
