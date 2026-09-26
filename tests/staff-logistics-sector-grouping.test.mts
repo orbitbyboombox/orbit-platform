@@ -52,7 +52,7 @@ test("Staff logistics has a compact mobile week label and contained controls", (
 test("Staff logistics mobile rows reuse the desktop row through uniform scaling", () => {
   assert.match(view, /function LogisticsEventRow/);
   assert.match(view, /<LogisticsEventRow event=\{event\} sector=\{sectorForCommune\(event\.commune, overrides\)\}/);
-  assert.match(view, /<ScaledLogisticsEventRow event=\{event\} sector=\{sectorForCommune\(event\.commune, overrides\)\}/);
+  assert.match(view, /<ScaledLogisticsEventRow availableWidth=\{mobileListWidth\} event=\{event\} sector=\{sectorForCommune\(event\.commune, overrides\)\}/);
   assert.match(view, /LOGICAL_ROW_WIDTH_PX = 680/);
   assert.match(view, /ResizeObserver/);
   assert.match(view, /transform: `scale\(\$\{scale\}\)`/);

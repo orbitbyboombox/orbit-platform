@@ -284,9 +284,22 @@ export function StaffLogisticsView({ events }: { events: StaffLogisticsEvent[] }
 }
 
 function LogisticsEventList({ events, groupBySector, overrides, onSelect, selectedId }: { events: StaffLogisticsEvent[]; groupBySector: boolean; overrides: Record<string, LogisticsSector>; onSelect: (id: string) => void; selectedId: string | null }) {
+  const mobileListRef = useRef<HTMLDivElement>(null);
+  const [mobileListWidth, setMobileListWidth] = useState(0);
+
+  useEffect(() => {
+    const list = mobileListRef.current;
+    if (!list) return;
+    const updateWidth = () => setMobileListWidth(list.getBoundingClientRect().width);
+    updateWidth();
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(list);
+    return () => observer.disconnect();
+  }, []);
+
   if (!events.length) return <EmptyState />;
-  const row = (event: StaffLogisticsEvent) => <><div className="hidden lg:block"><LogisticsEventRow event={event} sector={sectorForCommune(event.commune, overrides)} onSelect={() => onSelect(event.id)} selected={selectedId === event.id} /></div><div className="w-full min-w-0 overflow-hidden lg:hidden"><ScaledLogisticsEventRow event={event} sector={sectorForCommune(event.commune, overrides)} onSelect={() => onSelect(event.id)} selected={selectedId === event.id} /></div></>;
-  if (!groupBySector) return <div className="space-y-2">{events.map(row)}</div>;
+  const row = (event: StaffLogisticsEvent) => <><div className="hidden lg:block"><LogisticsEventRow event={event} sector={sectorForCommune(event.commune, overrides)} onSelect={() => onSelect(event.id)} selected={selectedId === event.id} /></div><div className="w-full min-w-0 overflow-hidden lg:hidden"><ScaledLogisticsEventRow availableWidth={mobileListWidth} event={event} sector={sectorForCommune(event.commune, overrides)} onSelect={() => onSelect(event.id)} selected={selectedId === event.id} /></div></>;
+  if (!groupBySector) return <div ref={mobileListRef} className="w-full min-w-0 space-y-2">{events.map(row)}</div>;
   const grouped = new Map<LogisticsSector, Map<string, StaffLogisticsEvent[]>>();
   for (const event of events) {
     const sector = sectorForCommune(event.commune, overrides);
@@ -294,7 +307,7 @@ function LogisticsEventList({ events, groupBySector, overrides, onSelect, select
     communes.set(event.commune, [...(communes.get(event.commune) ?? []), event]);
     grouped.set(sector, communes);
   }
-  return <div className="space-y-3">{sectorOrder.filter((sector) => grouped.has(sector)).map((sector) => <details className="rounded-2xl border border-white/10 bg-[#111214] p-3" key={sector} open><summary className="cursor-pointer list-none text-sm font-semibold text-white"><span className="text-brand">SECTOR {sector}</span><span className="ml-2 text-xs font-normal text-white/45">{[...(grouped.get(sector)?.values() ?? [])].reduce((total, items) => total + items.length, 0)} eventos</span></summary><div className="mt-3 space-y-3">{[...(grouped.get(sector)?.entries() ?? [])].sort(([a], [b]) => a.localeCompare(b)).map(([commune, communeEvents]) => <details className="rounded-xl border border-white/10 bg-[#17181a] p-2" key={commune} open><summary className="cursor-pointer list-none px-2 py-1 text-xs font-semibold uppercase tracking-[.16em] text-white/60">{commune}<span className="ml-2 text-[10px] font-normal text-white/35">({communeEvents.length})</span></summary><div className="mt-2 space-y-2">{communeEvents.map(row)}</div></details>)}</div></details>)}</div>;
+  return <div ref={mobileListRef} className="w-full min-w-0 space-y-3">{sectorOrder.filter((sector) => grouped.has(sector)).map((sector) => <details className="rounded-2xl border border-white/10 bg-[#111214] p-0 lg:p-3" key={sector} open><summary className="cursor-pointer list-none px-1 py-2 text-sm font-semibold text-white lg:px-0"><span className="text-brand">SECTOR {sector}</span><span className="ml-2 text-xs font-normal text-white/45">{[...(grouped.get(sector)?.values() ?? [])].reduce((total, items) => total + items.length, 0)} eventos</span></summary><div className="mt-2 space-y-3 lg:mt-3">{[...(grouped.get(sector)?.entries() ?? [])].sort(([a], [b]) => a.localeCompare(b)).map(([commune, communeEvents]) => <details className="rounded-xl border border-white/10 bg-[#17181a] p-0 lg:p-2" key={commune} open><summary className="cursor-pointer list-none px-1 py-1 text-xs font-semibold uppercase tracking-[.16em] text-white/60 lg:px-2">{commune}<span className="ml-2 text-[10px] font-normal text-white/35">({communeEvents.length})</span></summary><div className="mt-2 space-y-2">{communeEvents.map(row)}</div></details>)}</div></details>)}</div>;
 }
 
 function SectorMappingEditor({ communes, overrides, onChange }: { communes: string[]; overrides: Record<string, LogisticsSector>; onChange: (next: Record<string, LogisticsSector>) => void }) {
@@ -304,21 +317,9 @@ function SectorMappingEditor({ communes, overrides, onChange }: { communes: stri
 const LOGICAL_ROW_WIDTH_PX = 680;
 const LOGICAL_MOBILE_ROW_HEIGHT_PX = 88;
 
-function ScaledLogisticsEventRow({ event, sector, onSelect, selected }: { event: StaffLogisticsEvent; sector: LogisticsSector; onSelect: () => void; selected: boolean }) {
-  const hostRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(0.55);
-
-  useEffect(() => {
-    const host = hostRef.current;
-    if (!host) return;
-    const updateScale = () => setScale(Math.min(1, host.clientWidth / LOGICAL_ROW_WIDTH_PX));
-    updateScale();
-    const observer = new ResizeObserver(updateScale);
-    observer.observe(host);
-    return () => observer.disconnect();
-  }, []);
-
-  return <div ref={hostRef} className="w-full min-w-0 overflow-hidden" style={{ height: `${LOGICAL_MOBILE_ROW_HEIGHT_PX * scale}px` }}>
+function ScaledLogisticsEventRow({ availableWidth, event, sector, onSelect, selected }: { availableWidth: number; event: StaffLogisticsEvent; sector: LogisticsSector; onSelect: () => void; selected: boolean }) {
+  const scale = Math.min(1, (availableWidth || 358) / LOGICAL_ROW_WIDTH_PX);
+  return <div className="w-full min-w-0 overflow-hidden" style={{ height: `${LOGICAL_MOBILE_ROW_HEIGHT_PX * scale}px` }}>
     <div className="origin-top-left" style={{ width: `${LOGICAL_ROW_WIDTH_PX}px`, transform: `scale(${scale})` }}>
       <LogisticsEventRow event={event} sector={sector} onSelect={onSelect} selected={selected} mobileScaled />
     </div>
