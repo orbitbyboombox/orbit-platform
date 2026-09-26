@@ -6,6 +6,7 @@ import {
   SupabaseTimelineRepository,
 } from "@/features/projects/infrastructure";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { calculateAndPersistRealEventCost } from "@/features/profit-engine";
 import { loadFounderWorkspace } from "@/features/founder-workspace";
 import { loadCrmCustomerOperations } from "@/features/crm/customer-operations.repository";
@@ -273,6 +274,26 @@ export default async function ProjectWorkspacePage({
   // Until it is applied, legacy Events must continue to render normally.
   if (operationalBlocksError && !["42P01", "PGRST205"].includes(operationalBlocksError.code ?? "")) {
     throw operationalBlocksError;
+  }
+  const adminReadClient = createAdminClient();
+  const { data: paperSnapshot, error: paperSnapshotError } = await adminReadClient
+    .from("event_paper_snapshots")
+    .select("id,opening_balance,final_remaining_balance,event_usage,status,format_key,created_at")
+    .eq("project_id", projectId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (paperSnapshotError && !["42P01", "PGRST205"].includes(paperSnapshotError.code ?? "")) {
+    throw paperSnapshotError;
+  }
+  let paperReloads = 0;
+  if (paperSnapshot?.id) {
+    const { data: reloadRows, error: reloadError } = await adminReadClient
+      .from("event_paper_reloads")
+      .select("quantity")
+      .eq("snapshot_id", paperSnapshot.id);
+    if (reloadError && !["42P01", "PGRST205"].includes(reloadError.code ?? "")) throw reloadError;
+    paperReloads = (reloadRows ?? []).reduce((sum, row) => sum + Number(row.quantity ?? 0), 0);
   }
   const { data: staffRoleRequirements, error: staffRoleRequirementError } =
     await client
@@ -1479,6 +1500,21 @@ export default async function ProjectWorkspacePage({
   const serviceStartTime = chileDateTime(canonicalEventState.serviceStartAt).time;
   const serviceEndTime = chileDateTime(canonicalEventState.serviceEndAt).time;
   const staffCallTime = chileDateTime(canonicalEventState.staffCallAt).time;
+  const operatorRoles = ["OPERATOR", "ASSEMBLY", "DISASSEMBLY"];
+  const eventOperators = operatorRoles.map((role) => {
+    const assignment = productionAssignments.find(
+      (item) => item.project_id === projectId && item.assignment_type === role,
+    );
+    return {
+      role,
+      name: assignment?.staff
+        ? `${assignment.staff.first_name} ${assignment.staff.last_name}`.trim()
+        : "Sin asignar",
+      callTime: assignment?.staff_call_at
+        ? chileDateTime(assignment.staff_call_at).time
+        : staffCallTime,
+    };
+  });
   const eventControl = {
     event: {
       id: projectId,
@@ -1538,6 +1574,8 @@ export default async function ProjectWorkspacePage({
       extras={eventExtras}
       operationalContactName={[operationalContract?.contact_first_name, operationalContract?.contact_last_name].filter(Boolean).join(" ")}
       operationalContactPhone={operationalContract?.contact_phone ?? ""}
+      operators={eventOperators}
+      paper={paperSnapshot ? { opening: Number(paperSnapshot.opening_balance), final: paperSnapshot.final_remaining_balance === null ? null : Number(paperSnapshot.final_remaining_balance), usage: paperSnapshot.event_usage === null ? null : Number(paperSnapshot.event_usage), reloads: paperReloads, format: paperSnapshot.format_key, status: paperSnapshot.status } : null}
       equipment={equipment.requirements.map((item) => item.label)}
       invoice={invoice ? { invoiceNumber: invoice.invoice_number, outstandingBalance: Number(invoice.outstanding_balance), status: invoice.effective_status } : undefined}
     />
