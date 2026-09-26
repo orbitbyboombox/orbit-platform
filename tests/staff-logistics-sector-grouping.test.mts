@@ -48,3 +48,10 @@ test("Staff logistics has a compact mobile week label and contained controls", (
   assert.match(view, /grid grid-cols-2 gap-2 rounded-2xl/);
   assert.match(view, /GENERAR RUTA/);
 });
+
+test("Staff logistics mobile cards use an integrated date tile without a horizontal status bar", () => {
+  assert.match(view, /grid-cols-\[48px_minmax\(0,1fr\)_16px\]/);
+  assert.match(view, /rounded-lg border border-white\/10 bg-white\/\[\.04\]/);
+  assert.match(view, /M \{formatTime\(event\.setupTime\)\} · D \{formatTime\(event\.teardownTime\)\}/);
+  assert.doesNotMatch(view, /function LogisticsMobileCard[\s\S]*border-r-4/);
+});
