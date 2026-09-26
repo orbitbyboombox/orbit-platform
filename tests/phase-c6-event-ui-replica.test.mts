@@ -20,7 +20,8 @@ test("Phase C.6 keeps the PDF event language in admin and Staff surfaces", () =>
   assert.match(admin, /ABRIR OPERACIÓN DEL EVENTO/);
   assert.match(admin, /CERRAR OPERACIÓN DEL EVENTO/);
   assert.match(admin, /function AccordionSection/);
-  assert.match(admin, /function SummaryCard/);
+  assert.match(admin, /lg:col-span-7/);
+  assert.match(admin, /Papel final evento/);
   assert.match(admin, /VER EQUIPAMIENTO/);
 });
 
