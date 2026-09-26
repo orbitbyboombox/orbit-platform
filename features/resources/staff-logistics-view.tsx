@@ -8,7 +8,7 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 export type StaffLogisticsEvent = {
   id: string;
@@ -285,7 +285,7 @@ export function StaffLogisticsView({ events }: { events: StaffLogisticsEvent[] }
 
 function LogisticsEventList({ events, groupBySector, overrides, onSelect, selectedId }: { events: StaffLogisticsEvent[]; groupBySector: boolean; overrides: Record<string, LogisticsSector>; onSelect: (id: string) => void; selectedId: string | null }) {
   if (!events.length) return <EmptyState />;
-  const row = (event: StaffLogisticsEvent) => <><div className="hidden lg:block"><LogisticsEventRow event={event} sector={sectorForCommune(event.commune, overrides)} onSelect={() => onSelect(event.id)} selected={selectedId === event.id} /></div><div className="w-full max-w-full min-w-0 lg:hidden"><LogisticsEventRow event={event} mobileCompact sector={sectorForCommune(event.commune, overrides)} onSelect={() => onSelect(event.id)} selected={selectedId === event.id} /></div></>;
+  const row = (event: StaffLogisticsEvent) => <><div className="hidden lg:block"><LogisticsEventRow event={event} sector={sectorForCommune(event.commune, overrides)} onSelect={() => onSelect(event.id)} selected={selectedId === event.id} /></div><div className="w-full max-w-full min-w-0 overflow-hidden lg:hidden"><ScaledLogisticsEventRow event={event} sector={sectorForCommune(event.commune, overrides)} onSelect={() => onSelect(event.id)} selected={selectedId === event.id} /></div></>;
   if (!groupBySector) return <div className="w-full max-w-full min-w-0 space-y-2">{events.map(row)}</div>;
   const grouped = new Map<LogisticsSector, Map<string, StaffLogisticsEvent[]>>();
   for (const event of events) {
@@ -301,12 +301,36 @@ function SectorMappingEditor({ communes, overrides, onChange }: { communes: stri
   return <section className="rounded-2xl border border-brand/20 bg-[#111214] p-3" aria-label="Ajustes de sector por comuna"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Mapping comuna → sector</p><p className="mt-1 text-xs text-white/45">Ajuste local para la vista de Founder; no modifica datos del evento.</p></div><span className="text-[10px] uppercase tracking-[.14em] text-white/35">{communes.length} comunas</span></div><div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{communes.map((commune) => <label className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-[#17181a] px-3 py-2 text-xs text-white/70" key={commune}><span className="truncate">{commune}</span><select aria-label={`Sector de ${commune}`} className="max-w-28 bg-transparent text-right text-xs text-brand outline-none" onChange={(event) => onChange({ ...overrides, [commune]: event.target.value as LogisticsSector })} value={overrides[commune] ?? DEFAULT_COMMUNE_SECTOR_MAP[commune] ?? "OTROS"}>{sectorOrder.map((sector) => <option key={sector} value={sector}>{sector}</option>)}</select></label>)}</div></section>;
 }
 
-function LogisticsEventRow({ event, sector, onSelect, selected, mobileCompact = false }: { event: StaffLogisticsEvent; sector: LogisticsSector; onSelect: () => void; selected: boolean; mobileCompact?: boolean }) {
+const LOGICAL_ROW_WIDTH_PX = 680;
+const LOGICAL_ROW_HEIGHT_PX = 88;
+
+function ScaledLogisticsEventRow({ event, sector, onSelect, selected }: { event: StaffLogisticsEvent; sector: LogisticsSector; onSelect: () => void; selected: boolean }) {
+  const hostRef = useRef<HTMLDivElement>(null);
+  const [availableWidth, setAvailableWidth] = useState(0);
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const updateWidth = () => setAvailableWidth(host.getBoundingClientRect().width);
+    updateWidth();
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(host);
+    return () => observer.disconnect();
+  }, []);
+
+  const scale = Math.min(1, (availableWidth || 358) / LOGICAL_ROW_WIDTH_PX);
+  return <div ref={hostRef} className="w-full max-w-full min-w-0 overflow-hidden" style={{ height: `${LOGICAL_ROW_HEIGHT_PX * scale}px` }}>
+    <div className="origin-top-left" style={{ width: `${LOGICAL_ROW_WIDTH_PX}px`, transform: `scale(${scale})` }}>
+      <LogisticsEventRow event={event} sector={sector} onSelect={onSelect} selected={selected} />
+    </div>
+  </div>;
+}
+
+function LogisticsEventRow({ event, sector, onSelect, selected }: { event: StaffLogisticsEvent; sector: LogisticsSector; onSelect: () => void; selected: boolean }) {
   const state = statusView[normalizeStatus(event.status)];
   const date = dateParts(event.date);
-  const mobile = mobileCompact;
-  return <button className={`grid w-full max-w-full min-w-0 ${mobile ? "grid-cols-[38px_4px_58px_minmax(0,1.2fr)_minmax(0,1fr)_64px_58px_16px] gap-1 rounded-xl px-2 py-2" : "grid-cols-[72px_5px_96px_minmax(0,1.25fr)_minmax(0,1fr)_110px_auto_20px] gap-3 rounded-2xl px-4 py-3"} items-center overflow-hidden border border-white/10 bg-[#111214] text-left transition hover:border-white/20 hover:bg-white/[.03] ${selected ? "border-brand/60 bg-brand/5" : ""}`} onClick={onSelect}>
-    <span className={mobile ? "text-center font-semibold leading-none text-white" : "text-xs font-semibold leading-tight text-white"}>{mobile ? <><span className="block text-[9px] text-white/55">{date.weekday}</span><strong className="block text-[17px]">{date.day}</strong><span className="block text-[9px] text-white/45">{date.month}</span></> : <><strong className="block text-lg">{date.day}</strong><span className="block text-[10px] text-white/50">{date.weekday} · {date.month}</span></>}</span><span className={`${mobile ? "h-10" : "h-12"} w-1 rounded-full ${state.bar}`} /><span className={`${mobile ? "truncate text-[9px]" : "text-sm"} font-medium text-white/90`}>{formatTime(event.time)} → {formatTime(event.endTime)}<span className="block truncate text-[9px] text-white/40">Citación {formatTime(event.staffCallAt)}</span></span><span className="min-w-0"><strong className={`${mobile ? "text-[10px]" : "text-sm"} block truncate text-white`}>{event.customer}</strong><span className={`${mobile ? "text-[8px]" : "text-[11px]"} mt-0.5 block truncate text-white/45`}>{event.operator === "Sin asignar" ? "Sin operador" : `Operador · ${event.operator}`} · {event.box === "Sin asignar" ? "Sin caja" : event.box}</span><span className={`${mobile ? "text-[8px]" : "text-[10px]"} block truncate text-white/35`}>M {formatTime(event.setupTime)} · D {formatTime(event.teardownTime)}</span></span><span className={`flex min-w-0 items-start ${mobile ? "gap-0.5 text-[8px]" : "gap-1.5 text-xs"} text-white/65`}><MapPin className={`${mobile ? "size-2.5" : "mt-0.5 size-3.5"} shrink-0 text-white/45`} /><span className="min-w-0 truncate">{event.location}<span className="block truncate text-white/35">{event.commune} · {sector}</span></span></span><span className={`${mobile ? "gap-0.5 text-[8px]" : "gap-1.5 text-xs"} inline-flex min-w-0 items-center font-medium ${state.color}`}><i className={`${mobile ? "size-1.5" : "size-2"} shrink-0 rounded-full ${state.dot}`} />{state.label}</span><span className={`${mobile ? "truncate px-1 py-0.5 text-[8px]" : "px-2.5 py-1 text-[11px]"} whitespace-nowrap rounded-full border border-white/10 bg-white/[.05] text-center font-semibold text-white/75`}>{event.service}{!mobile && event.duration ? ` · ${event.duration}h` : ""}</span><ChevronRight className={`${mobile ? "size-3.5" : "size-4"} text-brand`} />
+  return <button className={`grid w-full min-w-0 grid-cols-[72px_5px_96px_minmax(0,1.25fr)_minmax(0,1fr)_110px_auto_20px] items-center gap-3 overflow-hidden rounded-2xl border border-white/10 bg-[#111214] px-4 py-3 text-left transition hover:border-white/20 hover:bg-white/[.03] ${selected ? "border-brand/60 bg-brand/5" : ""}`} onClick={onSelect}>
+    <span className="text-xs font-semibold leading-tight text-white"><strong className="block text-lg">{date.day}</strong><span className="block text-[10px] text-white/50">{date.weekday} · {date.month}</span></span><span className={`h-12 w-1 rounded-full ${state.bar}`} /><span className="text-sm font-medium text-white/90">{formatTime(event.time)} → {formatTime(event.endTime)}<span className="block text-[10px] text-white/40">Citación {formatTime(event.staffCallAt)}</span></span><span className="min-w-0"><strong className="block truncate text-sm text-white">{event.customer}</strong><span className="mt-0.5 block truncate text-[11px] text-white/45">{event.operator === "Sin asignar" ? "Sin operador" : `Operador · ${event.operator}`} · {event.box === "Sin asignar" ? "Sin caja" : event.box}</span><span className="block truncate text-[10px] text-white/35">M {formatTime(event.setupTime)} · D {formatTime(event.teardownTime)}</span></span><span className="flex min-w-0 items-start gap-1.5 text-xs text-white/65"><MapPin className="mt-0.5 size-3.5 shrink-0 text-white/45" /><span className="min-w-0 truncate">{event.location}<span className="block truncate text-white/35">{event.commune} · {sector}</span></span></span><span className={`inline-flex items-center gap-1.5 text-xs font-medium ${state.color}`}><i className={`size-2 shrink-0 rounded-full ${state.dot}`} />{state.label}</span><span className="whitespace-nowrap rounded-full border border-white/10 bg-white/[.05] px-2.5 py-1 text-[11px] font-semibold text-white/75">{event.service}{event.duration ? ` · ${event.duration}h` : ""}</span><ChevronRight className="size-4 text-brand" />
   </button>;
 }
 
