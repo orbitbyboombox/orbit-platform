@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronDown, ChevronRight, MapPin, Phone } from "lucide-react";
+import { ChevronRight, MapPin, Phone } from "lucide-react";
 import { useState, useTransition, type ReactNode } from "react";
 import { updateEventPaperVariantAction, type PaperVariant } from "@/features/projects/event-paper.actions";
 
@@ -57,6 +57,7 @@ const formatTimeRange = (start: string, end: string, duration: number | null) =>
 };
 const roleLabel = (role: string) => ({ OPERATOR: "OPERATOR", ASSEMBLY: "MONTAJE", DISASSEMBLY: "DESMONTAJE" }[role] ?? role);
 type DetailKey = "overview" | "client" | "staff" | "service" | "paper" | "equipment" | "finance";
+const DETAIL_KEYS: DetailKey[] = ["overview", "client", "staff", "service", "paper", "equipment", "finance"];
 
 export function EventUiReplica({ projectId, customer, date, service, serviceDuration, serviceStartTime, serviceEndTime, staffCallTime, venue, municipality, status, eventType, extras, operationalContactName, operationalContactPhone, operators, paper, invoice, equipment }: Props) {
   const [paperMessage, setPaperMessage] = useState("");
@@ -70,7 +71,11 @@ export function EventUiReplica({ projectId, customer, date, service, serviceDura
   const serviceLabel = `${display(service, "Servicio BOOMBOX")}${serviceDuration ? ` · ${serviceDuration} horas` : ""}`;
   const timeRange = formatTimeRange(serviceStartTime, serviceEndTime, serviceDuration);
   const equipmentItems = ["Caja Negra", "Impresora", "Cámara", "Pantalla", ...equipment].filter((item, index, all) => item && all.indexOf(item) === index);
-  const toggleDetail = (module: DetailKey) => setDetailOpen((current) => ({ ...current, [module]: !current[module] }));
+  const toggleDetail = (module: DetailKey) => setDetailOpen((current) => {
+    const next = Object.fromEntries(DETAIL_KEYS.map((key) => [key, false])) as Record<DetailKey, boolean>;
+    next[module] = !current[module];
+    return next;
+  });
 
   return <section className="mb-5 space-y-3 rounded-[24px] border border-white/10 bg-[#111214] p-3 text-white shadow-[0_20px_70px_rgba(0,0,0,.2)] sm:p-4">
     <div className="flex items-center justify-between gap-3 text-sm text-white/60"><Link href="/events" className="hover:text-brand">← Eventos</Link><span>Evento</span></div>
@@ -90,9 +95,10 @@ export function EventUiReplica({ projectId, customer, date, service, serviceDura
     </div>
     {invoice ? <div className="max-w-2xl rounded-2xl border border-brand/25 bg-[#241812] p-3"><div className="flex flex-wrap items-center justify-between gap-3"><div><ModuleHeading eyebrow="Cobranza" title="Saldo pendiente"/><p className="mt-1 text-lg font-semibold">{clp(invoice.outstandingBalance)}</p><p className="mt-1 text-xs text-white/55">Factura {invoice.invoiceNumber} · {invoice.status}</p></div><Link className="inline-flex min-h-10 items-center rounded-xl bg-brand px-3.5 text-xs font-semibold text-black" href={`/finance/receivables?project=${projectId}`}>COBRAR CLIENTE</Link></div></div> : null}
     <button className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand px-5 text-sm font-semibold text-black" onClick={() => setOperationOpen((open) => !open)} type="button">{operationOpen ? "CERRAR OPERACIÓN DEL EVENTO" : "ABRIR OPERACIÓN DEL EVENTO"}<ChevronRight className={`size-4 transition-transform ${operationOpen ? "rotate-90" : ""}`}/></button>
-    {operationOpen ? <div className="space-y-3 rounded-2xl border border-brand/25 bg-[#0f1012] p-3 sm:p-4">
-      <div className="flex items-center justify-between gap-3"><div><ModuleHeading eyebrow="Event 360°" title="Operación del evento"/></div><span className="text-xs text-white/50">Detalle completo</span></div>
+    {operationOpen ? <div className="space-y-2 rounded-2xl border border-brand/25 bg-[#0f1012] p-3 sm:p-4">
+      <div className="flex items-center justify-between gap-3 px-1"><p className="text-[11px] uppercase tracking-[.16em] text-brand">Event 360°</p><span className="text-xs text-white/50">Detalle completo</span></div>
       <div className="space-y-2">
+        <AccordionSection eyebrow="00 · Resumen" title="Event 360°" summary={`${display(status, "Estado pendiente")} · ${date}`} open={detailOpen.overview} onToggle={() => toggleDetail("overview")}><div className="grid gap-2 sm:grid-cols-3"><Info label="Cliente" value={customer}/><Info label="Lugar" value={display(venue)}/><Info label="Comuna" value={display(municipality)}/></div></AccordionSection>
         <AccordionSection eyebrow="01 · Relación" title="Cliente" summary={customer} open={detailOpen.client} onToggle={() => toggleDetail("client")}><div className="grid gap-2 sm:grid-cols-3"><Info label="Cliente" value={customer}/><Info label="Tipo de evento" value={eventType}/><Info label="Contacto operacional" value={contactName}/></div></AccordionSection>
         <AccordionSection eyebrow="03 · Experiencia" title="Servicio contratado" summary={serviceLabel} open={detailOpen.service} onToggle={() => toggleDetail("service")}><div className="grid gap-2 sm:grid-cols-3"><Info label="Servicio" value={display(service)}/><Info label="Duración" value={serviceDuration ? `${serviceDuration} horas` : "Por confirmar"}/><Info label="Horario" value={timeRange}/></div></AccordionSection>
         <AccordionSection eyebrow="Staff" title="Operadores del evento" summary={`${operators.length} roles`} open={detailOpen.staff} onToggle={() => toggleDetail("staff")}><div className="grid gap-2 sm:grid-cols-3">{operators.map((operator) => <div className="rounded-xl border border-white/10 bg-white/[.02] px-2.5 py-2" key={operator.role}><p className="text-[10px] uppercase tracking-[.14em] text-white/45">{roleLabel(operator.role)}</p><p className="mt-1 truncate text-xs font-semibold">{operator.name || "Sin asignar"}</p><p className="mt-1 text-[11px] text-white/55">{operator.callTime ? `${operator.callTime} hrs` : "Sin citación"}</p></div>)}</div><div className="mt-2 grid grid-cols-4 gap-1 text-[10px]">{["CHECK-OUT", "EVENTO", "PAPEL", "CHECK-IN"].map((item) => <span className="rounded-full border border-white/10 px-1 py-1 text-center text-white/65" key={item}>{item}</span>)}</div></AccordionSection>
@@ -108,4 +114,4 @@ export function EventUiReplica({ projectId, customer, date, service, serviceDura
 function Info({ label, value }: { label: string; value: string }) { return <div className="rounded-lg border border-white/10 px-2.5 py-2"><p className="text-[10px] text-white/45">{label}</p><p className="mt-0.5 truncate text-xs font-semibold">{value}</p></div>; }
 function PaperMetric({ label, value }: { label: string; value: string }) { return <div className="rounded-lg border border-white/10 px-2.5 py-2"><p className="text-[10px] uppercase tracking-[.1em] text-white/45">{label}</p><p className="mt-0.5 text-xs font-semibold text-white/90">{value}</p></div>; }
 function ModuleHeading({ eyebrow, title }: { eyebrow: string; title: string }) { return <><p className="text-[11px] uppercase tracking-[.16em] text-brand">{eyebrow}</p><h2 className="mt-0.5 text-sm font-semibold uppercase">{title}</h2></>; }
-function AccordionSection({ className = "", eyebrow, title, summary, open, onToggle, children }: { className?: string; eyebrow: string; title: string; summary: string; open: boolean; onToggle: () => void; children: ReactNode }) { return <section className={`rounded-xl border border-white/10 bg-[#191a1d] p-3 ${className}`}><button aria-expanded={open} className="flex min-h-10 w-full items-center justify-between gap-3 text-left" onClick={onToggle} type="button"><span className="min-w-0"><span className="block text-[10px] uppercase tracking-[.16em] text-brand">{eyebrow}</span><span className="mt-0.5 block truncate text-sm font-semibold uppercase">{title}</span></span><span className="flex shrink-0 items-center gap-2 text-right text-[11px] text-white/50"><span className="max-w-[12rem] truncate">{summary}</span><ChevronDown aria-hidden="true" className={`size-4 text-brand transition-transform ${open ? "rotate-180" : ""}`}/></span></button>{open ? <div className="mt-3">{children}</div> : null}</section>; }
+function AccordionSection({ className = "", eyebrow, title, summary, open, onToggle, children }: { className?: string; eyebrow: string; title: string; summary: string; open: boolean; onToggle: () => void; children: ReactNode }) { return <section className={`rounded-xl border border-white/10 bg-[#191a1d] p-3 ${className}`}><button aria-expanded={open} className="flex min-h-10 w-full items-center justify-between gap-3 text-left" onClick={onToggle} type="button"><span className="min-w-0"><span className="block text-[10px] uppercase tracking-[.16em] text-brand">{eyebrow}</span><span className="mt-0.5 block truncate text-sm font-semibold uppercase">{title}</span></span><span className="flex shrink-0 items-center gap-2 text-right text-[11px] text-white/50"><span className="max-w-[12rem] truncate">{summary}</span><ChevronRight aria-hidden="true" className={`size-4 text-brand transition-transform ${open ? "rotate-90" : ""}`}/></span></button>{open ? <div className="mt-3">{children}</div> : null}</section>; }
