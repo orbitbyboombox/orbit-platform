@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Clock3,
   Download,
+  AlertTriangle,
   MapPin,
   Navigation,
   Phone,
@@ -25,6 +26,7 @@ import {
   requestStaffResponsibilitiesAction,
   updateStaffLogisticsTripAction,
   submitStaffExpenseAction,
+  reportStaffOperatorIncidentAction,
 } from "./staff-portal.actions";
 import { MobileDialog } from "@/components/ui/mobile-dialog";
 import { StaffMonthlyAccountPanel } from "@/features/staff-monthly-account/staff-monthly-account-panel";
@@ -185,6 +187,20 @@ const PRE_EVENT = [
   { code: "VEHICLE_CHECKED", label: "Vehículo revisado" },
   { code: "ROUTE_REVIEWED", label: "Ruta revisada" },
   { code: "READY_TO_DEPART", label: "Listo para salir" },
+];
+const OPERATOR_PAPER_CHECKS = [
+  { code: "PAPER_LOADED", label: "Papel cargado correctamente" },
+  { code: "PAPER_FORMAT_MATCH", label: "Formato coincide con el indicado" },
+  { code: "PRINTER_RECOGNIZES_PAPER", label: "Impresora reconoce el papel" },
+  { code: "PAPER_NO_DAMAGE", label: "Papel sin daño visible" },
+];
+const OPERATOR_EQUIPMENT_CHECKS = [
+  { code: "EQUIPMENT_POWER", label: "Equipo enciende correctamente" },
+  { code: "CAMERA_OPERATIONAL", label: "Cámara operativa" },
+  { code: "PRINTER_OPERATIONAL", label: "Impresora operativa" },
+  { code: "SCREEN_OPERATIONAL", label: "Pantalla operativa" },
+  { code: "FLASH_OPERATIONAL", label: "Flash / iluminación operativa" },
+  { code: "CABLES_PRESENT", label: "Cables / accesorios presentes" },
 ];
 const pendingAcceptance = (status: string) =>
   ["PENDING", "PENDING_CONFIRMATION", "ASSIGNED"].includes(status);
@@ -728,6 +744,25 @@ function Small({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+function OperatorReadinessPanel({
+  event,
+  run,
+}: {
+  event: StaffPortalEvent;
+  run: (action: () => Promise<{ ok: boolean; message: string }>) => void;
+}) {
+  const [category, setCategory] = useState<"EQUIPMENT" | "STAFF" | "CLIENT" | "DELAY" | "OTHER">("EQUIPMENT");
+  const [severity, setSeverity] = useState<"LOW" | "MEDIUM" | "HIGH" | "CRITICAL">("HIGH");
+  const [description, setDescription] = useState("");
+  const [reported, setReported] = useState(event.checklist.includes("OPERATOR_INCIDENT_REPORTED"));
+  const allChecks = [...OPERATOR_PAPER_CHECKS, ...OPERATOR_EQUIPMENT_CHECKS];
+  const completed = allChecks.filter((item) => event.checklist.includes(item.code)).length;
+  const status = reported ? "CON INCIDENCIA" : completed === allChecks.length ? "OK" : "PENDIENTE";
+  const statusClass = reported ? "border-red-500/40 text-red-400" : status === "OK" ? "border-emerald-500/40 text-emerald-400" : "border-brand/40 text-brand";
+  const checklist = (title: string, items: typeof OPERATOR_PAPER_CHECKS) => <div className="rounded-xl border border-white/10 p-3"><p className="text-xs font-semibold uppercase tracking-[.14em] text-brand">{title}</p><div className="mt-2 grid gap-2">{items.map((item) => { const done = event.checklist.includes(item.code); return <button type="button" key={item.code} className={`flex min-h-11 w-full items-center gap-3 rounded-xl border px-3 text-left text-sm ${done ? "border-emerald-500/30 bg-emerald-500/10" : "border-white/10"}`} disabled={done} onClick={() => run(async () => { const result = await completeStaffChecklistItemAction(event.id, item.code); return result; })}><span aria-hidden="true">{done ? "☑" : "☐"}</span><span>{item.label}</span></button>; })}</div></div>;
+  return <section className="mt-6 rounded-2xl border border-brand/30 bg-brand/5 p-4" aria-label="Checklist del operador"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Operación del operador</p><h3 className="mt-1 text-lg font-semibold">Checklist de apertura</h3><p className="mt-1 text-sm text-muted">Confirma papel y equipo antes de iniciar el servicio.</p></div><span className={`rounded-full border px-3 py-1 text-xs font-semibold ${statusClass}`}>{status}</span></div><div className="mt-4 grid gap-3 lg:grid-cols-2">{checklist("Checklist de papel", OPERATOR_PAPER_CHECKS)}{checklist("Checklist de equipo", OPERATOR_EQUIPMENT_CHECKS)}</div><div className="mt-4 rounded-xl border border-red-500/20 p-3"><div className="flex items-center gap-2"><AlertTriangle className="size-4 text-red-400"/><p className="text-sm font-semibold">Reportar problema</p></div><p className="mt-1 text-xs text-muted">La observación es obligatoria y generará una alerta visible para Administración.</p><div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="grid gap-1 text-sm font-medium">Categoría<select className="min-h-11 rounded-xl border bg-background px-3" value={category} onChange={(event) => setCategory(event.target.value as typeof category)}><option value="EQUIPMENT">Equipo</option><option value="STAFF">Staff</option><option value="CLIENT">Cliente</option><option value="DELAY">Retraso</option><option value="OTHER">Otro</option></select></label><label className="grid gap-1 text-sm font-medium">Severidad<select className="min-h-11 rounded-xl border bg-background px-3" value={severity} onChange={(event) => setSeverity(event.target.value as typeof severity)}><option value="LOW">Baja</option><option value="MEDIUM">Media</option><option value="HIGH">Alta</option><option value="CRITICAL">Crítica</option></select></label></div><textarea className="mt-3 min-h-24 w-full rounded-xl border bg-background p-3 text-sm" placeholder="Describe el problema observado" value={description} onChange={(event) => setDescription(event.target.value)} /><button type="button" className="mt-3 min-h-11 rounded-xl border border-red-500/40 px-4 text-sm font-semibold text-red-300 disabled:opacity-50" disabled={description.trim().length < 3} onClick={() => run(async () => { const result = await reportStaffOperatorIncidentAction({ projectId: event.id, category, severity, description }); if (result.ok) setReported(true); return result; })}>Guardar incidencia y alertar Administración</button></div></section>;
+}
+
 function EventDetail({
   event,
   close,
@@ -902,6 +937,7 @@ function EventDetail({
                 })}
               </div>
             </section>
+            {event.roles.includes("OPERATOR") ? <OperatorReadinessPanel event={event} run={run} /> : null}
             <section className="mt-6 rounded-2xl border p-4">
               <h3 className="font-semibold">Estado operacional</h3>
               <div className="mt-3 flex flex-wrap gap-2">
@@ -1008,7 +1044,7 @@ function EventDetail({
         {message ? <p className="mt-3 text-sm text-muted">{message}</p> : null}
         <section className="mt-6 grid gap-4 lg:grid-cols-2">
           <StaffConsumablesPanel projectId={event.id} />
-          <StaffBoxOperationsPanel projectId={event.id} />
+          <StaffBoxOperationsPanel projectId={event.id} readOnlyPaperCloseout={event.roles.includes("OPERATOR")} />
           <div className="rounded-2xl border p-4">
             <h3 className="font-semibold">Documentos operacionales</h3>
             <div className="mt-3 space-y-2">

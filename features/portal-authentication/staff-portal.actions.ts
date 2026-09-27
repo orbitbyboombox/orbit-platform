@@ -12,6 +12,16 @@ const CHECKLIST = new Set([
   "VEHICLE_CHECKED",
   "ROUTE_REVIEWED",
   "READY_TO_DEPART",
+  "PAPER_LOADED",
+  "PAPER_FORMAT_MATCH",
+  "PRINTER_RECOGNIZES_PAPER",
+  "PAPER_NO_DAMAGE",
+  "EQUIPMENT_POWER",
+  "CAMERA_OPERATIONAL",
+  "PRINTER_OPERATIONAL",
+  "SCREEN_OPERATIONAL",
+  "FLASH_OPERATIONAL",
+  "CABLES_PRESENT",
 ]);
 
 export async function recordStaffCheckInAction(
@@ -156,6 +166,17 @@ export async function completeStaffChecklistItemAction(
     .in("status", ["CONFIRMED", "ACCEPTED"])
     .is("deleted_at", null);
   if (!count) return { ok: false, message: "Acepta primero la asignación." };
+  if (item.startsWith("PAPER_") || ["EQUIPMENT_POWER", "CAMERA_OPERATIONAL", "PRINTER_OPERATIONAL", "SCREEN_OPERATIONAL", "FLASH_OPERATIONAL", "CABLES_PRESENT"].includes(item)) {
+    const { count: operatorCount } = await admin
+      .from("assignments")
+      .select("id", { count: "exact", head: true })
+      .eq("project_id", projectId)
+      .eq("staff_id", session.staff_id)
+      .eq("assignment_type", "OPERATOR")
+      .in("status", ["CONFIRMED", "ACCEPTED", "COMPLETED"])
+      .is("deleted_at", null);
+    if (!operatorCount) return { ok: false, message: "Solo el operador asignado puede completar este checklist." };
+  }
   const { error: writeError } = await admin
     .from("timeline_events")
     .insert({
@@ -182,6 +203,112 @@ export async function completeStaffChecklistItemAction(
     return { ok: false, message: writeError.message };
   revalidatePath("/staff-portal");
   return { ok: true, message: "Checklist actualizado." };
+}
+
+export async function reportStaffOperatorIncidentAction(input: {
+  projectId: string;
+  category: "EQUIPMENT" | "STAFF" | "CLIENT" | "DELAY" | "OTHER";
+  description: string;
+  severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+}) {
+  const session = await loadPortalSession("STAFF");
+  if (!session?.staff_id) return { ok: false, message: "Tu sesión expiró." };
+  const description = input.description.trim();
+  if (!description || description.length < 3)
+    return { ok: false, message: "La observación es obligatoria." };
+  const categories = ["EQUIPMENT", "STAFF", "CLIENT", "DELAY", "OTHER"];
+  const severities = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
+  if (!categories.includes(input.category) || !severities.includes(input.severity))
+    return { ok: false, message: "Categoría o severidad inválida." };
+  const admin = createAdminClient();
+  const { data: project, error: projectError } = await admin
+    .from("projects")
+    .select("customer_id,orbit_event_id,name,customers(full_name)")
+    .eq("id", input.projectId)
+    .single();
+  if (projectError || !project)
+    return { ok: false, message: projectError?.message ?? "Evento no encontrado." };
+  const { data: assignment, error: assignmentError } = await admin
+    .from("assignments")
+    .select("id")
+    .eq("project_id", input.projectId)
+    .eq("staff_id", session.staff_id)
+    .eq("assignment_type", "OPERATOR")
+    .in("status", ["CONFIRMED", "ACCEPTED", "COMPLETED"])
+    .is("deleted_at", null)
+    .limit(1)
+    .maybeSingle();
+  if (assignmentError) return { ok: false, message: assignmentError.message };
+  if (!assignment) return { ok: false, message: "Solo el operador asignado puede reportar este evento." };
+  const { data: boxAssignment } = await admin
+    .from("asset_assignments")
+    .select("id,asset_id,operational_assets(asset_code)")
+    .eq("project_id", input.projectId)
+    .eq("assignment_status", "ASSIGNED")
+    .is("deleted_at", null)
+    .limit(1)
+    .maybeSingle();
+  const box = boxAssignment?.operational_assets as unknown as { asset_code?: string } | { asset_code?: string }[] | null;
+  const boxCode = Array.isArray(box) ? box[0]?.asset_code : box?.asset_code;
+  const { data: incident, error: incidentError } = await admin
+    .from("event_incidents")
+    .insert({
+      project_id: input.projectId,
+      asset_id: boxAssignment?.asset_id ?? null,
+      asset_assignment_id: boxAssignment?.id ?? null,
+      incident_type: input.category,
+      severity: input.severity,
+      status: "OPEN",
+      description,
+      created_by: null,
+      staff_id: session.staff_id,
+      portal_session_id: session.id,
+    })
+    .select("id")
+    .single();
+  if (incidentError || !incident)
+    return { ok: false, message: incidentError?.message ?? "No fue posible guardar la incidencia." };
+  await admin.from("timeline_events").upsert({
+    customer_id: project.customer_id,
+    project_id: input.projectId,
+    staff_id: session.staff_id,
+    orbit_event_id: project.orbit_event_id,
+    event_type: "STAFF_CHECKLIST_ITEM_COMPLETED",
+    title: "Incidencia operativa reportada",
+    description: "OPERATOR_INCIDENT_REPORTED",
+    actor_label: "Staff",
+    source: "Staff",
+    action: "STAFF_CHECKLIST_ITEM_COMPLETED",
+    entity_type: "EventIncident",
+    entity_id: incident.id,
+    human_message: "El operador reportó una incidencia.",
+    correlation_id: `staff-operator-incident-checklist:${incident.id}`,
+  }, { onConflict: "correlation_id", ignoreDuplicates: true });
+  const customer = Array.isArray(project.customers) ? project.customers[0] : project.customers;
+  const eventName = customer?.full_name ?? project.name ?? "Evento";
+  const { error: notificationError } = await admin.from("internal_notifications").insert({
+    project_id: input.projectId,
+    customer_id: project.customer_id,
+    staff_id: session.staff_id,
+    notification_type: "STAFF_OPERATOR_INCIDENT",
+    title: `Alerta operativa · ${eventName}`,
+    message: `Operador reportó ${input.category}: ${description}${boxCode ? ` · Caja ${boxCode}` : ""}`,
+    status: "UNREAD",
+    correlation_id: `staff-operator-incident:${incident.id}`,
+    category: input.category === "EQUIPMENT" ? "EQUIPMENT" : "OPERATIONS",
+    priority: ["HIGH", "CRITICAL"].includes(input.severity) ? input.severity : "HIGH",
+    action_required: true,
+    entity_type: "EventIncident",
+    entity_id: incident.id,
+    related_href: `/projects/${input.projectId}`,
+    metadata: { incident_id: incident.id, category: input.category, severity: input.severity, box_code: boxCode ?? null },
+  });
+  if (notificationError) return { ok: false, message: notificationError.message };
+  revalidatePath("/staff-portal");
+  revalidatePath("/notifications");
+  revalidatePath("/operations");
+  revalidatePath(`/projects/${input.projectId}`);
+  return { ok: true, message: "Incidencia guardada. Administración fue notificada." };
 }
 
 export async function requestStaffResponsibilityAction(
