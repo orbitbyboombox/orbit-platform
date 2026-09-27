@@ -27,8 +27,18 @@ test("Staff Home reuses compact weekly and logistics language", () => {
   for (const marker of ["MI SEMANA", "Tu agenda semanal", "EVENTOS DISPONIBLES ESTA SEMANA", "SEMANA ACTUAL", "RUTA OFICIAL", "MONTAJE", "DESMONTAJE"]) {
     assert.match(dashboard, new RegExp(marker));
   }
-  assert.match(dashboard, /grid-cols-\[52px_4px_minmax\(0,1fr\)\]/);
+  assert.match(dashboard, /grid-cols-\[52px_4px_minmax\(0,1fr\)_auto\]/);
   assert.match(dashboard, /No tienes eventos asignados esta semana/);
+});
+
+test("Staff Home places the weekly agenda before summary and modules", () => {
+  const agenda = dashboard.indexOf("<StaffWeeklyEventList events={events} />");
+  const summary = dashboard.indexOf("Resumen rápido");
+  const modules = dashboard.indexOf('data-staff-module={key}');
+  assert.ok(agenda >= 0, "weekly agenda should render on Staff Home");
+  assert.ok(summary >= 0 && modules >= 0, "summary and modules should render on Staff Home");
+  assert.ok(agenda < summary, "weekly agenda must precede summary");
+  assert.ok(agenda < modules, "weekly agenda must precede modules");
 });
 
 test("Staff Portal keeps finance and capability visibility structural", () => {
