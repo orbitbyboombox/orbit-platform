@@ -596,9 +596,25 @@ export function NewProjectDrawer({
   const compatibleExtras = (service: ProjectService) =>
     filterExtrasForEventType(
       draft.type ?? "",
-      (serviceByCode.get(service)?.compatibleExtras ?? [])
-        .map(masterExtraToReservation)
-        .filter((extra): extra is ServiceExtra => extra !== null),
+      Array.from(
+        new Set([
+          ...(serviceByCode.get(service)?.compatibleExtras ?? [])
+            .map(masterExtraToReservation)
+            .filter((extra): extra is ServiceExtra => extra !== null),
+          // The commercial catalog is the source of truth for valid extras.
+          // Service metadata may lag behind it, so it must not hide a priced,
+          // enabled extra from the reservation selector.
+          ...commercialPrices
+            .filter(
+              (price) =>
+                price.category === "EXTRA" &&
+                price.pricingStatus === "DEFINED" &&
+                price.unitPrice != null,
+            )
+            .map((price) => masterExtraToReservation(price.code))
+            .filter((extra): extra is ServiceExtra => extra !== null),
+        ]),
+      ),
     );
 
   const selectedMunicipality =

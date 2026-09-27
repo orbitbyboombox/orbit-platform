@@ -23,3 +23,12 @@ test("FONDO 230X200 BLANCO uses the configured catalog price in quotation totals
   assert.deepEqual(calculateCommercialTax({ taxableAmount: subtotal, customerType: "PRIVATE", vatPercentage: 19 }), { net: 265_000, vat: 0, total: 265_000 });
   assert.deepEqual(calculateCommercialTax({ taxableAmount: subtotal, customerType: "COMPANY", vatPercentage: 19 }), { net: 265_000, vat: 50_350, total: 315_350 });
 });
+
+test("reservation Extras uses valid commercial catalog extras even when service metadata lags", () => {
+  const drawer = readFileSync("features/projects/components/new-project-drawer.tsx", "utf8");
+  assert.match(drawer, /price\.category === "EXTRA"/);
+  assert.match(drawer, /price\.pricingStatus === "DEFINED"/);
+  assert.match(drawer, /price\.unitPrice != null/);
+  assert.match(drawer, /masterExtraToReservation\(price\.code\)/);
+  assert.match(drawer, /BACKDROP_230X200_WHITE/);
+});
