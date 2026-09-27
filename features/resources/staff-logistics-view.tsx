@@ -516,7 +516,7 @@ function SectorMappingEditor({ mappings, overrides, statuses, onChange }: { mapp
 const LOGICAL_ROW_WIDTH_PX = 680;
 const LOGICAL_ROW_HEIGHT_PX = 112;
 
-function ScaledLogisticsEventRow({ event, sector, onSelect, selected }: { event: StaffLogisticsEvent; sector: LogisticsSector; onSelect: () => void; selected: boolean }) {
+export function ScaledLogisticsEventRow({ event, sector, onSelect, selected }: { event: StaffLogisticsEvent; sector: LogisticsSector; onSelect: () => void; selected: boolean }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const [availableWidth, setAvailableWidth] = useState(0);
@@ -550,7 +550,7 @@ function ScaledLogisticsEventRow({ event, sector, onSelect, selected }: { event:
   </div>;
 }
 
-function LogisticsEventRow({ event, sector, onSelect, selected }: { event: StaffLogisticsEvent; sector: LogisticsSector; onSelect: () => void; selected: boolean }) {
+export function LogisticsEventRow({ event, sector, onSelect, selected }: { event: StaffLogisticsEvent; sector: LogisticsSector; onSelect: () => void; selected: boolean }) {
   const state = statusView[normalizeStatus(event.status)];
   const date = dateParts(event.date);
   return <button data-debug="event-button" className={`grid w-full min-w-0 grid-cols-[72px_5px_96px_minmax(0,1.25fr)_minmax(0,1fr)_110px_auto_20px] items-center gap-3 overflow-hidden rounded-2xl border border-white/10 bg-[#111214] px-4 py-3 text-left transition hover:border-white/20 hover:bg-white/[.03] ${selected ? "border-brand/60 bg-brand/5" : ""}`} onClick={onSelect}>

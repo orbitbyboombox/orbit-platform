@@ -27,15 +27,14 @@ test("Staff Home reuses compact weekly and logistics language", () => {
   for (const marker of ["MI SEMANA", "Tu agenda semanal", "EVENTOS DISPONIBLES ESTA SEMANA", "SEMANA ACTUAL", "RUTA OFICIAL", "MONTAJE", "DESMONTAJE"]) {
     assert.match(dashboard, new RegExp(marker));
   }
-  assert.match(dashboard, /grid-cols-\[52px_3px_minmax\(0,1fr\)_auto_auto\]/);
-  assert.match(dashboard, /md:grid-cols-\[60px_3px_minmax\(88px,0\.7fr\)/);
-  assert.match(dashboard, /md:max-w-28 md:text-xs/);
-  assert.match(dashboard, /aria-hidden="true" \/><\/article>/);
+  assert.match(dashboard, /LogisticsEventRow, ScaledLogisticsEventRow/);
+  assert.match(dashboard, /<LogisticsEventRow event=\{row\}/);
+  assert.match(dashboard, /<ScaledLogisticsEventRow event=\{row\}/);
   assert.match(dashboard, /No tienes eventos asignados esta semana/);
 });
 
 test("Staff Home places the weekly agenda before summary and modules", () => {
-  const agenda = dashboard.indexOf("<StaffWeeklyEventList events={events} />");
+  const agenda = dashboard.indexOf("<StaffWeeklyEventList events={events} onSelect={onSelect} />");
   const summary = dashboard.indexOf("Resumen rápido");
   const modules = dashboard.indexOf('data-staff-module={key}');
   assert.ok(agenda >= 0, "weekly agenda should render on Staff Home");
