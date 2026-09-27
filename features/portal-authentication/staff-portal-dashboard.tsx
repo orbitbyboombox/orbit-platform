@@ -163,6 +163,33 @@ const PRE_EVENT = [
 ];
 const pendingAcceptance = (status: string) =>
   ["PENDING", "PENDING_CONFIRMATION", "ASSIGNED"].includes(status);
+export const staffGreeting = (hour: number) =>
+  hour < 12 ? "Buenos días" : hour < 19 ? "Buenas tardes" : "Buenas noches";
+const chileToday = () =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(
+    new Date(),
+  );
+const currentWeekRange = () => {
+  const [year, month, day] = chileToday().split("-").map(Number);
+  const current = new Date(Date.UTC(year, month - 1, day));
+  const mondayOffset = (current.getUTCDay() + 6) % 7;
+  const start = new Date(current);
+  start.setUTCDate(current.getUTCDate() - mondayOffset);
+  const end = new Date(start);
+  end.setUTCDate(start.getUTCDate() + 6);
+  const format = (value: Date) =>
+    new Intl.DateTimeFormat("es-CL", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC",
+    }).format(value);
+  return {
+    start: start.toISOString().slice(0, 10),
+    end: end.toISOString().slice(0, 10),
+    label: `${format(start)} – ${format(end)}`,
+  };
+};
 const stateLabel = (event: StaffPortalEvent) =>
   pendingAcceptance(event.status)
     ? "Pendiente de aceptación"
@@ -205,15 +232,31 @@ export function StaffPortalDashboard({
   initialEventId?: string;
 }) {
   const [selected, setSelected] = useState<StaffPortalEvent | null>(null);
+  const [hour, setHour] = useState<number | null>(null);
   useEffect(() => {
     if (initialEventId) {
       setSelected(events.find((event) => event.id === initialEventId) ?? null);
     }
   }, [events, initialEventId]);
+  useEffect(() => {
+    const value = new Intl.DateTimeFormat("en-GB", {
+      hour: "numeric",
+      hour12: false,
+      timeZone: "America/Santiago",
+    }).formatToParts(new Date()).find((part) => part.type === "hour")?.value;
+    setHour(Number(value ?? 12));
+  }, []);
   const today = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Santiago",
   }).format(new Date());
   const todayEvents = events.filter((event) => event.date === today),
+    week = currentWeekRange(),
+    weekEvents = events.filter(
+      (event) => event.date >= week.start && event.date <= week.end,
+    ),
+    weeklyAvailableEvents = availableEvents.filter(
+      (event) => event.date >= week.start && event.date <= week.end,
+    ),
     completed = events.filter((event) =>
       participationCompleted(event),
     ),
@@ -229,7 +272,9 @@ export function StaffPortalDashboard({
         <p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">
           Portal Staff
         </p>
-        <h1 className="mt-2 text-3xl font-semibold">Bienvenido, {name}.</h1>
+        <h1 className="mt-2 text-3xl font-semibold">
+          {staffGreeting(hour ?? 12)}, {name}.
+        </h1>
         <p className="mt-2 text-muted">
           Solicita responsabilidades disponibles y opera tus eventos
           confirmados.
@@ -250,8 +295,8 @@ export function StaffPortalDashboard({
           icon={CalendarDays}
         />
         <Metric
-          label="Próximos 15 días"
-          value={String(events.length)}
+          label="Eventos esta semana"
+          value={String(weekEvents.length)}
           icon={Clock3}
         />
         <Metric
@@ -270,7 +315,27 @@ export function StaffPortalDashboard({
           icon={CheckCircle2}
         />
       </section>
-      <AvailableEvents events={availableEvents} requests={requests} />
+      <section className="rounded-3xl border border-brand/30 bg-brand/5 p-5 sm:p-7">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">
+              Asignación semanal
+            </p>
+            <h2 className="mt-1 text-xl font-semibold">Eventos publicados</h2>
+          </div>
+          <p className="text-sm text-muted">{week.label}</p>
+        </div>
+        <p className="mt-2 text-sm text-muted">
+          Solo se muestran Eventos publicados por Operaciones y con una responsabilidad compatible disponible.
+        </p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-4">
+          <Small label="Eventos esta semana" value={String(weekEvents.length)} />
+          <Small label="Disponibles" value={String(weeklyAvailableEvents.length)} />
+          <Small label="Confirmados / tomados" value={String(confirmed.length)} />
+          <Small label="Por confirmar" value={String(events.filter((event) => pendingAcceptance(event.status)).length)} />
+        </div>
+      </section>
+      <AvailableEvents events={weeklyAvailableEvents} requests={requests} />
       <section className="rounded-3xl border border-white/10 bg-[#111214] p-5 text-white shadow-[0_20px_70px_rgba(0,0,0,.22)] sm:p-7">
         <h2 className="text-xl font-semibold">Mis eventos asignados</h2>
         <p className="mt-1 text-sm text-white/60">
@@ -453,7 +518,7 @@ function AvailableEvents({
               <MapPin className="mr-2 inline size-4 text-brand" />
               {event.address}, {event.district} · {event.venue}
             </p>
-            <span className="mt-4 inline-flex min-h-10 items-center rounded-xl border px-3 text-sm font-semibold text-brand">Ver resumen y pago</span>
+            <span className="mt-4 inline-flex min-h-10 items-center rounded-xl border border-brand/40 bg-brand/10 px-3 text-sm font-semibold text-brand">TOMAR · Ver pago</span>
           </button>
         ))}
         {events.length === 0 ? (
@@ -505,7 +570,7 @@ function AvailableEventPreview({event,requests,pending,close,request,setMessage}
   const roleNet=role==="OPERATOR"?event.payments.operator:role==="ASSEMBLY"?event.payments.assembly:role==="DISASSEMBLY"?event.payments.disassembly:event.payments.combined;
   const alreadyRequested=requests.some(item=>item.projectId===event.id&&item.responsibility===role&&item.status==="PENDING");
   const decline=()=>startDecline(async()=>{const form=new FormData();form.set("projectId",event.id);form.set("responsibility",role);form.set("reason",reason);form.set("detail",detail);const result=await declineStaffResponsibilityAction(form);setMessage(result.message);if(result.ok)close()});
-  return <MobileDialog description="Revisa exactamente qué Evento, responsabilidad y pago estás aceptando." eyebrow="Antes de aceptar" onClose={close} size="xl" title="Resumen operacional completo" variant="fullscreen-mobile"><article><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><Small label="Servicio" value={event.service}/><Small label="Cliente" value={event.customer}/><Small label="Fecha" value={event.date}/><Small label="Horario" value={`${event.start}–${event.finish}`}/><Small label="Duración" value={`${event.duration} horas`}/><Small label="Comuna" value={event.district}/><Small label="Dirección" value={event.address}/><Small label="Contacto cliente" value={event.clientPhone}/><Small label="Producción" value={`${event.productionContact} · ${event.productionPhone}`}/><Small label="Vehículo" value={event.vehicle}/><Small label="Equipamiento" value={event.equipment.join(" · ")||"No asignado"}/><Small label="ORBIT Event ID" value={event.orbitEventId}/></div><a className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold text-brand" href={maps} rel="noreferrer" target="_blank"><Navigation className="size-4"/>Google Maps</a><section className="mt-6 rounded-2xl border border-brand/30 bg-brand/5 p-4"><h4 className="font-semibold">Pago estimado de la asignación</h4><p className="mt-1 text-sm text-muted">Este es el pago estimado para esta asignación. Solo el Founder puede modificar estos valores.</p><div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><Small label="Operador" value={money(event.payments.operator)}/><Small label="Montaje" value={money(event.payments.assembly)}/><Small label="Desmontaje" value={money(event.payments.disassembly)}/><Small label="Montaje + Desmontaje" value={money(event.payments.combined)}/><Small label="Bono transporte" value={money(event.payments.transportationBonus)}/><Small label="Reembolsos" value="Pendientes"/><Small label="Total estimado" value={money(roleNet+event.payments.transportationBonus)}/></div></section><section className="mt-6 rounded-2xl border p-4"><label className="grid gap-2 text-sm font-medium">Responsabilidad<select className="min-h-11 rounded-xl border bg-background px-3" value={role} onChange={e=>setRole(e.target.value)}>{event.available.map(value=><option key={value} value={value}>{ROLE[value]??value}</option>)}</select></label><div className="mt-4 flex flex-wrap gap-2"><button className="min-h-11 rounded-xl bg-brand px-4 text-sm font-semibold text-brand-foreground disabled:opacity-50" aria-busy={pending} disabled={pending||alreadyRequested||!role} onClick={()=>request(event.id,role)}>{alreadyRequested?"Solicitud pendiente":pending?"Enviando…":"Aceptar Evento"}</button><button className="min-h-11 rounded-xl border px-4 text-sm font-semibold text-danger" aria-busy={pending} disabled={pending} onClick={()=>setDeclining(value=>!value)}>Rechazar</button></div>{declining?<div className="mt-4 grid gap-3 border-t pt-4"><label className="grid gap-2 text-sm font-medium">Motivo<select className="min-h-11 rounded-xl border bg-background px-3" value={reason} onChange={e=>setReason(e.target.value)}><option value="ILLNESS">Enfermedad</option><option value="EMERGENCY">Emergencia</option><option value="UNAVAILABLE">No disponible</option><option value="DISTANCE">Distancia</option><option value="OTHER">Otro</option></select></label><label className="grid gap-2 text-sm font-medium">Detalle<textarea className="min-h-24 rounded-xl border bg-background p-3" required={reason==="OTHER"} value={detail} onChange={e=>setDetail(e.target.value)}/></label><button className="min-h-11 rounded-xl bg-red-600 px-4 text-sm font-semibold text-white disabled:opacity-50" disabled={declinePending||(reason==="OTHER"&&!detail.trim())} onClick={decline}>{declinePending?"Notificando…":"Confirmar rechazo"}</button></div>:null}</section></article></MobileDialog>
+  return <MobileDialog description="Revisa exactamente qué Evento, responsabilidad y pago estás aceptando." eyebrow="Antes de aceptar" onClose={close} size="xl" title="Resumen operacional completo" variant="fullscreen-mobile"><article><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><Small label="Servicio" value={event.service}/><Small label="Cliente" value={event.customer}/><Small label="Fecha" value={event.date}/><Small label="Horario" value={`${event.start}–${event.finish}`}/><Small label="Duración" value={`${event.duration} horas`}/><Small label="Comuna" value={event.district}/><Small label="Dirección" value={event.address}/><Small label="Contacto cliente" value={event.clientPhone}/><Small label="Producción" value={`${event.productionContact} · ${event.productionPhone}`}/><Small label="Vehículo" value={event.vehicle}/><Small label="Equipamiento" value={event.equipment.join(" · ")||"No asignado"}/><Small label="ORBIT Event ID" value={event.orbitEventId}/></div><a className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold text-brand" href={maps} rel="noreferrer" target="_blank"><Navigation className="size-4"/>Google Maps</a><section className="mt-6 rounded-2xl border border-brand/30 bg-brand/5 p-4"><h4 className="font-semibold">Pago estimado de la asignación</h4><p className="mt-1 text-sm text-muted">Este es el pago estimado para esta asignación. Solo el Founder puede modificar estos valores.</p><div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><Small label="Operador" value={money(event.payments.operator)}/><Small label="Montaje" value={money(event.payments.assembly)}/><Small label="Desmontaje" value={money(event.payments.disassembly)}/><Small label="Montaje + Desmontaje" value={money(event.payments.combined)}/><Small label="Bono transporte" value={money(event.payments.transportationBonus)}/><Small label="Reembolsos" value="Pendientes"/><Small label="Total estimado" value={money(roleNet+event.payments.transportationBonus)}/></div></section><section className="mt-6 rounded-2xl border p-4"><label className="grid gap-2 text-sm font-medium">Responsabilidad<select className="min-h-11 rounded-xl border bg-background px-3" value={role} onChange={e=>setRole(e.target.value)}>{event.available.map(value=><option key={value} value={value}>{ROLE[value]??value}</option>)}</select></label><div className="mt-4 flex flex-wrap gap-2"><button className="min-h-11 rounded-xl bg-brand px-4 text-sm font-semibold text-brand-foreground disabled:opacity-50" aria-busy={pending} disabled={pending||alreadyRequested||!role} onClick={()=>request(event.id,role)}>{alreadyRequested?"Solicitud pendiente":pending?"Enviando…":"TOMAR RESPONSABILIDAD"}</button><button className="min-h-11 rounded-xl border px-4 text-sm font-semibold text-danger" aria-busy={pending} disabled={pending} onClick={()=>setDeclining(value=>!value)}>Rechazar</button></div>{declining?<div className="mt-4 grid gap-3 border-t pt-4"><label className="grid gap-2 text-sm font-medium">Motivo<select className="min-h-11 rounded-xl border bg-background px-3" value={reason} onChange={e=>setReason(e.target.value)}><option value="ILLNESS">Enfermedad</option><option value="EMERGENCY">Emergencia</option><option value="UNAVAILABLE">No disponible</option><option value="DISTANCE">Distancia</option><option value="OTHER">Otro</option></select></label><label className="grid gap-2 text-sm font-medium">Detalle<textarea className="min-h-24 rounded-xl border bg-background p-3" required={reason==="OTHER"} value={detail} onChange={e=>setDetail(e.target.value)}/></label><button className="min-h-11 rounded-xl bg-red-600 px-4 text-sm font-semibold text-white disabled:opacity-50" disabled={declinePending||(reason==="OTHER"&&!detail.trim())} onClick={decline}>{declinePending?"Notificando…":"Confirmar rechazo"}</button></div>:null}</section></article></MobileDialog>
 }
 function MultiRoleEventPreview({event,requests,pending,close,request}:{event:AvailableStaffEvent;requests:StaffRequest[];pending:boolean;close:()=>void;request:(projectId:string,roles:string[])=>void}) {
   const [roles,setRoles]=useState<string[]>([]);
