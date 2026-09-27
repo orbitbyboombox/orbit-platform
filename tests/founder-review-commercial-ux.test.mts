@@ -177,7 +177,7 @@ test("the Founder navigation follows the canonical main menu order", () => {
   assert.match(navigation, /label: "COBRAR CLIENTES"/);
   assert.match(navigation, /href: "\/finance\/collections"/);
   assert.match(workspace, /navigationOrder:\s*\[\s*"COMMERCIAL",\s*"HOME",\s*"CALENDAR",\s*"EVENTS"/);
-  assert.match(workspace, /hiddenNavigation:\s*\["OFFICE_RENT"\]/);
+  assert.match(workspace, /hiddenNavigation:\s*\[\]/);
 });
 
 test("collection email is branded, complete, accessible, and mobile safe", () => {

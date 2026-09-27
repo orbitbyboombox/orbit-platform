@@ -136,9 +136,9 @@ test("navigation and finance pages expose the new collection center", () => {
   assert.match(collectionPage, /CollectionCenter/);
   assert.match(receivablesPage, /resolveCollectionBankDetails/);
   assert.match(receivablesPage, /AccountsReceivableCenter/);
-  assert.match(founderWorkspaceCatalog, /hiddenNavigation: \["OFFICE_RENT"\]/);
-  assert.match(founderWorkspaceRepository, /newNavigation\.filter/);
-  assert.match(founderWorkspaceRepository, /DEFAULT_WORKSPACE\.hiddenNavigation\.includes/);
+  assert.match(founderWorkspaceCatalog, /hiddenNavigation: \[\]/);
+  assert.match(founderWorkspaceRepository, /navigationOrder: \[\.\.\.DEFAULT_WORKSPACE\.navigationOrder\]/);
+  assert.match(founderWorkspaceRepository, /hiddenNavigation: \[\]/);
 });
 
 test("repository, portal and communication center understand the new collection email type", () => {

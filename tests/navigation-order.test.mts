@@ -20,6 +20,7 @@ const expected = [
   "SETTINGS",
 ] as const;
 const navigation = readFileSync(new URL("../components/layout/navigation.ts", import.meta.url), "utf8");
+const sidebar = readFileSync(new URL("../components/layout/sidebar.tsx", import.meta.url), "utf8");
 const workspace = readFileSync(new URL("../features/founder-workspace/catalog.ts", import.meta.url), "utf8");
 
 test("desktop and mobile share the requested main menu order", () => {
@@ -28,5 +29,7 @@ test("desktop and mobile share the requested main menu order", () => {
   const workspaceKeys = [...(workspaceBlock?.[1] ?? "").matchAll(/"([A-Z_]+)"/g)].map((match) => match[1]);
   assert.deepEqual(navigationKeys, expected);
   assert.deepEqual(workspaceKeys, expected);
+  assert.match(sidebar, /navigationItems\.filter/);
+  assert.doesNotMatch(sidebar, /navigationItems\].sort/);
   assert.equal(new Set(expected).size, expected.length);
 });

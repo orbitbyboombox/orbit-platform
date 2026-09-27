@@ -158,7 +158,7 @@ test("Founder UX provides responsive controls, busy states and safe document typ
 test("the module is registered without resetting Founder workspace visibility", () => {
   assert.match(navigation, /key: "OFFICE_RENT"/);
   assert.match(navigation, /label: "Arriendo Oficina"/);
-  assert.match(workspace, /hiddenNavigation: \["OFFICE_RENT"\]/);
+  assert.match(workspace, /hiddenNavigation: \[\]/);
   assert.match(navigationMigration, /array_append\(workspace\.navigation_order,'OFFICE_RENT'\)/);
   assert.match(navigationMigration, /array_remove\(workspace\.hidden_navigation,'OFFICE_RENT'\)/);
   assert.doesNotMatch(navigationMigration, /navigation_order\s*=\s*array\['HOME'/);

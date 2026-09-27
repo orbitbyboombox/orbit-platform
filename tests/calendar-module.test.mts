@@ -9,8 +9,8 @@ test("calendar is a canonical Events navigation sibling", () => {
   const sidebar = read("components/layout/sidebar.tsx");
   assert.match(navigation, /key: "CALENDAR"[\s\S]*key: "EVENTS"/);
   assert.match(navigation, /href: "\/calendar"/);
-  assert.match(sidebar, /key === "CALENDAR"/);
-  assert.match(sidebar, /eventsPosition.*\+ 1/);
+  assert.match(sidebar, /navigationItems\.filter/);
+  assert.doesNotMatch(sidebar, /navigationItems\].sort/);
 });
 
 test("calendar renders month, week and day views from CRM operational events", () => {

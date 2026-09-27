@@ -473,7 +473,7 @@ export const DEFAULT_WORKSPACE: FounderWorkspacePreferences = {
     "REPORTS",
     "SETTINGS",
   ],
-  hiddenNavigation: ["OFFICE_RENT"],
+  hiddenNavigation: [],
   quickActionOrder: QUICK_ACTIONS.map((x) => x.key),
   hiddenQuickActions: [],
   favoriteQuickActions: ["NEW_RESERVATION"],
