@@ -8,7 +8,7 @@ import {
 } from "@/features/staff-payments";
 import { StaffPinReset } from "@/features/portal-authentication/staff-pin-reset";
 import { StaffWorkspaces } from "@/features/resources/staff-workspaces";
-import { StaffLogisticsView, type StaffLogisticsEvent } from "@/features/resources/staff-logistics-view";
+import { StaffLogisticsView, type AdminLogisticsRoute, type LogisticsVehicleOption, type StaffLogisticsEvent } from "@/features/resources/staff-logistics-view";
 import { loadLogisticsCommuneSectorMappings } from "@/features/resources/logistics-commune-sector-repository";
 import { loadCrmOperationalEvents } from "@/features/crm/events-repository";
 import {
@@ -136,6 +136,13 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
   if (staffExpenseDocumentsError) throw staffExpenseDocumentsError;
   if (monthlyAccountsError) throw monthlyAccountsError;
   if (reimbursementPaymentsError) throw reimbursementPaymentsError;
+  const { data: logisticsRoutes, error: logisticsRoutesError } = await client
+    .from("vehicle_routes")
+    .select("id,asset_id,route_date,driver_staff_id,route_type,publication_status,publication_version,vehicle_route_events(project_id,sequence)")
+    .is("deleted_at", null)
+    .neq("status", "CANCELLED")
+    .order("route_date", { ascending: true });
+  if (logisticsRoutesError) throw logisticsRoutesError;
   const { data: expenseDocumentMetadata, error: expenseDocumentMetadataError } =
     await client
       .from("documents")
@@ -387,6 +394,17 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
   const vehicleOptions = (vehicles ?? []).map((vehicle) => ({
     id: vehicle.asset_id,
     label: vehicle.model,
+  }));
+  const logisticsVehicleOptions: LogisticsVehicleOption[] = vehicleOptions;
+  const logisticsRoutesForPlanner: AdminLogisticsRoute[] = (logisticsRoutes ?? []).map((route) => ({
+    id: route.id,
+    date: route.route_date,
+    type: route.route_type as AdminLogisticsRoute["type"],
+    status: route.publication_status as AdminLogisticsRoute["status"],
+    version: Number(route.publication_version ?? 0),
+    vehicleId: route.asset_id,
+    driverId: route.driver_staff_id ?? "",
+    eventIds: (route.vehicle_route_events ?? []).sort((a, b) => Number(a.sequence) - Number(b.sequence)).map((event) => event.project_id),
   }));
   const paymentEvents: StaffPaymentEvent[] = (paymentRows ?? []).flatMap(
     (row) => {
@@ -759,7 +777,7 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
           requests={operationsRequests}
         />
       }
-      logistics={<StaffLogisticsView events={logisticsEvents} initialCommuneSectorMappings={communeSectorMappings} />}
+      logistics={<StaffLogisticsView events={logisticsEvents} initialCommuneSectorMappings={communeSectorMappings} initialRoutes={logisticsRoutesForPlanner} vehicles={logisticsVehicleOptions} />}
       portal={<StaffPinReset members={portalAccess} />}
       payroll={
         <StaffPaymentsCenter
