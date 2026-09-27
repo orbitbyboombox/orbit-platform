@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadPortalSession } from "./portal-auth.service";
+import { reportStaffOperatorIncidentAction } from "./staff-portal.actions";
 
 export type StaffBoxComponent = { id: string; code: string; type: string; status: string };
 export type StaffPaperStatus = "PENDING" | "READY_TO_CLOSE" | "CONFIRMED" | "OVERRIDDEN";
@@ -96,4 +97,14 @@ export async function confirmStaffPaperCloseoutAction(input: { projectId: string
     revalidatePath("/staff-portal");
     return { ok: true as const, data };
   } catch (error) { return { ok: false as const, message: error instanceof Error ? error.message : "No fue posible confirmar el cierre de papel." }; }
+}
+
+export async function finalizeStaffPaperCloseoutAction(input: { projectId: string; assignmentId: string; finalRemaining: number; usedSparePaper: boolean; issue: string }) {
+  const issue = input.issue.trim();
+  const note = `Papel de repuesto: ${input.usedSparePaper ? "SÍ" : "NO"}${issue ? `\nReporte Staff: ${issue}` : ""}`;
+  const closeout = await confirmStaffPaperCloseoutAction({ ...input, note });
+  if (!closeout.ok || !issue) return closeout;
+  const incident = await reportStaffOperatorIncidentAction({ projectId: input.projectId, category: "EQUIPMENT", severity: "HIGH", description: issue });
+  if (!incident.ok) return { ok: false as const, message: `Cierre registrado, pero no se pudo crear la alerta: ${incident.message}` };
+  return closeout;
 }

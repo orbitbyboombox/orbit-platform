@@ -42,9 +42,9 @@ test("Phase C.5 remains wired to the paper ledger and closeout guard", () => {
   assert.match(migration, /event_paper_snapshots/);
   assert.match(migration, /from public\.projects p\s+where p\.id=new\.project_id/);
   assert.match(migration, /EVENT_USAGE/);
-  assert.match(migration, /Falta registrar el papel restante/);
-  assert.match(panel, /Falta registrar el papel restante/);
-  assert.match(panel, /confirmStaffPaperCloseoutAction/);
+  assert.match(migration, /p_final_remaining/);
+  assert.match(panel, /Papel restante/);
+  assert.match(panel, /finalizeStaffPaperCloseoutAction/);
 });
 
 test("Phase C.5 reminder uses the canonical worker and is idempotent", () => {

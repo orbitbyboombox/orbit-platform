@@ -14,15 +14,19 @@ test("operator phase persists checklist items and scopes incident reports", () =
   assert.match(actions, /portal_session_id/);
 });
 
-test("operator view exposes required operational checks and alert form", () => {
-  for (const label of ["Checklist de papel", "Checklist de equipo", "Papel cargado correctamente", "Cámara operativa", "Reportar problema", "CON INCIDENCIA", "alerta visible para Administración"]) assert.match(dashboard, new RegExp(label));
+test("operator view exposes the simplified paper closeout entry point", () => {
+  assert.doesNotMatch(dashboard, /Checklist antes del Evento/);
+  assert.doesNotMatch(dashboard, /OperatorReadinessPanel/);
   assert.match(dashboard, /event\.roles\.includes\("OPERATOR"\)/);
-  assert.match(dashboard, /reportStaffOperatorIncidentAction/);
+  assert.match(boxPanel, /PAPEL CARGADO AL INICIO/);
+  assert.match(boxPanel, /Papel restante/);
+  assert.match(boxPanel, /¿Usaste papel de repuesto\?/);
+  assert.match(boxPanel, /¿Hay algo malo o falta algo\?/);
 });
 
 test("operator box view reads the immutable opening snapshot without final closeout controls", () => {
   assert.match(boxPanel, /readOnlyPaperCloseout/);
-  assert.match(boxPanel, /Snapshot de papel · apertura/);
+  assert.match(boxPanel, /PAPEL CARGADO AL INICIO/);
   assert.match(boxPanel, /paper\.openingBalance/);
-  assert.match(boxPanel, /stock final se registra en la fase de cierre/);
+  assert.match(boxPanel, /Este snapshot es de solo lectura/);
 });

@@ -14,7 +14,7 @@ test("Phase 4 closes paper atomically against the active Master case", () => {
 });
 
 test("Phase 4 gives the assigned operator a guarded mobile closeout flow", () => {
-  for (const marker of ["operatorCloseoutEnabled", "FINALIZAR EVENTO", "CONFIRMAR CIERRE", "Fotos restantes", "Consumo del evento", "CIERRE COMPLETADO", "Al confirmar"]) assert.match(panel, new RegExp(marker));
+  for (const marker of ["operatorCloseoutEnabled", "FINALIZAR EVENTO", "Papel restante", "Papel utilizado", "papel de repuesto"]) assert.match(panel, new RegExp(marker));
   assert.match(actions, /staffContext\(input\.projectId, \["OPERATOR"\]\)/);
   assert.match(actions, /event_paper_snapshots/);
   assert.match(actions, /black_box_paper_format/);
