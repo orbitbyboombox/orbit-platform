@@ -22,3 +22,11 @@ test("Staff capabilities remain nested in their owning module", () => {
   assert.match(dashboard, /SUBE TU GASTO/);
   assert.doesNotMatch(dashboard, /data-staff-module="(RUTAS|CHECKLIST|CAJA|PAPEL|PAGOS|GASTOS)"/);
 });
+
+test("Staff Home reuses compact weekly and logistics language", () => {
+  for (const marker of ["MI SEMANA", "Tu agenda semanal", "EVENTOS DISPONIBLES ESTA SEMANA", "SEMANA ACTUAL", "RUTA OFICIAL", "MONTAJE", "DESMONTAJE"]) {
+    assert.match(dashboard, new RegExp(marker));
+  }
+  assert.match(dashboard, /grid-cols-\[52px_4px_minmax\(0,1fr\)\]/);
+  assert.match(dashboard, /No tienes eventos asignados esta semana/);
+});
