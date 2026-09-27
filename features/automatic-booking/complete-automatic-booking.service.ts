@@ -378,7 +378,7 @@ export async function calculateAutomaticBookingPricing(admin: ReturnType<typeof 
     const resolved = resolveServicePrice({ serviceCode: code, requestedDuration: input.service.hours, rows: serviceRows, fixedHours });
     return { code, ...resolved };
   });
-  const extraCodes: Record<string, string> = { QR: "QR", Branding: "BRANDING", Imanes: "UNLIMITED_MAGNETS", Scrapbook: "SCRAPBOOK" };
+    const extraCodes: Record<string, string> = { QR: "QR", Branding: "BRANDING", Imanes: "UNLIMITED_MAGNETS", Scrapbook: "SCRAPBOOK", "Fondo 230x200 Blanco": "BACKDROP_230X200_WHITE" };
   const extras = input.service.extras.reduce((sum, extra) => { const row = prices.find((price) => price.category === "EXTRA" && price.code === extraCodes[extra]); return sum + Number(row?.unit_price ?? 0) * (extra === "Branding" ? Math.max(2, input.service.brandingQuantity) : 1); }, 0);
   const municipality = municipalities.find((item) => item.name.localeCompare(input.event.municipality.trim(), "es", { sensitivity: "base" }) === 0);
   if (!municipality) throw new Error("La comuna seleccionada no tiene una configuración de transporte vigente.");

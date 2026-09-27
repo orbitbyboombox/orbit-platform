@@ -18,7 +18,7 @@ export default async function AutomaticBookingPage({ params }: { params: Promise
   if (!invitation) notFound();
   const [servicesResult, pricesResult, venuesResult, municipalities, company] = await Promise.all([
     admin.from("master_data_entries").select("code,label,configuration").eq("domain", "SERVICES").eq("enabled", true).order("display_order"),
-    admin.from("commercial_prices").select("category,code,duration_hours,destination,unit_price,rules").eq("enabled", true).is("deleted_at", null),
+    admin.from("commercial_prices").select("category,code,duration_hours,destination,unit_price,pricing_status,rules").eq("enabled", true).is("deleted_at", null),
     admin.from("master_data_entries").select("configuration").eq("domain", "SYSTEM_PARAMETERS").eq("code", "EVENT_VENUES").eq("enabled", true).maybeSingle(),
     loadActiveMunicipalities(admin),
     loadCompanySettings(admin),

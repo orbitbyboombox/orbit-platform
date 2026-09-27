@@ -32,3 +32,14 @@ test("reservation Extras uses valid commercial catalog extras even when service 
   assert.match(drawer, /masterExtraToReservation\(price\.code\)/);
   assert.match(drawer, /BACKDROP_230X200_WHITE/);
 });
+
+test("real automatic reservation Extras renders and prices the backdrop catalog item", () => {
+  const experience = readFileSync("features/automatic-booking/automatic-booking-experience.tsx", "utf8");
+  const completion = readFileSync("features/automatic-booking/complete-automatic-booking.service.ts", "utf8");
+  assert.match(experience, /price\.category === "EXTRA" && price\.pricing_status === "DEFINED" && price\.unit_price > 0/);
+  assert.match(experience, /compatible\.includes\("BACKDROP_230X200_WHITE"\)/);
+  assert.match(experience, /label="Fondo 230x200 Blanco"/);
+  assert.match(experience, /extraPrice\("BACKDROP_230X200_WHITE"\)/);
+  assert.match(experience, /"Fondo 230x200 Blanco":"BACKDROP_230X200_WHITE"/);
+  assert.match(completion, /"Fondo 230x200 Blanco": "BACKDROP_230X200_WHITE"/);
+});
