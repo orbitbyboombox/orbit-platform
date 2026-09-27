@@ -306,25 +306,21 @@ export function StaffPortalDashboard({
         !pendingAcceptance(event.status) &&
         !participationCompleted(event),
     );
+  const pendingExpenses = expenseSubmissions.filter((item) => item.status === "PENDING_REVIEW").length;
   if (mustChangePassword) return <PasswordSetup name={name} />;
   return (
     <div className="space-y-6 overflow-x-hidden">
-      <header className="rounded-3xl border bg-card p-6 sm:p-8">
+      <header className={`rounded-3xl border bg-card p-5 sm:p-7 ${module === null ? "border-brand/20 bg-gradient-to-br from-card via-card to-brand/5" : ""}`}>
         <p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">
           Portal Staff
         </p>
         <h1 className="mt-2 text-3xl font-semibold">
           {staffGreeting(hour ?? 12)}, {name}.
         </h1>
-        <p className="mt-2 text-muted">Tu operación, montaje y finanzas en un solo lugar.</p>
-        <Link
-          className="mt-4 inline-flex min-h-11 items-center rounded-xl border border-brand/30 bg-brand/10 px-4 text-sm font-semibold text-brand"
-          href="/staff-portal/academy"
-        >
-          🎓 BOOMBOX Academy
-        </Link>
+        <p className="mt-2 max-w-2xl text-muted">Revisa tu operación, montaje y finanzas de esta semana.</p>
+        {module === null ? <div className="mt-5 flex flex-wrap gap-2">{[[`${weekEvents.length} evento${weekEvents.length === 1 ? "" : "s"}`, "esta semana"], [`${routes.length} ruta${routes.length === 1 ? "" : "s"}`, "asignadas"], [`${payment.pending > 0 ? 1 : 0} pago`, "pendiente"]].map(([value,label]) => <span className="rounded-full border border-white/10 bg-background/50 px-3 py-1.5 text-xs font-medium text-muted" key={`${value}-${label}`}><strong className="text-foreground">{value}</strong> · {label}</span>)}</div> : null}
       </header>
-      {module === null ? <StaffHome module={setModule} weekEvents={weekEvents.length} todayEvents={todayEvents.length} /> : null}
+      {module === null ? <StaffHome module={setModule} weekEvents={weekEvents.length} todayEvents={todayEvents.length} routes={routes.length} pendingExpenses={pendingExpenses} pendingPayments={payment.pending > 0 ? 1 : 0} /> : null}
       {module !== null ? <StaffModuleNav active={module} onChange={setModule} /> : null}
       {module === "OPERADORES" ? <OperatorsModule events={events} weeklyAvailableEvents={weeklyAvailableEvents} requests={requests} week={week} confirmed={confirmed.length} onSelect={setSelected} /> : null}
       {module === "MONTAJE" ? <MontageModule routes={routes} /> : null}
@@ -336,13 +332,14 @@ export function StaffPortalDashboard({
   );
 }
 
-function StaffHome({module, weekEvents, todayEvents}:{module:(value:StaffModule)=>void;weekEvents:number;todayEvents:number}) {
-  const cards:[StaffModule,string,string,string][] = [
-    ["OPERADORES", "Operadores", `${weekEvents} eventos esta semana`, "Eventos, asignaciones y operación"],
-    ["MONTAJE", "Montaje", "Rutas y jornadas", "Montaje, desmontaje y vehículos"],
-    ["FINANZAS", "Finanzas", "Pagos y gastos", "Liquidaciones, anticipos y documentos"],
+function StaffHome({module, weekEvents, todayEvents, routes, pendingExpenses, pendingPayments}:{module:(value:StaffModule)=>void;weekEvents:number;todayEvents:number;routes:number;pendingExpenses:number;pendingPayments:number}) {
+  const cards:[StaffModule,string,string,string,string,string][] = [
+    ["OPERADORES", "Operadores", `${weekEvents} evento${weekEvents === 1 ? "" : "s"} esta semana`, `${todayEvents} para hoy`, "Eventos, asignaciones y operación", "Ver módulo"],
+    ["MONTAJE", "Montaje", `${routes} ruta${routes === 1 ? "" : "s"} activa${routes === 1 ? "" : "s"}`, "Orden oficial de jornada", "Montaje, desmontaje y vehículos", "Ver módulo"],
+    ["FINANZAS", "Finanzas", `${pendingPayments} pago${pendingPayments === 1 ? "" : "s"} pendiente${pendingPayments === 1 ? "" : "s"}`, `${pendingExpenses} gasto${pendingExpenses === 1 ? "" : "s"} por rendir`, "Pagos, gastos y documentos", "Ver módulo"],
   ];
-  return <section className="space-y-4" data-staff-home-modules="3"><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Tu jornada BOOMBOX</p><h2 className="mt-1 text-2xl font-semibold">¿Qué necesitas revisar?</h2><p className="mt-1 text-sm text-muted">{todayEvents} evento{todayEvents===1?"":"s"} para hoy.</p></div><div className="grid gap-4 sm:grid-cols-3">{cards.map(([key,title,summary,description])=><button key={key} data-staff-module={key} onClick={()=>module(key)} className="group min-h-44 rounded-3xl border bg-card p-5 text-left transition hover:border-brand/60 hover:bg-brand/5"><span className="text-xs font-semibold uppercase tracking-[.16em] text-brand">{key}</span><h3 className="mt-8 text-xl font-semibold">{title}</h3><p className="mt-1 text-sm text-muted">{summary}</p><p className="mt-4 text-sm text-muted transition group-hover:text-foreground">{description} <ChevronRight className="ml-1 inline size-4 text-brand" /></p></button>)}</div><button onClick={()=>module("FINANZAS")} className="inline-flex min-h-11 items-center rounded-xl border border-brand/40 bg-brand/10 px-4 text-sm font-semibold text-brand">SUBE TU GASTO <ChevronRight className="ml-2 size-4" /></button><Link className="ml-3 text-sm text-muted underline-offset-4 hover:underline" href="/staff-portal/academy">BOOMBOX Academy</Link></section>;
+  const summary = [["Eventos esta semana", weekEvents], ["Rutas asignadas", routes], ["Gastos pendientes", pendingExpenses], ["Pagos por revisar", pendingPayments]];
+  return <section className="space-y-6" data-staff-home-modules="3"><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Resumen rápido</p><h2 className="mt-1 text-2xl font-semibold">Tu semana en BOOMBOX</h2><p className="mt-1 text-sm text-muted">{todayEvents ? `${todayEvents} evento${todayEvents === 1 ? "" : "s"} programado${todayEvents === 1 ? "" : "s"} para hoy.` : "Sin eventos para hoy."}</p></div><div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{summary.map(([label,value])=><article className="rounded-2xl border bg-card/80 p-4" key={label}><p className="text-2xl font-semibold text-brand">{value}</p><p className="mt-1 text-xs text-muted">{label}</p></article>)}</div><div className="grid gap-4 sm:grid-cols-3">{cards.map(([key,title,metric,secondary,description,cta])=><button key={key} data-staff-module={key} onClick={()=>module(key)} className="group flex min-h-56 flex-col rounded-3xl border bg-card p-5 text-left shadow-[0_16px_50px_rgba(0,0,0,.12)] transition hover:-translate-y-0.5 hover:border-brand/60 hover:bg-brand/5 sm:p-6"><span className="text-xs font-semibold uppercase tracking-[.16em] text-brand">{key}</span><h3 className="mt-5 text-2xl font-semibold">{title}</h3><div className="mt-4 flex flex-wrap gap-2"><span className="rounded-lg bg-background/70 px-2.5 py-1.5 text-xs font-semibold text-foreground">{metric}</span><span className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-muted">{secondary}</span></div><p className="mt-4 text-sm text-muted">{description}</p><span className="mt-auto pt-5 text-sm font-semibold text-brand">{cta} <ChevronRight className="ml-1 inline size-4 transition group-hover:translate-x-1" /></span></button>)}</div><div className="flex flex-wrap items-center gap-3 border-t border-white/10 pt-4"><button onClick={()=>module("FINANZAS")} className="inline-flex min-h-11 items-center rounded-xl bg-brand px-4 text-sm font-semibold text-brand-foreground">SUBE TU GASTO <ChevronRight className="ml-2 size-4" /></button><Link className="inline-flex min-h-11 items-center rounded-xl border px-4 text-sm font-semibold text-muted hover:text-foreground" href="/staff-portal/academy">BOOMBOX Academy <ChevronRight className="ml-2 size-4 text-brand" /></Link></div></section>;
 }
 
 function StaffModuleNav({active,onChange}:{active:StaffModule;onChange:(value:StaffModule|null)=>void}) { return <nav className="flex flex-wrap items-center gap-2 rounded-2xl border bg-card p-2" aria-label="Módulos del Portal Staff">{(["OPERADORES","MONTAJE","FINANZAS"] as StaffModule[]).map(item=><button key={item} onClick={()=>onChange(item)} aria-current={active===item?"page":undefined} className={`min-h-10 rounded-xl px-4 text-sm font-semibold ${active===item?"bg-brand text-brand-foreground":"text-muted hover:text-foreground"}`}>{item}</button>)}<button className="ml-auto min-h-10 px-3 text-sm text-muted" onClick={()=>onChange(null)}>Inicio</button></nav>; }
