@@ -833,11 +833,11 @@ export function FounderWorkspaceExperience({
         {upcomingEvents.slice(0, 4).map((event) => {
           const formattedDate = formatUpcomingEventDate(event.date);
           return <Link
-            className="group grid grid-cols-[4rem_1fr_auto] gap-3 py-3.5 first:pt-0 last:pb-0 sm:grid-cols-[4.5rem_1fr_auto]"
+            className="group grid grid-cols-[4rem_minmax(0,1fr)_auto] items-center gap-3 py-3.5 first:pt-0 last:pb-0 sm:grid-cols-[4.5rem_minmax(0,1fr)_auto]"
             href={event.href}
             key={event.id}
           >
-            <span className="grid min-h-[4.5rem] w-16 shrink-0 place-items-center rounded-xl border border-white/10 bg-background/70 py-2 text-center sm:min-h-[4.75rem] sm:w-[4.5rem]">
+            <span className="grid h-[4.25rem] w-16 shrink-0 place-items-center rounded-xl border border-white/10 bg-background/70 py-2 text-center sm:h-[4.75rem] sm:w-[4.5rem]">
               <span className="text-[9px] font-semibold uppercase tracking-[.12em] text-muted">
                 {formattedDate.weekday}
               </span>
