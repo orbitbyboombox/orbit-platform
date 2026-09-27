@@ -27,7 +27,10 @@ test("Staff Home reuses compact weekly and logistics language", () => {
   for (const marker of ["MI SEMANA", "Tu agenda semanal", "EVENTOS DISPONIBLES ESTA SEMANA", "SEMANA ACTUAL", "RUTA OFICIAL", "MONTAJE", "DESMONTAJE"]) {
     assert.match(dashboard, new RegExp(marker));
   }
-  assert.match(dashboard, /grid-cols-\[52px_4px_minmax\(0,1fr\)_auto\]/);
+  assert.match(dashboard, /grid-cols-\[52px_3px_minmax\(0,1fr\)_auto_auto\]/);
+  assert.match(dashboard, /md:grid-cols-\[60px_3px_minmax\(88px,0\.7fr\)/);
+  assert.match(dashboard, /md:max-w-28 md:text-xs/);
+  assert.match(dashboard, /aria-hidden="true" \/><\/article>/);
   assert.match(dashboard, /No tienes eventos asignados esta semana/);
 });
 
