@@ -14,17 +14,32 @@ async function admin() {
   if (profileError || !profile || !["CEO", "ADMINISTRATOR"].includes(profile.role)) throw new Error("Solo Administración puede gestionar rutas.");
   return client;
 }
-function friendly(error: unknown) { return error instanceof Error ? error.message : "No fue posible guardar la ruta."; }
+function friendly(error: unknown) {
+  const detail = error as { code?: string; message?: string; details?: string; hint?: string };
+  console.error("[logistics-route-save]", {
+    code: detail?.code ?? "UNKNOWN",
+    message: detail?.message ?? (error instanceof Error ? error.message : "Unknown error"),
+    details: detail?.details ?? null,
+    hint: detail?.hint ?? null,
+  });
+  return "No fue posible guardar la ruta. Revisa la fecha, el tipo de ruta y los eventos seleccionados.";
+}
+
+const canonicalRouteType = (value: string) => {
+  if (value === "MONTAGE" || value === "MONTAJE") return "ASSEMBLY";
+  if (value === "DESMONTAJE") return "DISASSEMBLY";
+  return value;
+};
 
 export async function saveLogisticsRoutePlanAction(data: FormData): Promise<Result> {
   try {
     const client = await admin();
     const { data: routeId, error } = await client.rpc("save_logistics_route_plan", {
       p_route_id: text(data, "routeId") || null,
-      p_asset_id: text(data, "vehicleId"),
+      p_asset_id: text(data, "vehicleId") || null,
       p_route_date: text(data, "date"),
       p_driver_staff_id: text(data, "driverId") || null,
-      p_route_type: text(data, "routeType"),
+      p_route_type: canonicalRouteType(text(data, "routeType")),
       p_project_ids: ids(data),
     });
     if (error) throw error;
