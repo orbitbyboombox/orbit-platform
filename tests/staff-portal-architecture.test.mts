@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const dashboard = readFileSync("features/portal-authentication/staff-portal-dashboard.tsx", "utf8");
+const portal = readFileSync("features/portal-authentication/staff-portal.tsx", "utf8");
 
 test("Staff Portal exposes exactly three top-level modules", () => {
   assert.match(dashboard, /type StaffModule = "OPERADORES" \| "MONTAJE" \| "FINANZAS"/);
@@ -50,4 +51,13 @@ test("Staff Portal keeps finance and capability visibility structural", () => {
   assert.match(dashboard, /currentMonth=\{currentMonth\}/);
   assert.match(dashboard, /notificationsOpen/);
   assert.match(dashboard, /staffMonthLabel/);
+});
+
+test("Staff Finance reads active event payments, including pending settlements", () => {
+  assert.match(portal, /from\("event_staff_payments"\)/);
+  assert.match(portal, /is\("deleted_at",null\)/);
+  assert.match(portal, /is\("deleted_at",null\)/);
+  assert.match(portal, /eventStaffPayments/);
+  assert.match(dashboard, /accountingMonth/);
+  assert.match(dashboard, /Pendiente de pago/);
 });

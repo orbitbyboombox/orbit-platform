@@ -76,6 +76,19 @@ export type StaffPortalPayment = {
   pending: number;
   receiptStatus: string;
 };
+export type StaffEventPayment = {
+  id: string;
+  projectId: string;
+  accountingMonth: string;
+  eventDate: string;
+  eventTime: string;
+  customer: string;
+  service: string;
+  role: string;
+  amount: number;
+  paidAmount: number;
+  settlementStatus: string;
+};
 export type AvailableStaffEvent = {
   id: string;
   orbitEventId: string;
@@ -256,6 +269,7 @@ export function StaffPortalDashboard({
   requests,
   expenseSubmissions,
   monthlyAccounts,
+  eventStaffPayments,
   mustChangePassword,
   initialEventId,
   capabilities,
@@ -274,6 +288,7 @@ export function StaffPortalDashboard({
   requests: StaffRequest[];
   expenseSubmissions: StaffExpenseSubmission[];
   monthlyAccounts: StaffMonthlyAccount[];
+  eventStaffPayments: StaffEventPayment[];
   mustChangePassword: boolean;
   initialEventId?: string;
   capabilities: string[];
@@ -330,7 +345,7 @@ export function StaffPortalDashboard({
       {module !== null ? <StaffModuleNav active={module} onChange={setModule} canMount={canMount} /> : null}
       {module === "OPERADORES" ? <OperatorsModule events={events} weeklyAvailableEvents={weeklyAvailableEvents} requests={requests} week={week} confirmed={confirmed.length} onSelect={setSelected} /> : null}
       {module === "MONTAJE" && canMount ? <MontageModule routes={routes} /> : null}
-      {module === "FINANZAS" ? <FinanceModule events={events} expenseSubmissions={expenseSubmissions} monthlyAccounts={monthlyAccounts} payment={payment} notifications={notifications} currentMonth={currentMonth} /> : null}
+      {module === "FINANZAS" ? <FinanceModule events={events} expenseSubmissions={expenseSubmissions} monthlyAccounts={monthlyAccounts} eventStaffPayments={eventStaffPayments} payment={payment} notifications={notifications} currentMonth={currentMonth} /> : null}
       {selected ? (
         <EventDetail event={selected} close={() => setSelected(null)} />
       ) : null}
@@ -373,14 +388,15 @@ function OperatorsModule({events,weeklyAvailableEvents,requests,week,confirmed,o
 
 function MontageModule({routes}:{routes:StaffRoute[]}) { return <section className="space-y-4" data-staff-module-view="MONTAJE"><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">MONTAJE</p><h2 className="mt-1 text-2xl font-semibold">Rutas y jornadas operativas</h2><p className="mt-1 text-sm text-muted">Consulta el orden oficial de montaje y desmontaje asignado.</p></div><div className="flex gap-2" role="tablist"><span className="rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-brand-foreground">MONTAJE</span><span className="rounded-xl border px-4 py-2 text-sm font-semibold text-muted">DESMONTAJE</span></div><StaffRoutesPanel routes={routes} /></section>; }
 
-function FinanceModule({events,expenseSubmissions,monthlyAccounts,payment,notifications,currentMonth}:{events:StaffPortalEvent[];expenseSubmissions:StaffExpenseSubmission[];monthlyAccounts:StaffMonthlyAccount[];payment:StaffPortalPayment;notifications:Array<{id:string;title:string;message:string;date:string}>;currentMonth:string}) {
+function FinanceModule({events,expenseSubmissions,monthlyAccounts,eventStaffPayments,payment,notifications,currentMonth}:{events:StaffPortalEvent[];expenseSubmissions:StaffExpenseSubmission[];monthlyAccounts:StaffMonthlyAccount[];eventStaffPayments:StaffEventPayment[];payment:StaffPortalPayment;notifications:Array<{id:string;title:string;message:string;date:string}>;currentMonth:string}) {
   const [selectedMonth,setSelectedMonth]=useState(currentMonth);
   const [notificationsOpen,setNotificationsOpen]=useState(false);
-  const months=[...new Set([currentMonth,...monthlyAccounts.map(account=>account.month.slice(0,7))])].sort();
+  const months=[...new Set([currentMonth,...monthlyAccounts.map(account=>account.month.slice(0,7)),...eventStaffPayments.map(payment=>payment.accountingMonth.slice(0,7))])].sort();
   const selectedIndex=Math.max(0,months.indexOf(selectedMonth));
   const visibleAccounts=monthlyAccounts.filter(account=>account.month.slice(0,7)===selectedMonth);
+  const visibleEventPayments=eventStaffPayments.filter(payment=>payment.accountingMonth.slice(0,7)===selectedMonth);
   const moveMonth=(delta:number)=>{const next=months[selectedIndex+delta];if(next)setSelectedMonth(next)};
-  return <section className="space-y-6" data-staff-module-view="FINANZAS"><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">FINANZAS</p><h2 className="mt-1 text-2xl font-semibold">Tus pagos y gastos</h2><div className="mt-4 flex items-center justify-between gap-2 rounded-2xl border bg-card p-2"><button aria-label="Mes anterior" className="min-h-10 rounded-xl border px-3 text-muted hover:border-brand/50" disabled={!months[selectedIndex-1]} onClick={()=>moveMonth(-1)}>‹</button><span className="text-center text-sm font-semibold uppercase tracking-[.08em]">{staffMonthLabel(`${selectedMonth}-01`)}</span><button aria-label="Mes siguiente" className="min-h-10 rounded-xl border px-3 text-muted hover:border-brand/50" disabled={!months[selectedIndex+1]} onClick={()=>moveMonth(1)}>›</button></div></div><StaffExpenseSubmissionPanel events={events} submissions={expenseSubmissions} /><section className="space-y-3"><h3 className="text-xl font-semibold">Liquidaciones de {staffMonthLabel(`${selectedMonth}-01`)}</h3>{visibleAccounts.map(account=><StaffMonthlyAccountPanel account={account} key={account.id} mode="STAFF"/>)}{!visibleAccounts.length&&<p className="rounded-2xl border p-4 text-sm text-muted">No hay liquidaciones en este mes.</p>}</section><section className="grid gap-6 lg:grid-cols-2"><div className="rounded-3xl border bg-card p-5 sm:p-7"><h3 className="text-xl font-semibold">Resumen</h3><div className="mt-5 grid grid-cols-2 gap-3"><Small label="Generado" value={money(payment.generated)}/><Small label="Ya pagado" value={money(payment.paid)}/><Small label="Pago pendiente" value={money(payment.pending)}/><Small label="Boleta SII" value={payment.receiptStatus}/></div></div><div className="rounded-3xl border bg-card p-5 sm:p-7"><button className="flex w-full items-center justify-between text-left" onClick={()=>setNotificationsOpen(value=>!value)} aria-expanded={notificationsOpen}><span><span className="block text-xl font-semibold">Notificaciones</span><span className="mt-1 block text-xs text-muted">{notifications.length?`${notifications.length} pendientes`:`Sin pendientes`}</span></span><span className="flex items-center gap-2 text-brand"><span className="rounded-full border px-2 py-1 text-xs font-semibold">{notifications.length}</span><span aria-hidden>{notificationsOpen?"⌃":"⌄"}</span></span></button>{notificationsOpen?<div className="mt-4 space-y-3">{notifications.map(item=><div className="rounded-xl border p-3" key={item.id}><p className="text-sm font-semibold">{item.title}</p><p className="mt-1 text-sm text-muted">{item.message}</p><p className="mt-2 text-xs text-muted">{item.date}</p></div>)}</div>:null}</div></section></section>;
+  return <section className="space-y-6" data-staff-module-view="FINANZAS"><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">FINANZAS</p><h2 className="mt-1 text-2xl font-semibold">Tus pagos y gastos</h2><div className="mt-4 flex items-center justify-between gap-2 rounded-2xl border bg-card p-2"><button aria-label="Mes anterior" className="min-h-10 rounded-xl border px-3 text-muted hover:border-brand/50" disabled={!months[selectedIndex-1]} onClick={()=>moveMonth(-1)}>‹</button><span className="text-center text-sm font-semibold uppercase tracking-[.08em]">{staffMonthLabel(`${selectedMonth}-01`)}</span><button aria-label="Mes siguiente" className="min-h-10 rounded-xl border px-3 text-muted hover:border-brand/50" disabled={!months[selectedIndex+1]} onClick={()=>moveMonth(1)}>›</button></div></div><StaffExpenseSubmissionPanel events={events} submissions={expenseSubmissions} /><section className="space-y-3"><h3 className="text-xl font-semibold">Liquidaciones de {staffMonthLabel(`${selectedMonth}-01`)}</h3>{visibleAccounts.map(account=><StaffMonthlyAccountPanel account={account} key={account.id} mode="STAFF"/>)}{!visibleAccounts.length&&<p className="rounded-2xl border p-4 text-sm text-muted">No hay liquidaciones en este mes.</p>}</section><section className="space-y-3"><h3 className="text-xl font-semibold">Pagos por evento</h3>{visibleEventPayments.map(item=><article className="rounded-2xl border bg-card p-4" data-staff-event-payment={item.id} key={item.id}><div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><p className="font-semibold">{item.customer}</p><p className="mt-1 text-sm text-muted">{item.eventDate} · {item.eventTime.slice(0,5)} · {item.role} · {item.service}</p></div><p className="shrink-0 text-lg font-semibold">{money(item.amount)}</p></div><div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-sm"><span className="text-muted">{item.settlementStatus === "PAID" ? `Pagado${item.paidAmount ? ` · ${money(item.paidAmount)}` : ""}` : "Pendiente de pago"}</span><span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${item.settlementStatus === "PAID" ? "border-emerald-400/30 text-emerald-300" : "border-amber-400/30 text-amber-300"}`}>{item.settlementStatus === "PAID" ? "PAGADO" : "PENDIENTE"}</span></div></article>)}{!visibleEventPayments.length&&<p className="rounded-2xl border p-4 text-sm text-muted">No hay pagos por evento en este mes.</p>}</section><section className="grid gap-6 lg:grid-cols-2"><div className="rounded-3xl border bg-card p-5 sm:p-7"><h3 className="text-xl font-semibold">Resumen</h3><div className="mt-5 grid grid-cols-2 gap-3"><Small label="Generado" value={money(payment.generated)}/><Small label="Ya pagado" value={money(payment.paid)}/><Small label="Pago pendiente" value={money(payment.pending)}/><Small label="Boleta SII" value={payment.receiptStatus}/></div></div><div className="rounded-3xl border bg-card p-5 sm:p-7"><button className="flex w-full items-center justify-between text-left" onClick={()=>setNotificationsOpen(value=>!value)} aria-expanded={notificationsOpen}><span><span className="block text-xl font-semibold">Notificaciones</span><span className="mt-1 block text-xs text-muted">{notifications.length?`${notifications.length} pendientes`:`Sin pendientes`}</span></span><span className="flex items-center gap-2 text-brand"><span className="rounded-full border px-2 py-1 text-xs font-semibold">{notifications.length}</span><span aria-hidden>{notificationsOpen?"⌃":"⌄"}</span></span></button>{notificationsOpen?<div className="mt-4 space-y-3">{notifications.map(item=><div className="rounded-xl border p-3" key={item.id}><p className="text-sm font-semibold">{item.title}</p><p className="mt-1 text-sm text-muted">{item.message}</p><p className="mt-2 text-xs text-muted">{item.date}</p></div>)}</div>:null}</div></section></section>;
 }
 function StaffExpenseSubmissionPanel({events,submissions}:{events:StaffPortalEvent[];submissions:StaffExpenseSubmission[]}) {
   const [open,setOpen]=useState(false),[pending,start]=useTransition(),[message,setMessage]=useState("");
