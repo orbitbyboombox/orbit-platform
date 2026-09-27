@@ -6,26 +6,52 @@ export type BoxAsset = {
   asset_type: string;
   status: string;
   metadata: Record<string, unknown>;
+  version: number;
+  updated_at: string;
+  updated_by: string | null;
+  updated_by_name: string | null;
   notes: string | null;
   storage_location: string | null;
 };
 
+export const MASTER_BLACK_BOX_CODES = Array.from({ length: 9 }, (_, index) => `CASE-${String(index + 1).padStart(2, "0")}`);
+
+export const BLACK_BOX_PAPER_FORMATS = [
+  { key: "4X6", label: "4x6" },
+  { key: "4X6_PREPICADO", label: "4x6 PREPICADO" },
+] as const;
+
+export const blackBoxNumber = (assetCode: string) => Number(assetCode.slice(-2));
+
+export function blackBoxStock(metadata: Record<string, unknown>) {
+  const value = Number(metadata.blackBoxPhotoStock ?? 0);
+  return Number.isFinite(value) && value >= 0 ? Math.floor(value) : 0;
+}
+
+export function blackBoxPaperFormat(metadata: Record<string, unknown>) {
+  return metadata.blackBoxPaperFormat === "4X6_PREPICADO" ? "4X6_PREPICADO" : "4X6";
+}
+
 export async function loadBoxes(client: SupabaseClient) {
+  // The legacy detail layer continues to support asset_type BOX; the Master uses CASE-01..09.
   const { data: boxes, error } = await client
     .from("operational_assets")
-    .select("id,asset_code,asset_type,status,metadata,notes,storage_location")
-    .eq("asset_type", "BOX")
+    .select("id,asset_code,asset_type,status,metadata,version,updated_at,updated_by,notes,storage_location")
+    .eq("asset_type", "CASE")
+    .in("asset_code", MASTER_BLACK_BOX_CODES)
     .is("deleted_at", null)
     .order("asset_code");
   if (error) throw error;
-  const ids = (boxes ?? []).map((box) => box.id);
-  const { data: children, error: childrenError } = ids.length
-    ? await client.from("operational_assets").select("id,parent_asset_id,asset_type,status").in("parent_asset_id", ids).is("deleted_at", null)
+  const updatedByIds = [...new Set((boxes ?? []).map((box) => box.updated_by).filter(Boolean))] as string[];
+  const { data: profiles, error: profilesError } = updatedByIds.length
+    ? await client.from("profiles").select("id,display_name").in("id", updatedByIds)
     : { data: [], error: null };
-  if (childrenError) throw childrenError;
-  const childrenByBox = new Map<string, number>();
-  for (const child of children ?? []) childrenByBox.set(child.parent_asset_id, (childrenByBox.get(child.parent_asset_id) ?? 0) + 1);
-  return (boxes ?? []).map((box) => ({ ...box, childCount: childrenByBox.get(box.id) ?? 0 })) as (BoxAsset & { childCount: number })[];
+  if (profilesError) throw profilesError;
+  const profileNames = new Map((profiles ?? []).map((profile) => [profile.id, profile.display_name]));
+  return (boxes ?? []).map((box) => ({
+    ...box,
+    updated_by_name: box.updated_by ? profileNames.get(box.updated_by) ?? null : null,
+  })) as BoxAsset[];
 }
 
 export async function loadBoxDetail(client: SupabaseClient, assetId: string) {
