@@ -9,6 +9,7 @@ import { assignStaffAction, removeStaffAssignmentAction } from "@/features/resou
 import { missingPhysicalUnits } from "@/features/operations/resource-planning";
 import { assignPhysicalResourcesAction, releaseOperationalAssetAction, replacePhysicalResourceAction, setPhysicalConfigurationAction } from "./actions";
 import { EventBoxOperationsPanel } from "./event-box-operations-panel";
+import { EventBlackBoxPanel } from "./event-black-box-panel";
 import type { AssetStatus, AssetType } from "./types";
 
 type Task = "ASSEMBLY" | "OPERATOR" | "DISASSEMBLY";
@@ -32,6 +33,7 @@ export function EquipmentAssignmentPanel(props:EquipmentAssignmentPanelProps){
     <div className="rounded-2xl border bg-card p-4 sm:p-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-medium uppercase tracking-[0.16em] text-muted">Configuración física</p><p className="mt-1 font-semibold">{configurationLabel[props.physicalConfiguration??"UNDEFINED"]}</p><p className="mt-1 text-sm text-muted">Define el montaje comercial antes de asignar unidades.</p></div><select aria-label="Configuración física" className="min-h-11 rounded-xl border bg-background px-3 text-sm sm:w-56" value={props.physicalConfiguration??"UNDEFINED"} aria-busy={pending} disabled={pending} onChange={event=>run(()=>setPhysicalConfigurationAction({projectId:props.projectId,configuration:event.target.value as PhysicalConfiguration}))}>{Object.entries(configurationLabel).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></div></div>
     {!props.requirements.length?<div className="rounded-2xl border border-dashed p-5 text-sm text-muted">Este Evento no requiere activos físicos configurados.</div>:props.requirements.map(requirement=><RequirementPlanner key={requirement.id} projectId={props.projectId} requirement={requirement} pending={pending} run={run}/>)}
     <StaffSelector assignments={props.currentStaff} onAssign={(staffId,task)=>run(()=>assignStaffAction({staffId,projectId:props.projectId,assignmentType:task,resources:{task,payrollLinked:true},reason:"Asignación operacional manual"}))} onRemove={assignmentId=>run(()=>removeStaffAssignmentAction(assignmentId,"Retiro manual desde Workspace"))} pending={pending} staff={props.staff}/>
+    <EventBlackBoxPanel projectId={props.projectId} />
     <EventBoxOperationsPanel projectId={props.projectId} />
     <p aria-live="polite" className="text-sm font-medium">{message}</p>
   </section>;
