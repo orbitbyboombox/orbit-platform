@@ -7,7 +7,7 @@ const read = (path: string) => readFileSync(path, "utf8");
 test("calendar is a canonical Events navigation sibling", () => {
   const navigation = read("components/layout/navigation.ts");
   const sidebar = read("components/layout/sidebar.tsx");
-  assert.match(navigation, /key: "EVENTS"[\s\S]*key: "CALENDAR"/);
+  assert.match(navigation, /key: "CALENDAR"[\s\S]*key: "EVENTS"/);
   assert.match(navigation, /href: "\/calendar"/);
   assert.match(sidebar, /key === "CALENDAR"/);
   assert.match(sidebar, /eventsPosition.*\+ 1/);

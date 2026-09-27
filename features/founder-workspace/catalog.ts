@@ -457,14 +457,17 @@ export type FounderWorkspacePreferences = {
 };
 export const DEFAULT_WORKSPACE: FounderWorkspacePreferences = {
   navigationOrder: [
+    "COMMERCIAL",
     "HOME",
-    "COLLECTIONS",
-    "CUSTOMERS",
+    "CALENDAR",
     "EVENTS",
+    "CUSTOMERS",
     "STAFF",
     "RESOURCES",
+    "BOXES",
     "FINANCE",
     "RECEIVABLES",
+    "COLLECTIONS",
     "PAYABLES",
     "OFFICE_RENT",
     "REPORTS",

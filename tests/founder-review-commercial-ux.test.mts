@@ -166,14 +166,17 @@ test("customer-facing labels and duration remain commercial and canonical", () =
   assert.equal(presentation.duration, "3 horas");
 });
 
-test("COBRAR CLIENTES is the direct second Founder navigation destination", () => {
-  const home = navigation.indexOf('key: "HOME"');
-  const collections = navigation.indexOf('key: "COLLECTIONS"');
-  const customers = navigation.indexOf('key: "CUSTOMERS"');
-  assert.ok(home >= 0 && collections > home && customers > collections);
+test("the Founder navigation follows the canonical main menu order", () => {
+  const order = [
+    "COMMERCIAL", "HOME", "CALENDAR", "EVENTS", "CUSTOMERS", "STAFF",
+    "RESOURCES", "BOXES", "FINANCE", "RECEIVABLES", "COLLECTIONS",
+    "PAYABLES", "OFFICE_RENT", "REPORTS", "SETTINGS",
+  ];
+  const positions = order.map((key) => navigation.indexOf(`key: "${key}"`));
+  assert.deepEqual(positions, [...positions].sort((a, b) => a - b));
   assert.match(navigation, /label: "COBRAR CLIENTES"/);
   assert.match(navigation, /href: "\/finance\/collections"/);
-  assert.match(workspace, /navigationOrder:\s*\[\s*"HOME",\s*"COLLECTIONS"/);
+  assert.match(workspace, /navigationOrder:\s*\[\s*"COMMERCIAL",\s*"HOME",\s*"CALENDAR",\s*"EVENTS"/);
   assert.match(workspace, /hiddenNavigation:\s*\["OFFICE_RENT"\]/);
 });
 

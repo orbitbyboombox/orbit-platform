@@ -51,6 +51,13 @@ export type NavigationKey =
 
 export const navigationItems: readonly NavigationItem[] = [
   {
+    key: "COMMERCIAL",
+    label: "Cotizar",
+    href: "/leads",
+    icon: ReceiptText,
+    module: "COMMERCIAL",
+  },
+  {
     key: "HOME",
     label: "Escritorio",
     href: "/operations",
@@ -58,25 +65,11 @@ export const navigationItems: readonly NavigationItem[] = [
     module: "DASHBOARD",
   },
   {
-    key: "COLLECTIONS",
-    label: "COBRAR CLIENTES",
-    href: "/finance/collections",
-    icon: Mail,
-    module: "FINANCE",
-  },
-  {
-    key: "CUSTOMERS",
-    label: "Clientes",
-    href: "/customers",
-    icon: FolderKanban,
+    key: "CALENDAR",
+    label: "Calendario",
+    href: "/calendar",
+    icon: CalendarDays,
     module: "PROJECTS",
-  },
-  {
-    key: "COMMERCIAL",
-    label: "Cotizar",
-    href: "/leads",
-    icon: ReceiptText,
-    module: "COMMERCIAL",
   },
   {
     key: "EVENTS",
@@ -86,10 +79,10 @@ export const navigationItems: readonly NavigationItem[] = [
     module: "PROJECTS",
   },
   {
-    key: "CALENDAR",
-    label: "Calendario",
-    href: "/calendar",
-    icon: CalendarDays,
+    key: "CUSTOMERS",
+    label: "Clientes",
+    href: "/customers",
+    icon: FolderKanban,
     module: "PROJECTS",
   },
   {
@@ -125,6 +118,13 @@ export const navigationItems: readonly NavigationItem[] = [
     label: "Cuentas por Cobrar",
     href: "/finance/receivables",
     icon: ReceiptText,
+    module: "FINANCE",
+  },
+  {
+    key: "COLLECTIONS",
+    label: "COBRAR CLIENTES",
+    href: "/finance/collections",
+    icon: Mail,
     module: "FINANCE",
   },
   {
