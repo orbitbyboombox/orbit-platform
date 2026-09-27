@@ -8,7 +8,7 @@ import {
 } from "@/features/staff-payments";
 import { StaffPinReset } from "@/features/portal-authentication/staff-pin-reset";
 import { StaffWorkspaces } from "@/features/resources/staff-workspaces";
-import { StaffLogisticsView, type AdminLogisticsRoute, type LogisticsVehicleOption, type LogisticsStaffOption, type StaffLogisticsEvent } from "@/features/resources/staff-logistics-view";
+import { StaffLogisticsView, type AdminLogisticsRoute, type LogisticsVehicleOption, type LogisticsStaffOption, type LogisticsBoxOption, type StaffLogisticsEvent } from "@/features/resources/staff-logistics-view";
 import { loadLogisticsCommuneSectorMappings } from "@/features/resources/logistics-commune-sector-repository";
 import { loadCrmOperationalEvents } from "@/features/crm/events-repository";
 import {
@@ -698,10 +698,23 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
         .select("project_id,assignment_status,operational_assets!inner(asset_code,asset_type)")
         .in("project_id", eventIds)
         .eq("assignment_status", "ASSIGNED")
-        .eq("operational_assets.asset_type", "BOX")
+        .eq("operational_assets.asset_type", "CASE")
         .is("deleted_at", null)
     : { data: [], error: null };
   if (boxAssignmentError) throw boxAssignmentError;
+  const { data: boxAssets, error: boxAssetsError } = await client
+    .from("operational_assets")
+    .select("id,asset_code,status,asset_type")
+    .eq("asset_type", "CASE")
+    .in("asset_code", Array.from({ length: 9 }, (_, index) => `CASE-${String(index + 1).padStart(2, "0")}`))
+    .is("deleted_at", null)
+    .order("asset_code");
+  if (boxAssetsError) throw boxAssetsError;
+  const logisticsBoxOptions: LogisticsBoxOption[] = (boxAssets ?? []).map((asset) => ({
+    id: asset.id,
+    code: asset.asset_code,
+    status: asset.status as LogisticsBoxOption["status"],
+  }));
   const boxByProject = new Map<string, string>();
   for (const assignment of boxAssignments ?? []) {
     const asset = Array.isArray(assignment.operational_assets)
@@ -709,6 +722,11 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
       : assignment.operational_assets;
     if (asset?.asset_code && !boxByProject.has(assignment.project_id)) boxByProject.set(assignment.project_id, asset.asset_code);
   }
+  const formatBoxLabel = (code: string | undefined) => {
+    if (!code) return "Sin asignar";
+    const number = Number(code.replace("CASE-", ""));
+    return Number.isFinite(number) ? `Caja ${number}` : code;
+  };
   const formatAssignmentTime = (value: string | null | undefined, fallback: string) =>
     value ? value.slice(11, 16) || value.slice(0, 5) : fallback;
   const activeAssignmentFor = (projectId: string, assignmentType: string) =>
@@ -745,7 +763,7 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
     status: event.status,
     operator: event.operator || "Sin asignar",
     staffCallAt: event.staffCallAt ?? "",
-    box: boxByProject.get(event.projectId) ?? "Sin asignar",
+    box: formatBoxLabel(boxByProject.get(event.projectId)),
     extras: event.extras,
     address: event.eventAddress || event.location || "",
   }));
@@ -779,7 +797,7 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
           requests={operationsRequests}
         />
       }
-      logistics={<StaffLogisticsView events={logisticsEvents} initialCommuneSectorMappings={communeSectorMappings} initialRoutes={logisticsRoutesForPlanner} vehicles={logisticsVehicleOptions} staffOptions={logisticsStaffOptions} />}
+      logistics={<StaffLogisticsView events={logisticsEvents} initialCommuneSectorMappings={communeSectorMappings} initialRoutes={logisticsRoutesForPlanner} vehicles={logisticsVehicleOptions} staffOptions={logisticsStaffOptions} boxOptions={logisticsBoxOptions} />}
       portal={<StaffPinReset members={portalAccess} />}
       payroll={
         <StaffPaymentsCenter

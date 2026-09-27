@@ -42,6 +42,7 @@ export async function assignBlackBoxToEventAction(input: { projectId: string; as
     const { error } = await client.rpc("assign_black_box_to_event", { p_project_id: input.projectId, p_asset_id: input.assetId, p_reason: input.reason });
     if (error) throw error;
     revalidatePath(`/projects/${input.projectId}`);
+    revalidatePath("/resources/staff");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "No fue posible asignar la Caja Negra." };
@@ -54,6 +55,7 @@ export async function removeBlackBoxFromEventAction(input: { projectId: string; 
     const { error } = await client.rpc("remove_black_box_from_event", { p_project_id: input.projectId, p_reason: input.reason });
     if (error) throw error;
     revalidatePath(`/projects/${input.projectId}`);
+    revalidatePath("/resources/staff");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "No fue posible quitar la Caja Negra." };
