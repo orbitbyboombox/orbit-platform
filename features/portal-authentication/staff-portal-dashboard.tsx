@@ -10,6 +10,7 @@ import {
   MapPin,
   Navigation,
   Phone,
+  Truck,
   Upload,
   X,
 } from "lucide-react";
@@ -108,6 +109,30 @@ export type StaffRequest = {
   responsibility: string;
   status: string;
   requestedAt: string;
+};
+export type StaffRoute = {
+  id: string;
+  date: string;
+  direction: "MONTAJE" | "DESMONTAJE";
+  vehicle: string;
+  driver: string;
+  notes: string;
+  capacity: number;
+  stops: Array<{
+    id: string;
+    sequence: number;
+    event: string;
+    date: string;
+    time: string;
+    venue: string;
+    district: string;
+    address: string;
+    service: string;
+    equipment: string;
+    observations: string;
+    role: string;
+    status: string;
+  }>;
 };
 export type StaffExpenseSubmission = { id:string;projectId:string;category:string;amount:number;occurredOn:string;description:string;status:string;rejectionReason:string;reimbursement:boolean;reimbursementPaymentStatus:"NOT_APPLICABLE"|"PENDING"|"PAID";reimbursementPaidOn:string };
 const money = (value: number) =>
@@ -209,6 +234,7 @@ export function StaffPortalDashboard({
   payment,
   notifications,
   availableEvents,
+  routes,
   requests,
   expenseSubmissions,
   monthlyAccounts,
@@ -225,6 +251,7 @@ export function StaffPortalDashboard({
     date: string;
   }>;
   availableEvents: AvailableStaffEvent[];
+  routes: StaffRoute[];
   requests: StaffRequest[];
   expenseSubmissions: StaffExpenseSubmission[];
   monthlyAccounts: StaffMonthlyAccount[];
@@ -336,6 +363,7 @@ export function StaffPortalDashboard({
         </div>
       </section>
       <AvailableEvents events={weeklyAvailableEvents} requests={requests} />
+      <StaffRoutesPanel routes={routes} />
       <section className="rounded-3xl border border-white/10 bg-[#111214] p-5 text-white shadow-[0_20px_70px_rgba(0,0,0,.22)] sm:p-7">
         <h2 className="text-xl font-semibold">Mis eventos asignados</h2>
         <p className="mt-1 text-sm text-white/60">
@@ -473,6 +501,98 @@ function PasswordSetup({ name }: { name: string }) {
       {message ? <p className="mt-3 text-sm text-muted">{message}</p> : null}
     </section>
   );
+}
+const isoDateShift = (value: string, days: number) => {
+  const date = new Date(`${value}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+};
+const weekStartFor = (value: string) => {
+  const date = new Date(`${value}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7));
+  return date.toISOString().slice(0, 10);
+};
+function StaffRoutesPanel({ routes }: { routes: StaffRoute[] }) {
+  const [offset, setOffset] = useState(0);
+  const anchor = weekStartFor(chileToday());
+  const start = isoDateShift(anchor, offset * 7);
+  const end = isoDateShift(start, 6);
+  const visible = routes.filter((route) => route.date >= start && route.date <= end);
+  const label = new Intl.DateTimeFormat("es-CL", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+  const range = `${label.format(new Date(`${start}T12:00:00Z`))} – ${label.format(new Date(`${end}T12:00:00Z`))}`;
+  return (
+    <section className="rounded-3xl border border-brand/30 bg-[#111214] p-5 text-white shadow-[0_20px_70px_rgba(0,0,0,.22)] sm:p-7">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Rutas y logística</p>
+          <h2 className="mt-1 text-xl font-semibold">Mi semana operativa</h2>
+          <p className="mt-1 text-sm text-white/60">Solo aparecen rutas oficiales donde tienes una asignación compatible.</p>
+        </div>
+        <div className="flex items-center gap-2 text-sm">
+          <button aria-label="Semana anterior" className="min-h-10 rounded-xl border border-white/10 px-3 text-white/70 hover:border-brand/50" onClick={() => setOffset((value) => value - 1)}>‹</button>
+          <span className="min-w-44 text-center font-semibold">{offset === 0 ? "SEMANA ACTUAL · " : ""}{range}</span>
+          <button aria-label="Semana siguiente" className="min-h-10 rounded-xl border border-white/10 px-3 text-white/70 hover:border-brand/50" onClick={() => setOffset((value) => value + 1)}>›</button>
+        </div>
+      </div>
+      <div className="mt-5 space-y-5">
+        {(["MONTAJE", "DESMONTAJE"] as const).map((direction) => {
+          const group = visible.filter((route) => route.direction === direction);
+          return (
+            <section className="rounded-2xl border border-white/10 bg-[#191a1d] p-4" key={direction}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="font-semibold text-brand">{direction} · RUTA OFICIAL</h3>
+                <span className="text-xs text-white/55">{group.reduce((sum, route) => sum + route.stops.length, 0)} paradas</span>
+              </div>
+              <div className="mt-3 space-y-3">
+                {group.map((route) => (
+                  <article className="rounded-xl border border-white/10 bg-[#111214] p-3" key={`${route.id}-${direction}`}>
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                      <p className="font-semibold"><Truck className="mr-1 inline size-4 text-brand" />{route.vehicle} · {route.driver}</p>
+                      <span className={`rounded-full px-2 py-1 text-xs font-semibold ${route.capacity > 5 ? "bg-red-500/15 text-red-300" : "bg-brand/10 text-brand"}`}>Carga {route.capacity}/5</span>
+                    </div>
+                    {route.capacity > 5 ? <p className="mt-2 rounded-lg bg-red-500/10 p-2 text-xs font-semibold text-red-300">ALERTA: esta ruta supera el máximo operativo de 5 tótems.</p> : null}
+                    {route.notes ? <p className="mt-2 text-xs text-white/55">Nota de ruta: {route.notes}</p> : null}
+                    <div className="mt-3 space-y-2">
+                      {route.stops.map((stop) => (
+                        <details className="rounded-lg border border-white/10 p-3" key={stop.id}>
+                          <summary className="cursor-pointer list-none">
+                            <div className="grid gap-2 sm:grid-cols-[32px_minmax(0,1fr)_auto] sm:items-center">
+                              <strong className="text-brand">{stop.sequence}.</strong>
+                              <div className="min-w-0">
+                                <p className="truncate font-semibold">{stop.event}</p>
+                                <p className="text-xs text-white/55">{stop.date} · {stop.time} · {stop.district} · {stop.service}</p>
+                              </div>
+                              <span className="text-xs font-semibold text-white/65">{stop.equipment}</span>
+                            </div>
+                          </summary>
+                          <dl className="mt-3 grid gap-2 border-t border-white/10 pt-3 text-sm sm:grid-cols-2">
+                            <RouteDetail label="Lugar / dirección" value={`${stop.venue} · ${stop.address}`} />
+                            <RouteDetail label="Rol" value={stop.role} />
+                            <RouteDetail label="Estado" value={stop.status} />
+                            <RouteDetail label="Observaciones" value={stop.observations} />
+                          </dl>
+                        </details>
+                      ))}
+                    </div>
+                  </article>
+                ))}
+                {!group.length ? <p className="py-4 text-sm text-white/50">No hay paradas asignadas en esta semana.</p> : null}
+              </div>
+            </section>
+          );
+        })}
+        {!visible.length ? <p className="rounded-xl border border-dashed border-white/15 p-5 text-center text-sm text-white/55">No tienes rutas publicadas para este rango.</p> : null}
+      </div>
+    </section>
+  );
+}
+function RouteDetail({ label, value }: { label: string; value: string }) {
+  return <div><dt className="text-xs text-white/45">{label}</dt><dd className="mt-1 text-white/80">{value || "Sin información"}</dd></div>;
 }
 function AvailableEvents({
   events,
