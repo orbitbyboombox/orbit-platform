@@ -44,7 +44,7 @@ export async function StaffPortal({staffId,initialEventId}:{staffId:string;initi
   admin.from("staff_expense_submissions").select("id,project_id,category,amount,occurred_on,description,status,rejection_reason,reimbursement").eq("staff_id",staffId).order("submitted_at",{ascending:false}).limit(30),
   admin.from("staff_monthly_accounts").select(STAFF_MONTHLY_ACCOUNT_SELECT).eq("staff_id",staffId).order("accounting_month",{ascending:false}),
   admin.from("staff_reimbursement_payments").select("staff_expense_submission_id,paid_on").eq("staff_id",staffId),
-  admin.from("vehicle_routes").select("id,asset_id,route_date,driver_staff_id,notes,status,route_type,publication_status,publication_version,operational_assets(asset_code,metadata)").eq("status","ACTIVE").eq("publication_status","PUBLISHED").is("deleted_at",null),
+  admin.from("vehicle_routes").select("id,asset_id,route_date,driver_staff_id,notes,status,route_type,publication_status,publication_version,operational_assets(asset_code,metadata),route_staff_assignments!inner(staff_id,status)").eq("status","ACTIVE").eq("publication_status","PUBLISHED").eq("route_staff_assignments.staff_id",staffId).eq("route_staff_assignments.status","ASSIGNED").is("deleted_at",null),
   admin.from("vehicle_route_events").select("id,route_id,project_id,sequence,created_at").order("sequence",{ascending:true}),
   admin.from("projects").select("id,name,event_date,event_time,location,city,project_type,operations,customers(full_name),project_services(service_code,duration_hours)").is("deleted_at",null),
   admin.from("vehicle_trips").select("project_id,trip_type,sequence,status").is("deleted_at",null).neq("status","CANCELLED").order("sequence"),
@@ -92,8 +92,8 @@ export async function StaffPortal({staffId,initialEventId}:{staffId:string;initi
     const asset = Array.isArray(route.operational_assets) ? route.operational_assets[0] : route.operational_assets;
     const revision = publishedRevisionByRoute.get(route.id);
     const routeEvents = revision ? (revisionEventsByRevision.get(revision.id) ?? []) : (routeEventsByRoute.get(route.id) ?? []);
-    const baseDirections = route.driver_staff_id === staffId ? ["MONTAJE"] : [];
     const routeDirections = route.route_type === "ASSEMBLY" ? ["MONTAJE"] : route.route_type === "DISASSEMBLY" ? ["DESMONTAJE"] : ["MONTAJE", "DESMONTAJE"];
+    const baseDirections = route.route_staff_assignments?.length ? ["MONTAJE", "DESMONTAJE"] : [];
     for (const direction of routeDirections as ("MONTAJE" | "DESMONTAJE")[]) {
       const stops = routeEvents.flatMap((routeEvent, index) => {
         const project = routeProjects.get(routeEvent.project_id);
@@ -106,11 +106,11 @@ export async function StaffPortal({staffId,initialEventId}:{staffId:string;initi
         const stopAsset = Array.isArray(assignmentAsset?.operational_assets) ? assignmentAsset.operational_assets[0] : assignmentAsset?.operational_assets;
         const operations = (project.operations ?? {}) as Record<string, unknown>;
         const customer = Array.isArray(project.customers) ? project.customers[0] : project.customers;
-        return [{id: "id" in routeEvent ? routeEvent.id : `${route.id}-${routeEvent.project_id}`, sequence: Number(routeEvent.sequence ?? index + 1), event: customer?.full_name ?? project.name, date: project.event_date, time: project.event_time?.slice(0, 5) ?? "Por confirmar", venue: String(operations.venue ?? project.location ?? "Lugar por confirmar"), district: project.city ?? "Comuna por confirmar", address: String(operations.eventAddress ?? project.location ?? "Dirección por confirmar"), service: services.map((item) => item.service_code).filter(Boolean).join(" + ") || "Servicio BOOMBOX", equipment: stopAsset?.asset_code ?? asset?.asset_code ?? "Caja no asignada", observations: String(operations.logisticsNotes ?? operations.specialInstructions ?? route.notes ?? "Sin observaciones adicionales"), role: roles.join(" + ") || "Conducción logística", status: route.publication_status}];
+        return [{id: "id" in routeEvent ? routeEvent.id : `${route.id}-${routeEvent.project_id}`, sequence: Number(routeEvent.sequence ?? index + 1), event: customer?.full_name ?? project.name, date: project.event_date, time: project.event_time?.slice(0, 5) ?? "Por confirmar", venue: String(operations.venue ?? project.location ?? "Lugar por confirmar"), district: project.city ?? "Comuna por confirmar", address: String(operations.eventAddress ?? project.location ?? "Dirección por confirmar"), service: services.map((item) => item.service_code).filter(Boolean).join(" + ") || "Servicio BOOMBOX", equipment: stopAsset?.asset_code ?? asset?.asset_code ?? "Caja no asignada", observations: String(operations.logisticsNotes ?? operations.specialInstructions ?? route.notes ?? "Sin observaciones adicionales"), role: roles.join(" + ") || "Equipo de ruta", status: route.publication_status}];
       });
       if (stops.length) {
         const metadata = (asset?.metadata ?? {}) as Record<string, unknown>;
-        routeStops.push({id: route.id, date: route.route_date, direction, vehicle: String(metadata.name ?? asset?.asset_code ?? "Vehículo BOOMBOX"), driver: route.driver_staff_id === staffId ? "Tú" : "Conductor asignado", notes: route.notes ?? "", capacity: routeEvents.length, stops});
+        routeStops.push({id: route.id, date: route.route_date, direction, vehicle: String(metadata.name ?? asset?.asset_code ?? "Vehículo por confirmar"), driver: route.driver_staff_id === staffId ? "Tú" : route.driver_staff_id ? "Conductor asignado" : "Por confirmar", notes: route.notes ?? "", capacity: routeEvents.length, stops});
       }
     }
   }

@@ -8,7 +8,7 @@ import {
 } from "@/features/staff-payments";
 import { StaffPinReset } from "@/features/portal-authentication/staff-pin-reset";
 import { StaffWorkspaces } from "@/features/resources/staff-workspaces";
-import { StaffLogisticsView, type AdminLogisticsRoute, type LogisticsVehicleOption, type StaffLogisticsEvent } from "@/features/resources/staff-logistics-view";
+import { StaffLogisticsView, type AdminLogisticsRoute, type LogisticsVehicleOption, type LogisticsStaffOption, type StaffLogisticsEvent } from "@/features/resources/staff-logistics-view";
 import { loadLogisticsCommuneSectorMappings } from "@/features/resources/logistics-commune-sector-repository";
 import { loadCrmOperationalEvents } from "@/features/crm/events-repository";
 import {
@@ -138,7 +138,7 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
   if (reimbursementPaymentsError) throw reimbursementPaymentsError;
   const { data: logisticsRoutes, error: logisticsRoutesError } = await client
     .from("vehicle_routes")
-    .select("id,asset_id,route_date,driver_staff_id,route_type,publication_status,publication_version,vehicle_route_events(project_id,sequence)")
+    .select("id,asset_id,route_date,driver_staff_id,route_type,publication_status,publication_version,vehicle_route_events(project_id,sequence),route_staff_assignments(staff_id,status)")
     .is("deleted_at", null)
     .neq("status", "CANCELLED")
     .order("route_date", { ascending: true });
@@ -396,6 +396,7 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
     label: vehicle.model,
   }));
   const logisticsVehicleOptions: LogisticsVehicleOption[] = vehicleOptions;
+  const logisticsStaffOptions: LogisticsStaffOption[] = (staff ?? []).filter((member) => member.status === "ACTIVE").map((member) => ({ id: member.id, label: `${member.first_name} ${member.last_name}` }));
   const logisticsRoutesForPlanner: AdminLogisticsRoute[] = (logisticsRoutes ?? []).map((route) => ({
     id: route.id,
     date: route.route_date,
@@ -404,6 +405,7 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
     version: Number(route.publication_version ?? 0),
     vehicleId: route.asset_id,
     driverId: route.driver_staff_id ?? "",
+    staffIds: (route.route_staff_assignments ?? []).filter((assignment) => assignment.status === "ASSIGNED").map((assignment) => assignment.staff_id),
     eventIds: (route.vehicle_route_events ?? []).sort((a, b) => Number(a.sequence) - Number(b.sequence)).map((event) => event.project_id),
   }));
   const paymentEvents: StaffPaymentEvent[] = (paymentRows ?? []).flatMap(
@@ -777,7 +779,7 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
           requests={operationsRequests}
         />
       }
-      logistics={<StaffLogisticsView events={logisticsEvents} initialCommuneSectorMappings={communeSectorMappings} initialRoutes={logisticsRoutesForPlanner} vehicles={logisticsVehicleOptions} />}
+      logistics={<StaffLogisticsView events={logisticsEvents} initialCommuneSectorMappings={communeSectorMappings} initialRoutes={logisticsRoutesForPlanner} vehicles={logisticsVehicleOptions} staffOptions={logisticsStaffOptions} />}
       portal={<StaffPinReset members={portalAccess} />}
       payroll={
         <StaffPaymentsCenter

@@ -28,8 +28,21 @@ export async function saveLogisticsRoutePlanAction(data: FormData): Promise<Resu
       p_project_ids: ids(data),
     });
     if (error) throw error;
+    const staffIds = data.getAll("staffIds").map(String).filter(Boolean);
+    const { error: staffError } = await client.rpc("set_logistics_route_staff", { p_route_id: String(routeId), p_staff_ids: staffIds });
+    if (staffError) throw staffError;
     revalidatePath("/staff");
     return { ok: true, routeId: String(routeId), message: "Ruta guardada como propuesta revisable." };
+  } catch (error) { return { ok: false, error: friendly(error) }; }
+}
+
+export async function assignLogisticsRouteStaffAction(routeId: string, staffIds: string[]): Promise<{ ok: true; message: string } | { ok: false; error: string }> {
+  try {
+    const client = await admin();
+    const { error } = await client.rpc("set_logistics_route_staff", { p_route_id: routeId, p_staff_ids: staffIds });
+    if (error) throw error;
+    revalidatePath("/staff");
+    return { ok: true, message: "Equipo de ruta actualizado." };
   } catch (error) { return { ok: false, error: friendly(error) }; }
 }
 
