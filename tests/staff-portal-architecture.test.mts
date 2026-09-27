@@ -30,3 +30,12 @@ test("Staff Home reuses compact weekly and logistics language", () => {
   assert.match(dashboard, /grid-cols-\[52px_4px_minmax\(0,1fr\)\]/);
   assert.match(dashboard, /No tienes eventos asignados esta semana/);
 });
+
+test("Staff Portal keeps finance and capability visibility structural", () => {
+  assert.match(dashboard, /capabilities: string\[\]/);
+  assert.match(dashboard, /canMount = capabilities\.includes\("ASSEMBLY"\)/);
+  assert.match(dashboard, /events=\{weekEvents\}/);
+  assert.match(dashboard, /currentMonth=\{currentMonth\}/);
+  assert.match(dashboard, /notificationsOpen/);
+  assert.match(dashboard, /staffMonthLabel/);
+});
