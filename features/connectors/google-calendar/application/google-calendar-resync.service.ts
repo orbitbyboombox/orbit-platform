@@ -34,11 +34,19 @@ export async function invalidateCalendarSyncForProject(client: SupabaseClient, p
 export async function syncStaleGoogleCalendarEvents(input: { client: SupabaseClient; actorId: string; batchSize?: number }): Promise<{ claimed: number; synchronized: number; failed: number; skipped: number }> {
   const batchSize = Math.max(1, Math.min(input.batchSize ?? 25, 100));
   const now = new Date().toISOString();
-  const { data: rows, error } = await input.client.from("calendar_sync").select("id,project_id,orbit_event_id,status,next_retry_at,sync_started_at,external_event_id,nova_external_event_id").in("status", ["PENDING", "STALE", "FAILED"]).or(`next_retry_at.is.null,next_retry_at.lte.${now}`).order("updated_at", { ascending: true }).limit(batchSize);
+  const { data: rows, error } = await input.client.from("calendar_sync").select("id,project_id,orbit_event_id,status,next_retry_at,sync_started_at,external_event_id,nova_external_event_id").in("status", ["PENDING", "STALE", "FAILED", "SYNCHRONIZED"]).or(`next_retry_at.is.null,next_retry_at.lte.${now}`).order("updated_at", { ascending: true }).limit(batchSize);
   if (error) throw error;
   const summary = { claimed: 0, synchronized: 0, failed: 0, skipped: 0 };
   for (const row of (rows ?? []) as QueueRow[]) {
     if (!row.external_event_id && !row.nova_external_event_id) { summary.skipped++; continue; }
+    if (row.status === "SYNCHRONIZED") {
+      // Recompute the canonical fingerprint from persisted project.event_time
+      // before deciding whether this mapping needs work. This also repairs
+      // changes made before the invalidation hook was deployed.
+      await invalidateCalendarSyncForProject(input.client, row.project_id);
+      const { data: refreshed, error: refreshError } = await input.client.from("calendar_sync").select("status,next_retry_at").eq("id", row.id).maybeSingle();
+      if (refreshError || !refreshed || !["STALE", "PENDING", "FAILED"].includes(refreshed.status)) { summary.skipped++; continue; }
+    }
     const { data: claimed, error: claimError } = await input.client.rpc("claim_calendar_sync_for_resync", { p_sync_id: row.id, p_now: now });
     if (claimError || claimed !== true) { summary.skipped++; continue; }
     summary.claimed++;

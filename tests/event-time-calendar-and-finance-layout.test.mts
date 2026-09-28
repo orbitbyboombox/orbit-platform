@@ -6,6 +6,8 @@ const workspace = readFileSync("features/projects/components/project-workspace-e
 const calendarService = readFileSync("features/connectors/google-calendar/application/google-calendar-sync.service.ts", "utf8");
 const calendarLive = readFileSync("features/connectors/google-calendar/application/google-calendar-live.ts", "utf8");
 const provider = readFileSync("features/connectors/google-calendar/provider/google-calendar-live.provider.ts", "utf8");
+const eventTimeAction = readFileSync("features/projects/actions/event-time.actions.ts", "utf8");
+const resyncService = readFileSync("features/connectors/google-calendar/application/google-calendar-resync.service.ts", "utf8");
 
 test("documents and profitability use full-width desktop sections with readable metric labels", () => {
   assert.match(workspace, /className="2xl:col-span-2"[\s\S]*title="Documentos y estado comercial"/);
@@ -28,4 +30,13 @@ test("Calendar reads the remote event after mutation and verifies Chile time", (
   assert.match(calendarLive, /provider\.getEvent\(googleEventId\)/);
   assert.match(calendarLive, /America\/Santiago/);
   assert.match(calendarLive, /CALENDAR_TIME_SYNC_VERIFY/);
+});
+
+test("confirmed event time queues existing Calendar mappings for the privileged cron", () => {
+  assert.match(eventTimeAction, /invalidateCalendarSyncForProject\(client, projectId\)/);
+  assert.doesNotMatch(eventTimeAction, /synchronizeConfirmedReservationCalendar/);
+  assert.match(resyncService, /\["PENDING", "STALE", "FAILED", "SYNCHRONIZED"\]/);
+  assert.match(resyncService, /if \(row\.status === "SYNCHRONIZED"\)/);
+  assert.match(resyncService, /claim_calendar_sync_for_resync/);
+  assert.match(resyncService, /policy: "EXISTING_LEGACY_UPDATE"/);
 });
