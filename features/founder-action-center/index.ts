@@ -44,6 +44,8 @@ const cta = (type: string) =>
       ? "REVISAR GASTO"
       : type === "STAFF_BOLETA_REVIEW_REQUIRED"
         ? "REVISAR BOLETA"
+        : type === "STAFF_OPERATOR_INCIDENT"
+          ? "REVISAR CAJA / EQUIPO"
         : type === "PHYSICAL_CONFIGURATION_MISSING"
           ? "DEFINIR CONFIGURACIÓN"
           : type.startsWith("SALES_")
@@ -54,6 +56,7 @@ const canonicalFounderActionTypeList = [
   "STAFF_ONBOARDING_REVIEW_REQUIRED",
   "STAFF_EXPENSE_REVIEW_REQUIRED",
   "STAFF_BOLETA_REVIEW_REQUIRED",
+  "STAFF_OPERATOR_INCIDENT",
   "HEALTH_WARNING",
   "EVENT_NOT_READY",
   "SALES_LEAD_UNATTENDED",

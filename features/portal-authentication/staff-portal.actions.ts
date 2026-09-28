@@ -286,13 +286,15 @@ export async function reportStaffOperatorIncidentAction(input: {
   }, { onConflict: "correlation_id", ignoreDuplicates: true });
   const customer = Array.isArray(project.customers) ? project.customers[0] : project.customers;
   const eventName = customer?.full_name ?? project.name ?? "Evento";
+  const { data: staffProfile } = await admin.from("staff").select("first_name,last_name").eq("id", session.staff_id).maybeSingle();
+  const staffName = [staffProfile?.first_name, staffProfile?.last_name].filter(Boolean).join(" ") || session.staff_id;
   const { error: notificationError } = await admin.from("internal_notifications").insert({
     project_id: input.projectId,
     customer_id: project.customer_id,
     staff_id: session.staff_id,
     notification_type: "STAFF_OPERATOR_INCIDENT",
-    title: `Alerta operativa · ${eventName}`,
-    message: `Operador reportó ${input.category}: ${description}${boxCode ? ` · Caja ${boxCode}` : ""}`,
+    title: "URGENTE — REVISAR CAJA / EQUIPO",
+    message: `Evento: ${eventName} · Staff: ${staffName} · Caja: ${boxCode ?? "Sin caja"} · Reporte: ${description}`,
     status: "UNREAD",
     correlation_id: `staff-operator-incident:${incident.id}`,
     category: input.category === "EQUIPMENT" ? "EQUIPMENT" : "OPERATIONS",
@@ -301,7 +303,7 @@ export async function reportStaffOperatorIncidentAction(input: {
     entity_type: "EventIncident",
     entity_id: incident.id,
     related_href: `/projects/${input.projectId}`,
-    metadata: { incident_id: incident.id, category: input.category, severity: input.severity, box_code: boxCode ?? null },
+    metadata: { incident_id: incident.id, category: input.category, severity: input.severity, box_code: boxCode ?? null, event_name: eventName, staff_id: session.staff_id, staff_name: staffName, report: description, action_required: true },
   });
   if (notificationError) return { ok: false, message: notificationError.message };
   revalidatePath("/staff-portal");
