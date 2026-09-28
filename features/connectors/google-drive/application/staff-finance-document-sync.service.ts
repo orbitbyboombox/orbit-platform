@@ -3,7 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadCompanySettings } from "@/features/company-settings";
 import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-workspace/application/google-workspace.repository";
-import { GoogleDriveApiProvider, type GoogleDriveLiveProvider } from "../provider/google-drive-live.provider";
+import { GoogleDriveApiProvider, type GoogleDriveCreatedFolder, type GoogleDriveLiveProvider } from "../provider/google-drive-live.provider";
 
 type SourceKind = "EXPENSE" | "REIMBURSEMENT" | "PAYMENT";
 type DocumentLink = { id: string; bucket: string; path: string; fileName: string; mimeType: string; driveFileId: string | null };
@@ -25,13 +25,21 @@ const monthParts = (value: string) => {
   return { year: String(date.getUTCFullYear()), month: MONTHS[date.getUTCMonth()] };
 };
 
-async function folder(provider: GoogleDriveLiveProvider, root: string, parts: readonly string[]) {
-  let parent: string | undefined;
-  let path = root;
+async function resolveRootFolderId(provider: GoogleDriveLiveProvider, configuredRoot: string) {
+  const root = configuredRoot.trim();
+  if (/^[A-Za-z0-9_-]{20,}$/.test(root)) return root;
+  const existing = await provider.findFolder({ name: root });
+  if (!existing) throw new Error(`No se encontró la raíz de Google Drive configurada: ${root}`);
+  return existing.id;
+}
+
+async function folder(provider: GoogleDriveLiveProvider, rootId: string, parts: readonly string[]) {
+  let parent: string | undefined = rootId;
+  let path = rootId;
   for (const name of parts) {
     path = `${path}/${name}`;
     const existing = await provider.findFolder({ name, parentFolderId: parent });
-    const created = existing ?? await provider.createFolder({ name, parentFolderId: parent });
+    const created: GoogleDriveCreatedFolder = existing ?? await provider.createFolder({ name, parentFolderId: parent });
     parent = created.id;
   }
   return { id: parent!, path };
@@ -74,6 +82,7 @@ export async function syncStaffFinanceDocuments(input: { client: SupabaseClient;
   const to = input.to ?? "2026-10-01";
   const [company, token] = await Promise.all([loadCompanySettings(input.client), loadGoogleWorkspaceAccessToken()]);
   const provider = new GoogleDriveApiProvider(token);
+  const rootFolderId = await resolveRootFolderId(provider, company.driveRootFolder);
   const results: SyncResult[] = [];
   const staffCache = new Map<string, string>();
   const projectCache = new Map<string, { name: string; date: string }>();
@@ -81,9 +90,9 @@ export async function syncStaffFinanceDocuments(input: { client: SupabaseClient;
   const getProject = async (id: string) => { const cached = projectCache.get(id); if (cached) return cached; const { data, error } = await input.client.from("projects").select("name,event_date").eq("id", id).single(); if (error) throw error; const value = { name: clean(data.name || "Evento sin nombre"), date: String(data.event_date) }; projectCache.set(id, value); return value; };
   const resolveEventFolder = async (staffId: string, projectId: string, date: string) => {
     const staffName = await getStaff(staffId); const project = await getProject(projectId); const { year, month } = monthParts(date);
-    return folder(provider, company.driveRootFolder, ["STAFF", staffName, year, month, "04_REEMBOLSOS", `${clean(project.name)} - ${project.date}`]);
+    return folder(provider, rootFolderId, ["STAFF", "OPERADORES", staffName, "04_REEMBOLSOS", year, month, `${clean(project.name)} - ${project.date}`]);
   };
-  const resolveBaseFolder = async (staffId: string, date: string, leaf: string) => { const staffName = await getStaff(staffId); const { year, month } = monthParts(date); return folder(provider, company.driveRootFolder, ["STAFF", staffName, year, month, leaf]); };
+  const resolveBaseFolder = async (staffId: string, date: string, leaf: string) => { const staffName = await getStaff(staffId); const { year, month } = monthParts(date); return folder(provider, rootFolderId, ["STAFF", "OPERADORES", staffName, leaf, year, month]); };
   const setStatus = async (table: "documents" | "staff_onboarding_documents", id: string, driveFileId: string | null, driveFolderId: string | null, error?: string) => markDocument(input.client, table, id, { drive_file_id: driveFileId, drive_folder_id: driveFolderId, drive_sync_status: driveFileId ? "SYNCED" : "ERROR", drive_sync_error: error ?? null, drive_synced_at: driveFileId ? new Date().toISOString() : null });
 
   const { data: expenses, error: expenseError } = await input.client.from("staff_expense_submissions").select("id,staff_id,project_id,amount,occurred_on,receipt_path,document_id").not("receipt_path", "is", null).gte("occurred_on", from).lt("occurred_on", to);
@@ -129,7 +138,7 @@ export async function syncStaffFinanceDocuments(input: { client: SupabaseClient;
         document = await readDocument(input.client, "staff_onboarding_documents", created.id);
       }
       if (!document) throw new Error("No fue posible materializar el documento de pago.");
-      const destination = await resolveBaseFolder(settlement.staff_id, item.movement_date, "03_COMPROBANTES_PAGO");
+      const destination = await resolveBaseFolder(settlement.staff_id, item.movement_date, "05_COMPROBANTES_PAGO");
       const driveId = await syncDocument({ client: input.client, provider, document, folderId: destination.id, filename: `PAGO_${Number(item.amount).toFixed(0)}_${baseName(document.fileName)}` });
       await setStatus("staff_onboarding_documents", document.id, driveId, destination.id); results.push({ kind: "PAYMENT", sourceId: item.id, status: "SYNCED", driveFileId: driveId, staff, event: project.name, amount: Number(item.amount) });
     } catch (error) { results.push({ kind: "PAYMENT", sourceId: item.id, status: "REQUIRES_REVIEW", reason: error instanceof Error ? error.message : "Error de sincronización" }); }
