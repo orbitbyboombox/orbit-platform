@@ -37,8 +37,15 @@ export async function invalidateCalendarSyncForProject(client: SupabaseClient, p
 export async function syncStaleGoogleCalendarEvents(input: { client: SupabaseClient; actorId: string; batchSize?: number }): Promise<{ claimed: number; synchronized: number; failed: number; skipped: number }> {
   const batchSize = Math.max(1, Math.min(input.batchSize ?? 25, 100));
   const now = new Date().toISOString();
-  const { data: rows, error } = await input.client.from("calendar_sync").select("id,project_id,orbit_event_id,status,next_retry_at,sync_started_at,external_event_id,nova_external_event_id").in("status", ["PENDING", "STALE", "FAILED", "SYNCHRONIZED"]).or(`next_retry_at.is.null,next_retry_at.lte.${now}`).order("updated_at", { ascending: true }).limit(batchSize);
-  if (error) throw error;
+  const fields = "id,project_id,orbit_event_id,status,next_retry_at,sync_started_at,external_event_id,nova_external_event_id";
+  const { data: actionable, error: actionableError } = await input.client.from("calendar_sync").select(fields).in("status", ["PENDING", "STALE", "FAILED"]).or(`next_retry_at.is.null,next_retry_at.lte.${now}`).order("updated_at", { ascending: true }).limit(batchSize);
+  if (actionableError) throw actionableError;
+  const remaining = Math.max(0, batchSize - (actionable?.length ?? 0));
+  const { data: synchronized, error: synchronizedError } = remaining > 0
+    ? await input.client.from("calendar_sync").select(fields).eq("status", "SYNCHRONIZED").order("updated_at", { ascending: true }).limit(remaining)
+    : { data: [], error: null };
+  if (synchronizedError) throw synchronizedError;
+  const rows = [...(actionable ?? []), ...(synchronized ?? [])];
   const summary = { claimed: 0, synchronized: 0, failed: 0, skipped: 0 };
   for (const row of (rows ?? []) as QueueRow[]) {
     if (!row.external_event_id && !row.nova_external_event_id) { summary.skipped++; continue; }
