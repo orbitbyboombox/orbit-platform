@@ -254,10 +254,34 @@ export async function previewStaffMonthCloseAction(month: string) {
     };
   }
 }
+export async function auditStaffMonthAction(month: string) {
+  try {
+    const { client } = await context();
+    const { data, error } = await client.rpc("staff_month_financial_audit", {
+      p_month: `${month.slice(0, 7)}-01`,
+    });
+    if (error) throw error;
+    return { ok: true, data };
+  } catch (error) {
+    return {
+      ok: false,
+      error: friendly(error, "No fue posible auditar el cierre mensual."),
+    };
+  }
+}
 export async function closeStaffMonthAction(month: string) {
   try {
     const { client } = await context();
     const accountingMonth = `${month.slice(0, 7)}-01`;
+    const { data: audit, error: auditError } = await client.rpc(
+      "staff_month_financial_audit",
+      { p_month: accountingMonth },
+    );
+    if (auditError) throw auditError;
+    if (Number(audit?.criticalErrorCount ?? 0) > 0)
+      throw new Error(
+        `Cierre bloqueado: ${audit.criticalErrorCount} inconsistencia(s) financiera(s) crítica(s).`,
+      );
     const { data: preview, error: previewError } = await client.rpc(
       "preview_staff_monthly_close",
       { p_month: accountingMonth },
