@@ -7,6 +7,8 @@ export type CanonicalCalendarFingerprintInput = {
   location: string | null | undefined;
 };
 
+export const CALENDAR_CANONICAL_SCHEMA_VERSION = "v2";
+
 function iso(value: string | Date | null | undefined): string | null {
   if (value == null || value === "") return null;
   const date = value instanceof Date ? value : new Date(value);
@@ -15,6 +17,7 @@ function iso(value: string | Date | null | undefined): string | null {
 
 export function buildCanonicalCalendarFingerprint(input: CanonicalCalendarFingerprintInput): string {
   return JSON.stringify({
+    schemaVersion: CALENDAR_CANONICAL_SCHEMA_VERSION,
     orbitEventId: input.orbitEventId == null ? null : String(input.orbitEventId).trim() || null,
     serviceStartAt: iso(input.serviceStartAt),
     serviceEndAt: iso(input.serviceEndAt),
