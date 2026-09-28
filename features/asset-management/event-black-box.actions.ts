@@ -6,6 +6,12 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 const MASTER_CODES = Array.from({ length: 9 }, (_, index) => `CASE-${String(index + 1).padStart(2, "0")}`);
 type Result = { ok: true } | { ok: false; error: string };
 
+const errorMessage = (error: unknown, fallback: string) => {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === "object" && error !== null && "message" in error && typeof error.message === "string" && error.message) return error.message;
+  return fallback;
+};
+
 async function adminClient() {
   const client = await createSupabaseServerClient();
   const { data, error } = await client.auth.getUser();
@@ -39,13 +45,18 @@ export async function loadEventBlackBoxOperationsAction(projectId: string) {
 export async function assignBlackBoxToEventAction(input: { projectId: string; assetId: string; reason: string }): Promise<Result> {
   try {
     const client = await adminClient();
-    const { error } = await client.rpc("assign_black_box_to_event", { p_project_id: input.projectId, p_asset_id: input.assetId, p_reason: input.reason });
+    const { data, error } = await client.rpc("assign_black_box_to_event", { p_project_id: input.projectId, p_asset_id: input.assetId, p_reason: input.reason });
     if (error) throw error;
-    revalidatePath(`/projects/${input.projectId}`);
-    revalidatePath("/resources/staff");
+    if (!data || typeof data !== "object" || !("assignmentId" in data)) throw new Error("La Caja Negra no devolvió una asignación confirmada.");
+    try {
+      revalidatePath(`/projects/${input.projectId}`);
+      revalidatePath("/resources/staff");
+    } catch (revalidationError) {
+      console.error("[black-box] assignment committed but revalidation failed", revalidationError);
+    }
     return { ok: true };
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : "No fue posible asignar la Caja Negra." };
+    return { ok: false, error: errorMessage(error, "No fue posible asignar la Caja Negra.") };
   }
 }
 
@@ -58,6 +69,6 @@ export async function removeBlackBoxFromEventAction(input: { projectId: string; 
     revalidatePath("/resources/staff");
     return { ok: true };
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : "No fue posible quitar la Caja Negra." };
+    return { ok: false, error: errorMessage(error, "No fue posible quitar la Caja Negra.") };
   }
 }

@@ -39,3 +39,11 @@ test("The Caja Negra popover exposes the full operational inventory without pare
   assert.match(view, /ASIGNADA/);
   assert.doesNotMatch(page, /CASE-10|CASE-11|CASE-12/);
 });
+
+test("Caja Negra action preserves committed success and exposes real RPC errors", () => {
+  assert.match(action, /const errorMessage = \(error: unknown, fallback: string\)/);
+  assert.match(action, /typeof error\.message === "string"/);
+  assert.match(action, /if \(!data \|\| typeof data !== "object" \|\| !\("assignmentId" in data\)\)/);
+  assert.match(action, /assignment committed but revalidation failed/);
+  assert.match(action, /return \{ ok: true \};/);
+});
