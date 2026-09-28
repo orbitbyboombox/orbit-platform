@@ -72,6 +72,7 @@ export interface QuoteLineDraft {
 export interface FormalQuoteDraft {
   quoteId?: string;
   requestId?: string;
+  changeReason?: string;
   existingCustomerId: string | null;
   saveTemporaryCustomer: boolean;
   company: string;

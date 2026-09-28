@@ -57,6 +57,16 @@ export type CommercialQuoteDetail = {
   };
   conditions: string[];
   history: CommercialQuoteHistoryEntry[];
+  versions: Array<{
+    id: string;
+    version: number;
+    status: string;
+    reason: string;
+    createdAt: string;
+    sentAt: string | null;
+    acceptedAt: string | null;
+    pdfStoragePath: string | null;
+  }>;
   conversion?: {
     transactionId: string | null;
     status: string | null;
@@ -99,7 +109,8 @@ export function quoteDetailActions(
     ? conversion.status === "COMPLETED"
     : Boolean(projectId);
   return {
-    canEdit: status === "DRAFT",
+    canEdit: ["DRAFT", "SENT", "VIEWED", "NEGOTIATION"].includes(status),
+    canCreatePostAcceptanceRevision: status === "ACCEPTED",
     canAccept: ["SENT", "VIEWED"].includes(status),
     canConvert: status === "ACCEPTED" && !projectId,
     isConverted: Boolean(projectId) && conversionComplete,
@@ -113,6 +124,7 @@ export function quoteDetailActions(
 export function buildCommercialQuoteDetail(
   row: QuoteRow,
   sends: readonly SendRow[] = [],
+  versions: readonly SendRow[] = [],
 ): CommercialQuoteDetail {
   const id = text(row.id);
   const acceptedSnapshot = record(row.accepted_snapshot);
@@ -218,6 +230,12 @@ export function buildCommercialQuoteDetail(
         .join(" · "),
       occurredAt: text(send.sent_at) || text(send.created_at),
     })),
+    ...versions.map((version) => ({
+      id: text(version.id),
+      label: `Versión ${number(version.version_number)} · ${text(version.status)}`,
+      detail: text(version.change_reason) || "Versión preservada del documento comercial.",
+      occurredAt: text(version.sent_at) || text(version.created_at),
+    })),
     ...(text(row.approved_at)
       ? [
           {
@@ -302,6 +320,16 @@ export function buildCommercialQuoteDetail(
       ? commercial.conditions.map(text).filter(Boolean)
       : [],
     history,
+    versions: versions.map((version) => ({
+      id: text(version.id),
+      version: number(version.version_number),
+      status: text(version.status),
+      reason: text(version.change_reason),
+      createdAt: text(version.created_at),
+      sentAt: text(version.sent_at) || null,
+      acceptedAt: text(version.accepted_at) || null,
+      pdfStoragePath: text(version.pdf_storage_path) || null,
+    })),
     conversion: row.conversion
       ? {
           transactionId: text(record(row.conversion).transactionId) || null,
@@ -316,11 +344,12 @@ export function buildCommercialQuoteDetail(
             : [],
         }
       : undefined,
-    ...(status === "DRAFT"
+    ...(["DRAFT", "SENT", "VIEWED", "NEGOTIATION"].includes(status)
       ? {
           draft: {
             quoteId: id,
             requestId: id,
+            changeReason: "",
             existingCustomerId: text(row.customer_id) || null,
             saveTemporaryCustomer: false,
             ...customer,

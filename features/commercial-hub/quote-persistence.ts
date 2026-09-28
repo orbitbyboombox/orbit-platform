@@ -47,6 +47,7 @@ export function prepareFormalQuotePersistence(input: FormalQuoteDraft) {
     deposit: calculation.deposit,
     balance: calculation.balance,
     validityDays: input.validityDays,
+    changeReason: input.changeReason?.trim() || "",
   };
   const items = normalizedLines.map((line) => ({
     itemType: line.manual

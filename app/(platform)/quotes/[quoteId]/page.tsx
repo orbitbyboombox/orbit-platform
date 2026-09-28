@@ -15,7 +15,7 @@ export default async function CommercialQuotePage({
   const client = await createSupabaseServerClient();
   const quote = await loadCommercialQuoteDetail(client, quoteId);
   if (!quote) notFound();
-  const hubData = quote.status === "DRAFT"
+  const hubData = quote.draft
     ? await loadCommercialHubData(client)
     : undefined;
   return <CommercialQuoteDetailExperience hubData={hubData} quote={quote} />;

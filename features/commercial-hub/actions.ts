@@ -454,10 +454,16 @@ export async function sendFormalQuoteAction(input: { quoteId: string; email: str
     const recipients = normalizeEmailRecipients({ to: input.email, cc: input.cc });
     const admin = createAdminClient();
     const [{ data: quote, error }, company] = await Promise.all([
-      admin.from("quotations").select("id,quotation_number,issue_date,expiration_date,customer_id,project_id,customer_snapshot,commercial_snapshot,pricing_snapshot,quotation_items(description,label,quantity,quoted_price,unit_price,total,item_type,display_order)").eq("id", input.quoteId).single(),
+      admin.from("quotations").select("id,quotation_number,version,current_version_id,issue_date,expiration_date,customer_id,project_id,customer_snapshot,commercial_snapshot,pricing_snapshot,quotation_items(description,label,quantity,quoted_price,unit_price,total,item_type,display_order)").eq("id", input.quoteId).single(),
       loadCompanySettings(admin),
     ]);
     if (error || !quote) throw new Error("La cotización ya no está disponible.");
+    const { data: versionId, error: versionError } = await admin.rpc("ensure_current_quote_version", {
+      p_quote_id: quote.id,
+      p_actor: user.id,
+    });
+    if (versionError) throw versionError;
+    const version = Math.max(1, Number(quote.version ?? 1));
     const pricingSnapshot = (quote.pricing_snapshot ?? {}) as Record<string, unknown>;
     const snapshot = (quote.commercial_snapshot ?? (Object.keys(pricingSnapshot).length ? pricingSnapshot.commercial ?? pricingSnapshot : {})) as Record<string, unknown>;
     const customer = (quote.customer_snapshot ?? {}) as Record<string, string>;
@@ -467,9 +473,9 @@ export async function sendFormalQuoteAction(input: { quoteId: string; email: str
     const configuredConditions = Array.isArray(company.pdfConfiguration.commercialReservationConditions) ? company.pdfConfiguration.commercialReservationConditions.filter((item): item is string => typeof item === "string" && item.trim().length > 0) : [];
     const breakdown = resolveCommercialBreakdown({ snapshot, items });
     const pdf = await createFormalQuotePdf({ number: quote.quotation_number, issueDate: quote.issue_date, expirationDate: quote.expiration_date, customer, event, lines: items.map((item) => ({ description: item.description || item.label, itemType: item.item_type, quantity: Number(item.quantity), quotedPrice: Number(item.quoted_price ?? item.unit_price), total: Number(item.total) })), ...breakdown, paymentCondition: snapshot.paymentCondition === "CORPORATE_CREDIT" || snapshot.paymentCondition === "CASH" ? snapshot.paymentCondition : "FIFTY_FIFTY", paymentTermDays: Number(snapshot.paymentTermDays ?? 0), company: { legalName: company.legalName, taxId: company.taxId, address: company.address, city: company.city, phone: company.phone, email: config.email || company.salesEmail || company.supportEmail, website: company.website, bankName: config.bankName || "Banco no configurado", bankAccountType: config.accountType || "Cuenta no configurada", bankAccountNumber: config.accountNumber || "Número no configurado", importantNotice: typeof company.pdfConfiguration.commercialImportantNotice === "string" ? company.pdfConfiguration.commercialImportantNotice : undefined, reservationConditions: configuredConditions, operationalConditions: normalizeQuoteOperationalConditions(company.pdfConfiguration.commercialOperationalConditions) } });
-    const pdfPath = quoteStorageKey(quote.id, quote.quotation_number);
-    const upload = await admin.storage.from("orbit-documents").upload(pdfPath, pdf, { contentType: "application/pdf", upsert: true });
-    if (upload.error) throw upload.error;
+    const pdfPath = quoteStorageKey(quote.id, quote.quotation_number).replace(/\.pdf$/i, `_V${version}.pdf`);
+    const upload = await admin.storage.from("orbit-documents").upload(pdfPath, pdf, { contentType: "application/pdf", upsert: false });
+    if (upload.error && !/already exists|duplicate/i.test(upload.error.message ?? "")) throw upload.error;
     const pdfUrl = await admin.storage.from("orbit-documents").createSignedUrl(pdfPath, 60 * 60 * 24 * 7);
     if (pdfUrl.error) throw pdfUrl.error;
     let catalogUrl = "";
@@ -494,7 +500,7 @@ export async function sendFormalQuoteAction(input: { quoteId: string; email: str
     const signature = signatureUrl ? `<p><img src="${escapeHtml(signatureUrl)}" alt="BOOMBOX" style="display:block;max-width:420px;width:100%;height:auto;border:0"></p>` : `<p>${signatureText}</p>`;
     const cleanBody = withoutDuplicateSignature(withoutDuplicateSignature(body, company.emailSignature || signatureText), signatureText);
     const htmlParagraphs = emailParagraphs(cleanBody).map((paragraph) => `<p style="margin:0 0 16px">${escapeHtml(paragraph).replaceAll("\n", "<br>")}</p>`).join("");
-    const attachmentFilename = quoteDisplayFilename(quote.quotation_number);
+    const attachmentFilename = quoteDisplayFilename(quote.quotation_number).replace(/\.pdf$/i, `_V${version}.pdf`);
     const htmlBody = renderBoomboxCommercialEmail({
       preheader: `Tu cotización ${quote.quotation_number} está lista.`,
       eyebrow: "COTIZACIÓN BOOMBOX",
@@ -513,9 +519,11 @@ export async function sendFormalQuoteAction(input: { quoteId: string; email: str
     });
     const sent = await new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken()).send({ to: recipients.to, cc: recipients.cc, subject, textBody: `${cleanBody}\n\nCotización: ${pdfUrl.data.signedUrl}${catalogUrl ? `\nCatálogo: ${catalogUrl}` : ""}\n\n${signatureUrl ? "" : signatureText}`.trim(), htmlBody, driveFileIds: [], attachments: [{ filename: attachmentFilename, mimeType: "application/pdf", content: new Uint8Array(pdf) }] });
     const timestamp = new Date().toISOString();
-    const { error: sendError } = await admin.from("commercial_sends").update({ status: "SENT", external_message_id: sent.messageId, sent_at: timestamp }).eq("id", claim.id);
+    const { error: sendError } = await admin.from("commercial_sends").update({ status: "SENT", external_message_id: sent.messageId, sent_at: timestamp, document_snapshot: { quote: quote.quotation_number, version, pdfPath, catalog: catalogSnapshot } }).eq("id", claim.id);
     if (sendError) throw sendError;
-    const { error: quoteError } = await admin.from("quotations").update({ status: "SENT", pdf_storage_path: pdfPath, updated_by: user.id, updated_at: timestamp }).eq("id", quote.id).eq("status", "DRAFT");
+    const { error: versionUpdateError } = await admin.from("quote_versions").update({ status: "SENT", pdf_storage_path: pdfPath, sent_at: timestamp, sent_by: user.id }).eq("id", versionId);
+    if (versionUpdateError) throw versionUpdateError;
+    const { error: quoteError } = await admin.from("quotations").update({ status: "SENT", pdf_storage_path: pdfPath, current_version_id: versionId, updated_by: user.id, updated_at: timestamp }).eq("id", quote.id).in("status", ["DRAFT", "NEGOTIATION", "VIEWED"]);
     if (quoteError) throw quoteError;
     revalidatePath("/leads");
     return { ok: true as const, message: `${quote.quotation_number} enviada y registrada.` };
@@ -543,6 +551,24 @@ export async function acceptCommercialQuoteAction(quoteId: string) {
     };
   } catch (error) {
     return fail(error, "No fue posible aceptar la cotización.");
+  }
+}
+
+export async function createPostAcceptanceQuoteRevisionAction(quoteId: string, reason: string) {
+  try {
+    const { client, role } = await founder();
+    if (!["CEO", "ADMINISTRATOR"].includes(role))
+      throw new Error("Solo Founder o Administración puede abrir una revisión.");
+    const { data, error } = await client.rpc("create_post_acceptance_quote_revision", {
+      p_quote_id: quoteId,
+      p_reason: reason,
+    });
+    if (error) throw error;
+    revalidatePath(`/quotes/${quoteId}`);
+    revalidatePath("/leads");
+    return { ok: true as const, message: "Revisión post-aceptación creada." , data };
+  } catch (error) {
+    return fail(error, "No fue posible crear la revisión post-aceptación.");
   }
 }
 

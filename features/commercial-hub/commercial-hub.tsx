@@ -389,6 +389,7 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
   const [eventTime, setEventTime] = useState(initialDraft?.eventTime ?? "");
   const [eventLocation, setEventLocation] = useState(initialDraft?.eventLocation ?? "");
   const [eventCity, setEventCity] = useState(initialDraft?.eventCity ?? "");
+  const [changeReason, setChangeReason] = useState(initialDraft?.changeReason ?? "");
   const [attachCatalog, setAttachCatalog] = useState(initialDraft?.attachCatalog ?? false);
   const [createdQuote, setCreatedQuote] = useState<{ id: string; number: string; total: number } | null>(null);
   const [preview, setPreview] = useState(false);
@@ -502,6 +503,7 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
           globalDiscountType,
           globalDiscountValue,
           attachCatalog,
+          changeReason,
           lines,
         };
         if (!resilient.online) {
@@ -532,6 +534,11 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
       <div className="rounded-2xl border bg-card p-5 sm:p-7">
         <h2 className="text-2xl font-semibold">Constructor de cotizaciones</h2>
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          {initialDraft?.quoteId ? (
+            <Field label="Motivo del cambio (opcional)">
+              <input value={changeReason} onChange={(event) => setChangeReason(event.target.value)} placeholder="Cliente negoció valor" />
+            </Field>
+          ) : null}
           <Field label="Cliente existente">
             <select
               onChange={(e) => setCustomerId(e.target.value)}

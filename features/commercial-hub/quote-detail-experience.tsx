@@ -14,6 +14,7 @@ import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import {
   acceptCommercialQuoteAction,
+  createPostAcceptanceQuoteRevisionAction,
   loadCommercialQuoteConversionReviewAction,
   resumeQuotationConversionAction,
 } from "./actions";
@@ -101,6 +102,16 @@ export function CommercialQuoteDetailExperience({
     });
   };
 
+  const createRevision = () => {
+    const reason = window.prompt("Motivo de la revisión post-aceptación:", "Cambio solicitado por el cliente")?.trim();
+    if (!reason) return;
+    startTransition(async () => {
+      const result = await createPostAcceptanceQuoteRevisionAction(quote.id, reason);
+      setMessage(result.ok ? result.message : result.error);
+      if (result.ok) router.refresh();
+    });
+  };
+
   return (
     <main className="mx-auto w-full max-w-6xl space-y-6 p-4 sm:p-6 lg:p-8" data-workspace-ignore>
       <header className="space-y-5">
@@ -145,13 +156,18 @@ export function CommercialQuoteDetailExperience({
             </Button>
             {actions.canEdit && quote.draft && hubData ? (
               <Button onClick={() => setEditing(true)}>
-                <FilePenLine /> CONTINUAR EDITANDO
+                <FilePenLine /> {quote.status === "DRAFT" ? "CONTINUAR EDITANDO" : "EDITAR COTIZACIÓN"}
               </Button>
             ) : null}
             {actions.canAccept ? (
               <Button aria-busy={pending} disabled={pending} onClick={accept}>
                 <CheckCircle2 />
                 {pending ? "GUARDANDO…" : "MARCAR COMO ACEPTADA"}
+              </Button>
+            ) : null}
+            {actions.canCreatePostAcceptanceRevision ? (
+              <Button aria-busy={pending} disabled={pending} onClick={createRevision} variant="outline">
+                <FilePenLine /> CREAR REVISIÓN POST-ACEPTACIÓN
               </Button>
             ) : null}
             {actions.canConvert ? (
@@ -301,6 +317,26 @@ export function CommercialQuoteDetailExperience({
             </article>
           ))}
         </div>
+        {quote.versions.length ? (
+          <div className="mt-5 border-t pt-4">
+            <p className="text-sm font-semibold">Versiones documentales</p>
+            <div className="mt-3 space-y-2">
+              {quote.versions.map((version) => (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3" key={version.id}>
+                  <div>
+                    <p className="text-sm font-medium">Versión {version.version} · {version.status}</p>
+                    <p className="text-xs text-muted">{version.reason || "Sin motivo adicional"}</p>
+                  </div>
+                  {version.pdfStoragePath ? (
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={`/api/commercial/quotes/${quote.id}/versions/${version.version}/pdf`} target="_blank">VER PDF</Link>
+                    </Button>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </Card>
 
       {review ? (
