@@ -8,6 +8,7 @@ const calendarLive = readFileSync("features/connectors/google-calendar/applicati
 const provider = readFileSync("features/connectors/google-calendar/provider/google-calendar-live.provider.ts", "utf8");
 const eventTimeAction = readFileSync("features/projects/actions/event-time.actions.ts", "utf8");
 const resyncService = readFileSync("features/connectors/google-calendar/application/google-calendar-resync.service.ts", "utf8");
+const middleware = readFileSync("middleware.ts", "utf8");
 
 test("documents and profitability use full-width desktop sections with readable metric labels", () => {
   assert.match(workspace, /className="2xl:col-span-2"[\s\S]*title="Documentos y estado comercial"/);
@@ -39,4 +40,5 @@ test("confirmed event time queues existing Calendar mappings for the privileged 
   assert.match(resyncService, /if \(row\.status === "SYNCHRONIZED"\)/);
   assert.match(resyncService, /claim_calendar_sync_for_resync/);
   assert.match(resyncService, /policy: "EXISTING_LEGACY_UPDATE"/);
+  assert.match(middleware, /\/api\/cron\/google-calendar-resync/);
 });
