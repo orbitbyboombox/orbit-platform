@@ -18,15 +18,18 @@ export async function invalidateCalendarSyncForCanonicalChange(input: { client: 
 
 /** Loads the final persisted operational state and invalidates exactly once. */
 export async function invalidateCalendarSyncForProject(client: SupabaseClient, projectId: string): Promise<void> {
-  const [{ data: project }, { data: contract }, { data: assignments }] = await Promise.all([
+  const [{ data: project }, { data: assignments }] = await Promise.all([
     client.from("projects").select("orbit_event_id,location,event_date,event_time,operations,project_services(duration_hours)").eq("id", projectId).maybeSingle(),
-    client.from("project_operational_contracts").select("service_start_at,service_end_at").eq("project_id", projectId).maybeSingle(),
     client.from("assignments").select("staff_call_at,staff_call_source,status").eq("project_id", projectId).is("deleted_at", null),
   ]);
   if (!project) return;
   const ops = (project.operations ?? {}) as Record<string, unknown>;
   const duration = Number((Array.isArray(project.project_services) ? project.project_services[0] : project.project_services)?.duration_hours ?? 0);
-  const canonical = buildCanonicalOrbitEventStateFromRecord({ id: projectId, orbit_event_id: project.orbit_event_id, event_date: project.event_date, event_time: project.event_time, operations: ops, location: project.location, duration_hours: duration, project_operational_contracts: contract, assignments: assignments ?? [] });
+  // For a confirmed event, projects.event_date + projects.event_time are the
+  // canonical Calendar start. The operational contract may retain the old
+  // provisional time (for example 08:00 after confirmation to 20:00), so it
+  // must not override the persisted event time while computing the queue hash.
+  const canonical = buildCanonicalOrbitEventStateFromRecord({ id: projectId, orbit_event_id: project.orbit_event_id, event_date: project.event_date, event_time: project.event_time, operations: ops, location: project.location, duration_hours: duration, project_operational_contracts: null, assignments: assignments ?? [] });
   await invalidateCalendarSyncForCanonicalChange({ client, projectId, currentPayloadHash: hashCanonicalCalendarFingerprint({ orbitEventId: canonical.orbitEventId, serviceStartAt: canonical.serviceStartAt, serviceEndAt: canonical.serviceEndAt, staffCallAt: canonical.staffCallAt, staffCallSource: canonical.staffCallSource, location: canonical.location }) });
 }
 
