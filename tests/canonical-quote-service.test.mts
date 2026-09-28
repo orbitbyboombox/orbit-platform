@@ -15,7 +15,8 @@ const draft = {
 
 function fakeClient() {
   const calls: string[] = [];
-  return { calls, client: { rpc: async (name: string) => { calls.push(name); return { data: { quotationId: "q-1", quotationNumber: "COTIZACIÓN 2026-000001", operation: "CREATED" }, error: null }; } } as never };
+  const payloads: unknown[] = [];
+  return { calls, payloads, client: { rpc: async (name: string, payload: unknown) => { calls.push(name); payloads.push(payload); return { data: { quotationId: "q-1", quotationNumber: "COTIZACIÓN 2026-000001", operation: "CREATED" }, error: null }; } } as never };
 }
 
 test("BIANCA quote execution uses the dedicated authorized bridge", async () => {
@@ -27,9 +28,10 @@ test("BIANCA quote execution uses the dedicated authorized bridge", async () => 
 });
 
 test("HUMAN quote execution uses the same canonical service with the human RPC wrapper", async () => {
-  const { client, calls } = fakeClient();
-  const result = await executeCanonicalQuoteDraft({ client, draft, customerId: "customer-1", actor: { actorType: "HUMAN", actorId: "HUMAN_USER", source: "FOUNDER_UI" } });
+  const { client, calls, payloads } = fakeClient();
+  const result = await executeCanonicalQuoteDraft({ client, draft: { ...draft, changeReason: "  Descuento nuevo  " }, customerId: "customer-1", actor: { actorType: "HUMAN", actorId: "HUMAN_USER", source: "FOUNDER_UI" } });
   assert.deepEqual(calls, ["save_commercial_quote_draft"]);
+  assert.equal((payloads[0] as { p_quote: { changeReason: string } }).p_quote.changeReason, "Descuento nuevo");
   assert.equal(result.actorType, "HUMAN");
 });
 

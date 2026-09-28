@@ -45,6 +45,7 @@ export async function executeCanonicalQuoteDraft(input: {
   const quoteId = draft.quoteId ?? draft.requestId ?? crypto.randomUUID();
   const issue = quoteDates(draft.validityDays);
   const prepared = prepareFormalQuotePersistence(draft);
+  const trimmedReason = draft.changeReason?.trim() || null;
   const result = actor.actorType === "SYSTEM_AGENT"
     ? await input.client.rpc("save_bianca_commercial_quote_draft", {
       p_actor_id: actor.actorId,
@@ -63,6 +64,7 @@ export async function executeCanonicalQuoteDraft(input: {
         depositPercent: draft.depositPercent,
         globalDiscountType: draft.globalDiscountType,
         globalDiscountValue: draft.globalDiscountValue,
+        changeReason: trimmedReason,
       },
       p_items: prepared.items,
     })
@@ -82,6 +84,7 @@ export async function executeCanonicalQuoteDraft(input: {
         depositPercent: draft.depositPercent,
         globalDiscountType: draft.globalDiscountType,
         globalDiscountValue: draft.globalDiscountValue,
+        changeReason: trimmedReason,
       },
       p_items: prepared.items,
     });
