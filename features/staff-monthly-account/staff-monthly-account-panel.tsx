@@ -28,8 +28,8 @@ const boletaLabel = {
   REJECTED: "Rechazada",
 };
 const paymentLabel = {
-  PENDING: "Bloqueado",
-  READY_TO_PAY: "Listo para pagar",
+  PENDING: "Pendiente",
+  READY_TO_PAY: "Pago pendiente",
   PAID: "Pagado",
 };
 export function StaffMonthlyAccountPanel({
@@ -46,6 +46,7 @@ export function StaffMonthlyAccountPanel({
     [completing, setCompleting] = useState<string | null>(null),
     [completed, setCompleted] = useState<Set<string>>(new Set()),
     [paymentMethod, setPaymentMethod] = useState("TRANSFERENCIA"),
+    [paymentOpen, setPaymentOpen] = useState(false),
     [confirming, setConfirming] = useState<{
       projectId: string;
       event: string;
@@ -62,6 +63,13 @@ export function StaffMonthlyAccountPanel({
     fetch("/api/staff-portal/finance/context", { cache: "no-store" }).then((response) => response.ok ? response.json() : null).then((value: StaffFinanceContext | null) => setFinanceContext(value)).catch(() => setFinanceContext(null));
   }, [mode]);
   if (String(mode) === "STAFF") return <StaffFinanceAccountView account={account} context={financeContext} />;
+  const workflowLabel = account.boletaStatus === "APPROVED" && (account.paymentStatus === "PAID" || account.finalTransferAmount === 0)
+    ? "CERRADO"
+    : account.paymentStatus === "PAID"
+      ? "PAGADO · BOLETA PENDIENTE"
+      : account.boletaStatus === "APPROVED"
+        ? "BOLETA APROBADA · PAGO PENDIENTE"
+        : "PENDIENTE";
   const confirmCompletion = () => {
     if (!confirming || completionLock.current) return;
     completionLock.current = true;
@@ -143,6 +151,9 @@ export function StaffMonthlyAccountPanel({
           />
         </div>
       </header>
+      <p className="mt-3 rounded-xl border bg-background/50 p-3 text-sm font-semibold" data-staff-workflow-state>
+        Estado de flujo: {workflowLabel}
+      </p>
       {account.reviewRequired ? (
         <div className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
           <p className="font-semibold text-amber-700">
@@ -500,10 +511,16 @@ export function StaffMonthlyAccountPanel({
           </Button>
         </form>
       ) : null}
-      {mode === "FOUNDER" && account.paymentStatus === "READY_TO_PAY" && !account.reviewRequired ? (
+      {mode === "FOUNDER" && account.finalTransferAmount > 0 && account.paymentStatus !== "PAID" && !account.reviewRequired ? (
+        <button className="mt-4 inline-flex min-h-11 rounded-xl bg-brand px-4 font-semibold text-brand-foreground" onClick={() => setPaymentOpen(true)} type="button">
+          PAGAR · {money(account.finalTransferAmount)}
+        </button>
+      ) : null}
+      {paymentOpen ? (
+        <MobileDialog eyebrow="Liquidación mensual Staff" title="Registrar pago Staff" description={`Saldo final: ${money(account.finalTransferAmount)}`} onClose={() => !pending && setPaymentOpen(false)} footer={null}>
         <form
-          action={run(registerMonthlyStaffPaymentAction)}
-          className="mt-4 grid gap-3 sm:grid-cols-2"
+          action={async (form) => { const result = await registerMonthlyStaffPaymentAction(form); setMessage(result.message); if (result.ok) setPaymentOpen(false); }}
+          className="grid gap-3 sm:grid-cols-2"
         >
           <input name="accountId" type="hidden" value={account.id} />
           <input name="staffId" type="hidden" value={account.staffId} />
@@ -556,9 +573,10 @@ export function StaffMonthlyAccountPanel({
             />
           </label>
           <Button className="sm:col-span-2" aria-busy={pending} disabled={pending}>
-            Registrar pago · {money(account.finalTransferAmount)}
+            {pending ? "Registrando…" : "Confirmar pago"}
           </Button>
         </form>
+        </MobileDialog>
       ) : null}
       {message ? (
         <p
@@ -628,7 +646,7 @@ function StaffFinanceAccountView({ account, context }: { account: StaffMonthlyAc
     <section className="rounded-2xl border p-4"><div className="flex items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">EVENTOS DEL MES</p><h4 className="mt-1 font-semibold">Detalle de servicios</h4></div><span className="text-sm text-muted">{account.eventCount} servicio{account.eventCount === 1 ? "" : "s"}</span></div><div className="mt-3 space-y-2">{account.calculation.details.map((item) => <article className="grid gap-2 rounded-xl border bg-background p-3 text-sm sm:grid-cols-[1fr_auto]" key={item.settlementId}><div><p className="font-semibold">{dateLabel(item.eventDate)} · {item.event}</p><p className="mt-1 text-muted">{item.service} · {item.roles.join(" + ")} · {item.hours} h</p><p className="mt-1 text-xs text-muted">{item.location || "Lugar no informado"}{item.advances > 0 ? ` · Adelanto ${money(item.advances)}` : ""}</p></div><strong className="sm:text-right">{money(item.workNet)}</strong></article>)}{account.calculation.blockingEvents.map((item) => <article className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-sm" key={item.settlementId}><p className="font-semibold">{dateLabel(item.eventDate)} · {item.event}</p><p className="mt-1 text-muted">{item.service} · Pendiente de cierre operativo</p></article>)}{!account.calculation.details.length && !account.calculation.blockingEvents.length ? <p className="text-sm text-muted">No hay servicios cerrados en este mes.</p> : null}</div></section>
     <div className="grid gap-4 lg:grid-cols-2"><section className="rounded-2xl border p-4"><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">ADELANTOS</p><div className="mt-3 space-y-2 text-sm">{advances.map((item) => <div className="flex items-start justify-between gap-3 border-b pb-2 last:border-0 last:pb-0" key={item.id}><span>{dateLabel(item.date)}{item.notes ? ` · ${item.notes}` : ""}</span><strong>{money(item.amount)}</strong></div>)}{!advances.length ? <p className="text-muted">Sin adelantos registrados este mes.</p> : null}</div><div className="mt-3 flex justify-between border-t pt-3 text-sm font-semibold"><span>Total adelantos</span><span>{money(account.advancesTotal)}</span></div></section><section className="rounded-2xl border p-4"><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">REEMBOLSOS</p><div className="mt-3 grid grid-cols-2 gap-2"><FinanceMetric label="Aprobados" value={money(account.reimbursementsTotal)} /><FinanceMetric label="Pendientes" value={money(account.reimbursementsPendingTotal)} /></div><p className="mt-3 text-xs text-muted">Los reembolsos se mantienen separados de honorarios y adelantos.</p></section></div>
     <section className={`rounded-2xl border p-4 ${close?.status === "CLOSED" || close?.status === "PAID" ? "border-emerald-500/30 bg-emerald-500/5" : "border-amber-500/30 bg-amber-500/5"}`}><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">CIERRE MENSUAL</p><h4 className="mt-1 text-lg font-semibold">{closeLabel}</h4><p className="mt-1 text-sm text-muted">{close?.status === "CLOSED" || close?.status === "PAID" ? `Cerrado${close.closed_at ? ` el ${dateLabel(close.closed_at)}` : ""}.` : "Tu liquidación aún puede recibir movimientos."}</p><div className="mt-3 grid gap-2 sm:grid-cols-3"><FinanceMetric label="Trabajado" value={money(account.workNet)} /><FinanceMetric label="Adelantos" value={`−${money(account.advancesTotal)}`} /><FinanceMetric label="Final" value={money(account.finalTransferAmount)} accent /></div></section>
-    <section className="grid gap-4 lg:grid-cols-2"><div className="rounded-2xl border p-4"><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">DATOS PARA BOLETA</p><dl className="mt-3 space-y-2 text-sm"><FinanceLine label="Razón social" value={context?.company?.legalName ?? "Cargando configuración…"} /><FinanceLine label="RUT" value={context?.company?.taxId ?? "—"} /><FinanceLine label="Dirección" value={context?.company?.address ?? "—"} /><FinanceLine label="Comuna" value={context?.company?.city ?? "—"} /><FinanceLine label="Glosa" value="OPERADOR EVENTOS" /></dl><div className="mt-4 rounded-xl bg-brand/10 p-3"><p className="text-xs text-muted">Monto bruto a emitir</p><p className="mt-1 text-xl font-semibold">{money(account.boletaGross)}</p><p className="mt-1 text-xs text-muted">Retención referencial {account.withholdingRate.toLocaleString("es-CL")}% · líquido {money(account.boletaNet)}</p></div></div><div className="rounded-2xl border p-4"><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">BOLETA DE HONORARIOS</p><p className="mt-2 text-lg font-semibold">{boletaLabel}</p>{account.rejectionReason ? <p className="mt-2 rounded-xl bg-red-500/10 p-3 text-sm text-red-600">{account.rejectionReason}</p> : null}{account.boletaStatus !== "APPROVED" && account.paymentStatus !== "PAID" ? <form action={(form) => start(async () => { await submitMonthlyBoletaAction(form); location.reload(); })} className="mt-4 space-y-3"><input name="month" type="hidden" value={account.month.slice(0, 7)} /><input accept="application/pdf,image/jpeg,image/png,image/webp" className="block w-full rounded-xl border bg-background p-2 text-sm" name="file" required type="file" /><Button aria-busy={pending} disabled={pending} type="submit">{account.boletaStatus === "REJECTED" ? "Subir boleta corregida" : "Subir boleta SII"}</Button></form> : null}{account.boletaStatus === "RECEIVED" ? <p className="mt-3 text-sm text-emerald-600">Boleta recibida · pendiente de validación por Administración.</p> : null}</div></section>
+    <section className="grid gap-4 lg:grid-cols-2"><div className="rounded-2xl border p-4"><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">DATOS PARA BOLETA</p><dl className="mt-3 space-y-2 text-sm"><FinanceLine label="Razón social" value={context?.company?.legalName ?? "Cargando configuración…"} /><FinanceLine label="RUT" value={context?.company?.taxId ?? "—"} /><FinanceLine label="Dirección" value={context?.company?.address ?? "—"} /><FinanceLine label="Comuna" value={context?.company?.city ?? "—"} /><FinanceLine label="Glosa" value="OPERADOR EVENTOS" /></dl><div className="mt-4 rounded-xl bg-brand/10 p-3"><p className="text-xs text-muted">Monto bruto a emitir</p><p className="mt-1 text-xl font-semibold">{money(account.boletaGross)}</p><p className="mt-1 text-xs text-muted">Retención referencial {account.withholdingRate.toLocaleString("es-CL")}% · líquido {money(account.boletaNet)}</p></div></div><div className="rounded-2xl border p-4"><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">BOLETA DE HONORARIOS</p><p className="mt-2 text-lg font-semibold">{boletaLabel}</p>{account.rejectionReason ? <p className="mt-2 rounded-xl bg-red-500/10 p-3 text-sm text-red-600">{account.rejectionReason}</p> : null}{account.boletaStatus !== "APPROVED" ? <form action={(form) => start(async () => { await submitMonthlyBoletaAction(form); location.reload(); })} className="mt-4 space-y-3"><input name="month" type="hidden" value={account.month.slice(0, 7)} /><input accept="application/pdf,image/jpeg,image/png,image/webp" className="block w-full rounded-xl border bg-background p-2 text-sm" name="file" required type="file" /><Button aria-busy={pending} disabled={pending} type="submit">{account.boletaStatus === "REJECTED" ? "Subir boleta corregida" : "Subir boleta SII"}</Button></form> : null}{account.boletaStatus === "RECEIVED" ? <p className="mt-3 text-sm text-emerald-600">Boleta recibida · pendiente de validación por Administración.</p> : null}</div></section>
     {account.paymentStatus === "PAID" ? <section className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4"><p className="text-xs font-semibold uppercase tracking-[.16em] text-emerald-600">PAGO REALIZADO</p><p className="mt-2 text-lg font-semibold">{money(account.paidAmount)}</p><p className="mt-1 text-sm text-muted">Fecha {dateLabel(account.paidAt)} · Método {account.paymentMethod || "Transferencia"}</p>{account.receiptDocumentId ? <a className="mt-3 inline-flex min-h-10 items-center rounded-xl border px-3 text-sm font-semibold text-brand" href={`/api/staff-monthly-accounts/${account.id}/receipt`}>Ver comprobante</a> : null}</section> : <p className="rounded-xl border p-3 text-sm text-muted">Pago pendiente de completar por Administración.</p>}
   </section>;
 }
