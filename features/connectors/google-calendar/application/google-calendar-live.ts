@@ -90,6 +90,37 @@ function pendingRecord(input: CalendarOperationalEventInput): GoogleCalendarSync
   };
 }
 
+function expectedCalendarStart(input: CalendarOperationalEventInput) {
+  return `${input.calendarStartDate}T${input.calendarStartTime}`;
+}
+
+async function verifyRemoteStart(
+  provider: GoogleCalendarLiveProvider,
+  googleEventId: string,
+  input: CalendarOperationalEventInput,
+) {
+  const remote = await provider.getEvent(googleEventId);
+  const remoteDateTime = remote.start?.dateTime;
+  const remoteTimeZone = remote.start?.timeZone;
+  if (!remoteDateTime || remoteTimeZone !== "America/Santiago") {
+    throw new Error(`CALENDAR_REMOTE_VERIFY_FAILED: expected ${expectedCalendarStart(input)} America/Santiago, received ${remoteDateTime ?? "missing"} ${remoteTimeZone ?? "missing"}`);
+  }
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Santiago",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date(remoteDateTime));
+  const values = Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+  const actual = `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}`;
+  if (actual !== expectedCalendarStart(input)) {
+    throw new Error(`CALENDAR_REMOTE_VERIFY_FAILED: expected ${expectedCalendarStart(input)} America/Santiago, received ${actual} ${remoteTimeZone}`);
+  }
+}
+
 export class GoogleCalendarLive {
   constructor(
     private readonly workspace: GoogleWorkspaceConnection,
@@ -101,6 +132,7 @@ export class GoogleCalendarLive {
     input: CalendarOperationalEventInput,
     operation: GoogleCalendarSyncOperation = "UPSERT",
   ): Promise<GoogleCalendarLiveResult> {
+    console.info("[calendar-time-sync]", { stage: "CALENDAR_TIME_SYNC_RESOLVE", project_id: input.planId, requested_event_time: input.calendarStartTime, resolved_start_at: `${input.calendarStartDate}T${input.calendarStartTime}`, timezone: "America/Santiago" });
     const baseRecord = pendingRecord(input);
     if (input.planStatus !== "APPROVED") {
       return { ok: false, record: baseRecord, error: { code: "PLAN_NOT_APPROVED", message: "Solo los planes aprobados pueden sincronizarse.", retryable: false } };
@@ -113,6 +145,7 @@ export class GoogleCalendarLive {
     }
 
     const existing = await this.repository.findByOrbitEventId(baseRecord.orbitEventId);
+    console.info("[calendar-time-sync]", { stage: "CALENDAR_TIME_SYNC_EXISTING_EVENT", project_id: input.planId, external_event_id: existing?.googleEventId ?? null });
     const payload = mapOperationalEventToCalendar(input);
     try {
       if (operation === "CANCEL" || operation === "RESTORE") {
@@ -120,23 +153,32 @@ export class GoogleCalendarLive {
         const reference = operation === "CANCEL"
           ? await this.provider.cancelEvent(existing.googleEventId)
           : await this.provider.restoreEvent(existing.googleEventId, payload);
+        if (operation === "RESTORE") await verifyRemoteStart(this.provider, reference.googleEventId, input);
         const record = await this.repository.save({ ...existing, status: operation === "CANCEL" ? "CANCELLED" : "SYNCHRONIZED", googleEventUrl: reference.googleEventUrl, sourceFingerprint: fingerprint(input), lastSynchronization: input.updatedAt, errorMessage: undefined });
         return { ok: true, record, operation: operation === "CANCEL" ? "CANCELLED" : "RESTORED" };
       }
 
       if (!existing?.googleEventId) {
+        console.info("[calendar-time-sync]", { stage: "CALENDAR_TIME_SYNC_UPDATE", project_id: input.planId, external_event_id: null, requested_event_time: input.calendarStartTime });
         const reference = await this.provider.createEvent(payload);
+        console.info("[calendar-time-sync]", { stage: "CALENDAR_TIME_SYNC_VERIFY", project_id: input.planId, external_event_id: reference.googleEventId });
+        await verifyRemoteStart(this.provider, reference.googleEventId, input);
+        console.info("[calendar-time-sync]", { stage: "CALENDAR_TIME_SYNC_PERSIST", project_id: input.planId, external_event_id: reference.googleEventId, status: "SYNCHRONIZED" });
         const record = await this.repository.save({ ...baseRecord, status: "SYNCHRONIZED", googleEventId: reference.googleEventId, googleEventUrl: reference.googleEventUrl, lastSynchronization: input.updatedAt });
         return { ok: true, record, operation: "CREATED" };
       }
       if (existing.sourceFingerprint === fingerprint(input) && existing.status === "SYNCHRONIZED") {
         return { ok: true, record: existing, operation: "UNCHANGED" };
       }
+      console.info("[calendar-time-sync]", { stage: "CALENDAR_TIME_SYNC_UPDATE", project_id: input.planId, external_event_id: existing.googleEventId, requested_event_time: input.calendarStartTime });
       const reference = await this.provider.updateEvent(existing.googleEventId, payload);
+      console.info("[calendar-time-sync]", { stage: "CALENDAR_TIME_SYNC_VERIFY", project_id: input.planId, external_event_id: reference.googleEventId });
+      await verifyRemoteStart(this.provider, reference.googleEventId, input);
+      console.info("[calendar-time-sync]", { stage: "CALENDAR_TIME_SYNC_PERSIST", project_id: input.planId, external_event_id: reference.googleEventId, status: "SYNCHRONIZED" });
       const record = await this.repository.save({ ...existing, status: "SYNCHRONIZED", googleEventUrl: reference.googleEventUrl, sourceFingerprint: fingerprint(input), lastSynchronization: input.updatedAt, errorMessage: undefined });
       return { ok: true, record, operation: "UPDATED" };
     } catch (error) {
-      console.error("Google Calendar synchronization failed", error);
+      console.error("[calendar-time-sync]", { stage: "CALENDAR_TIME_SYNC_VERIFY", project_id: input.planId, external_event_id: existing?.googleEventId ?? null, requested_event_time: input.calendarStartTime, resolved_start_at: `${input.calendarStartDate}T${input.calendarStartTime}`, timezone: "America/Santiago", code: error instanceof Error && error.message.startsWith("CALENDAR_REMOTE_VERIFY_FAILED") ? "CALENDAR_REMOTE_VERIFY_FAILED" : "PROVIDER_ERROR", message: error instanceof Error ? error.message : String(error) });
       const record = await this.repository.save({ ...(existing ?? baseRecord), status: "ERROR", errorMessage: "Google Calendar no pudo completar la operación." });
       return { ok: false, record, error: { code: "PROVIDER_ERROR", message: record.errorMessage ?? "Error de proveedor.", retryable: true } };
     }

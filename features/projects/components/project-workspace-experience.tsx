@@ -1137,6 +1137,7 @@ export function ProjectWorkspaceExperience(
             )}
             {moduleVisible("DOCUMENTS") && (
               <Section
+                className="2xl:col-span-2"
                 eyebrow="07 · Archivos"
                 icon={<FolderOpen className="size-5" />}
                 id="documents"
@@ -1241,13 +1242,14 @@ export function ProjectWorkspaceExperience(
             )}
             {moduleVisible("FINANCIAL_SUMMARY") && (
               <Section
+                className="2xl:col-span-2"
                 eyebrow="09 · Rentabilidad real"
                 icon={<Gauge className="size-5" />}
                 id="event-finance"
                 title="Resumen financiero del evento"
               >
                 {event.profit ? (
-                  <div className="space-y-5 [&_dd]:whitespace-nowrap">
+                  <div className="space-y-5">
                     {(() => {
                       const netRevenue = event.profit.revenue.contractedService + event.profit.revenue.extras + event.profit.revenue.transport - event.profit.revenue.discount;
                       const operatingProfit = netRevenue - event.profit.costs.totalOperationalCost;
@@ -1727,17 +1729,17 @@ function HeroMetric({ label, value }: { label: string; value: string }) {
 }
 function MiniMetric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="min-w-0 rounded-xl border bg-background/30 p-4">
+    <div className="min-w-[140px] rounded-xl border bg-background/30 p-4">
       <p className="min-w-0 whitespace-nowrap text-[clamp(0.875rem,1.65vw,1.5rem)] font-semibold leading-tight tabular-nums">{value}</p>
-      <p className="mt-1 line-clamp-2 break-words text-xs text-muted">{label}</p>
+      <p className="mt-1 line-clamp-2 break-words text-xs leading-4 text-muted">{label}</p>
     </div>
   );
 }
 function MiniMoney({ label, value }: { label: string; value: number }) {
   return (
-    <div className="min-w-0 rounded-xl border bg-background/30 p-4">
+    <div className="min-w-[140px] rounded-xl border bg-background/30 p-4">
       <p className="min-w-0 whitespace-nowrap text-[clamp(0.875rem,1.65vw,1.5rem)] font-semibold leading-tight tabular-nums">{money(value)}</p>
-      <p className="mt-1 line-clamp-2 break-words text-xs text-muted">{label}</p>
+      <p className="mt-1 line-clamp-2 break-words text-xs leading-4 text-muted">{label}</p>
     </div>
   );
 }
