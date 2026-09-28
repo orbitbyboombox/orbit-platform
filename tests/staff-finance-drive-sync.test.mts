@@ -4,7 +4,8 @@ import assert from "node:assert/strict";
 
 const service = readFileSync("features/connectors/google-drive/application/staff-finance-document-sync.service.ts", "utf8");
 const route = readFileSync("app/api/integrations/google-drive/staff-finance/route.ts", "utf8");
-const panel = readFileSync("features/staff-monthly-account/staff-monthly-account-panel.tsx", "utf8");
+const panel = readFileSync("features/staff-payments/staff-payments-center.tsx", "utf8");
+const accountPanel = readFileSync("features/staff-monthly-account/staff-monthly-account-panel.tsx", "utf8");
 
 test("staff finance Drive sync keeps the three canonical document chains separate", () => {
   assert.match(service, /staff_expense_submissions/);
@@ -25,10 +26,13 @@ test("staff finance Drive sync uses deterministic staff/year/month folders", () 
 });
 
 test("Founder Staff Finance exposes an authenticated Drive sync action", () => {
-  assert.match(panel, /GOOGLE DRIVE — RESPALDO DOCUMENTAL/);
+  assert.match(panel, /GOOGLE DRIVE · RESPALDO DOCUMENTAL/);
+  assert.match(panel, /Sincroniza gastos, reembolsos y comprobantes de pago Staff con Google Drive\./);
   assert.match(panel, /SINCRONIZAR DOCUMENTOS A DRIVE/);
   assert.match(panel, /fetch\("\/api\/integrations\/google-drive\/staff-finance"/);
   assert.match(panel, /from: "2026-08-01", to: "2026-10-01"/);
   assert.match(panel, /VER DETALLE/);
   assert.match(panel, /data-staff-drive-sync/);
+  assert.match(panel, /Cierre mensual Staff[\s\S]*StaffFinanceDriveSync[\s\S]*PaymentSheet/);
+  assert.doesNotMatch(accountPanel, /StaffFinanceDriveSync/);
 });

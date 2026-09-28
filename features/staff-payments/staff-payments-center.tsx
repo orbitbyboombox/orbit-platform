@@ -399,6 +399,7 @@ export function StaffPaymentsCenter({
           </p>
         )}
       </section>
+      <StaffFinanceDriveSync />
       <PaymentSheet month={month} rows={rows} />
       <div className="grid gap-4 xl:grid-cols-2">
         {rows.map((row) => (
@@ -503,6 +504,99 @@ export function StaffPaymentsCenter({
     </section>
   );
 }
+
+type DriveSyncStatus = "PENDING" | "SYNCED" | "PARTIAL" | "ERROR";
+type DriveSyncItem = {
+  kind: "EXPENSE" | "REIMBURSEMENT" | "PAYMENT";
+  sourceId: string;
+  status: "SYNCED" | "REQUIRES_REVIEW" | "ERROR";
+  staff?: string;
+  event?: string;
+  amount?: number;
+  reason?: string;
+};
+type DriveSyncSummary = {
+  processed: number;
+  synced: number;
+  requiresReview: number;
+  errors: number;
+  results: DriveSyncItem[];
+};
+
+function StaffFinanceDriveSync() {
+  const [syncing, setSyncing] = useState(false);
+  const [status, setStatus] = useState<DriveSyncStatus>("PENDING");
+  const [summary, setSummary] = useState<DriveSyncSummary | null>(null);
+  const [message, setMessage] = useState("");
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const runSync = async () => {
+    if (syncing) return;
+    setSyncing(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/integrations/google-drive/staff-finance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ from: "2026-08-01", to: "2026-10-01" }),
+      });
+      const data = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+        processed?: number;
+        synced?: number;
+        requiresReview?: number;
+        results?: DriveSyncItem[];
+      };
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error || "No fue posible sincronizar documentos Staff.");
+      }
+      const results = data.results ?? [];
+      const next = {
+        processed: Number(data.processed ?? results.length),
+        synced: Number(data.synced ?? results.filter((item) => item.status === "SYNCED").length),
+        requiresReview: Number(data.requiresReview ?? results.filter((item) => item.status === "REQUIRES_REVIEW").length),
+        errors: results.filter((item) => item.status === "ERROR").length,
+        results,
+      };
+      setSummary(next);
+      setDetailsOpen(false);
+      setStatus(next.errors > 0 ? "ERROR" : next.requiresReview > 0 ? (next.synced > 0 ? "PARTIAL" : "ERROR") : "SYNCED");
+      setMessage("Sincronización finalizada.");
+    } catch (error) {
+      setStatus("ERROR");
+      setMessage(error instanceof Error ? error.message : "No fue posible sincronizar documentos Staff.");
+    } finally {
+      setSyncing(false);
+    }
+  };
+  const statusVariant = status === "SYNCED" ? "success" : status === "ERROR" ? "danger" : "warning";
+  const kindLabel = { EXPENSE: "GASTO ORIGINAL", REIMBURSEMENT: "REEMBOLSO PAGADO", PAYMENT: "COMPROBANTE PAGO" } as const;
+  return (
+    <section className="rounded-2xl border border-brand/30 bg-brand/5 p-4" data-staff-drive-sync>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">GOOGLE DRIVE · RESPALDO DOCUMENTAL</p>
+          <p className="mt-1 text-sm text-muted">Sincroniza gastos, reembolsos y comprobantes de pago Staff con Google Drive.</p>
+        </div>
+        <StatusBadge label={status} variant={statusVariant} />
+      </div>
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <button className="inline-flex min-h-11 items-center rounded-xl bg-brand px-4 text-sm font-semibold text-brand-foreground" aria-busy={syncing} disabled={syncing} onClick={runSync} type="button">
+          {syncing ? "Sincronizando documentos Staff con Google Drive…" : "SINCRONIZAR DOCUMENTOS A DRIVE"}
+        </button>
+        {summary ? <button className="inline-flex min-h-11 items-center rounded-xl border px-4 text-sm font-semibold" onClick={() => setDetailsOpen((value) => !value)} type="button">{detailsOpen ? "OCULTAR DETALLE" : "VER DETALLE"}</button> : null}
+      </div>
+      {summary ? <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4"><DriveMetric label="Procesados" value={summary.processed} /><DriveMetric label="Sincronizados" value={summary.synced} /><DriveMetric label="Requieren revisión" value={summary.requiresReview} /><DriveMetric label="Errores" value={summary.errors} /></div> : null}
+      {message ? <p aria-live="polite" className="mt-3 rounded-xl border p-3 text-sm text-muted">{message}</p> : null}
+      {detailsOpen && summary ? <div className="mt-4 space-y-2">{summary.results.map((item) => <article className="rounded-xl border bg-background/60 p-3 text-sm" key={`${item.kind}-${item.sourceId}`}><div className="flex flex-wrap items-start justify-between gap-2"><div><p className="font-semibold">{item.staff || "Staff no identificado"} · {item.event || "Evento no identificado"}</p><p className="mt-1 text-xs text-muted">{kindLabel[item.kind]}{typeof item.amount === "number" ? ` · ${money.format(item.amount)}` : ""}</p></div><StatusBadge label={item.status === "SYNCED" ? "SYNCED" : item.status === "ERROR" ? "ERROR" : "REQUIERE REVISIÓN"} variant={item.status === "SYNCED" ? "success" : item.status === "ERROR" ? "danger" : "warning"} /></div>{item.reason ? <p className="mt-2 text-xs text-muted">{item.reason}</p> : null}</article>)}</div> : null}
+    </section>
+  );
+}
+
+function DriveMetric({ label, value }: { label: string; value: number }) {
+  return <div className="rounded-xl border bg-background/50 p-3"><p className="text-xs text-muted">{label}</p><p className="mt-1 font-semibold tabular-nums">{value}</p></div>;
+}
+
 function PaymentSheet({
   month,
   rows,
