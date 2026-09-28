@@ -118,6 +118,7 @@ async function claimEmail(input: {
   title: string;
   message: string;
   account: StaffMonthlyAccount;
+  relatedHref?: string;
 }) {
   const admin = createAdminClient();
   const { data, error } = await admin
@@ -135,7 +136,7 @@ async function claimEmail(input: {
         action_required: false,
         entity_type: "StaffMonthlyAccount",
         entity_id: input.account.id,
-        related_href: "/staff-portal",
+        related_href: input.relatedHref ?? "/staff-portal",
         metadata: {
           email_status: "CLAIMED",
           accounting_month: input.account.month,
@@ -174,16 +175,27 @@ async function markEmail(id: string, metadata: Record<string, unknown>) {
 
 export async function sendMonthlySettlementReadyEmail(
   input: Awaited<ReturnType<typeof prepareMonthlySettlementDocument>>,
+  closeVersion: number,
 ) {
   if (!input.staff.email)
     throw new Error(`El Staff ${input.staff.name} no tiene email.`);
-  const correlationId = `staff-monthly-settlement-ready:${input.account.id}`;
+  const correlationId = `staff-boleta-request:${input.account.id}:${closeVersion}`;
+  const admin = createAdminClient();
+  const { data: settings, error: settingsError } = await admin
+    .from("company_settings")
+    .select("legal_name,tax_id,address,city")
+    .eq("settings_key", "PRIMARY")
+    .single();
+  if (settingsError || !settings)
+    throw settingsError ?? new Error("Configuración de empresa no encontrada.");
+  const portalHref = "/staff-portal";
   const notificationId = await claimEmail({
     correlationId,
     notificationType: "STAFF_MONTHLY_SETTLEMENT_READY",
     title: "Tu liquidación mensual BOOMBOX está lista",
-    message: `${staffMonthLabel(input.account.month)} · Boleta ${input.account.boletaGross}`,
+    message: `Tu liquidación de ${staffMonthLabel(input.account.month)} está cerrada. Debes subir tu boleta.`,
     account: input.account,
+    relatedHref: portalHref,
   });
   if (!notificationId) return { sent: false, idempotent: true };
   try {
@@ -193,6 +205,12 @@ export async function sendMonthlySettlementReadyEmail(
       monthLabel: staffMonthLabel(input.account.month),
       boletaGross: input.account.boletaGross,
       finalTransfer: input.account.finalTransferAmount,
+      company: {
+        legalName: settings.legal_name,
+        taxId: settings.tax_id,
+        address: settings.address,
+        city: settings.city,
+      },
     });
     const sent = await new GoogleGmailApiProvider(
       await loadGoogleWorkspaceAccessToken(),

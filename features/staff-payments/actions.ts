@@ -263,15 +263,15 @@ export async function closeStaffMonthAction(month: string) {
       { p_month: accountingMonth },
     );
     if (previewError) throw previewError;
-    if (preview?.status === "CLOSED" || preview?.status === "PAID") {
-      return { ok: true, data: preview, delivered: 0, idempotent: 0 };
+    const alreadyClosed = preview?.status === "CLOSED" || preview?.status === "PAID";
+    if (!alreadyClosed) {
+      const { error: generateError } = await client.rpc(
+        "generate_staff_monthly_accounts",
+        { p_month: accountingMonth },
+      );
+      if (generateError) throw generateError;
     }
-    const { error: generateError } = await client.rpc(
-      "generate_staff_monthly_accounts",
-      { p_month: accountingMonth },
-    );
-    if (generateError) throw generateError;
-    const { data: accounts, error: accountError } = await client
+    let { data: accounts, error: accountError } = await client
       .from("staff_monthly_accounts")
       .select("id,settlement_status,review_required,work_net")
       .eq("accounting_month", accountingMonth)
@@ -279,35 +279,45 @@ export async function closeStaffMonthAction(month: string) {
     if (accountError) throw accountError;
     if (!accounts?.length)
       throw new Error("No existen liquidaciones Staff para el período.");
-    const blocked = accounts.filter(
-      (account) => account.review_required || Number(account.work_net) <= 0,
-    );
-    if (blocked.length) {
-      throw new Error(
-        `${blocked.length} liquidación(es) requieren revisión Founder antes del cierre.`,
+    if (!alreadyClosed) {
+      const blocked = accounts.filter(
+        (account) => account.review_required || Number(account.work_net) <= 0,
       );
+      if (blocked.length) {
+        throw new Error(
+          `${blocked.length} liquidación(es) requieren revisión Founder antes del cierre.`,
+        );
+      }
     }
     let delivered = 0;
     let idempotent = 0;
-    for (const account of accounts) {
-      if (account.settlement_status !== "FINALIZED") {
-        const { error: finalizeError } = await client.rpc(
-          "finalize_staff_monthly_account",
-          { p_account_id: account.id },
-        );
-        if (finalizeError) throw finalizeError;
+    if (!alreadyClosed) {
+      for (const account of accounts) {
+        if (account.settlement_status !== "FINALIZED") {
+          const { error: finalizeError } = await client.rpc(
+            "finalize_staff_monthly_account",
+            { p_account_id: account.id },
+          );
+          if (finalizeError) throw finalizeError;
+        }
       }
     }
+    const { data, error } = alreadyClosed
+      ? { data: preview, error: null }
+      : await client.rpc("close_staff_month", { p_month: accountingMonth });
+    if (error) throw error;
+    const { data: closeRow, error: closeReadError } = await client
+      .from("staff_monthly_closes")
+      .select("close_version,status")
+      .eq("accounting_month", accountingMonth)
+      .single();
+    if (closeReadError || !closeRow) throw closeReadError ?? new Error("No fue posible leer el cierre mensual.");
     for (const account of accounts) {
       const prepared = await prepareMonthlySettlementDocument(account.id);
-      const delivery = await sendMonthlySettlementReadyEmail(prepared);
+      const delivery = await sendMonthlySettlementReadyEmail(prepared, closeRow.close_version);
       if (delivery.sent) delivered += 1;
       if (delivery.idempotent) idempotent += 1;
     }
-    const { data, error } = await client.rpc("close_staff_month", {
-      p_month: accountingMonth,
-    });
-    if (error) throw error;
     revalidatePath("/resources/staff");
     revalidatePath("/staff-portal");
     revalidatePath("/");

@@ -33,22 +33,27 @@ test("monthly settlement email is premium and contains the exact company boleta 
     monthLabel: "septiembre de 2026",
     boletaGross: 100000,
     finalTransfer: 70000,
+    company: {
+      legalName: "PRODUCCIONES BOOMBOX COMPANY SpA",
+      taxId: "76.565.272-3",
+      address: "Puerta Oriente 361 · Puertas de Chicureo",
+      city: "Colina",
+    },
   });
   for (const expected of [
-    "Tu liquidación mensual BOOMBOX está lista.",
-    "PRODUCCIONES BOOMBOX COMPANY SPA",
+    "Tu liquidación BOOMBOX de septiembre 2026 ya está cerrada.",
+    "PRODUCCIONES BOOMBOX COMPANY SpA",
     "76.565.272-3",
-    "Giro: Publicidad",
-    "PUERTA ORIENTE 361 OF 310 TORRE C",
+    "Dirección: Puerta Oriente 361 · Puertas de Chicureo",
     "Colina",
-    "contabilidad@bbox.cl",
-    "EVENTOS BOOMBOX",
+    "Glosa: OPERADOR EVENTOS",
     "Subir boleta en ORBIT",
   ])
     assert.match(
       email.htmlBody + email.textBody,
       new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
     );
+  assert.equal(email.subject, "BOOMBOX — Boleta de honorarios septiembre 2026");
 });
 
 test("payment completed email is branded and independent from the settlement request", () => {
@@ -67,16 +72,30 @@ test("payment completed email is branded and independent from the settlement req
   assert.match(email.htmlBody, /Ver comprobante en ORBIT/);
 });
 
-test("month close finalizes all accounts before attachment delivery and canonical close", () => {
+test("month close finalizes, closes, then delivers the boleta request", () => {
   const finalize = closeActions.indexOf("finalize_staff_monthly_account");
   const deliver = closeActions.lastIndexOf("sendMonthlySettlementReadyEmail");
   const close = closeActions.lastIndexOf("close_staff_month");
-  assert.ok(finalize > 0 && deliver > finalize && close > deliver);
+  assert.ok(finalize > 0 && close > finalize && deliver > close);
   assert.match(closeActions, /prepareMonthlySettlementDocument/);
   assert.match(monthlyService, /attachments:\s*\[/);
-  assert.match(monthlyService, /staff-monthly-settlement-ready:/);
+  assert.match(monthlyService, /staff-boleta-request:/);
+  assert.match(monthlyService, /company_settings/);
+  assert.match(monthlyService, /relatedHref/);
   assert.match(monthlyService, /ignoreDuplicates:\s*true/);
   assert.match(monthlyService, /FAILED_REQUIRES_RECONCILIATION/);
+});
+
+test("the final production close gate does not require boleta or payment first", () => {
+  const migration = readFileSync(
+    "supabase/migrations/20260927170000_staff_month_close_then_boleta_request.sql",
+    "utf8",
+  );
+  assert.match(migration, /settlement_status<>'FINALIZED'/);
+  assert.match(migration, /staff_monthly_blocking_events/);
+  assert.doesNotMatch(migration, /boleta_status in/);
+  assert.doesNotMatch(migration, /payment_status='READY_TO_PAY'/);
+  assert.match(migration, /status='CLOSED'/);
 });
 
 test("canonical monthly close freezes finalized accounts and only advances to PAID after payments", () => {

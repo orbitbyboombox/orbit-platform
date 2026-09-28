@@ -89,12 +89,19 @@ export function buildMonthlySettlementReadyEmail(input: {
   monthLabel: string;
   boletaGross: number;
   finalTransfer: number;
+  company: {
+    legalName: string;
+    taxId: string;
+    address: string;
+    city: string;
+  };
 }) {
   const portal = `${input.appUrl.replace(/\/$/, "")}/staff-portal`;
-  const textBody = `Hola ${input.firstName},\n\nTu liquidación mensual BOOMBOX de ${input.monthLabel} está lista.\nAdjuntamos el PDF con el detalle.\n\nPor favor emite tu boleta de honorarios por ${money(input.boletaGross)} con estos datos:\nPRODUCCIONES BOOMBOX COMPANY SPA\nRUT 76.565.272-3\nGiro: Publicidad\nPUERTA ORIENTE 361 OF 310 TORRE C\nColina\ncontabilidad@bbox.cl\nDetalle sugerido: EVENTOS BOOMBOX\n\nMonto final a depositar: ${money(input.finalTransfer)}\nSube tu boleta en ORBIT: ${portal}`;
-  const content = `<p style="margin:0">Hola ${escapeHtml(input.firstName)},</p><p style="margin:12px 0 0;font-size:18px;font-weight:700">Tu liquidación mensual BOOMBOX está lista.</p><p style="margin:10px 0 0">Adjuntamos el PDF con el detalle de ${escapeHtml(input.monthLabel)}. Por favor emite tu boleta de honorarios por <strong>${escapeHtml(money(input.boletaGross))}</strong>.</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:22px;border:1px solid #e8e2d8;border-radius:13px;background:#faf9f6"><tr><td style="padding:18px"><p style="margin:0 0 9px;font-size:11px;font-weight:700;letter-spacing:.14em;color:#d76d00">DATOS EMPRESA</p><p style="margin:3px 0;font-weight:700">PRODUCCIONES BOOMBOX COMPANY SPA</p><p style="margin:3px 0">RUT 76.565.272-3 · Giro: Publicidad</p><p style="margin:3px 0">PUERTA ORIENTE 361 OF 310 TORRE C · Colina</p><p style="margin:3px 0">contabilidad@bbox.cl</p><p style="margin:12px 0 0"><strong>Detalle sugerido:</strong> EVENTOS BOOMBOX</p></td></tr></table><p style="margin:18px 0 0"><strong>Monto final a depositar:</strong> ${escapeHtml(money(input.finalTransfer))}</p>`;
+  const month = input.monthLabel.replace(" de ", " ");
+  const textBody = `Hola ${input.firstName},\n\nTu liquidación BOOMBOX de ${month} ya está cerrada.\n\nMonto de boleta: ${money(input.boletaGross)}\n\nDatos para emitir:\n\nRazón social: ${input.company.legalName}\nRUT: ${input.company.taxId}\nDirección: ${input.company.address}\nComuna: ${input.company.city}\nGlosa: OPERADOR EVENTOS\n\nPor favor ingresa a tu Portal Staff para subir tu boleta.\n${portal}`;
+  const content = `<p style="margin:0">Hola ${escapeHtml(input.firstName)},</p><p style="margin:12px 0 0;font-size:18px;font-weight:700">Tu liquidación BOOMBOX de ${escapeHtml(month)} ya está cerrada.</p><p style="margin:10px 0 0"><strong>Monto de boleta:</strong> ${escapeHtml(money(input.boletaGross))}</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:22px;border:1px solid #e8e2d8;border-radius:13px;background:#faf9f6"><tr><td style="padding:18px"><p style="margin:0 0 9px;font-size:11px;font-weight:700;letter-spacing:.14em;color:#d76d00">DATOS PARA EMITIR</p><p style="margin:3px 0;font-weight:700">Razón social: ${escapeHtml(input.company.legalName)}</p><p style="margin:3px 0">RUT: ${escapeHtml(input.company.taxId)}</p><p style="margin:3px 0">Dirección: ${escapeHtml(input.company.address)}</p><p style="margin:3px 0">Comuna: ${escapeHtml(input.company.city)}</p><p style="margin:12px 0 0"><strong>Glosa:</strong> OPERADOR EVENTOS</p></td></tr></table><p style="margin:18px 0 0">Por favor ingresa a tu Portal Staff para subir tu boleta.</p>`;
   return {
-    subject: `Tu liquidación mensual BOOMBOX está lista · ${input.monthLabel}`,
+    subject: `BOOMBOX — Boleta de honorarios ${month}`,
     textBody,
     htmlBody: premiumFrame({
       appUrl: input.appUrl,
