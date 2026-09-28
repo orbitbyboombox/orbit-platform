@@ -34,13 +34,24 @@ const canonicalRouteType = (value: string) => {
 export async function saveLogisticsRoutePlanAction(data: FormData): Promise<Result> {
   try {
     const client = await admin();
+    const projectIds = ids(data);
+    if (!projectIds.length) throw new Error("Selecciona al menos un Evento válido.");
+    const { data: projects, error: projectsError } = await client
+      .from("projects")
+      .select("id")
+      .in("id", projectIds)
+      .is("deleted_at", null);
+    if (projectsError) throw projectsError;
+    const existingProjectIds = new Set((projects ?? []).map((project) => project.id));
+    const invalidProjectId = projectIds.find((projectId) => !existingProjectIds.has(projectId));
+    if (invalidProjectId) throw new Error("Uno de los Eventos seleccionados ya no existe.");
     const { data: routeId, error } = await client.rpc("save_logistics_route_plan", {
       p_route_id: text(data, "routeId") || null,
       p_asset_id: text(data, "vehicleId") || null,
       p_route_date: text(data, "date"),
       p_driver_staff_id: text(data, "driverId") || null,
       p_route_type: canonicalRouteType(text(data, "routeType")),
-      p_project_ids: ids(data),
+      p_project_ids: projectIds,
     });
     if (error) throw error;
     const staffIds = data.getAll("staffIds").map(String).filter(Boolean);

@@ -19,3 +19,9 @@ test("route save logs server diagnostics without exposing them in the UI", () =>
   assert.match(action, /console\.error\("\[logistics-route-save\]"/);
   assert.match(action, /return "No fue posible guardar la ruta\./);
 });
+
+test("route save validates canonical project ids before the RPC", () => {
+  assert.match(action, /from\("projects"\)/);
+  assert.match(action, /existingProjectIds/);
+  assert.match(action, /p_project_ids: projectIds/);
+});

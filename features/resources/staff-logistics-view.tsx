@@ -133,9 +133,11 @@ const routeTarget = (event: StaffLogisticsEvent, type: LogisticsRouteType) => ty
 export const buildLogisticsRouteDraft = (events: readonly StaffLogisticsEvent[], date: string, type: LogisticsRouteType) => events
   .filter((event) => event.date === date)
   .sort((a, b) => clockMinutes(routeTarget(a, type)) - clockMinutes(routeTarget(b, type)) || a.commune.localeCompare(b.commune) || a.customer.localeCompare(b.customer))
-  .map((event) => event.id);
+  .map((event) => event.projectId);
+const routeEventForProjectId = (events: readonly StaffLogisticsEvent[], projectId: string) =>
+  events.find((event) => event.projectId === projectId || event.id === projectId);
 const routeWarnings = (events: readonly StaffLogisticsEvent[], eventIds: readonly string[], type: LogisticsRouteType) => {
-  const selected = eventIds.map((id) => events.find((event) => event.id === id)).filter((event): event is StaffLogisticsEvent => Boolean(event));
+  const selected = eventIds.map((id) => routeEventForProjectId(events, id)).filter((event): event is StaffLogisticsEvent => Boolean(event));
   const warnings = new Set<string>();
   selected.forEach((event) => {
     if (event.box === "Sin asignar") warnings.add("FALTA CAJA");
@@ -619,7 +621,7 @@ function RoutePlanner({ days, draft, events, onChange, initialRoutes, vehicles, 
     setStaffIds(existing.staffIds);
     onChange({ routeId: existing.id, date: existing.date, type: existing.type, status: existing.status, eventIds: existing.eventIds, vehicleId: existing.vehicleId, driverId: existing.driverId, staffIds: existing.staffIds });
   }, [date, draft, initialRoutes, onChange, type]);
-  const routeEvents = draft ? draft.eventIds.map((id) => events.find((event) => event.id === id)).filter((event): event is StaffLogisticsEvent => Boolean(event)) : [];
+  const routeEvents = draft ? draft.eventIds.map((id) => routeEventForProjectId(events, id)).filter((event): event is StaffLogisticsEvent => Boolean(event)) : [];
   const warnings = draft ? routeWarnings(events, draft.eventIds, draft.type) : [];
   const generate = () => onChange({ date, type, status: "DRAFT", eventIds: buildLogisticsRouteDraft(events, date, type), vehicleId, driverId: "", staffIds });
   const move = (index: number, direction: -1 | 1) => {
@@ -644,8 +646,8 @@ function RoutePlanner({ days, draft, events, onChange, initialRoutes, vehicles, 
 function LogisticsDetail({ event, onClose, overrides, routeDraft }: { event: StaffLogisticsEvent; onClose: () => void; overrides: Record<string, LogisticsSector>; routeDraft: LogisticsRouteDraft | null }) {
   const state = statusView[normalizeStatus(event.status)];
   const locationHref = event.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.address)}` : null;
-  const setupOrder = routeDraft?.type === "ASSEMBLY" ? (routeDraft.eventIds.indexOf(event.id) + 1 || null) : null;
-  const teardownOrder = routeDraft?.type === "DISASSEMBLY" ? (routeDraft.eventIds.indexOf(event.id) + 1 || null) : null;
+  const setupOrder = routeDraft?.type === "ASSEMBLY" ? (routeDraft.eventIds.indexOf(event.projectId) + 1 || null) : null;
+  const teardownOrder = routeDraft?.type === "DISASSEMBLY" ? (routeDraft.eventIds.indexOf(event.projectId) + 1 || null) : null;
   return <section className="rounded-2xl border border-brand/30 bg-[#111214] p-4 sm:p-5" aria-label="Detalle logístico del evento"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Detalle logístico del evento</p><h3 className="mt-1 text-xl font-semibold text-white">{event.customer}</h3><p className="mt-1 text-xs text-white/45">{event.orbitEventId} · {event.date} · {formatTime(event.time)} → {formatTime(event.endTime)}</p></div><button className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/10 px-3 text-xs font-semibold text-white/70 hover:border-brand hover:text-brand" onClick={onClose}><X className="size-4" />Cerrar</button></div><div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><DetailItem label="Evento" value={`${event.service}${event.duration ? ` · ${event.duration} horas` : ""}`} /><DetailItem label="Staff" value={`${event.operator} · Citación ${formatTime(event.staffCallAt)}`} /><DetailItem label="Caja Negra / equipo" value={event.box} /><DetailItem label="Estado operativo" value={state.label} tone={state.color} /></div><div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><DetailItem label="COMUNA" value={event.commune} /><DetailItem label="SECTOR" value={sectorForCommune(event.commune, overrides)} /><DetailItem label="MONTAJE" value={`${formatTime(event.setupTime)} · ${event.setupStaff}`} /><DetailItem label="DESMONTAJE" value={`${formatTime(event.teardownTime)} · ${event.teardownStaff}`} /></div>{(setupOrder || teardownOrder) && <p className="mt-3 text-xs font-semibold text-brand">ROUTE ORDER · {setupOrder ? `Montaje #${setupOrder}` : `Desmontaje #${teardownOrder}`}</p>}<div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]"><div className="rounded-xl border border-white/10 bg-[#17181a] p-3"><p className="text-[10px] font-semibold uppercase tracking-[.16em] text-white/40">Logística / ruta</p><p className="mt-1 flex items-start gap-2 text-sm text-white/80"><MapPin className="mt-0.5 size-4 shrink-0 text-brand" />{event.address || `${event.location} · ${event.commune}`}</p><p className="mt-2 text-xs text-white/45">Extras: {event.extras.length ? event.extras.join(" · ") : "Sin extras"}</p></div>{locationHref && <a className="inline-flex min-h-11 items-center justify-center rounded-xl bg-brand px-4 text-xs font-bold text-brand-foreground" href={locationHref} rel="noreferrer" target="_blank">Ver ubicación</a>}</div></section>;
 }
 
