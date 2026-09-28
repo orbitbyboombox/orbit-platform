@@ -469,6 +469,11 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
     () => calculateFormalQuote(lines, globalDiscountType, globalDiscountValue, depositPercent),
     [lines, globalDiscountType, globalDiscountValue, depositPercent],
   );
+  const negotiatedPostSend = Boolean(
+    initialDraft?.quoteId &&
+      initialDraft.officialPrice != null &&
+      Math.round(totals.total) !== Math.round(initialDraft.officialPrice),
+  );
   const create = () => {
     if (saveInFlightRef.current) return;
     saveInFlightRef.current = true;
@@ -535,8 +540,8 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
         <h2 className="text-2xl font-semibold">Constructor de cotizaciones</h2>
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           {initialDraft?.quoteId ? (
-            <Field label="Motivo del cambio (opcional)">
-              <input value={changeReason} onChange={(event) => setChangeReason(event.target.value)} placeholder="Cliente negoció valor" />
+            <Field label={negotiatedPostSend ? "Motivo del cambio / negociación (obligatorio)" : "Motivo del cambio (opcional)"}>
+              <input required={negotiatedPostSend} value={changeReason} onChange={(event) => setChangeReason(event.target.value)} placeholder="Cliente negoció valor" />
             </Field>
           ) : null}
           <Field label="Cliente existente">

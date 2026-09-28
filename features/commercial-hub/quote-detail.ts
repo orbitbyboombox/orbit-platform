@@ -350,6 +350,7 @@ export function buildCommercialQuoteDetail(
             quoteId: id,
             requestId: id,
             changeReason: "",
+            officialPrice: number(row.official_price, total),
             existingCustomerId: text(row.customer_id) || null,
             saveTemporaryCustomer: false,
             ...customer,
