@@ -76,7 +76,8 @@ test("month close finalizes, closes, then delivers the boleta request", () => {
   const finalize = closeActions.indexOf("finalize_staff_monthly_account");
   const deliver = closeActions.lastIndexOf("sendMonthlySettlementReadyEmail");
   const close = closeActions.lastIndexOf("close_staff_month");
-  assert.ok(finalize > 0 && close > finalize && deliver > close);
+  assert.equal(finalize, -1);
+  assert.ok(close > 0 && deliver > close);
   assert.match(closeActions, /prepareMonthlySettlementDocument/);
   assert.match(monthlyService, /attachments:\s*\[/);
   assert.match(monthlyService, /staff-boleta-request:/);

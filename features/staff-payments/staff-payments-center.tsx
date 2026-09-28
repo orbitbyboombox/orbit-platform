@@ -107,6 +107,8 @@ export function StaffPaymentsCenter({
       dueDate?: string;
       eligible?: number;
       ineligible?: number;
+      finalizedStaff?: number;
+      excludedStaff?: number;
       totals?: {
         people?: number;
         total?: number;
@@ -379,8 +381,16 @@ export function StaffPaymentsCenter({
           />
           <Metric label="Elegibles" value={Number(closeState?.eligible ?? 0)} />
           <Metric
-            label="En revisión"
-            value={Number(closeState?.ineligible ?? 0)}
+            label="Personas cerradas"
+            value={Number(closeState?.finalizedStaff ?? 0)}
+          />
+          <Metric
+            label="Boletas solicitadas"
+            value={Number(closeState?.finalizedStaff ?? 0)}
+          />
+          <Metric
+            label="Excluidas en cero"
+            value={Number(closeState?.excludedStaff ?? closeState?.ineligible ?? 0)}
           />
         </div>
         {closeMessage && (
