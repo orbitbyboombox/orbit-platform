@@ -1,7 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "git": {
-    "deploymentEnabled": false
+    "deploymentEnabled": {
+      "*": false,
+      "feat/v2.1-phase-c-box-kit-inventory": true
+    }
   },
   "crons": [
     {
