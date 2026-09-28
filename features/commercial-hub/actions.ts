@@ -451,21 +451,36 @@ export async function createFormalQuoteAction(input: FormalQuoteDraft) {
 }
 
 export async function sendFormalQuoteAction(input: { quoteId: string; email: string; cc?: string[]; subject: string; body: string; requestId: string; catalogDocumentId?: string }) {
+  let stage = "QUOTE_SEND_LOAD";
+  const enterStage = (nextStage: string) => {
+    stage = nextStage;
+    console.info(`[ORBIT][${nextStage}]`, { quoteId: input.quoteId, requestId: input.requestId });
+  };
   try {
     const { user } = await founder();
     const recipients = normalizeEmailRecipients({ to: input.email, cc: input.cc });
     const admin = createAdminClient();
+    enterStage("QUOTE_SEND_LOAD");
     const [{ data: quote, error }, company] = await Promise.all([
       admin.from("quotations").select("id,quotation_number,version,current_version_id,issue_date,expiration_date,customer_id,project_id,customer_snapshot,commercial_snapshot,pricing_snapshot,quotation_items(description,label,quantity,quoted_price,unit_price,total,item_type,display_order)").eq("id", input.quoteId).single(),
       loadCompanySettings(admin),
     ]);
     if (error || !quote) throw new Error("La cotización ya no está disponible.");
+    enterStage("QUOTE_SEND_VERSION");
     const { data: versionId, error: versionError } = await admin.rpc("ensure_current_quote_version", {
       p_quote_id: quote.id,
       p_actor: user.id,
     });
     if (versionError) throw versionError;
-    const version = Math.max(1, Number(quote.version ?? 1));
+    const { data: currentVersion, error: currentVersionError } = await admin
+      .from("quote_versions")
+      .select("id,version_number,status")
+      .eq("id", versionId)
+      .eq("quote_id", quote.id)
+      .single();
+    if (currentVersionError || !currentVersion) throw currentVersionError ?? new Error("La versión actual de la cotización no existe.");
+    const version = Number(currentVersion.version_number);
+    if (!Number.isInteger(version) || version < 1) throw new Error("La versión actual de la cotización no es válida.");
     const pricingSnapshot = (quote.pricing_snapshot ?? {}) as Record<string, unknown>;
     const snapshot = (quote.commercial_snapshot ?? (Object.keys(pricingSnapshot).length ? pricingSnapshot.commercial ?? pricingSnapshot : {})) as Record<string, unknown>;
     const customer = (quote.customer_snapshot ?? {}) as Record<string, string>;
@@ -474,10 +489,13 @@ export async function sendFormalQuoteAction(input: { quoteId: string; email: str
     const items = [...(quote.quotation_items ?? [])].sort((a, b) => Number(a.display_order) - Number(b.display_order));
     const configuredConditions = Array.isArray(company.pdfConfiguration.commercialReservationConditions) ? company.pdfConfiguration.commercialReservationConditions.filter((item): item is string => typeof item === "string" && item.trim().length > 0) : [];
     const breakdown = resolveCommercialBreakdown({ snapshot, items });
+    enterStage("QUOTE_SEND_PDF");
     const pdf = await createFormalQuotePdf({ number: quote.quotation_number, issueDate: quote.issue_date, expirationDate: quote.expiration_date, customer, event, lines: items.map((item) => ({ description: item.description || item.label, itemType: item.item_type, quantity: Number(item.quantity), quotedPrice: Number(item.quoted_price ?? item.unit_price), total: Number(item.total) })), ...breakdown, paymentCondition: snapshot.paymentCondition === "CORPORATE_CREDIT" || snapshot.paymentCondition === "CASH" ? snapshot.paymentCondition : "FIFTY_FIFTY", paymentTermDays: Number(snapshot.paymentTermDays ?? 0), company: { legalName: company.legalName, taxId: company.taxId, address: company.address, city: company.city, phone: company.phone, email: config.email || company.salesEmail || company.supportEmail, website: company.website, bankName: config.bankName || "Banco no configurado", bankAccountType: config.accountType || "Cuenta no configurada", bankAccountNumber: config.accountNumber || "Número no configurado", importantNotice: typeof company.pdfConfiguration.commercialImportantNotice === "string" ? company.pdfConfiguration.commercialImportantNotice : undefined, reservationConditions: configuredConditions, operationalConditions: normalizeQuoteOperationalConditions(company.pdfConfiguration.commercialOperationalConditions) } });
     const pdfPath = quoteStorageKey(quote.id, quote.quotation_number).replace(/\.pdf$/i, `_V${version}.pdf`);
+    enterStage("QUOTE_SEND_STORAGE");
     const upload = await admin.storage.from("orbit-documents").upload(pdfPath, pdf, { contentType: "application/pdf", upsert: false });
     if (upload.error && !/already exists|duplicate/i.test(upload.error.message ?? "")) throw upload.error;
+    enterStage("QUOTE_SEND_SIGNED_URL");
     const pdfUrl = await admin.storage.from("orbit-documents").createSignedUrl(pdfPath, 60 * 60 * 24 * 7);
     if (pdfUrl.error) throw pdfUrl.error;
     let catalogUrl = "";
@@ -492,6 +510,7 @@ export async function sendFormalQuoteAction(input: { quoteId: string; email: str
     }
     const subject = normalizeEmailNewlines(input.subject || formalQuoteSubject(quote.quotation_number, customer.company || customer.contact)).replaceAll("\n", " ").trim();
     const body = normalizeEmailNewlines(input.body);
+    enterStage("QUOTE_SEND_CLAIM");
     const { data: claim, error: claimError } = await admin.from("commercial_sends").insert({ idempotency_key: input.requestId, recipient_email: recipients.to, cc_recipients: recipients.cc, category: "COMPANIES_QUOTE", quotation_id: quote.id, customer_id: quote.customer_id, project_id: quote.project_id, subject, body_snapshot: body, document_snapshot: { quote: quote.quotation_number, pdfPath, catalog: catalogSnapshot }, status: "PREPARING", sent_by: user.id }).select("id").single();
     if (claimError) {
       if (claimError.code === "23505") return { ok: true as const, message: "Este envío ya está siendo procesado." };
@@ -519,17 +538,32 @@ export async function sendFormalQuoteAction(input: { quoteId: string; email: str
       attachmentNote: `${attachmentFilename} está incluido como archivo adjunto.`,
       signatureHtml: signature,
     });
+    enterStage("QUOTE_SEND_GMAIL");
     const sent = await new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken()).send({ to: recipients.to, cc: recipients.cc, subject, textBody: `${cleanBody}\n\nCotización: ${pdfUrl.data.signedUrl}${catalogUrl ? `\nCatálogo: ${catalogUrl}` : ""}\n\n${signatureUrl ? "" : signatureText}`.trim(), htmlBody, driveFileIds: [], attachments: [{ filename: attachmentFilename, mimeType: "application/pdf", content: new Uint8Array(pdf) }] });
     const timestamp = new Date().toISOString();
+    enterStage("QUOTE_SEND_VERSION_UPDATE");
     const { error: sendError } = await admin.from("commercial_sends").update({ status: "SENT", external_message_id: sent.messageId, sent_at: timestamp, document_snapshot: { quote: quote.quotation_number, version, pdfPath, catalog: catalogSnapshot } }).eq("id", claim.id);
     if (sendError) throw sendError;
     const { error: versionUpdateError } = await admin.from("quote_versions").update({ status: "SENT", pdf_storage_path: pdfPath, sent_at: timestamp, sent_by: user.id }).eq("id", versionId);
     if (versionUpdateError) throw versionUpdateError;
+    enterStage("QUOTE_SEND_QUOTE_UPDATE");
     const { error: quoteError } = await admin.from("quotations").update({ status: "SENT", pdf_storage_path: pdfPath, current_version_id: versionId, updated_by: user.id, updated_at: timestamp }).eq("id", quote.id).in("status", ["DRAFT", "NEGOTIATION", "VIEWED"]);
     if (quoteError) throw quoteError;
     revalidatePath("/leads");
     return { ok: true as const, message: `${quote.quotation_number} enviada y registrada.` };
-  } catch (error) { return fail(error, "No fue posible enviar la cotización."); }
+  } catch (error) {
+    const technical = error as { code?: string; message?: string; details?: string; hint?: string };
+    console.error("[ORBIT][QUOTE_SEND_FAILURE]", {
+      stage,
+      quoteId: input.quoteId,
+      requestId: input.requestId,
+      code: technical?.code ?? "UNKNOWN",
+      message: technical?.message ?? "Unknown quote send error",
+      details: technical?.details ?? null,
+      hint: technical?.hint ?? null,
+    });
+    return fail(error, "No fue posible enviar la cotización.");
+  }
 }
 
 export async function acceptCommercialQuoteAction(quoteId: string) {

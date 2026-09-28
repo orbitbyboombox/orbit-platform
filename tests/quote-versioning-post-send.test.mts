@@ -19,9 +19,23 @@ test("quote versioning preserves sent history and freezes accepted version", asy
 test("resending a quote uses a versioned immutable PDF path", async () => {
   const source = await readFile(actions, "utf8");
   assert.match(source, /ensure_current_quote_version/);
+  assert.match(source, /from\("quote_versions"\)/);
+  assert.match(source, /version_number/);
+  assert.match(source, /currentVersion\.version_number/);
+  assert.doesNotMatch(source, /const version = Math\.max\(1, Number\(quote\.version/);
   assert.match(source, /_V\$\{version\}\.pdf/);
   assert.match(source, /upsert: false/);
   assert.match(source, /versionUpdateError/);
+});
+
+test("quote send exposes the failing pipeline stage with database details", async () => {
+  const source = await readFile(actions, "utf8");
+  for (const stage of ["QUOTE_SEND_LOAD", "QUOTE_SEND_VERSION", "QUOTE_SEND_PDF", "QUOTE_SEND_STORAGE", "QUOTE_SEND_SIGNED_URL", "QUOTE_SEND_CLAIM", "QUOTE_SEND_GMAIL", "QUOTE_SEND_VERSION_UPDATE", "QUOTE_SEND_QUOTE_UPDATE"]) {
+    assert.match(source, new RegExp(stage));
+  }
+  assert.match(source, /QUOTE_SEND_FAILURE/);
+  assert.match(source, /technical\?\.code/);
+  assert.match(source, /technical\?\.details/);
 });
 
 test("quote detail exposes history and post-acceptance revision action", async () => {
