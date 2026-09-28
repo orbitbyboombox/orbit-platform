@@ -709,30 +709,14 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
     .order("asset_code");
   if (boxAssetsError) throw boxAssetsError;
   const allBoxProjectIds = [...new Set([...(boxAssignments ?? []).map((assignment) => assignment.project_id), ...eventIds])];
-  const boxWindowResults = await Promise.all(allBoxProjectIds.map(async (projectId) => {
-    const result = await client.rpc("event_operational_window", { p_project_id: projectId });
-    return { projectId, data: result.data, error: result.error };
-  }));
-  const boxWindowsError = boxWindowResults.find((result) => result.error)?.error ?? null;
-  if (boxWindowsError) throw boxWindowsError;
-  const windowByProject = new Map<string, { start: number; end: number }>();
-  for (const item of boxWindowResults) {
-    const window = Array.isArray(item.data) ? item.data[0] : item.data;
-    if (window?.window_start && window?.window_end) windowByProject.set(item.projectId, { start: new Date(window.window_start).getTime(), end: new Date(window.window_end).getTime() });
-  }
-  const rangesOverlap = (leftStart: number, leftEnd: number, rightStart: number, rightEnd: number) => leftStart < rightEnd && rightStart < leftEnd;
   const conflictingProjectIdsByAsset = new Map<string, string[]>();
-  for (const assignment of boxAssignments ?? []) {
-    const start = assignment.planned_start_at ? new Date(assignment.planned_start_at).getTime() : Number.NaN;
-    const end = assignment.planned_end_at ? new Date(assignment.planned_end_at).getTime() : Number.NaN;
-    if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
-    const assignmentWindow = { start, end };
-    for (const [projectId, eventWindow] of windowByProject) {
-      if (projectId === assignment.project_id || !rangesOverlap(assignmentWindow.start, assignmentWindow.end, eventWindow.start, eventWindow.end)) continue;
-      const conflicts = conflictingProjectIdsByAsset.get(assignment.asset_id) ?? [];
-      if (!conflicts.includes(projectId)) conflicts.push(projectId);
-      conflictingProjectIdsByAsset.set(assignment.asset_id, conflicts);
-    }
+  const { data: availabilityRows, error: availabilityError } = await client.rpc("get_black_box_availability", { p_project_ids: allBoxProjectIds });
+  if (availabilityError) throw availabilityError;
+  for (const row of availabilityRows ?? []) {
+    if (!row.conflicts) continue;
+    const conflicts = conflictingProjectIdsByAsset.get(row.asset_id) ?? [];
+    conflicts.push(row.project_id);
+    conflictingProjectIdsByAsset.set(row.asset_id, conflicts);
   }
   const logisticsBoxOptions: LogisticsBoxOption[] = (boxAssets ?? []).map((asset) => ({
     id: asset.id,

@@ -34,7 +34,7 @@ test("The Caja Negra popover exposes the full operational inventory without pare
   assert.match(page, /CASE-\$\{String\(index \+ 1\)\.padStart/);
   assert.match(view, /const disabled = !isCurrent && \(unavailable \|\| conflictsThisEvent\)/);
   assert.match(view, /conflictingProjectIds\?\.includes\(event\.projectId\)/);
-  assert.match(view, /OCUPADA EN ESTE HORARIO/);
+  assert.match(view, /OCUPADA \/ SIN MARGEN SUFICIENTE/);
   assert.doesNotMatch(view, /!isCurrent && option\.status !== "AVAILABLE"/);
   assert.match(view, /ASIGNADA/);
   assert.doesNotMatch(page, /CASE-10|CASE-11|CASE-12/);
@@ -46,4 +46,14 @@ test("Caja Negra action preserves committed success and exposes real RPC errors"
   assert.match(action, /if \(!data \|\| typeof data !== "object" \|\| !\("assignmentId" in data\)\)/);
   assert.match(action, /assignment committed but revalidation failed/);
   assert.match(action, /return \{ ok: true \};/);
+});
+
+test("availability uses the canonical two-hour logistics buffer", () => {
+  const migration = readFileSync("supabase/migrations/20260927183000_black_box_logistics_buffer.sql", "utf8");
+  assert.match(migration, /interval '2 hours'/g);
+  assert.match(migration, /get_black_box_availability/);
+  assert.match(migration, /aa\.planned_start_at < window_row\.window_end \+ interval '2 hours'/);
+  assert.match(migration, /aa\.planned_end_at \+ interval '2 hours' > window_row\.window_start/);
+  assert.match(migration, /p_project_ids uuid\[\]/);
+  assert.doesNotMatch(migration, /asset_row\.status='ASSIGNED'/);
 });

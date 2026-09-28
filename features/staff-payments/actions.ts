@@ -271,7 +271,7 @@ export async function closeStaffMonthAction(month: string) {
       );
       if (generateError) throw generateError;
     }
-    let { data: accounts, error: accountError } = await client
+    const { data: accounts, error: accountError } = await client
       .from("staff_monthly_accounts")
       .select("id,settlement_status,review_required,work_net")
       .eq("accounting_month", accountingMonth)
