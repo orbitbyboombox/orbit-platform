@@ -19,6 +19,9 @@ test("quote versioning preserves sent history and freezes accepted version", asy
 test("resending a quote uses a versioned immutable PDF path", async () => {
   const source = await readFile(actions, "utf8");
   assert.match(source, /ensure_current_quote_version/);
+  assert.match(source, /const \{ client, user \} = await founder\(\)/);
+  assert.match(source, /client\.rpc\("ensure_current_quote_version"/);
+  assert.doesNotMatch(source, /admin\.rpc\("ensure_current_quote_version"/);
   assert.match(source, /from\("quote_versions"\)/);
   assert.match(source, /version_number/);
   assert.match(source, /currentVersion\.version_number/);

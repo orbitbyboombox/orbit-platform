@@ -457,7 +457,7 @@ export async function sendFormalQuoteAction(input: { quoteId: string; email: str
     console.info(`[ORBIT][${nextStage}]`, { quoteId: input.quoteId, requestId: input.requestId });
   };
   try {
-    const { user } = await founder();
+    const { client, user } = await founder();
     const recipients = normalizeEmailRecipients({ to: input.email, cc: input.cc });
     const admin = createAdminClient();
     enterStage("QUOTE_SEND_LOAD");
@@ -467,7 +467,7 @@ export async function sendFormalQuoteAction(input: { quoteId: string; email: str
     ]);
     if (error || !quote) throw new Error("La cotización ya no está disponible.");
     enterStage("QUOTE_SEND_VERSION");
-    const { data: versionId, error: versionError } = await admin.rpc("ensure_current_quote_version", {
+    const { data: versionId, error: versionError } = await client.rpc("ensure_current_quote_version", {
       p_quote_id: quote.id,
       p_actor: user.id,
     });
