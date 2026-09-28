@@ -13,7 +13,7 @@ test("Logistics quick assignment uses the canonical event Caja Negra action", ()
   assert.match(view, /FALTA CAJA · ASIGNAR/);
   assert.match(view, /CAMBIAR/);
   assert.match(view, /boxStatusLabel/);
-  assert.match(view, /option\.status !== "AVAILABLE"/);
+  assert.match(view, /option\.status === "MAINTENANCE" \|\| option\.status === "OUT_OF_SERVICE"/);
   assert.match(action, /rpc\("assign_black_box_to_event"/);
   assert.match(action, /revalidatePath\("\/resources\/staff"\)/);
 });
@@ -32,7 +32,10 @@ test("The Caja Negra popover exposes the full operational inventory without pare
   assert.match(view, /overflow-visible rounded-2xl/);
   assert.match(page, /Array\.from\(\{ length: 9 \}/);
   assert.match(page, /CASE-\$\{String\(index \+ 1\)\.padStart/);
-  assert.match(view, /option\.status !== "AVAILABLE"/);
+  assert.match(view, /const disabled = !isCurrent && \(unavailable \|\| conflictsThisEvent\)/);
+  assert.match(view, /conflictingProjectIds\?\.includes\(event\.projectId\)/);
+  assert.match(view, /OCUPADA EN ESTE HORARIO/);
+  assert.doesNotMatch(view, /!isCurrent && option\.status !== "AVAILABLE"/);
   assert.match(view, /ASIGNADA/);
   assert.doesNotMatch(page, /CASE-10|CASE-11|CASE-12/);
 });

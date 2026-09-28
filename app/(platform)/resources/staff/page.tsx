@@ -692,15 +692,13 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
   const academyStats = await loadAcademyStats(client, academyArticles);
   const crmEvents = await loadCrmOperationalEvents(client);
   const eventIds = crmEvents.map((event) => event.projectId);
-  const { data: boxAssignments, error: boxAssignmentError } = eventIds.length
-    ? await client
-        .from("asset_assignments")
-        .select("project_id,assignment_status,operational_assets!inner(asset_code,asset_type)")
-        .in("project_id", eventIds)
-        .eq("assignment_status", "ASSIGNED")
-        .eq("operational_assets.asset_type", "CASE")
-        .is("deleted_at", null)
-    : { data: [], error: null };
+  const { data: boxAssignments, error: boxAssignmentError } = await client
+    .from("asset_assignments")
+    .select("project_id,asset_id,assignment_status,planned_start_at,planned_end_at,operational_assets!inner(asset_code,asset_type)")
+    .eq("assignment_status", "ASSIGNED")
+    .eq("operational_assets.asset_type", "CASE")
+    .in("operational_assets.asset_code", Array.from({ length: 9 }, (_, index) => `CASE-${String(index + 1).padStart(2, "0")}`))
+    .is("deleted_at", null);
   if (boxAssignmentError) throw boxAssignmentError;
   const { data: boxAssets, error: boxAssetsError } = await client
     .from("operational_assets")
@@ -710,10 +708,37 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
     .is("deleted_at", null)
     .order("asset_code");
   if (boxAssetsError) throw boxAssetsError;
+  const allBoxProjectIds = [...new Set([...(boxAssignments ?? []).map((assignment) => assignment.project_id), ...eventIds])];
+  const boxWindowResults = await Promise.all(allBoxProjectIds.map(async (projectId) => {
+    const result = await client.rpc("event_operational_window", { p_project_id: projectId });
+    return { projectId, data: result.data, error: result.error };
+  }));
+  const boxWindowsError = boxWindowResults.find((result) => result.error)?.error ?? null;
+  if (boxWindowsError) throw boxWindowsError;
+  const windowByProject = new Map<string, { start: number; end: number }>();
+  for (const item of boxWindowResults) {
+    const window = Array.isArray(item.data) ? item.data[0] : item.data;
+    if (window?.window_start && window?.window_end) windowByProject.set(item.projectId, { start: new Date(window.window_start).getTime(), end: new Date(window.window_end).getTime() });
+  }
+  const rangesOverlap = (leftStart: number, leftEnd: number, rightStart: number, rightEnd: number) => leftStart < rightEnd && rightStart < leftEnd;
+  const conflictingProjectIdsByAsset = new Map<string, string[]>();
+  for (const assignment of boxAssignments ?? []) {
+    const start = assignment.planned_start_at ? new Date(assignment.planned_start_at).getTime() : Number.NaN;
+    const end = assignment.planned_end_at ? new Date(assignment.planned_end_at).getTime() : Number.NaN;
+    if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
+    const assignmentWindow = { start, end };
+    for (const [projectId, eventWindow] of windowByProject) {
+      if (projectId === assignment.project_id || !rangesOverlap(assignmentWindow.start, assignmentWindow.end, eventWindow.start, eventWindow.end)) continue;
+      const conflicts = conflictingProjectIdsByAsset.get(assignment.asset_id) ?? [];
+      if (!conflicts.includes(projectId)) conflicts.push(projectId);
+      conflictingProjectIdsByAsset.set(assignment.asset_id, conflicts);
+    }
+  }
   const logisticsBoxOptions: LogisticsBoxOption[] = (boxAssets ?? []).map((asset) => ({
     id: asset.id,
     code: asset.asset_code,
     status: asset.status as LogisticsBoxOption["status"],
+    conflictingProjectIds: conflictingProjectIdsByAsset.get(asset.id) ?? [],
   }));
   const boxByProject = new Map<string, string>();
   for (const assignment of boxAssignments ?? []) {
