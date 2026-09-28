@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const migration = readFileSync("supabase/migrations/20260925180000_event_time_phase_a_production_contract.sql", "utf8");
+const stageMigration = readFileSync("supabase/migrations/20260928210000_event_time_confirmation_stage_logging.sql", "utf8");
 const manual = readFileSync("features/projects/components/new-project-drawer.tsx", "utf8");
 const automatic = readFileSync("features/automatic-booking/automatic-booking-experience.tsx", "utf8");
 const action = readFileSync("features/projects/actions/event-time.actions.ts", "utf8");
@@ -80,6 +81,29 @@ test("confirmation is server-side and authorized", () => {
   assert.match(action, /\"use server\"/);
   assert.match(migration, /can_administer/);
   assert.match(migration, /revoke all on function public\.confirm_project_event_time/);
+});
+
+test("confirmed preflight preserves auth protection while allowing the confirmation RPC to call it", () => {
+  assert.match(stageMigration, /grant execute on function public\.preflight_reservation_capacity_confirmed\(uuid\) to authenticated/);
+  assert.match(stageMigration, /security definer/);
+  assert.match(stageMigration, /revoke all on function public\.confirm_project_event_time/);
+  assert.match(stageMigration, /grant execute on function public\.confirm_project_event_time\(uuid, time\) to authenticated/);
+});
+
+test("confirmation logs every rollback stage and returns the canonical 24-hour time", () => {
+  for (const stage of ["EVENT_TIME_UPDATE", "EVENT_TIME_CAPACITY", "EVENT_TIME_REQUIREMENTS", "EVENT_TIME_RESOURCE_ASSIGNMENTS", "EVENT_TIME_TIMELINE", "EVENT_TIME_RETURN"]) {
+    assert.match(stageMigration, new RegExp(stage));
+  }
+  assert.match(stageMigration, /get stacked diagnostics/);
+  assert.match(stageMigration, /requested_time/);
+  assert.match(stageMigration, /to_char\(p_event_time, 'HH24:MI'\)/);
+});
+
+test("time input remains a 24-hour HH:mm value when sent to the RPC", () => {
+  assert.match(action, /p_event_time: eventTime/);
+  assert.match(action, /2\[0-3\]/);
+  assert.match(workspace, /type="time"/);
+  assert.match(workspace, /eventTimeDraft/);
 });
 
 test("duplicate submission is disabled while confirmation is pending", () => {
