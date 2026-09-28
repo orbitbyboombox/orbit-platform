@@ -45,11 +45,13 @@ async function founder() {
 }
 const fail = (error: unknown, fallback: string) => ({
   ok: false as const,
-  error:
-    error instanceof Error &&
-    !/constraint|pgrst|schema|json|coerce/i.test(error.message)
+  error: (() => {
+    const technical = error as { code?: string; message?: string };
+    if (technical?.code === "22023" && technical.message) return technical.message;
+    return error instanceof Error && !/constraint|pgrst|schema|json|coerce/i.test(error.message)
       ? error.message
-      : fallback,
+      : fallback;
+  })(),
 });
 export type QuoteConversionWarning = {
   integration: string;

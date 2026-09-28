@@ -390,6 +390,8 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
   const [eventLocation, setEventLocation] = useState(initialDraft?.eventLocation ?? "");
   const [eventCity, setEventCity] = useState(initialDraft?.eventCity ?? "");
   const [changeReason, setChangeReason] = useState(initialDraft?.changeReason ?? "");
+  const [changeReasonError, setChangeReasonError] = useState("");
+  const changeReasonRef = useRef<HTMLInputElement>(null);
   const [attachCatalog, setAttachCatalog] = useState(initialDraft?.attachCatalog ?? false);
   const [createdQuote, setCreatedQuote] = useState<{ id: string; number: string; total: number } | null>(null);
   const [preview, setPreview] = useState(false);
@@ -474,7 +476,22 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
       initialDraft.officialPrice != null &&
       Math.round(totals.total) !== Math.round(initialDraft.officialPrice),
   );
+  const changeReasonValidationMessage =
+    negotiatedPostSend && changeReason.trim().length < 3
+      ? "Ingresa el motivo de negociación para guardar este nuevo valor."
+      : changeReasonError;
+  const focusChangeReason = () => {
+    setChangeReasonError("Ingresa el motivo de negociación para guardar este nuevo valor.");
+    window.requestAnimationFrame(() => {
+      changeReasonRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      changeReasonRef.current?.focus();
+    });
+  };
   const create = () => {
+    if (negotiatedPostSend && changeReason.trim().length < 3) {
+      focusChangeReason();
+      return;
+    }
     if (saveInFlightRef.current) return;
     saveInFlightRef.current = true;
     start(async () => {
@@ -541,7 +558,21 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           {initialDraft?.quoteId ? (
             <Field label={negotiatedPostSend ? "Motivo del cambio / negociación (obligatorio)" : "Motivo del cambio (opcional)"}>
-              <input required={negotiatedPostSend} value={changeReason} onChange={(event) => setChangeReason(event.target.value)} placeholder="Cliente negoció valor" />
+              <input
+                aria-describedby={negotiatedPostSend ? "change-reason-help" : undefined}
+                aria-invalid={Boolean(changeReasonValidationMessage)}
+                id="change-reason"
+                ref={changeReasonRef}
+                required={negotiatedPostSend}
+                value={changeReason}
+                onChange={(event) => {
+                  setChangeReason(event.target.value);
+                  if (changeReasonError && event.target.value.trim().length >= 3) setChangeReasonError("");
+                }}
+                placeholder="Cliente negoció valor"
+              />
+              {negotiatedPostSend ? <p className="mt-1 text-xs text-muted" id="change-reason-help">Obligatorio porque estás modificando el precio de una cotización ya enviada.</p> : null}
+              {changeReasonValidationMessage ? <p className="mt-1 text-sm font-semibold text-danger" role="alert">{changeReasonValidationMessage}</p> : null}
             </Field>
           ) : null}
           <Field label="Cliente existente">
@@ -829,7 +860,7 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
               <FileDown />
               Previsualizar cotización
             </Button>
-            <Button aria-busy={pending} disabled={pending|| !lines.length} onClick={create}>
+            <Button aria-busy={pending} disabled={pending || !lines.length || (negotiatedPostSend && changeReason.trim().length < 3)} onClick={create}>
               <FilePlus2 />
               {pending ? "Guardando…" : "Guardar borrador"}
             </Button>
