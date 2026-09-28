@@ -29,6 +29,7 @@ export function buildCanonicalOrbitEventStateFromRecord(record: {
   orbit_event_id?: string | null;
   event_date: string;
   event_time?: string | null;
+  event_time_mode?: string | null;
   location?: string | null;
   city?: string | null;
   operations?: Record<string, unknown> | null;
@@ -40,8 +41,9 @@ export function buildCanonicalOrbitEventStateFromRecord(record: {
   const contract = Array.isArray(record.project_operational_contracts)
     ? record.project_operational_contracts[0]
     : record.project_operational_contracts;
-  const serviceStartAt = contract?.service_start_at ?? (typeof operations.service_start_at === "string" ? operations.service_start_at : null);
-  const serviceEndAt = contract?.service_end_at ?? (typeof operations.service_end_at === "string" ? operations.service_end_at : null);
+  const confirmed = String(record.event_time_mode ?? "").toUpperCase() === "CONFIRMED" && Boolean(record.event_time);
+  const serviceStartAt = confirmed ? null : contract?.service_start_at ?? (typeof operations.service_start_at === "string" ? operations.service_start_at : null);
+  const serviceEndAt = confirmed ? null : contract?.service_end_at ?? (typeof operations.service_end_at === "string" ? operations.service_end_at : null);
   return buildCanonicalOrbitEventState({
     projectId: record.project_id ?? record.id ?? "",
     orbitEventId: record.orbit_event_id,

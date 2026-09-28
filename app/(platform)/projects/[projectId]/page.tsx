@@ -106,7 +106,7 @@ export default async function ProjectWorkspacePage({
     client
       .from("projects")
       .select(
-        "customer_id,orbit_event_id,budget,contract,finance,operations,resources,status,communication_recipient_snapshot",
+        "customer_id,orbit_event_id,budget,contract,finance,operations,resources,status,event_time_mode,communication_recipient_snapshot",
       )
       .eq("id", projectId)
       .single(),
@@ -578,6 +578,7 @@ export default async function ProjectWorkspacePage({
     orbit_event_id: rawProject?.orbit_event_id ?? null,
     event_date: project.event.date,
     event_time: project.event.time,
+    event_time_mode: rawProject?.event_time_mode ?? project.event.timeMode,
     location: project.event.location,
     city: project.event.city,
     operations,

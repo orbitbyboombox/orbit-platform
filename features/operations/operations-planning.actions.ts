@@ -23,7 +23,7 @@ export async function setStaffEventPublicationAction(data: FormData): Promise<Re
     const client = await context();
     const projectId = value(data, "projectId");
     const published = value(data, "published") === "true";
-    const { data: project, error: projectError } = await client.from("projects").select("id,orbit_event_id,status,event_date,event_time,location,city,operations,customers(full_name),project_services(service_code,duration_hours)").eq("id", projectId).is("deleted_at", null).single();
+    const { data: project, error: projectError } = await client.from("projects").select("id,orbit_event_id,status,event_date,event_time,event_time_mode,location,city,operations,customers(full_name),project_services(service_code,duration_hours)").eq("id", projectId).is("deleted_at", null).single();
     if (projectError) throw projectError;
     const closed = ["COMPLETED", "COMPLETED_EVENT", "CLOSED", "ARCHIVED", "CANCELLED", "Completed", "Archived", "Cancelled"].includes(project.status);
     if (published && closed) throw new Error("Un Evento cerrado no puede recibir nuevas solicitudes de Staff.");
@@ -33,7 +33,7 @@ export async function setStaffEventPublicationAction(data: FormData): Promise<Re
     const address = String(operations.eventAddress ?? project.location ?? "");
     if (published && (!project.event_date || !address || !project.city || !customer?.full_name || !services.some(item => item.service_code && Number(item.duration_hours) > 0))) throw new Error("Completa fecha, ubicación, cliente, servicio y duración antes de activar el Evento para Staff.");
     if (published) {
-      const canonical = buildCanonicalOrbitEventStateFromRecord({ id: project.id, orbit_event_id: project.orbit_event_id, event_date: project.event_date, event_time: project.event_time, duration_hours: Number(services[0]?.duration_hours ?? 0), location: project.location, city: project.city, operations });
+      const canonical = buildCanonicalOrbitEventStateFromRecord({ id: project.id, orbit_event_id: project.orbit_event_id, event_date: project.event_date, event_time: project.event_time, event_time_mode: project.event_time_mode, duration_hours: Number(services[0]?.duration_hours ?? 0), location: project.location, city: project.city, operations });
       if (!canonical.serviceStartAt || !canonical.staffCallAt || canonicalStaffCallGuard(canonical) !== "OK" || new Date(canonical.staffCallAt).getTime() >= new Date(canonical.serviceStartAt).getTime()) throw new Error("STAFF_CALL_INVALID_FOR_PUBLICATION: Corrige la hora de citación antes de publicar al Staff.");
     }
     const { error } = await client.rpc("set_staff_event_publication", { p_project_id: projectId, p_published: published });
