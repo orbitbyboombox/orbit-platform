@@ -38,7 +38,7 @@ export async function syncStaleGoogleCalendarEvents(input: { client: SupabaseCli
   const batchSize = Math.max(1, Math.min(input.batchSize ?? 25, 100));
   const now = new Date().toISOString();
   const fields = "id,project_id,orbit_event_id,status,next_retry_at,sync_started_at,external_event_id,nova_external_event_id";
-  const { data: actionable, error: actionableError } = await input.client.from("calendar_sync").select(fields).in("status", ["PENDING", "STALE", "FAILED"]).or(`next_retry_at.is.null,next_retry_at.lte.${now}`).order("updated_at", { ascending: true }).limit(batchSize);
+  const { data: actionable, error: actionableError } = await input.client.from("calendar_sync").select(fields).in("status", ["PENDING", "STALE", "FAILED"]).or(`next_retry_at.is.null,next_retry_at.lte.${now}`).order("updated_at", { ascending: false }).limit(batchSize);
   if (actionableError) throw actionableError;
   const remaining = Math.max(0, batchSize - (actionable?.length ?? 0));
   const { data: synchronized, error: synchronizedError } = remaining > 0
