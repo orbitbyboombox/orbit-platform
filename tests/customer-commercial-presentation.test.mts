@@ -172,11 +172,11 @@ test("no extra renders Sin extras", () => {
 test("email renders one service, classified extras and one canonical duration", () => {
   const rendered = buildReservationConfirmationTemplate(emailInput());
   assert.equal(rendered.services, "Classic");
-  assert.equal(rendered.extras, "Imanes ilimitados · Gratis");
+  assert.equal(rendered.extras, "Imanes ilimitados");
   assert.equal(rendered.duration, "3 horas");
   assert.match(rendered.body, /^Servicio\nClassic$/m);
   assert.match(rendered.body, /^Duración\n3 horas$/m);
-  assert.match(rendered.body, /^Extras\nImanes ilimitados · Gratis$/m);
+  assert.match(rendered.body, /^Extras\nImanes ilimitados$/m);
   assert.equal((rendered.body.match(/^Servicio$/gm) ?? []).length, 1);
   assert.doesNotMatch(rendered.body, /UNLIMITED_MAGNETS|3 horas, 3 horas/);
 });
@@ -185,10 +185,26 @@ test("email paid extra and transport keep their exact presentation", () => {
   const rendered = buildReservationConfirmationTemplate(
     emailInput([realItems[0], { ...realItems[1], total: 65_000 }]),
   );
-  assert.match(rendered.body, /^Extras\nImanes ilimitados · \$65\.000$/m);
+  assert.match(rendered.body, /^Extras\nImanes ilimitados$/m);
+  assert.doesNotMatch(rendered.body, /Imanes ilimitados · \$65\.000/);
   assert.match(rendered.body, /^Valor total\n\$345\.100$/m);
   assert.match(rendered.body, /^Abono recibido\n\$172\.550$/m);
   assert.match(rendered.body, /^Saldo pendiente\n\$172\.550$/m);
+});
+
+test("internal commercial presentation keeps extra prices while reservation email hides them", () => {
+  const priced = customerCommercialPresentation({
+    serviceCodes: ["CLASSIC", "UNLIMITED_MAGNETS"],
+    commercialItems: [realItems[0], { ...realItems[1], total: 65_000 }],
+    includeExtraPrices: true,
+  });
+  const customerFacing = customerCommercialPresentation({
+    serviceCodes: ["CLASSIC", "UNLIMITED_MAGNETS"],
+    commercialItems: [realItems[0], { ...realItems[1], total: 65_000 }],
+    includeExtraPrices: false,
+  });
+  assert.equal(priced.extrasLabel, "Imanes ilimitados · $65.000");
+  assert.equal(customerFacing.extrasLabel, "Imanes ilimitados");
 });
 
 test("Empresa email uses the dedicated reservation confirmation structure", () => {
@@ -198,7 +214,7 @@ test("Empresa email uses the dedicated reservation confirmation structure", () =
   assert.match(rendered.body, /^SERVICIO CONTRATADO$/m);
   assert.match(rendered.body, /^Servicio\nClassic$/m);
   assert.match(rendered.body, /^Duración\n3 horas$/m);
-  assert.match(rendered.body, /^Extras\nImanes ilimitados · Gratis$/m);
+  assert.match(rendered.body, /^Extras\nImanes ilimitados$/m);
   assert.match(rendered.body, /^INFORMACIÓN DEL EVENTO$/m);
   assert.match(rendered.body, /^Fecha\n14 de septiembre de 2026$/m);
   assert.match(rendered.body, /^Horario\n14:00$/m);

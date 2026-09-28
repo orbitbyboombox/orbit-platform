@@ -47,6 +47,7 @@ export function buildReservationConfirmationTemplate(
   const commercial = customerCommercialPresentation({
     serviceCodes: input.serviceCodes,
     commercialItems: input.commercialItems,
+    includeExtraPrices: false,
     serviceStartAt: input.serviceStartAt,
     serviceEndAt: input.serviceEndAt,
     eventDurationHours: input.eventDurationHours,

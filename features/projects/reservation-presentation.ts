@@ -23,6 +23,7 @@ export type CustomerCommercialItem = {
 export type CustomerCommercialPresentationInput = DurationPresentationInput & {
   serviceCodes: string[];
   commercialItems?: CustomerCommercialItem[];
+  includeExtraPrices?: boolean;
 };
 
 export type AcceptedCommercialFinancialFallback = {
@@ -292,11 +293,12 @@ export function customerCommercialPresentation(
   }
   const duration = canonicalEventDuration(input);
   const service = commercialServiceList(primaryCodes);
-  const extraLines = [...extras.values()].map((extra) =>
-    extra.total == null
+  const extraLines = [...extras.values()].map((extra) => {
+    if (input.includeExtraPrices === false) return extra.label;
+    return extra.total == null
       ? extra.label
-      : `${extra.label} · ${extra.total === 0 ? "Gratis" : clp(extra.total)}`,
-  );
+      : `${extra.label} · ${extra.total === 0 ? "Gratis" : clp(extra.total)}`;
+  });
   return {
     service,
     duration,
