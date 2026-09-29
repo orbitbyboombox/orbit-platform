@@ -43,11 +43,11 @@ test("capacity conflicts are surfaced without a false success", () => {
   assert.match(action, /conflicto de disponibilidad/);
 });
 
-test("confirmation recalculates operational dependencies and queues Calendar", () => {
+test("confirmation recalculates operational dependencies and synchronizes Calendar immediately", () => {
   assert.match(migration, /sync_event_operational_requirements/);
   assert.match(migration, /recalculate_event_resource_assignments/);
-  assert.match(action, /invalidateCalendarSyncForProject/);
-  assert.doesNotMatch(action, /synchronizeConfirmedReservationCalendar/);
+  assert.match(action, /propagateCanonicalEventChange/);
+  assert.match(readFileSync("features/projects/operations/canonical-event-propagation.service.ts", "utf8"), /synchronizeConfirmedReservationCalendar/);
 });
 
 test("estimated Calendar is provisional and does not offer final sync", () => {

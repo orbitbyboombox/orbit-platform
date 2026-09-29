@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { invalidateCalendarSyncForProject } from "@/features/connectors/google-calendar/application/google-calendar-resync.service";
+import { propagateCanonicalEventChange } from "@/features/projects/operations/canonical-event-propagation.service";
 
 export type ConfirmEventTimeResult =
   | { ok: true; data: Record<string, unknown>; calendar: unknown }
@@ -32,14 +32,14 @@ export async function confirmEventTimeAction(
     return { ok: false, code: error.code ?? "EVENT_TIME_CONFIRMATION_FAILED", message: "No fue posible confirmar el horario. No se aplicó un cambio parcial." };
   }
 
-  try {
-    // The confirmed event time is the source of truth. Mark the existing
-    // mapping stale after the transaction so the privileged 15-minute cron
-    // performs the Google update without requiring a Founder browser session.
-    await invalidateCalendarSyncForProject(client, projectId);
-  } catch {
-    return { ok: false, code: "CALENDAR_INVALIDATION_FAILED", message: "El horario quedó confirmado, pero Calendar no pudo quedar en cola para sincronización." };
-  }
+  const calendar = await propagateCanonicalEventChange({
+    client,
+    projectId,
+    actorId: auth.user.id,
+  });
+  revalidatePath("/staff-portal");
+  revalidatePath("/operations");
+  revalidatePath("/events");
   revalidatePath(`/projects/${projectId}`);
-  return { ok: true, data: (data ?? {}) as Record<string, unknown>, calendar: { status: "STALE" } };
+  return { ok: true, data: (data ?? {}) as Record<string, unknown>, calendar };
 }

@@ -9,8 +9,8 @@ import {
   testFullPurgeEventAction,
   type ReservationLifecycleAction,
 } from "@/features/projects/actions/reservation-lifecycle.actions";
+import { propagateCanonicalEventChange } from "@/features/projects/operations/canonical-event-propagation.service";
 import { synchronizeConfirmedReservationCalendar } from "@/features/connectors/google-calendar/application/google-calendar-sync.service";
-import { invalidateCalendarSyncForProject } from "@/features/connectors/google-calendar/application/google-calendar-resync.service";
 import { synchronizeConfirmedReservationDrive } from "@/features/connectors/google-drive/application/google-drive-sync.service";
 import { uploadReservationDocumentToDrive } from "@/features/connectors/google-drive/application/google-drive-document-routing.service";
 import type { GoogleDriveDocumentKind } from "@/features/connectors/google-drive/types/google-drive-live.types";
@@ -348,7 +348,7 @@ function documentKind(type: string): GoogleDriveDocumentKind {
 }
 function revalidateCustomerSurfaces(projectId: string) {
   revalidatePath(`/projects/${projectId}`);
-  ["/customers", "/events", "/finance", "/finance/receivables", "/reports", "/notifications"].forEach((path) => revalidatePath(path));
+  ["/customers", "/events", "/finance", "/finance/receivables", "/reports", "/notifications", "/operations", "/staff-portal"].forEach((path) => revalidatePath(path));
 }
 export async function archiveCrmCustomerAction(id: string, reason: string) {
   try {
@@ -479,9 +479,8 @@ export async function updateCrmEventAction(input: {
       p_reason: input.reason,
     });
     if (error) throw error;
-    await invalidateCalendarSyncForProject(client, input.projectId);
+    const calendarPropagation = await propagateCanonicalEventChange({ client, projectId: input.projectId, actorId: user.id });
     const synchronization = await Promise.allSettled([
-      synchronizeConfirmedReservationCalendar({ client, projectId: input.projectId, actorId: user.id, operation: "UPSERT", policy: "EXISTING_LEGACY_UPDATE" }),
       synchronizeConfirmedReservationDrive({ client, projectId: input.projectId, actorId: user.id, recordTimeline: true }),
     ]);
     revalidatePath(`/customers/${input.customerId}`);
@@ -498,8 +497,8 @@ export async function updateCrmEventAction(input: {
       ok: true as const,
       message: "✓ Evento actualizado correctamente",
       warning:
-        failedSynchronizations > 0
-          ? "El Evento fue actualizado. Google Workspace quedó pendiente de sincronización."
+        calendarPropagation.status !== "SYNCHRONIZED" || failedSynchronizations > 0
+          ? "El Evento fue actualizado. Una integración quedó pendiente de sincronización."
           : undefined,
     };
   } catch (error) {

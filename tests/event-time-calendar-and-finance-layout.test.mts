@@ -8,6 +8,8 @@ const calendarLive = readFileSync("features/connectors/google-calendar/applicati
 const provider = readFileSync("features/connectors/google-calendar/provider/google-calendar-live.provider.ts", "utf8");
 const eventTimeAction = readFileSync("features/projects/actions/event-time.actions.ts", "utf8");
 const resyncService = readFileSync("features/connectors/google-calendar/application/google-calendar-resync.service.ts", "utf8");
+const propagation = readFileSync("features/projects/operations/canonical-event-propagation.service.ts", "utf8");
+const revisionMigration = readFileSync("supabase/migrations/20260929153000_canonical_event_revision_propagation.sql", "utf8");
 const middleware = readFileSync("middleware.ts", "utf8");
 
 test("documents and profitability use full-width desktop sections with readable metric labels", () => {
@@ -33,13 +35,22 @@ test("Calendar reads the remote event after mutation and verifies Chile time", (
   assert.match(calendarLive, /CALENDAR_TIME_SYNC_VERIFY/);
 });
 
-test("confirmed event time queues existing Calendar mappings for the privileged cron", () => {
-  assert.match(eventTimeAction, /invalidateCalendarSyncForProject\(client, projectId\)/);
-  assert.doesNotMatch(eventTimeAction, /synchronizeConfirmedReservationCalendar/);
+test("confirmed event time synchronizes immediately and leaves the cron as recovery", () => {
+  assert.match(eventTimeAction, /propagateCanonicalEventChange/);
+  assert.match(propagation, /invalidateCalendarSyncForProject/);
+  assert.match(propagation, /synchronizeConfirmedReservationCalendar/);
   assert.match(resyncService, /in\("status", \["PENDING", "STALE", "FAILED"\]\)/);
   assert.match(resyncService, /\.eq\("status", "SYNCHRONIZED"\)/);
   assert.match(resyncService, /if \(row\.status === "SYNCHRONIZED"\)/);
   assert.match(resyncService, /claim_calendar_sync_for_resync/);
   assert.match(resyncService, /policy: "EXISTING_LEGACY_UPDATE"/);
   assert.match(middleware, /\/api\/cron\/google-calendar-resync/);
+});
+
+test("canonical event revision is monotonic and visible to Calendar consumers", () => {
+  assert.match(revisionMigration, /event_revision bigint not null default 0/);
+  assert.match(revisionMigration, /current_event_revision bigint/);
+  assert.match(revisionMigration, /last_synced_event_revision bigint/);
+  assert.match(revisionMigration, /projects_event_revision/);
+  assert.match(resyncService, /last_synced_event_revision/);
 });
