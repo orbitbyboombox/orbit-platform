@@ -13,7 +13,7 @@ import {
 
 const statuses = ["OK", "MISSING", "DAMAGED", "MAINTENANCE_REQUIRED"] as const;
 
-export function StaffBoxOperationsPanel({ projectId, readOnlyPaperCloseout = false, operatorCloseoutEnabled = false }: { projectId: string; readOnlyPaperCloseout?: boolean; operatorCloseoutEnabled?: boolean }) {
+export function StaffBoxOperationsPanel({ projectId, readOnlyPaperCloseout = false, operatorCloseoutEnabled = false, paperOnly = false }: { projectId: string; readOnlyPaperCloseout?: boolean; operatorCloseoutEnabled?: boolean; paperOnly?: boolean }) {
   const [state, setState] = useState<{ assignment: StaffBoxAssignment; roles: string[] } | null>(null);
   const [message, setMessage] = useState("");
   const [pending, startTransition] = useTransition();
@@ -28,11 +28,16 @@ export function StaffBoxOperationsPanel({ projectId, readOnlyPaperCloseout = fal
   useEffect(() => { load(); }, [projectId]);
   const components = state?.assignment.components ?? [];
   const payload = useMemo(() => components.map((component) => ({ componentId: component.id, status: componentStates[component.id] ?? "OK", incident: (componentStates[component.id] ?? "OK") !== "OK" })), [components, componentStates]);
-  if (!state?.assignment.id) return null;
+  if (!state?.assignment.id) return paperOnly ? <section className="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/5 p-4" aria-label="Caja no asignada"><p className="text-xs font-semibold uppercase tracking-[.16em] text-amber-600">CAJA NO ASIGNADA</p><p className="mt-2 text-sm text-muted">Este evento todavía no tiene Caja asignada. Contacta a Operaciones.</p></section> : null;
   const canCheckout = state.roles.some((role) => ["OPERATOR", "ASSEMBLY"].includes(role));
   const canCheckin = state.roles.some((role) => ["OPERATOR", "DISASSEMBLY"].includes(role));
   const paper = state.assignment.paper;
   const paperReady = !paper?.paperRequired || paper.status === "CONFIRMED" || paper.status === "OVERRIDDEN";
+
+  if (paperOnly) return <section className="mt-4 rounded-2xl border border-brand/30 bg-brand/5 p-4" aria-label="Papel de impresora del evento" data-paper-event-card>
+    <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">CAJA ASIGNADA</p><p className="mt-1 text-lg font-semibold">{state.assignment.boxCode}</p></div><span className="rounded-full border px-3 py-1 text-xs">{paper?.status === "CONFIRMED" || paper?.status === "OVERRIDDEN" ? "REGISTRADO" : state.assignment.assignmentStatus}</span></div>
+    {!paper ? <p className="mt-3 text-sm text-muted">Este evento aún no tiene snapshot de papel preparado.</p> : !paper.paperRequired ? <p className="mt-3 text-sm text-muted">Este evento no requiere registro de papel.</p> : state.roles.some((role) => ["OPERATOR", "DISASSEMBLY"].includes(role)) ? <OperatorPaperCloseout assignmentId={state.assignment.id} projectId={projectId} paper={paper} onComplete={load} /> : <ReadOnlyPaperSummary paper={paper} />}
+  </section>;
 
   if (readOnlyPaperCloseout) return <section className="rounded-2xl border bg-card p-4 sm:p-6" aria-label="Caja y papel del evento"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Caja Negra asignada</p><h3 className="mt-1 text-xl font-semibold">{state.assignment.boxCode}</h3><p className="mt-1 text-sm text-muted">Asignación real del evento · {state.assignment.boxStatus}</p></div><span className="rounded-full border px-3 py-1 text-xs">{state.assignment.assignmentStatus}</span></div>{paper?.paperRequired ? <div className="mt-5 rounded-2xl border border-brand/30 bg-brand/5 p-4"><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">PAPEL CARGADO AL INICIO</p><p className="mt-2 text-lg font-semibold">{paper.openingBalance} fotos</p><p className="mt-1 text-sm text-muted">{paper.variant === "NORMAL_4X6" ? "4x6" : paper.variant === "PRECUT_4X6" ? "4x6 PREPICADO" : paper.format ?? "Formato pendiente"}{paper.lot ? ` · Lote ${paper.lot}` : ""}</p><p className="mt-3 text-xs text-muted">Este snapshot es de solo lectura.</p></div> : null}<div className="mt-5 grid gap-2 sm:grid-cols-2">{components.map((component) => <div className="rounded-xl border p-3 text-sm" key={component.id}><span className="font-medium">{component.code}</span><span className="mt-1 block text-xs text-muted">Estado: {component.status}</span></div>)}</div>{message ? <p aria-live="polite" className="mt-3 text-sm text-muted">{message}</p> : null}</section>;
 
@@ -57,3 +62,9 @@ function OperatorPaperCloseout({ projectId, assignmentId, paper, onComplete }: {
 }
 
 function PaperValue({ label, value }: { label: string; value: string }) { return <div className="rounded-xl border bg-background/40 p-3"><p className="text-[11px] uppercase tracking-wide text-muted">{label}</p><p className="mt-1 text-lg font-semibold">{value}</p></div>; }
+
+function ReadOnlyPaperSummary({ paper }: { paper: StaffPaperSnapshot }) {
+  const format = paper.variant === "PRECUT_4X6" ? "4x6 PREPICADO" : paper.variant === "NORMAL_4X6" ? "4x6" : paper.format ?? "Formato pendiente";
+  const expectedBalance = paper.openingBalance + paper.reloads;
+  return <div className="mt-4 grid gap-2 sm:grid-cols-3"><PaperValue label="Papel inicial" value={`${paper.openingBalance} fotos · ${format}`} /><PaperValue label="Recargas" value={`${paper.reloads} fotos`} /><PaperValue label="Papel restante" value={paper.finalRemaining === null ? `${expectedBalance} fotos` : `${paper.finalRemaining} fotos`} /><p className="text-xs text-muted sm:col-span-3">Solo lectura para este rol.</p></div>;
+}

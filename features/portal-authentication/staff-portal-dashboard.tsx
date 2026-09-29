@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import {
   CalendarDays,
+  ChevronDown,
   ChevronRight,
   Download,
   MapPin,
@@ -197,7 +198,7 @@ const pendingAcceptance = (status: string) =>
   ["PENDING", "PENDING_CONFIRMATION", "ASSIGNED"].includes(status);
 export const staffGreeting = (hour: number) =>
   hour < 12 ? "Buenos días" : hour < 19 ? "Buenas tardes" : "Buenas noches";
-type StaffModule = "OPERADORES" | "MONTAJE" | "FINANZAS";
+type StaffModule = "OPERADORES" | "MONTAJE" | "FINANZAS" | "PAPEL";
 // Asignación semanal · Eventos publicados remain inside OPERADORES.
 const chileToday = () =>
   new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(
@@ -308,10 +309,10 @@ export function StaffPortalDashboard({
   const pendingExpenses = expenseSubmissions.filter((item) => item.status === "PENDING_REVIEW").length;
   const currentMonth = new Intl.DateTimeFormat("en-CA", {timeZone:"America/Santiago", year:"numeric", month:"2-digit"}).format(new Date());
   const canMount = capabilities.includes("ASSEMBLY") || capabilities.includes("DISASSEMBLY");
-  if (mustChangePassword) return <div className="space-y-6 overflow-x-hidden"><StaffPortalHeader onFinance={() => setModule("FINANZAS")} logoutAction={logoutAction} /><PasswordSetup name={name} /></div>;
+  if (mustChangePassword) return <div className="space-y-6 overflow-x-hidden"><StaffPortalHeader onFinance={() => setModule("FINANZAS")} onPaper={() => setModule("PAPEL")} logoutAction={logoutAction} /><PasswordSetup name={name} /></div>;
   return (
     <div className="space-y-6 overflow-x-hidden">
-      <StaffPortalHeader onFinance={() => setModule("FINANZAS")} logoutAction={logoutAction} />
+      <StaffPortalHeader onFinance={() => setModule("FINANZAS")} onPaper={() => setModule("PAPEL")} logoutAction={logoutAction} />
       <header className={`rounded-3xl border bg-card p-5 sm:p-7 ${module === null ? "border-brand/20 bg-gradient-to-br from-card via-card to-brand/5" : ""}`}>
         <p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">
           Portal Staff
@@ -327,6 +328,7 @@ export function StaffPortalDashboard({
       {module === "OPERADORES" ? <OperatorsModule events={events} weeklyAvailableEvents={weeklyAvailableEvents} requests={requests} week={week} confirmed={confirmed.length} onSelect={setSelected} /> : null}
       {module === "MONTAJE" && canMount ? <MontageModule routes={routes} /> : null}
       {module === "FINANZAS" ? <FinanceModule events={events} expenseSubmissions={expenseSubmissions} monthlyAccounts={monthlyAccounts} eventStaffPayments={eventStaffPayments} payment={payment} notifications={notifications} currentMonth={currentMonth} /> : null}
+      {module === "PAPEL" ? <StaffPaperPrinterPanel events={events} /> : null}
       {selected ? (
         <EventDetail event={selected} close={() => setSelected(null)} />
       ) : null}
@@ -334,13 +336,14 @@ export function StaffPortalDashboard({
   );
 }
 
-function StaffPortalHeader({onFinance,logoutAction}:{onFinance:()=>void;logoutAction:(formData:FormData)=>void|Promise<void>}) {
+function StaffPortalHeader({onFinance,onPaper,logoutAction}:{onFinance:()=>void;onPaper:()=>void;logoutAction:(formData:FormData)=>void|Promise<void>}) {
   return <header className="flex min-w-0 flex-col gap-3 rounded-2xl border bg-card/80 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4" aria-label="Navegación principal del Portal Staff">
     <Link className="inline-flex w-fit shrink-0 items-center rounded-xl p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand" href="/staff-portal" aria-label="Ir al inicio del Portal Staff">
       <img className="h-9 w-auto max-w-[170px] object-contain sm:h-10" src="/branding/boombox-official-logo.png" alt="BOOMBOX" />
     </Link>
     <div className="flex min-w-0 flex-wrap items-center gap-2 sm:justify-end">
       <button className="min-h-10 rounded-xl bg-brand px-3 text-xs font-semibold text-brand-foreground sm:px-4 sm:text-sm" onClick={onFinance}>SUBE TU GASTO</button>
+      <button className="min-h-10 rounded-xl border border-brand/40 px-3 text-xs font-semibold text-brand hover:bg-brand/10 sm:px-4 sm:text-sm" onClick={onPaper}>PAPEL IMPRESORA</button>
       <Link className="inline-flex min-h-10 items-center rounded-xl border px-3 text-xs font-semibold text-muted hover:text-foreground sm:px-4 sm:text-sm" href="/staff-portal/academy">BOOMBOX ACADEMY</Link>
       <form action={logoutAction}><button className="min-h-10 rounded-xl border border-white/15 px-3 text-xs font-semibold text-muted hover:border-brand/50 hover:text-foreground sm:px-4 sm:text-sm" type="submit">CERRAR SESIÓN</button></form>
     </div>
@@ -377,6 +380,27 @@ function StaffWeeklyEventList({events, onSelect}:{events:StaffPortalEvent[];onSe
 }
 
 function StaffModuleNav({active,onChange,canMount}:{active:StaffModule;onChange:(value:StaffModule|null)=>void;canMount:boolean}) { return <nav className="flex flex-wrap items-center gap-2 rounded-2xl border bg-card p-2" aria-label="Módulos del Portal Staff">{(["OPERADORES",...(canMount?["MONTAJE"]:[]),"FINANZAS"] as StaffModule[]).map(item=><button key={item} onClick={()=>onChange(item)} aria-current={active===item?"page":undefined} className={`min-h-10 rounded-xl px-4 text-sm font-semibold ${active===item?"bg-brand text-brand-foreground":"text-muted hover:text-foreground"}`}>{item}</button>)}<button aria-label="Regresar al inicio" className="ml-auto inline-flex min-h-10 items-center gap-1 rounded-xl border border-brand/30 px-3 text-sm font-semibold text-brand hover:bg-brand/10" onClick={()=>onChange(null)}>← REGRESAR AL INICIO</button></nav>; }
+
+function StaffPaperPrinterPanel({ events }: { events: StaffPortalEvent[] }) {
+  return <section className="space-y-4" aria-label="Papel impresora" data-staff-paper-module>
+    <div className="rounded-3xl border border-brand/30 bg-brand/5 p-5 sm:p-7">
+      <p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">PAPEL IMPRESORA</p>
+      <h2 className="mt-1 text-2xl font-semibold">Registro de papel por evento</h2>
+      <p className="mt-1 text-sm text-muted">Revisa el snapshot de cada Caja asignada y registra solo el papel restante.</p>
+      <p className="mt-3 text-sm font-semibold text-brand">{events.length} evento{events.length === 1 ? "" : "s"} relevante{events.length === 1 ? "" : "s"}</p>
+    </div>
+    <div className="grid gap-4">
+      {events.map((event) => <article className="rounded-3xl border bg-card p-4 sm:p-6" key={event.id}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">{event.date} · {event.start}</p><h3 className="mt-1 truncate text-xl font-semibold">{event.customer}</h3><p className="mt-1 text-sm text-muted">{event.service} · {event.duration} horas · {event.venue || event.address} · {event.district}</p></div>
+          <span className="rounded-full border px-3 py-1 text-xs font-semibold">{stateLabel(event)}</span>
+        </div>
+        <StaffBoxOperationsPanel projectId={event.id} paperOnly />
+      </article>)}
+      {events.length === 0 ? <p className="rounded-2xl border border-dashed p-5 text-sm text-muted">No tienes eventos asignados para revisar papel.</p> : null}
+    </div>
+  </section>;
+}
 
 function OperatorsModule({events,weeklyAvailableEvents,requests,week,confirmed,onSelect}:{events:StaffPortalEvent[];weeklyAvailableEvents:AvailableStaffEvent[];requests:StaffRequest[];week:{label:string};confirmed:number;onSelect:(event:StaffPortalEvent)=>void}) { return <section className="space-y-6" data-staff-module-view="OPERADORES"><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">OPERADORES</p><h2 className="mt-1 text-2xl font-semibold">Eventos y operación</h2><p className="mt-1 text-sm text-muted">{week.label} · disponibles: {weeklyAvailableEvents.length} · confirmados: {confirmed}</p></div><AvailableEvents events={weeklyAvailableEvents} requests={requests} /><section className="rounded-3xl border border-white/10 bg-[#111214] p-5 text-white shadow-[0_20px_70px_rgba(0,0,0,.22)] sm:p-7"><h2 className="text-xl font-semibold">Mis eventos asignados</h2><p className="mt-1 text-sm text-white/60">Las asignaciones nuevas aparecen primero y requieren tu aceptación.</p><div className="mt-5 space-y-2">{events.map(event=><button className="group grid w-full gap-4 rounded-2xl border border-white/10 bg-[#191a1d] p-4 text-left transition hover:border-brand/70 sm:grid-cols-[72px_minmax(0,1fr)_auto] sm:items-center" key={event.id} onClick={()=>onSelect(event)}><div className="grid size-16 shrink-0 place-items-center rounded-xl bg-[#0d0e10] text-center ring-1 ring-white/10"><span className="text-[10px] uppercase tracking-[.16em] text-brand">{new Date(`${event.date}T12:00:00Z`).toLocaleDateString("es-CL",{weekday:"short"})}</span><strong className="text-2xl leading-none">{event.date.slice(8,10)}</strong><span className="text-[10px] text-white/50">{event.date.slice(5,7)}</span></div><div className="min-w-0"><p className="font-semibold">{event.customer}</p><p className="mt-1 text-sm font-semibold text-white/80">{event.service} · {event.duration}h · {event.start}–{event.finish} · {event.timeMode === "CONFIRMED" ? "HORARIO CONFIRMADO" : "HORARIO ESTIMADO"}</p><p className="mt-1 text-sm text-white/60">{event.venue||event.address} · {event.district}</p><div className="mt-2"><StaffOperationalExtras extras={event.operationalExtras} compact /></div></div><div className="flex items-center gap-3 sm:justify-end"><span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-xs font-semibold text-emerald-300">{stateLabel(event)}</span><ChevronRight className="size-5 text-white/40 transition group-hover:text-brand" /></div></button>)}{events.length===0?<p className="py-8 text-sm text-muted">No tienes eventos asignados durante los próximos 15 días.</p>:null}</div></section></section>; }
 
@@ -562,6 +586,7 @@ function AvailableEvents({
   const [pending, start] = useTransition();
   const [message, setMessage] = useState("");
   const [selected, setSelected] = useState<AvailableStaffEvent | null>(null);
+  const [requestsOpen, setRequestsOpen] = useState(false);
   const request = (projectId: string, roles: string | string[]) =>
     start(async () => {
       const result = await requestStaffResponsibilitiesAction(projectId, Array.isArray(roles) ? roles : [roles]);
@@ -594,8 +619,11 @@ function AvailableEvents({
         ) : null}
       </div>
       {selected ? <MultiRoleEventPreview event={selected} requests={requests} pending={pending} close={() => setSelected(null)} request={request} /> : null}
-      <h3 className="mt-7 font-semibold">Mis solicitudes</h3>
-      <div className="mt-3 space-y-2">
+      <button type="button" className="mt-7 flex w-full items-center justify-between rounded-xl border p-3 text-left" aria-expanded={requestsOpen} data-requests-accordion onClick={() => setRequestsOpen((open) => !open)}>
+        <span><strong className="block font-semibold">Mis solicitudes <span className="ml-1 rounded-full bg-brand/10 px-2 py-0.5 text-xs text-brand">{requests.length}</span></strong><span className="mt-1 block text-xs text-muted">Tus solicitudes y asignaciones</span></span>
+        <ChevronDown className={`size-5 text-muted transition-transform ${requestsOpen ? "rotate-180" : ""}`} />
+      </button>
+      {requestsOpen ? <div className="mt-3 space-y-2">
         {requests.map((item) => (
           <div
             className="flex flex-wrap items-center justify-between gap-2 rounded-xl border p-3 text-sm"
@@ -621,7 +649,7 @@ function AvailableEvents({
         {requests.length === 0 ? (
           <p className="text-sm text-muted">Aún no has enviado solicitudes.</p>
         ) : null}
-      </div>
+      </div> : null}
     </section>
   );
 }
