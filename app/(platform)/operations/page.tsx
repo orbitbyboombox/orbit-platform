@@ -3,7 +3,7 @@ import {
   type CommandCenterProjectReadiness,
   type ProductionAssignment,
 } from "@/features/operations/components";
-import { SupabaseCustomerRepository } from "@/features/projects/infrastructure";
+import type { Project, ProjectStatus } from "@/features/projects/types/project";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isReadOnlyVisualPreview } from "@/lib/supabase/environment-guard";
 import { loadFinancialTruth } from "@/features/business-engine";
@@ -73,7 +73,6 @@ export default async function OperationsPage() {
     timeZone: "America/Santiago",
   }).format(new Date());
   const [
-    allProjects,
     assignmentsResult,
     staffResult,
     assetsResult,
@@ -103,7 +102,6 @@ export default async function OperationsPage() {
     cancellationAlertsResult,
     logisticsResult,
   ] = await Promise.all([
-    new SupabaseCustomerRepository(client).findAll(),
     client
       .from("assignments")
       .select(
@@ -159,7 +157,7 @@ export default async function OperationsPage() {
     client
       .from("projects")
       .select(
-        "id,customer_id,name,project_type,event_date,event_time,location,city,operations,finance,customers(full_name),project_services(service_code,duration_hours)",
+        "id,customer_id,name,project_type,status,event_date,event_time,location,city,operations,finance,customers(full_name),project_services(service_code,duration_hours)",
       )
       .is("deleted_at", null),
     client.from("customers").select("id,metadata").is("deleted_at", null),
@@ -276,6 +274,40 @@ export default async function OperationsPage() {
   const payroll = payrollResult.data ?? [];
   const profit = financialTruth;
   const timeline = timelineResult.data ?? [];
+  const allProjects: Project[] = (rawProjectsResult.data ?? []).map((row) => {
+    const customer = Array.isArray(row.customers) ? row.customers[0] : row.customers;
+    const operations = (row.operations ?? {}) as Record<string, unknown>;
+    const status = ["Active", "Upcoming", "Completed", "Archived"].includes(String(row.status))
+      ? String(row.status) as ProjectStatus
+      : "Upcoming";
+    return {
+      id: row.id,
+      name: row.name,
+      type: "Other",
+      client: {
+        name: customer?.full_name ?? "Cliente sin nombre",
+        email: "",
+        phone: "",
+      },
+      event: {
+        date: row.event_date ?? "",
+        time: row.event_time?.slice(0, 5) ?? "",
+        location: row.location ?? "Por confirmar",
+        city: row.city ?? "",
+        durationHours: Array.isArray(row.project_services)
+          ? Number(row.project_services[0]?.duration_hours ?? 0) || undefined
+          : undefined,
+      },
+      services: Array.isArray(row.project_services)
+        ? row.project_services.map((service) => service.service_code).filter(Boolean)
+        : [],
+      status,
+      health: "Healthy",
+      stage: typeof operations.stage === "string" ? operations.stage : "Primer contacto",
+      score: typeof operations.score === "number" ? operations.score : 60,
+      commercialStage: "New",
+    };
+  });
   const financeByProject = new Map(
     (rawProjectsResult.data ?? []).map((item) => [
       item.id,
