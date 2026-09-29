@@ -35,3 +35,12 @@ test("logout no longer owns queue deletion and files are delegated as idempotent
   assert.match(files, /idempotency_key:\s*`file:/);
   assert.match(files, /DRIVE_UPLOAD/);
 });
+
+test("resilient sync uses adaptive polling and refreshes on foreground signals", () => {
+  const provider = read("components/resilient-sync/resilient-sync-provider.tsx");
+  assert.doesNotMatch(provider, /setInterval\(refresh,\s*5_000\)/);
+  assert.match(provider, /document\.hidden \? 60_000 : activeSync \? 5_000 : 30_000/);
+  assert.match(provider, /addEventListener\("focus", onFocus\)/);
+  assert.match(provider, /addEventListener\("visibilitychange", onVisibilityChange\)/);
+  assert.match(provider, /installed\.syncNow\(\)\.finally/);
+});

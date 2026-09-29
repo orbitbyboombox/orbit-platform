@@ -99,6 +99,9 @@ export function ResilientSyncProvider({
   const [reconnected, setReconnected] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [syncing, setSyncing] = useState(false);
+  const latestSnapshotRef = useRef(snapshot);
+
+  latestSnapshotRef.current = snapshot;
 
   const refresh = useCallback(async () => {
     if (!runtime.current) return;
@@ -228,24 +231,55 @@ export function ResilientSyncProvider({
           if (state.conflicts + state.blocked === 0) void installed.syncNow().finally(refresh);
         });
       }
-      void refresh();
+      window.clearTimeout(timer);
+      void refresh().finally(scheduleRefresh);
     };
     const onServiceWorkerSync = (event: MessageEvent) => {
-      if (event.data?.type === "ORBIT_SYNC_REQUESTED") void installed.syncNow().finally(refresh);
+      if (event.data?.type === "ORBIT_SYNC_REQUESTED") {
+        window.clearTimeout(timer);
+        void installed.syncNow().finally(() => refresh().finally(scheduleRefresh));
+      }
+    };
+    let timer: number;
+    const scheduleRefresh = () => {
+      window.clearTimeout(timer);
+      const current = latestSnapshotRef.current;
+      const activeSync = current.status !== "SYNCED"
+        || current.pending > 0
+        || current.errors > 0
+        || current.conflicts > 0
+        || current.blocked > 0;
+      const delay = document.hidden ? 60_000 : activeSync ? 5_000 : 30_000;
+      timer = window.setTimeout(async () => {
+        await refresh();
+        scheduleRefresh();
+      }, delay);
+    };
+    const onVisibilityChange = () => {
+      window.clearTimeout(timer);
+      if (document.hidden) scheduleRefresh();
+      else void refresh().finally(scheduleRefresh);
+    };
+    const onFocus = () => {
+      window.clearTimeout(timer);
+      void refresh().finally(scheduleRefresh);
     };
     onlineRef.current = navigator.onLine;
     setOnline(navigator.onLine);
     window.addEventListener("online", onConnection);
     window.addEventListener("offline", onConnection);
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibilityChange);
     navigator.serviceWorker?.addEventListener("message", onServiceWorkerSync);
     void registerOrbitSyncServiceWorker().catch(() => null);
-    void refresh();
-    const timer = window.setInterval(refresh, 5_000);
+    void refresh().finally(scheduleRefresh);
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      window.clearTimeout(timer);
       window.removeEventListener("online", onConnection);
       window.removeEventListener("offline", onConnection);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       navigator.serviceWorker?.removeEventListener("message", onServiceWorkerSync);
       installed.destroy();
       runtime.current = null;
