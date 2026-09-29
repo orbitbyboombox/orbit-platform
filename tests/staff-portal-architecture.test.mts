@@ -34,6 +34,14 @@ test("Staff Home reuses compact weekly and logistics language", () => {
   assert.match(dashboard, /No tienes eventos asignados esta semana/);
 });
 
+test("Staff operational extras reuse the canonical projection and hide prices", () => {
+  assert.match(portal, /buildCanonicalOperationalExtras/);
+  assert.match(portal, /operationalExtras/);
+  assert.match(dashboard, /StaffOperationalExtras/);
+  assert.match(dashboard, /operationalExtraCategories: OperationalExtraCategory\[\] = \["QR", "IMANES", "SCRAPBOOK", "FONDO", "TRASLADO", "OTROS"\]/);
+  assert.doesNotMatch(dashboard, /operationalExtras[\s\S]{0,600}money\(/);
+});
+
 test("Staff Home places the weekly agenda before summary and modules", () => {
   const agenda = dashboard.indexOf("<StaffWeeklyEventList events={events} onSelect={onSelect} />");
   const summary = dashboard.indexOf("Resumen rápido");
