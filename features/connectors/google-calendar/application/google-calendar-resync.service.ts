@@ -19,7 +19,7 @@ export async function invalidateCalendarSyncForCanonicalChange(input: { client: 
 /** Loads the final persisted operational state and invalidates exactly once. */
 export async function invalidateCalendarSyncForProject(client: SupabaseClient, projectId: string): Promise<void> {
   const [{ data: project }, { data: assignments }] = await Promise.all([
-    client.from("projects").select("orbit_event_id,location,event_date,event_time,event_time_mode,operations,project_services(duration_hours)").eq("id", projectId).maybeSingle(),
+    client.from("projects").select("orbit_event_id,location,event_date,event_time,event_time_mode,operations,project_services(duration_hours),event_post_reservation_extras(name,status)").eq("id", projectId).maybeSingle(),
     client.from("assignments").select("staff_call_at,staff_call_source,status").eq("project_id", projectId).is("deleted_at", null),
   ]);
   if (!project) return;
@@ -30,7 +30,8 @@ export async function invalidateCalendarSyncForProject(client: SupabaseClient, p
   // provisional time (for example 08:00 after confirmation to 20:00), so it
   // must not override the persisted event time while computing the queue hash.
   const canonical = buildCanonicalOrbitEventStateFromRecord({ id: projectId, orbit_event_id: project.orbit_event_id, event_date: project.event_date, event_time: project.event_time, event_time_mode: project.event_time_mode, operations: ops, location: project.location, duration_hours: duration, project_operational_contracts: null, assignments: assignments ?? [] });
-  await invalidateCalendarSyncForCanonicalChange({ client, projectId, currentPayloadHash: hashCanonicalCalendarFingerprint({ orbitEventId: canonical.orbitEventId, serviceStartAt: canonical.serviceStartAt, serviceEndAt: canonical.serviceEndAt, staffCallAt: canonical.staffCallAt, staffCallSource: canonical.staffCallSource, location: canonical.location }) });
+  const extras = Array.isArray((project as { event_post_reservation_extras?: unknown }).event_post_reservation_extras) ? ((project as { event_post_reservation_extras: Array<{ name?: string; status?: string }> }).event_post_reservation_extras).filter((item) => item.status === "ACTIVE").map((item) => String(item.name ?? "")).filter(Boolean) : [];
+  await invalidateCalendarSyncForCanonicalChange({ client, projectId, currentPayloadHash: hashCanonicalCalendarFingerprint({ orbitEventId: canonical.orbitEventId, serviceStartAt: canonical.serviceStartAt, serviceEndAt: canonical.serviceEndAt, staffCallAt: canonical.staffCallAt, staffCallSource: canonical.staffCallSource, location: canonical.location, extras }) });
 }
 
 /** Processes only existing remote mappings. It never creates a Google event. */

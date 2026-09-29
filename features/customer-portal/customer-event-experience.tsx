@@ -3,13 +3,14 @@
 import { CalendarDays, Clock3, MapPin, Sparkles, UserRound } from "lucide-react";
 
 type PortalData = NonNullable<Awaited<ReturnType<typeof import("./customer-portal.service").loadCustomerPortal>>>;
-type Project = PortalData["project"] & { operations: Record<string, unknown>; project_services: Array<{ service_code: string; duration_hours: number | null }> };
+type Project = PortalData["project"] & { operations: Record<string, unknown>; project_services: Array<{ service_code: string; duration_hours: number | null }>; event_post_reservation_extras?: Array<{ name: string; amount: number; status: string }> };
 
 const formatDate = (value: string | null | undefined) => value ? new Intl.DateTimeFormat("es-CL", { dateStyle: "full", timeZone: "UTC" }).format(new Date(`${value}T12:00:00Z`)) : "Por confirmar";
 
 export function CustomerEventExperience({ data }: { data: PortalData }) {
   const project = data.project as Project;
   const services = project.project_services ?? [];
+  const extras = (project.event_post_reservation_extras ?? []).filter((item) => item.status === "ACTIVE").map((item) => item.name);
   const address = String(project.operations.eventAddress ?? project.city ?? "Por confirmar");
   const contact = String(project.operations.operationalContact ?? "Equipo BOOMBOX");
 
@@ -22,6 +23,7 @@ export function CustomerEventExperience({ data }: { data: PortalData }) {
       <Detail icon={MapPin} label="Dirección" value={address}/>
       <Detail icon={Sparkles} label="Servicio" value={services.map((item) => item.service_code).join(" + ") || "Por confirmar"}/>
       <Detail icon={Clock3} label="Horas" value={services.map((item) => item.duration_hours ? `${item.duration_hours} horas` : null).filter(Boolean).join(" · ") || "Por confirmar"}/>
+      <Detail icon={Sparkles} label="Extras agregados" value={extras.join(" · ") || "Sin extras"}/>
       <Detail icon={UserRound} label="Encargado de tu evento" value={contact}/>
     </dl>
   </section>;

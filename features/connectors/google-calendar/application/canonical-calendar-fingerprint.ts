@@ -5,6 +5,7 @@ export type CanonicalCalendarFingerprintInput = {
   staffCallAt: string | Date | null | undefined;
   staffCallSource: string | null | undefined;
   location: string | null | undefined;
+  extras?: readonly string[];
 };
 
 export const CALENDAR_CANONICAL_SCHEMA_VERSION = "v2";
@@ -24,6 +25,7 @@ export function buildCanonicalCalendarFingerprint(input: CanonicalCalendarFinger
     staffCallAt: iso(input.staffCallAt),
     staffCallSource: input.staffCallSource == null ? null : String(input.staffCallSource).trim() || null,
     location: input.location == null ? null : String(input.location).trim() || null,
+    extras: [...(input.extras ?? [])].map((value) => String(value).trim()).filter(Boolean).sort(),
   });
 }
 

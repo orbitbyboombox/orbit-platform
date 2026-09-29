@@ -20,6 +20,7 @@ import { buildResponsibilityReadModel } from "@/features/staff-assignment-center
 import type { OperationalBlock } from "@/features/operations/operational-blocks";
 import { resolveOfficialOperatorRate } from "@/features/operations/staff-assignment-payment";
 import { EventUiReplica } from "@/features/projects/components/event-ui-replica";
+import { EventPostReservationExtrasPanel } from "@/features/projects/components/event-post-reservation-extras-panel";
 
 export interface ProjectWorkspacePageProps {
   params: Promise<{ projectId: string }>;
@@ -102,6 +103,8 @@ export default async function ProjectWorkspacePage({
     { data: staffPublication },
     { data: operationalContract },
     { data: operationalRequirements },
+    { data: postReservationExtras },
+    { data: catalogExtras },
   ] = await Promise.all([
     client
       .from("projects")
@@ -258,6 +261,19 @@ export default async function ProjectWorkspacePage({
       .eq("project_id", projectId)
       .eq("status", "ACTIVE")
       .order("created_at"),
+    client
+      .from("event_post_reservation_extras")
+      .select("id,name,amount,source,added_at,status")
+      .eq("project_id", projectId)
+      .order("added_at", { ascending: false }),
+    client
+      .from("commercial_prices")
+      .select("id,code,label,unit_price,metadata")
+      .eq("category", "EXTRA")
+      .eq("enabled", true)
+      .eq("pricing_status", "DEFINED")
+      .is("deleted_at", null)
+      .order("display_order"),
   ]);
   const { data: commercialOrigin, error: commercialOriginError } = await client
     .from("project_commercial_origins")
@@ -1584,6 +1600,7 @@ export default async function ProjectWorkspacePage({
       service={services.join(" · ")}
       eventType={typeLabel}
       extras={eventExtras}
+      postReservationExtras={<EventPostReservationExtrasPanel projectId={projectId} extras={(postReservationExtras ?? []) as Array<{ id: string; name: string; amount: number; source: string; added_at: string; status: string }>} catalog={(catalogExtras ?? []) as Array<{ id: string; code: string; label: string; unit_price: number | null; metadata?: Record<string, unknown> }>} originalTotal={Number(quotation?.final_customer_price ?? quotation?.grand_total ?? 0)} paidAmount={Number(invoice?.paid_amount ?? 0)} currentTotal={Number(quotation?.final_customer_price ?? quotation?.grand_total ?? 0) + (postReservationExtras ?? []).filter((item) => item.status === "ACTIVE").reduce((sum, item) => sum + Number(item.amount), 0)} />}
       operationalContactName={[operationalContract?.contact_first_name, operationalContract?.contact_last_name].filter(Boolean).join(" ")}
       operationalContactPhone={operationalContract?.contact_phone ?? ""}
       operators={eventOperators}
