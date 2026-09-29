@@ -542,7 +542,22 @@ export function FounderWorkspaceExperience({
   const orderedQuickActions = activeDashboardLayout.quickActionOrder
     .map((id) => quickActions.find((item) => item.id === id))
     .filter((item): item is (typeof quickActions)[number] => Boolean(item));
-  const groupedActions = founderActions
+  const financialReviewActions: FounderActionItem[] = finance.risks.map(
+    (risk) => ({
+      id: `finance-risk:${risk.key}`,
+      type: "FINANCE_RISK",
+      title: risk.label,
+      detail: `${risk.count} pendiente${risk.count === 1 ? "" : "s"} · ${money(risk.amount)}`,
+      href: risk.href,
+      createdAt: finance.generatedAt,
+      priority: risk.severity === "danger" ? "P1" : "P2",
+      category: "FINANCE",
+      read: false,
+      cta: "VER DETALLES",
+    }),
+  );
+  const attentionActions = [...founderActions, ...financialReviewActions];
+  const groupedActions = attentionActions
     .reduce<Array<FounderActionItem & { count?: number }>>((groups, item) => {
       const repeatable = !["P0", "P1"].includes(item.priority);
       const existing =
@@ -691,7 +706,7 @@ export function FounderWorkspaceExperience({
           <p className="mt-2 text-xs text-muted">Abrir para revisar cada pendiente en su elemento exacto.</p>
         </div>
         <span className="flex items-center gap-3">
-          <span aria-label={`${founderActions.length} pendientes accionables`} className="grid min-h-11 min-w-11 place-items-center rounded-full bg-brand px-3 text-lg font-bold text-brand-foreground">{founderActions.length}</span>
+          <span aria-label={`${attentionActions.length} pendientes accionables`} className="grid min-h-11 min-w-11 place-items-center rounded-full bg-brand px-3 text-lg font-bold text-brand-foreground">{attentionActions.length}</span>
           <ChevronDown className="size-5 text-muted transition-transform group-open:rotate-180" />
         </span>
       </summary>
@@ -743,7 +758,7 @@ export function FounderWorkspaceExperience({
       >
         Ver todos los pendientes <ArrowRight className="size-3.5" />
       </Link>
-      {!founderActions.length ? (
+      {!attentionActions.length ? (
         <Empty label="No hay decisiones pendientes del Founder." />
       ) : null}
     </details>

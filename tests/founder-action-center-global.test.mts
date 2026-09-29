@@ -21,7 +21,7 @@ type Canonical={kind:"onboarding"|"expense";id:string;status:string};
 const project=(records:Canonical[])=>new Map(records.filter(record=>record.status===(record.kind==="onboarding"?"SUBMITTED":"PENDING_REVIEW")).map(record=>[`${record.kind}:${record.id}`,record]));
 
 test("new onboarding projects an actionable Founder alert",()=>{assert.match(migration,/STAFF_ONBOARDING_REVIEW_REQUIRED/);assert.match(migration,/where i\.status='SUBMITTED'/)});
-test("Founder dashboard renders a prominent pending action center",()=>{assert.match(dashboard,/Pendientes por revisar/);assert.match(dashboard,/founderActions\.length/)});
+test("Founder dashboard renders a prominent pending action center",()=>{assert.match(dashboard,/Pendientes por revisar/);assert.match(dashboard,/attentionActions\.length/)});
 test("header count derives from unresolved Founder actions",()=>{assert.match(layout,/loadFounderActionCount/);assert.doesNotMatch(layout,/loadNotificationUnreadCount/)});
 test("opening an onboarding alert does not resolve canonical state",()=>{assert.match(notifications,/Leer una tarea no la resuelve/);assert.doesNotMatch(onboarding,/status:\s*"APPROVED"/)});
 test("approving onboarding resolves projection through canonical status trigger",()=>{assert.match(migration,/after insert or update of status,submitted_at,submitted_data/);assert.match(migration,/i\.status='SUBMITTED'/)});

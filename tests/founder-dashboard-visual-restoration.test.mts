@@ -19,6 +19,9 @@ test("the approved Founder Command Center structure is the rendered dashboard", 
   assert.doesNotMatch(dashboard, /Centro operacional · Hoy/);
   assert.doesNotMatch(dashboard, /Alertas y pendientes/);
   assert.match(dashboard, /DASHBOARD_ACTION_CENTER/);
+  assert.match(dashboard, /financialReviewActions/);
+  assert.match(dashboard, /type: "FINANCE_RISK"/);
+  assert.match(dashboard, /detail: `\$\{risk\.count\} pendiente/);
   assert.match(dashboard, /Próximos eventos/);
   assert.match(dashboard, /Actividad reciente/);
 });
