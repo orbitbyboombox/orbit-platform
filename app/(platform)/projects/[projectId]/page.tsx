@@ -75,7 +75,7 @@ export default async function ProjectWorkspacePage({
   }
   const project = projects.find((candidate) => candidate.id === projectId);
   if (!project) notFound();
-  const realCost = await calculateAndPersistRealEventCost(client, projectId);
+  const realCost = await calculateAndPersistRealEventCost(adminReadClient, projectId);
   const timeline =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
       projectId,
@@ -1437,7 +1437,7 @@ export default async function ProjectWorkspacePage({
     },
   };
   const eventControlOperations = (
-    await loadCrmCustomerOperations(client, [projectId])
+    await loadCrmCustomerOperations(client, [projectId], adminReadClient)
   )[0];
   if (!eventControlOperations) notFound();
   const checklistItems = checklist?.event_checklist_items ?? [];

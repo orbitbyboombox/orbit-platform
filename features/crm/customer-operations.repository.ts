@@ -9,6 +9,7 @@ const one = <T,>(value: Relation<T>): T | null =>
 export async function loadCrmCustomerOperations(
   client: SupabaseClient,
   projectIds: string[],
+  financialClient: SupabaseClient = client,
 ): Promise<CrmCustomerEventOperations[]> {
   if (!projectIds.length) return [];
   const [receivables, assignments, staff, assets, agreements, documents, calendars, portals, invoices, financialTruth, quotations, expenses, services, staffRequirements, operationalBlocks, staffRates] =
@@ -22,7 +23,7 @@ export async function loadCrmCustomerOperations(
       client.from("calendar_sync").select("project_id,status,external_event_id,external_url,nova_external_event_id,nova_external_url").in("project_id", projectIds),
       client.from("customer_portal_tokens").select("project_id").in("project_id", projectIds).is("revoked_at", null),
       client.from("invoices").select("id,project_id,invoice_number,status,amount,due_date").in("project_id", projectIds).is("deleted_at", null).order("created_at", { ascending: false }),
-      client.from("financial_event_records").select("project_id,revenue,personnel_cost,operational_resources_cost,total_operational_cost,net_profit,net_margin,cost_breakdown,calculated_at").in("project_id", projectIds),
+      financialClient.from("financial_event_records").select("project_id,revenue,personnel_cost,operational_resources_cost,total_operational_cost,net_profit,net_margin,cost_breakdown,calculated_at").in("project_id", projectIds),
       client.from("quotations").select("id,project_id,subtotal,transport_total,tax_total,grand_total,final_customer_price,pricing_snapshot,created_at,quotation_items(item_type,code,label,quantity,final_total,metadata)").in("project_id", projectIds).is("deleted_at", null).order("created_at", { ascending: false }),
       client.from("expenses").select("id,project_id,occurred_on,category,approval_reason,total,status").in("project_id", projectIds).is("deleted_at", null).order("occurred_on", { ascending: false }),
       client.from("project_services").select("project_id,service_code,duration_hours,extras").in("project_id", projectIds),

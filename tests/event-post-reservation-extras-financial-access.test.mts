@@ -18,6 +18,8 @@ test("event detail keeps protected financial records server-only", () => {
     eventPage,
     /client\s*\.from\("financial_event_records"\)/,
   );
+  assert.match(eventPage, /calculateAndPersistRealEventCost\(adminReadClient, projectId\)/);
+  assert.match(eventPage, /loadCrmCustomerOperations\(client, \[projectId\], adminReadClient\)/);
 });
 
 test("event detail preserves post-reservation receivable summary contract", () => {
