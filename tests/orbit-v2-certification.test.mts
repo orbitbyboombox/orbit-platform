@@ -29,3 +29,11 @@ test("Calendar fingerprint schema v3 forces canonical-format refresh", () => {
     /CALENDAR_CANONICAL_SCHEMA_VERSION = "v3"/,
   );
 });
+
+
+test("Operations uses compact Drive readiness projection", () => {
+  const source = read("app/(platform)/operations/page.tsx");
+  assert.match(source, /rpc\("operations_drive_ready_projects"\)/);
+  assert.doesNotMatch(source, /from\("drive_sync"\)/);
+  assert.doesNotMatch(source, /from\("documents"\)/);
+});

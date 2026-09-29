@@ -81,8 +81,7 @@ export default async function OperationsPage() {
     evidenceResult,
     quotationsResult,
     calendarResult,
-    driveResult,
-    documentsResult,
+    driveReadyResult,
     payrollResult,
     profitResult,
     timelineResult,
@@ -135,11 +134,7 @@ export default async function OperationsPage() {
       .is("deleted_at", null)
       .order("created_at", { ascending: false }),
     client.from("calendar_sync").select("project_id,status"),
-    client.from("drive_sync").select("project_id,status").in("status", ["CREATED", "UPDATED"]),
-    client
-      .from("documents")
-      .select("project_id")
-      .is("deleted_at", null),
+    client.rpc("operations_drive_ready_projects"),
     client
       .from("event_staff_payments")
       .select(
@@ -221,8 +216,7 @@ export default async function OperationsPage() {
     evidenceResult,
     quotationsResult,
     calendarResult,
-    driveResult,
-    documentsResult,
+    driveReadyResult,
     payrollResult,
     profitResult,
     timelineResult,
@@ -269,8 +263,9 @@ export default async function OperationsPage() {
   );
   const quotations = quotationsResult.data ?? [];
   const calendar = calendarResult.data ?? [];
-  const driveReadyProjects = new Set((driveResult.data ?? []).map((item) => item.project_id));
-  const documentProjects = new Set((documentsResult.data ?? []).map((item) => item.project_id));
+  const driveReadyProjects = new Set(
+    (driveReadyResult.data ?? []).map((item: { project_id: string }) => item.project_id),
+  );
   const payroll = payrollResult.data ?? [];
   const profit = financialTruth;
   const timeline = timelineResult.data ?? [];
@@ -401,7 +396,7 @@ export default async function OperationsPage() {
           {
             label: "Drive",
             state: state(
-              driveReadyProjects.has(project.id) || documentProjects.has(project.id),
+              driveReadyProjects.has(project.id),
               true,
             ),
           },
