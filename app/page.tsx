@@ -32,7 +32,7 @@ export default async function OrbitHomePage({ searchParams }: { searchParams: Pr
     <div className="access-form-panel">
       <div className="access-form-top"><span>ORBIT / BOOMBOX</span><span className="access-status"><i /> Sistema operativo</span></div>
       <UnifiedAccess initialAccess={initialAccess} initialMessage={message} />
-      <div className="access-footer"><span>ORBIT BOOMBOX v1.9</span><span>Powered by ORBIT NOVA</span></div>
+      <div className="access-footer"><span>ORBIT BOOMBOX v2.0</span><span>Powered by ORBIT NOVA</span></div>
     </div>
   </section></main>;
 }

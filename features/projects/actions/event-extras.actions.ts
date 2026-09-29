@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { invalidateCalendarSyncForProject } from "@/features/connectors/google-calendar/application/google-calendar-resync.service";
+import { propagateCanonicalEventChange } from "@/features/projects/operations/canonical-event-propagation.service";
 
 async function adminClient() {
   const client = await createSupabaseServerClient();
@@ -23,7 +23,7 @@ export async function addEventPostReservationExtraAction(input: {
   source: "CATALOG" | "CUSTOM";
   reason?: string;
 }) {
-  const { client } = await adminClient();
+  const { client, userId } = await adminClient();
   const { data, error } = await client.rpc("add_event_post_reservation_extra", {
     p_project_id: input.projectId,
     p_commercial_price_id: input.commercialPriceId ?? null,
@@ -34,7 +34,10 @@ export async function addEventPostReservationExtraAction(input: {
     p_reason: input.reason?.trim() || null,
   });
   if (error) throw new Error(error.message);
-  await invalidateCalendarSyncForProject(client, input.projectId);
+  await propagateCanonicalEventChange({ client, projectId: input.projectId, actorId: userId });
   revalidatePath(`/projects/${input.projectId}`);
+  revalidatePath("/operations");
+  revalidatePath("/staff-portal");
+  revalidatePath("/", "layout");
   return data as { id: string; total: number; paid: number; balance: number; extras_total: number };
 }

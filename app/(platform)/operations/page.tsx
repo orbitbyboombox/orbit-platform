@@ -135,10 +135,10 @@ export default async function OperationsPage() {
       .is("deleted_at", null)
       .order("created_at", { ascending: false }),
     client.from("calendar_sync").select("project_id,status"),
-    client.from("drive_sync").select("project_id,status"),
+    client.from("drive_sync").select("project_id,status").in("status", ["CREATED", "UPDATED"]),
     client
       .from("documents")
-      .select("project_id,document_type")
+      .select("project_id")
       .is("deleted_at", null),
     client
       .from("event_staff_payments")
@@ -269,8 +269,8 @@ export default async function OperationsPage() {
   );
   const quotations = quotationsResult.data ?? [];
   const calendar = calendarResult.data ?? [];
-  const drive = driveResult.data ?? [];
-  const documents = documentsResult.data ?? [];
+  const driveReadyProjects = new Set((driveResult.data ?? []).map((item) => item.project_id));
+  const documentProjects = new Set((documentsResult.data ?? []).map((item) => item.project_id));
   const payroll = payrollResult.data ?? [];
   const profit = financialTruth;
   const timeline = timelineResult.data ?? [];
@@ -401,11 +401,7 @@ export default async function OperationsPage() {
           {
             label: "Drive",
             state: state(
-              drive.some(
-                (item) =>
-                  item.project_id === project.id &&
-                  ["CREATED", "UPDATED"].includes(item.status),
-              ) || documents.some((item) => item.project_id === project.id),
+              driveReadyProjects.has(project.id) || documentProjects.has(project.id),
               true,
             ),
           },

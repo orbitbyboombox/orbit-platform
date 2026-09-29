@@ -8,7 +8,7 @@ export type CanonicalCalendarFingerprintInput = {
   extras?: readonly string[];
 };
 
-export const CALENDAR_CANONICAL_SCHEMA_VERSION = "v2";
+export const CALENDAR_CANONICAL_SCHEMA_VERSION = "v3";
 
 function iso(value: string | Date | null | undefined): string | null {
   if (value == null || value === "") return null;
