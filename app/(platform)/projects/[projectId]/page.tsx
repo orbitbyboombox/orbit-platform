@@ -21,6 +21,7 @@ import type { OperationalBlock } from "@/features/operations/operational-blocks"
 import { resolveOfficialOperatorRate } from "@/features/operations/staff-assignment-payment";
 import { EventUiReplica } from "@/features/projects/components/event-ui-replica";
 import { EventPostReservationExtrasPanel } from "@/features/projects/components/event-post-reservation-extras-panel";
+import { buildCanonicalOperationalExtras } from "@/features/operations/canonical-operational-extras";
 
 export interface ProjectWorkspacePageProps {
   params: Promise<{ projectId: string }>;
@@ -147,7 +148,7 @@ export default async function ProjectWorkspacePage({
     client
       .from("quotations")
       .select(
-        "id,quotation_number,version,status,grand_total,transport_total,official_price,final_customer_price,price_difference,created_at,approved_at,pdf_storage_path,drive_file_id,gmail_draft_id,quotation_items(description,label,quantity,total,display_order)",
+        "id,quotation_number,version,status,grand_total,transport_total,official_price,final_customer_price,price_difference,created_at,approved_at,pdf_storage_path,drive_file_id,gmail_draft_id,quotation_items(item_type,description,label,quantity,total,display_order)",
       )
       .eq("project_id", projectId)
       .is("deleted_at", null)
@@ -1528,6 +1529,14 @@ export default async function ProjectWorkspacePage({
         })
         .filter(Boolean)
     : [];
+  const operationalExtras = buildCanonicalOperationalExtras({
+    serviceExtras: (serviceRows ?? []).flatMap((item) => Array.isArray(item.extras) ? item.extras : []),
+    postReservationExtras: (postReservationExtras ?? []).filter((item) => item.status === "ACTIVE").map((item) => item.name),
+    configuredExtras: Array.isArray(quotation?.quotation_items)
+      ? quotation.quotation_items.filter((item) => item.item_type === "EXTRA").flatMap((item) => [item.label, item.description])
+      : [],
+    transportTotal: Number(quotation?.transport_total ?? 0),
+  });
   const serviceStartTime = chileDateTime(canonicalEventState.serviceStartAt).time;
   const serviceEndTime = chileDateTime(canonicalEventState.serviceEndAt).time;
   const staffCallTime = chileDateTime(canonicalEventState.staffCallAt).time;
@@ -1603,6 +1612,7 @@ export default async function ProjectWorkspacePage({
       service={services.join(" · ")}
       eventType={typeLabel}
       extras={eventExtras}
+      operationalExtras={operationalExtras}
       postReservationExtras={<EventPostReservationExtrasPanel projectId={projectId} extras={(postReservationExtras ?? []) as Array<{ id: string; name: string; amount: number; source: string; added_at: string; status: string }>} catalog={(catalogExtras ?? []) as Array<{ id: string; code: string; label: string; unit_price: number | null; metadata?: Record<string, unknown> }>} originalTotal={Number(quotation?.final_customer_price ?? quotation?.grand_total ?? 0)} paidAmount={Number(invoice?.paid_amount ?? 0)} currentTotal={Number(quotation?.final_customer_price ?? quotation?.grand_total ?? 0) + (postReservationExtras ?? []).filter((item) => item.status === "ACTIVE").reduce((sum, item) => sum + Number(item.amount), 0)} />}
       operationalContactName={[operationalContract?.contact_first_name, operationalContract?.contact_last_name].filter(Boolean).join(" ")}
       operationalContactPhone={operationalContract?.contact_phone ?? ""}

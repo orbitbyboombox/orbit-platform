@@ -1,3 +1,5 @@
+import type { CanonicalOperationalExtras } from "@/features/operations/canonical-operational-extras";
+
 export type CalendarOperationalPlanStatus = "DRAFT" | "APPROVED";
 export type CalendarOperationalEventType = "WEDDING" | "CORPORATE" | "BIRTHDAY" | "GRADUATION" | "INTERNAL";
 export type GoogleCalendarSyncStatus = "PENDING" | "STALE" | "SYNCING" | "SYNCHRONIZED" | "FAILED" | "UPDATE_REQUIRED" | "ERROR" | "CANCELLED" | "DELETED";
@@ -32,6 +34,7 @@ export interface CalendarOperationalEventInput {
   dismantlingWindow: string;
   operationalNotes: string;
   extras: readonly string[];
+  operationalExtras?: CanonicalOperationalExtras;
   includeOperatorPaymentStatus?: boolean;
   operatorPaymentStatus?: OperatorPaymentOperationalStatus;
   customerAddress: string;

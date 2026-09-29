@@ -11,6 +11,7 @@ import type {
   GoogleCalendarSyncRecord,
 } from "../types/google-calendar-live.types";
 import { hashCanonicalCalendarFingerprint } from "./canonical-calendar-fingerprint";
+import { formatCanonicalOperationalExtrasForCalendar } from "@/features/operations/canonical-operational-extras";
 
 export const GOOGLE_CALENDAR_EVENT_COLORS: Readonly<Record<CalendarOperationalEventType, GoogleCalendarEventColor>> = {
   WEDDING: { eventType: "WEDDING", label: "Matrimonio", googleColorId: "5" },
@@ -38,7 +39,7 @@ export function buildCalendarDescription(input: CalendarOperationalEventInput, o
   return [
     `Servicio: ${input.service}`,
     `Duración: ${input.contractedHours} horas`,
-    `Extras: ${input.extras.join(", ") || "Sin extras"}`,
+    `EXTRAS: ${input.operationalExtras?.calendarLines.join(" · ") ?? formatCanonicalOperationalExtrasForCalendar({ serviceExtras: input.extras })}`,
     `Cliente: ${input.customerName}`,
     `Citación Staff: ${input.operatorCallTime}`,
     `Horario servicio: ${input.serviceStartDate} · ${input.serviceStart}–${input.serviceEnd}`,
