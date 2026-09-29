@@ -1268,7 +1268,8 @@ export default async function OperationsPage() {
                 ? `${Number(logistics.trip_count)} viaje(s) planificado(s)`
                 : "Pendiente",
       };
-    });
+    })
+    .sort((a, b) => a.date.localeCompare(b.date) || a.customer.localeCompare(b.customer));
   const pendingRequests: PlanningRequest[] = (
     staffRequestsResult.data ?? []
   ).map((row) => {

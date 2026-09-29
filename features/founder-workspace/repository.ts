@@ -61,6 +61,9 @@ export async function loadFounderWorkspace(
       if (moduleKey === "DASHBOARD" && key === "DASHBOARD_UPCOMING_EVENTS") {
         const headerIndex = reconciledOrder.indexOf("DASHBOARD_HEADER");
         reconciledOrder.splice(headerIndex >= 0 ? headerIndex + 1 : 0, 0, key);
+      } else if (moduleKey === "DASHBOARD" && key === "DASHBOARD_ACTION_CENTER") {
+        const quickIndex = reconciledOrder.indexOf("DASHBOARD_QUICK_ACTIONS");
+        reconciledOrder.splice(quickIndex >= 0 ? quickIndex + 1 : reconciledOrder.length, 0, key);
       } else {
         reconciledOrder.push(key);
       }
@@ -71,7 +74,9 @@ export async function loadFounderWorkspace(
     const hiddenSections = [
       ...(storedModule?.hiddenSections ?? []),
       ...hiddenByDefault,
-    ];
+    ].filter(
+      (key) => !(moduleKey === "DASHBOARD" && key === "DASHBOARD_ACTION_CENTER"),
+    );
     return [moduleKey, { sectionOrder: reconciledOrder, hiddenSections: [...new Set(hiddenSections)], sectionLabels:{...defaults[moduleKey as keyof typeof defaults].sectionLabels,...storedModule.sectionLabels} }];
   })) as FounderWorkspacePreferences["moduleWorkspaces"];
   const moduleWorkspaces={...storedModules,...knownModules} as FounderWorkspacePreferences["moduleWorkspaces"];

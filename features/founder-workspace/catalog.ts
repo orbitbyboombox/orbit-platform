@@ -233,6 +233,11 @@ export const MODULE_WORKSPACES = {
       defaultVisible: true,
     },
     {
+      key: "DASHBOARD_ACTION_CENTER",
+      label: "Pendientes por revisar",
+      defaultVisible: true,
+    },
+    {
       key: "DASHBOARD_TODAY",
       label: "Jornada operacional",
       defaultVisible: true,

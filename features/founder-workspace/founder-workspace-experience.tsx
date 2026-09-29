@@ -1047,6 +1047,7 @@ export function FounderWorkspaceExperience({
             key: "DASHBOARD_ACTION_CENTER",
             label: "Pendientes por revisar",
             content: actionCenter,
+            requiredVisible: true,
           },
           ...(financialAlerts
             ? [
