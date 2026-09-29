@@ -54,6 +54,10 @@ export default async function ProjectWorkspacePage({
   const client = await createSupabaseServerClient();
   const { data: auth, error: authError } = await client.auth.getUser();
   if (authError || !auth.user) redirect("/api/auth/session-expired");
+  // financial_event_records is intentionally server/admin-only. Keep the
+  // authenticated client for user-scoped reads and use the trusted server
+  // client only for this protected financial read model.
+  const adminReadClient = createAdminClient();
   const founderWorkspace = await loadFounderWorkspace(client, auth.user.id);
   let projects;
   try {
@@ -197,7 +201,7 @@ export default async function ProjectWorkspacePage({
       .in("code", ["OPERATOR_2_HOURS", "OPERATOR_3_HOURS", "OPERATOR_4_HOURS", "OPERATOR_5_HOURS", "OPERATOR_6_HOURS", "OPERATOR_7_HOURS", "OPERATOR_8_HOURS", "OPERATOR_9_HOURS", "OPERATOR_10_HOURS"])
       .eq("enabled", true)
       .is("deleted_at", null),
-    client
+    adminReadClient
       .from("financial_event_records")
       .select(
         "id:project_id,status,revenue,operational_cost:total_operational_cost,gross_margin:gross_profit,gross_margin_percent:gross_margin",
@@ -232,7 +236,7 @@ export default async function ProjectWorkspacePage({
       .select("category,estimated_value,edited_value,reason,created_at")
       .eq("project_id", projectId)
       .order("created_at", { ascending: false }),
-    client
+    adminReadClient
       .from("financial_event_records")
       .select(
         "revenue,estimated_cost,real_cost,personnel_cost,operational_resources_cost,total_operational_cost,gross_profit,gross_margin,net_profit,net_margin,cost_breakdown,calculated_at",
@@ -291,7 +295,6 @@ export default async function ProjectWorkspacePage({
   if (operationalBlocksError && !["42P01", "PGRST205"].includes(operationalBlocksError.code ?? "")) {
     throw operationalBlocksError;
   }
-  const adminReadClient = createAdminClient();
   let { data: paperSnapshot, error: paperSnapshotError } = await adminReadClient
     .from("event_paper_snapshots")
     .select("id,opening_balance,final_remaining_balance,event_usage,status,format_key,paper_variant,black_box_asset_code,confirmed_by,confirmed_at,created_at")
