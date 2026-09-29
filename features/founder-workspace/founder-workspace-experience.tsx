@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  AlertTriangle,
   ArrowRight,
   CalendarDays,
   CircleDollarSign,
@@ -11,7 +10,6 @@ import {
   TrendingUp,
   UsersRound,
   WalletCards,
-  Check,
   UserRoundCheck,
   ArrowDown,
   ArrowUp,
@@ -28,7 +26,6 @@ import type {
 } from "@/features/finance/finance-read-model";
 import { PersonalWorkspaceSections } from "./personal-workspace";
 import { reviewStaffRequestAction } from "@/features/operations/operations-planning.actions";
-import { markNotificationReadAction } from "@/features/notification-center/actions";
 import {
   FinancialAlertCenter,
   type FinancialAlertView,
@@ -210,10 +207,6 @@ export function FounderWorkspaceExperience({
   const [resolvedApprovalIds, setResolvedApprovalIds] = useState<Set<string>>(
     () => new Set(),
   );
-  const [acknowledgedAlertIds, setAcknowledgedAlertIds] = useState<Set<string>>(
-    () => new Set(),
-  );
-  const [alertPending, startAlertTransition] = useTransition();
   useEffect(() => {
     setDashboardLayout(
       reconcileDashboardLayout(workspace.preferences.dashboardLayout),
@@ -221,9 +214,6 @@ export function FounderWorkspaceExperience({
   }, [workspace.preferences.dashboardLayout]);
   const staffApprovalItems = pendingStaffApprovals.filter(
     (item) => !resolvedApprovalIds.has(item.id),
-  );
-  const visibleOperationalAlerts = operationalAlerts.filter(
-    (item) => !acknowledgedAlertIds.has(item.id),
   );
   const biancaCard = whatsappSummary ? (
     <section
@@ -289,12 +279,6 @@ export function FounderWorkspaceExperience({
       </div>
     </section>
   ) : null;
-  const acknowledgeAlert = (id: string) =>
-    startAlertTransition(async () => {
-      await markNotificationReadAction(id);
-      setAcknowledgedAlertIds((current) => new Set(current).add(id));
-      router.refresh();
-    });
   const position = (label: string) =>
     finance.position.find((item) => item.label === label);
   const month = (label: string) =>
@@ -690,47 +674,6 @@ export function FounderWorkspaceExperience({
     </section>
   );
 
-  const today = (
-    <section
-      data-command-card
-      aria-labelledby="today-operation-title"
-      className="rounded-2xl border p-5 sm:p-6"
-    >
-      <PanelTitle id="today-operation-title" label="Centro operacional · Hoy" />
-      <div className="relative mt-5 before:absolute before:bottom-5 before:left-[4.1rem] before:top-5 before:w-px before:bg-border">
-        {todayOperation.slice(0, 6).map((item) => (
-          <Link
-            className="group relative grid grid-cols-[3.25rem_1rem_1fr_auto] items-center gap-3 border-b border-border/70 py-4 first:pt-1 last:border-0 last:pb-1"
-            href={item.href}
-            key={item.id}
-          >
-            <time className="font-mono text-xs font-semibold text-foreground">
-              {item.time ?? "Ahora"}
-            </time>
-            <span
-              className={`relative z-10 size-2.5 rounded-full ring-4 ring-card ${item.tone === "danger" ? "bg-danger" : item.tone === "warning" ? "bg-warning" : "bg-brand"}`}
-            />
-            <span className="min-w-0">
-              <strong className="block truncate text-sm">{item.title}</strong>
-              <span className="mt-1 block truncate text-xs text-muted">
-                {item.detail}
-              </span>
-            </span>
-            <span className="flex items-center gap-3">
-              <StatusPill tone={item.tone} />
-              <span className="grid size-8 place-items-center rounded-lg border text-muted transition group-hover:border-brand/40 group-hover:text-brand">
-                <ArrowRight className="size-4" />
-              </span>
-            </span>
-          </Link>
-        ))}
-        {!todayOperation.length ? (
-          <Empty label="No hay prioridades operacionales para hoy." />
-        ) : null}
-      </div>
-    </section>
-  );
-
   const actionCenter = (
     <details
       data-command-card
@@ -920,82 +863,6 @@ export function FounderWorkspaceExperience({
     </section>
   );
 
-  const alertItems: CommandCenterItem[] = [
-    ...visibleOperationalAlerts.slice(0, 2),
-    ...finance.risks.slice(0, 3).map((risk) => ({
-      id: risk.key,
-      title: risk.label,
-      detail: `${risk.count} pendientes · ${money(risk.amount)}`,
-      href: risk.href,
-      tone: risk.severity,
-      acknowledgeable: false,
-    })),
-  ].slice(0, 3);
-  const alerts = (
-    <section
-      data-command-card
-      aria-labelledby="founder-alerts-title"
-      className="rounded-2xl border p-5 sm:p-6"
-    >
-      <PanelTitle id="founder-alerts-title" label="Alertas y pendientes" />
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
-        {alertItems.map((alert) => (
-          <article
-            className="rounded-xl border bg-background/30 p-4 transition hover:border-brand/35"
-            key={alert.id}
-          >
-            <span className="flex items-start gap-3">
-              <span
-                className={`grid size-9 shrink-0 place-items-center rounded-xl ${alert.tone === "danger" ? toneStyle.danger : toneStyle.warning}`}
-              >
-                <AlertTriangle className="size-4" />
-              </span>
-              <span>
-                <strong className="block text-sm">{alert.title}</strong>
-                <span className="mt-1 block text-xs text-muted">
-                  {alert.detail}
-                </span>
-              </span>
-            </span>
-            <span className="mt-3 flex flex-wrap items-center gap-2">
-              <Link
-                className="inline-flex min-h-9 items-center rounded-lg border border-brand/25 px-3 text-xs font-semibold text-brand"
-                href={alert.href}
-              >
-                {alert.acknowledgeable
-                  ? "Abrir Evento / Cobertura Staff"
-                  : "Ver detalles"}
-              </Link>
-              {alert.acknowledgeable ? (
-                <button
-                  className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold disabled:opacity-50"
-                  disabled={alertPending}
-                  onClick={() => acknowledgeAlert(alert.id)}
-                >
-                  <Check className="size-3.5" />
-                  OK, visto
-                </button>
-              ) : null}
-            </span>
-          </article>
-        ))}
-      </div>
-      {!visibleOperationalAlerts.length && !finance.risks.length ? (
-        <Empty label="No hay alertas accionables." />
-      ) : null}
-    </section>
-  );
-
-  const commandGrid = (
-    <section aria-label="Jornada operacional" className="space-y-5">
-      {actionCenter}
-      <div className="space-y-5">
-        {today}
-        {alerts}
-      </div>
-    </section>
-  );
-
   const actions = (
     <section aria-labelledby="quick-actions-title">
       <PanelTitle id="quick-actions-title" label="Acciones rápidas" />
@@ -1161,6 +1028,11 @@ export function FounderWorkspaceExperience({
             label: "KPIs del Founder",
             content: founderKpis,
           },
+          {
+            key: "DASHBOARD_ACTION_CENTER",
+            label: "Pendientes por revisar",
+            content: actionCenter,
+          },
           ...(financialAlerts
             ? [
                 {
@@ -1183,11 +1055,6 @@ export function FounderWorkspaceExperience({
             key: "DASHBOARD_QUICK_ACTIONS",
             label: "Acciones rápidas",
             content: actions,
-          },
-          {
-            key: "DASHBOARD_TODAY",
-            label: "Jornada operacional",
-            content: commandGrid,
           },
           {
             key: "DASHBOARD_RECENT_ACTIVITY",
@@ -1428,20 +1295,6 @@ function OrderControls({
       >
         <ArrowDown className="size-4" />
       </button>
-    </span>
-  );
-}
-function StatusPill({ tone = "info" }: { tone?: CommandCenterItem["tone"] }) {
-  const resolved = tone ?? "info";
-  return (
-    <span
-      className={`hidden rounded-lg px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[.06em] sm:inline-flex ${toneStyle[resolved]}`}
-    >
-      {resolved === "danger"
-        ? "Crítico"
-        : resolved === "warning"
-          ? "Pendiente"
-          : "Activo"}
     </span>
   );
 }

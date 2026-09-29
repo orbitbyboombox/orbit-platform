@@ -15,8 +15,10 @@ const page = readFileSync(
 test("the approved Founder Command Center structure is the rendered dashboard", () => {
   assert.match(dashboard, /Founder Command Center/);
   assert.match(dashboard, /grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6/);
-  assert.match(dashboard, /Centro operacional · Hoy/);
   assert.match(dashboard, /Pendientes por revisar/);
+  assert.doesNotMatch(dashboard, /Centro operacional · Hoy/);
+  assert.doesNotMatch(dashboard, /Alertas y pendientes/);
+  assert.match(dashboard, /DASHBOARD_ACTION_CENTER/);
   assert.match(dashboard, /Próximos eventos/);
   assert.match(dashboard, /Actividad reciente/);
 });
