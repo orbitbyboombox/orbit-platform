@@ -81,17 +81,37 @@ export async function loadCommunicationHubProjection(client: SupabaseClient): Pr
   ]);
   const error = stateError ?? customerError ?? communicationError;
   if (error) throw error;
-  const customers = new Map((customerRows as CustomerRow[]).map((row) => [row.id, row.full_name]));
+  const customerMap = new Map(
+    (customerRows as CustomerRow[]).map((row) => [row.id, row]),
+  );
   const communications = communicationRows as CommunicationRow[];
+  const communicationsByCustomer = new Map<string, CommunicationRow[]>();
+  const unreadWhatsappByCustomer = new Map<string, number>();
+  for (const item of communications) {
+    const bucket = communicationsByCustomer.get(item.customer_id);
+    if (bucket) bucket.push(item);
+    else communicationsByCustomer.set(item.customer_id, [item]);
+    if (
+      asChannel(item.channel) === "WHATSAPP_BUSINESS" &&
+      item.direction.toUpperCase() === "INBOUND"
+    ) {
+      unreadWhatsappByCustomer.set(
+        item.customer_id,
+        (unreadWhatsappByCustomer.get(item.customer_id) ?? 0) + 1,
+      );
+    }
+  }
   const conversations = (stateRows as ConversationRow[]).map((row) => {
-    const customerCommunications = communications.filter((item) => item.customer_id === row.customer_id);
+    const customerCommunications =
+      communicationsByCustomer.get(row.customer_id) ?? [];
     const recent = customerCommunications[0];
-    const unreadCount = customerCommunications.filter((item) => asChannel(item.channel) === "WHATSAPP_BUSINESS" && item.direction.toUpperCase() === "INBOUND").length;
+    const unreadCount = unreadWhatsappByCustomer.get(row.customer_id) ?? 0;
     const channel = asChannel(recent?.channel ?? String(row.context.channel ?? "FUTURE"));
     const storedStatus = asStatus(row.status);
     const humanHandoff = storedStatus === "HUMAN_HANDOFF" || row.nova_enabled === false;
     const status: UnifiedConversationStatus = humanHandoff ? "HUMAN_HANDOFF" : storedStatus;
-    return { id: row.id, customerId: row.customer_id, customerName: customers.get(row.customer_id), phone: (customerRows as CustomerRow[]).find((item) => item.id === row.customer_id)?.phone ?? undefined, unreadCount, status, novaState: { conversationId: row.id, customerId: row.customer_id, channel: asNovaChannel(channel), status, humanHandoff, handledBy: row.human_owner_id ?? undefined, startedAt: String(row.context.startedAt ?? row.updated_at), lastMessageAt: recent?.occurred_at ?? row.updated_at }, assignedHuman: row.human_owner_id ?? undefined, lastChannel: channel, lastInteractionAt: recent?.occurred_at ?? row.updated_at } satisfies UnifiedConversation;
+    const customer = customerMap.get(row.customer_id);
+    return { id: row.id, customerId: row.customer_id, customerName: customer?.full_name, phone: customer?.phone ?? undefined, unreadCount, status, novaState: { conversationId: row.id, customerId: row.customer_id, channel: asNovaChannel(channel), status, humanHandoff, handledBy: row.human_owner_id ?? undefined, startedAt: String(row.context.startedAt ?? row.updated_at), lastMessageAt: recent?.occurred_at ?? row.updated_at }, assignedHuman: row.human_owner_id ?? undefined, lastChannel: channel, lastInteractionAt: recent?.occurred_at ?? row.updated_at } satisfies UnifiedConversation;
   });
   const events = newestFirst(communications.map((row) => ({ id: row.id, conversationId: row.thread_key, customerId: row.customer_id, channel: asChannel(row.channel), direction: asDirection(row.direction), type: asEventType(row.communication_type), occurredAt: row.occurred_at, summary: row.body || row.communication_type.replaceAll("_", " ") } satisfies UnifiedCommunicationEvent)));
   return { conversations, events, indicators: calculateCommunicationIndicators(conversations), whatsappSummary: calculateWhatsAppSummary(conversations) };
