@@ -7,15 +7,23 @@ export type PreEventReminderPayment = {
   projectionId: string;
   outstandingBalance: number;
   dueDate: string | null;
+  customerType: string | null;
   bankDetails: CollectionBankDetails;
 };
 
 export type PreEventReminderModel = {
   customerName: string;
+  eventName: string;
   eventDate: string;
+  daysUntilEvent: number;
+  eventLocation: string;
+  serviceStartAt: string | null;
   operatorArrivalAt: string | null;
   assemblyStartAt: string | null;
+  reservationConfirmed: boolean;
   scrapbookIncluded: boolean;
+  photoDesignRequired: boolean;
+  photoDesignApproved: boolean;
   photoDesignPending: boolean;
   payment: PreEventReminderPayment | null;
   website: string;
@@ -70,7 +78,7 @@ export function formatPreEventTime(value: string | null) {
 }
 
 export function defaultPreEventReminderSubject(eventDate: string) {
-  return `Todo listo para tu evento BOOMBOX · ${formatPreEventDate(eventDate)}`;
+  return `¡Queda muy poco para tu evento! · BOOMBOX · ${formatPreEventDate(eventDate)}`;
 }
 
 export function daysUntilPreEvent(eventDate: string, now = new Date()) {
@@ -102,10 +110,17 @@ export function preEventReminderFingerprint(model: PreEventReminderModel) {
   return JSON.stringify({
     rendererVersion: PRE_EVENT_REMINDER_RENDERER_VERSION,
     customerName: model.customerName,
+    eventName: model.eventName,
     eventDate: model.eventDate,
+    daysUntilEvent: model.daysUntilEvent,
+    eventLocation: model.eventLocation,
+    serviceStartAt: model.serviceStartAt,
     operatorArrivalAt: model.operatorArrivalAt,
     assemblyStartAt: model.assemblyStartAt,
+    reservationConfirmed: model.reservationConfirmed,
     scrapbookIncluded: model.scrapbookIncluded,
+    photoDesignRequired: model.photoDesignRequired,
+    photoDesignApproved: model.photoDesignApproved,
     photoDesignPending: model.photoDesignPending,
     payment: model.payment
       ? {
@@ -135,11 +150,42 @@ function assemblyCopy(model: PreEventReminderModel) {
 
 export function buildPreEventReminderText(model: PreEventReminderModel) {
   const eventDate = formatPreEventDate(model.eventDate);
+  const serviceTime = formatPreEventTime(model.serviceStartAt);
+  const daysCopy =
+    model.daysUntilEvent === 10
+      ? "Estamos a solo 10 días de tu evento."
+      : model.daysUntilEvent > 1
+        ? `Estamos a solo ${model.daysUntilEvent} días de tu evento.`
+        : model.daysUntilEvent === 1
+          ? "Tu evento es mañana."
+          : "Tu evento está muy cerca.";
   const lines = [
     `Hola ${model.customerName.trim() || "Cliente"},`,
     "",
-    `Ya está todo coordinado para tu evento del ${eventDate}.`,
-    "Nuestro equipo BOOMBOX está preparando los últimos detalles para que el servicio comience puntualmente y todo funcione a la perfección.",
+    "¡QUEDA MUY POCO PARA TU EVENTO!",
+    daysCopy,
+    "Nuestro equipo BOOMBOX ya está preparando los últimos detalles.",
+    "",
+    "RESUMEN DE TU EVENTO",
+    `Evento: ${model.eventName}`,
+    `Fecha: ${eventDate}`,
+    `Horario: ${serviceTime ?? "Por confirmar"}`,
+    `Lugar: ${model.eventLocation || "Por confirmar"}`,
+    `Reserva: ${model.reservationConfirmed ? "CONFIRMADA" : "REQUIERE REVISIÓN"}`,
+  ];
+  if (model.photoDesignRequired) {
+    lines.push(
+      `Diseño: ${model.photoDesignApproved ? "APROBADO" : "PENDIENTE DE CONFIRMACIÓN"}`,
+    );
+  }
+  if (model.payment) {
+    lines.push(
+      `Pago: ${formatPreEventCurrency(model.payment.outstandingBalance)} pendiente`,
+    );
+  } else {
+    lines.push("Pago: AL DÍA");
+  }
+  lines.push(
     "",
     "TODO COORDINADO",
     "OPERADOR BOOMBOX",
@@ -151,7 +197,7 @@ export function buildPreEventReminderText(model: PreEventReminderModel) {
     "PARA QUE TODO FUNCIONE PERFECTO",
     "Necesitamos disponer de un enchufe 220V independiente a un máximo de 1,5 m del tótem.",
     "Evita conectar el equipo a múltiples alargadores o zapatillas compartidas.",
-  ];
+  );
   if (model.scrapbookIncluded) {
     lines.push(
       "",
@@ -169,12 +215,15 @@ export function buildPreEventReminderText(model: PreEventReminderModel) {
     );
   }
   if (model.payment) {
+    const corporate = String(model.payment.customerType ?? "").toUpperCase() === "CORPORATE";
     lines.push(
       "",
-      "SALDO PENDIENTE",
+      corporate ? "ESTADO DE PAGO" : "SEGUNDO PAGO / SALDO FINAL",
       `Saldo por pagar: ${formatPreEventCurrency(model.payment.outstandingBalance)}`,
       `Fecha de vencimiento: ${model.payment.dueDate ? formatPreEventDate(model.payment.dueDate) : "Por confirmar"}`,
-      "Antes del evento, recuerda dejar regularizado el saldo pendiente.",
+      corporate
+        ? "Revisa este saldo según la condición comercial acordada."
+        : "Antes del evento, recuerda dejar regularizado el saldo final.",
       "Si ya realizaste el pago recientemente, puedes ignorar este recordatorio.",
       "",
       "DATOS PARA TRANSFERENCIA",
@@ -206,20 +255,52 @@ export function renderPreEventReminderHtml(
   );
   const customer = escapeHtml(model.customerName.trim() || "Cliente");
   const eventDate = escapeHtml(formatPreEventDate(model.eventDate));
+  const serviceTime = escapeHtml(formatPreEventTime(model.serviceStartAt) ?? "Por confirmar");
+  const location = escapeHtml(model.eventLocation || "Por confirmar");
   const operator = escapeHtml(operatorCopy(model));
   const assembly = escapeHtml(assemblyCopy(model));
   const website = /^https:\/\//i.test(model.website.trim())
     ? model.website.trim()
     : "https://www.bbox.cl";
   const sectionTitle = (title: string) =>
-    `<h2 style="margin:0 0 14px;font-size:11px;font-weight:800;letter-spacing:.15em;color:#d85f00;text-transform:uppercase">${escapeHtml(title)}</h2>`;
+    `<h2 style="margin:0 0 14px;font-size:11px;font-weight:800;letter-spacing:.15em;color:#f78900;text-transform:uppercase">${escapeHtml(title)}</h2>`;
   const operationalItem = (title: string, copy: string) =>
-    `<div style="margin-top:14px;border-left:3px solid #f07f16;padding-left:14px"><div style="font-size:12px;font-weight:800;letter-spacing:.08em;color:#17191f;text-transform:uppercase">${escapeHtml(title)}</div><p style="margin:5px 0 0;font-size:14px;line-height:1.6;color:#454a54">${copy}</p></div>`;
+    `<div style="margin-top:14px;border-left:3px solid #f78900;padding-left:14px"><div style="font-size:12px;font-weight:800;letter-spacing:.08em;color:#ffffff;text-transform:uppercase">${escapeHtml(title)}</div><p style="margin:5px 0 0;font-size:14px;line-height:1.6;color:#d7d8da">${copy}</p></div>`;
+  const statusCard = (label: string, value: string, ok: boolean) =>
+    `<td width="33.33%" style="padding:8px;vertical-align:top"><div style="min-height:88px;border:1px solid #343538;border-radius:14px;padding:14px;background:#15171b"><div style="font-size:9px;font-weight:800;letter-spacing:.12em;color:#9fa3aa;text-transform:uppercase">${escapeHtml(label)}</div><div style="margin-top:8px;font-size:13px;font-weight:800;line-height:1.35;color:${ok ? "#7ee2a8" : "#f7a85a"}">${escapeHtml(value)}</div></div></td>`;
+
+  const designStatus = !model.photoDesignRequired
+    ? "NO REQUERIDO"
+    : model.photoDesignApproved
+      ? "✓ APROBADO"
+      : "PENDIENTE";
+  const paymentStatus = model.payment
+    ? formatPreEventCurrency(model.payment.outstandingBalance)
+    : "✓ AL DÍA";
+  const summary = `
+    <section style="margin:24px 0 0">
+      ${sectionTitle("Estado de tu evento")}
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;table-layout:fixed"><tr>
+        ${statusCard("Reserva", model.reservationConfirmed ? "✓ CONFIRMADA" : "REVISAR", model.reservationConfirmed)}
+        ${statusCard("Diseño", designStatus, !model.photoDesignRequired || model.photoDesignApproved)}
+        ${statusCard("Pago", paymentStatus, !model.payment)}
+      </tr></table>
+    </section>
+    <section style="margin:20px 0;border:1px solid #343538;border-radius:16px;padding:18px;background:#15171b">
+      ${sectionTitle("Información del evento")}
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;font-size:14px;color:#fff">
+        <tr><td style="padding:7px 0;color:#9fa3aa">Evento</td><td align="right" style="padding:7px 0;font-weight:700">${escapeHtml(model.eventName)}</td></tr>
+        <tr><td style="padding:7px 0;color:#9fa3aa">Fecha</td><td align="right" style="padding:7px 0;font-weight:700">${eventDate}</td></tr>
+        <tr><td style="padding:7px 0;color:#9fa3aa">Horario</td><td align="right" style="padding:7px 0;font-weight:700">${serviceTime}</td></tr>
+        <tr><td style="padding:7px 0;color:#9fa3aa">Lugar</td><td align="right" style="padding:7px 0;font-weight:700;overflow-wrap:anywhere">${location}</td></tr>
+      </table>
+    </section>`;
+
   const scrapbook = model.scrapbookIncluded
-    ? `<section style="margin:24px 0;border:1px solid #f1c99f;border-radius:16px;padding:20px;background:#fff9f2">${sectionTitle("Tu Scrapbook")}<p style="margin:0;font-size:14px;line-height:1.6;color:#333740">Recuerda disponer de una mesa junto al tótem para que tus invitados puedan dejar sus mensajes.</p><p style="margin:9px 0 0;font-size:14px;line-height:1.6;color:#333740">Al finalizar el servicio, nuestro operador hará entrega del Scrapbook directamente al responsable del evento.</p></section>`
+    ? `<section style="margin:24px 0;border:1px solid #473522;border-radius:16px;padding:20px;background:#1b1712">${sectionTitle("Tu Scrapbook")}<p style="margin:0;font-size:14px;line-height:1.6;color:#e6ded4">Recuerda disponer de una mesa junto al tótem para que tus invitados puedan dejar sus mensajes.</p><p style="margin:9px 0 0;font-size:14px;line-height:1.6;color:#e6ded4">Al finalizar el servicio, nuestro operador hará entrega del Scrapbook directamente al responsable del evento.</p></section>`
     : "";
   const photoDesign = model.photoDesignPending
-    ? `<section style="margin:24px 0;border:1px solid #f1c99f;border-radius:16px;padding:20px;background:#fff9f2">${sectionTitle("Diseño de tus fotos")}<p style="margin:0;font-size:14px;line-height:1.6;color:#333740">Aún necesitamos confirmar el diseño/formato de foto de tu evento.</p><p style="margin:9px 0 0;font-size:14px;line-height:1.6;color:#333740">Por favor, responde a este email para coordinarlo con nuestro equipo.</p></section>`
+    ? `<section style="margin:24px 0;border:1px solid #f78900;border-radius:16px;padding:20px;background:#21170d">${sectionTitle("Diseño de tus fotos")}<p style="margin:0;font-size:14px;line-height:1.6;color:#fff">Aún necesitamos confirmar el diseño/formato de foto de tu evento.</p><p style="margin:9px 0 0;font-size:14px;line-height:1.6;color:#ddd">Responde este email y nuestro equipo lo coordinará contigo.</p></section>`
     : "";
   const payment = model.payment
     ? (() => {
@@ -227,11 +308,21 @@ export function renderPreEventReminderHtml(
         const dueDate = model.payment.dueDate
           ? formatPreEventDate(model.payment.dueDate)
           : "Por confirmar";
+        const corporate = String(model.payment.customerType ?? "").toUpperCase() === "CORPORATE";
         const bankRow = (label: string, value: string) =>
           `<div style="border-top:1px solid #343840;padding:10px 0"><div style="font-size:10px;font-weight:700;letter-spacing:.08em;color:#aeb4bf;text-transform:uppercase">${escapeHtml(label)}</div><div style="margin-top:4px;font-size:14px;font-weight:600;line-height:1.45;color:#ffffff;overflow-wrap:anywhere">${escapeHtml(value)}</div></div>`;
-        return `<section style="margin:28px 0 0;border:1px solid #30343a;border-radius:16px;overflow:hidden"><div style="padding:21px 22px;background:#fff9f0"><div style="font-size:11px;font-weight:800;letter-spacing:.15em;color:#bf4a00;text-transform:uppercase">Saldo pendiente</div><div style="margin-top:9px;font-size:30px;font-weight:800;line-height:1.15;color:#090a0c;overflow-wrap:anywhere">${escapeHtml(formatPreEventCurrency(model.payment.outstandingBalance))}</div><div style="margin-top:10px;font-size:13px;font-weight:600;color:#5f6470">Fecha de vencimiento: ${escapeHtml(dueDate)}</div><p style="margin:14px 0 0;font-size:14px;line-height:1.6;color:#454a54">Antes del evento, recuerda dejar regularizado el saldo pendiente. Si ya realizaste el pago recientemente, puedes ignorar este recordatorio.</p></div><div style="padding:20px 22px;background:#101216;color:#ffffff">${sectionTitle("Datos para transferencia")}<p style="margin:0 0 10px;font-size:14px;font-weight:700;line-height:1.5;color:#ffffff">${escapeHtml(details.companyLabel)}</p>${bankRow("Banco", details.bankName)}${bankRow("Tipo de cuenta", details.accountType)}${bankRow("N° de cuenta", details.accountNumber)}${bankRow("RUT", details.rut)}${bankRow("Enviar comprobante a", details.email)}</div></section>`;
+        return `<section style="margin:28px 0 0;border:1px solid #473522;border-radius:16px;overflow:hidden"><div style="padding:21px 22px;background:#21170d"><div style="font-size:11px;font-weight:800;letter-spacing:.15em;color:#f78900;text-transform:uppercase">${corporate ? "Estado de pago" : "Segundo pago / saldo final"}</div><div style="margin-top:9px;font-size:30px;font-weight:800;line-height:1.15;color:#ffffff;overflow-wrap:anywhere">${escapeHtml(formatPreEventCurrency(model.payment.outstandingBalance))}</div><div style="margin-top:10px;font-size:13px;font-weight:600;color:#c9c0b6">Fecha de vencimiento: ${escapeHtml(dueDate)}</div><p style="margin:14px 0 0;font-size:14px;line-height:1.6;color:#e8dfd4">${corporate ? "Revisa este saldo según la condición comercial acordada." : "Antes del evento, recuerda dejar regularizado el saldo final."} Si ya realizaste el pago recientemente, puedes ignorar este recordatorio.</p></div><div style="padding:20px 22px;background:#101216;color:#ffffff">${sectionTitle("Datos para transferencia")}<p style="margin:0 0 10px;font-size:14px;font-weight:700;line-height:1.5;color:#ffffff">${escapeHtml(details.companyLabel)}</p>${bankRow("Banco", details.bankName)}${bankRow("Tipo de cuenta", details.accountType)}${bankRow("N° de cuenta", details.accountNumber)}${bankRow("RUT", details.rut)}${bankRow("Enviar comprobante a", details.email)}</div></section>`;
       })()
     : "";
 
-  return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light only"><style>@media only screen and (max-width:480px){.orbit-shell{padding:14px 8px!important}.orbit-card{border-radius:14px!important}.orbit-pad{padding:22px 18px!important}.orbit-header{padding:22px 20px!important}}</style></head><body style="margin:0;background:#f4f5f7;padding:0"><div style="display:none;max-height:0;overflow:hidden">${escapeHtml(subject)} · Nos vemos muy pronto.</div><main class="orbit-shell" style="width:100%;padding:28px 12px;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;color:#17191f"><section class="orbit-card" style="max-width:620px;margin:0 auto;overflow:hidden;border:1px solid #e3e5e9;border-radius:20px;background:#ffffff;box-shadow:0 16px 42px rgba(17,24,39,.08)"><header class="orbit-header" style="background:#101216;padding:26px 28px;border-bottom:4px solid #f68b1f"><div style="font-size:22px;font-weight:800;letter-spacing:.08em;color:#ffffff">BOOMBOX</div><div style="margin-top:8px;font-size:11px;font-weight:700;letter-spacing:.15em;color:#f6a452;text-transform:uppercase">Nos vemos muy pronto</div><div style="margin-top:13px;font-size:24px;font-weight:800;line-height:1.2;color:#ffffff">Todo listo para tu evento</div></header><div class="orbit-pad" style="padding:30px 28px"><p style="margin:0 0 16px;font-size:18px;font-weight:700;line-height:1.45;color:#17191f">Hola ${customer},</p><p style="margin:0 0 11px;font-size:15px;line-height:1.65;color:#333740">Ya está todo coordinado para tu evento del <strong>${eventDate}</strong>.</p><p style="margin:0;font-size:15px;line-height:1.65;color:#333740">Nuestro equipo BOOMBOX está preparando los últimos detalles para que el servicio comience puntualmente y todo funcione a la perfección.</p><section style="margin:26px 0;border:1px solid #e3e5e9;border-radius:16px;padding:20px;background:#fafafa">${sectionTitle("Todo coordinado")}${operationalItem("Operador BOOMBOX", operator)}${operationalItem("Montaje", assembly)}</section><section style="margin:24px 0;border:1px solid #f1c99f;border-radius:16px;padding:20px;background:#fff9f2">${sectionTitle("Para que todo funcione perfecto")}<p style="margin:0;font-size:14px;line-height:1.6;color:#333740">Necesitamos disponer de un <strong>enchufe 220V independiente</strong> a un máximo de <strong>1,5 m del tótem</strong>.</p><p style="margin:9px 0 0;font-size:14px;line-height:1.6;color:#333740">Evita conectar el equipo a múltiples alargadores o zapatillas compartidas.</p></section>${scrapbook}${photoDesign}${payment}<section style="margin:28px 0 0;border-top:1px solid #eceef2;padding-top:22px"><p style="margin:0;font-size:17px;font-weight:700;line-height:1.5;color:#17191f">Nos vemos muy pronto.</p><p style="margin:8px 0 0;font-size:14px;line-height:1.6;color:#454a54">Gracias por confiar en BOOMBOX para ser parte de tu evento.</p><p style="margin:16px 0 0;font-size:14px;line-height:1.55;color:#333740"><strong>Equipo BOOMBOX</strong></p></section></div><footer style="border-top:1px solid #eceef2;padding:18px 28px;font-size:11px;line-height:1.6;color:#7a808b">BOOMBOX · Comunicación emitida mediante ORBIT<br>ORBIT · Software desarrollado por BOOMBOX<br><a href="${escapeHtml(website)}" style="color:#f07f16;text-decoration:none">${escapeHtml(website.replace(/^https?:\/\//, ""))}</a></footer></section></main></body></html>`;
+  const daysCopy =
+    model.daysUntilEvent === 10
+      ? "Estamos a solo 10 días de tu evento."
+      : model.daysUntilEvent > 1
+        ? `Estamos a solo ${model.daysUntilEvent} días de tu evento.`
+        : model.daysUntilEvent === 1
+          ? "Tu evento es mañana."
+          : "Tu evento está muy cerca.";
+
+  return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark light"><style>@media only screen and (max-width:480px){.orbit-shell{padding:10px 6px!important}.orbit-card{border-radius:14px!important}.orbit-pad{padding:22px 18px!important}.orbit-header{padding:24px 18px!important}}</style></head><body style="margin:0;background:#08090b;padding:0"><div style="display:none;max-height:0;overflow:hidden">${escapeHtml(subject)} · ${escapeHtml(daysCopy)}</div><main class="orbit-shell" style="width:100%;padding:28px 12px;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;color:#fff"><section class="orbit-card" style="max-width:640px;margin:0 auto;overflow:hidden;border:1px solid #333437;border-radius:22px;background:#0e1013;box-shadow:0 20px 60px rgba(0,0,0,.35)"><header class="orbit-header" style="background:#111214;padding:30px 28px;border-top:6px solid #f78900;text-align:center"><img src="https://app.bbox.cl/branding/boombox-official-logo.png" alt="BOOMBOX®" width="240" style="display:block;width:240px;max-width:100%;height:auto;margin:0 auto;border:0"><div style="margin-top:14px;font-size:10px;font-weight:800;letter-spacing:.2em;color:#f78900;text-transform:uppercase">NOS VEMOS MUY PRONTO</div><h1 style="margin:14px 0 0;font-size:30px;line-height:1.1;letter-spacing:-.02em;color:#fff">¡QUEDA MUY POCO PARA TU EVENTO!</h1></header><div class="orbit-pad" style="padding:32px 28px"><p style="margin:0 0 14px;font-size:18px;font-weight:700;line-height:1.45;color:#fff">Hola ${customer},</p><p style="margin:0 0 10px;font-size:15px;line-height:1.65;color:#d8d8da">${escapeHtml(daysCopy)}</p><p style="margin:0;font-size:15px;line-height:1.65;color:#d8d8da">Nuestro equipo BOOMBOX ya está preparando los últimos detalles para que todo salga perfecto.</p>${summary}<section style="margin:24px 0;border:1px solid #343538;border-radius:16px;padding:20px;background:#15171b">${sectionTitle("Todo coordinado")}${operationalItem("Operador BOOMBOX", operator)}${operationalItem("Montaje", assembly)}</section><section style="margin:24px 0;border:1px solid #473522;border-radius:16px;padding:20px;background:#1b1712">${sectionTitle("Para que todo funcione perfecto")}<p style="margin:0;font-size:14px;line-height:1.6;color:#e6ded4">Necesitamos disponer de un <strong style="color:#fff">enchufe 220V independiente</strong> a un máximo de <strong style="color:#fff">1,5 m del tótem</strong>.</p><p style="margin:9px 0 0;font-size:14px;line-height:1.6;color:#e6ded4">Evita conectar el equipo a múltiples alargadores o zapatillas compartidas.</p></section>${scrapbook}${photoDesign}${payment}<section style="margin:30px 0 0;border-top:1px solid #343538;padding-top:22px"><p style="margin:0;font-size:18px;font-weight:800;line-height:1.5;color:#fff">Nos vemos muy pronto.</p><p style="margin:8px 0 0;font-size:14px;line-height:1.6;color:#c8c9cc">Gracias por confiar en BOOMBOX para ser parte de tu evento.</p><p style="margin:18px 0 0;font-size:14px;line-height:1.55;color:#fff"><strong>Equipo BOOMBOX</strong></p></section></div><footer style="border-top:1px solid #343538;padding:20px 28px;font-size:10px;line-height:1.7;letter-spacing:.08em;color:#77787c">BOOMBOX · Comunicación emitida mediante ORBIT<br>ORBIT · Software desarrollado por BOOMBOX<br><a href="${escapeHtml(website)}" style="color:#f78900;text-decoration:none">${escapeHtml(website.replace(/^https?:\/\//, ""))}</a></footer></section></main></body></html>`;
 }
