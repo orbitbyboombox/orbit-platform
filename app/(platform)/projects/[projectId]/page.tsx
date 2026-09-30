@@ -439,7 +439,7 @@ export default async function ProjectWorkspacePage({
       .order("due_at", { ascending: true, nullsFirst: false }),
     client
       .from("communications")
-      .select("id,channel,status,communication_type,subject,thread_key,occurred_at")
+      .select("id,channel,status,communication_type,subject,thread_key,occurred_at,to_recipient,sent_at,context_snapshot")
       .eq("project_id", projectId)
       .order("occurred_at", { ascending: false }),
     client
@@ -988,6 +988,32 @@ export default async function ProjectWorkspacePage({
       issueDate: item.external_issue_date ?? undefined,
       total: item.external_total_amount == null ? undefined : Number(item.external_total_amount),
       status: item.external_document_status ?? undefined,
+      deliveryStatus: (communications ?? []).find(
+        (communication) =>
+          communication.communication_type === "TAX_DOCUMENT_DELIVERY" &&
+          communication.context_snapshot &&
+          typeof communication.context_snapshot === "object" &&
+          !Array.isArray(communication.context_snapshot) &&
+          String((communication.context_snapshot as Record<string, unknown>).documentId ?? "") === item.id,
+      )?.status,
+      deliveredAt: (communications ?? []).find(
+        (communication) =>
+          communication.communication_type === "TAX_DOCUMENT_DELIVERY" &&
+          communication.status === "SENT" &&
+          communication.context_snapshot &&
+          typeof communication.context_snapshot === "object" &&
+          !Array.isArray(communication.context_snapshot) &&
+          String((communication.context_snapshot as Record<string, unknown>).documentId ?? "") === item.id,
+      )?.sent_at ?? undefined,
+      deliveredTo: (communications ?? []).find(
+        (communication) =>
+          communication.communication_type === "TAX_DOCUMENT_DELIVERY" &&
+          communication.status === "SENT" &&
+          communication.context_snapshot &&
+          typeof communication.context_snapshot === "object" &&
+          !Array.isArray(communication.context_snapshot) &&
+          String((communication.context_snapshot as Record<string, unknown>).documentId ?? "") === item.id,
+      )?.to_recipient ?? undefined,
       version: Number(item.version ?? 1),
       isCurrent: Boolean(item.is_current),
       workflowStatus: item.workflow_status ?? undefined,
