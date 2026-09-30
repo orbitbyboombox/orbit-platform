@@ -79,43 +79,28 @@ const loadFounderActionCenterCached = cache(
   async (userId: string): Promise<FounderActionCenter> => {
     const admin = createAdminClient();
     if (!isReadOnlyVisualPreview()) {
-    const { error: salesError } = await admin.rpc(
-      "reconcile_sales_pipeline_founder_alerts",
-    );
-    if (salesError && !["42883", "PGRST202"].includes(salesError.code ?? ""))
-      throw salesError;
-    const { error: whatsappError } = await admin.rpc(
-      "reconcile_whatsapp_founder_alerts",
-    );
-    if (
-      whatsappError &&
-      !["42883", "PGRST202"].includes(whatsappError.code ?? "")
-    )
-      throw whatsappError;
-    const { error: operationalError } = await admin.rpc(
-      "reconcile_operational_agenda_alerts",
-    );
-    if (
-      operationalError &&
-      !["42883", "PGRST202"].includes(operationalError.code ?? "")
-    )
-      throw operationalError;
-    const { error: closedSalesError } = await admin.rpc(
-      "close_noncommercial_sales_alerts",
-    );
-    if (
-      closedSalesError &&
-      !["42883", "PGRST202"].includes(closedSalesError.code ?? "")
-    )
-      throw closedSalesError;
-    const { error: closedStateError } = await admin.rpc(
-      "close_closed_sales_alerts",
-    );
-    if (
-      closedStateError &&
-      !["42883", "PGRST202"].includes(closedStateError.code ?? "")
-    )
-      throw closedStateError;
+    const [
+      { error: salesError },
+      { error: whatsappError },
+      { error: operationalError },
+    ] = await Promise.all([
+      admin.rpc("reconcile_sales_pipeline_founder_alerts"),
+      admin.rpc("reconcile_whatsapp_founder_alerts"),
+      admin.rpc("reconcile_operational_agenda_alerts"),
+    ]);
+    for (const error of [salesError, whatsappError, operationalError]) {
+      if (error && !["42883", "PGRST202"].includes(error.code ?? "")) throw error;
+    }
+
+    const [{ error: closedSalesError }, { error: closedStateError }] =
+      await Promise.all([
+        admin.rpc("close_noncommercial_sales_alerts"),
+        admin.rpc("close_closed_sales_alerts"),
+      ]);
+    for (const error of [closedSalesError, closedStateError]) {
+      if (error && !["42883", "PGRST202"].includes(error.code ?? "")) throw error;
+    }
+
     const { error: reconciliationError } = await admin.rpc(
       "reconcile_founder_action_alerts",
     );
