@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isReadOnlyVisualPreview } from "@/lib/supabase/environment-guard";
 import { DEFAULT_DASHBOARD_LAYOUT, type DashboardLayout } from "./dashboard-layout";
 
 function readableError(error: unknown, fallback: string) {
@@ -16,6 +17,9 @@ function readableError(error: unknown, fallback: string) {
 export async function saveFounderDashboardLayoutAction(
   layout: DashboardLayout,
 ) {
+  if (isReadOnlyVisualPreview()) {
+    return { ok: false as const, error: "Preview V2.1: cambios deshabilitados." };
+  }
   try {
     const client = await createSupabaseServerClient();
     const { data: auth, error: authError } = await client.auth.getUser();
@@ -46,6 +50,9 @@ export async function saveFounderDashboardLayoutAction(
 }
 
 export async function resetFounderDashboardLayoutAction() {
+  if (isReadOnlyVisualPreview()) {
+    return { ok: false as const, error: "Preview V2.1: cambios deshabilitados." };
+  }
   try {
     const client = await createSupabaseServerClient();
     const { data: auth, error: authError } = await client.auth.getUser();
