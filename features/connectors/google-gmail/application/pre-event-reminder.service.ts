@@ -215,6 +215,10 @@ export async function loadPreEventReminderComposer(
     photoDesignRequired,
     photoDesignApproved: photoDesignRequired && designApproved,
     photoDesignPending: photoDesignRequired && !designApproved,
+    bankCopyUrl:
+      outstandingBalance > 0
+        ? `${(process.env.NEXT_PUBLIC_APP_URL ?? "https://app.bbox.cl").replace(/\/$/, "")}/datos-bancarios`
+        : null,
     payment:
       outstandingBalance > 0 && receivable && bankDetails
         ? {
