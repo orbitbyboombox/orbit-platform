@@ -145,8 +145,8 @@ export function PreEventReminderControl({ projectId }: { projectId: string }) {
   };
 
   const actionLabel = composer?.hasSuccessfulSend
-    ? "REENVIAR RECORDATORIO PRE-EVENTO"
-    : "RECORDATORIO PRE-EVENTO";
+    ? "REENVIAR RECORDATORIO"
+    : "VISTA PREVIA / ENVIAR AHORA";
   const statusVariant =
     composer?.status === "SENT"
       ? "success"
@@ -170,9 +170,9 @@ export function PreEventReminderControl({ projectId }: { projectId: string }) {
             <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">
               COMUNICACIONES CON EL CLIENTE
             </p>
-            <h2 className="mt-1 font-semibold">Todo listo para tu evento</h2>
+            <h2 className="mt-1 font-semibold">¡Queda muy poco para tu evento!</h2>
             <p className="mt-1 text-sm text-muted">
-              Confirmación operacional manual con instrucciones finales y saldo sólo cuando corresponda.
+              ORBIT lo envía automáticamente 10 días antes del evento. Desde aquí puedes previsualizarlo o reenviarlo manualmente.
             </p>
           </div>
         </div>
@@ -184,6 +184,7 @@ export function PreEventReminderControl({ projectId }: { projectId: string }) {
       {composer ? (
         <dl className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Detail label="Momento" value={timingLabel(composer.daysUntilEvent)} />
+          <Detail label="Envío automático" value={composer.automaticSendDate} />
           <Detail label="Destinatario" value={composer.to || "Por ingresar"} />
           <Detail
             label="Saldo en email"
@@ -243,7 +244,7 @@ export function PreEventReminderControl({ projectId }: { projectId: string }) {
 
       {open && composer ? (
         <MobileDialog
-          description="Revisa el destinatario y la salida final antes de realizar este envío manual."
+          description="Este correo se envía automáticamente en D-10. Aquí puedes revisar la salida real o enviarlo manualmente cuando corresponda."
           dismissOnOverlayClick={false}
           eyebrow="COMUNICACIONES CON EL CLIENTE"
           onClose={() => {
