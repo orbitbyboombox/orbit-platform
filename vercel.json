@@ -31,5 +31,6 @@
       "path": "/api/cron/pre-event-reminders",
       "schedule": "0 13 * * *"
     }
-  ]
+  ],
+  "ignoreCommand": "if [ \"$VERCEL_PROJECT_ID\" = \"prj_Pa06wrQEaZMuEdbkVC5cCmmi6dGN\" ]; then exit 1; else echo \"Skipping legacy Vercel project $VERCEL_PROJECT_ID\"; exit 0; fi"
 }
