@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { DEFAULT_DASHBOARD_LAYOUT, type DashboardLayout } from "./dashboard-layout";
 
@@ -31,6 +31,7 @@ export async function saveFounderDashboardLayoutAction(
       { onConflict: "user_id" },
     );
     if (error) throw new Error(readableError(error, "No fue posible guardar el orden del dashboard."));
+    revalidateTag(`founder-workspace:${auth.user.id}`);
     revalidatePath("/operations");
     revalidatePath("/settings");
     return { ok: true as const };
@@ -61,6 +62,7 @@ export async function resetFounderDashboardLayoutAction() {
       { onConflict: "user_id" },
     );
     if (error) throw new Error(readableError(error, "No fue posible restaurar el orden del dashboard."));
+    revalidateTag(`founder-workspace:${auth.user.id}`);
     revalidatePath("/operations");
     revalidatePath("/settings");
     return { ok: true as const };
