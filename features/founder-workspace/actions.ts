@@ -1,6 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isReadOnlyVisualPreview } from "@/lib/supabase/environment-guard";
 import { DEFAULT_WORKSPACE, type FounderWorkspacePreferences } from "./catalog";
 
 function readableError(error: unknown, fallback: string) {
@@ -14,6 +15,9 @@ function readableError(error: unknown, fallback: string) {
 export async function saveFounderWorkspaceAction(
   value: FounderWorkspacePreferences,
 ) {
+  if (isReadOnlyVisualPreview()) {
+    return { ok: false as const, error: "Preview V2.1: cambios deshabilitados." };
+  }
   try {
     const client = await createSupabaseServerClient();
     const { data: auth, error: authError } = await client.auth.getUser();
@@ -63,6 +67,9 @@ export async function saveFounderWorkspaceAction(
   }
 }
 export async function resetFounderWorkspaceAction() {
+  if (isReadOnlyVisualPreview()) {
+    return { ok: false as const, error: "Preview V2.1: cambios deshabilitados." };
+  }
   try {
     const client = await createSupabaseServerClient();
     const { data: auth, error: authError } = await client.auth.getUser();
