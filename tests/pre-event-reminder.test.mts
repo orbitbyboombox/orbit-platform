@@ -29,10 +29,17 @@ const bankDetails = {
 
 const base: PreEventReminderModel = {
   customerName: "Josefina",
+  eventName: "Matrimonio Josefina",
   eventDate: "2026-05-15",
+  daysUntilEvent: 10,
+  eventLocation: "Centro de Eventos · Santiago",
+  serviceStartAt: "2026-05-15T22:00:00Z",
   operatorArrivalAt: null,
   assemblyStartAt: null,
+  reservationConfirmed: true,
   scrapbookIncluded: false,
+  photoDesignRequired: false,
+  photoDesignApproved: false,
   photoDesignPending: false,
   payment: null,
   website: "https://www.bbox.cl",
@@ -51,7 +58,7 @@ test("global Event action opens the canonical MobileDialog composer", () => {
 test("one renderer is global for Matrimonio, Social, Empresa and future Event types", () => {
   for (const eventType of ["Matrimonio", "Social", "Empresa", "Festival futuro"]) {
     const html = renderPreEventReminderHtml({ ...base, customerName: eventType });
-    assert.match(html, /Todo listo para tu evento/);
+    assert.match(html, /¡QUEDA MUY POCO PARA TU EVENTO!/);
     assert.match(html, new RegExp(eventType));
   }
   assert.doesNotMatch(service, /switch\s*\(.*project_type/);
@@ -62,17 +69,17 @@ test("canonical Event date is validated and formatted in Spanish", () => {
   assert.equal(formatPreEventDate("2026-05-15"), "15 de mayo de 2026");
   assert.equal(
     defaultPreEventReminderSubject("2026-05-15"),
-    "Todo listo para tu evento BOOMBOX · 15 de mayo de 2026",
+    "¡QUEDA MUY POCO PARA TU EVENTO! BOOMBOX · 15 de mayo de 2026",
   );
   assert.throws(() => formatPreEventDate("2026-02-30"), /fecha canónica válida/);
   assert.match(service, /event_date/);
 });
 
-test("manual timing is contextual and never gates sending at seven days", () => {
-  assert.equal(daysUntilPreEvent("2026-05-15", new Date("2026-05-08T16:00:00Z")), 7);
-  assert.doesNotMatch(actions, /daysUntilEvent\s*[!=<>]=?\s*7/);
-  assert.doesNotMatch(service, /daysUntilEvent\s*[!=<>]=?\s*7/);
-  assert.doesNotMatch(`${actions}\n${service}`, /\bcron\b|scheduler|scheduleJob/i);
+test("automatic delivery is exactly D-10 while manual sending stays available", () => {
+  assert.equal(daysUntilPreEvent("2026-05-15", new Date("2026-05-05T16:00:00Z")), 10);
+  assert.match(service, /composer\.daysUntilEvent !== 10/);
+  assert.match(service, /sendAutomaticPreEventReminders/);
+  assert.doesNotMatch(actions, /daysUntilEvent\s*[!=<>]=?\s*10/);
 });
 
 test("fully paid renderer contains zero payment, due-date or bank content", () => {
@@ -94,16 +101,17 @@ test("canonical positive balance renders the compact payment block near the end"
       projectionId: "projection-1",
       outstandingBalance: 750_000,
       dueDate: "2026-05-12",
+      customerType: "PRIVATE",
       bankDetails,
     },
   };
   const html = renderPreEventReminderHtml(model);
-  assert.match(html, /Saldo pendiente/);
+  assert.match(html, /Segundo pago \/ saldo final/i);
   assert.match(html, /\$750\.000/);
   assert.match(html, /12 de mayo de 2026/);
   assert.match(html, /Banco BCI/);
   assert.match(html, /contabilidad@bbox\.cl/);
-  assert.ok(html.indexOf("Todo coordinado") < html.indexOf("Saldo pendiente"));
+  assert.ok(html.indexOf("Todo coordinado") < html.indexOf("Segundo pago"));
   assert.doesNotMatch(html, /50\s*%|0\.5\s*\*/);
 });
 
@@ -114,6 +122,8 @@ test("Scrapbook and photo design blocks obey actual conditions", () => {
   const included = renderPreEventReminderHtml({
     ...base,
     scrapbookIncluded: true,
+    photoDesignRequired: true,
+    photoDesignApproved: false,
     photoDesignPending: true,
   });
   assert.match(included, /Tu Scrapbook/);
@@ -142,7 +152,7 @@ test("premium renderer carries required operational and electrical copy", () => 
   const html = renderPreEventReminderHtml(base);
   for (const copy of [
     "BOOMBOX",
-    "Todo listo para tu evento",
+    "¡QUEDA MUY POCO PARA TU EVENTO!",
     "Todo coordinado",
     "Operador BOOMBOX",
     "Montaje",
@@ -206,7 +216,7 @@ test("HTML is Gmail-safe, centered, and constrained for 390px mobile", () => {
     bankDetails,
   } });
   assert.match(html, /name="viewport"/);
-  assert.match(html, /max-width:620px/);
+  assert.match(html, /max-width:640px/);
   assert.match(html, /width:100%/);
   assert.match(html, /box-sizing:border-box/);
   assert.match(html, /max-width:480px/);
@@ -219,6 +229,6 @@ test("fingerprint changes for every canonical conditional or financial input", (
   assert.notEqual(original, preEventReminderFingerprint({ ...base, photoDesignPending: true }));
   assert.notEqual(original, preEventReminderFingerprint({
     ...base,
-    payment: { projectionId: "p", outstandingBalance: 1, dueDate: null, bankDetails },
+    payment: { projectionId: "p", outstandingBalance: 1, dueDate: null, customerType: "PRIVATE", bankDetails },
   }));
 });
