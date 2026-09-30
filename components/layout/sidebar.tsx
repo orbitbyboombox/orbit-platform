@@ -1,7 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarDays, ChevronLeft, ChevronRight, CircleDollarSign, Contact, PlusCircle } from "lucide-react";
+import {
+  CalendarDays,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  CircleDollarSign,
+  Contact,
+  PlusCircle,
+} from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -9,7 +17,7 @@ import { navigationItems } from "./navigation";
 import { BrandLogo } from "@/components/brand-logo";
 import { BrandSignature } from "@/components/brand-signature";
 import { useModuleManager } from "@/features/module-manager";
-import type { NavigationKey } from "./navigation";
+import type { NavigationItem, NavigationKey } from "./navigation";
 
 export interface NavigationListProps {
   onNavigate?: () => void;
@@ -19,54 +27,229 @@ export interface NavigationListProps {
   iconOnly?: boolean;
 }
 
-export function NavigationList({ onNavigate, compact, hiddenNavigation = [], iconOnly = false }: NavigationListProps) {
+const PRIMARY_KEYS = new Set<NavigationKey>([
+  "HOME",
+  "COMMERCIAL",
+  "EVENTS",
+  "CUSTOMERS",
+  "STAFF",
+  "RECEIVABLES",
+  "FINANCE",
+  "SETTINGS",
+]);
+
+function NavigationLink({
+  item,
+  pathname,
+  compact,
+  iconOnly,
+  onNavigate,
+}: {
+  item: NavigationItem;
+  pathname: string;
+  compact?: boolean;
+  iconOnly?: boolean;
+  onNavigate?: () => void;
+}) {
+  const { label, href, icon: Icon } = item;
+  const isActive = href === "/" ? pathname === href : pathname.startsWith(href);
+  return (
+    <Link
+      aria-current={isActive ? "page" : undefined}
+      className={cn(
+        "group flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-muted transition-all hover:bg-accent/75 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60",
+        compact && (iconOnly ? "justify-center" : "justify-center lg:justify-start"),
+        iconOnly && "justify-center px-0",
+        isActive &&
+          "border border-brand/20 bg-[linear-gradient(90deg,rgba(255,149,0,.20),rgba(255,149,0,.08))] text-foreground shadow-[0_10px_30px_rgba(255,149,0,.08)]",
+      )}
+      href={href}
+      onClick={onNavigate}
+    >
+      <Icon
+        aria-hidden="true"
+        className={cn(
+          "size-[18px] shrink-0 transition-colors group-hover:text-brand",
+          isActive && "text-brand",
+        )}
+      />
+      <span
+        className={cn(
+          iconOnly ? "hidden" : compact ? "hidden lg:inline" : undefined,
+        )}
+      >
+        {label}
+      </span>
+    </Link>
+  );
+}
+
+export function NavigationList({
+  onNavigate,
+  compact,
+  hiddenNavigation = [],
+  iconOnly = false,
+}: NavigationListProps) {
   const pathname = usePathname();
-  const {isEnabled}=useModuleManager();
+  const { isEnabled } = useModuleManager();
+  const available = navigationItems.filter(
+    (item) =>
+      !hiddenNavigation.includes(item.key) &&
+      (item.href === "/settings" || isEnabled(item.module)),
+  );
+  const primary = available.filter((item) => PRIMARY_KEYS.has(item.key));
+  const secondary = available.filter((item) => !PRIMARY_KEYS.has(item.key));
+  const secondaryActive = secondary.some((item) => pathname.startsWith(item.href));
+
   return (
     <nav aria-label="Navegación principal" className="space-y-1">
-      {navigationItems.filter(item=>!hiddenNavigation.includes(item.key)&&(item.href==="/settings"||isEnabled(item.module))).map(({ label, href, icon: Icon }) => {
-        const isActive = href === "/" ? pathname === href : pathname.startsWith(href);
-        return <Link
-          aria-current={isActive ? "page" : undefined}
-          className={cn(
-            "group flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-muted transition-all hover:bg-accent/75 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60",
-            compact && (iconOnly ? "justify-center" : "justify-center lg:justify-start"),
-            iconOnly && "justify-center px-0",
-            isActive && "border border-brand/20 bg-[linear-gradient(90deg,rgba(255,149,0,.20),rgba(255,149,0,.08))] text-foreground shadow-[0_10px_30px_rgba(255,149,0,.08)]",
-          )}
-          href={href}
-          key={label}
-          onClick={onNavigate}
+      {primary.map((item) => (
+        <NavigationLink
+          compact={compact}
+          iconOnly={iconOnly}
+          item={item}
+          key={item.key}
+          onNavigate={onNavigate}
+          pathname={pathname}
+        />
+      ))}
+
+      {!iconOnly && secondary.length ? (
+        <details
+          className="group mt-2 rounded-xl border border-border/50 bg-background/25"
+          open={secondaryActive || undefined}
         >
-          <Icon aria-hidden="true" className={cn("size-[18px] shrink-0 transition-colors group-hover:text-brand", isActive && "text-brand")} />
-          <span className={cn(iconOnly ? "hidden" : compact ? "hidden lg:inline" : undefined)}>{label}</span>
-        </Link>;
-      })}
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold text-muted hover:bg-accent/50 hover:text-foreground">
+            <span>Más módulos</span>
+            <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="space-y-1 border-t border-border/50 p-1.5">
+            {secondary.map((item) => (
+              <NavigationLink
+                compact={false}
+                iconOnly={false}
+                item={item}
+                key={item.key}
+                onNavigate={onNavigate}
+                pathname={pathname}
+              />
+            ))}
+          </div>
+        </details>
+      ) : null}
     </nav>
   );
 }
 
-export function Sidebar({ navigationOrder, hiddenNavigation }: Pick<NavigationListProps,"navigationOrder"|"hiddenNavigation">) {
+export function Sidebar({
+  navigationOrder,
+  hiddenNavigation,
+}: Pick<NavigationListProps, "navigationOrder" | "hiddenNavigation">) {
   const [collapsed, setCollapsed] = useState(false);
   return (
-    <aside className={cn("peer fixed inset-y-0 left-0 z-30 hidden h-dvh min-h-0 w-20 overflow-hidden border-r border-border/70 bg-[#090c11]/97 shadow-[14px_0_48px_rgba(0,0,0,.2)] backdrop-blur-xl transition-[width] duration-200 md:flex md:flex-col", collapsed ? "lg:w-20" : "lg:w-[15.25rem]")} data-collapsed={collapsed}>
+    <aside
+      className={cn(
+        "peer fixed inset-y-0 left-0 z-30 hidden h-dvh min-h-0 w-20 overflow-hidden border-r border-border/70 bg-[#090c11]/97 shadow-[14px_0_48px_rgba(0,0,0,.2)] backdrop-blur-xl transition-[width] duration-200 md:flex md:flex-col",
+        collapsed ? "lg:w-20" : "lg:w-[15.25rem]",
+      )}
+      data-collapsed={collapsed}
+    >
       <div className="relative flex h-[5.75rem] items-center justify-center border-b border-border/70 px-3">
-      <Link aria-label="Ir al Dashboard" className="flex h-full w-full items-center justify-center px-1 lg:px-2" href="/operations">
-        <BrandLogo className={cn("w-full max-w-[11rem]", collapsed ? "hidden" : "hidden lg:block")} surface="dark" />
-        <BrandLogo className={cn("w-full max-w-[2.25rem]", collapsed ? "lg:block" : "lg:hidden")} surface="dark" variant="isotype" />
-      </Link>
-      <button aria-label={collapsed ? "Expandir navegación" : "Contraer navegación"} className="absolute -right-3 top-1/2 hidden size-7 -translate-y-1/2 place-items-center rounded-full border bg-card text-muted shadow-md transition hover:border-brand/40 hover:text-brand lg:grid" onClick={() => setCollapsed(value => !value)} type="button">{collapsed ? <ChevronRight className="size-3.5" /> : <ChevronLeft className="size-3.5" />}</button>
+        <Link
+          aria-label="Ir al Dashboard"
+          className="flex h-full w-full items-center justify-center px-1 lg:px-2"
+          href="/operations"
+        >
+          <BrandLogo
+            className={cn(
+              "w-full max-w-[11rem]",
+              collapsed ? "hidden" : "hidden lg:block",
+            )}
+            surface="dark"
+          />
+          <BrandLogo
+            className={cn(
+              "w-full max-w-[2.25rem]",
+              collapsed ? "lg:block" : "lg:hidden",
+            )}
+            surface="dark"
+            variant="isotype"
+          />
+        </Link>
+        <button
+          aria-label={collapsed ? "Expandir navegación" : "Contraer navegación"}
+          className="absolute -right-3 top-1/2 hidden size-7 -translate-y-1/2 place-items-center rounded-full border bg-card text-muted shadow-md transition hover:border-brand/40 hover:text-brand lg:grid"
+          onClick={() => setCollapsed((value) => !value)}
+          type="button"
+        >
+          {collapsed ? (
+            <ChevronRight className="size-3.5" />
+          ) : (
+            <ChevronLeft className="size-3.5" />
+          )}
+        </button>
       </div>
+
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3 pt-5 [scrollbar-width:thin]">
-        <NavigationList compact hiddenNavigation={hiddenNavigation} iconOnly={collapsed} navigationOrder={navigationOrder} />
+        <NavigationList
+          compact
+          hiddenNavigation={hiddenNavigation}
+          iconOnly={collapsed}
+          navigationOrder={navigationOrder}
+        />
+
         <div className={cn("mx-0 mt-3 border-t pt-4", collapsed && "lg:hidden")}>
-        <p className="mb-2 px-2 text-[9px] font-semibold uppercase tracking-[.12em] text-muted">Accesos rápidos</p>
-        <nav aria-label="Accesos rápidos" className="space-y-1">
-          {[{label:"Nuevo Evento",href:"/projects?reservation=new",icon:PlusCircle},{label:"Buscar Cliente",href:"/customers",icon:Contact},{label:"Calendario",href:"/events",icon:CalendarDays},{label:"Cobros pendientes",href:"/finance/receivables",icon:CircleDollarSign}].map(item=><Link className="group flex min-h-9 items-center gap-3 rounded-xl px-2 text-xs text-muted transition hover:bg-accent/70 hover:text-foreground" href={item.href} key={item.label}><item.icon className="size-4 transition group-hover:text-brand"/><span>{item.label}</span></Link>)}
-        </nav>
+          <p className="mb-2 px-2 text-[9px] font-semibold uppercase tracking-[.12em] text-muted">
+            Accesos rápidos
+          </p>
+          <nav aria-label="Accesos rápidos" className="space-y-1">
+            {[
+              {
+                label: "Nueva Reserva",
+                href: "/projects?reservation=new",
+                icon: PlusCircle,
+              },
+              { label: "Buscar Cliente", href: "/customers", icon: Contact },
+              { label: "Eventos", href: "/events", icon: CalendarDays },
+              {
+                label: "Cobros pendientes",
+                href: "/finance/receivables",
+                icon: CircleDollarSign,
+              },
+            ].map((item) => (
+              <Link
+                className="group flex min-h-9 items-center gap-3 rounded-xl px-2 text-xs text-muted transition hover:bg-accent/70 hover:text-foreground"
+                href={item.href}
+                key={item.label}
+              >
+                <item.icon className="size-4 transition group-hover:text-brand" />
+                <span>{item.label}</span>
+              </Link>
+            ))}
+          </nav>
         </div>
       </div>
-      <div className="mt-auto border-t px-4 py-5 text-center lg:text-left"><Link aria-label="Ir al Dashboard" href="/operations">{collapsed ? <BrandLogo className="mx-auto size-7" surface="dark" variant="isotype" /> : <><BrandSignature className="hidden lg:block" /><BrandLogo className="mx-auto size-7 lg:hidden" surface="dark" variant="isotype" /></>}</Link></div>
+
+      <div className="mt-auto border-t px-4 py-5 text-center lg:text-left">
+        <Link aria-label="Ir al Dashboard" href="/operations">
+          {collapsed ? (
+            <BrandLogo
+              className="mx-auto size-7"
+              surface="dark"
+              variant="isotype"
+            />
+          ) : (
+            <>
+              <BrandSignature className="hidden lg:block" />
+              <BrandLogo
+                className="mx-auto size-7 lg:hidden"
+                surface="dark"
+                variant="isotype"
+              />
+            </>
+          )}
+        </Link>
+      </div>
     </aside>
   );
 }
