@@ -42,6 +42,7 @@ const base: PreEventReminderModel = {
   photoDesignApproved: false,
   photoDesignPending: false,
   payment: null,
+  bankCopyUrl: null,
   website: "https://www.bbox.cl",
 };
 
@@ -105,8 +106,10 @@ test("canonical positive balance renders the compact payment block near the end"
       bankDetails,
     },
   };
-  const html = renderPreEventReminderHtml(model);
+  const html = renderPreEventReminderHtml({ ...model, bankCopyUrl: "https://app.bbox.cl/datos-bancarios" });
   assert.match(html, /Segundo pago \/ saldo final/i);
+  assert.match(html, /COPIAR DATOS BANCARIOS/);
+  assert.match(html, /https:\/\/app\.bbox\.cl\/datos-bancarios/);
   assert.match(html, /\$750\.000/);
   assert.match(html, /12 de mayo de 2026/);
   assert.match(html, /Banco BCI/);
