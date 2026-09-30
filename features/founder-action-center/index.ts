@@ -1,5 +1,6 @@
 import "server-only";
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isReadOnlyVisualPreview } from "@/lib/supabase/environment-guard";
 import { founderActionHref, isFounderActionVisible } from "./visibility";
@@ -75,10 +76,9 @@ const canonicalFounderActionTypes = new Set<string>(
   canonicalFounderActionTypeList,
 );
 
-const loadFounderActionCenterCached = cache(
-  async (userId: string): Promise<FounderActionCenter> => {
+const reconcileFounderActionSources = unstable_cache(
+  async () => {
     const admin = createAdminClient();
-    if (!isReadOnlyVisualPreview()) {
     const [
       { error: salesError },
       { error: whatsappError },
@@ -105,6 +105,17 @@ const loadFounderActionCenterCached = cache(
       "reconcile_founder_action_alerts",
     );
     if (reconciliationError) throw reconciliationError;
+    return true;
+  },
+  ["founder-action-reconciliation-v2"],
+  { revalidate: 30 },
+);
+
+const loadFounderActionCenterCached = cache(
+  async (userId: string): Promise<FounderActionCenter> => {
+    const admin = createAdminClient();
+    if (!isReadOnlyVisualPreview()) {
+      await reconcileFounderActionSources();
     }
     const [
       { data: rows, error },
