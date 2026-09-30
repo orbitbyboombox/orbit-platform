@@ -91,6 +91,36 @@ export async function loadFounderWorkspace(
     const dashboard = moduleWorkspaces.DASHBOARD;
     if (dashboard) dashboard.hiddenSections = dashboard.hiddenSections.filter((key) => key !== "DASHBOARD_BIANCA");
   }
+  const simplifiedPreview =
+    process.env.VERCEL_ENV === "preview" &&
+    process.env.VERCEL_GIT_COMMIT_REF ===
+      "feat/v2.1-simplified-workspace-preview";
+
+  if (simplifiedPreview) {
+    const dashboard = moduleWorkspaces.DASHBOARD;
+    if (dashboard) {
+      dashboard.sectionOrder = [
+        "DASHBOARD_HEADER",
+        "DASHBOARD_ACTION_CENTER",
+        "DASHBOARD_UPCOMING_EVENTS",
+        "DASHBOARD_QUICK_ACTIONS",
+        "DASHBOARD_WIDGETS",
+        "DASHBOARD_FINANCIAL_ALERTS",
+        "DASHBOARD_STAFF_APPROVALS",
+        "DASHBOARD_BIANCA",
+        "DASHBOARD_RECENT_ACTIVITY",
+        "PUBLICATION_CONSOLE",
+        "DASHBOARD_WORKSPACE_SETTINGS",
+      ];
+      dashboard.hiddenSections = [
+        "DASHBOARD_BIANCA",
+        "DASHBOARD_RECENT_ACTIVITY",
+        "PUBLICATION_CONSOLE",
+        "DASHBOARD_WORKSPACE_SETTINGS",
+      ];
+    }
+  }
+
   return {
     navigationOrder: [...DEFAULT_WORKSPACE.navigationOrder],
     hiddenNavigation: [],
