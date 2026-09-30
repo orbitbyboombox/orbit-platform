@@ -69,7 +69,12 @@ const financialRisk = (risk: FinanceRisk): FinanceRisk => risk;
  * Canonical Finance Read Model for the Founder dashboard.
  * The UI consumes this projection and performs no financial calculations.
  */
-export async function loadFinanceDashboardReadModel(\n  client: SupabaseClient,\n  financialTruthSource?: Awaited<ReturnType<typeof loadFinancialTruth>> | Promise<Awaited<ReturnType<typeof loadFinancialTruth>>>,\n): Promise<FinanceDashboardReadModel> {
+export async function loadFinanceDashboardReadModel(
+  client: SupabaseClient,
+  financialTruthSource?:
+    | Awaited<ReturnType<typeof loadFinancialTruth>>
+    | Promise<Awaited<ReturnType<typeof loadFinancialTruth>>>,
+): Promise<FinanceDashboardReadModel> {
   const now = new Date();
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(now);
   const month = today.slice(0, 7);
