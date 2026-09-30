@@ -14,6 +14,12 @@ export async function updateSession(request: NextRequest) {
   const isPublicEntry = request.nextUrl.pathname === "/" || request.nextUrl.pathname === "/login";
   if(error){if(isMissingSessionError(error)){if(isPublicEntry)return response;const login=new URL("/login",request.url);login.searchParams.set("next",request.nextUrl.pathname+request.nextUrl.search);return NextResponse.redirect(login)}if(isInvalidSessionError(error))return NextResponse.redirect(new URL("/api/auth/session-expired",request.url));return response}
   if (!user){if(isPublicEntry)return response;const login=new URL("/login",request.url);login.searchParams.set("next",request.nextUrl.pathname+request.nextUrl.search);return NextResponse.redirect(login)}
+  const platformPagePrefixes=[
+    "/operations","/leads","/calendar","/events","/customers","/projects",
+    "/resources","/finance","/office-rent","/reports","/settings",
+    "/notifications","/tasks","/bianca"
+  ];
+  if(platformPagePrefixes.some((prefix)=>request.nextUrl.pathname===prefix||request.nextUrl.pathname.startsWith(prefix+"/")))return response;
   const{data:profile,error:profileError}=await supabase.from("profiles").select("role").eq("id",user.id).maybeSingle();
   if(profileError)return response;
   if(!profile||(!isAdministrativeRole(profile.role)&&!isMetaReviewerRole(profile.role))){return NextResponse.redirect(new URL(unauthorizedLandingForRole(profile?.role),request.url))}
