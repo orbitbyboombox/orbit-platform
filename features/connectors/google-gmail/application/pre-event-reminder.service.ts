@@ -548,3 +548,129 @@ export async function sendPreEventReminder(
     throw error;
   }
 }
+
+
+function chileIsoDate(reference: Date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: "America/Santiago",
+  }).formatToParts(reference);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+function addIsoDays(value: string, days: number) {
+  const date = new Date(`${value}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+export async function sendAutomaticPreEventReminders(reference = new Date()) {
+  const admin = createAdminClient();
+  const today = chileIsoDate(reference);
+  const targetDate = addIsoDays(today, 10);
+  const { data: projects, error } = await admin
+    .from("projects")
+    .select("id,customer_id,orbit_event_id,status,event_date")
+    .eq("event_date", targetDate)
+    .is("deleted_at", null);
+  if (error) throw error;
+
+  let sent = 0;
+  let skipped = 0;
+  let blocked = 0;
+  let failed = 0;
+
+  for (const project of projects ?? []) {
+    const automaticAttemptId = `automatic-d10:${targetDate}`;
+    const key = requestKey(project.id, automaticAttemptId);
+    const recordBlocked = async (reason: string, recipient = "") => {
+      const { error: blockedError } = await admin.from("communications").upsert(
+        {
+          customer_id: project.customer_id,
+          project_id: project.id,
+          channel: "GMAIL",
+          direction: "OUTBOUND",
+          communication_type: PRE_EVENT_REMINDER_TYPE,
+          thread_key: key,
+          request_key: key,
+          subject: "¡Queda muy poco para tu evento! · BOOMBOX",
+          body: "",
+          status: "BLOCKED",
+          to_recipient: recipient || null,
+          cc_recipients: [],
+          occurred_at: reference.toISOString(),
+          failure_reason: reason.slice(0, 2_000),
+          context_snapshot: {
+            automatic: true,
+            trigger: "D-10",
+            targetDate,
+            reason,
+          },
+        },
+        { onConflict: "project_id,communication_type,request_key" },
+      );
+      if (blockedError) throw blockedError;
+    };
+
+    try {
+      const composer = await loadPreEventReminderComposer(project.id);
+      if (composer.daysUntilEvent !== 10 || !composer.reservationConfirmed) {
+        skipped += 1;
+        continue;
+      }
+      if (composer.hasSuccessfulSend) {
+        skipped += 1;
+        continue;
+      }
+      if (!composer.to.trim()) {
+        await recordBlocked("El Cliente no tiene un email principal válido para el envío automático.");
+        blocked += 1;
+        continue;
+      }
+
+      const result = await sendPreEventReminder({
+        projectId: project.id,
+        actorId: null,
+        requestId: automaticAttemptId,
+        expectedFingerprint: composer.fingerprint,
+        to: composer.to,
+        cc: composer.cc,
+        subject: composer.subject,
+        confirmResend: false,
+      });
+      if (result.status === "SENT") sent += 1;
+      else if (result.status === "FAILED") failed += 1;
+      else skipped += 1;
+    } catch (error) {
+      const reason =
+        error instanceof Error ? error.message : "No fue posible preparar el recordatorio D-10.";
+      try {
+        await recordBlocked(reason);
+        blocked += 1;
+      } catch (recordError) {
+        failed += 1;
+        console.error(
+          JSON.stringify({
+            level: "error",
+            event: "pre_event_reminder.automatic_block_record_failed",
+            projectId: project.id,
+            error: recordError instanceof Error ? recordError.message : String(recordError),
+          }),
+        );
+      }
+    }
+  }
+
+  return {
+    targetDate,
+    candidates: projects?.length ?? 0,
+    sent,
+    skipped,
+    blocked,
+    failed,
+  };
+}
