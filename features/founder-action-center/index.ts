@@ -257,25 +257,36 @@ export async function loadFounderActionCenter(userId: string) {
   return loadFounderActionCenterCached(userId);
 }
 
+const loadFounderActionCountCached = unstable_cache(
+  async () => {
+    const admin = createAdminClient();
+    const [
+      { count: notificationCount, error: notificationError },
+      { count: overdueCount, error: overdueError },
+    ] = await Promise.all([
+      admin
+        .from("internal_notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("action_required", true)
+        .neq("status", "RESOLVED"),
+      admin
+        .from("accounts_receivable_projection")
+        .select("id", { count: "exact", head: true })
+        .gt("outstanding_balance", 0)
+        .lt("days_remaining", 0)
+        .not("effective_status", "in", "(PAID,CANCELLED,ARCHIVED)"),
+    ]);
+    if (notificationError || overdueError)
+      throw notificationError ?? overdueError;
+    return (notificationCount ?? 0) + (overdueCount ?? 0);
+  },
+  ["founder-action-count-v2"],
+  { revalidate: 15 },
+);
+
 export async function loadFounderActionCount(userId: string) {
-  // The shell only needs a badge count. Do not reconcile and materialize the
-  // complete Founder action center on every internal navigation; that work is
-  // reserved for the notifications view itself.
+  // Shared CEO/Admin badge count; short cache removes two DB reads from most
+  // internal navigations while keeping operational freshness.
   void userId;
-  const admin = createAdminClient();
-  const [{ count: notificationCount, error: notificationError }, { count: overdueCount, error: overdueError }] = await Promise.all([
-    admin
-      .from("internal_notifications")
-      .select("id", { count: "exact", head: true })
-      .eq("action_required", true)
-      .neq("status", "RESOLVED"),
-    admin
-      .from("accounts_receivable_projection")
-      .select("id", { count: "exact", head: true })
-      .gt("outstanding_balance", 0)
-      .lt("days_remaining", 0)
-      .not("effective_status", "in", "(PAID,CANCELLED,ARCHIVED)"),
-  ]);
-  if (notificationError || overdueError) throw notificationError ?? overdueError;
-  return (notificationCount ?? 0) + (overdueCount ?? 0);
+  return loadFounderActionCountCached();
 }
