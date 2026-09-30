@@ -67,8 +67,14 @@ export default async function OperationsPage() {
   const { data: auth, error: authError } = await client.auth.getUser();
   if (authError || !auth.user)
     throw authError ?? new Error("Sesión requerida.");
-  const financialTruth = await loadFinancialTruth(client);
-  const financeDashboard = await loadFinanceDashboardReadModel(client);
+  const financialTruthPromise = loadFinancialTruth(client);
+  const financeDashboardPromise = loadFinanceDashboardReadModel(
+    client,
+    financialTruthPromise,
+  );
+  const founderActionCenterPromise = loadFounderActionCenter(auth.user.id);
+  const communicationPromise = loadCommunicationHubProjection(client);
+  const integrationHealthPromise = loadIntegrationHealth();
   const today = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Santiago",
   }).format(new Date());
@@ -143,7 +149,7 @@ export default async function OperationsPage() {
       .is("deleted_at", null)
       .eq("status", "CONFIRMED")
       .gt("total_internal_payment", 0),
-    Promise.resolve({ data: financialTruth, error: null }),
+    financialTruthPromise.then((data) => ({ data, error: null })),
     client
       .from("timeline_events")
       .select("id,project_id,title,description,occurred_at")
@@ -205,6 +211,10 @@ export default async function OperationsPage() {
     client
       .from("event_logistics_summary")
       .select("project_id,logistics_mode,logistics_status,trip_count"),
+  ]);
+  const [financialTruth, financeDashboard] = await Promise.all([
+    financialTruthPromise,
+    financeDashboardPromise,
   ]);
 
   const results = [
@@ -1512,8 +1522,11 @@ export default async function OperationsPage() {
     return { id: row.id, key: row.obligation_key, title: localDay >= (rule?.escalation_day ?? 20) ? `${rule?.name ?? "PAGAR IVA"} HOY` : rule?.name ?? "PAGAR IVA", status: row.status as "PENDING" | "PAID", period: row.accounting_period.slice(0,7), paidAt: row.paid_at };
   });
   const financialAlert = financialAlertHistory.find((item) => item.status === "PENDING") ?? null;
-  const founderActionCenter = await loadFounderActionCenter(auth.user.id);
-  const [communication, integrationHealth] = await Promise.all([loadCommunicationHubProjection(client), loadIntegrationHealth()]);
+  const [founderActionCenter, communication, integrationHealth] = await Promise.all([
+    founderActionCenterPromise,
+    communicationPromise,
+    integrationHealthPromise,
+  ]);
   const whatsappConnected = integrationHealth.whatsapp.some((item) => item.label === "Configuración webhook" && item.status === "PASS");
   const biancaStatus = getBiancaOperationalStatus({ whatsappConnected, active: communication.whatsappSummary.active, human: communication.whatsappSummary.human });
   return (
