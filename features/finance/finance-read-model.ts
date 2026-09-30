@@ -69,7 +69,7 @@ const financialRisk = (risk: FinanceRisk): FinanceRisk => risk;
  * Canonical Finance Read Model for the Founder dashboard.
  * The UI consumes this projection and performs no financial calculations.
  */
-export async function loadFinanceDashboardReadModel(client: SupabaseClient): Promise<FinanceDashboardReadModel> {
+export async function loadFinanceDashboardReadModel(\n  client: SupabaseClient,\n  financialTruthSource?: Awaited<ReturnType<typeof loadFinancialTruth>> | Promise<Awaited<ReturnType<typeof loadFinancialTruth>>>,\n): Promise<FinanceDashboardReadModel> {
   const now = new Date();
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(now);
   const month = today.slice(0, 7);
@@ -79,7 +79,7 @@ export async function loadFinanceDashboardReadModel(client: SupabaseClient): Pro
   const next30 = next30Date.toISOString().slice(0, 10);
 
   const [truth, receivableDataset, receivablesResult, paymentsResult, expensesResult, settlementsResult, staffMovementsResult, fuelResult, routesResult, routeEventsResult, integrityResult,bankAccountsResult,fixedRulesResult] = await Promise.all([
-    loadFinancialTruth(client),
+    financialTruthSource ? Promise.resolve(financialTruthSource) : loadFinancialTruth(client),
     loadAccountsReceivable(client),
     client.from("accounts_receivable_projection").select("id,project_id,customer_id,due_date,amount,paid_amount,outstanding_balance,effective_status"),
     client.from("invoice_payments").select("id,invoice_id,amount,movement_type,paid_at,method,deleted_at,invoices!inner(financial_record_state,record_origin,status,deleted_at)").is("deleted_at", null).eq("invoices.financial_record_state", "ACTIVE").eq("invoices.record_origin", "PRODUCTION").neq("invoices.status", "CANCELLED").is("invoices.deleted_at", null),
