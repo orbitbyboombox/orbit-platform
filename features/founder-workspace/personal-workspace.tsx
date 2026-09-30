@@ -375,18 +375,19 @@ export function GlobalLayoutEngine() {
         });
       }
     };
-    discover();
-    const observer = new MutationObserver(() => {
+    timer = setTimeout(discover, 60);
+    const scheduleDiscover = () => {
       clearTimeout(timer);
-      timer = setTimeout(discover, 100);
-    });
+      timer = setTimeout(discover, 250);
+    };
+    const observer = new MutationObserver(scheduleDiscover);
     const root = document.getElementById("platform-workspace-content");
     if (root) observer.observe(root, { childList: true, subtree: true });
-    window.addEventListener("resize", discover);
+    window.addEventListener("resize", scheduleDiscover, { passive: true });
     return () => {
       clearTimeout(timer);
       observer.disconnect();
-      window.removeEventListener("resize", discover);
+      window.removeEventListener("resize", scheduleDiscover);
     };
   }, [context, moduleKey, pathname]);
   useEffect(() => {
@@ -399,8 +400,9 @@ export function GlobalLayoutEngine() {
       element.style.order = String(
         Math.max(0, config.sectionOrder.indexOf(key)),
       );
-      element.draggable = true;
-      element.classList.add("workspace-draggable");
+      const dragEnabled = window.matchMedia("(pointer: fine)").matches;
+      element.draggable = dragEnabled;
+      if (dragEnabled) element.classList.add("workspace-draggable");
       prepareOrderingParent(element.parentElement);
       const start = (event: DragEvent) => {
         dragged.current = key;
@@ -431,13 +433,17 @@ export function GlobalLayoutEngine() {
           },
         });
       };
-      element.addEventListener("dragstart", start);
-      element.addEventListener("dragover", over);
-      element.addEventListener("drop", drop);
+      if (dragEnabled) {
+        element.addEventListener("dragstart", start);
+        element.addEventListener("dragover", over);
+        element.addEventListener("drop", drop);
+      }
       cleanup.push(() => {
-        element.removeEventListener("dragstart", start);
-        element.removeEventListener("dragover", over);
-        element.removeEventListener("drop", drop);
+        if (dragEnabled) {
+          element.removeEventListener("dragstart", start);
+          element.removeEventListener("dragover", over);
+          element.removeEventListener("drop", drop);
+        }
         element.classList.remove("workspace-draggable");
       });
     }
