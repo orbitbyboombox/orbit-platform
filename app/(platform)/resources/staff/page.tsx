@@ -38,6 +38,23 @@ import type { StaffExpenseReviewItem } from "@/features/staff-expenses/staff-exp
 export default async function StaffManagementPage({searchParams}:{searchParams:Promise<{reviewOnboarding?:string;reviewAccount?:string;reviewExpense?:string;view?:string}>}) {
   const {reviewOnboarding,reviewAccount,reviewExpense,view}=await searchParams;
   const client = await createSupabaseServerClient();
+  const academyArticlesPromise = loadAcademyArticles(client);
+  const crmEventsPromise = loadCrmOperationalEvents(client);
+  const communeSectorMappingsPromise = loadLogisticsCommuneSectorMappings(client);
+  const boxAssignmentsPromise = client
+    .from("asset_assignments")
+    .select("project_id,asset_id,assignment_status,planned_start_at,planned_end_at,operational_assets!inner(asset_code,asset_type)")
+    .eq("assignment_status", "ASSIGNED")
+    .eq("operational_assets.asset_type", "CASE")
+    .in("operational_assets.asset_code", Array.from({ length: 9 }, (_, index) => `CASE-${String(index + 1).padStart(2, "0")}`))
+    .is("deleted_at", null);
+  const boxAssetsPromise = client
+    .from("operational_assets")
+    .select("id,asset_code,status,asset_type")
+    .eq("asset_type", "CASE")
+    .in("asset_code", Array.from({ length: 9 }, (_, index) => `CASE-${String(index + 1).padStart(2, "0")}`))
+    .is("deleted_at", null)
+    .order("asset_code");
   const [
     { data: staff, error: staffError },
     { data: assignments, error: assignmentError },
@@ -688,25 +705,18 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
       fileName: document.file_name,
     })),
   }));
-  const academyArticles = await loadAcademyArticles(client);
+  const [academyArticles, crmEvents, boxAssignmentsResult, boxAssetsResult] =
+    await Promise.all([
+      academyArticlesPromise,
+      crmEventsPromise,
+      boxAssignmentsPromise,
+      boxAssetsPromise,
+    ]);
   const academyStats = await loadAcademyStats(client, academyArticles);
-  const crmEvents = await loadCrmOperationalEvents(client);
   const eventIds = crmEvents.map((event) => event.projectId);
-  const { data: boxAssignments, error: boxAssignmentError } = await client
-    .from("asset_assignments")
-    .select("project_id,asset_id,assignment_status,planned_start_at,planned_end_at,operational_assets!inner(asset_code,asset_type)")
-    .eq("assignment_status", "ASSIGNED")
-    .eq("operational_assets.asset_type", "CASE")
-    .in("operational_assets.asset_code", Array.from({ length: 9 }, (_, index) => `CASE-${String(index + 1).padStart(2, "0")}`))
-    .is("deleted_at", null);
+  const { data: boxAssignments, error: boxAssignmentError } = boxAssignmentsResult;
   if (boxAssignmentError) throw boxAssignmentError;
-  const { data: boxAssets, error: boxAssetsError } = await client
-    .from("operational_assets")
-    .select("id,asset_code,status,asset_type")
-    .eq("asset_type", "CASE")
-    .in("asset_code", Array.from({ length: 9 }, (_, index) => `CASE-${String(index + 1).padStart(2, "0")}`))
-    .is("deleted_at", null)
-    .order("asset_code");
+  const { data: boxAssets, error: boxAssetsError } = boxAssetsResult;
   if (boxAssetsError) throw boxAssetsError;
   const allBoxProjectIds = [...new Set([...(boxAssignments ?? []).map((assignment) => assignment.project_id), ...eventIds])];
   const conflictingProjectIdsByAsset = new Map<string, string[]>();
@@ -776,7 +786,7 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
     extras: event.extras,
     address: event.eventAddress || event.location || "",
   }));
-  const communeSectorMappings = await loadLogisticsCommuneSectorMappings(client);
+  const communeSectorMappings = await communeSectorMappingsPromise;
   return (
       <StaffWorkspaces
         initialWorkspace={view === "logistics" ? "LOGISTICS" : reviewAccount ? "PAYROLL" : reviewExpense ? "TEAM" : undefined}
