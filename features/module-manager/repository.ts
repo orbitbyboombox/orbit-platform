@@ -1,5 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { unstable_cache } from "next/cache";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { defaultModuleStates, ORBIT_MODULE_CATALOG, type OrbitModuleKey } from "./catalog";
 
 export type ModuleStateMap=Record<OrbitModuleKey,boolean>;
@@ -17,3 +19,10 @@ export async function synchronizeModuleCatalog(client:SupabaseClient,userId:stri
   const {error}=await client.from("orbit_modules").upsert(rows,{onConflict:"module_key",ignoreDuplicates:true});
   if(error)throw error;
 }
+
+
+export const loadModuleStatesCached = unstable_cache(
+  async () => loadModuleStates(createAdminClient()),
+  ["orbit-module-states"],
+  { revalidate: 60, tags: ["orbit-module-states"] },
+);
