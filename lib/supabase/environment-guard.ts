@@ -23,7 +23,14 @@ export function resolveOrbitEnvironment(env: EnvironmentInput = process.env): Or
 }
 
 export function isReadOnlyVisualPreview(env: EnvironmentInput = process.env) {
-  return resolveOrbitEnvironment(env) === "preview" && env.ORBIT_READ_ONLY_VISUAL_PREVIEW === "true";
+  const simplifiedPreviewBranch =
+    env.VERCEL_ENV === "preview" &&
+    env.VERCEL_GIT_COMMIT_REF === "feat/v2.1-simplified-workspace-preview";
+  return (
+    simplifiedPreviewBranch ||
+    (resolveOrbitEnvironment(env) === "preview" &&
+      env.ORBIT_READ_ONLY_VISUAL_PREVIEW === "true")
+  );
 }
 
 export function assertSupabaseEnvironmentSafe(url: string, env: EnvironmentInput = process.env) {
