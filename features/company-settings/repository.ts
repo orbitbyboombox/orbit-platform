@@ -1,4 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { unstable_cache } from "next/cache";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { DEFAULT_COMPANY_SETTINGS, type CompanySettings } from "./types";
 
 const object=(value:unknown)=>value&&typeof value==="object"&&!Array.isArray(value)?value as Record<string,unknown>:{};
@@ -7,3 +9,10 @@ export async function loadCompanySettings(client:SupabaseClient):Promise<Company
   if(error||!data)return DEFAULT_COMPANY_SETTINGS;
   return {id:data.id,companyName:data.company_name||DEFAULT_COMPANY_SETTINGS.companyName,legalName:data.legal_name||DEFAULT_COMPANY_SETTINGS.legalName,brandName:data.brand_name||DEFAULT_COMPANY_SETTINGS.brandName,productName:data.product_name||DEFAULT_COMPANY_SETTINGS.productName,productVersion:String(data.product_version??"").trim()||DEFAULT_COMPANY_SETTINGS.productVersion,developedBy:data.developed_by||DEFAULT_COMPANY_SETTINGS.developedBy,poweredBy:data.powered_by||DEFAULT_COMPANY_SETTINGS.poweredBy,taxId:data.tax_id??"",taxName:data.tax_name||DEFAULT_COMPANY_SETTINGS.taxName,taxRate:Number(data.tax_rate),supportEmail:data.support_email??"",salesEmail:data.sales_email??"",operationsEmail:data.operations_email??"",phone:data.phone??"",website:data.website??"",address:data.address??"",city:data.city??"",country:data.country,locale:data.locale,currency:data.currency,timezone:data.timezone,googleWorkspaceDomain:data.google_workspace_domain??"",logoUrl:data.logo_url||DEFAULT_COMPANY_SETTINGS.logoUrl,isotypeUrl:data.isotype_url||DEFAULT_COMPANY_SETTINGS.isotypeUrl,documentLogoUrl:data.document_logo_url||DEFAULT_COMPANY_SETTINGS.documentLogoUrl,portalLogoUrl:data.portal_logo_url||DEFAULT_COMPANY_SETTINGS.portalLogoUrl,dashboardLogoUrl:data.dashboard_logo_url||DEFAULT_COMPANY_SETTINGS.dashboardLogoUrl,emailLogoUrl:data.email_logo_url||DEFAULT_COMPANY_SETTINGS.emailLogoUrl,primaryColor:data.primary_color||DEFAULT_COMPANY_SETTINGS.primaryColor,accentColor:data.accent_color||DEFAULT_COMPANY_SETTINGS.accentColor,loginTagline:data.login_tagline||DEFAULT_COMPANY_SETTINGS.loginTagline,portalKicker:data.portal_kicker||DEFAULT_COMPANY_SETTINGS.portalKicker,portalWelcome:data.portal_welcome||DEFAULT_COMPANY_SETTINGS.portalWelcome,emailSignature:data.email_signature||DEFAULT_COMPANY_SETTINGS.emailSignature,contractFooter:data.contract_footer||DEFAULT_COMPANY_SETTINGS.contractFooter,quotationFooter:data.quotation_footer||DEFAULT_COMPANY_SETTINGS.quotationFooter,driveRootFolder:data.drive_root_folder||DEFAULT_COMPANY_SETTINGS.driveRootFolder,contractConfiguration:object(data.contract_configuration),pdfConfiguration:object(data.pdf_configuration),emailConfiguration:object(data.email_configuration),portalConfiguration:object(data.portal_configuration),dashboardConfiguration:object(data.dashboard_configuration),version:data.version};
 }
+
+
+export const loadCompanySettingsCached = unstable_cache(
+  async () => loadCompanySettings(createAdminClient()),
+  ["orbit-company-settings-primary"],
+  { revalidate: 300, tags: ["orbit-company-settings"] },
+);
