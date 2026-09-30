@@ -588,32 +588,41 @@ export async function sendAutomaticPreEventReminders(reference = new Date()) {
     const automaticAttemptId = `automatic-d10:${targetDate}`;
     const key = requestKey(project.id, automaticAttemptId);
     const recordBlocked = async (reason: string, recipient = "") => {
-      const { error: blockedError } = await admin.from("communications").upsert(
-        {
-          customer_id: project.customer_id,
-          project_id: project.id,
-          channel: "GMAIL",
-          direction: "OUTBOUND",
-          communication_type: PRE_EVENT_REMINDER_TYPE,
-          thread_key: key,
-          request_key: key,
-          subject: "¡Queda muy poco para tu evento! · BOOMBOX",
-          body: "",
-          status: "BLOCKED",
-          to_recipient: recipient || null,
-          cc_recipients: [],
-          occurred_at: reference.toISOString(),
-          failure_reason: reason.slice(0, 2_000),
-          context_snapshot: {
-            automatic: true,
-            trigger: "D-10",
-            targetDate,
-            reason,
-          },
+      const existing = await admin
+        .from("communications")
+        .select("id,status")
+        .eq("project_id", project.id)
+        .eq("communication_type", PRE_EVENT_REMINDER_TYPE)
+        .eq("request_key", key)
+        .maybeSingle();
+      if (existing.error) throw existing.error;
+      if (existing.data?.status === "SENT") return;
+      const payload = {
+        customer_id: project.customer_id,
+        project_id: project.id,
+        channel: "GMAIL",
+        direction: "OUTBOUND",
+        communication_type: PRE_EVENT_REMINDER_TYPE,
+        thread_key: key,
+        request_key: key,
+        subject: "¡Queda muy poco para tu evento! · BOOMBOX",
+        body: "",
+        status: "BLOCKED",
+        to_recipient: recipient || null,
+        cc_recipients: [] as string[],
+        occurred_at: reference.toISOString(),
+        failure_reason: reason.slice(0, 2_000),
+        context_snapshot: {
+          automatic: true,
+          trigger: "D-10",
+          targetDate,
+          reason,
         },
-        { onConflict: "project_id,communication_type,request_key" },
-      );
-      if (blockedError) throw blockedError;
+      };
+      const write = existing.data?.id
+        ? await admin.from("communications").update(payload).eq("id", existing.data.id)
+        : await admin.from("communications").insert(payload);
+      if (write.error) throw write.error;
     };
 
     try {
