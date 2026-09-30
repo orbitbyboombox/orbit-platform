@@ -26,6 +26,7 @@ export type PreEventReminderModel = {
   photoDesignApproved: boolean;
   photoDesignPending: boolean;
   payment: PreEventReminderPayment | null;
+  bankCopyUrl: string | null;
   website: string;
 };
 
@@ -122,6 +123,7 @@ export function preEventReminderFingerprint(model: PreEventReminderModel) {
     photoDesignRequired: model.photoDesignRequired,
     photoDesignApproved: model.photoDesignApproved,
     photoDesignPending: model.photoDesignPending,
+    bankCopyUrl: model.bankCopyUrl,
     payment: model.payment
       ? {
           projectionId: model.payment.projectionId,
@@ -311,7 +313,10 @@ export function renderPreEventReminderHtml(
         const corporate = String(model.payment.customerType ?? "").toUpperCase() === "CORPORATE";
         const bankRow = (label: string, value: string) =>
           `<div style="border-top:1px solid #343840;padding:10px 0"><div style="font-size:10px;font-weight:700;letter-spacing:.08em;color:#aeb4bf;text-transform:uppercase">${escapeHtml(label)}</div><div style="margin-top:4px;font-size:14px;font-weight:600;line-height:1.45;color:#ffffff;overflow-wrap:anywhere">${escapeHtml(value)}</div></div>`;
-        return `<section style="margin:28px 0 0;border:1px solid #473522;border-radius:16px;overflow:hidden"><div style="padding:21px 22px;background:#21170d"><div style="font-size:11px;font-weight:800;letter-spacing:.15em;color:#f78900;text-transform:uppercase">${corporate ? "Estado de pago" : "Segundo pago / saldo final"}</div><div style="margin-top:9px;font-size:30px;font-weight:800;line-height:1.15;color:#ffffff;overflow-wrap:anywhere">${escapeHtml(formatPreEventCurrency(model.payment.outstandingBalance))}</div><div style="margin-top:10px;font-size:13px;font-weight:600;color:#c9c0b6">Fecha de vencimiento: ${escapeHtml(dueDate)}</div><p style="margin:14px 0 0;font-size:14px;line-height:1.6;color:#e8dfd4">${corporate ? "Revisa este saldo según la condición comercial acordada." : "Antes del evento, recuerda dejar regularizado el saldo final."} Si ya realizaste el pago recientemente, puedes ignorar este recordatorio.</p></div><div style="padding:20px 22px;background:#101216;color:#ffffff">${sectionTitle("Datos para transferencia")}<p style="margin:0 0 10px;font-size:14px;font-weight:700;line-height:1.5;color:#ffffff">${escapeHtml(details.companyLabel)}</p>${bankRow("Banco", details.bankName)}${bankRow("Tipo de cuenta", details.accountType)}${bankRow("N° de cuenta", details.accountNumber)}${bankRow("RUT", details.rut)}${bankRow("Enviar comprobante a", details.email)}</div></section>`;
+        const copyButton = model.bankCopyUrl
+          ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:18px auto 0"><tr><td style="border-radius:12px;background:#f78900"><a href="${escapeHtml(model.bankCopyUrl)}" style="display:inline-block;padding:14px 22px;color:#111214;text-decoration:none;font-size:13px;font-weight:800;letter-spacing:.04em">COPIAR DATOS BANCARIOS</a></td></tr></table><p style="margin:10px 0 0;text-align:center;font-size:11px;color:#8f949d">Se abrirá una página segura de BOOMBOX para copiar todos los datos de una vez.</p>`
+          : "";
+        return `<section style="margin:28px 0 0;border:1px solid #473522;border-radius:16px;overflow:hidden"><div style="padding:21px 22px;background:#21170d"><div style="font-size:11px;font-weight:800;letter-spacing:.15em;color:#f78900;text-transform:uppercase">${corporate ? "Estado de pago" : "Segundo pago / saldo final"}</div><div style="margin-top:9px;font-size:30px;font-weight:800;line-height:1.15;color:#ffffff;overflow-wrap:anywhere">${escapeHtml(formatPreEventCurrency(model.payment.outstandingBalance))}</div><div style="margin-top:10px;font-size:13px;font-weight:600;color:#c9c0b6">Fecha de vencimiento: ${escapeHtml(dueDate)}</div><p style="margin:14px 0 0;font-size:14px;line-height:1.6;color:#e8dfd4">${corporate ? "Revisa este saldo según la condición comercial acordada." : "Antes del evento, recuerda dejar regularizado el saldo final."} Si ya realizaste el pago recientemente, puedes ignorar este recordatorio.</p></div><div style="padding:20px 22px;background:#101216;color:#ffffff">${sectionTitle("Datos para transferencia")}<p style="margin:0 0 10px;font-size:14px;font-weight:700;line-height:1.5;color:#ffffff">${escapeHtml(details.companyLabel)}</p>${bankRow("Banco", details.bankName)}${bankRow("Tipo de cuenta", details.accountType)}${bankRow("N° de cuenta", details.accountNumber)}${bankRow("RUT", details.rut)}${bankRow("Enviar comprobante a", details.email)}${copyButton}</div></section>`;
       })()
     : "";
 
