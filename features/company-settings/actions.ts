@@ -1,5 +1,5 @@
 "use server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { createSupabaseServerActionClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { validateSignatureUpload } from "@/features/commercial-hub/catalogs";
@@ -17,7 +17,7 @@ export async function updateCompanySettingsAction(formData:FormData):Promise<Res
     pdfConfiguration.commercialOperationalConditions=parseQuoteOperationalConditions(value("quoteOperationalConditions"));
     const payload={company_name:value("companyName"),legal_name:value("legalName"),brand_name:value("brandName"),product_name:value("productName"),product_version:value("productVersion"),developed_by:value("developedBy"),powered_by:value("poweredBy"),tax_id:value("taxId")||null,tax_name:value("taxName"),tax_rate:Number(value("taxRate")),support_email:value("supportEmail")||null,sales_email:value("salesEmail")||null,operations_email:value("operationsEmail")||null,phone:value("phone")||null,website:value("website")||null,address:value("address")||null,city:value("city")||null,country:value("country"),locale:value("locale"),currency:value("currency"),timezone:value("timezone"),google_workspace_domain:value("googleWorkspaceDomain")||null,logo_url:value("logoUrl"),isotype_url:value("isotypeUrl"),document_logo_url:value("documentLogoUrl"),portal_logo_url:value("portalLogoUrl"),dashboard_logo_url:value("dashboardLogoUrl"),email_logo_url:value("emailLogoUrl"),primary_color:value("primaryColor"),accent_color:value("accentColor"),login_tagline:value("loginTagline"),portal_kicker:value("portalKicker"),portal_welcome:value("portalWelcome"),email_signature:value("emailSignature"),contract_footer:value("contractFooter"),quotation_footer:value("quotationFooter"),drive_root_folder:value("driveRootFolder"),contract_configuration:json(value("contractConfiguration"),"Contratos"),pdf_configuration:pdfConfiguration,email_configuration:json(value("emailConfiguration"),"Emails"),portal_configuration:json(value("portalConfiguration"),"Portal"),dashboard_configuration:json(value("dashboardConfiguration"),"Dashboard"),approval_reason:reason,updated_by:auth.user.id};
     const {data,error}=await client.from("company_settings").update(payload).eq("id",id).eq("version",expectedVersion).select("id").maybeSingle();if(error)throw error;if(!data)throw new Error("La configuración cambió en otra sesión. Recarga la página.");
-    revalidatePath("/", "layout");return{ok:true,message:"Configuración guardada y auditada."};
+    revalidateTag("orbit-company-settings");revalidatePath("/", "layout");return{ok:true,message:"Configuración guardada y auditada."};
   }catch(error){return{ok:false,error:error instanceof Error?error.message:"No fue posible guardar la empresa."}}
 }
 
