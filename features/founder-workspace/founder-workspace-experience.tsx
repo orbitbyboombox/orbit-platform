@@ -557,6 +557,7 @@ export function FounderWorkspaceExperience({
     }),
   );
   const attentionActions = [...founderActions, ...financialReviewActions];
+  const totalAttentionCount = attentionActions.length + staffApprovalItems.length;
   const groupedActions = attentionActions
     .reduce<Array<FounderActionItem & { count?: number }>>((groups, item) => {
       const repeatable = !["P0", "P1"].includes(item.priority);
@@ -706,7 +707,7 @@ export function FounderWorkspaceExperience({
           <p className="mt-2 text-xs text-muted">Abrir para revisar cada pendiente en su elemento exacto.</p>
         </div>
         <span className="flex items-center gap-3">
-          <span aria-label={`${attentionActions.length} pendientes accionables`} className="grid min-h-11 min-w-11 place-items-center rounded-full bg-brand px-3 text-lg font-bold text-brand-foreground">{attentionActions.length}</span>
+          <span aria-label={`${totalAttentionCount} pendientes accionables`} className="grid min-h-11 min-w-11 place-items-center rounded-full bg-brand px-3 text-lg font-bold text-brand-foreground">{totalAttentionCount}</span>
           <ChevronDown className="size-5 text-muted transition-transform group-open:rotate-180" />
         </span>
       </summary>
@@ -752,13 +753,24 @@ export function FounderWorkspaceExperience({
           );
         })}
       </div>
+      {staffApprovalItems.length ? (
+        <div className="mt-4 border-t border-brand/20 pt-4">
+          <PendingStaffApprovals
+            embedded
+            items={staffApprovalItems}
+            onResolved={(id) =>
+              setResolvedApprovalIds((current) => new Set(current).add(id))
+            }
+          />
+        </div>
+      ) : null}
       <Link
         className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-brand"
         href="/notifications"
       >
         Ver todos los pendientes <ArrowRight className="size-3.5" />
       </Link>
-      {!attentionActions.length ? (
+      {!totalAttentionCount ? (
         <Empty label="No hay decisiones pendientes del Founder." />
       ) : null}
     </details>
@@ -973,14 +985,6 @@ export function FounderWorkspaceExperience({
     </section>
   ) : null;
 
-  const staffApprovals = staffApprovalItems.length ? (
-    <PendingStaffApprovals
-      items={staffApprovalItems}
-      onResolved={(id) =>
-        setResolvedApprovalIds((current) => new Set(current).add(id))
-      }
-    />
-  ) : null;
   const financialAlerts =
     financialAlert || financialAlertHistory.length ? (
       <FinancialAlertCenter
@@ -1058,15 +1062,6 @@ export function FounderWorkspaceExperience({
                 },
               ]
             : []),
-          ...(staffApprovals
-            ? [
-                {
-                  key: "DASHBOARD_STAFF_APPROVALS",
-                  label: "Aprobaciones de Staff pendientes",
-                  content: staffApprovals,
-                },
-              ]
-            : []),
           {
             key: "DASHBOARD_QUICK_ACTIONS",
             label: "Acciones rápidas",
@@ -1108,9 +1103,11 @@ const roleLabel: Record<string, string> = {
 };
 
 function PendingStaffApprovals({
+  embedded = false,
   items,
   onResolved,
 }: {
+  embedded?: boolean;
   items: PendingStaffApproval[];
   onResolved: (id: string) => void;
 }) {
@@ -1140,9 +1137,9 @@ function PendingStaffApprovals({
   };
   return (
     <section
-      data-command-card
+      data-command-card={!embedded || undefined}
       aria-labelledby="pending-staff-approvals-title"
-      className="rounded-2xl border border-brand/25 p-5 sm:p-6"
+      className={embedded ? "min-w-0" : "rounded-2xl border border-brand/25 p-5 sm:p-6"}
     >
       <div className="flex items-center justify-between gap-3">
         <div>
@@ -1167,7 +1164,7 @@ function PendingStaffApprovals({
           {message}
         </p>
       ) : null}
-      <div className="mt-5 space-y-3">
+      <div className={embedded ? "mt-4 space-y-3" : "mt-5 space-y-3"}>
         {items.map((item) => (
           <article
             className="grid gap-3 rounded-xl border bg-background/30 p-4 lg:grid-cols-[1.1fr_1.1fr_.8fr_.8fr_auto] lg:items-center"
