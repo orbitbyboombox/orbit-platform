@@ -55,6 +55,8 @@ export type PreEventReminderComposer = {
   dueDateSource: string;
   bankDataSource: string | null;
   paymentReceiptEmailSource: string | null;
+  reservationConfirmed: boolean;
+  automaticSendDate: string;
   status: PreEventReminderStatus;
   hasSuccessfulSend: boolean;
   lastAttemptAt: string | null;
@@ -117,18 +119,25 @@ export async function loadPreEventReminderComposer(
   projectId: string,
 ): Promise<PreEventReminderComposer> {
   const admin = createAdminClient();
-  const [projectResult, receivableResult, historyResult, company] = await Promise.all([
+  const [projectResult, receivableResult, reservationResult, historyResult, company] = await Promise.all([
     admin
       .from("projects")
       .select(
-        "id,customer_id,orbit_event_id,name,project_type,status,event_date,customers!inner(full_name,email,secondary_email),project_services(service_code,extras),project_operational_contracts(staff_arrival_at,assembly_start_at),event_operational_requirements(code,status),documents(document_type,is_current,workflow_status,deleted_at)",
+        "id,customer_id,orbit_event_id,name,project_type,status,event_date,location,city,customers!inner(full_name,email,secondary_email),project_services(service_code,extras),project_operational_contracts(staff_arrival_at,assembly_start_at,service_start_at),event_operational_requirements(code,status),documents(document_type,is_current,workflow_status,deleted_at)",
       )
       .eq("id", projectId)
       .is("deleted_at", null)
       .single(),
     admin
       .from("accounts_receivable_projection")
-      .select("id,outstanding_balance,due_date,effective_status,created_at")
+      .select("id,outstanding_balance,due_date,effective_status,customer_type,created_at")
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    admin
+      .from("crm_reservations")
+      .select("status")
       .eq("project_id", projectId)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -145,6 +154,7 @@ export async function loadPreEventReminderComposer(
   ]);
   if (projectResult.error) throw projectResult.error;
   if (receivableResult.error) throw receivableResult.error;
+  if (reservationResult.error) throw reservationResult.error;
   if (historyResult.error) throw historyResult.error;
 
   const project = projectResult.data;
@@ -189,12 +199,21 @@ export async function loadPreEventReminderComposer(
   }
   const bankDetails = outstandingBalance > 0 ? resolveCollectionBankDetails(company) : null;
   if (bankDetails) assertBankConfiguration(bankDetails);
+  const daysUntilEvent = daysUntilPreEvent(project.event_date);
+  const reservationConfirmed = reservationResult.data?.status === "CONFIRMED";
   const model: PreEventReminderModel = {
     customerName: customer.full_name || "Cliente",
+    eventName: project.name || project.orbit_event_id,
     eventDate: project.event_date,
+    daysUntilEvent,
+    eventLocation: [project.location, project.city].filter(Boolean).join(" · "),
+    serviceStartAt: operational?.service_start_at ?? null,
     operatorArrivalAt: operational?.staff_arrival_at ?? null,
     assemblyStartAt: operational?.assembly_start_at ?? null,
+    reservationConfirmed,
     scrapbookIncluded,
+    photoDesignRequired,
+    photoDesignApproved: photoDesignRequired && designApproved,
     photoDesignPending: photoDesignRequired && !designApproved,
     payment:
       outstandingBalance > 0 && receivable && bankDetails
@@ -202,6 +221,7 @@ export async function loadPreEventReminderComposer(
             projectionId: receivable.id,
             outstandingBalance,
             dueDate: receivable.due_date,
+            customerType: receivable.customer_type ?? null,
             bankDetails,
           }
         : null,
@@ -219,7 +239,7 @@ export async function loadPreEventReminderComposer(
     eventType: project.project_type,
     eventDate: project.event_date,
     eventDateLabel,
-    daysUntilEvent: daysUntilPreEvent(project.event_date),
+    daysUntilEvent,
     to: customer.email ?? "",
     cc: customer.secondary_email ? [customer.secondary_email] : [],
     subject: defaultPreEventReminderSubject(project.event_date),
@@ -237,6 +257,12 @@ export async function loadPreEventReminderComposer(
     paymentReceiptEmailSource: bankDetails
       ? "company_settings.pdf_configuration.commercialBank.email"
       : null,
+    reservationConfirmed,
+    automaticSendDate: (() => {
+      const date = new Date(`${project.event_date}T12:00:00Z`);
+      date.setUTCDate(date.getUTCDate() - 10);
+      return date.toISOString().slice(0, 10);
+    })(),
     status: status(history),
     hasSuccessfulSend: history.some((item) => item.status === "SENT"),
     lastAttemptAt: history[0]?.sent_at ?? history[0]?.occurred_at ?? null,
@@ -256,7 +282,7 @@ export async function loadPreEventReminderComposer(
 
 export type SendPreEventReminderInput = {
   projectId: string;
-  actorId: string;
+  actorId: string | null;
   requestId: string;
   expectedFingerprint: string;
   to: string;
@@ -473,7 +499,7 @@ export async function sendPreEventReminder(
         title: "RECORDATORIO PRE-EVENTO ENVIADO",
         description: `Enviado a: ${recipients.to}`,
         actor_id: input.actorId,
-        actor_label: "Founder",
+        actor_label: input.actorId ? "Founder" : "ORBIT",
         source: "Gmail",
         action: "PRE_EVENT_REMINDER_SENT",
         entity_type: "Communication",
