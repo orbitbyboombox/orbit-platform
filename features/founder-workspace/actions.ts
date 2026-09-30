@@ -1,5 +1,5 @@
 "use server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { DEFAULT_WORKSPACE, type FounderWorkspacePreferences } from "./catalog";
 
@@ -46,6 +46,7 @@ export async function saveFounderWorkspaceAction(
       { onConflict: "user_id" },
     );
     if (error) throw new Error(readableError(error, "No fue posible guardar Mi Escritorio."));
+    revalidateTag(`founder-workspace:${auth.user.id}`);
     revalidatePath("/operations");
     revalidatePath("/projects/[projectId]", "page");
     revalidatePath("/customers/[customerId]", "page");
@@ -93,6 +94,7 @@ export async function resetFounderWorkspaceAction() {
       { onConflict: "user_id" },
     );
     if (error) throw new Error(readableError(error, "No fue posible restaurar Mi Escritorio."));
+    revalidateTag(`founder-workspace:${auth.user.id}`);
     revalidatePath("/operations");
     revalidatePath("/settings");
     return { ok: true as const };
