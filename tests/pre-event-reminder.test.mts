@@ -69,7 +69,7 @@ test("canonical Event date is validated and formatted in Spanish", () => {
   assert.equal(formatPreEventDate("2026-05-15"), "15 de mayo de 2026");
   assert.equal(
     defaultPreEventReminderSubject("2026-05-15"),
-    "¡QUEDA MUY POCO PARA TU EVENTO! BOOMBOX · 15 de mayo de 2026",
+    "¡Queda muy poco para tu evento! · BOOMBOX · 15 de mayo de 2026",
   );
   assert.throws(() => formatPreEventDate("2026-02-30"), /fecha canónica válida/);
   assert.match(service, /event_date/);
@@ -213,6 +213,7 @@ test("HTML is Gmail-safe, centered, and constrained for 390px mobile", () => {
     projectionId: "projection-1",
     outstandingBalance: 123_456,
     dueDate: "2026-05-12",
+    customerType: "PRIVATE",
     bankDetails,
   } });
   assert.match(html, /name="viewport"/);
