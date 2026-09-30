@@ -1,5 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { unstable_cache } from "next/cache";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   DEFAULT_WORKSPACE,
   EVENT_MODULES,
@@ -107,3 +109,11 @@ export async function loadFounderWorkspace(
     moduleWorkspaces,
   };
 }
+
+
+export const loadFounderWorkspaceCached = (userId: string) =>
+  unstable_cache(
+    async () => loadFounderWorkspace(createAdminClient(), userId),
+    ["founder-workspace", userId],
+    { revalidate: 30, tags: [`founder-workspace:${userId}`] },
+  )();
