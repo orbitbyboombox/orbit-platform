@@ -357,6 +357,8 @@ export async function sendPreEventReminder(
   const queuedAt = new Date().toISOString();
   const contextSnapshot = {
     rendererVersion: PRE_EVENT_REMINDER_RENDERER_VERSION,
+    automatic: input.actorId === null,
+    trigger: input.actorId === null ? "D-10" : "MANUAL",
     eventDate: composer.eventDate,
     daysUntilEvent: composer.daysUntilEvent,
     operational: {
@@ -596,7 +598,9 @@ export async function sendAutomaticPreEventReminders(reference = new Date()) {
         .eq("request_key", key)
         .maybeSingle();
       if (existing.error) throw existing.error;
-      if (existing.data?.status === "SENT") return;
+      if (existing.data?.status === "SENT" || existing.data?.status === "FAILED") {
+        return existing.data.status;
+      }
       const payload = {
         customer_id: project.customer_id,
         project_id: project.id,
@@ -623,6 +627,7 @@ export async function sendAutomaticPreEventReminders(reference = new Date()) {
         ? await admin.from("communications").update(payload).eq("id", existing.data.id)
         : await admin.from("communications").insert(payload);
       if (write.error) throw write.error;
+      return "BLOCKED";
     };
 
     try {
@@ -636,8 +641,11 @@ export async function sendAutomaticPreEventReminders(reference = new Date()) {
         continue;
       }
       if (!composer.to.trim()) {
-        await recordBlocked("El Cliente no tiene un email principal válido para el envío automático.");
-        blocked += 1;
+        const blockedStatus = await recordBlocked(
+          "El Cliente no tiene un email principal válido para el envío automático.",
+        );
+        if (blockedStatus === "FAILED") failed += 1;
+        else blocked += 1;
         continue;
       }
 
@@ -658,8 +666,9 @@ export async function sendAutomaticPreEventReminders(reference = new Date()) {
       const reason =
         error instanceof Error ? error.message : "No fue posible preparar el recordatorio D-10.";
       try {
-        await recordBlocked(reason);
-        blocked += 1;
+        const blockedStatus = await recordBlocked(reason);
+        if (blockedStatus === "FAILED") failed += 1;
+        else blocked += 1;
       } catch (recordError) {
         failed += 1;
         console.error(
