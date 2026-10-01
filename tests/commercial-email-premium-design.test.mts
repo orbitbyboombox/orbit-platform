@@ -37,7 +37,9 @@ test("shared premium commercial shell is email-client safe and branded", () => {
   assert.doesNotMatch(html, /PRODUCCIONES BOOMBOX COMPANY SPA/);
   assert.doesNotMatch(html, />BOOMBOX</);
   assert.doesNotMatch(html, /Documento y comunicación emitidos/);
-  assert.doesNotMatch(html, /class=|<style/);
+  assert.match(html, /@media only screen and \(max-width:520px\)/);
+  assert.match(html, /class="orbit-body"/);
+  assert.match(html, /class="orbit-action"/);
 });
 
 test("automatic booking invitation uses the canonical BOOMBOX welcome base", () => {
@@ -204,7 +206,9 @@ test("social premium HTML remains safe at Gmail mobile and contained on desktop"
   assert.match(html, /padding:24px 10px/);
   assert.match(html, /width:100%;max-width:640px/);
   assert.match(html, /min-width:260px/);
-  assert.doesNotMatch(html, /width:\s*[7-9][0-9]{2}px|class=|<style/);
+  assert.doesNotMatch(html, /width:\s*[7-9][0-9]{2}px/);
+  assert.match(html, /@media only screen and \(max-width:520px\)/);
+  assert.match(html, /orbit-action-link/);
 });
 
 test("social redesign preserves recipients, optional PDF, idempotency, and Empresa branch", () => {
@@ -247,4 +251,21 @@ test("catalog emails expose tax-specific transport CTA without mixing customer t
   assert.match(actions, /CONOCER VALOR DE TRASLADO \+ IVA/);
   assert.match(actions, /CONOCER VALOR DE TRASLADO/);
   assert.match(actions, /secondaryAction: \{ href: transportUrl, label: transportLabel \}/);
+});
+
+
+test("premium customer email shell keeps readable spacing on mobile", () => {
+  const html = renderBoomboxCommercialEmail({
+    preheader: "Preview",
+    eyebrow: "BOOMBOX",
+    title: "Tu experiencia",
+    contentHtml: "<p>Primer párrafo.</p><p>Segundo párrafo.</p>",
+    website: "https://www.bbox.cl",
+    primaryAction: { href: "https://app.bbox.cl/a", label: "ACCIÓN PRINCIPAL" },
+    secondaryAction: { href: "https://app.bbox.cl/b", label: "ACCIÓN SECUNDARIA" },
+  });
+  assert.match(html, /\.orbit-body p\{margin-bottom:20px!important\}/);
+  assert.match(html, /\.orbit-action\{width:100%!important/);
+  assert.match(html, /\.orbit-action-link\{display:block!important;width:100%!important/);
+  assert.match(html, /\.orbit-footer td\{display:block!important/);
 });
