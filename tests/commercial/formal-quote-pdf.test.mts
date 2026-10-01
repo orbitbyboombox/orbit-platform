@@ -182,3 +182,14 @@ test("commercial PDF keeps transport in the net breakdown and deposit uses total
   assert.match(text, /81\.700/);
   assert.match(text, /511\.700/);
 });
+
+
+test("quotation PDF includes the premium transport lookup CTA with a clickable URL", async () => {
+  const url = "https://app.bbox.cl/traslados?type=company&municipality=Santiago";
+  const pdf = await createFormalQuotePdf({ ...model(2), transportLookupUrl: url });
+  const [first] = await pageTexts(pdf);
+  assert.match(first, /TRASLADO DEL SERVICIO/);
+  assert.match(first, /CONOCER VALOR/);
+  assert.match(first, /Empresas: valores \+ IVA/);
+  assert.match(Buffer.from(pdf).toString("latin1"), /app\.bbox\.cl\/traslados/);
+});
