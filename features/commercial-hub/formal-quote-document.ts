@@ -245,6 +245,7 @@ export async function loadFormalQuoteDocument(
         : "FIFTY_FIFTY",
     paymentTermDays: Number(snapshot.paymentTermDays ?? 0),
     transportLookupUrl,
+    transportCustomerType: isCompanyCustomer ? "company" : "private",
     company: {
       legalName: company.legalName,
       taxId: company.taxId,
