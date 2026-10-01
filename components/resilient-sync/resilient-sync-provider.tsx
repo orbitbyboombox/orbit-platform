@@ -280,18 +280,11 @@ export function ResilientSyncProvider({
       void registerOrbitSyncServiceWorker().catch(() => null);
       void refresh().finally(scheduleRefresh);
     };
-    let idleId: number | null = null;
-    let startTimer: number | null = null;
-    if ("requestIdleCallback" in window) {
-      idleId = window.requestIdleCallback(startBackgroundSync, { timeout: 1500 });
-    } else {
-      startTimer = window.setTimeout(startBackgroundSync, 900);
-    }
+    const startTimer = window.setTimeout(startBackgroundSync, 900);
 
     return () => {
       cancelled = true;
-      if (idleId !== null && "cancelIdleCallback" in window) window.cancelIdleCallback(idleId);
-      if (startTimer !== null) window.clearTimeout(startTimer);
+      window.clearTimeout(startTimer);
       window.clearTimeout(timer);
       window.removeEventListener("online", onConnection);
       window.removeEventListener("offline", onConnection);
