@@ -207,7 +207,7 @@ test("private quote PDF shows only IVA incluido transport messaging", async () =
     transportCustomerType: "private",
   });
   const [first] = await pageTexts(pdf);
-  assert.match(first, /CONOCER VALOR · IVA INCLUIDO/);
-  assert.match(first, /Valor final del traslado con IVA incluido/);
-  assert.doesNotMatch(first, /IVA 19% se agrega al total/);
+  assert.match(first, /CONOCER VALOR DE TRASLADO/);
+  assert.match(first, /Consulta el valor vigente según la comuna de tu evento/);
+  assert.doesNotMatch(first, /IVA incluido|IVA 19% se agrega al total/);
 });
