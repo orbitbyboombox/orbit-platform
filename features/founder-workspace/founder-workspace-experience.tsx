@@ -597,7 +597,7 @@ export function FounderWorkspaceExperience({
       keys.forEach((id) => next.add(id));
       return next;
     });
-    startTransition(async () => {
+    startOrderTransition(async () => {
       const result = await dismissFounderActionsAction(keys);
       setDismissingFounderActionIds((current) => {
         const next = new Set(current);
