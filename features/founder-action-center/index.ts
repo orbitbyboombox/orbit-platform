@@ -253,8 +253,23 @@ const loadFounderActionCenterCached = cache(
   },
 );
 
+export async function loadFounderActionDismissals(userId: string) {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("founder_action_user_states")
+    .select("action_key")
+    .eq("user_id", userId);
+  if (error) throw error;
+  return new Set((data ?? []).map((row) => row.action_key));
+}
+
 export async function loadFounderActionCenter(userId: string) {
-  return loadFounderActionCenterCached(userId);
+  const [center, dismissed] = await Promise.all([
+    loadFounderActionCenterCached(userId),
+    loadFounderActionDismissals(userId),
+  ]);
+  const items = center.items.filter((item) => !dismissed.has(item.id));
+  return { count: items.length, items };
 }
 
 const loadFounderActionCountCached = unstable_cache(
