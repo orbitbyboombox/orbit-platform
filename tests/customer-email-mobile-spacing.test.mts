@@ -11,7 +11,7 @@ test("all customer email families have explicit mobile spacing guards", () => {
   const collection = source("features/accounts-receivable/collection-email.template.ts");
 
   assert.match(shared, /max-width:520px/);
-  assert.match(shared, /orbit-body p\\{margin-top:0!important;margin-bottom:14px!important/);
+  assert.match(shared, /orbit-body p\{margin-bottom:20px!important\}/);
   assert.match(shared, /orbit-action-link/);
   assert.match(d10, /max-width:520px/);
   assert.match(d10, /orbit-pad p\{line-height:1\.72!important\}/);
