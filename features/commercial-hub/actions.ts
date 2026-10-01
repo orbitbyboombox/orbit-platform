@@ -292,7 +292,13 @@ export async function sendCommercialInformationAction(input: {
       if (claimError.code === "23505") return { ok: true as const, message: "Este envío ya está siendo procesado." };
       throw claimError;
     }
-    const publicUrl = catalogPublicUrl(document.category, process.env.NEXT_PUBLIC_APP_URL ?? "https://orbit.boom-box.cl");
+    const appOrigin = (process.env.NEXT_PUBLIC_APP_URL ?? "https://app.bbox.cl").replace(/\/$/, "");
+    const publicUrl = catalogPublicUrl(document.category, appOrigin);
+    const isCompanyCatalog = input.category === "COMPANIES_CATALOG";
+    const transportUrl = `${appOrigin}/traslados?type=${isCompanyCatalog ? "company" : "private"}`;
+    const transportLabel = isCompanyCatalog
+      ? "CONOCER VALOR DE TRASLADO + IVA"
+      : "CONOCER VALOR DE TRASLADO · IVA INCLUIDO";
     const downloaded = input.attachPdf ? await admin.storage.from("orbit-documents").download(document.storage_path) : null;
     if (downloaded?.error) throw downloaded.error;
     const signatureUrl = typeof company.emailConfiguration.signatureGifUrl === "string" ? company.emailConfiguration.signatureGifUrl : "";
@@ -320,6 +326,8 @@ export async function sendCommercialInformationAction(input: {
             ? document.filename || `${document.name}.pdf`
             : undefined,
           signatureUrl,
+          transportUrl,
+          transportLabel,
         })
       : null;
     const htmlBody = socialEmail?.html ?? renderBoomboxCommercialEmail({
@@ -330,6 +338,7 @@ export async function sendCommercialInformationAction(input: {
       website: company.website,
       primaryAction: { href: publicUrl, label: QUICK_SEND_CTA_LABEL },
       primaryActionFallback: "Si tienes problemas con el botón, puedes abrir los planes y valores",
+      secondaryAction: { href: transportUrl, label: transportLabel },
       attachmentNote: downloaded?.data ? `${document.filename || `${document.name}.pdf`} está incluido como archivo adjunto.` : undefined,
       signatureHtml: signature,
     });
@@ -338,7 +347,7 @@ export async function sendCommercialInformationAction(input: {
     ).send({
       to: input.email.trim().toLowerCase(),
       subject,
-      textBody: socialEmail?.text ?? `${quickSendBodyParagraphs(cleanBody, input.name).join("\n\n")}\n\n${QUICK_SEND_CTA_LABEL}: ${publicUrl}\n\n${signatureMode === "GRAPHICAL" ? "" : "Equipo BOOMBOX"}`.trim(),
+      textBody: socialEmail?.text ?? `${quickSendBodyParagraphs(cleanBody, input.name).join("\n\n")}\n\n${QUICK_SEND_CTA_LABEL}: ${publicUrl}\n\n${transportLabel}: ${transportUrl}\n\n${signatureMode === "GRAPHICAL" ? "" : "Equipo BOOMBOX"}`.trim(),
       htmlBody,
       driveFileIds: [],
       attachments: downloaded?.data ? [{ filename: document.filename || `${document.name}.pdf`, mimeType: "application/pdf", content: new Uint8Array(await downloaded.data.arrayBuffer()) }] : [],
