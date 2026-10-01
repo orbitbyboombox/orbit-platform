@@ -264,7 +264,7 @@ test("premium customer email shell keeps readable spacing on mobile", () => {
     primaryAction: { href: "https://app.bbox.cl/a", label: "ACCIÓN PRINCIPAL" },
     secondaryAction: { href: "https://app.bbox.cl/b", label: "ACCIÓN SECUNDARIA" },
   });
-  assert.match(html, /\.orbit-body p\{margin-bottom:20px!important\}/);
+  assert.match(html, /\.orbit-body p\{margin-bottom:14px!important\}/);\n  assert.match(html, /\.orbit-body \\.orbit-signature p\{margin:0!important\}/);
   assert.match(html, /\.orbit-action\{width:100%!important/);
   assert.match(html, /\.orbit-action-link\{display:block!important;width:100%!important/);
   assert.match(html, /\.orbit-footer td\{display:block!important/);
