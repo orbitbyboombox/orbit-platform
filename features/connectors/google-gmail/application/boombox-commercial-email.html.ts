@@ -54,7 +54,7 @@ export function renderBoomboxCommercialEmail(
     ? `<table class="orbit-attachment" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:28px 0 0;background:#fff7eb;border:1px solid #f4d5aa;border-radius:12px"><tr><td style="padding:15px 17px;color:#4b3a25;font-size:13px;line-height:1.5"><strong style="color:#d76d00">PDF ADJUNTO</strong><br>${escapeHtml(input.attachmentNote)}</td></tr></table>`
     : "";
   const signature = input.signatureHtml
-    ? `<div class="orbit-signature" style="margin-top:22px;text-align:center">${input.signatureHtml}</div>`
+    ? `<div style="margin-top:28px">${input.signatureHtml}</div>`
     : "";
   const fixedLayout = input.fixedLayout ? "table-layout:fixed;" : "";
   const safeWrapping = input.fixedLayout ? ";overflow-wrap:anywhere" : "";
@@ -68,21 +68,13 @@ export function renderBoomboxCommercialEmail(
   const heading = `${input.eyebrow ? `<p style="margin:0 0 12px;color:#f78900;font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase">${escapeHtml(input.eyebrow)}</p>` : ""}${input.title ? `<h1 style="margin:0 0 24px;font-size:38px;line-height:1.08;letter-spacing:-.03em;color:#ffffff">${escapeHtml(input.title)}</h1>` : ""}`;
   const logoUrl = input.logoUrl ?? "https://app.bbox.cl/branding/boombox-official-logo.png";
   const header = input.stackedHeader
-    ? `<div class="orbit-logo-frame" style="width:220px;height:54px;max-width:100%;margin:0 auto;overflow:hidden;position:relative"><img class="orbit-logo" src="${escapeHtml(logoUrl)}" alt="BOOMBOX®" width="220" style="position:absolute;left:50%;top:50%;display:block;width:220px;max-width:none;height:auto;margin:0;border:0;transform:translate(-50%,-50%) scale(1.02);transform-origin:center"/></div><div class="orbit-header-label" style="margin-top:5px;font-family:Arial,sans-serif;font-size:10px;line-height:1.35;letter-spacing:.18em;color:#f78900">${escapeHtml(headerLabel)}</div>`
-    : `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td><div class="orbit-logo-frame orbit-logo-frame-inline" style="width:190px;height:47px;max-width:100%;overflow:hidden;position:relative"><img class="orbit-logo orbit-logo-inline" src="${escapeHtml(logoUrl)}" alt="BOOMBOX®" width="190" style="position:absolute;left:50%;top:50%;display:block;width:190px;max-width:none;height:auto;margin:0;border:0;transform:translate(-50%,-50%);transform-origin:center"/></div></td><td align="right" style="font-family:Arial,sans-serif;font-size:10px;letter-spacing:.18em;color:#f78900">${escapeHtml(headerLabel)}</td></tr></table>`;
+    ? `<img src="${escapeHtml(logoUrl)}" alt="BOOMBOX®" width="270" style="display:block;width:270px;max-width:100%;height:auto;margin:0 auto;border:0"/><div style="margin-top:4px;font-family:Arial,sans-serif;font-size:10px;line-height:1.5;letter-spacing:.18em;color:#f78900">${escapeHtml(headerLabel)}</div>`
+    : `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td><img src="${escapeHtml(logoUrl)}" alt="BOOMBOX®" width="190" style="display:block;width:190px;max-width:100%;height:auto;border:0"/></td><td align="right" style="font-family:Arial,sans-serif;font-size:10px;letter-spacing:.18em;color:#f78900">${escapeHtml(headerLabel)}</td></tr></table>`;
 
   const websiteLabel = "www.bbox.cl";
   const footerLogo = `<img src="${escapeHtml(logoUrl)}" alt="BOOMBOX®" width="150" style="display:block;width:150px;max-width:100%;height:auto;border:0"/>`;
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
-.orbit-signature img{display:block!important;width:100%!important;max-width:400px!important;height:auto!important;margin-left:auto!important;margin-right:auto!important}
 @media only screen and (max-width:520px){
-  .orbit-logo-frame{width:188px!important;height:47px!important}
-  .orbit-logo{width:188px!important}
-  .orbit-logo-frame-inline{width:160px!important;height:40px!important}
-  .orbit-logo-inline{width:160px!important}
-  .orbit-header-label{margin-top:4px!important}
-  .orbit-signature{margin-top:18px!important}
-  .orbit-signature img{max-width:310px!important}
   .orbit-shell-cell{padding:12px 6px!important}
   .orbit-card{border-radius:16px!important}
   .orbit-header{padding:26px 20px 22px!important}
