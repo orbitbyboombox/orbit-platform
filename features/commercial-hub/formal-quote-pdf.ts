@@ -354,7 +354,7 @@ export async function createFormalQuotePdf(model: FormalQuotePdfModel) {
     page.drawText(
       companyTransport
         ? "Valor de traslado neto. IVA 19% se agrega al total."
-        : "Valor final del traslado con IVA incluido.",
+        : "Consulta el valor vigente según la comuna de tu evento.",
       {
         x: 56,
         y: y - 46,
@@ -363,9 +363,9 @@ export async function createFormalQuotePdf(model: FormalQuotePdfModel) {
         color: muted,
       },
     );
-    const buttonX = companyTransport ? 354 : 338;
+    const buttonX = companyTransport ? 354 : 354;
     const buttonY = y - 56;
-    const buttonWidth = companyTransport ? 184 : 200;
+    const buttonWidth = companyTransport ? 184 : 184;
     const buttonHeight = 30;
     page.drawRectangle({
       x: buttonX,
@@ -376,8 +376,8 @@ export async function createFormalQuotePdf(model: FormalQuotePdfModel) {
     });
     const transportButtonLabel = companyTransport
       ? "CONOCER VALOR + IVA"
-      : "CONOCER VALOR · IVA INCLUIDO";
-    const transportButtonSize = companyTransport ? 8.2 : 7.4;
+      : "CONOCER VALOR DE TRASLADO";
+    const transportButtonSize = companyTransport ? 8.2 : 7.8;
     page.drawText(transportButtonLabel, {
       x:
         buttonX +
