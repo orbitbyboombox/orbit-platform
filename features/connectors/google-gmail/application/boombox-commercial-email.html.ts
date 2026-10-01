@@ -37,7 +37,7 @@ export type BoomboxCommercialEmailInput = {
 };
 
 const actionButton = (action: CommercialEmailAction, secondary = false) =>
-  `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:${secondary ? "12px" : "26px"} auto 0"><tr><td style="border-radius:12px;background:${secondary ? "#ffffff" : "#f78900"};border:1px solid ${secondary ? "#d9d2c7" : "#f78900"}"><a href="${escapeHtml(action.href)}" style="display:inline-block;box-sizing:border-box;min-width:260px;padding:15px 24px;color:#171717;text-align:center;text-decoration:none;font-size:14px;font-weight:700;letter-spacing:.04em">${escapeHtml(action.label)}</a></td></tr></table>`;
+  `<table role="presentation" class="orbit-action" cellpadding="0" cellspacing="0" border="0" style="margin:${secondary ? "14px" : "30px"} auto 0"><tr><td style="border-radius:12px;background:${secondary ? "#ffffff" : "#f78900"};border:1px solid ${secondary ? "#d9d2c7" : "#f78900"}"><a class="orbit-action-link" href="${escapeHtml(action.href)}" style="display:inline-block;box-sizing:border-box;min-width:260px;padding:15px 24px;color:#171717;text-align:center;text-decoration:none;font-size:14px;font-weight:700;line-height:1.35;letter-spacing:.04em">${escapeHtml(action.label)}</a></td></tr></table>`;
 
 export function renderBoomboxCommercialEmail(
   input: BoomboxCommercialEmailInput,
@@ -51,7 +51,7 @@ export function renderBoomboxCommercialEmail(
     input.secondaryAction ? actionButton(input.secondaryAction, true) : "",
   ].join("");
   const attachment = input.attachmentNote
-    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:26px 0 0;background:#fff7eb;border:1px solid #f4d5aa;border-radius:12px"><tr><td style="padding:15px 17px;color:#4b3a25;font-size:13px;line-height:1.5"><strong style="color:#d76d00">PDF ADJUNTO</strong><br>${escapeHtml(input.attachmentNote)}</td></tr></table>`
+    ? `<table class="orbit-attachment" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:28px 0 0;background:#fff7eb;border:1px solid #f4d5aa;border-radius:12px"><tr><td style="padding:15px 17px;color:#4b3a25;font-size:13px;line-height:1.5"><strong style="color:#d76d00">PDF ADJUNTO</strong><br>${escapeHtml(input.attachmentNote)}</td></tr></table>`
     : "";
   const signature = input.signatureHtml
     ? `<div style="margin-top:28px">${input.signatureHtml}</div>`
@@ -73,5 +73,21 @@ export function renderBoomboxCommercialEmail(
 
   const websiteLabel = "www.bbox.cl";
   const footerLogo = `<img src="${escapeHtml(logoUrl)}" alt="BOOMBOX®" width="150" style="display:block;width:150px;max-width:100%;height:auto;border:0"/>`;
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0;background:#ece9e3"><div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">${escapeHtml(input.preheader)}</div><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;${fixedLayout}background:#ece9e3"><tr><td align="center" style="padding:24px 10px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:640px;${fixedLayout}background:#0b0c0e;border:1px solid #333437;border-radius:24px;overflow:hidden"><tr><td style="height:6px;background:#f78900;font-size:0;line-height:0">&nbsp;</td></tr><tr><td style="padding:34px 30px 26px;background:#111214;color:#ffffff;text-align:center">${header}</td></tr><tr><td style="padding:36px 30px 30px;font-family:Arial,sans-serif;color:#e9e9ea;line-height:1.6${safeWrapping}">${heading}${input.contentHtml}${benefits}${attachment}${actions}${input.contentAfterActionsHtml ?? ""}${closing}${signature}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:30px;border-top:1px solid #343538"><tr><td style="padding-top:22px;font-family:Arial,sans-serif">${footerLogo}<br><a href="https://www.bbox.cl" style="font-family:Arial,sans-serif;font-size:13px;color:#f78900;text-decoration:underline">${websiteLabel}</a></td><td align="right" style="padding-top:22px;font-size:10px;line-height:1.7;letter-spacing:.18em;color:#b8b8ba">EXPERIENCIAS<br>RECUERDOS<br>MOMENTOS</td></tr></table><p style="margin:18px 0 0;font-size:10px;line-height:1.5;letter-spacing:.08em;color:#77787c">COMUNICACIÓN EMITIDA MEDIANTE ORBIT SOFTWARE DESARROLLADO POR BOOMBOX®</p></td></tr></table></td></tr></table></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
+@media only screen and (max-width:520px){
+  .orbit-shell-cell{padding:12px 6px!important}
+  .orbit-card{border-radius:16px!important}
+  .orbit-header{padding:26px 20px 22px!important}
+  .orbit-body{padding:28px 20px 26px!important;line-height:1.72!important}
+  .orbit-body p{margin-bottom:20px!important}
+  .orbit-body h1{font-size:30px!important;line-height:1.12!important;margin-bottom:26px!important}
+  .orbit-body h2{margin-top:34px!important;margin-bottom:16px!important}
+  .orbit-action{width:100%!important;margin-top:18px!important}
+  .orbit-action td{width:100%!important}
+  .orbit-action-link{display:block!important;width:100%!important;min-width:0!important;padding:16px 14px!important;font-size:13px!important}
+  .orbit-footer td{display:block!important;width:100%!important;text-align:left!important}
+  .orbit-footer td+td{padding-top:14px!important;text-align:left!important}
+  .orbit-attachment td{padding:17px 16px!important}
+}
+</style></head><body style="margin:0;padding:0;background:#ece9e3"><div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">${escapeHtml(input.preheader)}</div><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;${fixedLayout}background:#ece9e3"><tr><td class="orbit-shell-cell" align="center" style="padding:24px 10px"><table class="orbit-card" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:640px;${fixedLayout}background:#0b0c0e;border:1px solid #333437;border-radius:24px;overflow:hidden"><tr><td style="height:6px;background:#f78900;font-size:0;line-height:0">&nbsp;</td></tr><tr><td class="orbit-header" style="padding:34px 30px 26px;background:#111214;color:#ffffff;text-align:center">${header}</td></tr><tr><td class="orbit-body" style="padding:36px 30px 30px;font-family:Arial,sans-serif;color:#e9e9ea;line-height:1.68${safeWrapping}">${heading}${input.contentHtml}${benefits}${attachment}${actions}${input.contentAfterActionsHtml ?? ""}${closing}${signature}<table class="orbit-footer" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:34px;border-top:1px solid #343538"><tr><td style="padding-top:22px;font-family:Arial,sans-serif">${footerLogo}<br><a href="https://www.bbox.cl" style="font-family:Arial,sans-serif;font-size:13px;color:#f78900;text-decoration:underline">${websiteLabel}</a></td><td align="right" style="padding-top:22px;font-size:10px;line-height:1.7;letter-spacing:.18em;color:#b8b8ba">EXPERIENCIAS<br>RECUERDOS<br>MOMENTOS</td></tr></table><p style="margin:18px 0 0;font-size:10px;line-height:1.5;letter-spacing:.08em;color:#77787c">COMUNICACIÓN EMITIDA MEDIANTE ORBIT SOFTWARE DESARROLLADO POR BOOMBOX®</p></td></tr></table></td></tr></table></body></html>`;
 }
