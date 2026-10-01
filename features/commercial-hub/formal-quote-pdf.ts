@@ -4,6 +4,8 @@ import {
   rgb,
   type PDFPage,
   type PDFFont,
+  PDFName,
+  PDFString,
 } from "pdf-lib";
 import type { QuoteOperationalCondition } from "./operational-conditions";
 import { formatChileanRut } from "../../lib/chile/rut.ts";
@@ -47,6 +49,7 @@ export interface FormalQuotePdfModel {
   depositPercent?: number;
   paymentCondition?: "FIFTY_FIFTY" | "CASH" | "CORPORATE_CREDIT";
   paymentTermDays?: number;
+  transportLookupUrl?: string;
   company: {
     legalName: string;
     taxId: string;
@@ -97,6 +100,28 @@ function rightText(
     font,
     color,
   });
+}
+
+function addExternalLink(
+  page: PDFPage,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  url: string,
+) {
+  const annotation = page.doc.context.obj({
+    Type: PDFName.of("Annot"),
+    Subtype: PDFName.of("Link"),
+    Rect: [x, y, x + width, y + height],
+    Border: [0, 0, 0],
+    A: {
+      Type: PDFName.of("Action"),
+      S: PDFName.of("URI"),
+      URI: PDFString.of(url),
+    },
+  });
+  page.node.addAnnot(page.doc.context.register(annotation));
 }
 
 function wrap(value: string, font: PDFFont, size: number, width: number) {
@@ -297,6 +322,68 @@ export async function createFormalQuotePdf(model: FormalQuotePdfModel) {
     y -= strong ? 26 : 16;
   });
   page.drawLine({ start: { x: 342, y: y + 10 }, end: { x: 553, y: y + 10 }, thickness: 1.2, color: orange });
+
+  if (model.transportLookupUrl) {
+    ensureService(100);
+    y -= 14;
+    page.drawRectangle({
+      x: 42,
+      y: y - 72,
+      width: 511,
+      height: 78,
+      color: rgb(0.975, 0.977, 0.982),
+      borderColor: orange,
+      borderWidth: 0.9,
+    });
+    page.drawText("TRASLADO DEL SERVICIO", {
+      x: 56,
+      y: y - 14,
+      size: 8.5,
+      font: bold,
+      color: orange,
+    });
+    page.drawText("Consulta el valor vigente según la comuna de tu evento.", {
+      x: 56,
+      y: y - 31,
+      size: 8,
+      font: regular,
+      color: graphite,
+    });
+    page.drawText("Empresas: valores + IVA · Particulares: IVA incluido.", {
+      x: 56,
+      y: y - 46,
+      size: 6.8,
+      font: regular,
+      color: muted,
+    });
+    const buttonX = 380;
+    const buttonY = y - 56;
+    const buttonWidth = 158;
+    const buttonHeight = 30;
+    page.drawRectangle({
+      x: buttonX,
+      y: buttonY,
+      width: buttonWidth,
+      height: buttonHeight,
+      color: orange,
+    });
+    page.drawText("CONOCER VALOR", {
+      x: buttonX + 28,
+      y: buttonY + 10,
+      size: 8.2,
+      font: bold,
+      color: white,
+    });
+    addExternalLink(
+      page,
+      buttonX,
+      buttonY,
+      buttonWidth,
+      buttonHeight,
+      model.transportLookupUrl,
+    );
+    y -= 90;
+  }
 
   // The commercial page closes with a compact reservation summary, keeping
   // the detailed conditions on their own deliberately spacious final page.
