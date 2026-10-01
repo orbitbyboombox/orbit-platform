@@ -36,15 +36,26 @@ export default function BoomboxEmailPreviewPage() {
           background: #111214;
           text-align: center;
         }
-        .logo {
-          display: block;
-          width: 190px;
+        .logo-frame {
+          width: 220px;
+          height: 54px;
           max-width: 100%;
-          height: auto;
           margin: 0 auto;
+          overflow: hidden;
+          position: relative;
+        }
+        .logo {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          width: 220px;
+          max-width: none;
+          height: auto;
+          transform: translate(-50%, -50%) scale(1.02);
+          transform-origin: center;
         }
         .header-label {
-          margin-top: 8px;
+          margin-top: 5px;
           color: #f78900;
           font-size: 10px;
           line-height: 1.5;
@@ -158,7 +169,8 @@ export default function BoomboxEmailPreviewPage() {
           .preview-note { padding: 0 12px; font-size: 11px; }
           .email-card { border-radius: 16px; }
           .header { padding: 27px 20px 23px; }
-          .logo { width: 172px; }
+          .logo-frame { width: 188px; height: 47px; }
+          .logo { width: 188px; }
           .body { padding: 30px 20px 27px; line-height: 1.7; }
           .eyebrow { margin-bottom: 16px; font-size: 10px; }
           .body h1 { margin-bottom: 28px; font-size: 30px; line-height: 1.12; }
@@ -192,11 +204,13 @@ export default function BoomboxEmailPreviewPage() {
       <section className="email-card" aria-label="Preview email BOOMBOX">
         <div className="accent" />
         <header className="header">
-          <img
-            className="logo"
-            src="/branding/boombox-official-logo.png"
-            alt="BOOMBOX®"
-          />
+          <div className="logo-frame">
+            <img
+              className="logo"
+              src="/branding/boombox-official-logo.png"
+              alt="BOOMBOX®"
+            />
+          </div>
           <div className="header-label">EXPERIENCIAS QUE CONECTAN</div>
         </header>
 
