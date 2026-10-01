@@ -184,12 +184,30 @@ test("commercial PDF keeps transport in the net breakdown and deposit uses total
 });
 
 
-test("quotation PDF includes the premium transport lookup CTA with a clickable URL", async () => {
+test("company quote PDF shows only + IVA transport messaging", async () => {
   const url = "https://app.bbox.cl/traslados?type=company&municipality=Santiago";
-  const pdf = await createFormalQuotePdf({ ...model(2), transportLookupUrl: url });
+  const pdf = await createFormalQuotePdf({
+    ...model(2),
+    transportLookupUrl: url,
+    transportCustomerType: "company",
+  });
   const [first] = await pageTexts(pdf);
   assert.match(first, /TRASLADO DEL SERVICIO/);
-  assert.match(first, /CONOCER VALOR/);
-  assert.match(first, /Empresas: valores \+ IVA/);
+  assert.match(first, /CONOCER VALOR \+ IVA/);
+  assert.match(first, /IVA 19% se agrega al total/);
+  assert.doesNotMatch(first, /IVA incluido/);
   assert.match(Buffer.from(pdf).toString("latin1"), /app\.bbox\.cl\/traslados/);
+});
+
+test("private quote PDF shows only IVA incluido transport messaging", async () => {
+  const url = "https://app.bbox.cl/traslados?type=private&municipality=Santiago";
+  const pdf = await createFormalQuotePdf({
+    ...model(2),
+    transportLookupUrl: url,
+    transportCustomerType: "private",
+  });
+  const [first] = await pageTexts(pdf);
+  assert.match(first, /CONOCER VALOR · IVA INCLUIDO/);
+  assert.match(first, /Valor final del traslado con IVA incluido/);
+  assert.doesNotMatch(first, /IVA 19% se agrega al total/);
 });
