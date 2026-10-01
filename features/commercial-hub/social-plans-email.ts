@@ -32,10 +32,10 @@ const richText = (paragraph: string) =>
 const renderParagraph = (paragraph: string, index: number) => {
   const plain = paragraph.replaceAll("**", "").trim();
   if (plain === "NUESTRA PROPUESTA")
-    return `<h2 style="margin:28px 0 12px;color:#d76d00;font-size:13px;line-height:1.4;letter-spacing:.14em">NUESTRA PROPUESTA</h2>`;
+    return `<h2 style="margin:22px 0 10px;color:#d76d00;font-size:13px;line-height:1.4;letter-spacing:.14em">NUESTRA PROPUESTA</h2>`;
   if (paragraph.startsWith("**Importante:**"))
-    return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:22px 0 0;background:#f7f5f1;border-radius:12px"><tr><td style="padding:15px 17px;color:#5d574f;font-size:13px;line-height:1.55">${richText(paragraph)}</td></tr></table>`;
-  return `<p style="margin:0 0 16px;font-size:${index === 0 ? "17px" : "15px"};line-height:1.65;${index === 0 ? "font-weight:700;" : ""}">${richText(paragraph)}</p>`;
+    return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:18px 0 0;background:#f7f5f1;border-radius:12px"><tr><td style="padding:15px 17px;color:#5d574f;font-size:13px;line-height:1.55">${richText(paragraph)}</td></tr></table>`;
+  return `<p style="margin:0 0 14px;font-size:${index === 0 ? "17px" : "15px"};line-height:1.65;${index === 0 ? "font-weight:700;" : ""}">${richText(paragraph)}</p>`;
 };
 
 export type SocialPlansEmailInput = {
@@ -60,8 +60,8 @@ export function buildSocialPlansEmail(input: SocialPlansEmailInput) {
   const beforeAction = postActionIndex < 0 ? paragraphs : paragraphs.slice(0, postActionIndex);
   const afterAction = postActionIndex < 0 ? [] : paragraphs.slice(postActionIndex);
   const signatureHtml = input.signatureUrl
-    ? `<p style="margin:8px 0 0"><img src="${escapeHtml(input.signatureUrl)}" alt="BOOMBOX" style="display:block;max-width:420px;width:100%;height:auto;border:0"></p>`
-    : `<p style="margin:8px 0 0"><strong>Equipo BOOMBOX</strong></p>`;
+    ? `<p style="margin:0"><img src="${escapeHtml(input.signatureUrl)}" alt="BOOMBOX" style="display:block;max-width:420px;width:100%;height:auto;border:0"></p>`
+    : `<p style="margin:0"><strong>Equipo BOOMBOX</strong></p>`;
   const html = renderBoomboxCommercialEmail({
     preheader: "Conoce las experiencias y valores BOOMBOX para tu celebración.",
     eyebrow: "",
