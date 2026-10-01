@@ -50,6 +50,7 @@ export interface FormalQuotePdfModel {
   paymentCondition?: "FIFTY_FIFTY" | "CASH" | "CORPORATE_CREDIT";
   paymentTermDays?: number;
   transportLookupUrl?: string;
+  transportCustomerType?: "company" | "private";
   company: {
     legalName: string;
     taxId: string;
@@ -349,16 +350,22 @@ export async function createFormalQuotePdf(model: FormalQuotePdfModel) {
       font: regular,
       color: graphite,
     });
-    page.drawText("Empresas: valores + IVA · Particulares: IVA incluido.", {
-      x: 56,
-      y: y - 46,
-      size: 6.8,
-      font: regular,
-      color: muted,
-    });
-    const buttonX = 380;
+    const companyTransport = model.transportCustomerType === "company";
+    page.drawText(
+      companyTransport
+        ? "Valor de traslado neto. IVA 19% se agrega al total."
+        : "Valor final del traslado con IVA incluido.",
+      {
+        x: 56,
+        y: y - 46,
+        size: 6.8,
+        font: regular,
+        color: muted,
+      },
+    );
+    const buttonX = companyTransport ? 354 : 338;
     const buttonY = y - 56;
-    const buttonWidth = 158;
+    const buttonWidth = companyTransport ? 184 : 200;
     const buttonHeight = 30;
     page.drawRectangle({
       x: buttonX,
@@ -367,10 +374,16 @@ export async function createFormalQuotePdf(model: FormalQuotePdfModel) {
       height: buttonHeight,
       color: orange,
     });
-    page.drawText("CONOCER VALOR", {
-      x: buttonX + 28,
+    const transportButtonLabel = companyTransport
+      ? "CONOCER VALOR + IVA"
+      : "CONOCER VALOR · IVA INCLUIDO";
+    const transportButtonSize = companyTransport ? 8.2 : 7.4;
+    page.drawText(transportButtonLabel, {
+      x:
+        buttonX +
+        (buttonWidth - bold.widthOfTextAtSize(transportButtonLabel, transportButtonSize)) / 2,
       y: buttonY + 10,
-      size: 8.2,
+      size: transportButtonSize,
       font: bold,
       color: white,
     });
