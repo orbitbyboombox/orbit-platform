@@ -106,7 +106,9 @@ export function TransportValueLookup({
       )}
 
       <p className="text-center text-xs leading-5 text-white/40">
-        Empresas: valores + IVA · Matrimonios, cumpleaños y eventos particulares: IVA incluido.
+        {customerType === "company"
+          ? "Cotización Empresa · valor neto + IVA."
+          : "Cotización particular · valor final con IVA incluido."}
       </p>
     </div>
   );
