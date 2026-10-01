@@ -2,7 +2,7 @@ import type { CommercialValue, Money, TransportRate } from "../types";
 
 const clp = (amount: number): CommercialValue<Money> => ({ status: "DEFINED", value: { amount, currency: "CLP" } });
 export const TRANSPORT_RATES: readonly TransportRate[] = [
-  { id: "santiago-province", origin: "Chicureo", destination: "Provincia de Santiago", price: clp(0) },
+  { id: "santiago-province", origin: "Chicureo", destination: "Provincia de Santiago", price: clp(25_000) },
   { id: "other-santiago-province", origin: "Chicureo", destination: "Otra provincia de Santiago", price: clp(35_000) },
   { id: "chacabuco", origin: "Chicureo", destination: "Chacabuco", price: clp(55_000) },
   { id: "cordillera", origin: "Chicureo", destination: "Cordillera", price: clp(70_000) },
