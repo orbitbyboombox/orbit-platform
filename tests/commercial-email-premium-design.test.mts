@@ -226,3 +226,25 @@ test("graphical BOOMBOX signature stays compact across every email sender", () =
   assert.doesNotMatch(senders, /max-width:600px/);
   assert.match(source("features/commercial-hub/commercial-hub.tsx"), /max-w-\[420px\]/);
 });
+
+
+test("catalog emails expose tax-specific transport CTA without mixing customer types", () => {
+  const privateEmail = buildSocialPlansEmail({
+    body: quickSendInitialBody("WEDDINGS", ""),
+    contact: "Josefina",
+    website: "https://www.bbox.cl",
+    catalogUrl: "https://app.bbox.cl/catalogo/novios",
+    attachmentFilename: "Planes y Valores BOOMBOX.pdf",
+    transportUrl: "https://app.bbox.cl/traslados?type=private",
+    transportLabel: "CONOCER VALOR DE TRASLADO · IVA INCLUIDO",
+  });
+  assert.match(privateEmail.html, /CONOCER VALOR DE TRASLADO · IVA INCLUIDO/);
+  assert.match(privateEmail.html, /traslados\?type=private/);
+  assert.doesNotMatch(privateEmail.html, /CONOCER VALOR DE TRASLADO \+ IVA/);
+
+  const actions = source("features/commercial-hub/actions.ts");
+  assert.match(actions, /input\.category === "COMPANIES_CATALOG"/);
+  assert.match(actions, /CONOCER VALOR DE TRASLADO \+ IVA/);
+  assert.match(actions, /CONOCER VALOR DE TRASLADO · IVA INCLUIDO/);
+  assert.match(actions, /secondaryAction: \{ href: transportUrl, label: transportLabel \}/);
+});
