@@ -209,6 +209,19 @@ export async function loadFormalQuoteDocument(
   const quotationNumber = String(
     acceptedQuotation.number ?? quote.quotation_number,
   );
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "https://app.bbox.cl").replace(/\/$/, "");
+  const eventMunicipality = String(event.city ?? "").trim();
+  const isCompanyCustomer =
+    Boolean(String(customer.company ?? "").trim()) ||
+    ["COMPANY", "CORPORATE", "EMPRESA"].includes(
+      String(snapshot.customerType ?? customer.customerType ?? "").trim().toUpperCase(),
+    );
+  const transportParams = new URLSearchParams({
+    type: isCompanyCustomer ? "company" : "private",
+  });
+  if (eventMunicipality) transportParams.set("municipality", eventMunicipality);
+  const transportLookupUrl = `${appUrl}/traslados?${transportParams.toString()}`;
+
   const bytes = await createFormalQuotePdf({
     number: quotationNumber,
     issueDate: String(acceptedQuotation.issueDate ?? quote.issue_date),
@@ -231,6 +244,7 @@ export async function loadFormalQuoteDocument(
         ? snapshot.paymentCondition
         : "FIFTY_FIFTY",
     paymentTermDays: Number(snapshot.paymentTermDays ?? 0),
+    transportLookupUrl,
     company: {
       legalName: company.legalName,
       taxId: company.taxId,
