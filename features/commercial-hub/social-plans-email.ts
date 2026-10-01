@@ -45,6 +45,8 @@ export type SocialPlansEmailInput = {
   catalogUrl: string;
   attachmentFilename?: string;
   signatureUrl?: string;
+  transportUrl?: string;
+  transportLabel?: string;
 };
 
 export function buildSocialPlansEmail(input: SocialPlansEmailInput) {
@@ -73,6 +75,10 @@ export function buildSocialPlansEmail(input: SocialPlansEmailInput) {
     website: input.website,
     primaryAction: { href: input.catalogUrl, label: QUICK_SEND_CTA_LABEL },
     primaryActionFallback: "Si tienes problemas con el botón, puedes abrir los planes y valores",
+    secondaryAction:
+      input.transportUrl && input.transportLabel
+        ? { href: input.transportUrl, label: input.transportLabel }
+        : undefined,
     attachmentNote: input.attachmentFilename
       ? `${input.attachmentFilename} está incluido como archivo adjunto.`
       : undefined,
@@ -81,6 +87,9 @@ export function buildSocialPlansEmail(input: SocialPlansEmailInput) {
   const text = [
     ...beforeAction,
     `${QUICK_SEND_CTA_LABEL}: ${input.catalogUrl}`,
+    ...(input.transportUrl && input.transportLabel
+      ? [`${input.transportLabel}: ${input.transportUrl}`]
+      : []),
     ...afterAction,
     input.signatureUrl ? "" : "Equipo BOOMBOX",
   ].filter(Boolean).join("\n\n");
