@@ -271,10 +271,27 @@ export function ResilientSyncProvider({
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisibilityChange);
     navigator.serviceWorker?.addEventListener("message", onServiceWorkerSync);
-    void registerOrbitSyncServiceWorker().catch(() => null);
-    void refresh().finally(scheduleRefresh);
+
+    // Keep first paint/navigation free from sync status I/O. The runtime is
+    // ready immediately, but remote status + service-worker registration start
+    // after the browser has had a chance to render the visible workspace.
+    const startBackgroundSync = () => {
+      if (cancelled) return;
+      void registerOrbitSyncServiceWorker().catch(() => null);
+      void refresh().finally(scheduleRefresh);
+    };
+    let idleId: number | null = null;
+    let startTimer: number | null = null;
+    if ("requestIdleCallback" in window) {
+      idleId = window.requestIdleCallback(startBackgroundSync, { timeout: 1500 });
+    } else {
+      startTimer = window.setTimeout(startBackgroundSync, 900);
+    }
+
     return () => {
       cancelled = true;
+      if (idleId !== null && "cancelIdleCallback" in window) window.cancelIdleCallback(idleId);
+      if (startTimer !== null) window.clearTimeout(startTimer);
       window.clearTimeout(timer);
       window.removeEventListener("online", onConnection);
       window.removeEventListener("offline", onConnection);
