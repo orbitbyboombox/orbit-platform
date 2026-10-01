@@ -94,7 +94,7 @@ export function buildSocialPlansEmail(input: SocialPlansEmailInput) {
     importantIndex >= 0 ? paragraphs.slice(importantIndex + 1) : [];
 
   const proposalLead = proposal[0] ?? "";
-  const proposalFollowup = proposal.slice(1).join("<br><br>");
+  const proposalFollowup = proposal.slice(1).map(richText).join("<br><br>");
   const logoUrl = "https://app.bbox.cl/branding/boombox-official-logo.png";
   const signatureHtml = input.signatureUrl
     ? `<div class="orbit-signature"><img src="${escapeHtml(input.signatureUrl)}" alt="Firma BOOMBOX"></div>`
