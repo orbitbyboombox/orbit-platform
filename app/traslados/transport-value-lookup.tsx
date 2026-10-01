@@ -87,7 +87,7 @@ export function TransportValueLookup({
                   </div>
                 </div>
               ) : (
-                <p className="mt-3 text-sm font-semibold text-emerald-300">IVA incluido</p>
+                
               )}
             </div>
           ) : (
@@ -108,7 +108,7 @@ export function TransportValueLookup({
       <p className="text-center text-xs leading-5 text-white/40">
         {customerType === "company"
           ? "Cotización Empresa · valor neto + IVA."
-          : "Cotización particular · valor final con IVA incluido."}
+          : "Valor de traslado según comuna seleccionada."}
       </p>
     </div>
   );
