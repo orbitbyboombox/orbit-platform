@@ -115,8 +115,8 @@ body{margin:0;padding:0;background:#ece9e3;font-family:Arial,Helvetica,sans-seri
 .orbit-card{width:100%;max-width:620px;margin:0 auto;background:#0b0c0e;border:1px solid #32343a;border-radius:22px;overflow:hidden}
 .orbit-accent{height:6px;background:#f78900}
 .orbit-header{padding:26px 28px 22px;text-align:center;background:#111214}
-.orbit-logo{display:block;width:220px;max-width:100%;height:auto;margin:0 auto}
-.orbit-strap{margin-top:5px;font-size:10px;letter-spacing:.18em;color:#f78900;font-weight:700}
+.orbit-logo{display:block;width:220px;max-width:100%;height:auto;margin:0 auto -28px}
+.orbit-strap{margin-top:0;font-size:10px;letter-spacing:.18em;color:#f78900;font-weight:700}
 .orbit-body{padding:34px 30px 30px;color:#ececee}
 .orbit-eyebrow{margin:0 0 12px;font-size:11px;letter-spacing:.18em;color:#f78900;font-weight:800}
 .orbit-title{margin:0 0 24px;font-size:36px;line-height:1.08;letter-spacing:-.03em;color:#fff}
@@ -147,8 +147,8 @@ body{margin:0;padding:0;background:#ece9e3;font-family:Arial,Helvetica,sans-seri
   .orbit-shell{padding:8px 5px 26px!important}
   .orbit-card{border-radius:15px!important}
   .orbit-header{padding:22px 18px 18px!important}
-  .orbit-logo{width:188px!important}
-  .orbit-strap{margin-top:3px!important;font-size:9px!important}
+  .orbit-logo{width:188px!important;margin-bottom:-24px!important}
+  .orbit-strap{margin-top:0!important;font-size:9px!important}
   .orbit-body{padding:26px 18px 24px!important}
   .orbit-eyebrow{margin-bottom:11px!important;font-size:10px!important}
   .orbit-title{font-size:29px!important;margin-bottom:22px!important}

@@ -65,21 +65,21 @@ export const QUICK_SEND_CTA_FALLBACK = "Si el botón no funciona, puedes ver nue
 
 const WEDDING_QUICK_SEND_BODY = `Hola [Nombre],
 
-Gracias por considerar a BOOMBOX para ser parte de su matrimonio.
+Gracias por considerar a BOOMBOX para ser parte de tu matrimonio.
 
 Desde hace 16 años acompañamos celebraciones creando propuestas fotográficas cuidadas, personalizadas y pensadas para guardar recuerdos especiales.
 
-Hemos preparado nuestras alternativas para que puedan revisarlas con calma y elegir la que mejor se adapte a su matrimonio.
+Hemos preparado nuestras alternativas para que puedas revisarlas con calma y elegir la que mejor se adapte a tu matrimonio.
 
 **NUESTRA PROPUESTA**
 
-Cuando encuentren una alternativa que les interese, estaremos felices de ayudarlos a revisar disponibilidad y preparar la propuesta final.
+Cuando encuentres una alternativa que te interese, estaremos felices de ayudarte a revisar disponibilidad y preparar la propuesta final.
 
-Quedamos atentos para ayudarlos con cualquier duda o coordinación.
+Quedamos atentos por si tienes dudas o necesitas saber más de nuestros servicios.
 
 **Importante:** Las fechas se confirman mediante reserva y están sujetas a disponibilidad.
 
-Esperamos ser parte de su matrimonio.
+Esperamos ser parte de tu matrimonio.
 
 Un abrazo,
 
@@ -97,7 +97,7 @@ Hemos preparado nuestras alternativas para que puedas revisarlas con calma y ele
 
 Cuando encuentres una alternativa que te interese, estaremos felices de ayudarte a revisar disponibilidad y preparar la propuesta final.
 
-Quedamos atentos para ayudarte con cualquier duda o coordinación.
+Quedamos atentos por si tienes dudas o necesitas saber más de nuestros servicios.
 
 **Importante:** Las fechas se confirman mediante reserva y están sujetas a disponibilidad.
 
@@ -119,7 +119,7 @@ Hemos preparado nuestras alternativas para que puedas revisarlas con calma y ele
 
 Cuando encuentres una alternativa que te interese, estaremos felices de ayudarte a revisar disponibilidad y preparar la propuesta final.
 
-Quedamos atentos para ayudarte con cualquier duda o coordinación.
+Quedamos atentos por si tienes dudas o necesitas saber más de nuestros servicios.
 
 **Importante:** Las fechas se confirman mediante reserva y están sujetas a disponibilidad.
 
@@ -131,21 +131,21 @@ Equipo BOOMBOX`;
 
 const COMPANY_QUICK_SEND_BODY = `Hola [Nombre],
 
-Gracias por considerar a BOOMBOX para su próximo evento.
+Gracias por considerar a BOOMBOX para tu próximo evento.
 
 Desde hace 16 años trabajamos junto a empresas, marcas y agencias creando propuestas fotográficas cuidadas, personalizadas y pensadas para conectar con las personas.
 
-Adjuntamos nuestras alternativas para que puedan revisarlas con calma y elegir la que mejor se adapte a su evento.
+Hemos preparado nuestras alternativas para que puedas revisarlas con calma y elegir la que mejor se adapte a tu evento.
 
 **NUESTRA PROPUESTA**
 
-Cuando encuentren una alternativa que les interese, estaremos felices de ayudarlos a revisar disponibilidad y preparar la propuesta final.
+Cuando encuentres una alternativa que te interese, estaremos felices de ayudarte a revisar disponibilidad y preparar la propuesta final.
 
-Quedamos atentos para ayudarlos con cualquier duda o coordinación.
+Quedamos atentos por si tienes dudas o necesitas saber más de nuestros servicios.
 
 **Importante:** Las fechas se confirman mediante reserva y están sujetas a disponibilidad.
 
-Esperamos ser parte de su evento.
+Esperamos ser parte de tu evento.
 
 Un abrazo,
 
