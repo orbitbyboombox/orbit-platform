@@ -95,7 +95,7 @@ export function buildSocialPlansEmail(input: SocialPlansEmailInput) {
 
   const proposalLead = proposal[0] ?? "";
   const proposalFollowup = proposal.slice(1).map(richText).join("<br><br>");
-  const logoUrl = "https://app.bbox.cl/branding/boombox-official-logo.png";
+  const logoUrl = "https://app.bbox.cl/branding/boombox-email-logo.png";
   const signatureHtml = input.signatureUrl
     ? `<div class="orbit-signature"><img src="${escapeHtml(input.signatureUrl)}" alt="Firma BOOMBOX"></div>`
     : `<p style="margin:0;font-size:14px;line-height:1.55;color:#fff"><strong>Equipo BOOMBOX</strong></p>`;
@@ -116,9 +116,9 @@ body{margin:0;padding:0;background:#ece9e3;font-family:Arial,Helvetica,sans-seri
 .orbit-accent{height:6px;background:#f78900}
 .orbit-header{padding:26px 28px 22px;text-align:center;background:#111214}
 .orbit-logo-table{width:220px;margin:0 auto;border-collapse:collapse}
-.orbit-logo-cell{width:220px;height:76px;overflow:hidden;line-height:0;text-align:center}
-.orbit-logo{display:block;width:220px;height:76px;object-fit:cover;object-position:center center;margin:0 auto;border:0}
-.orbit-strap{margin-top:3px;font-size:10px;letter-spacing:.18em;color:#f78900;font-weight:700}
+.orbit-logo-cell{width:220px;line-height:0;text-align:center}
+.orbit-logo{display:block;width:220px;max-width:100%;height:auto;margin:0 auto;border:0}
+.orbit-strap{margin-top:5px;font-size:10px;letter-spacing:.18em;color:#f78900;font-weight:700}
 .orbit-body{padding:34px 30px 30px;color:#ececee}
 .orbit-eyebrow{margin:0 0 12px;font-size:11px;letter-spacing:.18em;color:#f78900;font-weight:800}
 .orbit-title{margin:0 0 24px;font-size:36px;line-height:1.08;letter-spacing:-.03em;color:#fff}
@@ -150,9 +150,9 @@ body{margin:0;padding:0;background:#ece9e3;font-family:Arial,Helvetica,sans-seri
   .orbit-card{border-radius:15px!important}
   .orbit-header{padding:22px 18px 18px!important}
   .orbit-logo-table{width:188px!important}
-  .orbit-logo-cell{width:188px!important;height:65px!important}
-  .orbit-logo{width:188px!important;height:65px!important;margin:0 auto!important}
-  .orbit-strap{margin-top:2px!important;font-size:9px!important}
+  .orbit-logo-cell{width:188px!important}
+  .orbit-logo{width:188px!important;height:auto!important;margin:0 auto!important}
+  .orbit-strap{margin-top:4px!important;font-size:9px!important}
   .orbit-body{padding:26px 18px 24px!important}
   .orbit-eyebrow{margin-bottom:11px!important;font-size:10px!important}
   .orbit-title{font-size:29px!important;margin-bottom:22px!important}
@@ -174,7 +174,7 @@ body{margin:0;padding:0;background:#ece9e3;font-family:Arial,Helvetica,sans-seri
   .orbit-footer-tag{padding-top:12px!important}
   .orbit-software{font-size:8.5px!important}
 }
-</style></head><body><div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">${escapeHtml(presentation.preheader)}</div><main class="orbit-shell"><section class="orbit-card"><div class="orbit-accent"></div><header class="orbit-header"><table class="orbit-logo-table" role="presentation" align="center" cellpadding="0" cellspacing="0" border="0"><tr><td class="orbit-logo-cell" align="center"><img class="orbit-logo" src="${logoUrl}" alt="BOOMBOX®" width="220" height="76"></td></tr></table><div class="orbit-strap">EXPERIENCIAS QUE CONECTAN</div></header><div class="orbit-body"><div class="orbit-eyebrow">${escapeHtml(presentation.eyebrow)}</div><h1 class="orbit-title">${escapeHtml(presentation.title)}</h1>${intro.map((paragraph) => `<p class="orbit-copy">${richText(paragraph)}</p>`).join("")}<section class="orbit-section"><div class="orbit-section-title">NUESTRA PROPUESTA</div>${proposalLead ? `<p class="orbit-copy">${richText(proposalLead)}</p>` : ""}<div class="orbit-action-box"><p class="orbit-action-intro">Revisa los planes disponibles y consulta el valor de traslado según la comuna del evento.</p><a class="orbit-btn orbit-btn-primary" href="${escapeHtml(input.catalogUrl)}">${QUICK_SEND_CTA_LABEL}</a>${transport}<p class="orbit-fallback">Si tienes problemas con el botón principal, puedes abrir los planes y valores <a href="${escapeHtml(input.catalogUrl)}">aquí</a>.</p>${attachment}</div></section><section class="orbit-followup">${proposalFollowup ? `<p class="orbit-copy">${proposalFollowup}</p>` : ""}${important ? `<div class="orbit-important">${richText(important)}</div>` : ""}</section><section class="orbit-closing">${closing.map((paragraph) => `<p class="orbit-copy">${richText(paragraph)}</p>`).join("")}${signatureHtml}</section><footer class="orbit-footer"><table class="orbit-footer-table" role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td class="orbit-footer-main"><a href="https://www.bbox.cl">www.bbox.cl</a><br>BOOMBOX · Santiago, Chile</td><td class="orbit-footer-tag">EXPERIENCIAS<br>RECUERDOS<br>MOMENTOS</td></tr></table><div class="orbit-software">COMUNICACIÓN EMITIDA MEDIANTE ORBIT SOFTWARE DESARROLLADO POR BOOMBOX®</div></footer></div></section></main></body></html>`;
+</style></head><body><div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">${escapeHtml(presentation.preheader)}</div><main class="orbit-shell"><section class="orbit-card"><div class="orbit-accent"></div><header class="orbit-header"><table class="orbit-logo-table" role="presentation" align="center" cellpadding="0" cellspacing="0" border="0"><tr><td class="orbit-logo-cell" align="center"><img class="orbit-logo" src="${logoUrl}" alt="BOOMBOX®" width="220"></td></tr></table><div class="orbit-strap">EXPERIENCIAS QUE CONECTAN</div></header><div class="orbit-body"><div class="orbit-eyebrow">${escapeHtml(presentation.eyebrow)}</div><h1 class="orbit-title">${escapeHtml(presentation.title)}</h1>${intro.map((paragraph) => `<p class="orbit-copy">${richText(paragraph)}</p>`).join("")}<section class="orbit-section"><div class="orbit-section-title">NUESTRA PROPUESTA</div>${proposalLead ? `<p class="orbit-copy">${richText(proposalLead)}</p>` : ""}<div class="orbit-action-box"><p class="orbit-action-intro">Revisa los planes disponibles y consulta el valor de traslado según la comuna del evento.</p><a class="orbit-btn orbit-btn-primary" href="${escapeHtml(input.catalogUrl)}">${QUICK_SEND_CTA_LABEL}</a>${transport}<p class="orbit-fallback">Si tienes problemas con el botón principal, puedes abrir los planes y valores <a href="${escapeHtml(input.catalogUrl)}">aquí</a>.</p>${attachment}</div></section><section class="orbit-followup">${proposalFollowup ? `<p class="orbit-copy">${proposalFollowup}</p>` : ""}${important ? `<div class="orbit-important">${richText(important)}</div>` : ""}</section><section class="orbit-closing">${closing.map((paragraph) => `<p class="orbit-copy">${richText(paragraph)}</p>`).join("")}${signatureHtml}</section><footer class="orbit-footer"><table class="orbit-footer-table" role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td class="orbit-footer-main"><a href="https://www.bbox.cl">www.bbox.cl</a><br>BOOMBOX · Santiago, Chile</td><td class="orbit-footer-tag">EXPERIENCIAS<br>RECUERDOS<br>MOMENTOS</td></tr></table><div class="orbit-software">COMUNICACIÓN EMITIDA MEDIANTE ORBIT SOFTWARE DESARROLLADO POR BOOMBOX®</div></footer></div></section></main></body></html>`;
 
   const text = [
     presentation.eyebrow,
