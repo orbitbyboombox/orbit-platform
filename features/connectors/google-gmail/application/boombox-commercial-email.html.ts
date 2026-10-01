@@ -54,7 +54,7 @@ export function renderBoomboxCommercialEmail(
     ? `<table class="orbit-attachment" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:28px 0 0;background:#fff7eb;border:1px solid #f4d5aa;border-radius:12px"><tr><td style="padding:15px 17px;color:#4b3a25;font-size:13px;line-height:1.5"><strong style="color:#d76d00">PDF ADJUNTO</strong><br>${escapeHtml(input.attachmentNote)}</td></tr></table>`
     : "";
   const signature = input.signatureHtml
-    ? `<div class="orbit-signature" style="margin-top:28px">${input.signatureHtml}</div>`
+    ? `<div style="margin-top:28px">${input.signatureHtml}</div>`
     : "";
   const fixedLayout = input.fixedLayout ? "table-layout:fixed;" : "";
   const safeWrapping = input.fixedLayout ? ";overflow-wrap:anywhere" : "";
@@ -75,25 +75,19 @@ export function renderBoomboxCommercialEmail(
   const footerLogo = `<img src="${escapeHtml(logoUrl)}" alt="BOOMBOX®" width="150" style="display:block;width:150px;max-width:100%;height:auto;border:0"/>`;
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
 @media only screen and (max-width:520px){
-  .orbit-shell-cell{padding:8px 5px!important}
-  .orbit-card{border-radius:14px!important}
-  .orbit-header{padding:20px 16px 17px!important}
-  .orbit-header img{max-width:158px!important;height:auto!important}
-  .orbit-body{padding:22px 16px 22px!important;line-height:1.58!important}
-  .orbit-body p{margin-top:0!important;margin-bottom:14px!important;font-size:14px!important;line-height:1.58!important}
-  .orbit-body h1{font-size:25px!important;line-height:1.1!important;margin-bottom:18px!important}
-  .orbit-body h2{font-size:17px!important;line-height:1.25!important;margin-top:24px!important;margin-bottom:11px!important}
-  .orbit-action{width:100%!important;margin-top:12px!important}
-  .orbit-action td{width:100%!important;border-radius:10px!important}
-  .orbit-action-link{display:block!important;width:100%!important;min-width:0!important;padding:12px 10px!important;font-size:12px!important;line-height:1.25!important;letter-spacing:.025em!important}
-  .orbit-attachment{margin-top:20px!important}
-  .orbit-attachment td{padding:13px 13px!important;font-size:12px!important;line-height:1.45!important}
-  .orbit-signature{margin-top:20px!important;text-align:center!important}
-  .orbit-signature img{display:block!important;width:82%!important;max-width:360px!important;height:auto!important;margin:0 auto!important}
-  .orbit-footer{margin-top:24px!important}
+  .orbit-shell-cell{padding:12px 6px!important}
+  .orbit-card{border-radius:16px!important}
+  .orbit-header{padding:26px 20px 22px!important}
+  .orbit-body{padding:28px 20px 26px!important;line-height:1.72!important}
+  .orbit-body p{margin-bottom:20px!important}
+  .orbit-body h1{font-size:30px!important;line-height:1.12!important;margin-bottom:26px!important}
+  .orbit-body h2{margin-top:34px!important;margin-bottom:16px!important}
+  .orbit-action{width:100%!important;margin-top:18px!important}
+  .orbit-action td{width:100%!important}
+  .orbit-action-link{display:block!important;width:100%!important;min-width:0!important;padding:16px 14px!important;font-size:13px!important}
   .orbit-footer td{display:block!important;width:100%!important;text-align:left!important}
-  .orbit-footer td+td{padding-top:10px!important;text-align:left!important}
-  .orbit-footer img{max-width:120px!important;height:auto!important}
+  .orbit-footer td+td{padding-top:14px!important;text-align:left!important}
+  .orbit-attachment td{padding:17px 16px!important}
 }
 </style></head><body style="margin:0;padding:0;background:#ece9e3"><div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">${escapeHtml(input.preheader)}</div><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;${fixedLayout}background:#ece9e3"><tr><td class="orbit-shell-cell" align="center" style="padding:24px 10px"><table class="orbit-card" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:640px;${fixedLayout}background:#0b0c0e;border:1px solid #333437;border-radius:24px;overflow:hidden"><tr><td style="height:6px;background:#f78900;font-size:0;line-height:0">&nbsp;</td></tr><tr><td class="orbit-header" style="padding:34px 30px 26px;background:#111214;color:#ffffff;text-align:center">${header}</td></tr><tr><td class="orbit-body" style="padding:36px 30px 30px;font-family:Arial,sans-serif;color:#e9e9ea;line-height:1.68${safeWrapping}">${heading}${input.contentHtml}${benefits}${attachment}${actions}${input.contentAfterActionsHtml ?? ""}${closing}${signature}<table class="orbit-footer" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:34px;border-top:1px solid #343538"><tr><td style="padding-top:22px;font-family:Arial,sans-serif">${footerLogo}<br><a href="https://www.bbox.cl" style="font-family:Arial,sans-serif;font-size:13px;color:#f78900;text-decoration:underline">${websiteLabel}</a></td><td align="right" style="padding-top:22px;font-size:10px;line-height:1.7;letter-spacing:.18em;color:#b8b8ba">EXPERIENCIAS<br>RECUERDOS<br>MOMENTOS</td></tr></table><p style="margin:18px 0 0;font-size:10px;line-height:1.5;letter-spacing:.08em;color:#77787c">COMUNICACIÓN EMITIDA MEDIANTE ORBIT SOFTWARE DESARROLLADO POR BOOMBOX®</p></td></tr></table></td></tr></table></body></html>`;
 }
