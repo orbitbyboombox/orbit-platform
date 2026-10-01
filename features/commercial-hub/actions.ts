@@ -298,7 +298,7 @@ export async function sendCommercialInformationAction(input: {
     const transportUrl = `${appOrigin}/traslados?type=${isCompanyCatalog ? "company" : "private"}`;
     const transportLabel = isCompanyCatalog
       ? "CONOCER VALOR DE TRASLADO + IVA"
-      : "CONOCER VALOR DE TRASLADO · IVA INCLUIDO";
+      : "CONOCER VALOR DE TRASLADO";
     const downloaded = input.attachPdf ? await admin.storage.from("orbit-documents").download(document.storage_path) : null;
     if (downloaded?.error) throw downloaded.error;
     const signatureUrl = typeof company.emailConfiguration.signatureGifUrl === "string" ? company.emailConfiguration.signatureGifUrl : "";
