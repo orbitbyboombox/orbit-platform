@@ -16,7 +16,7 @@ import {
 import { StaffOperationsView } from "@/features/resources/staff-operations-view";
 import { formatOperationalBlockDuration, officialStaffAssignmentPayment, resolveOfficialOperatorRate } from "@/features/operations/staff-assignment-payment";
 import { isInsideOperationalWindow } from "@/features/operations/operational-window";
-import { loadFounderActionCenter } from "@/features/founder-action-center";
+import { loadFounderActionCenter, loadFounderActionDismissals } from "@/features/founder-action-center";
 import { loadCommunicationHubProjection } from "@/features/communication-hub";
 import { loadIntegrationHealth } from "@/features/integration-health/repository";
 import { getBiancaOperationalStatus } from "@/features/bianca-workspace/bianca-status";
@@ -73,6 +73,7 @@ export default async function OperationsPage() {
     financialTruthPromise,
   );
   const founderActionCenterPromise = loadFounderActionCenter(auth.user.id);
+  const founderActionDismissalsPromise = loadFounderActionDismissals(auth.user.id);
   const communicationPromise = loadCommunicationHubProjection(client);
   const integrationHealthPromise = loadIntegrationHealth();
   const today = new Intl.DateTimeFormat("en-CA", {
@@ -1522,8 +1523,9 @@ export default async function OperationsPage() {
     return { id: row.id, key: row.obligation_key, title: localDay >= (rule?.escalation_day ?? 20) ? `${rule?.name ?? "PAGAR IVA"} HOY` : rule?.name ?? "PAGAR IVA", status: row.status as "PENDING" | "PAID", period: row.accounting_period.slice(0,7), paidAt: row.paid_at };
   });
   const financialAlert = financialAlertHistory.find((item) => item.status === "PENDING") ?? null;
-  const [founderActionCenter, communication, integrationHealth] = await Promise.all([
+  const [founderActionCenter, founderActionDismissals, communication, integrationHealth] = await Promise.all([
     founderActionCenterPromise,
+    founderActionDismissalsPromise,
     communicationPromise,
     integrationHealthPromise,
   ]);
@@ -1537,6 +1539,7 @@ export default async function OperationsPage() {
       financialAlertHistory={financialAlertHistory}
       founderName="Matías"
       founderActions={founderActionCenter.items}
+      initialDismissedFounderActionIds={[...founderActionDismissals]}
       whatsappSummary={communication.whatsappSummary}
       biancaStatus={biancaStatus}
       whatsappConnected={whatsappConnected}
