@@ -31,6 +31,7 @@ import {
   type FinancialAlertView,
 } from "@/features/financial-alerts/financial-alert-center";
 import type { FounderActionItem } from "@/features/founder-action-center";
+import { dismissFounderActionsAction } from "@/features/founder-action-center/actions";
 import type { WhatsAppSummary } from "@/features/communication-hub";
 import type { BiancaOperationalStatus } from "@/features/bianca-workspace/bianca-status";
 import { usePersonalWorkspace } from "./personal-workspace";
@@ -156,6 +157,7 @@ export function FounderWorkspaceExperience({
   financialAlertHistory,
   founderName,
   founderActions,
+  initialDismissedFounderActionIds,
   operationalAlerts,
   pendingStaffApprovals,
   pendingTasks,
@@ -174,6 +176,7 @@ export function FounderWorkspaceExperience({
   financialAlertHistory: FinancialAlertView[];
   founderName: string;
   founderActions: FounderActionItem[];
+  initialDismissedFounderActionIds: string[];
   operationalAlerts: CommandCenterItem[];
   pendingStaffApprovals: PendingStaffApproval[];
   pendingTasks: number;
@@ -205,6 +208,12 @@ export function FounderWorkspaceExperience({
   const [orderMessage, setOrderMessage] = useState("");
   const [orderPending, startOrderTransition] = useTransition();
   const [resolvedApprovalIds, setResolvedApprovalIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [dismissedFounderActionIds, setDismissedFounderActionIds] = useState<Set<string>>(
+    () => new Set(initialDismissedFounderActionIds),
+  );
+  const [dismissingFounderActionIds, setDismissingFounderActionIds] = useState<Set<string>>(
     () => new Set(),
   );
   useEffect(() => {
@@ -556,18 +565,22 @@ export function FounderWorkspaceExperience({
       cta: "VER DETALLES",
     }),
   );
-  const attentionActions = [...founderActions, ...financialReviewActions];
+  const attentionActions = [...founderActions, ...financialReviewActions].filter(
+    (item) => !dismissedFounderActionIds.has(item.id),
+  );
   const totalAttentionCount = attentionActions.length + staffApprovalItems.length;
   const groupedActions = attentionActions
-    .reduce<Array<FounderActionItem & { count?: number }>>((groups, item) => {
+    .reduce<Array<FounderActionItem & { count?: number; dismissIds: string[] }>>((groups, item) => {
       const repeatable = !["P0", "P1"].includes(item.priority);
       const existing =
         repeatable &&
         groups.find(
           (entry) => entry.type === item.type && entry.href === item.href,
         );
-      if (existing) existing.count = (existing.count ?? 1) + 1;
-      else groups.push({ ...item, count: 1 });
+      if (existing) {
+        existing.count = (existing.count ?? 1) + 1;
+        existing.dismissIds.push(item.id);
+      } else groups.push({ ...item, count: 1, dismissIds: [item.id] });
       return groups;
     }, [])
     .sort(
@@ -576,6 +589,33 @@ export function FounderWorkspaceExperience({
         new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
     )
     .slice(0, 8);
+
+  const dismissFounderActions = (ids: string[]) => {
+    const keys = Array.from(new Set(ids));
+    setDismissingFounderActionIds((current) => {
+      const next = new Set(current);
+      keys.forEach((id) => next.add(id));
+      return next;
+    });
+    startTransition(async () => {
+      const result = await dismissFounderActionsAction(keys);
+      setDismissingFounderActionIds((current) => {
+        const next = new Set(current);
+        keys.forEach((id) => next.delete(id));
+        return next;
+      });
+      if (result.ok) {
+        setDismissedFounderActionIds((current) => {
+          const next = new Set(current);
+          keys.forEach((id) => next.add(id));
+          return next;
+        });
+        router.refresh();
+      } else {
+        setOrderMessage(result.error);
+      }
+    });
+  };
 
   const welcome = (
     <header className="pb-1 pt-2 sm:pb-2 sm:pt-4">
@@ -749,6 +789,19 @@ export function FounderWorkspaceExperience({
               >
                 {item.count && item.count > 1 ? "Ver grupo" : item.cta}
               </Link>
+              <button
+                className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg border border-success/35 px-3 py-2 text-center text-[10px] font-bold text-success transition hover:bg-success/10 disabled:opacity-50"
+                disabled={item.dismissIds.some((id) => dismissingFounderActionIds.has(id))}
+                onClick={() => dismissFounderActions(item.dismissIds)}
+                title="Sacar de mis pendientes sin eliminar el registro"
+                type="button"
+              >
+                {item.dismissIds.some((id) => dismissingFounderActionIds.has(id))
+                  ? "GUARDANDO…"
+                  : item.count && item.count > 1
+                    ? "LISTO GRUPO"
+                    : "LISTO"}
+              </button>
             </div>
           );
         })}
