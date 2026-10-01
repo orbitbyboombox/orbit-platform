@@ -86,9 +86,7 @@ export function TransportValueLookup({
                     <strong className="text-[#F78900]">{money.format(companyTotal ?? 0)}</strong>
                   </div>
                 </div>
-              ) : (
-                
-              )}
+              ) : null}
             </div>
           ) : (
             <div className="p-5">
