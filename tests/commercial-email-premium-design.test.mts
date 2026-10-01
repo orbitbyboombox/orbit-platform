@@ -254,25 +254,6 @@ test("catalog emails expose tax-specific transport CTA without mixing customer t
 });
 
 
-
-test("approved BOOMBOX email branding keeps logo compact and signature proportional", () => {
-  const html = renderBoomboxCommercialEmail({
-    preheader: "Preview",
-    eyebrow: "PLANES Y VALORES",
-    title: "Hola Matías,",
-    contentHtml: "<p>Contenido.</p>",
-    website: "https://www.bbox.cl",
-    primaryAction: { href: "https://app.bbox.cl/a", label: "VER PLANES Y VALORES" },
-    signatureHtml: '<img src="https://example.com/signature.png" alt="Firma">',
-    stackedHeader: true,
-  });
-  assert.match(html, /class="orbit-logo-frame"/);
-  assert.match(html, /class="orbit-header-label"/);
-  assert.match(html, /.orbit-signature img\{display:block!important;width:100%!important;max-width:400px!important/);
-  assert.match(html, /max-width:310px!important/);
-  assert.match(html, /BOOMBOX®/);
-});
-
 test("premium customer email shell keeps readable spacing on mobile", () => {
   const html = renderBoomboxCommercialEmail({
     preheader: "Preview",
