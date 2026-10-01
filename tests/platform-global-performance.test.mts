@@ -16,9 +16,8 @@ test("platform navigation skips duplicate middleware auth and relies on protecte
 
 test("resilient sync defers first remote refresh until after first paint", () => {
   const provider = source("components/resilient-sync/resilient-sync-provider.tsx");
-  assert.match(provider, /requestIdleCallback/);
-  assert.match(provider, /timeout: 1500/);
   assert.match(provider, /setTimeout\(startBackgroundSync, 900\)/);
+  assert.doesNotMatch(provider, /void refresh\(\)\.finally\(scheduleRefresh\);\n    return/);
 });
 
 test("platform has an immediate route loading boundary", () => {
