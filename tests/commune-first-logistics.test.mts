@@ -20,3 +20,16 @@ test("BIANCA asks for commune before venue", async () => {
   assert.match(source, /"comuna"/);
   assert.match(source, /"lugar o centro de eventos"/);
 });
+
+
+test("Santiago Province transport is CLP 25,000 and automatic booking includes municipality transport", async () => {
+  const [rules, municipalities, experience] = await Promise.all([
+    read("features/business-core/rules/transport.rules.ts"),
+    read("features/settings/master-data/municipality-master-data.ts"),
+    read("features/automatic-booking/automatic-booking-experience.tsx"),
+  ]);
+  assert.match(rules, /destination: "Provincia de Santiago", price: clp\(25_000\)/);
+  assert.match(municipalities, /transport: Number\(row\.unit_price \?\? 0\)/);
+  assert.match(experience, /const transport=selectedMunicipality\?\.transport\?\?0/);
+  assert.match(experience, /const subtotal=base\+extras\+transport\+venueSurcharge/);
+});
