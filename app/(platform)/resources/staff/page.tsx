@@ -759,14 +759,18 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
     ...(() => {
       const assembly = activeAssignmentFor(event.projectId, "ASSEMBLY");
       const disassembly = activeAssignmentFor(event.projectId, "DISASSEMBLY");
+      const operatorAssignment = activeAssignmentFor(event.projectId, "OPERATOR");
       const setupFallback = event.staffCallAt ?? event.time ?? "";
       const teardownFallback = event.serviceEndAt ?? event.time ?? "";
       return {
         endTime: event.serviceEndAt ?? event.time ?? "",
         setupTime: formatAssignmentTime(assembly?.start_time ?? assembly?.arrival_time, formatAssignmentTime(setupFallback, "")),
         setupStaff: assembly?.staff_id ? staffNameById.get(assembly.staff_id) ?? "Sin asignar" : "Sin asignar",
+        setupStaffId: assembly?.staff_id ?? undefined,
+        operatorStaffId: operatorAssignment?.staff_id ?? undefined,
         teardownTime: formatAssignmentTime(disassembly?.finish_time ?? disassembly?.start_time, formatAssignmentTime(teardownFallback, "")),
         teardownStaff: disassembly?.staff_id ? staffNameById.get(disassembly.staff_id) ?? "Sin asignar" : "Sin asignar",
+        teardownStaffId: disassembly?.staff_id ?? undefined,
       };
     })(),
     id: event.id,
