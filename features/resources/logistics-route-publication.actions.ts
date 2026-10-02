@@ -58,6 +58,8 @@ export async function saveLogisticsRoutePlanAction(data: FormData): Promise<Resu
     const { error: staffError } = await client.rpc("set_logistics_route_staff", { p_route_id: String(routeId), p_staff_ids: staffIds });
     if (staffError) throw staffError;
     revalidatePath("/staff");
+    revalidatePath("/portal");
+    revalidatePath("/staff-portal");
     return { ok: true, routeId: String(routeId), message: "Ruta guardada como propuesta revisable." };
   } catch (error) { return { ok: false, error: friendly(error) }; }
 }
@@ -88,6 +90,8 @@ export async function publishLogisticsRouteAction(routeId: string): Promise<{ ok
     const { data: version, error } = await client.rpc("publish_logistics_route", { p_route_id: routeId });
     if (error) throw error;
     revalidatePath("/staff");
+    revalidatePath("/portal");
+    revalidatePath("/staff-portal");
     return { ok: true, message: `Ruta publicada para Staff · versión ${version}.` };
   } catch (error) { return { ok: false, error: friendly(error) }; }
 }
