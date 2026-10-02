@@ -36,6 +36,9 @@ export type StaffLogisticsEvent = {
   commune: string;
   status: string;
   operator: string;
+  operatorStaffId?: string;
+  setupStaffId?: string;
+  teardownStaffId?: string;
   staffCallAt: string;
   setupTime: string;
   setupStaff: string;
