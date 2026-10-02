@@ -643,7 +643,6 @@ function RoutePlanner({ days, draft, events, onChange, initialRoutes, vehicles, 
     onChange({ ...draft, eventIds: ids, status: draft.status === "PUBLISHED" ? "MODIFIED" : "DRAFT" });
   };
   const save = async () => { if (!draft || !draft.eventIds.length) return; const form = new FormData(); if (draft.routeId) form.set("routeId", draft.routeId); form.set("date", draft.date); form.set("routeType", draft.type); if (draft.vehicleId) form.set("vehicleId", draft.vehicleId); if (draft.driverId) form.set("driverId", draft.driverId); draft.eventIds.forEach((id) => form.append("eventIds", id)); draft.staffIds.forEach((id) => form.append("staffIds", id)); const result = await saveLogisticsRoutePlanAction(form); setMessage(result.ok ? result.message : result.error); if (result.ok) onChange({ ...draft, routeId: result.routeId, status: "ORDERED" }); };
-  const publish = async (routeId: string) => { const result = await publishLogisticsRouteAction(routeId); setMessage(result.ok ? result.message : result.error); if (result.ok && draft) onChange({ ...draft, status: "PUBLISHED" }); };
   const saveAndPublish = async () => {
     if (!draft || !routeEvents.length || !draft.staffIds.length) return;
     const form = new FormData();
