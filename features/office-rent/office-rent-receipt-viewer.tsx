@@ -1,14 +1,13 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { ArrowLeft, Download, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { OrbitLoader } from "@/components/ui/orbit-loader";
 
 export function OfficeRentReceiptViewer({ documentId, receiptNumber }: { documentId: string; receiptNumber: number }) {
   const frameRef = useRef<HTMLIFrameElement>(null);
-  const router = useRouter();
   const [loaded, setLoaded] = useState(false);
   const source = `/api/office-rent/documents/${documentId}?disposition=inline`;
   const download = `/api/office-rent/documents/${documentId}?disposition=attachment`;
