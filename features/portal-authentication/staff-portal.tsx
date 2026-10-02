@@ -100,7 +100,7 @@ export async function StaffPortal({staffId,initialEventId}:{staffId:string;initi
         const project = routeProjects.get(routeEvent.project_id);
         if (!project) return [];
         const roles = staffRouteRoles.get(routeEvent.project_id) ?? [];
-        const directions = roles.length ? roles : routeTrips.get(routeEvent.project_id) ?? baseDirections;
+        const directions = roles.length ? roles.map((role) => role === "ASSEMBLY" ? "MONTAJE" : role === "DISASSEMBLY" ? "DESMONTAJE" : role) : routeTrips.get(routeEvent.project_id) ?? baseDirections;
         if (!directions.includes(direction)) return [];
         const services = Array.isArray(project.project_services) ? project.project_services : [];
         const assignmentAsset = routeAssets.get(routeEvent.project_id);
