@@ -4,6 +4,10 @@ import { createHash, randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadCompanySettings } from "@/features/company-settings";
+import { GoogleGmailApiProvider } from "@/features/connectors/google-gmail/provider/google-gmail-live.provider";
+import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-workspace/application/google-workspace.repository";
+import { renderBoomboxCommercialEmail } from "@/features/connectors/google-gmail/application/boombox-commercial-email.html";
+import { formatClp, monthLabel, receiptLabel } from "./model";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerActionClient } from "@/lib/supabase/server";
 import { createOfficeLeaseReceiptPdf } from "./receipt-pdf";
@@ -248,5 +252,70 @@ export async function uploadOfficeLeaseDocumentAction(form: FormData): Promise<O
     return { ok: true, message: "Documento guardado en el historial del arriendo." };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "No fue posible guardar el documento." };
+  }
+}
+
+
+const escapeOfficeEmailHtml = (value: string) =>
+  value.replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]!);
+
+export async function sendOfficeLeaseReceiptEmailAction(form: FormData): Promise<OfficeRentActionResult> {
+  try {
+    const { client } = await adminContext();
+    const paymentId = text(form, "paymentId");
+    const recipientName = text(form, "recipientName");
+    const recipientEmail = text(form, "recipientEmail").toLowerCase();
+    const subjectInput = text(form, "subject");
+    const message = text(form, "message");
+    if (!paymentId) throw new Error("No se pudo identificar el pago.");
+    if (!recipientName) throw new Error("Ingresa el nombre del destinatario.");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) throw new Error("Ingresa un correo válido.");
+
+    const [paymentResult, documentResult, settingsResult, company] = await Promise.all([
+      client.from("office_lease_payments").select("id,amount,paid_on,payment_method,receipt_number,office_lease_obligations(period)").eq("id", paymentId).single(),
+      client.from("office_lease_documents").select("id,storage_path,original_filename,mime_type").eq("payment_id", paymentId).eq("document_type", "INCOME_RECEIPT").is("deleted_at", null).maybeSingle(),
+      client.from("office_lease_settings").select("*").eq("settings_key", "PRIMARY").single(),
+      loadCompanySettings(client),
+    ]);
+    if (paymentResult.error) throw paymentResult.error;
+    if (settingsResult.error) throw settingsResult.error;
+    if (documentResult.error) throw documentResult.error;
+    if (!documentResult.data) throw new Error("Primero genera el recibo de este pago.");
+
+    const obligationValue = paymentResult.data.office_lease_obligations;
+    const obligation = Array.isArray(obligationValue) ? obligationValue[0] : obligationValue;
+    if (!obligation?.period) throw new Error("No fue posible resolver el mes del arriendo.");
+    const settings = mapSettings(settingsResult.data);
+    const admin = createAdminClient();
+    const receiptDownload = await admin.storage.from("orbit-documents").download(documentResult.data.storage_path);
+    if (receiptDownload.error) throw receiptDownload.error;
+    const receiptBytes = new Uint8Array(await receiptDownload.data.arrayBuffer());
+    const subject = subjectInput || `Comprobante de arriendo · ${monthLabel(obligation.period)}`;
+    const bodyCopy = message || `Te enviamos el comprobante correspondiente al arriendo de ${monthLabel(obligation.period)}.`;
+    const detailHtml = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0 0;background:#17181b;border:1px solid #343538;border-radius:12px"><tr><td style="padding:16px 18px;font-family:Arial,sans-serif;color:#e9e9ea;font-size:13px;line-height:1.7"><strong style="color:#f78900">DETALLE DEL ARRIENDO</strong><br>Periodo: ${escapeOfficeEmailHtml(monthLabel(obligation.period))}<br>Monto: ${escapeOfficeEmailHtml(formatClp(Number(paymentResult.data.amount)))}<br>Fecha de pago: ${escapeOfficeEmailHtml(paymentResult.data.paid_on)}<br>Método: ${escapeOfficeEmailHtml(paymentResult.data.payment_method)}<br>Recibo: ${escapeOfficeEmailHtml(receiptLabel(Number(paymentResult.data.receipt_number)))}</td></tr></table>`;
+    const signatureUrl = typeof company.emailConfiguration.signatureGifUrl === "string" ? company.emailConfiguration.signatureGifUrl : "";
+    const htmlBody = renderBoomboxCommercialEmail({
+      preheader: `Comprobante de arriendo ${monthLabel(obligation.period)}.`,
+      eyebrow: "ARRIENDO DE OFICINA",
+      title: `Hola ${recipientName},`,
+      headerLabel: "COMPROBANTES Y DOCUMENTOS",
+      stackedHeader: true,
+      contentHtml: `<p style="margin:0 0 14px">${escapeOfficeEmailHtml(bodyCopy)}</p>${detailHtml}<p style="margin:18px 0 0">Adjuntamos el comprobante de arriendo en formato PDF para tu respaldo.</p>`,
+      website: company.website,
+      signatureHtml: signatureUrl ? `<p style="margin:0"><img src="${escapeOfficeEmailHtml(signatureUrl)}" alt="BOOMBOX" style="display:block;max-width:420px;width:100%;height:auto;border:0"></p>` : `<p style="margin:0"><strong>Equipo BOOMBOX</strong></p>`,
+    });
+    await new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken()).send({
+      to: recipientEmail,
+      subject,
+      textBody: `Hola ${recipientName},\n\n${bodyCopy}\n\nPeriodo: ${monthLabel(obligation.period)}\nMonto: ${formatClp(Number(paymentResult.data.amount))}\nFecha de pago: ${paymentResult.data.paid_on}\nMétodo: ${paymentResult.data.payment_method}\nRecibo: ${receiptLabel(Number(paymentResult.data.receipt_number))}\n\nAdjuntamos el comprobante de arriendo en PDF.`,
+      htmlBody,
+      driveFileIds: [],
+      attachments: [{ filename: documentResult.data.original_filename, mimeType: "application/pdf", content: receiptBytes }],
+    });
+    refresh();
+    return { ok: true, message: `Comprobante enviado a ${recipientName} · ${recipientEmail}.` };
+  } catch (error) {
+    console.error(JSON.stringify({ level: "error", event: "office_rent_receipt_email_failed", error: error instanceof Error ? error.message : String(error) }));
+    return { ok: false, error: error instanceof Error ? error.message : "No fue posible enviar el comprobante." };
   }
 }
