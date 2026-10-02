@@ -88,8 +88,6 @@ export async function publishLogisticsRouteAction(routeId: string): Promise<{ ok
     const { data: version, error } = await client.rpc("publish_logistics_route", { p_route_id: routeId });
     if (error) throw error;
     revalidatePath("/staff");
-    revalidatePath("/portal");
-    revalidatePath("/staff-portal");
     return { ok: true, message: `Ruta publicada para Staff · versión ${version}.` };
   } catch (error) { return { ok: false, error: friendly(error) }; }
 }
