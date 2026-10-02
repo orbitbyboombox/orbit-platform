@@ -58,8 +58,6 @@ export async function saveLogisticsRoutePlanAction(data: FormData): Promise<Resu
     const { error: staffError } = await client.rpc("set_logistics_route_staff", { p_route_id: String(routeId), p_staff_ids: staffIds });
     if (staffError) throw staffError;
     revalidatePath("/staff");
-    revalidatePath("/portal");
-    revalidatePath("/staff-portal");
     return { ok: true, routeId: String(routeId), message: "Ruta guardada como propuesta revisable." };
   } catch (error) { return { ok: false, error: friendly(error) }; }
 }
