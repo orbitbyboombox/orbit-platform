@@ -382,23 +382,71 @@ function StaffWeeklyEventList({events, onSelect}:{events:StaffPortalEvent[];onSe
 function StaffModuleNav({active,onChange,canMount}:{active:StaffModule;onChange:(value:StaffModule|null)=>void;canMount:boolean}) { return <nav className="flex flex-wrap items-center gap-2 rounded-2xl border bg-card p-2" aria-label="Módulos del Portal Staff">{(["OPERADORES",...(canMount?["MONTAJE"]:[]),"FINANZAS"] as StaffModule[]).map(item=><button key={item} onClick={()=>onChange(item)} aria-current={active===item?"page":undefined} className={`min-h-10 rounded-xl px-4 text-sm font-semibold ${active===item?"bg-brand text-brand-foreground":"text-muted hover:text-foreground"}`}>{item}</button>)}<button aria-label="Regresar al inicio" className="ml-auto inline-flex min-h-10 items-center gap-1 rounded-xl border border-brand/30 px-3 text-sm font-semibold text-brand hover:bg-brand/10" onClick={()=>onChange(null)}>← REGRESAR AL INICIO</button></nav>; }
 
 function StaffPaperPrinterPanel({ events }: { events: StaffPortalEvent[] }) {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(new Date());
+  const tomorrowDate = new Date(`${today}T12:00:00Z`);
+  tomorrowDate.setUTCDate(tomorrowDate.getUTCDate() + 1);
+  const tomorrow = tomorrowDate.toISOString().slice(0, 10);
+  const byDateTime = (a: StaffPortalEvent, b: StaffPortalEvent) =>
+    `${a.date}${a.start}`.localeCompare(`${b.date}${b.start}`);
+  const todayEvents = events.filter((event) => event.date === today).sort(byDateTime);
+  const tomorrowEvents = events.filter((event) => event.date === tomorrow).sort(byDateTime);
+  const futureEvents = events.filter((event) => event.date > tomorrow).sort(byDateTime);
+  const pastEvents = events
+    .filter((event) => event.date < today)
+    .sort((a, b) => `${b.date}${b.start}`.localeCompare(`${a.date}${a.start}`));
+
+  const paperEventCard = (event: StaffPortalEvent) => (
+    <article className="rounded-3xl border bg-card p-4 sm:p-6" key={event.id}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">{event.date} · {event.start}</p>
+          <h3 className="mt-1 truncate text-xl font-semibold">{event.customer}</h3>
+          <p className="mt-1 text-sm text-muted">{event.service} · {event.duration} horas · {event.venue || event.address} · {event.district}</p>
+        </div>
+        <span className="rounded-full border px-3 py-1 text-xs font-semibold">{stateLabel(event)}</span>
+      </div>
+      <StaffBoxOperationsPanel projectId={event.id} paperOnly />
+    </article>
+  );
+
   return <section className="space-y-4" aria-label="Papel impresora" data-staff-paper-module>
     <div className="rounded-3xl border border-brand/30 bg-brand/5 p-5 sm:p-7">
       <p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">PAPEL IMPRESORA</p>
       <h2 className="mt-1 text-2xl font-semibold">Registro de papel por evento</h2>
-      <p className="mt-1 text-sm text-muted">Revisa el snapshot de cada Caja asignada y registra solo el papel restante.</p>
+      <p className="mt-1 text-sm text-muted">Hoy y mañana quedan siempre visibles. Los eventos realizados quedan minimizados.</p>
       <p className="mt-3 text-sm font-semibold text-brand">{events.length} evento{events.length === 1 ? "" : "s"} relevante{events.length === 1 ? "" : "s"}</p>
     </div>
-    <div className="grid gap-4">
-      {events.map((event) => <article className="rounded-3xl border bg-card p-4 sm:p-6" key={event.id}>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">{event.date} · {event.start}</p><h3 className="mt-1 truncate text-xl font-semibold">{event.customer}</h3><p className="mt-1 text-sm text-muted">{event.service} · {event.duration} horas · {event.venue || event.address} · {event.district}</p></div>
-          <span className="rounded-full border px-3 py-1 text-xs font-semibold">{stateLabel(event)}</span>
-        </div>
-        <StaffBoxOperationsPanel projectId={event.id} paperOnly />
-      </article>)}
-      {events.length === 0 ? <p className="rounded-2xl border border-dashed p-5 text-sm text-muted">No tienes eventos asignados para revisar papel.</p> : null}
-    </div>
+
+    {todayEvents.length ? <section className="space-y-3" aria-label="Papel eventos de hoy">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold uppercase tracking-[.16em] text-brand">HOY</h3>
+        <span className="text-xs text-muted">{todayEvents.length}</span>
+      </div>
+      <div className="grid gap-4">{todayEvents.map(paperEventCard)}</div>
+    </section> : null}
+
+    {tomorrowEvents.length ? <section className="space-y-3" aria-label="Papel eventos de mañana">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold uppercase tracking-[.16em] text-brand">MAÑANA</h3>
+        <span className="text-xs text-muted">{tomorrowEvents.length}</span>
+      </div>
+      <div className="grid gap-4">{tomorrowEvents.map(paperEventCard)}</div>
+    </section> : null}
+
+    {futureEvents.length ? <section className="space-y-3" aria-label="Papel eventos próximos">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold uppercase tracking-[.16em] text-muted">PRÓXIMOS</h3>
+        <span className="text-xs text-muted">{futureEvents.length}</span>
+      </div>
+      <div className="grid gap-4">{futureEvents.map(paperEventCard)}</div>
+    </section> : null}
+
+    {pastEvents.length ? <details className="rounded-2xl border bg-card">
+      <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-muted">REALIZADOS · {pastEvents.length}</summary>
+      <div className="grid gap-4 border-t p-3">{pastEvents.map(paperEventCard)}</div>
+    </details> : null}
+
+    {events.length === 0 ? <p className="rounded-2xl border border-dashed p-5 text-sm text-muted">No tienes eventos asignados para revisar papel.</p> : null}
   </section>;
 }
 

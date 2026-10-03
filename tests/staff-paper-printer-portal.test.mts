@@ -27,3 +27,14 @@ test("paper values stay expressed as photos without client-side conversion", () 
   assert.match(boxPanel, /finalRemaining.*fotos/);
   assert.match(boxPanel, /eventUsage.*fotos/);
 });
+
+
+test("paper module prioritizes today and tomorrow and collapses past events", () => {
+  assert.match(dashboard, /HOY/);
+  assert.match(dashboard, /MAÑANA/);
+  assert.match(dashboard, /REALIZADOS · \{pastEvents\.length\}/);
+  assert.match(dashboard, /event\.date === today/);
+  assert.match(dashboard, /event\.date === tomorrow/);
+  assert.match(dashboard, /event\.date < today/);
+  assert.match(dashboard, /<details className="rounded-2xl border bg-card">/);
+});
