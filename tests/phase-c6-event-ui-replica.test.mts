@@ -70,3 +70,11 @@ test("C.6 paper variant is event metadata and never reinterprets inventory forma
   assert.match(migration, /format_key/);
   assert.match(staff, /paper\.variant/);
 });
+
+
+test("Event 360 summary shows one paper model and keeps editing inside paper detail only", () => {
+  assert.match(source, /PaperMetric label="Tipo de papel"/);
+  assert.match(source, /Definir tipo de papel/);
+  assert.match(source, /updateEventPaperVariantAction/);
+  assert.match(source, /router\.refresh\(\)/);
+});
