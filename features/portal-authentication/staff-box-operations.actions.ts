@@ -93,7 +93,7 @@ export async function confirmStaffPaperCloseoutAction(input: { projectId: string
     const { admin, staffId, portalSessionId } = await staffContext(input.projectId, ["OPERATOR", "DISASSEMBLY"]);
     if (!Number.isFinite(input.finalRemaining) || input.finalRemaining < 0) return { ok: false as const, message: "Ingresa un saldo final válido." };
     const { data, error } = await admin.rpc("confirm_staff_event_paper_closeout", { p_project_id: input.projectId, p_asset_assignment_id: input.assignmentId, p_final_remaining: input.finalRemaining, p_note: input.note.trim() || null, p_idempotency_key: `staff-paper-closeout:${input.projectId}:${input.assignmentId}`, p_staff_id: staffId, p_portal_session_id: portalSessionId });
-    if (error) throw error;
+    if (error) return { ok: false as const, message: error.message || "No fue posible confirmar el cierre de papel." };
     revalidatePath("/staff-portal");
     return { ok: true as const, data };
   } catch (error) { return { ok: false as const, message: error instanceof Error ? error.message : "No fue posible confirmar el cierre de papel." }; }
