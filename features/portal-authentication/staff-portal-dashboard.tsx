@@ -225,6 +225,15 @@ const currentWeekRange = () => {
     label: `${format(start)} – ${format(end)}`,
   };
 };
+const newestEventFirst = (
+  a: { date: string; start?: string },
+  b: { date: string; start?: string },
+) => {
+  const aTime = new Date(`${a.date}T${a.start || "00:00"}:00`).getTime();
+  const bTime = new Date(`${b.date}T${b.start || "00:00"}:00`).getTime();
+  return bTime - aTime;
+};
+
 const stateLabel = (event: StaffPortalEvent) =>
   pendingAcceptance(event.status)
     ? "Pendiente de aceptación"
@@ -393,7 +402,7 @@ function StaffPaperPrinterPanel({ events }: { events: StaffPortalEvent[] }) {
   const futureEvents = events.filter((event) => event.date > tomorrow).sort(byDateTime);
   const pastEvents = events
     .filter((event) => event.date < today)
-    .sort((a, b) => `${b.date}${b.start}`.localeCompare(`${a.date}${a.start}`));
+    .sort(newestEventFirst);
 
   const paperEventCard = (event: StaffPortalEvent) => (
     <article className="rounded-3xl border bg-card p-4 sm:p-6" key={event.id}>
@@ -453,7 +462,7 @@ function StaffPaperPrinterPanel({ events }: { events: StaffPortalEvent[] }) {
 function OperatorsModule({events,weeklyAvailableEvents,requests,week,confirmed,onSelect}:{events:StaffPortalEvent[];weeklyAvailableEvents:AvailableStaffEvent[];requests:StaffRequest[];week:{label:string};confirmed:number;onSelect:(event:StaffPortalEvent)=>void}) {
   const today=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Santiago"}).format(new Date());
   const active=events.filter(event=>event.date>=today).sort((a,b)=>`${a.date}${a.start}`.localeCompare(`${b.date}${b.start}`));
-  const completed=events.filter(event=>event.date<today).sort((a,b)=>`${b.date}${b.start}`.localeCompare(`${a.date}${a.start}`));
+  const completed=events.filter(event=>event.date<today).sort(newestEventFirst);
   return <section className="space-y-6" data-staff-module-view="OPERADORES"><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">OPERADORES</p><h2 className="mt-1 text-2xl font-semibold">Eventos y operación</h2><p className="mt-1 text-sm text-muted">{week.label} · disponibles: {weeklyAvailableEvents.length} · confirmados: {confirmed}</p></div><AvailableEvents events={weeklyAvailableEvents} requests={requests} /><section className="rounded-3xl border border-white/10 bg-[#111214] p-5 text-white shadow-[0_20px_70px_rgba(0,0,0,.22)] sm:p-7"><h2 className="text-xl font-semibold">Mis eventos asignados</h2><p className="mt-1 text-sm text-white/60">Las asignaciones nuevas aparecen primero y requieren tu aceptación.</p><div className="mt-5 space-y-2">{active.map(event=><button className="group grid w-full gap-4 rounded-2xl border border-white/10 bg-[#191a1d] p-4 text-left transition hover:border-brand/70 sm:grid-cols-[72px_minmax(0,1fr)_auto] sm:items-center" key={event.id} onClick={()=>onSelect(event)}><div className="grid size-16 shrink-0 place-items-center rounded-xl bg-[#0d0e10] text-center ring-1 ring-white/10"><span className="text-[10px] uppercase tracking-[.16em] text-brand">{new Date(`${event.date}T12:00:00Z`).toLocaleDateString("es-CL",{weekday:"short"})}</span><strong className="text-2xl leading-none">{event.date.slice(8,10)}</strong><span className="text-[10px] text-white/50">{event.date.slice(5,7)}</span></div><div className="min-w-0"><p className="font-semibold">{event.customer}</p><p className="mt-1 text-sm font-semibold text-white/80">{event.service} · {event.duration}h · {event.start}–{event.finish} · {event.timeMode === "CONFIRMED" ? "HORARIO CONFIRMADO" : "HORARIO ESTIMADO"}</p><p className="mt-1 text-sm text-white/60">{event.venue||event.address} · {event.district}</p><div className="mt-2"><StaffOperationalExtras extras={event.operationalExtras} compact /></div></div><div className="flex items-center gap-3 sm:justify-end"><span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-xs font-semibold text-emerald-300">{stateLabel(event)}</span><ChevronRight className="size-5 text-white/40 transition group-hover:text-brand" /></div></button>)}{active.length===0?<p className="py-8 text-sm text-muted">No tienes eventos activos o próximos.</p>:null}</div>{completed.length?<details className="mt-5 rounded-2xl border border-white/10 bg-[#17181a]"><summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-white/70">REALIZADOS · {completed.length}</summary><div className="space-y-2 border-t border-white/10 p-3">{completed.map(event=><button className="w-full rounded-xl border border-white/10 p-3 text-left text-sm text-white/70" key={event.id} onClick={()=>onSelect(event)}><strong>{event.customer}</strong><span className="mt-1 block text-xs text-white/45">{event.date} · {event.service}</span></button>)}</div></details>:null}</section></section>; }
 
 const operationalExtraCategories: OperationalExtraCategory[] = ["QR", "IMANES", "SCRAPBOOK", "FONDO", "TRASLADO", "OTROS"];
@@ -469,7 +478,7 @@ function StaffOperationalExtras({ extras, compact = false }: { extras: Canonical
 function MontageModule({routes}:{routes:StaffRoute[]}) {
   const today=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Santiago"}).format(new Date());
   const active=routes.filter(route=>route.date>=today).sort((a,b)=>a.date.localeCompare(b.date));
-  const completed=routes.filter(route=>route.date<today).sort((a,b)=>b.date.localeCompare(a.date));
+  const completed=routes.filter(route=>route.date<today).sort((a,b)=>new Date(`${b.date}T00:00:00`).getTime()-new Date(`${a.date}T00:00:00`).getTime());
   return <section className="space-y-4" data-staff-module-view="MONTAJE"><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">MONTAJE</p><h2 className="mt-1 text-2xl font-semibold">Rutas y jornadas operativas</h2><p className="mt-1 text-sm text-muted">Consulta el orden oficial de montaje y desmontaje asignado.</p></div><div className="flex gap-2" role="tablist"><span className="rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-brand-foreground">MONTAJE</span><span className="rounded-xl border px-4 py-2 text-sm font-semibold text-muted">DESMONTAJE</span></div><StaffRoutesPanel routes={active} />{completed.length?<details className="rounded-2xl border bg-card"><summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-muted">RUTAS REALIZADAS · {completed.length}</summary><div className="border-t p-3"><StaffRoutesPanel routes={completed}/></div></details>:null}</section>; }
 
 function FinanceModule({events,expenseSubmissions,monthlyAccounts,eventStaffPayments,payment,notifications,currentMonth}:{events:StaffPortalEvent[];expenseSubmissions:StaffExpenseSubmission[];monthlyAccounts:StaffMonthlyAccount[];eventStaffPayments:StaffEventPayment[];payment:StaffPortalPayment;notifications:Array<{id:string;title:string;message:string;date:string}>;currentMonth:string}) {
