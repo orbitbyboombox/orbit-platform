@@ -2164,6 +2164,13 @@ export function NewProjectDrawer({
                                     ? "Incluido · $0 · Bloqueado"
                                     : `+${currency.format(Number(unit))}`}
                                 </span>
+                                {extra === "Fondo 230x200 Blanco" && (
+                                  <span className="mt-1 block text-[10px] leading-4 text-muted">
+                                    <span className="font-semibold text-success">BLACK STUDIO · INCLUIDO</span>
+                                    <br />
+                                    CLASSIC · POLAROID · OTROS · NO INCLUIDO
+                                  </span>
+                                )}
                               </span>
                             </label>
                           </div>
