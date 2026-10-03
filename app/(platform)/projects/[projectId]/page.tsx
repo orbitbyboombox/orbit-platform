@@ -1157,14 +1157,36 @@ export default async function ProjectWorkspacePage({
               profitabilityStatement.operational_resources_cost,
             ),
             margin = Number(profitabilityStatement.net_margin);
+          const costBreakdown = profitabilityStatement.cost_breakdown as Record<
+            string,
+            number | string
+          >;
+          const paperUsage = Number(paperSnapshot?.event_usage ?? 0);
+          const paperActual =
+            date >= "2026-10-02" &&
+            paperSnapshot?.event_usage != null &&
+            ["CONFIRMED", "OVERRIDDEN"].includes(
+              String(paperSnapshot.status ?? ""),
+            );
+          const paperCost = Number(costBreakdown.paper ?? 0);
+          const durationHours = Math.max(
+            0,
+            ...(serviceRows ?? []).map((item) =>
+              Number(item.duration_hours ?? 0),
+            ),
+          );
+          const netProfit = Number(profitabilityStatement.net_profit);
           return {
+            dataQuality: paperActual ? ("REAL" as const) : ("ESTIMATED" as const),
+            dataQualityLabel: paperActual
+              ? "Papel real confirmado · desde 02-10-2026"
+              : date < "2026-10-02"
+                ? "Histórico · costo estimado"
+                : "Pendiente cierre de papel · estimado",
             revenue: { finalSalePrice: revenue },
             estimated: { total: estimated },
             real: {
-              ...(profitabilityStatement.cost_breakdown as Record<
-                string,
-                number
-              >),
+              ...costBreakdown,
               personnelCost: personnel,
               operationalResourcesCost: resources,
               totalOperationalCost: Number(
@@ -1178,7 +1200,7 @@ export default async function ProjectWorkspacePage({
               realCost: real,
               operationalCost: real,
               grossProfit: Number(profitabilityStatement.gross_profit),
-              netProfit: Number(profitabilityStatement.net_profit),
+              netProfit,
               margin,
             },
             variance: {
@@ -1186,8 +1208,23 @@ export default async function ProjectWorkspacePage({
               percentage: estimated
                 ? ((real - estimated) / estimated) * 100
                 : 0,
-              reason: "Motor de Costos Operacionales",
+              reason: paperActual
+                ? "Costos operacionales + consumo real de papel"
+                : "Motor de Costos Operacionales · papel estimado",
             },
+            performance: paperActual
+              ? {
+                  photosProduced: paperUsage,
+                  paperConsumed: paperUsage,
+                  paperCost,
+                  costPerPhoto: paperUsage > 0 ? paperCost / paperUsage : 0,
+                  costPerHour: durationHours > 0 ? real / durationHours : 0,
+                  revenuePerHour:
+                    durationHours > 0 ? revenue / durationHours : 0,
+                  profitPerHour:
+                    durationHours > 0 ? netProfit / durationHours : 0,
+                }
+              : undefined,
             classification: (margin >= 40
               ? "HIGHLY_PROFITABLE"
               : margin >= 20

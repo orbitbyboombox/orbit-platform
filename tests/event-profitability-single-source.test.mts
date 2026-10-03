@@ -67,3 +67,13 @@ test("0149 installation performs no historical repair or financial data write", 
   const topLevel = migration.replace(/\$\$[\s\S]*?\$\$/g, "FUNCTION_BODY");
   assert.doesNotMatch(topLevel, /\b(update|insert into|delete from)\s+public\.(financial_event_records|invoices|invoice_payments|receivable_movements)/i);
 });
+
+
+test("real paper closeout replaces estimated paper cost from 2026-10-02", () => {
+  const migration = readFileSync("supabase/migrations/20261003101500_real_paper_cost_profitability_from_20261002.sql", "utf8");
+  assert.match(migration, /truth\.event_date>=date '2026-10-02'/);
+  assert.match(migration, /actual_paper_usage\*cost_per_photo/);
+  assert.match(migration, /code='COST_PER_PHOTO'/);
+  assert.match(migration, /event_paper_profitability_sync/);
+  assert.match(migration, /sync_event_operation_cost\(new\.project_id\)/);
+});

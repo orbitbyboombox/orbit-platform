@@ -8,6 +8,8 @@ export type EventProfitabilityData = {
   profitability: Record<string, number>;
   variance: { amount: number; percentage: number; reason: string };
   performance?: Record<string, number>;
+  dataQuality?: "REAL" | "ESTIMATED";
+  dataQualityLabel?: string;
   classification: "HIGHLY_PROFITABLE" | "NORMAL" | "LOW_MARGIN";
   createdAt: string;
 };
@@ -81,7 +83,13 @@ export function EventProfitabilityPanel({
             <h2 className="mt-1 text-xl font-semibold">📈 Rentabilidad</h2>
           </div>
         </div>
-        <StatusBadge label={state.label} variant={state.variant} />
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusBadge
+            label={data.dataQuality === "REAL" ? "REAL" : "ESTIMADO"}
+            variant={data.dataQuality === "REAL" ? "success" : "warning"}
+          />
+          <StatusBadge label={state.label} variant={state.variant} />
+        </div>
       </header>
       <div className="grid gap-4 lg:grid-cols-3">
         <Block
@@ -100,6 +108,15 @@ export function EventProfitabilityPanel({
           labelOverrides={{ transport: "Costo real transporte" }}
         />
       </div>
+      {data.dataQualityLabel ? (
+        <p className={`rounded-xl border px-4 py-3 text-sm font-medium ${
+          data.dataQuality === "REAL"
+            ? "border-emerald-400/30 bg-emerald-400/5 text-emerald-600"
+            : "border-amber-400/30 bg-amber-400/5 text-amber-700"
+        }`}>
+          {data.dataQualityLabel}
+        </p>
+      ) : null}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Metric label="Ingresos" value={data.profitability.grossRevenue} />
         <Metric label="Costo de personal" value={data.real.personnelCost ?? 0} />
@@ -144,7 +161,7 @@ export function EventProfitabilityPanel({
             </h3>
             <dl className="mt-3">
               <Row
-                label="Fotos producidas"
+                label="Fotos / impresiones registradas"
                 value={Math.round(data.performance.photosProduced).toLocaleString(
                   "es-CL",
                 )}
@@ -154,7 +171,11 @@ export function EventProfitabilityPanel({
                 value={`${Math.round(data.performance.paperConsumed)} fotos`}
               />
               <Row
-                label="Costo por foto"
+                label="Costo real de papel"
+                value={money.format(data.performance.paperCost)}
+              />
+              <Row
+                label="Costo real por foto"
                 value={money.format(data.performance.costPerPhoto)}
               />
               <Row

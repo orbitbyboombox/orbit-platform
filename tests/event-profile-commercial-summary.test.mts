@@ -23,3 +23,15 @@ test("Event Profile exposes current document and reuses canonical confirmation a
   assert.match(source, /currentCommercialDocument/);
   assert.match(source, /Contrato firmado protegido/);
 });
+
+
+test("Event profitability visibly distinguishes real vs estimated paper-based margin", async () => {
+  const page = await readFile("app/(platform)/projects/[projectId]/page.tsx", "utf8");
+  const panel = await readFile("features/projects/components/event-profitability-panel.tsx", "utf8");
+  assert.match(page, /date >= "2026-10-02"/);
+  assert.match(page, /paperSnapshot\?\.event_usage/);
+  assert.match(page, /dataQuality: paperActual \? \("REAL" as const\) : \("ESTIMATED" as const\)/);
+  assert.match(panel, /dataQualityLabel/);
+  assert.match(panel, /Fotos \/ impresiones registradas/);
+  assert.match(panel, /Costo real de papel/);
+});
