@@ -81,6 +81,7 @@ export function EventCenter({
   const router = useRouter();
   const [view, setView] = useState<View>("UPCOMING");
   const [query, setQuery] = useState("");
+  const [completedSort, setCompletedSort] = useState<"NEWEST" | "OLDEST">("NEWEST");
   const [editing, setEditing] = useState<CrmOperationalEvent | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CrmOperationalEvent | null>(null);
   const [testPurgeRequested, setTestPurgeRequested] = useState(false);
@@ -92,17 +93,21 @@ export function EventCenter({
   const [feedback, setFeedback] = useState("");
   const [pending, start] = useTransition();
   const events = initialEvents;
-  const filtered = useMemo(
-    () =>
-      events.filter(
-        (event) =>
-          (view === "ALL" || statusOf(event) === view) &&
-          `${event.customerName} ${event.company} ${event.date ?? ""} ${event.service} ${event.operator} ${event.status}`
-            .toLowerCase()
-            .includes(query.toLowerCase()),
-      ),
-    [events, query, view],
-  );
+  const filtered = useMemo(() => {
+    const matches = events.filter(
+      (event) =>
+        (view === "ALL" || statusOf(event) === view) &&
+        `${event.customerName} ${event.company} ${event.date ?? ""} ${event.service} ${event.operator} ${event.status}`
+          .toLowerCase()
+          .includes(query.toLowerCase()),
+    );
+    if (view !== "COMPLETED") return matches;
+    return [...matches].sort((a, b) => {
+      const aTime = new Date(`${a.date ?? "1970-01-01"}T${a.time?.slice(0, 5) || "00:00"}:00`).getTime();
+      const bTime = new Date(`${b.date ?? "1970-01-01"}T${b.time?.slice(0, 5) || "00:00"}:00`).getTime();
+      return completedSort === "NEWEST" ? bTime - aTime : aTime - bTime;
+    });
+  }, [completedSort, events, query, view]);
 
   const openEditor = (event: CrmOperationalEvent) => {
     const operationalDate = event.serviceStartAt?.slice(0, 10) ?? event.date ?? "";
@@ -275,6 +280,18 @@ export function EventCenter({
           </button>
         ))}
       </div>
+      {view === "COMPLETED" ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#191a1d] p-3 text-white">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[.16em] text-white/45">Orden de Completados</p>
+            <p className="mt-1 text-sm text-white/65">Por defecto, el último evento cerrado aparece primero.</p>
+          </div>
+          <div className="flex gap-2">
+            <button className={`min-h-10 rounded-xl border px-3 text-xs font-semibold ${completedSort === "NEWEST" ? "border-brand bg-brand/10 text-brand" : "border-white/10 text-white/65"}`} onClick={() => setCompletedSort("NEWEST")} type="button">MÁS NUEVOS PRIMERO</button>
+            <button className={`min-h-10 rounded-xl border px-3 text-xs font-semibold ${completedSort === "OLDEST" ? "border-brand bg-brand/10 text-brand" : "border-white/10 text-white/65"}`} onClick={() => setCompletedSort("OLDEST")} type="button">MÁS ANTIGUOS PRIMERO</button>
+          </div>
+        </div>
+      ) : null}
       <label className="flex h-12 items-center gap-3 rounded-xl border border-white/10 bg-[#191a1d] px-4 text-white">
         <Search className="size-4 text-muted" />
         <input
