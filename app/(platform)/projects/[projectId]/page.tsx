@@ -257,7 +257,7 @@ export default async function ProjectWorkspacePage({
       .maybeSingle(),
     client
       .from("project_operational_contracts")
-      .select("operational_status,contact_status,contact_first_name,contact_last_name,contact_phone,contact_email,contact_role,contact_notes,event_start_at,service_start_at,staff_arrival_at,assembly_start_at,service_end_at,disassembly_start_at,operational_end_at,access_instructions,operational_notes,readiness_status,readiness_reasons,logistics_reason,parking_status,max_access_height,loading_access,logistics_notes,shell_type,shell_selection_source")
+      .select("operational_status,contact_status,contact_first_name,contact_last_name,contact_phone,contact_email,contact_role,contact_notes,event_start_at,service_start_at,staff_arrival_at,assembly_start_at,service_end_at,disassembly_start_at,operational_end_at,access_instructions,operational_notes,readiness_status,readiness_reasons,logistics_reason,parking_status,max_access_height,loading_access,logistics_notes,shell_type,shell_selection_source,photo_style,operator_print_notes")
       .eq("project_id", projectId)
       .maybeSingle(),
     client
@@ -1679,6 +1679,7 @@ export default async function ProjectWorkspacePage({
       postReservationExtras={<EventPostReservationExtrasPanel projectId={projectId} extras={(postReservationExtras ?? []) as Array<{ id: string; name: string; amount: number; source: string; added_at: string; status: string }>} catalog={(catalogExtras ?? []) as Array<{ id: string; code: string; label: string; unit_price: number | null; metadata?: Record<string, unknown> }>} originalTotal={Number(quotation?.final_customer_price ?? quotation?.grand_total ?? 0)} paidAmount={Number(invoice?.paid_amount ?? 0)} currentTotal={Number(quotation?.final_customer_price ?? quotation?.grand_total ?? 0) + (postReservationExtras ?? []).filter((item) => item.status === "ACTIVE").reduce((sum, item) => sum + Number(item.amount), 0)} />}
       operationalContactName={[operationalContract?.contact_first_name, operationalContract?.contact_last_name].filter(Boolean).join(" ")}
       operationalContactPhone={operationalContract?.contact_phone ?? ""}
+      printInstructions={{ photoStyle: operationalContract?.photo_style === "COLOR" || operationalContract?.photo_style === "BLACK_WHITE" || operationalContract?.photo_style === "SEPIA" ? operationalContract.photo_style : null, operatorNote: operationalContract?.operator_print_notes ?? "" }}
       operators={eventOperators}
       paper={paperSnapshot ? { opening: Number(paperSnapshot.opening_balance), final: paperSnapshot.final_remaining_balance === null ? null : Number(paperSnapshot.final_remaining_balance), usage: paperSnapshot.event_usage === null ? null : Number(paperSnapshot.event_usage), reloads: paperReloads, format: paperSnapshot.format_key, variant: paperSnapshot.paper_variant === "NORMAL_4X6" || paperSnapshot.paper_variant === "PRECUT_4X6" ? paperSnapshot.paper_variant : null, status: paperSnapshot.status, boxCode: paperSnapshot.black_box_asset_code, confirmedBy: paperSnapshot.confirmed_by, confirmedAt: paperSnapshot.confirmed_at } : null}
       equipment={equipment.requirements.map((item) => item.label)}

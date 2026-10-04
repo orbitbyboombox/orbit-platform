@@ -59,6 +59,11 @@ export type StaffPortalEvent = {
   vehicle: string;
   logistics: Array<{id:string;type:string;sequence:number;vehicle:string;driver:string;departure:string;arrival:string;meetingPoint:string;route:string;instructions:string;status:string}>;
   equipment: string[];
+  printInstructions: {
+    photoStyle: "COLOR" | "BLACK_WHITE" | "SEPIA" | null;
+    paperVariant: "NORMAL_4X6" | "PRECUT_4X6" | null;
+    operatorNote: string;
+  };
   operationalInformation: {
     observations: string;
     specialInstructions: string;
@@ -825,6 +830,7 @@ function EventDetail({
             <X className="size-4" />
           </button>
         </div>
+        <section className="mt-5 rounded-2xl border border-brand/40 bg-brand/10 p-4" aria-label="Instrucciones de impresión"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Instrucciones de impresión</p><h3 className="mt-1 text-lg font-semibold">Configuración del evento</h3></div>{!event.printInstructions.photoStyle ? <span className="rounded-full border border-amber-400/40 bg-amber-400/10 px-3 py-1 text-xs font-bold text-amber-300">ESTILO PENDIENTE</span> : null}</div><div className="mt-3 grid gap-2 sm:grid-cols-3"><div className="rounded-xl border border-white/10 bg-[#111214] p-3"><p className="text-[10px] uppercase tracking-[.14em] text-white/45">Foto</p><p className="mt-1 text-sm font-bold text-white">{event.printInstructions.photoStyle === "COLOR" ? "COLOR" : event.printInstructions.photoStyle === "BLACK_WHITE" ? "BLANCO Y NEGRO" : event.printInstructions.photoStyle === "SEPIA" ? "SEPIA" : "PENDIENTE"}</p></div><div className="rounded-xl border border-white/10 bg-[#111214] p-3"><p className="text-[10px] uppercase tracking-[.14em] text-white/45">Papel</p><p className="mt-1 text-sm font-bold text-white">{event.printInstructions.paperVariant === "NORMAL_4X6" ? "4x6 NORMAL" : event.printInstructions.paperVariant === "PRECUT_4X6" ? "4x6 PREPICADO" : "PENDIENTE"}</p></div><div className="rounded-xl border border-white/10 bg-[#111214] p-3"><p className="text-[10px] uppercase tracking-[.14em] text-white/45">Formato</p><p className="mt-1 text-sm font-bold text-white">{event.service}</p></div></div>{event.printInstructions.operatorNote ? <div className="mt-3 rounded-xl border border-brand/30 bg-[#111214] p-3"><p className="text-[10px] uppercase tracking-[.14em] text-brand">Observación para operador</p><p className="mt-1 whitespace-pre-wrap text-sm font-semibold text-white">{event.printInstructions.operatorNote}</p></div> : null}</section>
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Small label="CITACIÓN" value={event.staffCallAt?new Date(event.staffCallAt).toLocaleString("es-CL",{timeZone:"America/Santiago"}):"Por confirmar"} />
           <Small label="SERVICIO" value={`${event.date} · ${event.start}–${event.finish}`} />

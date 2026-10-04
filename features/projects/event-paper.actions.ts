@@ -31,3 +31,33 @@ export async function updateEventPaperVariantAction(input: { projectId: string; 
   revalidatePath("/staff-portal");
   return { ok: true as const };
 }
+
+
+export type EventPhotoStyle = "COLOR" | "BLACK_WHITE" | "SEPIA";
+
+export async function updateEventPrintInstructionsAction(input: {
+  projectId: string;
+  photoStyle: EventPhotoStyle | null;
+  operatorNote: string;
+}) {
+  const client = await createSupabaseServerClient();
+  const { data: auth } = await client.auth.getUser();
+  if (!auth.user) throw new Error("Sesión requerida.");
+  const { data: profile } = await client.from("profiles").select("role").eq("id", auth.user.id).maybeSingle();
+  if (!isAdministrativeRole(profile?.role)) throw new Error("Acceso administrativo requerido.");
+  const styles = new Set(["COLOR", "BLACK_WHITE", "SEPIA"]);
+  if (input.photoStyle && !styles.has(input.photoStyle)) throw new Error("Estilo de fotografía inválido.");
+  const operatorNote = input.operatorNote.trim().slice(0, 500);
+  const admin = createAdminClient();
+  const { error } = await admin.from("project_operational_contracts").upsert({
+    project_id: input.projectId,
+    photo_style: input.photoStyle,
+    operator_print_notes: operatorNote || null,
+    updated_by: auth.user.id,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "project_id" });
+  if (error) throw error;
+  revalidatePath(`/projects/${input.projectId}`);
+  revalidatePath("/staff-portal");
+  return { ok: true as const };
+}
