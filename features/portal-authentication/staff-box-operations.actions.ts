@@ -34,6 +34,14 @@ export async function loadStaffBoxOperationsAction(projectId: string): Promise<{
     const row = rows?.[0];
     if (!row) return { ok: true, roles, assignment: { id: "", boxId: "", boxCode: "", boxStatus: "", assignmentStatus: "", components: [], mediaLotId: null, mediaRemaining: null, format: null, lot: null, paper: null } };
     const box = Array.isArray(row.operational_assets) ? row.operational_assets[0] : row.operational_assets;
+    // Future Events can receive their paper snapshot before the previous Event using
+    // the same Box is closed. Rebase only a still-pending snapshot when the current
+    // Master stock is explained by the last confirmed close of this Box.
+    const { error: rebaseError } = await admin.rpc("rebase_pending_event_paper_snapshot", {
+      p_project_id: projectId,
+      p_asset_assignment_id: row.id,
+    });
+    if (rebaseError) throw rebaseError;
     const [{ data: components, error: componentError }, { data: lots, error: lotError }, { data: snapshots, error: snapshotError }] = await Promise.all([
       admin.from("operational_assets").select("id,asset_code,asset_type,status").eq("parent_asset_id", row.asset_id).is("deleted_at", null).order("asset_code"),
       admin.from("box_media_lots").select("id,remaining_photo_capacity,format_key,lot").eq("box_asset_id", row.asset_id).eq("status", "ACTIVE").order("loaded_at", { ascending: false }).limit(1),
