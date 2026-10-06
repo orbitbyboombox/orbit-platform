@@ -349,6 +349,11 @@ export function StaffAssignmentCenter({
                 <p className="mt-1 text-sm text-muted">
                   {roleLabel(item.role)} · {item.vehicleName || "Sin vehículo"}
                 </p>
+                {item.blockName ? (
+                  <p className="mt-1 text-xs font-semibold text-brand">
+                    {item.blockName} · {item.blockStartAt ? new Date(item.blockStartAt).toLocaleTimeString("es-CL", { timeZone: "America/Santiago", hour: "2-digit", minute: "2-digit" }) : ""}–{item.blockEndAt ? new Date(item.blockEndAt).toLocaleTimeString("es-CL", { timeZone: "America/Santiago", hour: "2-digit", minute: "2-digit" }) : ""}
+                  </p>
+                ) : null}
               </div>
               <StatusBadge
                 label={statusLabel(item.status)}

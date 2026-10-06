@@ -127,6 +127,14 @@ export async function saveStaffAssignmentAction(
       ? ctx.project.project_services[0]
       : ctx.project.project_services;
     const duration = Math.max(0, Number(service?.duration_hours ?? 0));
+    const blockEnd = selectedBlock
+      ? new Intl.DateTimeFormat("en-GB", {
+          timeZone: "America/Santiago",
+          hour: "2-digit",
+          minute: "2-digit",
+          hourCycle: "h23",
+        }).format(new Date(selectedBlock.end_at))
+      : "";
     const clock = (base: string, minutes: number) => {
       if (!base) return null;
       const [h, m] = base.split(":").map(Number);
@@ -138,6 +146,9 @@ export async function saveStaffAssignmentAction(
         ? calculateStaffCallAt(chileLocalToIso(`${ctx.project.event_date}T${eventStart}:00`))
         : null;
     const automaticFinish = clock(eventStart, duration * 60);
+    if (input.role !== "OPERATOR" && (!value(input.startTime) || !value(input.finishTime))) {
+      throw new Error(`Ingresa el horario propio de ${input.role === "ASSEMBLY" ? "Montaje" : "Desmontaje"}.`);
+    }
     const payload = {
       project_id: input.projectId,
       block_id: input.blockId || null,
@@ -147,8 +158,8 @@ export async function saveStaffAssignmentAction(
       arrival_time: value(input.arrivalTime) ?? (automaticArrival ? clock(eventStart, -60) : null),
       staff_call_at:value(input.staffCallAt??"")||automaticArrival,
       staff_call_source:value(input.staffCallAt??"")?"FOUNDER_OVERRIDE":(automaticArrival?"DEFAULT_60_MINUTES":null),
-      start_time: value(input.startTime) ?? value(eventStart),
-      finish_time: value(input.finishTime) ?? automaticFinish,
+      start_time: input.role === "OPERATOR" && selectedBlock ? eventStart : value(input.startTime) ?? value(eventStart),
+      finish_time: input.role === "OPERATOR" && selectedBlock ? blockEnd : value(input.finishTime) ?? automaticFinish,
       assigned_vehicle: value(input.vehicleId),
       observations: value(input.observations),
       resources: { vehicle: value(input.vehicleId) },

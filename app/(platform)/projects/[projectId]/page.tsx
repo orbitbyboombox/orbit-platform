@@ -177,7 +177,7 @@ export default async function ProjectWorkspacePage({
     client
       .from("assignments")
       .select(
-        "id,project_id,block_id,staff_id,assignment_type,status,created_at,staff_call_at,arrival_time,start_time,finish_time,assigned_vehicle,observations,resources,staff(first_name,last_name),operational_assets(asset_code)",
+        "id,project_id,block_id,staff_id,assignment_type,status,created_at,staff_call_at,arrival_time,start_time,finish_time,assigned_vehicle,observations,resources,staff(first_name,last_name),operational_assets(asset_code),event_operational_blocks(id,name,start_at,end_at)",
       )
       .is("deleted_at", null),
     client
@@ -552,6 +552,7 @@ export default async function ProjectWorkspacePage({
     resources: Record<string, unknown> | null;
     staff: { first_name: string; last_name: string };
     operational_assets: { asset_code: string } | null;
+    event_operational_blocks: { id: string; name: string; start_at: string; end_at: string } | { id: string; name: string; start_at: string; end_at: string }[] | null;
   };
   const activeAssets = (assetAssignments ??
     []) as unknown as ActiveAssetAssignment[];
@@ -1483,6 +1484,15 @@ export default async function ProjectWorkspacePage({
         .map((item) => ({
           id: item.id,
           blockId: item.block_id,
+          blockName: Array.isArray(item.event_operational_blocks)
+            ? item.event_operational_blocks[0]?.name ?? undefined
+            : item.event_operational_blocks?.name ?? undefined,
+          blockStartAt: Array.isArray(item.event_operational_blocks)
+            ? item.event_operational_blocks[0]?.start_at ?? undefined
+            : item.event_operational_blocks?.start_at ?? undefined,
+          blockEndAt: Array.isArray(item.event_operational_blocks)
+            ? item.event_operational_blocks[0]?.end_at ?? undefined
+            : item.event_operational_blocks?.end_at ?? undefined,
           staffId: item.staff_id,
           createdAt: item.created_at,
           staffName: `${item.staff.first_name} ${item.staff.last_name}`,
