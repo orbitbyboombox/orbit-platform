@@ -210,6 +210,8 @@ export function StaffPaymentsCenter({
         .filter((row) => row.eventRows.length > 0 || Boolean(row.account)),
     [events, month, months, query, staff],
   );
+  const pendingStaffRows = rows.filter((row) => row.outstanding > 0);
+  const pendingStaffTotal = pendingStaffRows.reduce((sum, row) => sum + row.outstanding, 0);
   return (
     <section className="space-y-5 rounded-2xl border bg-card p-5 sm:p-7">
       <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -375,6 +377,8 @@ export function StaffPaymentsCenter({
             label="Pendiente"
             value={Number(closeState?.totals?.pending ?? 0)}
           />
+          <Metric label="Colaboradores pendientes" value={pendingStaffRows.length} />
+          <Metric label="Total pendiente por pagar" value={pendingStaffTotal} />
           <Metric
             label="Boletas pendientes"
             value={Number(closeState?.totals?.receiptsPending ?? 0)}
