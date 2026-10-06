@@ -9,10 +9,10 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 export default async function AccountsReceivablePage({
   searchParams,
 }: {
-  searchParams: Promise<{ invoice?: string }>;
+  searchParams: Promise<{ invoice?: string; category?: string }>;
 }) {
   const client = await createSupabaseServerClient();
-  const { invoice } = await searchParams;
+  const { invoice, category } = await searchParams;
   const [dataset, company] = await Promise.all([
     loadAccountsReceivable(client),
     loadCompanySettings(client),
@@ -23,6 +23,7 @@ export default async function AccountsReceivablePage({
       bankDetails={resolveCollectionBankDetails(company)}
       dataset={dataset}
       initialInvoiceId={invoice}
+      initialCategory={category}
     />
   );
 }
