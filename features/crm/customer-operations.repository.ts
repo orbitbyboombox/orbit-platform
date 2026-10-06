@@ -139,7 +139,7 @@ export async function loadCrmCustomerOperations(
         staff: activeStaff,
         vehicles,
         requirements: (staffRequirements.data ?? [])
-          .filter((item) => item.project_id === projectId)
+          .filter((item) => item.project_id === projectId && !(operationalBlocks.data?.some((block) => block.project_id === projectId) && item.role === "OPERATOR" && !item.block_id))
           .map((item) => ({ role: item.role, required: Number(item.required_quantity), published: Boolean(item.published) })),
         blockRequirements: (staffRequirements.data ?? [])
           .filter((item) => item.project_id === projectId && item.block_id)

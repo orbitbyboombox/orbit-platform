@@ -571,7 +571,7 @@ export default async function ProjectWorkspacePage({
     (operatorAssignments ?? []) as unknown as StaffAssignment[]
   ).filter((item) => confirmedAssignmentStatuses.has(item.status));
   const responsibilityRequirements = buildResponsibilityReadModel(
-    (staffRoleRequirements ?? []).filter((item) => !item.block_id).map((item) => ({
+    (staffRoleRequirements ?? []).filter((item) => !item.block_id && !(operationalBlockRows?.length && item.role === "OPERATOR")).map((item) => ({
       role: item.role,
       required: Number(item.required_quantity),
       published: item.published,

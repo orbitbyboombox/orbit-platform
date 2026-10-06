@@ -45,6 +45,7 @@ export type StaffPortalEvent = {
   duration: number;
   extras: string[];
   operationalExtras: CanonicalOperationalExtras;
+  operationalBlocks: Array<{ id: string; name: string; startAt: string; endAt: string }>;
   date: string;
   staffCallAt: string | null;
   start: string;
@@ -834,6 +835,7 @@ function EventDetail({
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Small label="CITACIÓN" value={event.staffCallAt?new Date(event.staffCallAt).toLocaleString("es-CL",{timeZone:"America/Santiago"}):"Por confirmar"} />
           <Small label="SERVICIO" value={`${event.date} · ${event.start}–${event.finish}`} />
+          {event.operationalBlocks.length ? <div className="sm:col-span-2 lg:col-span-3 rounded-2xl border border-brand/30 bg-brand/5 p-4"><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">TURNOS DE OPERADOR</p><div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{event.operationalBlocks.map((block) => <div className="rounded-xl border border-white/10 px-3 py-2" key={block.id}><p className="font-semibold">{block.name}</p><p className="text-sm text-white/65">{new Date(block.startAt).toLocaleTimeString("es-CL", { timeZone: "America/Santiago", hour: "2-digit", minute: "2-digit" })}–{new Date(block.endAt).toLocaleTimeString("es-CL", { timeZone: "America/Santiago", hour: "2-digit", minute: "2-digit" })}</p></div>)}</div></div> : null}
           <Small label="Lugar" value={event.venue} />
           <Small label="Dirección" value={event.address} />
           <Small label="Comuna" value={event.district} />
