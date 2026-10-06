@@ -76,6 +76,24 @@ export type StaffPortalEvent = {
   checkins: string[];
   checklist: string[];
 };
+
+const staffBlockTime = (value: string) => new Date(value).toLocaleTimeString("es-CL", {
+  timeZone: "America/Santiago",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
+const staffBlockDuration = (startAt: string, endAt: string) => {
+  const minutes = Math.max(0, Math.round((new Date(endAt).getTime() - new Date(startAt).getTime()) / 60000));
+  return `${Math.floor(minutes / 60)}h${minutes % 60 ? ` ${minutes % 60}m` : ""}`;
+};
+
+const staffBlockHours = (startAt: string, endAt: string) =>
+  Math.max(0, Math.round((new Date(endAt).getTime() - new Date(startAt).getTime()) / 60000) / 60);
+
+const staffBlockLabel = (block: StaffPortalEvent["operationalBlocks"][number]) =>
+  `${block.name} · ${staffBlockTime(block.startAt)}–${staffBlockTime(block.endAt)} (${staffBlockDuration(block.startAt, block.endAt)})`;
 export type StaffPortalPayment = {
   generated: number;
   paid: number;
@@ -376,11 +394,17 @@ function StaffHome({module, events, availableEvents, requests, weekEvents, today
 }
 
 function staffLogisticsRow(event: StaffPortalEvent): StaffLogisticsEvent {
+  const assignedBlocks = event.roles.includes("OPERATOR") ? event.operationalBlocks : [];
+  const primaryBlock = assignedBlocks[0];
   return {
     id: event.id, projectId: event.orbitEventId, orbitEventId: event.orbitEventId, date: event.date,
-    time: event.start, endTime: event.finish, customer: event.customer, service: event.service, duration: event.duration,
+    time: primaryBlock ? staffBlockTime(primaryBlock.startAt) : event.start,
+    endTime: primaryBlock ? staffBlockTime(primaryBlock.endAt) : event.finish,
+    customer: event.customer,
+    service: primaryBlock ? `${event.service} · ${primaryBlock.name}` : event.service,
+    duration: primaryBlock ? staffBlockHours(primaryBlock.startAt, primaryBlock.endAt) : event.duration,
     location: event.venue || event.address, commune: event.district, status: event.status,
-    operator: event.roles.map(role => ROLE[role] ?? role).join(" + ") || "Sin asignar", staffCallAt: event.staffCallAt || "",
+    operator: assignedBlocks.length ? assignedBlocks.map(block => block.name).join(" + ") : event.roles.map(role => ROLE[role] ?? role).join(" + ") || "Sin asignar", staffCallAt: event.staffCallAt || "",
     setupTime: event.staffCallAt || "", setupStaff: "", teardownTime: event.finish, teardownStaff: "",
     box: "Sin asignar", extras: event.extras, address: event.address,
   };
@@ -416,7 +440,7 @@ function StaffPaperPrinterPanel({ events }: { events: StaffPortalEvent[] }) {
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">{event.date} · {event.start}</p>
           <h3 className="mt-1 truncate text-xl font-semibold">{event.customer}</h3>
-          <p className="mt-1 text-sm text-muted">{event.service} · {event.duration} horas · {event.venue || event.address} · {event.district}</p>
+          <p className="mt-1 text-sm text-muted">{event.service} · {event.operationalBlocks.length ? `Tu turno: ${event.operationalBlocks.map(staffBlockLabel).join(" · ")}` : `${event.duration} horas`} · {event.venue || event.address} · {event.district}</p>
         </div>
         <span className="rounded-full border px-3 py-1 text-xs font-semibold">{stateLabel(event)}</span>
       </div>
@@ -469,7 +493,7 @@ function OperatorsModule({events,weeklyAvailableEvents,requests,week,confirmed,o
   const today=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Santiago"}).format(new Date());
   const active=events.filter(event=>event.date>=today).sort((a,b)=>`${a.date}${a.start}`.localeCompare(`${b.date}${b.start}`));
   const completed=events.filter(event=>event.date<today).sort(newestEventFirst);
-  return <section className="space-y-6" data-staff-module-view="OPERADORES"><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">OPERADORES</p><h2 className="mt-1 text-2xl font-semibold">Eventos y operación</h2><p className="mt-1 text-sm text-muted">{week.label} · disponibles: {weeklyAvailableEvents.length} · confirmados: {confirmed}</p></div><AvailableEvents events={weeklyAvailableEvents} requests={requests} /><section className="rounded-3xl border border-white/10 bg-[#111214] p-5 text-white shadow-[0_20px_70px_rgba(0,0,0,.22)] sm:p-7"><h2 className="text-xl font-semibold">Mis eventos asignados</h2><p className="mt-1 text-sm text-white/60">Las asignaciones nuevas aparecen primero y requieren tu aceptación.</p><div className="mt-5 space-y-2">{active.map(event=><button className="group grid w-full gap-4 rounded-2xl border border-white/10 bg-[#191a1d] p-4 text-left transition hover:border-brand/70 sm:grid-cols-[72px_minmax(0,1fr)_auto] sm:items-center" key={event.id} onClick={()=>onSelect(event)}><div className="grid size-16 shrink-0 place-items-center rounded-xl bg-[#0d0e10] text-center ring-1 ring-white/10"><span className="text-[10px] uppercase tracking-[.16em] text-brand">{new Date(`${event.date}T12:00:00Z`).toLocaleDateString("es-CL",{weekday:"short"})}</span><strong className="text-2xl leading-none">{event.date.slice(8,10)}</strong><span className="text-[10px] text-white/50">{event.date.slice(5,7)}</span></div><div className="min-w-0"><p className="font-semibold">{event.customer}</p><p className="mt-1 text-sm font-semibold text-white/80">{event.service} · {event.duration}h · {event.start}–{event.finish} · {event.timeMode === "CONFIRMED" ? "HORARIO CONFIRMADO" : "HORARIO ESTIMADO"}</p><p className="mt-1 text-sm text-white/60">{event.venue||event.address} · {event.district}</p><div className="mt-2"><StaffOperationalExtras extras={event.operationalExtras} compact /></div></div><div className="flex items-center gap-3 sm:justify-end"><span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-xs font-semibold text-emerald-300">{stateLabel(event)}</span><ChevronRight className="size-5 text-white/40 transition group-hover:text-brand" /></div></button>)}{active.length===0?<p className="py-8 text-sm text-muted">No tienes eventos activos o próximos.</p>:null}</div>{completed.length?<details className="mt-5 rounded-2xl border border-white/10 bg-[#17181a]"><summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-white/70">REALIZADOS · {completed.length}</summary><div className="space-y-2 border-t border-white/10 p-3">{completed.map(event=><button className="w-full rounded-xl border border-white/10 p-3 text-left text-sm text-white/70" key={event.id} onClick={()=>onSelect(event)}><strong>{event.customer}</strong><span className="mt-1 block text-xs text-white/45">{event.date} · {event.service}</span></button>)}</div></details>:null}</section></section>; }
+  return <section className="space-y-6" data-staff-module-view="OPERADORES"><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">OPERADORES</p><h2 className="mt-1 text-2xl font-semibold">Eventos y operación</h2><p className="mt-1 text-sm text-muted">{week.label} · disponibles: {weeklyAvailableEvents.length} · confirmados: {confirmed}</p></div><AvailableEvents events={weeklyAvailableEvents} requests={requests} /><section className="rounded-3xl border border-white/10 bg-[#111214] p-5 text-white shadow-[0_20px_70px_rgba(0,0,0,.22)] sm:p-7"><h2 className="text-xl font-semibold">Mis eventos asignados</h2><p className="mt-1 text-sm text-white/60">Las asignaciones nuevas aparecen primero y requieren tu aceptación.</p><div className="mt-5 space-y-2">{active.map(event=>{const assignedBlocks=event.roles.includes("OPERATOR")?event.operationalBlocks:[];const turnLabel=assignedBlocks.map(staffBlockLabel).join(" · ");return <button className="group grid w-full gap-4 rounded-2xl border border-white/10 bg-[#191a1d] p-4 text-left transition hover:border-brand/70 sm:grid-cols-[72px_minmax(0,1fr)_auto] sm:items-center" key={event.id} onClick={()=>onSelect(event)}><div className="grid size-16 shrink-0 place-items-center rounded-xl bg-[#0d0e10] text-center ring-1 ring-white/10"><span className="text-[10px] uppercase tracking-[.16em] text-brand">{new Date(`${event.date}T12:00:00Z`).toLocaleDateString("es-CL",{weekday:"short"})}</span><strong className="text-2xl leading-none">{event.date.slice(8,10)}</strong><span className="text-[10px] text-white/50">{event.date.slice(5,7)}</span></div><div className="min-w-0"><p className="font-semibold">{event.customer}</p><p className="mt-1 text-sm font-semibold text-white/80">{event.service} · {assignedBlocks.length?`TU TURNO: ${turnLabel}`:`${event.duration}h · ${event.start}–${event.finish}`} · {event.timeMode === "CONFIRMED" ? "HORARIO CONFIRMADO" : "HORARIO ESTIMADO"}</p><p className="mt-1 text-sm text-white/60">{event.venue||event.address} · {event.district}</p><div className="mt-2"><StaffOperationalExtras extras={event.operationalExtras} compact /></div></div><div className="flex items-center gap-3 sm:justify-end"><span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-xs font-semibold text-emerald-300">{stateLabel(event)}</span><ChevronRight className="size-5 text-white/40 transition group-hover:text-brand" /></div></button>})}{active.length===0?<p className="py-8 text-sm text-white/60">No tienes eventos activos o próximos.</p>:null}</div>{completed.length?<details className="mt-5 rounded-2xl border border-white/10 bg-[#17181a]"><summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-white/70">REALIZADOS · {completed.length}</summary><div className="space-y-2 border-t border-white/10 p-3">{completed.map(event=><button className="w-full rounded-xl border border-white/10 p-3 text-left text-sm text-white/70" key={event.id} onClick={()=>onSelect(event)}><strong>{event.customer}</strong><span className="mt-1 block text-xs text-white/45">{event.date} · {event.service}</span></button>)}</div></details>:null}</section></section>; }
 
 const operationalExtraCategories: OperationalExtraCategory[] = ["QR", "IMANES", "SCRAPBOOK", "FONDO", "TRASLADO", "OTROS"];
 function StaffOperationalExtras({ extras, compact = false }: { extras: CanonicalOperationalExtras; compact?: boolean }) {
@@ -797,7 +821,10 @@ function EventDetail({
       if (result.ok) location.reload();
     });
   const maps = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${event.address}, ${event.district}`)}`;
-  const googleCalendar = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(`BOOMBOX · ${event.customer}`)}&dates=${event.date.replaceAll("-", "")}T${event.start.replace(":", "")}00/${event.date.replaceAll("-", "")}T${event.finish.replace(":", "")}00&details=${encodeURIComponent(`Servicio: ${event.service}\nORBIT Event ID: ${event.orbitEventId}`)}&location=${encodeURIComponent(event.address)}`;
+  const assignedBlocks = event.roles.includes("OPERATOR") ? event.operationalBlocks : [];
+  const hasAssignedBlocks = assignedBlocks.length > 0;
+  const turnLabel = assignedBlocks.map(staffBlockLabel).join(" · ");
+  const googleCalendar = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(`BOOMBOX · ${event.customer}`)}&dates=${event.date.replaceAll("-", "")}T${event.start.replace(":", "")}00/${event.date.replaceAll("-", "")}T${event.finish.replace(":", "")}00&details=${encodeURIComponent(`Servicio: ${event.service}\n${hasAssignedBlocks ? `Turno Staff: ${turnLabel}\n` : ""}ORBIT Event ID: ${event.orbitEventId}`)}&location=${encodeURIComponent(event.address)}`;
   const cancel = () => {
     const data = new FormData();
     data.set("projectId", event.id);
@@ -820,7 +847,7 @@ function EventDetail({
             </p>
             <h2 className="mt-2 text-2xl font-semibold">{event.customer}</h2>
             <p className="mt-1 text-sm text-white/60">
-              {event.eventType} · {event.service} · {event.duration} horas
+              {event.eventType} · {event.service} · {hasAssignedBlocks ? `TU TURNO: ${turnLabel}` : `${event.duration} horas`}
             </p>
           </div>
           <button
@@ -834,7 +861,8 @@ function EventDetail({
         <section className="mt-5 rounded-2xl border border-brand/40 bg-brand/10 p-4" aria-label="Instrucciones de impresión"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Instrucciones de impresión</p><h3 className="mt-1 text-lg font-semibold">Configuración del evento</h3></div>{!event.printInstructions.photoStyle ? <span className="rounded-full border border-amber-400/40 bg-amber-400/10 px-3 py-1 text-xs font-bold text-amber-300">ESTILO PENDIENTE</span> : null}</div><div className="mt-3 grid gap-2 sm:grid-cols-3"><div className="rounded-xl border border-white/10 bg-[#111214] p-3"><p className="text-[10px] uppercase tracking-[.14em] text-white/45">Foto</p><p className="mt-1 text-sm font-bold text-white">{event.printInstructions.photoStyle === "COLOR" ? "COLOR" : event.printInstructions.photoStyle === "BLACK_WHITE" ? "BLANCO Y NEGRO" : event.printInstructions.photoStyle === "SEPIA" ? "SEPIA" : "PENDIENTE"}</p></div><div className="rounded-xl border border-white/10 bg-[#111214] p-3"><p className="text-[10px] uppercase tracking-[.14em] text-white/45">Papel</p><p className="mt-1 text-sm font-bold text-white">{event.printInstructions.paperVariant === "NORMAL_4X6" ? "4x6 NORMAL" : event.printInstructions.paperVariant === "PRECUT_4X6" ? "4x6 PREPICADO" : "PENDIENTE"}</p></div><div className="rounded-xl border border-white/10 bg-[#111214] p-3"><p className="text-[10px] uppercase tracking-[.14em] text-white/45">Formato</p><p className="mt-1 text-sm font-bold text-white">{event.service}</p></div></div>{event.printInstructions.operatorNote ? <div className="mt-3 rounded-xl border border-brand/30 bg-[#111214] p-3"><p className="text-[10px] uppercase tracking-[.14em] text-brand">Observación para operador</p><p className="mt-1 whitespace-pre-wrap text-sm font-semibold text-white">{event.printInstructions.operatorNote}</p></div> : null}</section>
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Small label="CITACIÓN" value={event.staffCallAt?new Date(event.staffCallAt).toLocaleString("es-CL",{timeZone:"America/Santiago"}):"Por confirmar"} />
-          <Small label="SERVICIO" value={`${event.date} · ${event.start}–${event.finish}`} />
+          <Small label={hasAssignedBlocks ? "TU TURNO" : "SERVICIO"} value={hasAssignedBlocks ? turnLabel : `${event.date} · ${event.start}–${event.finish}`} />
+          {hasAssignedBlocks ? <Small label="EVENTO TOTAL" value={`${event.date} · ${event.start}–${event.finish}`} /> : null}
           {event.operationalBlocks.length ? <div className="sm:col-span-2 lg:col-span-3 rounded-2xl border border-brand/30 bg-brand/5 p-4"><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">TURNOS DE OPERADOR</p><div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{event.operationalBlocks.map((block) => <div className="rounded-xl border border-white/10 px-3 py-2" key={block.id}><p className="font-semibold">{block.name}</p><p className="text-sm text-white/65">{new Date(block.startAt).toLocaleTimeString("es-CL", { timeZone: "America/Santiago", hour: "2-digit", minute: "2-digit" })}–{new Date(block.endAt).toLocaleTimeString("es-CL", { timeZone: "America/Santiago", hour: "2-digit", minute: "2-digit" })}</p></div>)}</div></div> : null}
           <Small label="Lugar" value={event.venue} />
           <Small label="Dirección" value={event.address} />
