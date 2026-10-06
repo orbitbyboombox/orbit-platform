@@ -478,6 +478,12 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
           .reduce((sum, item) => sum + Number(item.amount), 0),
         reimbursementPendingAmount = Math.max(reimbursementTotal - reimbursementPaidAmount, 0),
         finalAmount = payrollNet + reimbursementTotal;
+      const rawBlock = (row as unknown as { event_operational_blocks?: unknown }).event_operational_blocks;
+      const block = Array.isArray(rawBlock)
+        ? (rawBlock[0] as Record<string, unknown> | undefined)
+        : rawBlock && typeof rawBlock === "object"
+          ? (rawBlock as Record<string, unknown>)
+          : undefined;
       return [
         {
           id: row.id,
@@ -509,9 +515,9 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
           paidAmount: Number(row.paid_amount),
           paidAt: row.paid_at ?? "",
           receiptStatus: row.sii_receipt_status,
-          blockName: Array.isArray(row.event_operational_blocks) ? row.event_operational_blocks[0]?.name ?? "" : row.event_operational_blocks?.name ?? "",
-          blockStartAt: Array.isArray(row.event_operational_blocks) ? row.event_operational_blocks[0]?.start_at ?? "" : row.event_operational_blocks?.start_at ?? "",
-          blockEndAt: Array.isArray(row.event_operational_blocks) ? row.event_operational_blocks[0]?.end_at ?? "" : row.event_operational_blocks?.end_at ?? "",
+          blockName: String(block?.name ?? ""),
+          blockStartAt: String(block?.start_at ?? ""),
+          blockEndAt: String(block?.end_at ?? ""),
         },
       ];
     },
