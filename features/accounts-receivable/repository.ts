@@ -352,8 +352,13 @@ export async function loadAccountsReceivable(
         .filter((x) => x.status === "OVERDUE")
         .reduce((s, x) => s + x.outstandingBalance, 0),
       collected: active.reduce((s,x)=>s+x.paidAmount,0),
-      companyCredits:
-        paymentCategorySummary.days30 + paymentCategorySummary.otherCredit + paymentCategorySummary.noTermCredit,
+      companyCredits: active
+        .filter((x) => {
+          const eventDate = x.eventDate?.slice(0, 10) ?? "";
+          const isCompany = x.customerType === "CORPORATE" || Boolean(x.customerCompany?.trim());
+          return isCompany && Boolean(eventDate) && eventDate <= new Date().toISOString().slice(0, 10);
+        })
+        .reduce((s, x) => s + x.outstandingBalance, 0),
       paymentCategorySummary,
       collectionRate: active.reduce((s,x)=>s+x.amount,0)>0?active.reduce((s,x)=>s+x.paidAmount,0)/active.reduce((s,x)=>s+x.amount,0)*100:0,
       averageCollectionDays: (() => {
