@@ -22,9 +22,10 @@ function mapStaffEventPayment(row: Record<string, unknown>, assignmentById: Map<
   const paidAt = String(row.paid_at ?? "");
   const assignment = assignmentById.get(String(row.assignment_id));
   const assignmentType = String(assignment?.assignment_type ?? "");
-  const role = assignmentType || (Array.isArray(row.tasks) ? row.tasks.map(String).join(" + ") : "Staff");
-  const defaultRoleAmount = assignmentType === "OPERATOR" ? Number(row.operator_payment ?? amount) : assignmentType === "ASSEMBLY" ? Number(row.assembly_payment ?? amount) : assignmentType === "DISASSEMBLY" ? Number(row.disassembly_payment ?? amount) : amount;
-  const overrideRoleAmount = assignmentType === "OPERATOR" ? row.override_operator_payment : assignmentType === "ASSEMBLY" ? row.override_assembly_payment : assignmentType === "DISASSEMBLY" ? row.override_disassembly_payment : null;
+  const taskRoles = Array.isArray(row.tasks) ? row.tasks.map(String).filter(Boolean) : [];
+  const role = taskRoles.length > 1 ? taskRoles.join(" + ") : assignmentType || taskRoles[0] || "Staff";
+  const defaultRoleAmount = taskRoles.length > 1 ? amount : assignmentType === "OPERATOR" ? Number(row.operator_payment ?? amount) : assignmentType === "ASSEMBLY" ? Number(row.assembly_payment ?? amount) : assignmentType === "DISASSEMBLY" ? Number(row.disassembly_payment ?? amount) : amount;
+  const overrideRoleAmount = taskRoles.length > 1 ? null : assignmentType === "OPERATOR" ? row.override_operator_payment : assignmentType === "ASSEMBLY" ? row.override_assembly_payment : assignmentType === "DISASSEMBLY" ? row.override_disassembly_payment : null;
   const finalAmount = overrideRoleAmount !== null && overrideRoleAmount !== undefined ? amount - defaultRoleAmount + Number(overrideRoleAmount) : amount;
   const rawBlock = assignment?.event_operational_blocks;
   const block = Array.isArray(rawBlock) ? rawBlock[0] as Record<string, unknown> | undefined : rawBlock && typeof rawBlock === "object" ? rawBlock as Record<string, unknown> : null;
