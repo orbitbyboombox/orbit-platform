@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Check, Pencil, X } from "lucide-react";
 import { updateBlackBoxMasterAction } from "./black-box-master.actions";
+import { assignBlackBoxToEventAction } from "@/features/asset-management/event-black-box.actions";
 import { BLACK_BOX_PAPER_FORMATS, blackBoxNumber, blackBoxPaperFormat, blackBoxStock, type BoxAsset } from "./box-inventory";
 
 const statusOptions = [
@@ -12,7 +13,9 @@ const statusOptions = [
   ["OUT_OF_SERVICE", "Fuera de servicio"],
 ] as const;
 
-export function BlackBoxMaster({ initialBoxes }: { initialBoxes: BoxAsset[] }) {
+type BoxEventOption = { id: string; name: string; date: string; time: string };
+
+export function BlackBoxMaster({ initialBoxes, events }: { initialBoxes: BoxAsset[]; events: BoxEventOption[] }) {
   const [boxes, setBoxes] = useState(initialBoxes);
   const [editing, setEditing] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -49,12 +52,15 @@ export function BlackBoxMaster({ initialBoxes }: { initialBoxes: BoxAsset[] }) {
     </header>
     {error && <p role="alert" className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-600">{error}</p>}
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-      {boxes.map((box) => <BlackBoxCard key={box.id} box={box} editing={editing === box.id} pending={pending} onEdit={() => { setError(""); setEditing(box.id); }} onCancel={() => { setError(""); setEditing(null); }} onSave={(data) => save(box, data)} />)}
+      {boxes.map((box) => <BlackBoxCard key={box.id} box={box} events={events} editing={editing === box.id} pending={pending} onEdit={() => { setError(""); setEditing(box.id); }} onCancel={() => { setError(""); setEditing(null); }} onSave={(data) => save(box, data)} onAssigned={() => location.reload()} />)}
     </div>
   </section>;
 }
 
-function BlackBoxCard({ box, editing, pending, onEdit, onCancel, onSave }: { box: BoxAsset; editing: boolean; pending: boolean; onEdit: () => void; onCancel: () => void; onSave: (formData: FormData) => void }) {
+function BlackBoxCard({ box, events, editing, pending, onEdit, onCancel, onSave, onAssigned }: { box: BoxAsset; events: BoxEventOption[]; editing: boolean; pending: boolean; onEdit: () => void; onCancel: () => void; onSave: (formData: FormData) => void; onAssigned: () => void }) {
+  const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [assignmentMessage, setAssignmentMessage] = useState("");
+  const [assigning, startAssigning] = useTransition();
   const number = blackBoxNumber(box.asset_code);
   const stock = blackBoxStock(box.metadata);
   const format = blackBoxPaperFormat(box.metadata);
@@ -66,6 +72,7 @@ function BlackBoxCard({ box, editing, pending, onEdit, onCancel, onSave }: { box
     </div>
     {!editing ? <>
       <div className="mt-5 grid grid-cols-2 gap-3"><div className="rounded-xl border bg-background/40 p-3"><p className="text-[11px] uppercase tracking-wide text-muted">Fotos disponibles</p><p className="mt-1 text-2xl font-semibold">{stock}</p></div><div className="rounded-xl border bg-background/40 p-3"><p className="text-[11px] uppercase tracking-wide text-muted">Papel</p><p className="mt-1 text-sm font-semibold">{format === "4X6_PREPICADO" ? "4x6 PREPICADO" : "4x6"}</p></div></div>
+      <div className="mt-4 rounded-xl border bg-background/40 p-3"><p className="text-[11px] font-semibold uppercase tracking-wide text-muted">Eventos asignados</p>{box.assignments.length ? <div className="mt-2 space-y-2">{box.assignments.map((assignment) => <div className="text-sm" key={assignment.id}><p className="font-semibold">{assignment.eventName}</p><p className="text-muted">{assignment.eventDate} · {assignment.eventTime?.slice(0, 5) || "Horario pendiente"}</p></div>)}</div> : <p className="mt-2 text-sm text-muted">Sin Evento asignado</p>}<div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]"><select aria-label={`Asignar ${box.asset_code} a Evento`} className="min-h-10 rounded-lg border bg-background px-2 text-sm" disabled={assigning || box.status === "MAINTENANCE" || box.status === "OUT_OF_SERVICE"} onChange={(event) => setSelectedProjectId(event.target.value)} value={selectedProjectId}><option value="">Seleccionar Evento</option>{events.map((event) => <option key={event.id} value={event.id}>{event.name} · {event.date}</option>)}</select><button type="button" disabled={assigning || !selectedProjectId || box.status === "MAINTENANCE" || box.status === "OUT_OF_SERVICE"} className="min-h-10 rounded-lg bg-brand px-3 text-xs font-bold text-brand-foreground" onClick={() => startAssigning(async () => { const result = await assignBlackBoxToEventAction({ projectId: selectedProjectId, assetId: box.id, reason: `Asignación desde Master Cajas · ${box.asset_code}` }); setAssignmentMessage(result.ok ? "Caja asignada al Evento. El stock no fue descontado." : result.error ?? "No fue posible asignar la Caja."); if (result.ok) onAssigned(); })}>ASIGNAR A EVENTO</button></div>{assignmentMessage ? <p aria-live="polite" className="mt-2 text-xs font-medium">{assignmentMessage}</p> : null}</div>
       <p className="mt-4 text-xs text-muted">Actualizada {new Date(box.updated_at).toLocaleString("es-CL")} · {box.updated_by_name ?? "Sistema"}</p>
       <button type="button" onClick={onEdit} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 text-xs font-semibold hover:border-brand hover:text-brand"><Pencil className="size-4" />Editar stock</button>
     </> : <form className="mt-4 space-y-3" action={onSave}>
