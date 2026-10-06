@@ -192,6 +192,71 @@ export async function overrideStaffEventPaymentAction(
   }
 }
 
+export async function overrideStaffAssignmentPaymentAction(
+  data: FormData,
+): Promise<Result> {
+  try {
+    const { client } = await context();
+    const paymentId = text(data, "paymentId");
+    const role = text(data, "paymentRole");
+    const reason = text(data, "paymentReason");
+    const amount = Number(data.get("paymentAmount"));
+    if (!paymentId || !role || !reason || !Number.isFinite(amount) || amount < 0)
+      throw new Error("Ingresa el monto y el motivo del pago especial.");
+    const { data: payment, error: readError } = await client
+      .from("event_staff_payments")
+      .select("project_id")
+      .eq("id", paymentId)
+      .is("deleted_at", null)
+      .single();
+    if (readError) throw readError;
+    const { error } = await client.rpc("set_staff_assignment_payment_override", {
+      p_payment_id: paymentId,
+      p_role: role,
+      p_amount: amount,
+      p_reason: reason,
+    });
+    if (error) throw error;
+    revalidateSettlement(payment.project_id);
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      error: friendly(error, "No fue posible guardar el pago personalizado."),
+    };
+  }
+}
+
+export async function resetStaffAssignmentPaymentAction(
+  data: FormData,
+): Promise<Result> {
+  try {
+    const { client } = await context();
+    const paymentId = text(data, "paymentId");
+    const role = text(data, "paymentRole");
+    if (!paymentId || !role) throw new Error("No se pudo identificar el pago.");
+    const { data: payment, error: readError } = await client
+      .from("event_staff_payments")
+      .select("project_id")
+      .eq("id", paymentId)
+      .is("deleted_at", null)
+      .single();
+    if (readError) throw readError;
+    const { error } = await client.rpc("reset_staff_assignment_payment_override", {
+      p_payment_id: paymentId,
+      p_role: role,
+    });
+    if (error) throw error;
+    revalidateSettlement(payment.project_id);
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      error: friendly(error, "No fue posible restablecer la tarifa."),
+    };
+  }
+}
+
 export async function updateStaffEventSettlementAction(
   data: FormData,
 ): Promise<Result> {

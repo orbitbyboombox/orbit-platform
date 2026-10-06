@@ -24,6 +24,8 @@ import {
 import {
   addStaffSettlementAdjustmentAction,
   addStaffSettlementReimbursementAction,
+  overrideStaffAssignmentPaymentAction,
+  resetStaffAssignmentPaymentAction,
   updateStaffEventSettlementAction,
 } from "@/features/staff-payments/actions";
 import { reviewStaffRequestAction, setEventStaffRequirementAction } from "@/features/operations/operations-planning.actions";
@@ -90,6 +92,12 @@ export type EventStaffSettlement = {
   blockName?: string | null;
   contractedMinutes?: number | null;
   roles: string[];
+  defaultOperator: number;
+  defaultAssembly: number;
+  defaultDisassembly: number;
+  overrideOperator: number | null;
+  overrideAssembly: number | null;
+  overrideDisassembly: number | null;
   originalOperator: number;
   originalAssembly: number;
   originalDisassembly: number;
@@ -250,7 +258,7 @@ export function StaffAssignmentCenter({
     });
   const saveSettlement = (
     data: FormData,
-    kind: "adjustment" | "reimbursement" | "payment",
+    kind: "adjustment" | "reimbursement" | "payment" | "override" | "reset",
   ) =>
     startTransition(async () => {
       const result =
@@ -258,7 +266,11 @@ export function StaffAssignmentCenter({
           ? await addStaffSettlementAdjustmentAction(data)
           : kind === "reimbursement"
             ? await addStaffSettlementReimbursementAction(data)
-            : await updateStaffEventSettlementAction(data);
+            : kind === "payment"
+              ? await updateStaffEventSettlementAction(data)
+              : kind === "override"
+                ? await overrideStaffAssignmentPaymentAction(data)
+                : await resetStaffAssignmentPaymentAction(data);
       if (!result.ok) {
         setMessage(result.error);
         return;
@@ -471,7 +483,7 @@ export function StaffAssignmentCenter({
                   className="mt-3 text-xs font-semibold text-brand"
                   onClick={() => setSettlement(item)}
                 >
-                  Gestionar cierre financiero
+                  Gestionar pago y cierre financiero
                 </button>
               </article>
             ))}
@@ -680,7 +692,7 @@ function SettlementDetailDialog({
   onClose: () => void;
   onSubmit: (
     data: FormData,
-    kind: "adjustment" | "reimbursement" | "payment",
+    kind: "adjustment" | "reimbursement" | "payment" | "override" | "reset",
   ) => void;
 }) {
   const movementLabel = (value: string) =>
@@ -998,7 +1010,7 @@ function SettlementDialog({
   onClose: () => void;
   onSubmit: (
     data: FormData,
-    kind: "adjustment" | "reimbursement" | "payment",
+    kind: "adjustment" | "reimbursement" | "payment" | "override" | "reset",
   ) => void;
 }) {
   return (
@@ -1011,6 +1023,60 @@ function SettlementDialog({
       title={item.staffName}
     >
       <div className="max-h-[92dvh] w-full overflow-y-auto rounded-t-2xl border bg-card p-5 sm:max-w-2xl sm:rounded-2xl sm:p-7">
+        <section className="rounded-xl border border-brand/30 bg-brand/5 p-4">
+          <h4 className="font-semibold">Pago por asignación</h4>
+          <p className="mt-1 text-sm text-muted">
+            La tarifa general es el valor base. Este cambio solo afecta esta asignación/evento.
+          </p>
+          <form
+            action={(data) => onSubmit(data, "override")}
+            className="mt-4 grid gap-3 sm:grid-cols-2"
+          >
+            <input name="paymentId" type="hidden" value={item.id} />
+            <Select
+              label="Rol"
+              name="paymentRole"
+              value={item.roles[0] ?? "OPERATOR"}
+              options={item.roles.map((role) => ({ value: role, label: roleLabel(role) }))}
+            />
+            <Field
+              label="Pago para este evento"
+              name="paymentAmount"
+              type="number"
+              defaultValue={String(
+                item.overrideOperator ?? item.overrideAssembly ?? item.overrideDisassembly ??
+                  (item.roles[0] === "ASSEMBLY" ? item.defaultAssembly : item.roles[0] === "DISASSEMBLY" ? item.defaultDisassembly : item.defaultOperator),
+              )}
+            />
+            <Field
+              label="Motivo del pago especial"
+              name="paymentReason"
+              defaultValue="Acuerdo especial para este Evento"
+            />
+            <div className="flex flex-wrap gap-2 sm:col-span-2">
+              <Button aria-busy={pending} disabled={pending}>
+                {pending ? "Guardando…" : "Guardar pago"}
+              </Button>
+              <button
+                className="rounded-lg border px-3 py-2 text-sm font-semibold"
+                disabled={pending}
+                formAction={(data) => onSubmit(data, "reset")}
+                type="submit"
+              >
+                Restablecer tarifa
+              </button>
+            </div>
+          </form>
+          <dl className="mt-4 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+            <Money label="Base operador" value={item.defaultOperator} />
+            <Money label="Base montaje" value={item.defaultAssembly} />
+            <Money label="Base desmontaje" value={item.defaultDisassembly} />
+            <Money label="Pago final" value={item.finalAmount} />
+          </dl>
+          {item.overrideOperator !== null || item.overrideAssembly !== null || item.overrideDisassembly !== null ? (
+            <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-brand">Personalizado para este Evento</p>
+          ) : null}
+        </section>
         <section className="mt-6 rounded-xl border p-4">
           <h4 className="font-semibold">Liquidación original</h4>
           <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">

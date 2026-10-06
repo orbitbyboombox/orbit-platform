@@ -192,7 +192,7 @@ export default async function ProjectWorkspacePage({
     client
       .from("event_staff_payments")
       .select(
-        "id,status,tasks,settlement_status,paid_amount,paid_at,sii_receipt_status,original_assembly_payment,original_operator_payment,original_disassembly_payment,automatic_assembly_payment,automatic_operator_payment,automatic_disassembly_payment,assembly_payment,operator_payment,disassembly_payment,transport_bonus,parking_payment,total_internal_payment,block_id,contracted_minutes,event_operational_blocks(name,start_at,end_at),staff(first_name,last_name)",
+        "id,status,tasks,settlement_status,paid_amount,paid_at,sii_receipt_status,original_assembly_payment,original_operator_payment,original_disassembly_payment,automatic_assembly_payment,automatic_operator_payment,automatic_disassembly_payment,override_assembly_payment,override_operator_payment,override_disassembly_payment,assembly_payment,operator_payment,disassembly_payment,transport_bonus,parking_payment,total_internal_payment,block_id,contracted_minutes,event_operational_blocks(name,start_at,end_at),staff(first_name,last_name)",
       )
       .eq("project_id", projectId)
       .is("deleted_at", null),
@@ -1394,6 +1394,12 @@ export default async function ProjectWorkspacePage({
             // The settlement row is the canonical event+staff financial
             // projection. Component amounts remain for the breakdown, but
             // never derive the event total from an assignment-specific value.
+            defaultOperator = Number(item.automatic_operator_payment ?? item.operator_payment ?? 0),
+            defaultAssembly = Number(item.automatic_assembly_payment ?? item.assembly_payment ?? 0),
+            defaultDisassembly = Number(item.automatic_disassembly_payment ?? item.disassembly_payment ?? 0),
+            finalOperator = Number(item.override_operator_payment ?? item.operator_payment ?? 0),
+            finalAssembly = Number(item.override_assembly_payment ?? item.assembly_payment ?? 0),
+            finalDisassembly = Number(item.override_disassembly_payment ?? item.disassembly_payment ?? 0),
             originalNet = Number(item.total_internal_payment),
             adjustmentTotal = adjustments.reduce(
               (sum, value) => sum + Number(value.amount),
@@ -1403,7 +1409,7 @@ export default async function ProjectWorkspacePage({
               (sum, value) => sum + Number(value.total),
               0,
             ),
-            finalAmount = originalNet + adjustmentTotal + reimbursementTotal,
+            finalAmount = finalOperator + finalAssembly + finalDisassembly + Number(item.transport_bonus ?? 0) + Number(item.parking_payment ?? 0) + adjustmentTotal + reimbursementTotal,
             paid = Number(item.paid_amount);
           return {
             id: item.id,
@@ -1411,6 +1417,12 @@ export default async function ProjectWorkspacePage({
               ? `${item.staff[0]?.first_name ?? ""} ${item.staff[0]?.last_name ?? ""}`.trim()
               : "Staff",
             roles: item.tasks ?? [],
+            defaultOperator,
+            defaultAssembly,
+            defaultDisassembly,
+            overrideOperator: item.override_operator_payment == null ? null : Number(item.override_operator_payment),
+            overrideAssembly: item.override_assembly_payment == null ? null : Number(item.override_assembly_payment),
+            overrideDisassembly: item.override_disassembly_payment == null ? null : Number(item.override_disassembly_payment),
             originalOperator,
             originalAssembly,
             originalDisassembly,
