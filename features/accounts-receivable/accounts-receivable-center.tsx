@@ -81,6 +81,11 @@ const priorityMeta = {
 function isCompanyCreditCategory(invoice: ReceivableInvoice): boolean {
   return isCompanyCreditPaymentCategory(invoice.paymentCategory);
 }
+function isCompletedCompanyReceivable(invoice: ReceivableInvoice): boolean {
+  const eventDate = invoice.eventDate?.slice(0, 10) ?? "";
+  const isCompany = invoice.customerType === "CORPORATE" || Boolean(invoice.customerCompany?.trim());
+  return isCompany && Boolean(eventDate) && eventDate <= new Date().toISOString().slice(0, 10);
+}
 function isCreditCategory(invoice: ReceivableInvoice): boolean {
   return (
     isCompanyCreditCategory(invoice) ||
@@ -245,10 +250,12 @@ export function AccountsReceivableCenter({
   dataset,
   bankDetails,
   initialInvoiceId,
+  initialCategory,
 }: {
   dataset: ReceivableDataset;
   bankDetails: CollectionBankDetails;
   initialInvoiceId?: string;
+  initialCategory?: string;
 }) {
   type KpiFilter =
     | "ALL"
@@ -309,7 +316,7 @@ export function AccountsReceivableCenter({
             invoice.outstandingBalance > 0) ||
           (kpi === "CREDIT_ORDINARY" &&
             invoice.paymentCategory === "ORDENARIO_50") ||
-          (kpi === "CREDIT_COMPANY" && isCompanyCreditCategory(invoice)) ||
+          (kpi === "CREDIT_COMPANY" && isCompletedCompanyReceivable(invoice)) ||
           (kpi === "CREDIT_REVIEW" &&
             invoice.paymentCategory === "REQUIERE_REVISIÓN") ||
           (kpi === "HIGH_RISK" && r === "HIGH");
@@ -331,6 +338,13 @@ export function AccountsReceivableCenter({
           (collector === "ALL" || invoice.collectorName === collector) &&
           matchesKpi
         );
+      }).sort((a, b) => {
+        const aPaid = a.status === "PAID" || a.outstandingBalance <= 0;
+        const bPaid = b.status === "PAID" || b.outstandingBalance <= 0;
+        if (aPaid !== bPaid) return aPaid ? 1 : -1;
+        const aDate = a.eventDate ?? a.dueDate ?? a.issueDate ?? "";
+        const bDate = b.eventDate ?? b.dueDate ?? b.issueDate ?? "";
+        return aPaid ? bDate.localeCompare(aDate) : aDate.localeCompare(bDate);
       }),
     [
       amount,
@@ -346,6 +360,12 @@ export function AccountsReceivableCenter({
       typeFilter,
     ],
   );
+  useEffect(() => {
+    if (initialCategory !== "company-credit" || initialInvoiceId) return;
+    setView("ACTIVE");
+    setKpi("CREDIT_COMPANY");
+    setStatus("ALL");
+  }, [initialCategory, initialInvoiceId]);
   useEffect(() => {
     if (!initialInvoiceId) return;
     const active = dataset.invoices.find((item) => item.id === initialInvoiceId);
