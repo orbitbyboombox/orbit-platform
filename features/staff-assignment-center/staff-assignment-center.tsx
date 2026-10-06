@@ -488,8 +488,9 @@ export function StaffAssignmentCenter({
                   className="mt-3 text-xs font-semibold text-brand"
                   onClick={() => setSettlement(item)}
                 >
-                  Gestionar pago y cierre financiero
-                </button>
+                 Gestionar pago y cierre financiero
+               </button>
+                {item.settlementStatus === "PAID" || item.settlementStatus === "FINALIZED" || item.paid > 0 ? <p className="mt-2 text-xs font-semibold text-muted">PAGO BLOQUEADO · ya liquidado</p> : <button type="button" className="mt-3 inline-flex min-h-10 rounded-xl bg-brand px-3 text-xs font-bold text-brand-foreground" onClick={() => setSettlement(item)}>EDITAR PAGO</button>}
               </article>
             ))}
           </div>

@@ -12,8 +12,8 @@ export default async function BoxesPage() {
   if (!auth.user) redirect("/login");
   const [boxes, eventsResult] = await Promise.all([
     loadBoxes(client),
-    client.from("projects").select("id,name,event_date,event_time,event_time_mode").is("deleted_at", null).gte("event_date", today()).lte("event_date", addDays(today(), 90)).order("event_date").order("event_time").limit(100),
+    client.from("projects").select("id,name,event_date,event_time,event_time_mode,project_services(service_code)").is("deleted_at", null).gte("event_date", today()).lte("event_date", addDays(today(), 90)).order("event_date").order("event_time").limit(100),
   ]);
   if (eventsResult.error) throw eventsResult.error;
-  return <main>{/* Cajas Negras · Master Admin */}<BlackBoxMaster initialBoxes={boxes} events={(eventsResult.data ?? []).map((event) => ({ id: event.id, name: event.name, date: event.event_date, time: event.event_time }))} /></main>;
+  return <main>{/* Cajas Negras · Master Admin */}<BlackBoxMaster initialBoxes={boxes} events={(eventsResult.data ?? []).map((event) => ({ id: event.id, name: event.name, date: event.event_date, time: event.event_time, service: Array.isArray(event.project_services) ? event.project_services.map((item) => item.service_code).filter(Boolean).join(" + ") : "" }))} /></main>;
 }

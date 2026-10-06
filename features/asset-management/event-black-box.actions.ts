@@ -63,6 +63,16 @@ export async function assignBlackBoxToEventAction(input: { projectId: string; as
   }
 }
 
+export async function getBlackBoxAvailabilityForEventAction(projectId: string) {
+  try {
+    const result = await loadEventBlackBoxOperationsAction(projectId);
+    if (!result.ok) return { ok: false as const, error: result.message };
+    return { ok: true as const, assets: result.assets, assignment: result.assignment };
+  } catch (error) {
+    return { ok: false as const, error: errorMessage(error, "No fue posible consultar la disponibilidad.") };
+  }
+}
+
 export async function removeBlackBoxFromEventAction(input: { projectId: string; reason: string }): Promise<Result> {
   try {
     const client = await adminClient();
