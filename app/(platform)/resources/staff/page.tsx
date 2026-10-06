@@ -184,7 +184,7 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
     client
       .from("event_staff_payments")
       .select(
-        "id,staff_id,tasks,total_internal_payment,original_operator_payment,original_assembly_payment,original_disassembly_payment,automatic_operator_payment,automatic_assembly_payment,automatic_disassembly_payment,operator_payment,assembly_payment,disassembly_payment,override_reason,status,settlement_status,paid_amount,paid_at,accounting_month,sii_receipt_status,projects!inner(id,name,event_date,project_type,customer_id,customers!projects_customer_id_fkey(full_name),project_services(service_code,duration_hours))",
+        "id,staff_id,tasks,total_internal_payment,original_operator_payment,original_assembly_payment,original_disassembly_payment,automatic_operator_payment,automatic_assembly_payment,automatic_disassembly_payment,operator_payment,assembly_payment,disassembly_payment,override_reason,status,settlement_status,paid_amount,paid_at,accounting_month,sii_receipt_status,block_id,event_operational_blocks(name,start_at,end_at),projects!inner(id,name,event_date,event_time,project_type,customer_id,customers!projects_customer_id_fkey(full_name),project_services(service_code,duration_hours))",
       )
       .is("deleted_at", null)
       .eq("status", "CONFIRMED")
@@ -485,6 +485,7 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
           projectId: project.id,
           eventName: project.name,
           eventDate: project.event_date,
+          eventTime: project.event_time ?? "",
           accountingMonth: row.accounting_month,
           customer: customer?.full_name ?? "Sin cliente",
           service: service?.service_code ?? project.project_type,
@@ -508,6 +509,9 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
           paidAmount: Number(row.paid_amount),
           paidAt: row.paid_at ?? "",
           receiptStatus: row.sii_receipt_status,
+          blockName: Array.isArray(row.event_operational_blocks) ? row.event_operational_blocks[0]?.name ?? "" : row.event_operational_blocks?.name ?? "",
+          blockStartAt: Array.isArray(row.event_operational_blocks) ? row.event_operational_blocks[0]?.start_at ?? "" : row.event_operational_blocks?.start_at ?? "",
+          blockEndAt: Array.isArray(row.event_operational_blocks) ? row.event_operational_blocks[0]?.end_at ?? "" : row.event_operational_blocks?.end_at ?? "",
         },
       ];
     },

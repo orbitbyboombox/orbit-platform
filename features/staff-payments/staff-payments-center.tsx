@@ -21,6 +21,7 @@ export type StaffPaymentEvent = {
   projectId: string;
   eventName: string;
   eventDate: string;
+  eventTime: string;
   accountingMonth: string;
   customer: string;
   service: string;
@@ -44,6 +45,9 @@ export type StaffPaymentEvent = {
   paidAmount: number;
   paidAt: string;
   receiptStatus: string;
+  blockName: string;
+  blockStartAt: string;
+  blockEndAt: string;
 };
 export type StaffPaymentMonth = {
   id: string;
@@ -498,7 +502,7 @@ export function StaffPaymentsCenter({
                   onBack={() => setOpenStaffId(null)}
                 />
               )}
-              {row.eventRows.map((item) => (
+              {[...row.eventRows].sort((a,b) => a.eventDate.localeCompare(b.eventDate) || a.eventTime.localeCompare(b.eventTime) || a.id.localeCompare(b.id)).map((item) => (
                 <EventRow item={item} key={item.id} />
               ))}
             </div>
@@ -926,8 +930,8 @@ function EventRow({ item }: { item: StaffPaymentEvent }) {
             {item.eventDate} · {item.customer}
           </p>
           <p className="mt-1 text-xs text-muted">
-            {item.service} · {item.durationHours} horas ·{" "}
-            {item.roles.map(roleLabel).join(" + ")}
+            {item.service} · {item.durationHours} horas · {item.roles.map(roleLabel).join(" + ")}
+            {item.blockName ? ` · ${item.blockName}${item.blockStartAt && item.blockEndAt ? ` · ${item.blockStartAt.slice(11,16)}–${item.blockEndAt.slice(11,16)}` : ""}` : ""}
           </p>
         </div>
         <StatusBadge
