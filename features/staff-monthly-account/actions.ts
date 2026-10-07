@@ -33,6 +33,16 @@ const fileFrom = (form: Pick<FormData, "get">) => {
     throw new Error("Archivo inválido o superior a 15 MB.");
   return { file, mime };
 };
+const safeStorageFileName = (fileName: string, fallback = "comprobante") => {
+  const normalized = fileName
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 140);
+  return normalized || fallback;
+};
 const optionalFileFrom = (form: Pick<FormData, "get">, field: string) => {
   const file = form.get(field);
   if (!(file instanceof File) || !file.size) return null;
@@ -561,7 +571,7 @@ export async function registerStaffAdvanceAction(form: FormData) {
         ].join("|"),
       )
       .digest("hex");
-    const receiptPath = `staff/advances/${staffId}/${projectId}/${idempotencyKey}/${receipt.file.name}`;
+    const receiptPath = `staff/advances/${staffId}/${projectId}/${idempotencyKey}/${safeStorageFileName(receipt.file.name)}`;
     const receiptUpload = await admin.storage
       .from("orbit-documents")
       .upload(receiptPath, await receipt.file.arrayBuffer(), {
@@ -572,7 +582,7 @@ export async function registerStaffAdvanceAction(form: FormData) {
     uploaded.push(receiptPath);
     let boletaPath: string | null = null;
     if (boleta) {
-      boletaPath = `staff/advances/${staffId}/${projectId}/${idempotencyKey}/boleta-${boleta.file.name}`;
+      boletaPath = `staff/advances/${staffId}/${projectId}/${idempotencyKey}/boleta-${safeStorageFileName(boleta.file.name, "boleta")}`;
       const boletaUpload = await admin.storage
         .from("orbit-documents")
         .upload(boletaPath, await boleta.file.arrayBuffer(), {
