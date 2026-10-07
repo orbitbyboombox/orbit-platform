@@ -146,9 +146,9 @@ export async function saveStaffAssignmentAction(
         ? calculateStaffCallAt(chileLocalToIso(`${ctx.project.event_date}T${eventStart}:00`))
         : null;
     const automaticFinish = clock(eventStart, duration * 60);
-    if (input.role !== "OPERATOR" && (!value(input.startTime) || !value(input.finishTime))) {
-      throw new Error(`Ingresa el horario propio de ${input.role === "ASSEMBLY" ? "Montaje" : "Desmontaje"}.`);
-    }
+    // The dialog deliberately supports an empty start/end pair: in that case
+    // the event window is the documented fallback. Manual Montage/Disassembly
+    // times still win when supplied by the Founder.
     const payload = {
       project_id: input.projectId,
       block_id: input.blockId || null,
@@ -203,6 +203,14 @@ export async function saveStaffAssignmentAction(
     revalidatePath("/notifications");
     return { ok: true };
   } catch (error) {
+    console.error("[ORBIT][STAFF_ASSIGNMENT_SAVE]", {
+      projectId: input.projectId,
+      assignmentId: input.id ?? null,
+      role: input.role,
+      staffId: input.staffId,
+      code: typeof error === "object" && error && "code" in error ? String(error.code) : null,
+      message: error instanceof Error ? error.message : String(error),
+    });
     return {
       ok: false,
       error: friendly(error, "No fue posible guardar la asignación."),
