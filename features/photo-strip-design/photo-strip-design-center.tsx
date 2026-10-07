@@ -63,7 +63,7 @@ export function PhotoStripDesignCenter({ projectId, documents }: { projectId: st
 
   return <section className="rounded-2xl border border-brand/25 bg-brand/5 p-4 sm:p-5" data-photo-strip-design-center>
     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-      <div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Archivo operacional</p><h3 className="mt-1 text-lg font-semibold">DISEÑO TIRA DE FOTOS</h3><p className="mt-1 text-sm text-muted">Versión canónica del arte que verá el cliente en su Portal.</p></div>
+      <div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Archivo operacional</p><h3 className="mt-1 text-lg font-semibold">DISEÑO / IMPRESIÓN</h3><p className="mt-1 text-sm text-muted">Versión canónica del arte de impresión que verá el cliente en su Portal.</p></div>
       <StatusBadge label={statusLabel} variant={statusVariant}/>
     </div>
     {current ? <div className="mt-5 grid min-w-0 gap-4 rounded-2xl border bg-card p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">

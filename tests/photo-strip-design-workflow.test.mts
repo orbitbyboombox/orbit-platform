@@ -18,7 +18,8 @@ const documentHub = source("features/external-tax-documents/event-commercial-doc
 
 test("eligible Classic Event requires the Photo Strip Design section", () => {
   assert.equal(requiresPhotoStripDesign(["CLASSIC"]), true);
-  assert.match(founderUi, /DISEÑO TIRA DE FOTOS/);
+  assert.equal(requiresPhotoStripDesign(["BLACK_STUDIO"]), true);
+  assert.match(founderUi, /DISEÑO \/ IMPRESIÓN/);
 });
 
 test("unrelated services do not inherit the requirement", () => {
