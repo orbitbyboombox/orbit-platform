@@ -33,6 +33,7 @@ import {mapStaffMonthlyAccount,STAFF_MONTHLY_ACCOUNT_SELECT} from "@/features/st
 import { chileDateTime } from "@/features/operations/event-operational-window";
 import { buildCanonicalOrbitEventState } from "@/features/operations/canonical-orbit-event-state";
 import { StaffFinancialActions, type StaffReimbursementPaymentItem } from "@/features/staff-payments/staff-financial-actions";
+import type { StaffReimbursementDetail } from "@/features/staff-payments/staff-payments-center";
 import type { StaffExpenseReviewItem } from "@/features/staff-expenses/staff-expense-review";
 
 export default async function StaffManagementPage({searchParams}:{searchParams:Promise<{reviewOnboarding?:string;reviewAccount?:string;reviewExpense?:string;view?:string}>}) {
@@ -135,10 +136,9 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
       .select(
         "id,staff_id,project_id,document_id,category,amount,occurred_on,payment_method,description,notes,receipt_path,status,reimbursement,submitted_at,rejection_reason,materialized_expense_id,staff(first_name,last_name),projects(name,orbit_event_id)",
       )
-      .not("document_id", "is", null)
       .order("submitted_at", { ascending: false }),
     client.from("staff_monthly_accounts").select(STAFF_MONTHLY_ACCOUNT_SELECT).order("accounting_month",{ascending:false}),
-    client.from("staff_reimbursement_payments").select("expense_id,staff_expense_submission_id,settlement_id,amount"),
+    client.from("staff_reimbursement_payments").select("id,expense_id,staff_expense_submission_id,settlement_id,amount,paid_on,receipt_document_id"),
   ]);
   if (staffError) throw staffError;
   if (assignmentError) throw assignmentError;
@@ -697,6 +697,24 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
         receiptPath: item.receipt_path,
       };
     });
+  const adminReimbursements: StaffReimbursementDetail[] = (staffExpenseDocuments ?? [])
+    .filter((item) => item.reimbursement === true)
+    .map((item) => {
+      const project = Array.isArray(item.projects) ? item.projects[0] : item.projects;
+      const payment = (reimbursementPayments ?? []).find((row) => row.expense_id === item.materialized_expense_id);
+      return {
+        id: item.id,
+        staffId: item.staff_id,
+        occurredOn: item.occurred_on,
+        eventName: project?.name ?? "Evento",
+        projectId: item.project_id,
+        category: item.category,
+        description: item.description ?? item.notes ?? "",
+        amount: Number(item.amount),
+        status: payment ? "PAGADO" : item.status === "APPROVED" ? "PENDIENTE" : item.status,
+        receiptDocumentId: payment?.receipt_document_id ?? item.document_id ?? null,
+      };
+    });
   const onboardingInvitations: StaffOnboardingInvitation[] = (
     onboarding ?? []
   ).map((item) => ({
@@ -837,6 +855,7 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
           staff={paymentStaff}
           events={paymentEvents}
           months={monthlyRecords}
+          reimbursements={adminReimbursements}
           initialReviewAccountId={reviewAccount}
         />
       }

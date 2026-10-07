@@ -61,6 +61,18 @@ export type StaffPaymentMonth = {
   account?: import("@/features/staff-monthly-account/model").StaffMonthlyAccount;
 };
 export type StaffPaymentMember = { id: string; name: string; rut: string };
+export type StaffReimbursementDetail = {
+  id: string;
+  staffId: string;
+  occurredOn: string;
+  eventName: string;
+  projectId: string;
+  category: string;
+  description: string;
+  amount: number;
+  status: string;
+  receiptDocumentId: string | null;
+};
 const money = new Intl.NumberFormat("es-CL", {
   style: "currency",
   currency: "CLP",
@@ -92,15 +104,79 @@ const paymentLabel = (account: StaffMonthlyAccount) =>
       ? "PENDIENTE"
       : "BLOQUEADO";
 
+function AdminFinanceSummary({
+  row,
+  reimbursements,
+}: {
+  row: {
+    eventRows: StaffPaymentEvent[];
+    reimbursementsPending: number;
+    reimbursementsPaid: number;
+    payrollNet: number;
+    payrollPaid: number;
+    outstanding: number;
+    account?: StaffPaymentMonth["account"];
+  };
+  reimbursements: StaffReimbursementDetail[];
+}) {
+  const upcoming = row.eventRows.filter((item) => !["COMPLETED", "PAID", "FINISHED", "CLOSED"].includes(item.status));
+  const upcomingTotal = upcoming.reduce((sum, item) => sum + item.finalAmount, 0);
+  const honorariaPending = Math.max(row.outstanding - row.reimbursementsPending, 0);
+  const paid = row.payrollPaid;
+  const reimbursementPendingRows = reimbursements.filter((item) => item.status === "PENDIENTE");
+  const reimbursementPaidRows = reimbursements.filter((item) => item.status === "PAGADO");
+  const pendingSum = reimbursementPendingRows.reduce((sum, item) => sum + item.amount, 0);
+  const paidSum = reimbursementPaidRows.reduce((sum, item) => sum + item.amount, 0);
+  const pendingMismatch = pendingSum !== row.reimbursementsPending;
+  const paidMismatch = paidSum !== row.reimbursementsPaid;
+  return (
+    <section className="space-y-2 rounded-2xl border border-brand/25 bg-brand/5 p-4" aria-label="Resumen financiero canónico">
+      <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">TOTAL A TRANSFERIR AHORA</p>
+      <p className="text-3xl font-bold tabular-nums text-brand">{money(honorariaPending + row.reimbursementsPending)}</p>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <Metric label="Honorarios pendientes" value={honorariaPending} />
+        <Metric label="Próximos trabajos" value={upcomingTotal} />
+        <Metric label="Reembolsos pendientes" value={row.reimbursementsPending} />
+        <Metric label="Pagado" value={paid} />
+      </div>
+      <details className="rounded-xl border bg-background">
+        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+          <span>PRÓXIMOS TRABAJOS</span><span>{money(upcomingTotal)} ›</span>
+        </summary>
+        <div className="space-y-2 border-t p-3 text-sm">
+          {upcoming.map((item) => <div className="flex justify-between gap-3" key={item.id}><span>{item.eventName} · {item.roles.map(roleLabel).join(" + ")}</span><strong>{money(item.finalAmount)}</strong></div>)}
+          {!upcoming.length ? <p className="text-muted">Sin próximos trabajos.</p> : null}
+        </div>
+      </details>
+      <details className="rounded-xl border bg-background">
+        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-3 text-sm font-semibold [&::-webkit-details-marker]:hidden"><span>HISTORIAL PAGADO</span><span>{money(paid)} ›</span></summary>
+        <div className="border-t p-3 text-sm">{paid ? `Honorarios pagados: ${money(paid)}` : "Sin pagos registrados."}</div>
+      </details>
+      <details className="rounded-xl border bg-background">
+        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-3 text-sm font-semibold [&::-webkit-details-marker]:hidden"><span>REEMBOLSOS</span><span>{money(row.reimbursementsPending)} ›</span></summary>
+        <div className="space-y-2 border-t p-3 text-sm">
+          {reimbursements.map((item) => <div className="rounded-lg border p-3" key={item.id}><div className="flex justify-between gap-3"><span>{item.occurredOn} · {item.eventName}</span><strong>{money(item.amount)}</strong></div><p className="text-muted">{item.category}{item.description ? ` · ${item.description}` : ""}</p><p className="text-xs">Estado: {item.status}{item.receiptDocumentId ? " · Comprobante disponible" : " · Sin comprobante"}</p></div>)}
+          {!reimbursements.length ? <p className="text-muted">Sin reembolsos registrados.</p> : null}
+          {pendingMismatch || paidMismatch ? <p className="text-sm font-semibold text-amber-300">Inconsistencia: el total no coincide con los registros visibles.</p> : null}
+        </div>
+      </details>
+      <details className="rounded-xl border bg-background"><summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-3 text-sm font-semibold [&::-webkit-details-marker]:hidden"><span>CIERRE MENSUAL</span><span>{money(row.account?.finalTransferAmount ?? 0)} ›</span></summary><div className="border-t p-3 text-sm text-muted">Detalle disponible en la liquidación mensual.</div></details>
+      <details className="rounded-xl border bg-background"><summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-3 text-sm font-semibold [&::-webkit-details-marker]:hidden"><span>DATOS / BOLETA</span><span>›</span></summary><div className="border-t p-3 text-sm text-muted">Datos disponibles en el cierre mensual.</div></details>
+    </section>
+  );
+}
+
 export function StaffPaymentsCenter({
   staff,
   events,
   months,
+  reimbursements,
   initialReviewAccountId,
 }: {
   staff: StaffPaymentMember[];
   events: StaffPaymentEvent[];
   months: StaffPaymentMonth[];
+  reimbursements: StaffReimbursementDetail[];
   initialReviewAccountId?: string;
 }) {
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
@@ -449,52 +525,16 @@ export function StaffPaymentsCenter({
                   }
                 />
               </div>
-              <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                <Metric label="Neto original" value={row.original} />
-                <Metric label="Ajustes" value={row.adjustments} />
-                <Metric
-                  label="Reembolsos aprobados"
-                  value={row.reimbursements}
-                />
-                <Metric
-                  label="Reembolsos pagados"
-                  value={row.reimbursementsPaid}
-                />
-                <Metric
-                  label="Reembolsos pendientes"
-                  value={row.reimbursementsPending}
-                />
-                <Metric label="Monto final" value={row.finalAmount} />
-                <Metric label="Ya pagado" value={row.paid} />
-                <Metric label="Saldo pendiente" value={row.outstanding} />
-                <Metric
-                  label="Boleta SII"
-                  value={row.account?.boletaGross ?? 0}
-                />
-                <Metric
-                  label="Boletas pendientes"
-                  value={
-                    row.eventRows.filter((x) => x.receiptStatus !== "RECEIVED")
-                      .length
-                  }
-                />
-                <Metric
-                  label="Boletas recibidas"
-                  value={
-                    row.eventRows.filter((x) => x.receiptStatus === "RECEIVED")
-                      .length
-                  }
-                />
-                <Metric
-                  label="Eventos trabajados"
-                  value={row.eventRows.length}
-                />
-              </dl>
+              <p className="mt-4 text-xs text-muted">Abre el colaborador para ver el resumen financiero canónico y el detalle trazable.</p>
               <p className="mt-3 text-xs font-semibold text-brand">
                 Ver liquidación
               </p>
             </summary>
             <div className="mt-4 space-y-3">
+              <AdminFinanceSummary
+                row={row}
+                reimbursements={reimbursements.filter((item) => item.staffId === row.member.id)}
+              />
               {row.account && (
                 <StaffMonthlyAccountPanel
                   account={row.account}
