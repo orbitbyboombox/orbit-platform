@@ -1687,6 +1687,7 @@ export function ProjectWorkspaceExperience(
                 quotationId={props.commercialHub.quotation?.id}
                 projectId={props.projectKey ?? ""}
                 status={props.signing.status}
+                documents={event.documents}
               />
             </div>
           )}

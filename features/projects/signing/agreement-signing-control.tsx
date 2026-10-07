@@ -24,7 +24,29 @@ type SendState =
   | { status: "success"; message: string; cc: string[] }
   | { status: "error"; message: string };
 
-export function AgreementSigningControl({ agreementId, quotationId, projectId, status }: { agreementId?: string; quotationId?: string; projectId: string; status: string }) {
+type CommercialDocumentVersion = {
+  id: string;
+  type: string;
+  href?: string;
+  createdAt: string;
+  version?: number;
+  isCurrent?: boolean;
+  total?: number;
+};
+
+type RegeneratedDocument = {
+  documentId: string;
+  version: number;
+  filename: string;
+  serviceSubtotal: number;
+  extras: number;
+  transport: number;
+  net: number;
+  tax: number;
+  total: number;
+};
+
+export function AgreementSigningControl({ agreementId, quotationId, projectId, status, documents = [] }: { agreementId?: string; quotationId?: string; projectId: string; status: string; documents?: readonly CommercialDocumentVersion[] }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [sending, startSending] = useTransition();
@@ -41,6 +63,7 @@ export function AgreementSigningControl({ agreementId, quotationId, projectId, s
   const [requestId, setRequestId] = useState("");
   const [sendState, setSendState] = useState<SendState>({ status: "idle" });
   const [regenerating, setRegenerating] = useState(false);
+  const [regeneratedDocument, setRegeneratedDocument] = useState<RegeneratedDocument | null>(null);
   const signed = status === "SIGNED";
 
   const refreshCommunication = (openComposer = false) => startSending(async () => {
@@ -109,11 +132,22 @@ export function AgreementSigningControl({ agreementId, quotationId, projectId, s
     if (!agreementId || !quotationId || regenerating || !window.confirm("Se generará una nueva versión del documento comercial. La versión anterior se conservará en el historial y no se enviará ningún correo.")) return;
     setRegenerating(true);
     void regenerateCommercialDocumentAction({ projectId, quotationId, agreementId }).then((result) => {
-      setMessage(result.ok ? `Documento corregido generado · versión ${result.version}.` : result.error);
+      if (result.ok) {
+        setRegeneratedDocument(result);
+        setMessage(`Documento regenerado correctamente · versión V${result.version} · ${money(result.total)}.`);
+        router.refresh();
+      } else {
+        setRegeneratedDocument(null);
+        setMessage(`NO FUE POSIBLE REGENERAR EL DOCUMENTO. ${result.error}`);
+      }
       setRegenerating(false);
-      if (result.ok) void refreshCommunication();
     });
   };
+  const commercialDocuments = documents.filter((document) => document.type === "COMMERCIAL_DOCUMENT");
+  const currentDocument = regeneratedDocument
+    ? { id: regeneratedDocument.documentId, version: regeneratedDocument.version, total: regeneratedDocument.total, href: `/api/projects/${projectId}/documents/${regeneratedDocument.documentId}` }
+    : commercialDocuments.find((document) => document.isCurrent) ?? commercialDocuments[0];
+  const historicalDocuments = commercialDocuments.filter((document) => document.id !== currentDocument?.id).sort((a, b) => Number(b.version ?? 0) - Number(a.version ?? 0));
   const statusVariant = composer?.status === "SENT" ? "success" : composer?.status === "FAILED" ? "danger" : "warning";
   const actionLabel = composer?.hasSuccessfulSend ? "REENVIAR CONFIRMACIÓN" : "ENVIAR CONFIRMACIÓN";
   const previewHtml = composer
@@ -129,6 +163,9 @@ export function AgreementSigningControl({ agreementId, quotationId, projectId, s
   return <div className="space-y-5">
     <section className="rounded-2xl border bg-card p-5 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-3"><FileSignature className="size-5 text-brand"/><div><h2 className="font-semibold">Documento oficial</h2><p className="mt-1 text-sm text-muted">Portal y documentos se sincronizan sin enviar correos al cliente.</p></div></div><StatusBadge label={signed ? "Firmado y bloqueado" : agreementId ? "Documento disponible" : "Acuerdo pendiente"} variant={signed ? "success" : agreementId ? "info" : "warning"}/></div>
+      {currentDocument ? <div className="mt-4 rounded-xl border border-brand/30 bg-brand/5 p-4"><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">DOCUMENTO VIGENTE</p><div className="mt-1 flex flex-wrap items-center justify-between gap-3"><p className="font-semibold">V{currentDocument.version ?? 1} · {money(Number(currentDocument.total ?? 0))}</p>{currentDocument.href ? <a className="min-h-10 rounded-lg border border-brand px-3 py-2 text-sm font-semibold text-brand" href={currentDocument.href} rel="noreferrer" target="_blank">ABRIR</a> : null}</div></div> : null}
+      {historicalDocuments.length ? <details className="mt-3 rounded-xl border p-4"><summary className="cursor-pointer text-sm font-semibold">HISTORIAL DE VERSIONES · {historicalDocuments.length}</summary><div className="mt-3 space-y-2">{historicalDocuments.map((document) => <div className="flex flex-wrap items-center justify-between gap-3 text-sm" key={document.id}><span>V{document.version ?? 1} · {money(Number(document.total ?? 0))}</span>{document.href ? <a className="min-h-9 rounded-lg border px-3 py-1.5 text-xs font-semibold" href={document.href} rel="noreferrer" target="_blank">ABRIR</a> : null}</div>)}</div></details> : null}
+      {regeneratedDocument ? <div aria-live="polite" className="mt-3 rounded-xl border border-emerald-400/40 bg-emerald-50/10 p-4 text-sm"><p className="font-semibold text-emerald-300">Documento regenerado correctamente</p><p className="mt-1">Versión: V{regeneratedDocument.version} · Total: {money(regeneratedDocument.total)}</p><p className="mt-1 text-xs text-muted">Neto {money(regeneratedDocument.net)} · IVA {money(regeneratedDocument.tax)}</p><a className="mt-3 inline-flex min-h-10 items-center rounded-lg border border-emerald-400/50 px-3 py-2 text-sm font-semibold text-emerald-300" href={`/api/projects/${projectId}/documents/${regeneratedDocument.documentId}`} rel="noreferrer" target="_blank">ABRIR NUEVO DOCUMENTO</a></div> : null}
       {!signed && agreementId ? <ActionButton className="mt-5" aria-busy={pending} disabled={pending} label={pending ? "Preparando…" : "Preparar enlace de firma"} onClick={create}/> : null}
       {status === "COMMERCIAL_DOCUMENT" && agreementId && quotationId ? <ActionButton className="mt-3" disabled={regenerating || sending} label={regenerating ? "Regenerando…" : "Regenerar documento corregido"} onClick={regenerate} variant="outline"/> : null}
       {url ? <div className="mt-5 rounded-xl border border-emerald-300/50 bg-emerald-50/10 p-4"><p className="text-sm font-semibold">ENLACE DE FIRMA PREPARADO</p><p className="mt-1 break-all text-sm text-muted">{url}</p><div className="mt-3 flex flex-wrap gap-2"><ActionButton icon={Copy} label="Copiar enlace" onClick={() => void navigator.clipboard.writeText(url)} variant="outline"/><ActionButton label="Abrir enlace" onClick={() => window.open(url, "_blank", "noopener,noreferrer")} variant="outline"/></div></div> : null}

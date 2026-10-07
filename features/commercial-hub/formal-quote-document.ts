@@ -19,6 +19,11 @@ export type FormalQuoteDocument = {
   filename: string;
   mimeType: "application/pdf";
   bytes: Uint8Array;
+  serviceSubtotal: number;
+  extras: number;
+  transport: number;
+  net: number;
+  tax: number;
   total: number;
 };
 
@@ -109,7 +114,17 @@ export async function regenerateCommercialDocument(input: { client: SupabaseClie
     await input.client.storage.from("orbit-documents").remove([path]);
     throw error;
   }
-  return { documentId: newId, version: nextVersion, filename: document.filename };
+  return {
+    documentId: newId,
+    version: nextVersion,
+    filename: document.filename,
+    serviceSubtotal: document.serviceSubtotal,
+    extras: document.extras,
+    transport: document.transport,
+    net: document.net,
+    tax: document.tax,
+    total: document.total,
+  };
 }
 
 /**
@@ -222,6 +237,7 @@ export async function loadFormalQuoteDocument(
   if (eventMunicipality) transportParams.set("municipality", eventMunicipality);
   const transportLookupUrl = `${appUrl}/traslados?${transportParams.toString()}`;
 
+  const breakdown = resolveCommercialBreakdown({ snapshot, items: pdfItems });
   const bytes = await createFormalQuotePdf({
     number: quotationNumber,
     issueDate: String(acceptedQuotation.issueDate ?? quote.issue_date),
@@ -237,7 +253,7 @@ export async function loadFormalQuoteDocument(
       quotedPrice: Number(item.quoted_price ?? item.unit_price),
       total: Number(item.total),
     })),
-    ...resolveCommercialBreakdown({ snapshot, items: pdfItems }),
+    ...breakdown,
     paymentCondition:
       snapshot.paymentCondition === "CORPORATE_CREDIT" ||
       snapshot.paymentCondition === "CASH"
@@ -269,7 +285,12 @@ export async function loadFormalQuoteDocument(
     filename: quoteDisplayFilename(quotationNumber),
     mimeType: "application/pdf",
     bytes: new Uint8Array(bytes),
-    total: Number(snapshot.total ?? 0),
+    serviceSubtotal: breakdown.serviceSubtotal,
+    extras: breakdown.extras,
+    transport: breakdown.transport,
+    net: breakdown.net,
+    tax: breakdown.tax,
+    total: breakdown.total,
   };
 }
 
