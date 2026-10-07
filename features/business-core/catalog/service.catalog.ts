@@ -3,7 +3,7 @@ import type { ServiceCatalogItem, ServiceId } from "../types";
 export const SERVICE_CATALOG = [
   { id: "CLASSIC", name: "Classic", requiresPhotoStripDesign: true, duration: { mode: "SELECTABLE", availableHours: [2, 3, 4], shouldRequestDuration: true } },
   { id: "POLAROID", name: "Polaroid", requiresPhotoStripDesign: false, duration: { mode: "SELECTABLE", availableHours: [2, 3, 4], shouldRequestDuration: true } },
-  { id: "BLACK_STUDIO", name: "Black Studio", requiresPhotoStripDesign: false, duration: { mode: "SELECTABLE", availableHours: [2, 3, 4], shouldRequestDuration: true } },
+  { id: "BLACK_STUDIO", name: "Black Studio", requiresPhotoStripDesign: true, duration: { mode: "SELECTABLE", availableHours: [2, 3, 4], shouldRequestDuration: true } },
   { id: "BBOX360", name: "BBOX360", requiresPhotoStripDesign: false, duration: { mode: "SELECTABLE", availableHours: [2, 3, 4], shouldRequestDuration: true } },
   { id: "LIGHTBOX", name: "LightBox", requiresPhotoStripDesign: false, duration: { mode: "FIXED", availableHours: [5], fixedHours: 5, shouldRequestDuration: false } },
   { id: "BOOMBALL", name: "BoomBall", requiresPhotoStripDesign: false, duration: { mode: "SINGLE_SERVICE", availableHours: [], shouldRequestDuration: false } },
