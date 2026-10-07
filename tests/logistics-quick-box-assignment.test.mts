@@ -48,6 +48,22 @@ test("Caja Negra action preserves committed success and exposes real RPC errors"
   assert.match(action, /return \{ ok: true \};/);
 });
 
+test("Event detail provides the canonical box assignment UX and preserves paper semantics", () => {
+  const panel = readFileSync("features/asset-management/event-black-box-panel.tsx", "utf8");
+  const action = readFileSync("features/asset-management/event-black-box.actions.ts", "utf8");
+  assert.match(panel, /CAJA ASIGNADA/);
+  assert.match(panel, /PAPEL DISPONIBLE/);
+  assert.match(panel, /ASIGNAR CAJA AL EVENTO/);
+  assert.match(panel, /CONFIRMAR ASIGNACIÓN/);
+  assert.match(panel, /Papel disponible:/);
+  assert.match(panel, /Cambiar Caja/);
+  assert.match(panel, /Liberar Caja/);
+  assert.match(panel, /blackBoxPhotoStock/);
+  assert.match(action, /event_paper_snapshots/);
+  assert.match(action, /assign_black_box_to_event/);
+  assert.doesNotMatch(panel, /localStorage/);
+});
+
 test("availability uses the canonical two-hour logistics buffer", () => {
   const migration = readFileSync("supabase/migrations/20260927183000_black_box_logistics_buffer.sql", "utf8");
   assert.match(migration, /interval '2 hours'/g);

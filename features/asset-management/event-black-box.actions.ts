@@ -25,11 +25,13 @@ async function adminClient() {
 export async function loadEventBlackBoxOperationsAction(projectId: string) {
   try {
     const client = await adminClient();
-    const [{ data: assignments, error: assignmentError }, { data: assets, error: assetError }, { data: availability, error: availabilityError }] = await Promise.all([
-      client.from("asset_assignments").select("id,asset_id,assignment_status,assigned_at,assigned_by,operational_assets!inner(id,asset_code,status,asset_type)").eq("project_id", projectId).eq("assignment_status", "ASSIGNED").is("deleted_at", null).eq("operational_assets.asset_type", "CASE").in("operational_assets.asset_code", MASTER_CODES).limit(1),
+    const [{ data: project, error: projectError }, { data: assignments, error: assignmentError }, { data: assets, error: assetError }, { data: availability, error: availabilityError }] = await Promise.all([
+      client.from("projects").select("id,name,event_date").eq("id", projectId).single(),
+      client.from("asset_assignments").select("id,asset_id,assignment_status,assigned_at,assigned_by,operational_assets!inner(id,asset_code,status,asset_type,metadata)").eq("project_id", projectId).eq("assignment_status", "ASSIGNED").is("deleted_at", null).eq("operational_assets.asset_type", "CASE").in("operational_assets.asset_code", MASTER_CODES).limit(1),
       client.from("operational_assets").select("id,asset_code,status,metadata").eq("asset_type", "CASE").in("asset_code", MASTER_CODES).is("deleted_at", null).order("asset_code"),
       client.rpc("get_black_box_availability", { p_project_ids: [projectId] }),
     ]);
+    if (projectError) throw projectError;
     if (assignmentError) throw assignmentError;
     if (assetError) throw assetError;
     if (availabilityError) throw availabilityError;
@@ -39,7 +41,7 @@ export async function loadEventBlackBoxOperationsAction(projectId: string) {
       : { data: [], error: null };
     if (snapshotError) throw snapshotError;
     const availabilityByAsset = new Map((availability ?? []).map((item: { asset_id: string; conflicts: boolean }) => [item.asset_id, item.conflicts]));
-    return { ok: true as const, assignment, snapshot: snapshots?.[0] ?? null, assets: (assets ?? []).map((asset) => ({ ...asset, conflicts: Boolean(availabilityByAsset.get(asset.id)) })), };
+    return { ok: true as const, project, assignment, snapshot: snapshots?.[0] ?? null, assets: (assets ?? []).map((asset) => ({ ...asset, conflicts: Boolean(availabilityByAsset.get(asset.id)) })), };
   } catch (error) {
     return { ok: false as const, message: error instanceof Error ? error.message : "No fue posible cargar la Caja Negra del Evento." };
   }
