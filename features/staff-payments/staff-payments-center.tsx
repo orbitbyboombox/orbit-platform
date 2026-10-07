@@ -132,7 +132,7 @@ function AdminFinanceSummary({
   return (
     <section className="space-y-2 rounded-2xl border border-brand/25 bg-brand/5 p-4" aria-label="Resumen financiero canónico">
       <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">TOTAL A TRANSFERIR AHORA</p>
-      <p className="text-3xl font-bold tabular-nums text-brand">{money(honorariaPending + row.reimbursementsPending)}</p>
+      <p className="text-3xl font-bold tabular-nums text-brand">{money.format(honorariaPending + row.reimbursementsPending)}</p>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Metric label="Honorarios pendientes" value={honorariaPending} />
         <Metric label="Próximos trabajos" value={upcomingTotal} />
@@ -141,26 +141,26 @@ function AdminFinanceSummary({
       </div>
       <details className="rounded-xl border bg-background">
         <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
-          <span>PRÓXIMOS TRABAJOS</span><span>{money(upcomingTotal)} ›</span>
+          <span>PRÓXIMOS TRABAJOS</span><span>{money.format(upcomingTotal)} ›</span>
         </summary>
         <div className="space-y-2 border-t p-3 text-sm">
-          {upcoming.map((item) => <div className="flex justify-between gap-3" key={item.id}><span>{item.eventName} · {item.roles.map(roleLabel).join(" + ")}</span><strong>{money(item.finalAmount)}</strong></div>)}
+          {upcoming.map((item) => <div className="flex justify-between gap-3" key={item.id}><span>{item.eventName} · {item.roles.map(roleLabel).join(" + ")}</span><strong>{money.format(item.finalAmount)}</strong></div>)}
           {!upcoming.length ? <p className="text-muted">Sin próximos trabajos.</p> : null}
         </div>
       </details>
       <details className="rounded-xl border bg-background">
-        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-3 text-sm font-semibold [&::-webkit-details-marker]:hidden"><span>HISTORIAL PAGADO</span><span>{money(paid)} ›</span></summary>
-        <div className="border-t p-3 text-sm">{paid ? `Honorarios pagados: ${money(paid)}` : "Sin pagos registrados."}</div>
+        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-3 text-sm font-semibold [&::-webkit-details-marker]:hidden"><span>HISTORIAL PAGADO</span><span>{money.format(paid)} ›</span></summary>
+        <div className="border-t p-3 text-sm">{paid ? `Honorarios pagados: ${money.format(paid)}` : "Sin pagos registrados."}</div>
       </details>
       <details className="rounded-xl border bg-background">
-        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-3 text-sm font-semibold [&::-webkit-details-marker]:hidden"><span>REEMBOLSOS</span><span>{money(row.reimbursementsPending)} ›</span></summary>
+        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-3 text-sm font-semibold [&::-webkit-details-marker]:hidden"><span>REEMBOLSOS</span><span>{money.format(row.reimbursementsPending)} ›</span></summary>
         <div className="space-y-2 border-t p-3 text-sm">
-          {reimbursements.map((item) => <div className="rounded-lg border p-3" key={item.id}><div className="flex justify-between gap-3"><span>{item.occurredOn} · {item.eventName}</span><strong>{money(item.amount)}</strong></div><p className="text-muted">{item.category}{item.description ? ` · ${item.description}` : ""}</p><p className="text-xs">Estado: {item.status}{item.receiptDocumentId ? " · Comprobante disponible" : " · Sin comprobante"}</p></div>)}
+          {reimbursements.map((item) => <div className="rounded-lg border p-3" key={item.id}><div className="flex justify-between gap-3"><span>{item.occurredOn} · {item.eventName}</span><strong>{money.format(item.amount)}</strong></div><p className="text-muted">{item.category}{item.description ? ` · ${item.description}` : ""}</p><p className="text-xs">Estado: {item.status}{item.receiptDocumentId ? " · Comprobante disponible" : " · Sin comprobante"}</p></div>)}
           {!reimbursements.length ? <p className="text-muted">Sin reembolsos registrados.</p> : null}
           {pendingMismatch || paidMismatch ? <p className="text-sm font-semibold text-amber-300">Inconsistencia: el total no coincide con los registros visibles.</p> : null}
         </div>
       </details>
-      <details className="rounded-xl border bg-background"><summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-3 text-sm font-semibold [&::-webkit-details-marker]:hidden"><span>CIERRE MENSUAL</span><span>{money(row.account?.finalTransferAmount ?? 0)} ›</span></summary><div className="border-t p-3 text-sm text-muted">Detalle disponible en la liquidación mensual.</div></details>
+      <details className="rounded-xl border bg-background"><summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-3 text-sm font-semibold [&::-webkit-details-marker]:hidden"><span>CIERRE MENSUAL</span><span>{money.format(row.account?.finalTransferAmount ?? 0)} ›</span></summary><div className="border-t p-3 text-sm text-muted">Detalle disponible en la liquidación mensual.</div></details>
       <details className="rounded-xl border bg-background"><summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-3 text-sm font-semibold [&::-webkit-details-marker]:hidden"><span>DATOS / BOLETA</span><span>›</span></summary><div className="border-t p-3 text-sm text-muted">Datos disponibles en el cierre mensual.</div></details>
     </section>
   );
