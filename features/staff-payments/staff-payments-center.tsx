@@ -112,8 +112,7 @@ function AdminFinanceSummary({
     eventRows: StaffPaymentEvent[];
     reimbursementsPending: number;
     reimbursementsPaid: number;
-    payrollNet: number;
-    payrollPaid: number;
+    paid: number;
     outstanding: number;
     account?: StaffPaymentMonth["account"];
   };
@@ -122,7 +121,7 @@ function AdminFinanceSummary({
   const upcoming = row.eventRows.filter((item) => !["COMPLETED", "PAID", "FINISHED", "CLOSED"].includes(item.status));
   const upcomingTotal = upcoming.reduce((sum, item) => sum + item.finalAmount, 0);
   const honorariaPending = Math.max(row.outstanding - row.reimbursementsPending, 0);
-  const paid = row.payrollPaid;
+  const paid = row.paid;
   const reimbursementPendingRows = reimbursements.filter((item) => item.status === "PENDIENTE");
   const reimbursementPaidRows = reimbursements.filter((item) => item.status === "PAGADO");
   const pendingSum = reimbursementPendingRows.reduce((sum, item) => sum + item.amount, 0);
