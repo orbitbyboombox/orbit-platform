@@ -176,9 +176,10 @@ export function StaffPaymentsCenter({
   staff: StaffPaymentMember[];
   events: StaffPaymentEvent[];
   months: StaffPaymentMonth[];
-  reimbursements: StaffReimbursementDetail[];
+  reimbursements?: StaffReimbursementDetail[];
   initialReviewAccountId?: string;
 }) {
+  const reimbursementDetails = reimbursements ?? [];
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const [openStaffId, setOpenStaffId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -533,7 +534,7 @@ export function StaffPaymentsCenter({
             <div className="mt-4 space-y-3">
               <AdminFinanceSummary
                 row={row}
-                reimbursements={reimbursements.filter((item) => item.staffId === row.member.id)}
+                reimbursements={reimbursementDetails.filter((item) => item.staffId === row.member.id)}
               />
               {row.account && (
                 <StaffMonthlyAccountPanel
