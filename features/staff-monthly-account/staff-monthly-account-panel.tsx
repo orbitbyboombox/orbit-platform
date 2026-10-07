@@ -404,6 +404,9 @@ export function StaffMonthlyAccountPanel({
           <form
             action={(form) =>
               start(async () => {
+                form.set("projectId", advanceFor?.projectId ?? "");
+                form.set("staffId", account.staffId);
+                form.set("allocations", JSON.stringify([{ settlementId: advanceFor?.settlementId, amount: Number(form.get("amount")) }]));
                 const result = await registerStaffAdvanceAction(form);
                 setMessage(result.message);
                 if (result.ok) { setAdvanceFor(null); setAdvanceMethod("TRANSFERENCIA"); }
@@ -412,7 +415,9 @@ export function StaffMonthlyAccountPanel({
             }
             className="grid gap-3"
           >
-            <input name="settlementId" type="hidden" value={advanceFor.settlementId} />
+            <input name="projectId" type="hidden" value={advanceFor.projectId} />
+            <input name="staffId" type="hidden" value={account.staffId} />
+            <input name="allocations" type="hidden" value={JSON.stringify([{ settlementId: advanceFor.settlementId, amount: 0 }])} />
             <label className="text-sm">Monto adelanto *<input className="mt-1 min-h-11 w-full rounded-xl border px-3" min="1" name="amount" required type="number" /></label>
             <label className="text-sm">Fecha *<input className="mt-1 min-h-11 w-full rounded-xl border px-3" name="date" required type="date" /></label>
             <label className="text-sm">Método *<select className="mt-1 min-h-11 w-full rounded-xl border px-3" value={advanceMethod} onChange={(event) => setAdvanceMethod(event.target.value)} name="method" required><option value="TRANSFERENCIA">Transferencia</option><option value="EFECTIVO">Efectivo</option><option value="OTRO">Otro</option></select>{advanceMethod === "OTRO" ? <input className="mt-2 min-h-11 w-full rounded-xl border px-3" name="methodOther" placeholder="Indica el método" required /> : null}</label>

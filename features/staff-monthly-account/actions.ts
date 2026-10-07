@@ -490,7 +490,7 @@ export async function completeSettlementEventAction(
 export async function registerStaffAdvanceAction(form: FormData) {
   const uploaded: string[] = [];
   const failureCorrelationId = randomUUID();
-  let settlementId = "";
+  let projectId = "";
   try {
     console.info(
       JSON.stringify({
@@ -499,7 +499,9 @@ export async function registerStaffAdvanceAction(form: FormData) {
       }),
     );
     const client = await adminContext();
-    settlementId = String(form.get("settlementId") ?? "");
+    projectId = String(form.get("projectId") ?? "");
+    const staffId = String(form.get("staffId") ?? "");
+    const allocations = JSON.parse(String(form.get("allocations") ?? "[]")) as Array<{ settlementId: string; amount: number }>;
     const amount = Number(form.get("amount"));
     const date = String(form.get("date") ?? "");
     const methodChoice = String(form.get("method") ?? "");
@@ -517,7 +519,10 @@ export async function registerStaffAdvanceAction(form: FormData) {
         ? fileFrom({ get: () => boletaValue })
         : null;
     if (
-      !settlementId ||
+      !projectId ||
+      !staffId ||
+      !Array.isArray(allocations) ||
+      !allocations.length ||
       !Number.isFinite(amount) ||
       amount <= 0 ||
       !date ||
@@ -525,14 +530,15 @@ export async function registerStaffAdvanceAction(form: FormData) {
     )
       throw new Error("Completa monto, fecha y método del adelanto.");
     const admin = createAdminClient();
+    const firstSettlementId = String(allocations[0]?.settlementId ?? "");
     const { data: settlement, error: settlementError } = await admin
       .from("event_staff_payments")
       .select("id,staff_id,project_id,status,deleted_at")
-      .eq("id", settlementId)
+      .eq("id", firstSettlementId)
       .maybeSingle();
     if (
       settlementError ||
-      !settlement ||
+      !settlement || settlement.staff_id !== staffId || settlement.project_id !== projectId ||
       settlement.status !== "CONFIRMED" ||
       settlement.deleted_at
     )
@@ -544,7 +550,8 @@ export async function registerStaffAdvanceAction(form: FormData) {
     const idempotencyKey = createHash("sha256")
       .update(
         [
-          settlementId,
+          projectId,
+          JSON.stringify(allocations),
           amount,
           date,
           method,
@@ -554,7 +561,7 @@ export async function registerStaffAdvanceAction(form: FormData) {
         ].join("|"),
       )
       .digest("hex");
-    const receiptPath = `staff/advances/${settlement.staff_id}/${settlementId}/${idempotencyKey}/${receipt.file.name}`;
+    const receiptPath = `staff/advances/${staffId}/${projectId}/${idempotencyKey}/${receipt.file.name}`;
     const receiptUpload = await admin.storage
       .from("orbit-documents")
       .upload(receiptPath, await receipt.file.arrayBuffer(), {
@@ -565,7 +572,7 @@ export async function registerStaffAdvanceAction(form: FormData) {
     uploaded.push(receiptPath);
     let boletaPath: string | null = null;
     if (boleta) {
-      boletaPath = `staff/advances/${settlement.staff_id}/${settlementId}/${idempotencyKey}/boleta-${boleta.file.name}`;
+      boletaPath = `staff/advances/${staffId}/${projectId}/${idempotencyKey}/boleta-${boleta.file.name}`;
       const boletaUpload = await admin.storage
         .from("orbit-documents")
         .upload(boletaPath, await boleta.file.arrayBuffer(), {
@@ -576,10 +583,12 @@ export async function registerStaffAdvanceAction(form: FormData) {
       uploaded.push(boletaPath);
     }
     const { data, error } = await client.rpc(
-      "register_staff_advance_with_documents",
+      "register_staff_grouped_advance_with_documents",
       {
-        p_settlement_id: settlementId,
+        p_staff_id: staffId,
+        p_project_id: projectId,
         p_amount: amount,
+        p_allocations: allocations,
         p_date: date,
         p_method: method,
         p_notes: notes,
@@ -600,7 +609,7 @@ export async function registerStaffAdvanceAction(form: FormData) {
       "/operations",
       "/finance",
       "/reports",
-      `/projects/${settlement.project_id}`,
+      `/projects/${projectId}`,
     ])
       revalidatePath(path);
     const result =
@@ -609,7 +618,7 @@ export async function registerStaffAdvanceAction(form: FormData) {
       JSON.stringify({
         event: "staff_advance_registration_completed",
         correlationId: failureCorrelationId,
-        settlementId,
+        projectId,
         idempotent: Boolean(result.idempotent),
       }),
     );
@@ -630,7 +639,7 @@ export async function registerStaffAdvanceAction(form: FormData) {
       JSON.stringify({
         event: "staff_advance_failed",
         stage: "payment",
-        settlementId,
+        projectId,
         correlationId: failureCorrelationId,
         code: info.code || info.name,
         message: info.message,

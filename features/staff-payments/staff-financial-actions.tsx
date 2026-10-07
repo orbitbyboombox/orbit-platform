@@ -18,6 +18,8 @@ const money = new Intl.NumberFormat("es-CL", {
   currency: "CLP",
   maximumFractionDigits: 0,
 });
+const roleLabel = (value: string) =>
+  ({ OPERATOR: "Operador", ASSEMBLY: "Montaje", DISASSEMBLY: "Desmontaje" })[value] ?? value;
 
 const chileToday = () => {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -57,7 +59,9 @@ export function StaffFinancialActions({ staff, events, pendingExpenses, approved
   const [reimbursementOpen, setReimbursementOpen] = useState(false);
   const [expensesOpen, setExpensesOpen] = useState(Boolean(initialReviewExpenseId));
   const [staffId, setStaffId] = useState("");
-  const [settlementId, setSettlementId] = useState("");
+  const [projectId, setProjectId] = useState("");
+  const [selectedConceptIds, setSelectedConceptIds] = useState<string[]>([]);
+  const [advanceAmount, setAdvanceAmount] = useState("");
   const [method, setMethod] = useState("TRANSFERENCIA");
   const [reimbursementStaffId, setReimbursementStaffId] = useState("");
   const [reimbursementExpenseId, setReimbursementExpenseId] = useState("");
@@ -65,12 +69,43 @@ export function StaffFinancialActions({ staff, events, pendingExpenses, approved
   const [reimbursementRequestId, setReimbursementRequestId] = useState("");
   const [message, setMessage] = useState("");
   const [pending, startTransition] = useTransition();
-  const relevantEvents = useMemo(
-    () => events.filter((event) => event.staffId === staffId && Math.max(event.payrollNet - event.payrollPaidAmount, 0) > 0),
-    [events, staffId],
+  const relevantGroups = useMemo(() => {
+    const roleOrder: Record<string, number> = { ASSEMBLY: 0, DISASSEMBLY: 1, OPERATOR: 2 };
+    const groups = new Map<string, { projectId: string; eventName: string; eventDate: string; concepts: StaffPaymentEvent[] }>();
+    for (const event of events) {
+      if (event.staffId !== staffId) continue;
+      if (Math.max(event.payrollNet - event.payrollPaidAmount, 0) <= 0) continue;
+      const group = groups.get(event.projectId) ?? { projectId: event.projectId, eventName: event.eventName, eventDate: event.eventDate, concepts: [] };
+      group.concepts.push(event);
+      groups.set(event.projectId, group);
+    }
+    return [...groups.values()]
+      .map((group) => ({
+        ...group,
+        concepts: [...group.concepts].sort((a, b) => {
+          const roleA = roleOrder[a.roles[0] ?? ""] ?? 99;
+          const roleB = roleOrder[b.roles[0] ?? ""] ?? 99;
+          return roleA - roleB || a.id.localeCompare(b.id);
+        }),
+      }))
+      .sort((a, b) => a.eventDate.localeCompare(b.eventDate) || a.projectId.localeCompare(b.projectId));
+  }, [events, staffId]);
+  const selectedGroup = relevantGroups.find((group) => group.projectId === projectId);
+  const selectedConcepts = useMemo(
+    () => selectedGroup?.concepts.filter((concept) => selectedConceptIds.includes(concept.id)) ?? [],
+    [selectedGroup, selectedConceptIds],
   );
-  const selected = relevantEvents.find((event) => event.id === settlementId);
-  const remaining = selected ? Math.max(selected.payrollNet - selected.payrollPaidAmount, 0) : 0;
+  const selectedTotal = selectedConcepts.reduce((sum, concept) => sum + Math.max(concept.payrollNet - concept.payrollPaidAmount, 0), 0);
+  const requestedAmount = Number(advanceAmount);
+  const allocationPlan = useMemo(() => {
+    let left = Number.isFinite(requestedAmount) && requestedAmount > 0 ? requestedAmount : selectedTotal;
+    return selectedConcepts.flatMap((concept) => {
+      const available = Math.max(concept.payrollNet - concept.payrollPaidAmount, 0);
+      const amount = Math.min(available, Math.max(left, 0));
+      left -= amount;
+      return amount > 0 ? [{ settlementId: concept.id, amount }] : [];
+    });
+  }, [requestedAmount, selectedConcepts, selectedTotal]);
   const staffReimbursements = useMemo(
     () => approvedReimbursements.filter((item) => item.staffId === reimbursementStaffId),
     [approvedReimbursements, reimbursementStaffId],
@@ -79,7 +114,15 @@ export function StaffFinancialActions({ staff, events, pendingExpenses, approved
 
   const selectStaff = (value: string) => {
     setStaffId(value);
-    setSettlementId("");
+    setProjectId("");
+    setSelectedConceptIds([]);
+    setAdvanceAmount("");
+  };
+  const selectProject = (value: string) => {
+    const group = relevantGroups.find((item) => item.projectId === value);
+    setProjectId(value);
+    setSelectedConceptIds(group?.concepts.map((concept) => concept.id) ?? []);
+    setAdvanceAmount("");
   };
   const openReimbursement = () => {
     setReimbursementRequestId(crypto.randomUUID());
@@ -108,21 +151,26 @@ export function StaffFinancialActions({ staff, events, pendingExpenses, approved
         if (result.ok) {
           setAdvanceOpen(false);
           setStaffId("");
-          setSettlementId("");
+          setProjectId("");
+          setSelectedConceptIds([]);
+          setAdvanceAmount("");
           router.refresh();
         }
       })} className="grid gap-4" aria-busy={pending}>
         <label className="text-sm font-medium">Colaborador *<select className="mt-1 min-h-11 w-full rounded-xl border bg-background px-3" onChange={(event) => selectStaff(event.target.value)} required value={staffId}><option value="">Selecciona un colaborador</option>{staff.map((member) => <option key={member.id} value={member.id}>{member.name} · {member.rut}</option>)}</select></label>
-        <label className="text-sm font-medium">Evento asignado *<select className="mt-1 min-h-11 w-full rounded-xl border bg-background px-3" disabled={!staffId} name="settlementId" onChange={(event) => setSettlementId(event.target.value)} required value={settlementId}><option value="">{staffId ? "Selecciona un Evento" : "Primero selecciona colaborador"}</option>{relevantEvents.map((event) => <option key={event.id} value={event.id}>{event.eventName} · {event.eventDate} · saldo honorarios {money.format(Math.max(event.payrollNet - event.payrollPaidAmount, 0))}</option>)}</select></label>
-        {staffId && !relevantEvents.length ? <p className="rounded-xl border border-dashed p-3 text-sm text-muted">Este colaborador no tiene liquidaciones confirmadas con saldo pendiente.</p> : null}
-        {selected ? <dl className="grid grid-cols-3 gap-2 rounded-xl border bg-background/40 p-3 text-xs"><div><dt className="text-muted">Honorarios</dt><dd className="mt-1 font-semibold">{money.format(selected.payrollNet)}</dd></div><div><dt className="text-muted">Ya pagado</dt><dd className="mt-1 font-semibold">{money.format(selected.payrollPaidAmount)}</dd></div><div><dt className="text-muted">Saldo honorarios</dt><dd className="mt-1 font-semibold text-brand">{money.format(remaining)}</dd></div></dl> : null}
-        <label className="text-sm font-medium">Monto adelantado *<input className="mt-1 min-h-11 w-full rounded-xl border bg-background px-3" disabled={!selected} max={remaining || undefined} min="1" name="amount" required step="1" type="number" /></label>
+        <label className="text-sm font-medium">Evento asignado *<select className="mt-1 min-h-11 w-full rounded-xl border bg-background px-3" disabled={!staffId} onChange={(event) => selectProject(event.target.value)} required value={projectId}><option value="">{staffId ? "Selecciona un Evento" : "Primero selecciona colaborador"}</option>{relevantGroups.map((group) => <option key={group.projectId} value={group.projectId}>{group.eventName} · {group.eventDate} · saldo pendiente {money.format(group.concepts.reduce((sum, concept) => sum + Math.max(concept.payrollNet - concept.payrollPaidAmount, 0), 0))}</option>)}</select></label>
+        {staffId && !relevantGroups.length ? <p className="rounded-xl border border-dashed p-3 text-sm text-muted">Este colaborador no tiene liquidaciones confirmadas con saldo pendiente.</p> : null}
+        {selectedGroup ? <div className="rounded-xl border bg-background/40 p-3"><p className="text-xs font-semibold uppercase tracking-[.14em] text-brand">Conceptos pendientes del Evento</p><div className="mt-2 space-y-2">{selectedGroup.concepts.map((concept) => { const remaining = Math.max(concept.payrollNet - concept.payrollPaidAmount, 0); const checked = selectedConceptIds.includes(concept.id); return <label className="flex items-center justify-between gap-3 rounded-lg border bg-background p-3 text-sm" key={concept.id}><span className="flex items-center gap-2"><input checked={checked} onChange={(event) => setSelectedConceptIds((current) => event.target.checked ? [...new Set([...current, concept.id])] : current.filter((id) => id !== concept.id))} type="checkbox" />{concept.roles.map(roleLabel).join(" + ")}{concept.blockName ? ` · ${concept.blockName}` : ""}</span><strong>{money.format(remaining)}</strong></label>; })}</div><div className="mt-3 flex justify-between border-t pt-3 text-sm font-semibold"><span>Total pendiente Evento</span><span>{money.format(selectedTotal)}</span></div></div> : null}
+        <input name="projectId" type="hidden" value={projectId} />
+        <input name="staffId" type="hidden" value={staffId} />
+        <input name="allocations" type="hidden" value={JSON.stringify(allocationPlan)} />
+        <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end"><label className="text-sm font-medium">Monto a adelantar *<input className="mt-1 min-h-11 w-full rounded-xl border bg-background px-3" disabled={!selectedGroup || !selectedConcepts.length} max={selectedTotal || undefined} min="1" name="amount" onChange={(event) => setAdvanceAmount(event.target.value)} required step="1" type="number" value={advanceAmount} /></label><Button disabled={!selectedConcepts.length || selectedTotal <= 0} onClick={() => setAdvanceAmount(String(selectedTotal))} type="button" variant="outline">PAGAR TOTAL PENDIENTE</Button></div>
         <label className="text-sm font-medium">Fecha del adelanto *<input className="mt-1 min-h-11 w-full rounded-xl border bg-background px-3" defaultValue={chileToday()} name="date" required type="date" /></label>
         <label className="text-sm font-medium">Método de pago *<select className="mt-1 min-h-11 w-full rounded-xl border bg-background px-3" name="method" onChange={(event) => setMethod(event.target.value)} required value={method}><option value="TRANSFERENCIA">Transferencia</option><option value="EFECTIVO">Efectivo</option><option value="OTRO">Otro</option></select>{method === "OTRO" ? <input className="mt-2 min-h-11 w-full rounded-xl border bg-background px-3" name="methodOther" placeholder="Indica el método" required /> : null}</label>
         <label className="text-sm font-medium">Observación opcional<textarea className="mt-1 min-h-24 w-full rounded-xl border bg-background px-3 py-2" name="notes" /></label>
         <label className="text-sm font-medium">Comprobante de pago *<input accept="application/pdf,image/jpeg,image/png,image/webp" className="mt-2 block w-full text-sm" name="receipt" required type="file" /></label>
         <label className="text-sm font-medium">Boleta de honorarios (opcional)<input accept="application/pdf,image/jpeg,image/png,image/webp" className="mt-2 block w-full text-sm" name="boleta" type="file" /></label>
-        <Button disabled={!selected || remaining <= 0} loading={pending} loadingLabel="Registrando adelanto…" type="submit">CONFIRMAR ADELANTO</Button>
+        <Button disabled={!selectedGroup || !selectedConcepts.length || selectedTotal <= 0 || (Number.isFinite(requestedAmount) && requestedAmount > selectedTotal)} loading={pending} loadingLabel="Registrando adelanto…" type="submit">CONFIRMAR ADELANTO</Button>
       </form>
     </MobileDialog> : null}
     {reimbursementOpen ? <MobileDialog description="Solo aparecen gastos aprobados cuyo reembolso aún no ha sido pagado." dismissOnOverlayClick={!pending} eyebrow="Staff · Movimiento financiero separado" onClose={() => !pending && setReimbursementOpen(false)} size="lg" title="PAGAR REEMBOLSO" variant="fullscreen-mobile">
