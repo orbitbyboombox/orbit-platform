@@ -192,7 +192,7 @@ export default async function ProjectWorkspacePage({
     client
       .from("event_staff_payments")
       .select(
-        "id,staff_id,status,tasks,settlement_status,paid_amount,paid_at,sii_receipt_status,original_assembly_payment,original_operator_payment,original_disassembly_payment,automatic_assembly_payment,automatic_operator_payment,automatic_disassembly_payment,override_assembly_payment,override_operator_payment,override_disassembly_payment,assembly_payment,operator_payment,disassembly_payment,transport_bonus,parking_payment,total_internal_payment,block_id,contracted_minutes,event_operational_blocks(name,start_at,end_at),staff(first_name,last_name)",
+        "id,project_id,assignment_id,staff_id,status,tasks,settlement_status,paid_amount,paid_at,sii_receipt_status,original_assembly_payment,original_operator_payment,original_disassembly_payment,automatic_assembly_payment,automatic_operator_payment,automatic_disassembly_payment,override_assembly_payment,override_operator_payment,override_disassembly_payment,assembly_payment,operator_payment,disassembly_payment,transport_bonus,parking_payment,total_internal_payment,block_id,contracted_minutes,event_operational_blocks(name,start_at,end_at),staff(first_name,last_name)",
       )
       .eq("project_id", projectId)
       .is("deleted_at", null),
@@ -1661,7 +1661,8 @@ export default async function ProjectWorkspacePage({
     }).map((role) => {
       const baseAmount = Number(role === "OPERATOR" ? item.automatic_operator_payment ?? item.operator_payment ?? 0 : role === "ASSEMBLY" ? item.automatic_assembly_payment ?? item.assembly_payment ?? 0 : item.automatic_disassembly_payment ?? item.disassembly_payment ?? 0);
       const overrideAmount = role === "OPERATOR" ? item.override_operator_payment : role === "ASSEMBLY" ? item.override_assembly_payment : item.override_disassembly_payment;
-      return { id: item.id, staffId: item.staff_id, staffName, role, baseAmount, finalAmount: Number(overrideAmount ?? baseAmount), overrideAmount: overrideAmount == null ? null : Number(overrideAmount), paid: Number(item.paid_amount ?? 0) };
+      const block = Array.isArray(item.event_operational_blocks) ? item.event_operational_blocks[0] : item.event_operational_blocks;
+      return { id: item.id, assignmentId: item.assignment_id ?? null, staffId: item.staff_id, staffName, role, blockId: item.block_id ?? null, blockName: block?.name ?? null, blockStartAt: block?.start_at ?? null, blockEndAt: block?.end_at ?? null, baseAmount, finalAmount: Number(overrideAmount ?? baseAmount), overrideAmount: overrideAmount == null ? null : Number(overrideAmount), paid: Number(item.paid_amount ?? 0) };
     });
   });
   const eventControl = {

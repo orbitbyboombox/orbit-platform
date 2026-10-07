@@ -26,6 +26,21 @@ describe("staff assignment payment overrides", () => {
     assert.match(actions, /reset_staff_assignment_payment_override/);
     assert.match(page, /override_operator_payment/);
     assert.match(page, /finalOperator \+ finalAssembly \+ finalDisassembly/);
+    assert.match(page, /assignment_id/);
+    assert.match(page, /blockStartAt/);
+    assert.match(page, /blockEndAt/);
+  });
+
+  it("renders each canonical payment row independently, including block operators", () => {
+    const eventUi = readFileSync(
+      "features/projects/components/event-ui-replica.tsx",
+      "utf8",
+    );
+    assert.match(eventUi, /staffPayments\.map/);
+    assert.match(eventUi, /\$\{payment\.id\}-\$\{payment\.role\}/);
+    assert.match(eventUi, /payment\.blockName/);
+    assert.match(eventUi, /payment\.blockStartAt/);
+    assert.match(eventUi, /EventPaymentAction payment=\{payment\}/);
   });
 
   it("preserves overrides when default rates are refreshed or blocks are republished", () => {
