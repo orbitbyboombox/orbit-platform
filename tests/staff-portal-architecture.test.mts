@@ -16,7 +16,7 @@ test("Staff Portal exposes exactly three top-level modules", () => {
 
 test("Staff capabilities remain nested in their owning module", () => {
   assert.match(dashboard, /<AvailableEvents events=\{weeklyAvailableEvents\}/);
-  assert.match(dashboard, /<StaffRoutesPanel routes=\{routes\}/);
+  assert.match(dashboard, /<StaffRoutesPanel routes=\{active\}/);
   assert.match(dashboard, /<StaffExpenseSubmissionPanel events=\{events\}/);
   assert.match(dashboard, /<StaffMonthlyAccountPanel account=\{account\}/);
   assert.match(dashboard, /<EventDetail event=\{selected\}/);
@@ -67,5 +67,5 @@ test("Staff Finance reads active event payments, including pending settlements",
   assert.match(portal, /is\("deleted_at",null\)/);
   assert.match(portal, /eventStaffPayments/);
   assert.match(dashboard, /accountingMonth/);
-  assert.match(dashboard, /Pendiente de pago/);
+  assert.match(dashboard, /Pago pendiente/);
 });

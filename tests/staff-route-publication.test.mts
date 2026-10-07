@@ -16,8 +16,8 @@ test("route publication extends the canonical route model", () => {
 
 test("Admin saves proposals and publishes explicitly", () => {
   assert.match(admin, /ORDENAR POR SECTOR Y HORA/);
-  assert.match(admin, /GUARDAR PROPUESTA/);
-  assert.match(admin, /COMPARTIR RUTA/);
+  assert.match(admin, /ORDENAR POR SECTOR Y HORA/);
+  assert.match(admin, /ASIGNAR Y PUBLICAR/);
   assert.match(migration, /save_logistics_route_plan/);
   assert.match(migration, /publish_logistics_route/);
 });
