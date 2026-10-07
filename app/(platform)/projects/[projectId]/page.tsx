@@ -1414,6 +1414,7 @@ export default async function ProjectWorkspacePage({
             paid = Number(item.paid_amount);
           return {
             id: item.id,
+            staffId: item.staff_id,
             staffName: Array.isArray(item.staff)
               ? `${item.staff[0]?.first_name ?? ""} ${item.staff[0]?.last_name ?? ""}`.trim()
               : "Staff",

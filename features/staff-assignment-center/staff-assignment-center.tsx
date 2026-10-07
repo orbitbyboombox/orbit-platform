@@ -87,6 +87,7 @@ export type EventStaffSettlementPayment = {
 };
 export type EventStaffSettlement = {
   id: string;
+  staffId: string;
   staffName: string;
   blockId?: string | null;
   blockName?: string | null;
@@ -214,7 +215,7 @@ export function StaffAssignmentCenter({
     blockStartAt?: string;
     blockEndAt?: string;
   } | null>(null);
-  const [settlement, setSettlement] = useState<EventStaffSettlement | null>(
+  const [settlement, setSettlement] = useState<(EventStaffSettlement & { editRole?: string }) | null>(
     null,
   );
   const [cancelling, setCancelling] = useState<OperationalAssignment | null>(
@@ -385,6 +386,7 @@ export function StaffAssignmentCenter({
                 {item.observations}
               </p>
             )}
+            {(() => { const payment = paymentForAssignment(settlements, item); return payment ? <AssignmentPaymentSummary payment={payment} role={item.role} pending={pending} onEdit={() => setSettlement({ ...payment, editRole: item.role })} /> : null; })()}
             <div className="mt-4 flex flex-wrap gap-2 border-t pt-4">
               <Small
                 label="Editar"
@@ -526,6 +528,7 @@ export function StaffAssignmentCenter({
       {settlement && (
         <SettlementDetailDialog
           item={settlement}
+          editRole={settlement.editRole}
           pending={pending}
           onClose={() => setSettlement(null)}
           onSubmit={saveSettlement}
@@ -694,13 +697,36 @@ function AssignmentCancellationDialog({
   );
 }
 
+function paymentForAssignment(settlements: readonly EventStaffSettlement[], assignment: OperationalAssignment) {
+  return settlements.find((payment) => payment.staffId === assignment.staffId && payment.roles.includes(assignment.role) && (assignment.blockId ? payment.blockId === assignment.blockId : payment.blockId == null));
+}
+
+function rolePayment(payment: EventStaffSettlement, role: string, kind: "base" | "final" | "override") {
+  const value = role === "ASSEMBLY" ? (kind === "base" ? payment.defaultAssembly : kind === "override" ? payment.overrideAssembly : payment.overrideAssembly ?? payment.defaultAssembly) : role === "DISASSEMBLY" ? (kind === "base" ? payment.defaultDisassembly : kind === "override" ? payment.overrideDisassembly : payment.overrideDisassembly ?? payment.defaultDisassembly) : (kind === "base" ? payment.defaultOperator : kind === "override" ? payment.overrideOperator : payment.overrideOperator ?? payment.defaultOperator);
+  return Number(value ?? 0);
+}
+
+function AssignmentPaymentSummary({ payment, role, pending, onEdit }: { payment: EventStaffSettlement; role: string; pending: boolean; onEdit: () => void }) {
+  const paid = payment.settlementStatus === "PAID" || payment.settlementStatus === "FINALIZED" || payment.paid > 0;
+  const override = rolePayment(payment, role, "override") !== null && ((role === "ASSEMBLY" && payment.overrideAssembly !== null) || (role === "DISASSEMBLY" && payment.overrideDisassembly !== null) || (role === "OPERATOR" && payment.overrideOperator !== null));
+  return <section className="mt-4 rounded-lg border border-brand/20 bg-brand/5 p-3" aria-label={`Pago ${roleLabel(role)}`}><div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-[11px] font-semibold uppercase tracking-wide text-muted">PAGO · {roleLabel(role)}</p><p className="mt-1 text-xs text-muted">Base: {money(rolePayment(payment, role, "base"))}</p><p className="mt-1 text-lg font-semibold">{money(rolePayment(payment, role, "final"))}{override ? <span className="ml-2 text-xs font-bold uppercase tracking-wide text-brand">Personalizado</span> : null}</p></div>{paid ? <span className="text-xs font-semibold text-muted">PAGADO · edición bloqueada</span> : <Button type="button" variant="outline" disabled={pending} onClick={onEdit}>EDITAR PAGO</Button>}</div></section>;
+}
+
+function AssignmentPaymentEditor({ item, editRole, pending, onSubmit }: { item: EventStaffSettlement; editRole?: string; pending: boolean; onSubmit: (data: FormData, kind: "adjustment" | "reimbursement" | "payment" | "override" | "reset") => void }) {
+  const role = editRole ?? item.roles[0] ?? "OPERATOR";
+  const paid = item.settlementStatus === "PAID" || item.settlementStatus === "FINALIZED" || item.paid > 0;
+  return <details className="mt-4 rounded-xl border border-brand/30 bg-brand/5 p-4" open={Boolean(editRole)}><summary className="cursor-pointer font-semibold">PAGO POR ASIGNACIÓN · {roleLabel(role)}</summary><p className="mt-2 text-sm text-muted">La tarifa Master es el valor base. El pago acordado solo afecta esta asignación/evento.</p><dl className="mt-3 grid grid-cols-2 gap-2 text-sm"><Money label="Tarifa base" value={rolePayment(item, role, "base")} /><Money label="Pago acordado" value={rolePayment(item, role, "final")} /></dl>{paid ? <p className="mt-3 text-xs font-semibold text-muted">PAGADO · edición bloqueada</p> : <form action={(data) => onSubmit(data, "override")} className="mt-4 grid gap-3 sm:grid-cols-2"><input name="paymentId" type="hidden" value={item.id} /><input name="paymentRole" type="hidden" value={role} /><Field label="Nuevo pago para este evento" name="paymentAmount" type="number" defaultValue={String(rolePayment(item, role, "final"))} /><Field label="Motivo" name="paymentReason" defaultValue="Acuerdo especial para este Evento" /><div className="flex flex-wrap gap-2 sm:col-span-2"><Button aria-busy={pending} disabled={pending}>Guardar pago</Button><button className="rounded-lg border px-3 py-2 text-sm font-semibold" disabled={pending} formAction={(data) => onSubmit(data, "reset")} type="submit">Restablecer tarifa</button></div></form>}</details>;
+}
+
 function SettlementDetailDialog({
   item,
+  editRole,
   pending,
   onClose,
   onSubmit,
 }: {
   item: EventStaffSettlement;
+  editRole?: string;
   pending: boolean;
   onClose: () => void;
   onSubmit: (
@@ -739,6 +765,7 @@ function SettlementDetailDialog({
             Solo lectura.
           </p>
         </details>
+        <AssignmentPaymentEditor item={item} editRole={editRole} pending={pending} onSubmit={onSubmit} />
         <details className="mt-4 rounded-xl border p-4" open>
           <summary className="cursor-pointer font-semibold">
             AJUSTES MANUALES · {money(item.adjustmentTotal)}
