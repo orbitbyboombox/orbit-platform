@@ -60,6 +60,8 @@ export type StaffPortalEvent = {
   vehicle: string;
   logistics: Array<{id:string;type:string;sequence:number;vehicle:string;driver:string;departure:string;arrival:string;meetingPoint:string;route:string;instructions:string;status:string}>;
   equipment: string[];
+  /** Event-level canonical black-box assignment, shared by every staff block. */
+  box?: string;
   printInstructions: {
     photoStyle: "COLOR" | "BLACK_WHITE" | "SEPIA" | null;
     paperVariant: "NORMAL_4X6" | "PRECUT_4X6" | null;
@@ -414,7 +416,7 @@ function staffLogisticsRow(event: StaffPortalEvent): StaffLogisticsEvent {
     location: event.venue || event.address, commune: event.district, status: event.status,
     operator: assignedBlocks.length ? assignedBlocks.map(block => block.name).join(" + ") : event.roles.map(role => ROLE[role] ?? role).join(" + ") || "Sin asignar", staffCallAt: event.staffCallAt || "",
     setupTime: event.staffCallAt || "", setupStaff: "", teardownTime: event.finish, teardownStaff: "",
-    box: "Sin asignar", extras: event.extras, address: event.address,
+    box: event.box ?? event.equipment.find(value => /^CASE-\d{2}$/.test(value)) ?? "Sin asignar", extras: event.extras, address: event.address,
   };
 }
 
