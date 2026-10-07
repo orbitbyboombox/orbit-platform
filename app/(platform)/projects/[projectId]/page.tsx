@@ -1631,15 +1631,38 @@ export default async function ProjectWorkspacePage({
     const assignment = productionAssignments.find(
       (item) => item.project_id === projectId && item.assignment_type === role,
     );
+    const block = assignment?.event_operational_blocks
+      ? (Array.isArray(assignment.event_operational_blocks) ? assignment.event_operational_blocks[0] : assignment.event_operational_blocks)
+      : null;
+    const roleStart = role === "OPERATOR" && block?.start_at
+      ? chileDateTime(block.start_at).time
+      : assignment?.start_time?.slice(0, 5) || (assignment?.staff_call_at ? chileDateTime(assignment.staff_call_at).time : staffCallTime);
+    const roleEnd = role === "OPERATOR" && block?.end_at
+      ? chileDateTime(block.end_at).time
+      : assignment?.finish_time?.slice(0, 5) || "";
     return {
       role,
+      staffId: assignment?.staff_id,
       name: assignment?.staff
         ? `${assignment.staff.first_name} ${assignment.staff.last_name}`.trim()
         : "Sin asignar",
-      callTime: assignment?.staff_call_at
-        ? chileDateTime(assignment.staff_call_at).time
-        : staffCallTime,
+      callTime: roleEnd ? `${roleStart}–${roleEnd}` : roleStart,
     };
+  });
+  const eventStaffPayments = (payroll ?? []).flatMap((item) => {
+    const staffName = Array.isArray(item.staff)
+      ? `${item.staff[0]?.first_name ?? ""} ${item.staff[0]?.last_name ?? ""}`.trim()
+      : "Staff";
+    const roles = ["OPERATOR", "ASSEMBLY", "DISASSEMBLY"] as const;
+    return roles.filter((role) => {
+      const taskRoles = Array.isArray(item.tasks) ? item.tasks.map(String) : [];
+      const amount = role === "OPERATOR" ? item.automatic_operator_payment ?? item.operator_payment : role === "ASSEMBLY" ? item.automatic_assembly_payment ?? item.assembly_payment : item.automatic_disassembly_payment ?? item.disassembly_payment;
+      return taskRoles.includes(role) || Number(amount ?? 0) > 0;
+    }).map((role) => {
+      const baseAmount = Number(role === "OPERATOR" ? item.automatic_operator_payment ?? item.operator_payment ?? 0 : role === "ASSEMBLY" ? item.automatic_assembly_payment ?? item.assembly_payment ?? 0 : item.automatic_disassembly_payment ?? item.disassembly_payment ?? 0);
+      const overrideAmount = role === "OPERATOR" ? item.override_operator_payment : role === "ASSEMBLY" ? item.override_assembly_payment : item.override_disassembly_payment;
+      return { id: item.id, staffId: item.staff_id, staffName, role, baseAmount, finalAmount: Number(overrideAmount ?? baseAmount), overrideAmount: overrideAmount == null ? null : Number(overrideAmount), paid: Number(item.paid_amount ?? 0) };
+    });
   });
   const eventControl = {
     event: {
@@ -1704,6 +1727,7 @@ export default async function ProjectWorkspacePage({
       operationalContactPhone={operationalContract?.contact_phone ?? ""}
       printInstructions={{ photoStyle: operationalContract?.photo_style === "COLOR" || operationalContract?.photo_style === "BLACK_WHITE" || operationalContract?.photo_style === "SEPIA" ? operationalContract.photo_style : null, operatorNote: operationalContract?.operator_print_notes ?? "" }}
       operators={eventOperators}
+      staffPayments={eventStaffPayments}
       paper={paperSnapshot ? { opening: Number(paperSnapshot.opening_balance), final: paperSnapshot.final_remaining_balance === null ? null : Number(paperSnapshot.final_remaining_balance), usage: paperSnapshot.event_usage === null ? null : Number(paperSnapshot.event_usage), reloads: paperReloads, format: paperSnapshot.format_key, variant: paperSnapshot.paper_variant === "NORMAL_4X6" || paperSnapshot.paper_variant === "PRECUT_4X6" ? paperSnapshot.paper_variant : null, status: paperSnapshot.status, boxCode: paperSnapshot.black_box_asset_code, confirmedBy: paperSnapshot.confirmed_by, confirmedAt: paperSnapshot.confirmed_at } : null}
       equipment={equipment.requirements.map((item) => item.label)}
       invoice={invoice ? { invoiceNumber: invoice.invoice_number, outstandingBalance: Number(invoice.outstanding_balance), status: invoice.effective_status } : undefined}
