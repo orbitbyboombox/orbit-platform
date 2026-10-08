@@ -1,0 +1,61 @@
+name: ORBIT protected build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: orbit-protected-build
+  cancel-in-progress: true
+
+jobs:
+  protected-build:
+    name: Build with protected Vercel environment
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+    steps:
+      - name: Checkout isolated revision
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Validate protected inputs without printing values
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -Eeuo pipefail
+          test -n "${VERCEL_TOKEN:-}" || { echo "Missing GitHub Secret: VERCEL_TOKEN" >&2; exit 1; }
+          test -n "${VERCEL_ORG_ID:-}" || { echo "Missing GitHub Variable: VERCEL_ORG_ID" >&2; exit 1; }
+          test -n "${VERCEL_PROJECT_ID:-}" || { echo "Missing GitHub Variable: VERCEL_PROJECT_ID" >&2; exit 1; }
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Pull production settings and build in an ephemeral runner directory
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -Eeuo pipefail
+          temp_dir="$(mktemp -d)"
+          cleanup() {
+            rm -rf "$temp_dir"
+          }
+          trap cleanup EXIT
+
+          cp -R . "$temp_dir/"
+          cd "$temp_dir"
+          pnpm install --frozen-lockfile --ignore-scripts
+          pnpm dlx vercel@latest pull --yes --environment=production
+          pnpm dlx vercel@latest build --prod
