@@ -287,6 +287,19 @@ const dateTime = (value: string) =>
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+const visibleStatus = (value: string) =>
+  ({
+    CONFIRMED: "Confirmado",
+    SIGNED: "Firmado",
+    COMPLETED: "Completado",
+    CLOSED: "Cerrado",
+    PENDING: "Pendiente",
+    CANCELLED: "Cancelado",
+    ARCHIVED: "Archivado",
+    READY: "Listo",
+    ATTENTION: "Atención",
+    BLOCKED: "Bloqueado",
+  })[value.toUpperCase()] ?? value;
 const statePresentation: Record<
   ReadinessState,
   { label: string; variant: "success" | "warning" | "danger" }
@@ -581,6 +594,10 @@ export function ProjectWorkspaceExperience(
     window.history.replaceState(null, "", url.toString());
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
+  const openModule = (tab: EventAdminTab, id: string) => {
+    selectTab(tab);
+    window.setTimeout(() => scroll(id), 0);
+  };
   useEffect(() => {
     const onPopState = () => setActiveTab(initialEventAdminTab());
     window.addEventListener("popstate", onPopState);
@@ -616,8 +633,8 @@ export function ProjectWorkspaceExperience(
             <div className="grid min-w-0 gap-6 p-5 sm:p-7 lg:grid-cols-[minmax(0,1fr)_minmax(0,auto)] lg:items-end">
               <div className="min-w-0">
                 <div className="flex flex-wrap gap-2">
-                  <StatusBadge label={event.status} variant="info" />
-                  <StatusBadge label={healthLabel} variant={healthVariant} />
+                  <StatusBadge label={visibleStatus(event.status)} variant="info" />
+                  <StatusBadge label={visibleStatus(healthLabel)} variant={healthVariant} />
                 </div>
                 <p className="mt-5 text-xs font-semibold uppercase tracking-[.2em] text-brand">
                   Event 360° · {event.orbitEventId}
@@ -660,7 +677,7 @@ export function ProjectWorkspaceExperience(
                 <HeroMetric label="Salud" value={`${health}%`} />
               </div>
             </div>
-            <nav aria-label="Pestañas del evento" className="grid grid-cols-2 gap-2 border-t p-3 sm:grid-cols-3 sm:px-7 lg:grid-cols-6" role="tablist">
+            <nav aria-label="Pestañas del evento" className="sticky top-0 z-20 grid grid-cols-2 gap-2 border-t bg-card/95 p-3 backdrop-blur sm:grid-cols-3 sm:px-7 lg:grid-cols-6" role="tablist">
               {EVENT_ADMIN_TABS.map(({ id, label, hint }) => (
                 <button
                   aria-selected={activeTab === id}
@@ -927,10 +944,7 @@ export function ProjectWorkspaceExperience(
           {activeTab === "OPERATION" && <EventLogisticsCenter data={props.logistics}/>}
           {activeTab === "OPERATION" && <OperationalBlocksPanel projectId={props.projectKey ?? ""} initialBlocks={props.operationalBlocks ?? []} />}
 
-          {activeTab === "OPERATION" && <section className="scroll-mt-24" id="event-control-center">
-            <div className="mb-3"><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Centro operativo</p><h2 className="mt-1 text-2xl font-semibold">Gestión completa del Evento</h2><p className="mt-1 text-sm text-muted">Pagos, costos, Staff, documentos, Portal y Calendar pertenecen a este Evento.</p></div>
-            <CustomerEventOperations event={props.eventControl.event} onEditEvent={() => scroll("commercial")} operations={props.eventControl.operations} reconciliationId={props.reconciliationId}/>
-          </section>}
+          {activeTab === "FINANCE" && <CustomerEventOperations event={props.eventControl.event} onEditEvent={() => scroll("commercial")} operations={props.eventControl.operations} reconciliationId={props.reconciliationId} surface="FINANCE"/>}
           {activeTab === "FINANCE" && moduleVisible("FINANCIAL_SUMMARY") && event.realCosts && (
             <details className="rounded-2xl border bg-card p-5" id="real-cost-adjustments">
               <summary className="cursor-pointer font-semibold text-brand">Detalle financiero y ajustes de costos reales</summary>
@@ -1231,6 +1245,7 @@ export function ProjectWorkspaceExperience(
                 </Section>
               </OptionalModule>
             )}
+            {activeTab === "COMMUNICATIONS" && <CustomerEventOperations event={props.eventControl.event} onEditEvent={() => scroll("commercial")} operations={props.eventControl.operations} reconciliationId={props.reconciliationId} surface="COMMUNICATIONS"/>}
             {activeTab === "FINANCE" && moduleVisible("FINANCIAL_SUMMARY") && (
               <Section
                 className="2xl:col-span-2"
@@ -1482,12 +1497,12 @@ export function ProjectWorkspaceExperience(
               <ActionButton
                 icon={FileText}
                 label="Generar acuerdo"
-                onClick={() => scroll("agreement-control")}
+                onClick={() => openModule("DOCUMENTS", "agreement-control")}
               />
               <ActionButton
                 icon={Send}
                 label="Enviar acuerdo"
-                onClick={() => scroll("agreement-control")}
+                onClick={() => openModule("DOCUMENTS", "agreement-control")}
                 variant="outline"
               />
               <ActionButton
@@ -1497,7 +1512,10 @@ export function ProjectWorkspaceExperience(
                   portalUrl
                     ? () =>
                         window.open(portalUrl, "_blank", "noopener,noreferrer")
-                    : generatePortal
+                    : () => {
+                        openModule("COMMUNICATIONS", `portal-${props.projectKey ?? ""}`);
+                        void generatePortal();
+                      }
                 }
                 variant="outline"
               />
@@ -1505,20 +1523,26 @@ export function ProjectWorkspaceExperience(
                 <ActionButton
                   icon={UserRound}
                   label="Asignar Staff"
-                  onClick={() => scroll("staff-assignment")}
+                  onClick={() => openModule("STAFF", "staff-assignment")}
                   variant="outline"
                 />
               ) : null}
+              <details className="sm:col-span-2 lg:col-span-3 xl:col-span-5 rounded-xl border p-3">
+                <summary className="cursor-pointer text-sm font-semibold text-brand">Más acciones</summary>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
               <ActionButton
                 icon={Package}
                 label="Asignar equipo"
-                onClick={() => scroll("equipment-assignment")}
+                onClick={() => openModule("OPERATION", "equipment-assignment")}
                 variant="outline"
               />
               <ActionButton
                 icon={CalendarDays}
                 label="Generar Calendar"
-                onClick={syncCalendarFromQuickAction}
+                onClick={() => {
+                  openModule("COMMUNICATIONS", `portal-${props.projectKey ?? ""}`);
+                  syncCalendarFromQuickAction();
+                }}
                 variant="outline"
               />
               <ActionButton
@@ -1538,19 +1562,19 @@ export function ProjectWorkspaceExperience(
               <ActionButton
                 icon={Download}
                 label="Enviar fotos digitales"
-                onClick={() => scroll("digital-photo-delivery")}
+                onClick={() => openModule("COMMUNICATIONS", "digital-photo-delivery")}
                 variant="outline"
               />
               <ActionButton
                 icon={CalendarClock}
                 label="Recordatorio pre-evento"
-                onClick={() => scroll("pre-event-reminder")}
+                onClick={() => openModule("COMMUNICATIONS", "pre-event-reminder")}
                 variant="outline"
               />
               <ActionButton
                 icon={CheckCircle2}
                 label="Cerrar evento"
-                onClick={() => scroll("post-event")}
+                onClick={() => openModule("OPERATION", "post-event")}
                 variant="outline"
               />
               <ActionButton
@@ -1590,6 +1614,8 @@ export function ProjectWorkspaceExperience(
                 onClick={() => void lifecycle("PERMANENT_DELETE")}
                 variant="outline"
               />
+                </div>
+              </details>
             </div>
             {portalFeedback && (
               <p aria-live="polite" className="mt-3 text-sm text-muted">
@@ -1668,7 +1694,7 @@ export function ProjectWorkspaceExperience(
               <ProductionIntegrationPanel {...props.productionIntegration} />
             </OptionalModule>
           )}
-          {activeTab === "DOCUMENTS" && showLegacyDuplicatedEventSections && moduleVisible("DOCUMENTS") && (
+          {activeTab === "DOCUMENTS" && moduleVisible("DOCUMENTS") && (
             <div id="agreement-control">
               <AgreementSigningControl
                 agreementId={props.signing.agreementId}

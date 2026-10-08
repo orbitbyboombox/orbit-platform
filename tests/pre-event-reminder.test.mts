@@ -48,7 +48,7 @@ const base: PreEventReminderModel = {
 
 test("global Event action opens the canonical MobileDialog composer", () => {
   assert.match(workspace, /label="Recordatorio pre-evento"/);
-  assert.match(workspace, /scroll\("pre-event-reminder"\)/);
+  assert.match(workspace, /openModule\("COMMUNICATIONS", "pre-event-reminder"\)/);
   assert.match(workspace, /<PreEventReminderControl/);
   assert.match(control, /<MobileDialog/);
   for (const field of ["PARA", "CC", "ASUNTO", "VISTA PREVIA"]) {

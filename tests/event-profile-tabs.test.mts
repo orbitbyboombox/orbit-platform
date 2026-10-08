@@ -24,5 +24,22 @@ test("event profile keeps tab state in the URL for return navigation", async () 
 test("legacy horizontal section navigation is not rendered", async () => {
   const source = await readFile(workspacePath, "utf8");
   assert.doesNotMatch(source, /aria-label="Secciones del evento"/);
-  assert.match(source, /className="grid grid-cols-2 gap-2/);
+  assert.match(source, /grid-cols-2 gap-2/);
+});
+
+test("secondary actions are collapsed and cross-tab actions switch surface first", async () => {
+  const source = await readFile(workspacePath, "utf8");
+  assert.match(source, /<summary className=.*>Más acciones<\/summary>/);
+  assert.match(source, /openModule\("DOCUMENTS", "agreement-control"\)/);
+  assert.match(source, /openModule\("STAFF", "staff-assignment"\)/);
+  assert.match(source, /openModule\("COMMUNICATIONS", "pre-event-reminder"\)/);
+  assert.match(source, /className="sticky top-0 z-20/);
+});
+
+test("mixed CustomerEventOperations surfaces are explicitly scoped", async () => {
+  const source = await readFile("features/crm/customer-event-operations.tsx", "utf8");
+  assert.match(source, /type CustomerEventOperationsSurface = "FINANCE" \| "DOCUMENTS" \| "COMMUNICATIONS"/);
+  assert.match(source, /surface === "FINANCE"/);
+  assert.match(source, /surface === "DOCUMENTS"/);
+  assert.match(source, /surface === "COMMUNICATIONS"/);
 });
