@@ -4,9 +4,8 @@ import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { Check, Pencil, X } from "lucide-react";
 import { updateBlackBoxMasterAction } from "./black-box-master.actions";
-import { assignBlackBoxToEventAction, getBlackBoxAvailabilityForEventAction, removeBlackBoxFromEventAction } from "@/features/asset-management/event-black-box.actions";
+import { assignBlackBoxToEventAction, getBlackBoxAvailabilityForEventAction } from "@/features/asset-management/event-black-box.actions";
 import { BLACK_BOX_PAPER_FORMATS, blackBoxNumber, blackBoxPaperFormat, blackBoxStock, type BoxAsset } from "./box-inventory";
-import { AdminPaperCloseoutDialog } from "./admin-paper-closeout-dialog";
 
 const statusOptions = [
   ["AVAILABLE", "Disponible"],
@@ -22,6 +21,7 @@ export function BlackBoxMaster({ initialBoxes, events }: { initialBoxes: BoxAsse
   const [editing, setEditing] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [assignmentOpen, setAssignmentOpen] = useState(false);
+  const [assignmentAssetId, setAssignmentAssetId] = useState("");
   const [pending, startTransition] = useTransition();
 
   const save = (box: BoxAsset, formData: FormData) => {
@@ -52,21 +52,21 @@ export function BlackBoxMaster({ initialBoxes, events }: { initialBoxes: BoxAsse
         <div><h1 id="black-box-master-title" className="text-3xl font-semibold">Cajas Negras</h1><p className="mt-2 max-w-2xl text-sm text-muted">Stock oficial de fotos y papel por Caja. Los cambios quedan persistidos y auditados.</p></div>
         <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-full border border-brand/30 bg-brand/10 px-3 py-1 text-xs font-semibold text-brand">9 cajas operativas</span>
-          <button type="button" className="inline-flex min-h-11 items-center justify-center rounded-xl bg-brand px-4 text-sm font-bold text-brand-foreground" onClick={() => { setError(""); setAssignmentOpen(true); }}>+ ASIGNAR CAJA A EVENTO</button>
+          <button type="button" className="inline-flex min-h-11 items-center justify-center rounded-xl bg-brand px-4 text-sm font-bold text-brand-foreground" onClick={() => { setError(""); setAssignmentAssetId(""); setAssignmentOpen(true); }}>+ ASIGNAR CAJA A EVENTO</button>
         </div>
       </div>
     </header>
     {error && <p role="alert" className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-600">{error}</p>}
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-      {boxes.map((box) => <BlackBoxCard key={box.id} box={box} events={events} editing={editing === box.id} pending={pending} onEdit={() => { setError(""); setEditing(box.id); }} onCancel={() => { setError(""); setEditing(null); }} onSave={(data) => save(box, data)} onAssigned={() => location.reload()} />)}
+      {boxes.map((box) => <BlackBoxCard key={box.id} box={box} editing={editing === box.id} pending={pending} onEdit={() => { setError(""); setEditing(box.id); }} onCancel={() => { setError(""); setEditing(null); }} onSave={(data) => save(box, data)} onOpenAssign={() => { setAssignmentAssetId(box.id); setAssignmentOpen(true); }} />)}
     </div>
-    {assignmentOpen ? <AssignBoxToEventDialog boxes={boxes} events={events} onClose={() => setAssignmentOpen(false)} onAssigned={() => location.reload()} /> : null}
+    {assignmentOpen ? <AssignBoxToEventDialog boxes={boxes} events={events} initialAssetId={assignmentAssetId} onClose={() => setAssignmentOpen(false)} onAssigned={() => location.reload()} /> : null}
   </section>;
 }
 
-function AssignBoxToEventDialog({ boxes, events, onClose, onAssigned }: { boxes: BoxAsset[]; events: BoxEventOption[]; onClose: () => void; onAssigned: () => void }) {
+function AssignBoxToEventDialog({ boxes, events, initialAssetId, onClose, onAssigned }: { boxes: BoxAsset[]; events: BoxEventOption[]; initialAssetId: string; onClose: () => void; onAssigned: () => void }) {
   const [projectId, setProjectId] = useState("");
-  const [assetId, setAssetId] = useState("");
+  const [assetId, setAssetId] = useState(initialAssetId);
   const [availability, setAvailability] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -101,10 +101,7 @@ function AssignBoxToEventDialog({ boxes, events, onClose, onAssigned }: { boxes:
   </div>;
 }
 
-function BlackBoxCard({ box, events, editing, pending, onEdit, onCancel, onSave, onAssigned }: { box: BoxAsset; events: BoxEventOption[]; editing: boolean; pending: boolean; onEdit: () => void; onCancel: () => void; onSave: (formData: FormData) => void; onAssigned: () => void }) {
-  const [selectedProjectId, setSelectedProjectId] = useState("");
-  const [assignmentMessage, setAssignmentMessage] = useState("");
-  const [assigning, startAssigning] = useTransition();
+function BlackBoxCard({ box, editing, pending, onEdit, onCancel, onSave, onOpenAssign }: { box: BoxAsset; editing: boolean; pending: boolean; onEdit: () => void; onCancel: () => void; onSave: (formData: FormData) => void; onOpenAssign: () => void }) {
   const number = blackBoxNumber(box.asset_code);
   const stock = blackBoxStock(box.metadata);
   const format = blackBoxPaperFormat(box.metadata);
@@ -116,10 +113,9 @@ function BlackBoxCard({ box, events, editing, pending, onEdit, onCancel, onSave,
     </div>
     {!editing ? <>
       <div className="mt-5 grid grid-cols-2 gap-3"><div className="rounded-xl border bg-background/40 p-3"><p className="text-[11px] uppercase tracking-wide text-muted">Fotos disponibles</p><p className="mt-1 text-2xl font-semibold">{stock}</p></div><div className="rounded-xl border bg-background/40 p-3"><p className="text-[11px] uppercase tracking-wide text-muted">Papel</p><p className="mt-1 text-sm font-semibold">{format === "4X6_PREPICADO" ? "4x6 PREPICADO" : "4x6"}</p></div></div>
-      <div className="mt-4 rounded-xl border bg-background/40 p-3"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-[11px] font-semibold uppercase tracking-wide text-muted">Historial de eventos</p><p className="mt-1 text-sm text-muted">{box.assignments.length ? `${box.assignments.length} asignación${box.assignments.length === 1 ? "" : "es"} registrada${box.assignments.length === 1 ? "" : "s"}` : "Sin eventos registrados"}</p></div><Link href={`/resources/boxes/${box.id}/history`} className="inline-flex min-h-10 items-center rounded-lg border px-3 text-xs font-semibold hover:border-brand hover:text-brand">Ver historial</Link></div><div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]"><select aria-label={`Asignar ${box.asset_code} a Evento`} className="min-h-10 rounded-lg border bg-background px-2 text-sm" disabled={assigning || box.status === "MAINTENANCE" || box.status === "OUT_OF_SERVICE"} onChange={(event) => setSelectedProjectId(event.target.value)} value={selectedProjectId}><option value="">Seleccionar Evento</option>{events.map((event) => <option key={event.id} value={event.id}>{event.name} · {event.date}</option>)}</select><button type="button" disabled={assigning || !selectedProjectId || box.status === "MAINTENANCE" || box.status === "OUT_OF_SERVICE"} className="min-h-10 rounded-lg bg-brand px-3 text-xs font-bold text-brand-foreground" onClick={() => startAssigning(async () => { const result = await assignBlackBoxToEventAction({ projectId: selectedProjectId, assetId: box.id, reason: `Asignación desde Master Cajas · ${box.asset_code}` }); setAssignmentMessage(result.ok ? "Caja asignada al Evento. El stock no fue descontado." : result.error ?? "No fue posible asignar la Caja."); if (result.ok) onAssigned(); })}>ASIGNAR A EVENTO</button></div>{assignmentMessage ? <p aria-live="polite" className="mt-2 text-xs font-medium">{assignmentMessage}</p> : null}</div>
+      <div className="mt-4 grid gap-2 sm:grid-cols-2"><Link href={`/resources/boxes/${box.id}/history`} className="inline-flex min-h-10 min-w-0 items-center justify-center rounded-lg border px-3 text-xs font-semibold hover:border-brand hover:text-brand">Ver historial</Link><button type="button" disabled={box.status === "MAINTENANCE" || box.status === "OUT_OF_SERVICE"} className="inline-flex min-h-10 min-w-0 items-center justify-center rounded-lg bg-brand px-3 text-xs font-bold text-brand-foreground disabled:opacity-50" onClick={onOpenAssign}>Asignar evento</button></div>
       <p className="mt-4 text-xs text-muted">Actualizada {new Date(box.updated_at).toLocaleString("es-CL")} · {box.updated_by_name ?? "Sistema"}</p>
      <button type="button" onClick={onEdit} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 text-xs font-semibold hover:border-brand hover:text-brand"><Pencil className="size-4" />Editar stock</button>
-      {box.assignments.length ? <div className="mt-3 space-y-2">{box.assignments.map((assignment) => <div className="flex flex-wrap gap-2" key={"actions-" + assignment.id}><a className="rounded-lg border px-2.5 py-1.5 text-xs font-semibold" href={"/projects/" + assignment.projectId + "#equipment-assignment"}>VER EVENTO</a><AdminPaperCloseoutDialog projectId={assignment.projectId} assignmentId={assignment.id} eventName={assignment.eventName} boxCode={box.asset_code} onDone={onAssigned}/><button type="button" className="rounded-lg border border-red-500/30 px-2.5 py-1.5 text-xs font-semibold text-red-600" disabled={assigning} onClick={() => startAssigning(async () => { const result = await removeBlackBoxFromEventAction({ projectId: assignment.projectId, reason: "Liberación desde Master Cajas · " + box.asset_code }); setAssignmentMessage(result.ok ? "Caja liberada." : result.error ?? "No fue posible liberar la Caja."); if (result.ok) onAssigned(); })}>LIBERAR</button></div>)}</div> : null}
     </> : <form className="mt-4 space-y-3" action={onSave}>
       <input type="hidden" name="id" value={box.id}/><input type="hidden" name="assetCode" value={box.asset_code}/><input type="hidden" name="version" value={box.version}/>
       <label className="block text-xs font-semibold text-muted">Fotos disponibles<input name="photoStock" type="number" min="0" step="1" defaultValue={stock} required className="mt-1 h-10 w-full rounded-lg border bg-background px-3 text-sm"/></label>

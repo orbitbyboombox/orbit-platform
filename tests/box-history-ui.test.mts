@@ -9,8 +9,11 @@ const history = readFileSync("app/(platform)/resources/boxes/[assetId]/history/p
 test("Cajas main view exposes compact history navigation per box", () => {
   assert.match(master, /href=\{`\/resources\/boxes\/\$\{box\.id\}\/history`\}/);
   assert.match(master, /Ver historial/);
-  assert.match(master, /Historial de eventos/);
+  assert.match(master, /Asignar evento/);
+  assert.match(master, /onOpenAssign/);
   assert.doesNotMatch(master, /box\.assignments\.map\(\(assignment\) => <div className=\"text-sm\"/);
+  assert.doesNotMatch(master, /Seleccionar Evento/);
+  assert.doesNotMatch(master, /FORZAR CIERRE DE EVENTO/);
 });
 
 test("box history is a read-only independent view ordered by operational history", () => {
@@ -22,4 +25,6 @@ test("box history is a read-only independent view ordered by operational history
   assert.match(history, /events\.map/);
   assert.match(history, /assignment\.id/);
   assert.match(history, /snapshot\.status/);
+  assert.match(history, /BoxHistoryEventActions/);
+  assert.match(history, /Operador:/);
 });

@@ -118,7 +118,7 @@ export async function loadBoxDetail(client: SupabaseClient, assetId: string) {
 export async function loadBoxHistory(client: SupabaseClient, assetId: string) {
   const [boxResult, assignmentsResult, snapshotsResult] = await Promise.all([
     client.from("operational_assets").select("id,asset_code,asset_type,status,metadata,storage_location").eq("id", assetId).in("asset_type", ["CASE", "BOX"]).is("deleted_at", null).maybeSingle(),
-    client.from("asset_assignments").select("id,project_id,assignment_status,planned_start_at,planned_end_at,assigned_at,returned_at,return_condition,return_notes,projects(id,name,event_date,event_time,event_time_mode,location)").eq("asset_id", assetId).is("deleted_at", null).order("planned_start_at", { ascending: false }),
+    client.from("asset_assignments").select("id,project_id,assignment_status,planned_start_at,planned_end_at,assigned_at,returned_at,return_condition,return_notes,projects(id,name,event_date,event_time,event_time_mode,location,assignments(staff_id,assignment_type,status,staff(first_name,last_name)))").eq("asset_id", assetId).is("deleted_at", null).order("planned_start_at", { ascending: false }),
     client.from("event_paper_snapshots").select("id,project_id,asset_assignment_id,status,opening_balance,event_usage,final_remaining_balance,confirmed_at,overridden_at,close_note,master_stock_before,master_stock_after,created_at").eq("box_asset_id", assetId).order("created_at", { ascending: false }),
   ]);
   if (boxResult.error) throw boxResult.error;

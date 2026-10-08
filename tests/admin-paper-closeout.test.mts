@@ -5,7 +5,7 @@ import test from "node:test";
 const migration = readFileSync("supabase/migrations/20261008123000_admin_force_staff_paper_closeout.sql", "utf8");
 const action = readFileSync("features/projects/event-paper.actions.ts", "utf8");
 const ui = readFileSync("features/resources/admin-paper-closeout-dialog.tsx", "utf8");
-const boxes = readFileSync("features/resources/black-box-master.tsx", "utf8");
+const historyActions = readFileSync("features/resources/box-history-event-actions.tsx", "utf8");
 
 test("admin paper closeout is Founder/Admin-only, atomic and idempotent", () => {
   assert.match(migration, /auth\.uid\(\)/);
@@ -27,7 +27,7 @@ test("admin closeout action uses the canonical RPC and revalidates Cajas", () =>
 });
 
 test("Logística Cajas exposes the controlled administrative closeout", () => {
-  assert.match(boxes, /AdminPaperCloseoutDialog/);
+  assert.match(historyActions, /AdminPaperCloseoutDialog/);
   assert.match(ui, /FORZAR CIERRE DE EVENTO/);
   assert.match(ui, /Motivo obligatorio/);
   assert.match(ui, /CONFIRMAR CIERRE/);
