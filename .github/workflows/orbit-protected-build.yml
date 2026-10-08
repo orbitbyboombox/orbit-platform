@@ -57,5 +57,5 @@ jobs:
           cp -R . "$temp_dir/"
           cd "$temp_dir"
           pnpm install --frozen-lockfile --ignore-scripts
-          pnpm dlx vercel@latest pull --yes --environment=production
-          pnpm dlx vercel@latest build --prod
+          pnpm dlx vercel@latest pull --yes --environment=production --token "$VERCEL_TOKEN"
+          pnpm dlx vercel@latest build --prod --token "$VERCEL_TOKEN"
