@@ -20,9 +20,21 @@ export async function GET(
     const { data: row, error } = await admin.from("quote_versions").select("pdf_storage_path").eq("quote_id", quoteId).eq("version_number", versionNumber).maybeSingle();
     if (error) throw error;
     if (!row?.pdf_storage_path) return NextResponse.json({ message: "PDF de esta versión no disponible." }, { status: 404 });
-    const signed = await admin.storage.from("orbit-documents").createSignedUrl(row.pdf_storage_path, 60 * 60);
-    if (signed.error) throw signed.error;
-    return NextResponse.redirect(signed.data.signedUrl);
+    const download = new URL(_request.url).searchParams.get("download") === "1";
+    if (!download) {
+      const signed = await admin.storage.from("orbit-documents").createSignedUrl(row.pdf_storage_path, 60 * 60);
+      if (signed.error) throw signed.error;
+      return NextResponse.redirect(signed.data.signedUrl);
+    }
+    const file = await admin.storage.from("orbit-documents").download(row.pdf_storage_path);
+    if (file.error) throw file.error;
+    return new NextResponse(new Uint8Array(await file.data.arrayBuffer()), {
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="cotizacion-orbit-v${versionNumber}.pdf"`,
+        "Cache-Control": "private, no-store",
+      },
+    });
   } catch (error) {
     console.error("[commercial-quote-version-pdf]", error);
     return NextResponse.json({ message: "No fue posible abrir el PDF de la versión." }, { status: 500 });

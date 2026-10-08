@@ -32,6 +32,57 @@ export async function updateEventPaperVariantAction(input: { projectId: string; 
   return { ok: true as const };
 }
 
+export async function adminForceStaffPaperCloseoutAction(input: {
+  projectId: string;
+  assetAssignmentId: string;
+  finalRemaining: number;
+  reason: string;
+}) {
+  const client = await createSupabaseServerClient();
+  const { data: auth } = await client.auth.getUser();
+  if (!auth.user) throw new Error("Sesión requerida.");
+  const { data: profile } = await client.from("profiles").select("role").eq("id", auth.user.id).maybeSingle();
+  if (!isAdministrativeRole(profile?.role)) throw new Error("Acceso administrativo requerido.");
+  if (!Number.isInteger(input.finalRemaining) || input.finalRemaining < 0) throw new Error("El saldo final debe ser un entero no negativo.");
+  const reason = input.reason.trim();
+  if (reason.length < 3) throw new Error("El motivo del cierre administrativo es obligatorio.");
+  const { data, error } = await client.rpc("admin_force_staff_event_paper_closeout", {
+    p_project_id: input.projectId,
+    p_asset_assignment_id: input.assetAssignmentId,
+    p_final_remaining: input.finalRemaining,
+    p_reason: reason,
+    p_idempotency_key: `admin-paper-close:${input.projectId}:${input.assetAssignmentId}:${input.finalRemaining}`,
+  });
+  if (error) throw error;
+  revalidatePath(`/projects/${input.projectId}`);
+  revalidatePath("/resources/boxes");
+  revalidatePath("/staff-portal");
+  return { ok: true as const, data };
+}
+
+export async function loadAdminPaperCloseoutAction(assetAssignmentId: string) {
+  const client = await createSupabaseServerClient();
+  const { data: auth } = await client.auth.getUser();
+  if (!auth.user) throw new Error("Sesión requerida.");
+  const { data: profile } = await client.from("profiles").select("role").eq("id", auth.user.id).maybeSingle();
+  if (!isAdministrativeRole(profile?.role)) throw new Error("Acceso administrativo requerido.");
+  const admin = createAdminClient();
+  const { data: snapshot, error } = await admin.from("event_paper_snapshots")
+    .select("id,project_id,asset_assignment_id,opening_balance,final_remaining_balance,event_usage,status,format_key,black_box_paper_format")
+    .eq("asset_assignment_id", assetAssignmentId).maybeSingle();
+  if (error) throw error;
+  if (!snapshot) throw new Error("Este evento todavía no tiene snapshot de papel.");
+  const { data: reloads, error: reloadError } = await admin.from("event_paper_reloads").select("quantity").eq("snapshot_id", snapshot.id);
+  if (reloadError) throw reloadError;
+  return {
+    ok: true as const,
+    snapshot: {
+      ...snapshot,
+      reloads: (reloads ?? []).reduce((total, row) => total + Number(row.quantity ?? 0), 0),
+    },
+  };
+}
+
 
 export type EventPhotoStyle = "COLOR" | "BLACK_WHITE" | "SEPIA";
 

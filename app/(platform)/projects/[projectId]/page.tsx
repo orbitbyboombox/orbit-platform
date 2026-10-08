@@ -148,7 +148,7 @@ export default async function ProjectWorkspacePage({
     client
       .from("quotations")
       .select(
-        "id,quotation_number,version,status,grand_total,transport_total,official_price,final_customer_price,price_difference,created_at,approved_at,pdf_storage_path,drive_file_id,gmail_draft_id,quotation_items(item_type,description,label,quantity,total,display_order)",
+        "id,quotation_number,version,status,accepted_version_id,grand_total,transport_total,official_price,final_customer_price,price_difference,created_at,approved_at,pdf_storage_path,drive_file_id,gmail_draft_id,quotation_items(item_type,description,label,quantity,total,display_order)",
       )
       .eq("project_id", projectId)
       .is("deleted_at", null)
@@ -1806,6 +1806,7 @@ function buildCommercialQuotationFile(originValue: unknown, quotationValue: unkn
     number: String(origin.quotation_number ?? quotation.quotation_number ?? "Cotización"),
     status: String(quotation.status ?? "CONVERTED"),
     revision: Number(origin.quotation_version ?? quotation.version ?? snapshotQuote.version ?? 1),
+    acceptedVersionId: String(quotation.accepted_version_id ?? origin.accepted_version_id ?? "") || undefined,
     acceptedAt: String(origin.accepted_at ?? quotation.approved_at ?? quotation.created_at ?? new Date(0).toISOString()),
     total: Number(commercial.total ?? snapshotQuote.grandTotal ?? quotation.grand_total ?? 0),
     detailHref: `/quotes/${id}`,

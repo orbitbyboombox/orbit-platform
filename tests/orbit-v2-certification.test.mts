@@ -6,7 +6,8 @@ const read = (path: string) => readFileSync(path, "utf8");
 
 test("ORBIT BOOMBOX release identifies itself as v2.0", () => {
   assert.match(read("package.json"), /"version": "2\.0\.0"/);
-  assert.match(read("app/page.tsx"), /ORBIT BOOMBOX v2\.0/);\n  assert.match(read("features/company-settings/types.ts"), /productVersion:"v2\.0"/);
+  assert.match(read("app/page.tsx"), /ORBIT BOOMBOX v2\.0/);
+  assert.match(read("features/company-settings/types.ts"), /productVersion:"v2\.0"/);
 });
 
 test("receipt Content-Disposition remains ASCII-safe while preserving UTF-8 filename", () => {

@@ -73,6 +73,7 @@ test("C.6 paper variant is event metadata and never reinterprets inventory forma
 
 
 test("Event 360 summary shows one paper model and keeps editing inside paper detail only", () => {
+  const source = read("features/projects/components/event-ui-replica.tsx");
   assert.match(source, /PaperMetric label="Tipo de papel"/);
   assert.match(source, /Definir tipo de papel/);
   assert.match(source, /updateEventPaperVariantAction/);
