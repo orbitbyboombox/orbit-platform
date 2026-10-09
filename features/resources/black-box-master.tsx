@@ -51,6 +51,7 @@ export function BlackBoxMaster({ initialBoxes, events }: { initialBoxes: BoxAsse
       <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
         <div><h1 id="black-box-master-title" className="text-3xl font-semibold">Cajas Negras</h1><p className="mt-2 max-w-2xl text-sm text-muted">Stock oficial de fotos y papel por Caja. Los cambios quedan persistidos y auditados.</p></div>
         <div className="flex flex-wrap items-center gap-2">
+          <Link href="/resources/boxes/warehouse" className="inline-flex min-h-11 items-center justify-center rounded-xl border border-brand/40 px-4 text-sm font-bold text-brand hover:bg-brand/10">BODEGA DE PAPEL</Link>
           <span className="rounded-full border border-brand/30 bg-brand/10 px-3 py-1 text-xs font-semibold text-brand">9 cajas operativas</span>
           <button type="button" className="inline-flex min-h-11 items-center justify-center rounded-xl bg-brand px-4 text-sm font-bold text-brand-foreground" onClick={() => { setError(""); setAssignmentAssetId(""); setAssignmentOpen(true); }}>+ ASIGNAR CAJA A EVENTO</button>
         </div>
