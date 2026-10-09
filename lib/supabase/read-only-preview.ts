@@ -6,6 +6,7 @@ const readOnlyRpcNames = new Set([
   "get_event_asset_availability",
   "get_event_capacity",
   "invoice_payment_cash_impact",
+  "get_black_box_availability",
   // Read-only projection consumed by the Operations dashboard.
   "operations_drive_ready_projects",
 ]);
