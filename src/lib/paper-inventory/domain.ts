@@ -32,9 +32,9 @@ export function applyPaperMovement(
   if (!movement.from && !movement.to) throw new Error("Missing source and destination");
   if (movement.from && movement.to && movement.from === movement.to)
     throw new Error("Source and destination cannot match");
-  if (movement.kind === "transfer" && (!movement.from || !movement.to))
-    throw new Error("Transfer requires source and destination");
-  if (movement.kind === "consumption" && (!movement.from || movement.to || !movement.eventId))
+  if (["opening", "purchase"].includes(movement.kind) && (movement.from || movement.to !== "warehouse"))\n    throw new Error("Inbound stock must enter the warehouse");\n  if (movement.kind === "return" && (!movement.from?.startsWith("box:") || movement.to !== "warehouse"))\n    throw new Error("Return must move paper from a box to the warehouse");\n  if (movement.kind === "transfer" && (movement.from !== "warehouse" || !movement.to?.startsWith("box:")))
+    throw new Error("Transfer must move paper from warehouse to a box");
+  if (movement.kind === "consumption" && (!movement.from?.startsWith("box:") || movement.to || !movement.eventId))
     throw new Error("Consumption requires a source and event");
   const next = { ...balances };
   if (movement.from) {
