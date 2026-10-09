@@ -11,6 +11,10 @@ async function repairFromForm(formData: FormData) {
     const result = await repairPendingDocumentBackupsAction([documentId]);
     redirect(`/resources/drive-repair?result=${encodeURIComponent(JSON.stringify(result))}`);
   } catch (error) {
+    const digest = typeof error === "object" && error !== null && "digest" in error
+      ? String((error as { digest?: unknown }).digest ?? "")
+      : "";
+    if (digest.startsWith("NEXT_REDIRECT") || (error instanceof Error && error.message === "NEXT_REDIRECT")) throw error;
     redirect(`/resources/drive-repair?error=${encodeURIComponent(error instanceof Error ? error.message : "No fue posible reparar el documento.")}`);
   }
 }
