@@ -9,7 +9,8 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { GlobalSearch } from "@/features/global-search/global-search";
@@ -34,7 +35,26 @@ export interface HeaderProps {
 export function Header({ userEmail, userName, userRole, actionableNotifications, navigationOrder, hiddenNavigation, resilientSyncEnabled }: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const pathname = usePathname();
   const { isEnabled } = useModuleManager();
+
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMenuOpen(false);
+    };
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [menuOpen]);
   return (
     <>
       <header className="sticky top-0 z-20 flex h-[4.5rem] items-center gap-2 border-b border-border/70 bg-background/86 px-3 shadow-[0_10px_32px_rgba(0,0,0,.08)] backdrop-blur-xl sm:gap-3 sm:px-4 md:px-6 lg:px-8">
@@ -96,9 +116,12 @@ export function Header({ userEmail, userName, userRole, actionableNotifications,
         {userMenuOpen && <div className="absolute right-3 top-[4.1rem] z-50 w-56 rounded-xl border bg-card p-2 shadow-2xl sm:right-4"><Link className="flex min-h-11 items-center rounded-lg px-3 text-sm hover:bg-accent" href="/settings?section=profile" onClick={() => setUserMenuOpen(false)}>Perfil y configuración</Link><form action={signOutAction}><PendingSubmitButton className="min-h-11 w-full justify-start bg-transparent px-3 text-foreground shadow-none hover:bg-accent" pendingLabel="Cerrando sesión…" variant="ghost"><LogOut className="size-4" />Cerrar sesión</PendingSubmitButton></form></div>}
       </header>
       {menuOpen && (
-        <div className="fixed inset-x-3 top-[4.75rem] z-40 rounded-2xl border bg-card/95 p-2 shadow-2xl backdrop-blur-xl md:hidden">
+        <>
+          <button aria-label="Cerrar navegación" className="fixed inset-0 z-30 bg-black/45 md:hidden" onClick={() => setMenuOpen(false)} type="button" />
+          <div aria-label="Navegación móvil" className="fixed inset-x-3 top-[4.75rem] z-40 max-h-[calc(100dvh-5.5rem)] overflow-y-auto overscroll-contain rounded-2xl border bg-card/95 p-2 shadow-2xl backdrop-blur-xl md:hidden" role="dialog">
           <NavigationList hiddenNavigation={hiddenNavigation} navigationOrder={navigationOrder} onNavigate={() => setMenuOpen(false)} />
-        </div>
+          </div>
+        </>
       )}
     </>
   );

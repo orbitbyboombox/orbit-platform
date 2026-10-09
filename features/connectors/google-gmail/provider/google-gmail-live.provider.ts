@@ -12,6 +12,27 @@ export interface GoogleGmailProviderMessage {
   attachments?: readonly { filename: string; mimeType: string; content: Uint8Array }[];
 }
 
+/**
+ * Gives every outgoing ORBIT email a conservative, client-compatible surface.
+ * Inline colors and legacy bgcolor attributes are intentional: Outlook and
+ * Gmail dark mode do not consistently honor the same CSS/media-query rules.
+ */
+export function normalizeBoomBoxEmailHtml(html: string): string {
+  const normalized = html.trim();
+  const colorMeta = '<meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark">';
+  if (!/<html[\s>]/i.test(normalized)) {
+    return `<!doctype html><html><head><meta charset="utf-8">${colorMeta}</head><body bgcolor="#0b0c0e" style="margin:0;padding:0;background-color:#0b0c0e;color:#ffffff;color-scheme:light dark"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#0b0c0e" style="width:100%;background-color:#0b0c0e"><tr><td style="padding:24px 16px;font-family:Arial,sans-serif;color:#ffffff;background-color:#0b0c0e">${normalized}</td></tr></table></body></html>`;
+  }
+  const withMeta = /<head[^>]*>/i.test(normalized)
+    ? normalized.replace(/<head[^>]*>/i, (tag) => `${tag}${colorMeta}`)
+    : normalized.replace(/<html[^>]*>/i, (tag) => `${tag}<head>${colorMeta}</head>`);
+  return withMeta.replace(/<body([^>]*)>/i, (_tag, attributes: string) => {
+    const existingStyle = /style="([^"]*)"/i.exec(attributes)?.[1] ?? "";
+    const withoutStyle = attributes.replace(/\sstyle="[^"]*"/i, "");
+    return `<body${withoutStyle} bgcolor="#ece9e3" style="${existingStyle}${existingStyle && !existingStyle.trim().endsWith(";") ? ";" : ""}background-color:#ece9e3;color:#171717;color-scheme:light dark">`;
+  });
+}
+
 const utf8Base64Url = (value: string) => btoa(unescape(encodeURIComponent(value))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 const utf8Base64 = (value: string) => btoa(unescape(encodeURIComponent(value)));
 const encodedSubject = (value: string) => `=?UTF-8?B?${utf8Base64(value)}?=`;
@@ -41,6 +62,7 @@ export class GoogleGmailApiProvider implements GoogleGmailLiveProvider {
     this.userId = userId;
   }
   private async raw(message: GoogleGmailProviderMessage): Promise<string> {
+    const htmlBody = normalizeBoomBoxEmailHtml(message.htmlBody);
     const headers = [`To: ${message.to}`, `Subject: ${encodedSubject(message.subject)}`, "MIME-Version: 1.0", "Content-Type: text/html; charset=UTF-8"];
     if (message.cc?.length) headers.splice(1, 0, `Cc: ${message.cc.join(", ")}`);
     if (message.idempotencyKey) {
@@ -48,7 +70,7 @@ export class GoogleGmailApiProvider implements GoogleGmailLiveProvider {
       headers.push(`Message-ID: <${safeKey}@orbit.boom-box.cl>`, `X-ORBIT-Idempotency-Key: ${safeKey}`);
     }
     if (message.replyToMessageId) headers.push(`In-Reply-To: ${message.replyToMessageId}`, `References: ${message.replyToMessageId}`);
-    if (!message.driveFileIds.length && !message.attachments?.length) return utf8Base64Url(`${headers.join("\r\n")}\r\n\r\n${message.htmlBody}`);
+    if (!message.driveFileIds.length && !message.attachments?.length) return utf8Base64Url(`${headers.join("\r\n")}\r\n\r\n${htmlBody}`);
     const boundary = `orbit-${crypto.randomUUID()}`;
     const driveAttachments = await Promise.all(message.driveFileIds.map(async (fileId) => {
       const metadataResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=name,mimeType`, { headers: { Authorization: `Bearer ${this.accessToken}` } });
@@ -66,7 +88,7 @@ export class GoogleGmailApiProvider implements GoogleGmailLiveProvider {
     });
     const attachments = [...driveAttachments, ...directAttachments];
     const mixedHeaders = headers.filter((header) => !header.startsWith("Content-Type:"));
-    const body = [...mixedHeaders, `Content-Type: multipart/mixed; boundary="${boundary}"`, "", `--${boundary}`, "Content-Type: text/html; charset=UTF-8", "Content-Transfer-Encoding: 8bit", "", message.htmlBody, ...attachments, `--${boundary}--`].join("\r\n");
+    const body = [...mixedHeaders, `Content-Type: multipart/mixed; boundary="${boundary}"`, "", `--${boundary}`, "Content-Type: text/html; charset=UTF-8", "Content-Transfer-Encoding: 8bit", "", htmlBody, ...attachments, `--${boundary}--`].join("\r\n");
     return utf8Base64Url(body);
   }
   async send(message: GoogleGmailProviderMessage): Promise<GoogleGmailProviderResult> {
