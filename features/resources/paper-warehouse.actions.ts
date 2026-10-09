@@ -12,7 +12,7 @@ export async function transferPaperFromWarehouse(formData: FormData): Promise<{o
   const quantity=Number(formData.get("quantity"));
   const reason=String(formData.get("reason")??"").trim();
   const idempotencyKey=String(formData.get("idempotencyKey")??"");
-  if(!supplyId||!boxId||!Number.isSafeInteger(quantity)||quantity<=0||reason.length<4||!idempotencyKey) throw new Error("Completa caja, cantidad y motivo.");
+  if(!supplyId||!boxId||!Number.isSafeInteger(quantity)||quantity<=0||quantity%700!==0||reason.length<4||!idempotencyKey) throw new Error("Completa caja, cantidad y motivo.");
   const {data,error}=await client.rpc("transfer_warehouse_paper_to_box",{p_supply_id:supplyId,p_box_asset_id:boxId,p_quantity:quantity,p_reason:reason,p_idempotency_key:idempotencyKey});
   if(error) throw error;
   revalidatePath("/resources/boxes");
@@ -32,7 +32,7 @@ export async function receivePaperInWarehouse(formData: FormData): Promise<{ok:t
   const rawCost=String(formData.get("unitCost")??"").trim();
   const unitCost=rawCost===""?null:Number(rawCost);
   const key=String(formData.get("idempotencyKey")??"");
-  if(!supplyId||!Number.isSafeInteger(quantity)||quantity<=0||reference.length<4||!key||(unitCost!==null&&(!Number.isFinite(unitCost)||unitCost<0)))throw new Error("Ingresa cantidad, referencia y costo válidos.");
+  if(!supplyId||!Number.isSafeInteger(quantity)||quantity<=0||quantity%700!==0||reference.length<4||!key||(unitCost!==null&&(!Number.isFinite(unitCost)||unitCost<0)))throw new Error("Ingresa cantidad, referencia y costo válidos.");
   const {error}=await client.rpc("receive_warehouse_paper",{p_supply_id:supplyId,p_quantity:quantity,p_reference:reference,p_unit_cost:unitCost,p_idempotency_key:key});
   if(error)throw error;
   revalidatePath("/resources/boxes/warehouse");
