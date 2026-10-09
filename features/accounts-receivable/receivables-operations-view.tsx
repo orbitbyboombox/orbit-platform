@@ -19,6 +19,8 @@ import {
   type ReceivableViewFilter,
 } from "./receivables-view-model";
 import { CollectionEmailComposer } from "./collection-email-composer";
+import { loadReceivableFollowUpsAction, reconcileReceivableFollowUpsAction, setReceivableFollowUpAction } from "./follow-up.actions";
+import { mergeFollowUpIds, normalizeFollowUpIds } from "./follow-up-sync";
 
 const money = (value: number) => new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(Math.round(value));
 const date = (value: string | null) => value ? new Intl.DateTimeFormat("es-CL", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${value.slice(0, 10)}T00:00:00Z`)) : "Sin fecha";
@@ -75,6 +77,7 @@ export function ReceivablesOperationsView({ dataset, bankDetails, initialInvoice
   const [view, setView] = useState<"FINISHED" | "FUTURE" | "HISTORY">("FINISHED");
   const [query, setQuery] = useState("");
   const [marked, setMarked] = useState<Set<string>>(new Set());
+  const allInvoices = useMemo(() => [...dataset.invoices, ...dataset.historyInvoices], [dataset.historyInvoices, dataset.invoices]);
   const active = useMemo(() => uniqueReceivables(dataset.invoices).filter((row) => row.outstandingBalance > 0), [dataset.invoices]);
   const history = useMemo(() => sortPaidHistory(dataset.historyInvoices.filter((row) => row.outstandingBalance <= 0 || row.status === "PAID")), [dataset.historyInvoices]);
   const pendingTotal = pendingReceivableTotal(active);
@@ -92,11 +95,31 @@ export function ReceivablesOperationsView({ dataset, bankDetails, initialInvoice
     return view === "FUTURE" ? sortFutureReceivables(future) : sortFinishedReceivables(finished);
   }, [active, filter, history, query, view]);
   useEffect(() => {
-    try {
-      const saved = JSON.parse(window.localStorage.getItem("orbit.receivables.follow-up.v1") ?? "[]");
-      if (Array.isArray(saved)) setMarked(new Set(saved.filter((value): value is string => typeof value === "string")));
-    } catch { /* local marker is optional and never affects financial data */ }
-  }, []);
+    let cancelled = false;
+    const localIds = (() => {
+      try {
+        const saved = JSON.parse(window.localStorage.getItem("orbit.receivables.follow-up.v1") ?? "[]");
+        return Array.isArray(saved) ? normalizeFollowUpIds(saved.filter((value): value is string => typeof value === "string"), allInvoices) : [];
+      } catch { return []; }
+    })();
+    const legacyReconciled = window.localStorage.getItem("orbit.receivables.follow-up.v2-migrated") === "1";
+    void (async () => {
+      const remote = await loadReceivableFollowUpsAction();
+      if (cancelled) return;
+      const projectIds = remote.ok
+        ? (legacyReconciled ? remote.projectIds : mergeFollowUpIds(remote.projectIds, localIds))
+        : localIds;
+      setMarked(new Set(projectIds));
+      try { window.localStorage.setItem("orbit.receivables.follow-up.v1", JSON.stringify(projectIds)); } catch { /* optional cache */ }
+      if (remote.ok && !legacyReconciled && localIds.length) {
+        const reconciliation = await reconcileReceivableFollowUpsAction(localIds);
+        if (reconciliation.ok) window.localStorage.setItem("orbit.receivables.follow-up.v2-migrated", "1");
+      } else if (remote.ok && !legacyReconciled) {
+        window.localStorage.setItem("orbit.receivables.follow-up.v2-migrated", "1");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [allInvoices]);
   useEffect(() => {
     if (!initialInvoiceId) return;
     const invoice = dataset.invoices.find((row) => row.id === initialInvoiceId) ?? dataset.historyInvoices.find((row) => row.id === initialInvoiceId);
@@ -104,13 +127,15 @@ export function ReceivablesOperationsView({ dataset, bankDetails, initialInvoice
     setQuery(invoice.invoiceNumber);
     setView(invoice.outstandingBalance > 0 ? (isFutureReceivable(invoice, today()) ? "FUTURE" : "FINISHED") : "HISTORY");
   }, [dataset.historyInvoices, dataset.invoices, initialInvoiceId]);
-  const toggleMarked = (invoiceId: string) => {
+  const toggleMarked = (projectId: string) => {
+    const nextMarked = !marked.has(projectId);
     setMarked((current) => {
       const next = new Set(current);
-      if (next.has(invoiceId)) next.delete(invoiceId); else next.add(invoiceId);
+      if (nextMarked) next.add(projectId); else next.delete(projectId);
       try { window.localStorage.setItem("orbit.receivables.follow-up.v1", JSON.stringify([...next])); } catch { /* best effort only */ }
       return next;
     });
+    void setReceivableFollowUpAction(projectId, nextMarked);
   };
   return (
     <main className="flex flex-col gap-5 pb-10" id="receivables-workspace" data-workspace-section="RECEIVABLES_OPERATIONS">
@@ -132,7 +157,7 @@ export function ReceivablesOperationsView({ dataset, bankDetails, initialInvoice
       </section>
       <section className="space-y-3" data-receivable-view={view}>
         <div className="flex flex-wrap items-end justify-between gap-2"><div><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">{view === "HISTORY" ? "Historial" : view === "FUTURE" ? "Eventos futuros" : "Eventos terminados"}</p><h2 className="mt-1 text-xl font-semibold">{rows.length} registro{rows.length === 1 ? "" : "s"}</h2></div><span className="text-sm text-muted">{view === "HISTORY" ? "Más recientes primero" : view === "FUTURE" ? "Orden cronológico del evento" : "Vencidos primero · luego vencimiento"}</span></div>
-        {rows.length ? <div className="grid min-w-0 gap-3 lg:grid-cols-2">{rows.map((row) => <ReceivableItem bankDetails={bankDetails} key={row.id} marked={marked.has(row.id)} onToggle={() => toggleMarked(row.id)} row={row} />)}</div> : <div className="rounded-2xl border bg-card p-10 text-center"><ReceiptText className="mx-auto size-8 text-brand" /><p className="mt-3 font-semibold">No hay registros para estos filtros.</p><p className="mt-1 text-sm text-muted">Las cuentas sin clasificación aparecen igualmente en Todos para revisión.</p></div>}
+        {rows.length ? <div className="grid min-w-0 gap-3 lg:grid-cols-2">{rows.map((row) => <ReceivableItem bankDetails={bankDetails} key={row.id} marked={marked.has(row.projectId)} onToggle={() => toggleMarked(row.projectId)} row={row} />)}</div> : <div className="rounded-2xl border bg-card p-10 text-center"><ReceiptText className="mx-auto size-8 text-brand" /><p className="mt-3 font-semibold">No hay registros para estos filtros.</p><p className="mt-1 text-sm text-muted">Las cuentas sin clasificación aparecen igualmente en Todos para revisión.</p></div>}
       </section>
     </main>
   );
