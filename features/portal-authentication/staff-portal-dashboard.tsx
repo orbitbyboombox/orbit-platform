@@ -590,6 +590,7 @@ function EventDetail({
             <X className="size-4" />
           </button>
         </div>
+        {event.extras.length > 0 && <section className="mt-5 rounded-2xl border-2 border-amber-500/60 bg-amber-500/10 p-4" aria-label="Recordatorio de extras del evento"><p className="font-bold uppercase tracking-wide text-amber-700 dark:text-amber-300">🔔 RECUERDA: TU EVENTO INCLUYE</p><div className="mt-3 flex flex-wrap gap-2">{event.extras.map(extra=><span key={extra} className="rounded-lg border border-amber-500/30 bg-card px-3 py-2 text-sm font-bold uppercase">{extra}</span>)}</div></section>}
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Small label="CITACIÓN" value={event.staffCallAt?new Date(event.staffCallAt).toLocaleString("es-CL",{timeZone:"America/Santiago"}):"Por confirmar"} />
           <Small label="SERVICIO" value={`${event.date} · ${event.start}–${event.finish}`} />
