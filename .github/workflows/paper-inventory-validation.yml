@@ -1,0 +1,27 @@
+name: Paper inventory validation
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'app/paper-inventory/**'
+      - 'src/lib/paper-inventory/**'
+      - 'tests/paper-inventory/**'
+      - 'supabase/migrations/20261009180000_paper_warehouse_ledger.sql'
+      - '.github/workflows/paper-inventory-validation.yml'
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+# No Vercel deployment, no Supabase writes, no Preview.
