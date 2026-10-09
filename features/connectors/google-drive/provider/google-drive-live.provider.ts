@@ -105,6 +105,8 @@ export class GoogleDriveApiProvider implements GoogleDriveLiveProvider {
     url.searchParams.set("q", query);
     url.searchParams.set("fields", "files(id,name)");
     url.searchParams.set("pageSize", "1");
+    url.searchParams.set("supportsAllDrives", "true");
+    url.searchParams.set("includeItemsFromAllDrives", "true");
 
     const response = await fetch(url, { headers: { Authorization: `Bearer ${this.accessToken}` } });
     if (!response.ok) throw new Error(`Google Drive lookup failed (${response.status}): ${await response.text()}`);
@@ -125,6 +127,8 @@ export class GoogleDriveApiProvider implements GoogleDriveLiveProvider {
     url.searchParams.set("q", query);
     url.searchParams.set("fields", "files(id,name,mimeType,size,md5Checksum,appProperties)");
     url.searchParams.set("pageSize", "100");
+    url.searchParams.set("supportsAllDrives", "true");
+    url.searchParams.set("includeItemsFromAllDrives", "true");
 
     const response = await fetch(url, { headers: { Authorization: `Bearer ${this.accessToken}` } });
     if (!response.ok) {
@@ -135,7 +139,10 @@ export class GoogleDriveApiProvider implements GoogleDriveLiveProvider {
   }
 
   async getFolderParents(id: string): Promise<string[]> {
-    const response = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?fields=parents`, {
+    const url = new URL(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}`);
+    url.searchParams.set("fields", "parents");
+    url.searchParams.set("supportsAllDrives", "true");
+    const response = await fetch(url, {
       headers: { Authorization: `Bearer ${this.accessToken}` },
     });
     if (!response.ok) throw new Error(`Google Drive parent lookup failed (${response.status}): ${await response.text()}`);
@@ -146,7 +153,10 @@ export class GoogleDriveApiProvider implements GoogleDriveLiveProvider {
   async createFolder(input: { name: string; parentFolderId?: string }): Promise<GoogleDriveCreatedFolder> {
     const existing = await this.findFolder(input);
     if (existing) return existing;
-    const response = await fetch("https://www.googleapis.com/drive/v3/files?fields=id,name", {
+    const url = new URL("https://www.googleapis.com/drive/v3/files");
+    url.searchParams.set("fields", "id,name");
+    url.searchParams.set("supportsAllDrives", "true");
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${this.accessToken}`,
@@ -165,6 +175,7 @@ export class GoogleDriveApiProvider implements GoogleDriveLiveProvider {
   async updateFolder(input: { id: string; name: string; parentFolderId?: string; previousParentFolderId?: string }): Promise<GoogleDriveCreatedFolder> {
     const url = new URL(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(input.id)}`);
     url.searchParams.set("fields", "id,name");
+    url.searchParams.set("supportsAllDrives", "true");
     if (input.parentFolderId && input.parentFolderId !== input.previousParentFolderId) url.searchParams.set("addParents", input.parentFolderId);
     if (input.previousParentFolderId && input.parentFolderId !== input.previousParentFolderId) url.searchParams.set("removeParents", input.previousParentFolderId);
     const response = await fetch(url, {
@@ -187,7 +198,11 @@ export class GoogleDriveApiProvider implements GoogleDriveLiveProvider {
       input.bytes as BlobPart,
       `\r\n--${boundary}--`,
     ]);
-    const response = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name", {
+    const url = new URL("https://www.googleapis.com/upload/drive/v3/files");
+    url.searchParams.set("uploadType", "multipart");
+    url.searchParams.set("fields", "id,name");
+    url.searchParams.set("supportsAllDrives", "true");
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${this.accessToken}`,
@@ -200,7 +215,9 @@ export class GoogleDriveApiProvider implements GoogleDriveLiveProvider {
   }
 
   async deleteFile(id: string): Promise<void> {
-    const response = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}`, { method: "DELETE", headers: { Authorization: `Bearer ${this.accessToken}` } });
+    const url = new URL(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}`);
+    url.searchParams.set("supportsAllDrives", "true");
+    const response = await fetch(url, { method: "DELETE", headers: { Authorization: `Bearer ${this.accessToken}` } });
     if (!response.ok && response.status !== 404) throw new Error(`Google Drive delete failed (${response.status}): ${await response.text()}`);
   }
 
@@ -208,6 +225,8 @@ export class GoogleDriveApiProvider implements GoogleDriveLiveProvider {
     const url = new URL("https://www.googleapis.com/drive/v3/files");
     url.searchParams.set("q", `'${parentId.replace(/'/g, "\\'")}' in parents and trashed = false`);
     url.searchParams.set("fields", "files(id,mimeType)");
+    url.searchParams.set("supportsAllDrives", "true");
+    url.searchParams.set("includeItemsFromAllDrives", "true");
     const response = await fetch(url, { headers: { Authorization: `Bearer ${this.accessToken}` } });
     if (!response.ok) throw new Error(`Google Drive children lookup failed (${response.status}): ${await response.text()}`);
     const body = await response.json() as { files?: Array<{ id: string; mimeType?: string }> };
