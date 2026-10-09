@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PaperMovementForm } from "./movement-form";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -39,11 +40,12 @@ export default async function PaperInventoryPage() {
         <article className="rounded-2xl border border-neutral-800 bg-[#181b20] p-6"><p className="text-sm text-neutral-400">Formatos configurados</p><p className="mt-3 text-3xl font-semibold">{formats.filter(f => f.enabled).length}</p><p className="mt-2 text-xs text-neutral-400">Catálogo de ORBIT</p></article>
         <article className="rounded-2xl border border-neutral-800 bg-[#181b20] p-6"><p className="text-sm text-neutral-400">Movimientos recientes</p><p className="mt-3 text-3xl font-semibold">{movements.length}</p><p className="mt-2 text-xs text-neutral-400">Últimos 25 registros como máximo</p></article>
       </section>
+      <PaperMovementForm />
       <section className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-2xl border border-neutral-800 bg-[#181b20] p-6"><h2 className="text-lg font-semibold">Formatos de papel</h2><div className="mt-5 space-y-3">{formats.map(format => <div key={format.format_key} className="flex items-center justify-between rounded-xl bg-[#22262d] px-4 py-3"><span>{format.label}</span><span className="text-xs text-neutral-400">{format.enabled ? "Activo" : "Inactivo"}</span></div>)}{formats.length === 0 && <p className="text-sm text-neutral-400">Sin formatos disponibles.</p>}</div></div>
         <div className="rounded-2xl border border-neutral-800 bg-[#181b20] p-6"><h2 className="text-lg font-semibold">Últimos movimientos</h2><div className="mt-5 space-y-3">{movements.map(movement => <div key={movement.id} className="flex justify-between gap-3 border-b border-neutral-800 pb-3 text-sm"><div><p>{movement.movement_type}</p><p className="text-xs text-neutral-400">{movement.format_key ?? "Sin formato"} · {new Date(movement.occurred_at).toLocaleDateString("es-CL")}</p></div><strong>{formatNumber(Number(movement.quantity))}</strong></div>)}{movements.length === 0 && <p className="text-sm text-neutral-400">Aún no hay movimientos registrados.</p>}</div></div>
       </section>
-      <p className="text-xs text-neutral-500">La carga de stock, las transferencias y el cierre automático se habilitarán después de validar la conciliación de cajas y costos. No se realizan escrituras desde esta pantalla.</p>
+      <p className="text-xs text-neutral-500">Los movimientos requieren la migración de base de datos y permisos de administrador. El cierre automático de eventos sigue pendiente de integración.</p>
     </div>
   </main>;
 }
