@@ -70,8 +70,13 @@ async function loadCanonicalFolderId(client: SupabaseClient, provider: GoogleDri
   const plan = buildCustomerFolderPlan(project.name, project.event_date, rootName);
   const expectedEventPath = plan[2].path;
   const expectedDocumentPath = `${expectedEventPath}/${subfolder}`;
-  const { data, error } = await client.from("drive_sync").select("destination_key,external_folder_id,status").eq("project_id", document.project_id).eq("destination_key", expectedDocumentPath).not("external_folder_id", "is", null).limit(2);
-  if (error) throw error;
+  const { data: exact, error: exactError } = await client.from("drive_sync").select("destination_key,external_folder_id,status").eq("project_id", document.project_id).eq("destination_key", expectedDocumentPath).not("external_folder_id", "is", null).limit(2);
+  if (exactError) throw exactError;
+  const { data: mapped, error: mappedError } = exact?.length
+    ? { data: exact, error: null }
+    : await client.from("drive_sync").select("destination_key,external_folder_id,status").eq("project_id", document.project_id).like("destination_key", `%/${subfolder}`).not("external_folder_id", "is", null).limit(3);
+  if (mappedError) throw mappedError;
+  const data = mapped;
   if (!data?.length) throw new Error(`No existe mapeo Drive canónico para ${expectedDocumentPath}.`);
   if (data.length !== 1) throw new Error(`Mapeo Drive ambiguo para ${expectedDocumentPath}.`);
   const folderId = String(data[0].external_folder_id);
