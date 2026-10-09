@@ -58,6 +58,15 @@ test("secondary actions are collapsed and cross-tab actions switch surface first
   assert.match(source, /className="sticky top-0 z-20/);
 });
 
+test("event summary keeps compact responsive proportions", async () => {
+  const source = await readFile(workspacePath, "utf8");
+  assert.match(source, /space-y-4 pb-8 sm:space-y-5/);
+  assert.match(source, /grid min-w-0 items-start gap-4 sm:gap-5 xl:grid-cols-2/);
+  assert.match(source, /lg:w-auto lg:max-w-none/);
+  assert.match(source, /\[&>button\]:w-full \[&>button\]:whitespace-normal/);
+  assert.match(source, /rounded-2xl border bg-card p-4 sm:p-5/);
+});
+
 test("mixed CustomerEventOperations surfaces are explicitly scoped", async () => {
   const source = await readFile("features/crm/customer-event-operations.tsx", "utf8");
   assert.match(source, /type CustomerEventOperationsSurface = "FINANCE" \| "DOCUMENTS" \| "COMMUNICATIONS"/);

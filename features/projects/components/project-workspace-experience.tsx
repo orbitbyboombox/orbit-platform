@@ -326,18 +326,18 @@ function Section({
 }) {
   return (
     <section
-      className={`scroll-mt-24 min-w-0 rounded-2xl border bg-card p-5 sm:p-6 ${className}`}
+      className={`scroll-mt-24 min-w-0 rounded-2xl border bg-card p-4 sm:p-5 ${className}`}
       id={id}
     >
-      <header className="mb-5 flex min-w-0 items-start gap-3 border-b pb-4">
-        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand">
+      <header className="mb-4 flex min-w-0 items-start gap-3 border-b pb-3">
+        <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand">
           {icon}
         </span>
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-[.18em] text-muted">
             {eyebrow}
           </p>
-          <h2 className="mt-1 break-words text-xl font-semibold tracking-tight">{title}</h2>
+          <h2 className="mt-1 break-words text-lg font-semibold tracking-tight sm:text-xl">{title}</h2>
         </div>
       </header>
       {children}
@@ -628,24 +628,24 @@ export function ProjectWorkspaceExperience(
       timeline={null}
       copilot={null}
       mainContent={
-        <div className="min-w-0 space-y-6 pb-8">
+        <div className="min-w-0 space-y-4 pb-8 sm:space-y-5">
           <section className="min-w-0 overflow-hidden rounded-3xl border bg-card">
-            <div className="grid min-w-0 gap-6 p-5 sm:p-7 lg:grid-cols-[minmax(0,1fr)_minmax(0,auto)] lg:items-end">
+            <div className="grid min-w-0 gap-4 p-4 sm:gap-5 sm:p-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,auto)] lg:items-end">
               <div className="min-w-0">
                 <div className="flex flex-wrap gap-2">
                   <StatusBadge label={visibleStatus(event.status)} variant="info" />
                   <StatusBadge label={visibleStatus(healthLabel)} variant={healthVariant} />
                 </div>
-                <p className="mt-5 text-xs font-semibold uppercase tracking-[.2em] text-brand">
+                <p className="mt-3 text-xs font-semibold uppercase tracking-[.2em] text-brand">
                   Event 360° · {event.orbitEventId}
                 </p>
-                <h1 className="mt-2 break-words text-3xl font-semibold tracking-tight sm:text-4xl">
+                <h1 className="mt-1 break-words text-2xl font-semibold tracking-tight sm:text-3xl">
                   {props.projectName}
                 </h1>
-                <p className="mt-2 text-base text-muted">
+                <p className="mt-1 text-sm text-muted sm:text-base">
                   {props.projectType} · {props.clientName}
                 </p>
-                <div className="mt-4 rounded-2xl border border-brand/20 bg-brand/5 p-4">
+                <div className="mt-3 rounded-2xl border border-brand/20 bg-brand/5 p-3 sm:p-4">
                   <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">
                     {props.eventTimeMode === "CONFIRMED" ? "HORARIO CONFIRMADO" : "HORARIO ESTIMADO"}
                   </p>
@@ -664,7 +664,7 @@ export function ProjectWorkspaceExperience(
                   {eventTimeFeedback ? <p aria-live="polite" className="mt-2 text-sm text-muted">{eventTimeFeedback}</p> : null}
                 </div>
               </div>
-              <div className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-4 lg:w-full lg:max-w-[40rem]">
+              <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 lg:w-auto lg:max-w-none">
                 <HeroMetric label="Fecha" value={props.eventDate} />
                 <HeroMetric
                   label="Cuenta regresiva"
@@ -677,11 +677,11 @@ export function ProjectWorkspaceExperience(
                 <HeroMetric label="Salud" value={`${health}%`} />
               </div>
             </div>
-            <nav aria-label="Pestañas del evento" className="sticky top-0 z-20 grid grid-cols-2 gap-2 border-t bg-card/95 p-3 backdrop-blur sm:grid-cols-3 sm:px-7 lg:grid-cols-6" role="tablist">
+            <nav aria-label="Pestañas del evento" className="sticky top-0 z-20 grid grid-cols-2 gap-1.5 border-t bg-card/95 p-2 backdrop-blur sm:grid-cols-3 sm:gap-2 sm:px-5 lg:grid-cols-6" role="tablist">
               {EVENT_ADMIN_TABS.map(({ id, label, hint }) => (
                 <button
                   aria-selected={activeTab === id}
-                  className={`min-h-12 rounded-xl border px-3 py-2 text-left transition hover:border-brand ${activeTab === id ? "border-brand bg-brand/10 text-foreground" : "text-muted"}`}
+                  className={`min-h-11 rounded-xl border px-2.5 py-2 text-left transition hover:border-brand sm:px-3 ${activeTab === id ? "border-brand bg-brand/10 text-foreground" : "text-muted"}`}
                   key={id}
                   onClick={() => selectTab(id)}
                   role="tab"
@@ -695,7 +695,7 @@ export function ProjectWorkspaceExperience(
           </section>
           {activeTab === "SUMMARY" && <div>{capacityPanel}</div>}
 
-          <section className="grid min-w-0 gap-6 xl:grid-cols-2">
+          <section className="grid min-w-0 items-start gap-4 sm:gap-5 xl:grid-cols-2">
             {activeTab === "SUMMARY" && moduleVisible("GENERAL_INFORMATION") && (
               <Section
                 eyebrow="01 · Relación"
@@ -1493,7 +1493,7 @@ export function ProjectWorkspaceExperience(
             id="quick-actions"
             title="Acciones rápidas"
           >
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            <div className="grid items-stretch gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 [&>button]:w-full [&>button]:whitespace-normal">
               <ActionButton
                 icon={FileText}
                 label="Generar acuerdo"
