@@ -62,9 +62,19 @@ test("event summary keeps compact responsive proportions", async () => {
   const source = await readFile(workspacePath, "utf8");
   assert.match(source, /space-y-4 pb-8 sm:space-y-5/);
   assert.match(source, /grid min-w-0 items-start gap-4 sm:gap-5 xl:grid-cols-2/);
-  assert.match(source, /lg:w-auto lg:max-w-none/);
+  assert.match(source, /lg:grid-cols-2 lg:auto-rows-fr lg:self-stretch lg:w-auto lg:max-w-none/);
   assert.match(source, /\[&>button\]:w-full \[&>button\]:whitespace-normal/);
   assert.match(source, /rounded-2xl border bg-card p-4 sm:p-5/);
+});
+
+test("event header balances schedule and metrics on desktop", async () => {
+  const source = await readFile(workspacePath, "utf8");
+  assert.match(source, /lg:grid-cols-\[minmax\(0,1\.1fr\)_minmax\(0,\.9fr\)\] lg:items-stretch/);
+  assert.match(source, /HORARIO (?:CONFIRMADO|ESTIMADO)/);
+  assert.match(source, /label="Fecha"/);
+  assert.match(source, /label="Cuenta regresiva"/);
+  assert.match(source, /label="Fase"/);
+  assert.match(source, /label="Salud"/);
 });
 
 test("mixed CustomerEventOperations surfaces are explicitly scoped", async () => {

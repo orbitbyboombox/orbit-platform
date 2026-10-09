@@ -630,7 +630,7 @@ export function ProjectWorkspaceExperience(
       mainContent={
         <div className="min-w-0 space-y-4 pb-8 sm:space-y-5">
           <section className="min-w-0 overflow-hidden rounded-3xl border bg-card">
-            <div className="grid min-w-0 gap-4 p-4 sm:gap-5 sm:p-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,auto)] lg:items-end">
+            <div className="grid min-w-0 gap-4 p-4 sm:gap-5 sm:p-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,.9fr)] lg:items-stretch">
               <div className="min-w-0">
                 <div className="flex flex-wrap gap-2">
                   <StatusBadge label={visibleStatus(event.status)} variant="info" />
@@ -664,7 +664,7 @@ export function ProjectWorkspaceExperience(
                   {eventTimeFeedback ? <p aria-live="polite" className="mt-2 text-sm text-muted">{eventTimeFeedback}</p> : null}
                 </div>
               </div>
-              <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 lg:w-auto lg:max-w-none">
+              <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-2 lg:auto-rows-fr lg:self-stretch lg:w-auto lg:max-w-none">
                 <HeroMetric label="Fecha" value={props.eventDate} />
                 <HeroMetric
                   label="Cuenta regresiva"
