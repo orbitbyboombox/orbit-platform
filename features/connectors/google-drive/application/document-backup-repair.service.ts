@@ -74,7 +74,7 @@ async function loadCanonicalFolderId(client: SupabaseClient, provider: GoogleDri
   if (!project?.name || !project.event_date) throw new Error("Proyecto sin nombre o fecha canónica.");
   const subfolder = DOCUMENT_FOLDER[document.document_type];
   if (!subfolder) throw new Error(`Tipo documental sin carpeta canónica: ${document.document_type}`);
-  const plan = buildCustomerFolderPlan(project.name, project.event_date, rootName);
+  const plan = buildCustomerFolderPlan(project.name, project.event_date, rootName, project.orbit_event_id ?? undefined);
   if (!project.canonical_folder_id) {
     throw new Error("Proyecto sin folderId canónico explícito; revisión administrativa requerida.");
   }

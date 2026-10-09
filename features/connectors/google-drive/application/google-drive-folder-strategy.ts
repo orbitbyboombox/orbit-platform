@@ -30,11 +30,12 @@ export function buildRootFolderPlan(rootName=DEFAULT_GOOGLE_DRIVE_ROOT): readonl
   return [root, ...topLevel, ...topLevel.flatMap((parent) => (staticChildren[parent.name] ?? []).map((name) => folder(name, parent.path)))];
 }
 
-export function buildCustomerFolderPlan(customerName: string, eventDate: string,rootName=DEFAULT_GOOGLE_DRIVE_ROOT): readonly GoogleDriveFolderPlanItem[] {
+export function buildCustomerFolderPlan(customerName: string, eventDate: string,rootName=DEFAULT_GOOGLE_DRIVE_ROOT, eventId?: string): readonly GoogleDriveFolderPlanItem[] {
   const { year, month, displayDate } = dateParts(eventDate, "La fecha del evento");
   const yearFolder = folder(year, rootName);
   const monthFolder = folder(month, yearFolder.path);
-  const customerFolder = folder(`${displayDate} - ${cleanName(customerName)}`, monthFolder.path);
+  const suffix = eventId?.trim() ? ` - ${cleanName(eventId)}` : "";
+  const customerFolder = folder(`${displayDate} - ${cleanName(customerName)}${suffix}`, monthFolder.path);
   return [yearFolder, monthFolder, customerFolder, ...CUSTOMER_FOLDERS.map((name) => folder(name, customerFolder.path))];
 }
 
