@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isAdministrativeRole } from "@/lib/auth/roles";
 import { repairPendingDocumentBackupsAction } from "@/features/connectors/google-drive/actions/document-backup-repair.actions";
@@ -11,6 +12,7 @@ async function repairFromForm(formData: FormData) {
     const result = await repairPendingDocumentBackupsAction([documentId]);
     redirect(`/resources/drive-repair?result=${encodeURIComponent(JSON.stringify(result))}`);
   } catch (error) {
+    if (isRedirectError(error)) throw error;
     redirect(`/resources/drive-repair?error=${encodeURIComponent(error instanceof Error ? error.message : "No fue posible reparar el documento.")}`);
   }
 }
