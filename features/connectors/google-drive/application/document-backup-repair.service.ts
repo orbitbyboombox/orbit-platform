@@ -72,11 +72,12 @@ async function loadCanonicalFolderId(client: SupabaseClient, provider: GoogleDri
   const expectedDocumentPath = `${expectedEventPath}/${subfolder}`;
   const { data: exact, error: exactError } = await client.from("drive_sync").select("destination_key,external_folder_id,status").eq("project_id", document.project_id).eq("destination_key", expectedDocumentPath).not("external_folder_id", "is", null).limit(2);
   if (exactError) throw exactError;
-  const { data: mapped, error: mappedError } = exact?.length
-    ? { data: exact, error: null }
-    : await client.from("drive_sync").select("destination_key,external_folder_id,status").eq("project_id", document.project_id).like("destination_key", `%/${subfolder}`).not("external_folder_id", "is", null).limit(3);
-  if (mappedError) throw mappedError;
-  const data = mapped;
+  let data = exact;
+  if (!data?.length) {
+    const { data: projectMappings, error: mappedError } = await client.from("drive_sync").select("destination_key,external_folder_id,status").eq("project_id", document.project_id).not("external_folder_id", "is", null).limit(1000);
+    if (mappedError) throw mappedError;
+    data = (projectMappings ?? []).filter((row) => String(row.destination_key ?? "").endsWith(`/${subfolder}`));
+  }
   if (!data?.length) throw new Error(`No existe mapeo Drive canónico para ${expectedDocumentPath}.`);
   if (data.length !== 1) throw new Error(`Mapeo Drive ambiguo para ${expectedDocumentPath}.`);
   const folderId = String(data[0].external_folder_id);
