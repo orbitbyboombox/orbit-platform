@@ -36,6 +36,7 @@ import {
   paymentCategoryLabel,
 } from "./payment-term-classification";
 import type { ReceivableBucketSummary } from "./types";
+import { ReceivablesOperationsView } from "./receivables-operations-view";
 
 const money = (value: number) => {
   const rounded = Math.round(value),
@@ -276,7 +277,7 @@ function nextAction(
   };
 }
 
-export function AccountsReceivableCenter({
+export function LegacyAccountsReceivableCenter({
   dataset,
   bankDetails,
   initialInvoiceId,
@@ -952,7 +953,7 @@ function ReceivableRow({
       </td>
       <td className="px-4 py-4">{invoice.collectorName}</td>
       <td className="px-4 py-3">
-        <CanonicalActions bankDetails={bankDetails} invoice={invoice} />
+        <ReceivableCanonicalActions bankDetails={bankDetails} invoice={invoice} />
       </td>
     </tr>
   );
@@ -1018,12 +1019,12 @@ function ReceivableCard({
       <div className="mt-4">
         <NextActionButton dataset={dataset} invoice={invoice} />
       </div>
-      <CanonicalActions bankDetails={bankDetails} invoice={invoice} />
+      <ReceivableCanonicalActions bankDetails={bankDetails} invoice={invoice} />
     </article>
   );
 }
 
-function CanonicalActions({
+export function ReceivableCanonicalActions({
   invoice,
   bankDetails,
 }: {
@@ -1346,4 +1347,8 @@ function Small({ label, value }: { label: string; value: string }) {
       <dd className="mt-1 text-sm font-medium">{value}</dd>
     </div>
   );
+}
+
+export function AccountsReceivableCenter(props: React.ComponentProps<typeof ReceivablesOperationsView> & { initialCategory?: string }) {
+  return <ReceivablesOperationsView dataset={props.dataset} bankDetails={props.bankDetails} initialInvoiceId={props.initialInvoiceId} />;
 }
