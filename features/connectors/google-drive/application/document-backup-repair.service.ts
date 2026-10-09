@@ -80,15 +80,20 @@ async function loadCanonicalFolderId(client: SupabaseClient, provider: GoogleDri
   }
   const expectedEventPath = plan[2].path;
   const expectedDocumentPath = `${expectedEventPath}/${subfolder}`;
-  const { data, error } = await client.from("drive_sync").select("destination_key,external_folder_id,status").eq("project_id", document.project_id).eq("destination_key", expectedDocumentPath).not("external_folder_id", "is", null).limit(2);
-  if (error) throw error;
-  if (!data?.length) throw new Error(`No existe mapeo Drive canónico para ${expectedDocumentPath}.`);
-  if (data.length !== 1) throw new Error(`Mapeo Drive ambiguo para ${expectedDocumentPath}.`);
-  const folderId = String(data[0].external_folder_id);
-  if (folderId !== project.canonical_folder_id) {
-    throw new Error(`Mapping Drive cruzado: el proyecto ${project.orbit_event_id ?? document.project_id} declara ${project.canonical_folder_id}, pero drive_sync apunta a ${folderId}.`);
+  const { data: eventRows, error: eventError } = await client.from("drive_sync").select("destination_key,external_folder_id,status").eq("project_id", document.project_id).eq("destination_key", expectedEventPath).not("external_folder_id", "is", null).limit(2);
+  if (eventError) throw eventError;
+  if (!eventRows?.length) throw new Error(`No existe mapeo Drive canónico para ${expectedEventPath}.`);
+  if (eventRows.length !== 1) throw new Error(`Mapeo Drive ambiguo para ${expectedEventPath}.`);
+  const eventFolderId = String(eventRows[0].external_folder_id);
+  if (eventFolderId !== project.canonical_folder_id) {
+    throw new Error(`Mapping Drive cruzado: el proyecto ${project.orbit_event_id ?? document.project_id} declara ${project.canonical_folder_id}, pero drive_sync apunta a ${eventFolderId}.`);
   }
-  if (!folderId) throw new Error("Mapeo Drive sin folder id.");
+  const { data: documentRows, error: documentError } = await client.from("drive_sync").select("destination_key,external_folder_id,status").eq("project_id", document.project_id).eq("destination_key", expectedDocumentPath).not("external_folder_id", "is", null).limit(2);
+  if (documentError) throw documentError;
+  if (!documentRows?.length) throw new Error(`No existe mapeo Drive canónico para ${expectedDocumentPath}.`);
+  if (documentRows.length !== 1) throw new Error(`Mapeo Drive ambiguo para ${expectedDocumentPath}.`);
+  const folderId = String(documentRows[0].external_folder_id);
+  if (!folderId || folderId === project.canonical_folder_id) throw new Error(`Mapeo Drive inválido para ${expectedDocumentPath}.`);
   const parents = await provider.getFolderParents?.(folderId);
   if (parents && parents.length === 0) throw new Error("La carpeta Drive canónica no es accesible.");
   return folderId;
