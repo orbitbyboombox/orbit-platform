@@ -45,6 +45,7 @@ type Props = {
   invoice?: { invoiceNumber: string; outstandingBalance: number; status: string };
   equipment: string[];
   operationContent?: ReactNode;
+  tabbedWorkspace?: boolean;
 };
 
 const clp = (value: number) => new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(value);
@@ -71,7 +72,7 @@ const roleLabel = (role: string) => ({ OPERATOR: "OPERATOR", ASSEMBLY: "MONTAJE"
 type DetailKey = "overview" | "client" | "staff" | "service" | "paper" | "equipment" | "finance";
 const DETAIL_KEYS: DetailKey[] = ["overview", "client", "staff", "service", "paper", "equipment", "finance"];
 
-export function EventUiReplica({ projectId, customer, date, service, serviceDuration, serviceStartTime, serviceEndTime, staffCallTime, venue, municipality, status, eventType, extras, operationalExtras, postReservationExtras, operationalContactName, operationalContactPhone, printInstructions, operators, staffPayments = [], paper, invoice, equipment, operationContent }: Props) {
+export function EventUiReplica({ projectId, customer, date, service, serviceDuration, serviceStartTime, serviceEndTime, staffCallTime, venue, municipality, status, eventType, extras, operationalExtras, postReservationExtras, operationalContactName, operationalContactPhone, printInstructions, operators, staffPayments = [], paper, invoice, equipment, operationContent, tabbedWorkspace = false }: Props) {
   const router = useRouter();
   const [paperMessage, setPaperMessage] = useState("");
   const [paperPending, startPaperTransition] = useTransition();
@@ -94,6 +95,10 @@ export function EventUiReplica({ projectId, customer, date, service, serviceDura
     next[module] = !current[module];
     return next;
   });
+
+  if (tabbedWorkspace && operationContent) {
+    return <>{operationContent}</>;
+  }
 
   return <section className="mb-5 space-y-3 rounded-[24px] border border-white/10 bg-[#111214] p-3 text-white shadow-[0_20px_70px_rgba(0,0,0,.2)] sm:p-4">
     <div className="flex items-center justify-between gap-3 text-sm text-white/60"><Link href="/events" className="hover:text-brand">← Eventos</Link><span>Evento</span></div>
