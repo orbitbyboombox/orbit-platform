@@ -695,7 +695,7 @@ export function FounderWorkspaceExperience({
                 <Icon className="size-[18px]" />
               </span>
               <span className="text-[.7rem] font-medium leading-4 text-muted">
-                {metric.label}
+                {id === "kpi.total_receivables" ? "POR COBRAR TOTAL" : metric.label}
               </span>
             </span>
             <FounderKpiValue>{formatMetric(metric)}</FounderKpiValue>
