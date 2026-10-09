@@ -1,0 +1,35 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { loadBoxes, blackBoxStock, blackBoxNumber } from "@/features/resources/box-inventory";
+
+export default async function PaperWarehousePage() {
+  const client = await createSupabaseServerClient();
+  const { data: auth } = await client.auth.getUser();
+  if (!auth.user) redirect("/login");
+  const { data: profile } = await client.from("profiles").select("role").eq("id", auth.user.id).maybeSingle();
+  if (!profile || !["CEO", "ADMINISTRATOR"].includes(profile.role)) redirect("/resources/boxes");
+  const [boxes, suppliesResult] = await Promise.all([
+    loadBoxes(client),
+    client.from("supplies").select("id,name,catalog_code,current_stock,minimum_stock,unit,stock_status").is("deleted_at", null).order("name"),
+  ]);
+  if (suppliesResult.error) throw suppliesResult.error;
+  const supplies = (suppliesResult.data ?? []).filter((item) => /papel|paper|4x6|4 x 6|prepicado|impresi/i.test([item.name,item.catalog_code].join(" ")));
+  return <main className="space-y-6 p-4 sm:p-6">
+    <header className="rounded-2xl border bg-card p-5">
+      <Link href="/resources/boxes" className="text-sm font-semibold text-brand">← Volver a Cajas</Link>
+      <h1 className="mt-3 text-3xl font-bold">Bodega de papel</h1>
+      <p className="mt-2 text-sm text-muted">Consulta del inventario registrado y del stock oficial de las cajas. No se crean movimientos ni se modifica el Master desde esta vista.</p>
+    </header>
+    <section className="rounded-2xl border bg-card p-5">
+      <h2 className="text-xl font-semibold">Existencias registradas en bodega</h2>
+      <p className="mt-1 text-xs text-muted">Solo insumos de papel existentes en el catálogo. El stock de bodega no debe confundirse con las impresiones cargadas en las cajas.</p>
+      {supplies.length === 0 ? <p className="mt-4 rounded-xl border p-4 text-sm">No hay insumos de papel identificados en el catálogo. No se ha inventado stock.</p> : <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{supplies.map((item) => <article key={item.id} className="rounded-xl border p-4"><h3 className="font-semibold">{item.name}</h3><p className="mt-2 text-2xl font-bold">{item.current_stock ?? "Sin dato"} <span className="text-sm font-normal">{item.unit ?? "unidades"}</span></p><p className="mt-1 text-xs text-muted">Mínimo: {item.minimum_stock ?? "No definido"} · {item.stock_status ?? "Sin estado"}</p></article>)}</div>}
+    </section>
+    <section className="rounded-2xl border bg-card p-5">
+      <h2 className="text-xl font-semibold">Papel cargado en cajas</h2>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{boxes.map((box) => {const stock=blackBoxStock(box.metadata);return <article key={box.id} className="rounded-xl border p-4"><h3 className="font-semibold">Caja {blackBoxNumber(box.asset_code)}</h3><p className="mt-2 text-2xl font-bold">{stock} <span className="text-sm font-normal">impresiones</span></p>{stock < 100 ? <p className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-2 text-sm font-semibold text-amber-600">Falta cargar papel: bodega a caja número {blackBoxNumber(box.asset_code)}</p> : <p className="mt-2 text-xs text-muted">Stock sobre el umbral de alerta</p>}</article>;})}</div>
+    </section>
+    <p className="text-sm text-muted">La carga de papel desde bodega y los movimientos contables requieren una operación transaccional auditada. Esta pantalla no descuenta ni agrega papel automáticamente.</p>
+  </main>;
+}
