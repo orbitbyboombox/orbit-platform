@@ -1,5 +1,5 @@
-import { WAREHOUSE_PAPER_SKUS, type WarehousePaperSku } from "./format-map";
-import type { PaperBalances } from "./domain";
+import { WAREHOUSE_PAPER_SKUS, type WarehousePaperSku } from "./format-map.ts";
+import type { PaperBalances } from "./domain.ts";
 
 export const BOX_PAPER_LOW_THRESHOLD = 100;
 export interface BoxPaperAlert { boxNumber: string; sku: WarehousePaperSku; remaining: number; message: string }
