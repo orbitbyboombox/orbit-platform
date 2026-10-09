@@ -31,6 +31,7 @@ export async function recordPaperMovement(_previous: MovementResult, form: FormD
     return { ok: false, message: "Debes indicar una caja válida." };
   if (kind === "consumption" && !eventId)
     return { ok: false, message: "El consumo requiere el identificador del evento." };
+  if (kind === "consumption") return { ok: false, message: "Consumo manual bloqueado hasta integrar el cierre de eventos de CAJAS." };
   if (kind === "adjustment") return { ok: false, message: "Los ajustes requieren conciliación supervisada." };
   // Opening stock is blocked until warehouse physical stock and SKU are reconciled.
   if (kind === "opening") return { ok: false, message: "El saldo inicial requiere conciliación previa." };
