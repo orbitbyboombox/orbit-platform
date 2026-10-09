@@ -28,7 +28,7 @@ type RepairDocument = {
   mime_type: string | null;
   file_size: number | null;
   drive_file_id: string | null;
-  project: { name: string | null; event_date: string | null } | null;
+  project: { name: string | null; event_date: string | null; canonical_folder_id: string | null; orbit_event_id: string | null } | null;
 };
 
 const DOCUMENT_FOLDER: Record<string, string> = {
@@ -47,15 +47,22 @@ const mimeFromName = (value: string) => {
   return "application/octet-stream";
 };
 
-function asProject(value: unknown): { name: string | null; event_date: string | null } | null {
+function asProject(value: unknown): { name: string | null; event_date: string | null; canonical_folder_id: string | null; orbit_event_id: string | null } | null {
   const row = Array.isArray(value) ? value[0] : value;
   if (!row || typeof row !== "object") return null;
   const project = row as Record<string, unknown>;
-  return { name: typeof project.name === "string" ? project.name : null, event_date: typeof project.event_date === "string" ? project.event_date : null };
+  const operations = project.operations && typeof project.operations === "object" ? project.operations as Record<string, unknown> : null;
+  const googleDrive = operations?.googleDrive && typeof operations.googleDrive === "object" ? operations.googleDrive as Record<string, unknown> : null;
+  return {
+    name: typeof project.name === "string" ? project.name : null,
+    event_date: typeof project.event_date === "string" ? project.event_date : null,
+    canonical_folder_id: typeof googleDrive?.folderId === "string" ? googleDrive.folderId : null,
+    orbit_event_id: typeof project.orbit_event_id === "string" ? project.orbit_event_id : null,
+  };
 }
 
 async function loadPendingDocuments(client: SupabaseClient, documentIds?: readonly string[]): Promise<RepairDocument[]> {
-  let query = client.from("documents").select("id,project_id,document_type,storage_bucket,storage_path,checksum,original_filename,mime_type,file_size,drive_file_id,projects(name,event_date)").is("drive_file_id", null).is("deleted_at", null);
+  let query = client.from("documents").select("id,project_id,document_type,storage_bucket,storage_path,checksum,original_filename,mime_type,file_size,drive_file_id,projects(name,event_date,operations,orbit_event_id)").is("drive_file_id", null).is("deleted_at", null);
   if (documentIds?.length) query = query.in("id", [...new Set(documentIds)]);
   const { data, error } = await query;
   if (error) throw error;
@@ -68,6 +75,9 @@ async function loadCanonicalFolderId(client: SupabaseClient, provider: GoogleDri
   const subfolder = DOCUMENT_FOLDER[document.document_type];
   if (!subfolder) throw new Error(`Tipo documental sin carpeta canónica: ${document.document_type}`);
   const plan = buildCustomerFolderPlan(project.name, project.event_date, rootName);
+  if (!project.canonical_folder_id) {
+    throw new Error("Proyecto sin folderId canónico explícito; revisión administrativa requerida.");
+  }
   const expectedEventPath = plan[2].path;
   const expectedDocumentPath = `${expectedEventPath}/${subfolder}`;
   const { data, error } = await client.from("drive_sync").select("destination_key,external_folder_id,status").eq("project_id", document.project_id).eq("destination_key", expectedDocumentPath).not("external_folder_id", "is", null).limit(2);
@@ -75,6 +85,9 @@ async function loadCanonicalFolderId(client: SupabaseClient, provider: GoogleDri
   if (!data?.length) throw new Error(`No existe mapeo Drive canónico para ${expectedDocumentPath}.`);
   if (data.length !== 1) throw new Error(`Mapeo Drive ambiguo para ${expectedDocumentPath}.`);
   const folderId = String(data[0].external_folder_id);
+  if (folderId !== project.canonical_folder_id) {
+    throw new Error(`Mapping Drive cruzado: el proyecto ${project.orbit_event_id ?? document.project_id} declara ${project.canonical_folder_id}, pero drive_sync apunta a ${folderId}.`);
+  }
   if (!folderId) throw new Error("Mapeo Drive sin folder id.");
   const parents = await provider.getFolderParents?.(folderId);
   if (parents && parents.length === 0) throw new Error("La carpeta Drive canónica no es accesible.");
@@ -96,32 +109,59 @@ async function downloadAndVerify(client: SupabaseClient, document: RepairDocumen
 }
 
 function md5(bytes: Uint8Array) {
-  return createHash("md5").update(bytes).digest("base64");
+  // Google Drive v3 exposes md5Checksum as lowercase hexadecimal.
+  return createHash("md5").update(bytes).digest("hex");
 }
 
-async function findExactFile(provider: GoogleDriveLiveProvider, folderId: string, filename: string, bytes: Uint8Array, documentId: string) {
-  const files = provider.findFilesByName
-    ? await provider.findFilesByName({ name: filename, parentFolderId: folderId })
-    : await provider.findFileByName({ name: filename, parentFolderId: folderId }).then((file) => file ? [file] : []);
-  return files.find((file) => file.appProperties?.orbitDocumentId === documentId || (file.md5Checksum === md5(bytes) && Number(file.size) === bytes.byteLength)) ?? null;
+async function findExactFile(provider: GoogleDriveLiveProvider, folderId: string, filenames: readonly string[], bytes: Uint8Array, documentId: string) {
+  const files = (await Promise.all(filenames.map((name) => provider.findFilesByName
+    ? provider.findFilesByName({ name, parentFolderId: folderId })
+    : provider.findFileByName({ name, parentFolderId: folderId }).then((file) => file ? [file] : [])))).flat();
+  const checksum = md5(bytes);
+  return files
+    .filter((file, index, all) => all.findIndex((candidate) => candidate.id === file.id) === index)
+    .filter((file) => file.appProperties?.orbitDocumentId === documentId || (file.md5Checksum?.toLowerCase() === checksum && Number(file.size) === bytes.byteLength))
+    .sort((left, right) => {
+      const leftOwned = left.appProperties?.orbitDocumentId === documentId ? 0 : 1;
+      const rightOwned = right.appProperties?.orbitDocumentId === documentId ? 0 : 1;
+      return leftOwned - rightOwned || left.id.localeCompare(right.id);
+    })[0] ?? null;
+}
+
+async function reconcileAfterUpload(provider: GoogleDriveLiveProvider, folderId: string, filenames: readonly string[], bytes: Uint8Array, documentId: string, uploadedId: string) {
+  const canonical = await findExactFile(provider, folderId, filenames, bytes, documentId);
+  if (!canonical) throw new Error("El archivo subido no pudo verificarse en Drive.");
+  if (provider.deleteFile && canonical.id !== uploadedId) {
+    const candidates = (await Promise.all(filenames.map((name) => provider.findFilesByName?.({ name, parentFolderId: folderId }) ?? Promise.resolve([])))).flat();
+    for (const candidate of candidates) {
+      if (candidate.id !== canonical.id && candidate.appProperties?.orbitDocumentId === documentId) await provider.deleteFile(candidate.id);
+    }
+  }
+  return canonical;
 }
 
 async function syncOne(client: SupabaseClient, provider: GoogleDriveLiveProvider, rootName: string, document: RepairDocument): Promise<DocumentBackupRepairResult> {
   try {
     const folderId = await loadCanonicalFolderId(client, provider, document, rootName);
     const source = await downloadAndVerify(client, document);
-    const exact = await findExactFile(provider, folderId, source.filename, source.bytes, document.id);
+    const deterministicName = `ORBIT_${document.id}_${source.filename}`;
+    const exact = await findExactFile(provider, folderId, [source.filename, deterministicName], source.bytes, document.id);
     const file = exact ?? await provider.uploadFile({
-      name: exact ? source.filename : `ORBIT_${document.id}_${source.filename}`,
+      name: deterministicName,
       mimeType: source.mimeType,
       bytes: source.bytes,
       parentFolderId: folderId,
       appProperties: { orbitDocumentId: document.id, orbitStorageChecksum: document.checksum! },
     });
-    const { data: updated, error } = await client.from("documents").update({ drive_file_id: file.id, drive_folder_id: folderId, drive_sync_status: "SYNCED", drive_sync_error: null, drive_synced_at: new Date().toISOString() }).eq("id", document.id).is("drive_file_id", null).select("id").maybeSingle();
+    const verifiedFile = exact ?? await reconcileAfterUpload(provider, folderId, [source.filename, deterministicName], source.bytes, document.id, file.id);
+    const { data: updated, error } = await client.from("documents").update({ drive_file_id: verifiedFile.id, drive_folder_id: folderId, drive_sync_status: "SYNCED", drive_sync_error: null, drive_synced_at: new Date().toISOString() }).eq("id", document.id).is("drive_file_id", null).select("id").maybeSingle();
     if (error) throw error;
-    if (!updated && !document.drive_file_id) throw new Error("Documento cambió durante la sincronización; no se sobrescribió.");
-    return { documentId: document.id, projectId: document.project_id, status: "SYNCED", driveFileId: file.id, driveFolderId: folderId };
+    if (!updated && !document.drive_file_id) {
+      const { data: current } = await client.from("documents").select("drive_file_id,drive_folder_id").eq("id", document.id).maybeSingle();
+      if (!current?.drive_file_id) throw new Error("Documento cambió durante la sincronización; no se sobrescribió.");
+      return { documentId: document.id, projectId: document.project_id, status: "SYNCED", driveFileId: current.drive_file_id, driveFolderId: current.drive_folder_id ?? folderId };
+    }
+    return { documentId: document.id, projectId: document.project_id, status: "SYNCED", driveFileId: verifiedFile.id, driveFolderId: folderId };
   } catch (error) {
     return { documentId: document.id, projectId: document.project_id, status: "REQUIRES_REVIEW", reason: error instanceof Error ? error.message : "No fue posible sincronizar el documento." };
   }
