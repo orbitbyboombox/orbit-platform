@@ -20,7 +20,6 @@ export function PaperMovementForm() {
           <option value="purchase">Ingreso por compra</option>
           <option value="transfer">Bodega → cabina</option>
           <option value="return">Cabina → bodega</option>
-          <option value="consumption">Consumo de evento</option>
         </select>
       </label>
       <label className="space-y-2 text-sm">Formato
@@ -33,9 +32,6 @@ export function PaperMovementForm() {
       </label>
       {kind !== "purchase" && <label className="space-y-2 text-sm">Código de caja
         <input name="box" required placeholder="Ej.: 2" pattern="[a-zA-Z0-9_-]+" className="w-full rounded-lg border border-neutral-700 bg-neutral-900 p-3" />
-      </label>}
-      {kind === "consumption" && <label className="space-y-2 text-sm">ID del evento
-        <input name="eventId" required className="w-full rounded-lg border border-neutral-700 bg-neutral-900 p-3" />
       </label>}
     </div>
     <label className="block space-y-2 text-sm">Observación
