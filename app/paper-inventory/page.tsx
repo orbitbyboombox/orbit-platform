@@ -20,9 +20,10 @@ export default async function PaperInventoryPage() {
   const { data: profile, error: profileError } = await client.from("profiles").select("role").eq("id", user.id).maybeSingle();
   if (profileError || !profile || !["CEO", "ADMINISTRATOR"].includes(profile.role)) redirect("/operations");
 
-  const [formatsResponse, movementsResponse] = await Promise.all([
+  const [formatsResponse, movementsResponse, casesResponse] = await Promise.all([
     client.from("box_media_formats").select("format_key,label,enabled").order("label"),
     client.from("paper_warehouse_movements").select("id,sku,kind,quantity,created_at,reason,from_location,to_location").order("created_at", { ascending: false }).limit(25),
+    client.from("operational_assets").select("asset_code,status,metadata").eq("asset_type","CASE").is("deleted_at",null).order("asset_code"),
   ]);
   // The new ledger tables exist only after the reviewed migration is applied.
   const balancesResponse = await client.from("paper_warehouse_balances").select("sku,location,quantity");
@@ -35,6 +36,12 @@ export default async function PaperInventoryPage() {
     }
   }
   const alerts = balancesResponse.error ? [] : getLowBoxPaperAlerts(warehouseBalances);
+  const currentCaseAlerts = (casesResponse.data ?? []).flatMap(row => {
+    const metadata = row.metadata as { blackBoxPhotoStock?: unknown; blackBoxPaperFormat?: string } | null;
+    const stock = metadata?.blackBoxPhotoStock;
+    if (row.status === "OUT_OF_SERVICE" || typeof stock !== "number" || !Number.isFinite(stock) || stock >= 100) return [];
+    return [{ code: row.asset_code as string, stock, format: metadata?.blackBoxPaperFormat ?? "Sin formato" }];
+  });
   const stockRows = Object.entries(warehouseBalances).map(([key, quantity]) => {
     const [location, sku] = JSON.parse(key) as [string, string];
     return { location, sku, quantity };
@@ -60,6 +67,7 @@ export default async function PaperInventoryPage() {
         <article className="rounded-2xl border border-neutral-800 bg-[#181b20] p-6"><p className="text-sm text-neutral-400">Formatos configurados</p><p className="mt-3 text-3xl font-semibold">{formats.filter(f => f.enabled).length}</p><p className="mt-2 text-xs text-neutral-400">Catálogo de ORBIT</p></article>
         <article className="rounded-2xl border border-neutral-800 bg-[#181b20] p-6"><p className="text-sm text-neutral-400">Movimientos recientes</p><p className="mt-3 text-3xl font-semibold">{movements.length}</p><p className="mt-2 text-xs text-neutral-400">Últimos 25 registros como máximo</p></article>
       </section>
+      <section className="space-y-3"><h2 className="text-lg font-semibold">Alertas actuales del master CAJAS</h2>{currentCaseAlerts.length === 0 ? <p className="rounded-xl border border-neutral-800 p-4 text-sm text-neutral-400">No se detectaron cajas activas con stock registrado inferior a 100.</p> : currentCaseAlerts.map(row => <div key={row.code} role="alert" className="rounded-xl border border-amber-700 bg-amber-950/30 p-4 text-amber-200"><strong>Falta cargar papel de bodega a caja número {row.code.replace(/^CASE-/, "")}</strong><p className="mt-1 text-sm">{formatNumber(row.stock)} impresiones restantes · {row.format}</p></div>)}</section>
       {!balancesResponse.error && <section className="space-y-3"><h2 className="text-lg font-semibold">Stock oficial del nuevo inventario</h2><div className="grid gap-3 sm:grid-cols-2"><div className="rounded-xl border border-neutral-800 p-4">Bodega: <strong>{formatNumber(warehouseTotal)}</strong> impresiones</div><div className="rounded-xl border border-neutral-800 p-4">Cajas: <strong>{formatNumber(boxesTotal)}</strong> impresiones</div></div><div className="overflow-x-auto rounded-xl border border-neutral-800"><table className="w-full text-left text-sm"><thead className="bg-neutral-900 text-neutral-300"><tr><th className="p-3">Ubicación</th><th className="p-3">Formato</th><th className="p-3 text-right">Impresiones</th></tr></thead><tbody>{stockRows.map(row => <tr key={`${row.location}:${row.sku}`} className="border-t border-neutral-800"><td className="p-3">{row.location === "warehouse" ? "Bodega" : `Caja ${row.location.slice(4)}`}</td><td className="p-3">{isWarehousePaperSku(row.sku) ? WAREHOUSE_PAPER_SKUS[row.sku].label : row.sku}</td><td className="p-3 text-right font-semibold">{formatNumber(row.quantity)}</td></tr>)}</tbody></table>{stockRows.length === 0 && <p className="p-4 text-sm text-amber-300">Aún no se ha conciliado ni ingresado stock inicial. No asumir saldo cero en las cajas existentes.</p>}</div></section>}
       {balancesResponse.error ? <div role="status" className="rounded-xl border border-amber-800 p-4 text-sm text-amber-300">El inventario nuevo aún no está disponible en esta base de datos. Las alertas y movimientos se habilitarán al aplicar la migración validada.</div> : <section aria-label="Alertas de papel bajo" className="space-y-3"><h2 className="text-lg font-semibold">Alertas de cajas</h2>{alerts.length === 0 ? <p className="rounded-xl border border-neutral-800 p-4 text-sm text-neutral-400">No hay cajas con menos de 100 impresiones registradas en el nuevo inventario.</p> : alerts.map(alert => <div key={`${alert.boxNumber}:${alert.sku}`} role="alert" className="rounded-xl border border-amber-700 bg-amber-950/30 p-4 text-amber-200"><strong>{alert.message}</strong><p className="mt-1 text-sm">Quedan {formatNumber(alert.remaining)} impresiones · {alert.sku}</p></div>)}</section>}
       {!balancesResponse.error && <PaperMovementForm />}
