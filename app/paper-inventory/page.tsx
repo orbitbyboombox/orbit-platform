@@ -9,7 +9,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 export const dynamic = "force-dynamic";
 
 type PaperFormatRow = { format_key: string; label: string; enabled: boolean };
-type PaperMovementRow = { id: string; format_key: string | null; movement_type: string; quantity: number; occurred_at: string; reason: string | null };
+type PaperMovementRow = { id: string; sku: string; kind: string; quantity: number; created_at: string; reason: string | null; from_location: string | null; to_location: string | null };
 
 const formatNumber = (value: number) => new Intl.NumberFormat("es-CL").format(value);
 
@@ -22,7 +22,7 @@ export default async function PaperInventoryPage() {
 
   const [formatsResponse, movementsResponse] = await Promise.all([
     client.from("box_media_formats").select("format_key,label,enabled").order("label"),
-    client.from("inventory_movements").select("id,format_key,movement_type,quantity,occurred_at,reason").is("deleted_at", null).order("occurred_at", { ascending: false }).limit(25),
+    client.from("paper_warehouse_movements").select("id,sku,kind,quantity,created_at,reason,from_location,to_location").order("created_at", { ascending: false }).limit(25),
   ]);
   // The new ledger tables exist only after the reviewed migration is applied.
   const balancesResponse = await client.from("paper_warehouse_balances").select("sku,location,quantity");
@@ -46,7 +46,7 @@ export default async function PaperInventoryPage() {
           <p className="mt-5 text-xs font-bold uppercase tracking-[.25em] text-[#F78900]">BOOMBOX · CAJAS</p>
           <h1 className="mt-2 text-3xl font-semibold">Inventario de papel</h1>
           <p className="mt-2 text-sm text-neutral-400">Bodega, formatos y movimientos registrados.</p></div>
-        <span className="rounded-full border border-neutral-700 px-4 py-2 text-xs text-neutral-300">Solo lectura · conciliación pendiente</span>
+        <span className="rounded-full border border-neutral-700 px-4 py-2 text-xs text-neutral-300">Movimientos de bodega · conciliación pendiente</span>
       </header>
       {hasError && <div role="alert" className="rounded-xl border border-amber-700 bg-amber-950/30 p-4 text-sm text-amber-200">No fue posible consultar todos los registros. No se muestran saldos estimados como si fueran oficiales.</div>}
       <section className="grid gap-4 sm:grid-cols-3">
@@ -58,7 +58,7 @@ export default async function PaperInventoryPage() {
       {!balancesResponse.error && <PaperMovementForm />}
       <section className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-2xl border border-neutral-800 bg-[#181b20] p-6"><h2 className="text-lg font-semibold">Formatos de papel</h2><div className="mt-5 space-y-3">{formats.map(format => <div key={format.format_key} className="flex items-center justify-between rounded-xl bg-[#22262d] px-4 py-3"><span>{format.label}</span><span className="text-xs text-neutral-400">{format.enabled ? "Activo" : "Inactivo"}</span></div>)}{formats.length === 0 && <p className="text-sm text-neutral-400">Sin formatos disponibles.</p>}</div></div>
-        <div className="rounded-2xl border border-neutral-800 bg-[#181b20] p-6"><h2 className="text-lg font-semibold">Últimos movimientos</h2><div className="mt-5 space-y-3">{movements.map(movement => <div key={movement.id} className="flex justify-between gap-3 border-b border-neutral-800 pb-3 text-sm"><div><p>{movement.movement_type}</p><p className="text-xs text-neutral-400">{movement.format_key ?? "Sin formato"} · {new Date(movement.occurred_at).toLocaleDateString("es-CL")}</p></div><strong>{formatNumber(Number(movement.quantity))}</strong></div>)}{movements.length === 0 && <p className="text-sm text-neutral-400">Aún no hay movimientos registrados.</p>}</div></div>
+        <div className="rounded-2xl border border-neutral-800 bg-[#181b20] p-6"><h2 className="text-lg font-semibold">Últimos movimientos</h2><div className="mt-5 space-y-3">{movements.map(movement => <div key={movement.id} className="flex justify-between gap-3 border-b border-neutral-800 pb-3 text-sm"><div><p>{movement.kind}</p><p className="text-xs text-neutral-400">{movement.sku} · {new Date(movement.created_at).toLocaleDateString("es-CL")} · {movement.from_location ?? "Ingreso"} → {movement.to_location ?? "Consumo"}</p></div><strong>{formatNumber(Number(movement.quantity))}</strong></div>)}{movements.length === 0 && <p className="text-sm text-neutral-400">Aún no hay movimientos registrados.</p>}</div></div>
       </section>
       <p className="text-xs text-neutral-500">Los movimientos requieren la migración de base de datos y permisos de administrador. El cierre automático de eventos sigue pendiente de integración.</p>
     </div>
