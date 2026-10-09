@@ -322,28 +322,6 @@ export function FounderWorkspaceExperience({
       tone: "warning",
     },
     {
-      id: "kpi.company_credit",
-      metric:
-        position("Crédito Empresas") ??
-        fallback(
-          "Crédito Empresas",
-          "/finance/receivables?category=company-credit",
-        ),
-      icon: CircleDollarSign,
-      tone: "warning",
-    },
-    {
-      id: "kpi.customer_balances",
-      metric:
-        position("Saldos Clientes / Eventos") ??
-        fallback(
-          "Saldos Clientes / Eventos",
-          "/finance/receivables?category=ordinary",
-        ),
-      icon: WalletCards,
-      tone: "info",
-    },
-    {
       id: "kpi.month_sales",
       metric:
         month("Ventas del mes") ??
