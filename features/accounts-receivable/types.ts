@@ -1,5 +1,6 @@
 import type {
   PaymentClassificationSummary,
+  ReceivableBucket,
   ReceivablePaymentCategory,
   ReceivablePaymentSource,
 } from "./payment-term-classification";
@@ -101,3 +102,11 @@ export interface ReceivableDataset {
     aging: Record<string, number>;
   };
 }
+
+export type ReceivableBucketSummary = {
+  bucket: ReceivableBucket;
+  invoices: readonly ReceivableInvoice[];
+  pendingTotal: number;
+  currentTotal: number;
+  overdueTotal: number;
+};

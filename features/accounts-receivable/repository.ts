@@ -5,6 +5,7 @@ import type {
   ReceivableInvoice,
 } from "./types";
 import {
+  classifyReceivableBucket,
   resolveReceivablePaymentCategory,
   summarizeReceivablePaymentCategories,
 } from "./payment-term-classification";
@@ -149,7 +150,7 @@ export async function loadAccountsReceivable(
         customerPhone: customer?.phone ?? null,
         projectId: row.project_id,
         projectName: project?.name ?? "Evento",
-        projectType: project?.project_type ?? "EVENT",
+        projectType: project?.project_type ?? "",
         orbitEventId: row.orbit_event_id,
         customerType: row.customer_type,
         status: row.effective_status,
@@ -211,7 +212,7 @@ export async function loadAccountsReceivable(
         customerPhone: customer?.phone ?? null,
         projectId: row.project_id,
         projectName: project?.name ?? "Evento",
-        projectType: project?.project_type ?? "EVENT",
+        projectType: project?.project_type ?? "",
         orbitEventId: row.orbit_event_id,
         customerType: row.customer_type,
         status: row.effective_status,
@@ -354,11 +355,10 @@ export async function loadAccountsReceivable(
         .reduce((s, x) => s + x.outstandingBalance, 0),
       collected: active.reduce((s,x)=>s+x.paidAmount,0),
       companyCredits: active
-        .filter((x) => {
-          const eventDate = x.eventDate?.slice(0, 10) ?? "";
-          const isCompany = x.customerType === "CORPORATE" || Boolean(x.customerCompany?.trim());
-          return isCompany && Boolean(eventDate) && eventDate <= new Date().toISOString().slice(0, 10);
-        })
+        .filter((x) =>
+          classifyReceivableBucket(x.projectType) === "BUSINESS_EVENTS" &&
+          (x.paymentCategory === "EMPRESA_30_DIAS" || x.paymentCategory === "OTRO_CREDITO")
+        )
         .reduce((s, x) => s + x.outstandingBalance, 0),
       paymentCategorySummary,
       collectionRate: active.reduce((s,x)=>s+x.amount,0)>0?active.reduce((s,x)=>s+x.paidAmount,0)/active.reduce((s,x)=>s+x.amount,0)*100:0,

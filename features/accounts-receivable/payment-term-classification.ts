@@ -19,6 +19,18 @@ export type ReceivablePaymentSource =
   | "INVOICE_TERM"
   | "FALLBACK";
 
+export type ReceivableBucket =
+  | "MARRIAGES"
+  | "BUSINESS_EVENTS"
+  | "REVIEW";
+
+export type ReceivableBucketTotals = {
+  bucket: ReceivableBucket;
+  pendingTotal: number;
+  currentTotal: number;
+  overdueTotal: number;
+};
+
 export type PaymentClassificationSummary = {
   ordinary: number;
   days30: number;
@@ -33,6 +45,52 @@ export type ReceivableCanonicalPayment = {
   canonicalPaymentTerm: PaymentTerm;
   canonicalPaymentTermDays: number;
 };
+
+const MARRIAGE_PROJECT_TYPES = new Set([
+  "WEDDING",
+  "MATRIMONIO",
+  "MARRIAGE",
+]);
+
+/**
+ * Classifies by the canonical project type only. Customer names and free-form
+ * labels are deliberately excluded from this decision.
+ */
+export function classifyReceivableBucket(projectType: unknown): ReceivableBucket {
+  const normalized = typeof projectType === "string" ? projectType.trim().toUpperCase() : "";
+  if (!normalized || normalized === "EVENT" || normalized === "UNKNOWN") return "REVIEW";
+  if (MARRIAGE_PROJECT_TYPES.has(normalized)) return "MARRIAGES";
+  return "BUSINESS_EVENTS";
+}
+
+export function isReceivablePastDue(input: {
+  status: string;
+  daysRemaining: number | null;
+}): boolean {
+  return input.status === "OVERDUE" || (input.daysRemaining !== null && input.daysRemaining < 0);
+}
+
+export function summarizeReceivableBuckets(
+  rows: readonly {
+    projectType: unknown;
+    outstandingBalance: number;
+    status: string;
+    daysRemaining: number | null;
+  }[],
+): readonly ReceivableBucketTotals[] {
+  const totals = new Map<ReceivableBucket, ReceivableBucketTotals>();
+  for (const bucket of ["MARRIAGES", "BUSINESS_EVENTS", "REVIEW"] as const) {
+    totals.set(bucket, { bucket, pendingTotal: 0, currentTotal: 0, overdueTotal: 0 });
+  }
+  for (const row of rows) {
+    if (row.outstandingBalance <= 0) continue;
+    const target = totals.get(classifyReceivableBucket(row.projectType))!;
+    target.pendingTotal += row.outstandingBalance;
+    if (isReceivablePastDue(row)) target.overdueTotal += row.outstandingBalance;
+    else target.currentTotal += row.outstandingBalance;
+  }
+  return [totals.get("MARRIAGES")!, totals.get("BUSINESS_EVENTS")!, totals.get("REVIEW")!];
+}
 
 type ResolveParams = {
   customerType: "PRIVATE" | "CORPORATE";
