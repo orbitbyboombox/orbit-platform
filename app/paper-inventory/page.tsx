@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { PaperMovementForm } from "./movement-form";
+import { getLowBoxPaperAlerts } from "@/src/lib/paper-inventory/alerts";
+import { inventoryKey, type PaperBalances } from "@/src/lib/paper-inventory/domain";
+import { isWarehousePaperSku } from "@/src/lib/paper-inventory/format-map";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -21,6 +24,17 @@ export default async function PaperInventoryPage() {
     client.from("box_media_formats").select("format_key,label,enabled").order("label"),
     client.from("inventory_movements").select("id,format_key,movement_type,quantity,occurred_at,reason").is("deleted_at", null).order("occurred_at", { ascending: false }).limit(25),
   ]);
+  // The new ledger tables exist only after the reviewed migration is applied.
+  const balancesResponse = await client.from("paper_warehouse_balances").select("sku,location,quantity");
+  const warehouseBalances: PaperBalances = {};
+  if (!balancesResponse.error) {
+    for (const row of balancesResponse.data ?? []) {
+      if (!isWarehousePaperSku(row.sku)) continue;
+      if (row.location !== "warehouse" && !/^box:[a-zA-Z0-9_-]+$/.test(row.location)) continue;
+      warehouseBalances[inventoryKey(row.location as "warehouse" | `box:${string}`, row.sku)] = Number(row.quantity);
+    }
+  }
+  const alerts = balancesResponse.error ? [] : getLowBoxPaperAlerts(warehouseBalances);
   const formats = (formatsResponse.data ?? []) as PaperFormatRow[];
   const movements = (movementsResponse.data ?? []) as PaperMovementRow[];
   const hasError = Boolean(formatsResponse.error || movementsResponse.error);
@@ -40,7 +54,8 @@ export default async function PaperInventoryPage() {
         <article className="rounded-2xl border border-neutral-800 bg-[#181b20] p-6"><p className="text-sm text-neutral-400">Formatos configurados</p><p className="mt-3 text-3xl font-semibold">{formats.filter(f => f.enabled).length}</p><p className="mt-2 text-xs text-neutral-400">Catálogo de ORBIT</p></article>
         <article className="rounded-2xl border border-neutral-800 bg-[#181b20] p-6"><p className="text-sm text-neutral-400">Movimientos recientes</p><p className="mt-3 text-3xl font-semibold">{movements.length}</p><p className="mt-2 text-xs text-neutral-400">Últimos 25 registros como máximo</p></article>
       </section>
-      <PaperMovementForm />
+      {balancesResponse.error ? <div role="status" className="rounded-xl border border-amber-800 p-4 text-sm text-amber-300">El inventario nuevo aún no está disponible en esta base de datos. Las alertas y movimientos se habilitarán al aplicar la migración validada.</div> : <section aria-label="Alertas de papel bajo" className="space-y-3"><h2 className="text-lg font-semibold">Alertas de cajas</h2>{alerts.length === 0 ? <p className="rounded-xl border border-neutral-800 p-4 text-sm text-neutral-400">No hay cajas con menos de 100 impresiones registradas en el nuevo inventario.</p> : alerts.map(alert => <div key={`${alert.boxNumber}:${alert.sku}`} role="alert" className="rounded-xl border border-amber-700 bg-amber-950/30 p-4 text-amber-200"><strong>{alert.message}</strong><p className="mt-1 text-sm">Quedan {formatNumber(alert.remaining)} impresiones · {alert.sku}</p></div>)}</section>}
+      {!balancesResponse.error && <PaperMovementForm />}
       <section className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-2xl border border-neutral-800 bg-[#181b20] p-6"><h2 className="text-lg font-semibold">Formatos de papel</h2><div className="mt-5 space-y-3">{formats.map(format => <div key={format.format_key} className="flex items-center justify-between rounded-xl bg-[#22262d] px-4 py-3"><span>{format.label}</span><span className="text-xs text-neutral-400">{format.enabled ? "Activo" : "Inactivo"}</span></div>)}{formats.length === 0 && <p className="text-sm text-neutral-400">Sin formatos disponibles.</p>}</div></div>
         <div className="rounded-2xl border border-neutral-800 bg-[#181b20] p-6"><h2 className="text-lg font-semibold">Últimos movimientos</h2><div className="mt-5 space-y-3">{movements.map(movement => <div key={movement.id} className="flex justify-between gap-3 border-b border-neutral-800 pb-3 text-sm"><div><p>{movement.movement_type}</p><p className="text-xs text-neutral-400">{movement.format_key ?? "Sin formato"} · {new Date(movement.occurred_at).toLocaleDateString("es-CL")}</p></div><strong>{formatNumber(Number(movement.quantity))}</strong></div>)}{movements.length === 0 && <p className="text-sm text-neutral-400">Aún no hay movimientos registrados.</p>}</div></div>
