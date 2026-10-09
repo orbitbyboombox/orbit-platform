@@ -6,6 +6,10 @@ export interface GoogleDriveCreatedFolder {
 export interface GoogleDriveFoundFile {
   id: string;
   name: string;
+  mimeType?: string;
+  size?: string;
+  md5Checksum?: string;
+  appProperties?: Record<string, string>;
 }
 
 export interface GoogleDriveUploadedFile { id: string; name: string; }
@@ -13,10 +17,11 @@ export interface GoogleDriveUploadedFile { id: string; name: string; }
 export interface GoogleDriveLiveProvider {
   findFolder(input: { name: string; parentFolderId?: string }): Promise<GoogleDriveCreatedFolder | null>;
   findFileByName(input: { name: string; parentFolderId?: string }): Promise<GoogleDriveFoundFile | null>;
+  findFilesByName?(input: { name: string; parentFolderId?: string }): Promise<GoogleDriveFoundFile[]>;
   createFolder(input: { name: string; parentFolderId?: string }): Promise<GoogleDriveCreatedFolder>;
   getFolderParents?(id: string): Promise<string[]>;
   updateFolder(input: { id: string; name: string; parentFolderId?: string; previousParentFolderId?: string }): Promise<GoogleDriveCreatedFolder>;
-  uploadFile(input: { name: string; mimeType: string; bytes: Uint8Array; parentFolderId?: string }): Promise<GoogleDriveUploadedFile>;
+  uploadFile(input: { name: string; mimeType: string; bytes: Uint8Array; parentFolderId?: string; appProperties?: Record<string, string> }): Promise<GoogleDriveUploadedFile>;
   deleteFile?(id: string): Promise<void>;
   listChildren?(parentId: string): Promise<Array<{ id: string; mimeType?: string }>>;
 }
@@ -32,6 +37,10 @@ export class InMemoryGoogleDriveLiveProvider implements GoogleDriveLiveProvider 
 
   async findFileByName(input: { name: string; parentFolderId?: string }) {
     return this.files.get(`${input.parentFolderId ?? "root"}/${input.name}`)?.at(0) ?? null;
+  }
+
+  async findFilesByName(input: { name: string; parentFolderId?: string }) {
+    return this.files.get(`${input.parentFolderId ?? "root"}/${input.name}`) ?? [];
   }
 
   async createFolder(input: { name: string; parentFolderId?: string }) {
@@ -54,10 +63,13 @@ export class InMemoryGoogleDriveLiveProvider implements GoogleDriveLiveProvider 
     return { id: input.id, name: input.name };
   }
 
-  async uploadFile(input: { name: string; mimeType: string; bytes: Uint8Array; parentFolderId?: string }) {
+  async uploadFile(input: { name: string; mimeType: string; bytes: Uint8Array; parentFolderId?: string; appProperties?: Record<string, string> }) {
     const created = {
       id: `gdrive-file-${(input.parentFolderId ?? "root")}-${input.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
       name: input.name,
+      mimeType: input.mimeType,
+      size: String(input.bytes.byteLength),
+      appProperties: input.appProperties,
     };
     const key = `${input.parentFolderId ?? "root"}/${input.name}`;
     const existing = this.files.get(key) ?? [];
@@ -74,7 +86,11 @@ export class InMemoryGoogleDriveLiveProvider implements GoogleDriveLiveProvider 
 }
 
 export class GoogleDriveApiProvider implements GoogleDriveLiveProvider {
-  constructor(private readonly accessToken: string) {}
+  private readonly accessToken: string;
+
+  constructor(accessToken: string) {
+    this.accessToken = accessToken;
+  }
 
   async findFolder(input: { name: string; parentFolderId?: string }): Promise<GoogleDriveCreatedFolder | null> {
     const escape = (value: string) => value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
@@ -97,20 +113,25 @@ export class GoogleDriveApiProvider implements GoogleDriveLiveProvider {
   }
 
   async findFileByName(input: { name: string; parentFolderId?: string }): Promise<GoogleDriveFoundFile | null> {
+    const files = await this.findFilesByName(input);
+    return files[0] ?? null;
+  }
+
+  async findFilesByName(input: { name: string; parentFolderId?: string }): Promise<GoogleDriveFoundFile[]> {
     const escape = (value: string) => value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
     const parent = input.parentFolderId ? `'${escape(input.parentFolderId)}' in parents` : "'root' in parents";
     const query = [`name = '${escape(input.name)}'`, "trashed = false", parent].join(" and ");
     const url = new URL("https://www.googleapis.com/drive/v3/files");
     url.searchParams.set("q", query);
-    url.searchParams.set("fields", "files(id,name)");
-    url.searchParams.set("pageSize", "1");
+    url.searchParams.set("fields", "files(id,name,mimeType,size,md5Checksum,appProperties)");
+    url.searchParams.set("pageSize", "100");
 
     const response = await fetch(url, { headers: { Authorization: `Bearer ${this.accessToken}` } });
     if (!response.ok) {
       throw new Error(`Google Drive file lookup failed (${response.status}): ${await response.text()}`);
     }
     const body = await response.json() as { files?: GoogleDriveFoundFile[] };
-    return body.files?.[0] ?? null;
+    return body.files ?? [];
   }
 
   async getFolderParents(id: string): Promise<string[]> {
@@ -158,9 +179,9 @@ export class GoogleDriveApiProvider implements GoogleDriveLiveProvider {
     return response.json() as Promise<GoogleDriveCreatedFolder>;
   }
 
-  async uploadFile(input: { name: string; mimeType: string; bytes: Uint8Array; parentFolderId?: string }): Promise<GoogleDriveUploadedFile> {
+  async uploadFile(input: { name: string; mimeType: string; bytes: Uint8Array; parentFolderId?: string; appProperties?: Record<string, string> }): Promise<GoogleDriveUploadedFile> {
     const boundary = `orbit-${crypto.randomUUID()}`;
-    const metadata = JSON.stringify({ name: input.name, parents: input.parentFolderId ? [input.parentFolderId] : undefined });
+    const metadata = JSON.stringify({ name: input.name, parents: input.parentFolderId ? [input.parentFolderId] : undefined, appProperties: input.appProperties });
     const body = new Blob([
       `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n--${boundary}\r\nContent-Type: ${input.mimeType}\r\n\r\n`,
       input.bytes as BlobPart,
