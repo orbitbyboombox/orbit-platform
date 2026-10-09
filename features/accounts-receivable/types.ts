@@ -103,13 +103,6 @@ export interface ReceivableDataset {
   };
 }
 
-export type ReceivableBucketSummary = {
-  bucket: ReceivableBucket;
-  invoices: readonly ReceivableInvoice[];
-  pendingTotal: number;
-  currentTotal: number;
-  overdueTotal: number;
-};
 
 export type ReceivableBucketSummary = {
   bucket: ReceivableBucket;
