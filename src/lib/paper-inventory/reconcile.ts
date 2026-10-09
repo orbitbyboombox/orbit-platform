@@ -1,4 +1,4 @@
-import { applyPaperMovement, inventoryKey, type PaperBalances, type PaperMovement } from "./domain";
+import { applyPaperMovement, inventoryKey, type PaperBalances, type PaperMovement } from "./domain.ts";
 
 export interface PaperReconciliation {
   balances: PaperBalances;
