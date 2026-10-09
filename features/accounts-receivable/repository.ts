@@ -5,11 +5,13 @@ import type {
   ReceivableInvoice,
 } from "./types";
 import {
+  classifyReceivableBucket,
   resolveReceivablePaymentCategory,
   summarizeReceivablePaymentCategories,
 } from "./payment-term-classification";
 import { resolveCollectionEventDetail } from "./collection-event-detail";
 import { isReadOnlyVisualPreview } from "@/lib/supabase/environment-guard";
+import { actualPaidAmount, daysUntilDue, effectiveReceivableStatus, scheduleDueDate } from "./canonical-financial-state";
 
 function relation<T>(value: T | T[] | null | undefined): T | null {
   return Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
@@ -66,6 +68,7 @@ export async function loadAccountsReceivable(
     paymentsResult,
     profilesResult,
     collectionActionsResult,
+    financialRecordsResult,
   ] = await Promise.all([
     client
       .from("accounts_receivable_projection")
@@ -104,6 +107,7 @@ export async function loadAccountsReceivable(
     client.from("invoice_payments").select("id,invoice_id,amount,paid_at,method,reason,created_at").is("deleted_at",null).order("paid_at",{ascending:false}),
     client.from("profiles").select("id,display_name"),
     client.from("communications").select("id,project_id,communication_type,channel,subject,status,occurred_at").in("communication_type",["PAYMENT_REMINDER","COLLECTION_EMAIL","COLLECTION_WHATSAPP_OPENED","COLLECTION_EMAIL_OPENED","COLLECTION_PHONE_OPENED"]).order("occurred_at",{ascending:false}),
+    client.from("financial_event_records").select("project_id,payment_schedule"),
   ]);
   const failure = [
     invoicesResult,
@@ -115,9 +119,11 @@ export async function loadAccountsReceivable(
     paymentsResult,
     profilesResult,
     collectionActionsResult,
+    financialRecordsResult,
   ].find((x) => x.error)?.error;
   if (failure) throw failure;
   const profiles=new Map((profilesResult.data??[]).map(row=>[row.id,row.display_name]));
+  const schedulesByProject = new Map((financialRecordsResult.data ?? []).map((row) => [row.project_id, row.payment_schedule]));
   const actionsByProject=new Map<string,Array<{id:string;type:string;channel:string;subject:string;status:string;occurredAt:string}>>();
   for(const row of collectionActionsResult.data??[]){const list=actionsByProject.get(row.project_id??"")??[];list.push({id:row.id,type:row.communication_type,channel:row.channel,subject:row.subject??"Acción de cobranza",status:row.status,occurredAt:row.occurred_at});actionsByProject.set(row.project_id??"",list);}
   const invoices: ReceivableInvoice[] = (invoicesResult.data ?? []).map(
@@ -138,6 +144,9 @@ export async function loadAccountsReceivable(
       const agreements=[...(project?.agreements??[])].sort((a,b)=>String(b.id).localeCompare(String(a.id)));
       const agreement=agreements.find((item)=>["SIGNED","COMMERCIAL_DOCUMENT"].includes(item.status))??agreements[0];
       const history=(Array.isArray(row.payment_history)?row.payment_history:[]) as Array<Record<string,unknown>>;
+      const dueDate = scheduleDueDate(schedulesByProject.get(row.project_id), row.due_date);
+      const paidAmount = actualPaidAmount(Number(row.paid_amount), history);
+      const status = effectiveReceivableStatus({ amount: Number(row.amount), paidAmount, dueDate, recordedStatus: row.effective_status });
       return {
         id: row.id,
         invoiceNumber: row.invoice_number,
@@ -149,15 +158,15 @@ export async function loadAccountsReceivable(
         customerPhone: customer?.phone ?? null,
         projectId: row.project_id,
         projectName: project?.name ?? "Evento",
-        projectType: project?.project_type ?? "EVENT",
+        projectType: project?.project_type ?? "",
         orbitEventId: row.orbit_event_id,
         customerType: row.customer_type,
-        status: row.effective_status,
+        status,
         amount: Number(row.amount),
-        paidAmount: Number(row.paid_amount),
-        outstandingBalance: Number(row.outstanding_balance),
+        paidAmount,
+        outstandingBalance: Math.max(0, Number(row.amount) - paidAmount),
         issueDate: row.issue_date,
-        dueDate: row.due_date,
+        dueDate,
         paymentTerm: row.payment_term,
         customTermDays: row.custom_term_days,
         paymentCategory: classification.paymentCategory,
@@ -165,7 +174,7 @@ export async function loadAccountsReceivable(
         canonicalPaymentTerm: classification.canonicalPaymentTerm,
         canonicalPaymentTermDays: classification.canonicalPaymentTermDays,
         purchaseOrder: row.purchase_order,
-        daysRemaining: row.days_remaining,
+        daysRemaining: daysUntilDue(dueDate),
         agingBucket: row.aging_bucket,
         version: row.version,
         service: detail.service,
@@ -200,6 +209,9 @@ export async function loadAccountsReceivable(
       const agreements=[...(project?.agreements??[])].sort((a,b)=>String(b.id).localeCompare(String(a.id)));
       const agreement=agreements.find((item)=>["SIGNED","COMMERCIAL_DOCUMENT"].includes(item.status))??agreements[0];
       const history=(paymentsResult.data??[]).filter(item=>item.invoice_id===row.id);
+      const dueDate = scheduleDueDate(schedulesByProject.get(row.project_id), row.due_date);
+      const paidAmount = actualPaidAmount(Number(row.paid_amount), history);
+      const status = effectiveReceivableStatus({ amount: Number(row.amount), paidAmount, dueDate, recordedStatus: row.effective_status });
       return {
         id: row.id,
         invoiceNumber: row.invoice_number,
@@ -211,15 +223,15 @@ export async function loadAccountsReceivable(
         customerPhone: customer?.phone ?? null,
         projectId: row.project_id,
         projectName: project?.name ?? "Evento",
-        projectType: project?.project_type ?? "EVENT",
+        projectType: project?.project_type ?? "",
         orbitEventId: row.orbit_event_id,
         customerType: row.customer_type,
-        status: row.effective_status,
+        status,
         amount: Number(row.amount),
-        paidAmount: Number(row.paid_amount),
-        outstandingBalance: Number(row.outstanding_balance),
+        paidAmount,
+        outstandingBalance: Math.max(0, Number(row.amount) - paidAmount),
         issueDate: row.issue_date,
-        dueDate: row.due_date,
+        dueDate,
         paymentTerm: row.payment_term,
         customTermDays: row.custom_term_days,
         paymentCategory: classification.paymentCategory,
@@ -227,7 +239,7 @@ export async function loadAccountsReceivable(
         canonicalPaymentTerm: classification.canonicalPaymentTerm,
         canonicalPaymentTermDays: classification.canonicalPaymentTermDays,
         purchaseOrder: row.purchase_order,
-        daysRemaining: row.days_remaining,
+        daysRemaining: daysUntilDue(dueDate),
         agingBucket: row.aging_bucket,
         version: row.version,
         service: detail.service,
@@ -354,11 +366,10 @@ export async function loadAccountsReceivable(
         .reduce((s, x) => s + x.outstandingBalance, 0),
       collected: active.reduce((s,x)=>s+x.paidAmount,0),
       companyCredits: active
-        .filter((x) => {
-          const eventDate = x.eventDate?.slice(0, 10) ?? "";
-          const isCompany = x.customerType === "CORPORATE" || Boolean(x.customerCompany?.trim());
-          return isCompany && Boolean(eventDate) && eventDate <= new Date().toISOString().slice(0, 10);
-        })
+        .filter((x) =>
+          classifyReceivableBucket(x.projectType) === "BUSINESS_EVENTS" &&
+          (x.paymentCategory === "EMPRESA_30_DIAS" || x.paymentCategory === "OTRO_CREDITO")
+        )
         .reduce((s, x) => s + x.outstandingBalance, 0),
       paymentCategorySummary,
       collectionRate: active.reduce((s,x)=>s+x.amount,0)>0?active.reduce((s,x)=>s+x.paidAmount,0)/active.reduce((s,x)=>s+x.amount,0)*100:0,
@@ -374,3 +385,4 @@ export async function loadAccountsReceivable(
     },
   };
 }
+

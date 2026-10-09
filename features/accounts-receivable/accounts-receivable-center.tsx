@@ -30,9 +30,13 @@ import type { CollectionBankDetails } from "./collection-bank-details";
 import { getLastCollectionNoticeAt } from "./collection-email.template";
 import type { ReceivableDataset, ReceivableInvoice } from "./types";
 import {
+  classifyReceivableBucket,
   isCompanyCreditPaymentCategory,
+  isReceivablePastDue,
   paymentCategoryLabel,
 } from "./payment-term-classification";
+import type { ReceivableBucketSummary } from "./types";
+import { ReceivablesOperationsView } from "./receivables-operations-view";
 
 const money = (value: number) => {
   const rounded = Math.round(value),
@@ -81,10 +85,37 @@ const priorityMeta = {
 function isCompanyCreditCategory(invoice: ReceivableInvoice): boolean {
   return isCompanyCreditPaymentCategory(invoice.paymentCategory);
 }
-function isCompletedCompanyReceivable(invoice: ReceivableInvoice): boolean {
-  const eventDate = invoice.eventDate?.slice(0, 10) ?? "";
-  const isCompany = invoice.customerType === "CORPORATE" || Boolean(invoice.customerCompany?.trim());
-  return isCompany && Boolean(eventDate) && eventDate <= new Date().toISOString().slice(0, 10);
+function isBusinessCreditReceivable(invoice: ReceivableInvoice): boolean {
+  return (
+    classifyReceivableBucket(invoice.projectType) === "BUSINESS_EVENTS" &&
+    isCompanyCreditCategory(invoice)
+  );
+}
+function buildReceivableBucketSummaries(
+  invoices: readonly ReceivableInvoice[],
+): readonly ReceivableBucketSummary[] {
+  const rows = new Map<string, ReceivableInvoice[]>();
+  for (const invoice of invoices) {
+    if (invoice.outstandingBalance <= 0) continue;
+    const bucket = classifyReceivableBucket(invoice.projectType);
+    const current = rows.get(bucket) ?? [];
+    current.push(invoice);
+    rows.set(bucket, current);
+  }
+  return (["MARRIAGES", "BUSINESS_EVENTS", "PARTICULAR_EVENTS", "REVIEW"] as const).map((bucket) => {
+    const bucketInvoices = rows.get(bucket) ?? [];
+    return {
+      bucket,
+      invoices: bucketInvoices,
+      pendingTotal: bucketInvoices.reduce((sum, invoice) => sum + invoice.outstandingBalance, 0),
+      currentTotal: bucketInvoices
+        .filter((invoice) => !isReceivablePastDue(invoice))
+        .reduce((sum, invoice) => sum + invoice.outstandingBalance, 0),
+      overdueTotal: bucketInvoices
+        .filter((invoice) => isReceivablePastDue(invoice))
+        .reduce((sum, invoice) => sum + invoice.outstandingBalance, 0),
+    };
+  });
 }
 function isCreditCategory(invoice: ReceivableInvoice): boolean {
   return (
@@ -246,7 +277,7 @@ function nextAction(
   };
 }
 
-export function AccountsReceivableCenter({
+export function LegacyAccountsReceivableCenter({
   dataset,
   bankDetails,
   initialInvoiceId,
@@ -279,6 +310,17 @@ export function AccountsReceivableCenter({
   const [collector, setCollector] = useState("ALL");
   const [kpi, setKpi] = useState<KpiFilter>("ALL");
   const source = view === "ACTIVE" ? dataset.invoices : dataset.historyInvoices;
+  const bucketSummaries = useMemo(
+    () => buildReceivableBucketSummaries(dataset.invoices),
+    [dataset.invoices],
+  );
+  const reconciledPendingTotal = bucketSummaries.reduce(
+    (sum, summary) => sum + summary.pendingTotal,
+    0,
+  );
+  const reconciliationPass =
+    Math.round(reconciledPendingTotal) ===
+    Math.round(dataset.metrics.outstandingBalance);
   const collectors = useMemo(
     () => [...new Set(source.map((item) => item.collectorName))].sort(),
     [source],
@@ -316,7 +358,7 @@ export function AccountsReceivableCenter({
             invoice.outstandingBalance > 0) ||
           (kpi === "CREDIT_ORDINARY" &&
             invoice.paymentCategory === "ORDENARIO_50") ||
-          (kpi === "CREDIT_COMPANY" && isCompletedCompanyReceivable(invoice)) ||
+          (kpi === "CREDIT_COMPANY" && isBusinessCreditReceivable(invoice)) ||
           (kpi === "CREDIT_REVIEW" &&
             invoice.paymentCategory === "REQUIERE_REVISIÓN") ||
           (kpi === "HIGH_RISK" && r === "HIGH");
@@ -510,6 +552,11 @@ export function AccountsReceivableCenter({
               }
             />
           </section>
+          <ReceivableBucketsSection
+            reconciledPendingTotal={reconciledPendingTotal}
+            reconciliationPass={reconciliationPass}
+            summaries={bucketSummaries}
+          />
           <section
             className="rounded-2xl border bg-card p-4 sm:p-5"
             data-workspace-label="Prioridad de Cobranza"
@@ -752,6 +799,87 @@ export function AccountsReceivableCenter({
   );
 }
 
+function ReceivableBucketsSection({
+  summaries,
+  reconciledPendingTotal,
+  reconciliationPass,
+}: {
+  summaries: readonly ReceivableBucketSummary[];
+  reconciledPendingTotal: number;
+  reconciliationPass: boolean;
+}) {
+  const labels = {
+    MARRIAGES: "MATRIMONIOS",
+    BUSINESS_EVENTS: "EMPRESAS Y EVENTOS",
+    PARTICULAR_EVENTS: "EVENTOS PARTICULARES",
+    REVIEW: "REVISIÓN DE CLASIFICACIÓN",
+  } as const;
+  return (
+    <section
+      className="space-y-3"
+      data-workspace-label="Cuentas por categoría"
+      data-workspace-section="RECEIVABLES_SEPARATED_BUCKETS"
+    >
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">
+            Cuentas por cobrar
+          </p>
+          <h2 className="mt-1 text-xl font-semibold">Pendientes por categoría</h2>
+        </div>
+        <p className="text-sm text-muted" data-reconciliation={reconciliationPass ? "PASS" : "REVIEW_REQUIRED"}>
+          Total conciliado: <strong className="text-foreground">{money(reconciledPendingTotal)}</strong>{" "}
+          <span className={reconciliationPass ? "text-success" : "text-warning"}>
+            · {reconciliationPass ? "Cuadra con la proyección" : "Requiere revisión"}
+          </span>
+        </p>
+      </div>
+      <div className="grid gap-3 lg:grid-cols-3">
+        {summaries.map((summary) => (
+          <article
+            className="min-w-0 rounded-2xl border bg-card p-4"
+            data-receivable-bucket={summary.bucket}
+            key={summary.bucket}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="font-semibold">{labels[summary.bucket]}</h3>
+                <p className="mt-1 text-xs text-muted">
+                  {summary.invoices.length} cuenta{summary.invoices.length === 1 ? "" : "s"} pendiente{summary.invoices.length === 1 ? "" : "s"}
+                </p>
+              </div>
+              <span className="text-lg font-semibold">{money(summary.pendingTotal)}</span>
+            </div>
+            <dl className="mt-4 grid grid-cols-2 gap-2 text-sm">
+              <Small label="Vigente" value={money(summary.currentTotal)} />
+              <Small label="Vencido" value={money(summary.overdueTotal)} />
+            </dl>
+            <div className="mt-4 space-y-2">
+              {summary.invoices.slice(0, 4).map((invoice) => (
+                <Link
+                  className="block rounded-lg border bg-background/30 p-2 text-sm hover:border-brand/60"
+                  href={`/finance/receivables?invoice=${invoice.id}`}
+                  key={invoice.id}
+                >
+                  <span className="block truncate font-medium">{invoice.customerName} · {invoice.projectName}</span>
+                  <span className="mt-1 flex flex-wrap justify-between gap-2 text-xs text-muted">
+                    <span>{money(invoice.outstandingBalance)} · vence {date(invoice.dueDate)}</span>
+                    <span>{displayStatus(invoice) === "OVERDUE" ? "VENCIDO" : "PENDIENTE"}</span>
+                  </span>
+                </Link>
+              ))}
+              {summary.invoices.length > 4 ? (
+                <p className="text-xs text-muted">+{summary.invoices.length - 4} cuentas en el listado detallado.</p>
+              ) : null}
+              {!summary.invoices.length ? <p className="text-xs text-muted">Sin saldo pendiente.</p> : null}
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function ReceivableRow({
   invoice,
   dataset,
@@ -826,7 +954,7 @@ function ReceivableRow({
       </td>
       <td className="px-4 py-4">{invoice.collectorName}</td>
       <td className="px-4 py-3">
-        <CanonicalActions bankDetails={bankDetails} invoice={invoice} />
+        <ReceivableCanonicalActions bankDetails={bankDetails} invoice={invoice} />
       </td>
     </tr>
   );
@@ -892,12 +1020,12 @@ function ReceivableCard({
       <div className="mt-4">
         <NextActionButton dataset={dataset} invoice={invoice} />
       </div>
-      <CanonicalActions bankDetails={bankDetails} invoice={invoice} />
+      <ReceivableCanonicalActions bankDetails={bankDetails} invoice={invoice} />
     </article>
   );
 }
 
-function CanonicalActions({
+export function ReceivableCanonicalActions({
   invoice,
   bankDetails,
 }: {
@@ -1221,3 +1349,8 @@ function Small({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+
+export function AccountsReceivableCenter(props: React.ComponentProps<typeof ReceivablesOperationsView> & { initialCategory?: string }) {
+  return <ReceivablesOperationsView dataset={props.dataset} bankDetails={props.bankDetails} initialInvoiceId={props.initialInvoiceId} />;
+}
+

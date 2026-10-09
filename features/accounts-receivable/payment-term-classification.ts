@@ -19,6 +19,19 @@ export type ReceivablePaymentSource =
   | "INVOICE_TERM"
   | "FALLBACK";
 
+export type ReceivableBucket =
+  | "MARRIAGES"
+  | "BUSINESS_EVENTS"
+  | "PARTICULAR_EVENTS"
+  | "REVIEW";
+
+export type ReceivableBucketTotals = {
+  bucket: ReceivableBucket;
+  pendingTotal: number;
+  currentTotal: number;
+  overdueTotal: number;
+};
+
 export type PaymentClassificationSummary = {
   ordinary: number;
   days30: number;
@@ -33,6 +46,56 @@ export type ReceivableCanonicalPayment = {
   canonicalPaymentTerm: PaymentTerm;
   canonicalPaymentTermDays: number;
 };
+
+const MARRIAGE_PROJECT_TYPES = new Set([
+  "WEDDING",
+  "MATRIMONIO",
+  "MARRIAGE",
+]);
+const BUSINESS_PROJECT_TYPES = new Set(["CORPORATE", "COMPANY", "EMPRESA", "BUSINESS", "CORPORATE_EVENT", "CORPORATE_EVENTS", "BUSINESS_EVENT", "BUSINESS_EVENTS"]);
+const PARTICULAR_PROJECT_TYPES = new Set(["BIRTHDAY", "CUMPLEAÑOS", "SOCIAL", "PRIVATE_EVENT", "PRIVATE_EVENTS", "PARTICULAR", "EVENTO_PARTICULAR", "PARTICULAR_EVENT"]);
+
+/**
+ * Classifies by the canonical project type only. Customer names and free-form
+ * labels are deliberately excluded from this decision.
+ */
+export function classifyReceivableBucket(projectType: unknown): ReceivableBucket {
+  const normalized = typeof projectType === "string" ? projectType.trim().toUpperCase() : "";
+  if (!normalized || normalized === "EVENT" || normalized === "UNKNOWN") return "REVIEW";
+  if (MARRIAGE_PROJECT_TYPES.has(normalized)) return "MARRIAGES";
+  if (BUSINESS_PROJECT_TYPES.has(normalized)) return "BUSINESS_EVENTS";
+  if (PARTICULAR_PROJECT_TYPES.has(normalized)) return "PARTICULAR_EVENTS";
+  return "REVIEW";
+}
+
+export function isReceivablePastDue(input: {
+  status: string;
+  daysRemaining: number | null;
+}): boolean {
+  return input.status === "OVERDUE" || (input.daysRemaining !== null && input.daysRemaining < 0);
+}
+
+export function summarizeReceivableBuckets(
+  rows: readonly {
+    projectType: unknown;
+    outstandingBalance: number;
+    status: string;
+    daysRemaining: number | null;
+  }[],
+): readonly ReceivableBucketTotals[] {
+  const totals = new Map<ReceivableBucket, ReceivableBucketTotals>();
+  for (const bucket of ["MARRIAGES", "BUSINESS_EVENTS", "PARTICULAR_EVENTS", "REVIEW"] as const) {
+    totals.set(bucket, { bucket, pendingTotal: 0, currentTotal: 0, overdueTotal: 0 });
+  }
+  for (const row of rows) {
+    if (row.outstandingBalance <= 0) continue;
+    const target = totals.get(classifyReceivableBucket(row.projectType))!;
+    target.pendingTotal += row.outstandingBalance;
+    if (isReceivablePastDue(row)) target.overdueTotal += row.outstandingBalance;
+    else target.currentTotal += row.outstandingBalance;
+  }
+  return [totals.get("MARRIAGES")!, totals.get("BUSINESS_EVENTS")!, totals.get("PARTICULAR_EVENTS")!, totals.get("REVIEW")!];
+}
 
 type ResolveParams = {
   customerType: "PRIVATE" | "CORPORATE";
@@ -274,3 +337,4 @@ export function paymentCategoryLabel(category: ReceivablePaymentCategory): strin
         ? "REQUIERE REVISIÓN"
         : "SALDO 50% / ORDINARIO";
 }
+
