@@ -1,6 +1,6 @@
-import { reconcilePaperLedger } from "./reconcile";
-import { isWarehousePaperSku, type WarehousePaperSku, WAREHOUSE_PAPER_SKUS } from "./format-map";
-import type { PaperMovement } from "./domain";
+import { reconcilePaperLedger } from "./reconcile.ts";
+import { isWarehousePaperSku, type WarehousePaperSku, WAREHOUSE_PAPER_SKUS } from "./format-map.ts";
+import type { PaperMovement } from "./domain.ts";
 
 export interface PaperStockLine {
   sku: WarehousePaperSku;
