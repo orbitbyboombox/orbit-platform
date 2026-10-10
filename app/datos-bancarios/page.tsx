@@ -1,4 +1,4 @@
-import { loadCompanySettingsCached } from "@/features/company-settings/repository";
+import { loadCompanySettingsForLayout } from "@/features/company-settings/repository";
 import { resolveCollectionBankDetails } from "@/features/accounts-receivable/collection-bank-details";
 import { BankDetailsCopyCard } from "./bank-details-copy-card";
 
@@ -6,7 +6,7 @@ export const dynamic = "force-static";
 export const revalidate = 300;
 
 export default async function BankDetailsPage() {
-  const settings = await loadCompanySettingsCached();
+  const settings = await loadCompanySettingsForLayout();
   const bank = resolveCollectionBankDetails(settings);
   return (
     <main className="min-h-screen bg-[#08090b] px-4 py-8 text-white sm:py-12">

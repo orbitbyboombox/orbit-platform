@@ -16,3 +16,16 @@ export const loadCompanySettingsCached = unstable_cache(
   ["orbit-company-settings-primary"],
   { revalidate: 300, tags: ["orbit-company-settings"] },
 );
+
+/**
+ * Root layout fallback used while Next.js prerenders public/error surfaces.
+ * The administrative key is intentionally never synthesized or exposed: when
+ * it is unavailable at build time, public chrome uses safe defaults and the
+ * real configuration is loaded at runtime where the protected environment is
+ * present.
+ */
+export async function loadCompanySettingsForLayout(): Promise<CompanySettings> {
+  const adminKey = process.env.SUPABASE_SECRET_KEY?.trim() || process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if (!adminKey) return DEFAULT_COMPANY_SETTINGS;
+  return loadCompanySettingsCached();
+}
