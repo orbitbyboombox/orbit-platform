@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const header = readFileSync("components/layout/header.tsx", "utf8");
+const sidebar = readFileSync("components/layout/sidebar.tsx", "utf8");
 
 test("mobile navigation closes on navigation, Escape, and outside press", () => {
   assert.match(header, /useEffect\(\(\) => \{[\s\S]*?setMenuOpen\(false\);[\s\S]*?\}, \[pathname\]\)/);
@@ -21,4 +22,11 @@ test("mobile navigation owns internal scrolling and locks the page scroll", () =
 test("mobile navigation remains constrained to the mobile breakpoint", () => {
   assert.match(header, /fixed inset-x-3 top-\[4\.75rem\][\s\S]*md:hidden/);
   assert.match(header, /fixed inset-0 z-30[\s\S]*md:hidden/);
+});
+
+test("desktop and mobile share one authorized global navigation", () => {
+  assert.match(sidebar, /<NavigationList compact/);
+  assert.doesNotMatch(sidebar, /Accesos rápidos/);
+  assert.doesNotMatch(sidebar, /<nav aria-label="Accesos rápidos"/);
+  assert.match(header, /<NavigationList hiddenNavigation=/);
 });

@@ -581,7 +581,11 @@ export async function sendAutomaticPreEventReminders(reference = new Date()) {
   const { data: projects, error } = await admin
     .from("projects")
     .select("id,customer_id,orbit_event_id,status,event_date")
-    .eq("event_date", targetDate)
+    // Include the active recovery window. A missed cron run must not leave an
+    // eligible customer without the reminder; the per-request unique key and
+    // communication history below keep retries idempotent.
+    .gte("event_date", today)
+    .lte("event_date", targetDate)
     .is("deleted_at", null);
   if (error) throw error;
 
@@ -591,7 +595,8 @@ export async function sendAutomaticPreEventReminders(reference = new Date()) {
   let failed = 0;
 
   for (const project of projects ?? []) {
-    const automaticAttemptId = `automatic-d10:${targetDate}`;
+    const automaticAttemptId = `automatic-d10:${project.event_date}`;
+    const recoveryAttemptId = `automatic-d10-recovery:${project.event_date}`;
     const key = requestKey(project.id, automaticAttemptId);
     const recordBlocked = async (reason: string, recipient = "") => {
       const existing = await admin
@@ -636,7 +641,7 @@ export async function sendAutomaticPreEventReminders(reference = new Date()) {
 
     try {
       const composer = await loadPreEventReminderComposer(project.id);
-      if (composer.daysUntilEvent !== 10 || !composer.reservationConfirmed) {
+      if (composer.daysUntilEvent < 0 || composer.daysUntilEvent > 10 || !composer.reservationConfirmed) {
         skipped += 1;
         continue;
       }
@@ -653,10 +658,21 @@ export async function sendAutomaticPreEventReminders(reference = new Date()) {
         continue;
       }
 
+      const existingAutomatic = await admin
+        .from("communications")
+        .select("status")
+        .eq("project_id", project.id)
+        .eq("communication_type", PRE_EVENT_REMINDER_TYPE)
+        .eq("request_key", requestKey(project.id, automaticAttemptId))
+        .maybeSingle();
+      if (existingAutomatic.error) throw existingAutomatic.error;
+      const requestId = existingAutomatic.data?.status === "FAILED" || existingAutomatic.data?.status === "BLOCKED"
+        ? recoveryAttemptId
+        : automaticAttemptId;
       const result = await sendPreEventReminder({
         projectId: project.id,
         actorId: null,
-        requestId: automaticAttemptId,
+        requestId,
         expectedFingerprint: composer.fingerprint,
         to: composer.to,
         cc: composer.cc,

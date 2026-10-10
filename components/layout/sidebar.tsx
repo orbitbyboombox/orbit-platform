@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarDays, ChevronLeft, ChevronRight, CircleDollarSign, Contact, PlusCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -59,12 +59,6 @@ export function Sidebar({ navigationOrder, hiddenNavigation }: Pick<NavigationLi
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3 pt-5 [scrollbar-width:thin]">
         <NavigationList compact hiddenNavigation={hiddenNavigation} iconOnly={collapsed} navigationOrder={navigationOrder} />
-        <div className={cn("mx-0 mt-3 border-t pt-4", collapsed && "lg:hidden")}>
-        <p className="mb-2 px-2 text-[9px] font-semibold uppercase tracking-[.12em] text-muted">Accesos rápidos</p>
-        <nav aria-label="Accesos rápidos" className="space-y-1">
-          {[{label:"Nuevo Evento",href:"/projects?reservation=new",icon:PlusCircle},{label:"Buscar Cliente",href:"/customers",icon:Contact},{label:"Calendario",href:"/events",icon:CalendarDays},{label:"Cobros pendientes",href:"/finance/receivables",icon:CircleDollarSign}].map(item=><Link className="group flex min-h-9 items-center gap-3 rounded-xl px-2 text-xs text-muted transition hover:bg-accent/70 hover:text-foreground" href={item.href} key={item.label}><item.icon className="size-4 transition group-hover:text-brand"/><span>{item.label}</span></Link>)}
-        </nav>
-        </div>
       </div>
       <div className="mt-auto border-t px-4 py-5 text-center lg:text-left"><Link aria-label="Ir al Dashboard" href="/operations">{collapsed ? <BrandLogo className="mx-auto size-7" surface="dark" variant="isotype" /> : <><BrandSignature className="hidden lg:block" /><BrandLogo className="mx-auto size-7 lg:hidden" surface="dark" variant="isotype" /></>}</Link></div>
     </aside>
