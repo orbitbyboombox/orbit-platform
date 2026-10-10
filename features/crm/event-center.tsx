@@ -371,7 +371,7 @@ export function EventCenter({
                 <p className="mt-1 break-words text-xs leading-snug text-white/45">Citación {event.staffCallAt?.slice(11, 16) || "por confirmar"} · {event.extras.length ? event.extras.join(" + ") : "Sin extras"} · Operador: {event.operator}</p>
               </div>
               <div className="flex min-w-0 items-center justify-end gap-2">
-                <span className="text-xs text-white/45">Abrir</span>
+                <Link aria-label={`Abrir evento ${event.customerName}`} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-brand px-3.5 text-xs font-bold text-black transition hover:brightness-110" href={`/projects/${event.projectId}`}><ExternalLink className="size-4" />ABRIR EVENTO</Link>
                 <Link className="min-h-9 rounded-xl border px-3 py-1.5 text-xs sm:text-sm" href={`/customers/${event.customerId}`}>Cliente</Link>
                 <details className="relative">
                   <summary aria-label={`Acciones para ${event.name}`} className="grid size-10 cursor-pointer list-none place-items-center rounded-xl border"><MoreVertical className="size-4" /></summary>
