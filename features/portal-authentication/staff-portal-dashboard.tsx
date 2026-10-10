@@ -507,7 +507,7 @@ function OperatorsModule({events,weeklyAvailableEvents,requests,week,confirmed,o
 
 const operationalExtraCategories: OperationalExtraCategory[] = ["QR", "IMANES", "SCRAPBOOK", "FONDO", "TRASLADO", "OTROS"];
 function StaffOperationalExtras({ extras, compact = false }: { extras: CanonicalOperationalExtras; compact?: boolean }) {
-  const active = operationalExtraCategories.filter((category) => extras.categories[category]);
+  const active = operationalExtraCategories.filter((category) => category !== "TRASLADO" && extras.categories[category]);
   if (active.length === 0) return null;
   const labels: Partial<Record<OperationalExtraCategory, string>> = { QR: "QR DIGITAL", IMANES: "IMANES", SCRAPBOOK: "LIBRO DE FIRMAS" };
   return <section aria-label="Recordatorio de extras contratados" role="note" className={`rounded-2xl border border-amber-400/50 bg-amber-400/10 text-white ${compact ? "mt-2 p-3" : "mt-3 p-4"}`}>
