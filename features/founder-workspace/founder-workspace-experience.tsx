@@ -547,7 +547,8 @@ export function FounderWorkspaceExperience({
     ordering && draftDashboardLayout ? draftDashboardLayout : dashboardLayout;
   const orderedKpis = activeDashboardLayout.kpiOrder
     .map((id) => kpis.find((item) => item.id === id))
-    .filter((item): item is (typeof kpis)[number] => Boolean(item) && item.id !== "kpi.company_credit" && item.id !== "kpi.customer_balances");
+    .filter((item): item is (typeof kpis)[number] => item !== undefined)
+    .filter((item) => item.id !== "kpi.company_credit" && item.id !== "kpi.customer_balances");
   const orderedQuickActions = activeDashboardLayout.quickActionOrder
     .map((id) => quickActions.find((item) => item.id === id))
     .filter((item): item is (typeof quickActions)[number] => Boolean(item));
