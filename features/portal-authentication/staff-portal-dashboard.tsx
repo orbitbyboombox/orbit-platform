@@ -507,10 +507,13 @@ function OperatorsModule({events,weeklyAvailableEvents,requests,week,confirmed,o
 
 const operationalExtraCategories: OperationalExtraCategory[] = ["QR", "IMANES", "SCRAPBOOK", "FONDO", "TRASLADO", "OTROS"];
 function StaffOperationalExtras({ extras, compact = false }: { extras: CanonicalOperationalExtras; compact?: boolean }) {
-  return <section aria-label="Extras operacionales" className={`rounded-2xl border border-white/10 bg-[#191a1d] text-white ${compact ? "mt-2 p-2.5" : "mt-3 p-3"}`}>
-    <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-brand">Extras operacionales</p>
-    <div className={`mt-2 grid gap-1.5 ${compact ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-6"}`}>
-      {operationalExtraCategories.map((category) => <div className="min-w-0 rounded-lg border border-white/10 px-2 py-1.5" key={category}><div className="flex items-center justify-between gap-2"><span className="truncate text-[10px] font-semibold uppercase tracking-wide text-white/65">{category}</span><span className={`text-[10px] font-bold ${extras.categories[category] ? "text-emerald-300" : "text-white/40"}`}>{extras.categories[category] ? "SÍ" : "NO"}</span></div>{extras.categories[category] && extras.details[category]?.length ? <p className="mt-1 truncate text-[10px] text-white/50">{extras.details[category]?.join(" · ")}</p> : null}</div>)}
+  const active = operationalExtraCategories.filter((category) => extras.categories[category]);
+  if (active.length === 0) return null;
+  const labels: Partial<Record<OperationalExtraCategory, string>> = { QR: "QR DIGITAL", IMANES: "IMANES", SCRAPBOOK: "LIBRO DE FIRMAS" };
+  return <section aria-label="Recordatorio de extras contratados" role="note" className={`rounded-2xl border border-amber-400/50 bg-amber-400/10 text-white ${compact ? "mt-2 p-3" : "mt-3 p-4"}`}>
+    <p className="text-xs font-extrabold uppercase tracking-wide text-amber-300">RECUERDA: TU EVENTO INCLUYE</p>
+    <div className="mt-2 flex flex-wrap gap-2">
+      {active.map((category) => <span key={category} className="rounded-lg border border-amber-400/30 bg-[#191a1d] px-2.5 py-1.5 text-xs font-bold text-white">{labels[category] ?? category}</span>)}
     </div>
   </section>;
 }
