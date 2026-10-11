@@ -794,7 +794,30 @@ export async function sendAutomaticPreEventReminders(reference = new Date()) {
           }));
         }
       }
-      else if (result.status === "FAILED") failed += 1;
+      else if (result.status === "FAILED") {
+        failed += 1;
+        try {
+          await notifyPreEventAdmin({
+            projectId: project.id,
+            customerId: project.customer_id,
+            customerName: customer?.full_name ?? composer.customerName,
+            customerRecipient: composer.to,
+            orbitEventId: project.orbit_event_id,
+            eventName: project.name ?? project.orbit_event_id,
+            eventDate: project.event_date,
+            result: "FAILED",
+            reason: "El intento automático D-10 terminó con estado FAILED.",
+          });
+        } catch (noticeError) {
+          console.error(JSON.stringify({
+            level: "error",
+            event: "pre_event_reminder.admin_notice_failed",
+            projectId: project.id,
+            result: "FAILED",
+            error: noticeError instanceof Error ? noticeError.message : String(noticeError),
+          }));
+        }
+      }
       else skipped += 1;
     } catch (error) {
       const reason =
