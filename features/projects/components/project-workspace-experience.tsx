@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { EventCommercialDocumentHub } from "@/features/external-tax-documents/event-commercial-document-hub";
+import { EventPostReservationExtrasPanel } from "./event-post-reservation-extras-panel";
 import {
   AlertTriangle,
   Archive,
@@ -216,6 +217,8 @@ type Event360Data = {
 
 type EventAdminTab =
   | "SUMMARY"
+  | "CLIENT"
+  | "SERVICE"
   | "FINANCE"
   | "STAFF"
   | "OPERATION"
@@ -224,6 +227,8 @@ type EventAdminTab =
 
 const EVENT_ADMIN_TABS: readonly { id: EventAdminTab; label: string; hint: string }[] = [
   { id: "SUMMARY", label: "Resumen", hint: "Estado y acciones prioritarias" },
+  { id: "CLIENT", label: "Cliente", hint: "Contacto y lugar" },
+  { id: "SERVICE", label: "Servicio", hint: "Experiencia y extras" },
   { id: "FINANCE", label: "Finanzas", hint: "Cobros, costos y liquidaciones" },
   { id: "STAFF", label: "Staff", hint: "Asignaciones y planificación" },
   { id: "OPERATION", label: "Operación", hint: "Logística, cajas y checklist" },
@@ -274,6 +279,8 @@ export type ProjectWorkspaceExperienceProps = Omit<
   };
   capacityResult?: CapacityResult | null;
   operationalBlocks?: readonly OperationalBlock[];
+  postReservationExtras: Array<{ id: string; name: string; amount: number; source: string; added_at: string; status: string }>;
+  catalogExtras: Array<{ id: string; code: string; label: string; unit_price: number | null; metadata?: Record<string, unknown> }>;
 };
 
 const money = (value: number) =>
@@ -581,6 +588,10 @@ export function ProjectWorkspaceExperience(
     window.history.replaceState(null, "", url.toString());
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
+  const openTabAndScroll = (tab: EventAdminTab, id: string) => {
+    selectTab(tab);
+    window.setTimeout(() => scroll(id), 0);
+  };
   useEffect(() => {
     const onPopState = () => setActiveTab(initialEventAdminTab());
     window.addEventListener("popstate", onPopState);
@@ -660,7 +671,7 @@ export function ProjectWorkspaceExperience(
                 <HeroMetric label="Salud" value={`${health}%`} />
               </div>
             </div>
-            <nav aria-label="Pestañas del evento" className="grid grid-cols-2 gap-2 border-t p-3 sm:grid-cols-3 sm:px-7 lg:grid-cols-6" role="tablist">
+            <nav aria-label="Navegación contextual del evento" className="sticky top-0 z-20 grid grid-cols-2 gap-2 border-t bg-card/95 p-3 backdrop-blur sm:grid-cols-4 sm:px-7 xl:grid-cols-8" role="tablist">
               {EVENT_ADMIN_TABS.map(({ id, label, hint }) => (
                 <button
                   aria-selected={activeTab === id}
@@ -679,7 +690,7 @@ export function ProjectWorkspaceExperience(
           {activeTab === "SUMMARY" && <div>{capacityPanel}</div>}
 
           <section className="grid min-w-0 gap-6 xl:grid-cols-2">
-            {activeTab === "SUMMARY" && moduleVisible("GENERAL_INFORMATION") && (
+            {activeTab === "CLIENT" && moduleVisible("GENERAL_INFORMATION") && (
               <Section
                 eyebrow="01 · Relación"
                 icon={<UserRound className="size-5" />}
@@ -731,7 +742,7 @@ export function ProjectWorkspaceExperience(
                 </dl>
               </Section>
             )}
-            {activeTab === "SUMMARY" && moduleVisible("COMMERCIAL_NEGOTIATION") && (
+            {activeTab === "FINANCE" && moduleVisible("COMMERCIAL_NEGOTIATION") && (
               <OptionalModule
                 moduleKey="COMMERCIAL_NEGOTIATION"
                 onHide={hideModule}
@@ -830,7 +841,7 @@ export function ProjectWorkspaceExperience(
                 </Section>
               </OptionalModule>
             )}
-            {activeTab === "SUMMARY" && moduleVisible("GENERAL_INFORMATION") && (
+            {activeTab === "SERVICE" && moduleVisible("GENERAL_INFORMATION") && (
               <Section
                 eyebrow="03 · Experiencia"
                 icon={<Sparkles className="size-5" />}
@@ -873,6 +884,16 @@ export function ProjectWorkspaceExperience(
                   />
                 </dl>
               </Section>
+            )}
+            {activeTab === "SERVICE" && (
+              <EventPostReservationExtrasPanel
+                projectId={props.projectKey ?? ""}
+                extras={props.postReservationExtras}
+                catalog={props.catalogExtras}
+                originalTotal={event.receivable?.amount ?? 0}
+                paidAmount={event.receivable?.paidAmount ?? 0}
+                currentTotal={(event.receivable?.amount ?? 0) + props.postReservationExtras.filter((item) => item.status === "ACTIVE").reduce((sum, item) => sum + Number(item.amount), 0)}
+              />
             )}
             {activeTab === "OPERATION" && moduleVisible("OPERATIONAL_CONTROL") && (
               <OptionalModule
@@ -1046,7 +1067,7 @@ export function ProjectWorkspaceExperience(
             </OptionalModule>
           )}
           {activeTab === "STAFF" && moduleVisible("STAFF") && (
-            <StaffAssignmentCenter {...event.staffAssignments} />
+            <div id="staff-assignment"><StaffAssignmentCenter {...event.staffAssignments} /></div>
           )}
           {activeTab === "OPERATION" && moduleVisible("TASK_CENTER") && (
             <OptionalModule moduleKey="TASK_CENTER" onHide={hideModule}>
@@ -1482,12 +1503,12 @@ export function ProjectWorkspaceExperience(
               <ActionButton
                 icon={FileText}
                 label="Generar acuerdo"
-                onClick={() => scroll("agreement-control")}
+                onClick={() => openTabAndScroll("DOCUMENTS", "documents")}
               />
               <ActionButton
                 icon={Send}
                 label="Enviar acuerdo"
-                onClick={() => scroll("agreement-control")}
+                onClick={() => openTabAndScroll("DOCUMENTS", "documents")}
                 variant="outline"
               />
               <ActionButton
@@ -1505,52 +1526,45 @@ export function ProjectWorkspaceExperience(
                 <ActionButton
                   icon={UserRound}
                   label="Asignar Staff"
-                  onClick={() => scroll("staff-assignment")}
+                  onClick={() => openTabAndScroll("STAFF", "staff-assignment")}
                   variant="outline"
                 />
               ) : null}
               <ActionButton
                 icon={Package}
                 label="Asignar equipo"
-                onClick={() => scroll("equipment-assignment")}
+                onClick={() => openTabAndScroll("OPERATION", "equipment-assignment")}
                 variant="outline"
               />
               <ActionButton
                 icon={CalendarDays}
                 label="Generar Calendar"
-                onClick={syncCalendarFromQuickAction}
+                onClick={() => { selectTab("COMMUNICATIONS"); void syncCalendarFromQuickAction(); }}
                 variant="outline"
               />
               <ActionButton
                 icon={FolderOpen}
                 label="Abrir Carpeta Cliente"
                 disabled={!event.google.driveUrl}
-                onClick={() =>
-                  event.google.driveUrl &&
-                  window.open(
-                    event.google.driveUrl,
-                    "_blank",
-                    "noopener,noreferrer",
-                  )
-                }
+                onClick={() => { selectTab("DOCUMENTS"); if (event.google.driveUrl) window.open(event.google.driveUrl, "_blank", "noopener,noreferrer"); }}
                 variant="outline"
               />
               <ActionButton
                 icon={Download}
                 label="Enviar fotos digitales"
-                onClick={() => scroll("digital-photo-delivery")}
+                onClick={() => openTabAndScroll("COMMUNICATIONS", "digital-photo-delivery")}
                 variant="outline"
               />
-              <ActionButton
-                icon={CalendarClock}
-                label="Recordatorio pre-evento"
-                onClick={() => scroll("pre-event-reminder")}
+                <ActionButton
+                  icon={CalendarClock}
+                  label="ENVIAR CORREO PREEVENTO"
+                onClick={() => openTabAndScroll("COMMUNICATIONS", "pre-event-reminder")}
                 variant="outline"
               />
               <ActionButton
                 icon={CheckCircle2}
                 label="Cerrar evento"
-                onClick={() => scroll("post-event")}
+                onClick={() => openTabAndScroll("OPERATION", "post-event")}
                 variant="outline"
               />
               <ActionButton
@@ -1765,20 +1779,5 @@ function Connector({ status, href }: { status: string; href?: string }) {
         </a>
       )}
     </span>
-  );
-}
-function humanDocument(type: string) {
-  return (
-    (
-      {
-        QUOTATION: "Cotización",
-        AGREEMENT: "Acuerdo",
-        SIGNED_AGREEMENT: "Acuerdo firmado",
-        INVOICE: "Factura",
-        PAYMENT_RECEIPT: "Comprobante de pago",
-        DESIGN: "Archivo de diseño",
-        GALLERY: "Galería",
-      } as Record<string, string>
-    )[type] ?? type.replaceAll("_", " ")
   );
 }

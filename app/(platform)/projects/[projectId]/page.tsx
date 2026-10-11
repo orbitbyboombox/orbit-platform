@@ -19,9 +19,6 @@ import { buildCanonicalOrbitEventStateFromRecord } from "@/features/operations/c
 import { buildResponsibilityReadModel } from "@/features/staff-assignment-center/staff-responsibility-read-model";
 import type { OperationalBlock } from "@/features/operations/operational-blocks";
 import { resolveOfficialOperatorRate } from "@/features/operations/staff-assignment-payment";
-import { EventUiReplica } from "@/features/projects/components/event-ui-replica";
-import { EventPostReservationExtrasPanel } from "@/features/projects/components/event-post-reservation-extras-panel";
-import { buildCanonicalOperationalExtras } from "@/features/operations/canonical-operational-extras";
 
 export interface ProjectWorkspacePageProps {
   params: Promise<{ projectId: string }>;
@@ -316,15 +313,6 @@ export default async function ProjectWorkspacePage({
   }
   if (paperSnapshotError && !["42P01", "PGRST205"].includes(paperSnapshotError.code ?? "")) {
     throw paperSnapshotError;
-  }
-  let paperReloads = 0;
-  if (paperSnapshot?.id) {
-    const { data: reloadRows, error: reloadError } = await adminReadClient
-      .from("event_paper_reloads")
-      .select("quantity")
-      .eq("snapshot_id", paperSnapshot.id);
-    if (reloadError && !["42P01", "PGRST205"].includes(reloadError.code ?? "")) throw reloadError;
-    paperReloads = (reloadRows ?? []).reduce((sum, row) => sum + Number(row.quantity ?? 0), 0);
   }
   const { data: staffRoleRequirements, error: staffRoleRequirementError } =
     await client
@@ -1603,68 +1591,6 @@ export default async function ProjectWorkspacePage({
       }
     : undefined;
   const primaryService = (serviceRows ?? [])[0];
-  const eventExtras = Array.isArray(primaryService?.extras)
-    ? primaryService.extras
-        .map((item) => {
-          if (typeof item === "string") return item;
-          if (typeof item === "object" && item !== null) {
-            const value = item as { label?: unknown; name?: unknown };
-            return String(value.label ?? value.name ?? "");
-          }
-          return String(item ?? "");
-        })
-        .filter(Boolean)
-    : [];
-  const operationalExtras = buildCanonicalOperationalExtras({
-    serviceExtras: (serviceRows ?? []).flatMap((item) => Array.isArray(item.extras) ? item.extras : []),
-    postReservationExtras: (postReservationExtras ?? []).filter((item) => item.status === "ACTIVE").map((item) => item.name),
-    configuredExtras: Array.isArray(quotation?.quotation_items)
-      ? quotation.quotation_items.filter((item) => item.item_type === "EXTRA").flatMap((item) => [item.label, item.description])
-      : [],
-    transportTotal: Number(quotation?.transport_total ?? 0),
-  });
-  const serviceStartTime = chileDateTime(canonicalEventState.serviceStartAt).time;
-  const serviceEndTime = chileDateTime(canonicalEventState.serviceEndAt).time;
-  const staffCallTime = chileDateTime(canonicalEventState.staffCallAt).time;
-  const operatorRoles = ["OPERATOR", "ASSEMBLY", "DISASSEMBLY"];
-  const eventOperators = operatorRoles.map((role) => {
-    const assignment = productionAssignments.find(
-      (item) => item.project_id === projectId && item.assignment_type === role,
-    );
-    const block = assignment?.event_operational_blocks
-      ? (Array.isArray(assignment.event_operational_blocks) ? assignment.event_operational_blocks[0] : assignment.event_operational_blocks)
-      : null;
-    const roleStart = role === "OPERATOR" && block?.start_at
-      ? chileDateTime(block.start_at).time
-      : assignment?.start_time?.slice(0, 5) || (assignment?.staff_call_at ? chileDateTime(assignment.staff_call_at).time : staffCallTime);
-    const roleEnd = role === "OPERATOR" && block?.end_at
-      ? chileDateTime(block.end_at).time
-      : assignment?.finish_time?.slice(0, 5) || "";
-    return {
-      role,
-      staffId: assignment?.staff_id,
-      name: assignment?.staff
-        ? `${assignment.staff.first_name} ${assignment.staff.last_name}`.trim()
-        : "Sin asignar",
-      callTime: roleEnd ? `${roleStart}–${roleEnd}` : roleStart,
-    };
-  });
-  const eventStaffPayments = (payroll ?? []).flatMap((item) => {
-    const staffName = Array.isArray(item.staff)
-      ? `${item.staff[0]?.first_name ?? ""} ${item.staff[0]?.last_name ?? ""}`.trim()
-      : "Staff";
-    const roles = ["OPERATOR", "ASSEMBLY", "DISASSEMBLY"] as const;
-    return roles.filter((role) => {
-      const taskRoles = Array.isArray(item.tasks) ? item.tasks.map(String) : [];
-      const amount = role === "OPERATOR" ? item.automatic_operator_payment ?? item.operator_payment : role === "ASSEMBLY" ? item.automatic_assembly_payment ?? item.assembly_payment : item.automatic_disassembly_payment ?? item.disassembly_payment;
-      return taskRoles.includes(role) || Number(amount ?? 0) > 0;
-    }).map((role) => {
-      const baseAmount = Number(role === "OPERATOR" ? item.automatic_operator_payment ?? item.operator_payment ?? 0 : role === "ASSEMBLY" ? item.automatic_assembly_payment ?? item.assembly_payment ?? 0 : item.automatic_disassembly_payment ?? item.disassembly_payment ?? 0);
-      const overrideAmount = role === "OPERATOR" ? item.override_operator_payment : role === "ASSEMBLY" ? item.override_assembly_payment : item.override_disassembly_payment;
-      const block = Array.isArray(item.event_operational_blocks) ? item.event_operational_blocks[0] : item.event_operational_blocks;
-      return { id: item.id, assignmentId: item.assignment_id ?? null, staffId: item.staff_id, staffName, role, blockId: item.block_id ?? null, blockName: block?.name ?? null, blockStartAt: block?.start_at ?? null, blockEndAt: block?.end_at ?? null, baseAmount, finalAmount: Number(overrideAmount ?? baseAmount), overrideAmount: overrideAmount == null ? null : Number(overrideAmount), paid: Number(item.paid_amount ?? 0) };
-    });
-  });
   const eventControl = {
     event: {
       id: projectId,
@@ -1707,32 +1633,7 @@ export default async function ProjectWorkspacePage({
     expenses:(logisticsExpensesResult.data??[]).map(row=>{let description="";try{const metadata=JSON.parse(row.approval_reason??"{}");description=String(metadata.description??"")}catch{}return{id:row.id,tripId:String(row.vehicle_trip_id),category:row.category,description,total:Number(row.total),status:row.status,receiptPath:row.receipt_path??""}}),
   };
   return (
-    <>
-    <EventUiReplica
-      projectId={projectId}
-      customer={query.client ?? project.client.name}
-      date={date}
-      serviceDuration={primaryService?.duration_hours ?? null}
-      serviceStartTime={serviceStartTime}
-      serviceEndTime={serviceEndTime}
-      staffCallTime={staffCallTime}
-      venue={query.venue ?? project.event.location}
-      municipality={query.city ?? project.event.city}
-      status={String(project.status ?? "ACTIVO")}
-      service={services.join(" · ")}
-      eventType={typeLabel}
-      extras={eventExtras}
-      operationalExtras={operationalExtras}
-      postReservationExtras={<EventPostReservationExtrasPanel projectId={projectId} extras={(postReservationExtras ?? []) as Array<{ id: string; name: string; amount: number; source: string; added_at: string; status: string }>} catalog={(catalogExtras ?? []) as Array<{ id: string; code: string; label: string; unit_price: number | null; metadata?: Record<string, unknown> }>} originalTotal={Number(quotation?.final_customer_price ?? quotation?.grand_total ?? 0)} paidAmount={Number(invoice?.paid_amount ?? 0)} currentTotal={Number(quotation?.final_customer_price ?? quotation?.grand_total ?? 0) + (postReservationExtras ?? []).filter((item) => item.status === "ACTIVE").reduce((sum, item) => sum + Number(item.amount), 0)} />}
-      operationalContactName={[operationalContract?.contact_first_name, operationalContract?.contact_last_name].filter(Boolean).join(" ")}
-      operationalContactPhone={operationalContract?.contact_phone ?? ""}
-      printInstructions={{ photoStyle: operationalContract?.photo_style === "COLOR" || operationalContract?.photo_style === "BLACK_WHITE" || operationalContract?.photo_style === "SEPIA" ? operationalContract.photo_style : null, operatorNote: operationalContract?.operator_print_notes ?? "" }}
-      operators={eventOperators}
-      staffPayments={eventStaffPayments}
-      paper={paperSnapshot ? { opening: Number(paperSnapshot.opening_balance), final: paperSnapshot.final_remaining_balance === null ? null : Number(paperSnapshot.final_remaining_balance), usage: paperSnapshot.event_usage === null ? null : Number(paperSnapshot.event_usage), reloads: paperReloads, format: paperSnapshot.format_key, variant: paperSnapshot.paper_variant === "NORMAL_4X6" || paperSnapshot.paper_variant === "PRECUT_4X6" ? paperSnapshot.paper_variant : null, status: paperSnapshot.status, boxCode: paperSnapshot.black_box_asset_code, confirmedBy: paperSnapshot.confirmed_by, confirmedAt: paperSnapshot.confirmed_at } : null}
-      equipment={equipment.requirements.map((item) => item.label)}
-      invoice={invoice ? { invoiceNumber: invoice.invoice_number, outstandingBalance: Number(invoice.outstanding_balance), status: invoice.effective_status } : undefined}
-      operationContent={<ProjectWorkspaceExperience
+    <ProjectWorkspaceExperience
       customerId={rawProject?.customer_id ?? ""}
       reconciliationId={query.reconciliation}
       {...experienceProps}
@@ -1770,9 +1671,22 @@ export default async function ProjectWorkspacePage({
         status: row.status as OperationalBlock["status"],
         notes: row.notes,
       }))}
-      />}
+      postReservationExtras={(postReservationExtras ?? []).map((item) => ({
+        id: item.id,
+        name: item.name,
+        amount: Number(item.amount),
+        source: item.source,
+        added_at: item.added_at,
+        status: item.status,
+      }))}
+      catalogExtras={(catalogExtras ?? []).map((item) => ({
+        id: item.id,
+        code: item.code,
+        label: item.label,
+        unit_price: item.unit_price,
+        metadata: item.metadata ?? undefined,
+      }))}
     />
-    </>
   );
 }
 
