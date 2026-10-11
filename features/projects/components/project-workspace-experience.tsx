@@ -93,8 +93,6 @@ import {
   EventPaymentManager,
   type EventReceivable,
 } from "@/features/accounts-receivable";
-import { CustomerEventOperations } from "@/features/crm/customer-event-operations";
-import type { CrmCustomerEventOperations, CrmEventSummary } from "@/features/crm/types";
 import { EventOperationalReadiness, type OperationalReadinessData } from "@/features/operations/event-operational-readiness";
 import { EventLogisticsCenter, type EventLogisticsData } from "@/features/operations/event-logistics-center";
 import { requiresPhotoStripDesign } from "@/features/business-core/catalog/service.catalog";
@@ -256,7 +254,6 @@ export type ProjectWorkspaceExperienceProps = Omit<
   commercialHub: { customerTaxId?:string; customerKind:"PARTICULAR"|"EMPRESA"; paymentCondition:string; quotation?:{id:string;number:string;status:string;revision:number;acceptedAt:string;total:number;detailHref:string;pdfHref:string;items:readonly {label:string;quantity:number;total:number}[]} };
   productionIntegration: ProductionIntegrationPanelProps;
   event360: Event360Data;
-  eventControl: { event: CrmEventSummary; operations: CrmCustomerEventOperations };
   operationalReadiness?: OperationalReadinessData;
   logistics: EventLogisticsData;
   reconciliationId?: string;
@@ -948,10 +945,6 @@ export function ProjectWorkspaceExperience(
           {activeTab === "OPERATION" && <EventLogisticsCenter data={props.logistics}/>}
           {activeTab === "OPERATION" && <OperationalBlocksPanel projectId={props.projectKey ?? ""} initialBlocks={props.operationalBlocks ?? []} />}
 
-          {activeTab === "OPERATION" && <section className="scroll-mt-24" id="event-control-center">
-            <div className="mb-3"><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Centro operativo</p><h2 className="mt-1 text-2xl font-semibold">Gestión completa del Evento</h2><p className="mt-1 text-sm text-muted">Pagos, costos, Staff, documentos, Portal y Calendar pertenecen a este Evento.</p></div>
-            <CustomerEventOperations event={props.eventControl.event} onEditEvent={() => scroll("commercial")} operations={props.eventControl.operations} reconciliationId={props.reconciliationId}/>
-          </section>}
           {activeTab === "FINANCE" && moduleVisible("FINANCIAL_SUMMARY") && event.realCosts && (
             <details className="rounded-2xl border bg-card p-5" id="real-cost-adjustments">
               <summary className="cursor-pointer font-semibold text-brand">Detalle financiero y ajustes de costos reales</summary>

@@ -9,7 +9,6 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { calculateAndPersistRealEventCost } from "@/features/profit-engine";
 import { loadFounderWorkspace } from "@/features/founder-workspace";
-import { loadCrmCustomerOperations } from "@/features/crm/customer-operations.repository";
 import type { EquipmentAssignmentPanelProps } from "@/features/asset-management";
 import type { EventLogisticsData } from "@/features/operations/event-logistics-center";
 import { resolveReceivablePaymentCategory } from "@/features/accounts-receivable/payment-term-classification";
@@ -1511,10 +1510,6 @@ export default async function ProjectWorkspacePage({
         .map((asset) => ({ id: asset.id, name: asset.asset_code })),
     },
   };
-  const eventControlOperations = (
-    await loadCrmCustomerOperations(client, [projectId], adminReadClient)
-  )[0];
-  if (!eventControlOperations) notFound();
   const checklistItems = checklist?.event_checklist_items ?? [];
   const logisticsMode=String(logisticsSummaryResult.data?.logistics_mode??"NOT_REQUIRED"),logisticsTrips=logisticsTripsResult.data??[];
   const logisticsReasons:{code:string;label:string;href:string}[]=[];
@@ -1590,36 +1585,6 @@ export default async function ProjectWorkspacePage({
         },
       }
     : undefined;
-  const primaryService = (serviceRows ?? [])[0];
-  const eventControl = {
-    event: {
-      id: projectId,
-      projectId,
-      orbitEventId: rawProject?.orbit_event_id ?? `ORB-${projectId}`,
-      type: typeLabel,
-      date,
-      time: experienceProps.eventTime,
-      status: rawProject?.status ?? project.status,
-      name: experienceProps.projectName,
-      location: project.event.location,
-      eventAddress:
-        typeof operations.eventAddress === "string"
-          ? operations.eventAddress
-          : null,
-      municipality: project.event.city,
-      service: primaryService?.service_code ?? "",
-      duration: primaryService?.duration_hours ?? null,
-      boothQuantity: Number(operations.boothQuantity ?? 1),
-      transport: Number(quotation?.transport_total ?? 0),
-      extras: Array.isArray(primaryService?.extras)
-        ? primaryService.extras.map(String)
-        : [],
-      appliedPrice: Number(
-        quotation?.final_customer_price ?? quotation?.grand_total ?? 0,
-      ),
-    },
-    operations: eventControlOperations,
-  };
   const logisticsSummary=logisticsSummaryResult.data;
   const logistics:EventLogisticsData={
     projectId,
@@ -1640,7 +1605,6 @@ export default async function ProjectWorkspacePage({
       activities={activities}
       equipment={equipment}
       event360={event360}
-      eventControl={eventControl}
       operationalReadiness={operationalReadiness}
       logistics={logistics}
       eventDateIso={date}
