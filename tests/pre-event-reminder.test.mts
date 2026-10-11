@@ -17,6 +17,7 @@ const actions = read("../features/projects/communications/pre-event-reminder.act
 const control = read("../features/projects/communications/pre-event-reminder-control.tsx");
 const workspace = read("../features/projects/components/project-workspace-experience.tsx");
 const migration = read("../supabase/migrations/0215_pre_event_reminder_communication.sql");
+const adminNoticeMigration = read("../supabase/migrations/20261010120000_pre_event_admin_notifications.sql");
 
 const bankDetails = {
   companyLabel: "PRODUCCIONES BOOMBOX COMPANY SPA",
@@ -211,6 +212,17 @@ test("communication history, timeline, resend confirmation and idempotency are e
   assert.match(control, /submissionGate/);
   assert.match(migration, /unique index[\s\S]*PRE_EVENT_REMINDER/);
   assert.match(migration, /context_snapshot jsonb/);
+});
+
+test("automatic D-10 notifies the administrator independently and idempotently", () => {
+  assert.match(service, /matias\.maira\.larrain@gmail\.com/);
+  assert.match(service, /PRE_EVENT_REMINDER_ADMIN_NOTICE/);
+  assert.match(service, /pre-event-admin:\$\{input\.projectId\}:\$\{input\.eventDate\}:\$\{input\.result\}/);
+  assert.match(service, /result: "SENT"/);
+  assert.match(service, /result: "FAILED"/);
+  assert.match(service, /admin_notice_failed/);
+  assert.match(adminNoticeMigration, /communications_pre_event_admin_notice_request_uidx/);
+  assert.match(adminNoticeMigration, /PRE_EVENT_REMINDER_ADMIN_NOTICE/);
 });
 
 test("send path does not mutate Finance, Drive, Calendar or WhatsApp", () => {

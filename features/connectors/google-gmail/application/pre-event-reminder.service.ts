@@ -306,6 +306,96 @@ export type SendPreEventReminderResult = {
   deduplicated: boolean;
 };
 
+const PRE_EVENT_ADMIN_RECIPIENT = "matias.maira.larrain@gmail.com";
+const PRE_EVENT_ADMIN_NOTICE_TYPE = "PRE_EVENT_REMINDER_ADMIN_NOTICE";
+
+const escapeAdminNoticeHtml = (value: string) =>
+  value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+
+async function notifyPreEventAdmin(input: {
+  projectId: string;
+  customerId: string;
+  customerName: string;
+  customerRecipient: string;
+  orbitEventId: string;
+  eventName: string;
+  eventDate: string;
+  result: "SENT" | "FAILED";
+  reason?: string;
+  sender?: GoogleGmailLiveProvider;
+}) {
+  const admin = createAdminClient();
+  const requestKey = `pre-event-admin:${input.projectId}:${input.eventDate}:${input.result}`;
+  const subject = input.result === "SENT"
+    ? `ORBIT · D-10 enviado · ${input.eventName}`
+    : `ORBIT · ERROR D-10 · ${input.eventName}`;
+  const resultLabel = input.result === "SENT" ? "ENVIADO EXITOSAMENTE" : "FALLÓ EL ENVÍO AL CLIENTE";
+  const reason = input.reason?.trim() || "Sin detalle adicional.";
+  const textBody = [
+    "ORBIT · NOTIFICACIÓN AUTOMÁTICA",
+    "",
+    `Resultado: ${resultLabel}`,
+    `Cliente: ${input.customerName}`,
+    `Evento: ${input.eventName}`,
+    `ORBIT Event ID: ${input.orbitEventId}`,
+    `Fecha del evento: ${input.eventDate}`,
+    `Destinatario cliente: ${input.customerRecipient || "Sin correo registrado"}`,
+    `Detalle: ${reason}`,
+  ].join("\n");
+  const htmlBody = `<main style="font-family:Arial,sans-serif;color:#171717;line-height:1.6"><h2 style="color:#f78900">ORBIT · ${escapeAdminNoticeHtml(resultLabel)}</h2><p><strong>Cliente:</strong> ${escapeAdminNoticeHtml(input.customerName)}</p><p><strong>Evento:</strong> ${escapeAdminNoticeHtml(input.eventName)}</p><p><strong>ORBIT Event ID:</strong> ${escapeAdminNoticeHtml(input.orbitEventId)}</p><p><strong>Fecha del evento:</strong> ${escapeAdminNoticeHtml(input.eventDate)}</p><p><strong>Destinatario cliente:</strong> ${escapeAdminNoticeHtml(input.customerRecipient || "Sin correo registrado")}</p><p><strong>Detalle:</strong> ${escapeAdminNoticeHtml(reason)}</p></main>`;
+  const { data: existing, error: existingError } = await admin
+    .from("communications")
+    .select("id,status,external_message_id,thread_key")
+    .eq("project_id", input.projectId)
+    .eq("communication_type", PRE_EVENT_ADMIN_NOTICE_TYPE)
+    .eq("request_key", requestKey)
+    .maybeSingle();
+  if (existingError) throw existingError;
+  if (existing?.status === "SENT") return { sent: true, deduplicated: true };
+  const queued = {
+    customer_id: input.customerId,
+    project_id: input.projectId,
+    channel: "GMAIL",
+    direction: "OUTBOUND",
+    communication_type: PRE_EVENT_ADMIN_NOTICE_TYPE,
+    thread_key: requestKey,
+    request_key: requestKey,
+    subject,
+    body: textBody,
+    status: "QUEUED",
+    to_recipient: PRE_EVENT_ADMIN_RECIPIENT,
+    cc_recipients: [],
+    occurred_at: new Date().toISOString(),
+    failure_reason: null,
+    context_snapshot: { automatic: true, result: input.result, eventDate: input.eventDate },
+  };
+  const write = existing?.id
+    ? await admin.from("communications").update(queued).eq("id", existing.id).select("id").single()
+    : await admin.from("communications").insert(queued).select("id").single();
+  if (write.error) {
+    if (write.error.code === "23505") return { sent: false, deduplicated: true };
+    throw write.error;
+  }
+  try {
+    const delivered = await (input.sender ?? new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken())).send({
+      to: PRE_EVENT_ADMIN_RECIPIENT,
+      subject,
+      textBody,
+      htmlBody,
+      idempotencyKey: requestKey,
+      driveFileIds: [],
+    });
+    const sentAt = new Date().toISOString();
+    const update = await admin.from("communications").update({ status: "SENT", sent_at: sentAt, occurred_at: sentAt, external_message_id: delivered.messageId, thread_key: delivered.threadId, failure_reason: null }).eq("id", write.data.id);
+    if (update.error) throw update.error;
+    return { sent: true, deduplicated: false };
+  } catch (error) {
+    const failureReason = error instanceof Error ? error.message.slice(0, 2_000) : String(error).slice(0, 2_000);
+    await admin.from("communications").update({ status: "FAILED", failure_reason: failureReason, occurred_at: new Date().toISOString() }).eq("id", write.data.id);
+    throw error;
+  }
+}
+
 const requestKey = (projectId: string, attemptId: string) =>
   `pre-event-reminder:${projectId}:${attemptId}`;
 
@@ -580,7 +670,7 @@ export async function sendAutomaticPreEventReminders(reference = new Date()) {
   const targetDate = addIsoDays(today, 10);
   const { data: projects, error } = await admin
     .from("projects")
-    .select("id,customer_id,orbit_event_id,status,event_date")
+    .select("id,customer_id,orbit_event_id,name,status,event_date,customers!inner(full_name,email)")
     // Include the active recovery window. A missed cron run must not leave an
     // eligible customer without the reminder; the per-request unique key and
     // communication history below keep retries idempotent.
@@ -639,8 +729,10 @@ export async function sendAutomaticPreEventReminders(reference = new Date()) {
       return "BLOCKED";
     };
 
+    let composer: PreEventReminderComposer | null = null;
+    const customer = first(project.customers);
     try {
-      const composer = await loadPreEventReminderComposer(project.id);
+      composer = await loadPreEventReminderComposer(project.id);
       if (composer.daysUntilEvent < 0 || composer.daysUntilEvent > 10 || !composer.reservationConfirmed) {
         skipped += 1;
         continue;
@@ -679,12 +771,55 @@ export async function sendAutomaticPreEventReminders(reference = new Date()) {
         subject: composer.subject,
         confirmResend: false,
       });
-      if (result.status === "SENT") sent += 1;
+      if (result.status === "SENT") {
+        sent += 1;
+        try {
+          await notifyPreEventAdmin({
+            projectId: project.id,
+            customerId: project.customer_id,
+            customerName: customer?.full_name ?? composer.customerName,
+            customerRecipient: composer.to,
+            orbitEventId: project.orbit_event_id,
+            eventName: project.name ?? project.orbit_event_id,
+            eventDate: project.event_date,
+            result: "SENT",
+          });
+        } catch (noticeError) {
+          console.error(JSON.stringify({
+            level: "error",
+            event: "pre_event_reminder.admin_notice_failed",
+            projectId: project.id,
+            result: "SENT",
+            error: noticeError instanceof Error ? noticeError.message : String(noticeError),
+          }));
+        }
+      }
       else if (result.status === "FAILED") failed += 1;
       else skipped += 1;
     } catch (error) {
       const reason =
         error instanceof Error ? error.message : "No fue posible preparar el recordatorio D-10.";
+      try {
+        await notifyPreEventAdmin({
+          projectId: project.id,
+          customerId: project.customer_id,
+          customerName: customer?.full_name ?? "Cliente",
+          customerRecipient: composer?.to ?? customer?.email ?? "",
+          orbitEventId: project.orbit_event_id,
+          eventName: project.name ?? project.orbit_event_id,
+          eventDate: project.event_date,
+          result: "FAILED",
+          reason,
+        });
+      } catch (noticeError) {
+        console.error(JSON.stringify({
+          level: "error",
+          event: "pre_event_reminder.admin_notice_failed",
+          projectId: project.id,
+          result: "FAILED",
+          error: noticeError instanceof Error ? noticeError.message : String(noticeError),
+        }));
+      }
       try {
         const blockedStatus = await recordBlocked(reason);
         if (blockedStatus === "FAILED") failed += 1;
