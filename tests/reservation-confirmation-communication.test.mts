@@ -124,7 +124,8 @@ test("10 current customer contact, accepted items and canonical finance stay sep
 test("11 customer template uses commercial labels without enum leakage", () => {
   const rendered = buildReservationConfirmationTemplate(templateInput);
   assert.match(rendered.body, /Servicio\nClassic/);
-  assert.match(rendered.body, /Extras\nImanes ilimitados · Gratis/);
+  assert.match(rendered.body, /Extras\nImanes ilimitados/);
+  assert.doesNotMatch(rendered.body, /Imanes ilimitados · Gratis/);
   assert.doesNotMatch(rendered.body, /CLASSIC|UNLIMITED_MAGNETS/);
   assert.match(rendered.subject, /¡Tu reserva BOOMBOX está confirmada!/);
 });
