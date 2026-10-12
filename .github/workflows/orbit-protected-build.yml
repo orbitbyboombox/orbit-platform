@@ -35,8 +35,10 @@ jobs:
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.sha }}
 
-      - name: Enable pnpm
-        run: corepack enable
+      - name: Enable pinned pnpm compatible with lockfile
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.9 --activate
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
