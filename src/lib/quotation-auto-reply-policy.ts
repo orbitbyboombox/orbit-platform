@@ -2,11 +2,11 @@
 export type QuoteCategory = "wedding" | "birthday" | "graduation" | "corporate" | "special" | "unknown";
 export type QuoteDecision = { category: QuoteCategory; mode: "automatic" | "manual"; reason: string };
 const rules: ReadonlyArray<{ category: QuoteCategory; pattern: RegExp }> = [
-  { category: "corporate", pattern: /\b(empresa|empresarial|corporativo|corporativa|activaci[oó]n de marca|feria|congreso|seminario)\b/i },
-  { category: "special", pattern: /\b(evento especial|evento personalizado|producci[oó]n especial|varios d[ií]as|m[uú]ltiples d[ií]as)\b/i },
+  { category: "corporate", pattern: /\b(empresa|empresarial|corporativo|corporativa|activacion de marca|feria|congreso|seminario)\b/i },
+  { category: "special", pattern: /\b(evento especial|evento personalizado|produccion especial|varios dias|multiples dias)\b/i },
   { category: "wedding", pattern: /\b(matrimonio|boda|casamiento)\b/i },
-  { category: "birthday", pattern: /\b(cumplea[nñ]os|cumple)\b/i },
-  { category: "graduation", pattern: /\b(graduaci[oó]n|licenciatura|egreso)\b/i },
+  { category: "birthday", pattern: /\b(cumpleanos|cumple)\b/i },
+  { category: "graduation", pattern: /\b(graduacion|licenciatura|egreso)\b/i },
 ];
 export function classifyQuotation(input: string): QuoteDecision {
   const text = input.normalize("NFC").trim();
