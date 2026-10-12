@@ -6,6 +6,7 @@ on:
       - codex/quote-resend-protected-build
     paths:
       - '.github/workflows/orbit-protected-build.yml'
+      - 'pnpm-workspace.yaml'
   workflow_dispatch:
     inputs:
       ref:
