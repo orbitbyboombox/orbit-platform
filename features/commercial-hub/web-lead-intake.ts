@@ -39,7 +39,7 @@ export function evaluateBoomboxWebLead(input: WebLead): WebLeadDecision {
   const text = fold(input.eventType);
   const category: WebLeadCategory = /matrimonio|boda|novios?/.test(text) ? "WEDDINGS"
     : /cumpleanos|birthday/.test(text) ? "BIRTHDAYS"
-    : /empresa|corporativ|activacion|marca/.test(text) ? "COMPANIES_CATALOG"
+    : /graduacion|graduados?|licenciatura/.test(text) ? "GRADUATIONS"
     : "REVIEW";
   const submissionId = clean(input.submissionId);
   const identity = submissionId
@@ -49,6 +49,7 @@ export function evaluateBoomboxWebLead(input: WebLead): WebLeadDecision {
   const dedupeKey = normalizedEmail ? createHash("sha256").update(identity).digest("hex") : null;
   const reason = !normalizedEmail ? "MISSING_EMAIL"
     : !clean(input.name) ? "MISSING_NAME"
+    : /empresa|corporativ|activacion|marca|evento|feria|campana|festival|congreso|seminario/.test(text) ? "MANUAL_COMMERCIAL_REVIEW"
     : category === "REVIEW" ? "UNSUPPORTED_EVENT_TYPE"
     : !clean(input.eventDate) ? "MISSING_EVENT_DATE"
     : null;
