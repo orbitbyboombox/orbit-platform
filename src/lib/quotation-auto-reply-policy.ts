@@ -11,7 +11,8 @@ const rules: ReadonlyArray<{ category: QuoteCategory; pattern: RegExp }> = [
 export function classifyQuotation(input: string): QuoteDecision {
   const text = input.normalize("NFC").trim();
   if (!text) return { category: "unknown", mode: "manual", reason: "empty" };
-  const matches = rules.filter(rule => rule.pattern.test(text)).map(rule => rule.category);
+  const normalized = text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const matches = rules.filter(rule => rule.pattern.test(normalized)).map(rule => rule.category);
   const unique = [...new Set(matches)];
   if (unique.length !== 1) return { category: "unknown", mode: "manual", reason: unique.length ? "ambiguous" : "unclassified" };
   const category = unique[0];
