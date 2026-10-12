@@ -27,7 +27,11 @@ export async function POST(request: NextRequest) {
   } catch {
     return NextResponse.json({ ok: false, error: "INVALID_PAYLOAD" }, { status: 400 });
   }
-  if (!payload || typeof payload !== "object" || typeof payload.sourceUrl !== "string" ||\n    ["submissionId", "name", "email", "phone", "eventType", "eventDate"].some(key => {\n      const value = payload[key as keyof WebLead];\n      return value != null && typeof value !== "string";\n    })) {
+  if (!payload || typeof payload !== "object" || typeof payload.sourceUrl !== "string" ||
+    ["submissionId", "name", "email", "phone", "eventType", "eventDate"].some(key => 
+      const value = payload[key as keyof WebLead]
+      return value != null && typeof value !== "string";
+    })) {
     return NextResponse.json({ ok: false, error: "INVALID_PAYLOAD" }, { status: 400 });
   }
   const decision = evaluateBoomboxWebLead(payload);
