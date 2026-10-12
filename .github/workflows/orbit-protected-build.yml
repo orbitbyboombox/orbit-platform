@@ -38,7 +38,7 @@ jobs:
       - name: Enable pinned pnpm compatible with lockfile
         run: |
           corepack enable
-          corepack prepare pnpm@9.15.9 --activate
+          corepack prepare pnpm@12.11.2 --activate
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
