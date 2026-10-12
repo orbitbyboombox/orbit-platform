@@ -2,6 +2,11 @@ name: ORBIT protected build
 
 on:
   workflow_dispatch:
+    inputs:
+      ref:
+        description: "Commit or branch to build"
+        required: true
+        default: "80f04e6"
 
 permissions:
   contents: read
@@ -22,7 +27,7 @@ jobs:
       - name: Checkout isolated revision
         uses: actions/checkout@v4
         with:
-          ref: orbit-phase2-isolated
+          ref: ${{ inputs.ref }}
 
       - name: Enable pnpm
         run: corepack enable
