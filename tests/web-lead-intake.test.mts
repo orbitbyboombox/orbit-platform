@@ -15,9 +15,19 @@ test("both BOOMBOX domains share the same duplicate key", () => {
   assert.equal(one.dedupeKey, two.dedupeKey);
   assert.equal(two.sourceDomain, "bbox.cl");
 });
-test("routes birthdays and companies to existing templates", () => {
-  assert.equal(evaluateBoomboxWebLead({ ...base, eventType: "Cumpleaños" }).category, "BIRTHDAYS");
-  assert.equal(evaluateBoomboxWebLead({ ...base, eventType: "Evento corporativo" }).category, "COMPANIES_CATALOG");
+test("automates birthdays and graduations", () => {
+  for (const [eventType, category] of [["Cumpleaños", "BIRTHDAYS"], ["Graduación", "GRADUATIONS"], ["Licenciatura", "GRADUATIONS"]] as const) {
+    const decision = evaluateBoomboxWebLead({ ...base, eventType });
+    assert.equal(decision.category, category);
+    assert.equal(decision.eligible, true);
+  }
+});
+test("corporate and general events always require manual review", () => {
+  for (const eventType of ["Evento corporativo", "Empresa", "Activación de marca", "Evento", "Congreso", "Campaña"]) {
+    const decision = evaluateBoomboxWebLead({ ...base, eventType });
+    assert.equal(decision.eligible, false);
+    assert.equal(decision.reason, "MANUAL_COMMERCIAL_REVIEW");
+  }
 });
 test("unrecognized event stays in review, never auto-send", () => {
   const decision = evaluateBoomboxWebLead({ ...base, eventType: "Otro" });
