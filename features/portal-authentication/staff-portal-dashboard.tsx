@@ -463,8 +463,7 @@ function AvailableEvents({
                 <p className="mt-1 text-sm text-muted">{event.start} → {event.finish} · {event.service}</p>
                 <p className="mt-1 break-words text-sm text-muted"><MapPin className="mr-1 inline size-4 text-brand" />{event.district}{event.venue ? " · " + event.venue : ""}</p>
               </div>
-              <span className="hidden shrink-0 rounded-xl border border-brand/40 bg-brand/10 px-3 py-2 text-sm font-semibold text-brand sm:inline-flex">TOMAR · Ver pago</span>
-              <ChevronRight className="size-5 shrink-0 text-brand sm:hidden" />
+              <span className="shrink-0 rounded-xl border border-brand/40 bg-brand/10 px-2 py-2 text-xs font-semibold text-brand sm:px-3 sm:text-sm">TOMAR · Ver pago</span>
             </button>
           );
         })}
