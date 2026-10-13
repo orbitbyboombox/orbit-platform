@@ -70,7 +70,7 @@ export function renderBoomboxCommercialEmail(
   const fixedLayout = input.fixedLayout ? "table-layout:fixed;" : "";
   const safeWrapping = input.fixedLayout ? ";overflow-wrap:anywhere" : "";
 
-  const heading = `${displayEyebrow ? `<p style="margin:0 0 9px;color:#f78900;font-size:11px;font-weight:700;letter-spacing:.16em">${escapeHtml(displayEyebrow)}</p>` : ""}${displayTitle ? `<h1 style="margin:0 0 24px;font-size:30px;line-height:1.15;letter-spacing:-.02em;color:#ffffff">${escapeHtml(displayTitle)}</h1> : ""}`;
+  const heading = `${displayEyebrow ? `<p style="margin:0 0 9px;color:#f78900;font-size:11px;font-weight:700;letter-spacing:.16em">${escapeHtml(displayEyebrow)}</p>` : ""}${displayTitle ? `<h1 style="margin:0 0 24px;font-size:30px;line-height:1.15;letter-spacing:-.02em;color:#ffffff">${escapeHtml(displayTitle)}</h1>` : ""}`;
   const header = input.stackedHeader
     ? `<div style="font-family:Arial,sans-serif;font-size:22px;font-weight:800;letter-spacing:.08em">BOOMBOX</div><div style="margin-top:3px;font-family:Arial,sans-serif;font-size:10px;line-height:1.5;letter-spacing:.18em;color:#f78900">${escapeHtml(headerLabel)}</div>`
     : `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="font-family:Arial,sans-serif;font-size:22px;font-weight:800;letter-spacing:.08em">BOOMBOX</td><td align="right" style="font-family:Arial,sans-serif;font-size:10px;letter-spacing:.18em;color:#f78900">${escapeHtml(headerLabel)}</td></tr></table>`;
