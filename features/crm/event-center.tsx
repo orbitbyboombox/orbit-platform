@@ -320,38 +320,51 @@ export function EventCenter({
       <section className="min-w-0 max-w-full space-y-3 overflow-x-clip">
         {filtered.map((event) => (
           <div key={event.projectId}>
-            <article className="grid min-h-[72px] w-full min-w-0 grid-cols-[38px_3px_54px_72px_68px_55px_43px_14px] items-center gap-x-1 overflow-hidden rounded-2xl border border-white/10 bg-[#191a1d] px-1.5 py-1.5 text-white shadow-[0_10px_35px_rgba(0,0,0,.12)] transition hover:border-brand/70 md:hidden">
+            <article className="min-w-0 rounded-2xl border border-white/10 bg-[#191a1d] p-3.5 text-white shadow-[0_10px_35px_rgba(0,0,0,.12)] md:hidden">
               {(() => {
                 const status = mobileStatusView(event.status);
                 return (
-                  <>
-                    <div className="flex min-h-[58px] flex-col items-center justify-center text-center">
-                      <span className="text-[9px] font-semibold uppercase tracking-[.12em] text-brand">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <div className="flex h-[76px] w-[58px] shrink-0 flex-col items-center justify-center rounded-xl bg-[#0d0e10] text-center ring-1 ring-white/10">
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-brand">
                         {event.date ? new Date(`${event.date}T12:00:00Z`).toLocaleDateString("es-CL", { weekday: "short" }) : "—"}
                       </span>
-                      <strong className="text-[19px] leading-none">{event.date?.slice(8, 10) ?? "—"}</strong>
-                      <span className="text-[9px] uppercase text-white/50">{event.date ? new Date(`${event.date}T12:00:00Z`).toLocaleDateString("es-CL", { month: "short" }) : "—"}</span>
+                      <strong className="text-2xl leading-tight">{event.date?.slice(8, 10) ?? "—"}</strong>
+                      <span className="text-[10px] uppercase text-brand">{event.date ? new Date(`${event.date}T12:00:00Z`).toLocaleDateString("es-CL", { month: "short" }) : "—"}</span>
                     </div>
-                    <span aria-hidden="true" className={`h-12 w-1 self-center rounded-full ${status.accent}`} />
-                    <p className="min-w-0 truncate text-[10px] font-semibold text-white/85">
-                      {event.time?.slice(0, 5) || "—"} → {event.serviceEndAt?.slice(11, 16) || "—"}
-                    </p>
-                    <p className="min-w-0 truncate text-[10px] font-semibold leading-tight">{event.customerName}</p>
-                    <p className="min-w-0 line-clamp-2 text-[9px] leading-tight text-white/55">
-                      {event.location || "Lugar por confirmar"}<br />{event.municipality || "Comuna por confirmar"}
-                    </p>
-                    <span className={`inline-flex min-w-0 items-center gap-1 truncate text-[9px] ${status.text}`}>
-                      <span className={`size-1.5 shrink-0 rounded-full ${status.dot}`} />{status.label}
-                    </span>
-                    <span className="min-w-0 truncate rounded-full border border-white/15 bg-white/[.06] px-1 py-0.5 text-center text-[8px] text-white/70">
-                      {event.service || "Servicio"}
-                    </span>
-                    <Link aria-label={`Abrir evento ${event.customerName}`} className="grid size-7 place-items-center text-white/75" href={`/projects/${event.projectId}`}>
-                      <span aria-hidden="true" className="text-xl leading-none">›</span>
-                    </Link>
-                  </>
+                    <span aria-hidden="true" className={`mt-1 h-[68px] w-[3px] shrink-0 rounded-full ${status.accent}`} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <h2 className="min-w-0 break-words text-sm font-semibold leading-tight">{event.customerName}</h2>
+                        <span className={`inline-flex items-center gap-1 text-[10px] ${status.text}`}>
+                          <span className={`size-1.5 shrink-0 rounded-full ${status.dot}`} />{status.label}
+                        </span>
+                      </div>
+                      <p className="mt-1 break-words text-xs font-semibold text-white/85">
+                        {event.service || "Servicio por confirmar"}{event.duration ? ` · ${event.duration}h` : ""}
+                        {" · "}{event.time?.slice(0, 5) || "Sin hora"}–{event.serviceEndAt?.slice(11, 16) || "—"}
+                      </p>
+                      <p className="mt-1 break-words text-xs leading-snug text-white/60">{event.location || "Lugar por confirmar"} · {event.municipality || "Comuna por confirmar"}</p>
+                      <p className="mt-1 break-words text-[11px] leading-snug text-white/50">
+                        Citación {event.staffCallAt?.slice(11, 16) || "por confirmar"} · {event.extras.length ? event.extras.join(" + ") : "Sin extras"} · Operador: {event.operator}
+                      </p>
+                    </div>
+                  </div>
                 );
               })()}
+              <div className="mt-3 flex flex-wrap items-center justify-end gap-2 border-t border-white/10 pt-3">
+                <Link className="inline-flex min-h-10 items-center rounded-lg border border-white/15 px-3 text-xs font-medium" href={`/projects/${event.projectId}`}>Abrir evento</Link>
+                <Link className="inline-flex min-h-10 items-center rounded-lg border border-white/15 px-3 text-xs font-medium" href={`/customers/${event.customerId}`}>Cliente</Link>
+                <details className="relative">
+                  <summary aria-label={`Acciones para ${event.name}`} className="grid size-10 cursor-pointer list-none place-items-center rounded-lg border border-white/15"><MoreVertical className="size-4" /></summary>
+                  <div className="absolute right-0 z-30 mt-2 w-52 max-w-[calc(100vw-3rem)] rounded-xl border bg-card p-2 text-foreground shadow-xl">
+                    {canForceDelete ? <button className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => openEditor(event)}>Editar evento</button> : null}
+                    <button className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => duplicate(event)}>Duplicar evento</button>
+                    <button className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => lifecycle(event, "ARCHIVE")}>Archivar evento</button>
+                    <button className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-red-400 hover:bg-red-500/10" onClick={() => openDeleteDialog(event)}>Eliminar evento</button>
+                  </div>
+                </details>
+              </div>
             </article>
             <article className="group hidden min-w-0 md:grid-cols-[72px_minmax(0,1fr)_auto] gap-4 rounded-2xl border border-white/10 bg-[#191a1d] p-5 text-white shadow-[0_10px_35px_rgba(0,0,0,.12)] transition hover:border-brand/70 md:grid md:items-center">
               <div className="grid size-16 shrink-0 place-items-center rounded-xl bg-[#0d0e10] text-center ring-1 ring-white/10">
