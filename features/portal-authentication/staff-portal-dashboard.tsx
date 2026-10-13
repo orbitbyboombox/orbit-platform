@@ -198,7 +198,7 @@ export function StaffPortalDashboard({
   mustChangePassword: boolean;
 }) {
   const [selected, setSelected] = useState<StaffPortalEvent | null>(null);
-  const [mobileTab, setMobileTab] = useState<"inicio" | "eventos" | "pagos" | "perfil">("inicio");
+  const [mobileTab, setMobileTab] = useState<"inicio" | "eventos" | "rutas" | "pagos" | "perfil">("inicio");
   const [showHistory, setShowHistory] = useState(false);
   const [eventFilter, setEventFilter] = useState<"todos"|"hoy"|"proximos"|"confirmados"|"completados">("todos");
   const [assignedExpanded, setAssignedExpanded] = useState(true);
@@ -219,7 +219,7 @@ export function StaffPortalDashboard({
   if (mustChangePassword) return <PasswordSetup name={name} />;
   return (
     <div className="space-y-4 pb-20 md:space-y-6 md:pb-0">
-      <nav aria-label="Secciones del portal" className="sticky top-0 z-20 grid grid-cols-4 gap-1 rounded-xl border bg-background/95 p-1 backdrop-blur md:hidden">{(["inicio","eventos","pagos","perfil"] as const).map(tab=><button key={tab} type="button" onClick={()=>setMobileTab(tab)} className={`min-h-11 rounded-lg px-1 text-xs font-semibold capitalize ${mobileTab===tab?"bg-brand text-brand-foreground":"text-muted"}`}>{tab}</button>)}</nav>
+      <nav aria-label="Secciones del portal" className="sticky top-0 z-20 grid grid-cols-4 gap-1 rounded-xl border bg-background/95 p-1 backdrop-blur md:hidden">{(["inicio","eventos","rutas","pagos","perfil"] as const).map(tab=><button key={tab} type="button" onClick={()=>setMobileTab(tab)} className={`min-h-11 rounded-lg px-1 text-xs font-semibold capitalize ${mobileTab===tab?"bg-brand text-brand-foreground":"text-muted"}`}>{tab}</button>)}</nav>
       <header className={`${mobileTab==="inicio"?"block":"hidden"} rounded-3xl border bg-card p-4 md:block md:p-8`}>
         <p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">
           Portal Staff
@@ -237,6 +237,7 @@ export function StaffPortalDashboard({
         </Link>
       </header>
       <div className={mobileTab==="perfil"?"block":"hidden md:block"}><StaffExpenseSubmissionPanel events={events} submissions={expenseSubmissions} /></div>
+      <section className={`${mobileTab==="rutas"?"block":"hidden"} space-y-3 md:block`}><h2 className="text-xl font-semibold">Mis rutas de montaje y desmontaje</h2>{events.filter(event=>event.date>=today&&(event.logistics.length||event.roles.some(role=>/ASSEMBLY|DISASSEMBLY|MONTAJE|DESMONTAJE/i.test(role)))).map(event=><article key={event.id} className="rounded-2xl border bg-card p-4"><p className="font-semibold">{event.customer}</p><p className="text-sm text-muted">{event.date} · {event.address}</p><p className="mt-2 text-sm">{event.roles.join(" · ")}</p>{event.logistics.map(trip=><div key={trip.id} className="mt-3 rounded-xl border p-3 text-sm"><p className="font-semibold">{trip.type} · {trip.status}</p><p>{trip.route}</p><p>{trip.departure ? new Date(trip.departure).toLocaleString("es-CL",{timeZone:"America/Santiago"}) : "Horario por confirmar"}</p><p>{trip.meetingPoint}</p><p>{trip.instructions}</p></div>)}<button type="button" className="mt-3 text-brand font-semibold" onClick={()=>{setSelected(event);setMobileTab("eventos")}}>Abrir evento →</button></article>)}{!events.some(event=>event.date>=today&&(event.logistics.length||event.roles.some(role=>/ASSEMBLY|DISASSEMBLY|MONTAJE|DESMONTAJE/i.test(role))))&&<p className="text-sm text-muted">No tienes rutas o montajes asignados para los próximos eventos.</p>}</section>
       <section className={`${mobileTab==="pagos"?"block":"hidden"} space-y-3 md:block`}><h2 className="text-xl font-semibold">Mis pagos</h2>{monthlyAccounts.map(account=><details key={account.id} className="rounded-2xl border bg-card p-3"><summary className="cursor-pointer py-2 font-semibold text-brand">Liquidación de {account.month ? new Intl.DateTimeFormat("es-CL",{month:"long",year:"numeric",timeZone:"UTC"}).format(new Date(`${String(account.month).slice(0,7)}-01T12:00:00Z`)) : "mes"} · Ver detalle</summary><div className="mt-3"><StaffMonthlyAccountPanel account={account} mode="STAFF"/></div></details>)}{!monthlyAccounts.length&&<p className="rounded-2xl border p-4 text-sm text-muted">Aún no hay liquidaciones mensuales disponibles.</p>}</section>
       <section className={`${mobileTab==="inicio"?"grid":"hidden"} grid-cols-2 gap-2 md:grid md:gap-3 sm:grid-cols-2 xl:grid-cols-3`}>
         <Metric label="Eventos de hoy" onClick={() => {setEventFilter("hoy");setAssignedExpanded(true);setMobileTab("eventos");}} value={String(todayEvents.length)} icon={CalendarDays} />
