@@ -20,6 +20,7 @@ export type StaffAssignmentMutation = {
   vehicleId: string;
   observations: string;
   replaceId?: string;
+  blockId?: string;
 };
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -60,6 +61,48 @@ async function context(projectId: string) {
     .single();
   if (error) throw error;
   return { client, user: data.user, project };
+}
+
+export type OperationalBlockRecord = { id: string; name: string; sequence: number; startAt: string; endAt: string; status: string };
+export async function listEventOperationalBlocksAction(projectId: string): Promise<OperationalBlockRecord[]> {
+  const ctx = await context(projectId);
+  const { data, error } = await ctx.client.from("event_operational_blocks")
+    .select("id,name,sequence,start_at,end_at,status")
+    .eq("project_id", projectId).order("sequence", { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map(row => ({
+    id: row.id, name: row.name, sequence: row.sequence,
+    startAt: row.start_at, endAt: row.end_at, status: row.status,
+  }));
+}
+export async function createEventOperationalBlockAction(input: {
+  projectId: string; name: string; startAt: string; endAt: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const ctx = await context(input.projectId);
+    const name = input.name.trim();
+    if (!name || name.length > 90) throw new Error("Ingresa un nombre válido para el bloque.");
+    const start = new Date(input.startAt);
+    const end = new Date(input.endAt);
+    if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start)
+      throw new Error("El término del bloque debe ser posterior a su inicio.");
+    if (end.getTime() - start.getTime() > 24 * 60 * 60 * 1000)
+      throw new Error("El bloque no puede durar más de 24 horas.");
+    const { data: previous, error: orderError } = await ctx.client
+      .from("event_operational_blocks").select("sequence")
+      .eq("project_id", input.projectId).order("sequence", { ascending: false }).limit(1);
+    if (orderError) throw orderError;
+    const sequence = (previous?.[0]?.sequence ?? 0) + 1;
+    const { error } = await ctx.client.from("event_operational_blocks").insert({
+      project_id: input.projectId, name, sequence,
+      start_at: start.toISOString(), end_at: end.toISOString(), status: "PLANNING",
+    });
+    if (error) throw error;
+    revalidatePath(`/projects/${input.projectId}`);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: friendly(error, "No fue posible crear el bloque.") };
+  }
 }
 
 async function timeline(
@@ -103,6 +146,17 @@ export async function saveStaffAssignmentAction(
     )
       throw new Error("Selecciona Staff, rol y evento.");
     const ctx = await context(input.projectId);
+    let selectedBlock: { id: string; start_at: string; end_at: string } | null = null;
+    if (input.blockId?.trim()) {
+      const { data: block, error: blockError } = await ctx.client
+        .from("event_operational_blocks").select("id,start_at,end_at")
+        .eq("id", input.blockId).eq("project_id", input.projectId).single();
+      if (blockError || !block) throw new Error("El bloque seleccionado no pertenece al evento.");
+      selectedBlock = block;
+    }
+    const chileTime = (timestamp: string) => new Intl.DateTimeFormat("en-GB", {
+      timeZone: "America/Santiago", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+    }).format(new Date(timestamp));
     const eventStart = ctx.project.event_time?.slice(0, 5) ?? "";
     const service = Array.isArray(ctx.project.project_services)
       ? ctx.project.project_services[0]
@@ -114,18 +168,21 @@ export async function saveStaffAssignmentAction(
       const total = (h * 60 + m + minutes + 1440) % 1440;
       return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
     };
+    const blockStart = selectedBlock ? chileTime(selectedBlock.start_at) : eventStart;
+    const blockFinish = selectedBlock ? chileTime(selectedBlock.end_at) : null;
     const automaticArrival =
-      input.role === "OPERATOR" ? clock(eventStart, -90) : null;
-    const automaticFinish = clock(eventStart, duration * 60);
+      input.role === "OPERATOR" ? clock(blockStart, -90) : null;
+    const automaticFinish = blockFinish ?? clock(eventStart, duration * 60);
     const payload = {
       project_id: input.projectId,
       staff_id: input.staffId,
       assignment_type: input.role,
+      block_id: selectedBlock?.id ?? null,
       status: "ASSIGNED",
       arrival_time: value(input.arrivalTime) ?? automaticArrival,
       staff_call_at:value(input.staffCallAt??""),
       staff_call_source:value(input.staffCallAt??"")?"MANUAL_OVERRIDE":null,
-      start_time: value(input.startTime) ?? value(eventStart),
+      start_time: value(input.startTime) ?? value(blockStart),
       finish_time: value(input.finishTime) ?? automaticFinish,
       assigned_vehicle: value(input.vehicleId),
       observations: value(input.observations),
