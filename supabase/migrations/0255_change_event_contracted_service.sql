@@ -14,6 +14,7 @@ declare
   v_code text := upper(trim(coalesce(p_new_service,'')));
   v_reason text := trim(coalesce(p_reason,''));
   v_actor uuid := auth.uid();
+  v_capacity jsonb;
 begin
   if v_actor is null or not public.can_administer() then
     raise exception 'Solo Administración puede cambiar un servicio contratado.';
@@ -39,11 +40,21 @@ begin
   if v_service.duration_hours not in (2,3,4) then
     raise exception 'La duración requiere revisión manual.';
   end if;
+  -- Revalidar capacidad del servicio nuevo dentro de la misma transacción.
+  -- El chequeo también bloquea logística incierta; cualquier excepción revierte el cambio.
+  perform pg_advisory_xact_lock(hashtext('event-service-capacity'));
   -- La disponibilidad física y la asignación deben revisarse antes: no reservar ni liberar equipos a ciegas.
   if exists (select 1 from public.assignments where project_id=p_project_id and deleted_at is null) then
     raise exception 'El evento ya tiene asignaciones. Revísalas y libera/reasigna recursos desde Logística antes del cambio.';
   end if;
+  if exists (select 1 from public.asset_assignments where project_id=p_project_id and deleted_at is null and assignment_status='ASSIGNED') then
+    raise exception 'El evento tiene equipos asignados. Reasigna los recursos desde Logística antes de cambiar el servicio.';
+  end if;
   update public.project_services set service_code=v_code where id=v_service.id;
+  v_capacity := public.preflight_reservation_capacity(p_project_id);
+  if coalesce(v_capacity->>'status','REVIEW_REQUIRED') <> 'AVAILABLE' then
+    raise exception 'Cambio bloqueado por disponibilidad o logística: %', coalesce(v_capacity->>'reasonCode','CAPACITY_UNVERIFIABLE');
+  end if;
   insert into public.timeline_events(
     customer_id,project_id,orbit_event_id,event_type,title,description,actor_id,actor_label,
     source,action,entity_type,entity_id,human_message,correlation_id,reason,created_by
