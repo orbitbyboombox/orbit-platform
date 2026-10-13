@@ -283,6 +283,14 @@ export function StaffAssignmentCenter({
           {message}
         </p>
       )}
+      <div className="mb-4 rounded-xl border border-brand/25 bg-brand/5 p-4">
+        <p className="text-sm font-semibold">Dotación y bloques horarios de este evento</p>
+        <p className="mt-1 text-xs leading-5 text-muted">
+          Configura cuántos operadores, montajes y desmontajes necesitas. Después pulsa «Asignar Staff»
+          tantas veces como personas o bloques requieras: cada asignación tiene hora de llegada,
+          inicio y término independientes. Usa «Editar» para ajustar las horas de un bloque existente.
+        </p>
+      </div>
       <section className="mb-5 grid gap-3 border-b pb-5 lg:grid-cols-3">
         {roles.map((role) => {
           const requirement = requirements.find((item) => item.role === role.value);
@@ -298,6 +306,18 @@ export function StaffAssignmentCenter({
         })}
       </section>
       {requests.length ? <section className="mb-5 border-b pb-5"><h3 className="font-semibold">Solicitudes Staff</h3><div className="mt-3 grid gap-3 lg:grid-cols-2">{requests.map((request)=><article className="rounded-xl border p-4" key={request.id}><p className="font-semibold">{request.staffName}</p><p className="mt-1 text-sm text-muted">{roleLabel(request.role)} · Solicitud pendiente</p><div className="mt-3 flex gap-2"><form action={(data)=>startTransition(async()=>{const result=await reviewStaffRequestAction(data);setMessage(result.message);if(result.ok)router.refresh()})}><input name="requestId" type="hidden" value={request.id}/><input name="decision" type="hidden" value="approve"/><Button disabled={pending} type="submit">Aprobar</Button></form><form action={(data)=>startTransition(async()=>{const result=await reviewStaffRequestAction(data);setMessage(result.message);if(result.ok)router.refresh()})}><input name="requestId" type="hidden" value={request.id}/><input name="decision" type="hidden" value="reject"/><Button disabled={pending} type="submit" variant="outline">Rechazar</Button></form></div></article>)}</div></section>:null}
+      {assignments.length ? (
+        <div className="mb-4 rounded-xl border bg-background/30 p-4">
+          <p className="text-sm font-semibold">Bloques de personal configurados</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {assignments.filter(item => !["CANCELLED", "REJECTED"].includes(item.status)).map(item => (
+              <span key={item.id} className="rounded-lg border px-3 py-2 text-xs">
+                <strong>{roleLabel(item.role)}</strong> · {item.staffName} · {item.startTime || "Sin inicio"} – {item.finishTime || "Sin término"}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
       <div className="grid gap-3 lg:grid-cols-2">
         {assignments.map((item) => (
           <article className="rounded-xl border p-4" key={item.id}>
