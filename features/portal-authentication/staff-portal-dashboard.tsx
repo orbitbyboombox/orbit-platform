@@ -447,25 +447,27 @@ function AvailableEvents({
           {message}
         </p>
       ) : null}
-      <div className="mt-5 grid gap-4 lg:grid-cols-2">
-        {events.map((event) => (
-          <button className="rounded-2xl border p-4 text-left transition hover:border-brand/50" key={event.id} onClick={() => setSelected(event)}>
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="font-semibold">{event.customer}</p>
-                <p className="mt-1 text-sm text-muted">{event.service}</p>
+      <div className="mt-5 grid gap-3">
+        {events.map((event) => {
+          const day = new Date(event.date + "T12:00:00");
+          return (
+            <button type="button" className="flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition hover:border-brand/50 sm:gap-5 sm:p-4" key={event.id} onClick={() => setSelected(event)}>
+              <div className="w-14 shrink-0 text-center sm:w-20">
+                <p className="text-4xl font-extrabold tabular-nums sm:text-5xl">{day.getDate()}</p>
+                <p className="text-xs font-semibold uppercase text-brand">{day.toLocaleDateString("es-CL",{weekday:"short"})}</p>
+                <p className="text-xs uppercase text-muted">{day.toLocaleDateString("es-CL",{month:"short"})}</p>
               </div>
-              <span className="text-xs font-semibold text-brand">
-                {event.date} · {event.start}
-              </span>
-            </div>
-            <p className="mt-3 text-sm">
-              <MapPin className="mr-2 inline size-4 text-brand" />
-              {event.address}, {event.district} · {event.venue}
-            </p>
-            <span className="mt-4 inline-flex min-h-10 items-center rounded-xl border px-3 text-sm font-semibold text-brand">Ver resumen y pago</span>
-          </button>
-        ))}
+              <span aria-hidden="true" className="h-20 w-1.5 shrink-0 rounded-full bg-brand" />
+              <div className="min-w-0 flex-1">
+                <p className="break-words font-semibold">{event.customer}</p>
+                <p className="mt-1 text-sm text-muted">{event.start} → {event.finish} · {event.service}</p>
+                <p className="mt-1 break-words text-sm text-muted"><MapPin className="mr-1 inline size-4 text-brand" />{event.district}{event.venue ? " · " + event.venue : ""}</p>
+              </div>
+              <span className="hidden shrink-0 rounded-xl border border-brand/40 bg-brand/10 px-3 py-2 text-sm font-semibold text-brand sm:inline-flex">TOMAR · Ver pago</span>
+              <ChevronRight className="size-5 shrink-0 text-brand sm:hidden" />
+            </button>
+          );
+        })}
         {events.length === 0 ? (
           <p className="py-6 text-sm text-muted">
             No hay responsabilidades disponibles por el momento.
