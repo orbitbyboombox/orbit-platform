@@ -238,37 +238,10 @@ export function StaffPortalDashboard({
       </header>
       <div className={mobileTab==="perfil"?"block":"hidden md:block"}><StaffExpenseSubmissionPanel events={events} submissions={expenseSubmissions} /></div>
       <section className={`${mobileTab==="pagos"?"block":"hidden"} space-y-3 md:block`}><h2 className="text-xl font-semibold">Mis pagos</h2>{monthlyAccounts.map(account=><details key={account.id} className="rounded-2xl border bg-card p-3"><summary className="cursor-pointer py-2 font-semibold text-brand">Ver liquidación mensual · {account.month ? String(account.month) : "Mes"}</summary><div className="mt-3"><StaffMonthlyAccountPanel account={account} mode="STAFF"/></div></details>)}{!monthlyAccounts.length&&<p className="rounded-2xl border p-4 text-sm text-muted">Aún no hay liquidaciones mensuales disponibles.</p>}</section>
-      <section className={`${mobileTab==="inicio"?"grid":"hidden"} grid-cols-2 gap-2 md:grid md:gap-3 sm:grid-cols-2 xl:grid-cols-5`}>
-        <Metric
-          label="Eventos de hoy"
-          onClick={() => {setEventFilter("hoy");setAssignedExpanded(true);setMobileTab("eventos");}}
-          value={String(todayEvents.length)}
-          icon={CalendarDays}
-        />
-        <Metric
-          label="Próximos 15 días"
-          onClick={() => {setEventFilter("proximos");setAssignedExpanded(true);setMobileTab("eventos");}}
-          value={String(events.length)}
-          icon={Clock3}
-        />
-        <Metric
-          label="Eventos disponibles"
-          onClick={() => {setEventFilter("todos");setAssignedExpanded(false);setMobileTab("eventos");}}
-          value={String(availableEvents.length)}
-          icon={ChevronRight}
-        />
-        <Metric
-          label="Eventos confirmados"
-          onClick={() => {setEventFilter("confirmados");setAssignedExpanded(true);setMobileTab("eventos");}}
-          value={String(confirmed.length)}
-          icon={CheckCircle2}
-        />
-        <Metric
-          label="Eventos completados"
-          onClick={() => {setEventFilter("completados");setAssignedExpanded(true);setMobileTab("eventos");}}
-          value={String(completed.length)}
-          icon={CheckCircle2}
-        />
+      <section className={`${mobileTab==="inicio"?"grid":"hidden"} grid-cols-2 gap-2 md:grid md:gap-3 sm:grid-cols-2 xl:grid-cols-3`}>
+        <Metric label="Eventos de hoy" onClick={() => {setEventFilter("hoy");setAssignedExpanded(true);setMobileTab("eventos");}} value={String(todayEvents.length)} icon={CalendarDays} />
+        <Metric label="Mis eventos asignados" onClick={() => {setEventFilter("todos");setAssignedExpanded(true);setMobileTab("eventos");}} value={String(events.filter(event=>!participationCompleted(event)).length)} icon={Clock3} />
+        <Metric label="Pendientes de aceptar" onClick={() => {setEventFilter("todos");setAssignedExpanded(true);setMobileTab("eventos");}} value={String(events.filter(event=>pendingAcceptance(event.status)).length)} icon={ChevronRight} />
       </section>
       <div className={mobileTab==="eventos"?"block":"hidden md:block"}><AvailableEvents events={availableEvents} requests={requests} /></div>
       <section className={`${mobileTab==="eventos"||mobileTab==="inicio"?"block":"hidden"} rounded-3xl border bg-card p-4 md:block md:p-7`}>
