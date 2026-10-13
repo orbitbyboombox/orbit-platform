@@ -201,7 +201,7 @@ export function StaffPortalDashboard({
   const [mobileTab, setMobileTab] = useState<"inicio" | "eventos" | "pagos" | "perfil">("inicio");
   const [showHistory, setShowHistory] = useState(false);
   const [eventFilter, setEventFilter] = useState<"todos"|"hoy"|"proximos"|"confirmados"|"completados">("todos");
-  const [assignedExpanded, setAssignedExpanded] = useState(false);
+  const [assignedExpanded, setAssignedExpanded] = useState(true);
   const [showNotifications, setShowNotifications] = useState(false);
   const upcomingEvents = events.filter(event => event.date >= new Intl.DateTimeFormat("en-CA", {timeZone:"America/Santiago"}).format(new Date())).sort((a,b)=>a.date.localeCompare(b.date));
   const today = new Intl.DateTimeFormat("en-CA", {
@@ -240,12 +240,12 @@ export function StaffPortalDashboard({
       <section className={`${mobileTab==="pagos"?"block":"hidden"} space-y-3 md:block`}><h2 className="text-xl font-semibold">Mis pagos</h2>{monthlyAccounts.map(account=><details key={account.id} className="rounded-2xl border bg-card p-3"><summary className="cursor-pointer py-2 font-semibold text-brand">Ver liquidación mensual · {account.month ? String(account.month) : "Mes"}</summary><div className="mt-3"><StaffMonthlyAccountPanel account={account} mode="STAFF"/></div></details>)}{!monthlyAccounts.length&&<p className="rounded-2xl border p-4 text-sm text-muted">Aún no hay liquidaciones mensuales disponibles.</p>}</section>
       <section className={`${mobileTab==="inicio"?"grid":"hidden"} grid-cols-2 gap-2 md:grid md:gap-3 sm:grid-cols-2 xl:grid-cols-3`}>
         <Metric label="Eventos de hoy" onClick={() => {setEventFilter("hoy");setAssignedExpanded(true);setMobileTab("eventos");}} value={String(todayEvents.length)} icon={CalendarDays} />
-        <Metric label="Mis eventos asignados" onClick={() => {setEventFilter("todos");setAssignedExpanded(true);setMobileTab("eventos");}} value={String(events.filter(event=>!participationCompleted(event)).length)} icon={Clock3} />
+        <Metric label="Mis eventos asignados" onClick={() => {setEventFilter("todos");setAssignedExpanded(true);setMobileTab("eventos");}} value={String(events.filter(event=>event.date>=today&&!participationCompleted(event)).length)} icon={Clock3} />
         <Metric label="Pendientes de aceptar" onClick={() => {setEventFilter("todos");setAssignedExpanded(true);setMobileTab("eventos");}} value={String(events.filter(event=>pendingAcceptance(event.status)).length)} icon={ChevronRight} />
       </section>
       <div className={mobileTab==="inicio"||mobileTab==="eventos"?"block":"hidden md:block"}><AvailableEvents events={availableEvents} requests={requests} /></div>
       <section className={`${mobileTab==="eventos"?"block":"hidden"} rounded-3xl border bg-card p-4 md:block md:p-7`}>
-        <button type="button" onClick={()=>setAssignedExpanded(!assignedExpanded)} className="flex min-h-11 w-full items-center justify-between text-left text-xl font-semibold"><span>Mis eventos asignados ({events.length})</span><span className="text-sm text-brand md:hidden">{assignedExpanded?"Ocultar":"Mostrar"} ▾</span></button>
+        <button type="button" onClick={()=>setAssignedExpanded(!assignedExpanded)} className="flex min-h-11 w-full items-center justify-between text-left text-xl font-semibold"><span>Mis eventos asignados ({events.filter(event=>event.date>=today).length})</span><span className="text-sm text-brand md:hidden">{assignedExpanded?"Ocultar":"Mostrar"} ▾</span></button>
         <p className="mt-1 text-sm text-muted">
           Las asignaciones nuevas aparecen primero y requieren tu aceptación.
         </p>
@@ -289,17 +289,18 @@ export function StaffPortalDashboard({
               </div>
             </button>
           ))}
-          {mobileTab==="inicio" && !showHistory && events.length>upcomingEvents.length ? <button type="button" className="min-h-11 rounded-xl border px-4 text-sm font-semibold text-brand md:hidden" onClick={()=>{setMobileTab("eventos");setShowHistory(true)}}>Ver historial de eventos</button>:null}
+
           {events.length === 0 ? (
             <p className="py-8 text-sm text-muted">
               No tienes eventos asignados durante los próximos 15 días.
             </p>
           ) : null}
         </div>
+        {events.some(event=>event.date<today)?<details className="mt-5 rounded-xl border p-3"><summary className="cursor-pointer font-semibold text-muted">Historial de eventos anteriores ({events.filter(event=>event.date<today).length})</summary><div className="mt-3 space-y-2">{events.filter(event=>event.date<today).sort((a,b)=>b.date.localeCompare(a.date)).map(event=><button key={event.id} type="button" onClick={()=>setSelected(event)} className="block w-full rounded-xl border p-3 text-left text-sm"><strong>{event.customer}</strong><span className="ml-2 text-muted">{event.date} · {event.service}</span></button>)}</div></details>:null}
       </section>
       <section className={`${mobileTab==="pagos"||mobileTab==="perfil"?"grid":"hidden"} gap-4 md:grid md:gap-6 lg:grid-cols-2`}>
         <div className={`${mobileTab==="pagos"?"block":"hidden md:block"} rounded-3xl border bg-card p-4 md:block md:p-7`}>
-          <h2 className="text-xl font-semibold">Mis pagos del mes</h2>
+          <h2 className="text-xl font-semibold">Mis pagos por servicios anteriores a hoy</h2>
           <div className="mt-5 grid grid-cols-2 gap-3">
             <Small label="Generado" value={money(payment.generated)} />
             <Small label="Ya pagado" value={money(payment.paid)} />
@@ -307,7 +308,7 @@ export function StaffPortalDashboard({
             <Small label="Boleta SII" value={payment.receiptStatus} />
           </div>
           <p className="mt-4 text-xs text-muted">
-            Información de solo lectura. Los pagos son gestionados por el
+            Excluye eventos de hoy y futuros. Información de solo lectura. Los pagos son gestionados por el
             Founder.
           </p>
         </div>
@@ -316,8 +317,8 @@ export function StaffPortalDashboard({
             Notificaciones operacionales
           </h2>
           <div className="mt-4 space-y-3">
-            {(showNotifications ? notifications : notifications.slice(0,3)).map((item) => (
-              <div className="rounded-xl border p-3" key={item.id}>
+            {notifications.map((item,index) => (
+              <div className={`${index>=3&&!showNotifications?"hidden md:block":""} rounded-xl border p-3`} key={item.id}>
                 <p className="text-sm font-semibold">{item.title}</p>
                 <p className="mt-1 text-sm text-muted">{item.message}</p>
                 <p className="mt-2 text-xs text-muted">{item.date}</p>
