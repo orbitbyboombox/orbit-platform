@@ -244,16 +244,16 @@ export function StaffPortalDashboard({
           <h3 className="mb-3 text-lg font-bold text-brand">{new Date(date+"T12:00:00").toLocaleDateString("es-CL",{weekday:"long",day:"numeric",month:"long"})}</h3>
           <div className="space-y-3">{events.filter(event=>event.date===date).map(event=><article key={event.id} className="rounded-xl border p-3">
             <p className="font-semibold break-words">{event.customer}</p>
-            <p className="text-sm text-muted">{event.start} – {event.finish} · {event.service}</p>
+            <p className="text-sm text-muted">Horario del evento: {event.start} – {event.finish} · {event.service}</p>
             <p className="mt-1 text-sm break-words">{event.address} · {event.district}</p>
-            <p className="mt-2 text-sm font-semibold">Trabajos: {event.roles.join(" · ")||"Por confirmar"}</p>
+            <p className="mt-2 text-sm font-semibold">Trabajos asignados: {event.roles.map(role=>({ASSEMBLY:"Montaje",DISASSEMBLY:"Desmontaje",OPERATOR:"Operación"}[role]??role)).join(" · ")||"Por confirmar"}</p>
             {event.logistics.length ? event.logistics.map(trip=><div key={trip.id} className="mt-3 rounded-xl border border-brand/30 p-3 text-sm">
               <p className="font-semibold text-brand">{trip.type} · {trip.status}</p>
               <p className="mt-1 break-words">{trip.route||"Recorrido por confirmar"}</p>
               <p>Salida: {trip.departure?new Date(trip.departure).toLocaleString("es-CL",{timeZone:"America/Santiago"}):"Por confirmar"}</p>
               {trip.meetingPoint&&<p>Punto de encuentro: {trip.meetingPoint}</p>}
               {trip.instructions&&<p>Instrucciones: {trip.instructions}</p>}
-            </div>) : <p className="mt-2 text-xs text-muted">Sin ruta logística publicada para este evento.</p>}
+            </div>) : <p className="mt-2 text-xs text-muted">Ruta de traslado y horarios de montaje/desmontaje aún sin publicar.</p>}
             <button type="button" className="mt-3 min-h-11 font-semibold text-brand" onClick={()=>{setSelected(event);setMobileTab("eventos")}}>Ver detalle del evento →</button>
           </article>)}</div>
         </div>)}
