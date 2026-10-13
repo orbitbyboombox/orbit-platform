@@ -37,7 +37,9 @@ export function evaluateBoomboxWebLead(input: WebLead): WebLeadDecision {
   const email = clean(input.email).toLowerCase();
   const normalizedEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null;
   const text = fold(input.eventType);
-  const manualEvent = /empresa|corporativ|activacion|marca|evento|feria|campana|festival|congreso|seminario/.test(text);
+  const specificCelebration = /matrimonio|boda|novios?|cumpleanos|birthday|graduacion|graduados?|licenciatura/.test(text);
+  const manualEvent = /empresa|corporativ|activacion|marca|feria|campana|festival|congreso|seminario/.test(text)
+    || (/evento/.test(text) && !specificCelebration);
   const category: WebLeadCategory = manualEvent ? "REVIEW"
     : /matrimonio|boda|novios?/.test(text) ? "WEDDINGS"
     : /cumpleanos|birthday/.test(text) ? "BIRTHDAYS"
