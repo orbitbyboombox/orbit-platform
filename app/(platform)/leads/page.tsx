@@ -9,6 +9,7 @@ import {
 import { WhatsAppInbox } from "@/features/communication-hub/components/whatsapp-inbox";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { loadSalesPipeline, SalesPipeline } from "@/features/sales-pipeline";
+import { WebQuoteIntakePanel } from "@/features/commercial-hub/web-quote-intake-panel";
 import { whatsappDeliveryEnabled } from "@/features/connectors/whatsapp-cloud/meta-whatsapp-cloud";
 
 export default async function LeadsPage() {
@@ -22,6 +23,7 @@ export default async function LeadsPage() {
   return (
     <>
       <CommercialHub data={commercial} />
+      <WebQuoteIntakePanel />
       <div className="mx-auto w-full max-w-[1480px] px-4 pb-10 sm:px-6 lg:px-8">
         <CommunicationHub
           conversations={communication.conversations}
