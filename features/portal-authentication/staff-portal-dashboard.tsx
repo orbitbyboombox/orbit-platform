@@ -239,24 +239,40 @@ export function StaffPortalDashboard({
       <div className={mobileTab==="perfil"?"block":"hidden md:block"}><StaffExpenseSubmissionPanel events={events} submissions={expenseSubmissions} /></div>
       <section className={`${mobileTab==="rutas"?"block":"hidden"} space-y-4 md:block`}>
         <h2 className="text-xl font-semibold">Rutas · montajes y desmontajes</h2>
-        <p className="text-sm text-muted">Todos tus eventos asignados, agrupados por día. Los eventos disponibles para tomar se muestran por separado en Inicio.</p>
-        {[...new Set(events.filter(event=>event.date>=today).map(event=>event.date))].sort().map(date=><div key={date} className="grid grid-cols-[76px_minmax(0,1fr)] gap-3 rounded-2xl border bg-card p-3 sm:grid-cols-[112px_minmax(0,1fr)] sm:gap-5 sm:p-5">
-          <div className="self-start text-center"><p className="text-xs font-bold uppercase text-muted">{new Date(date+"T12:00:00").toLocaleDateString("es-CL",{weekday:"short"})}</p><p className="text-4xl font-extrabold tabular-nums text-brand sm:text-5xl">{new Date(date+"T12:00:00").getDate()}</p><p className="text-xs font-semibold uppercase text-muted">{new Date(date+"T12:00:00").toLocaleDateString("es-CL",{month:"short"})}</p></div>
-          <div className="min-w-0 space-y-5 border-l-2 border-brand/50 pl-4 sm:pl-6">{events.filter(event=>event.date===date).map(event=><article key={event.id} className="relative min-w-0 border-b pb-4 last:border-b-0 last:pb-0 before:absolute before:-left-[22px] before:top-1 before:h-3 before:w-3 before:rounded-full before:bg-brand sm:before:-left-[30px]">
-            <p className="font-semibold break-words">{event.customer}</p>
-            <p className="text-sm text-muted">Horario del evento: {event.start} – {event.finish} · {event.service}</p>
-            <p className="mt-1 text-sm break-words">{event.address} · {event.district}</p>
-            <p className="mt-2 text-sm font-semibold">Trabajos asignados: {event.roles.map(role=>({ASSEMBLY:"Montaje",DISASSEMBLY:"Desmontaje",OPERATOR:"Operación"}[role]??role)).join(" · ")||"Por confirmar"}</p>
-            {event.logistics.length ? event.logistics.map(trip=><div key={trip.id} className="mt-3 rounded-xl border border-brand/30 p-3 text-sm">
-              <p className="font-semibold text-brand">{trip.type} · {trip.status}</p>
-              <p className="mt-1 break-words">{trip.route||"Recorrido por confirmar"}</p>
-              <p>Salida: {trip.departure?new Date(trip.departure).toLocaleString("es-CL",{timeZone:"America/Santiago"}):"Por confirmar"}</p>
-              {trip.meetingPoint&&<p>Punto de encuentro: {trip.meetingPoint}</p>}
-              {trip.instructions&&<p>Instrucciones: {trip.instructions}</p>}
-            </div>) : <p className="mt-2 text-xs text-muted">Ruta de traslado y horarios de montaje/desmontaje aún sin publicar.</p>}
-            <button type="button" className="mt-3 min-h-11 font-semibold text-brand" onClick={()=>{setSelected(event);setMobileTab("eventos")}}>Ver detalle del evento →</button>
-          </article>)}</div>
-        </div>)}
+        <p className="text-sm text-muted">Tu jornada completa: eventos, trabajos asignados y recorridos publicados, sin ocultar información.</p>
+        <div className="space-y-3">
+          {events.filter(event=>event.date>=today).sort((a,b)=>a.date.localeCompare(b.date)||a.start.localeCompare(b.start)).map(event=>{
+            const day=new Date(event.date+"T12:00:00");
+            return <article key={event.id} className="flex gap-3 rounded-2xl border bg-card p-3 sm:gap-5 sm:p-5">
+              <div className="w-14 shrink-0 text-center sm:w-20">
+                <p className="text-4xl font-extrabold tabular-nums sm:text-5xl">{day.getDate()}</p>
+                <p className="text-xs font-semibold uppercase text-brand">{day.toLocaleDateString("es-CL",{weekday:"short"})}</p>
+                <p className="text-xs uppercase text-muted">{day.toLocaleDateString("es-CL",{month:"short"})}</p>
+              </div>
+              <span aria-hidden="true" className="w-1.5 shrink-0 rounded-full bg-brand" />
+              <div className="min-w-0 flex-1 space-y-1.5 text-sm">
+                <p className="break-words text-base font-bold">{event.customer}</p>
+                <p className="font-medium">Evento: {event.start} → {event.finish} · {event.service}</p>
+                <p className="break-words"><MapPin className="mr-1 inline size-4 text-brand" />{[event.venue,event.address,event.district].filter(Boolean).join(" · ")}</p>
+                <p className="font-semibold text-brand">Asignado: {event.roles.map(role=>({ASSEMBLY:"Montaje",DISASSEMBLY:"Desmontaje",OPERATOR:"Operación"}[role]??role)).join(" · ")||"Por confirmar"}</p>
+                {event.staffCallAt&&<p>Presentación del equipo: {new Date(event.staffCallAt).toLocaleString("es-CL",{timeZone:"America/Santiago"})}</p>}
+                {event.logistics.length?event.logistics.map(trip=><div key={trip.id} className="mt-2 space-y-1 rounded-xl border border-brand/30 p-3">
+                  <p className="font-semibold text-brand">{trip.type} · {trip.status}</p>
+                  <p className="break-words">Ruta: {trip.route||"Por confirmar"}</p>
+                  <p>Salida: {trip.departure?new Date(trip.departure).toLocaleString("es-CL",{timeZone:"America/Santiago"}):"Por confirmar"}</p>
+                  {trip.arrival&&<p>Llegada: {new Date(trip.arrival).toLocaleString("es-CL",{timeZone:"America/Santiago"})}</p>}
+                  {trip.meetingPoint&&<p>Punto de encuentro: {trip.meetingPoint}</p>}
+                  {trip.driver&&<p>Conductor: {trip.driver}</p>}
+                  {trip.vehicle&&<p>Vehículo: {trip.vehicle}</p>}
+                  {trip.instructions&&<p className="break-words">Instrucciones: {trip.instructions}</p>}
+                </div>):<p className="text-xs text-muted">Traslado y horarios de montaje/desmontaje aún sin publicar.</p>}
+                {event.operationalInformation.setupNotes&&<p className="break-words">Montaje: {event.operationalInformation.setupNotes}</p>}
+                {event.operationalInformation.specialInstructions&&<p className="break-words">Instrucciones: {event.operationalInformation.specialInstructions}</p>}
+                <button type="button" className="min-h-11 font-semibold text-brand" onClick={()=>{setSelected(event);setMobileTab("eventos")}}>Ver detalle completo →</button>
+              </div>
+            </article>;
+          })}
+        </div>
         {!events.some(event=>event.date>=today)&&<p className="rounded-xl border p-4 text-muted">No tienes eventos asignados próximamente.</p>}
       </section>
       <section className={`${mobileTab==="pagos"?"block":"hidden"} space-y-3 md:block`}><h2 className="text-xl font-semibold">Mis pagos</h2>{monthlyAccounts.map(account=><details key={account.id} className="rounded-2xl border bg-card p-3"><summary className="cursor-pointer py-2 font-semibold text-brand">Liquidación de {account.month ? new Intl.DateTimeFormat("es-CL",{month:"long",year:"numeric",timeZone:"UTC"}).format(new Date(`${String(account.month).slice(0,7)}-01T12:00:00Z`)) : "mes"} · Ver detalle</summary><div className="mt-3"><><p className="mb-3 rounded-xl border border-brand/30 p-3 text-sm">Esta liquidación mensual puede estar pendiente de conciliación. Para conocer tus honorarios efectivamente pendientes, consulta el Resumen de honorarios al final de esta pestaña. No emitas boleta basándote en importes que no coincidan.</p><StaffMonthlyAccountPanel account={account} mode="STAFF"/></></div></details>)}{!monthlyAccounts.length&&<p className="rounded-2xl border p-4 text-sm text-muted">Aún no hay liquidaciones mensuales disponibles.</p>}</section>
