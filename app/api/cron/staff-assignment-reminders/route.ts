@@ -127,8 +127,9 @@ export async function GET(request: Request) {
 
   // Other Staff retain assignment-based 48/2-hour emails; D-1 is the single
   // person/event communication below so multiple roles cannot duplicate it.
+  const oneDayRemindersEnabled = process.env.ORBIT_24H_REMINDERS_ENABLED === "true";
   let delivered = 0;
-  for (const row of data ?? []) {
+  for (const row of oneDayRemindersEnabled ? [] : data ?? []) {
     if (isSpecialOperationalStaffId(row.staff_id)) continue;
     const project = Array.isArray(row.projects)
         ? row.projects[0]
@@ -241,7 +242,10 @@ export async function GET(request: Request) {
   });
   let specialDelivered = 0,
     specialFailed = 0;
-  if (isChileD1ReminderWindow(reference))
+  // The dedicated 24h reminder owns this delivery window once enabled. Keep
+  // the legacy D-1 flow intact while the new sends remain disabled by default,
+  // then suppress it to prevent two operator emails for the same event/person.
+  if (!oneDayRemindersEnabled && isChileD1ReminderWindow(reference))
     for (const candidate of operationalD1Candidates(
       operationalRows,
       tomorrow,
