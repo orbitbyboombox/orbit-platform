@@ -728,7 +728,7 @@ export function ProjectWorkspaceExperience(
               <StaffAssignmentCenter {...event.staffAssignments} />
             </div>
           </div>
-          <div id="mobile-receivable-content" className="md:hidden">
+          <div id="mobile-receivable-content" className="scroll-mt-24">
             <section className="rounded-2xl border bg-card p-4">
               <h2 className="mb-3 text-lg font-semibold">Cobros y estado de pago</h2>
               {event.receivable ? <dl className="space-y-1">
@@ -762,7 +762,7 @@ export function ProjectWorkspaceExperience(
               <p className="mt-2 text-xs text-muted">Estado de Drive: {event.google.driveStatus}</p>
             </section>
           </div>
-          <div id="mobile-communications-content" className="md:hidden">
+          <div id="mobile-communications-content" className="scroll-mt-24">
             <section className="rounded-2xl border bg-card p-4">
               <h2 className="mb-3 text-lg font-semibold">Comunicaciones y enlaces</h2>
               <dl className="space-y-1">
