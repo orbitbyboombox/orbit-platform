@@ -640,12 +640,7 @@ export function ProjectWorkspaceExperience(
                 </button>
               ))}
             </nav>
-            <details className="border-t px-4 py-2">
-              <summary className="cursor-pointer py-2 text-xs font-semibold text-brand" onClick={() => setMobileEventPanel("ALL")}>Más secciones del evento</summary>
-              <div className="flex flex-wrap gap-2 pb-2">
-                {navigationItems.map(({ id, label }) => <button className="min-h-10 rounded-lg border px-3 text-xs" key={id} onClick={() => scroll(id)} type="button">{label}</button>)}
-              </div>
-            </details>
+
           </section>
           <style jsx global>{`@media (max-width: 767px) {
 #event-mobile-panels:not([data-active="ALL"]) > * { display: none !important; }
@@ -722,6 +717,7 @@ export function ProjectWorkspaceExperience(
 #event-mobile-panels[data-active="documents"] > section > :is(#documents, :has(#documents)) {display:block!important;}
 #event-mobile-panels[data-active="google-calendar"] > section > :is(#google, :has(#google)) {display:block!important;}
 #event-mobile-panels[data-active="google-calendar"] > section > :is(#timeline, :has(#timeline)) {display:block!important;}
+#event-mobile-panels[data-active="documents"] > #mobile-documents-content {display:block!important;}
 #event-mobile-panels[data-active="staff-assignment"] > #mobile-staff-content, #event-mobile-panels[data-active="event-finance"] > #mobile-receivable-content, #event-mobile-panels[data-active="google-calendar"] > #mobile-communications-content {display:block!important;}
 }`}</style>
           <div id="event-mobile-panels" data-active={mobileEventPanel} className="scroll-mt-24 space-y-6">
@@ -743,6 +739,27 @@ export function ProjectWorkspaceExperience(
                 <Row label="Vencimiento" value={event.receivable.dueDate || "Sin fecha"} />
                 <Row label="Factura" value={event.receivable.invoiceNumber || "Sin factura emitida"} />
               </dl> : <Empty text="Todavía no hay cuentas por cobrar registradas para este evento." />}
+            </section>
+          </div>
+          <div id="mobile-documents-content" className="md:hidden space-y-4">
+            <section className="rounded-2xl border bg-card p-4">
+              <h2 className="mb-3 text-lg font-semibold">Diseño de tira de fotos</h2>
+              {photoStripEligible ? (
+                <PhotoStripDesignCenter documents={photoStripDocuments} projectId={props.projectKey!} />
+              ) : (
+                <p className="text-sm text-muted">Este servicio no requiere diseño de tira de fotos. Los archivos del evento siguen disponibles abajo.</p>
+              )}
+            </section>
+            <section className="rounded-2xl border bg-card p-4">
+              <h2 className="mb-3 text-lg font-semibold">Fotos digitales y Google Drive</h2>
+              <p className="mb-3 text-sm text-muted">Revisa la entrega de fotos y el enlace a la carpeta del evento.</p>
+              <DigitalPhotoDeliveryControl projectId={props.projectKey ?? ""} />
+              {event.google.driveUrl ? (
+                <a className="mt-3 inline-flex min-h-11 items-center rounded-xl border px-4 text-sm font-semibold text-brand" href={event.google.driveUrl} rel="noreferrer" target="_blank">Abrir carpeta de Google Drive</a>
+              ) : (
+                <p className="mt-3 text-sm text-muted">Todavía no hay un enlace de Google Drive disponible.</p>
+              )}
+              <p className="mt-2 text-xs text-muted">Estado de Drive: {event.google.driveStatus}</p>
             </section>
           </div>
           <div id="mobile-communications-content" className="md:hidden">
@@ -1684,7 +1701,7 @@ export function ProjectWorkspaceExperience(
 
           <PreEventReminderControl projectId={props.projectKey ?? ""} />
 
-          <DigitalPhotoDeliveryControl projectId={props.projectKey ?? ""} />
+          <div className="hidden md:block"><DigitalPhotoDeliveryControl projectId={props.projectKey ?? ""} /></div>
 
           {moduleVisible("MILESTONES") && (
             <OptionalModule moduleKey="MILESTONES" onHide={hideModule}>
