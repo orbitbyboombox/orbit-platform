@@ -390,6 +390,31 @@ export async function updateCrmEventAction(input: {
 }) {
   try {
     const { client, user } = await founderClient();
+    // La RPC histórica deja intacto el servicio de cotizaciones aceptadas,
+    // pero devuelve éxito. No afirmar que se guardó un cambio no realizado.
+    const { data: existingServices, error: readError } = await client
+      .from("project_services")
+      .select("service_code")
+      .eq("project_id", input.projectId);
+    if (readError) throw readError;
+    const requestedService = input.service.trim().toUpperCase();
+    if (requestedService && existingServices?.length === 1 &&
+        existingServices[0].service_code?.toUpperCase() !== requestedService) {
+      const { data: quotations, error: quotationError } = await client
+        .from("quotations")
+        .select("status")
+        .eq("project_id", input.projectId)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(1);
+      if (quotationError) throw quotationError;
+      if (["ACCEPTED", "CONVERTED"].includes(quotations?.[0]?.status ?? "")) {
+        return {
+          ok: false as const,
+          error: "La cotización está aceptada. Este editor no puede cambiar el servicio sin alterar el historial comercial. Usa «Cambiar servicio contratado» en la ficha del evento.",
+        };
+      }
+    }
     const { error } = await client.rpc("update_crm_event_from_customer_profile", {
       p_project_id: input.projectId,
       p_changes: {
