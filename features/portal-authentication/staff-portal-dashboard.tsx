@@ -203,6 +203,34 @@ export function StaffPortalDashboard({
   const [eventFilter, setEventFilter] = useState<"todos"|"hoy"|"proximos"|"confirmados"|"completados">("todos");
   const [assignedExpanded, setAssignedExpanded] = useState(true);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [routeSort, setRouteSort] = useState<"start"|"finish"|"sector"|"manual">("start");
+  const [routeOrder, setRouteOrder] = useState<string[]>([]);
+  const routeMinutes = (value:string) => { const match=value.match(/(\d{1,2}):(\d{2})/); return match?Number(match[1])*60+Number(match[2]):0; };
+  const routeEvents = events.filter(event=>event.date>=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Santiago"}).format(new Date())).sort((a,b)=>{
+    const day=a.date.localeCompare(b.date);
+    if(day)return day;
+    if(routeSort==="sector")return a.district.localeCompare(b.district,"es")||routeMinutes(a.start)-routeMinutes(b.start);
+    if(routeSort==="finish") {
+      const finish=(event:StaffPortalEvent)=>{const start=routeMinutes(event.start),end=routeMinutes(event.finish);return end<start?end+1440:end;};
+      return finish(a)-finish(b)||routeMinutes(a.start)-routeMinutes(b.start);
+    }
+    if(routeSort==="manual") {
+      const ia=routeOrder.indexOf(a.id),ib=routeOrder.indexOf(b.id);
+      return (ia<0?100000:ia)-(ib<0?100000:ib)||routeMinutes(a.start)-routeMinutes(b.start);
+    }
+    return routeMinutes(a.start)-routeMinutes(b.start);
+  });
+  const moveRoute = (id:string,direction:-1|1) => {
+    const day=routeEvents.find(event=>event.id===id)?.date;
+    if(!day)return;
+    const sameDay=routeEvents.filter(event=>event.date===day).map(event=>event.id);
+    const index=sameDay.indexOf(id),target=index+direction;
+    if(target<0||target>=sameDay.length)return;
+    [sameDay[index],sameDay[target]]=[sameDay[target],sameDay[index]];
+    setRouteOrder(previous=>[...previous.filter(item=>!sameDay.includes(item)),...sameDay]);
+    setRouteSort("manual");
+  };
+
   const upcomingEvents = events.filter(event => event.date >= new Intl.DateTimeFormat("en-CA", {timeZone:"America/Santiago"}).format(new Date())).sort((a,b)=>a.date.localeCompare(b.date));
   const today = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Santiago",
@@ -240,8 +268,18 @@ export function StaffPortalDashboard({
       <section className={`${mobileTab==="rutas"?"block":"hidden"} space-y-4 md:block`}>
         <h2 className="text-xl font-semibold">Rutas · montajes y desmontajes</h2>
         <p className="text-sm text-muted">Tu jornada completa: eventos, trabajos asignados y recorridos publicados, sin ocultar información.</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <label htmlFor="route-sort" className="text-sm font-semibold">Ordenar ruta por</label>
+          <select id="route-sort" value={routeSort} onChange={event=>setRouteSort(event.target.value as "start"|"finish"|"sector"|"manual")} className="min-h-11 rounded-xl border bg-card px-3 text-sm">
+            <option value="start">Horario de inicio</option>
+            <option value="finish">Horario de término</option>
+            <option value="sector">Sector / comuna</option>
+            <option value="manual">Mi orden</option>
+          </select>
+          <p className="w-full text-xs text-muted">Orden personal de visualización. No cambia asignaciones ni rutas oficiales. El término del evento no equivale al horario de retiro.</p>
+        </div>
         <div className="space-y-3">
-          {events.filter(event=>event.date>=today).sort((a,b)=>a.date.localeCompare(b.date)||a.start.localeCompare(b.start)).map(event=>{
+          {routeEvents.map(event=>{
             const day=new Date(event.date+"T12:00:00");
             return <article key={event.id} className="flex gap-3 rounded-2xl border bg-card p-3 sm:gap-5 sm:p-5">
               <div className="w-14 shrink-0 text-center sm:w-20">
@@ -268,7 +306,11 @@ export function StaffPortalDashboard({
                 </div>):<p className="text-xs text-muted">Traslado y horarios de montaje/desmontaje aún sin publicar.</p>}
                 {event.operationalInformation.setupNotes&&<p className="break-words">Montaje: {event.operationalInformation.setupNotes}</p>}
                 {event.operationalInformation.specialInstructions&&<p className="break-words">Instrucciones: {event.operationalInformation.specialInstructions}</p>}
-                <button type="button" className="min-h-11 font-semibold text-brand" onClick={()=>{setSelected(event);setMobileTab("eventos")}}>Ver detalle completo →</button>
+                <div className="flex flex-wrap items-center gap-3">
+                  <button type="button" className="min-h-11 font-semibold text-brand" onClick={()=>{setSelected(event);setMobileTab("eventos")}}>Ver detalle completo →</button>
+                  <button type="button" className="min-h-11 rounded-lg border px-3 text-xs font-semibold" onClick={()=>moveRoute(event.id,-1)} aria-label="Subir evento en mi ruta">↑ Subir</button>
+                  <button type="button" className="min-h-11 rounded-lg border px-3 text-xs font-semibold" onClick={()=>moveRoute(event.id,1)} aria-label="Bajar evento en mi ruta">↓ Bajar</button>
+                </div>
               </div>
             </article>;
           })}
