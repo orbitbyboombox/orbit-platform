@@ -177,7 +177,7 @@ export async function saveStaffAssignmentAction(
       project_id: input.projectId,
       staff_id: input.staffId,
       assignment_type: input.role,
-      block_id: selectedBlock?.id ?? null,
+      ...(input.id && !selectedBlock ? {} : { block_id: selectedBlock?.id ?? null }),
       status: "ASSIGNED",
       arrival_time: value(input.arrivalTime) ?? automaticArrival,
       staff_call_at:value(input.staffCallAt??""),
