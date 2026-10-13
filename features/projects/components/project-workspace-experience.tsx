@@ -642,7 +642,7 @@ export function ProjectWorkspaceExperience(
             </nav>
 
           </section>
-          <style jsx global>{`@media (max-width: 767px) {
+          <style jsx global>{`@media (min-width: 0px) {
 #event-mobile-panels:not([data-active="ALL"]) > * { display: none !important; }
 #event-mobile-panels[data-active="event-summary-mobile"] > #event-summary-mobile {display:block!important;}
 #event-mobile-panels[data-active="event-summary-mobile"] > :has(#customer) {display:grid!important;}
@@ -741,7 +741,7 @@ export function ProjectWorkspaceExperience(
               </dl> : <Empty text="Todavía no hay cuentas por cobrar registradas para este evento." />}
             </section>
           </div>
-          <div id="mobile-documents-content" className="md:hidden space-y-4">
+          <div id="mobile-documents-content" className="space-y-4">
             <section className="rounded-2xl border bg-card p-4">
               <h2 className="mb-3 text-lg font-semibold">Diseño de tira de fotos</h2>
               {photoStripEligible ? (
