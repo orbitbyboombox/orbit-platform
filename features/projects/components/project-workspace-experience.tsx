@@ -631,7 +631,7 @@ export function ProjectWorkspaceExperience(
                 <button
                   className={`min-w-0 min-h-14 rounded-xl border px-3 py-2 text-left transition hover:border-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand ${mobileEventPanel === id ? "border-brand bg-brand/10 text-foreground" : "text-muted"}`}
                   key={id}
-                  onClick={() => { setMobileEventPanel(id); document.getElementById("event-mobile-panels")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
+                  onClick={() => { setMobileEventPanel(id); window.requestAnimationFrame(() => { (window.matchMedia("(min-width: 768px)").matches ? document.getElementById(id === "staff-assignment" ? "mobile-staff-content" : id === "event-finance" ? "mobile-receivable-content" : id === "google-calendar" ? "mobile-communications-content" : id) : document.getElementById("event-mobile-panels"))?.scrollIntoView({ behavior: "smooth", block: "start" }); }); }}
                   aria-pressed={mobileEventPanel === id}
                   type="button"
                 >
@@ -722,7 +722,7 @@ export function ProjectWorkspaceExperience(
 }`}</style>
           <div id="event-mobile-panels" data-active={mobileEventPanel} className="scroll-mt-24 space-y-6">
           <div className="scroll-mt-24" id="event-summary-mobile">{capacityPanel}</div>
-          <div id="mobile-staff-content" className="md:hidden">
+          <div id="mobile-staff-content" className="scroll-mt-24">
             <div className="rounded-2xl border bg-card p-4">
               <h2 className="mb-3 text-lg font-semibold">Staff y asignaciones</h2>
               <StaffAssignmentCenter {...event.staffAssignments} />
