@@ -509,13 +509,13 @@ function AvailableEvents({
         {events.map((event) => {
           const day = new Date(event.date + "T12:00:00");
           return (
-            <button type="button" className="flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition hover:border-brand/50 sm:gap-5 sm:p-4" key={event.id} onClick={() => setSelected(event)}>
+            <button type="button" className="flex w-full items-stretch gap-3 rounded-2xl border p-3 text-left transition hover:border-brand/50 sm:items-center sm:gap-5 sm:p-4" key={event.id} onClick={() => setSelected(event)}>
               <div className="w-14 shrink-0 text-center sm:w-20">
                 <p className="text-4xl font-extrabold tabular-nums sm:text-5xl">{day.getDate()}</p>
                 <p className="text-xs font-semibold uppercase text-brand">{day.toLocaleDateString("es-CL",{weekday:"short"})}</p>
                 <p className="text-xs uppercase text-muted">{day.toLocaleDateString("es-CL",{month:"short"})}</p>
               </div>
-              <span aria-hidden="true" className="h-20 w-1.5 shrink-0 rounded-full bg-brand" />
+              <span aria-hidden="true" className="w-1.5 shrink-0 self-stretch rounded-full bg-brand" />
               <div className="min-w-0 flex-1">
                 <p className="break-words font-semibold">{event.customer}</p>
                 <p className="mt-1 text-sm text-muted">{event.start} → {event.finish} · {event.service}</p>
