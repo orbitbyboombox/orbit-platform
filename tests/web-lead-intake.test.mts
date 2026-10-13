@@ -42,3 +42,18 @@ test("spoofed hosts and insecure http do not qualify", () => {
   assert.equal(evaluateBoomboxWebLead({ ...base, sourceUrl: "https://boom-box.cl.evil.com" }).eligible, false);
   assert.equal(evaluateBoomboxWebLead({ ...base, sourceUrl: "http://bbox.cl" }).eligible, false);
 });
+
+test("company graduation and corporate birthday remain manual", () => {
+  for (const eventType of ["Graduación de empresa", "Cumpleaños corporativo", "Evento empresarial: matrimonio"]) {
+    const decision = evaluateBoomboxWebLead({ ...base, eventType });
+    assert.equal(decision.eligible, false);
+    assert.equal(decision.category, "REVIEW");
+  }
+});
+test("invalid calendar dates never qualify for automatic sending", () => {
+  for (const eventDate of ["2027-02-30", "mañana", "2027-13-01"]) {
+    const decision = evaluateBoomboxWebLead({ ...base, eventDate });
+    assert.equal(decision.eligible, false);
+    assert.equal(decision.reason, "INVALID_EVENT_DATE");
+  }
+});
