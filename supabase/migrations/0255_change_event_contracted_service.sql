@@ -33,6 +33,9 @@ begin
   if v_count <> 1 then raise exception 'Esta operación requiere exactamente un servicio contratado.'; end if;
   select * into v_service from public.project_services where project_id=p_project_id for update;
   if v_service.service_code = v_code then raise exception 'El evento ya tiene ese servicio.'; end if;
+  if coalesce(jsonb_array_length(case when jsonb_typeof(v_service.extras)='array' then v_service.extras else '[]'::jsonb end),0) > 0 then
+    raise exception 'El evento tiene extras: revisa compatibilidad y ajusta el contrato manualmente antes de cambiar el servicio.';
+  end if;
   if v_service.duration_hours not in (2,3,4) then
     raise exception 'La duración requiere revisión manual.';
   end if;
