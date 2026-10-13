@@ -260,8 +260,45 @@ export function EventCenter({
       ) : null}
       <section className="space-y-3">
         {filtered.map((event) => (
+          <article className="min-w-0 rounded-2xl border bg-card p-3.5 md:hidden">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="flex h-[76px] w-[58px] shrink-0 flex-col items-center justify-center rounded-xl border bg-background text-center">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-brand">
+                  {event.date ? new Date(`${event.date}T12:00:00Z`).toLocaleDateString("es-CL", { weekday: "short" }) : "—"}
+                </span>
+                <strong className="text-2xl leading-tight">{event.date?.slice(8, 10) ?? "—"}</strong>
+                <span className="text-[10px] uppercase text-brand">{event.date ? new Date(`${event.date}T12:00:00Z`).toLocaleDateString("es-CL", { month: "short" }) : "—"}</span>
+              </div>
+              <span aria-hidden="true" className="mt-1 h-[68px] w-[3px] shrink-0 rounded-full bg-brand" />
+              <div className="min-w-0 flex-1">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <h2 className="min-w-0 break-words text-sm font-semibold leading-tight">{event.customerName}</h2>
+                  <span className="rounded-full border px-2 py-0.5 text-[10px]">{event.status}</span>
+                </div>
+                <p className="mt-1 break-words text-xs text-muted">{event.company || "Cliente particular"}</p>
+                <p className="mt-1 break-words text-xs font-semibold">
+                  {event.service || "Servicio por confirmar"}{event.duration ? ` · ${event.duration}h` : ""} · {event.time?.slice(0, 5) || "Sin hora"}
+                </p>
+                <p className="mt-1 break-words text-xs text-muted">Operador: {event.operator}</p>
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center justify-end gap-2 border-t pt-3">
+              <Link className="inline-flex min-h-10 items-center rounded-xl border px-3 text-xs font-medium" href={`/projects/${event.projectId}`}>Abrir evento</Link>
+              <Link className="inline-flex min-h-10 items-center rounded-xl border px-3 text-xs font-medium" href={`/customers/${event.customerId}`}>Cliente</Link>
+              <details className="relative">
+                <summary aria-label={`Acciones para ${event.name}`} className="grid size-10 cursor-pointer list-none place-items-center rounded-xl border"><MoreVertical className="size-4" /></summary>
+                <div className="absolute right-0 z-20 mt-2 w-52 max-w-[calc(100vw-3rem)] rounded-xl border bg-card p-2 shadow-xl">
+                  <Link className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-accent" href={`/projects/${event.projectId}`}><ExternalLink className="size-4" />Abrir evento</Link>
+                  <button className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => openEditor(event)}>Editar evento</button>
+                  <button className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => duplicate(event)}>Duplicar evento</button>
+                  <button className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => lifecycle(event, "ARCHIVE")}>Archivar evento</button>
+                  <button className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-red-400 hover:bg-red-500/10" onClick={() => openDeleteDialog(event)}>Eliminar evento</button>
+                </div>
+              </details>
+            </div>
+          </article>
           <article
-            className="grid min-w-0 gap-4 rounded-2xl border bg-card p-4 sm:p-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center"
+            className="hidden min-w-0 gap-4 rounded-2xl border bg-card p-4 sm:p-5 md:grid md:grid-cols-[minmax(0,1fr)_auto] md:items-center"
             key={event.projectId}
           >
             <div className="min-w-0">
