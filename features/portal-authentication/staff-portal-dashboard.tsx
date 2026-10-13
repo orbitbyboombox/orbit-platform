@@ -240,9 +240,9 @@ export function StaffPortalDashboard({
       <section className={`${mobileTab==="rutas"?"block":"hidden"} space-y-4 md:block`}>
         <h2 className="text-xl font-semibold">Rutas · montajes y desmontajes</h2>
         <p className="text-sm text-muted">Todos tus eventos asignados, agrupados por día. Los eventos disponibles para tomar se muestran por separado en Inicio.</p>
-        {[...new Set(events.filter(event=>event.date>=today).map(event=>event.date))].sort().map(date=><div key={date} className="rounded-2xl border bg-card p-4">
-          <h3 className="mb-3 text-lg font-bold text-brand">{new Date(date+"T12:00:00").toLocaleDateString("es-CL",{weekday:"long",day:"numeric",month:"long"})}</h3>
-          <div className="space-y-3">{events.filter(event=>event.date===date).map(event=><article key={event.id} className="rounded-xl border p-3">
+        {[...new Set(events.filter(event=>event.date>=today).map(event=>event.date))].sort().map(date=><div key={date} className="grid grid-cols-[76px_minmax(0,1fr)] gap-3 rounded-2xl border bg-card p-3 sm:grid-cols-[112px_minmax(0,1fr)] sm:gap-5 sm:p-5">
+          <div className="self-start text-center"><p className="text-xs font-bold uppercase text-muted">{new Date(date+"T12:00:00").toLocaleDateString("es-CL",{weekday:"short"})}</p><p className="text-4xl font-extrabold tabular-nums text-brand sm:text-5xl">{new Date(date+"T12:00:00").getDate()}</p><p className="text-xs font-semibold uppercase text-muted">{new Date(date+"T12:00:00").toLocaleDateString("es-CL",{month:"short"})}</p></div>
+          <div className="min-w-0 space-y-5 border-l-2 border-brand/50 pl-4 sm:pl-6">{events.filter(event=>event.date===date).map(event=><article key={event.id} className="relative min-w-0 border-b pb-4 last:border-b-0 last:pb-0 before:absolute before:-left-[22px] before:top-1 before:h-3 before:w-3 before:rounded-full before:bg-brand sm:before:-left-[30px]">
             <p className="font-semibold break-words">{event.customer}</p>
             <p className="text-sm text-muted">Horario del evento: {event.start} – {event.finish} · {event.service}</p>
             <p className="mt-1 text-sm break-words">{event.address} · {event.district}</p>
