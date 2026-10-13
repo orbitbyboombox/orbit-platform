@@ -198,6 +198,10 @@ export function StaffPortalDashboard({
   mustChangePassword: boolean;
 }) {
   const [selected, setSelected] = useState<StaffPortalEvent | null>(null);
+  const [mobileTab, setMobileTab] = useState<"inicio" | "eventos" | "pagos" | "perfil">("inicio");
+  const [showHistory, setShowHistory] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const upcomingEvents = events.filter(event => event.date >= new Intl.DateTimeFormat("en-CA", {timeZone:"America/Santiago"}).format(new Date())).sort((a,b)=>a.date.localeCompare(b.date));
   const today = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Santiago",
   }).format(new Date());
@@ -212,8 +216,9 @@ export function StaffPortalDashboard({
     );
   if (mustChangePassword) return <PasswordSetup name={name} />;
   return (
-    <div className="space-y-6">
-      <header className="rounded-3xl border bg-card p-6 sm:p-8">
+    <div className="space-y-4 pb-20 md:space-y-6 md:pb-0">
+      <nav aria-label="Secciones del portal" className="sticky top-0 z-20 grid grid-cols-4 gap-1 rounded-xl border bg-background/95 p-1 backdrop-blur md:hidden">{(["inicio","eventos","pagos","perfil"] as const).map(tab=><button key={tab} type="button" onClick={()=>setMobileTab(tab)} className={`min-h-11 rounded-lg px-1 text-xs font-semibold capitalize ${mobileTab===tab?"bg-brand text-brand-foreground":"text-muted"}`}>{tab}</button>)}</nav>
+      <header className={`${mobileTab==="inicio"?"block":"hidden"} rounded-3xl border bg-card p-4 md:block md:p-8`}>
         <p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">
           Portal Staff
         </p>
@@ -229,9 +234,9 @@ export function StaffPortalDashboard({
           🎓 BOOMBOX Academy
         </Link>
       </header>
-      <StaffExpenseSubmissionPanel events={events} submissions={expenseSubmissions} />
-      <section className="space-y-3"><h2 className="text-xl font-semibold">Mis pagos</h2>{monthlyAccounts.map(account=><StaffMonthlyAccountPanel account={account} key={account.id} mode="STAFF"/>)}{!monthlyAccounts.length&&<p className="rounded-2xl border p-4 text-sm text-muted">Aún no hay liquidaciones mensuales disponibles.</p>}</section>
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className={mobileTab==="perfil"?"block":"hidden md:block"}><StaffExpenseSubmissionPanel events={events} submissions={expenseSubmissions} /></div>
+      <section className={`${mobileTab==="pagos"?"block":"hidden"} space-y-3 md:block`}><h2 className="text-xl font-semibold">Mis pagos</h2>{monthlyAccounts.map(account=><StaffMonthlyAccountPanel account={account} key={account.id} mode="STAFF"/>)}{!monthlyAccounts.length&&<p className="rounded-2xl border p-4 text-sm text-muted">Aún no hay liquidaciones mensuales disponibles.</p>}</section>
+      <section className={`${mobileTab==="inicio"?"grid":"hidden"} grid-cols-2 gap-2 md:grid md:gap-3 sm:grid-cols-2 xl:grid-cols-5`}>
         <Metric
           label="Eventos de hoy"
           value={String(todayEvents.length)}
@@ -258,14 +263,14 @@ export function StaffPortalDashboard({
           icon={CheckCircle2}
         />
       </section>
-      <AvailableEvents events={availableEvents} requests={requests} />
-      <section className="rounded-3xl border bg-card p-5 sm:p-7">
+      <div className={mobileTab==="eventos"?"block":"hidden md:block"}><AvailableEvents events={availableEvents} requests={requests} /></div>
+      <section className={`${mobileTab==="eventos"||mobileTab==="inicio"?"block":"hidden"} rounded-3xl border bg-card p-4 md:block md:p-7`}>
         <h2 className="text-xl font-semibold">Mis eventos asignados</h2>
         <p className="mt-1 text-sm text-muted">
           Las asignaciones nuevas aparecen primero y requieren tu aceptación.
         </p>
         <div className="mt-5 grid gap-4 lg:grid-cols-2">
-          {events.map((event) => (
+          {(showHistory || mobileTab==="eventos" ? events : upcomingEvents).map((event) => (
             <button
               className="rounded-2xl border p-4 text-left transition hover:border-brand/50"
               key={event.id}
@@ -304,6 +309,7 @@ export function StaffPortalDashboard({
               </div>
             </button>
           ))}
+          {mobileTab==="inicio" && !showHistory && events.length>upcomingEvents.length ? <button type="button" className="min-h-11 rounded-xl border px-4 text-sm font-semibold text-brand md:hidden" onClick={()=>{setMobileTab("eventos");setShowHistory(true)}}>Ver historial de eventos</button>:null}
           {events.length === 0 ? (
             <p className="py-8 text-sm text-muted">
               No tienes eventos asignados durante los próximos 15 días.
@@ -311,8 +317,8 @@ export function StaffPortalDashboard({
           ) : null}
         </div>
       </section>
-      <section className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-3xl border bg-card p-5 sm:p-7">
+      <section className={`${mobileTab==="pagos"||mobileTab==="perfil"?"grid":"hidden"} gap-4 md:grid md:gap-6 lg:grid-cols-2`}>
+        <div className={`${mobileTab==="pagos"?"block":"hidden"} rounded-3xl border bg-card p-4 md:block md:p-7`}>
           <h2 className="text-xl font-semibold">Mis pagos del mes</h2>
           <div className="mt-5 grid grid-cols-2 gap-3">
             <Small label="Generado" value={money(payment.generated)} />
@@ -325,18 +331,19 @@ export function StaffPortalDashboard({
             Founder.
           </p>
         </div>
-        <div className="rounded-3xl border bg-card p-5 sm:p-7">
+        <div className={`${mobileTab==="perfil"?"block":"hidden"} rounded-3xl border bg-card p-4 md:block md:p-7`}>
           <h2 className="text-xl font-semibold">
             Notificaciones operacionales
           </h2>
           <div className="mt-4 space-y-3">
-            {notifications.map((item) => (
+            {(showNotifications ? notifications : notifications.slice(0,3)).map((item) => (
               <div className="rounded-xl border p-3" key={item.id}>
                 <p className="text-sm font-semibold">{item.title}</p>
                 <p className="mt-1 text-sm text-muted">{item.message}</p>
                 <p className="mt-2 text-xs text-muted">{item.date}</p>
               </div>
             ))}
+            {notifications.length>3?<button type="button" className="min-h-11 rounded-xl border px-4 text-sm text-brand md:hidden" onClick={()=>setShowNotifications(!showNotifications)}>{showNotifications?"Ocultar historial":"Ver todas las notificaciones"}</button>:null}
             {notifications.length === 0 ? (
               <p className="text-sm text-muted">
                 Sin notificaciones operacionales pendientes.
