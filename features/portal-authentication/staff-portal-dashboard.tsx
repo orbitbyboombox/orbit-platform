@@ -243,14 +243,14 @@ export function StaffPortalDashboard({
         <Metric label="Mis eventos asignados" onClick={() => {setEventFilter("todos");setAssignedExpanded(true);setMobileTab("eventos");}} value={String(events.filter(event=>!participationCompleted(event)).length)} icon={Clock3} />
         <Metric label="Pendientes de aceptar" onClick={() => {setEventFilter("todos");setAssignedExpanded(true);setMobileTab("eventos");}} value={String(events.filter(event=>pendingAcceptance(event.status)).length)} icon={ChevronRight} />
       </section>
-      <div className={mobileTab==="eventos"?"block":"hidden md:block"}><AvailableEvents events={availableEvents} requests={requests} /></div>
-      <section className={`${mobileTab==="eventos"||mobileTab==="inicio"?"block":"hidden"} rounded-3xl border bg-card p-4 md:block md:p-7`}>
+      <div className={mobileTab==="inicio"||mobileTab==="eventos"?"block":"hidden md:block"}><AvailableEvents events={availableEvents} requests={requests} /></div>
+      <section className={`${mobileTab==="eventos"?"block":"hidden"} rounded-3xl border bg-card p-4 md:block md:p-7`}>
         <button type="button" onClick={()=>setAssignedExpanded(!assignedExpanded)} className="flex min-h-11 w-full items-center justify-between text-left text-xl font-semibold"><span>Mis eventos asignados ({events.length})</span><span className="text-sm text-brand md:hidden">{assignedExpanded?"Ocultar":"Mostrar"} ▾</span></button>
         <p className="mt-1 text-sm text-muted">
           Las asignaciones nuevas aparecen primero y requieren tu aceptación.
         </p>
         <div className={`${assignedExpanded ? "grid" : "hidden md:grid"} mt-5 gap-4 lg:grid-cols-2`}>
-          {events.filter(event => eventFilter==="hoy" ? event.date===today : eventFilter==="proximos" ? event.date>=today : eventFilter==="confirmados" ? confirmed.some(item=>item.id===event.id) : eventFilter==="completados" ? completed.some(item=>item.id===event.id) : true).map((event) => (
+          {events.filter(event => eventFilter==="hoy" ? event.date===today : eventFilter==="proximos" ? event.date>=today : eventFilter==="confirmados" ? confirmed.some(item=>item.id===event.id) : eventFilter==="completados" ? completed.some(item=>item.id===event.id) : true).filter(event=>event.date>=today).sort((a,b)=>a.date.localeCompare(b.date)).map((event) => (
             <button
               className="rounded-2xl border p-4 text-left transition hover:border-brand/50"
               key={event.id}
@@ -450,7 +450,7 @@ function AvailableEvents({
         ) : null}
       </div>
       {selected ? <AvailableEventPreview event={selected} requests={requests} pending={pending} close={() => setSelected(null)} request={request} setMessage={setMessage} /> : null}
-      <h3 className="mt-7 font-semibold">Mis solicitudes</h3>
+      <details className="mt-7 rounded-xl border p-3"><summary className="cursor-pointer font-semibold">Mis solicitudes ({requests.length})</summary>
       <div className="mt-3 space-y-2">
         {requests.map((item) => (
           <div
@@ -477,7 +477,7 @@ function AvailableEvents({
         {requests.length === 0 ? (
           <p className="text-sm text-muted">Aún no has enviado solicitudes.</p>
         ) : null}
-      </div>
+      </div></details>
     </section>
   );
 }
@@ -579,7 +579,7 @@ function EventDetail({
             <X className="size-4" />
           </button>
         </div>
-        {event.extras.length > 0 && <section className="mt-5 rounded-2xl border-2 border-amber-500/60 bg-amber-500/10 p-4" aria-label="Recordatorio de extras del evento"><p className="font-bold uppercase tracking-wide text-amber-700 dark:text-amber-300">🔔 RECUERDA: TU EVENTO INCLUYE</p><div className="mt-3 flex flex-wrap gap-2">{event.extras.map(extra=><span key={extra} className="rounded-lg border border-amber-500/30 bg-card px-3 py-2 text-sm font-bold uppercase">{extra}</span>)}</div></section>}
+        {event.extras.length > 0 && <section className="mt-5 rounded-2xl border-2 border-amber-500/60 bg-amber-500/10 p-4" aria-label="Recordatorio de extras del evento"><p className="font-bold uppercase tracking-wide text-amber-700 dark:text-amber-300">🔔 RECUERDA: TU EVENTO INCLUYE</p><div className="mt-3 flex flex-wrap gap-2">{event.extras.filter(extra=>!/(TRANSPORTE|TRANSPORT|TRASLADO)/i.test(extra)).map(extra=><span key={extra} className="rounded-lg border border-amber-500/30 bg-card px-3 py-2 text-sm font-bold uppercase">{extra}</span>)}</div></section>}
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Small label="CITACIÓN" value={event.staffCallAt?new Date(event.staffCallAt).toLocaleString("es-CL",{timeZone:"America/Santiago"}):"Por confirmar"} />
           <Small label="SERVICIO" value={`${event.date} · ${event.start}–${event.finish}`} />
@@ -588,7 +588,7 @@ function EventDetail({
           <Small label="Comuna" value={event.district} />
           <Small
             label="Extras"
-            value={event.extras.join(" · ") || "Sin extras"}
+            value={event.extras.filter(extra=>!/(TRANSPORTE|TRANSPORT|TRASLADO)/i.test(extra)).join(" · ") || "Sin extras"}
           />
           <Small
             label="Cliente"
