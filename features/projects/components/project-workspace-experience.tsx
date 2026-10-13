@@ -1342,7 +1342,7 @@ export function ProjectWorkspaceExperience(
                       const operatingProfit = netRevenue - event.profit.costs.totalOperationalCost;
                       const operatingMargin = netRevenue > 0 ? operatingProfit / netRevenue * 100 : 0;
                       return <>
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
                       <MiniMoney
                         label="Ingresos netos"
                         value={netRevenue}
@@ -1817,16 +1817,16 @@ function HeroMetric({ label, value }: { label: string; value: string }) {
 }
 function MiniMetric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl border bg-background/30 p-4">
-      <p className="text-2xl font-semibold">{value}</p>
+    <div className="min-w-0 rounded-xl border bg-background/30 p-3 sm:p-4">
+      <p className="break-words text-lg font-semibold tabular-nums sm:text-xl">{value}</p>
       <p className="mt-1 text-xs text-muted">{label}</p>
     </div>
   );
 }
 function MiniMoney({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl border bg-background/30 p-4">
-      <p className="text-xl font-semibold sm:text-2xl">{money(value)}</p>
+    <div className="min-w-0 rounded-xl border bg-background/30 p-3 sm:p-4">
+      <p className="break-words text-lg font-semibold tabular-nums sm:text-xl">{money(value)}</p>
       <p className="mt-1 text-xs text-muted">{label}</p>
     </div>
   );
