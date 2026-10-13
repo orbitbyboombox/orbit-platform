@@ -237,7 +237,7 @@ export function StaffPortalDashboard({
         </Link>
       </header>
       <div className={mobileTab==="perfil"?"block":"hidden md:block"}><StaffExpenseSubmissionPanel events={events} submissions={expenseSubmissions} /></div>
-      <section className={`${mobileTab==="pagos"?"block":"hidden"} space-y-3 md:block`}><h2 className="text-xl font-semibold">Mis pagos</h2>{monthlyAccounts.map(account=><details key={account.id} className="rounded-2xl border bg-card p-3"><summary className="cursor-pointer py-2 font-semibold text-brand">Ver liquidación mensual · {account.month ? String(account.month) : "Mes"}</summary><div className="mt-3"><StaffMonthlyAccountPanel account={account} mode="STAFF"/></div></details>)}{!monthlyAccounts.length&&<p className="rounded-2xl border p-4 text-sm text-muted">Aún no hay liquidaciones mensuales disponibles.</p>}</section>
+      <section className={`${mobileTab==="pagos"?"block":"hidden"} space-y-3 md:block`}><h2 className="text-xl font-semibold">Mis pagos</h2>{monthlyAccounts.map(account=><details key={account.id} className="rounded-2xl border bg-card p-3"><summary className="cursor-pointer py-2 font-semibold text-brand">Liquidación de {account.month ? new Intl.DateTimeFormat("es-CL",{month:"long",year:"numeric",timeZone:"UTC"}).format(new Date(`${String(account.month).slice(0,7)}-01T12:00:00Z`)) : "mes"} · Ver detalle</summary><div className="mt-3"><StaffMonthlyAccountPanel account={account} mode="STAFF"/></div></details>)}{!monthlyAccounts.length&&<p className="rounded-2xl border p-4 text-sm text-muted">Aún no hay liquidaciones mensuales disponibles.</p>}</section>
       <section className={`${mobileTab==="inicio"?"grid":"hidden"} grid-cols-2 gap-2 md:grid md:gap-3 sm:grid-cols-2 xl:grid-cols-3`}>
         <Metric label="Eventos de hoy" onClick={() => {setEventFilter("hoy");setAssignedExpanded(true);setMobileTab("eventos");}} value={String(todayEvents.length)} icon={CalendarDays} />
         <Metric label="Mis eventos asignados" onClick={() => {setEventFilter("todos");setAssignedExpanded(true);setMobileTab("eventos");}} value={String(events.filter(event=>event.date>=today&&!participationCompleted(event)).length)} icon={Clock3} />
@@ -300,15 +300,15 @@ export function StaffPortalDashboard({
       </section>
       <section className={`${mobileTab==="pagos"||mobileTab==="perfil"?"grid":"hidden"} gap-4 md:grid md:gap-6 lg:grid-cols-2`}>
         <div className={`${mobileTab==="pagos"?"block":"hidden md:block"} rounded-3xl border bg-card p-4 md:block md:p-7`}>
-          <h2 className="text-xl font-semibold">Mis pagos por servicios anteriores a hoy</h2>
+          <h2 className="text-xl font-semibold">Resumen de honorarios</h2>
           <div className="mt-5 grid grid-cols-2 gap-3">
-            <Small label="Generado" value={money(payment.generated)} />
+            <Small label="Total por trabajos realizados" value={money(payment.generated)} />
             <Small label="Ya pagado" value={money(payment.paid)} />
-            <Small label="Pago pendiente" value={money(payment.pending)} />
+            <Small label="Por cobrar" value={money(payment.pending)} />
             <Small label="Boleta SII" value={payment.receiptStatus} />
           </div>
           <p className="mt-4 text-xs text-muted">
-            Excluye eventos de hoy y futuros. Información de solo lectura. Los pagos son gestionados por el
+            Incluye solamente honorarios por trabajos anteriores a hoy; no incluye reembolsos de gastos ni eventos futuros. Abre la liquidación mensual para revisar sus movimientos. Los pagos son gestionados por el
             Founder.
           </p>
         </div>
