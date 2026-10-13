@@ -261,10 +261,15 @@ export function EventCenter({
       <section className="space-y-3">
         {filtered.map((event) => (
           <article
-            className="grid min-w-0 gap-4 rounded-2xl border bg-card p-4 sm:p-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center"
+            className="grid min-w-0 grid-cols-[3.25rem_3px_minmax(0,1fr)] items-stretch gap-3 rounded-2xl border bg-card p-3 sm:gap-4 sm:p-4 md:grid-cols-[5rem_3px_minmax(0,1fr)_auto] md:items-center"
             key={event.projectId}
           >
-            <div className="min-w-0">
+            <div aria-label={event.date ? new Date(`${event.date}T12:00:00`).toLocaleDateString("es-CL", { dateStyle: "full" }) : "Sin fecha"} className="flex flex-col items-center justify-center text-center">
+              <span className="text-3xl font-bold leading-none tracking-tight sm:text-4xl">{event.date?.slice(8, 10) ?? "—"}</span>
+              <span className="mt-1 text-[11px] capitalize leading-tight text-muted">{event.date ? new Date(`${event.date}T12:00:00`).toLocaleDateString("es-CL", { weekday: "short", month: "short" }) : "Sin fecha"}</span>
+            </div>
+            <span aria-hidden="true" className="w-[3px] rounded-full bg-brand" />
+            <div className="min-w-0 self-center">
               <div className="flex flex-wrap items-center gap-2">
                 <CalendarDays className="size-4 shrink-0 text-brand" />
                 <h2 className="min-w-0 break-words font-semibold">
@@ -275,12 +280,7 @@ export function EventCenter({
                 </span>
               </div>
               <p className="mt-2 break-words text-sm text-muted">
-                {event.company || "Cliente particular"} ·{" "}
-                {event.date
-                  ? new Date(`${event.date}T12:00:00Z`).toLocaleDateString(
-                      "es-CL",
-                    )
-                  : "Sin fecha"} · {event.time?.slice(0, 5) || "Sin hora"}
+                {event.company || "Cliente particular"} · {event.time?.slice(0, 5) || "Sin hora"}
               </p>
               <p className="mt-1 break-words text-sm">
                 {event.service || "Servicio por confirmar"}
@@ -288,7 +288,7 @@ export function EventCenter({
                 {event.operator}
               </p>
             </div>
-            <div className="flex min-w-0 items-center justify-end gap-2">
+            <div className="col-span-3 flex min-w-0 items-center justify-end gap-2 md:col-span-1">
               <Link
                 className="rounded-xl border px-3 py-2 text-sm"
                 href={`/customers/${event.customerId}`}
