@@ -618,22 +618,34 @@ export function ProjectWorkspaceExperience(
                 <HeroMetric label="Salud" value={`${health}%`} />
               </div>
             </div>
-            <nav
-              aria-label="Secciones del evento"
-              className="flex gap-2 overflow-x-auto border-t px-5 py-3 sm:px-7"
-            >
-              {navigationItems.map(({ id, label }) => (
+            <nav aria-label="Pestañas del evento" className="grid grid-cols-2 gap-2 border-t p-3 sm:grid-cols-3 sm:p-4 lg:grid-cols-6">
+              {[
+                { id: "event-summary-mobile", label: "Resumen", hint: "Estado y prioridades" },
+                { id: "event-finance", label: "Finanzas", hint: "Cobros y costos" },
+                { id: "staff-assignment", label: "Staff", hint: "Equipo asignado" },
+                { id: "operations", label: "Operación", hint: "Logística y checklist" },
+                { id: "documents", label: "Documentos", hint: "Cotizaciones y archivos" },
+                { id: "google-calendar", label: "Comunicaciones", hint: "Calendar y portal" },
+              ].map(({ id, label, hint }) => (
                 <button
-                  className="shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium text-muted transition hover:border-brand hover:text-foreground"
+                  className="min-w-0 min-h-14 rounded-xl border px-3 py-2 text-left transition hover:border-brand hover:bg-brand/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
                   key={id}
                   onClick={() => scroll(id)}
+                  type="button"
                 >
-                  {label}
+                  <span className="block text-xs font-semibold uppercase tracking-wide">{label}</span>
+                  <span className="mt-1 block text-[10px] leading-tight text-muted">{hint}</span>
                 </button>
               ))}
             </nav>
+            <details className="border-t px-4 py-2">
+              <summary className="cursor-pointer py-2 text-xs font-semibold text-brand">Más secciones del evento</summary>
+              <div className="flex flex-wrap gap-2 pb-2">
+                {navigationItems.map(({ id, label }) => <button className="min-h-10 rounded-lg border px-3 text-xs" key={id} onClick={() => scroll(id)} type="button">{label}</button>)}
+              </div>
+            </details>
           </section>
-          <div>{capacityPanel}</div>
+          <div className="scroll-mt-24" id="event-summary-mobile">{capacityPanel}</div>
 
           <section className="grid gap-6 xl:grid-cols-2">
             {moduleVisible("GENERAL_INFORMATION") && (
