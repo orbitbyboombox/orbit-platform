@@ -203,7 +203,7 @@ export function StaffPortalDashboard({
   const [eventFilter, setEventFilter] = useState<"todos"|"hoy"|"proximos"|"confirmados"|"completados">("todos");
   const [assignedExpanded, setAssignedExpanded] = useState(true);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [routeSort, setRouteSort] = useState<"start"|"finish"|"sector"|"manual">("start");
+  const [routeSort, setRouteSort] = useState<"start"|"finish"|"sector"|"manual">("finish");
   const [routeOrder, setRouteOrder] = useState<string[]>([]);
   const routeMinutes = (value:string) => { const match=value.match(/(\d{1,2}):(\d{2})/); return match?Number(match[1])*60+Number(match[2]):0; };
   const routeEvents = events.filter(event=>event.date>=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Santiago"}).format(new Date())).sort((a,b)=>{
@@ -247,7 +247,7 @@ export function StaffPortalDashboard({
   if (mustChangePassword) return <PasswordSetup name={name} />;
   return (
     <div className="space-y-4 pb-20 md:space-y-6 md:pb-0">
-      <nav aria-label="Secciones del portal" className="sticky top-0 z-20 grid grid-cols-4 gap-1 rounded-xl border bg-background/95 p-1 backdrop-blur md:hidden">{(["inicio","eventos","rutas","pagos","perfil"] as const).map(tab=><button key={tab} type="button" onClick={()=>setMobileTab(tab)} className={`min-h-11 rounded-lg px-1 text-xs font-semibold capitalize ${mobileTab===tab?"bg-brand text-brand-foreground":"text-muted"}`}>{tab}</button>)}</nav>
+      <nav aria-label="Secciones del portal" className="sticky top-0 z-20 grid grid-cols-5 gap-1 rounded-xl border bg-background/95 p-1 backdrop-blur md:hidden">{(["inicio","eventos","rutas","pagos","perfil"] as const).map(tab=><button key={tab} type="button" onClick={()=>setMobileTab(tab)} className={`min-h-11 min-w-0 rounded-lg px-0.5 text-[11px] font-bold capitalize sm:text-xs ${mobileTab===tab?"bg-brand text-brand-foreground":"text-muted"}`}>{tab}</button>)}</nav>
       <header className={`${mobileTab==="inicio"?"block":"hidden"} rounded-3xl border bg-card p-4 md:block md:p-8`}>
         <p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">
           Portal Staff
@@ -276,7 +276,7 @@ export function StaffPortalDashboard({
             <option value="sector">Sector / comuna</option>
             <option value="manual">Mi orden</option>
           </select>
-          <p className="w-full text-xs text-muted">Orden personal de visualización. No cambia asignaciones ni rutas oficiales. El término del evento no equivale al horario de retiro.</p>
+          <p className="w-full text-xs text-muted">Orden personal de visualización. No cambia asignaciones ni rutas oficiales. El orden de desmontaje toma como referencia el término del servicio; considera también el tiempo de traslado.</p>
         </div>
         <div className="space-y-3">
           {routeEvents.map(event=>{
