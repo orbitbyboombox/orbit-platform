@@ -260,6 +260,7 @@ export function EventCenter({
       ) : null}
       <section className="space-y-3">
         {filtered.map((event) => (
+          <div key={event.projectId} className="min-w-0 space-y-3">
           <article className="min-w-0 rounded-2xl border bg-card p-3.5 md:hidden">
             <div className="flex min-w-0 items-start gap-3">
               <div className="flex h-[76px] w-[58px] shrink-0 flex-col items-center justify-center rounded-xl border bg-background text-center">
@@ -374,6 +375,7 @@ export function EventCenter({
               </details>
             </div>
           </article>
+          </div>
         ))}
         {filtered.length === 0 && (
           <p className="rounded-2xl border border-dashed p-10 text-center text-muted">
