@@ -293,12 +293,12 @@ export function StaffPortalDashboard({
                 <p className="font-medium">Evento: {event.start} → {event.finish} · {event.service}</p>
                 <p className="break-words"><MapPin className="mr-1 inline size-4 text-brand" />{[event.venue,event.address,event.district].filter(Boolean).join(" · ")}</p>
                 <p className="font-semibold text-brand">Asignado: {event.roles.map(role=>({ASSEMBLY:"Montaje",DISASSEMBLY:"Desmontaje",OPERATOR:"Operación"}[role]??role)).join(" · ")||"Por confirmar"}</p>
-                {event.staffCallAt&&<p>Presentación del equipo: {new Date(event.staffCallAt).toLocaleString("es-CL",{timeZone:"America/Santiago"})}</p>}
+                {event.staffCallAt&&<p>Presentación del equipo: {new Date(event.staffCallAt).toLocaleString("es-CL",{timeZone:"America/Santiago",hour:"2-digit",minute:"2-digit",hour12:false,day:"2-digit",month:"2-digit",year:"numeric"})}</p>}
                 {event.logistics.length?event.logistics.map(trip=><div key={trip.id} className="mt-2 space-y-1 rounded-xl border border-brand/30 p-3">
                   <p className="font-semibold text-brand">{trip.type} · {trip.status}</p>
                   <p className="break-words">Ruta: {trip.route||"Por confirmar"}</p>
-                  <p>Salida: {trip.departure?new Date(trip.departure).toLocaleString("es-CL",{timeZone:"America/Santiago"}):"Por confirmar"}</p>
-                  {trip.arrival&&<p>Llegada: {new Date(trip.arrival).toLocaleString("es-CL",{timeZone:"America/Santiago"})}</p>}
+                  <p>Salida: {trip.departure?new Date(trip.departure).toLocaleString("es-CL",{timeZone:"America/Santiago",hour:"2-digit",minute:"2-digit",hour12:false,day:"2-digit",month:"2-digit",year:"numeric"}):"Por confirmar"}</p>
+                  {trip.arrival&&<p>Llegada: {new Date(trip.arrival).toLocaleString("es-CL",{timeZone:"America/Santiago",hour:"2-digit",minute:"2-digit",hour12:false,day:"2-digit",month:"2-digit",year:"numeric"})}</p>}
                   {trip.meetingPoint&&<p>Punto de encuentro: {trip.meetingPoint}</p>}
                   {trip.driver&&<p>Conductor: {trip.driver}</p>}
                   {trip.vehicle&&<p>Vehículo: {trip.vehicle}</p>}
@@ -663,7 +663,7 @@ function EventDetail({
         </div>
         {event.extras.length > 0 && <section className="mt-5 rounded-2xl border-2 border-amber-500/60 bg-amber-500/10 p-4" aria-label="Recordatorio de extras del evento"><p className="font-bold uppercase tracking-wide text-amber-700 dark:text-amber-300">🔔 RECUERDA: TU EVENTO INCLUYE</p><div className="mt-3 flex flex-wrap gap-2">{event.extras.filter(extra=>!/(TRANSPORTE|TRANSPORT|TRASLADO)/i.test(extra)).map(extra=><span key={extra} className="rounded-lg border border-amber-500/30 bg-card px-3 py-2 text-sm font-bold uppercase">{extra}</span>)}</div></section>}
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <Small label="CITACIÓN" value={event.staffCallAt?new Date(event.staffCallAt).toLocaleString("es-CL",{timeZone:"America/Santiago"}):"Por confirmar"} />
+          <Small label="CITACIÓN" value={event.staffCallAt?new Date(event.staffCallAt).toLocaleString("es-CL",{timeZone:"America/Santiago",hour:"2-digit",minute:"2-digit",hour12:false,day:"2-digit",month:"2-digit",year:"numeric"}):"Por confirmar"} />
           <Small label="SERVICIO" value={`${event.date} · ${event.start}–${event.finish}`} />
           <Small label="Lugar" value={event.venue} />
           <Small label="Dirección" value={event.address} />
