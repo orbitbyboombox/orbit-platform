@@ -37,7 +37,9 @@ export function evaluateBoomboxWebLead(input: WebLead): WebLeadDecision {
   const email = clean(input.email).toLowerCase();
   const normalizedEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null;
   const text = fold(input.eventType);
-  const category: WebLeadCategory = /matrimonio|boda|novios?/.test(text) ? "WEDDINGS"
+  const manualEvent = /empresa|corporativ|activacion|marca|evento|feria|campana|festival|congreso|seminario/.test(text);
+  const category: WebLeadCategory = manualEvent ? "REVIEW"
+    : /matrimonio|boda|novios?/.test(text) ? "WEDDINGS"
     : /cumpleanos|birthday/.test(text) ? "BIRTHDAYS"
     : /graduacion|graduados?|licenciatura/.test(text) ? "GRADUATIONS"
     : "REVIEW";
@@ -49,7 +51,7 @@ export function evaluateBoomboxWebLead(input: WebLead): WebLeadDecision {
   const dedupeKey = normalizedEmail ? createHash("sha256").update(identity).digest("hex") : null;
   const reason = !normalizedEmail ? "MISSING_EMAIL"
     : !clean(input.name) ? "MISSING_NAME"
-    : /empresa|corporativ|activacion|marca|evento|feria|campana|festival|congreso|seminario/.test(text) ? "MANUAL_COMMERCIAL_REVIEW"
+    : manualEvent ? "MANUAL_COMMERCIAL_REVIEW"
     : category === "REVIEW" ? "UNSUPPORTED_EVENT_TYPE"
     : !clean(input.eventDate) ? "MISSING_EVENT_DATE"
     : null;
