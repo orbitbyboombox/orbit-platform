@@ -396,6 +396,7 @@ export function ProjectWorkspaceExperience(
 ) {
   const router = useRouter();
   const [portalUrl, setPortalUrl] = useState("");
+  const [mobileEventPanel, setMobileEventPanel] = useState("SUMMARY");
   const [portalFeedback, setPortalFeedback] = useState("");
   const [customerDeleteFeedback, setCustomerDeleteFeedback] = useState("");
   const [workspacePreferences, setWorkspacePreferences] = useState(
@@ -628,9 +629,10 @@ export function ProjectWorkspaceExperience(
                 { id: "google-calendar", label: "Comunicaciones", hint: "Calendar y portal" },
               ].map(({ id, label, hint }) => (
                 <button
-                  className="min-w-0 min-h-14 rounded-xl border px-3 py-2 text-left transition hover:border-brand hover:bg-brand/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                  className={`min-w-0 min-h-14 rounded-xl border px-3 py-2 text-left transition hover:border-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand ${mobileEventPanel === id ? "border-brand bg-brand/10 text-foreground" : "text-muted"}`}
                   key={id}
-                  onClick={() => scroll(id)}
+                  onClick={() => { setMobileEventPanel(id); document.getElementById("event-mobile-panels")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
+                  aria-pressed={mobileEventPanel === id}
                   type="button"
                 >
                   <span className="block text-xs font-semibold uppercase tracking-wide">{label}</span>
@@ -639,12 +641,40 @@ export function ProjectWorkspaceExperience(
               ))}
             </nav>
             <details className="border-t px-4 py-2">
-              <summary className="cursor-pointer py-2 text-xs font-semibold text-brand">Más secciones del evento</summary>
+              <summary className="cursor-pointer py-2 text-xs font-semibold text-brand" onClick={() => setMobileEventPanel("ALL")}>Más secciones del evento</summary>
               <div className="flex flex-wrap gap-2 pb-2">
                 {navigationItems.map(({ id, label }) => <button className="min-h-10 rounded-lg border px-3 text-xs" key={id} onClick={() => scroll(id)} type="button">{label}</button>)}
               </div>
             </details>
           </section>
+          <style jsx global>{`
+            @media (max-width: 767px) {
+              #event-mobile-panels:not([data-active="ALL"]) > * { display: none !important; }
+              #event-mobile-panels[data-active="event-summary-mobile"] > #event-summary-mobile,
+              #event-mobile-panels[data-active="event-summary-mobile"] > :has(#customer),
+              #event-mobile-panels[data-active="event-summary-mobile"] > :has(#health),
+              #event-mobile-panels[data-active="event-finance"] > :has(#event-finance),
+              #event-mobile-panels[data-active="event-finance"] > :has(#real-cost-adjustments),
+              #event-mobile-panels[data-active="event-finance"] > :has(#payroll),
+              #event-mobile-panels[data-active="staff-assignment"] > :has(#operations),
+              #event-mobile-panels[data-active="staff-assignment"] > :has(#equipment-assignment),
+              #event-mobile-panels[data-active="operations"] > :has(#operations),
+              #event-mobile-panels[data-active="operations"] > :has(#equipment-assignment),
+              #event-mobile-panels[data-active="operations"] > :has(#event-control-center),
+              #event-mobile-panels[data-active="documents"] > :has(#documents),
+              #event-mobile-panels[data-active="google-calendar"] > :has(#google),
+              #event-mobile-panels[data-active="google-calendar"] > :has(#customer-portal),
+              #event-mobile-panels[data-active="google-calendar"] > :has(#timeline) { display: block !important; }
+              #event-mobile-panels:not([data-active="ALL"]) section[id] { display: none !important; }
+              #event-mobile-panels[data-active="event-summary-mobile"] :is(#customer, #commercial, #service, #health),
+              #event-mobile-panels[data-active="event-finance"] :is(#event-finance, #payroll),
+              #event-mobile-panels[data-active="staff-assignment"] #operations,
+              #event-mobile-panels[data-active="operations"] :is(#operations, #event-control-center),
+              #event-mobile-panels[data-active="documents"] #documents,
+              #event-mobile-panels[data-active="google-calendar"] :is(#google, #timeline, #customer-portal) { display: block !important; }
+            }
+          `}</style>
+          <div id="event-mobile-panels" data-active={mobileEventPanel} className="scroll-mt-24 space-y-6">
           <div className="scroll-mt-24" id="event-summary-mobile">{capacityPanel}</div>
 
           <section className="grid gap-6 xl:grid-cols-2">
@@ -1644,6 +1674,7 @@ export function ProjectWorkspaceExperience(
               />
             </div>
           )}
+          </div>
         </div>
       }
       bottomAction={
