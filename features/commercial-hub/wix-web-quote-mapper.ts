@@ -11,6 +11,12 @@ type WixSubmission = {
 };
 
 const asText = (v: unknown): string => typeof v === "string" ? v.trim() : "";
+const asPhone = (v: unknown): string => {
+  if (typeof v === "string") return v.trim();
+  if (!v || typeof v !== "object" || Array.isArray(v)) return "";
+  const value = v as Record<string, unknown>;
+  return asText(value.phone) || asText(value.phoneNumber) || asText(value.number) || "";
+};
 
 export function mapBoomboxWixQuoteSubmission(item: WixSubmission): WebLead | null {
   if (item.formId !== BOOMBOX_WIX_QUOTE_FORM_ID || !item.id || !item.submissions) return null;
@@ -21,7 +27,7 @@ export function mapBoomboxWixQuoteSubmission(item: WixSubmission): WebLead | nul
     submissionId: item.id,
     name: asText(fields.nombre_37c7),
     email: asText(fields.email_44be),
-    phone: asText(fields.telefono_aa57),
+    phone: asPhone(fields.telefono_aa57),
     eventType: asText(fields.tipo_de_evento),
     eventDate,
   };
