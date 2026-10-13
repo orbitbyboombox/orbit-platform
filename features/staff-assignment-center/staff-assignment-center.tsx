@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
@@ -18,6 +18,9 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import {
   cancelStaffAssignmentByFounderAction,
   saveStaffAssignmentAction,
+  listEventOperationalBlocksAction,
+  createEventOperationalBlockAction,
+  type OperationalBlockRecord,
   updateStaffAssignmentStatusAction,
   type StaffAssignmentMutation,
 } from "./actions";
@@ -40,6 +43,7 @@ export type OperationalAssignment = {
   vehicleId: string;
   vehicleName: string;
   observations: string;
+  blockId?: string;
   packageStatus?: Record<string, string>;
 };
 export type AssignmentStaffOption = {
@@ -192,6 +196,20 @@ export function StaffAssignmentCenter({
     null,
   );
   const [message, setMessage] = useState("");
+  const [blocks, setBlocks] = useState<OperationalBlockRecord[]>([]);
+  const [blocksLoading, setBlocksLoading] = useState(true);
+  useEffect(() => {
+    let current = true;
+    listEventOperationalBlocksAction(projectId).then(result => {
+      if (current) setBlocks(result);
+    }).catch(() => {
+      if (current) setMessage("No fue posible cargar los bloques del evento.");
+    }).finally(() => {
+      if (current) setBlocksLoading(false);
+    });
+    return () => { current = false; };
+  }, [projectId]);
+
   const mutate = (action: () => Promise<{ ok: boolean; error?: string }>) => {
     setMessage("");
     startTransition(async () => {
@@ -291,6 +309,48 @@ export function StaffAssignmentCenter({
           inicio y término independientes. Usa «Editar» para ajustar las horas de un bloque existente.
         </p>
       </div>
+      <details className="mb-5 rounded-xl border border-brand/25 p-4" open={false}>
+        <summary className="cursor-pointer text-sm font-semibold text-brand">Crear y administrar bloques horarios del evento</summary>
+        <p className="mt-2 text-xs text-muted">Como en Esencial: Bloque 1, 2, 3, etc. Cada bloque tiene su propia hora de inicio y término; luego puedes asignarle tantos operadores, montajes o desmontajes como necesites.</p>
+        {blocksLoading ? <p className="mt-2 text-xs text-muted">Cargando bloques…</p> : (
+          <div className="mt-3 grid gap-2">
+            {blocks.length === 0 ? <p className="text-xs text-muted">Este evento todavía no tiene bloques configurados.</p> : blocks.map(block => (
+              <div key={block.id} className="rounded-lg border bg-background/40 p-3 text-xs">
+                <strong>{block.name}</strong> · {new Intl.DateTimeFormat("es-CL", { timeZone: "America/Santiago", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(block.startAt))}
+                {" — "}
+                {new Intl.DateTimeFormat("es-CL", { timeZone: "America/Santiago", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(block.endAt))}
+              </div>
+            ))}
+          </div>
+        )}
+        <form className="mt-4 grid gap-3 sm:grid-cols-2" onSubmit={event => {
+          event.preventDefault();
+          const element = event.currentTarget;
+          const data = new FormData(element);
+          const start = String(data.get("blockStart") ?? "");
+          const end = String(data.get("blockEnd") ?? "");
+          const startDate = new Date(start);
+          const endDate = new Date(end);
+          if (!start || !end || !Number.isFinite(startDate.getTime()) || !Number.isFinite(endDate.getTime())) {
+            setMessage("Ingresa inicio y término válidos del bloque."); return;
+          }
+          startTransition(async () => {
+            const result = await createEventOperationalBlockAction({
+              projectId, name: String(data.get("blockName") ?? ""),
+              startAt: startDate.toISOString(), endAt: endDate.toISOString(),
+            });
+            if (!result.ok) { setMessage(result.error ?? "No se pudo crear el bloque."); return; }
+            setBlocks(await listEventOperationalBlocksAction(projectId));
+            element.reset();
+            setMessage("Bloque agregado. Ahora puedes asignar Staff a ese bloque.");
+          });
+        }}>
+          <label className="grid gap-1 text-xs font-medium sm:col-span-2">Nombre del bloque<input name="blockName" placeholder="Ej.: BLOQUE 01 / TURNO AM" required maxLength={90} className="min-h-11 rounded-lg border bg-background px-3 text-foreground"/></label>
+          <label className="grid gap-1 text-xs font-medium">Inicio (hora local del dispositivo)<input name="blockStart" type="datetime-local" required className="min-h-11 min-w-0 rounded-lg border bg-background px-2 text-foreground"/></label>
+          <label className="grid gap-1 text-xs font-medium">Término (hora local del dispositivo)<input name="blockEnd" type="datetime-local" required className="min-h-11 min-w-0 rounded-lg border bg-background px-2 text-foreground"/></label>
+          <Button className="sm:col-span-2" disabled={pending || blocksLoading} type="submit"><Plus className="size-4"/> Agregar bloque</Button>
+        </form>
+      </details>
       <section className="mb-5 grid gap-3 border-b pb-5 lg:grid-cols-3">
         {roles.map((role) => {
           const requirement = requirements.find((item) => item.role === role.value);
@@ -470,6 +530,7 @@ export function StaffAssignmentCenter({
           pending={pending}
           error={message}
           onClose={() => setPanel(null)}
+          blocks={blocks}
           onSubmit={(input) => mutate(() => saveStaffAssignmentAction(input))}
         />
       )}{" "}
@@ -1120,6 +1181,7 @@ function AssignmentDialog({
   projectId,
   staff,
   vehicles,
+  blocks,
   pending,
   error,
   onClose,
@@ -1130,6 +1192,7 @@ function AssignmentDialog({
   projectId: string;
   staff: AssignmentStaffOption[];
   vehicles: AssignmentVehicleOption[];
+  blocks: OperationalBlockRecord[];
   pending: boolean;
   error: string;
   onClose: () => void;
@@ -1166,6 +1229,7 @@ function AssignmentDialog({
               projectId,
               staffId: String(data.get("staffId") ?? ""),
               role: String(data.get("role") ?? ""),
+              blockId: String(data.get("blockId") ?? ""),
               arrivalTime: String(data.get("arrivalTime") ?? ""),
               startTime: String(data.get("startTime") ?? ""),
               finishTime: String(data.get("finishTime") ?? ""),
@@ -1180,6 +1244,16 @@ function AssignmentDialog({
             value={role}
             onChange={setRole}
             options={roles}
+          />
+          <Select
+            label="Bloque operativo (opcional)"
+            name="blockId"
+            value={item?.blockId ?? ""}
+            options={[{ value: "", label: "Sin bloque · horario del evento" },
+              ...blocks.map(block => ({
+                value: block.id,
+                label: `${block.name} · ${new Intl.DateTimeFormat("es-CL", { timeZone: "America/Santiago", hour: "2-digit", minute: "2-digit" }).format(new Date(block.startAt))}–${new Intl.DateTimeFormat("es-CL", { timeZone: "America/Santiago", hour: "2-digit", minute: "2-digit" }).format(new Date(block.endAt))}`,
+              }))]}
           />
           <Select
             label="Staff compatible"
