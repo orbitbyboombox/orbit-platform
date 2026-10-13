@@ -449,6 +449,20 @@ export async function updateCrmEventAction(input: {
 }) {
   try {
     const { client, user } = await founderClient();
+    const { data: existingServices, error: serviceReadError } = await client
+      .from("project_services").select("service_code").eq("project_id", input.projectId);
+    if (serviceReadError) throw serviceReadError;
+    const serviceChanged = existingServices?.length === 1 &&
+      existingServices[0].service_code?.toUpperCase() !== input.service.trim().toUpperCase();
+    if (serviceChanged) {
+      const { data: quotes, error: quoteReadError } = await client.from("quotations")
+        .select("status").eq("project_id", input.projectId).is("deleted_at", null)
+        .order("created_at", { ascending: false }).limit(1);
+      if (quoteReadError) throw quoteReadError;
+      if (["ACCEPTED", "CONVERTED"].includes(quotes?.[0]?.status ?? "")) {
+        return { ok: false as const, error: "El contrato está aceptado: cambia el servicio desde «Servicio contratado» en la ficha del evento. No se guardó este cambio." };
+      }
+    }
     const { error } = await client.rpc("update_crm_event_from_customer_profile", {
       p_project_id: input.projectId,
       p_changes: {

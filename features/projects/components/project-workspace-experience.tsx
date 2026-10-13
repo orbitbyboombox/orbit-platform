@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { ChangeEventService } from "./change-event-service";
 import { EventCommercialDocumentHub } from "@/features/external-tax-documents/event-commercial-document-hub";
 import {
   AlertTriangle,
@@ -879,6 +880,12 @@ export function ProjectWorkspaceExperience(
                     <Empty text="Cuando se agregue un servicio contratado, aparecerá aquí con su duración y extras." />
                   )}
                 </div>
+                <ChangeEventService
+                  projectId={props.eventControl.event.projectId}
+                  current={props.eventControl.event.service}
+                  status={event.status}
+                  serviceCount={event.services.length}
+                />
                 <dl className="mt-4">
                   <Row label="Branding" value="Según cotización" />
                   <Row label="QR" value="Según servicio" />
