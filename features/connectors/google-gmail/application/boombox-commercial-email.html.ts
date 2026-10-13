@@ -44,7 +44,15 @@ const actionButton = (action: CommercialEmailAction, secondary = false) => {
 export function renderBoomboxCommercialEmail(
   input: BoomboxCommercialEmailInput,
 ) {
-  const headerLabel = input.headerLabel ?? "EXPERIENCIAS QUE CONECTAN";
+  // Keep the corporate catalog's three heading levels from repeating "EXPERIENCIAS".
+  // Restrict the copy adjustment to this exact corporate email; all other templates stay unchanged.
+  const corporateCatalog = input.eyebrow === "EXPERIENCIAS CORPORATIVAS"
+    && input.title === "Experiencias BOOMBOX para tu evento";
+  const headerLabel = corporateCatalog
+    ? "EVENTOS CORPORATIVOS"
+    : input.headerLabel ?? "EXPERIENCIAS QUE CONECTAN";
+  const displayEyebrow = corporateCatalog ? "" : input.eyebrow;
+  const displayTitle = corporateCatalog ? "Hagamos que tu evento destaque" : input.title;
   const actions = [
     input.primaryAction ? `<tr><td style="padding:20px 0 0">${actionButton(input.primaryAction)}</td></tr>` : "",
     input.primaryAction && input.primaryActionFallback
@@ -62,7 +70,7 @@ export function renderBoomboxCommercialEmail(
   const fixedLayout = input.fixedLayout ? "table-layout:fixed;" : "";
   const safeWrapping = input.fixedLayout ? ";overflow-wrap:anywhere" : "";
 
-  const heading = `${input.eyebrow ? `<p style="margin:0 0 9px;color:#f78900;font-size:11px;font-weight:700;letter-spacing:.16em">${escapeHtml(input.eyebrow)}</p>` : ""}${input.title ? `<h1 style="margin:0 0 24px;font-size:30px;line-height:1.15;letter-spacing:-.02em;color:#ffffff">${escapeHtml(input.title)}</h1>` : ""}`;
+  const heading = `${displayEyebrow ? `<p style="margin:0 0 9px;color:#f78900;font-size:11px;font-weight:700;letter-spacing:.16em">${escapeHtml(displayEyebrow)}</p>` : ""}${displayTitle ? `<h1 style="margin:0 0 24px;font-size:30px;line-height:1.15;letter-spacing:-.02em;color:#ffffff">${escapeHtml(displayTitle)}</h1> : ""}`;
   const header = input.stackedHeader
     ? `<div style="font-family:Arial,sans-serif;font-size:22px;font-weight:800;letter-spacing:.08em">BOOMBOX</div><div style="margin-top:3px;font-family:Arial,sans-serif;font-size:10px;line-height:1.5;letter-spacing:.18em;color:#f78900">${escapeHtml(headerLabel)}</div>`
     : `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="font-family:Arial,sans-serif;font-size:22px;font-weight:800;letter-spacing:.08em">BOOMBOX</td><td align="right" style="font-family:Arial,sans-serif;font-size:10px;letter-spacing:.18em;color:#f78900">${escapeHtml(headerLabel)}</td></tr></table>`;
