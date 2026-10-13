@@ -323,14 +323,41 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
     {!founderActions.length?<Empty label="No hay decisiones pendientes del Founder."/>:null}
   </section>;
 
-  const upcoming = <section data-command-card aria-labelledby="upcoming-events-title" className="rounded-2xl border p-5 sm:p-6">
-    <div className="flex items-center justify-between gap-3"><PanelTitle id="upcoming-events-title" label="Próximos eventos" /><span className="flex gap-3"><Link className="text-xs text-muted transition hover:text-brand" href="/operations/week">Agenda semanal</Link><Link className="text-xs text-muted transition hover:text-brand" href="/events">Ver calendario</Link></span></div>
-    <div className="mt-4 divide-y">{upcomingEvents.slice(0, 4).map(event => <Link className="group grid grid-cols-[3.25rem_1fr_auto] gap-3 py-3.5 first:pt-0 last:pb-0" href={event.href} key={event.id}>
-      <span className="grid min-h-14 place-items-center rounded-xl border bg-background/50 text-center"><strong className="block text-lg leading-none">{event.date.split(" ")[0]}</strong><span className="text-[9px] font-semibold uppercase text-muted">{event.date.split(" ").slice(1).join(" ")}</span></span>
-      <span className="min-w-0"><strong className="block truncate text-sm">{event.title}</strong><span className="mt-1 block truncate text-xs text-muted">{event.service}</span><span className="mt-1 block truncate text-[11px] text-muted">{event.location || "Ubicación pendiente"} · {event.staff}</span></span>
-      <span className="self-start rounded-lg bg-info-soft px-2 py-1 text-[9px] font-semibold uppercase text-info">{event.status}</span>
-    </Link>)}{!upcomingEvents.length ? <Empty label="No hay eventos próximos." /> : null}</div>
-    <Link className="mt-5 flex items-center justify-center gap-2 border-t pt-4 text-xs font-semibold text-brand" href="/events">Ver todos los eventos <ArrowRight className="size-3.5" /></Link>
+  const formatUpcomingDateParts = (value: string) => {
+    const iso = value.match(/^(\\d{4})-(\\d{2})-(\\d{2})/);
+    const date = iso ? new Date(`${iso[1]}-${iso[2]}-${iso[3]}T12:00:00Z`) : new Date(value);
+    if (Number.isNaN(date.getTime())) return { weekday: "FECHA", day: "—", month: "" };
+    return {
+      weekday: new Intl.DateTimeFormat("es-CL", { weekday: "short", timeZone: "UTC" }).format(date).replace(".", "").toUpperCase(),
+      day: new Intl.DateTimeFormat("es-CL", { day: "2-digit", timeZone: "UTC" }).format(date),
+      month: new Intl.DateTimeFormat("es-CL", { month: "short", timeZone: "UTC" }).format(date).replace(".", "").toUpperCase(),
+    };
+  };
+
+  const upcoming = <section data-command-card aria-labelledby="upcoming-events-title" className="min-w-0 rounded-2xl border p-4 sm:p-6">
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <PanelTitle id="upcoming-events-title" label="Próximos eventos" />
+      <span className="flex flex-wrap gap-x-3 gap-y-2"><Link className="text-xs text-muted transition hover:text-brand" href="/operations/week">Agenda semanal</Link><Link className="text-xs text-muted transition hover:text-brand" href="/events">Ver calendario</Link></span>
+    </div>
+    <div className="mt-4 divide-y">{upcomingEvents.slice(0, 4).map(event => {
+      const d = formatUpcomingDateParts(event.date);
+      return <Link className="group flex min-w-0 items-start gap-3 py-4 first:pt-0 last:pb-0" href={event.href} key={event.id}>
+        <span className="flex min-h-[76px] w-[58px] shrink-0 flex-col items-center justify-center rounded-xl border bg-background/50 text-center">
+          <span className="text-[10px] font-semibold tracking-wider text-muted">{d.weekday}</span>
+          <strong className="text-2xl leading-tight">{d.day}</strong>
+          <span className="text-[10px] font-bold tracking-wider text-brand">{d.month}</span>
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex min-w-0 flex-wrap items-center gap-2">
+            <strong className="min-w-0 break-words text-sm">{event.title}</strong>
+            <span className="max-w-full rounded-lg bg-info-soft px-2 py-1 text-[9px] font-semibold uppercase text-info break-words">{event.status}</span>
+          </span>
+          <span className="mt-1 block break-words text-xs text-muted">{event.service}</span>
+          <span className="mt-1 block break-words text-[11px] text-muted">{event.location || "Ubicación pendiente"} · {event.staff}</span>
+        </span>
+      </Link>;
+    })}{!upcomingEvents.length ? <Empty label="No hay eventos próximos." /> : null}</div>
+    <Link className="mt-5 flex min-h-11 items-center justify-center gap-2 border-t pt-4 text-xs font-semibold text-brand" href="/events">Ver todos los eventos <ArrowRight className="size-3.5" /></Link>
   </section>;
 
   const activity = <section data-command-card aria-labelledby="recent-activity-title" className="rounded-2xl border p-5 sm:p-6">
