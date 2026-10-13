@@ -647,35 +647,118 @@ export function ProjectWorkspaceExperience(
               </div>
             </details>
           </section>
-          <style jsx global>{`
-            @media (max-width: 767px) {
-              #event-mobile-panels:not([data-active="ALL"]) > * { display: none !important; }
-              #event-mobile-panels[data-active="event-summary-mobile"] > #event-summary-mobile,
-              #event-mobile-panels[data-active="event-summary-mobile"] > :has(#customer),
-              #event-mobile-panels[data-active="event-summary-mobile"] > :has(#health),
-              #event-mobile-panels[data-active="event-finance"] > :has(#event-finance),
-              #event-mobile-panels[data-active="event-finance"] > :has(#real-cost-adjustments),
-              #event-mobile-panels[data-active="event-finance"] > :has(#payroll),
-              #event-mobile-panels[data-active="staff-assignment"] > :has(#operations),
-              #event-mobile-panels[data-active="staff-assignment"] > :has(#equipment-assignment),
-              #event-mobile-panels[data-active="operations"] > :has(#operations),
-              #event-mobile-panels[data-active="operations"] > :has(#equipment-assignment),
-              #event-mobile-panels[data-active="operations"] > :has(#event-control-center),
-              #event-mobile-panels[data-active="documents"] > :has(#documents),
-              #event-mobile-panels[data-active="google-calendar"] > :has(#google),
-              #event-mobile-panels[data-active="google-calendar"] > :has(#customer-portal),
-              #event-mobile-panels[data-active="google-calendar"] > :has(#timeline) { display: block !important; }
-              #event-mobile-panels:not([data-active="ALL"]) section[id] { display: none !important; }
-              #event-mobile-panels[data-active="event-summary-mobile"] :is(#customer, #commercial, #service, #health),
-              #event-mobile-panels[data-active="event-finance"] :is(#event-finance, #payroll),
-              #event-mobile-panels[data-active="staff-assignment"] #operations,
-              #event-mobile-panels[data-active="operations"] :is(#operations, #event-control-center),
-              #event-mobile-panels[data-active="documents"] #documents,
-              #event-mobile-panels[data-active="google-calendar"] :is(#google, #timeline, #customer-portal) { display: block !important; }
-            }
-          `}</style>
+          <style jsx global>{`@media (max-width: 767px) {
+#event-mobile-panels:not([data-active="ALL"]) > * { display: none !important; }
+#event-mobile-panels[data-active="event-summary-mobile"] > #event-summary-mobile {display:block!important;}
+#event-mobile-panels[data-active="event-summary-mobile"] > :has(#customer) {display:grid!important;}
+#event-mobile-panels[data-active="event-summary-mobile"] > section > :is(#customer, :has(#customer)) {display:block!important;}
+#event-mobile-panels[data-active="event-summary-mobile"] > section > div:has(#customer) {display:block!important;}
+#event-mobile-panels[data-active="event-summary-mobile"] #customer {display:block!important;}
+#event-mobile-panels[data-active="event-summary-mobile"] > :has(#commercial) {display:grid!important;}
+#event-mobile-panels[data-active="event-summary-mobile"] > section > :is(#commercial, :has(#commercial)) {display:block!important;}
+#event-mobile-panels[data-active="event-summary-mobile"] > section > div:has(#commercial) {display:block!important;}
+#event-mobile-panels[data-active="event-summary-mobile"] #commercial {display:block!important;}
+#event-mobile-panels[data-active="event-summary-mobile"] > :has(#service) {display:grid!important;}
+#event-mobile-panels[data-active="event-summary-mobile"] > section > :is(#service, :has(#service)) {display:block!important;}
+#event-mobile-panels[data-active="event-summary-mobile"] > section > div:has(#service) {display:block!important;}
+#event-mobile-panels[data-active="event-summary-mobile"] #service {display:block!important;}
+#event-mobile-panels[data-active="event-summary-mobile"] > :has(#health) {display:grid!important;}
+#event-mobile-panels[data-active="event-summary-mobile"] > section > :is(#health, :has(#health)) {display:block!important;}
+#event-mobile-panels[data-active="event-summary-mobile"] > section > div:has(#health) {display:block!important;}
+#event-mobile-panels[data-active="event-summary-mobile"] #health {display:block!important;}
+#event-mobile-panels[data-active="event-finance"] > :has(#event-finance) {display:grid!important;}
+#event-mobile-panels[data-active="event-finance"] > section > :is(#event-finance, :has(#event-finance)) {display:block!important;}
+#event-mobile-panels[data-active="event-finance"] > section > div:has(#event-finance) {display:block!important;}
+#event-mobile-panels[data-active="event-finance"] #event-finance {display:block!important;}
+#event-mobile-panels[data-active="event-finance"] > :has(#payroll) {display:grid!important;}
+#event-mobile-panels[data-active="event-finance"] > section > :is(#payroll, :has(#payroll)) {display:block!important;}
+#event-mobile-panels[data-active="event-finance"] > section > div:has(#payroll) {display:block!important;}
+#event-mobile-panels[data-active="event-finance"] #payroll {display:block!important;}
+#event-mobile-panels[data-active="event-finance"] > :has(#real-cost-adjustments) {display:grid!important;}
+#event-mobile-panels[data-active="event-finance"] > section > :is(#real-cost-adjustments, :has(#real-cost-adjustments)) {display:block!important;}
+#event-mobile-panels[data-active="event-finance"] > section > div:has(#real-cost-adjustments) {display:block!important;}
+#event-mobile-panels[data-active="event-finance"] #real-cost-adjustments {display:block!important;}
+#event-mobile-panels[data-active="operations"] > #event-control-center {display:block!important;}
+#event-mobile-panels[data-active="operations"] > :has(#operations) {display:grid!important;}
+#event-mobile-panels[data-active="operations"] > section > :is(#operations, :has(#operations)) {display:block!important;}
+#event-mobile-panels[data-active="operations"] > section > div:has(#operations) {display:block!important;}
+#event-mobile-panels[data-active="operations"] #operations {display:block!important;}
+#event-mobile-panels[data-active="operations"] > :has(#event-control-center) {display:grid!important;}
+#event-mobile-panels[data-active="operations"] > section > :is(#event-control-center, :has(#event-control-center)) {display:block!important;}
+#event-mobile-panels[data-active="operations"] > section > div:has(#event-control-center) {display:block!important;}
+#event-mobile-panels[data-active="operations"] #event-control-center {display:block!important;}
+#event-mobile-panels[data-active="operations"] > :has(#equipment-assignment) {display:grid!important;}
+#event-mobile-panels[data-active="operations"] > section > :is(#equipment-assignment, :has(#equipment-assignment)) {display:block!important;}
+#event-mobile-panels[data-active="operations"] > section > div:has(#equipment-assignment) {display:block!important;}
+#event-mobile-panels[data-active="operations"] #equipment-assignment {display:block!important;}
+#event-mobile-panels[data-active="operations"] > :has(#tasks) {display:grid!important;}
+#event-mobile-panels[data-active="operations"] > section > :is(#tasks, :has(#tasks)) {display:block!important;}
+#event-mobile-panels[data-active="operations"] > section > div:has(#tasks) {display:block!important;}
+#event-mobile-panels[data-active="operations"] #tasks {display:block!important;}
+#event-mobile-panels[data-active="documents"] > :has(#documents) {display:grid!important;}
+#event-mobile-panels[data-active="documents"] > section > :is(#documents, :has(#documents)) {display:block!important;}
+#event-mobile-panels[data-active="documents"] > section > div:has(#documents) {display:block!important;}
+#event-mobile-panels[data-active="documents"] #documents {display:block!important;}
+#event-mobile-panels[data-active="google-calendar"] > :has(#google) {display:grid!important;}
+#event-mobile-panels[data-active="google-calendar"] > section > :is(#google, :has(#google)) {display:block!important;}
+#event-mobile-panels[data-active="google-calendar"] > section > div:has(#google) {display:block!important;}
+#event-mobile-panels[data-active="google-calendar"] #google {display:block!important;}
+#event-mobile-panels[data-active="google-calendar"] > :has(#timeline) {display:grid!important;}
+#event-mobile-panels[data-active="google-calendar"] > section > :is(#timeline, :has(#timeline)) {display:block!important;}
+#event-mobile-panels[data-active="google-calendar"] > section > div:has(#timeline) {display:block!important;}
+#event-mobile-panels[data-active="google-calendar"] #timeline {display:block!important;}
+#event-mobile-panels:not([data-active="ALL"]) > section > * {display:none!important;}
+#event-mobile-panels[data-active="event-summary-mobile"] > section > :is(#customer, :has(#customer)) {display:block!important;}
+#event-mobile-panels[data-active="event-summary-mobile"] > section > :is(#commercial, :has(#commercial)) {display:block!important;}
+#event-mobile-panels[data-active="event-summary-mobile"] > section > :is(#service, :has(#service)) {display:block!important;}
+#event-mobile-panels[data-active="event-summary-mobile"] > section > :is(#health, :has(#health)) {display:block!important;}
+#event-mobile-panels[data-active="event-finance"] > section > :is(#event-finance, :has(#event-finance)) {display:block!important;}
+#event-mobile-panels[data-active="event-finance"] > section > :is(#payroll, :has(#payroll)) {display:block!important;}
+#event-mobile-panels[data-active="event-finance"] > section > :is(#real-cost-adjustments, :has(#real-cost-adjustments)) {display:block!important;}
+#event-mobile-panels[data-active="operations"] > section > :is(#operations, :has(#operations)) {display:block!important;}
+#event-mobile-panels[data-active="operations"] > section > :is(#event-control-center, :has(#event-control-center)) {display:block!important;}
+#event-mobile-panels[data-active="operations"] > section > :is(#equipment-assignment, :has(#equipment-assignment)) {display:block!important;}
+#event-mobile-panels[data-active="operations"] > section > :is(#tasks, :has(#tasks)) {display:block!important;}
+#event-mobile-panels[data-active="documents"] > section > :is(#documents, :has(#documents)) {display:block!important;}
+#event-mobile-panels[data-active="google-calendar"] > section > :is(#google, :has(#google)) {display:block!important;}
+#event-mobile-panels[data-active="google-calendar"] > section > :is(#timeline, :has(#timeline)) {display:block!important;}
+#event-mobile-panels[data-active="staff-assignment"] > #mobile-staff-content, #event-mobile-panels[data-active="event-finance"] > #mobile-receivable-content, #event-mobile-panels[data-active="google-calendar"] > #mobile-communications-content {display:block!important;}
+}`}</style>
           <div id="event-mobile-panels" data-active={mobileEventPanel} className="scroll-mt-24 space-y-6">
           <div className="scroll-mt-24" id="event-summary-mobile">{capacityPanel}</div>
+          <div id="mobile-staff-content" className="md:hidden">
+            <div className="rounded-2xl border bg-card p-4">
+              <h2 className="mb-3 text-lg font-semibold">Staff y asignaciones</h2>
+              <StaffAssignmentCenter {...event.staffAssignments} />
+            </div>
+          </div>
+          <div id="mobile-receivable-content" className="md:hidden">
+            <section className="rounded-2xl border bg-card p-4">
+              <h2 className="mb-3 text-lg font-semibold">Cobros y estado de pago</h2>
+              {event.receivable ? <dl className="space-y-1">
+                <Row label="Total por cobrar" value={money(event.receivable.amount)} />
+                <Row label="Recibido" value={money(event.receivable.paidAmount)} />
+                <Row label="Saldo pendiente" value={money(event.receivable.outstandingBalance)} />
+                <Row label="Estado" value={event.receivable.status} />
+                <Row label="Vencimiento" value={event.receivable.dueDate || "Sin fecha"} />
+                <Row label="Factura" value={event.receivable.invoiceNumber || "Sin factura emitida"} />
+              </dl> : <Empty text="Todavía no hay cuentas por cobrar registradas para este evento." />}
+            </section>
+          </div>
+          <div id="mobile-communications-content" className="md:hidden">
+            <section className="rounded-2xl border bg-card p-4">
+              <h2 className="mb-3 text-lg font-semibold">Comunicaciones y enlaces</h2>
+              <dl className="space-y-1">
+                <Row label="Google Calendar" value={<Connector status={event.google.calendarStatus} href={event.google.calendarUrl} />} />
+                <Row label="Google Drive" value={<Connector status={event.google.driveStatus} href={event.google.driveUrl} />} />
+                <Row label="Gmail" value={<Connector status={event.google.gmailStatus} />} />
+                <Row label="Conversación" value={event.google.gmailThread || "Sin conversación"} />
+              </dl>
+              <button type="button" className="mt-4 min-h-11 rounded-xl border px-4 text-sm font-semibold text-brand" onClick={generatePortal}>{portalUrl ? "Regenerar acceso al portal" : "Generar acceso al portal"}</button>
+              {portalUrl ? <a className="ml-3 text-sm text-brand underline" href={portalUrl} target="_blank" rel="noreferrer">Abrir portal</a> : null}
+              {portalFeedback ? <p className="mt-2 text-sm text-muted" role="status">{portalFeedback}</p> : null}
+            </section>
+          </div>
 
           <section className="grid gap-6 xl:grid-cols-2">
             {moduleVisible("GENERAL_INFORMATION") && (
