@@ -237,7 +237,28 @@ export function StaffPortalDashboard({
         </Link>
       </header>
       <div className={mobileTab==="perfil"?"block":"hidden md:block"}><StaffExpenseSubmissionPanel events={events} submissions={expenseSubmissions} /></div>
-      <section className={`${mobileTab==="rutas"?"block":"hidden"} space-y-3 md:block`}><h2 className="text-xl font-semibold">Mis rutas de montaje y desmontaje</h2>{events.filter(event=>event.date>=today&&(event.logistics.length||event.roles.some(role=>/ASSEMBLY|DISASSEMBLY|MONTAJE|DESMONTAJE/i.test(role)))).map(event=><article key={event.id} className="rounded-2xl border bg-card p-4"><p className="font-semibold">{event.customer}</p><p className="text-sm text-muted">{event.date} · {event.address}</p><p className="mt-2 text-sm">{event.roles.join(" · ")}</p>{event.logistics.map(trip=><div key={trip.id} className="mt-3 rounded-xl border p-3 text-sm"><p className="font-semibold">{trip.type} · {trip.status}</p><p>{trip.route}</p><p>{trip.departure ? new Date(trip.departure).toLocaleString("es-CL",{timeZone:"America/Santiago"}) : "Horario por confirmar"}</p><p>{trip.meetingPoint}</p><p>{trip.instructions}</p></div>)}<button type="button" className="mt-3 text-brand font-semibold" onClick={()=>{setSelected(event);setMobileTab("eventos")}}>Abrir evento →</button></article>)}{!events.some(event=>event.date>=today&&(event.logistics.length||event.roles.some(role=>/ASSEMBLY|DISASSEMBLY|MONTAJE|DESMONTAJE/i.test(role))))&&<p className="text-sm text-muted">No tienes rutas o montajes asignados para los próximos eventos.</p>}</section>
+      <section className={`${mobileTab==="rutas"?"block":"hidden"} space-y-4 md:block`}>
+        <h2 className="text-xl font-semibold">Rutas · montajes y desmontajes</h2>
+        <p className="text-sm text-muted">Todos tus eventos asignados, agrupados por día. Los eventos disponibles para tomar se muestran por separado en Inicio.</p>
+        {[...new Set(events.filter(event=>event.date>=today).map(event=>event.date))].sort().map(date=><div key={date} className="rounded-2xl border bg-card p-4">
+          <h3 className="mb-3 text-lg font-bold text-brand">{new Date(date+"T12:00:00").toLocaleDateString("es-CL",{weekday:"long",day:"numeric",month:"long"})}</h3>
+          <div className="space-y-3">{events.filter(event=>event.date===date).map(event=><article key={event.id} className="rounded-xl border p-3">
+            <p className="font-semibold break-words">{event.customer}</p>
+            <p className="text-sm text-muted">{event.start} – {event.finish} · {event.service}</p>
+            <p className="mt-1 text-sm break-words">{event.address} · {event.district}</p>
+            <p className="mt-2 text-sm font-semibold">Trabajos: {event.roles.join(" · ")||"Por confirmar"}</p>
+            {event.logistics.length ? event.logistics.map(trip=><div key={trip.id} className="mt-3 rounded-xl border border-brand/30 p-3 text-sm">
+              <p className="font-semibold text-brand">{trip.type} · {trip.status}</p>
+              <p className="mt-1 break-words">{trip.route||"Recorrido por confirmar"}</p>
+              <p>Salida: {trip.departure?new Date(trip.departure).toLocaleString("es-CL",{timeZone:"America/Santiago"}):"Por confirmar"}</p>
+              {trip.meetingPoint&&<p>Punto de encuentro: {trip.meetingPoint}</p>}
+              {trip.instructions&&<p>Instrucciones: {trip.instructions}</p>}
+            </div>) : <p className="mt-2 text-xs text-muted">Sin ruta logística publicada para este evento.</p>}
+            <button type="button" className="mt-3 min-h-11 font-semibold text-brand" onClick={()=>{setSelected(event);setMobileTab("eventos")}}>Ver detalle del evento →</button>
+          </article>)}</div>
+        </div>)}
+        {!events.some(event=>event.date>=today)&&<p className="rounded-xl border p-4 text-muted">No tienes eventos asignados próximamente.</p>}
+      </section>
       <section className={`${mobileTab==="pagos"?"block":"hidden"} space-y-3 md:block`}><h2 className="text-xl font-semibold">Mis pagos</h2>{monthlyAccounts.map(account=><details key={account.id} className="rounded-2xl border bg-card p-3"><summary className="cursor-pointer py-2 font-semibold text-brand">Liquidación de {account.month ? new Intl.DateTimeFormat("es-CL",{month:"long",year:"numeric",timeZone:"UTC"}).format(new Date(`${String(account.month).slice(0,7)}-01T12:00:00Z`)) : "mes"} · Ver detalle</summary><div className="mt-3"><><p className="mb-3 rounded-xl border border-brand/30 p-3 text-sm">Esta liquidación mensual puede estar pendiente de conciliación. Para conocer tus honorarios efectivamente pendientes, consulta el Resumen de honorarios al final de esta pestaña. No emitas boleta basándote en importes que no coincidan.</p><StaffMonthlyAccountPanel account={account} mode="STAFF"/></></div></details>)}{!monthlyAccounts.length&&<p className="rounded-2xl border p-4 text-sm text-muted">Aún no hay liquidaciones mensuales disponibles.</p>}</section>
       <section className={`${mobileTab==="inicio"?"grid":"hidden"} grid-cols-2 gap-2 md:grid md:gap-3 sm:grid-cols-2 xl:grid-cols-3`}>
         <Metric label="Eventos de hoy" onClick={() => {setEventFilter("hoy");setAssignedExpanded(true);setMobileTab("eventos");}} value={String(todayEvents.length)} icon={CalendarDays} />
