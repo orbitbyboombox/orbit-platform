@@ -45,6 +45,10 @@ export function evaluateBoomboxWebLead(input: WebLead): WebLeadDecision {
     : /cumpleanos|birthday/.test(text) ? "BIRTHDAYS"
     : /graduacion|graduados?|licenciatura/.test(text) ? "GRADUATIONS"
     : "REVIEW";
+  const eventDate = clean(input.eventDate);
+  const validEventDate = /^\\d{4}-\\d{2}-\\d{2}$/.test(eventDate)
+    && !Number.isNaN(Date.parse(`${eventDate}T12:00:00Z`))
+    && new Date(`${eventDate}T12:00:00Z`).toISOString().slice(0, 10) === eventDate;
   const submissionId = clean(input.submissionId);
   const identity = submissionId
     ? `web-submission:${submissionId}`
@@ -55,7 +59,8 @@ export function evaluateBoomboxWebLead(input: WebLead): WebLeadDecision {
     : !clean(input.name) ? "MISSING_NAME"
     : manualEvent ? "MANUAL_COMMERCIAL_REVIEW"
     : category === "REVIEW" ? "UNSUPPORTED_EVENT_TYPE"
-    : !clean(input.eventDate) ? "MISSING_EVENT_DATE"
+    : !eventDate ? "MISSING_EVENT_DATE"
+    : !validEventDate ? "INVALID_EVENT_DATE"
     : null;
   return { eligible: reason === null, category, dedupeKey, reason, normalizedEmail, sourceDomain: domain };
 }
