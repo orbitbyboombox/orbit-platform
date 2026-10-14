@@ -18,27 +18,60 @@ import {
 const sha256 = (value: string | Uint8Array) => createHash("sha256").update(value).digest("hex");
 const tokenHash = (token: string) => sha256(token);
 const appOrigin = () => process.env.NEXT_PUBLIC_APP_URL ?? (process.env.GOOGLE_WORKSPACE_REDIRECT_URI ? new URL(process.env.GOOGLE_WORKSPACE_REDIRECT_URI).origin : process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "http://localhost:3000");
+const withTimeout = async <T>(operation: Promise<T>, timeoutMs = 20_000): Promise<T> => {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([operation, new Promise<T>((_, reject) => { timeout = setTimeout(() => reject(new Error("La preparación del enlace tardó demasiado. Intenta nuevamente.")), timeoutMs); })]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+};
 
-export async function createSigningInvitation(agreementId: string, actorId: string): Promise<{ url: string; expiresAt: string }> {
+export type SigningInvitationResult = { url: string; expiresAt: string; draftPrepared: boolean; warning?: string };
+
+export class SigningInvitationError extends Error {
+  constructor(public readonly stage: string, public readonly code: string, message: string, public readonly details?: string, public readonly hint?: string) {
+    super(message);
+    this.name = "SigningInvitationError";
+  }
+}
+
+function stageError(stage: string, code: string, error: unknown, fallback: string): SigningInvitationError {
+  const value = typeof error === "object" && error !== null ? error as { message?: unknown; details?: unknown; hint?: unknown } : {};
+  return new SigningInvitationError(stage, code, typeof value.message === "string" ? value.message : error instanceof Error ? error.message : fallback, typeof value.details === "string" ? value.details : undefined, typeof value.hint === "string" ? value.hint : undefined);
+}
+
+export async function createSigningInvitation(agreementId: string, actorId: string): Promise<SigningInvitationResult> {
   const admin = createAdminClient();
   const company=await loadCompanySettings(admin);
-  const { data: agreement, error } = await admin.from("agreements").select("id,status,project_id,projects!inner(name,event_date,customer_id,customers!inner(first_name,last_name,email))").eq("id", agreementId).single();
-  if (error) throw error; if (agreement.status === "SIGNED") throw new Error("El acuerdo ya está firmado.");
-  const project = agreement.projects as unknown as { name: string; event_date: string; customer_id: string; customers: { first_name: string; last_name: string; email: string } };
-  if (!project.customers.email) throw new Error("El cliente necesita un correo antes de enviar el acuerdo.");
-  await admin.from("agreement_signing_tokens").update({ revoked_at: new Date().toISOString() }).eq("agreement_id", agreementId).is("consumed_at", null).is("revoked_at", null);
+  const { data: agreement, error } = await admin.from("agreements").select("id,status,project_id,projects!inner(name,event_date,customer_id,customers!inner(full_name,email))").eq("id", agreementId).single();
+  if (error) throw stageError("AGREEMENT_LOOKUP", "AGREEMENT_LOOKUP_FAILED", error, "No fue posible cargar el acuerdo."); if (agreement.status === "SIGNED") throw new SigningInvitationError("VALIDATION", "AGREEMENT_ALREADY_SIGNED", "El acuerdo ya está firmado.");
+  const project = agreement.projects as unknown as { name: string; event_date: string; customer_id: string; customers: { full_name: string | null; email: string } };
+  if (!project.customers.email) throw new SigningInvitationError("VALIDATION", "CUSTOMER_EMAIL_MISSING", "El cliente necesita un correo antes de preparar el acuerdo.");
+  const { error: revokeError } = await admin.from("agreement_signing_tokens").update({ revoked_at: new Date().toISOString() }).eq("agreement_id", agreementId).is("consumed_at", null).is("revoked_at", null);
+  if (revokeError) throw stageError("SIGNING_TOKEN_REVOKE", "SIGNING_TOKEN_REVOKE_FAILED", revokeError, "No fue posible invalidar el enlace anterior.");
   const token = randomBytes(32).toString("base64url"); const expiresAt = new Date(Date.now() + 7 * 86_400_000).toISOString();
   const { error: insertError } = await admin.from("agreement_signing_tokens").insert({ agreement_id: agreementId, token_hash: tokenHash(token), expires_at: expiresAt, created_by: actorId });
-  if (insertError) throw insertError;
-  const url = `${appOrigin()}/sign/${token}`; const accessToken = await loadGoogleWorkspaceAccessToken();
-  let draft;
-  try { draft = await new GoogleGmailApiProvider(accessToken).createDraft({ to: project.customers.email, subject: `Tu acuerdo ${company.brandName} · ${project.name}`, textBody: `Revisa y firma tu acuerdo: ${url}`, htmlBody: `<p>Hola ${escapeHtml(project.customers.first_name)},</p><p>Tu acuerdo ${escapeHtml(company.brandName)} está listo para revisión y firma.</p><p><a href="${url}">Revisar y firmar acuerdo</a></p><p>Este enlace es personal, vence en 7 días y funciona una sola vez.</p>`, driveFileIds: [] }); }
-  catch (draftError) { await admin.from("agreement_signing_tokens").update({ revoked_at: new Date().toISOString() }).eq("token_hash", tokenHash(token)); throw draftError; }
+  if (insertError) throw stageError("SIGNING_TOKEN_INSERT", "SIGNING_TOKEN_CREATE_FAILED", insertError, "No fue posible crear el enlace de firma.");
+  const url = `${appOrigin()}/sign/${token}`;
+  let draft: { threadId?: string; messageId?: string } | null = null;
+  try {
+    let accessToken: string;
+    try { accessToken = await withTimeout(loadGoogleWorkspaceAccessToken()); }
+    catch (error) { throw stageError("GOOGLE_TOKEN", "GOOGLE_TOKEN_FAILED", error, "No fue posible autenticar Google Workspace."); }
+    try { draft = await withTimeout(new GoogleGmailApiProvider(accessToken).createDraft({ to: project.customers.email, subject: `Tu acuerdo ${company.brandName} · ${project.name}`, textBody: `Revisa y firma tu acuerdo: ${url}`, htmlBody: `<p>Hola ${escapeHtml(firstName(project.customers.full_name, project.customers.email))},</p><p>Tu acuerdo ${escapeHtml(company.brandName)} está listo para revisión y firma.</p><p><a href="${url}">Revisar y firmar acuerdo</a></p><p>Este enlace es personal, vence en 7 días y funciona una sola vez.</p>`, driveFileIds: [] })); }
+    catch (error) { throw stageError("GMAIL_DRAFT", "GMAIL_DRAFT_FAILED", error, "No fue posible preparar el borrador Gmail."); }
+  } catch (draftError) {
+    const typed = draftError instanceof SigningInvitationError ? draftError : stageError("GMAIL_DRAFT", "GMAIL_DRAFT_FAILED", draftError, "No fue posible preparar el borrador Gmail.");
+    console.error(JSON.stringify({ level: "error", event: "agreement.signing.gmail_draft_failed", agreementId, stage: typed.stage, code: typed.code, message: typed.message, details: typed.details, hint: typed.hint }));
+    const warning = typed.stage === "GOOGLE_TOKEN" ? `Enlace preparado. ${typed.message}` : "Enlace preparado. No fue posible preparar el borrador Gmail.";
+    return { url, expiresAt, draftPrepared: false, warning };
+  }
   await Promise.all([
     admin.from("communications").insert({ customer_id: project.customer_id, project_id: agreement.project_id, channel: "GMAIL", direction: "OUTBOUND", communication_type: "CONTRACT", thread_key: draft.threadId, subject: `Tu acuerdo ${company.brandName} · ${project.name}`, body: "Borrador preparado para confirmación interna.", status: "DRAFT", external_message_id: draft.messageId, created_by: actorId }),
     timeline(admin, { projectId: agreement.project_id, agreementId, action: "AGREEMENT_SENT", message: "Acuerdo preparado y borrador Gmail creado.", actorId }),
   ]);
-  return { url, expiresAt };
+  return { url, expiresAt, draftPrepared: true };
 }
 
 export async function openSigningAgreement(token: string) {
@@ -51,7 +84,7 @@ export async function openSigningAgreement(token: string) {
   return agreement;
 }
 
-export async function confirmDigitalSignature(input: { token: string; signatureDataUrl: string; ipAddress: string; userAgent: string; suppressCustomerDelivery?: boolean }) {
+export async function confirmDigitalSignature(input: { token: string; signatureDataUrl: string; ipAddress: string; userAgent: string; suppressCustomerDelivery?: boolean; smokeMode?: boolean }) {
   const confirmationStartedAt = performance.now();
   const timings: Record<string, number> = {};
   const measured = async <T>(stage: string, operation: () => Promise<T>) => {
@@ -70,27 +103,31 @@ export async function confirmDigitalSignature(input: { token: string; signatureD
     const operational=Array.isArray(agreement.projects.project_operational_contracts)?agreement.projects.project_operational_contracts[0]:agreement.projects.project_operational_contracts;
     const commercial=customerCommercialPresentation({serviceCodes:services.map(item=>item.service_code),commercialItems:customerCommercialItemsFromSnapshot(quotation?.accepted_snapshot),serviceStartAt:operational?.service_start_at,serviceEndAt:operational?.service_end_at,eventDurationHours:Number(operations.durationHours??0)||null,serviceDurations:services.map(item=>Number(item.duration_hours??0)||null)});
   const financial=acceptedCommercialFinancialPresentation(quotation?.accepted_snapshot ?? quotation?.pricing_snapshot,{subtotal:quotation?.subtotal,discountTotal:quotation?.discount_total,taxTotal:quotation?.tax_total,grandTotal:quotation?.grand_total,finalCustomerPrice:quotation?.final_customer_price,depositPercent:quotation?.deposit_percent,transportTotal:quotation?.transport_total});
-    const signaturePath = `${agreement.project_id}/${agreement.id}/signature.png`;
+    const signaturePath = input.smokeMode ? `smoke:signature:${agreement.project_id}` : `${agreement.project_id}/${agreement.id}/signature.png`;
     const verificationCode=sha256(`${agreement.id}:${signedAt}:${sha256(signature)}`).slice(0,24).toUpperCase();
     const [signatureUpload, pdfBytes] = await measured("signature_and_pdf", () => Promise.all([
-      admin.storage.from("orbit-signatures").upload(signaturePath, signature, { contentType: "image/png", upsert: false }),
+      input.smokeMode ? Promise.resolve({ data: null, error: null }) : admin.storage.from("orbit-signatures").upload(signaturePath, signature, { contentType: "image/png", upsert: false }),
       createSignedAgreementPdf({ quotationNumber: quotation?.quotation_number ?? "Sin cotización", customer: customer.full_name, customerRut:customer.rut??"Por confirmar",customerEmail:customer.email,customerPhone:customer.phone??"Por confirmar",event:agreement.projects.name,eventDate:agreement.projects.event_date,eventTime:agreement.projects.event_time?.slice(0,5)??"Por confirmar",services:commercial.service,hours:commercial.duration,extras:commercial.extrasLabel,finalCustomerPrice:financial.total,companyCommercial:Boolean(customer.company?.trim())||/CORPORATE|EMPRESA/i.test(agreement.projects.project_type),netAmount:financial.net,vatAmount:financial.vat,depositPercent:financial.depositPercent,depositAmount:financial.deposit,balanceAmount:financial.balance, venue: agreement.projects.location ?? "Por confirmar", address:String(operations.eventAddress??agreement.projects.city??"Por confirmar"),operationalContact:String(operations.operationalContact??"Equipo BOOMBOX"),signaturePng: signature, signedAt, agreementVersion: agreement.template_version,verificationCode,portalUrl:"https://orbit.boom-box.cl/portal",branding:{productName:company.productName,productVersion:company.productVersion,brandName:company.brandName,poweredBy:company.poweredBy,footer:company.contractFooter,currency:company.currency,locale:company.locale,timezone:company.timezone} }),
     ]));
     if (signatureUpload.error) throw signatureUpload.error;
-    const pdfPath = `${agreement.project_id}/${agreement.id}/agreement-signed.pdf`; const checksum = sha256(pdfBytes);
-    const pdfUpload = await measured("contract_storage", () =>
-      admin.storage.from("orbit-documents").upload(pdfPath, pdfBytes, { contentType: "application/pdf", upsert: false }),
-    );
+    const pdfPath = input.smokeMode ? `smoke:agreement:${agreement.project_id}` : `${agreement.project_id}/${agreement.id}/agreement-signed.pdf`; const checksum = sha256(pdfBytes);
+    const pdfUpload = input.smokeMode
+      ? { data: null, error: null }
+      : await measured("contract_storage", () => admin.storage.from("orbit-documents").upload(pdfPath, pdfBytes, { contentType: "application/pdf", upsert: false }));
     if (pdfUpload.error) throw pdfUpload.error;
     const evidenceHash = sha256(`${agreement.id}:${signedAt}:${checksum}:${sha256(signature)}`); const device = deviceInfo(input.userAgent);
     const [evidenceWrite, documentWrite, agreementWrite] = await measured("signature_persistence", () => Promise.all([
       admin.from("agreement_evidence").insert({ agreement_id: agreement.id, signer_name: customer.full_name, signer_email: customer.email, signature_path: signaturePath, accepted_terms_version: agreement.template_version, agreement_version: agreement.template_version, ip_hash: sha256(input.ipAddress), user_agent: input.userAgent.slice(0, 1000), device_type: device.device, browser_name: device.browser, signed_at: signedAt, evidence_hash: evidenceHash }),
-      admin.from("documents").insert({ project_id: agreement.project_id, customer_id: agreement.projects.customer_id, document_type: "SIGNED_AGREEMENT", storage_bucket: "orbit-documents", storage_path: pdfPath, checksum }),
+      admin.from("documents").insert({ project_id: agreement.project_id, customer_id: agreement.projects.customer_id, document_type: "SIGNED_AGREEMENT", storage_bucket: "orbit-documents", storage_path: input.smokeMode ? `smoke:agreement:${agreement.project_id}` : pdfPath, checksum, metadata: input.smokeMode ? { smokeMode: true, externalSink: `smoke:agreement:${agreement.project_id}` } : undefined }),
       admin.from("agreements").update({ status: "SIGNED", signed_pdf_path: pdfPath, signed_at: signedAt, locked_at: signedAt, updated_at: signedAt }).eq("id", agreement.id).neq("status", "SIGNED"),
     ]));
     if (evidenceWrite.error) throw evidenceWrite.error; if (documentWrite.error) throw documentWrite.error; if (agreementWrite.error) throw agreementWrite.error;
     await admin.from("agreement_signing_tokens").update({ consumed_at: signedAt, processing_at: null }).eq("id", claim.id);
     after(async () => {
+      if (input.smokeMode) {
+        console.info(JSON.stringify({ level: "info", event: "automatic_booking.smoke_sink", sink: "drive_contract", projectId: agreement.project_id }));
+        return;
+      }
       await Promise.all([
         timeline(admin, { projectId: agreement.project_id, agreementId: agreement.id, action: "PDF_GENERATED", message: "PDF firmado generado correctamente.", actorId: null }),
         timeline(admin, { projectId: agreement.project_id, agreementId: agreement.id, action: "AGREEMENT_SIGNED", message: "Acuerdo firmado por el cliente.", actorId: null }),
@@ -113,12 +150,12 @@ export async function confirmDigitalSignature(input: { token: string; signatureD
       try { return await createCustomerPortalAccess(agreement.project_id, deliveryActorId); }
       catch (error) {
         console.error(JSON.stringify({ level: "error", event: "agreement.boundary_b.portal_failed", agreementId: agreement.id, error: error instanceof Error ? error.message : String(error) }));
-        return { url: `${appOrigin()}/portal`, expiresAt: signedAt };
+        return { url: null, expiresAt: signedAt };
       }
     });
     if (!input.suppressCustomerDelivery) after(async () => {
       const startedAt = performance.now();
-      try { await deliverConfirmedReservationEmail({ projectId: agreement.project_id, actorId: deliveryActorId, portal }); }
+      try { await deliverConfirmedReservationEmail({ projectId: agreement.project_id, actorId: deliveryActorId, portal: portal.url ? portal : { url: "", expiresAt: portal.expiresAt } }); }
       catch (error) { console.error(JSON.stringify({ level: "error", event: "automatic_booking.background_email_failed", projectId: agreement.project_id, error: error instanceof Error ? error.message : String(error) })); }
       finally { console.info(JSON.stringify({ level: "info", event: "automatic_booking.background_email_timing", projectId: agreement.project_id, durationMs: Math.round(performance.now() - startedAt) })); }
     });
@@ -135,3 +172,4 @@ async function openAgreementForSigning(admin: ReturnType<typeof createAdminClien
 async function timeline(admin: ReturnType<typeof createAdminClient>, input: { projectId: string; agreementId: string; action: string; message: string; actorId: string | null }) { const correlation = randomUUID(); const { error } = await admin.from("timeline_events").insert({ project_id: input.projectId, agreement_id: input.agreementId, event_type: input.action, title: input.message, description: input.message, orbit_event_id: `ORB-AGREEMENT-${correlation}`, actor_id: input.actorId, actor_label: input.actorId ? "Administrador" : "Cliente", source: input.actorId ? "Administrator" : "Customer", action: input.action, entity_type: "Agreement", entity_id: input.agreementId, human_message: input.message, correlation_id: correlation, created_by: input.actorId }); if (error) console.error(JSON.stringify({ level: "error", event: "agreement.boundary_b.timeline_failed", agreementId: input.agreementId, action: input.action, error: error.message })); }
 function deviceInfo(userAgent: string) { return { device: /iPad|Tablet/i.test(userAgent) ? "TABLET" : /Mobile|Android|iPhone/i.test(userAgent) ? "MOBILE" : "DESKTOP", browser: /Edg\//.test(userAgent) ? "Edge" : /Chrome\//.test(userAgent) ? "Chrome" : /Safari\//.test(userAgent) ? "Safari" : /Firefox\//.test(userAgent) ? "Firefox" : "Other" }; }
 function escapeHtml(value: string) { return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!); }
+function firstName(fullName: string | null, email: string) { return fullName?.trim().split(/\s+/)[0] || email.split("@")[0] || "cliente"; }
