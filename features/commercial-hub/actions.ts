@@ -197,6 +197,11 @@ export async function sendCommercialInformationAction(input: {
       throw claimError;
     }
     const publicUrl = catalogPublicUrl(document.category, process.env.NEXT_PUBLIC_APP_URL ?? "https://orbit.boom-box.cl");
+    const appOrigin = (process.env.NEXT_PUBLIC_APP_URL ?? "https://app.bbox.cl").replace(/\\/$/, "");
+    const transportUrl = `${appOrigin}/traslados?type=${input.category === "COMPANIES_CATALOG" ? "company" : "private"}`;
+    const transportLabel = input.category === "COMPANIES_CATALOG"
+      ? "CONOCER VALOR DE TRASLADO + IVA"
+      : "CONOCER VALOR DE TRASLADO";
     const downloaded = input.attachPdf ? await admin.storage.from("orbit-documents").download(document.storage_path) : null;
     if (downloaded?.error) throw downloaded.error;
     const signatureUrl = typeof company.emailConfiguration.signatureGifUrl === "string" ? company.emailConfiguration.signatureGifUrl : "";
@@ -220,6 +225,8 @@ export async function sendCommercialInformationAction(input: {
           contact: input.name,
           website: company.website,
           catalogUrl: publicUrl,
+          transportUrl,
+          transportLabel,
           attachmentFilename: downloaded?.data
             ? document.filename || `${document.name}.pdf`
             : undefined,
@@ -233,6 +240,7 @@ export async function sendCommercialInformationAction(input: {
       contentHtml: htmlParagraphs,
       website: company.website,
       primaryAction: { href: publicUrl, label: QUICK_SEND_CTA_LABEL },
+      secondaryAction: { href: transportUrl, label: transportLabel },
       primaryActionFallback: "Si tienes problemas con el botón, puedes abrir los planes y valores",
       attachmentNote: downloaded?.data ? `${document.filename || `${document.name}.pdf`} está incluido como archivo adjunto.` : undefined,
       signatureHtml: signature,
