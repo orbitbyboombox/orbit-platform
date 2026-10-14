@@ -94,8 +94,8 @@ import { CustomerEventOperations } from "@/features/crm/customer-event-operation
 import type { CrmCustomerEventOperations, CrmEventSummary } from "@/features/crm/types";
 import { EventOperationalReadiness, type OperationalReadinessData } from "@/features/operations/event-operational-readiness";
 import { EventLogisticsCenter, type EventLogisticsData } from "@/features/operations/event-logistics-center";
-import { requiresPhotoStripDesign } from "@/features/business-core/catalog/service.catalog";
 import { PhotoStripDesignCenter } from "@/features/photo-strip-design";
+import { shouldShowPhotoStripDesignCenter } from "@/features/photo-strip-design/visibility";
 import { CapacityStatusPanel, type CapacityResult } from "@/features/capacity/capacity-status-panel";
 
 type Event360Task = {
@@ -412,7 +412,10 @@ export function ProjectWorkspaceExperience(
   );
   const [, startWorkspaceTransition] = useTransition();
   const event = props.event360;
-  const photoStripEligible = requiresPhotoStripDesign(event.services.map((service) => service.code));
+  const photoStripEligible = shouldShowPhotoStripDesignCenter(
+    event.services.map((service) => service.code),
+    event.documents.map((document) => ({ documentType: document.type })),
+  );
   const photoStripDocuments = event.documents
     .filter((document) => document.type === "PHOTO_STRIP_DESIGN")
     .map((document) => ({

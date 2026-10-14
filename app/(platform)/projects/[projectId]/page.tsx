@@ -12,7 +12,7 @@ import { loadCrmCustomerOperations } from "@/features/crm/customer-operations.re
 import type { EquipmentAssignmentPanelProps } from "@/features/asset-management";
 import type { EventLogisticsData } from "@/features/operations/event-logistics-center";
 import { resolveReceivablePaymentCategory } from "@/features/accounts-receivable/payment-term-classification";
-import { requiresPhotoStripDesign } from "@/features/business-core/catalog/service.catalog";
+import { shouldShowPhotoStripDesignCenter } from "@/features/photo-strip-design/visibility";
 import { getCanonicalOrbitEventState } from "@/features/operations/canonical-event-state";
 import { chileDateTime } from "@/features/operations/event-operational-window";
 import { buildResponsibilityReadModel } from "@/features/staff-assignment-center/staff-responsibility-read-model";
@@ -828,7 +828,10 @@ export default async function ProjectWorkspacePage({
           true,
         ),
       },
-      ...(requiresPhotoStripDesign((serviceRows ?? []).map((item) => item.service_code)) ? [{
+      ...(shouldShowPhotoStripDesignCenter(
+        (serviceRows ?? []).map((item) => item.service_code),
+        (documents ?? []).map((item) => ({ document_type: item.document_type })),
+      ) ? [{
         label: "Diseño tira",
         ...ready(
           documents?.some((item) => item.document_type === "PHOTO_STRIP_DESIGN" && item.is_current && item.workflow_status === "APPROVED") ?? false,
