@@ -256,7 +256,7 @@ export async function loadPreEventReminderComposer(
 
 export type SendPreEventReminderInput = {
   projectId: string;
-  actorId: string;
+  actorId: string | null;
   requestId: string;
   expectedFingerprint: string;
   to: string;
@@ -701,7 +701,7 @@ export async function sendAutomaticPreEventReminders(reference = new Date()) {
     const customer = first(project.customers);
     try {
       composer = await loadPreEventReminderComposer(project.id);
-      if (composer.daysUntilEvent < 0 || composer.daysUntilEvent > 10 || !composer.reservationConfirmed) {
+      if (composer.daysUntilEvent < 0 || composer.daysUntilEvent > 10) {
         skipped += 1;
         continue;
       }

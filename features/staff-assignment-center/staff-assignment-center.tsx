@@ -1531,7 +1531,7 @@ function Select({
         defaultValue={value}
         name={name}
         onChange={(event) => onChange?.(event.target.value)}
-        required={name !== "vehicleId"}
+        required={name !== "vehicleId" && name !== "blockId"}
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>

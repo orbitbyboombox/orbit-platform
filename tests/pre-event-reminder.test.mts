@@ -69,11 +69,11 @@ test("canonical Event date is validated and formatted in Spanish", () => {
   assert.match(service, /event_date/);
 });
 
-test("manual timing is contextual and never gates sending at seven days", () => {
+test("manual timing is contextual while automatic D-10 remains explicit", () => {
   assert.equal(daysUntilPreEvent("2026-05-15", new Date("2026-05-08T16:00:00Z")), 7);
   assert.doesNotMatch(actions, /daysUntilEvent\s*[!=<>]=?\s*7/);
   assert.doesNotMatch(service, /daysUntilEvent\s*[!=<>]=?\s*7/);
-  assert.doesNotMatch(`${actions}\n${service}`, /\bcron\b|scheduler|scheduleJob/i);
+  assert.match(service, /sendAutomaticPreEventReminders/);
 });
 
 test("fully paid renderer contains zero payment, due-date or bank content", () => {
