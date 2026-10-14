@@ -153,8 +153,6 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
   const kpis: Array<{ id: DashboardKpiItemKey; metric: FinanceMetric; icon: LucideIcon; tone: keyof typeof toneStyle }> = [
     { id: "kpi.cash_registered", metric: position("Caja registrada") ?? fallback("Caja registrada", "/finance/cash-flow"), icon: WalletCards, tone: "info" },
     { id: "kpi.total_receivables", metric: position("Por cobrar total") ?? fallback("Por cobrar total", "/finance/receivables"), icon: CircleDollarSign, tone: "warning" },
-    { id: "kpi.company_credit", metric: position("Crédito Empresas") ?? fallback("Crédito Empresas", "/finance/receivables?category=company-credit"), icon: CircleDollarSign, tone: "warning" },
-    { id: "kpi.customer_balances", metric: position("Saldos Clientes / Eventos") ?? fallback("Saldos Clientes / Eventos", "/finance/receivables?category=ordinary"), icon: WalletCards, tone: "info" },
     { id: "kpi.month_sales", metric: month("Ventas del mes") ?? fallback("Ventas del mes", "/projects?period=month"), icon: TrendingUp, tone: "success" },
     { id: "kpi.operating_result", metric: month("Resultado operativo") ?? fallback("Resultado operativo del mes", "/finance/expenses"), icon: TrendingUp, tone: "success" },
     { id: "kpi.operating_margin", metric: month("Margen operativo") ?? { label: "Margen operativo del mes", value: 0, format: "percent", detail: "Resultado operativo sobre ventas del mes.", href: "/finance/expenses" }, icon: TrendingUp, tone: "info" },
