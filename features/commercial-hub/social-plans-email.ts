@@ -79,7 +79,7 @@ export function buildSocialPlansEmail(input: SocialPlansEmailInput) {
   const html = renderBoomboxCommercialEmail({
     preheader: "Conoce las experiencias y valores BOOMBOX para tu celebración.",
     eyebrow: "",
-    title: "Conoce las experiencias BOOMBOX para tu evento",
+    title: "CONOCE NUESTRA PROPUESTA PARA TU CELEBRACIÓN",
     headerLabel: isCompany ? "EMPRESAS · PROPUESTA COMERCIAL" : "EXPERIENCIAS PARA TU CELEBRACIÓN",
     stackedHeader: true,
     contentHtml: beforeAction.map(renderParagraph).join(""),
