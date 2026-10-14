@@ -619,13 +619,13 @@ export function ProjectWorkspaceExperience(
             #event-six-tabs > [data-event-area="shared"] { display: block !important; }
             #event-profile-grid > *,
             #event-details-grid > * { display: none !important; }
-            #event-six-tabs[data-active="summary"] #event-profile-grid > :is(#customer,#service,:has(#commercial)),
-            #event-six-tabs[data-active="operations"] #event-profile-grid > :has(#operations),
-            #event-six-tabs[data-active="operations"] #event-details-grid > :has(#tasks),
-            #event-six-tabs[data-active="documents"] #event-details-grid > :has(#documents),
-            #event-six-tabs[data-active="finance"] #event-details-grid > :has(#event-finance),
-            #event-six-tabs[data-active="staff"] #event-details-grid > :has(#payroll),
-            #event-six-tabs[data-active="communications"] #event-details-grid > :is(:has(#timeline),:has(#google),:has(#google-calendar),:has(#customer-portal)) { display: block !important; }
+            #event-six-tabs[data-active="summary"] #event-profile-grid > :is(#customer,#service,#commercial,:has(#commercial)),
+            #event-six-tabs[data-active="operations"] #event-profile-grid > :is(#operations,:has(#operations)),
+            #event-six-tabs[data-active="operations"] #event-details-grid > :is(#tasks,:has(#tasks)),
+            #event-six-tabs[data-active="documents"] #event-details-grid > :is(#documents,:has(#documents)),
+            #event-six-tabs[data-active="finance"] #event-details-grid > :is(#event-finance,:has(#event-finance)),
+            #event-six-tabs[data-active="staff"] #event-details-grid > :is(#payroll,:has(#payroll)),
+            #event-six-tabs[data-active="communications"] #event-details-grid > :is(#timeline,#google,#google-calendar,#customer-portal,:has(#timeline),:has(#google),:has(#google-calendar),:has(#customer-portal)) { display: block !important; }
           `}</style>
           <div data-event-area="summary">{capacityPanel}</div>
 

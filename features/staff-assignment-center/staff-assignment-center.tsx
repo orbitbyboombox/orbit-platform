@@ -298,8 +298,13 @@ export function StaffAssignmentCenter({
         })}
       </section>
       {requests.length ? <section className="mb-5 border-b pb-5"><h3 className="font-semibold">Solicitudes Staff</h3><div className="mt-3 grid gap-3 lg:grid-cols-2">{requests.map((request)=><article className="rounded-xl border p-4" key={request.id}><p className="font-semibold">{request.staffName}</p><p className="mt-1 text-sm text-muted">{roleLabel(request.role)} · Solicitud pendiente</p><div className="mt-3 flex gap-2"><form action={(data)=>startTransition(async()=>{const result=await reviewStaffRequestAction(data);setMessage(result.message);if(result.ok)router.refresh()})}><input name="requestId" type="hidden" value={request.id}/><input name="decision" type="hidden" value="approve"/><Button disabled={pending} type="submit">Aprobar</Button></form><form action={(data)=>startTransition(async()=>{const result=await reviewStaffRequestAction(data);setMessage(result.message);if(result.ok)router.refresh()})}><input name="requestId" type="hidden" value={request.id}/><input name="decision" type="hidden" value="reject"/><Button disabled={pending} type="submit" variant="outline">Rechazar</Button></form></div></article>)}</div></section>:null}
-      <div className="grid gap-3 lg:grid-cols-2">
-        {assignments.map((item) => (
+      <div className="space-y-5">
+        {roles.map((role) => {
+          const members = assignments.filter((item) => item.role === role.value);
+          return <section key={role.value} className="rounded-2xl border p-4" aria-label={`Bloque ${role.label}`}>
+            <h3 className="mb-3 text-base font-semibold text-brand">{role.label} · Bloque y horarios</h3>
+            <div className="grid gap-3 lg:grid-cols-2">
+              {members.length ? members.map((item) => (
           <article className="rounded-xl border p-4" key={item.id}>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -375,7 +380,10 @@ export function StaffAssignmentCenter({
               )}
             </div>
           </article>
-        ))}
+        )) : <p className="rounded-xl border border-dashed p-4 text-sm text-muted lg:col-span-2">Sin personal asignado a este bloque.</p>}
+            </div>
+          </section>;
+        })}
         {!assignments.length && (
           <div className="rounded-xl border border-dashed p-7 text-center lg:col-span-2">
             <p className="font-semibold">Sin asignaciones confirmadas</p>
