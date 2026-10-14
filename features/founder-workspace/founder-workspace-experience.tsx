@@ -334,32 +334,12 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
     };
   };
 
-  const monthEvents = upcomingEvents.filter(event => /^\d{4}-\d{2}-\d{2}/.test(event.date));
-  const monthBase = new Date();
-  const monthYear = monthBase.getFullYear();
-  const monthIndex = monthBase.getMonth();
-  const monthFirstWeekday = (new Date(monthYear, monthIndex, 1).getDay() + 6) % 7;
-  const daysInMonth = new Date(monthYear, monthIndex + 1, 0).getDate();
-  const monthCells = Array.from({length: monthFirstWeekday + daysInMonth}, (_,idx)=>idx<monthFirstWeekday?0:idx-monthFirstWeekday+1);
-  const monthHeading = new Intl.DateTimeFormat("es-CL",{month:"long",year:"numeric"}).format(monthBase);
-  const miniCalendar = <aside className="min-w-0 rounded-xl border bg-background/30 p-3 sm:p-4">
-    <div className="flex items-center justify-between gap-3"><h3 className="text-sm font-semibold capitalize">Calendario · {monthHeading}</h3><Link href="/calendar" className="text-xs font-semibold text-brand">Ver mes completo →</Link></div>
-    <div className="mt-4 grid grid-cols-7 gap-1 text-center text-[10px] font-semibold text-muted">{["L","M","M","J","V","S","D"].map((day,index)=><span key={index}>{day}</span>)}</div>
-    <div className="mt-2 grid grid-cols-7 gap-1">{monthCells.map((day,index)=>{
-      const key = `${monthYear}-${String(monthIndex+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
-      const found = day ? monthEvents.filter(event=>event.date.slice(0,10)===key):[];
-      return day ? <Link title={found.map(event=>event.title).join(" · ")||"Sin eventos próximos"} key={index} href={found[0]?.href ?? "/calendar"} className={`flex min-h-10 flex-col items-center justify-center rounded-lg border text-xs transition hover:border-brand/60 ${found.length?"border-brand/50 bg-brand/10 font-semibold text-brand":"border-transparent text-muted"}`}>
-        {day}{found.length?<span className="mt-0.5 size-1.5 rounded-full bg-brand" />:null}
-      </Link>:<span key={index}/>;
-    })}</div>
-    <p className="mt-3 text-xs text-muted">Los días destacados tienen eventos próximos. Abre el calendario para ver toda la agenda.</p>
-  </aside>;
   const upcoming = <section data-command-card aria-labelledby="upcoming-events-title" className="min-w-0 rounded-2xl border p-4 sm:p-6">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <PanelTitle id="upcoming-events-title" label="Próximos eventos" />
       <span className="flex flex-wrap gap-x-3 gap-y-2"><Link className="text-xs text-muted transition hover:text-brand" href="/operations/week">Agenda semanal</Link><Link className="text-xs text-muted transition hover:text-brand" href="/events">Ver calendario</Link></span>
     </div>
-    <div className="mt-3 grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,340px)]"><div className="min-w-0 divide-y">{upcomingEvents.slice(0, 4).map(event => {
+    <div className="mt-3 divide-y">{upcomingEvents.slice(0, 4).map(event => {
       const d = formatUpcomingDateParts(event.date);
       return <Link className="group flex min-w-0 items-center gap-3 py-2.5 first:pt-0 last:pb-0" href={event.href} key={event.id}>
         <span className="flex min-h-[62px] w-[54px] shrink-0 flex-col items-center justify-center rounded-xl border bg-background/50 text-center">
@@ -376,7 +356,7 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
           <span className="mt-1 block break-words text-[11px] text-muted">{event.location || "Ubicación pendiente"} · {event.staff}</span>
         </span>
       </Link>;
-    })}{!upcomingEvents.length ? <Empty label="No hay eventos próximos." /> : null}</div>{miniCalendar}</div>
+    })}{!upcomingEvents.length ? <Empty label="No hay eventos próximos." /> : null}</div>
     <Link className="mt-3 flex min-h-10 items-center justify-center gap-2 border-t pt-2 text-xs font-semibold text-brand" href="/events">Ver todos los eventos <ArrowRight className="size-3.5" /></Link>
   </section>;
 
