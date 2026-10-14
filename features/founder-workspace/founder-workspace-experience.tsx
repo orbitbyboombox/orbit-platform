@@ -335,10 +335,7 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
           </Link>
         ))}
         {staffApprovalItems.map(item => (
-          <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 py-2.5 text-xs sm:flex-nowrap" key={item.id}>
-            <span className="min-w-0"><strong className="block break-words">{item.collaborator} · {roleLabel[item.role] ?? item.role}</strong><span className="block break-words text-muted">{item.event} · {money(item.estimatedPayment)}</span></span>
-            <Link className="shrink-0 font-semibold text-brand" href={`/projects/${item.projectId}#staff-assignment`}>Revisar asignación →</Link>
-          </div>
+          <ReviewQueueStaffItem item={item} key={item.id} onResolved={(id) => setResolvedApprovalIds((current) => new Set(current).add(id))} />
         ))}
       </div>
     </section>
@@ -387,7 +384,6 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
   const settings = <section className="flex flex-col gap-4 rounded-2xl border bg-card p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between"><div><PanelTitle id="workspace-settings-title" label="Founder Workspace" /><p className="mt-2 text-xs text-muted">Mueve, oculta y restaura cada bloque. Tu configuración permanece guardada.</p></div><Link className="inline-flex min-h-10 items-center justify-center rounded-xl border px-4 text-xs font-semibold hover:border-brand/40 hover:text-brand" href="/settings#founder-workspace"><Settings2 className="mr-2 size-4" />Configurar espacio</Link></section>;
   const whatsapp = whatsappSummary ? <section aria-labelledby="founder-whatsapp-summary" className="rounded-2xl border bg-card px-4 py-3"><div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs"><strong id="founder-whatsapp-summary" className="text-sm">WhatsApp</strong><span>Activas: <b>{whatsappSummary.active}</b></span><span>BIANCA: <b>{whatsappSummary.nova}</b></span><span>Control humano: <b>{whatsappSummary.human}</b></span><span>Esperando BOOMBOX: <b>{whatsappSummary.waitingBoombox}</b></span><span>No leídas: <b>{whatsappSummary.unread}</b></span><span className="rounded-full border px-2 py-0.5 font-semibold">Delivery: OFF</span><Link className="ml-auto font-semibold text-brand hover:underline" href="/bianca">Ver conversaciones →</Link></div></section> : null;
 
-  const staffApprovals = staffApprovalItems.length ? <PendingStaffApprovals items={staffApprovalItems} onResolved={(id) => setResolvedApprovalIds((current) => new Set(current).add(id))} /> : null;
   const financialAlerts = financialAlert || financialAlertHistory.length ? <FinancialAlertCenter current={financialAlert} history={financialAlertHistory} /> : null;
   const dashboardSections = workspace.preferences.moduleWorkspaces.DASHBOARD?.sectionOrder ?? [];
   const calendarIndex = dashboardSections.indexOf("DASHBOARD_UPCOMING_EVENTS");
@@ -414,6 +410,31 @@ const roleLabel: Record<string, string> = {
   DISASSEMBLY: "Desmontaje",
   ASSEMBLY_DISASSEMBLY: "Montaje + Desmontaje",
 };
+
+function ReviewQueueStaffItem({ item, onResolved }: { item: PendingStaffApproval; onResolved: (id: string) => void }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [message, setMessage] = useState("");
+  const review = (decision: "approve" | "reject") => startTransition(async () => {
+    const form = new FormData();
+    form.set("requestId", item.id);
+    form.set("decision", decision);
+    const result = await reviewStaffRequestAction(form);
+    setMessage(result.message);
+    if (result.ok) { onResolved(item.id); router.refresh(); }
+  });
+  return <div className="min-w-0 py-3 text-xs">
+    <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+      <span className="min-w-0"><strong className="block break-words">{item.collaborator} · {roleLabel[item.role] ?? item.role}</strong><span className="block break-words text-muted">{item.event} · {money(item.estimatedPayment)}</span></span>
+      <span className="flex flex-wrap gap-2">
+        <button type="button" className="min-h-9 rounded-lg bg-brand px-3 font-semibold text-brand-foreground disabled:opacity-50" disabled={pending} onClick={() => review("approve")}>Aprobar</button>
+        <button type="button" className="min-h-9 rounded-lg border px-3 font-semibold disabled:opacity-50" disabled={pending} onClick={() => review("reject")}>Rechazar</button>
+        <Link className="inline-flex min-h-9 items-center rounded-lg border px-3 font-semibold text-brand" href={`/projects/${item.projectId}#staff-assignment`}>Ver</Link>
+      </span>
+    </div>
+    {message && <p aria-live="polite" className="mt-2 text-muted">{message}</p>}
+  </div>;
+}
 
 function PendingStaffApprovals({ items, onResolved }: { items: PendingStaffApproval[]; onResolved: (id: string) => void }) {
   const router = useRouter();
