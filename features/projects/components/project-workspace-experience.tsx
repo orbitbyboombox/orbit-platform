@@ -663,7 +663,7 @@ export function ProjectWorkspaceExperience(
                 { id: "communications", label: "Comunicaciones", hint: "Calendar y portal" },
               ].map(({ id, label, hint }) => (
                 <button
-                  aria-controls={`event-tab-${id}`}
+                  aria-controls="event-tab-panel"
                   aria-selected={eventTab === id}
                   className={`min-w-0 min-h-14 rounded-xl border px-3 py-2 text-left transition hover:border-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand ${eventTab === id ? "border-brand bg-brand/10 text-foreground" : "text-muted"}`}
                   data-event-tab={id}
@@ -681,7 +681,7 @@ export function ProjectWorkspaceExperience(
 
           </section>
           <div id="event-tab-panels" data-active-tab={eventTab} className="scroll-mt-24 space-y-6">
-          <div id="event-tab-summary" role="tabpanel" aria-labelledby="event-tab-summary-tab" className="space-y-6">
+          <div id="event-tab-panel" role="tabpanel" aria-labelledby={`event-tab-${eventTab}-tab`} className="space-y-6">
             {eventTab === "summary" ? <div className="scroll-mt-24" id="event-summary-mobile">{capacityPanel}</div> : null}
 
           <section className="grid gap-6 xl:grid-cols-2">
@@ -1152,7 +1152,7 @@ export function ProjectWorkspaceExperience(
                 id="documents"
                 title="Documentos y estado comercial"
               >
-                {photoStripEligible ? <div className="hidden md:block"><PhotoStripDesignCenter documents={photoStripDocuments} projectId={props.projectKey!}/></div> : null}
+                {photoStripEligible ? <div className="w-full min-w-0"><PhotoStripDesignCenter documents={photoStripDocuments} projectId={props.projectKey!}/></div> : null}
                 <EventCommercialDocumentHub projectId={props.projectKey!} customerName={props.clientName} customerTaxId={props.commercialHub.customerTaxId} customerKind={props.commercialHub.customerKind} quotation={props.commercialHub.quotation} contract={props.signing} receivable={event.receivable?{id:event.receivable.id,paid:event.receivable.paidAmount,outstanding:event.receivable.outstandingBalance,dueDate:event.receivable.dueDate,status:event.receivable.status}:undefined} paymentCondition={props.commercialHub.paymentCondition} documents={event.documents} taxDocuments={event.documents.filter(doc=>doc.taxType&&doc.folio&&doc.issueDate).map(doc=>({id:doc.id,taxType:doc.taxType!,folio:doc.folio!,issueDate:doc.issueDate!,total:doc.total??0,status:doc.status??"ADJUNTADO",href:doc.href}))}/>
               </Section>
             )}
