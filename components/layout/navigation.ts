@@ -40,6 +40,7 @@ export type NavigationKey =
   | "CALENDAR"
   | "STAFF"
   | "RESOURCES"
+  | "BOXES"
   | "FINANCE"
   | "RECEIVABLES"
   | "COLLECTIONS"
@@ -102,6 +103,13 @@ export const navigationItems: readonly NavigationItem[] = [
     key: "RESOURCES",
     label: "Recursos",
     href: "/resources",
+    icon: Layers3,
+    module: "RESOURCES",
+  },
+  {
+    key: "BOXES",
+    label: "Cajas",
+    href: "/resources/boxes",
     icon: Layers3,
     module: "RESOURCES",
   },
