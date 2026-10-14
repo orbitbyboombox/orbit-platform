@@ -302,7 +302,7 @@ function Section({
 }
 function Row({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="grid min-h-10 grid-cols-[minmax(0,1fr)_minmax(0,2fr)] items-start gap-4 border-b py-2 last:border-0">
+    <div className="grid min-h-10 min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] items-start gap-3 border-b py-2 last:border-0">
       <dt className="min-w-0 text-sm text-muted">{label}</dt>
       <dd className="min-w-0 break-words text-right text-sm font-medium">{value}</dd>
     </div>
@@ -647,7 +647,7 @@ export function ProjectWorkspaceExperience(
             </nav>
 
           </section>
-          <style jsx global>{`@media (min-width: 0px) {
+          <style jsx global>{`@media (max-width: 767px) {
 #event-mobile-panels:not([data-active="ALL"]) > * { display: none !important; }
 #event-mobile-panels[data-active="event-summary-mobile"] > #event-summary-mobile {display:block!important;}
 #event-mobile-panels[data-active="event-summary-mobile"] > :has(#customer) {display:grid!important;}
@@ -1363,7 +1363,7 @@ export function ProjectWorkspaceExperience(
                       const operatingProfit = netRevenue - event.profit.costs.totalOperationalCost;
                       const operatingMargin = netRevenue > 0 ? operatingProfit / netRevenue * 100 : 0;
                       return <>
-                    <div className="grid min-w-0 gap-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr))]">
+                    <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-3">
                       <MiniMoney
                         label="Ingresos netos"
                         value={netRevenue}
@@ -1836,7 +1836,7 @@ function HeroMetric({ label, value }: { label: string; value: string }) {
 function MiniMetric({ label, value }: { label: string; value: number }) {
   return (
     <div className="min-w-0 rounded-xl border bg-background/30 p-3 sm:p-4">
-      <p className="whitespace-nowrap text-lg font-semibold tabular-nums tracking-tight">{value}</p>
+      <p className="max-w-full break-words text-[clamp(1rem,1.6vw,1.125rem)] font-semibold leading-tight tabular-nums tracking-tight">{value}</p>
       <p className="mt-1 text-xs text-muted">{label}</p>
     </div>
   );
@@ -1844,7 +1844,7 @@ function MiniMetric({ label, value }: { label: string; value: number }) {
 function MiniMoney({ label, value }: { label: string; value: number }) {
   return (
     <div className="min-w-0 rounded-xl border bg-background/30 p-3 sm:p-4">
-      <p className="whitespace-nowrap text-lg font-semibold tabular-nums tracking-tight">{money(value)}</p>
+      <p className="max-w-full break-words text-[clamp(1rem,1.6vw,1.125rem)] font-semibold leading-tight tabular-nums tracking-tight">{money(value)}</p>
       <p className="mt-1 text-xs text-muted">{label}</p>
     </div>
   );
