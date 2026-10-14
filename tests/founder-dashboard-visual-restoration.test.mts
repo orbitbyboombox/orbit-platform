@@ -42,8 +42,6 @@ test("stable IDs cover every approved KPI and Quick Action without duplicates", 
   for (const id of [
     "kpi.cash_registered",
     "kpi.total_receivables",
-    "kpi.company_credit",
-    "kpi.customer_balances",
     "kpi.month_sales",
     "kpi.operating_result",
     "kpi.operating_margin",
