@@ -36,3 +36,13 @@ test("customer portal and staff portal remain in place during admin-only recover
   assert.ok(staff.length > 500);
   assert.ok(staffDashboard.length > 500);
 });
+
+
+test("reservation extras include priced catalog options and white backdrop", () => {
+  const drawer = read("features/projects/components/new-project-drawer.tsx");
+  const rules = read("features/projects/reservation-business-rules.ts");
+  assert.match(drawer, /BACKDROP_230X200_WHITE/);
+  assert.match(drawer, /commercialPrices[\s\S]*?price\.category === "EXTRA"/);
+  assert.match(drawer, /compatibleExtras = \(service: ProjectService\)/);
+  assert.match(rules, /Fondo 230x200 Blanco/);
+});
