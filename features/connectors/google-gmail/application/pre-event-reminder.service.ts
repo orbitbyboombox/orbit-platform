@@ -276,6 +276,96 @@ export type SendPreEventReminderResult = {
   deduplicated: boolean;
 };
 
+const PRE_EVENT_ADMIN_RECIPIENT = "matias.maira.larrain@gmail.com";
+const PRE_EVENT_ADMIN_NOTICE_TYPE = "PRE_EVENT_REMINDER_ADMIN_NOTICE";
+
+const escapeAdminNoticeHtml = (value: string) =>
+  value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+
+async function notifyPreEventAdmin(input: {
+  projectId: string;
+  customerId: string;
+  customerName: string;
+  customerRecipient: string;
+  orbitEventId: string;
+  eventName: string;
+  eventDate: string;
+  result: "SENT" | "FAILED";
+  reason?: string;
+  sender?: GoogleGmailLiveProvider;
+}) {
+  const admin = createAdminClient();
+  const requestKey = `pre-event-admin:${input.projectId}:${input.eventDate}:${input.result}`;
+  const subject = input.result === "SENT"
+    ? `ORBIT · D-10 enviado · ${input.eventName}`
+    : `ORBIT · ERROR D-10 · ${input.eventName}`;
+  const resultLabel = input.result === "SENT" ? "ENVIADO EXITOSAMENTE" : "FALLÓ EL ENVÍO AL CLIENTE";
+  const reason = input.reason?.trim() || "Sin detalle adicional.";
+  const textBody = [
+    "ORBIT · NOTIFICACIÓN AUTOMÁTICA",
+    "",
+    `Resultado: ${resultLabel}`,
+    `Cliente: ${input.customerName}`,
+    `Evento: ${input.eventName}`,
+    `ORBIT Event ID: ${input.orbitEventId}`,
+    `Fecha del evento: ${input.eventDate}`,
+    `Destinatario cliente: ${input.customerRecipient || "Sin correo registrado"}`,
+    `Detalle: ${reason}`,
+  ].join("\n");
+  const htmlBody = `<main style="font-family:Arial,sans-serif;color:#171717;line-height:1.6"><h2 style="color:#f78900">ORBIT · ${escapeAdminNoticeHtml(resultLabel)}</h2><p><strong>Cliente:</strong> ${escapeAdminNoticeHtml(input.customerName)}</p><p><strong>Evento:</strong> ${escapeAdminNoticeHtml(input.eventName)}</p><p><strong>ORBIT Event ID:</strong> ${escapeAdminNoticeHtml(input.orbitEventId)}</p><p><strong>Fecha del evento:</strong> ${escapeAdminNoticeHtml(input.eventDate)}</p><p><strong>Destinatario cliente:</strong> ${escapeAdminNoticeHtml(input.customerRecipient || "Sin correo registrado")}</p><p><strong>Detalle:</strong> ${escapeAdminNoticeHtml(reason)}</p></main>`;
+  const { data: existing, error: existingError } = await admin
+    .from("communications")
+    .select("id,status,external_message_id,thread_key")
+    .eq("project_id", input.projectId)
+    .eq("communication_type", PRE_EVENT_ADMIN_NOTICE_TYPE)
+    .eq("request_key", requestKey)
+    .maybeSingle();
+  if (existingError) throw existingError;
+  if (existing?.status === "SENT") return { sent: true, deduplicated: true };
+  const queued = {
+    customer_id: input.customerId,
+    project_id: input.projectId,
+    channel: "GMAIL",
+    direction: "OUTBOUND",
+    communication_type: PRE_EVENT_ADMIN_NOTICE_TYPE,
+    thread_key: requestKey,
+    request_key: requestKey,
+    subject,
+    body: textBody,
+    status: "QUEUED",
+    to_recipient: PRE_EVENT_ADMIN_RECIPIENT,
+    cc_recipients: [],
+    occurred_at: new Date().toISOString(),
+    failure_reason: null,
+    context_snapshot: { automatic: true, result: input.result, eventDate: input.eventDate },
+  };
+  const write = existing?.id
+    ? await admin.from("communications").update(queued).eq("id", existing.id).select("id").single()
+    : await admin.from("communications").insert(queued).select("id").single();
+  if (write.error) {
+    if (write.error.code === "23505") return { sent: false, deduplicated: true };
+    throw write.error;
+  }
+  try {
+    const delivered = await (input.sender ?? new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken())).send({
+      to: PRE_EVENT_ADMIN_RECIPIENT,
+      subject,
+      textBody,
+      htmlBody,
+      idempotencyKey: requestKey,
+      driveFileIds: [],
+    });
+    const sentAt = new Date().toISOString();
+    const update = await admin.from("communications").update({ status: "SENT", sent_at: sentAt, occurred_at: sentAt, external_message_id: delivered.messageId, thread_key: delivered.threadId, failure_reason: null }).eq("id", write.data.id);
+    if (update.error) throw update.error;
+    return { sent: true, deduplicated: false };
+  } catch (error) {
+    const failureReason = error instanceof Error ? error.message.slice(0, 2_000) : String(error).slice(0, 2_000);
+    await admin.from("communications").update({ status: "FAILED", failure_reason: failureReason, occurred_at: new Date().toISOString() }).eq("id", write.data.id);
+    throw error;
+  }
+}
+
 const requestKey = (projectId: string, attemptId: string) =>
   `pre-event-reminder:${projectId}:${attemptId}`;
 
@@ -521,4 +611,207 @@ export async function sendPreEventReminder(
     }
     throw error;
   }
+}
+
+
+function chileIsoDate(reference: Date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: "America/Santiago",
+  }).formatToParts(reference);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+function addIsoDays(value: string, days: number) {
+  const date = new Date(`${value}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+export async function sendAutomaticPreEventReminders(reference = new Date()) {
+  const admin = createAdminClient();
+  const today = chileIsoDate(reference);
+  const targetDate = addIsoDays(today, 10);
+  const { data: projects, error } = await admin
+    .from("projects")
+    .select("id,customer_id,orbit_event_id,name,status,event_date,customers!inner(full_name,email)")
+    // Include the active recovery window. A missed cron run must not leave an
+    // eligible customer without the reminder; the per-request unique key and
+    // communication history below keep retries idempotent.
+    .gte("event_date", today)
+    .lte("event_date", targetDate)
+    .is("deleted_at", null);
+  if (error) throw error;
+
+  let sent = 0;
+  let skipped = 0;
+  let blocked = 0;
+  let failed = 0;
+
+  for (const project of projects ?? []) {
+    const automaticAttemptId = `automatic-d10:${project.event_date}`;
+    const recoveryAttemptId = `automatic-d10-recovery:${project.event_date}`;
+    const key = requestKey(project.id, automaticAttemptId);
+    const recordBlocked = async (reason: string, recipient = "") => {
+      const existing = await admin
+        .from("communications")
+        .select("id,status")
+        .eq("project_id", project.id)
+        .eq("communication_type", PRE_EVENT_REMINDER_TYPE)
+        .eq("request_key", key)
+        .maybeSingle();
+      if (existing.error) throw existing.error;
+      if (existing.data?.status === "SENT" || existing.data?.status === "FAILED") {
+        return existing.data.status;
+      }
+      const payload = {
+        customer_id: project.customer_id,
+        project_id: project.id,
+        channel: "GMAIL",
+        direction: "OUTBOUND",
+        communication_type: PRE_EVENT_REMINDER_TYPE,
+        thread_key: key,
+        request_key: key,
+        subject: "¡Queda muy poco para tu evento! · BOOMBOX",
+        body: "",
+        status: "BLOCKED",
+        to_recipient: recipient || null,
+        cc_recipients: [] as string[],
+        occurred_at: reference.toISOString(),
+        failure_reason: reason.slice(0, 2_000),
+        context_snapshot: {
+          automatic: true,
+          trigger: "D-10",
+          targetDate,
+          reason,
+        },
+      };
+      const write = existing.data?.id
+        ? await admin.from("communications").update(payload).eq("id", existing.data.id)
+        : await admin.from("communications").insert(payload);
+      if (write.error) throw write.error;
+      return "BLOCKED";
+    };
+
+    let composer: PreEventReminderComposer | null = null;
+    const customer = first(project.customers);
+    try {
+      composer = await loadPreEventReminderComposer(project.id);
+      if (composer.daysUntilEvent < 0 || composer.daysUntilEvent > 10 || !composer.reservationConfirmed) {
+        skipped += 1;
+        continue;
+      }
+      if (composer.hasSuccessfulSend) {
+        skipped += 1;
+        continue;
+      }
+      if (!composer.to.trim()) {
+        const blockedStatus = await recordBlocked(
+          "El Cliente no tiene un email principal válido para el envío automático.",
+        );
+        if (blockedStatus === "FAILED") failed += 1;
+        else blocked += 1;
+        continue;
+      }
+
+      const existingAutomatic = await admin
+        .from("communications")
+        .select("status")
+        .eq("project_id", project.id)
+        .eq("communication_type", PRE_EVENT_REMINDER_TYPE)
+        .eq("request_key", requestKey(project.id, automaticAttemptId))
+        .maybeSingle();
+      if (existingAutomatic.error) throw existingAutomatic.error;
+      const requestId = existingAutomatic.data?.status === "FAILED" || existingAutomatic.data?.status === "BLOCKED"
+        ? recoveryAttemptId
+        : automaticAttemptId;
+      const result = await sendPreEventReminder({
+        projectId: project.id,
+        actorId: null,
+        requestId,
+        expectedFingerprint: composer.fingerprint,
+        to: composer.to,
+        cc: composer.cc,
+        subject: composer.subject,
+        confirmResend: false,
+      });
+      if (result.status === "SENT") {
+        sent += 1;
+        try {
+          await notifyPreEventAdmin({
+            projectId: project.id,
+            customerId: project.customer_id,
+            customerName: customer?.full_name ?? composer.customerName,
+            customerRecipient: composer.to,
+            orbitEventId: project.orbit_event_id,
+            eventName: project.name ?? project.orbit_event_id,
+            eventDate: project.event_date,
+            result: "SENT",
+          });
+        } catch (noticeError) {
+          console.error(JSON.stringify({
+            level: "error",
+            event: "pre_event_reminder.admin_notice_failed",
+            projectId: project.id,
+            result: "SENT",
+            error: noticeError instanceof Error ? noticeError.message : String(noticeError),
+          }));
+        }
+      }
+      else if (result.status === "FAILED") failed += 1;
+      else skipped += 1;
+    } catch (error) {
+      const reason =
+        error instanceof Error ? error.message : "No fue posible preparar el recordatorio D-10.";
+      try {
+        await notifyPreEventAdmin({
+          projectId: project.id,
+          customerId: project.customer_id,
+          customerName: customer?.full_name ?? "Cliente",
+          customerRecipient: composer?.to ?? customer?.email ?? "",
+          orbitEventId: project.orbit_event_id,
+          eventName: project.name ?? project.orbit_event_id,
+          eventDate: project.event_date,
+          result: "FAILED",
+          reason,
+        });
+      } catch (noticeError) {
+        console.error(JSON.stringify({
+          level: "error",
+          event: "pre_event_reminder.admin_notice_failed",
+          projectId: project.id,
+          result: "FAILED",
+          error: noticeError instanceof Error ? noticeError.message : String(noticeError),
+        }));
+      }
+      try {
+        const blockedStatus = await recordBlocked(reason);
+        if (blockedStatus === "FAILED") failed += 1;
+        else blocked += 1;
+      } catch (recordError) {
+        failed += 1;
+        console.error(
+          JSON.stringify({
+            level: "error",
+            event: "pre_event_reminder.automatic_block_record_failed",
+            projectId: project.id,
+            error: recordError instanceof Error ? recordError.message : String(recordError),
+          }),
+        );
+      }
+    }
+  }
+
+  return {
+    targetDate,
+    candidates: projects?.length ?? 0,
+    sent,
+    skipped,
+    blocked,
+    failed,
+  };
 }
