@@ -1229,6 +1229,7 @@ export function ProjectWorkspaceExperience(
                 eyebrow="07 · Archivos"
                 icon={<FolderOpen className="size-5" />}
                 id="documents"
+                className="xl:col-span-2 min-w-0"
                 title="Documentos y estado comercial"
               >
                 {photoStripEligible ? <div className="hidden md:block"><PhotoStripDesignCenter documents={photoStripDocuments} projectId={props.projectKey!}/></div> : null}
@@ -1333,6 +1334,7 @@ export function ProjectWorkspaceExperience(
                 eyebrow="09 · Rentabilidad real"
                 icon={<Gauge className="size-5" />}
                 id="event-finance"
+                className="xl:col-span-2 min-w-0"
                 title="Resumen financiero del evento"
               >
                 {event.profit ? (
