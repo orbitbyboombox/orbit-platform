@@ -16,18 +16,21 @@ import { ServiceAssetMappingManager } from "@/features/resources/service-asset-m
 import type { ServiceAssetMapping } from "@/features/resources/service-asset-mapping.actions";
 import { getCanonicalOrbitEventStates } from "@/features/operations/canonical-event-state";
 import { chileDateTime } from "@/features/operations/event-operational-window";
+import { WarehouseInventory } from "@/features/resources/warehouse-inventory";
+import type { InventoryMovement, SupplyInventoryItem } from "@/features/supply-engine/types/supply.types";
 
 export default async function ResourcesPage() {
   const client = await createSupabaseServerClient();
   const modules = await loadModuleStates(client);
-  const [{ data: staff, error: staffError }, { data: assignments, error: assignmentError }, { data: projects, error: projectError }, { data: assets, error: assetError }, { data: assetAssignments, error: assetAssignmentError }, { data: assetHistory, error: historyError }, { data: supplies, error: supplyError }, { data: vehicleProfiles, error: vehicleError }, { data: fuelLogs, error: fuelError }, { data: vehicleRoutes, error: routeError }, { data: serviceMappings, error: serviceMappingError }] = await Promise.all([
+  const [{ data: staff, error: staffError }, { data: assignments, error: assignmentError }, { data: projects, error: projectError }, { data: assets, error: assetError }, { data: assetAssignments, error: assetAssignmentError }, { data: assetHistory, error: historyError }, { data: supplies, error: supplyError }, { data: inventoryMovements, error: inventoryMovementError }, { data: vehicleProfiles, error: vehicleError }, { data: fuelLogs, error: fuelError }, { data: vehicleRoutes, error: routeError }, { data: serviceMappings, error: serviceMappingError }] = await Promise.all([
     client.from("staff").select("id,first_name,last_name,rut,role,availability,status,version").is("deleted_at", null),
     client.from("assignments").select("id,project_id,staff_id,status,resources").is("deleted_at", null),
     client.from("projects").select("id,name,event_date").is("deleted_at", null),
     client.from("operational_assets").select("id,asset_code,asset_type,status,usage_counter,version,metadata,serial_number,storage_location,notes,manufacturer,model").is("deleted_at", null).order("asset_code"),
     client.from("asset_assignments").select("asset_id,project_id,assignment_status,planned_start_at,planned_end_at,projects(name,event_date,event_time)").eq("assignment_status", "ASSIGNED").is("deleted_at", null),
     client.from("asset_history").select("id,asset_id,message,occurred_at").order("occurred_at", { ascending: false }).limit(500),
-    client.from("supplies").select("id,catalog_code,name,status,version").is("deleted_at", null).order("name"),
+    client.from("supplies").select("id,catalog_code,name,supplier,purchase_price,vat_included,unit,calculation_method,status,version,updated_at,current_stock,minimum_stock,recommended_purchase,stock_status,metadata").is("deleted_at", null).order("name"),
+    client.from("inventory_movements").select("id,supply_id,orbit_event_id,customer_id,project_id,staff_id,vehicle_id,movement_type,quantity,unit_cost,total_cost,occurred_at,reason,version").is("deleted_at", null).order("occurred_at", { ascending: false }).limit(500),
     client.from("vehicle_profiles").select("asset_id,nickname,model,plate,fuel_type,current_mileage,insurance_expiration,technical_inspection_expiration,operational_status,height_m,length_m,width_m,capacity_notes,notes,version,operational_assets!inner(asset_code,status,deleted_at)").is("operational_assets.deleted_at", null).order("model"),
     client.from("vehicle_fuel_logs").select("id,asset_id,fuel_date,fuel_type,litres,total_amount,gas_station,receipt_path").order("fuel_date", { ascending: false }),
     client.from("vehicle_routes").select("id,asset_id,route_date,driver_staff_id,distance,notes,version,fuel:vehicle_fuel_logs!vehicle_routes_fuel_log_id_fkey(total_amount,receipt_path),events:vehicle_route_events(project_id,allocated_fuel_cost)").is("deleted_at", null).eq("status", "ACTIVE").order("route_date", { ascending: false }),
@@ -40,6 +43,7 @@ export default async function ResourcesPage() {
   if (assetAssignmentError) throw assetAssignmentError;
   if (historyError) throw historyError;
   if (supplyError) throw supplyError;
+  if (inventoryMovementError) throw inventoryMovementError;
   if (vehicleError) throw vehicleError;
   if (fuelError) throw fuelError;
   if (routeError) throw routeError;
@@ -89,6 +93,8 @@ export default async function ResourcesPage() {
   const driverOptions = (staff ?? []).filter((member) => member.status === "ACTIVE").map((member) => ({ id: member.id, label: `${member.first_name} ${member.last_name}` }));
   const routes: OperationalRoute[] = (vehicleRoutes ?? []).map((route) => { const fuel = Array.isArray(route.fuel) ? route.fuel[0] : route.fuel; const events = route.events ?? []; const amount = Number(fuel?.total_amount ?? 0); return { id: route.id, vehicleId: route.asset_id, date: route.route_date, driverId: route.driver_staff_id ?? "", eventIds: events.map((event) => event.project_id), fuelAmount: amount, distance: route.distance === null ? null : Number(route.distance), notes: route.notes ?? "", receiptPath: fuel?.receipt_path ?? "", version: route.version, allocatedPerEvent: events.length ? amount / events.length : 0 }; });
   const mappings: ServiceAssetMapping[] = (serviceMappings ?? []).map((mapping) => ({ id: mapping.id, serviceCode: mapping.service_code, assetType: mapping.asset_type, unitsPerService: Number(mapping.units_per_service), bufferBeforeMinutes: mapping.buffer_before_minutes, bufferAfterMinutes: mapping.buffer_after_minutes, enabled: mapping.enabled, version: mapping.version }));
+  const warehouseSupplies: SupplyInventoryItem[] = (supplies ?? []).map((supply) => ({ recordId: supply.id, id: supply.catalog_code, name: supply.name, supplier: supply.supplier ?? "Sin proveedor registrado", purchasePrice: Number(supply.purchase_price ?? 0), vatIncluded: Boolean(supply.vat_included), unit: supply.unit, usefulLife: "Sin registrar", calculationMethod: supply.calculation_method, lastUpdated: supply.updated_at, status: supply.status, version: supply.version, currentStock: Number(supply.current_stock ?? 0), minimumStock: supply.minimum_stock == null ? undefined : Number(supply.minimum_stock), recommendedPurchase: supply.recommended_purchase == null ? undefined : Number(supply.recommended_purchase), stockStatus: supply.stock_status, metadata: supply.metadata } as SupplyInventoryItem));
+  const warehouseMovements: InventoryMovement[] = (inventoryMovements ?? []).map((movement) => ({ id: movement.id, supplyId: movement.supply_id, orbitEventId: movement.orbit_event_id ?? undefined, customerId: movement.customer_id ?? undefined, projectId: movement.project_id ?? undefined, staffId: movement.staff_id ?? undefined, vehicleId: movement.vehicle_id ?? undefined, movementType: movement.movement_type as InventoryMovement["movementType"], quantity: Number(movement.quantity), unitCost: movement.unit_cost == null ? undefined : Number(movement.unit_cost), totalCost: movement.total_cost == null ? undefined : Number(movement.total_cost), occurredAt: movement.occurred_at, reason: movement.reason, version: movement.version }));
   return <PersonalWorkspaceSections moduleKey="RESOURCES" sections={[
     {key:"RESOURCE_CENTER",label:"Centro de Recursos",content:<ResourceCenter initialItems={resources}/>},
     {key:"SERVICE_RESOURCE_MAPPING",label:"Relación servicio–recurso",content:<ServiceAssetMappingManager mappings={mappings}/>},
@@ -96,5 +102,6 @@ export default async function ResourcesPage() {
     ...(modules.ROUTE_COSTS?[{key:"ROUTE_COSTS",label:"Costos de Ruta",content:<RouteCostCenter initialRoutes={routes} vehicles={fleet} projects={projectOptions} drivers={driverOptions}/>}]:[]),
     ...(modules.EQUIPMENT?[{key:"EQUIPMENT",label:"Equipamiento",content:<details className="rounded-2xl border bg-card p-5"><summary className="cursor-pointer font-semibold">Gestión detallada e historial de equipamiento</summary><div className="mt-6"><EquipmentOperationCenter initialItems={equipment} historyEntries={equipmentHistory}/></div></details>}]:[]),
     ...(modules.INVENTORY?[{key:"INVENTORY",label:"Inventario operacional",content:<OperationsBoard snapshot={createOperationsBoardSnapshot(input)}/>}]:[]),
+    ...(modules.INVENTORY?[{key:"WAREHOUSE",label:"Bodega",content:<WarehouseInventory supplies={warehouseSupplies} movements={warehouseMovements}/>}]:[]),
   ]}/>;
 }

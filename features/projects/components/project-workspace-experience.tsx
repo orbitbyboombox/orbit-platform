@@ -966,10 +966,11 @@ export function ProjectWorkspaceExperience(
               eyebrow="05 · Costos automáticos"
               icon={<Gauge className="size-5" />}
               id="estimated-costs"
-              title="Estimated Costs"
+              title="Costos estimados (referencia)"
             >
               {event.estimatedCosts ? (
                 <div className="space-y-4">
+                  <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs leading-5 text-amber-200">Referencia calculada desde Cost Master y Master Data. El costo real y la rentabilidad oficial se muestran abajo desde <code>financial_event_records</code>; esta sección no modifica ni reemplaza esos valores.</p>
                   <dl>
                     <Row
                       label="Papel"
@@ -1063,7 +1064,7 @@ export function ProjectWorkspaceExperience(
           )}
           {eventTab === "staff" && moduleVisible("STAFF") && (
             <section aria-labelledby="staff-assignment-title" id="staff-assignment" role="tabpanel">
-              <div className="mb-3"><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Equipo del evento</p><h2 className="mt-1 text-2xl font-semibold" id="staff-assignment-title">Staff y asignaciones</h2></div>
+              <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Equipo del evento</p><h2 className="mt-1 text-2xl font-semibold" id="staff-assignment-title">Staff y asignaciones</h2></div><button type="button" className="inline-flex min-h-10 items-center justify-center rounded-xl border px-3 text-sm font-semibold text-brand hover:border-brand" onClick={() => selectEventTab("operations")}>Abrir Logística</button></div>
               <StaffAssignmentCenter {...event.staffAssignments} />
             </section>
           )}
