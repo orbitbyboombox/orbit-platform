@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  AlertTriangle,
   ArrowRight,
   CalendarDays,
   CircleDollarSign,
@@ -11,7 +10,6 @@ import {
   TrendingUp,
   UsersRound,
   WalletCards,
-  Check,
   UserRoundCheck,
   ArrowDown,
   ArrowUp,
@@ -24,7 +22,6 @@ import type { LucideIcon } from "lucide-react";
 import type { FinanceDashboardReadModel, FinanceMetric } from "@/features/finance/finance-read-model";
 import { PersonalWorkspaceSections } from "./personal-workspace";
 import { reviewStaffRequestAction } from "@/features/operations/operations-planning.actions";
-import { markNotificationReadAction } from "@/features/notification-center/actions";
 import { FinancialAlertCenter, type FinancialAlertView } from "@/features/financial-alerts/financial-alert-center";
 import type { FounderActionItem } from "@/features/founder-action-center";
 import type { WhatsAppSummary } from "@/features/communication-hub";
@@ -110,6 +107,10 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
   whatsappConnected?: boolean;
 }) {
   const router = useRouter();
+  // Operational alerts remain available to downstream workspace contracts, but
+  // the dashboard no longer renders them as approval work; only real review
+  // actions belong in "Pendientes por revisar".
+  void operationalAlerts;
   const workspace = usePersonalWorkspace();
   const [dashboardLayout, setDashboardLayout] = useState<DashboardLayout>(() =>
     reconcileDashboardLayout(workspace.preferences.dashboardLayout),
@@ -122,21 +123,13 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
   const [orderMessage, setOrderMessage] = useState("");
   const [orderPending, startOrderTransition] = useTransition();
   const [resolvedApprovalIds, setResolvedApprovalIds] = useState<Set<string>>(() => new Set());
-  const [acknowledgedAlertIds, setAcknowledgedAlertIds] = useState<Set<string>>(() => new Set());
-  const [alertPending, startAlertTransition] = useTransition();
   useEffect(() => {
     setDashboardLayout(
       reconcileDashboardLayout(workspace.preferences.dashboardLayout),
     );
   }, [workspace.preferences.dashboardLayout]);
   const staffApprovalItems = pendingStaffApprovals.filter((item) => !resolvedApprovalIds.has(item.id));
-  const visibleOperationalAlerts = operationalAlerts.filter((item) => !acknowledgedAlertIds.has(item.id));
   const biancaCard = whatsappSummary ? <section aria-labelledby="founder-bianca-card" className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">BIANCA</p><h2 id="founder-bianca-card" className="mt-2 text-xl font-semibold">WhatsApp · Ventas &amp; Atención</h2><p className="mt-1 text-sm text-muted">{biancaStatus ?? "PREPARADA"} · {whatsappConnected ? "WhatsApp conectado" : "Esperando conexión de WhatsApp"}</p></div><span className="rounded-full border px-3 py-1 text-xs font-semibold">{biancaStatus ?? "PREPARADA"}</span></div><div className="mt-5 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4"><div><p className="text-muted">Activas</p><b>{whatsappSummary.active}</b></div><div><p className="text-muted">BIANCA</p><b>{whatsappSummary.nova}</b></div><div><p className="text-muted">Control humano</p><b>{whatsappSummary.human}</b></div><div><p className="text-muted">Necesitan atención</p><b>{whatsappSummary.waitingBoombox}</b></div></div><div className="mt-5 flex flex-wrap items-center gap-3"><span className="rounded-full border px-2 py-1 text-xs">Mensajería clientes: Desactivada</span><span className="rounded-full border px-2 py-1 text-xs">Delivery: OFF</span><Link className="ml-auto inline-flex min-h-10 items-center rounded-lg bg-brand px-4 text-sm font-semibold text-brand-foreground" href="/bianca">ABRIR BIANCA <ArrowRight className="ml-2 size-4" /></Link><Link className="text-sm font-semibold text-brand hover:underline" href="/settings/bianca-lab">BIANCA Lab</Link></div></section> : null;
-  const acknowledgeAlert = (id: string) => startAlertTransition(async () => {
-    await markNotificationReadAction(id);
-    setAcknowledgedAlertIds((current) => new Set(current).add(id));
-    router.refresh();
-  });
   const position = (label: string) => finance.position.find(item => item.label === label);
   const month = (label: string) => finance.month.find(item => item.label === label);
   const fallback = (label: string, href: string): FinanceMetric => ({ label, value: 0, format: "money", detail: "Sin movimientos canónicos.", href });
@@ -354,22 +347,7 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
     <div className="mt-4 space-y-4">{recentActivity.slice(0, 6).map((item, index) => <Link className="group flex items-start gap-3" href={item.href} key={item.id}><span className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded-full text-[10px] ${index % 3 === 0 ? toneStyle.success : index % 3 === 1 ? toneStyle.info : toneStyle.warning}`}>•</span><span className="min-w-0 flex-1"><strong className="block truncate text-xs font-medium">{item.title}</strong><span className="mt-1 block truncate text-[11px] text-muted">{item.detail}</span></span><ArrowRight className="mt-1 size-3.5 text-muted opacity-0 transition group-hover:opacity-100" /></Link>)}{!recentActivity.length ? <Empty label="Sin actividad reciente." /> : null}</div>
   </section>;
 
-  const alertItems: CommandCenterItem[] = [
-    ...visibleOperationalAlerts.slice(0, 2),
-    ...finance.risks.slice(0, 3).map((risk) => ({
-      id: risk.key,
-      title: risk.label,
-      detail: `${risk.count} pendientes · ${money(risk.amount)}`,
-      href: risk.href,
-      tone: risk.severity,
-      acknowledgeable: false,
-    })),
-  ].slice(0, 3);
-  const alerts = <section data-command-card aria-labelledby="founder-alerts-title" className="rounded-2xl border p-5 sm:p-6"><PanelTitle id="founder-alerts-title" label="Alertas y pendientes" /><div className="mt-4 grid gap-3 md:grid-cols-3">{
-    alertItems.map(alert => <article className="rounded-xl border bg-background/30 p-4 transition hover:border-brand/35" key={alert.id}><span className="flex items-start gap-3"><span className={`grid size-9 shrink-0 place-items-center rounded-xl ${alert.tone === "danger" ? toneStyle.danger : toneStyle.warning}`}><AlertTriangle className="size-4" /></span><span><strong className="block text-sm">{alert.title}</strong><span className="mt-1 block text-xs text-muted">{alert.detail}</span></span></span><span className="mt-3 flex flex-wrap items-center gap-2"><Link className="inline-flex min-h-9 items-center rounded-lg border border-brand/25 px-3 text-xs font-semibold text-brand" href={alert.href}>{alert.acknowledgeable ? "Abrir Evento / Cobertura Staff" : "Ver detalles"}</Link>{alert.acknowledgeable ? <button className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold disabled:opacity-50" disabled={alertPending} onClick={() => acknowledgeAlert(alert.id)}><Check className="size-3.5" />OK, visto</button> : null}</span></article>)
-  }</div>{!visibleOperationalAlerts.length && !finance.risks.length ? <Empty label="No hay alertas accionables." /> : null}</section>;
-
-  const commandGrid = <section aria-label="Jornada operacional" className="space-y-5"><div className="space-y-5">{today}{alerts}</div></section>;
+  const commandGrid = <section aria-label="Jornada operacional" className="space-y-5"><div className="space-y-5">{today}</div></section>;
 
   const actions = <section aria-labelledby="quick-actions-title"><PanelTitle id="quick-actions-title" label="Acciones rápidas" /><div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">{orderedQuickActions.map((action, index) => { const Icon = action.icon; return <OrderableItem controls={ordering ? <OrderControls disableDown={index === orderedQuickActions.length - 1} disableUp={index === 0} label={action.label} onDown={() => move("quickActionOrder", action.id, 1)} onUp={() => move("quickActionOrder", action.id, -1)} /> : null} key={action.id}><Link data-command-card className="group flex min-h-[4.75rem] items-center gap-3 rounded-2xl border p-4 transition hover:-translate-y-0.5" href={action.href}><span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand"><Icon className="size-4" /></span><span className="text-xs font-semibold uppercase">{action.label}</span></Link></OrderableItem>; })}</div></section>;
 
