@@ -397,7 +397,14 @@ export function ProjectWorkspaceExperience(
 ) {
   const router = useRouter();
   const [portalUrl, setPortalUrl] = useState("");
-  const [mobileEventPanel, setMobileEventPanel] = useState("event-summary-mobile");
+  type EventTab = "summary" | "finance" | "staff" | "operations" | "documents" | "communications";
+  const [eventTab, setEventTab] = useState<EventTab>(() => {
+    if (typeof window === "undefined") return "summary";
+    const requested = new URLSearchParams(window.location.search).get("eventTab");
+    return ["summary", "finance", "staff", "operations", "documents", "communications"].includes(requested ?? "")
+      ? requested as EventTab
+      : "summary";
+  });
   const [portalFeedback, setPortalFeedback] = useState("");
   const [customerDeleteFeedback, setCustomerDeleteFeedback] = useState("");
   const [workspacePreferences, setWorkspacePreferences] = useState(
@@ -509,10 +516,36 @@ export function ProjectWorkspaceExperience(
       router.refresh();
     } else setCustomerDeleteFeedback(result.message);
   };
-  const scroll = (id: string) =>
-    document
-      .getElementById(id)
-      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const selectEventTab = (tab: EventTab) => {
+    setEventTab(tab);
+    const url = new URL(window.location.href);
+    url.searchParams.set("eventTab", tab);
+    window.history.replaceState(window.history.state, "", url);
+  };
+  const scroll = (id: string) => {
+    const targetTab: Partial<Record<string, EventTab>> = {
+      "staff-assignment": "staff",
+      "event-finance": "finance",
+      "payroll": "finance",
+      "operations": "operations",
+      "event-readiness": "operations",
+      "equipment-assignment": "operations",
+      "documents": "documents",
+      "agreement-control": "documents",
+      "google": "communications",
+      "google-calendar": "communications",
+      "timeline": "communications",
+      "pre-event-reminder": "communications",
+      "customer-portal": "communications",
+    };
+    const tab = targetTab[id];
+    if (tab) {
+      selectEventTab(tab);
+      window.requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+      return;
+    }
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
   const moduleVisible = (key: EventModuleKey) =>
     !workspacePreferences.hiddenEventModules.includes(key);
   const hideModule = (key: EventModuleKey) => {
@@ -620,20 +653,24 @@ export function ProjectWorkspaceExperience(
                 <HeroMetric label="Salud" value={`${health}%`} />
               </div>
             </div>
-            <nav aria-label="Pestañas del evento" className="grid grid-cols-2 gap-2 border-t p-3 sm:grid-cols-3 sm:p-4 lg:grid-cols-6">
+            <nav aria-label="Pestañas del evento" role="tablist" className="grid grid-cols-2 gap-2 border-t p-3 sm:grid-cols-3 sm:p-4 lg:grid-cols-6">
               {[
-                { id: "event-summary-mobile", label: "Resumen", hint: "Estado y prioridades" },
-                { id: "event-finance", label: "Finanzas", hint: "Cobros y costos" },
-                { id: "staff-assignment", label: "Staff", hint: "Equipo asignado" },
+                { id: "summary", label: "Resumen", hint: "Estado y prioridades" },
+                { id: "finance", label: "Finanzas", hint: "Cobros y costos" },
+                { id: "staff", label: "Staff", hint: "Equipo asignado" },
                 { id: "operations", label: "Operación", hint: "Logística y checklist" },
                 { id: "documents", label: "Documentos", hint: "Cotizaciones y archivos" },
-                { id: "google-calendar", label: "Comunicaciones", hint: "Calendar y portal" },
+                { id: "communications", label: "Comunicaciones", hint: "Calendar y portal" },
               ].map(({ id, label, hint }) => (
                 <button
-                  className={`min-w-0 min-h-14 rounded-xl border px-3 py-2 text-left transition hover:border-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand ${mobileEventPanel === id ? "border-brand bg-brand/10 text-foreground" : "text-muted"}`}
+                  aria-controls={`event-tab-${id}`}
+                  aria-selected={eventTab === id}
+                  className={`min-w-0 min-h-14 rounded-xl border px-3 py-2 text-left transition hover:border-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand ${eventTab === id ? "border-brand bg-brand/10 text-foreground" : "text-muted"}`}
+                  data-event-tab={id}
+                  id={`event-tab-${id}-tab`}
                   key={id}
-                  onClick={() => { setMobileEventPanel(id); document.getElementById("event-mobile-panels")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
-                  aria-pressed={mobileEventPanel === id}
+                  onClick={() => selectEventTab(id as EventTab)}
+                  role="tab"
                   type="button"
                 >
                   <span className="block text-xs font-semibold uppercase tracking-wide">{label}</span>
@@ -643,143 +680,12 @@ export function ProjectWorkspaceExperience(
             </nav>
 
           </section>
-          <style jsx global>{`@media (max-width: 767px) {
-#event-mobile-panels:not([data-active="ALL"]) > * { display: none !important; }
-#event-mobile-panels[data-active="event-summary-mobile"] > #event-summary-mobile {display:block!important;}
-#event-mobile-panels[data-active="event-summary-mobile"] > :has(#customer) {display:grid!important;}
-#event-mobile-panels[data-active="event-summary-mobile"] > section > :is(#customer, :has(#customer)) {display:block!important;}
-#event-mobile-panels[data-active="event-summary-mobile"] > section > div:has(#customer) {display:block!important;}
-#event-mobile-panels[data-active="event-summary-mobile"] #customer {display:block!important;}
-#event-mobile-panels[data-active="event-summary-mobile"] > :has(#commercial) {display:grid!important;}
-#event-mobile-panels[data-active="event-summary-mobile"] > section > :is(#commercial, :has(#commercial)) {display:block!important;}
-#event-mobile-panels[data-active="event-summary-mobile"] > section > div:has(#commercial) {display:block!important;}
-#event-mobile-panels[data-active="event-summary-mobile"] #commercial {display:block!important;}
-#event-mobile-panels[data-active="event-summary-mobile"] > :has(#service) {display:grid!important;}
-#event-mobile-panels[data-active="event-summary-mobile"] > section > :is(#service, :has(#service)) {display:block!important;}
-#event-mobile-panels[data-active="event-summary-mobile"] > section > div:has(#service) {display:block!important;}
-#event-mobile-panels[data-active="event-summary-mobile"] #service {display:block!important;}
-#event-mobile-panels[data-active="event-summary-mobile"] > :has(#health) {display:grid!important;}
-#event-mobile-panels[data-active="event-summary-mobile"] > section > :is(#health, :has(#health)) {display:block!important;}
-#event-mobile-panels[data-active="event-summary-mobile"] > section > div:has(#health) {display:block!important;}
-#event-mobile-panels[data-active="event-summary-mobile"] #health {display:block!important;}
-#event-mobile-panels[data-active="event-finance"] > :has(#event-finance) {display:grid!important;}
-#event-mobile-panels[data-active="event-finance"] > section > :is(#event-finance, :has(#event-finance)) {display:block!important;}
-#event-mobile-panels[data-active="event-finance"] > section > div:has(#event-finance) {display:block!important;}
-#event-mobile-panels[data-active="event-finance"] #event-finance {display:block!important;}
-#event-mobile-panels[data-active="event-finance"] > :has(#payroll) {display:grid!important;}
-#event-mobile-panels[data-active="event-finance"] > section > :is(#payroll, :has(#payroll)) {display:block!important;}
-#event-mobile-panels[data-active="event-finance"] > section > div:has(#payroll) {display:block!important;}
-#event-mobile-panels[data-active="event-finance"] #payroll {display:block!important;}
-#event-mobile-panels[data-active="event-finance"] > :has(#real-cost-adjustments) {display:grid!important;}
-#event-mobile-panels[data-active="event-finance"] > section > :is(#real-cost-adjustments, :has(#real-cost-adjustments)) {display:block!important;}
-#event-mobile-panels[data-active="event-finance"] > section > div:has(#real-cost-adjustments) {display:block!important;}
-#event-mobile-panels[data-active="event-finance"] #real-cost-adjustments {display:block!important;}
-#event-mobile-panels[data-active="operations"] > #event-control-center {display:block!important;}
-#event-mobile-panels[data-active="operations"] > :has(#operations) {display:grid!important;}
-#event-mobile-panels[data-active="operations"] > section > :is(#operations, :has(#operations)) {display:block!important;}
-#event-mobile-panels[data-active="operations"] > section > div:has(#operations) {display:block!important;}
-#event-mobile-panels[data-active="operations"] #operations {display:block!important;}
-#event-mobile-panels[data-active="operations"] > :has(#event-control-center) {display:grid!important;}
-#event-mobile-panels[data-active="operations"] > section > :is(#event-control-center, :has(#event-control-center)) {display:block!important;}
-#event-mobile-panels[data-active="operations"] > section > div:has(#event-control-center) {display:block!important;}
-#event-mobile-panels[data-active="operations"] #event-control-center {display:block!important;}
-#event-mobile-panels[data-active="operations"] > :has(#equipment-assignment) {display:grid!important;}
-#event-mobile-panels[data-active="operations"] > section > :is(#equipment-assignment, :has(#equipment-assignment)) {display:block!important;}
-#event-mobile-panels[data-active="operations"] > section > div:has(#equipment-assignment) {display:block!important;}
-#event-mobile-panels[data-active="operations"] #equipment-assignment {display:block!important;}
-#event-mobile-panels[data-active="operations"] > :has(#tasks) {display:grid!important;}
-#event-mobile-panels[data-active="operations"] > section > :is(#tasks, :has(#tasks)) {display:block!important;}
-#event-mobile-panels[data-active="operations"] > section > div:has(#tasks) {display:block!important;}
-#event-mobile-panels[data-active="operations"] #tasks {display:block!important;}
-#event-mobile-panels[data-active="documents"] > :has(#documents) {display:grid!important;}
-#event-mobile-panels[data-active="documents"] > section > :is(#documents, :has(#documents)) {display:block!important;}
-#event-mobile-panels[data-active="documents"] > section > div:has(#documents) {display:block!important;}
-#event-mobile-panels[data-active="documents"] #documents {display:block!important;}
-#event-mobile-panels[data-active="google-calendar"] > :has(#google) {display:grid!important;}
-#event-mobile-panels[data-active="google-calendar"] > section > :is(#google, :has(#google)) {display:block!important;}
-#event-mobile-panels[data-active="google-calendar"] > section > div:has(#google) {display:block!important;}
-#event-mobile-panels[data-active="google-calendar"] #google {display:block!important;}
-#event-mobile-panels[data-active="google-calendar"] > :has(#timeline) {display:grid!important;}
-#event-mobile-panels[data-active="google-calendar"] > section > :is(#timeline, :has(#timeline)) {display:block!important;}
-#event-mobile-panels[data-active="google-calendar"] > section > div:has(#timeline) {display:block!important;}
-#event-mobile-panels[data-active="google-calendar"] #timeline {display:block!important;}
-#event-mobile-panels:not([data-active="ALL"]) > section > * {display:none!important;}
-#event-mobile-panels[data-active="event-summary-mobile"] > section > :is(#customer, :has(#customer)) {display:block!important;}
-#event-mobile-panels[data-active="event-summary-mobile"] > section > :is(#commercial, :has(#commercial)) {display:block!important;}
-#event-mobile-panels[data-active="event-summary-mobile"] > section > :is(#service, :has(#service)) {display:block!important;}
-#event-mobile-panels[data-active="event-summary-mobile"] > section > :is(#health, :has(#health)) {display:block!important;}
-#event-mobile-panels[data-active="event-finance"] > section > :is(#event-finance, :has(#event-finance)) {display:block!important;}
-#event-mobile-panels[data-active="event-finance"] > section > :is(#payroll, :has(#payroll)) {display:block!important;}
-#event-mobile-panels[data-active="event-finance"] > section > :is(#real-cost-adjustments, :has(#real-cost-adjustments)) {display:block!important;}
-#event-mobile-panels[data-active="operations"] > section > :is(#operations, :has(#operations)) {display:block!important;}
-#event-mobile-panels[data-active="operations"] > section > :is(#event-control-center, :has(#event-control-center)) {display:block!important;}
-#event-mobile-panels[data-active="operations"] > section > :is(#equipment-assignment, :has(#equipment-assignment)) {display:block!important;}
-#event-mobile-panels[data-active="operations"] > section > :is(#tasks, :has(#tasks)) {display:block!important;}
-#event-mobile-panels[data-active="documents"] > section > :is(#documents, :has(#documents)) {display:block!important;}
-#event-mobile-panels[data-active="google-calendar"] > section > :is(#google, :has(#google)) {display:block!important;}
-#event-mobile-panels[data-active="google-calendar"] > section > :is(#timeline, :has(#timeline)) {display:block!important;}
-#event-mobile-panels[data-active="documents"] > #mobile-documents-content {display:block!important;}
-#event-mobile-panels[data-active="staff-assignment"] > #mobile-staff-content, #event-mobile-panels[data-active="event-finance"] > #mobile-receivable-content, #event-mobile-panels[data-active="google-calendar"] > #mobile-communications-content {display:block!important;}
-}`}</style>
-          <div id="event-mobile-panels" data-active={mobileEventPanel} className="scroll-mt-24 space-y-6">
-          <div className="scroll-mt-24" id="event-summary-mobile">{capacityPanel}</div>
-          <div id="mobile-staff-content" className="md:hidden">
-            <div className="rounded-2xl border bg-card p-4">
-              <h2 className="mb-3 text-lg font-semibold">Staff y asignaciones</h2>
-              <StaffAssignmentCenter {...event.staffAssignments} />
-            </div>
-          </div>
-          <div id="mobile-receivable-content" className="md:hidden">
-            <section className="rounded-2xl border bg-card p-4">
-              <h2 className="mb-3 text-lg font-semibold">Cobros y estado de pago</h2>
-              {event.receivable ? <dl className="space-y-1">
-                <Row label="Total por cobrar" value={money(event.receivable.amount)} />
-                <Row label="Recibido" value={money(event.receivable.paidAmount)} />
-                <Row label="Saldo pendiente" value={money(event.receivable.outstandingBalance)} />
-                <Row label="Estado" value={event.receivable.status} />
-                <Row label="Vencimiento" value={event.receivable.dueDate || "Sin fecha"} />
-                <Row label="Factura" value={event.receivable.invoiceNumber || "Sin factura emitida"} />
-              </dl> : <Empty text="Todavía no hay cuentas por cobrar registradas para este evento." />}
-            </section>
-          </div>
-          <div id="mobile-documents-content" className="md:hidden space-y-4">
-            <section className="rounded-2xl border bg-card p-4">
-              <h2 className="mb-3 text-lg font-semibold">Diseño de tira de fotos</h2>
-              {photoStripEligible ? (
-                <PhotoStripDesignCenter documents={photoStripDocuments} projectId={props.projectKey!} />
-              ) : (
-                <p className="text-sm text-muted">Este servicio no requiere diseño de tira de fotos. Los archivos del evento siguen disponibles abajo.</p>
-              )}
-            </section>
-            <section className="rounded-2xl border bg-card p-4">
-              <h2 className="mb-3 text-lg font-semibold">Fotos digitales y Google Drive</h2>
-              <p className="mb-3 text-sm text-muted">Revisa la entrega de fotos y el enlace a la carpeta del evento.</p>
-              <DigitalPhotoDeliveryControl projectId={props.projectKey ?? ""} />
-              {event.google.driveUrl ? (
-                <a className="mt-3 inline-flex min-h-11 items-center rounded-xl border px-4 text-sm font-semibold text-brand" href={event.google.driveUrl} rel="noreferrer" target="_blank">Abrir carpeta de Google Drive</a>
-              ) : (
-                <p className="mt-3 text-sm text-muted">Todavía no hay un enlace de Google Drive disponible.</p>
-              )}
-              <p className="mt-2 text-xs text-muted">Estado de Drive: {event.google.driveStatus}</p>
-            </section>
-          </div>
-          <div id="mobile-communications-content" className="md:hidden">
-            <section className="rounded-2xl border bg-card p-4">
-              <h2 className="mb-3 text-lg font-semibold">Comunicaciones y enlaces</h2>
-              <dl className="space-y-1">
-                <Row label="Google Calendar" value={<Connector status={event.google.calendarStatus} href={event.google.calendarUrl} />} />
-                <Row label="Google Drive" value={<Connector status={event.google.driveStatus} href={event.google.driveUrl} />} />
-                <Row label="Gmail" value={<Connector status={event.google.gmailStatus} />} />
-                <Row label="Conversación" value={event.google.gmailThread || "Sin conversación"} />
-              </dl>
-              <button type="button" className="mt-4 min-h-11 rounded-xl border px-4 text-sm font-semibold text-brand" onClick={generatePortal}>{portalUrl ? "Regenerar acceso al portal" : "Generar acceso al portal"}</button>
-              {portalUrl ? <a className="ml-3 text-sm text-brand underline" href={portalUrl} target="_blank" rel="noreferrer">Abrir portal</a> : null}
-              {portalFeedback ? <p className="mt-2 text-sm text-muted" role="status">{portalFeedback}</p> : null}
-            </section>
-          </div>
+          <div id="event-tab-panels" data-active-tab={eventTab} className="scroll-mt-24 space-y-6">
+          <div id="event-tab-summary" role="tabpanel" aria-labelledby="event-tab-summary-tab" className="space-y-6">
+            {eventTab === "summary" ? <div className="scroll-mt-24" id="event-summary-mobile">{capacityPanel}</div> : null}
 
           <section className="grid gap-6 xl:grid-cols-2">
-            {moduleVisible("GENERAL_INFORMATION") && (
+            {eventTab === "summary" && moduleVisible("GENERAL_INFORMATION") && (
               <Section
                 eyebrow="01 · Relación"
                 icon={<UserRound className="size-5" />}
@@ -831,7 +737,7 @@ export function ProjectWorkspaceExperience(
                 </dl>
               </Section>
             )}
-            {moduleVisible("COMMERCIAL_NEGOTIATION") && (
+            {eventTab === "summary" && moduleVisible("COMMERCIAL_NEGOTIATION") && (
               <OptionalModule
                 moduleKey="COMMERCIAL_NEGOTIATION"
                 onHide={hideModule}
@@ -930,7 +836,7 @@ export function ProjectWorkspaceExperience(
                 </Section>
               </OptionalModule>
             )}
-            {moduleVisible("GENERAL_INFORMATION") && (
+            {eventTab === "summary" && moduleVisible("GENERAL_INFORMATION") && (
               <Section
                 eyebrow="03 · Experiencia"
                 icon={<Sparkles className="size-5" />}
@@ -984,7 +890,7 @@ export function ProjectWorkspaceExperience(
                 </dl>
               </Section>
             )}
-            {moduleVisible("OPERATIONAL_CONTROL") && (
+            {eventTab === "operations" && moduleVisible("OPERATIONAL_CONTROL") && (
               <OptionalModule
                 moduleKey="OPERATIONAL_CONTROL"
                 onHide={hideModule}
@@ -1032,15 +938,16 @@ export function ProjectWorkspaceExperience(
               </OptionalModule>
             )}
           </section>
+          </div>
 
-          {props.operationalReadiness ? <EventOperationalReadiness data={props.operationalReadiness}/> : null}
-          <EventLogisticsCenter data={props.logistics}/>
+          {eventTab === "operations" && props.operationalReadiness ? <EventOperationalReadiness data={props.operationalReadiness}/> : null}
+          {eventTab === "operations" ? <EventLogisticsCenter data={props.logistics}/> : null}
 
-          <section className="scroll-mt-24" id="event-control-center">
+          {eventTab === "operations" ? <section className="scroll-mt-24" id="event-control-center">
             <div className="mb-3"><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Centro operativo</p><h2 className="mt-1 text-2xl font-semibold">Gestión completa del Evento</h2><p className="mt-1 text-sm text-muted">Pagos, costos, Staff, documentos, Portal y Calendar pertenecen a este Evento.</p></div>
             <CustomerEventOperations event={props.eventControl.event} onEditEvent={() => scroll("commercial")} operations={props.eventControl.operations} reconciliationId={props.reconciliationId}/>
-          </section>
-          {moduleVisible("FINANCIAL_SUMMARY") && event.realCosts && (
+          </section> : null}
+          {eventTab === "finance" && moduleVisible("FINANCIAL_SUMMARY") && event.realCosts && (
             <details className="rounded-2xl border bg-card p-5" id="real-cost-adjustments">
               <summary className="cursor-pointer font-semibold text-brand">Detalle financiero y ajustes de costos reales</summary>
               <div className="mt-5"><RealCostOverridePanel data={event.realCosts} projectId={props.projectKey ?? ""}/></div>
@@ -1145,7 +1052,7 @@ export function ProjectWorkspaceExperience(
               )}
             </>
           )}
-          {moduleVisible("CHECKLIST") && (
+          {eventTab === "operations" && moduleVisible("CHECKLIST") && (
             <OptionalModule moduleKey="CHECKLIST" onHide={hideModule}>
               <EventCompletionAction projectId={props.projectKey ?? ""} status={String(event.status ?? "")} />
               <EventOperationsChecklist
@@ -1154,10 +1061,13 @@ export function ProjectWorkspaceExperience(
               />
             </OptionalModule>
           )}
-          {showLegacyDuplicatedEventSections && moduleVisible("STAFF") && (
-            <StaffAssignmentCenter {...event.staffAssignments} />
+          {eventTab === "staff" && moduleVisible("STAFF") && (
+            <section aria-labelledby="staff-assignment-title" id="staff-assignment" role="tabpanel">
+              <div className="mb-3"><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Equipo del evento</p><h2 className="mt-1 text-2xl font-semibold" id="staff-assignment-title">Staff y asignaciones</h2></div>
+              <StaffAssignmentCenter {...event.staffAssignments} />
+            </section>
           )}
-          {moduleVisible("TASK_CENTER") && (
+          {eventTab === "operations" && moduleVisible("TASK_CENTER") && (
             <OptionalModule moduleKey="TASK_CENTER" onHide={hideModule}>
               <Section
                 eyebrow="05 · Trabajo pendiente"
@@ -1205,7 +1115,7 @@ export function ProjectWorkspaceExperience(
           )}
 
           <section className="grid gap-6 xl:grid-cols-2">
-            {moduleVisible("TIMELINE") && (
+            {eventTab === "communications" && moduleVisible("TIMELINE") && (
               <OptionalModule moduleKey="TIMELINE" onHide={hideModule}>
                 <Section
                   eyebrow="06 · Historial inmutable"
@@ -1235,7 +1145,7 @@ export function ProjectWorkspaceExperience(
                 </Section>
               </OptionalModule>
             )}
-            {moduleVisible("DOCUMENTS") && (
+            {eventTab === "documents" && moduleVisible("DOCUMENTS") && (
               <Section
                 eyebrow="07 · Archivos"
                 icon={<FolderOpen className="size-5" />}
@@ -1246,7 +1156,7 @@ export function ProjectWorkspaceExperience(
                 <EventCommercialDocumentHub projectId={props.projectKey!} customerName={props.clientName} customerTaxId={props.commercialHub.customerTaxId} customerKind={props.commercialHub.customerKind} quotation={props.commercialHub.quotation} contract={props.signing} receivable={event.receivable?{id:event.receivable.id,paid:event.receivable.paidAmount,outstanding:event.receivable.outstandingBalance,dueDate:event.receivable.dueDate,status:event.receivable.status}:undefined} paymentCondition={props.commercialHub.paymentCondition} documents={event.documents} taxDocuments={event.documents.filter(doc=>doc.taxType&&doc.folio&&doc.issueDate).map(doc=>({id:doc.id,taxType:doc.taxType!,folio:doc.folio!,issueDate:doc.issueDate!,total:doc.total??0,status:doc.status??"ADJUNTADO",href:doc.href}))}/>
               </Section>
             )}
-            {showLegacyDuplicatedEventSections && moduleVisible("GOOGLE_CALENDAR") && (
+            {eventTab === "communications" && showLegacyDuplicatedEventSections && moduleVisible("GOOGLE_CALENDAR") && (
               <Section
                 eyebrow="08 · Agenda"
                 icon={<CalendarDays className="size-5" />}
@@ -1266,7 +1176,7 @@ export function ProjectWorkspaceExperience(
                 </dl>
               </Section>
             )}
-            {showLegacyDuplicatedEventSections && moduleVisible("CUSTOMER_PORTAL") && (
+            {eventTab === "communications" && showLegacyDuplicatedEventSections && moduleVisible("CUSTOMER_PORTAL") && (
               <Section
                 eyebrow="09 · Cliente"
                 icon={<Link2 className="size-5" />}
@@ -1301,7 +1211,7 @@ export function ProjectWorkspaceExperience(
                 </button>
               </Section>
             )}
-            {moduleVisible("GOOGLE_WORKSPACE") && (
+            {eventTab === "communications" && moduleVisible("GOOGLE_WORKSPACE") && (
               <OptionalModule moduleKey="GOOGLE_WORKSPACE" onHide={hideModule}>
                 <Section
                   eyebrow="10 · Integraciones"
@@ -1339,7 +1249,7 @@ export function ProjectWorkspaceExperience(
                 </Section>
               </OptionalModule>
             )}
-            {moduleVisible("FINANCIAL_SUMMARY") && (
+            {eventTab === "finance" && moduleVisible("FINANCIAL_SUMMARY") && (
               <Section
                 eyebrow="09 · Rentabilidad real"
                 icon={<Gauge className="size-5" />}
@@ -1484,7 +1394,7 @@ export function ProjectWorkspaceExperience(
                 )}
               </Section>
             )}
-            {moduleVisible("PAYROLL") && (
+            {eventTab === "finance" && moduleVisible("PAYROLL") && (
               <OptionalModule moduleKey="PAYROLL" onHide={hideModule}>
                 <Section
                   eyebrow="10 · Costos de equipo"
@@ -1540,7 +1450,7 @@ export function ProjectWorkspaceExperience(
             )}
           </section>
 
-          {moduleVisible("EVENT_HEALTH") && (
+          {eventTab === "summary" && moduleVisible("EVENT_HEALTH") && (
             <OptionalModule moduleKey="EVENT_HEALTH" onHide={hideModule}>
               <Section
                 eyebrow="10 · Lectura ejecutiva"
@@ -1579,7 +1489,7 @@ export function ProjectWorkspaceExperience(
             </OptionalModule>
           )}
 
-          <Section
+          {eventTab === "summary" && <Section
             eyebrow="11 · Decisiones"
             icon={<ClipboardCheck className="size-5" />}
             id="quick-actions"
@@ -1708,13 +1618,13 @@ export function ProjectWorkspaceExperience(
                 {customerDeleteFeedback}
               </p>
             )}
-          </Section>
+          </Section>}
 
-          <PreEventReminderControl projectId={props.projectKey ?? ""} />
+          {eventTab === "communications" ? <PreEventReminderControl projectId={props.projectKey ?? ""} /> : null}
 
-          <div className="hidden md:block"><DigitalPhotoDeliveryControl projectId={props.projectKey ?? ""} /></div>
+          {eventTab === "documents" ? <DigitalPhotoDeliveryControl projectId={props.projectKey ?? ""} /> : null}
 
-          {moduleVisible("MILESTONES") && (
+          {eventTab === "operations" && moduleVisible("MILESTONES") && (
             <OptionalModule moduleKey="MILESTONES" onHide={hideModule}>
               <Section
                 eyebrow="12 · Post evento"
@@ -1767,7 +1677,7 @@ export function ProjectWorkspaceExperience(
             </OptionalModule>
           )}
 
-          {moduleVisible("OPERATIONAL_CONTROL") && (
+          {eventTab === "operations" && moduleVisible("OPERATIONAL_CONTROL") && (
             <OptionalModule moduleKey="OPERATIONAL_CONTROL" onHide={hideModule}>
               <div id="equipment-assignment">
                 <EquipmentAssignmentPanel {...props.equipment} />
@@ -1775,7 +1685,7 @@ export function ProjectWorkspaceExperience(
               <ProductionIntegrationPanel {...props.productionIntegration} />
             </OptionalModule>
           )}
-          {showLegacyDuplicatedEventSections && moduleVisible("DOCUMENTS") && (
+          {eventTab === "documents" && showLegacyDuplicatedEventSections && moduleVisible("DOCUMENTS") && (
             <div id="agreement-control">
               <AgreementSigningControl
                 agreementId={props.signing.agreementId}
