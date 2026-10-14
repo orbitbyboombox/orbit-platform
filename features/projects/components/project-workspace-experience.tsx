@@ -271,6 +271,7 @@ function Section({
   icon,
   children,
   className = "",
+  dataEventArea,
 }: {
   id: string;
   eyebrow: string;
@@ -278,9 +279,11 @@ function Section({
   icon: ReactNode;
   children: ReactNode;
   className?: string;
+  dataEventArea?: string;
 }) {
   return (
     <section
+      data-event-area={dataEventArea}
       className={`scroll-mt-24 rounded-2xl border bg-card p-5 sm:p-6 ${className}`}
       id={id}
     >
@@ -597,7 +600,7 @@ export function ProjectWorkspaceExperience(
           </section>
 
           <style jsx global>{`
-            #event-six-tabs > [data-event-area] { display: none !important; }
+            #event-six-tabs > :not(style) { display: none !important; }
             #event-six-tabs > [data-event-area="header"] { display: block !important; }
             #event-six-tabs[data-active="summary"] > [data-event-area="summary"],
             #event-six-tabs[data-active="operations"] > [data-event-area="operations"],
@@ -1418,7 +1421,7 @@ export function ProjectWorkspaceExperience(
           )}
 
           <Section
-            data-event-area="summary"
+            dataEventArea="summary"
             eyebrow="11 · Decisiones"
             icon={<ClipboardCheck className="size-5" />}
             id="quick-actions"
