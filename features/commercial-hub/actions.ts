@@ -812,7 +812,7 @@ export async function prepareEventQuoteResendAction(projectId: string, quoteId: 
     const number = quote.quotation_number;
     return { ok: true as const, number, email,
       subject: `BOOMBOX | Reenvío cotización ${number}`,
-      body: `Hola ${contact},\\n\\nSegún lo solicitado, te reenviamos la cotización formal ${number} de BOOMBOX. Puedes revisar la propuesta y sus condiciones en el documento adjunto.\\n\\nQuedamos atentos a tus comentarios.` };
+      body: `Hola ${contact},\n\nSegún lo solicitado, te reenviamos la cotización formal ${number} de BOOMBOX. Puedes revisar la propuesta y sus condiciones en el documento adjunto.\n\nQuedamos atentos a tus comentarios.` };
   } catch (error) { return fail(error, "No fue posible recuperar la cotización original."); }
 }
 
