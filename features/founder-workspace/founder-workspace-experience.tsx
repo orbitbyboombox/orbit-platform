@@ -359,7 +359,7 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
   const calendarIndex = dashboardSections.indexOf("DASHBOARD_UPCOMING_EVENTS");
   const calendarSection = <OrderableItem controls={ordering ? <OrderControls avoidWorkspaceMenu disableDown={calendarIndex < 0 || calendarIndex === dashboardSections.length - 1} disableUp={calendarIndex <= 1} label="Próximos eventos" onDown={() => moveCalendar(1)} onUp={() => moveCalendar(-1)} /> : null}>{upcoming}</OrderableItem>;
 
-  return <main className="orbit-command-center" id="founder-workspace">{reviewCount > 0 ? <div className="mb-4" data-fixed-founder-pending-review>{actionCenter}</div> : null}<PersonalWorkspaceSections moduleKey="DASHBOARD" reorderEnabled={ordering} sections={[
+  return <main className="orbit-command-center" id="founder-workspace"><div className="mb-4" data-fixed-founder-pending-review>{actionCenter}</div><PersonalWorkspaceSections moduleKey="DASHBOARD" reorderEnabled={ordering} sections={[
     { key: "DASHBOARD_HEADER", label: "Bienvenida", content: <>{welcome}<div className="mt-4">{compactSummary}</div></> },
     ...(biancaCard ? [{ key: "DASHBOARD_BIANCA", label: "BIANCA", content: biancaCard }] : []),
     { key: "DASHBOARD_UPCOMING_EVENTS", label: "Próximos eventos", content: calendarSection },
