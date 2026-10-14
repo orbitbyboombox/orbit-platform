@@ -13,6 +13,8 @@ Este procedimiento es separado del workflow de backup y requiere otra aprobació
 
 El workflow fija Supabase CLI en `2.121.0` y `googleapis` en `144.0.0`; las dependencias de la aplicación se instalan con el lockfile existente.
 
+Existe además `orbit-storage-backup.yml`, un flujo manual Storage-only que no requiere `SUPABASE_DB_URL` ni PostgreSQL. Usa la misma aprobación del environment, cifra el archivo de objetos y todos los manifiestos, y verifica el readback desde Drive por SHA-256 y tamaño.
+
 El dump solicitado incluye `public`, `storage` y `auth` y debe fallar si el rol no puede leer `auth`. Los roles de servidor gestionados, usuarios/credenciales externas de Auth, extensiones administradas, cron, secretos y configuración de proveedores no quedan garantizados por un dump SQL estándar; deben preservarse mediante el mecanismo administrativo correspondiente y validarse por separado.
 
 ## Pasos
