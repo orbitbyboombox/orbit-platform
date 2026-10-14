@@ -153,8 +153,6 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
   const kpis: Array<{ id: DashboardKpiItemKey; metric: FinanceMetric; icon: LucideIcon; tone: keyof typeof toneStyle }> = [
     { id: "kpi.cash_registered", metric: position("Caja registrada") ?? fallback("Caja registrada", "/finance/cash-flow"), icon: WalletCards, tone: "info" },
     { id: "kpi.total_receivables", metric: position("Por cobrar total") ?? fallback("Por cobrar total", "/finance/receivables"), icon: CircleDollarSign, tone: "warning" },
-    { id: "kpi.company_credit", metric: position("Crédito Empresas") ?? fallback("Crédito Empresas", "/finance/receivables?category=company-credit"), icon: CircleDollarSign, tone: "warning" },
-    { id: "kpi.customer_balances", metric: position("Saldos Clientes / Eventos") ?? fallback("Saldos Clientes / Eventos", "/finance/receivables?category=ordinary"), icon: WalletCards, tone: "info" },
     { id: "kpi.month_sales", metric: month("Ventas del mes") ?? fallback("Ventas del mes", "/projects?period=month"), icon: TrendingUp, tone: "success" },
     { id: "kpi.operating_result", metric: month("Resultado operativo") ?? fallback("Resultado operativo del mes", "/finance/expenses"), icon: TrendingUp, tone: "success" },
     { id: "kpi.operating_margin", metric: month("Margen operativo") ?? { label: "Margen operativo del mes", value: 0, format: "percent", detail: "Resultado operativo sobre ventas del mes.", href: "/finance/expenses" }, icon: TrendingUp, tone: "info" },
@@ -264,9 +262,14 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
   };
 
   const activeDashboardLayout = ordering && draftDashboardLayout ? draftDashboardLayout : dashboardLayout;
+  // Consolidated dashboard: credit-company and ordinary receivables are included
+  // in the canonical global total, not independent outstanding debts.
   const orderedKpis = activeDashboardLayout.kpiOrder
     .map((id) => kpis.find((item) => item.id === id))
     .filter((item): item is (typeof kpis)[number] => Boolean(item));
+  const visibleKpis = orderedKpis.length
+    ? orderedKpis
+    : kpis;
   const orderedQuickActions = activeDashboardLayout.quickActionOrder
     .map((id) => quickActions.find((item) => item.id === id))
     .filter((item): item is (typeof quickActions)[number] => Boolean(item));
@@ -297,7 +300,7 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
   </header>;
 
   const founderKpis = <section aria-label="Indicadores principales" className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-    {orderedKpis.map(({ id, metric, icon: Icon, tone }, index) => <OrderableItem controls={ordering ? <OrderControls disableDown={index === orderedKpis.length - 1} disableUp={index === 0} label={metric.label} onDown={() => move("kpiOrder", id, 1)} onUp={() => move("kpiOrder", id, -1)} /> : null} key={id}><button data-command-card className="group min-h-[7.75rem] min-w-0 w-full rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 sm:p-[1.05rem]" onClick={() => router.push(metric.href)} style={{ containerType: "inline-size" }}>
+    {visibleKpis.map(({ id, metric, icon: Icon, tone }, index) => <OrderableItem controls={ordering ? <OrderControls disableDown={index === visibleKpis.length - 1} disableUp={index === 0} label={metric.label} onDown={() => move("kpiOrder", id, 1)} onUp={() => move("kpiOrder", id, -1)} /> : null} key={id}><button data-command-card className="group min-h-[7.75rem] min-w-0 w-full rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 sm:p-[1.05rem]" onClick={() => router.push(metric.href)} style={{ containerType: "inline-size" }}>
       <span className="flex items-center gap-3"><span className={`grid size-10 shrink-0 place-items-center rounded-xl ${toneStyle[tone]}`}><Icon className="size-[18px]" /></span><span className="text-[.7rem] font-medium leading-4 text-muted">{metric.label}</span></span>
       <FounderKpiValue>{formatMetric(metric)}</FounderKpiValue>
       <span className="mt-2 block truncate text-[10px] text-muted">{metric.detail}</span>
