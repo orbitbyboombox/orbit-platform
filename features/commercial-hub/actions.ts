@@ -437,6 +437,7 @@ export async function sendFormalQuoteAction(input: { quoteId: string; email: str
     const cleanBody = withoutDuplicateSignature(withoutDuplicateSignature(body, company.emailSignature || signatureText), signatureText);
     const htmlParagraphs = emailParagraphs(cleanBody).map((paragraph) => `<p style="margin:0 0 16px">${escapeHtml(paragraph).replaceAll("\n", "<br>")}</p>`).join("");
     const attachmentFilename = quoteDisplayFilename(quote.quotation_number);
+    const formalTransportUrl = new URL("/traslados?type=company", process.env.NEXT_PUBLIC_APP_URL ?? "https://app.bbox.cl").toString();
     const htmlBody = renderBoomboxCommercialEmail({
       preheader: `Tu cotización ${quote.quotation_number} está lista.`,
       eyebrow: "COTIZACIÓN BOOMBOX",
@@ -450,6 +451,7 @@ export async function sendFormalQuoteAction(input: { quoteId: string; email: str
       secondaryAction: catalogUrl
         ? { href: catalogUrl, label: "VER CATÁLOGO EMPRESAS" }
         : undefined,
+      tertiaryAction: { href: formalTransportUrl, label: "CONOCER VALOR DE TRASLADO + IVA" },
       attachmentNote: `${attachmentFilename} está incluido como archivo adjunto.`,
       signatureHtml: signature,
     });
