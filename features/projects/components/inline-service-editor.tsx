@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { changeServiceAction, getServiceOptionsAction, type ServiceOption } from "@/features/projects/actions/service-change.actions";
 
@@ -33,7 +34,7 @@ export function InlineServiceEditor({projectId,currentCode,currentDuration,comme
     </select>
    </label>
    {selected?<div className="rounded-xl border bg-background/40 p-3 text-sm"><p>Precio de catálogo: <strong>{new Intl.NumberFormat("es-CL",{style:"currency",currency:"CLP",maximumFractionDigits:0}).format(selected.price)}</strong></p>{previous?<p className="mt-1 text-xs text-muted">Diferencia de catálogo: {new Intl.NumberFormat("es-CL",{style:"currency",currency:"CLP",maximumFractionDigits:0}).format(selected.price-previous.price)} (no reemplaza un precio negociado)</p>:null}</div>:null}
-   {commercialLocked?<p className="rounded-xl border border-amber-600/40 p-3 text-xs text-muted">Este evento ya tiene cotización formal. Para aplicar un cambio se necesita una revisión comercial; no se modificarán automáticamente montos, pagos ni contratos.</p>:null}
+   {commercialLocked?<div className="rounded-xl border border-amber-600/40 p-3 text-xs text-muted" data-issue71-service-lock><p>Edición bloqueada porque este evento ya tiene una cotización formal o movimientos comerciales. No se modificarán automáticamente montos, pagos ni contratos.</p><Link className="mt-2 inline-flex min-h-9 items-center rounded-lg border border-brand/50 px-3 font-semibold text-brand hover:border-brand" href={`/projects/${projectId}?eventTab=finance`} data-issue71-service-review-link>Revisar Finanzas y condiciones</Link></div>:null}
    <button type="button" disabled={!canSave||pending} className="min-h-11 rounded-xl bg-brand px-4 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-50" onClick={()=>{if(!selected||!window.confirm("¿Confirmar cambio de servicio en este evento? No se enviarán correos."))return;startTransition(async()=>{const result=await changeServiceAction({projectId,previousCode:currentCode,nextCode:code,hours});setMessage(result.message);if(result.ok){setOpen(false);router.refresh()}})}}>{pending?"Guardando…":"Guardar cambio"}</button>
    {message?<p className="text-sm" role="status">{message}</p>:null}
   </div>:null}

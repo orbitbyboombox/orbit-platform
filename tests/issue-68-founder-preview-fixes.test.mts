@@ -23,7 +23,8 @@ test("Issue 68 preserves safe service editing and the six-tab isolation", () => 
 });
 
 test("Issue 68 provides responsive document and finance containers", () => {
-  assert.match(workspace, /grid min-w-0 gap-4 xl:grid-cols-2/);
+  assert.match(workspace, /@container min-w-0/);
+  assert.match(workspace, /@\[36rem\]:grid-cols-2/);
   assert.match(workspace, /id="event-finance"/);
   assert.match(workspace, /sm:grid-cols-2/);
 });
