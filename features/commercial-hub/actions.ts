@@ -218,39 +218,24 @@ export async function sendCommercialInformationAction(input: {
         return `<p style="margin:20px 0 0;padding:14px 16px;background:#f7f5f1;border-radius:10px;color:#5d574f;font-size:13px">${richText(paragraph)}</p>`;
       return `<p style="margin:0 0 16px">${richText(paragraph)}</p>`;
     }).join("");
-    const socialCommunication = input.category !== "COMPANIES_CATALOG";
-    const socialEmail = socialCommunication
-      ? buildSocialPlansEmail({
-          body: cleanBody,
-          contact: input.name,
-          website: company.website,
-          catalogUrl: publicUrl,
-          transportUrl,
-          transportLabel,
-          attachmentFilename: downloaded?.data
-            ? document.filename || `${document.name}.pdf`
-            : undefined,
-          signatureUrl,
-        })
-      : null;
-    const htmlBody = socialEmail?.html ?? renderBoomboxCommercialEmail({
-      preheader: "Conoce los planes y experiencias BOOMBOX para tu evento.",
-      eyebrow: socialCommunication ? "PLANES Y EXPERIENCIAS" : "EXPERIENCIAS CORPORATIVAS",
-      title: socialCommunication ? "ENCUENTRA LA EXPERIENCIA PARA TU EVENTO" : "Experiencias BOOMBOX para tu evento",
-      contentHtml: htmlParagraphs,
+    const commercialEmail = buildSocialPlansEmail({
+      category: input.category,
+      body: cleanBody,
+      contact: input.name,
       website: company.website,
-      primaryAction: { href: publicUrl, label: QUICK_SEND_CTA_LABEL },
-      secondaryAction: { href: transportUrl, label: transportLabel },
-      primaryActionFallback: "Si tienes problemas con el botón, puedes abrir los planes y valores",
-      attachmentNote: downloaded?.data ? `${document.filename || `${document.name}.pdf`} está incluido como archivo adjunto.` : undefined,
-      signatureHtml: signature,
+      catalogUrl: publicUrl,
+      transportUrl,
+      transportLabel,
+      attachmentFilename: downloaded?.data ? document.filename || `${document.name}.pdf` : undefined,
+      signatureUrl,
     });
+    const htmlBody = commercialEmail.html;
     const sent = await new GoogleGmailApiProvider(
       await loadGoogleWorkspaceAccessToken(),
     ).send({
       to: input.email.trim().toLowerCase(),
       subject,
-      textBody: socialEmail?.text ?? `${quickSendBodyParagraphs(cleanBody, input.name).join("\n\n")}\n\n${QUICK_SEND_CTA_LABEL}: ${publicUrl}\n\n${signatureMode === "GRAPHICAL" ? "" : "Equipo BOOMBOX"}`.trim(),
+      textBody: commercialEmail.text,
       htmlBody,
       driveFileIds: [],
       attachments: downloaded?.data ? [{ filename: document.filename || `${document.name}.pdf`, mimeType: "application/pdf", content: new Uint8Array(await downloaded.data.arrayBuffer()) }] : [],
