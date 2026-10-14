@@ -56,11 +56,15 @@ export function buildSocialPlansEmail(input: SocialPlansEmailInput) {
       ? "Encontrarás el detalle completo de nuestras experiencias y valores al abrir Planes y Valores."
       : paragraph,
   );
-  const postActionIndex = paragraphs.findIndex((paragraph) =>
-    paragraph.startsWith("Si alguna alternativa te interesa,"),
-  );
-  const beforeAction = postActionIndex < 0 ? paragraphs : paragraphs.slice(0, postActionIndex);
-  const afterAction = postActionIndex < 0 ? [] : paragraphs.slice(postActionIndex);
+  // Short commercial email: the catalog contains the detailed descriptions and prices.
+  // Keep the configured greeting, but avoid repeating the proposal and CTA copy.
+  const greeting = paragraphs.find((paragraph) => /^Hola[,\\s]/i.test(paragraph)) ?? "Hola,";
+  const beforeAction = [greeting, "Gracias por considerar a BOOMBOX para tu evento.", "NUESTRA PROPUESTA"];
+  const afterAction = [
+    "Si alguna experiencia te interesa, responde este correo y te ayudamos con tu cotización.",
+    "**Importante:** La fecha se confirma con la reserva.",
+    "Un abrazo,",
+  ];
   const signatureHtml = input.signatureUrl
     ? `<p style="margin:0"><img src="${escapeHtml(input.signatureUrl)}" alt="BOOMBOX" style="display:block;max-width:420px;width:100%;height:auto;border:0"></p>`
     : `<p style="margin:0"><strong>Equipo BOOMBOX</strong></p>`;
@@ -70,14 +74,14 @@ export function buildSocialPlansEmail(input: SocialPlansEmailInput) {
     title: "",
     headerLabel: "EXPERIENCIAS PARA TU CELEBRACIÓN",
     stackedHeader: true,
-    contentHtml: beforeAction.map(renderParagraph).join("") + (input.transportUrl ? `<p style="margin:12px 0 4px;font-size:14px;color:#ffffff">Revisa los planes disponibles y consulta el valor de traslado según la comuna del evento.</p>` : ""),
-    contentAfterActionsHtml: afterAction.map((paragraph, index) => renderParagraph(paragraph, beforeAction.length + index)).join(""),
+    contentHtml: beforeAction.map(renderParagraph).join("") + `<p style="margin:4px 0 8px;font-size:14px;line-height:1.6;color:#d1d1d1">Conoce nuestros servicios, planes y valores. Consulta el traslado según la comuna de tu evento.</p>`,
+    contentAfterActionsHtml: `<div style="margin-top:20px">` + afterAction.map((paragraph, index) => renderParagraph(paragraph, beforeAction.length + index)).join("") + `</div>`,
     website: input.website,
     primaryAction: { href: input.catalogUrl, label: QUICK_SEND_CTA_LABEL },
     secondaryAction: input.transportUrl
       ? { href: input.transportUrl, label: input.transportLabel ?? "CONOCER VALOR DE TRASLADO" }
       : undefined,
-    primaryActionFallback: "Si tienes problemas con el botón, puedes abrir los planes y valores",
+    primaryActionFallback: undefined,
     attachmentNote: input.attachmentFilename
       ? `${input.attachmentFilename} está incluido como archivo adjunto.`
       : undefined,
