@@ -299,9 +299,14 @@ export function EventCenter({
             </div>
           </article>
           <article
-            className="hidden min-w-0 gap-4 rounded-2xl border bg-card p-4 sm:p-5 md:grid md:grid-cols-[minmax(0,1fr)_auto] md:items-center"
+            className="hidden min-w-0 gap-4 rounded-2xl border bg-card p-4 sm:p-5 md:grid md:grid-cols-[58px_minmax(0,1fr)_auto] md:items-center"
             key={event.projectId}
           >
+            <div className="flex h-[76px] w-[58px] shrink-0 flex-col items-center justify-center rounded-xl border border-brand/30 bg-background text-center">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-brand">{event.date ? new Date(`${event.date}T12:00:00Z`).toLocaleDateString("es-CL", { weekday: "short" }) : "—"}</span>
+              <strong className="text-2xl leading-tight">{event.date?.slice(8, 10) ?? "—"}</strong>
+              <span className="text-[10px] uppercase text-brand">{event.date ? new Date(`${event.date}T12:00:00Z`).toLocaleDateString("es-CL", { month: "short" }) : "—"}</span>
+            </div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <CalendarDays className="size-4 shrink-0 text-brand" />
