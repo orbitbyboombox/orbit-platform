@@ -1358,7 +1358,7 @@ export function ProjectWorkspaceExperience(
                     {(() => {
                       const netRevenue = event.profit.revenue.contractedService + event.profit.revenue.extras + event.profit.revenue.transport - event.profit.revenue.discount;
                       const c = event.profit.costs;
-                      const identifiedCost = c.operator + c.setup + c.teardown + c.staffTax + c.staffOther + c.allocatedFuel + c.paper + c.magnets + c.scrapbook + c.branding + c.vehicle + c.otherExpenses;
+                      const identifiedCost = c.operator + c.setup + c.teardown + c.staffTax + c.staffOther + c.appUsage + c.allocatedFuel + c.paper + c.magnets + c.scrapbook + c.branding + c.vehicle + c.otherExpenses;
                       const nonItemizedCost = c.totalOperationalCost - identifiedCost;
                       const operatingProfit = netRevenue - event.profit.costs.totalOperationalCost;
                       const operatingMargin = netRevenue > 0 ? operatingProfit / netRevenue * 100 : 0;
@@ -1425,6 +1425,7 @@ export function ProjectWorkspaceExperience(
                           <Row label="Desmontaje · estimado/registrado" value={money(c.teardown)} />
                           <Row label="Retención/costo adicional de personal" value={money(c.staffTax)} />
                           {c.staffOther !== 0 ? <Row label="Ajustes de personal" value={money(c.staffOther)} /> : null}
+                          <Row label="Uso aplicación BBOX360" value={money(c.appUsage)} />
                           <Row label="Bencina / combustible asignado" value={money(c.allocatedFuel)} />
                           <Row
                             label="Papel e impresión"
