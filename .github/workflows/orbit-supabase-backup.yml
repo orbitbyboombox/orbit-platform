@@ -1,0 +1,111 @@
+name: ORBIT Supabase backup
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type BACKUP-ORBIT-2.1 to confirm a production read-only backup"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: orbit-supabase-backup-production
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    if: ${{ inputs.confirmation == 'BACKUP-ORBIT-2.1' }}
+    runs-on: ubuntu-24.04
+    environment: orbit-backup-production
+    timeout-minutes: 120
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+      GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON }}
+      GOOGLE_DRIVE_PARENT_FOLDER_ID: ${{ vars.GOOGLE_DRIVE_PARENT_FOLDER_ID }}
+
+    steps:
+      - name: Checkout exact backup source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+
+      - name: Install Node runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.121.0
+
+      - name: Install application dependencies
+        run: corepack enable && pnpm install --frozen-lockfile
+
+      - name: Prepare temporary workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/orbit-backup/storage"
+          test -n "$SUPABASE_DB_URL"
+          test -n "$SUPABASE_URL"
+          test -n "$SUPABASE_SERVICE_ROLE_KEY"
+          test -n "$BACKUP_ENCRYPTION_PASSPHRASE"
+          test -n "$GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON"
+          test -n "$GOOGLE_DRIVE_PARENT_FOLDER_ID"
+
+      - name: Export database schema and data
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase db dump --db-url "$SUPABASE_DB_URL" --schema public,storage,auth \
+            --file "$RUNNER_TEMP/orbit-backup/database-schema.sql"
+          supabase db dump --db-url "$SUPABASE_DB_URL" --schema public,storage,auth \
+            --data-only --file "$RUNNER_TEMP/orbit-backup/database-data.sql"
+
+      - name: Export Storage objects and checksums
+        run: |
+          node scripts/export-supabase-storage.mjs \
+            "$RUNNER_TEMP/orbit-backup/storage" \
+            "$RUNNER_TEMP/orbit-backup/storage-manifest.json"
+
+      - name: Create encrypted archives and manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          work="$RUNNER_TEMP/orbit-backup"
+          tar -czf "$work/storage.tar.gz" -C "$work/storage" .
+          for source in database-schema.sql database-data.sql storage.tar.gz storage-manifest.json; do
+            printf '%s' "$BACKUP_ENCRYPTION_PASSPHRASE" | openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt \
+              -pass stdin -in "$work/$source" -out "$work/$source.enc"
+          done
+          rm -f "$work/database-schema.sql" "$work/database-data.sql" "$work/storage.tar.gz"
+          node scripts/write-backup-manifest.mjs "$work" "$GITHUB_SHA"
+          printf '%s' "$BACKUP_ENCRYPTION_PASSPHRASE" | openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt \
+            -pass stdin -in "$work/backup-manifest.json" -out "$work/backup-manifest.json.enc"
+          rm -f "$work/backup-manifest.json" "$work/storage-manifest.json"
+          sha256sum "$work"/*.enc > "$work/sha256sums.txt"
+          printf '%s' "$BACKUP_ENCRYPTION_PASSPHRASE" | openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt \
+            -pass stdin -in "$work/sha256sums.txt" -out "$work/sha256sums.txt.enc"
+          rm -f "$work/sha256sums.txt"
+
+      - name: Upload encrypted backup to restricted Drive folder
+        run: |
+          npm install --no-save --no-package-lock googleapis@144.0.0
+          node scripts/upload-drive-backup.mjs "$RUNNER_TEMP/orbit-backup"
+
+      - name: Cleanup temporary backup material
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          rm -rf "$RUNNER_TEMP/orbit-backup"
