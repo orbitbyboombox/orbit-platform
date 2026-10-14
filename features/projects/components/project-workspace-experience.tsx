@@ -4,6 +4,7 @@ import { useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { EventCommercialDocumentHub } from "@/features/external-tax-documents/event-commercial-document-hub";
+import { InlineServiceEditor } from "./inline-service-editor";
 import {
   AlertTriangle,
   Archive,
@@ -961,20 +962,16 @@ export function ProjectWorkspaceExperience(
                     <Empty text="Cuando se agregue un servicio contratado, aparecerá aquí con su duración y extras." />
                   )}
                 </div>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {props.commercialHub.quotation?.detailHref ? (
-                    <Link href={props.commercialHub.quotation.detailHref} className="inline-flex min-h-11 items-center rounded-xl border border-brand/40 px-4 text-sm font-semibold text-brand">
-                      Revisar cotización y servicio
-                    </Link>
-                  ) : null}
-                  <Link href="/leads" className="inline-flex min-h-11 items-center rounded-xl border px-4 text-sm font-semibold text-brand">
-                    Solicitar cambio de servicio / nueva cotización
-                  </Link>
-                </div>
-                <p className="mt-2 text-xs leading-5 text-muted">
-                  Para pasar de Classic a BBOX360 u otro servicio, prepara una nueva revisión comercial.
-                  No reemplaces el servicio aceptado sin revisar el nuevo precio, contrato y saldo del evento.
-                </p>
+                {props.projectKey && event.services.length === 1 ? (
+                  <InlineServiceEditor
+                    projectId={props.projectKey}
+                    currentCode={event.services[0].code}
+                    currentDuration={event.services[0].duration}
+                    commercialLocked={Boolean(props.commercialHub.quotation && !["DRAFT","REJECTED","CANCELLED"].includes(props.commercialHub.quotation.status))}
+                  />
+                ) : (
+                  <p className="mt-3 text-xs text-muted">Este evento tiene varios servicios; requiere una revisión comercial conjunta.</p>
+                )}
                 <dl className="mt-4">
                   <Row label="Branding" value="Según cotización" />
                   <Row label="QR" value="Según servicio" />
