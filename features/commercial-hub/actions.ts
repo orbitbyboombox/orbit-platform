@@ -455,7 +455,7 @@ export async function sendFormalQuoteAction(input: { quoteId: string; email: str
       attachmentNote: `${attachmentFilename} está incluido como archivo adjunto.`,
       signatureHtml: signature,
     });
-    const sent = await new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken()).send({ to: recipients.to, cc: recipients.cc, subject, textBody: `${cleanBody}\n\nCotización: ${pdfUrl.data.signedUrl}${catalogUrl ? `\nCatálogo: ${catalogUrl}` : ""}\n\n${signatureUrl ? "" : signatureText}`.trim(), htmlBody, driveFileIds: [], attachments: [{ filename: attachmentFilename, mimeType: "application/pdf", content: new Uint8Array(pdf) }] });
+    const sent = await new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken()).send({ to: recipients.to, cc: recipients.cc, subject, textBody: `${cleanBody}\n\nCotización: ${pdfUrl.data.signedUrl}${catalogUrl ? `\nCatálogo: ${catalogUrl}` : ""}\n\nValor de traslado: ${formalTransportUrl}\n\n${signatureUrl ? "" : signatureText}`.trim(), htmlBody, driveFileIds: [], attachments: [{ filename: attachmentFilename, mimeType: "application/pdf", content: new Uint8Array(pdf) }] });
     const timestamp = new Date().toISOString();
     const { error: sendError } = await admin.from("commercial_sends").update({ status: "SENT", external_message_id: sent.messageId, sent_at: timestamp }).eq("id", claim.id);
     if (sendError) throw sendError;
