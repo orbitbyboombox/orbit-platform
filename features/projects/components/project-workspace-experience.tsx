@@ -4,6 +4,7 @@ import { useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { EventCommercialDocumentHub } from "@/features/external-tax-documents/event-commercial-document-hub";
+import { EventDesignCenter } from "@/features/event-designs/event-design-center";
 import { InlineServiceEditor } from "./inline-service-editor";
 import {
   AlertTriangle,
@@ -424,6 +425,21 @@ export function ProjectWorkspaceExperience(
       isCurrent: Boolean(document.isCurrent),
       status: document.workflowStatus === "APPROVED" ? "APPROVED" as const : "RECEIVED" as const,
       originalFilename: document.originalFilename ?? `Diseño tira V${document.version ?? 1}`,
+      createdAt: document.createdAt,
+      uploadedBy: document.uploadedBy ?? "Founder / Administración",
+      approvedAt: document.approvedAt,
+      driveStatus: document.driveSyncStatus === "SYNCED" ? "SYNCED" as const : document.driveSyncStatus === "ERROR" ? "ERROR" as const : "PENDING" as const,
+      driveError: document.driveSyncError,
+      href: document.href!,
+    }));
+  const eventDesignDocuments = event.documents
+    .filter((document) => document.type === "DESIGN")
+    .map((document) => ({
+      id: document.id,
+      version: document.version ?? 1,
+      isCurrent: Boolean(document.isCurrent),
+      status: document.workflowStatus === "APPROVED" ? "APPROVED" as const : "RECEIVED" as const,
+      originalFilename: document.originalFilename ?? `Diseño del evento V${document.version ?? 1}`,
       createdAt: document.createdAt,
       uploadedBy: document.uploadedBy ?? "Founder / Administración",
       approvedAt: document.approvedAt,
@@ -1156,6 +1172,7 @@ export function ProjectWorkspaceExperience(
                 id="documents"
                 title="Documentos y estado comercial"
               >
+                <div className="w-full min-w-0"><EventDesignCenter documents={eventDesignDocuments} projectId={props.projectKey!}/></div>
                 {photoStripEligible ? <div className="w-full min-w-0"><PhotoStripDesignCenter documents={photoStripDocuments} projectId={props.projectKey!}/></div> : null}
                 <EventCommercialDocumentHub projectId={props.projectKey!} customerName={props.clientName} customerTaxId={props.commercialHub.customerTaxId} customerKind={props.commercialHub.customerKind} quotation={props.commercialHub.quotation} contract={props.signing} receivable={event.receivable?{id:event.receivable.id,paid:event.receivable.paidAmount,outstanding:event.receivable.outstandingBalance,dueDate:event.receivable.dueDate,status:event.receivable.status}:undefined} paymentCondition={props.commercialHub.paymentCondition} documents={event.documents} taxDocuments={event.documents.filter(doc=>doc.taxType&&doc.folio&&doc.issueDate).map(doc=>({id:doc.id,taxType:doc.taxType!,folio:doc.folio!,issueDate:doc.issueDate!,total:doc.total??0,status:doc.status??"ADJUNTADO",href:doc.href}))}/>
               </Section>
