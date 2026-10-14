@@ -1357,6 +1357,9 @@ export function ProjectWorkspaceExperience(
                   <div className="space-y-5">
                     {(() => {
                       const netRevenue = event.profit.revenue.contractedService + event.profit.revenue.extras + event.profit.revenue.transport - event.profit.revenue.discount;
+                      const c = event.profit.costs;
+                      const identifiedCost = c.operator + c.setup + c.teardown + c.allocatedFuel + c.paper + c.magnets + c.scrapbook + c.branding + c.vehicle + c.otherExpenses + c.staffOther;
+                      const nonItemizedCost = c.totalOperationalCost - identifiedCost;
                       const operatingProfit = netRevenue - event.profit.costs.totalOperationalCost;
                       const operatingMargin = netRevenue > 0 ? operatingProfit / netRevenue * 100 : 0;
                       return <>
@@ -1418,17 +1421,9 @@ export function ProjectWorkspaceExperience(
                             label="Operador"
                             value={money(event.profit.costs.operator)}
                           />
-                          <Row
-                            label="Montaje / desmontaje"
-                            value={money(
-                              event.profit.costs.setup +
-                                event.profit.costs.teardown,
-                            )}
-                          />
-                          <Row
-                            label="Combustible asignado"
-                            value={money(event.profit.costs.allocatedFuel)}
-                          />
+                          <Row label="Montaje · estimado/registrado" value={money(c.setup)} />
+                          <Row label="Desmontaje · estimado/registrado" value={money(c.teardown)} />
+                          <Row label="Bencina / combustible asignado" value={money(c.allocatedFuel)} />
                           <Row
                             label="Papel e impresión"
                             value={money(event.profit.costs.paper)}
@@ -1456,6 +1451,11 @@ export function ProjectWorkspaceExperience(
                                 event.profit.costs.staffOther,
                             )}
                           />
+                          {Math.abs(nonItemizedCost) > 0.5 ? (
+                            <Row label="Otros costos incluidos en total (sin desglose)" value={money(nonItemizedCost)} />
+                          ) : null}
+                          <Row label="TOTAL OPERACIONAL · fuente contable" value={money(c.totalOperationalCost)} />
+                          <p className="mt-3 text-xs leading-5 text-muted">Montaje y desmontaje se muestran por separado. Si ambos corresponden a la misma persona, confirma la asignación para aplicar la tarifa conjunta; los costos sin detalle permanecen visibles hasta su conciliación.</p>
                         </dl>
                       </div>
                     </div>
