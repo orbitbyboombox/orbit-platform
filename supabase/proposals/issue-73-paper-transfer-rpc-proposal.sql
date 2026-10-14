@@ -1,0 +1,21 @@
+-- ISSUE #73 — DRAFT ONLY / DO NOT APPLY
+--
+-- This file is a non-production proposal. It intentionally does not create
+-- tables, functions, policies, grants, or write any data. The live schema and
+-- RLS contract must be reviewed before converting this into a migration.
+--
+-- Required transaction contract for a future Bodega → Caja operation:
+--   1. Founder/Admin authorization is checked server-side and by RLS/RPC.
+--   2. Lock the source warehouse lot and destination box lot in one order.
+--   3. Validate compatible format, positive quantity, availability, and
+--      idempotency_key before changing either balance.
+--   4. Decrement Bodega and increment the box exactly once.
+--   5. Insert an auditable movement with source, destination, actor,
+--      idempotency_key, timestamp, lot, and before/after balances.
+--   6. Reject negative balances, cross-event destinations, duplicate keys,
+--      stale versions, and concurrent transfers.
+--   7. Commit all changes atomically or roll back all of them.
+--
+-- No production RPC exists in this PR. Until the schema, ownership model,
+-- and RLS policies are reviewed, the UI must remain read-only and disabled.
+

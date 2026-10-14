@@ -1087,9 +1087,9 @@ export function ProjectWorkspaceExperience(
           {eventTab === "staff" && moduleVisible("STAFF") && (
             <section aria-labelledby="staff-assignment-title" id="staff-assignment" role="tabpanel">
               <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Equipo del evento</p><h2 className="mt-1 text-2xl font-semibold" id="staff-assignment-title">Staff y asignaciones</h2></div><button type="button" className="inline-flex min-h-10 items-center justify-center rounded-xl border px-3 text-sm font-semibold text-brand hover:border-brand" onClick={() => selectEventTab("operations")}>Abrir Logística</button></div>
-              <div className="mb-3 grid gap-2 sm:grid-cols-2" data-issue71-staff-finance-links>
+              <div className="mb-3 grid gap-2 sm:grid-cols-2" data-issue71-staff-finance-links data-issue73-staff-finance-links>
                 <Link href="/finance/payables" className="inline-flex min-h-10 items-center justify-center rounded-xl border border-brand/50 px-3 text-center text-sm font-semibold text-brand hover:border-brand" data-issue71-payables-link>
-                  Cuentas por pagar
+                  Pagos por pagar
                 </Link>
                 <Link href="/resources/staff?payroll=1" className="inline-flex min-h-10 items-center justify-center rounded-xl border border-brand/50 px-3 text-center text-sm font-semibold text-brand hover:border-brand" data-issue68-payroll-link data-issue71-advances-link>
                   Payroll y adelantos de pago
@@ -1179,16 +1179,16 @@ export function ProjectWorkspaceExperience(
             )}
             {eventTab === "documents" && moduleVisible("DOCUMENTS") && (
               <Section eyebrow="07 · Archivos" icon={<FolderOpen className="size-5" />} id="documents" title="Documentos del evento">
-                <div className="@container min-w-0" data-issue72-documents-layout>
-                  <div className="grid min-w-0 gap-4 @[60rem]:grid-cols-2 @[60rem]:items-start">
-                  <section className="min-w-0 rounded-2xl border bg-background/20 p-3 sm:p-4" data-issue71-designs-section aria-labelledby="event-designs-title">
+                <div className="@container w-full min-w-0 max-w-none" data-issue72-documents-layout data-issue73-documents-layout>
+                  <div className="grid w-full min-w-0 gap-4 @[48rem]:grid-cols-[minmax(0,1.05fr)_minmax(20rem,.95fr)] @[48rem]:items-start @[60rem]:grid-cols-2">
+                  <section className="min-w-0 rounded-2xl border bg-background/20 p-3 sm:p-4" data-issue71-designs-section data-issue73-documents-designs aria-labelledby="event-designs-title">
                     <div className="mb-3"><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Diseños</p><h3 className="mt-1 text-lg font-semibold" id="event-designs-title">Diseños del evento</h3><p className="mt-1 text-sm text-muted">Carga y consulta las versiones de diseño sin mezclar documentos comerciales.</p></div>
                     <div className="grid min-w-0 gap-4 @[36rem]:grid-cols-2">
                       <div className="min-w-0"><EventDesignCenter documents={eventDesignDocuments} projectId={props.projectKey!}/></div>
                       {photoStripEligible ? <div className="min-w-0"><PhotoStripDesignCenter documents={photoStripDocuments} projectId={props.projectKey!}/></div> : null}
                     </div>
                   </section>
-                  <section className="min-w-0 rounded-2xl border bg-background/20 p-3 sm:p-4" data-issue71-commercial-documents-section aria-labelledby="event-commercial-documents-title">
+                  <section className="min-w-0 rounded-2xl border bg-background/20 p-3 sm:p-4" data-issue71-commercial-documents-section data-issue73-documents-commercial aria-labelledby="event-commercial-documents-title">
                     <div className="mb-3"><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Comercial</p><h3 className="mt-1 text-lg font-semibold" id="event-commercial-documents-title">Documentos comerciales</h3><p className="mt-1 text-sm text-muted">Cotización, contrato, comprobantes y documentos tributarios del evento.</p></div>
                     <div className="min-w-0"><EventCommercialDocumentHub projectId={props.projectKey!} customerName={props.clientName} customerTaxId={props.commercialHub.customerTaxId} customerKind={props.commercialHub.customerKind} quotation={props.commercialHub.quotation} contract={props.signing} receivable={event.receivable?{id:event.receivable.id,paid:event.receivable.paidAmount,outstanding:event.receivable.outstandingBalance,dueDate:event.receivable.dueDate,status:event.receivable.status}:undefined} paymentCondition={props.commercialHub.paymentCondition} documents={event.documents} taxDocuments={event.documents.filter(doc=>doc.taxType&&doc.folio&&doc.issueDate).map(doc=>({id:doc.id,taxType:doc.taxType!,folio:doc.folio!,issueDate:doc.issueDate!,total:doc.total??0,status:doc.status??"ADJUNTADO",href:doc.href}))}/></div>
                   </section>
