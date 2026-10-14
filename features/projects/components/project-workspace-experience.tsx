@@ -1616,7 +1616,7 @@ export function ProjectWorkspaceExperience(
               </div>
               <ProductionIntegrationPanel {...props.productionIntegration} />
             </OptionalModule></div>
-          )
+          )}
           {showLegacyDuplicatedEventSections && moduleVisible("DOCUMENTS") && (
             <div id="agreement-control">
               <AgreementSigningControl
