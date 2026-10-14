@@ -12,7 +12,7 @@ import { CustomerContractExperience } from "./customer-contract-experience";
 import { CustomerCommunicationCenter } from "./customer-communication-center";
 import { CustomerGalleryExperience } from "./customer-gallery-experience";
 import { CustomerDesignExperience } from "./customer-design-experience";
-import { requiresPhotoStripDesign } from "@/features/business-core/catalog/service.catalog";
+import { shouldShowPhotoStripDesignCenter } from "@/features/photo-strip-design/visibility";
 
 type PortalData = Awaited<ReturnType<typeof import("./customer-portal.service").loadCustomerPortal>> & {};
 type PortalProject = NonNullable<PortalData>["project"] & {
@@ -81,7 +81,10 @@ export function CustomerPortalHome({ data, token }: { data: NonNullable<PortalDa
   const contractUrl = `/api/portal/${encodeURIComponent(token)}/contract`;
   const phone = company.phone || "+56 9 0000 0000";
   const whatsapp = phone.replace(/\D/g, "");
-  const photoStripEligible = requiresPhotoStripDesign(project.project_services.map((service) => service.service_code));
+  const photoStripEligible = shouldShowPhotoStripDesignCenter(
+    project.project_services.map((service) => service.service_code),
+    data.documents.map((document) => ({ document_type: document.document_type })),
+  );
 
   const quickAccess: Array<{ icon: ComponentType<{ className?: string }>; label: string; href: string }> = [
     { icon: Home, label: "Mi Evento", href: "#event-summary" }, { icon: FileText, label: "Mi Contrato", href: contractUrl },

@@ -2,7 +2,7 @@
 
 import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
-import { requiresPhotoStripDesign } from "@/features/business-core/catalog/service.catalog";
+import { shouldShowPhotoStripDesignCenter } from "./visibility";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { archivePhotoStripDesign, recordPhotoStripDriveFailure } from "./photo-strip-design.service";
@@ -23,11 +23,11 @@ async function founderSession() {
 async function eligibleProject(projectId: string) {
   const admin = createAdminClient();
   const { data: project, error } = await admin.from("projects")
-    .select("id,project_services(service_code)")
+    .select("id,project_services(service_code),documents(document_type)")
     .eq("id", projectId).is("deleted_at", null).single();
   if (error) throw error;
   const codes = (project.project_services ?? []).map((item: {service_code:string}) => item.service_code);
-  if (!requiresPhotoStripDesign(codes))
+  if (!shouldShowPhotoStripDesignCenter(codes, project.documents ?? []))
     throw new Error("Este Evento no usa un servicio con diseño de tira de fotos.");
   return { admin, project };
 }

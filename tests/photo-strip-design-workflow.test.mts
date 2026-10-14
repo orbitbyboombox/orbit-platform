@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { requiresPhotoStripDesign } from "../features/business-core/catalog/service.catalog.ts";
+import { shouldShowPhotoStripDesignCenter } from "../features/photo-strip-design/visibility.ts";
 import { photoStripDriveFileName } from "../features/photo-strip-design/model.ts";
 
 const source = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -24,6 +25,11 @@ test("eligible Classic Event requires the Photo Strip Design section", () => {
 test("unrelated services do not inherit the requirement", () => {
   assert.equal(requiresPhotoStripDesign(["BBOX360"]), false);
   assert.equal(requiresPhotoStripDesign(["LIGHTBOX", "VIDEO_LOUNGE"]), false);
+});
+
+test("legacy events with an existing design keep the Founder upload module visible", () => {
+  assert.equal(shouldShowPhotoStripDesignCenter(["LEGACY_CUSTOM_SERVICE"], [{ document_type: "PHOTO_STRIP_DESIGN" }]), true);
+  assert.equal(shouldShowPhotoStripDesignCenter(["BBOX360"], []), false);
 });
 
 test("Founder upload persists first in protected canonical storage", () => {
@@ -95,6 +101,13 @@ test("Founder UI uses the certified mobile dialog and avoids horizontal overflow
   assert.match(founderUi, /MobileDialog/);
   assert.match(founderUi, /variant="fullscreen-mobile"/);
   assert.match(founderUi, /min-w-0 max-w-full/);
+});
+
+test("Founder design actions remain available on desktop and mobile", () => {
+  assert.match(founderUi, /Subir diseño/);
+  assert.match(founderUi, /Nueva versión/);
+  assert.match(founderUi, /variant="fullscreen-mobile"/);
+  assert.match(founderUi, /max-w-full/);
 });
 
 test("Portal design card is mobile-safe and has view and download actions", () => {
