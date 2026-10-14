@@ -1,3 +1,4 @@
+import { bookingWritesBlockedInPreview, bookingPreviewBlockedMessage } from "@/features/automatic-booking/recovery-preview-guard";
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -8,6 +9,7 @@ import { calculateMercadoPagoAmounts, createMercadoPagoPreference, getMercadoPag
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request, { params }: { params: Promise<{ token: string }> }) {
+  if (bookingWritesBlockedInPreview()) return NextResponse.json({ ok: false, message: bookingPreviewBlockedMessage }, { status: 403 });
   try {
     const { token } = await params;
     const submission = await request.json() as AutomaticBookingSubmission;
