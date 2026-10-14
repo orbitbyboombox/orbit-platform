@@ -19,6 +19,12 @@ VALUES('BBOX360',45000,date '2026-10-13',true)
 ON CONFLICT(service_code) DO UPDATE SET amount=excluded.amount,
   effective_date=excluded.effective_date,active=true,updated_at=now();
 
+-- Tablas administrativas: acceso exclusivo al backend (protección de importes y respaldo).
+ALTER TABLE public.event_app_usage_rates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.orbit_bbox360_app_fee_backup_20261013 ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.event_app_usage_rates FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON public.orbit_bbox360_app_fee_backup_20261013 FROM PUBLIC, anon, authenticated;
+
 CREATE OR REPLACE FUNCTION public.event_cost_breakdown_total(p_breakdown jsonb)
  RETURNS numeric
  LANGUAGE sql
