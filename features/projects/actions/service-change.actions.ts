@@ -24,8 +24,9 @@ export async function changeServiceAction(input:{projectId:string;previousCode:s
   if(ce||!price?.length)throw Error("Servicio no disponible en el catálogo.");
   const{data:services,error:se}=await db.from("project_services").select("id,service_code").eq("project_id",input.projectId);
   if(se)throw se;
-  if(services?.length!==1||services[0].service_code!==input.previousCode)throw Error("Este evento tiene varios servicios o se modificó. Actualiza para continuar.");
-  const{data:updated,error:ue}=await db.from("project_services").update({service_code:input.nextCode,duration_hours:input.hours}).eq("id",services[0].id).eq("service_code",input.previousCode).select("id");
+  const matching=(services??[]).filter(row=>row.service_code===input.previousCode);
+  if(matching.length!==1)throw Error("No se pudo identificar un único servicio principal. Actualiza para continuar.");
+  const{data:updated,error:ue}=await db.from("project_services").update({service_code:input.nextCode,duration_hours:input.hours}).eq("id",matching[0].id).eq("service_code",input.previousCode).select("id");
   if(ue||!updated?.length)throw ue??Error("No fue posible actualizar el servicio.");
   revalidatePath("/projects/"+input.projectId);revalidatePath("/events");
   return{ok:true,message:"Servicio actualizado en el evento. No se enviaron correos."};
