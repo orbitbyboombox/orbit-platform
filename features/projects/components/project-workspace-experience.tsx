@@ -405,6 +405,10 @@ export function ProjectWorkspaceExperience(
   );
   const [, startWorkspaceTransition] = useTransition();
   const event = props.event360;
+  const coreServiceCodes = new Set(["CLASSIC","BBOX360","POLAROID","BLACK_STUDIO","HASHTAG","LIGHTBOX","BOOMBALL","SILVER","GOLD"]);
+  const coreServices = event.services.filter(service=>coreServiceCodes.has(service.code.toUpperCase()));
+  const extraConcepts = event.services.filter(service=>!coreServiceCodes.has(service.code.toUpperCase()));
+
   const photoStripEligible = requiresPhotoStripDesign(event.services.map((service) => service.code));
   const photoStripDocuments = event.documents
     .filter((document) => document.type === "PHOTO_STRIP_DESIGN")
@@ -938,8 +942,8 @@ export function ProjectWorkspaceExperience(
                 title="Servicio contratado"
               >
                 <div className="space-y-3">
-                  {event.services.length ? (
-                    event.services.map((service) => (
+                  {coreServices.length ? (
+                    coreServices.map((service) => (
                       <article
                         className="rounded-xl border p-4"
                         key={service.code}
@@ -962,15 +966,16 @@ export function ProjectWorkspaceExperience(
                     <Empty text="Cuando se agregue un servicio contratado, aparecerá aquí con su duración y extras." />
                   )}
                 </div>
-                {props.projectKey && event.services.length === 1 ? (
+                {extraConcepts.length ? <p className="mt-3 text-xs text-muted">Conceptos adicionales: {extraConcepts.map(item=>item.code).join(" · ")}. Se conservan por separado del servicio principal.</p> : null}
+                {props.projectKey && coreServices.length === 1 ? (
                   <InlineServiceEditor
                     projectId={props.projectKey}
-                    currentCode={event.services[0].code}
-                    currentDuration={event.services[0].duration}
+                    currentCode={coreServices[0].code}
+                    currentDuration={coreServices[0].duration}
                     commercialLocked={Boolean(props.commercialHub.quotation && !["DRAFT","REJECTED","CANCELLED"].includes(props.commercialHub.quotation.status))}
                   />
                 ) : (
-                  <p className="mt-3 text-xs text-muted">Este evento tiene varios servicios; requiere una revisión comercial conjunta.</p>
+                  <p className="mt-3 text-xs text-muted">Este evento necesita revisar sus servicios principales antes de cambiarlos.</p>
                 )}
                 <dl className="mt-4">
                   <Row label="Branding" value="Según cotización" />
