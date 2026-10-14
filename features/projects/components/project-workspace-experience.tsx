@@ -600,7 +600,7 @@ export function ProjectWorkspaceExperience(
           </section>
 
           <style jsx global>{`
-            #event-six-tabs > :not(style) { display: none !important; }
+            #event-six-tabs > :where(*) { display: none !important; }
             #event-six-tabs > [data-event-area="header"] { display: block !important; }
             #event-six-tabs[data-active="summary"] > [data-event-area="summary"],
             #event-six-tabs[data-active="operations"] > [data-event-area="operations"],
