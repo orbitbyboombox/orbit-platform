@@ -791,3 +791,43 @@ function escapeHtml(value: string) {
       ]!,
   );
 }
+
+
+/** Founder-only composer for a previously issued canonical quotation. Never creates a quote. */
+export async function prepareEventQuoteResendAction(projectId: string, quoteId: string) {
+  try {
+    const { role } = await founder();
+    if (!["CEO", "ADMINISTRATOR"].includes(role)) throw new Error("Acceso administrativo requerido.");
+    const admin = createAdminClient();
+    const { data: quote, error } = await admin.from("quotations")
+      .select("id,project_id,quotation_number,customer_snapshot,commercial_snapshot")
+      .eq("id", quoteId).eq("project_id", projectId).single();
+    if (error || !quote) throw new Error("No se encontró la cotización original de este evento.");
+    const snapshot = (quote.customer_snapshot ?? {}) as Record<string, string>;
+    const commercial = (quote.commercial_snapshot ?? {}) as Record<string, unknown>;
+    const nestedCustomer = (commercial.customer ?? {}) as Record<string, string>;
+    const email = (snapshot.email || nestedCustomer.email || "").trim();
+    if (!email) throw new Error("La cotización no tiene destinatario original. Revisa sus datos antes de enviarla.");
+    const contact = snapshot.contact || nestedCustomer.contact || "cliente";
+    const number = quote.quotation_number;
+    return { ok: true as const, number, email,
+      subject: `BOOMBOX | Reenvío cotización ${number}`,
+      body: `Hola ${contact},\n\nSegún lo solicitado, te reenviamos la cotización formal ${number} de BOOMBOX. Puedes revisar la propuesta y sus condiciones en el documento adjunto.\n\nQuedamos atentos a tus comentarios.` };
+  } catch (error) { return fail(error, "No fue posible recuperar la cotización original."); }
+}
+
+/** Guard against sending a quote from another event; preserve accepted/converted snapshots. */
+export async function resendEventFormalQuoteAction(input: {
+  projectId: string; quoteId: string; email: string; subject: string; body: string; requestId: string;
+}) {
+  try {
+    const { role } = await founder();
+    if (!["CEO", "ADMINISTRATOR"].includes(role)) throw new Error("Acceso administrativo requerido.");
+    const admin = createAdminClient();
+    const { data, error } = await admin.from("quotations").select("id")
+      .eq("id", input.quoteId).eq("project_id", input.projectId).single();
+    if (error || !data) throw new Error("La cotización no pertenece a este evento.");
+    return await sendFormalQuoteAction({ quoteId: input.quoteId, email: input.email,
+      subject: input.subject, body: input.body, requestId: input.requestId });
+  } catch (error) { return fail(error, "No fue posible reenviar la cotización."); }
+}
