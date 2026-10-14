@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  Building2,
   CalendarDays,
   CircleDollarSign,
   FolderKanban,
@@ -44,7 +45,8 @@ export type NavigationKey =
   | "COLLECTIONS"
   | "PAYABLES"
   | "REPORTS"
-  | "SETTINGS";
+  | "SETTINGS"
+  | "OFFICE_RENT";
 
 export const navigationItems: readonly NavigationItem[] = [
   {
@@ -130,6 +132,13 @@ export const navigationItems: readonly NavigationItem[] = [
     href: "/reports",
     icon: BarChart3,
     module: "REPORTS",
+  },
+  {
+    key: "OFFICE_RENT",
+    label: "Arriendo Oficina",
+    href: "/office-rent",
+    icon: Building2,
+    module: "FINANCE",
   },
   {
     key: "SETTINGS",
