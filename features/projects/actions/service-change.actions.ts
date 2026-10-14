@@ -1,0 +1,33 @@
+"use server";
+import { revalidatePath } from "next/cache";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+export type ServiceOption = {code:string;label:string;hours:number;price:number};
+export async function getServiceOptionsAction():Promise<ServiceOption[]> {
+ const db=await createSupabaseServerClient();const {data:auth}=await db.auth.getUser();if(!auth.user)throw Error("Sesión expirada");
+ const {data,error}=await db.from("commercial_prices").select("code,label,duration_hours,unit_price").eq("category","SERVICE").eq("enabled",true).is("deleted_at",null).order("label");if(error)throw error;
+ return (data??[]).filter(row=>row.duration_hours&&Number(row.unit_price)>=0).map(row=>({code:row.code,label:row.label,hours:Number(row.duration_hours),price:Number(row.unit_price)}));
+}
+export async function changeServiceAction(input:{projectId:string;previousCode:string;nextCode:string;hours:number}):Promise<{ok:boolean;message:string}>{
+ try{
+  const db=await createSupabaseServerClient();const{data:auth}=await db.auth.getUser();if(!auth.user)throw Error("Sesión expirada.");
+  const{data:profile}=await db.from("profiles").select("role").eq("id",auth.user.id).single();
+  if(!["FOUNDER","ADMIN","ADMINISTRATOR"].includes(String(profile?.role??"").toUpperCase()))throw Error("Solo administración puede cambiar servicios.");
+  const{data:project,error:pe}=await db.from("projects").select("id,status,deleted_at").eq("id",input.projectId).single();
+  if(pe||!project||project.deleted_at||["CANCELLED","ARCHIVED"].includes(String(project.status).toUpperCase()))throw Error("Este evento no admite cambios.");
+  const{data:quotes,error:qe}=await db.from("quotations").select("id,status").eq("project_id",input.projectId).is("deleted_at",null).limit(20);
+  if(qe)throw qe;
+  if((quotes??[]).some(q=>!["DRAFT","CANCELLED","REJECTED"].includes(String(q.status).toUpperCase())))throw Error("Esta reserva tiene una cotización formal emitida. Necesita nueva revisión para cambiar precio, contrato y saldo sin inconsistencias.");
+  const{data:receivables,error:re}=await db.from("accounts_receivable_projection").select("amount,paid_amount").eq("project_id",input.projectId).is("deleted_at",null).limit(5);
+  if(re)throw re;
+  if((receivables??[]).some(r=>Number(r.amount)>0||Number(r.paid_amount)>0))throw Error("Hay cobros o pagos asociados: requiere revisión comercial antes de cambiar.");
+  const{data:price,error:ce}=await db.from("commercial_prices").select("id").eq("category","SERVICE").eq("code",input.nextCode).eq("duration_hours",input.hours).eq("enabled",true).is("deleted_at",null).limit(1);
+  if(ce||!price?.length)throw Error("Servicio no disponible en el catálogo.");
+  const{data:services,error:se}=await db.from("project_services").select("id,service_code").eq("project_id",input.projectId);
+  if(se)throw se;
+  if(services?.length!==1||services[0].service_code!==input.previousCode)throw Error("Este evento tiene varios servicios o se modificó. Actualiza para continuar.");
+  const{data:updated,error:ue}=await db.from("project_services").update({service_code:input.nextCode,duration_hours:input.hours}).eq("id",services[0].id).eq("service_code",input.previousCode).select("id");
+  if(ue||!updated?.length)throw ue??Error("No fue posible actualizar el servicio.");
+  revalidatePath("/projects/"+input.projectId);revalidatePath("/events");
+  return{ok:true,message:"Servicio actualizado en el evento. No se enviaron correos."};
+ }catch(e){return{ok:false,message:e instanceof Error?e.message:"No se pudo editar el servicio."};}
+}
