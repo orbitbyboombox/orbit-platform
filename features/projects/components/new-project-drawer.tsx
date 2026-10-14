@@ -97,8 +97,9 @@ const extraCodes = {
   QR: "QR",
   Imanes: "UNLIMITED_MAGNETS",
   Scrapbook: "SCRAPBOOK",
+  "Fondo 230x200 Blanco": "BACKDROP_230X200_WHITE",
 } as const;
-type ServiceExtra = "Branding" | "QR" | "Imanes" | "Scrapbook";
+type ServiceExtra = "Branding" | "QR" | "Imanes" | "Scrapbook" | "Fondo 230x200 Blanco";
 type ServiceConfiguration = {
   hours: number;
   additionalHours: number;
@@ -246,9 +247,11 @@ const masterExtraToReservation = (code: string): ServiceExtra | null =>
     : code === "QR"
       ? "QR"
       : code === "UNLIMITED_MAGNETS"
-        ? "Imanes"
-        : code === "SCRAPBOOK"
-          ? "Scrapbook"
+      ? "Imanes"
+      : code === "SCRAPBOOK"
+        ? "Scrapbook"
+        : code === "BACKDROP_230X200_WHITE"
+          ? "Fondo 230x200 Blanco"
           : null;
 export interface NewProjectDrawerProps {
   canNegotiate: boolean;
@@ -584,9 +587,25 @@ export function NewProjectDrawer({
   const compatibleExtras = (service: ProjectService) =>
     filterExtrasForEventType(
       draft.type ?? "",
-      (serviceByCode.get(service)?.compatibleExtras ?? [])
-        .map(masterExtraToReservation)
-        .filter((extra): extra is ServiceExtra => extra !== null),
+      Array.from(
+        new Set([
+          ...(serviceByCode.get(service)?.compatibleExtras ?? [])
+            .map(masterExtraToReservation)
+            .filter((extra): extra is ServiceExtra => extra !== null),
+          // The commercial catalog is the source of truth for valid extras.
+          // Service metadata may lag behind it, so it must not hide a priced,
+          // enabled extra from the reservation selector.
+          ...commercialPrices
+            .filter(
+              (price) =>
+                price.category === "EXTRA" &&
+                price.pricingStatus === "DEFINED" &&
+                price.unitPrice != null,
+            )
+            .map((price) => masterExtraToReservation(price.code))
+            .filter((extra): extra is ServiceExtra => extra !== null),
+        ]),
+      ),
     );
 
   const selectedMunicipality =

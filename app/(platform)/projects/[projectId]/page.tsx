@@ -15,6 +15,8 @@ import { resolveReceivablePaymentCategory } from "@/features/accounts-receivable
 import { requiresPhotoStripDesign } from "@/features/business-core/catalog/service.catalog";
 import { getCanonicalOrbitEventState } from "@/features/operations/canonical-event-state";
 import { chileDateTime } from "@/features/operations/event-operational-window";
+import { buildResponsibilityReadModel } from "@/features/staff-assignment-center/staff-responsibility-read-model";
+import { resolveOfficialOperatorRate } from "@/features/operations/staff-assignment-payment";
 
 export interface ProjectWorkspacePageProps {
   params: Promise<{ projectId: string }>;
@@ -86,6 +88,7 @@ export default async function ProjectWorkspacePage({
     { data: calendarSync },
     { data: driveSync },
     { data: payroll },
+    { data: staffRates },
     { data: profit },
     { data: invoice },
     { data: checklist },
@@ -163,7 +166,7 @@ export default async function ProjectWorkspacePage({
     client
       .from("assignments")
       .select(
-        "id,project_id,staff_id,assignment_type,status,arrival_time,start_time,finish_time,assigned_vehicle,observations,resources,staff(first_name,last_name),operational_assets(asset_code)",
+        "id,project_id,block_id,staff_id,assignment_type,status,arrival_time,start_time,finish_time,assigned_vehicle,observations,resources,staff(first_name,last_name),operational_assets(asset_code),event_operational_blocks(id,name,start_at,end_at)",
       )
       .is("deleted_at", null),
     client
@@ -178,9 +181,15 @@ export default async function ProjectWorkspacePage({
     client
       .from("event_staff_payments")
       .select(
-        "id,status,tasks,settlement_status,paid_amount,paid_at,sii_receipt_status,original_assembly_payment,original_operator_payment,original_disassembly_payment,automatic_assembly_payment,automatic_operator_payment,automatic_disassembly_payment,assembly_payment,operator_payment,disassembly_payment,transport_bonus,parking_payment,total_internal_payment,staff(first_name,last_name)",
+        "id,project_id,assignment_id,staff_id,status,tasks,settlement_status,paid_amount,paid_at,sii_receipt_status,original_assembly_payment,original_operator_payment,original_disassembly_payment,automatic_assembly_payment,automatic_operator_payment,automatic_disassembly_payment,override_assembly_payment,override_operator_payment,override_disassembly_payment,assembly_payment,operator_payment,disassembly_payment,transport_bonus,parking_payment,total_internal_payment,block_id,contracted_minutes,event_operational_blocks(name,start_at,end_at),staff(first_name,last_name)",
       )
       .eq("project_id", projectId)
+      .is("deleted_at", null),
+    client
+      .from("cost_master_entries")
+      .select("code,amount")
+      .in("code", ["OPERATOR_2_HOURS", "OPERATOR_3_HOURS", "OPERATOR_4_HOURS", "OPERATOR_5_HOURS", "OPERATOR_6_HOURS", "OPERATOR_7_HOURS", "OPERATOR_8_HOURS", "OPERATOR_9_HOURS", "OPERATOR_10_HOURS", "ASSEMBLY", "DISASSEMBLY", "ASSEMBLY_DISASSEMBLY"])
+      .eq("enabled", true)
       .is("deleted_at", null),
     client
       .from("financial_event_records")
@@ -257,10 +266,18 @@ export default async function ProjectWorkspacePage({
   const { data: staffRoleRequirements, error: staffRoleRequirementError } =
     await client
       .from("event_staff_requirements")
-      .select("role,required_quantity,published")
+      .select("role,required_quantity,published,block_id")
       .eq("project_id", projectId)
       .order("role");
   if (staffRoleRequirementError) throw staffRoleRequirementError;
+  const { data: operationalBlockRows, error: operationalBlocksError } = await client
+    .from("event_operational_blocks")
+    .select("id,project_id,name,sequence,start_at,end_at,status,notes")
+    .eq("project_id", projectId)
+    .order("sequence");
+  if (operationalBlocksError && !["42P01", "PGRST205"].includes(operationalBlocksError.code ?? "")) {
+    throw operationalBlocksError;
+  }
   const [
     logisticsSummaryResult,
     logisticsTripsResult,
@@ -464,6 +481,7 @@ export default async function ProjectWorkspacePage({
   type StaffAssignment = {
     id: string;
     project_id: string;
+    block_id: string | null;
     staff_id: string;
     assignment_type: string;
     status: string;
@@ -475,6 +493,7 @@ export default async function ProjectWorkspacePage({
     resources: Record<string, unknown> | null;
     staff: { first_name: string; last_name: string };
     operational_assets: { asset_code: string } | null;
+    event_operational_blocks: { id: string; name: string; start_at: string; end_at: string } | { id: string; name: string; start_at: string; end_at: string }[] | null;
   };
   const activeAssets = (assetAssignments ??
     []) as unknown as ActiveAssetAssignment[];
@@ -490,6 +509,26 @@ export default async function ProjectWorkspacePage({
   const productionAssignments = (
     (operatorAssignments ?? []) as unknown as StaffAssignment[]
   ).filter((item) => confirmedAssignmentStatuses.has(item.status));
+  const responsibilityRequirements = buildResponsibilityReadModel(
+    (staffRoleRequirements ?? [])
+      .filter((item) => !item.block_id && !(operationalBlockRows?.length && item.role === "OPERATOR"))
+      .map((item) => ({ role: item.role, required: Number(item.required_quantity), published: item.published })),
+    productionAssignments.map((item) => ({
+      role: item.assignment_type,
+      status: item.status,
+      staffId: item.staff_id,
+      staffName: `${item.staff.first_name} ${item.staff.last_name}`,
+    })),
+    (staffRequests ?? []).map((item) => {
+      const member = Array.isArray(item.staff) ? item.staff[0] : item.staff;
+      return {
+        role: item.responsibility,
+        status: item.status,
+        staffId: undefined,
+        staffName: member ? `${member.first_name} ${member.last_name}` : "",
+      };
+    }),
+  );
   const equipment: EquipmentAssignmentPanelProps = {
     projectId,
     orbitEventId: rawProject?.orbit_event_id ?? `ORB-${projectId}`,
@@ -1137,15 +1176,41 @@ export default async function ProjectWorkspacePage({
     staffAssignments: {
       projectId,
       published: staffPublication?.published ?? false,
-      requirements: (staffRoleRequirements ?? []).map((item: {
-        role: string;
-        required_quantity: number;
-        published: boolean;
-      }) => ({
-        role: item.role,
-        required: Number(item.required_quantity),
-        published: item.published,
+      requirements: responsibilityRequirements,
+      blocks: (operationalBlockRows ?? []).map((block) => ({
+        id: block.id,
+        name: block.name,
+        sequence: Number(block.sequence ?? 0),
+        startAt: block.start_at,
+        endAt: block.end_at,
+        status: block.status,
+        notes: block.notes,
       })),
+      blockRequirements: (staffRoleRequirements ?? []).filter((item) => item.block_id).map((item) => {
+        const block = (operationalBlockRows ?? []).find((candidate) => candidate.id === item.block_id);
+        const durationMinutes = block?.start_at && block?.end_at
+          ? Math.round((new Date(block.end_at).getTime() - new Date(block.start_at).getTime()) / 60000)
+          : undefined;
+        const rate = durationMinutes && item.role === "OPERATOR"
+          ? resolveOfficialOperatorRate(staffRates ?? [], durationMinutes).amount
+          : null;
+        return {
+          blockId: item.block_id as string,
+          role: item.role,
+          required: Number(item.required_quantity),
+          published: item.published,
+          assigned: productionAssignments.filter((assignment) => assignment.block_id === item.block_id && assignment.assignment_type === item.role && !["CANCELLED", "REJECTED"].includes(assignment.status)).length,
+          blockName: block?.name,
+          startAt: block?.start_at,
+          endAt: block?.end_at,
+          durationMinutes,
+          rate,
+          projectedCost: rate == null ? null : rate * Number(item.required_quantity),
+        };
+      }),
+      roleCosts: Object.fromEntries(["OPERATOR", "ASSEMBLY", "DISASSEMBLY"].map((role) => [role,
+        (payroll ?? []).filter((item) => item.status !== "CANCELLED").reduce((sum, item) => sum + Number(role === "OPERATOR" ? item.operator_payment : role === "ASSEMBLY" ? item.assembly_payment : item.disassembly_payment), 0),
+      ])),
       requests: (staffRequests ?? []).map((item) => {
         const member = Array.isArray(item.staff) ? item.staff[0] : item.staff;
         return {
@@ -1204,10 +1269,17 @@ export default async function ProjectWorkspacePage({
             paid = Number(item.paid_amount);
           return {
             id: item.id,
+            staffId: item.staff_id ?? "",
             staffName: Array.isArray(item.staff)
               ? `${item.staff[0]?.first_name ?? ""} ${item.staff[0]?.last_name ?? ""}`.trim()
               : "Staff",
             roles: item.tasks ?? [],
+            defaultOperator: Number(item.automatic_operator_payment ?? item.operator_payment ?? 0),
+            defaultAssembly: Number(item.automatic_assembly_payment ?? item.assembly_payment ?? 0),
+            defaultDisassembly: Number(item.automatic_disassembly_payment ?? item.disassembly_payment ?? 0),
+            overrideOperator: item.override_operator_payment == null ? null : Number(item.override_operator_payment),
+            overrideAssembly: item.override_assembly_payment == null ? null : Number(item.override_assembly_payment),
+            overrideDisassembly: item.override_disassembly_payment == null ? null : Number(item.override_disassembly_payment),
             originalOperator,
             originalAssembly,
             originalDisassembly,
@@ -1220,6 +1292,17 @@ export default async function ProjectWorkspacePage({
             settlementStatus: item.settlement_status,
             paidAt: item.paid_at ?? "",
             receiptStatus: item.sii_receipt_status,
+            blockId: item.block_id ?? null,
+            blockName: (() => {
+              const block = item.event_operational_blocks as unknown as
+                | { name?: string }
+                | { name?: string }[]
+                | null;
+              return Array.isArray(block)
+                ? block[0]?.name ?? null
+                : block?.name ?? null;
+            })(),
+            contractedMinutes: item.contracted_minutes ?? null,
             adjustments: adjustments.map((value) => ({
               id: value.id,
               reason: value.reason,

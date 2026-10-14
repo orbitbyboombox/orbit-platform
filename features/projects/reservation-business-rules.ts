@@ -1,5 +1,5 @@
 export type ReservationEventType = "Wedding" | "Corporate" | "Birthday" | "Graduation" | "Private" | "Other";
-export type ReservationExtra = "Branding" | "QR" | "Imanes" | "Scrapbook";
+export type ReservationExtra = "Branding" | "QR" | "Imanes" | "Scrapbook" | "Fondo 230x200 Blanco";
 
 export function filterExtrasForEventType(
   eventType: ReservationEventType | "",

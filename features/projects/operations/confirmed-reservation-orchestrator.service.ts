@@ -25,6 +25,7 @@ export async function confirmPersistedReservation(input: {
   projectId: string;
   actorId: string;
   sendCustomerCommunication?: boolean;
+  smokeMode?: boolean;
   portal?: { url: string; expiresAt: string };
   completedStages?: ReadonlySet<ConfirmationStage>;
   onStage?: (
@@ -63,6 +64,7 @@ export async function confirmPersistedReservation(input: {
     ),
     onStage: input.onStage,
     continueOnError:true,
+    smokeMode: input.smokeMode,
   });
   warnings.push(...operational.failures);
 
@@ -70,6 +72,7 @@ export async function confirmPersistedReservation(input: {
     const delivery = await deliverConfirmedReservationEmail({
       projectId: input.projectId,
       actorId: input.actorId,
+      smokeMode: input.smokeMode,
       portal,
     });
     if (delivery.status !== "SENT")
@@ -80,6 +83,7 @@ export async function confirmPersistedReservation(input: {
     const founder = await deliverFounderReservationNotification({
       projectId: input.projectId,
       actorId: input.actorId,
+      smokeMode: input.smokeMode,
     });
     if (founder.status === "FAILED")
       throw new Error("La notificación del Founder no pudo ser entregada.");

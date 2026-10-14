@@ -197,6 +197,11 @@ export async function sendCommercialInformationAction(input: {
       throw claimError;
     }
     const publicUrl = catalogPublicUrl(document.category, process.env.NEXT_PUBLIC_APP_URL ?? "https://orbit.boom-box.cl");
+    const appOrigin = (process.env.NEXT_PUBLIC_APP_URL ?? "https://app.bbox.cl").replace(/\/$/, "");
+    const transportUrl = `${appOrigin}/traslados?type=${input.category === "COMPANIES_CATALOG" ? "company" : "private"}`;
+    const transportLabel = input.category === "COMPANIES_CATALOG"
+      ? "CONOCER VALOR DE TRASLADO + IVA"
+      : "CONOCER VALOR DE TRASLADO";
     const downloaded = input.attachPdf ? await admin.storage.from("orbit-documents").download(document.storage_path) : null;
     if (downloaded?.error) throw downloaded.error;
     const signatureUrl = typeof company.emailConfiguration.signatureGifUrl === "string" ? company.emailConfiguration.signatureGifUrl : "";
@@ -213,36 +218,24 @@ export async function sendCommercialInformationAction(input: {
         return `<p style="margin:20px 0 0;padding:14px 16px;background:#f7f5f1;border-radius:10px;color:#5d574f;font-size:13px">${richText(paragraph)}</p>`;
       return `<p style="margin:0 0 16px">${richText(paragraph)}</p>`;
     }).join("");
-    const socialCommunication = input.category !== "COMPANIES_CATALOG";
-    const socialEmail = socialCommunication
-      ? buildSocialPlansEmail({
-          body: cleanBody,
-          contact: input.name,
-          website: company.website,
-          catalogUrl: publicUrl,
-          attachmentFilename: downloaded?.data
-            ? document.filename || `${document.name}.pdf`
-            : undefined,
-          signatureUrl,
-        })
-      : null;
-    const htmlBody = socialEmail?.html ?? renderBoomboxCommercialEmail({
-      preheader: "Conoce los planes y experiencias BOOMBOX para tu evento.",
-      eyebrow: socialCommunication ? "PLANES Y EXPERIENCIAS" : "EXPERIENCIAS CORPORATIVAS",
-      title: socialCommunication ? "ENCUENTRA LA EXPERIENCIA PARA TU EVENTO" : "Experiencias BOOMBOX para tu evento",
-      contentHtml: htmlParagraphs,
+    const commercialEmail = buildSocialPlansEmail({
+      category: input.category,
+      body: cleanBody,
+      contact: input.name,
       website: company.website,
-      primaryAction: { href: publicUrl, label: QUICK_SEND_CTA_LABEL },
-      primaryActionFallback: "Si tienes problemas con el botón, puedes abrir los planes y valores",
-      attachmentNote: downloaded?.data ? `${document.filename || `${document.name}.pdf`} está incluido como archivo adjunto.` : undefined,
-      signatureHtml: signature,
+      catalogUrl: publicUrl,
+      transportUrl,
+      transportLabel,
+      attachmentFilename: downloaded?.data ? document.filename || `${document.name}.pdf` : undefined,
+      signatureUrl,
     });
+    const htmlBody = commercialEmail.html;
     const sent = await new GoogleGmailApiProvider(
       await loadGoogleWorkspaceAccessToken(),
     ).send({
       to: input.email.trim().toLowerCase(),
       subject,
-      textBody: socialEmail?.text ?? `${quickSendBodyParagraphs(cleanBody, input.name).join("\n\n")}\n\n${QUICK_SEND_CTA_LABEL}: ${publicUrl}\n\n${signatureMode === "GRAPHICAL" ? "" : "Equipo BOOMBOX"}`.trim(),
+      textBody: commercialEmail.text,
       htmlBody,
       driveFileIds: [],
       attachments: downloaded?.data ? [{ filename: document.filename || `${document.name}.pdf`, mimeType: "application/pdf", content: new Uint8Array(await downloaded.data.arrayBuffer()) }] : [],
@@ -429,6 +422,7 @@ export async function sendFormalQuoteAction(input: { quoteId: string; email: str
     const cleanBody = withoutDuplicateSignature(withoutDuplicateSignature(body, company.emailSignature || signatureText), signatureText);
     const htmlParagraphs = emailParagraphs(cleanBody).map((paragraph) => `<p style="margin:0 0 16px">${escapeHtml(paragraph).replaceAll("\n", "<br>")}</p>`).join("");
     const attachmentFilename = quoteDisplayFilename(quote.quotation_number);
+    const formalTransportUrl = new URL("/traslados?type=company", process.env.NEXT_PUBLIC_APP_URL ?? "https://app.bbox.cl").toString();
     const htmlBody = renderBoomboxCommercialEmail({
       preheader: `Tu cotización ${quote.quotation_number} está lista.`,
       eyebrow: "COTIZACIÓN BOOMBOX",
@@ -442,10 +436,11 @@ export async function sendFormalQuoteAction(input: { quoteId: string; email: str
       secondaryAction: catalogUrl
         ? { href: catalogUrl, label: "VER CATÁLOGO EMPRESAS" }
         : undefined,
+      tertiaryAction: { href: formalTransportUrl, label: "CONOCER VALOR DE TRASLADO + IVA" },
       attachmentNote: `${attachmentFilename} está incluido como archivo adjunto.`,
       signatureHtml: signature,
     });
-    const sent = await new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken()).send({ to: recipients.to, cc: recipients.cc, subject, textBody: `${cleanBody}\n\nCotización: ${pdfUrl.data.signedUrl}${catalogUrl ? `\nCatálogo: ${catalogUrl}` : ""}\n\n${signatureUrl ? "" : signatureText}`.trim(), htmlBody, driveFileIds: [], attachments: [{ filename: attachmentFilename, mimeType: "application/pdf", content: new Uint8Array(pdf) }] });
+    const sent = await new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken()).send({ to: recipients.to, cc: recipients.cc, subject, textBody: `${cleanBody}\n\nCotización: ${pdfUrl.data.signedUrl}${catalogUrl ? `\nCatálogo: ${catalogUrl}` : ""}\n\nValor de traslado: ${formalTransportUrl}\n\n${signatureUrl ? "" : signatureText}`.trim(), htmlBody, driveFileIds: [], attachments: [{ filename: attachmentFilename, mimeType: "application/pdf", content: new Uint8Array(pdf) }] });
     const timestamp = new Date().toISOString();
     const { error: sendError } = await admin.from("commercial_sends").update({ status: "SENT", external_message_id: sent.messageId, sent_at: timestamp }).eq("id", claim.id);
     if (sendError) throw sendError;

@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  Building2,
   CalendarDays,
   CircleDollarSign,
   FolderKanban,
@@ -39,12 +40,14 @@ export type NavigationKey =
   | "CALENDAR"
   | "STAFF"
   | "RESOURCES"
+  | "BOXES"
   | "FINANCE"
   | "RECEIVABLES"
   | "COLLECTIONS"
   | "PAYABLES"
   | "REPORTS"
-  | "SETTINGS";
+  | "SETTINGS"
+  | "OFFICE_RENT";
 
 export const navigationItems: readonly NavigationItem[] = [
   {
@@ -104,6 +107,13 @@ export const navigationItems: readonly NavigationItem[] = [
     module: "RESOURCES",
   },
   {
+    key: "BOXES",
+    label: "Cajas",
+    href: "/resources/boxes",
+    icon: Layers3,
+    module: "RESOURCES",
+  },
+  {
     key: "FINANCE",
     label: "Finanzas",
     href: "/finance",
@@ -130,6 +140,13 @@ export const navigationItems: readonly NavigationItem[] = [
     href: "/reports",
     icon: BarChart3,
     module: "REPORTS",
+  },
+  {
+    key: "OFFICE_RENT",
+    label: "Arriendo Oficina",
+    href: "/office-rent",
+    icon: Building2,
+    module: "FINANCE",
   },
   {
     key: "SETTINGS",

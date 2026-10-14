@@ -4,6 +4,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { GoogleGmailApiProvider } from "@/features/connectors/google-gmail/provider/google-gmail-live.provider";
 import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { OFFICIAL_BOOMBOX_LOGO_URL } from "@/features/branding/official-logo";
 
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 const appOrigin = () => process.env.NEXT_PUBLIC_APP_URL ?? "https://orbit.boom-box.cl";
@@ -20,7 +21,7 @@ export async function createAutomaticBookingInvitation(email: string, actorId: s
   const url = `${appOrigin()}/booking/${token}`;
   try {
     const subject = "✨ Completa tu Reserva BOOMBOX";
-    const htmlBody = `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;padding:32px;background:#111;color:#fff;border-radius:20px"><p style="color:#f28e2b;font-weight:700;letter-spacing:.14em">BOOMBOX</p><h1>Tu experiencia comienza aquí.</h1><p>Completa los datos de tu evento, elige tu servicio, revisa el contrato y confirma tu reserva desde un único proceso seguro.</p><p style="margin:28px 0"><a href="${url}" style="display:inline-block;background:#f28e2b;color:#111;padding:14px 22px;border-radius:12px;font-weight:700;text-decoration:none">Completar mi reserva</a></p><p style="color:#aaa;font-size:13px">Este enlace es personal, vence en 7 días y funciona una sola vez.</p></div>`;
+    const htmlBody = `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;padding:32px;background:#111;color:#fff;border-radius:20px"><img src="${OFFICIAL_BOOMBOX_LOGO_URL}" alt="BOOMBOX®" width="220" style="display:block;width:220px;max-width:100%;height:auto;border:0;margin-bottom:25px"/><h1>Tu experiencia comienza aquí.</h1><p>Completa los datos de tu evento, elige tu servicio, revisa el contrato y confirma tu reserva desde un único proceso seguro.</p><p style="margin:28px 0"><a href="${url}" style="display:inline-block;background:#f28e2b;color:#111;padding:14px 22px;border-radius:12px;font-weight:700;text-decoration:none">Completar mi reserva</a></p><p style="color:#aaa;font-size:13px">Este enlace es personal, vence en 7 días y funciona una sola vez.</p></div>`;
     const result = await new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken()).send({ to: customerEmail, subject, textBody: `Completa tu Reserva BOOMBOX: ${url}\n\nEste enlace vence en 7 días y funciona una sola vez.`, htmlBody, driveFileIds: [] });
     await admin.from("automatic_booking_invitations").update({ invitation_message_id: result.messageId }).eq("id", invitation.id);
     return { url, expiresAt };

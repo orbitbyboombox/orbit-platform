@@ -1,6 +1,7 @@
 import { renderBoomboxCommercialEmail } from "../connectors/google-gmail/application/boombox-commercial-email.html.ts";
 import {
   QUICK_SEND_CTA_LABEL,
+  commercialGreeting,
   quickSendBodyParagraphs,
   withoutDuplicateSignature,
 } from "./presentation.ts";
@@ -40,9 +41,12 @@ const renderParagraph = (paragraph: string, index: number) => {
 
 export type SocialPlansEmailInput = {
   body: string;
+  category?: "WEDDINGS" | "BIRTHDAYS" | "GRADUATIONS" | "COMPANIES_CATALOG";
   contact: string;
   website: string;
   catalogUrl: string;
+  transportUrl?: string;
+  transportLabel?: string;
   attachmentFilename?: string;
   signatureUrl?: string;
 };
@@ -54,11 +58,27 @@ export function buildSocialPlansEmail(input: SocialPlansEmailInput) {
       ? "Encontrarás el detalle completo de nuestras experiencias y valores al abrir Planes y Valores."
       : paragraph,
   );
-  const postActionIndex = paragraphs.findIndex((paragraph) =>
-    paragraph.startsWith("Si alguna alternativa te interesa,"),
-  );
-  const beforeAction = postActionIndex < 0 ? paragraphs : paragraphs.slice(0, postActionIndex);
-  const afterAction = postActionIndex < 0 ? [] : paragraphs.slice(postActionIndex);
+  // Short commercial email: the catalog contains the detailed descriptions and prices.
+  // Keep the configured greeting, but avoid repeating the proposal and CTA copy.
+  const greeting = commercialGreeting(input.contact);
+  const isCompany = input.category === "COMPANIES_CATALOG";
+  const beforeAction = isCompany
+    ? [
+        greeting,
+        "En BOOMBOX llevamos 16 años creando experiencias fotográficas para marcas, empresas y eventos.",
+        "Combinamos tecnología, creatividad y personalización para transformar cada activación en una experiencia que conecte con los asistentes y haga destacar tu marca.",
+        "**Conoce nuestras soluciones y descubre cómo podemos potenciar tu próximo evento.**",
+      ]
+    : [
+        greeting,
+        "En BOOMBOX llevamos 16 años transformando eventos en recuerdos inolvidables.",
+        "Queremos que tu evento tenga algo especial: una experiencia fotográfica que sorprenda a tus invitados y les permita llevarse un recuerdo de ese gran momento.",
+        "**Descubre nuestras experiencias y encuentra la alternativa ideal para tu evento.**",
+      ];
+  const afterAction = isCompany
+    ? []
+    : ["**Importante:** La fecha se confirma mediante reserva y está sujeta a disponibilidad."];
+  const catalogLabel = isCompany ? "VER PDF EMPRESAS" : input.category === "WEDDINGS" ? "VER PDF MATRIMONIOS" : "VER PDF EVENTOS";
   const signatureHtml = input.signatureUrl
     ? `<p style="margin:0"><img src="${escapeHtml(input.signatureUrl)}" alt="BOOMBOX" style="display:block;max-width:420px;width:100%;height:auto;border:0"></p>`
     : `<p style="margin:0"><strong>Equipo BOOMBOX</strong></p>`;
@@ -66,13 +86,17 @@ export function buildSocialPlansEmail(input: SocialPlansEmailInput) {
     preheader: "Conoce las experiencias y valores BOOMBOX para tu celebración.",
     eyebrow: "",
     title: "",
-    headerLabel: "EXPERIENCIAS PARA TU CELEBRACIÓN",
+    headerLabel: isCompany ? "EMPRESAS · PROPUESTA COMERCIAL" : "EXPERIENCIAS PARA TU CELEBRACIÓN",
     stackedHeader: true,
+    wideLayout: true,
     contentHtml: beforeAction.map(renderParagraph).join(""),
     contentAfterActionsHtml: afterAction.map((paragraph, index) => renderParagraph(paragraph, beforeAction.length + index)).join(""),
     website: input.website,
-    primaryAction: { href: input.catalogUrl, label: QUICK_SEND_CTA_LABEL },
-    primaryActionFallback: "Si tienes problemas con el botón, puedes abrir los planes y valores",
+    primaryAction: { href: input.catalogUrl, label: catalogLabel },
+    secondaryAction: input.transportUrl
+      ? { href: input.transportUrl, label: input.transportLabel ?? "CONOCER VALOR DE TRASLADO" }
+      : undefined,
+    primaryActionFallback: undefined,
     attachmentNote: input.attachmentFilename
       ? `${input.attachmentFilename} está incluido como archivo adjunto.`
       : undefined,
@@ -80,7 +104,8 @@ export function buildSocialPlansEmail(input: SocialPlansEmailInput) {
   });
   const text = [
     ...beforeAction,
-    `${QUICK_SEND_CTA_LABEL}: ${input.catalogUrl}`,
+    `${catalogLabel}: ${input.catalogUrl}`,
+    ...(input.transportUrl ? [`${input.transportLabel ?? "CONOCER VALOR DE TRASLADO"}: ${input.transportUrl}`] : []),
     ...afterAction,
     input.signatureUrl ? "" : "Equipo BOOMBOX",
   ].filter(Boolean).join("\n\n");

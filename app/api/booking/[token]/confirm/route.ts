@@ -1,9 +1,11 @@
+import { bookingWritesBlockedInPreview, bookingPreviewBlockedMessage } from "@/features/automatic-booking/recovery-preview-guard";
 import { NextResponse } from "next/server";
 import { AutomaticBookingConfirmationError, completeAutomaticBooking, type AutomaticBookingSubmission } from "@/features/automatic-booking/complete-automatic-booking.service";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request, { params }: { params: Promise<{ token: string }> }) {
+  if (bookingWritesBlockedInPreview()) return NextResponse.json({ ok: false, message: bookingPreviewBlockedMessage }, { status: 403 });
   try {
     const { token } = await params;
     const submission = await request.json() as AutomaticBookingSubmission;

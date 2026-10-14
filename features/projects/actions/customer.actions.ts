@@ -523,8 +523,10 @@ export async function createCustomerProjectAction(
           actorId: auth.user.id,
           formalization: draft.commercialFormalization,
         });
+        const portalUrl = "url" in result ? result.url : result.portalUrl;
+        if (!portalUrl) throw new Error("No fue posible generar un acceso válido al Portal Clientes.");
         preparedPortal = {
-          url: "url" in result ? result.url : result.portalUrl,
+          url: portalUrl,
           expiresAt: "expiresAt" in result ? result.expiresAt : "",
         };
       }
