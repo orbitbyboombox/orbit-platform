@@ -43,6 +43,8 @@ export type SocialPlansEmailInput = {
   contact: string;
   website: string;
   catalogUrl: string;
+  transportUrl?: string;
+  transportLabel?: string;
   attachmentFilename?: string;
   signatureUrl?: string;
 };
@@ -68,10 +70,13 @@ export function buildSocialPlansEmail(input: SocialPlansEmailInput) {
     title: "",
     headerLabel: "EXPERIENCIAS PARA TU CELEBRACIÓN",
     stackedHeader: true,
-    contentHtml: beforeAction.map(renderParagraph).join(""),
+    contentHtml: beforeAction.map(renderParagraph).join("") + (input.transportUrl ? `<p style="margin:12px 0 4px;font-size:14px;color:#ffffff">Revisa los planes disponibles y consulta el valor de traslado según la comuna del evento.</p>` : ""),
     contentAfterActionsHtml: afterAction.map((paragraph, index) => renderParagraph(paragraph, beforeAction.length + index)).join(""),
     website: input.website,
     primaryAction: { href: input.catalogUrl, label: QUICK_SEND_CTA_LABEL },
+    secondaryAction: input.transportUrl
+      ? { href: input.transportUrl, label: input.transportLabel ?? "CONOCER VALOR DE TRASLADO" }
+      : undefined,
     primaryActionFallback: "Si tienes problemas con el botón, puedes abrir los planes y valores",
     attachmentNote: input.attachmentFilename
       ? `${input.attachmentFilename} está incluido como archivo adjunto.`
@@ -81,6 +86,7 @@ export function buildSocialPlansEmail(input: SocialPlansEmailInput) {
   const text = [
     ...beforeAction,
     `${QUICK_SEND_CTA_LABEL}: ${input.catalogUrl}`,
+    ...(input.transportUrl ? [`${input.transportLabel ?? "CONOCER VALOR DE TRASLADO"}: ${input.transportUrl}`] : []),
     ...afterAction,
     input.signatureUrl ? "" : "Equipo BOOMBOX",
   ].filter(Boolean).join("\n\n");
