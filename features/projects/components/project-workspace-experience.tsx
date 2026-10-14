@@ -1084,11 +1084,15 @@ export function ProjectWorkspaceExperience(
           {eventTab === "staff" && moduleVisible("STAFF") && (
             <section aria-labelledby="staff-assignment-title" id="staff-assignment" role="tabpanel">
               <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Equipo del evento</p><h2 className="mt-1 text-2xl font-semibold" id="staff-assignment-title">Staff y asignaciones</h2></div><button type="button" className="inline-flex min-h-10 items-center justify-center rounded-xl border px-3 text-sm font-semibold text-brand hover:border-brand" onClick={() => selectEventTab("operations")}>Abrir Logística</button></div>
-              <div className="mb-3 flex flex-wrap gap-2">
-                <Link href="/resources/staff?payroll=1" className="inline-flex min-h-10 items-center justify-center rounded-xl border border-brand/50 px-3 text-sm font-semibold text-brand hover:border-brand" data-issue68-payroll-link>
-                  Pagos por pagar / Adelantos de pago
+              <div className="mb-3 grid gap-2 sm:grid-cols-2" data-issue71-staff-finance-links>
+                <Link href="/finance/payables" className="inline-flex min-h-10 items-center justify-center rounded-xl border border-brand/50 px-3 text-center text-sm font-semibold text-brand hover:border-brand" data-issue71-payables-link>
+                  Cuentas por pagar
+                </Link>
+                <Link href="/resources/staff?payroll=1" className="inline-flex min-h-10 items-center justify-center rounded-xl border border-brand/50 px-3 text-center text-sm font-semibold text-brand hover:border-brand" data-issue68-payroll-link data-issue71-advances-link>
+                  Payroll y adelantos de pago
                 </Link>
               </div>
+              <p className="mb-3 text-xs text-muted">Estos accesos reutilizan los centros financieros canónicos; no duplican pagos ni lógica de adelantos.</p>
               <StaffAssignmentCenter {...event.staffAssignments} />
             </section>
           )}
@@ -1171,17 +1175,20 @@ export function ProjectWorkspaceExperience(
               </OptionalModule>
             )}
             {eventTab === "documents" && moduleVisible("DOCUMENTS") && (
-              <Section
-                eyebrow="07 · Archivos"
-                icon={<FolderOpen className="size-5" />}
-                id="documents"
-                title="Documentos y estado comercial"
-              >
-                <div className="grid min-w-0 gap-4 xl:grid-cols-2">
-                  <div className="min-w-0"><EventDesignCenter documents={eventDesignDocuments} projectId={props.projectKey!}/></div>
-                  {photoStripEligible ? <div className="min-w-0"><PhotoStripDesignCenter documents={photoStripDocuments} projectId={props.projectKey!}/></div> : null}
+              <Section eyebrow="07 · Archivos" icon={<FolderOpen className="size-5" />} id="documents" title="Documentos del evento">
+                <div className="space-y-4" data-issue71-documents-layout>
+                  <section className="min-w-0 rounded-2xl border bg-background/20 p-3 sm:p-4" data-issue71-designs-section aria-labelledby="event-designs-title">
+                    <div className="mb-3"><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Diseños</p><h3 className="mt-1 text-lg font-semibold" id="event-designs-title">Diseños del evento</h3><p className="mt-1 text-sm text-muted">Carga y consulta las versiones de diseño sin mezclar documentos comerciales.</p></div>
+                    <div className="grid min-w-0 gap-4 xl:grid-cols-2">
+                      <div className="min-w-0"><EventDesignCenter documents={eventDesignDocuments} projectId={props.projectKey!}/></div>
+                      {photoStripEligible ? <div className="min-w-0"><PhotoStripDesignCenter documents={photoStripDocuments} projectId={props.projectKey!}/></div> : <p className="rounded-xl border border-dashed p-4 text-sm text-muted">Este evento no tiene un servicio que requiera PhotoStrip.</p>}
+                    </div>
+                  </section>
+                  <section className="min-w-0 rounded-2xl border bg-background/20 p-3 sm:p-4" data-issue71-commercial-documents-section aria-labelledby="event-commercial-documents-title">
+                    <div className="mb-3"><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Comercial</p><h3 className="mt-1 text-lg font-semibold" id="event-commercial-documents-title">Documentos comerciales</h3><p className="mt-1 text-sm text-muted">Cotización, contrato, comprobantes y documentos tributarios del evento.</p></div>
+                    <div className="min-w-0"><EventCommercialDocumentHub projectId={props.projectKey!} customerName={props.clientName} customerTaxId={props.commercialHub.customerTaxId} customerKind={props.commercialHub.customerKind} quotation={props.commercialHub.quotation} contract={props.signing} receivable={event.receivable?{id:event.receivable.id,paid:event.receivable.paidAmount,outstanding:event.receivable.outstandingBalance,dueDate:event.receivable.dueDate,status:event.receivable.status}:undefined} paymentCondition={props.commercialHub.paymentCondition} documents={event.documents} taxDocuments={event.documents.filter(doc=>doc.taxType&&doc.folio&&doc.issueDate).map(doc=>({id:doc.id,taxType:doc.taxType!,folio:doc.folio!,issueDate:doc.issueDate!,total:doc.total??0,status:doc.status??"ADJUNTADO",href:doc.href}))}/></div>
+                  </section>
                 </div>
-                <div className="mt-4 min-w-0"><EventCommercialDocumentHub projectId={props.projectKey!} customerName={props.clientName} customerTaxId={props.commercialHub.customerTaxId} customerKind={props.commercialHub.customerKind} quotation={props.commercialHub.quotation} contract={props.signing} receivable={event.receivable?{id:event.receivable.id,paid:event.receivable.paidAmount,outstanding:event.receivable.outstandingBalance,dueDate:event.receivable.dueDate,status:event.receivable.status}:undefined} paymentCondition={props.commercialHub.paymentCondition} documents={event.documents} taxDocuments={event.documents.filter(doc=>doc.taxType&&doc.folio&&doc.issueDate).map(doc=>({id:doc.id,taxType:doc.taxType!,folio:doc.folio!,issueDate:doc.issueDate!,total:doc.total??0,status:doc.status??"ADJUNTADO",href:doc.href}))}/></div>
               </Section>
             )}
             {eventTab === "communications" && showLegacyDuplicatedEventSections && moduleVisible("GOOGLE_CALENDAR") && (
@@ -1292,7 +1299,7 @@ export function ProjectWorkspaceExperience(
                       const operatingProfit = netRevenue - event.profit.costs.totalOperationalCost;
                       const operatingMargin = netRevenue > 0 ? operatingProfit / netRevenue * 100 : 0;
                       return <>
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                    <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5" data-issue71-finance-summary>
                       <MiniMoney
                         label="Ingresos netos"
                         value={netRevenue}
@@ -1311,7 +1318,7 @@ export function ProjectWorkspaceExperience(
                       />
                       <MiniMoney label="Recibido" value={event.receivable?.paidAmount ?? 0}/>
                     </div>
-                    <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="grid min-w-0 gap-4 sm:grid-cols-2">
                       <div>
                         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
                           Ingresos
@@ -1775,8 +1782,8 @@ function MiniMetric({ label, value }: { label: string; value: number }) {
 }
 function MiniMoney({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl border bg-background/30 p-4">
-      <p className="text-xl font-semibold sm:text-2xl">{money(value)}</p>
+    <div className="min-w-0 rounded-xl border bg-background/30 p-4">
+      <p className="break-words text-xl font-semibold sm:text-2xl">{money(value)}</p>
       <p className="mt-1 text-xs text-muted">{label}</p>
     </div>
   );
