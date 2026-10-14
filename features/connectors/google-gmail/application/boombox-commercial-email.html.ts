@@ -1,3 +1,5 @@
+import { OFFICIAL_BOOMBOX_LOGO_URL } from "@/features/branding/official-logo";
+
 const escapeHtml = (value: string) =>
   value.replace(
     /[&<>"']/g,
@@ -71,9 +73,10 @@ export function renderBoomboxCommercialEmail(
   const safeWrapping = input.fixedLayout ? ";overflow-wrap:anywhere" : "";
 
   const heading = `${displayEyebrow ? `<p style="margin:0 0 9px;color:#f78900;font-size:11px;font-weight:700;letter-spacing:.16em">${escapeHtml(displayEyebrow)}</p>` : ""}${displayTitle ? `<h1 style="margin:0 0 24px;font-size:30px;line-height:1.15;letter-spacing:-.02em;color:#ffffff">${escapeHtml(displayTitle)}</h1>` : ""}`;
+  const logo = `<img src="${escapeHtml(OFFICIAL_BOOMBOX_LOGO_URL)}" alt="BOOMBOX®" width="220" style="display:block;width:220px;max-width:100%;height:auto;border:0" />`;
   const header = input.stackedHeader
-    ? `<div style="font-family:Arial,sans-serif;font-size:22px;font-weight:800;letter-spacing:.08em">BOOMBOX</div><div style="margin-top:3px;font-family:Arial,sans-serif;font-size:10px;line-height:1.5;letter-spacing:.18em;color:#f78900">${escapeHtml(headerLabel)}</div>`
-    : `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="font-family:Arial,sans-serif;font-size:22px;font-weight:800;letter-spacing:.08em">BOOMBOX</td><td align="right" style="font-family:Arial,sans-serif;font-size:10px;letter-spacing:.18em;color:#f78900">${escapeHtml(headerLabel)}</td></tr></table>`;
+    ? `<div style="text-align:center"><table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0"><tr><td align="center">${logo}</td></tr></table><div style="margin-top:10px;font-family:Arial,sans-serif;font-size:10px;line-height:1.5;letter-spacing:.18em;color:#f78900">${escapeHtml(headerLabel)}</div></div>`
+    : `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td>${logo}</td><td align="right" style="font-family:Arial,sans-serif;font-size:10px;letter-spacing:.18em;color:#f78900">${escapeHtml(headerLabel)}</td></tr></table>`;
 
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="color-scheme" content="dark"><meta name="supported-color-schemes" content="dark"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0;background-color:#111214;background:#111214"><div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">${escapeHtml(input.preheader)}</div><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;${fixedLayout}background-color:#111214;background:#111214"><tr><td align="center" style="padding:24px 10px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:640px;${fixedLayout}background-color:#111214;background:#111214;border:1px solid #343434;border-radius:18px;overflow:hidden"><tr><td style="height:5px;background:#f78900;font-size:0;line-height:0">&nbsp;</td></tr><tr><td style="padding:24px 28px;background-color:#111214;background:#111214;color:#ffffff">${header}</td></tr><tr><td style="padding:28px 28px 24px;font-family:Arial,sans-serif;color:#ffffff;line-height:1.6${safeWrapping}">${heading}${input.contentHtml}${attachment}${actionMarkup}${input.contentAfterActionsHtml ?? ""}${signature}<p style="margin:14px 0 0;padding-top:14px;border-top:1px solid #454545;font-size:12px;line-height:1.6;color:#d1d1d1">BOOMBOX · Comunicación emitida mediante ORBIT<br>ORBIT · Software desarrollado por BOOMBOX<br><a href="${escapeHtml(input.website)}" style="color:#f78900;text-decoration:none">www.bbox.cl</a></p></td></tr></table></td></tr></table></body></html>`;
 }
