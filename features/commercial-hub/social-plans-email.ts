@@ -40,6 +40,7 @@ const renderParagraph = (paragraph: string, index: number) => {
 
 export type SocialPlansEmailInput = {
   body: string;
+  category?: "WEDDINGS" | "BIRTHDAYS" | "GRADUATIONS" | "COMPANIES_CATALOG";
   contact: string;
   website: string;
   catalogUrl: string;
@@ -59,25 +60,32 @@ export function buildSocialPlansEmail(input: SocialPlansEmailInput) {
   // Short commercial email: the catalog contains the detailed descriptions and prices.
   // Keep the configured greeting, but avoid repeating the proposal and CTA copy.
   const greeting = paragraphs.find((paragraph) => /^Hola[,\\s]/i.test(paragraph)) ?? "Hola,";
-  const beforeAction = [greeting, "Gracias por considerar a BOOMBOX para tu evento.", "NUESTRA PROPUESTA"];
+  const isCompany = input.category === "COMPANIES_CATALOG";
+  const beforeAction = [
+    greeting,
+    "Gracias por considerar a BOOMBOX para ser parte de tu celebración.",
+    "Con 16 años de experiencia en fotografía instantánea en Chile, fuimos pioneros en crear el concepto de tótem de fotos.",
+    "NUESTRA PROPUESTA",
+  ];
   const afterAction = [
-    "Si alguna experiencia te interesa, responde este correo y te ayudamos con tu cotización.",
-    "**Importante:** La fecha se confirma con la reserva.",
+    "Esperamos ser parte de tu celebración. Si tienes preguntas, responde este correo y te ayudaremos.",
+    "**Importante:** La fecha se confirma al realizar la reserva.",
     "Un abrazo,",
   ];
+  const catalogLabel = isCompany ? "VER PDF EMPRESAS" : input.category === "WEDDINGS" ? "VER PDF MATRIMONIOS" : "VER PDF EVENTOS";
   const signatureHtml = input.signatureUrl
     ? `<p style="margin:0"><img src="${escapeHtml(input.signatureUrl)}" alt="BOOMBOX" style="display:block;max-width:420px;width:100%;height:auto;border:0"></p>`
     : `<p style="margin:0"><strong>Equipo BOOMBOX</strong></p>`;
   const html = renderBoomboxCommercialEmail({
     preheader: "Conoce las experiencias y valores BOOMBOX para tu celebración.",
     eyebrow: "",
-    title: "",
-    headerLabel: "EXPERIENCIAS PARA TU CELEBRACIÓN",
+    title: "Conoce las experiencias BOOMBOX para tu evento",
+    headerLabel: isCompany ? "EMPRESAS · PROPUESTA COMERCIAL" : "EXPERIENCIAS PARA TU CELEBRACIÓN",
     stackedHeader: true,
-    contentHtml: beforeAction.map(renderParagraph).join("") + `<p style="margin:4px 0 8px;font-size:14px;line-height:1.6;color:#d1d1d1">Conoce nuestros servicios, planes y valores. Consulta el traslado según la comuna de tu evento.</p>`,
+    contentHtml: beforeAction.map(renderParagraph).join(""),
     contentAfterActionsHtml: `<div style="margin-top:20px">` + afterAction.map((paragraph, index) => renderParagraph(paragraph, beforeAction.length + index)).join("") + `</div>`,
     website: input.website,
-    primaryAction: { href: input.catalogUrl, label: QUICK_SEND_CTA_LABEL },
+    primaryAction: { href: input.catalogUrl, label: catalogLabel },
     secondaryAction: input.transportUrl
       ? { href: input.transportUrl, label: input.transportLabel ?? "CONOCER VALOR DE TRASLADO" }
       : undefined,
@@ -89,7 +97,7 @@ export function buildSocialPlansEmail(input: SocialPlansEmailInput) {
   });
   const text = [
     ...beforeAction,
-    `${QUICK_SEND_CTA_LABEL}: ${input.catalogUrl}`,
+    `${catalogLabel}: ${input.catalogUrl}`,
     ...(input.transportUrl ? [`${input.transportLabel ?? "CONOCER VALOR DE TRASLADO"}: ${input.transportUrl}`] : []),
     ...afterAction,
     input.signatureUrl ? "" : "Equipo BOOMBOX",
