@@ -334,7 +334,7 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
     };
   };
 
-  const monthEvents = upcomingEvents.filter(event => /^\\d{4}-\\d{2}-\\d{2}/.test(event.date));
+  const monthEvents = upcomingEvents.filter(event => /^\d{4}-\d{2}-\d{2}/.test(event.date));
   const monthBase = new Date();
   const monthYear = monthBase.getFullYear();
   const monthIndex = monthBase.getMonth();
@@ -342,7 +342,7 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
   const daysInMonth = new Date(monthYear, monthIndex + 1, 0).getDate();
   const monthCells = Array.from({length: monthFirstWeekday + daysInMonth}, (_,idx)=>idx<monthFirstWeekday?0:idx-monthFirstWeekday+1);
   const monthHeading = new Intl.DateTimeFormat("es-CL",{month:"long",year:"numeric"}).format(monthBase);
-  const miniCalendar = <aside className="min-w-0 rounded-2xl border p-4 sm:p-5">
+  const miniCalendar = <aside className="min-w-0 rounded-xl border bg-background/30 p-3 sm:p-4">
     <div className="flex items-center justify-between gap-3"><h3 className="text-sm font-semibold capitalize">Calendario · {monthHeading}</h3><Link href="/calendar" className="text-xs font-semibold text-brand">Ver mes completo →</Link></div>
     <div className="mt-4 grid grid-cols-7 gap-1 text-center text-[10px] font-semibold text-muted">{["L","M","M","J","V","S","D"].map((day,index)=><span key={index}>{day}</span>)}</div>
     <div className="mt-2 grid grid-cols-7 gap-1">{monthCells.map((day,index)=>{
@@ -359,7 +359,7 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
       <PanelTitle id="upcoming-events-title" label="Próximos eventos" />
       <span className="flex flex-wrap gap-x-3 gap-y-2"><Link className="text-xs text-muted transition hover:text-brand" href="/operations/week">Agenda semanal</Link><Link className="text-xs text-muted transition hover:text-brand" href="/events">Ver calendario</Link></span>
     </div>
-    <div className="mt-3 divide-y">{upcomingEvents.slice(0, 4).map(event => {
+    <div className="mt-3 grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,340px)]"><div className="min-w-0 divide-y">{upcomingEvents.slice(0, 4).map(event => {
       const d = formatUpcomingDateParts(event.date);
       return <Link className="group flex min-w-0 items-center gap-3 py-2.5 first:pt-0 last:pb-0" href={event.href} key={event.id}>
         <span className="flex min-h-[62px] w-[54px] shrink-0 flex-col items-center justify-center rounded-xl border bg-background/50 text-center">
@@ -376,7 +376,7 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
           <span className="mt-1 block break-words text-[11px] text-muted">{event.location || "Ubicación pendiente"} · {event.staff}</span>
         </span>
       </Link>;
-    })}{!upcomingEvents.length ? <Empty label="No hay eventos próximos." /> : null}</div>
+    })}{!upcomingEvents.length ? <Empty label="No hay eventos próximos." /> : null}</div>{miniCalendar}</div>
     <Link className="mt-3 flex min-h-10 items-center justify-center gap-2 border-t pt-2 text-xs font-semibold text-brand" href="/events">Ver todos los eventos <ArrowRight className="size-3.5" /></Link>
   </section>;
 
@@ -411,7 +411,7 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
   const financialAlerts = financialAlert || financialAlertHistory.length ? <FinancialAlertCenter current={financialAlert} history={financialAlertHistory} /> : null;
   const dashboardSections = workspace.preferences.moduleWorkspaces.DASHBOARD?.sectionOrder ?? [];
   const calendarIndex = dashboardSections.indexOf("DASHBOARD_UPCOMING_EVENTS");
-  const calendarSection = <OrderableItem controls={ordering ? <OrderControls avoidWorkspaceMenu disableDown={calendarIndex < 0 || calendarIndex === dashboardSections.length - 1} disableUp={calendarIndex <= 1} label="Próximos eventos" onDown={() => moveCalendar(1)} onUp={() => moveCalendar(-1)} /> : null}><div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(320px,.7fr)]">{upcoming}{miniCalendar}</div></OrderableItem>;
+  const calendarSection = <OrderableItem controls={ordering ? <OrderControls avoidWorkspaceMenu disableDown={calendarIndex < 0 || calendarIndex === dashboardSections.length - 1} disableUp={calendarIndex <= 1} label="Próximos eventos" onDown={() => moveCalendar(1)} onUp={() => moveCalendar(-1)} /> : null}>{upcoming}</OrderableItem>;
 
   return <main className="orbit-command-center" id="founder-workspace"><PersonalWorkspaceSections moduleKey="DASHBOARD" reorderEnabled={ordering} sections={[
     { key: "DASHBOARD_HEADER", label: "Bienvenida", content: <>{welcome}<div className="mt-4">{compactSummary}</div></> },
