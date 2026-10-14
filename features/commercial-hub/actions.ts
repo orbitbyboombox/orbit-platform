@@ -197,7 +197,7 @@ export async function sendCommercialInformationAction(input: {
       throw claimError;
     }
     const publicUrl = catalogPublicUrl(document.category, process.env.NEXT_PUBLIC_APP_URL ?? "https://orbit.boom-box.cl");
-    const appOrigin = (process.env.NEXT_PUBLIC_APP_URL ?? "https://app.bbox.cl").replace(/\\/$/, "");
+    const appOrigin = (process.env.NEXT_PUBLIC_APP_URL ?? "https://app.bbox.cl").replace(/\/$/, "");
     const transportUrl = `${appOrigin}/traslados?type=${input.category === "COMPANIES_CATALOG" ? "company" : "private"}`;
     const transportLabel = input.category === "COMPANIES_CATALOG"
       ? "CONOCER VALOR DE TRASLADO + IVA"
