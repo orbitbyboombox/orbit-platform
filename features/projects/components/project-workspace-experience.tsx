@@ -961,6 +961,20 @@ export function ProjectWorkspaceExperience(
                     <Empty text="Cuando se agregue un servicio contratado, aparecerá aquí con su duración y extras." />
                   )}
                 </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {props.commercialHub.quotation?.detailHref ? (
+                    <Link href={props.commercialHub.quotation.detailHref} className="inline-flex min-h-11 items-center rounded-xl border border-brand/40 px-4 text-sm font-semibold text-brand">
+                      Revisar cotización y servicio
+                    </Link>
+                  ) : null}
+                  <Link href="/leads" className="inline-flex min-h-11 items-center rounded-xl border px-4 text-sm font-semibold text-brand">
+                    Solicitar cambio de servicio / nueva cotización
+                  </Link>
+                </div>
+                <p className="mt-2 text-xs leading-5 text-muted">
+                  Para pasar de Classic a BBOX360 u otro servicio, prepara una nueva revisión comercial.
+                  No reemplaces el servicio aceptado sin revisar el nuevo precio, contrato y saldo del evento.
+                </p>
                 <dl className="mt-4">
                   <Row label="Branding" value="Según cotización" />
                   <Row label="QR" value="Según servicio" />
