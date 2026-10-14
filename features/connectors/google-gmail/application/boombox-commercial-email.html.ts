@@ -55,7 +55,7 @@ export function renderBoomboxCommercialEmail(
     ? "EVENTOS CORPORATIVOS"
     : input.headerLabel ?? "EXPERIENCIAS QUE CONECTAN";
   const displayEyebrow = corporateCatalog ? "" : input.eyebrow;
-  const displayTitle = corporateCatalog ? "Conoce las experiencias BOOMBOX para tu evento" : input.title;
+  const displayTitle = corporateCatalog ? "CONOCE NUESTRA PROPUESTA PARA TU CELEBRACIÓN" : input.title;
   const actions = [
     input.primaryAction ? `<tr><td style="padding:20px 0 0">${actionButton(input.primaryAction)}</td></tr>` : "",
     input.primaryAction && input.primaryActionFallback
