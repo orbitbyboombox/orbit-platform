@@ -44,7 +44,7 @@ jobs:
       - name: Install Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.121.0
 
       - name: Install application dependencies
         run: corepack enable && pnpm install --frozen-lockfile
@@ -66,9 +66,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          supabase db dump --db-url "$SUPABASE_DB_URL" --schema public --schema storage \
+          supabase db dump --db-url "$SUPABASE_DB_URL" --schema public,storage,auth \
             --file "$RUNNER_TEMP/orbit-backup/database-schema.sql"
-          supabase db dump --db-url "$SUPABASE_DB_URL" --schema public --schema storage \
+          supabase db dump --db-url "$SUPABASE_DB_URL" --schema public,storage,auth \
             --data-only --file "$RUNNER_TEMP/orbit-backup/database-data.sql"
 
       - name: Export Storage objects and checksums
@@ -84,13 +84,19 @@ jobs:
           umask 077
           work="$RUNNER_TEMP/orbit-backup"
           tar -czf "$work/storage.tar.gz" -C "$work/storage" .
-          for source in database-schema.sql database-data.sql storage.tar.gz; do
+          for source in database-schema.sql database-data.sql storage.tar.gz storage-manifest.json; do
             printf '%s' "$BACKUP_ENCRYPTION_PASSPHRASE" | openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt \
               -pass stdin -in "$work/$source" -out "$work/$source.enc"
           done
           rm -f "$work/database-schema.sql" "$work/database-data.sql" "$work/storage.tar.gz"
-          sha256sum "$work"/*.enc "$work/storage-manifest.json" > "$work/sha256sums.txt"
-          node scripts/write-backup-manifest.mjs "$work" "$GITHUB_SHA" > "$work/backup-manifest.json"
+          node scripts/write-backup-manifest.mjs "$work" "$GITHUB_SHA"
+          printf '%s' "$BACKUP_ENCRYPTION_PASSPHRASE" | openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt \
+            -pass stdin -in "$work/backup-manifest.json" -out "$work/backup-manifest.json.enc"
+          rm -f "$work/backup-manifest.json" "$work/storage-manifest.json"
+          sha256sum "$work"/*.enc > "$work/sha256sums.txt"
+          printf '%s' "$BACKUP_ENCRYPTION_PASSPHRASE" | openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt \
+            -pass stdin -in "$work/sha256sums.txt" -out "$work/sha256sums.txt.enc"
+          rm -f "$work/sha256sums.txt"
 
       - name: Upload encrypted backup to restricted Drive folder
         run: |

@@ -11,6 +11,10 @@ Este procedimiento es separado del workflow de backup y requiere otra aprobació
 - `BACKUP_ENCRYPTION_PASSPHRASE`: secret usado para descifrar; debe ser distinto del token de Supabase.
 - `GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON`: secret de una cuenta con rol Editor únicamente sobre `04_RESPALDOS_ORBIT`.
 
+El workflow fija Supabase CLI en `2.121.0` y `googleapis` en `144.0.0`; las dependencias de la aplicación se instalan con el lockfile existente.
+
+El dump solicitado incluye `public`, `storage` y `auth` y debe fallar si el rol no puede leer `auth`. Los roles de servidor gestionados, usuarios/credenciales externas de Auth, extensiones administradas, cron, secretos y configuración de proveedores no quedan garantizados por un dump SQL estándar; deben preservarse mediante el mecanismo administrativo correspondiente y validarse por separado.
+
 ## Pasos
 
 1. Descargar desde Drive los artefactos cifrados y `sha256sums.txt`.
