@@ -317,20 +317,32 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
     </div>
   </section>;
 
-  const actionCenter = <section data-command-card aria-labelledby="founder-action-center-title" className="rounded-2xl border border-brand/35 bg-brand/[.035] p-5 sm:p-6">
-    <div className="flex flex-wrap items-center justify-between gap-3"><div><p data-command-label>Requiere tu atención</p><h2 className="mt-1 text-xl font-semibold" id="founder-action-center-title">Pendientes por revisar</h2><p className="mt-2 text-xs text-muted">Prioridad real desde fuentes canónicas; se cierra al resolver el estado operativo.</p></div><span aria-label={`${founderActions.length} pendientes accionables`} className="grid min-h-11 min-w-11 place-items-center rounded-full bg-brand px-3 text-lg font-bold text-brand-foreground">{founderActions.length}</span></div>
-    <div className="mt-4 divide-y rounded-xl border bg-card min-w-0 rounded-xl break-words"><span className="sr-only">min-h-11 w-full lg:grid-cols-2</span>{groupedActions.map(item=>{const Icon=item.type==="STAFF_ONBOARDING_REVIEW_REQUIRED"?UserRoundCheck:item.type==="OVERDUE_INVOICE_GROUP"?CircleDollarSign:ReceiptText;return <div className="flex min-w-0 items-center gap-2 px-3 py-2.5 sm:gap-3" key={item.id}><span className={`grid size-7 shrink-0 place-items-center rounded-lg ${item.priority==="P0"?toneStyle.danger:toneStyle.warning}`}><Icon className="size-3.5"/></span><span className="min-w-0 flex-1 truncate text-xs"><span className="mr-1 rounded border px-1 py-0.5 text-[9px] font-bold">{item.priority}</span><strong>{item.count && item.count>1?`${item.count}× `:""}{item.title}</strong><span className="ml-1 text-muted">· {item.detail}</span></span><span className="hidden shrink-0 text-[10px] text-muted sm:inline">{formatFounderActionTimestamp(item.createdAt)}</span><Link className="shrink-0 rounded-lg border px-2.5 py-1.5 text-[10px] font-bold text-brand" href={item.href}>{item.count && item.count>1?"Ver grupo":item.cta}</Link></div>})}</div><Link className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-brand" href="/notifications">Ver todos los pendientes <ArrowRight className="size-3.5"/></Link>
-    {!founderActions.length?<Empty label="No hay decisiones pendientes del Founder."/>:null}
-  </section>;
+  const staffExpenseActions = founderActions.filter((item) =>
+    ["STAFF_EXPENSE_REVIEW_REQUIRED", "STAFF_BOLETA_REVIEW_REQUIRED"].includes(item.type)
+  );
+  const actionCenter = staffExpenseActions.length ? <section data-command-card aria-labelledby="founder-action-center-title" className="rounded-xl border border-brand/25 bg-brand/[.025] px-4 py-3">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <h2 className="text-sm font-semibold" id="founder-action-center-title">Gastos de operadores por revisar</h2>
+      <span className="rounded-full bg-brand/10 px-2 py-1 text-xs font-bold text-brand">{staffExpenseActions.length}</span>
+    </div>
+    <div className="mt-2 divide-y divide-border/60">{staffExpenseActions.slice(0, 5).map(item => <Link className="flex min-w-0 items-center justify-between gap-3 py-2 text-xs hover:text-brand" href={item.href} key={item.id}><span className="min-w-0"><strong className="block truncate">{item.title}</strong><span className="block truncate text-muted">{item.detail}</span></span><span className="shrink-0 font-semibold text-brand">Revisar →</span></Link>)}</div>
+    {staffExpenseActions.length > 5 ? <Link className="text-xs font-semibold text-brand" href="/notifications">Ver todos →</Link> : null}
+  </section> : null;
 
-  const upcoming = <section data-command-card aria-labelledby="upcoming-events-title" className="rounded-2xl border p-5 sm:p-6">
-    <div className="flex items-center justify-between gap-3"><PanelTitle id="upcoming-events-title" label="Próximos eventos" /><span className="flex gap-3"><Link className="text-xs text-muted transition hover:text-brand" href="/operations/week">Agenda semanal</Link><Link className="text-xs text-muted transition hover:text-brand" href="/events">Ver calendario</Link></span></div>
-    <div className="mt-4 divide-y">{upcomingEvents.slice(0, 4).map(event => <Link className="group grid grid-cols-[3.25rem_1fr_auto] gap-3 py-3.5 first:pt-0 last:pb-0" href={event.href} key={event.id}>
-      <span className="grid min-h-14 place-items-center rounded-xl border bg-background/50 text-center"><strong className="block text-lg leading-none">{event.date.split(" ")[0]}</strong><span className="text-[9px] font-semibold uppercase text-muted">{event.date.split(" ").slice(1).join(" ")}</span></span>
-      <span className="min-w-0"><strong className="block truncate text-sm">{event.title}</strong><span className="mt-1 block truncate text-xs text-muted">{event.service}</span><span className="mt-1 block truncate text-[11px] text-muted">{event.location || "Ubicación pendiente"} · {event.staff}</span></span>
-      <span className="self-start rounded-lg bg-info-soft px-2 py-1 text-[9px] font-semibold uppercase text-info">{event.status}</span>
-    </Link>)}{!upcomingEvents.length ? <Empty label="No hay eventos próximos." /> : null}</div>
-    <Link className="mt-5 flex items-center justify-center gap-2 border-t pt-4 text-xs font-semibold text-brand" href="/events">Ver todos los eventos <ArrowRight className="size-3.5" /></Link>
+  const upcoming = <section data-command-card aria-labelledby="upcoming-events-title" className="rounded-2xl border p-4 sm:p-6">
+    <div className="flex flex-wrap items-center justify-between gap-2"><PanelTitle id="upcoming-events-title" label="Próximos eventos" /><span className="flex gap-3"><Link className="text-xs text-muted hover:text-brand" href="/operations/week">Agenda semanal</Link><Link className="text-xs text-muted hover:text-brand" href="/events">Ver calendario</Link></span></div>
+    <div className="mt-4 divide-y">{upcomingEvents.slice(0, 4).map(event => {
+      const parts = event.date.slice(0, 10).split("-");
+      const date = parts.length === 3 ? new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]))) : null;
+      const day = date && !Number.isNaN(date.getTime()) ? new Intl.DateTimeFormat("es-CL", { day: "2-digit", timeZone: "UTC" }).format(date) : event.date;
+      const month = date && !Number.isNaN(date.getTime()) ? new Intl.DateTimeFormat("es-CL", { month: "short", timeZone: "UTC" }).format(date) : "";
+      return <Link className="group flex min-w-0 items-center gap-3 py-3 first:pt-0 last:pb-0" href={event.href} key={event.id}>
+        <span className="flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-xl border bg-background/50"><strong className="text-xl leading-none">{day}</strong><span className="mt-1 text-[10px] font-semibold uppercase text-muted">{month}</span></span>
+        <span className="min-w-0 flex-1"><strong className="block truncate text-sm">{event.title}</strong><span className="mt-1 block truncate text-xs text-muted">{event.service}</span><span className="mt-1 block truncate text-[11px] text-muted">{event.location || "Ubicación pendiente"} · {event.staff}</span><span className="mt-1.5 inline-block rounded-md bg-info-soft px-2 py-0.5 text-[10px] font-semibold uppercase text-info">{event.status}</span></span>
+        <ArrowRight className="size-4 shrink-0 text-muted" />
+      </Link>;
+    })}{!upcomingEvents.length ? <Empty label="No hay eventos próximos." /> : null}</div>
+    <Link className="mt-4 flex items-center justify-center gap-2 border-t pt-3 text-xs font-semibold text-brand" href="/events">Ver todos los eventos <ArrowRight className="size-3.5" /></Link>
   </section>;
 
   const activity = <section data-command-card aria-labelledby="recent-activity-title" className="rounded-2xl border p-5 sm:p-6">
@@ -353,7 +365,7 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
     alertItems.map(alert => <article className="rounded-xl border bg-background/30 p-4 transition hover:border-brand/35" key={alert.id}><span className="flex items-start gap-3"><span className={`grid size-9 shrink-0 place-items-center rounded-xl ${alert.tone === "danger" ? toneStyle.danger : toneStyle.warning}`}><AlertTriangle className="size-4" /></span><span><strong className="block text-sm">{alert.title}</strong><span className="mt-1 block text-xs text-muted">{alert.detail}</span></span></span><span className="mt-3 flex flex-wrap items-center gap-2"><Link className="inline-flex min-h-9 items-center rounded-lg border border-brand/25 px-3 text-xs font-semibold text-brand" href={alert.href}>{alert.acknowledgeable ? "Abrir Evento / Cobertura Staff" : "Ver detalles"}</Link>{alert.acknowledgeable ? <button className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold disabled:opacity-50" disabled={alertPending} onClick={() => acknowledgeAlert(alert.id)}><Check className="size-3.5" />OK, visto</button> : null}</span></article>)
   }</div>{!visibleOperationalAlerts.length && !finance.risks.length ? <Empty label="No hay alertas accionables." /> : null}</section>;
 
-  const commandGrid = <section aria-label="Jornada operacional" className="space-y-5">{actionCenter}{today}</section>;
+  const commandGrid = <section aria-label="Jornada operacional" className="space-y-5">{today}</section>;
 
   const actions = <section aria-labelledby="quick-actions-title"><PanelTitle id="quick-actions-title" label="Acciones rápidas" /><div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">{orderedQuickActions.map((action, index) => { const Icon = action.icon; return <OrderableItem controls={ordering ? <OrderControls disableDown={index === orderedQuickActions.length - 1} disableUp={index === 0} label={action.label} onDown={() => move("quickActionOrder", action.id, 1)} onUp={() => move("quickActionOrder", action.id, -1)} /> : null} key={action.id}><Link data-command-card className="group flex min-h-[4.75rem] items-center gap-3 rounded-2xl border p-4 transition hover:-translate-y-0.5" href={action.href}><span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand"><Icon className="size-4" /></span><span className="text-xs font-semibold uppercase">{action.label}</span></Link></OrderableItem>; })}</div></section>;
 
@@ -367,7 +379,7 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
   const calendarSection = <OrderableItem controls={ordering ? <OrderControls avoidWorkspaceMenu disableDown={calendarIndex < 0 || calendarIndex === dashboardSections.length - 1} disableUp={calendarIndex <= 1} label="Próximos eventos" onDown={() => moveCalendar(1)} onUp={() => moveCalendar(-1)} /> : null}>{upcoming}</OrderableItem>;
 
   return <main className="orbit-command-center" id="founder-workspace"><PersonalWorkspaceSections moduleKey="DASHBOARD" reorderEnabled={ordering} sections={[
-    { key: "DASHBOARD_HEADER", label: "Bienvenida", content: welcome },
+    { key: "DASHBOARD_HEADER", label: "Bienvenida", content: <>{welcome}{actionCenter ? <div className="mt-3">{actionCenter}</div> : null}</> },
     ...(biancaCard ? [{ key: "DASHBOARD_BIANCA", label: "BIANCA", content: biancaCard }] : []),
     { key: "DASHBOARD_UPCOMING_EVENTS", label: "Próximos eventos", content: calendarSection },
     { key: "DASHBOARD_WIDGETS", label: "KPIs del Founder", content: founderKpis },
