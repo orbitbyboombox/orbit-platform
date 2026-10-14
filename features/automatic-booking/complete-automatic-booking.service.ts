@@ -252,24 +252,7 @@ export async function completeAutomaticBooking(input: { token: string; tokenHash
       if (timelineWrite.error) throw timelineWrite.error;
     });
 
-    // Capacity is revalidated immediately before any customer payment is
-    // registered. The final CONFIRMED transition remains protected by the
-    // database gate (including its concurrency lock).
-    currentModule = "CAPACITY_GATE";
-    const { data: capacity, error: capacityError } = await admin.rpc("preflight_reservation_capacity", { p_project_id: projectId });
-    if (capacityError) throw new CapacityGateError("CAPACITY_TECHNICAL_ERROR", "No fue posible consultar el motor de capacidad.", capacityError);
-    const capacityResult = capacity && typeof capacity === "object" ? capacity as { status?: string; reasonCode?: string; humanSafeReason?: string } : null;
-    if (!capacityResult || capacityResult.status !== "AVAILABLE") {
-      const reason = capacityResult?.reasonCode ?? "CAPACITY_GATE_NOT_CONFIRMED";
-      const realUnavailable = capacityResult?.status === "UNAVAILABLE" && /EXHAUSTED|UNAVAILABLE/i.test(reason);
-      throw new CapacityGateError(
-        realUnavailable ? "CAPACITY_UNAVAILABLE_REAL" : "CAPACITY_GATE_NOT_CONFIRMED",
-        capacityResult?.humanSafeReason ?? "La disponibilidad debe confirmarse antes de registrar el abono.",
-        capacityResult,
-      );
-    }
-
-    currentModule = "CONFIRMING";
+    // BOOMBOX staff approves availability before sending an invitation.\n    // Do not repeat the obsolete inventory/box capacity preflight in the customer flow.\n    // Reservation persistence and payment/contract validation remain enforced below.\n    currentModule = "CONFIRMING";
     const { error: canonicalRecordError } = await admin.rpc("prepare_confirmed_reservation_records", { p_project_id: projectId, p_actor_id: actorId });
     if (canonicalRecordError) throw classifyCapacityRpcError(canonicalRecordError);
     await admin.from("automatic_booking_invitations").update({ payload: { ...(invitation.payload ?? {}), projectId, state: "CONFIRMING", requestId } }).eq("id", invitation.id);
