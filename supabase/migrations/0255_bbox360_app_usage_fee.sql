@@ -6,12 +6,18 @@ FROM public.projects p
 JOIN public.project_services ps ON ps.project_id=p.id AND upper(ps.service_code)='BBOX360'
 JOIN public.financial_event_records f ON f.project_id=p.id
 WHERE f.event_date >= date '2026-10-13' AND f.status <> 'CANCELLED';
-INSERT INTO public.cost_master_entries(category,code,label,amount,quantity,unit,enabled,metadata,approval_reason)
-VALUES('OTHER','BBOX360_APP_USAGE','Uso de aplicación BBOX360',45000,1,'EVENT',true,
-'{"service":"BBOX360","effectiveDate":"2026-10-13","per":"EVENT"}'::jsonb,
-'Costo confirmado por Founder: $45.000 por uso')
-ON CONFLICT(code) DO UPDATE SET amount=45000,quantity=1,unit='EVENT',enabled=true,deleted_at=null,
-metadata=excluded.metadata,approval_reason=excluded.approval_reason,updated_at=now();
+-- Catálogo específico de tarifas por uso. No forma parte del costo fijo global.
+CREATE TABLE IF NOT EXISTS public.event_app_usage_rates (
+  service_code text PRIMARY KEY,
+  amount numeric(12,2) NOT NULL CHECK (amount >= 0),
+  effective_date date NOT NULL,
+  active boolean NOT NULL DEFAULT true,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+INSERT INTO public.event_app_usage_rates(service_code,amount,effective_date,active)
+VALUES('BBOX360',45000,date '2026-10-13',true)
+ON CONFLICT(service_code) DO UPDATE SET amount=excluded.amount,
+  effective_date=excluded.effective_date,active=true,updated_at=now();
 
 CREATE OR REPLACE FUNCTION public.event_cost_breakdown_total(p_breakdown jsonb)
  RETURNS numeric
@@ -79,8 +85,8 @@ begin
     else round(estimate.paper,2)
   end;
   if truth.event_date>=date '2026-10-13' and exists(select 1 from public.project_services ps where ps.project_id=p_project_id and upper(ps.service_code)='BBOX360') then
-    select coalesce(amount,0) into app_usage_cost from public.cost_master_entries
-    where code='BBOX360_APP_USAGE' and enabled and deleted_at is null limit 1;
+    select coalesce(amount,0) into app_usage_cost from public.event_app_usage_rates
+    where service_code='BBOX360' and active and effective_date<=truth.event_date limit 1;
     app_usage_cost:=coalesce(app_usage_cost,0);
   end if;
   staff_net:=round(operator_value+assembly_value+disassembly_value+staff_adjustments,2);staff_tax:=public.staff_company_cost_from_net(staff_net)-staff_net;
@@ -197,8 +203,8 @@ begin
   staff_tax:=public.staff_company_cost_from_net(staff_net)-staff_net;
   personnel:=staff_net+staff_tax;
   if truth.event_date>=date '2026-10-13' and exists(select 1 from public.project_services ps where ps.project_id=p_project_id and upper(ps.service_code)='BBOX360') then
-    select coalesce(amount,0) into app_usage_cost from public.cost_master_entries
-    where code='BBOX360_APP_USAGE' and enabled and deleted_at is null limit 1;
+    select coalesce(amount,0) into app_usage_cost from public.event_app_usage_rates
+    where service_code='BBOX360' and active and effective_date<=truth.event_date limit 1;
     app_usage_cost:=coalesce(app_usage_cost,0);
   end if;
   resources:=paper_value+fuel_value+transport_value+app_usage_cost+scrapbook_value+magnets_value+branding_value+estimate.pens+estimate.double_sided_tape+other_value+expense_net;
