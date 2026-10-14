@@ -961,7 +961,7 @@ export function ProjectWorkspaceExperience(
             />
           )}
 
-          {showLegacyDuplicatedEventSections && moduleVisible("FINANCIAL_SUMMARY") && (
+          {eventTab === "finance" && moduleVisible("FINANCIAL_SUMMARY") && (
             <Section
               eyebrow="05 · Costos automáticos"
               icon={<Gauge className="size-5" />}
