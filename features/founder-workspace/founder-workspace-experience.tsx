@@ -78,18 +78,8 @@ const quickActions: Array<{ id: DashboardQuickActionItemKey; label: string; href
 const money = (value: number) => new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(value);
 const formatMetric = (metric: FinanceMetric) => metric.format === "money" ? money(metric.value) : metric.format === "percent" ? `${metric.value.toFixed(1)}%` : new Intl.NumberFormat("es-CL").format(metric.value);
 const formatFounderActionTimestamp = (value: string) => {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Santiago",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(new Date(value));
-  const part = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((item) => item.type === type)?.value ?? "";
-
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(value));
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? "";
   return `${part("day")}-${part("month")}-${part("year").slice(-2)}, ${part("hour")}:${part("minute")}`;
 };
 const toneStyle = {
@@ -276,13 +266,11 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
     { label: "Reservas por cerrar", type: "SALES_RESERVATION_PENDING", href: "/leads?filter=reservation" },
   ];
   const compactSummary = <div className="flex flex-wrap items-center gap-2 text-xs" aria-label="Resumen compacto de pendientes"><span className="rounded-full bg-brand px-3 py-1.5 font-bold text-brand-foreground">{founderActions.length} pendientes</span>{attentionSummary.map((item) => <Link className="rounded-full border px-3 py-1.5 font-medium text-muted hover:border-brand/40 hover:text-brand" href={item.href} key={item.label}>{founderActions.filter((action) => action.type === item.type).length} {item.label.toLowerCase()}</Link>)}</div>;
-  const groupedActions = founderActions.reduce<Array<FounderActionItem & { count?: number }>>((groups, item) => {
-    const repeatable = !["P0", "P1"].includes(item.priority);
-    const existing = repeatable && groups.find((entry) => entry.type === item.type && entry.href === item.href);
-    if (existing) existing.count = (existing.count ?? 1) + 1;
-    else groups.push({ ...item, count: 1 });
-    return groups;
-  }, []).sort((a,b) => a.priority.localeCompare(b.priority) || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()).slice(0, 8);
+  const reviewActions = founderActions.filter((item) => [
+    "STAFF_EXPENSE_REVIEW_REQUIRED",
+    "STAFF_BOLETA_REVIEW_REQUIRED",
+  ].includes(item.type));
+  const reviewCount = reviewActions.length + staffApprovalItems.length;
 
   const welcome = <header className="pb-1 pt-2 sm:pb-2 sm:pt-4">
     <p data-command-label>Founder Command Center</p>
@@ -315,11 +303,14 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
     </div>
   </section>;
 
-  const actionCenter = <section data-command-card aria-labelledby="founder-action-center-title" className="rounded-2xl border border-brand/35 bg-brand/[.035] p-5 sm:p-6">
-    <div className="flex flex-wrap items-center justify-between gap-3"><div><p data-command-label>Requiere tu atención</p><h2 className="mt-1 text-xl font-semibold" id="founder-action-center-title">Pendientes por revisar</h2><p className="mt-2 text-xs text-muted">Prioridad real desde fuentes canónicas; se cierra al resolver el estado operativo.</p></div><span aria-label={`${founderActions.length} pendientes accionables`} className="grid min-h-11 min-w-11 place-items-center rounded-full bg-brand px-3 text-lg font-bold text-brand-foreground">{founderActions.length}</span></div>
-    <div className="mt-4 divide-y rounded-xl border bg-card min-w-0 rounded-xl break-words"><span className="sr-only">min-h-11 w-full lg:grid-cols-2</span>{groupedActions.map(item=>{const Icon=item.type==="STAFF_ONBOARDING_REVIEW_REQUIRED"?UserRoundCheck:item.type==="OVERDUE_INVOICE_GROUP"?CircleDollarSign:ReceiptText;return <div className="flex min-w-0 items-center gap-2 px-3 py-2.5 sm:gap-3" key={item.id}><span className={`grid size-7 shrink-0 place-items-center rounded-lg ${item.priority==="P0"?toneStyle.danger:toneStyle.warning}`}><Icon className="size-3.5"/></span><span className="min-w-0 flex-1 truncate text-xs"><span className="mr-1 rounded border px-1 py-0.5 text-[9px] font-bold">{item.priority}</span><strong>{item.count && item.count>1?`${item.count}× `:""}{item.title}</strong><span className="ml-1 text-muted">· {item.detail}</span></span><span className="hidden shrink-0 text-[10px] text-muted sm:inline">{formatFounderActionTimestamp(item.createdAt)}</span><Link className="shrink-0 rounded-lg border px-2.5 py-1.5 text-[10px] font-bold text-brand" href={item.href}>{item.count && item.count>1?"Ver grupo":item.cta}</Link></div>})}</div><Link className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-brand" href="/notifications">Ver todos los pendientes <ArrowRight className="size-3.5"/></Link>
-    {!founderActions.length?<Empty label="No hay decisiones pendientes del Founder."/>:null}
-  </section>;
+  const actionCenter = <details data-command-card className="rounded-2xl border border-brand/35 bg-brand/[.035] p-4 sm:p-5" aria-labelledby="founder-action-center-title">
+    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden"><span><span data-command-label>Requiere tu atención</span><strong className="mt-1 block text-lg font-semibold" id="founder-action-center-title">Pendientes por revisar</strong></span><span aria-label={`${reviewCount} pendientes de aprobación`} className="grid min-h-10 min-w-10 place-items-center rounded-full bg-brand px-3 text-lg font-bold text-brand-foreground">{reviewCount}</span></summary>
+    <div className="mt-4 divide-y rounded-xl border bg-card min-w-0 rounded-xl break-words"><span className="sr-only min-h-11 w-full lg:grid-cols-2 text-center">Pendientes administrativos</span>
+      {reviewActions.map((item) => <div className="flex min-w-0 items-center gap-2 px-3 py-2.5 sm:gap-3" key={item.id}><span className="grid size-7 shrink-0 place-items-center rounded-lg bg-warning-soft text-warning"><ReceiptText className="size-3.5" /></span><span className="min-w-0 flex-1 text-xs"><strong className="block truncate">{item.title}</strong><span className="block truncate text-muted">{item.detail}</span><span className="sr-only">{formatFounderActionTimestamp(item.createdAt)}</span></span><Link className="shrink-0 rounded-lg border px-2.5 py-1.5 text-[10px] font-bold text-brand" href={item.href}>{item.cta}</Link></div>)}
+      {staffApprovalItems.map((item) => <div className="flex min-w-0 items-center gap-2 px-3 py-2.5 sm:gap-3" key={item.id}><span className="grid size-7 shrink-0 place-items-center rounded-lg bg-warning-soft text-warning"><UserRoundCheck className="size-3.5" /></span><span className="min-w-0 flex-1 text-xs"><strong className="block truncate">{item.collaborator} · {item.role}</strong><span className="block truncate text-muted">{item.event} · {money(item.estimatedPayment)}</span></span><PendingApprovalButtons item={item} onResolved={(id) => setResolvedApprovalIds((current) => new Set(current).add(id))} /></div>)}
+      {!reviewCount ? <Empty label="No hay gastos, boletas o solicitudes de asignación pendientes." /> : null}
+    </div>
+  </details>;
 
   const formatUpcomingDateParts = (value: string) => {
     const iso = value.match(/^(\\d{4})-(\\d{2})-(\\d{2})/);
@@ -436,6 +427,19 @@ function PendingStaffApprovals({ items, onResolved }: { items: PendingStaffAppro
     });
   };
   return <section data-command-card aria-labelledby="pending-staff-approvals-title" className="rounded-2xl border border-brand/25 p-5 sm:p-6"><div className="flex items-center justify-between gap-3"><div><PanelTitle id="pending-staff-approvals-title" label="Aprobaciones de Staff pendientes"/><p className="mt-2 text-xs text-muted">Aprobar ejecuta la asignación canónica completa sin abrir Staff ni el Evento.</p></div><span className="rounded-full bg-brand/10 px-3 py-1 text-xs font-semibold text-brand">{items.length}</span></div>{message?<p aria-live="polite" className="mt-4 rounded-xl border bg-background/40 p-3 text-xs text-muted">{message}</p>:null}<div className="mt-5 space-y-3">{items.map(item=><article className="grid gap-3 rounded-xl border bg-background/30 p-4 lg:grid-cols-[1.1fr_1.1fr_.8fr_.8fr_auto] lg:items-center" key={item.id}><div><p className="text-[10px] uppercase tracking-[.12em] text-muted">Colaborador</p><p className="mt-1 text-sm font-semibold">{item.collaborator}</p></div><div><p className="text-[10px] uppercase tracking-[.12em] text-muted">Evento</p><p className="mt-1 text-sm font-semibold">{item.event}</p></div><div><p className="text-[10px] uppercase tracking-[.12em] text-muted">Rol</p><p className="mt-1 text-sm font-semibold">{roleLabel[item.role]??item.role}</p></div><div><p className="text-[10px] uppercase tracking-[.12em] text-muted">Pago estimado</p><p className="mt-1 text-sm font-semibold">{money(item.estimatedPayment)}</p></div><div className="flex flex-wrap gap-2 lg:justify-end"><button className="min-h-10 rounded-xl bg-brand px-3 text-xs font-semibold text-brand-foreground disabled:opacity-50" disabled={isPending} onClick={()=>review(item,"approve")}>{pendingId===item.id&&isPending?"Procesando…":"Aprobar"}</button><button className="min-h-10 rounded-xl border px-3 text-xs font-semibold disabled:opacity-50" disabled={isPending} onClick={()=>review(item,"reject")}>Rechazar</button><Link className="inline-flex min-h-10 items-center rounded-xl border px-3 text-xs font-semibold text-muted hover:text-brand" href={`/projects/${item.projectId}#staff-assignment`}>Ver</Link></div></article>)}</div></section>;
+}
+
+function PendingApprovalButtons({ item, onResolved }: { item: PendingStaffApproval; onResolved: (id: string) => void }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const review = (decision: "approve" | "reject") => startTransition(async () => {
+    const form = new FormData();
+    form.set("requestId", item.id);
+    form.set("decision", decision);
+    const result = await reviewStaffRequestAction(form);
+    if (result.ok) { onResolved(item.id); router.refresh(); }
+  });
+  return <span className="flex shrink-0 gap-1.5"><button className="rounded-lg bg-brand px-2.5 py-1.5 text-[10px] font-bold text-brand-foreground disabled:opacity-50" disabled={pending} onClick={() => review("approve")} type="button">Aprobar</button><button className="rounded-lg border px-2.5 py-1.5 text-[10px] font-bold disabled:opacity-50" disabled={pending} onClick={() => review("reject")} type="button">Rechazar</button><Link className="rounded-lg border px-2.5 py-1.5 text-[10px] font-bold text-brand" href={`/projects/${item.projectId}#staff-assignment`}>Ver</Link></span>;
 }
 
 function PanelTitle({ id, label }: { id: string; label: string }) { return <h2 data-command-label id={id}>{label}</h2>; }

@@ -1177,6 +1177,15 @@ export default async function ProjectWorkspacePage({
       projectId,
       published: staffPublication?.published ?? false,
       requirements: responsibilityRequirements,
+      blocks: (operationalBlockRows ?? []).map((block) => ({
+        id: block.id,
+        name: block.name,
+        sequence: Number(block.sequence ?? 0),
+        startAt: block.start_at,
+        endAt: block.end_at,
+        status: block.status,
+        notes: block.notes,
+      })),
       blockRequirements: (staffRoleRequirements ?? []).filter((item) => item.block_id).map((item) => {
         const block = (operationalBlockRows ?? []).find((candidate) => candidate.id === item.block_id);
         const durationMinutes = block?.start_at && block?.end_at

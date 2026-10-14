@@ -45,6 +45,41 @@ export async function setStaffEventPublicationAction(data: FormData): Promise<Re
 
 export async function setEventStaffRequirementAction(data:FormData):Promise<Result>{try{const client=await context(),projectId=value(data,"projectId"),blockId=value(data,"blockId"),role=value(data,"role"),quantity=Number(data.get("quantity")),published=value(data,"published")==="true",removeRole=value(data,"removeRole")==="true";if(!validStaffQuantity(quantity)&&!(removeRole&&quantity===0&&!published))throw new Error("Ingresa una cantidad entera entre 1 y 99.");const rpcArgs=blockId?{p_project_id:projectId,p_block_id:blockId,p_role:role,p_required_quantity:quantity,p_published:published}:{p_project_id:projectId,p_role:role,p_required_quantity:quantity,p_published:published};const{error}=await client.rpc("set_event_staff_requirement",rpcArgs);if(error)throw new Error(error.message);revalidatePath(`/projects/${projectId}`);revalidatePath("/operations");revalidatePath("/staff-portal");revalidatePath("/resources/staff");revalidatePath("/finance");return{ok:true,message:removeRole?"Rol retirado sin alterar asignaciones.":published?`Cantidad ${quantity} guardada y publicada para Staff.`:`Cantidad ${quantity} guardada sin publicar.`};}catch(error){return{ok:false,message:error instanceof Error?error.message:"No fue posible configurar la necesidad de Staff."};}}
 
+export async function createEventOperationalBlockAction(data: FormData): Promise<Result> {
+  try {
+    const client = await context();
+    const projectId = value(data, "projectId");
+    const name = value(data, "name");
+    const startAt = value(data, "startAt");
+    const endAt = value(data, "endAt");
+    if (!projectId || !name || !startAt || !endAt || new Date(endAt).getTime() <= new Date(startAt).getTime()) throw new Error("Completa un bloque con horario válido.");
+    const { data: last } = await client.from("event_operational_blocks").select("sequence").eq("project_id", projectId).order("sequence", { ascending: false }).limit(1).maybeSingle();
+    const { data: block, error } = await client.from("event_operational_blocks").insert({ project_id: projectId, name, sequence: Number(last?.sequence ?? 0) + 1, start_at: new Date(startAt).toISOString(), end_at: new Date(endAt).toISOString(), status: "PLANNING" }).select("id").single();
+    if (error) throw error;
+    for (const role of ["OPERATOR", "ASSEMBLY", "DISASSEMBLY"]) {
+      const quantity = Number(data.get(`${role.toLowerCase()}Quantity`) ?? 0);
+      if (quantity > 0) {
+        const result = await client.rpc("set_event_staff_requirement", { p_project_id: projectId, p_block_id: block.id, p_role: role, p_required_quantity: quantity, p_published: false });
+        if (result.error) throw result.error;
+      }
+    }
+    revalidatePath(`/projects/${projectId}`); revalidatePath("/operations"); revalidatePath("/staff-portal");
+    return { ok: true, message: "Bloque creado y responsabilidades guardadas." };
+  } catch (error) { return { ok: false, message: error instanceof Error ? error.message : "No fue posible crear el bloque." }; }
+}
+
+export async function updateEventOperationalBlockAction(data: FormData): Promise<Result> {
+  try {
+    const client = await context();
+    const projectId = value(data, "projectId"); const blockId = value(data, "blockId"); const name = value(data, "name"); const startAt = value(data, "startAt"); const endAt = value(data, "endAt");
+    if (!projectId || !blockId || !name || !startAt || !endAt || new Date(endAt).getTime() <= new Date(startAt).getTime()) throw new Error("Completa un bloque con horario válido.");
+    const { error } = await client.from("event_operational_blocks").update({ name, start_at: new Date(startAt).toISOString(), end_at: new Date(endAt).toISOString() }).eq("id", blockId).eq("project_id", projectId);
+    if (error) throw error;
+    revalidatePath(`/projects/${projectId}`); revalidatePath("/operations"); revalidatePath("/staff-portal");
+    return { ok: true, message: "Bloque actualizado." };
+  } catch (error) { return { ok: false, message: error instanceof Error ? error.message : "No fue posible actualizar el bloque." }; }
+}
+
 export async function reviewStaffRequestAction(data:FormData):Promise<Result>{
   const reference=crypto.randomUUID().slice(0,8).toUpperCase(),requestId=value(data,"requestId"),decision=value(data,"decision"),approved=decision==="approve";
   let stage:ApprovalStage="SERVER_ACTION",userId:string|null=null,request:ApprovalRequest|null=null;

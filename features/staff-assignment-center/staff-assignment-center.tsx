@@ -28,7 +28,7 @@ import {
   resetStaffAssignmentPaymentAction,
   updateStaffEventSettlementAction,
 } from "@/features/staff-payments/actions";
-import { reviewStaffRequestAction, setEventStaffRequirementAction } from "@/features/operations/operations-planning.actions";
+import { createEventOperationalBlockAction, reviewStaffRequestAction, setEventStaffRequirementAction, updateEventOperationalBlockAction } from "@/features/operations/operations-planning.actions";
 import type { ResponsibilityReadModel } from "./staff-responsibility-read-model";
 import { buildStaffRoleSlots, validStaffQuantity } from "./staff-role-slots";
 import { formatOperationalBlockDuration } from "@/features/operations/staff-assignment-payment";
@@ -59,6 +59,7 @@ export type AssignmentStaffOption = {
   capabilities: string[];
 };
 export type AssignmentVehicleOption = { id: string; name: string };
+export type OperationalBlock = { id: string; name: string; sequence: number; startAt: string; endAt: string; status: string; notes?: string | null };
 export type EventStaffSettlementAdjustment = {
   id: string;
   reason: string;
@@ -125,6 +126,7 @@ export type StaffAssignmentCenterProps = {
   settlements?: EventStaffSettlement[];
   roleCosts?: Record<string, number>;
   requirements?: ResponsibilityReadModel[];
+  blocks?: OperationalBlock[];
   blockRequirements?: Array<{ blockId: string; role: string; required: number; assigned: number; published: boolean; blockName?: string; startAt?: string; endAt?: string; durationMinutes?: number; rate?: number | null; projectedCost?: number | null }>;
   requests?: Array<{ id: string; role: string; staffName: string; status: string }>;
 };
@@ -200,6 +202,7 @@ export function StaffAssignmentCenter({
   settlements = [],
   roleCosts = {},
   requirements = [],
+  blocks = [],
   blockRequirements = [],
   requests = [],
 }: StaffAssignmentCenterProps) {
@@ -222,6 +225,7 @@ export function StaffAssignmentCenter({
     null,
   );
   const [message, setMessage] = useState("");
+  const [blockEditor, setBlockEditor] = useState<{ mode: "create" | "edit"; block?: OperationalBlock } | null>(null);
   const mutate = (action: () => Promise<{ ok: boolean; error?: string }>) => {
     setMessage("");
     startTransition(async () => {
@@ -339,7 +343,8 @@ export function StaffAssignmentCenter({
           />;
         })}
       </section>
-      {blockRequirements.length ? <section className="mb-5 border-b pb-5"><h3 className="font-semibold">Planificación por bloques</h3><p className="mt-1 text-sm text-muted">Cada asignación queda asociada al bloque y conserva su tarifa según duración.</p><div className="mt-3 grid gap-3 lg:grid-cols-2">{blockRequirements.map((item) => {
+      <section className="mb-5 border-b pb-5" aria-labelledby="event-blocks-title"><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold" id="event-blocks-title">Bloques de Staff</h3><p className="mt-1 text-sm text-muted">Cada asignación queda asociada a su bloque real y conserva roles, tarifas y liquidaciones.</p></div><Button type="button" onClick={() => setBlockEditor({ mode: "create" })}><Plus className="size-4" />Crear bloque</Button></div>{blocks.length ? <div className="mt-3 grid gap-3 lg:grid-cols-2">{blocks.map((block) => { const requirementsForBlock = blockRequirements.filter((item) => item.blockId === block.id); const blockAssignments = assignments.filter((item) => item.blockId === block.id && !["CANCELLED", "REJECTED"].includes(item.status)); return <article className="rounded-xl border p-4" key={block.id}><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-semibold">{block.name}</p><p className="mt-1 text-sm text-muted">{new Date(block.startAt).toLocaleString("es-CL", { timeZone: "America/Santiago", dateStyle: "short", timeStyle: "short" })}–{new Date(block.endAt).toLocaleTimeString("es-CL", { timeZone: "America/Santiago", hour: "2-digit", minute: "2-digit" })}</p></div><Button type="button" variant="outline" onClick={() => setBlockEditor({ mode: "edit", block })}>Editar bloque</Button></div><div className="mt-3 grid gap-2 sm:grid-cols-3">{roles.map((role) => { const requirement = requirementsForBlock.find((item) => item.role === role.value); return <div className="rounded-lg bg-background/60 p-3" key={role.value}><p className="text-xs text-muted">{role.label}</p><p className="mt-1 font-semibold">{requirement?.assigned ?? 0}/{requirement?.required ?? 0}</p></div>; })}</div><div className="mt-3 flex flex-wrap items-center justify-between gap-2"><span className="text-xs text-muted">{blockAssignments.length ? `${blockAssignments.length} asignación(es) vinculada(s)` : "Sin asignaciones todavía"}</span><Button type="button" variant="outline" onClick={() => setPanel({ mode: "create", blockId: block.id, blockName: block.name, blockStartAt: block.startAt, blockEndAt: block.endAt })}><Plus className="size-4" />Añadir Staff</Button></div></article>; })}</div> : <div className="mt-3 rounded-xl border border-dashed p-5 text-sm text-muted">Este evento todavía no tiene bloques. Crea el primero para separar horarios, cantidades y responsabilidades de Operador, Montaje y Desmontaje.</div>}</section>
+      {false && blockRequirements.length ? <section className="mb-5 border-b pb-5"><h3 className="font-semibold">Planificación por bloques</h3><p className="mt-1 text-sm text-muted">Cada asignación queda asociada al bloque y conserva su tarifa según duración.</p><div className="mt-3 grid gap-3 lg:grid-cols-2">{blockRequirements.map((item) => {
         const blockAssignments = assignments.filter((assignment) => String(assignment.blockId ?? "") === String(item.blockId) && assignment.role === item.role && !["CANCELLED", "REJECTED"].includes(assignment.status));
         const blockSettlements = settlements.filter((payment) => String(payment.blockId ?? "") === String(item.blockId) && payment.roles.includes(item.role));
         const blockCost = blockSettlements.length
@@ -544,11 +549,16 @@ export function StaffAssignmentCenter({
           }
         />
       ) : null}
+      {blockEditor ? <OperationalBlockDialog projectId={projectId} mode={blockEditor.mode} block={blockEditor.block} pending={pending} error={message} onClose={() => setBlockEditor(null)} onSubmit={(data) => startTransition(async () => { const result = blockEditor.mode === "create" ? await createEventOperationalBlockAction(data) : await updateEventOperationalBlockAction(data); setMessage(result.message); if (result.ok) { setBlockEditor(null); router.refresh(); } })} /> : null}
     </section>
   );
 }
 
 void SettlementDialog;
+
+function OperationalBlockDialog({ projectId, mode, block, pending, error, onClose, onSubmit }: { projectId: string; mode: "create" | "edit"; block?: OperationalBlock; pending: boolean; error: string; onClose: () => void; onSubmit: (data: FormData) => void }) {
+  return <MobileDialog description="Define horario y cantidades por responsabilidad. Guardar utiliza las operaciones administrativas existentes." dismissOnOverlayClick={false} eyebrow="STAFF · BLOQUE OPERACIONAL" onClose={onClose} size="lg" title={mode === "create" ? "Crear bloque" : "Editar bloque"}><form className="grid gap-4 p-5 sm:grid-cols-2" onSubmit={(event) => { event.preventDefault(); onSubmit(new FormData(event.currentTarget)); }}><input name="projectId" type="hidden" value={projectId} />{block ? <input name="blockId" type="hidden" value={block.id} /> : null}<label className="text-sm sm:col-span-2">Nombre<input className="mt-1 min-h-11 w-full rounded-xl border bg-background px-3" defaultValue={block?.name ?? ""} name="name" required /></label><label className="text-sm">Inicio<input className="mt-1 min-h-11 w-full rounded-xl border bg-background px-3" defaultValue={block?.startAt?.slice(0, 16) ?? ""} name="startAt" required type="datetime-local" /></label><label className="text-sm">Término<input className="mt-1 min-h-11 w-full rounded-xl border bg-background px-3" defaultValue={block?.endAt?.slice(0, 16) ?? ""} name="endAt" required type="datetime-local" /></label>{mode === "create" ? roles.map((role) => <label className="text-sm" key={role.value}>{role.label}<input className="mt-1 min-h-11 w-full rounded-xl border bg-background px-3" defaultValue="0" min="0" max="99" name={`${role.value.toLowerCase()}Quantity`} type="number" /></label>) : null}{error ? <p className="text-sm text-danger sm:col-span-2" role="alert">{error}</p> : null}<div className="flex justify-end gap-2 sm:col-span-2"><Button type="button" variant="outline" onClick={onClose}>Cancelar</Button><Button disabled={pending} type="submit">{pending ? "Guardando…" : "Guardar bloque"}</Button></div></form></MobileDialog>;
+}
 
 function StaffRoleRequirementCard({ projectId, role, required, published, assignments, pending, cost, onSave, onAssign, onEdit }: {
   projectId: string;
