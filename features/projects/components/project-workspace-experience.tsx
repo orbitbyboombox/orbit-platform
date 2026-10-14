@@ -862,7 +862,7 @@ export function ProjectWorkspaceExperience(
                 id="service"
                 title="Servicio contratado"
               >
-                <div className="space-y-3">
+                <div className="space-y-3" data-issue68-service-editor>
                   {event.services.length ? (
                     event.services.map((service) => (
                       <article
@@ -1084,6 +1084,11 @@ export function ProjectWorkspaceExperience(
           {eventTab === "staff" && moduleVisible("STAFF") && (
             <section aria-labelledby="staff-assignment-title" id="staff-assignment" role="tabpanel">
               <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Equipo del evento</p><h2 className="mt-1 text-2xl font-semibold" id="staff-assignment-title">Staff y asignaciones</h2></div><button type="button" className="inline-flex min-h-10 items-center justify-center rounded-xl border px-3 text-sm font-semibold text-brand hover:border-brand" onClick={() => selectEventTab("operations")}>Abrir Logística</button></div>
+              <div className="mb-3 flex flex-wrap gap-2">
+                <Link href="/resources/staff?payroll=1" className="inline-flex min-h-10 items-center justify-center rounded-xl border border-brand/50 px-3 text-sm font-semibold text-brand hover:border-brand" data-issue68-payroll-link>
+                  Pagos por pagar / Adelantos de pago
+                </Link>
+              </div>
               <StaffAssignmentCenter {...event.staffAssignments} />
             </section>
           )}
@@ -1172,9 +1177,11 @@ export function ProjectWorkspaceExperience(
                 id="documents"
                 title="Documentos y estado comercial"
               >
-                <div className="w-full min-w-0"><EventDesignCenter documents={eventDesignDocuments} projectId={props.projectKey!}/></div>
-                {photoStripEligible ? <div className="w-full min-w-0"><PhotoStripDesignCenter documents={photoStripDocuments} projectId={props.projectKey!}/></div> : null}
-                <EventCommercialDocumentHub projectId={props.projectKey!} customerName={props.clientName} customerTaxId={props.commercialHub.customerTaxId} customerKind={props.commercialHub.customerKind} quotation={props.commercialHub.quotation} contract={props.signing} receivable={event.receivable?{id:event.receivable.id,paid:event.receivable.paidAmount,outstanding:event.receivable.outstandingBalance,dueDate:event.receivable.dueDate,status:event.receivable.status}:undefined} paymentCondition={props.commercialHub.paymentCondition} documents={event.documents} taxDocuments={event.documents.filter(doc=>doc.taxType&&doc.folio&&doc.issueDate).map(doc=>({id:doc.id,taxType:doc.taxType!,folio:doc.folio!,issueDate:doc.issueDate!,total:doc.total??0,status:doc.status??"ADJUNTADO",href:doc.href}))}/>
+                <div className="grid min-w-0 gap-4 xl:grid-cols-2">
+                  <div className="min-w-0"><EventDesignCenter documents={eventDesignDocuments} projectId={props.projectKey!}/></div>
+                  {photoStripEligible ? <div className="min-w-0"><PhotoStripDesignCenter documents={photoStripDocuments} projectId={props.projectKey!}/></div> : null}
+                </div>
+                <div className="mt-4 min-w-0"><EventCommercialDocumentHub projectId={props.projectKey!} customerName={props.clientName} customerTaxId={props.commercialHub.customerTaxId} customerKind={props.commercialHub.customerKind} quotation={props.commercialHub.quotation} contract={props.signing} receivable={event.receivable?{id:event.receivable.id,paid:event.receivable.paidAmount,outstanding:event.receivable.outstandingBalance,dueDate:event.receivable.dueDate,status:event.receivable.status}:undefined} paymentCondition={props.commercialHub.paymentCondition} documents={event.documents} taxDocuments={event.documents.filter(doc=>doc.taxType&&doc.folio&&doc.issueDate).map(doc=>({id:doc.id,taxType:doc.taxType!,folio:doc.folio!,issueDate:doc.issueDate!,total:doc.total??0,status:doc.status??"ADJUNTADO",href:doc.href}))}/></div>
               </Section>
             )}
             {eventTab === "communications" && showLegacyDuplicatedEventSections && moduleVisible("GOOGLE_CALENDAR") && (
@@ -1276,6 +1283,7 @@ export function ProjectWorkspaceExperience(
                 icon={<Gauge className="size-5" />}
                 id="event-finance"
                 title="Resumen financiero del evento"
+                className="min-w-0 overflow-hidden"
               >
                 {event.profit ? (
                   <div className="space-y-5">
