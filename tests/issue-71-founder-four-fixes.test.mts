@@ -15,17 +15,24 @@ test("Issue 71 keeps service editing safe and exposes the authorized review path
   assert.match(serviceAction, /project_services/);
 });
 
+test("Issue 72 exposes a review action when an event has multiple services", () => {
+  assert.match(workspace, /data-issue72-service-review/);
+  assert.match(workspace, /data-issue72-service-review-link/);
+  assert.match(workspace, /varios servicios/);
+});
+
 test("Issue 71 makes finance figures readable without changing their source", () => {
   assert.match(workspace, /data-issue71-finance-summary/);
-  assert.match(workspace, /grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5/);
-  assert.match(workspace, /break-words text-xl font-semibold sm:text-2xl/);
+  assert.match(workspace, /grid min-w-0 grid-cols-1 gap-3 \@\[28rem\]:grid-cols-2 \@\[56rem\]:grid-cols-3/);
+  assert.match(workspace, /whitespace-nowrap text-base font-semibold tabular-nums/);
   assert.match(workspace, /event\.profit\.costs\.totalOperationalCost/);
 });
 
 test("Issue 71 separates event designs from commercial documents", () => {
-  assert.match(workspace, /data-issue71-documents-layout/);
+  assert.match(workspace, /data-issue72-documents-layout/);
   assert.match(workspace, /data-issue71-designs-section/);
   assert.match(workspace, /data-issue71-commercial-documents-section/);
+  assert.match(workspace, /@\[60rem\]:grid-cols-2/);
   assert.match(workspace, /EventDesignCenter documents=\{eventDesignDocuments\}/);
   assert.match(workspace, /EventCommercialDocumentHub/);
 });
