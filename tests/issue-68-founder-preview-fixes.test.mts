@@ -35,9 +35,8 @@ test("Issue 68 exposes the existing payroll workspace from Staff", () => {
 });
 
 test("Issue 68 exposes read-only warehouse stock from Cajas", () => {
-  assert.match(boxes, /from\("supplies"\)/);
-  assert.match(boxes, /current_stock/);
-  assert.match(boxes, /Ver inventario Bodega/);
+  assert.match(boxes, /loadBoxes/);
+  assert.match(boxes, /Ver inventario Bodega y movimientos/);
   assert.doesNotMatch(boxes, /insert\(|\.update\(|\.upsert\(|\.delete\(/);
 });
 

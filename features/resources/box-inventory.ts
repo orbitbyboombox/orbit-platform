@@ -13,6 +13,22 @@ export type BoxAsset = {
   notes: string | null;
   storage_location: string | null;
   assignments: BoxEventAssignment[];
+  paperLots: BoxPaperLot[];
+};
+
+export type BoxPaperLot = {
+  id: string;
+  supplyId: string | null;
+  lot: string | null;
+  formatKey: string | null;
+  formatLabel: string | null;
+  loadedAt: string | null;
+  remainingPhotoCapacity: number | null;
+  status: string | null;
+  supplyName: string | null;
+  supplyCode: string | null;
+  movementCount: number;
+  lastMovementAt: string | null;
 };
 
 export type BoxEventAssignment = {
@@ -64,6 +80,47 @@ export async function loadBoxes(client: SupabaseClient) {
     ? await client.from("asset_assignments").select("id,asset_id,project_id,planned_start_at,planned_end_at,projects(id,name,event_date,event_time)").in("asset_id", assetIds).eq("assignment_status", "ASSIGNED").is("deleted_at", null).order("planned_start_at")
     : { data: [], error: null };
   if (assignmentsError) throw assignmentsError;
+  const { data: mediaLots, error: mediaLotsError } = assetIds.length
+    ? await client.from("box_media_lots").select("id,supply_id,box_asset_id,format_key,lot,loaded_at,remaining_photo_capacity,status,box_media_formats(label)").in("box_asset_id", assetIds).order("loaded_at", { ascending: false })
+    : { data: [], error: null };
+  if (mediaLotsError) throw mediaLotsError;
+  const lotIds = (mediaLots ?? []).map((lot) => lot.id);
+  const { data: movements, error: movementsError } = lotIds.length
+    ? await client.from("inventory_movements").select("id,media_lot_id,occurred_at").in("media_lot_id", lotIds).order("occurred_at", { ascending: false })
+    : { data: [], error: null };
+  if (movementsError) throw movementsError;
+  const supplyIds = [...new Set((mediaLots ?? []).map((lot) => lot.supply_id).filter(Boolean))] as string[];
+  const { data: supplies, error: suppliesError } = supplyIds.length
+    ? await client.from("supplies").select("id,name,catalog_code").in("id", supplyIds)
+    : { data: [], error: null };
+  if (suppliesError) throw suppliesError;
+  const supplyMap = new Map((supplies ?? []).map((supply) => [supply.id, supply]));
+  const movementMap = new Map<string, { count: number; latest: string | null }>();
+  for (const movement of movements ?? []) {
+    const current = movementMap.get(movement.media_lot_id) ?? { count: 0, latest: null };
+    movementMap.set(movement.media_lot_id, { count: current.count + 1, latest: current.latest ?? movement.occurred_at });
+  }
+  const paperLotsByAsset = new Map<string, BoxPaperLot[]>();
+  for (const lot of mediaLots ?? []) {
+    const format = Array.isArray(lot.box_media_formats) ? lot.box_media_formats[0] : lot.box_media_formats;
+    const movement = movementMap.get(lot.id) ?? { count: 0, latest: null };
+    const supply = lot.supply_id ? supplyMap.get(lot.supply_id) : undefined;
+    const item: BoxPaperLot = {
+      id: lot.id,
+      supplyId: lot.supply_id,
+      lot: lot.lot,
+      formatKey: lot.format_key,
+      formatLabel: format?.label ?? null,
+      loadedAt: lot.loaded_at,
+      remainingPhotoCapacity: lot.remaining_photo_capacity == null ? null : Number(lot.remaining_photo_capacity),
+      status: lot.status,
+      supplyName: supply?.name ?? null,
+      supplyCode: supply?.catalog_code ?? null,
+      movementCount: movement.count,
+      lastMovementAt: movement.latest,
+    };
+    paperLotsByAsset.set(lot.box_asset_id, [...(paperLotsByAsset.get(lot.box_asset_id) ?? []), item]);
+  }
   const assignmentsByAsset = new Map<string, BoxEventAssignment[]>();
   for (const assignment of assignments ?? []) {
     const project = Array.isArray(assignment.projects) ? assignment.projects[0] : assignment.projects;
@@ -74,6 +131,7 @@ export async function loadBoxes(client: SupabaseClient) {
     ...box,
     updated_by_name: box.updated_by ? profileNames.get(box.updated_by) ?? null : null,
     assignments: assignmentsByAsset.get(box.id) ?? [],
+    paperLots: paperLotsByAsset.get(box.id) ?? [],
   })) as BoxAsset[];
 }
 
