@@ -1,6 +1,7 @@
 import { renderBoomboxCommercialEmail } from "../connectors/google-gmail/application/boombox-commercial-email.html.ts";
 import {
   QUICK_SEND_CTA_LABEL,
+  commercialGreeting,
   quickSendBodyParagraphs,
   withoutDuplicateSignature,
 } from "./presentation.ts";
@@ -59,7 +60,7 @@ export function buildSocialPlansEmail(input: SocialPlansEmailInput) {
   );
   // Short commercial email: the catalog contains the detailed descriptions and prices.
   // Keep the configured greeting, but avoid repeating the proposal and CTA copy.
-  const greeting = paragraphs.find((paragraph) => /^Hola[,\\s]/i.test(paragraph)) ?? "Hola,";
+  const greeting = commercialGreeting(input.contact);
   const isCompany = input.category === "COMPANIES_CATALOG";
   const beforeAction = isCompany
     ? [
