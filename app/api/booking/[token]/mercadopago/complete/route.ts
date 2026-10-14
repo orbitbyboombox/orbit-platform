@@ -1,3 +1,4 @@
+import { bookingWritesBlockedInPreview, bookingPreviewBlockedMessage } from "@/features/automatic-booking/recovery-preview-guard";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { automaticBookingTokenHash } from "@/features/automatic-booking/automatic-booking.service";
@@ -6,6 +7,7 @@ import { completeAutomaticBooking, type AutomaticBookingSubmission } from "@/fea
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request, { params }: { params: Promise<{ token: string }> }) {
+  if (bookingWritesBlockedInPreview()) return NextResponse.json({ ok: false, message: bookingPreviewBlockedMessage }, { status: 403 });
   try {
     const { token } = await params;
     const intentId = (await request.json() as { payment_intent?: string }).payment_intent;
