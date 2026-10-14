@@ -29,8 +29,8 @@ import type {
 import {mapStaffMonthlyAccount,STAFF_MONTHLY_ACCOUNT_SELECT} from "@/features/staff-monthly-account/model";
 import { getCanonicalOrbitEventStates } from "@/features/operations/canonical-event-state";
 
-export default async function StaffManagementPage({searchParams}:{searchParams:Promise<{reviewOnboarding?:string;reviewAccount?:string}>}) {
-  const {reviewOnboarding,reviewAccount}=await searchParams;
+export default async function StaffManagementPage({searchParams}:{searchParams:Promise<{reviewOnboarding?:string;reviewAccount?:string;payroll?:string}>}) {
+  const {reviewOnboarding,reviewAccount,payroll}=await searchParams;
   const client = await createSupabaseServerClient();
   const [
     { data: staff, error: staffError },
@@ -587,7 +587,7 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
   const academyStats = await loadAcademyStats(client, academyArticles);
   return (
       <StaffWorkspaces
-        initialWorkspace={reviewAccount ? "PAYROLL" : undefined}
+        initialWorkspace={reviewAccount || payroll === "1" ? "PAYROLL" : undefined}
       team={
         <div className="space-y-6">
           <StaffOnboardingCenter initialReviewId={reviewOnboarding} invitations={onboardingInvitations} />
