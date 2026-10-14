@@ -337,26 +337,26 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
     };
   };
 
-  const upcoming = <section data-command-card aria-labelledby="upcoming-events-title" className="min-w-0 rounded-2xl border p-4 sm:p-6">
+  const upcoming = <section data-command-card aria-labelledby="upcoming-events-title" className="min-w-0 overflow-hidden rounded-2xl border bg-card p-5 sm:p-8">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <PanelTitle id="upcoming-events-title" label="Próximos eventos" />
       <span className="flex flex-wrap gap-x-3 gap-y-2"><Link className="text-xs text-muted transition hover:text-brand" href="/operations/week">Agenda semanal</Link><Link className="text-xs text-muted transition hover:text-brand" href="/events">Ver calendario</Link></span>
     </div>
-    <div className="mt-3 divide-y">{upcomingEvents.slice(0, 4).map(event => {
+    <div className="mt-4 divide-y divide-border/70">{upcomingEvents.slice(0, 4).map(event => {
       const d = formatUpcomingDateParts(event.date);
-      return <Link className="group flex min-w-0 items-center gap-3 py-2.5 first:pt-0 last:pb-0" href={event.href} key={event.id}>
-        <span className="flex min-h-[62px] w-[54px] shrink-0 flex-col items-center justify-center rounded-xl border bg-background/50 text-center">
-          <span className="text-[10px] font-semibold tracking-wider text-muted">{d.weekday}</span>
-          <strong className="text-2xl leading-tight">{d.day}</strong>
-          <span className="text-[10px] font-bold tracking-wider text-brand">{d.month}</span>
+      return <Link className="group flex min-w-0 items-start gap-4 py-5 first:pt-0 last:pb-0 sm:gap-5" href={event.href} key={event.id}>
+        <span className="flex min-h-[92px] w-[64px] shrink-0 flex-col items-center justify-center rounded-2xl border bg-background/30 text-center">
+          <span className="text-xs font-semibold tracking-wider text-muted">{d.weekday}</span>
+          <strong className="text-4xl leading-tight">{d.day}</strong>
+          <span className="text-xs font-bold tracking-wider text-brand">{d.month}</span>
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex min-w-0 flex-wrap items-center gap-2">
-            <strong className="min-w-0 break-words text-sm">{event.title}</strong>
-            <span className="max-w-full rounded-lg bg-info-soft px-2 py-1 text-[9px] font-semibold uppercase text-info break-words">{event.status}</span>
+            <strong className="min-w-0 break-words text-lg font-semibold sm:text-2xl">{event.title}</strong>
+            <span className="max-w-full rounded-xl bg-info-soft px-3 py-2 text-xs font-semibold uppercase text-info break-words">{event.status}</span>
           </span>
-          <span className="mt-1 block break-words text-xs text-muted">{event.service}</span>
-          <span className="mt-1 block break-words text-[11px] text-muted">{event.location || "Ubicación pendiente"} · {event.staff}</span>
+          <span className="mt-2 block break-words text-base text-muted sm:text-lg">{event.service}</span>
+          <span className="mt-1 block break-words text-sm text-muted sm:text-base">{event.location || "Ubicación pendiente"} · {event.staff}</span>
         </span>
       </Link>;
     })}{!upcomingEvents.length ? <Empty label="No hay eventos próximos." /> : null}</div>
