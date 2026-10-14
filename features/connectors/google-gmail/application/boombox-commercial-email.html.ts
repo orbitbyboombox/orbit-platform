@@ -31,6 +31,7 @@ export type BoomboxCommercialEmailInput = {
   primaryAction?: CommercialEmailAction;
   primaryActionFallback?: string;
   secondaryAction?: CommercialEmailAction;
+  tertiaryAction?: CommercialEmailAction;
   attachmentNote?: string;
   signatureHtml?: string;
 };
@@ -61,6 +62,7 @@ export function renderBoomboxCommercialEmail(
       ? `<tr><td align="center" style="padding:12px 8px 0;text-align:center;font-size:12px;line-height:1.5;color:#d1d1d1">${escapeHtml(input.primaryActionFallback)} <a href="${escapeHtml(input.primaryAction.href)}" style="color:#f78900;text-decoration:underline">aquí</a>.</td></tr>`
       : "",
     input.secondaryAction ? `<tr><td style="padding:12px 0 0">${actionButton(input.secondaryAction, true)}</td></tr>` : "",
+    input.tertiaryAction ? `<tr><td style="padding:12px 0 0">${actionButton(input.tertiaryAction, true)}</td></tr>` : "",
   ].join("");
   const actionMarkup = actions ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse">${actions}</table>` : "";
   const attachment = input.attachmentNote
