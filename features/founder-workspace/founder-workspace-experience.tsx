@@ -320,14 +320,26 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
   const staffExpenseActions = founderActions.filter((item) =>
     ["STAFF_EXPENSE_REVIEW_REQUIRED", "STAFF_BOLETA_REVIEW_REQUIRED"].includes(item.type)
   );
-  const actionCenter = staffExpenseActions.length ? <section data-command-card aria-labelledby="founder-action-center-title" className="rounded-xl border border-brand/25 bg-brand/[.025] px-4 py-3">
-    <div className="flex flex-wrap items-center justify-between gap-2">
-      <h2 className="text-sm font-semibold" id="founder-action-center-title">Gastos de operadores por revisar</h2>
-      <span className="rounded-full bg-brand/10 px-2 py-1 text-xs font-bold text-brand">{staffExpenseActions.length}</span>
-    </div>
-    <div className="mt-2 divide-y divide-border/60">{staffExpenseActions.slice(0, 5).map(item => <Link className="flex min-w-0 items-center justify-between gap-3 py-2 text-xs hover:text-brand" href={item.href} key={item.id}><span className="min-w-0"><strong className="block truncate">{item.title}</strong><span className="block truncate text-muted">{item.detail}</span></span><span className="shrink-0 font-semibold text-brand">Revisar →</span></Link>)}</div>
-    {staffExpenseActions.length > 5 ? <Link className="text-xs font-semibold text-brand" href="/notifications">Ver todos →</Link> : null}
-  </section> : null;
+  const pendingReviewsCount = staffExpenseActions.length + staffApprovalItems.length;
+  const actionCenter = pendingReviewsCount ? (
+    <section data-command-card aria-labelledby="founder-action-center-title" className="min-w-0 rounded-xl border border-brand/30 bg-card px-4 py-3 sm:px-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold" id="founder-action-center-title">Pendientes por revisar</h2>
+        <span className="rounded-full bg-brand/10 px-2.5 py-1 text-xs font-bold text-brand">{pendingReviewsCount}</span>
+      </div>
+      <div className="mt-2 divide-y divide-border/60">
+        {staffExpenseActions.map(item => (
+          <Link className="flex min-w-0 items-center justify-between gap-3 py-2.5 text-xs hover:text-brand" href={item.href} key={item.id}>
+            <span className="min-w-0"><strong className="block break-words">{item.title}</strong><span className="block break-words text-muted">{item.detail}</span></span>
+            <span className="shrink-0 font-semibold text-brand">Revisar gasto →</span>
+          </Link>
+        ))}
+        {staffApprovalItems.map(item => (
+          <ReviewQueueStaffItem item={item} key={item.id} onResolved={(id) => setResolvedApprovalIds((current) => new Set(current).add(id))} />
+        ))}
+      </div>
+    </section>
+  ) : null;
 
   const upcoming = <section data-command-card aria-labelledby="upcoming-events-title" className="rounded-2xl border p-4 sm:p-6">
     <div className="flex flex-wrap items-center justify-between gap-2"><PanelTitle id="upcoming-events-title" label="Próximos eventos" /><span className="flex gap-3"><Link className="text-xs text-muted hover:text-brand" href="/operations/week">Agenda semanal</Link><Link className="text-xs text-muted hover:text-brand" href="/events">Ver calendario</Link></span></div>
@@ -372,19 +384,18 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
   const settings = <section className="flex flex-col gap-4 rounded-2xl border bg-card p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between"><div><PanelTitle id="workspace-settings-title" label="Founder Workspace" /><p className="mt-2 text-xs text-muted">Mueve, oculta y restaura cada bloque. Tu configuración permanece guardada.</p></div><Link className="inline-flex min-h-10 items-center justify-center rounded-xl border px-4 text-xs font-semibold hover:border-brand/40 hover:text-brand" href="/settings#founder-workspace"><Settings2 className="mr-2 size-4" />Configurar espacio</Link></section>;
   const whatsapp = whatsappSummary ? <section aria-labelledby="founder-whatsapp-summary" className="rounded-2xl border bg-card px-4 py-3"><div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs"><strong id="founder-whatsapp-summary" className="text-sm">WhatsApp</strong><span>Activas: <b>{whatsappSummary.active}</b></span><span>BIANCA: <b>{whatsappSummary.nova}</b></span><span>Control humano: <b>{whatsappSummary.human}</b></span><span>Esperando BOOMBOX: <b>{whatsappSummary.waitingBoombox}</b></span><span>No leídas: <b>{whatsappSummary.unread}</b></span><span className="rounded-full border px-2 py-0.5 font-semibold">Delivery: OFF</span><Link className="ml-auto font-semibold text-brand hover:underline" href="/bianca">Ver conversaciones →</Link></div></section> : null;
 
-  const staffApprovals = staffApprovalItems.length ? <PendingStaffApprovals items={staffApprovalItems} onResolved={(id) => setResolvedApprovalIds((current) => new Set(current).add(id))} /> : null;
   const financialAlerts = financialAlert || financialAlertHistory.length ? <FinancialAlertCenter current={financialAlert} history={financialAlertHistory} /> : null;
   const dashboardSections = workspace.preferences.moduleWorkspaces.DASHBOARD?.sectionOrder ?? [];
   const calendarIndex = dashboardSections.indexOf("DASHBOARD_UPCOMING_EVENTS");
   const calendarSection = <OrderableItem controls={ordering ? <OrderControls avoidWorkspaceMenu disableDown={calendarIndex < 0 || calendarIndex === dashboardSections.length - 1} disableUp={calendarIndex <= 1} label="Próximos eventos" onDown={() => moveCalendar(1)} onUp={() => moveCalendar(-1)} /> : null}>{upcoming}</OrderableItem>;
 
-  return <main className="orbit-command-center" id="founder-workspace"><PersonalWorkspaceSections moduleKey="DASHBOARD" reorderEnabled={ordering} sections={[
-    { key: "DASHBOARD_HEADER", label: "Bienvenida", content: <>{welcome}{actionCenter ? <div className="mt-3">{actionCenter}</div> : null}</> },
+  return <main className="orbit-command-center" id="founder-workspace">{actionCenter ? <div className="mb-4">{actionCenter}</div> : null}<PersonalWorkspaceSections moduleKey="DASHBOARD" reorderEnabled={ordering} sections={[
+    { key: "DASHBOARD_HEADER", label: "Bienvenida", content: <>{welcome}</> },
     ...(biancaCard ? [{ key: "DASHBOARD_BIANCA", label: "BIANCA", content: biancaCard }] : []),
     { key: "DASHBOARD_UPCOMING_EVENTS", label: "Próximos eventos", content: calendarSection },
     { key: "DASHBOARD_WIDGETS", label: "KPIs del Founder", content: founderKpis },
     ...(financialAlerts ? [{ key: "DASHBOARD_FINANCIAL_ALERTS", label: "Obligaciones financieras", content: financialAlerts }] : []),
-    ...(staffApprovals ? [{ key: "DASHBOARD_STAFF_APPROVALS", label: "Aprobaciones de Staff pendientes", content: staffApprovals }] : []),
+
     { key: "DASHBOARD_QUICK_ACTIONS", label: "Acciones rápidas", content: actions },
     { key: "DASHBOARD_TODAY", label: "Jornada operacional", content: commandGrid },
     { key: "DASHBOARD_RECENT_ACTIVITY", label: "Actividad reciente", content: activity },
@@ -399,6 +410,31 @@ const roleLabel: Record<string, string> = {
   DISASSEMBLY: "Desmontaje",
   ASSEMBLY_DISASSEMBLY: "Montaje + Desmontaje",
 };
+
+function ReviewQueueStaffItem({ item, onResolved }: { item: PendingStaffApproval; onResolved: (id: string) => void }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [message, setMessage] = useState("");
+  const review = (decision: "approve" | "reject") => startTransition(async () => {
+    const form = new FormData();
+    form.set("requestId", item.id);
+    form.set("decision", decision);
+    const result = await reviewStaffRequestAction(form);
+    setMessage(result.message);
+    if (result.ok) { onResolved(item.id); router.refresh(); }
+  });
+  return <div className="min-w-0 py-3 text-xs">
+    <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+      <span className="min-w-0"><strong className="block break-words">{item.collaborator} · {roleLabel[item.role] ?? item.role}</strong><span className="block break-words text-muted">{item.event} · {money(item.estimatedPayment)}</span></span>
+      <span className="flex flex-wrap gap-2">
+        <button type="button" className="min-h-9 rounded-lg bg-brand px-3 font-semibold text-brand-foreground disabled:opacity-50" disabled={pending} onClick={() => review("approve")}>Aprobar</button>
+        <button type="button" className="min-h-9 rounded-lg border px-3 font-semibold disabled:opacity-50" disabled={pending} onClick={() => review("reject")}>Rechazar</button>
+        <Link className="inline-flex min-h-9 items-center rounded-lg border px-3 font-semibold text-brand" href={`/projects/${item.projectId}#staff-assignment`}>Ver</Link>
+      </span>
+    </div>
+    {message && <p aria-live="polite" className="mt-2 text-muted">{message}</p>}
+  </div>;
+}
 
 function PendingStaffApprovals({ items, onResolved }: { items: PendingStaffApproval[]; onResolved: (id: string) => void }) {
   const router = useRouter();
