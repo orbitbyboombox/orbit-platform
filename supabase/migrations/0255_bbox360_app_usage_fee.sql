@@ -21,7 +21,7 @@ CREATE OR REPLACE FUNCTION public.event_cost_breakdown_total(p_breakdown jsonb)
 AS $function$
   select coalesce(sum(coalesce((p_breakdown->>key)::numeric,0)),0)
   from unnest(array['operator','assembly','disassembly','staffAdjustments','staffTax','paper','fuel','transport','appUsage','scrapbook','magnets','branding','pens','doubleSidedTape','registeredExpenses','other']) key
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.calculate_event_operation_cost(p_project_id uuid)
  RETURNS TABLE(personnel_cost numeric, operational_resources_cost numeric, total_operational_cost numeric, estimated_cost numeric, cost_breakdown jsonb)
@@ -91,7 +91,7 @@ begin
   estimated_cost:=case when truth.status='CANCELLED' then 0 else estimate.total+estimated_tax+app_usage_cost end;
   cost_breakdown:=jsonb_build_object('personnelCost',personnel_cost,'operator',case when truth.status='CANCELLED' then 0 else operator_value end,'assembly',case when truth.status='CANCELLED' then 0 else assembly_value end,'disassembly',case when truth.status='CANCELLED' then 0 else disassembly_value end,'staffAdjustments',case when truth.status='CANCELLED' then 0 else staff_adjustments end,'staffTax',case when truth.status='CANCELLED' then 0 else staff_tax end,'staffTaxRate',public.staff_withholding_rate()*100,'operationalResourcesCost',operational_resources_cost,'paper',case when truth.status='CANCELLED' then 0 else paper_value end,'fuel',case when truth.status='CANCELLED' then 0 else fuel_value end,'transport',case when truth.status='CANCELLED' then 0 else transport_value end,'appUsage',case when truth.status='CANCELLED' then 0 else app_usage_cost end,'scrapbook',case when truth.status='CANCELLED' then 0 else scrapbook_value end,'magnets',case when truth.status='CANCELLED' then 0 else magnets_value end,'branding',case when truth.status='CANCELLED' then 0 else round(estimate.branding,2) end,'brandingFaces',estimate.branding_faces,'brandingUnitCost',estimate.branding_unit_cost,'pens',case when truth.status='CANCELLED' then 0 else round(estimate.pens,2) end,'doubleSidedTape',case when truth.status='CANCELLED' then 0 else round(estimate.double_sided_tape,2) end,'registeredExpenses',case when truth.status='CANCELLED' then 0 else expense_net end,'other',case when truth.status='CANCELLED' then 0 else other_value end,'totalOperationalCost',total_operational_cost,'source','CANONICAL_TRANSPORT_WITH_EXPLICIT_EXTRA_FUEL_V2');
   return next;
-end $function$
+end $function$;
 
 CREATE OR REPLACE FUNCTION public.sync_event_operation_cost(p_project_id uuid)
  RETURNS void
@@ -209,7 +209,7 @@ begin
   breakdown:=jsonb_build_object('personnelCost',personnel,'operator',operator_value,'assembly',assembly_value,'disassembly',disassembly_value,'staffAdjustments',staff.adjustments,'staffTax',staff_tax,'staffTaxRate',public.staff_withholding_rate()*100,'operationalResourcesCost',resources,'paper',paper_value,'paperSource',case when snapshot_count>0 then paper->>'source' else 'ESTIMATED_COST_SHEET_FALLBACK' end,'paperUsage',coalesce((paper->>'usage')::numeric,0),'confirmedPaperSnapshots',snapshot_count,'fuel',fuel_value,'transport',transport_value,'appUsage',app_usage_cost,'scrapbook',scrapbook_value,'magnets',magnets_value,'branding',branding_value,'brandingSource',case when branding_from_quote then 'CURRENT_QUOTATION_ITEM' else 'EVENT_BRANDING_FACES_COMPATIBILITY_FALLBACK' end,'brandingFaces',branding_faces,'brandingUnitCost',branding_unit,'pens',estimate.pens,'doubleSidedTape',estimate.double_sided_tape,'other',other_value,'registeredExpenses',expense_net,'totalOperationalCost',total_value,'staffPaymentRows',staff.payment_rows,'source','CANONICAL_CONFIRMED_PAPER_QUOTE_BRANDING_STAFF_V1');
   update public.financial_event_records set personnel_cost=case when status='CANCELLED' then 0 else personnel end,operational_resources_cost=case when status='CANCELLED' then 0 else resources end,total_operational_cost=total_value,estimated_cost=case when status='CANCELLED' then 0 else estimate.total+estimated_tax+app_usage_cost end,real_cost=total_value,gross_profit=profit_value,net_profit=profit_value,gross_margin=margin_value,net_margin=margin_value,cost_breakdown=breakdown,calculated_at=now(),updated_at=now(),version=version+1 where project_id=p_project_id;
 end;
-$function$
+$function$;
 
 DO $$
 DECLARE event_row record;
