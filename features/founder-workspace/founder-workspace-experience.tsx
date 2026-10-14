@@ -339,10 +339,10 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
       <PanelTitle id="upcoming-events-title" label="Próximos eventos" />
       <span className="flex flex-wrap gap-x-3 gap-y-2"><Link className="text-xs text-muted transition hover:text-brand" href="/operations/week">Agenda semanal</Link><Link className="text-xs text-muted transition hover:text-brand" href="/events">Ver calendario</Link></span>
     </div>
-    <div className="mt-4 divide-y">{upcomingEvents.slice(0, 4).map(event => {
+    <div className="mt-3 divide-y">{upcomingEvents.slice(0, 4).map(event => {
       const d = formatUpcomingDateParts(event.date);
-      return <Link className="group flex min-w-0 items-start gap-3 py-4 first:pt-0 last:pb-0" href={event.href} key={event.id}>
-        <span className="flex min-h-[76px] w-[58px] shrink-0 flex-col items-center justify-center rounded-xl border bg-background/50 text-center">
+      return <Link className="group flex min-w-0 items-center gap-3 py-2.5 first:pt-0 last:pb-0" href={event.href} key={event.id}>
+        <span className="flex min-h-[62px] w-[54px] shrink-0 flex-col items-center justify-center rounded-xl border bg-background/50 text-center">
           <span className="text-[10px] font-semibold tracking-wider text-muted">{d.weekday}</span>
           <strong className="text-2xl leading-tight">{d.day}</strong>
           <span className="text-[10px] font-bold tracking-wider text-brand">{d.month}</span>
@@ -357,7 +357,7 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
         </span>
       </Link>;
     })}{!upcomingEvents.length ? <Empty label="No hay eventos próximos." /> : null}</div>
-    <Link className="mt-5 flex min-h-11 items-center justify-center gap-2 border-t pt-4 text-xs font-semibold text-brand" href="/events">Ver todos los eventos <ArrowRight className="size-3.5" /></Link>
+    <Link className="mt-3 flex min-h-10 items-center justify-center gap-2 border-t pt-2 text-xs font-semibold text-brand" href="/events">Ver todos los eventos <ArrowRight className="size-3.5" /></Link>
   </section>;
 
   const activity = <section data-command-card aria-labelledby="recent-activity-title" className="rounded-2xl border p-5 sm:p-6">
