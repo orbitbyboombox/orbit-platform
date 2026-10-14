@@ -1152,7 +1152,7 @@ export function ProjectWorkspaceExperience(
                 id="documents"
                 title="Documentos y estado comercial"
               >
-                {photoStripEligible ? <div className="hidden md:block"><PhotoStripDesignCenter documents={photoStripDocuments} projectId={props.projectKey!}/></div> : null}
+                {photoStripEligible ? <div className="w-full min-w-0"><PhotoStripDesignCenter documents={photoStripDocuments} projectId={props.projectKey!}/></div> : null}
                 <EventCommercialDocumentHub projectId={props.projectKey!} customerName={props.clientName} customerTaxId={props.commercialHub.customerTaxId} customerKind={props.commercialHub.customerKind} quotation={props.commercialHub.quotation} contract={props.signing} receivable={event.receivable?{id:event.receivable.id,paid:event.receivable.paidAmount,outstanding:event.receivable.outstandingBalance,dueDate:event.receivable.dueDate,status:event.receivable.status}:undefined} paymentCondition={props.commercialHub.paymentCondition} documents={event.documents} taxDocuments={event.documents.filter(doc=>doc.taxType&&doc.folio&&doc.issueDate).map(doc=>({id:doc.id,taxType:doc.taxType!,folio:doc.folio!,issueDate:doc.issueDate!,total:doc.total??0,status:doc.status??"ADJUNTADO",href:doc.href}))}/>
               </Section>
             )}
