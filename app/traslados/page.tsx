@@ -15,6 +15,7 @@ export default async function TransportLookupPage({ searchParams }: { searchPara
   try { entries = await loadActiveMunicipalities(createAdminClient()); }
   catch (error) { console.error("[ORBIT][PUBLIC_TRANSPORT_LOOKUP]", error); loadError = true; }
   const selected = entries.find((item) => item.name.toLocaleLowerCase("es-CL") === name.toLocaleLowerCase("es-CL"));
+  const santiagoProvince = entries.find((item) => item.transportCode === "SANTIAGO_PROVINCE");
   return (
     <main className="min-h-screen bg-[#0b0c0e] px-4 py-10 text-white">
       <div className="mx-auto max-w-xl rounded-3xl border border-white/15 bg-[#121316] p-6 shadow-xl sm:p-10">
@@ -40,7 +41,7 @@ export default async function TransportLookupPage({ searchParams }: { searchPara
           </section>
         ) : null}
         {loadError ? <p role="alert" className="mt-5 rounded-xl border border-red-400/40 p-4 text-sm text-red-200">Por ahora no podemos cargar los traslados. Escríbenos y te ayudaremos.</p> : null}
-        <p className="mt-7 text-xs leading-6 text-white/60">Provincia de Santiago: {money(25000)} según tarifa vigente. Otras provincias de la Región Metropolitana tienen valores propios según la comuna. El valor final se confirma en la cotización del evento.</p>
+        <p className="mt-7 text-xs leading-6 text-white/60">{santiagoProvince ? `Provincia de Santiago: ${money(santiagoProvince.transport)} según tarifa vigente. ` : ""}Otras provincias de la Región Metropolitana tienen valores propios según la comuna. El valor final se confirma en la cotización del evento.</p>
         <a className="mt-6 inline-block text-sm font-semibold text-[#f78900] underline" href="https://www.boom-box.cl/">Volver a BOOMBOX</a>
       </div>
     </main>
