@@ -9,6 +9,7 @@ const workspaces = readFileSync(`${root}/features/resources/staff-workspaces.tsx
 const boxesPage = readFileSync(`${root}/app/(platform)/resources/boxes/page.tsx`, "utf8");
 const boxMaster = readFileSync(`${root}/features/resources/black-box-master.tsx`, "utf8");
 const warehouse = readFileSync(`${root}/features/resources/warehouse-inventory.tsx`, "utf8");
+const read = (path: string) => readFileSync(`${root}/${path}`, "utf8");
 
 test("Issue 83 includes CONFIRMED assignments in canonical staff payment obligations", () => {
   assert.match(staffPage, /ASSIGNED.*ACCEPTED.*COMPLETED.*CONFIRMED/);
@@ -67,4 +68,16 @@ test("Issue 89 keeps Cajas as two compact areas and folds technical detail", () 
   assert.match(boxMaster, /defaultValue=\{blackBoxStock\(box\.metadata\)\}/);
   assert.doesNotMatch(boxMaster, /Saldo no conciliado/);
   assert.doesNotMatch(boxMaster, /RPC\/RLS/);
+});
+
+test("Issue 90 separates box consultation from blocked paper management", () => {
+  assert.match(boxMaster, /data-box-summary-grid/);
+  assert.match(boxMaster, /BoxManagementPanel/);
+  assert.match(boxMaster, /movements/);
+  assert.match(warehouse, /data-issue87-stock-bodega-paper/);
+  assert.match(read("features/resources/box-management-panel.tsx"), /data-box-management-panel/);
+  assert.match(read("features/resources/box-management-panel.tsx"), /data-box-management-selector="box"/);
+  assert.match(read("features/resources/box-management-panel.tsx"), /data-box-management-selector="month"/);
+  assert.match(read("features/resources/box-management-panel.tsx"), /data-box-paper-preview/);
+  assert.match(read("features/resources/box-management-panel.tsx"), /CONFIRMAR CARGA · BLOQUEADA/);
 });

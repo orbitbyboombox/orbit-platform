@@ -5,6 +5,8 @@ import { Check, Pencil, X } from "lucide-react";
 import { updateBlackBoxMasterAction } from "./black-box-master.actions";
 import { assignBlackBoxToEventAction, getBlackBoxAvailabilityForEventAction, removeBlackBoxFromEventAction } from "@/features/asset-management/event-black-box.actions";
 import { BLACK_BOX_PAPER_FORMATS, blackBoxNumber, blackBoxPaperFormat, blackBoxStock, type BoxAsset } from "./box-inventory";
+import { BoxManagementPanel } from "./box-management-panel";
+import type { InventoryMovement } from "@/features/supply-engine/types/supply.types";
 
 const statusOptions = [
   ["AVAILABLE", "Disponible"],
@@ -15,7 +17,7 @@ const statusOptions = [
 
 type BoxEventOption = { id: string; name: string; date: string; time: string; service: string };
 
-export function BlackBoxMaster({ initialBoxes, events }: { initialBoxes: BoxAsset[]; events: BoxEventOption[] }) {
+export function BlackBoxMaster({ initialBoxes, events, movements, warehousePhotos }: { initialBoxes: BoxAsset[]; events: BoxEventOption[]; movements: readonly InventoryMovement[]; warehousePhotos: number }) {
   const [boxes, setBoxes] = useState(initialBoxes);
   const [editing, setEditing] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -60,9 +62,10 @@ export function BlackBoxMaster({ initialBoxes, events }: { initialBoxes: BoxAsse
       <p className="mt-3 max-w-3xl text-xs text-muted">El saldo físico se lee desde lotes de papel y movimientos auditables. No representa costo financiero ni habilita cargas Bodega → Caja; esa operación permanece bloqueada hasta contar con una RPC transaccional verificada.</p>
     </header>
     {error && <p role="alert" className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-600">{error}</p>}
-    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" data-box-summary-grid>
       {boxes.map((box) => <BlackBoxCard key={box.id} box={box} events={events} editing={editing === box.id} pending={pending} onEdit={() => { setError(""); setEditing(box.id); }} onCancel={() => { setError(""); setEditing(null); }} onSave={(data) => save(box, data)} onAssigned={() => location.reload()} />)}
     </div>
+    <BoxManagementPanel boxes={boxes} movements={movements} warehousePhotos={warehousePhotos} onEditBox={(boxId) => { setError(""); setEditing(boxId); document.getElementById(`box-card-${boxId}`)?.scrollIntoView({ behavior: "smooth", block: "center" }); }} onAssignBox={() => { setError(""); setAssignmentOpen(true); }} />
     {assignmentOpen ? <AssignBoxToEventDialog boxes={boxes} events={events} onClose={() => setAssignmentOpen(false)} onAssigned={() => location.reload()} /> : null}
   </section>;
 }
@@ -114,7 +117,7 @@ function BlackBoxCard({ box, events, editing, pending, onEdit, onCancel, onSave,
   const reliablePhotoLots = paperLots.filter((lot) => lot.remainingPhotoCapacity != null);
   const physicalStock = reliablePhotoLots.reduce((sum, lot) => sum + Math.max(0, lot.remainingPhotoCapacity ?? 0), 0);
   const status = statusOptions.find(([value]) => value === box.status)?.[1] ?? box.status;
-  return <article className="rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
+  return <article id={`box-card-${box.id}`} className="rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
     <div className="flex items-start justify-between gap-3">
       <div><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">{box.asset_code}</p><h2 className="mt-1 text-xl font-semibold">Caja {number}</h2></div>
       <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${box.status === "AVAILABLE" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600" : "border-amber-500/30 bg-amber-500/10 text-amber-600"}`}>{status}</span>
