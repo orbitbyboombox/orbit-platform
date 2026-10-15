@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { deriveCanonicalStaffObligation } from "../features/staff-payments/canonical-staff-obligation.ts";
+import { currentChileMonth, monthKeyForChile } from "../features/resources/box-history-date.ts";
 
 const root = process.cwd();
 const staffPage = readFileSync(`${root}/app/(platform)/resources/staff/page.tsx`, "utf8");
@@ -85,4 +86,15 @@ test("Issue 90 separates box consultation from blocked paper management", () => 
   assert.match(read("features/resources/box-management-panel.tsx"), /data-box-history-selector="month"/);
   assert.match(read("features/resources/box-management-panel.tsx"), /data-box-paper-preview/);
   assert.match(read("features/resources/box-management-panel.tsx"), /CONFIRMAR CARGA · BLOQUEADA/);
+});
+
+test("Issue 91 keeps Caja 2 October history and Chile month options stable", () => {
+  assert.equal(monthKeyForChile("2026-10-02"), "2026-10");
+  assert.equal(monthKeyForChile("2026-09-18T00:00:00-04:00"), "2026-09");
+  assert.equal(monthKeyForChile("02/10/2026"), "2026-10");
+  assert.equal(currentChileMonth(new Date("2026-10-15T12:00:00Z")), "2026-10");
+  const panel = read("features/resources/box-management-panel.tsx");
+  assert.match(panel, /currentChileMonth\(\)/);
+  assert.match(panel, /monthKeyForChile\(assignment\.eventDate\)/);
+  assert.match(panel, /inMonth\(assignment\.eventDate, selectedMonth\)/);
 });

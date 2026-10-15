@@ -2,12 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { blackBoxNumber, blackBoxStock, type BoxAsset } from "./box-inventory";
+import { currentChileMonth, monthKeyForChile } from "./box-history-date";
 import type { InventoryMovement } from "@/features/supply-engine/types/supply.types";
 
 type BoxManagementProps = { boxes: BoxAsset[]; movements: readonly InventoryMovement[]; warehousePhotos: number; onEditBox: (boxId: string) => void; onAssignBox: () => void };
-const monthValue = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago", year: "numeric", month: "2-digit" }).format(new Date()).slice(0, 7);
+const monthValue = currentChileMonth;
 const monthLabel = (value: string) => { if (!value) return "Todos los meses"; const [year, month] = value.split("-").map(Number); return new Intl.DateTimeFormat("es-CL", { month: "long", year: "numeric", timeZone: "America/Santiago" }).format(new Date(Date.UTC(year, month - 1, 1))); };
-const inMonth = (value: string | null | undefined, month: string) => !month || Boolean(value?.startsWith(month));
+const inMonth = (value: string | null | undefined, month: string) => !month || monthKeyForChile(value) === month;
 
 export function BoxPaperLoadPanel({ boxes, warehousePhotos, onEditBox, onAssignBox }: Pick<BoxManagementProps, "boxes" | "warehousePhotos" | "onEditBox" | "onAssignBox">) {
   const [selectedBoxId, setSelectedBoxId] = useState(boxes[0]?.id ?? "");
@@ -27,7 +28,7 @@ export function BoxMonthlyHistoryPanel({ boxes, movements, onEditBox, onAssignBo
   const [selectedBoxId, setSelectedBoxId] = useState(boxes[0]?.id ?? "");
   const [selectedMonth, setSelectedMonth] = useState(monthValue());
   const selectedBox = boxes.find((box) => box.id === selectedBoxId) ?? boxes[0];
-  const months = Array.from(new Set(boxes.flatMap((box) => box.assignments.map((assignment) => assignment.eventDate.slice(0, 7))).filter(Boolean))).sort().reverse();
+  const months = Array.from(new Set([currentChileMonth(), ...boxes.flatMap((box) => box.assignments.map((assignment) => monthKeyForChile(assignment.eventDate))).filter(Boolean)])).sort().reverse();
   const assignedEvents = useMemo(() => selectedBox?.assignments.filter((assignment) => inMonth(assignment.eventDate, selectedMonth)) ?? [], [selectedBox, selectedMonth]);
   const projectIds = new Set(selectedBox?.assignments.map((assignment) => assignment.projectId) ?? []);
   const selectedMovements = movements.filter((movement) => inMonth(movement.occurredAt, selectedMonth) && (!movement.projectId || projectIds.has(movement.projectId)));
