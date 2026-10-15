@@ -7,6 +7,7 @@ const service = readFileSync("features/connectors/google-drive/application/orbit
 const action = readFileSync("features/connectors/google-drive/actions/orbit-admin-backup.actions.ts", "utf8");
 const migration = readFileSync("supabase/migrations/20261015120000_admin_backup_runs.sql", "utf8");
 const provider = readFileSync("features/connectors/google-drive/provider/google-drive-live.provider.ts", "utf8");
+const runbook = readFileSync("docs/ORBIT_ADMIN_BACKUP_RUNBOOK.md", "utf8");
 
 test("administrative backup is server-side and Founder/Admin protected", () => {
   assert.match(action, /"use server"/);
@@ -24,6 +25,7 @@ test("storage backup is physical, checksummed, read-back verified and scoped", (
   assert.match(service, /md5Checksum/);
   assert.match(service, /iterateStorageObjects/);
   assert.match(service, /for await/);
+  assert.match(service, /MAX_BATCH_FILES/);
   assert.match(readFileSync("features/connectors/google-drive/application/orbit-admin-backup.crypto.ts", "utf8"), /BACKUP_ENCRYPTION_NOT_CONFIGURED/);
   assert.match(service, /orbitBackupRunId/);
 });
@@ -46,11 +48,20 @@ test("idempotency and concurrency use a persistent unique ledger", () => {
   assert.match(service, /select\("id,status,drive_folder_id,metadata,started_at"\)/);
   assert.match(service, /15 \* 60 \* 1000/);
   assert.match(service, /started_at/);
+  assert.match(service, /lease_token/);
+  assert.match(migration, /CHECKPOINTED/);
 });
 
 test("database backup is not falsely represented by SQL metadata", () => {
   assert.match(service, /DATABASE_EXPORT_REQUIRES_PROTECTED_CI_PG_DUMP_AND_SUPABASE_DB_URL/);
   assert.doesNotMatch(service, /execute_sql/);
+});
+
+test("recovery preserves exact source paths and external key custody", () => {
+  assert.match(service, /sourceBucket: object\.bucket/);
+  assert.match(service, /sourcePath: object\.path/);
+  assert.match(runbook, /temporary Storage bucket/);
+  assert.match(runbook, /Never store it in Drive/);
 });
 
 test("Drive API readback supports shared drives without exposing tokens", () => {
