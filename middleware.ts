@@ -3,6 +3,18 @@ import { updateSession } from "@/lib/supabase/middleware";
 
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+  const isCustomerPortalDemoPreview =
+    process.env.VERCEL_ENV === "preview" &&
+    pathname === "/preview/customer-portal-demo";
+
+  if (isCustomerPortalDemoPreview) {
+    return NextResponse.next();
+  }
+
+  if (pathname === "/preview/customer-portal-demo") {
+    return new NextResponse(null, { status: 404 });
+  }
+
   const platformPagePrefixes = [
     "/operations","/leads","/calendar","/events","/customers","/projects",
     "/resources","/finance","/office-rent","/reports","/settings",
