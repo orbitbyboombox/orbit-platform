@@ -1,7 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { createHash } from "node:crypto";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerActionClient } from "@/lib/supabase/server";
+import { deriveCanonicalStaffHonorariaBalance } from "./canonical-staff-obligation";
 import {
   prepareMonthlySettlementDocument,
   sendMonthlySettlementReadyEmail,
@@ -15,6 +18,60 @@ const friendly = (error: unknown, fallback: string) =>
   !/violates|constraint|postgres|supabase|invalid input/i.test(error.message)
     ? error.message
     : fallback;
+const paymentFileTypes = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
+
+export async function registerQuickStaffSettlementPaymentAction(data: FormData): Promise<Result> {
+  let path = "";
+  try {
+    const { client } = await context();
+    const settlementId = text(data, "settlementId");
+    const amount = Number(data.get("amount"));
+    const paymentDate = text(data, "paymentDate");
+    const method = text(data, "method");
+    const reference = text(data, "reference");
+    const file = data.get("file");
+    if (!settlementId || !Number.isFinite(amount) || amount <= 0 || !paymentDate || !method || !(file instanceof File) || file.size === 0)
+      throw new Error("Completa monto, fecha, método y comprobante.");
+    if (!paymentFileTypes.has(file.type) || file.size > 15 * 1024 * 1024)
+      throw new Error("El comprobante debe ser PDF, JPG, PNG o WEBP y no superar 15 MB.");
+    const { data: financial, error: financialError } = await client
+      .from("staff_settlement_financials")
+      .select("settlement_id,staff_id,project_id,original_net,adjustment_total,paid_amount,settlement_status")
+      .eq("settlement_id", settlementId)
+      .maybeSingle();
+    if (financialError) throw financialError;
+    if (!financial) throw new Error("La liquidación canónica no está disponible para pago.");
+    const outstanding = deriveCanonicalStaffHonorariaBalance({
+      originalNet: Number(financial.original_net ?? 0),
+      adjustmentTotal: Number(financial.adjustment_total ?? 0),
+      paidAmount: Number(financial.paid_amount ?? 0),
+    }).outstanding;
+    if (outstanding <= 0) throw new Error("No existe saldo de honorarios pendiente verificable.");
+    if (amount > outstanding) throw new Error(`El monto no puede superar el saldo de honorarios: $${Math.round(outstanding).toLocaleString("es-CL")}.`);
+    if (financial.settlement_status === "PAID") throw new Error("La liquidación ya figura pagada.");
+    const bytes = await file.arrayBuffer();
+    const fileHash = createHash("sha256").update(Buffer.from(bytes)).digest("hex");
+    const idempotencyKey = createHash("sha256").update([settlementId, amount.toFixed(2), paymentDate, method, reference, fileHash].join("|")).digest("hex");
+    const extension = file.name.split(".").pop()?.toLowerCase() || "bin";
+    path = `staff/${financial.staff_id}/05_COMPROBANTES_PAGO/${paymentDate.slice(0, 7)}/${idempotencyKey}.${extension}`;
+    const admin = createAdminClient();
+    const upload = await admin.storage.from("orbit-documents").upload(path, bytes, { contentType: file.type, upsert: true });
+    if (upload.error) throw upload.error;
+    const { error: rpcError } = await client.rpc("register_staff_advance_with_documents", {
+      p_settlement_id: settlementId, p_amount: amount, p_date: paymentDate, p_method: method,
+      p_notes: reference || "Pago rápido de honorarios Staff", p_idempotency_key: idempotencyKey,
+      p_receipt_bucket: "orbit-documents", p_receipt_path: path, p_receipt_file_name: file.name,
+      p_receipt_mime_type: file.type,
+    });
+    if (rpcError) { await admin.storage.from("orbit-documents").remove([path]); throw rpcError; }
+    revalidatePath("/resources/staff");
+    revalidatePath(`/projects/${financial.project_id}`);
+    return { ok: true };
+  } catch (error) {
+    if (path) { try { await createAdminClient().storage.from("orbit-documents").remove([path]); } catch { /* best effort cleanup */ } }
+    return { ok: false, error: friendly(error, "No fue posible registrar el abono de honorarios.") };
+  }
+}
 
 async function context() {
   const client = await createSupabaseServerActionClient();
