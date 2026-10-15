@@ -379,7 +379,7 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
     id: vehicle.asset_id,
     label: vehicle.model,
   }));
-  const paymentEvents: StaffPaymentEvent[] = (paymentRows ?? []).flatMap(
+  const paymentEventsByObligation = (paymentRows ?? []).flatMap(
     (row) => {
       const project = Array.isArray(row.projects)
         ? row.projects[0]
@@ -453,6 +453,34 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
         },
       ];
     },
+  );
+  const paymentEvents: StaffPaymentEvent[] = Array.from(
+    paymentEventsByObligation.reduce((grouped, item) => {
+      const key = `${item.staffId}:${item.projectId}`;
+      const previous = grouped.get(key);
+      if (!previous) {
+        grouped.set(key, item);
+        return grouped;
+      }
+      const roles = [...new Set([...previous.roles, ...item.roles])];
+      grouped.set(key, {
+        ...previous,
+        id: previous.id,
+        roles,
+        amount: previous.amount + item.amount,
+        originalNet: previous.originalNet + item.originalNet,
+        adjustmentTotal: previous.adjustmentTotal + item.adjustmentTotal,
+        reimbursementTotal: previous.reimbursementTotal + item.reimbursementTotal,
+        finalAmount: previous.finalAmount + item.finalAmount,
+        operator: previous.operator + item.operator,
+        assembly: previous.assembly + item.assembly,
+        disassembly: previous.disassembly + item.disassembly,
+        paidAmount: previous.paidAmount + item.paidAmount,
+        paidAt: previous.paidAt || item.paidAt,
+        receiptStatus: previous.receiptStatus === "RECEIVED" && item.receiptStatus === "RECEIVED" ? "RECEIVED" : "PENDING",
+      });
+      return grouped;
+    }, new Map<string, StaffPaymentEvent>()).values(),
   );
   const monthlyRecords: StaffPaymentMonth[] = (monthlyAccounts??[]).map(row=>{const account=mapStaffMonthlyAccount(row);return{id:account.id,staffId:account.staffId,month:account.month,tax:account.withholdingAmount,advances:account.advancesTotal,paid:account.paidAmount,status:account.paymentStatus,documents:[],account}});
   const lastLoginByStaff = new Map<string, string>();

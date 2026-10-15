@@ -15,14 +15,14 @@ export function WarehouseInventory({ supplies, movements }: WarehouseInventoryPr
   const paperPrints = paperSupplies.reduce((total, item) => total + Math.max(0, item.currentStock), 0);
   const paperRolls = paperPrints / 700;
   return (
-    <section aria-labelledby="warehouse-inventory-title" className="space-y-5 rounded-2xl border bg-card p-5 sm:p-6">
-      <header><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Bodega · lectura</p><h2 id="warehouse-inventory-title" className="mt-1 text-xl font-semibold">INVENTARIO PAPEL</h2><p className="mt-2 text-sm text-muted">Saldo real de papel en impresiones y equivalencia operativa en rollos de 700. Las transferencias a Cajas quedan protegidas hasta validar la operación transaccional.</p></header>
+    <section aria-labelledby="warehouse-inventory-title" className="space-y-4 rounded-2xl border bg-card p-4 sm:p-5" data-issue79-paper-inventory>
+      <header><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Bodega · fuente física</p><h2 id="warehouse-inventory-title" className="mt-1 text-xl font-semibold">INVENTARIO PAPEL</h2><p className="mt-2 text-sm text-muted">Un único resumen de stock físico, equivalencia referencial en rollos de 700 y asignaciones por Caja. No mezcla capacidad legacy con lotes físicos.</p></header>
       <section className="rounded-2xl border border-brand/30 bg-brand/5 p-4 sm:p-5" data-issue75-paper-summary aria-labelledby="warehouse-paper-summary-title">
         <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Resumen de papel</p>
         <h3 id="warehouse-paper-summary-title" className="mt-1 text-xl font-semibold">Stock real de papel en Bodega</h3>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <div className="rounded-xl border bg-background/40 p-3"><p className="text-xs text-muted">Impresiones disponibles</p><p className="mt-1 text-2xl font-semibold">{formatQuantity(paperPrints)}</p><p className="mt-1 text-xs text-muted">Suma real de insumos compatibles con unidad PHOTO</p></div>
-          <div className="rounded-xl border bg-background/40 p-3"><p className="text-xs text-muted">Equivalencia referencial</p><p className="mt-1 text-2xl font-semibold">{formatQuantity(paperRolls)} rollos</p><p className="mt-1 text-xs text-muted">Cálculo operativo sobre 700 impresiones por rollo; no es costo financiero</p></div>
+          <div className="rounded-xl border bg-background/40 p-3"><p className="text-xs text-muted">Impresiones disponibles</p><p className="mt-1 text-2xl font-semibold">{paperSupplies.length ? formatQuantity(paperPrints) : "No informado"}</p><p className="mt-1 text-xs text-muted">{paperSupplies.length ? "Suma real de lotes compatibles con unidad PHOTO" : "No se interpreta una fuente física ausente como cero"}</p></div>
+          <div className="rounded-xl border bg-background/40 p-3"><p className="text-xs text-muted">Equivalencia referencial</p><p className="mt-1 text-2xl font-semibold">{paperSupplies.length ? `${formatQuantity(paperRolls)} rollos` : "No calculable"}</p><p className="mt-1 text-xs text-muted">{paperSupplies.length ? "Cálculo operativo sobre 700 impresiones por rollo; no es costo financiero" : "Requiere mapping físico de papel"}</p></div>
         </div>
       </section>
       {lowStock.length ? <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">Atención: {lowStock.length} consumible{lowStock.length === 1 ? "" : "s"} requiere{lowStock.length === 1 ? "" : "n"} revisión de stock.</p> : null}
