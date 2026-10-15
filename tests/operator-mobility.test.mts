@@ -29,11 +29,43 @@ test("manual confirmation required, defaults off", () => {
 
 test("persistence is an idempotent update of the canonical operator settlement", () => {
   const source = readFileSync("features/staff-assignment-center/actions.ts", "utf8");
-  assert.match(source, /\.from\("event_staff_payments"\)/);
-  assert.match(source, /\.update\(\{ transport_bonus: requestedMobilityAmount/);
-  assert.match(source, /\.eq\("project_id", input\.projectId\)/);
-  assert.match(source, /\.eq\("staff_id", input\.staffId\)/);
-  assert.match(source, /\(payments \?\? \[\]\)\.length !== 1/);
+  assert.match(source, /save_event_staff_assignment_with_mobility/);
+  assert.match(source, /p_mobility_action/);
+  assert.match(source, /p_mobility_amount/);
+  assert.doesNotMatch(source, /transport_bonus:\s*requestedMobilityAmount/);
+  const migration = readFileSync("supabase/migrations/20261015153000_operator_mobility_atomic.sql", "utf8");
+  assert.match(migration, /create unique index[\s\S]*event_staff_operator_mobility_one_per_settlement_idx/);
+  assert.match(migration, /save_event_staff_assignment_with_mobility/);
+  assert.match(migration, /pg_advisory_xact_lock/);
+  assert.match(migration, /payment_count <> 1/);
+  assert.match(migration, /settlement_status in \('PAID','FINALIZED'\)/);
+});
+
+test("mobility adjustment is independent from legacy transport_bonus", () => {
+  const migration = readFileSync("supabase/migrations/20261015153000_operator_mobility_atomic.sql", "utf8");
+  assert.match(migration, /does not reuse event_staff_payments\.transport_bonus/);
+  assert.match(migration, /comment = 'Movilización operador'/);
+  assert.match(migration, /p_mobility_action = 'APPLY'/);
+  assert.match(migration, /p_mobility_action = 'CLEAR'/);
+});
+
+test("server-side guard enforces date, role, exclusions and commune amount", () => {
+  const migration = readFileSync("supabase/migrations/20261015153000_operator_mobility_atomic.sql", "utf8");
+  assert.match(migration, /event_date < date '2026-10-17'/);
+  assert.match(migration, /assignment_role <> 'OPERATOR'/);
+  assert.match(migration, /07683338-3ff1-4235-9253-1efeeed4a7c1/);
+  assert.match(migration, /353b9538-7d1c-4048-b71f-17854bde78ce/);
+  assert.match(migration, /bd31d438-42fc-474a-87b6-a5f68f626fea/);
+  assert.match(migration, /normalized_commune/);
+});
+
+test("canonical finance paths already consume settlement adjustments", () => {
+  const financials = readFileSync("supabase/migrations/20261006120000_staff_assignment_payment_overrides.sql", "utf8");
+  const profitability = readFileSync("supabase/migrations/20261003101500_real_paper_cost_profitability_from_20261002.sql", "utf8");
+  const reconciliation = readFileSync("supabase/migrations/20261007130000_financial_summary_canonical_staff_payments.sql", "utf8");
+  assert.match(financials, /sum\(amount\) total[\s\S]*event_staff_settlement_adjustments/);
+  assert.match(profitability, /event_staff_settlement_adjustments/);
+  assert.match(reconciliation, /event_staff_settlement_adjustments/);
 });
 
 test("the assignment control is opt-in and limited to operators", () => {

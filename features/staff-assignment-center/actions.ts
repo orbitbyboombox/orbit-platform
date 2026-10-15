@@ -191,59 +191,26 @@ export async function saveStaffAssignmentAction(
       if (input.mobilityDecision === "APPLY" && !mobility.eligible) {
         throw new Error("La movilización no corresponde para este operador, fecha o comuna.");
       }
-      const { data: existingPayments, error: paymentReadError } = await ctx.client
-        .from("event_staff_payments")
-        .select("id,settlement_status,paid_amount,transport_bonus")
-        .eq("project_id", input.projectId)
-        .eq("staff_id", input.staffId)
-        .is("deleted_at", null)
-        .neq("status", "CANCELLED")
-        .order("updated_at", { ascending: false });
-      if (paymentReadError) throw paymentReadError;
-      if ((existingPayments ?? []).length > 1) {
-        throw new Error("La liquidación del operador no es única; movilización permanece bloqueada.");
-      }
-      const existingPayment = existingPayments?.[0];
-      if (existingPayment &&
-        (["PAID", "FINALIZED"].includes(String(existingPayment.settlement_status)) || Number(existingPayment.paid_amount ?? 0) > 0) &&
-        requestedMobilityAmount !== Number(existingPayment.transport_bonus ?? 0)) {
-        throw new Error("La liquidación ya está pagada o cerrada; movilización permanece bloqueada.");
-      }
     }
-    const { data: saved, error: saveError } = await ctx.client.rpc("save_event_staff_assignment", {
+    const mobilityEnabled = input.role === "OPERATOR" && input.mobilityDecision !== "UNCHANGED";
+    const { data: saved, error: saveError } = await ctx.client.rpc(
+      mobilityEnabled ? "save_event_staff_assignment_with_mobility" : "save_event_staff_assignment",
+      {
       p_payload: payload,
       p_assignment_id: input.id ?? null,
       p_request_id: input.requestId ?? crypto.randomUUID(),
       p_replace_id: input.replaceId ?? null,
-    });
+        ...(mobilityEnabled
+          ? {
+              p_mobility_action: input.mobilityDecision,
+              p_mobility_amount: requestedMobilityAmount ?? 0,
+            }
+          : {}),
+      },
+    );
     if (saveError) throw new Error(saveError.message);
     const result = saved as { id: string; replay: boolean };
     const assignmentId = result.id;
-    if (input.role === "OPERATOR" && input.mobilityDecision !== "UNCHANGED") {
-      const { data: payments, error: paymentReadError } = await ctx.client
-        .from("event_staff_payments")
-        .select("id,settlement_status,paid_amount,transport_bonus")
-        .eq("project_id", input.projectId)
-        .eq("staff_id", input.staffId)
-        .is("deleted_at", null)
-        .neq("status", "CANCELLED")
-        .order("updated_at", { ascending: false });
-      if (paymentReadError) throw paymentReadError;
-      if ((payments ?? []).length !== 1) {
-        throw new Error("La liquidación del operador no es única; movilización permanece bloqueada.");
-      }
-      const payment = payments[0];
-      if (!( ["PAID", "FINALIZED"].includes(String(payment.settlement_status)) || Number(payment.paid_amount ?? 0) > 0)) {
-        const { error: mobilityError } = await ctx.client
-          .from("event_staff_payments")
-          .update({ transport_bonus: requestedMobilityAmount ?? 0, updated_by: ctx.user.id })
-          .eq("id", payment.id)
-          .eq("project_id", input.projectId)
-          .eq("staff_id", input.staffId)
-          .is("deleted_at", null);
-        if (mobilityError) throw mobilityError;
-      }
-    }
     if (!result.replay) {
       await timeline(
         ctx,
