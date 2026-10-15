@@ -251,14 +251,6 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
   const orderedQuickActions = activeDashboardLayout.quickActionOrder
     .map((id) => quickActions.find((item) => item.id === id))
     .filter((item): item is (typeof quickActions)[number] => Boolean(item));
-  const attentionSummary = [
-    { label: "Leads nuevos", type: "SALES_LEAD_UNATTENDED", href: "/leads" },
-    { label: "Follow-ups vencidos", type: "SALES_FOLLOWUP_OVERDUE", href: "/leads?filter=overdue" },
-    { label: "Clientes esperando", type: "SALES_CUSTOMER_REPLIED", href: "/leads?filter=customer-replied" },
-    { label: "Cotizaciones sin seguimiento", type: "SALES_QUOTE_NO_FOLLOWUP", href: "/leads?filter=quotes" },
-    { label: "Reservas por cerrar", type: "SALES_RESERVATION_PENDING", href: "/leads?filter=reservation" },
-  ];
-  const compactSummary = <div className="flex flex-wrap items-center gap-2 text-xs" aria-label="Resumen compacto de pendientes"><span className="rounded-full bg-brand px-3 py-1.5 font-bold text-brand-foreground">{founderActions.length} pendientes</span>{attentionSummary.map((item) => <Link className="rounded-full border px-3 py-1.5 font-medium text-muted hover:border-brand/40 hover:text-brand" href={item.href} key={item.label}>{founderActions.filter((action) => action.type === item.type).length} {item.label.toLowerCase()}</Link>)}</div>;
   const reviewActions = founderActions.filter((item) => [
     "STAFF_EXPENSE_REVIEW_REQUIRED",
     "STAFF_BOLETA_REVIEW_REQUIRED",
@@ -360,7 +352,7 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
   const calendarSection = <OrderableItem controls={ordering ? <OrderControls avoidWorkspaceMenu disableDown={calendarIndex < 0 || calendarIndex === dashboardSections.length - 1} disableUp={calendarIndex <= 1} label="Próximos eventos" onDown={() => moveCalendar(1)} onUp={() => moveCalendar(-1)} /> : null}>{upcoming}</OrderableItem>;
 
   return <main className="orbit-command-center" id="founder-workspace"><div className="mb-4" data-fixed-founder-pending-review>{actionCenter}</div><PersonalWorkspaceSections moduleKey="DASHBOARD" reorderEnabled={ordering} sections={[
-    { key: "DASHBOARD_HEADER", label: "Bienvenida", content: <>{welcome}<div className="mt-4">{compactSummary}</div></> },
+    { key: "DASHBOARD_HEADER", label: "Bienvenida", content: welcome },
     ...(biancaCard ? [{ key: "DASHBOARD_BIANCA", label: "BIANCA", content: biancaCard }] : []),
     { key: "DASHBOARD_UPCOMING_EVENTS", label: "Próximos eventos", content: calendarSection },
     { key: "DASHBOARD_WIDGETS", label: "KPIs del Founder", content: founderKpis },
