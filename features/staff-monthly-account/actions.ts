@@ -577,6 +577,7 @@ export async function registerMonthlyStaffPaymentAction(form: FormData) {
       accountId = String(form.get("accountId") ?? ""),
       amount = Number(form.get("amount")),
       paymentDate = String(form.get("paymentDate") ?? ""),
+      projectId = String(form.get("projectId") ?? ""),
       methodChoice = String(form.get("method") ?? ""),
       method = methodChoice === "OTRO"
         ? String(form.get("methodOther") ?? "").trim()
@@ -612,10 +613,17 @@ export async function registerMonthlyStaffPaymentAction(form: FormData) {
       );
     const { data: current, error: currentError } = await client
       .from("staff_monthly_accounts")
-      .select("payment_status,payment_idempotency_key")
+      .select("payment_status,payment_idempotency_key,staff_id,accounting_month,final_transfer_amount,boleta_status,calculation")
       .eq("id", accountId)
       .maybeSingle();
     if (currentError) return fail("validation", currentError);
+    if (projectId) {
+      const calculation = current?.calculation && typeof current.calculation === "object" ? current.calculation as { details?: unknown[] } : {};
+      const details = Array.isArray(calculation.details) ? calculation.details : [];
+      const matches = details.filter((item) => item && typeof item === "object" && String((item as Record<string, unknown>).projectId ?? "") === projectId);
+      if (current?.staff_id !== staffId || String(current.accounting_month ?? "").slice(0, 7) !== month || current.payment_status !== "READY_TO_PAY" || current.boleta_status !== "APPROVED" || matches.length !== 1 || Number(current.final_transfer_amount ?? 0) !== amount)
+        return fail("validation", new Error("El pago rápido no coincide con una única obligación canónica pendiente."));
+    }
     if (current?.payment_status === "PAID")
       return {
         ok: true,

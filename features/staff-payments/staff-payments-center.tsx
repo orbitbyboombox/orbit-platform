@@ -254,31 +254,36 @@ function QuickStaffPayment({rows,month}:{rows:QuickPaymentRow[];month:string}) {
   const [eventId,setEventId]=useState("");
   const [pending,start]=useTransition();
   const [message,setMessage]=useState("");
-  const row=rows.find(item=>item.member.id===staffId);
+  const eligibleRows=rows.map(item=>({...item,eventRows:item.eventRows.filter(event=>Math.max(0,event.finalAmount-event.paidAmount)>0)})).filter(item=>item.eventRows.length>0);
+  const row=eligibleRows.find(item=>item.member.id===staffId);
   const event=row?.eventRows.find(item=>item.id===eventId);
   const account=row?.account;
+  const outstanding=event ? Math.max(0,event.finalAmount-event.paidAmount) : 0;
+  const accountDetails=account?.calculation.details.filter(item=>item.projectId===event?.projectId) ?? [];
+  const exactMonthlyMatch=Boolean(account&&event&&account.paymentStatus==="READY_TO_PAY"&&account.boletaStatus==="APPROVED"&&account.finalTransferAmount===outstanding&&accountDetails.length===1);
   const submit=(form:FormData)=>start(async()=>{
     const result=await registerMonthlyStaffPaymentAction(form);
     setMessage(result.message);
     if(result.ok){setStaffId("");setEventId("");}
   });
-  return <section className="rounded-2xl border border-brand/25 bg-brand/5 p-4 sm:p-5" data-issue77-quick-staff-payment>
+  return <section className="rounded-2xl border border-brand/25 bg-brand/5 p-4 sm:p-5" data-issue77-quick-staff-payment data-issue79-quick-obligations>
     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
       <div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Pago rápido original</p><h3 className="mt-1 text-lg font-semibold">Operador → evento pendiente → pagar</h3><p className="mt-1 text-sm text-muted">Usa el registro mensual canónico, exige comprobante y mantiene la idempotencia del pago.</p></div>
       <span className="shrink-0 rounded-full border border-brand/30 px-2 py-1 text-xs font-semibold text-brand">Founder/Admin</span>
     </div>
     <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_auto] lg:items-end">
-      <label className="text-sm">Operador<select className="mt-1 min-h-11 w-full rounded-xl border bg-background px-3" value={staffId} onChange={e=>{setStaffId(e.target.value);setEventId("")}}><option value="">Seleccionar operador</option>{rows.map(item=><option key={item.member.id} value={item.member.id}>{item.member.name}</option>)}</select></label>
-      <label className="text-sm">Evento pendiente<select className="mt-1 min-h-11 w-full rounded-xl border bg-background px-3" disabled={!row} value={eventId} onChange={e=>setEventId(e.target.value)}><option value="">Seleccionar evento</option>{row?.eventRows.filter(item=>Math.max(0,item.finalAmount-item.paidAmount)>0).map(item=><option key={item.id} value={item.id}>{item.eventName} · {item.eventDate}</option>)}</select></label>
-      <span className="min-h-11 rounded-xl border bg-background/60 px-3 py-2 text-sm"><span className="block text-xs text-muted">Monto canónico</span><strong>{event ? money.format(account?.finalTransferAmount ?? Math.max(0,event.finalAmount-event.paidAmount)) : "—"}</strong></span>
+      <label className="text-sm">Operador<select className="mt-1 min-h-11 w-full rounded-xl border bg-background px-3" value={staffId} onChange={e=>{setStaffId(e.target.value);setEventId("")}}><option value="">Seleccionar operador</option>{eligibleRows.map(item=><option key={item.member.id} value={item.member.id}>{item.member.name}</option>)}</select></label>
+      <label className="text-sm">Evento pendiente<select className="mt-1 min-h-11 w-full rounded-xl border bg-background px-3" disabled={!row} value={eventId} onChange={e=>setEventId(e.target.value)}><option value="">Seleccionar obligación pendiente</option>{row?.eventRows.map(item=><option key={item.id} value={item.id}>{item.eventName} · {item.eventDate} · {money.format(Math.max(0,item.finalAmount-item.paidAmount))}</option>)}</select></label>
+      <span className="min-h-11 rounded-xl border bg-background/60 px-3 py-2 text-sm"><span className="block text-xs text-muted">Saldo real pendiente</span><strong>{event ? money.format(outstanding) : "—"}</strong></span>
     </div>
     {event ? <form action={submit} className="mt-4 grid gap-3 rounded-xl border bg-background/40 p-3 sm:grid-cols-2 lg:grid-cols-4">
-      <input name="accountId" type="hidden" value={account?.id ?? ""}/><input name="staffId" type="hidden" value={staffId}/><input name="month" type="hidden" value={month}/><input name="amount" type="hidden" value={account?.finalTransferAmount ?? Math.max(0,event.finalAmount-event.paidAmount)}/><input name="reference" type="hidden" value={`Pago Staff · ${event.eventName}`}/>
+      <input name="accountId" type="hidden" value={account?.id ?? ""}/><input name="staffId" type="hidden" value={staffId}/><input name="month" type="hidden" value={month}/><input name="amount" type="hidden" value={outstanding}/><input name="reference" type="hidden" value={`Pago Staff · ${event.eventName} · ${event.roles.map(roleLabel).join(" + ")}`}/><input name="projectId" type="hidden" value={event.projectId}/>
       <label className="text-sm">Fecha<input className="mt-1 min-h-11 w-full rounded-xl border px-3" name="paymentDate" required type="date"/></label>
       <label className="text-sm">Método<input className="mt-1 min-h-11 w-full rounded-xl border px-3" name="method" required placeholder="Transferencia"/></label>
       <label className="text-sm sm:col-span-2">Boleta / comprobante<input accept="application/pdf,image/jpeg,image/png,image/webp" className="mt-1 block min-h-11 w-full text-sm" name="file" required type="file"/></label>
-      <button className="min-h-11 rounded-xl bg-brand px-4 font-semibold text-brand-foreground disabled:opacity-60 sm:col-span-2 lg:col-span-4" disabled={pending || !account} type="submit">{pending ? "Registrando…" : account ? "OK / PAGAR Y REGISTRAR COMPROBANTE" : "Liquidación mensual pendiente"}</button>
+      <button data-issue79-quick-eligible={exactMonthlyMatch ? "true" : "false"} className="min-h-11 rounded-xl bg-brand px-4 font-semibold text-brand-foreground disabled:opacity-60 sm:col-span-2 lg:col-span-4" disabled={pending || !exactMonthlyMatch} type="submit">{pending ? "Registrando…" : exactMonthlyMatch ? "OK / PAGAR Y REGISTRAR COMPROBANTE" : "Revisión canónica pendiente"}</button>
     </form> : null}
+    {event && !exactMonthlyMatch ? <p className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-200">La obligación está identificada, pero el saldo mensual no coincide exactamente o requiere más de una liquidación. El pago rápido permanece bloqueado para evitar pagar otra deuda.</p> : null}
     {message ? <p aria-live="polite" className="mt-3 text-sm text-muted">{message}</p> : null}
   </section>;
 }
