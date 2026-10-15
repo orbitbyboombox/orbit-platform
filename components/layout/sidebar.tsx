@@ -77,7 +77,7 @@ export function Sidebar({ navigationOrder, hiddenNavigation }: Pick<NavigationLi
         </nav>
         </div>
       </div>
-      <div className="shrink-0 border-t px-4 py-5 text-center lg:text-left"><Link aria-label="Ir al Dashboard" href="/operations">{collapsed ? <BrandLogo className="mx-auto size-7" surface="dark" variant="isotype" /> : <><BrandSignature className="hidden lg:block" /><BrandLogo className="mx-auto size-7 lg:hidden" surface="dark" variant="isotype" /></>}</Link></div>
+      <div className="shrink-0 border-t px-4 py-5 text-center lg:text-left"><Link aria-label="Ir al Dashboard" href="/operations">{collapsed ? <BrandLogo className="mx-auto size-7" surface="dark" variant="isotype" /> : <><BrandSignature className="hidden lg:block" productVersion="v2.1" developedBy="BOOMBOX" poweredBy="NOVA CORE" /><BrandLogo className="mx-auto size-7 lg:hidden" surface="dark" variant="isotype" /></>}</Link></div>
     </aside>
   );
 }
