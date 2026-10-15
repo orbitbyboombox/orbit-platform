@@ -384,7 +384,7 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
   }));
   const activeAssignmentIds = new Set(
     (assignments ?? [])
-      .filter((item) => ["ASSIGNED", "ACCEPTED", "COMPLETED"].includes(item.status))
+      .filter((item) => ["ASSIGNED", "ACCEPTED", "COMPLETED", "CONFIRMED"].includes(item.status))
       .map((item) => item.id),
   );
   const paidReimbursementsBySettlement = new Map<string, number>();
