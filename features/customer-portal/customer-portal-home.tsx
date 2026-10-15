@@ -1,6 +1,6 @@
 "use client";
 
-import { type ComponentType, type ReactNode, useState } from "react";
+import { createContext, type ComponentType, type ReactNode, useContext, useState } from "react";
 import { Check, Copy, CreditCard, FileText, Home, Landmark, Mail, Phone, ShieldCheck } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { useCompanySettings } from "@/features/company-settings";
@@ -21,6 +21,12 @@ type PortalProject = NonNullable<PortalData>["project"] & {
   finance: Record<string, unknown>;
   operations: Record<string, unknown>;
 };
+
+const DemoModeContext = createContext(false);
+
+export function CustomerPortalDemoModeProvider({ children }: { children: ReactNode }) {
+  return <DemoModeContext.Provider value>{children}</DemoModeContext.Provider>;
+}
 
 function Panel({ title, description, children, id }: { title: string; description?: string; children: ReactNode; id?: string }) {
   return <section className="scroll-mt-6 rounded-3xl border border-border/80 bg-card p-5 sm:p-7" id={id}><h2 className="text-xl font-semibold tracking-tight">{title}</h2>{description && <p className="mt-1 text-sm leading-6 text-muted">{description}</p>}<div className="mt-5">{children}</div></section>;
@@ -51,6 +57,17 @@ type PortalSection = "event" | "contract" | "payments" | "design" | "bank" | "co
 
 function BankTransferDetails() {
   const [copied, setCopied] = useState<string | null>(null);
+  const demoMode = useContext(DemoModeContext);
+  const displayedBankDetails = demoMode
+    ? ([
+        ["Titular", "BOOMBOX Demo SpA"],
+        ["RUT", "76.000.000-0"],
+        ["Banco", "Banco Demo"],
+        ["Tipo de cuenta", "Cuenta corriente"],
+        ["Número de cuenta", "00000000"],
+        ["Correo", "demo@example.invalid"],
+      ] as const)
+    : bankDetails;
   const copy = async (label: string, value: string) => {
     await navigator.clipboard.writeText(value);
     setCopied(label);
@@ -58,14 +75,14 @@ function BankTransferDetails() {
   };
   const completeDetails = [
     "DATOS PARA TRANSFERENCIA",
-    ...bankDetails.map(([label, value]) => `${label}: ${value}`),
+    ...displayedBankDetails.map(([label, value]) => `${label}: ${value}`),
     "Indicar nombre del cliente, fecha del evento y ORBIT Event ID.",
   ].join("\n");
 
   return <Panel id="bank-details" title="Datos bancarios" description="Copia los datos oficiales de BOOMBOX para realizar tu transferencia.">
     <div className="overflow-hidden rounded-2xl border border-brand/25 bg-brand/5">
       <dl className="divide-y divide-border/70">
-        {bankDetails.map(([label, value]) => <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5" key={label}><div><dt className="text-xs font-semibold uppercase tracking-wider text-muted">{label}</dt><dd className="mt-1 font-semibold">{value}</dd></div><button aria-label={`Copiar ${label}`} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-border/80 bg-background px-3 text-sm font-semibold transition-colors hover:border-brand/50 hover:text-brand" onClick={() => copy(label, value)} type="button">{copied === label ? <Check className="size-4 text-emerald-500"/> : <Copy className="size-4"/>}{copied === label ? "Copiado" : "Copiar"}</button></div>)}
+        {displayedBankDetails.map(([label, value]) => <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5" key={label}><div><dt className="text-xs font-semibold uppercase tracking-wider text-muted">{label}</dt><dd className="mt-1 font-semibold">{value}</dd></div><button aria-label={`Copiar ${label}`} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-border/80 bg-background px-3 text-sm font-semibold transition-colors hover:border-brand/50 hover:text-brand" onClick={() => copy(label, value)} type="button">{copied === label ? <Check className="size-4 text-emerald-500"/> : <Copy className="size-4"/>}{copied === label ? "Copiado" : "Copiar"}</button></div>)}
       </dl>
     </div>
     <button className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand px-5 font-semibold text-brand-foreground transition-opacity hover:opacity-90 sm:w-auto" onClick={() => copy("all", completeDetails)} type="button">{copied === "all" ? <Check className="size-4"/> : <Copy className="size-4"/>}{copied === "all" ? "Datos copiados" : "Copiar todos los datos"}</button>
@@ -91,7 +108,6 @@ export function CustomerPortalHome({ data, token }: { data: NonNullable<PortalDa
     { icon: Phone, label: "Contacto BOOMBOX", section: "contact" },
   ];
   if (photoStripEligible) quickAccess.splice(3, 0, { icon: FileText, label: "Diseño de tira", section: "design" });
-
   return <main className="min-h-screen bg-background text-foreground"><div className="mx-auto max-w-7xl space-y-6 px-4 py-5 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
     <header className="overflow-hidden rounded-3xl border border-border/80 bg-card p-6 sm:p-9 lg:p-12">
       <BrandLogo className="h-16 w-48 sm:h-20 sm:w-60" priority surface="dark"/>
