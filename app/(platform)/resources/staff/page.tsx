@@ -148,14 +148,15 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
     { data: paymentRows, error: paymentError },
     { data: financialEvents, error: financialEventsError },
     { data: associatedExpenses, error: associatedExpenseError },
+    { data: reimbursementPayments, error: reimbursementPaymentError },
   ] = await Promise.all([
     client
       .from("event_staff_payments")
       .select(
-        "id,staff_id,tasks,total_internal_payment,original_operator_payment,original_assembly_payment,original_disassembly_payment,automatic_operator_payment,automatic_assembly_payment,automatic_disassembly_payment,operator_payment,assembly_payment,disassembly_payment,override_reason,status,settlement_status,paid_amount,paid_at,accounting_month,sii_receipt_status,projects!inner(id,name,event_date,project_type,customer_id,customers!projects_customer_id_fkey(full_name),project_services(service_code,duration_hours))",
+        "id,staff_id,assignment_id,tasks,total_internal_payment,original_operator_payment,original_assembly_payment,original_disassembly_payment,automatic_operator_payment,automatic_assembly_payment,automatic_disassembly_payment,operator_payment,assembly_payment,disassembly_payment,override_reason,status,settlement_status,paid_amount,paid_at,accounting_month,sii_receipt_status,projects!inner(id,name,event_date,project_type,customer_id,customers!projects_customer_id_fkey(full_name),project_services(service_code,duration_hours))",
       )
       .is("deleted_at", null)
-      .eq("status", "CONFIRMED")
+      .in("status", ["CONFIRMED", "ESTIMATED"])
       .gt("total_internal_payment", 0)
       .order("created_at", { ascending: false }),
     client.from("financial_event_records").select("project_id,revenue,status"),
@@ -167,10 +168,12 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
       .not("event_staff_settlement_id", "is", null)
       .is("deleted_at", null)
       .order("occurred_on", { ascending: false }),
+    client.from("staff_reimbursement_payments").select("expense_id,settlement_id,project_id,amount,paid_on").not("settlement_id", "is", null),
   ]);
   if (paymentError) throw paymentError;
   if (financialEventsError) throw financialEventsError;
   if (associatedExpenseError) throw associatedExpenseError;
+  if (reimbursementPaymentError) throw reimbursementPaymentError;
   const { data: settlementAdjustments, error: settlementAdjustmentError } =
     await client
       .from("event_staff_settlement_adjustments")
@@ -379,8 +382,19 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
     id: vehicle.asset_id,
     label: vehicle.model,
   }));
+  const activeAssignmentIds = new Set(
+    (assignments ?? [])
+      .filter((item) => ["ASSIGNED", "ACCEPTED", "COMPLETED"].includes(item.status))
+      .map((item) => item.id),
+  );
+  const paidReimbursementsBySettlement = new Map<string, number>();
+  for (const payment of reimbursementPayments ?? []) {
+    const settlementId = String(payment.settlement_id ?? "");
+    if (settlementId) paidReimbursementsBySettlement.set(settlementId, (paidReimbursementsBySettlement.get(settlementId) ?? 0) + Number(payment.amount ?? 0));
+  }
   const paymentEventsByObligation = (paymentRows ?? []).flatMap(
     (row) => {
+      if (!activeAssignmentIds.has(row.assignment_id)) return [];
       const project = Array.isArray(row.projects)
         ? row.projects[0]
         : row.projects;
@@ -423,6 +437,7 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
           (sum, item) => sum + Number(item.total),
           0,
         ),
+        reimbursementPaidTotal = paidReimbursementsBySettlement.get(row.id) ?? 0,
         finalAmount = originalNet + adjustmentTotal + reimbursementTotal;
       return [
         {
@@ -440,6 +455,10 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
           originalNet,
           adjustmentTotal,
           reimbursementTotal,
+          reimbursementPaidTotal,
+          honorariaAmount: originalNet + adjustmentTotal,
+          honorariaPaidAmount: Number(row.paid_amount),
+          honorariaOutstanding: Math.max(0, originalNet + adjustmentTotal - Number(row.paid_amount)),
           finalAmount,
           operator: originalOperator,
           assembly: originalAssembly,
@@ -471,6 +490,10 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
         originalNet: previous.originalNet + item.originalNet,
         adjustmentTotal: previous.adjustmentTotal + item.adjustmentTotal,
         reimbursementTotal: previous.reimbursementTotal + item.reimbursementTotal,
+        reimbursementPaidTotal: previous.reimbursementPaidTotal + item.reimbursementPaidTotal,
+        honorariaAmount: previous.honorariaAmount + item.honorariaAmount,
+        honorariaPaidAmount: previous.honorariaPaidAmount + item.honorariaPaidAmount,
+        honorariaOutstanding: previous.honorariaOutstanding + item.honorariaOutstanding,
         finalAmount: previous.finalAmount + item.finalAmount,
         operator: previous.operator + item.operator,
         assembly: previous.assembly + item.assembly,

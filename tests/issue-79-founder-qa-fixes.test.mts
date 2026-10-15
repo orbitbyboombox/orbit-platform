@@ -29,7 +29,7 @@ test("Issue 79 quick Staff payment exposes only positive canonical event balance
   assert.match(page, /paymentEventsByObligation/);
   assert.match(page, /item\.staffId}:\$\{item\.projectId/);
   assert.match(center, /data-issue79-quick-obligations/);
-  assert.match(center, /event\.finalAmount-event\.paidAmount/);
+  assert.match(center, /event\.honorariaOutstanding/);
   assert.match(center, /exactMonthlyMatch/);
   assert.match(center, /Revisión canónica pendiente/);
   assert.match(center, /OK \/ PAGAR Y REGISTRAR COMPROBANTE/);
