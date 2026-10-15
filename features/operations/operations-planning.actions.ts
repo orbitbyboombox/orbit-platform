@@ -5,6 +5,7 @@ import {createSupabaseServerActionClient} from "@/lib/supabase/server";
 import {deliverSmartAssignmentPackage} from "./smart-assignment-package.service";
 import {buildCanonicalOrbitEventStateFromRecord, canonicalStaffCallGuard} from "./canonical-orbit-event-state";
 import { validStaffQuantity } from "@/features/staff-assignment-center/staff-role-slots";
+import { resolveStaffPublicationReadiness } from "./staff-publication-readiness";
 
 type Result={ok:true;message:string}|{ok:false;message:string};
 async function context(){const client=await createSupabaseServerActionClient();const{data,error}=await client.auth.getUser();if(error||!data.user)throw new Error("Sesión requerida.");const{data:profile,error:profileError}=await client.from("profiles").select("role").eq("id",data.user.id).single();if(profileError||!["CEO","ADMINISTRATOR"].includes(profile?.role))throw new Error("Solo Administración puede asignar Staff.");return client;}
@@ -30,8 +31,15 @@ export async function setStaffEventPublicationAction(data: FormData): Promise<Re
     const customer = Array.isArray(project.customers) ? project.customers[0] : project.customers;
     const services = Array.isArray(project.project_services) ? project.project_services : [];
     const operations = (project.operations ?? {}) as Record<string, unknown>;
-    const address = String(operations.eventAddress ?? project.location ?? "");
-    if (published && (!project.event_date || !address || !project.city || !customer?.full_name || !services.some(item => item.service_code && Number(item.duration_hours) > 0))) throw new Error("Completa fecha, ubicación, cliente, servicio y duración antes de activar el Evento para Staff.");
+    const readiness = resolveStaffPublicationReadiness({
+      eventDate: project.event_date,
+      location: project.location,
+      eventAddress: typeof operations.eventAddress === "string" ? operations.eventAddress : null,
+      city: project.city,
+      customerName: customer?.full_name,
+      services: services.map((item) => ({ serviceCode: item.service_code, durationHours: item.duration_hours })),
+    });
+    if (published && !readiness.ok) throw new Error(`Completa ${readiness.missing.join(", ")} antes de activar el Evento para Staff.`);
     if (published) {
       const canonical = buildCanonicalOrbitEventStateFromRecord({ id: project.id, orbit_event_id: project.orbit_event_id, event_date: project.event_date, event_time: project.event_time, event_time_mode: project.event_time_mode, duration_hours: Number(services[0]?.duration_hours ?? 0), location: project.location, city: project.city, operations });
       if (!canonical.serviceStartAt || !canonical.staffCallAt || canonicalStaffCallGuard(canonical) !== "OK" || new Date(canonical.staffCallAt).getTime() >= new Date(canonical.serviceStartAt).getTime()) throw new Error("STAFF_CALL_INVALID_FOR_PUBLICATION: Corrige la hora de citación antes de publicar al Staff.");
