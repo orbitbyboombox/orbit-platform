@@ -3,10 +3,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { GoogleGmailApiProvider } from "@/features/connectors/google-gmail/provider/google-gmail-live.provider";
 import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import { buildStaffD1ReminderEmail } from "@/features/staff-communications/staff-email.templates";
+import { buildCanonicalOperationalExtras } from "@/features/operations/canonical-operational-extras";
 import {
   chileTomorrow,
-  isChileD1ReminderWindow,
-  isSpecialOperationalStaffId,
+  isWithinChileD1Window,
   operationalD1Candidates,
   operationalReminderCorrelation,
   SPECIAL_OPERATIONAL_STAFF_MESSAGE,
@@ -60,7 +60,7 @@ export async function GET(request: Request) {
   const { data, error } = await admin
     .from("assignments")
     .select(
-      "id,project_id,staff_id,assignment_type,status,deleted_at,staff_call_at,staff(first_name,email,status,deleted_at),projects(id,name,customer_id,event_date,event_time,location,city,status,deleted_at,customers(full_name))",
+      "id,project_id,staff_id,assignment_type,status,deleted_at,staff_call_at,staff(first_name,email,status,deleted_at),projects(id,name,customer_id,event_date,event_time,location,city,status,deleted_at,operations,customers(full_name),project_services(service_code,duration_hours,extras))",
     )
     .is("deleted_at", null)
     .in("status", [
@@ -125,98 +125,50 @@ export async function GET(request: Request) {
     }
   }
 
-  // Other Staff retain assignment-based 48/2-hour emails; D-1 is the single
-  // person/event communication below so multiple roles cannot duplicate it.
-  let delivered = 0;
-  for (const row of data ?? []) {
-    if (isSpecialOperationalStaffId(row.staff_id)) continue;
-    const project = Array.isArray(row.projects)
-        ? row.projects[0]
-        : row.projects,
-      staff = Array.isArray(row.staff) ? row.staff[0] : row.staff;
-    if (!project || !staff?.email) continue;
-    const call = row.staff_call_at ? new Date(row.staff_call_at) : null,
-      difference = call
-        ? Math.round((call.getTime() - Date.now()) / 60000)
-        : localMinutes(project.event_date, project.event_time ?? "00:00") -
-          localMinutes(now.date, now.time),
-      window = [48, 2].find(
-        (hours) => difference <= hours * 60 && difference > hours * 60 - 65,
-      );
-    if (!window) continue;
-    const correlation = `staff-assignment-reminder:${row.id}:${window}`,
-      title =
-        window === 2
-          ? "Hora de salir al Evento"
-          : `Recordatorio de Evento · ${window} horas`,
-      maps = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${project.location ?? ""}, ${project.city ?? ""}`)}`;
-    const { data: inserted } = await admin
-      .from("internal_notifications")
-      .upsert(
-        {
-          project_id: project.id,
-          customer_id: project.customer_id,
-          staff_id: row.staff_id,
-          notification_type: "STAFF_ASSIGNMENT_REMINDER",
-          title,
-          message: `${project.event_date} ${project.event_time?.slice(0, 5) ?? ""} · ${project.name}`,
-          status: "UNREAD",
-          correlation_id: correlation,
-          category: "OPERATIONS",
-          priority: window === 2 ? "HIGH" : "NORMAL",
-          action_required: window === 2,
-          entity_type: "Assignment",
-          entity_id: row.id,
-          related_href: "/staff-portal",
-          metadata: { hours_before: window, maps },
-        },
-        { onConflict: "correlation_id", ignoreDuplicates: true },
-      )
-      .select("id");
-    if (!inserted?.length) continue;
-    try {
-      const sent = await new GoogleGmailApiProvider(
-        await loadGoogleWorkspaceAccessToken(),
-      ).send({
-        to: staff.email,
-        subject: title,
-        textBody: `Hola ${staff.first_name}. ${project.name} comienza en ${window} horas.\nFecha: ${project.event_date}\nHora: ${project.event_time?.slice(0, 5)}\nUbicación: ${project.location ?? "Por confirmar"}\nRuta: ${maps}\nPortal Staff: ${process.env.NEXT_PUBLIC_APP_URL ?? "https://orbit.boom-box.cl"}/login?access=staff`,
-        htmlBody: `<main style="font-family:Arial,sans-serif;line-height:1.6"><h1>${title}</h1><p>Hola ${staff.first_name}, revisa tu paquete operacional en Portal Staff.</p><p><strong>${project.event_date} · ${project.event_time?.slice(0, 5)}</strong><br>${project.location ?? "Ubicación por confirmar"}</p><p><a href="${maps}">Iniciar navegación</a></p></main>`,
-        driveFileIds: [],
-      });
-      await admin
-        .from("internal_notifications")
-        .update({
-          metadata: {
-            hours_before: window,
-            maps,
-            email_status: "SENT",
-            message_id: sent.messageId,
-          },
-        })
-        .eq("id", inserted[0].id);
-      delivered++;
-    } catch (sendError) {
-      await admin
-        .from("internal_notifications")
-        .update({
-          metadata: {
-            hours_before: window,
-            maps,
-            email_status: "FAILED",
-            error: sendError instanceof Error ? sendError.message : "Unknown",
-          },
-        })
-        .eq("id", inserted[0].id);
-    }
-  }
-
   const operationalRows = (data ?? []).flatMap((row) => {
     const project = Array.isArray(row.projects)
         ? row.projects[0]
         : row.projects,
       staff = Array.isArray(row.staff) ? row.staff[0] : row.staff;
     if (!project || !staff) return [];
+    const operations =
+      project.operations && typeof project.operations === "object"
+        ? (project.operations as Record<string, unknown>)
+        : {};
+    const service = Array.isArray(project.project_services)
+      ? project.project_services[0]
+      : null;
+    const role = String(row.assignment_type).toUpperCase();
+    const roleInstructionKeys: Record<string, string[]> = {
+      OPERATOR: ["operatorInstructions", "operatorNote", "printInstructions"],
+      ASSEMBLY: ["assemblyInstructions", "montageInstructions", "setupNotes"],
+      DISASSEMBLY: ["disassemblyInstructions", "desmontajeInstructions", "teardownNotes"],
+    };
+    const roleInstructions = (roleInstructionKeys[role] ?? [])
+      .map((key) => operations[key])
+      .find((value): value is string => typeof value === "string" && Boolean(value.trim()))
+      ?? (typeof operations.specialInstructions === "string" ? operations.specialInstructions : null)
+      ?? (typeof operations.logisticsNotes === "string" ? operations.logisticsNotes : null);
+    const serviceExtras = Array.isArray(service?.extras) ? service.extras : [];
+    const configuredExtras = Array.isArray(operations.configuredExtras)
+      ? operations.configuredExtras
+      : Array.isArray(operations.operationalExtras)
+        ? operations.operationalExtras
+        : [];
+    const canonicalExtras = buildCanonicalOperationalExtras({
+      serviceExtras,
+      configuredExtras,
+      transportContracted: Boolean(operations.transportContracted),
+      transportTotal: Number(operations.transportTotal ?? 0),
+    });
+    const specialElements = Object.entries(canonicalExtras.categories)
+      .filter(([, present]) => present)
+      .map(([category]) =>
+        ({ QR: "QR DIGITAL", IMANES: "IMANES", SCRAPBOOK: "LIBRO DE FIRMAS", FONDO: "FONDO", TRASLADO: "TRASLADO", OTROS: "OTROS" } as Record<string, string>)[category] ?? category,
+      );
+    const customer = Array.isArray(project.customers)
+      ? project.customers[0]
+      : project.customers;
     return [
       {
         projectId: project.id,
@@ -230,22 +182,26 @@ export async function GET(request: Request) {
         staffDeletedAt: staff.deleted_at,
         email: staff.email,
         customerId: project.customer_id,
+        customerName: customer?.full_name ?? null,
         firstName: staff.first_name,
         eventName: project.name,
         eventTime: project.event_time,
+        service: service?.service_code ?? null,
+        staffCallAt: row.staff_call_at,
+        instructions: roleInstructions,
+        specialElements,
         location:
-          [project.location, project.city].filter(Boolean).join(" · ") || null,
+          [operations.eventAddress, project.location, project.city]
+            .filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
+            .join(" · ") || null,
         role: row.assignment_type,
       },
     ];
   });
   let specialDelivered = 0,
     specialFailed = 0;
-  if (isChileD1ReminderWindow(reference))
-    for (const candidate of operationalD1Candidates(
-      operationalRows,
-      tomorrow,
-    )) {
+  for (const candidate of operationalD1Candidates(operationalRows, tomorrow)) {
+    if (!isWithinChileD1Window(reference, candidate.eventDate, candidate.eventTime)) continue;
       // No independent schedule: the current event date and active assignment
       // are checked again immediately before claiming the person/event notice.
       const [
@@ -284,7 +240,7 @@ export async function GET(request: Request) {
       if (
         !active?.length ||
         !currentProject ||
-        currentProject.event_date !== tomorrow ||
+        currentProject.event_date !== candidate.eventDate ||
         currentProject.deleted_at ||
         ["CANCELLED", "CANCELED", "CLOSED", "ARCHIVED"].includes(
           String(currentProject.status ?? "").toUpperCase(),
@@ -322,9 +278,7 @@ export async function GET(request: Request) {
             project_id: candidate.projectId,
             customer_id: candidate.customerId,
             staff_id: candidate.staffId,
-            notification_type: isSpecialOperationalStaffId(candidate.staffId)
-              ? "STAFF_SPECIAL_D1_REMINDER"
-              : "STAFF_D1_REMINDER",
+            notification_type: "STAFF_D1_REMINDER",
             title: SPECIAL_OPERATIONAL_STAFF_MESSAGE,
             message: `${candidate.eventName} · ${candidate.roles.join(" + ")}`,
             status: "UNREAD",
@@ -337,9 +291,9 @@ export async function GET(request: Request) {
             related_href: "/staff-portal",
             metadata: {
               email_status: "CLAIMED",
-              event_date: tomorrow,
+              event_date: candidate.eventDate,
               roles: candidate.roles,
-              delivery_window: "19:00-20:00 America/Santiago",
+              delivery_window: "23:30-24:30 America/Santiago",
             },
           },
           { onConflict: "correlation_id", ignoreDuplicates: true },
@@ -365,6 +319,11 @@ export async function GET(request: Request) {
           roles: candidate.roles,
           eventTime: candidate.eventTime,
           location: candidate.location,
+          customerName: candidate.customerName,
+          service: candidate.service,
+          staffCallAt: candidate.staffCallTimes.join(" · ") || candidate.staffCallAt,
+          instructions: candidate.instructions.join("\n") || null,
+          specialElements: candidate.specialElements,
         });
         const sent = await new GoogleGmailApiProvider(
           await loadGoogleWorkspaceAccessToken(),
@@ -382,11 +341,11 @@ export async function GET(request: Request) {
           .update({
             metadata: {
               email_status: "SENT",
-              event_date: tomorrow,
+              event_date: candidate.eventDate,
               message_id: sent.messageId,
               sent_at: new Date().toISOString(),
               roles: candidate.roles,
-              delivery_window: "19:00-20:00 America/Santiago",
+              delivery_window: "23:30-24:30 America/Santiago",
             },
           })
           .eq("id", claimed[0].id);
@@ -401,7 +360,7 @@ export async function GET(request: Request) {
           .update({
             metadata: {
               email_status: "FAILED_REQUIRES_RECONCILIATION",
-              event_date: tomorrow,
+              event_date: candidate.eventDate,
               error: sendError instanceof Error ? sendError.message : "Unknown",
             },
           })
@@ -416,7 +375,7 @@ export async function GET(request: Request) {
   return NextResponse.json(
     {
       ok: specialFailed === 0,
-      delivered,
+      delivered: specialDelivered,
       paperDelivered,
       d1Delivered: specialDelivered,
       d1Failed: specialFailed,

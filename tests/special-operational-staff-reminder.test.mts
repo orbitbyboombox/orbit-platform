@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import {
   chileTomorrow,
   isChileD1ReminderWindow,
+  isWithinChileD1Window,
   isSpecialOperationalStaffId,
   operationalD1Candidates,
   operationalReminderCorrelation,
@@ -178,6 +179,32 @@ test("D-1 delivery window prefers 19:00 and permits only the 20:00 fallback", ()
     false,
   );
 });
+test("D-1 delivery follows the real Chile event time", () => {
+  assert.equal(
+    isWithinChileD1Window(
+      new Date("2026-09-15T22:30:00Z"),
+      "2026-09-16",
+      "19:30:00",
+    ),
+    true,
+  );
+  assert.equal(
+    isWithinChileD1Window(
+      new Date("2026-09-15T20:00:00Z"),
+      "2026-09-16",
+      "19:30:00",
+    ),
+    false,
+  );
+  assert.equal(
+    isWithinChileD1Window(
+      new Date("2026-09-16T22:30:00Z"),
+      "2026-09-16",
+      "19:30:00",
+    ),
+    false,
+  );
+});
 test("premium D-1 includes event truth, roles, address, CTA and BOOMBOX styling", () => {
   const email = buildStaffD1ReminderEmail({
     appUrl: "https://orbit.boom-box.cl",
@@ -195,6 +222,36 @@ test("premium D-1 includes event truth, roles, address, CTA and BOOMBOX styling"
   assert.match(email.htmlBody, /Ver detalle en ORBIT/);
   assert.match(email.htmlBody, /#f78900/);
   assert.match(email.htmlBody, /BOOMBOX/);
+});
+test("premium D-1 groups operational context and omits absent extras", () => {
+  const email = buildStaffD1ReminderEmail({
+    appUrl: "https://orbit.boom-box.cl",
+    firstName: "Sebastián",
+    eventName: "Evento Esencial",
+    eventDate: tomorrow,
+    roles: ["OPERATOR", "ASSEMBLY", "DISASSEMBLY"],
+    eventTime: "20:30:00",
+    staffCallAt: "2026-09-16T18:45:00-03:00",
+    location: "Centro de Eventos · Avenida Siempre Viva 123, Santiago",
+    customerName: "Cliente de prueba",
+    service: "BBOX360",
+    instructions: "Retirar imanes al finalizar.",
+    specialElements: ["IMANES", "QR DIGITAL"],
+  });
+  assert.match(email.textBody, /Cliente: Cliente de prueba/);
+  assert.match(email.textBody, /Servicio: BBOX360/);
+  assert.match(email.textBody, /Citación:/);
+  assert.match(email.textBody, /Operador · Montaje · Desmontaje/);
+  assert.match(email.htmlBody, /IMANES · QR DIGITAL/);
+  const withoutExtras = buildStaffD1ReminderEmail({
+    appUrl: "https://orbit.boom-box.cl",
+    firstName: "Montaje",
+    eventName: "Evento sin extras",
+    eventDate: tomorrow,
+    roles: ["ASSEMBLY"],
+  });
+  assert.doesNotMatch(withoutExtras.textBody, /Elementos:/);
+  assert.doesNotMatch(withoutExtras.htmlBody, /Elementos operativos/);
 });
 test("removed Staff, closed event, missing email and inactive Staff are excluded", () => {
   for (const change of [
@@ -227,7 +284,7 @@ test("all email entry points use the ID policy and D-1 claims are person/event s
     "app/api/cron/staff-assignment-reminders/route.ts",
     "utf8",
   );
-  for (const text of [immediate, approved, cancellation, cron])
+  for (const text of [immediate, approved, cancellation])
     assert.match(text, /isSpecialOperationalStaffId/);
   assert.match(
     cron,
@@ -235,13 +292,12 @@ test("all email entry points use the ID policy and D-1 claims are person/event s
   );
   assert.match(cron, /ignoreDuplicates:\s*true/);
   assert.match(cron, /maxSendAttempts:\s*1/);
-  assert.match(cron, /currentProject\.event_date !== tomorrow/);
+  assert.match(cron, /currentProject\.event_date !== candidate\.eventDate/);
   assert.match(
     cron,
     /\.contains\("metadata",\s*\{\s*hours_before:\s*24,\s*email_status:\s*"SENT"\s*\}\)/,
   );
-  assert.match(
-    cron,
-    /if \(isSpecialOperationalStaffId\(row\.staff_id\)\) continue/,
-  );
+  assert.match(cron, /operationalD1Candidates\(operationalRows, tomorrow\)/);
+  assert.match(cron, /isWithinChileD1Window\(reference, candidate\.eventDate, candidate\.eventTime\)/);
+  assert.doesNotMatch(cron, /staff-assignment-reminder:\$\{row\.id\}:\$\{window\}/);
 });

@@ -44,6 +44,41 @@ export function isChileD1ReminderWindow(reference: Date): boolean {
   return hour === 19 || (hour === 20 && minute === 0);
 }
 
+/**
+ * The cron runs hourly. This window is deliberately based on the event's
+ * Chilean wall-clock date and time, rather than on a generic "tomorrow at
+ * 19:00" slot. The unique notification correlation makes the hourly retry
+ * safe while keeping delivery at the D-1 event time.
+ */
+export function isWithinChileD1Window(
+  reference: Date,
+  eventDate: string,
+  eventTime: string | null | undefined,
+): boolean {
+  if (!eventDate || !eventTime) return false;
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Santiago",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(reference);
+  const value = (type: string) =>
+    parts.find((part) => part.type === type)?.value ?? "00";
+  const nowWallClock = Date.parse(
+    `${value("year")}-${value("month")}-${value("day")}T${value("hour")}:${value("minute")}:00Z`,
+  );
+  const normalizedTime = eventTime.slice(0, 5);
+  const eventWallClock = Date.parse(`${eventDate}T${normalizedTime}:00Z`);
+  if (!Number.isFinite(nowWallClock) || !Number.isFinite(eventWallClock)) {
+    return false;
+  }
+  const minutesUntilEvent = (eventWallClock - nowWallClock) / 60000;
+  return minutesUntilEvent >= 23 * 60 + 30 && minutesUntilEvent <= 24 * 60 + 30;
+}
+
 export type SpecialReminderAssignment = {
   projectId: string;
   staffId: string;
@@ -111,10 +146,21 @@ export type OperationalReminderAssignment = SpecialReminderAssignment & {
   location: string | null;
   role: string;
   customerId: string | null;
+  customerName?: string | null;
+  service?: string | null;
+  staffCallAt?: string | null;
+  instructions?: string | null;
+  specialElements?: string[];
 };
 
-export type OperationalD1Candidate = OperationalReminderAssignment & {
+export type OperationalD1Candidate = Omit<
+  OperationalReminderAssignment,
+  "instructions" | "specialElements"
+> & {
   roles: string[];
+  instructions: string[];
+  specialElements: string[];
+  staffCallTimes: string[];
 };
 
 export function operationalD1Candidates(
@@ -140,9 +186,24 @@ export function operationalD1Candidates(
     const current = unique.get(key);
     if (current) {
       if (!current.roles.includes(row.role)) current.roles.push(row.role);
+      if (row.instructions?.trim())
+        current.instructions.push(`${row.role}: ${row.instructions.trim()}`);
+      for (const element of row.specialElements ?? [])
+        if (!current.specialElements.includes(element))
+          current.specialElements.push(element);
+      if (row.staffCallAt && !current.staffCallTimes.includes(row.staffCallAt))
+        current.staffCallTimes.push(row.staffCallAt);
       continue;
     }
-    unique.set(key, { ...row, roles: [row.role] });
+    unique.set(key, {
+      ...row,
+      roles: [row.role],
+      instructions: row.instructions?.trim()
+        ? [`${row.role}: ${row.instructions.trim()}`]
+        : [],
+      specialElements: [...new Set(row.specialElements ?? [])],
+      staffCallTimes: row.staffCallAt ? [row.staffCallAt] : [],
+    });
   }
   return [...unique.values()];
 }

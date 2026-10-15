@@ -50,24 +50,47 @@ export function buildStaffD1ReminderEmail(input: {
   roles: string[];
   eventTime?: string | null;
   location?: string | null;
+  customerName?: string | null;
+  service?: string | null;
+  staffCallAt?: string | null;
+  instructions?: string | null;
+  specialElements?: readonly string[];
 }) {
   const roles =
     [...new Set(input.roles)].map(readableRole).join(" · ") ||
     "Staff operativo";
-  const location = input.location?.trim() || "Por confirmar en ORBIT";
-  const time = input.eventTime?.slice(0, 5) || "Por confirmar";
+  const location = input.location?.trim();
+  const time = input.eventTime?.slice(0, 5);
+  const callTime = input.staffCallAt?.slice(0, 5);
+  const detail = (label: string, value: string | null | undefined) =>
+    value?.trim()
+      ? `<p style="margin:5px 0"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value.trim())}</p>`
+      : "";
+  const instructions = input.instructions?.trim();
+  const specialElements = [...new Set(input.specialElements ?? [])].filter((item) => item.trim());
   const portal = `${input.appUrl.replace(/\/$/, "")}/staff-portal`;
   const textBody = [
     `Hola ${input.firstName},`,
     "Recuerda que mañana tienes evento BOOMBOX.",
     `Evento: ${input.eventName}`,
     `Fecha: ${chileDate(input.eventDate)}`,
+    input.customerName?.trim() ? `Cliente: ${input.customerName.trim()}` : null,
+    input.service?.trim() ? `Servicio: ${input.service.trim()}` : null,
     `Rol(es): ${roles}`,
-    `Horario: ${time}`,
-    `Punto / dirección: ${location}`,
+    time ? `Horario: ${time}` : null,
+    callTime ? `Citación: ${callTime}` : null,
+    location ? `Recinto / dirección: ${location}` : null,
+    instructions ? `Instrucciones: ${instructions}` : null,
+    specialElements.length ? `Elementos: ${specialElements.join(", ")}` : null,
     `Ver detalle en ORBIT: ${portal}`,
-  ].join("\n");
-  const content = `<p style="margin:0">Hola ${escapeHtml(input.firstName)},</p><p style="margin:12px 0 0;font-size:18px;font-weight:700;color:#111214">Recuerda que mañana tienes evento BOOMBOX.</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:23px;border:1px solid #e8e2d8;border-radius:13px;background:#faf9f6"><tr><td style="padding:18px"><p style="margin:0 0 10px;font-size:17px;font-weight:700">${escapeHtml(input.eventName)}</p><p style="margin:5px 0"><strong>Fecha:</strong> ${escapeHtml(chileDate(input.eventDate))}</p><p style="margin:5px 0"><strong>Rol(es):</strong> ${escapeHtml(roles)}</p><p style="margin:5px 0"><strong>Horario:</strong> ${escapeHtml(time)}</p><p style="margin:5px 0"><strong>Punto / dirección:</strong> ${escapeHtml(location)}</p></td></tr></table>`;
+  ].filter((item): item is string => Boolean(item)).join("\n");
+  const specialHtml = specialElements.length
+    ? `<p style="margin:14px 0 0"><strong>Elementos operativos:</strong> ${escapeHtml(specialElements.join(" · "))}</p>`
+    : "";
+  const instructionHtml = instructions
+    ? `<p style="margin:14px 0 0"><strong>Instrucciones:</strong><br>${escapeHtml(instructions).replaceAll("\n", "<br>")}</p>`
+    : "";
+  const content = `<p style="margin:0">Hola ${escapeHtml(input.firstName)},</p><p style="margin:12px 0 0;font-size:18px;font-weight:700;color:#111214">Recuerda que mañana tienes evento BOOMBOX.</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:23px;border:1px solid #e8e2d8;border-radius:13px;background:#faf9f6"><tr><td style="padding:18px"><p style="margin:0 0 10px;font-size:17px;font-weight:700">${escapeHtml(input.eventName)}</p><p style="margin:5px 0"><strong>Fecha:</strong> ${escapeHtml(chileDate(input.eventDate))}</p>${detail("Cliente", input.customerName)}${detail("Servicio", input.service)}<p style="margin:5px 0"><strong>Rol(es):</strong> ${escapeHtml(roles)}</p>${detail("Horario", time)}${detail("Hora de citación", callTime)}${detail("Recinto / dirección", location)}${instructionHtml}${specialHtml}</td></tr></table>`;
   return {
     subject: `Mañana tienes evento BOOMBOX · ${input.eventName}`,
     textBody,
