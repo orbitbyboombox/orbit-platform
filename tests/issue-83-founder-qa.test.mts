@@ -57,3 +57,14 @@ test("Issue 87 restores legacy operational photo stock without treating it as ph
   assert.match(boxMaster, /blackBoxStock\(box\.metadata\)/);
   assert.doesNotMatch(warehouse, /Saldo no conciliado/);
 });
+
+test("Issue 89 keeps Cajas as two compact areas and folds technical detail", () => {
+  assert.match(warehouse, /data-issue87-stock-bodega-paper/);
+  assert.match(warehouse, /Fotografías disponibles en Bodega/);
+  assert.match(warehouse, /Rollos equivalentes/);
+  assert.match(boxMaster, /Ver detalle/);
+  assert.match(boxMaster, /Fotos disponibles/);
+  assert.match(boxMaster, /defaultValue=\{blackBoxStock\(box\.metadata\)\}/);
+  assert.doesNotMatch(boxMaster, /Saldo no conciliado/);
+  assert.doesNotMatch(boxMaster, /RPC\/RLS/);
+});
