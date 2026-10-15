@@ -945,18 +945,18 @@ export function ProjectWorkspaceExperience(
           {activeTab === "OPERATION" && <EventLogisticsCenter data={props.logistics}/>}
           {activeTab === "OPERATION" && <OperationalBlocksPanel projectId={props.projectKey ?? ""} initialBlocks={props.operationalBlocks ?? []} />}
 
+          {activeTab === "FINANCE" && moduleVisible("FINANCIAL_SUMMARY") && event.receivable && (
+            <EventPaymentManager
+              projectId={props.projectKey ?? ""}
+              receivable={event.receivable}
+            />
+          )}
+
           {activeTab === "FINANCE" && moduleVisible("FINANCIAL_SUMMARY") && event.realCosts && (
             <details className="rounded-2xl border bg-card p-5" id="real-cost-adjustments">
               <summary className="cursor-pointer font-semibold text-brand">Detalle financiero y ajustes de costos reales</summary>
               <div className="mt-5"><RealCostOverridePanel data={event.realCosts} projectId={props.projectKey ?? ""}/></div>
             </details>
-          )}
-
-          {showLegacyDuplicatedEventSections && moduleVisible("FINANCIAL_SUMMARY") && event.receivable && (
-            <EventPaymentManager
-              projectId={props.projectKey ?? ""}
-              receivable={event.receivable}
-            />
           )}
 
           {showLegacyDuplicatedEventSections && moduleVisible("FINANCIAL_SUMMARY") && (
