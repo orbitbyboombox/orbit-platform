@@ -9,6 +9,11 @@ import { requestEvidence } from "@/features/portal-authentication/portal-auth.se
 import {deliverStaffAssignmentNotification} from "@/features/operations/staff-assignment-notification.service";
 import {calculateStaffCallAt, chileLocalToIso} from "@/features/operations/event-operational-window";
 import { invalidateCalendarSyncForProject } from "@/features/connectors/google-calendar/application/google-calendar-resync.service";
+import {
+  EXCLUDED_OPERATOR_MOBILITY_STAFF_IDS,
+  operatorMobilityEligibility,
+  resolveApprovedOperatorMobility,
+} from "@/features/staff-payments/operator-mobility";
 
 export type StaffAssignmentMutation = {
   requestId?: string;
@@ -23,6 +28,8 @@ export type StaffAssignmentMutation = {
   finishTime: string;
   vehicleId: string;
   observations: string;
+  applyMobility?: boolean;
+  mobilityDecision?: "APPLY" | "CLEAR" | "UNCHANGED";
   replaceId?: string;
 };
 type Result = { ok: true } | { ok: false; error: string };
@@ -57,7 +64,7 @@ async function context(projectId: string) {
   const { data: project, error } = await client
     .from("projects")
     .select(
-      "id,customer_id,orbit_event_id,name,event_date,event_time,project_services(duration_hours),event_operational_blocks(id,start_at,end_at,name)",
+      "id,customer_id,orbit_event_id,name,event_date,event_time,city,location,project_services(duration_hours),event_operational_blocks(id,start_at,end_at,name)",
     )
     .eq("id", projectId)
     .is("deleted_at", null)
@@ -166,6 +173,43 @@ export async function saveStaffAssignmentAction(
       reason: value(input.observations) ?? "Asignación operacional",
       updated_by: ctx.user.id,
     };
+    let requestedMobilityAmount: number | null = null;
+    if (input.role === "OPERATOR" && input.mobilityDecision !== "UNCHANGED") {
+      const mobility = operatorMobilityEligibility({
+        eventDate: ctx.project.event_date,
+        role: input.role,
+        staffId: input.staffId,
+        excludedStaffIds: EXCLUDED_OPERATOR_MOBILITY_STAFF_IDS,
+        commune: ctx.project.city,
+      });
+      requestedMobilityAmount = resolveApprovedOperatorMobility({
+        eligible: mobility.eligible,
+        suggestedAmount: mobility.suggestedAmount,
+        approvedByFounder: Boolean(input.applyMobility),
+        travelsIndependently: Boolean(input.applyMobility),
+      });
+      if (input.mobilityDecision === "APPLY" && !mobility.eligible) {
+        throw new Error("La movilización no corresponde para este operador, fecha o comuna.");
+      }
+      const { data: existingPayments, error: paymentReadError } = await ctx.client
+        .from("event_staff_payments")
+        .select("id,settlement_status,paid_amount,transport_bonus")
+        .eq("project_id", input.projectId)
+        .eq("staff_id", input.staffId)
+        .is("deleted_at", null)
+        .neq("status", "CANCELLED")
+        .order("updated_at", { ascending: false });
+      if (paymentReadError) throw paymentReadError;
+      if ((existingPayments ?? []).length > 1) {
+        throw new Error("La liquidación del operador no es única; movilización permanece bloqueada.");
+      }
+      const existingPayment = existingPayments?.[0];
+      if (existingPayment &&
+        (["PAID", "FINALIZED"].includes(String(existingPayment.settlement_status)) || Number(existingPayment.paid_amount ?? 0) > 0) &&
+        requestedMobilityAmount !== Number(existingPayment.transport_bonus ?? 0)) {
+        throw new Error("La liquidación ya está pagada o cerrada; movilización permanece bloqueada.");
+      }
+    }
     const { data: saved, error: saveError } = await ctx.client.rpc("save_event_staff_assignment", {
       p_payload: payload,
       p_assignment_id: input.id ?? null,
@@ -175,6 +219,31 @@ export async function saveStaffAssignmentAction(
     if (saveError) throw new Error(saveError.message);
     const result = saved as { id: string; replay: boolean };
     const assignmentId = result.id;
+    if (input.role === "OPERATOR" && input.mobilityDecision !== "UNCHANGED") {
+      const { data: payments, error: paymentReadError } = await ctx.client
+        .from("event_staff_payments")
+        .select("id,settlement_status,paid_amount,transport_bonus")
+        .eq("project_id", input.projectId)
+        .eq("staff_id", input.staffId)
+        .is("deleted_at", null)
+        .neq("status", "CANCELLED")
+        .order("updated_at", { ascending: false });
+      if (paymentReadError) throw paymentReadError;
+      if ((payments ?? []).length !== 1) {
+        throw new Error("La liquidación del operador no es única; movilización permanece bloqueada.");
+      }
+      const payment = payments[0];
+      if (!( ["PAID", "FINALIZED"].includes(String(payment.settlement_status)) || Number(payment.paid_amount ?? 0) > 0)) {
+        const { error: mobilityError } = await ctx.client
+          .from("event_staff_payments")
+          .update({ transport_bonus: requestedMobilityAmount ?? 0, updated_by: ctx.user.id })
+          .eq("id", payment.id)
+          .eq("project_id", input.projectId)
+          .eq("staff_id", input.staffId)
+          .is("deleted_at", null);
+        if (mobilityError) throw mobilityError;
+      }
+    }
     if (!result.replay) {
       await timeline(
         ctx,

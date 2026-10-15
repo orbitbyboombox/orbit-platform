@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { operatorMobilityEligibility, resolveApprovedOperatorMobility, suggestedOperatorMobilityAmount } from "../features/staff-payments/operator-mobility.ts";
 
 const exclusions = new Set(["sebastian-id", "fernando-id", "jose-id"]);
@@ -24,4 +25,19 @@ test("manual confirmation required, defaults off", () => {
   assert.equal(resolveApprovedOperatorMobility({...eligible,approvedByFounder:false,travelsIndependently:true}),0);
   assert.equal(resolveApprovedOperatorMobility({...eligible,approvedByFounder:true,travelsIndependently:false}),0);
   assert.equal(resolveApprovedOperatorMobility({...eligible,approvedByFounder:true,travelsIndependently:true}),12_000);
+});
+
+test("persistence is an idempotent update of the canonical operator settlement", () => {
+  const source = readFileSync("features/staff-assignment-center/actions.ts", "utf8");
+  assert.match(source, /\.from\("event_staff_payments"\)/);
+  assert.match(source, /\.update\(\{ transport_bonus: requestedMobilityAmount/);
+  assert.match(source, /\.eq\("project_id", input\.projectId\)/);
+  assert.match(source, /\.eq\("staff_id", input\.staffId\)/);
+  assert.match(source, /\(payments \?\? \[\]\)\.length !== 1/);
+});
+
+test("the assignment control is opt-in and limited to operators", () => {
+  const source = readFileSync("features/staff-assignment-center/staff-assignment-center.tsx", "utf8");
+  assert.match(source, /name="applyMobility" type="checkbox"/);
+  assert.match(source, /role === "OPERATOR" && mobilitySuggestion !== null/);
 });

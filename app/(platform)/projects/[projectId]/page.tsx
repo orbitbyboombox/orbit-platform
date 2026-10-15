@@ -1306,6 +1306,8 @@ export default async function ProjectWorkspacePage({
     },
     staffAssignments: {
       projectId,
+      eventDate: project.event.date,
+      eventCommune: project.event.city,
       published: staffPublication?.published ?? false,
       requirements: responsibilityRequirements,
       blockRequirements: (staffRoleRequirements ?? []).filter((item) => item.block_id).map((item) => {
@@ -1492,6 +1494,7 @@ export default async function ProjectWorkspacePage({
           vehicleId: item.assigned_vehicle ?? "",
           vehicleName: item.operational_assets?.asset_code ?? "",
           observations: item.observations ?? "",
+          mobilityAmount: Number((payroll ?? []).find((payment) => payment.assignment_id === item.id)?.transport_bonus ?? 0),
           packageStatus: ((item.resources?.smartAssignment ?? {}) as Record<string, string>),
         })),
       staff: (staff ?? [])
