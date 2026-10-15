@@ -47,6 +47,8 @@ const bankDetails = [
   ["Correo", "contabilidad@bbox.cl"],
 ] as const;
 
+type PortalSection = "event" | "contract" | "payments" | "design" | "bank" | "contact";
+
 function BankTransferDetails() {
   const [copied, setCopied] = useState<string | null>(null);
   const copy = async (label: string, value: string) => {
@@ -78,17 +80,17 @@ export function CustomerPortalHome({ data, token }: { data: NonNullable<PortalDa
   const days = eventDate ? Math.ceil((eventDate.getTime() - Date.now()) / 86_400_000) : null;
   const countdown = days == null ? "Fecha por confirmar" : days < 0 ? "Evento finalizado" : days === 0 ? "Hoy" : days === 1 ? "Mañana" : `${days} días`;
   const firstName = project.customers.full_name.trim().split(/\s+/)[0] || "Hola";
-  const contractUrl = `/api/portal/${encodeURIComponent(token)}/contract`;
   const phone = company.phone || "+56 9 0000 0000";
   const whatsapp = phone.replace(/\D/g, "");
   const photoStripEligible = requiresPhotoStripDesign(project.project_services.map((service) => service.service_code));
 
-  const quickAccess: Array<{ icon: ComponentType<{ className?: string }>; label: string; href: string }> = [
-    { icon: Home, label: "Mi Evento", href: "#event-summary" }, { icon: FileText, label: "Mi Contrato", href: contractUrl },
-    { icon: CreditCard, label: "Mis Pagos", href: "#payments" }, { icon: Landmark, label: "Datos bancarios", href: "#bank-details" },
-    { icon: Phone, label: "Contacto BOOMBOX", href: "#contact" },
+  const [activeSection, setActiveSection] = useState<PortalSection>("event");
+  const quickAccess: Array<{ icon: ComponentType<{ className?: string }>; label: string; section: PortalSection }> = [
+    { icon: Home, label: "Mi Evento", section: "event" }, { icon: FileText, label: "Mi Contrato", section: "contract" },
+    { icon: CreditCard, label: "Mis Pagos", section: "payments" }, { icon: Landmark, label: "Datos bancarios", section: "bank" },
+    { icon: Phone, label: "Contacto BOOMBOX", section: "contact" },
   ];
-  if (photoStripEligible) quickAccess.splice(3, 0, { icon: FileText, label: "Diseño de tira", href: "#photo-strip-design" });
+  if (photoStripEligible) quickAccess.splice(3, 0, { icon: FileText, label: "Diseño de tira", section: "design" });
 
   return <main className="min-h-screen bg-background text-foreground"><div className="mx-auto max-w-7xl space-y-6 px-4 py-5 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
     <header className="overflow-hidden rounded-3xl border border-border/80 bg-card p-6 sm:p-9 lg:p-12">
@@ -96,22 +98,24 @@ export function CustomerPortalHome({ data, token }: { data: NonNullable<PortalDa
       <div className="mt-9 grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end"><div><p className="text-xs font-semibold uppercase tracking-[.2em] text-brand">{company.portalKicker}</p><h1 className="mt-3 text-3xl font-semibold tracking-[-.04em] sm:text-5xl">Hola {firstName} 👋</h1><p className="mt-3 text-lg font-medium">Toda la información esencial de tu evento.</p></div><div className="rounded-2xl border border-brand/20 bg-brand/5 p-5 text-center lg:min-w-56"><p className="text-xs font-semibold uppercase tracking-wider text-muted">Faltan para tu evento</p><p className="mt-2 text-3xl font-semibold text-brand">{countdown}</p></div></div>
     </header>
 
-    <Panel id="quick-access" title="Accesos rápidos"><nav aria-label="Accesos del Portal" className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">{quickAccess.map(({ icon: Icon, label, href }) => <a className="flex min-h-24 flex-col items-center justify-center gap-2 rounded-2xl border border-border/80 bg-background/40 p-3 text-center text-sm font-medium transition-colors hover:border-brand/50 hover:text-brand" href={href} key={label}><Icon className="size-5"/>{label}</a>)}</nav></Panel>
+    <Panel id="quick-access" title="Accesos rápidos"><nav aria-label="Accesos del Portal" role="tablist" className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">{quickAccess.map(({ icon: Icon, label, section }) => <button aria-selected={activeSection === section} className={`flex min-h-24 flex-col items-center justify-center gap-2 rounded-2xl border p-3 text-center text-sm font-medium transition-colors ${activeSection === section ? "border-brand bg-brand/10 text-brand" : "border-border/80 bg-background/40 hover:border-brand/50 hover:text-brand"}`} key={label} onClick={() => setActiveSection(section)} role="tab" type="button"><Icon className="size-5"/>{label}</button>)}</nav></Panel>
 
-    <CustomerEventExperience data={data}/>
-    <CustomerDocumentsExperience data={data} token={token}/>
-    <CustomerContractExperience data={data} token={token}/>
-    <CustomerTaxDocuments data={data} token={token}/>
-    <CustomerCommunicationCenter data={data}/>
+    <div aria-live="polite" className="space-y-6">
+      {activeSection === "event" ? <>
+        <CustomerEventExperience data={data}/>
+        <CustomerDocumentsExperience data={data} token={token}/>
+        <CustomerTaxDocuments data={data} token={token}/>
+        <CustomerCommunicationCenter data={data}/>
+        <CustomerGalleryExperience data={data} token={token}/>
+        <CustomerRequests requests={data.requests}/>
+      </> : null}
 
-    {photoStripEligible ? <CustomerPhotoStripDesignExperience data={data} token={token}/> : null}
-    <CustomerDesignExperience data={data} token={token}/>
-    <CustomerGalleryExperience data={data} token={token}/>
-    <CustomerRequests requests={data.requests}/>
-
-    <CustomerPaymentExperience data={data} token={token}/>
-    <BankTransferDetails/>
-    <Panel id="contact" title="Contacto BOOMBOX" description="Estamos disponibles si necesitas confirmar algún detalle de tu evento."><div className="grid gap-3 sm:grid-cols-3"><a className="flex min-h-14 items-center justify-center gap-2 rounded-xl border border-border/80 bg-background/40 px-4 font-semibold hover:border-brand/50 hover:text-brand" href={`https://wa.me/${whatsapp}`} rel="noreferrer" target="_blank"><Phone className="size-4"/>WhatsApp BOOMBOX</a><a className="flex min-h-14 items-center justify-center gap-2 rounded-xl border border-border/80 bg-background/40 px-4 font-semibold hover:border-brand/50 hover:text-brand" href={`tel:${phone}`}><Phone className="size-4"/>Llamar a BOOMBOX</a><a className="flex min-h-14 items-center justify-center gap-2 rounded-xl border border-border/80 bg-background/40 px-4 font-semibold hover:border-brand/50 hover:text-brand" href={`mailto:${company.operationsEmail}`}><Mail className="size-4"/>Email BOOMBOX</a></div></Panel>
+      {activeSection === "contract" ? <CustomerContractExperience data={data} token={token}/> : null}
+      {activeSection === "payments" ? <CustomerPaymentExperience data={data} token={token}/> : null}
+      {activeSection === "design" ? <><CustomerPhotoStripDesignExperience data={data} token={token}/><CustomerDesignExperience data={data} token={token}/></> : null}
+      {activeSection === "bank" ? <BankTransferDetails/> : null}
+      {activeSection === "contact" ? <Panel id="contact" title="Contacto BOOMBOX" description="Estamos disponibles si necesitas confirmar algún detalle de tu evento."><div className="grid gap-3 sm:grid-cols-3"><a className="flex min-h-14 items-center justify-center gap-2 rounded-xl border border-border/80 bg-background/40 px-4 font-semibold hover:border-brand/50 hover:text-brand" href={`https://wa.me/${whatsapp}`} rel="noreferrer" target="_blank"><Phone className="size-4"/>WhatsApp BOOMBOX</a><a className="flex min-h-14 items-center justify-center gap-2 rounded-xl border border-border/80 bg-background/40 px-4 font-semibold hover:border-brand/50 hover:text-brand" href={`tel:${phone}`}><Phone className="size-4"/>Llamar a BOOMBOX</a><a className="flex min-h-14 items-center justify-center gap-2 rounded-xl border border-border/80 bg-background/40 px-4 font-semibold hover:border-brand/50 hover:text-brand" href={`mailto:${company.operationsEmail}`}><Mail className="size-4"/>Email BOOMBOX</a></div></Panel> : null}
+    </div>
     <footer className="flex flex-col items-center gap-2 border-t border-border/70 py-8 text-center"><ShieldCheck className="size-5 text-brand"/><p className="text-sm font-semibold">Acceso privado y seguro</p><p className="text-xs text-muted">Este enlace vence el {new Intl.DateTimeFormat("es-CL", { dateStyle: "long" }).format(new Date(data.access.expires_at))}.</p></footer>
   </div></main>;
 }
