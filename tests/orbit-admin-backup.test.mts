@@ -64,6 +64,19 @@ test("recovery preserves exact source paths and external key custody", () => {
   assert.match(runbook, /Never store it in Drive/);
 });
 
+test("synthetic volume and exact-path recovery stay bounded to one artifact", () => {
+  const key = Buffer.alloc(32, 11);
+  const recovered = new Map<string, string>();
+  for (let index = 0; index < 300; index += 1) {
+    const path = `nested/customer ${index}/photo_${index}.jpg`;
+    const plaintext = new TextEncoder().encode(`object-${index}`);
+    const envelope = encryptBackupArtifact(plaintext, key);
+    recovered.set(path, new TextDecoder().decode(decryptBackupArtifact(envelope, key)));
+  }
+  assert.equal(recovered.size, 300);
+  assert.equal(recovered.get("nested/customer 299/photo_299.jpg"), "object-299");
+});
+
 test("Drive API readback supports shared drives without exposing tokens", () => {
   assert.match(provider, /alt/,);
   assert.match(provider, /supportsAllDrives/);
