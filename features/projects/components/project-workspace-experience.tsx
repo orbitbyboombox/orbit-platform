@@ -1178,7 +1178,7 @@ export function ProjectWorkspaceExperience(
               </OptionalModule>
             )}
             {eventTab === "documents" && moduleVisible("DOCUMENTS") && (
-              <Section eyebrow="07 · Archivos" icon={<FolderOpen className="size-5" />} id="documents" title="Documentos del evento">
+              <Section className="min-w-0 xl:col-span-2" eyebrow="07 · Archivos" icon={<FolderOpen className="size-5" />} id="documents" title="Documentos del evento">
                 <div className="@container w-full min-w-0 max-w-none" data-issue72-documents-layout data-issue73-documents-layout>
                   {/* The former container contract remains documented here for regression review; the viewport breakpoint below fixes narrow parent grids. */}
                   {/* @[48rem]:grid-cols-[minmax(0,1.05fr)_minmax(20rem,.95fr)] */}
