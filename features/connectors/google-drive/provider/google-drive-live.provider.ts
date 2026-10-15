@@ -22,6 +22,7 @@ export interface GoogleDriveLiveProvider {
   getFolderParents?(id: string): Promise<string[]>;
   updateFolder(input: { id: string; name: string; parentFolderId?: string; previousParentFolderId?: string }): Promise<GoogleDriveCreatedFolder>;
   uploadFile(input: { name: string; mimeType: string; bytes: Uint8Array; parentFolderId?: string; appProperties?: Record<string, string> }): Promise<GoogleDriveUploadedFile>;
+  readFile?(id: string): Promise<Uint8Array>;
   deleteFile?(id: string): Promise<void>;
   listChildren?(parentId: string): Promise<Array<{ id: string; mimeType?: string }>>;
 }
@@ -30,6 +31,7 @@ export class InMemoryGoogleDriveLiveProvider implements GoogleDriveLiveProvider 
   private readonly folders = new Map<string, GoogleDriveCreatedFolder>();
   private readonly parents = new Map<string, string[]>();
   private readonly files = new Map<string, GoogleDriveFoundFile[]>();
+  private readonly fileBytes = new Map<string, Uint8Array>();
 
   async findFolder(input: { name: string; parentFolderId?: string }) {
     return this.folders.get(`${input.parentFolderId ?? "root"}/${input.name}`) ?? null;
@@ -77,10 +79,17 @@ export class InMemoryGoogleDriveLiveProvider implements GoogleDriveLiveProvider 
       existing.push(created);
       this.files.set(key, existing);
     }
+    this.fileBytes.set(created.id, input.bytes);
     return created;
   }
 
-  async deleteFile(id: string) { this.folders.forEach((value, key) => { if (value.id === id) this.folders.delete(key); }); this.files.forEach((value, key) => { if (value.some((file) => file.id === id)) this.files.delete(key); }); this.parents.delete(id); }
+  async readFile(id: string) {
+    const bytes = this.fileBytes.get(id);
+    if (!bytes) throw new Error("Drive file not found.");
+    return bytes;
+  }
+
+  async deleteFile(id: string) { this.folders.forEach((value, key) => { if (value.id === id) this.folders.delete(key); }); this.files.forEach((value, key) => { if (value.some((file) => file.id === id)) this.files.delete(key); }); this.fileBytes.delete(id); this.parents.delete(id); }
 
   async listChildren(parentId: string) { return [...this.parents.entries()].filter(([, parents]) => parents.includes(parentId)).map(([id]) => ({ id, mimeType: "application/vnd.google-apps.folder" })); }
 }
@@ -212,6 +221,15 @@ export class GoogleDriveApiProvider implements GoogleDriveLiveProvider {
     });
     if (!response.ok) throw new Error(`Google Drive upload failed (${response.status}): ${await response.text()}`);
     return response.json() as Promise<GoogleDriveUploadedFile>;
+  }
+
+  async readFile(id: string): Promise<Uint8Array> {
+    const url = new URL(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}`);
+    url.searchParams.set("alt", "media");
+    url.searchParams.set("supportsAllDrives", "true");
+    const response = await fetch(url, { headers: { Authorization: `Bearer ${this.accessToken}` } });
+    if (!response.ok) throw new Error(`Google Drive read failed (${response.status}): ${await response.text()}`);
+    return new Uint8Array(await response.arrayBuffer());
   }
 
   async deleteFile(id: string): Promise<void> {
