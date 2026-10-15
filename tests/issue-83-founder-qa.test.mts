@@ -10,6 +10,7 @@ const workspaces = readFileSync(`${root}/features/resources/staff-workspaces.tsx
 const boxesPage = readFileSync(`${root}/app/(platform)/resources/boxes/page.tsx`, "utf8");
 const boxMaster = readFileSync(`${root}/features/resources/black-box-master.tsx`, "utf8");
 const warehouse = readFileSync(`${root}/features/resources/warehouse-inventory.tsx`, "utf8");
+const boxInventory = readFileSync(`${root}/features/resources/box-inventory.ts`, "utf8");
 const read = (path: string) => readFileSync(`${root}/${path}`, "utf8");
 
 test("Issue 83 includes CONFIRMED assignments in canonical staff payment obligations", () => {
@@ -97,4 +98,16 @@ test("Issue 91 keeps Caja 2 October history and Chile month options stable", () 
   assert.match(panel, /currentChileMonth\(\)/);
   assert.match(panel, /monthKeyForChile\(assignment\.eventDate\)/);
   assert.match(panel, /inMonth\(assignment\.eventDate, selectedMonth\)/);
+});
+
+test("Issue 92 separates active assignments from returned history", () => {
+  assert.match(boxInventory, /assignment_status/);
+  assert.match(boxInventory, /assignmentHistory/);
+  assert.match(boxInventory, /assignmentStatus/);
+  assert.match(boxInventory, /filter\(\(assignment\) => assignment\.assignmentStatus === "ASSIGNED"\)/);
+  assert.doesNotMatch(boxInventory, /\.eq\("assignment_status", "ASSIGNED"\)/);
+  const panel = read("features/resources/box-management-panel.tsx");
+  assert.match(panel, /selectedBox\?\.assignmentHistory/);
+  assert.match(panel, /assignmentStatusLabel/);
+  assert.match(panel, /Caja \{blackBoxNumber\(selectedBox\.asset_code\)\}/);
 });
