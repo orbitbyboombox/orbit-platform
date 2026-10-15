@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { BlackBoxMaster } from "@/features/resources/black-box-master";
-import { WarehouseInventory } from "@/features/resources/warehouse-inventory";
 import { loadBoxes } from "@/features/resources/box-inventory";
 import type { InventoryMovement, SupplyInventoryItem } from "@/features/supply-engine/types/supply.types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -25,5 +24,5 @@ export default async function BoxesPage() {
   const movements: InventoryMovement[] = (movementsResult.data ?? []).map((movement) => ({ id: movement.id, supplyId: movement.supply_id, orbitEventId: movement.orbit_event_id ?? undefined, customerId: movement.customer_id ?? undefined, projectId: movement.project_id ?? undefined, staffId: movement.staff_id ?? undefined, vehicleId: movement.vehicle_id ?? undefined, movementType: movement.movement_type as InventoryMovement["movementType"], quantity: Number(movement.quantity), unitCost: movement.unit_cost == null ? undefined : Number(movement.unit_cost), totalCost: movement.total_cost == null ? undefined : Number(movement.total_cost), occurredAt: movement.occurred_at, reason: movement.reason, version: movement.version }));
   const events = (eventsResult.data ?? []).map((event) => ({ id: event.id, name: event.name, date: event.event_date, time: event.event_time, service: Array.isArray(event.project_services) ? event.project_services.map((item) => item.service_code).filter(Boolean).join(" + ") : "" }));
   const warehousePhotos = supplies.filter((supply) => supply.unit === "PHOTO").reduce((total, supply) => total + Math.max(0, supply.currentStock), 0);
-  return <main className="space-y-4"><WarehouseInventory supplies={supplies} movements={movements} boxes={boxes}/><BlackBoxMaster initialBoxes={boxes} events={events} movements={movements} warehousePhotos={warehousePhotos} /></main>;
+  return <main className="space-y-4"><BlackBoxMaster initialBoxes={boxes} events={events} movements={movements} warehousePhotos={warehousePhotos} supplies={supplies} /></main>;
 }

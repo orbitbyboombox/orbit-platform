@@ -5,8 +5,9 @@ import { Check, Pencil, X } from "lucide-react";
 import { updateBlackBoxMasterAction } from "./black-box-master.actions";
 import { assignBlackBoxToEventAction, getBlackBoxAvailabilityForEventAction, removeBlackBoxFromEventAction } from "@/features/asset-management/event-black-box.actions";
 import { BLACK_BOX_PAPER_FORMATS, blackBoxNumber, blackBoxPaperFormat, blackBoxStock, type BoxAsset } from "./box-inventory";
-import { BoxManagementPanel } from "./box-management-panel";
-import type { InventoryMovement } from "@/features/supply-engine/types/supply.types";
+import { BoxMonthlyHistoryPanel, BoxPaperLoadPanel } from "./box-management-panel";
+import { WarehouseInventory } from "./warehouse-inventory";
+import type { InventoryMovement, SupplyInventoryItem } from "@/features/supply-engine/types/supply.types";
 
 const statusOptions = [
   ["AVAILABLE", "Disponible"],
@@ -17,7 +18,7 @@ const statusOptions = [
 
 type BoxEventOption = { id: string; name: string; date: string; time: string; service: string };
 
-export function BlackBoxMaster({ initialBoxes, events, movements, warehousePhotos }: { initialBoxes: BoxAsset[]; events: BoxEventOption[]; movements: readonly InventoryMovement[]; warehousePhotos: number }) {
+export function BlackBoxMaster({ initialBoxes, events, movements, warehousePhotos, supplies }: { initialBoxes: BoxAsset[]; events: BoxEventOption[]; movements: readonly InventoryMovement[]; warehousePhotos: number; supplies: readonly SupplyInventoryItem[] }) {
   const [boxes, setBoxes] = useState(initialBoxes);
   const [editing, setEditing] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -65,7 +66,9 @@ export function BlackBoxMaster({ initialBoxes, events, movements, warehousePhoto
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" data-box-summary-grid>
       {boxes.map((box) => <BlackBoxCard key={box.id} box={box} events={events} editing={editing === box.id} pending={pending} onEdit={() => { setError(""); setEditing(box.id); }} onCancel={() => { setError(""); setEditing(null); }} onSave={(data) => save(box, data)} onAssigned={() => location.reload()} />)}
     </div>
-    <BoxManagementPanel boxes={boxes} movements={movements} warehousePhotos={warehousePhotos} onEditBox={(boxId) => { setError(""); setEditing(boxId); document.getElementById(`box-card-${boxId}`)?.scrollIntoView({ behavior: "smooth", block: "center" }); }} onAssignBox={() => { setError(""); setAssignmentOpen(true); }} />
+    <WarehouseInventory supplies={supplies} movements={movements} boxes={boxes} />
+    <BoxPaperLoadPanel boxes={boxes} warehousePhotos={warehousePhotos} onEditBox={(boxId) => { setError(""); setEditing(boxId); document.getElementById(`box-card-${boxId}`)?.scrollIntoView({ behavior: "smooth", block: "center" }); }} onAssignBox={() => { setError(""); setAssignmentOpen(true); }} />
+    <BoxMonthlyHistoryPanel boxes={boxes} movements={movements} onEditBox={(boxId) => { setError(""); setEditing(boxId); document.getElementById(`box-card-${boxId}`)?.scrollIntoView({ behavior: "smooth", block: "center" }); }} onAssignBox={() => { setError(""); setAssignmentOpen(true); }} />
     {assignmentOpen ? <AssignBoxToEventDialog boxes={boxes} events={events} onClose={() => setAssignmentOpen(false)} onAssigned={() => location.reload()} /> : null}
   </section>;
 }

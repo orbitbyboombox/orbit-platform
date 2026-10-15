@@ -25,8 +25,9 @@ test("Issue 83 exposes a direct Logistics workspace without changing payment wri
 });
 
 test("Issue 83 mounts STOCK BODEGA PAPEL on the main Cajas page", () => {
-  assert.match(boxesPage, /WarehouseInventory/);
-  assert.match(boxesPage, /STOCK BODEGA PAPEL|WarehouseInventory/);
+  assert.match(boxesPage, /BlackBoxMaster/);
+  assert.match(boxMaster, /WarehouseInventory/);
+  assert.match(boxMaster, /STOCK BODEGA PAPEL|WarehouseInventory/);
   assert.match(boxesPage, /loadBoxes/);
 });
 
@@ -72,12 +73,16 @@ test("Issue 89 keeps Cajas as two compact areas and folds technical detail", () 
 
 test("Issue 90 separates box consultation from blocked paper management", () => {
   assert.match(boxMaster, /data-box-summary-grid/);
-  assert.match(boxMaster, /BoxManagementPanel/);
-  assert.match(boxMaster, /movements/);
+  assert.match(boxMaster, /BoxPaperLoadPanel/);
+  assert.match(boxMaster, /BoxMonthlyHistoryPanel/);
+  assert.ok(boxMaster.indexOf("data-box-summary-grid") < boxMaster.indexOf("<WarehouseInventory"));
+  assert.ok(boxMaster.indexOf("<WarehouseInventory") < boxMaster.indexOf("<BoxPaperLoadPanel"));
+  assert.ok(boxMaster.indexOf("<BoxPaperLoadPanel") < boxMaster.indexOf("<BoxMonthlyHistoryPanel"));
   assert.match(warehouse, /data-issue87-stock-bodega-paper/);
-  assert.match(read("features/resources/box-management-panel.tsx"), /data-box-management-panel/);
-  assert.match(read("features/resources/box-management-panel.tsx"), /data-box-management-selector="box"/);
-  assert.match(read("features/resources/box-management-panel.tsx"), /data-box-management-selector="month"/);
+  assert.match(read("features/resources/box-management-panel.tsx"), /data-box-paper-load-panel/);
+  assert.match(read("features/resources/box-management-panel.tsx"), /data-box-monthly-history/);
+  assert.match(read("features/resources/box-management-panel.tsx"), /data-box-load-selector="box"/);
+  assert.match(read("features/resources/box-management-panel.tsx"), /data-box-history-selector="month"/);
   assert.match(read("features/resources/box-management-panel.tsx"), /data-box-paper-preview/);
   assert.match(read("features/resources/box-management-panel.tsx"), /CONFIRMAR CARGA · BLOQUEADA/);
 });
