@@ -26,6 +26,10 @@ export type StaffPaymentEvent = {
   originalNet: number;
   adjustmentTotal: number;
   reimbursementTotal: number;
+  reimbursementPaidTotal: number;
+  honorariaAmount: number;
+  honorariaPaidAmount: number;
+  honorariaOutstanding: number;
   finalAmount: number;
   operator: number;
   assembly: number;
@@ -254,11 +258,11 @@ function QuickStaffPayment({rows,month}:{rows:QuickPaymentRow[];month:string}) {
   const [eventId,setEventId]=useState("");
   const [pending,start]=useTransition();
   const [message,setMessage]=useState("");
-  const eligibleRows=rows.map(item=>({...item,eventRows:item.eventRows.filter(event=>Math.max(0,event.finalAmount-event.paidAmount)>0)})).filter(item=>item.eventRows.length>0);
+  const eligibleRows=rows.map(item=>({...item,eventRows:item.eventRows.filter(event=>event.honorariaOutstanding>0)})).filter(item=>item.eventRows.length>0);
   const row=eligibleRows.find(item=>item.member.id===staffId);
   const event=row?.eventRows.find(item=>item.id===eventId);
   const account=row?.account;
-  const outstanding=event ? Math.max(0,event.finalAmount-event.paidAmount) : 0;
+  const outstanding=event?.honorariaOutstanding ?? 0;
   const accountDetails=account?.calculation.details.filter(item=>item.projectId===event?.projectId) ?? [];
   const exactMonthlyMatch=Boolean(account&&event&&account.paymentStatus==="READY_TO_PAY"&&account.boletaStatus==="APPROVED"&&account.finalTransferAmount===outstanding&&accountDetails.length===1);
   const submit=(form:FormData)=>start(async()=>{
@@ -267,13 +271,13 @@ function QuickStaffPayment({rows,month}:{rows:QuickPaymentRow[];month:string}) {
     if(result.ok){setStaffId("");setEventId("");}
   });
   return <section className="rounded-2xl border border-brand/25 bg-brand/5 p-4 sm:p-5" data-issue77-quick-staff-payment data-issue79-quick-obligations>
-    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
       <div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Pago rápido original</p><h3 className="mt-1 text-lg font-semibold">Operador → evento pendiente → pagar</h3><p className="mt-1 text-sm text-muted">Usa el registro mensual canónico, exige comprobante y mantiene la idempotencia del pago.</p></div>
       <span className="shrink-0 rounded-full border border-brand/30 px-2 py-1 text-xs font-semibold text-brand">Founder/Admin</span>
     </div>
     <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_auto] lg:items-end">
       <label className="text-sm">Operador<select className="mt-1 min-h-11 w-full rounded-xl border bg-background px-3" value={staffId} onChange={e=>{setStaffId(e.target.value);setEventId("")}}><option value="">Seleccionar operador</option>{eligibleRows.map(item=><option key={item.member.id} value={item.member.id}>{item.member.name}</option>)}</select></label>
-      <label className="text-sm">Evento pendiente<select className="mt-1 min-h-11 w-full rounded-xl border bg-background px-3" disabled={!row} value={eventId} onChange={e=>setEventId(e.target.value)}><option value="">Seleccionar obligación pendiente</option>{row?.eventRows.map(item=><option key={item.id} value={item.id}>{item.eventName} · {item.eventDate} · {money.format(Math.max(0,item.finalAmount-item.paidAmount))}</option>)}</select></label>
+      <label className="text-sm">Evento pendiente<select className="mt-1 min-h-11 w-full rounded-xl border bg-background px-3" disabled={!row} value={eventId} onChange={e=>setEventId(e.target.value)}><option value="">Seleccionar obligación pendiente</option>{row?.eventRows.map(item=><option key={item.id} value={item.id}>{item.eventName} · {item.eventDate} · {item.roles.map(roleLabel).join(" + ")} · {money.format(item.honorariaOutstanding)}</option>)}</select></label>
       <span className="min-h-11 rounded-xl border bg-background/60 px-3 py-2 text-sm"><span className="block text-xs text-muted">Saldo real pendiente</span><strong>{event ? money.format(outstanding) : "—"}</strong></span>
     </div>
     {event ? <form action={submit} className="mt-4 grid gap-3 rounded-xl border bg-background/40 p-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -283,7 +287,7 @@ function QuickStaffPayment({rows,month}:{rows:QuickPaymentRow[];month:string}) {
       <label className="text-sm sm:col-span-2">Boleta / comprobante<input accept="application/pdf,image/jpeg,image/png,image/webp" className="mt-1 block min-h-11 w-full text-sm" name="file" required type="file"/></label>
       <button data-issue79-quick-eligible={exactMonthlyMatch ? "true" : "false"} className="min-h-11 rounded-xl bg-brand px-4 font-semibold text-brand-foreground disabled:opacity-60 sm:col-span-2 lg:col-span-4" disabled={pending || !exactMonthlyMatch} type="submit">{pending ? "Registrando…" : exactMonthlyMatch ? "OK / PAGAR Y REGISTRAR COMPROBANTE" : "Revisión canónica pendiente"}</button>
     </form> : null}
-    {event && !exactMonthlyMatch ? <p className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-200">La obligación está identificada, pero el saldo mensual no coincide exactamente o requiere más de una liquidación. El pago rápido permanece bloqueado para evitar pagar otra deuda.</p> : null}
+    {event ? <p className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-200">Honorarios pendientes: {money.format(event.honorariaOutstanding)} · Reembolsos y gastos pagados quedan fuera de este selector y se conservan en su historial. {exactMonthlyMatch ? "La liquidación canónica coincide." : "La liquidación canónica no coincide; el pago rápido permanece bloqueado."}</p> : null}
     {message ? <p aria-live="polite" className="mt-3 text-sm text-muted">{message}</p> : null}
   </section>;
 }
@@ -322,11 +326,13 @@ function EventRow({ item }: { item: StaffPaymentEvent }) {
         <Box label="Original" value={money.format(item.originalNet)} />
         <Box label="Ajustes" value={money.format(item.adjustmentTotal)} />
         <Box label="Reembolsos" value={money.format(item.reimbursementTotal)} />
-        <Box label="Monto final" value={money.format(item.finalAmount)} />
+        <Box label="Honorarios devengados" value={money.format(item.honorariaAmount)} />
+        <Box label="Gastos/reembolsos" value={money.format(item.reimbursementTotal)} />
+        <Box label="Gastos pagados" value={money.format(item.reimbursementPaidTotal)} />
         <Box label="Anticipo / pagado" value={money.format(item.paidAmount)} />
         <Box
           label="Saldo"
-          value={money.format(Math.max(0, item.finalAmount - item.paidAmount))}
+          value={money.format(item.honorariaOutstanding)}
         />
       </div>
       <p

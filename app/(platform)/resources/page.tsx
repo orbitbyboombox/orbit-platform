@@ -17,12 +17,13 @@ import type { ServiceAssetMapping } from "@/features/resources/service-asset-map
 import { getCanonicalOrbitEventStates } from "@/features/operations/canonical-event-state";
 import { chileDateTime } from "@/features/operations/event-operational-window";
 import { WarehouseInventory } from "@/features/resources/warehouse-inventory";
+import { loadBoxes } from "@/features/resources/box-inventory";
 import type { InventoryMovement, SupplyInventoryItem } from "@/features/supply-engine/types/supply.types";
 
 export default async function ResourcesPage() {
   const client = await createSupabaseServerClient();
   const modules = await loadModuleStates(client);
-  const [{ data: staff, error: staffError }, { data: assignments, error: assignmentError }, { data: projects, error: projectError }, { data: assets, error: assetError }, { data: assetAssignments, error: assetAssignmentError }, { data: assetHistory, error: historyError }, { data: supplies, error: supplyError }, { data: inventoryMovements, error: inventoryMovementError }, { data: vehicleProfiles, error: vehicleError }, { data: fuelLogs, error: fuelError }, { data: vehicleRoutes, error: routeError }, { data: serviceMappings, error: serviceMappingError }] = await Promise.all([
+  const [{ data: staff, error: staffError }, { data: assignments, error: assignmentError }, { data: projects, error: projectError }, { data: assets, error: assetError }, { data: assetAssignments, error: assetAssignmentError }, { data: assetHistory, error: historyError }, { data: supplies, error: supplyError }, { data: inventoryMovements, error: inventoryMovementError }, { data: vehicleProfiles, error: vehicleError }, { data: fuelLogs, error: fuelError }, { data: vehicleRoutes, error: routeError }, { data: serviceMappings, error: serviceMappingError }, boxes] = await Promise.all([
     client.from("staff").select("id,first_name,last_name,rut,role,availability,status,version").is("deleted_at", null),
     client.from("assignments").select("id,project_id,staff_id,status,resources").is("deleted_at", null),
     client.from("projects").select("id,name,event_date").is("deleted_at", null),
@@ -35,6 +36,7 @@ export default async function ResourcesPage() {
     client.from("vehicle_fuel_logs").select("id,asset_id,fuel_date,fuel_type,litres,total_amount,gas_station,receipt_path").order("fuel_date", { ascending: false }),
     client.from("vehicle_routes").select("id,asset_id,route_date,driver_staff_id,distance,notes,version,fuel:vehicle_fuel_logs!vehicle_routes_fuel_log_id_fkey(total_amount,receipt_path),events:vehicle_route_events(project_id,allocated_fuel_cost)").is("deleted_at", null).eq("status", "ACTIVE").order("route_date", { ascending: false }),
     client.from("service_asset_type_mappings").select("id,service_code,asset_type,units_per_service,buffer_before_minutes,buffer_after_minutes,enabled,version").order("service_code"),
+    loadBoxes(client),
   ]);
   if (staffError) throw staffError;
   if (assignmentError) throw assignmentError;
@@ -102,6 +104,6 @@ export default async function ResourcesPage() {
     ...(modules.ROUTE_COSTS?[{key:"ROUTE_COSTS",label:"Costos de Ruta",content:<RouteCostCenter initialRoutes={routes} vehicles={fleet} projects={projectOptions} drivers={driverOptions}/>}]:[]),
     ...(modules.EQUIPMENT?[{key:"EQUIPMENT",label:"Equipamiento",content:<details className="rounded-2xl border bg-card p-5"><summary className="cursor-pointer font-semibold">Gestión detallada e historial de equipamiento</summary><div className="mt-6"><EquipmentOperationCenter initialItems={equipment} historyEntries={equipmentHistory}/></div></details>}]:[]),
     ...(modules.INVENTORY?[{key:"INVENTORY",label:"Inventario operacional",content:<OperationsBoard snapshot={createOperationsBoardSnapshot(input)}/>}]:[]),
-    ...(modules.INVENTORY?[{key:"WAREHOUSE",label:"Bodega",content:<WarehouseInventory supplies={warehouseSupplies} movements={warehouseMovements}/>}]:[]),
+    ...(modules.INVENTORY?[{key:"WAREHOUSE",label:"Bodega",content:<WarehouseInventory supplies={warehouseSupplies} movements={warehouseMovements} boxes={boxes}/>}]:[]),
   ]}/>;
 }
