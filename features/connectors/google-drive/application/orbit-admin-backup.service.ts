@@ -111,19 +111,24 @@ async function uploadIdempotent(provider: GoogleDriveLiveProvider, input: { name
 }
 
 async function claimRun(client: SupabaseClient, scope: AdminBackupScope, idempotencyKey: string, createdBy: string) {
-  const { data, error } = await client.from("admin_backup_runs").insert({ scope, idempotency_key: idempotencyKey, status: "RUNNING", created_by: createdBy }).select("id,drive_folder_id,metadata").single<{ id: string; drive_folder_id?: string; metadata?: Record<string, unknown> }>();
+  const { data, error } = await client.from("admin_backup_runs").insert({ scope, idempotency_key: idempotencyKey, status: "RUNNING", created_by: createdBy }).select("id,drive_folder_id,metadata,started_at").single<{ id: string; drive_folder_id?: string; metadata?: Record<string, unknown>; started_at?: string }>();
   if (!error && data) return { claimed: true, id: data.id, driveFolderId: data.drive_folder_id, metadata: data.metadata ?? {} };
-  const { data: existing } = await client.from("admin_backup_runs").select("id,status,drive_folder_id,metadata").eq("idempotency_key", idempotencyKey).maybeSingle<{ id: string; status: string; drive_folder_id?: string; metadata?: Record<string, unknown> }>();
+  const { data: existing } = await client.from("admin_backup_runs").select("id,status,drive_folder_id,metadata,started_at").eq("idempotency_key", idempotencyKey).maybeSingle<{ id: string; status: string; drive_folder_id?: string; metadata?: Record<string, unknown>; started_at?: string }>();
   if (existing?.status === "SUCCEEDED") return { claimed: false, id: existing.id, driveFolderId: existing.drive_folder_id, metadata: existing.metadata ?? {} };
   if (existing?.status === "FAILED") {
     const { data: resumed, error: resumeError } = await client.from("admin_backup_runs").update({ status: "RUNNING", error_code: null, error_message: null, finished_at: null }).eq("id", existing.id).eq("status", "FAILED").select("id,drive_folder_id,metadata").maybeSingle<{ id: string; drive_folder_id?: string; metadata?: Record<string, unknown> }>();
+    if (!resumeError && resumed) return { claimed: true, id: resumed.id, driveFolderId: resumed.drive_folder_id, metadata: resumed.metadata ?? {}, resumed: true };
+  }
+  const staleAt = existing?.started_at ? Date.parse(existing.started_at) : Number.NaN;
+  if (existing?.status === "RUNNING" && Number.isFinite(staleAt) && Date.now() - staleAt > 15 * 60 * 1000) {
+    const { data: resumed, error: resumeError } = await client.from("admin_backup_runs").update({ status: "RUNNING", started_at: new Date().toISOString(), error_code: null, error_message: null }).eq("id", existing.id).eq("status", "RUNNING").eq("started_at", existing.started_at).select("id,drive_folder_id,metadata").maybeSingle<{ id: string; drive_folder_id?: string; metadata?: Record<string, unknown> }>();
     if (!resumeError && resumed) return { claimed: true, id: resumed.id, driveFolderId: resumed.drive_folder_id, metadata: resumed.metadata ?? {}, resumed: true };
   }
   throw new Error("BACKUP_ALREADY_RUNNING_OR_CLAIM_FAILED");
 }
 
 async function updateRunOrThrow(client: SupabaseClient, runId: string, patch: Record<string, unknown>) {
-  const { error } = await client.from("admin_backup_runs").update(patch).eq("id", runId);
+  const { error } = await client.from("admin_backup_runs").update({ ...patch, started_at: new Date().toISOString() }).eq("id", runId);
   if (error) throw new Error("BACKUP_LEDGER_UPDATE_FAILED");
 }
 

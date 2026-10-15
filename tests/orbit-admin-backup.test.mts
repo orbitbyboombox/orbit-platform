@@ -43,7 +43,9 @@ test("backup artifacts encrypt and restore without exposing plaintext", () => {
 test("idempotency and concurrency use a persistent unique ledger", () => {
   assert.match(migration, /idempotency_key text not null unique/);
   assert.match(service, /BACKUP_ALREADY_RUNNING_OR_CLAIM_FAILED/);
-  assert.match(service, /select\("id,status,drive_folder_id,metadata"\)/);
+  assert.match(service, /select\("id,status,drive_folder_id,metadata,started_at"\)/);
+  assert.match(service, /15 \* 60 \* 1000/);
+  assert.match(service, /started_at/);
 });
 
 test("database backup is not falsely represented by SQL metadata", () => {
