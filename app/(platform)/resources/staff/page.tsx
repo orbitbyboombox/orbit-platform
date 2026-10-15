@@ -28,6 +28,7 @@ import type {
 } from "@/features/staff-documents/staff-document-model";
 import {mapStaffMonthlyAccount,STAFF_MONTHLY_ACCOUNT_SELECT} from "@/features/staff-monthly-account/model";
 import { getCanonicalOrbitEventStates } from "@/features/operations/canonical-event-state";
+import { deriveCanonicalStaffObligation } from "@/features/staff-payments/canonical-staff-obligation";
 
 export default async function StaffManagementPage({searchParams}:{searchParams:Promise<{reviewOnboarding?:string;reviewAccount?:string;payroll?:string}>}) {
   const {reviewOnboarding,reviewAccount,payroll}=await searchParams;
@@ -413,22 +414,17 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
           item.event_staff_settlement_id === row.id &&
           item.status !== "CANCELLED",
       );
-      const originalOperator = Number(
-          row.original_operator_payment ??
-            row.automatic_operator_payment ??
-            row.operator_payment,
-        ),
-        originalAssembly = Number(
-          row.original_assembly_payment ??
-            row.automatic_assembly_payment ??
-            row.assembly_payment,
-        ),
-        originalDisassembly = Number(
-          row.original_disassembly_payment ??
-            row.automatic_disassembly_payment ??
-            row.disassembly_payment,
-        ),
-        originalNet = originalOperator + originalAssembly + originalDisassembly,
+      const canonicalObligation = deriveCanonicalStaffObligation({
+          tasks: row.tasks ?? [],
+          totalInternalPayment: Number(row.total_internal_payment),
+          operator: Number(row.original_operator_payment ?? row.automatic_operator_payment ?? row.operator_payment),
+          assembly: Number(row.original_assembly_payment ?? row.automatic_assembly_payment ?? row.assembly_payment),
+          disassembly: Number(row.original_disassembly_payment ?? row.automatic_disassembly_payment ?? row.disassembly_payment),
+        }),
+        originalOperator = canonicalObligation.operator,
+        originalAssembly = canonicalObligation.assembly,
+        originalDisassembly = canonicalObligation.disassembly,
+        originalNet = canonicalObligation.total,
         adjustmentTotal = adjustments.reduce(
           (sum, item) => sum + Number(item.amount),
           0,
