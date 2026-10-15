@@ -32,7 +32,10 @@ import { reviewStaffRequestAction, setEventStaffRequirementAction } from "@/feat
 import type { ResponsibilityReadModel } from "./staff-responsibility-read-model";
 import { buildStaffRoleSlots, validStaffQuantity } from "./staff-role-slots";
 import { formatOperationalBlockDuration } from "@/features/operations/staff-assignment-payment";
-import { suggestedOperatorMobilityAmount } from "@/features/staff-payments/operator-mobility";
+import {
+  EXCLUDED_OPERATOR_MOBILITY_STAFF_IDS,
+  suggestedOperatorMobilityAmount,
+} from "@/features/staff-payments/operator-mobility";
 
 export type OperationalAssignment = {
   id: string;
@@ -1354,6 +1357,7 @@ function AssignmentDialog({
   onSubmit: (input: StaffAssignmentMutation) => void;
 }) {
   const [role, setRole] = useState(item?.role ?? initialRole ?? "OPERATOR");
+  const [selectedStaffId, setSelectedStaffId] = useState(item?.staffId ?? "");
   const [requestId] = useState(() => crypto.randomUUID());
   const effectiveBlockId = initialBlockId ?? item?.blockId ?? undefined;
   const effectiveBlockName = initialBlockName ?? item?.blockName;
@@ -1364,7 +1368,7 @@ function AssignmentDialog({
       assignment.role === role && assignment.staffId === member.id && assignment.id !== item?.id &&
       !["CANCELLED", "REJECTED"].includes(assignment.status))),
   );
-  const mobilitySuggestion = role === "OPERATOR" && eventDate
+  const mobilitySuggestion = role === "OPERATOR" && eventDate && !EXCLUDED_OPERATOR_MOBILITY_STAFF_IDS.has(selectedStaffId)
     ? suggestedOperatorMobilityAmount(eventCommune)
     : null;
   const [mobilityChecked, setMobilityChecked] = useState(Boolean(item?.mobilityAmount));
@@ -1420,6 +1424,7 @@ function AssignmentDialog({
             label="Staff compatible"
             name="staffId"
             value={mode === "edit" ? (item?.staffId ?? "") : ""}
+            onChange={setSelectedStaffId}
             options={[
               {
                 value: "",

@@ -72,4 +72,12 @@ test("the assignment control is opt-in and limited to operators", () => {
   const source = readFileSync("features/staff-assignment-center/staff-assignment-center.tsx", "utf8");
   assert.match(source, /name="applyMobility" type="checkbox"/);
   assert.match(source, /role === "OPERATOR" && mobilitySuggestion !== null/);
+  assert.match(source, /EXCLUDED_OPERATOR_MOBILITY_STAFF_IDS\.has\(selectedStaffId\)/);
+});
+
+test("assignment props read the independent mobility adjustment, not legacy transport_bonus", () => {
+  const source = readFileSync("app/(platform)/projects/[projectId]/page.tsx", "utf8");
+  assert.match(source, /comment === "Movilización operador"/);
+  assert.match(source, /settlementAdjustments \?\? \[\]\)\.find/);
+  assert.doesNotMatch(source, /mobilityAmount:[^\n]*transport_bonus/);
 });

@@ -1494,7 +1494,19 @@ export default async function ProjectWorkspacePage({
           vehicleId: item.assigned_vehicle ?? "",
           vehicleName: item.operational_assets?.asset_code ?? "",
           observations: item.observations ?? "",
-          mobilityAmount: Number((payroll ?? []).find((payment) => payment.assignment_id === item.id)?.transport_bonus ?? 0),
+          mobilityAmount: (() => {
+            const payment = (payroll ?? []).find(
+              (candidate) => candidate.assignment_id === item.id,
+            );
+            return Number(
+              (settlementAdjustments ?? []).find(
+                (adjustment) =>
+                  adjustment.settlement_id === payment?.id &&
+                  adjustment.reason === "BONUS" &&
+                  adjustment.comment === "Movilización operador",
+              )?.amount ?? 0,
+            );
+          })(),
           packageStatus: ((item.resources?.smartAssignment ?? {}) as Record<string, string>),
         })),
       staff: (staff ?? [])
