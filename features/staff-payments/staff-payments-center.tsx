@@ -125,7 +125,7 @@ export function StaffPaymentsCenter({
     [events, month, months, query, staff],
   );
   return (
-    <section className="space-y-5 rounded-2xl border bg-card p-5 sm:p-7">
+    <section className="space-y-5 rounded-2xl border bg-card p-5 sm:p-7" data-issue75-staff-payment-flow>
       <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">
@@ -162,7 +162,7 @@ export function StaffPaymentsCenter({
         </div>
       </header>
       <section className="rounded-2xl border border-brand/25 bg-brand/5 p-4 sm:p-5"><div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Cierre mensual Staff</p><h3 className="mt-1 text-lg font-semibold">{month} · {closeState?.status??"OPEN"}</h3><p className="mt-1 text-sm text-muted">El período se determina por la fecha canónica del Evento.</p></div><div className="flex flex-wrap gap-2"><form action={form=>startClosing(async()=>{const result=await generateMonthlyStaffAccountsAction(form);setCloseMessage(result.message);if(result.ok)location.reload()})}><input name="month" type="hidden" value={month}/><Button disabled={closing}>Generar / actualizar liquidaciones</Button></form><Button disabled={closing||closeState?.status==='CLOSED'||closeState?.status==='PAID'} onClick={()=>startClosing(async()=>{const r=await closeStaffMonthAction(month);if(r.ok){setCloseState(r.data);setCloseMessage("Mes cerrado y universo congelado.")}else setCloseMessage(r.error??"No fue posible cerrar el mes.")})} variant="outline">Cerrar mes</Button><input className="min-h-11 rounded-xl border bg-background px-3" onChange={e=>setReopenReason(e.target.value)} placeholder="Motivo para reabrir" value={reopenReason}/><Button disabled={closing||closeState?.status!=='CLOSED'||reopenReason.trim().length<3} onClick={()=>startClosing(async()=>{const r=await reopenStaffMonthAction(month,reopenReason);if(r.ok){setCloseState(r.data);setCloseMessage("Mes reabierto con auditoría.")}else setCloseMessage(r.error??"No fue posible reabrir el mes.")})} variant="outline">Reabrir</Button></div></div><div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7"><Metric label="Personas" value={Number(closeState?.totals?.people??0)}/><Metric label="Total" value={Number(closeState?.totals?.total??0)}/><Metric label="Pagado" value={Number(closeState?.totals?.paid??0)}/><Metric label="Pendiente" value={Number(closeState?.totals?.pending??0)}/><Metric label="Boletas pendientes" value={Number(closeState?.totals?.receiptsPending??0)}/><Metric label="Elegibles" value={Number(closeState?.eligible??0)}/><Metric label="En revisión" value={Number(closeState?.ineligible??0)}/></div>{closeMessage&&<p aria-live="polite" className="mt-3 text-sm text-muted">{closeMessage}</p>}</section>
-      <PaymentSheet month={month} rows={rows}/>
+      <div data-issue75-payment-sheet><PaymentSheet month={month} rows={rows}/></div>
       <div className="grid gap-4 xl:grid-cols-2">
         {rows.map((row) => (
           <details open={openStaffId===row.member.id}
