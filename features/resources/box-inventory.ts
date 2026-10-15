@@ -13,6 +13,7 @@ export type BoxAsset = {
   notes: string | null;
   storage_location: string | null;
   assignments: BoxEventAssignment[];
+  assignmentHistory: BoxEventAssignment[];
   paperLots: BoxPaperLot[];
 };
 
@@ -39,6 +40,7 @@ export type BoxEventAssignment = {
   eventTime: string;
   plannedStartAt: string | null;
   plannedEndAt: string | null;
+  assignmentStatus: string;
 };
 
 export const MASTER_BLACK_BOX_CODES = Array.from({ length: 9 }, (_, index) => `CASE-${String(index + 1).padStart(2, "0")}`);
@@ -77,7 +79,7 @@ export async function loadBoxes(client: SupabaseClient) {
   const profileNames = new Map((profiles ?? []).map((profile) => [profile.id, profile.display_name]));
   const assetIds = (boxes ?? []).map((box) => box.id);
   const { data: assignments, error: assignmentsError } = assetIds.length
-    ? await client.from("asset_assignments").select("id,asset_id,project_id,planned_start_at,planned_end_at,projects(id,name,event_date,event_time)").in("asset_id", assetIds).eq("assignment_status", "ASSIGNED").is("deleted_at", null).order("planned_start_at")
+    ? await client.from("asset_assignments").select("id,asset_id,project_id,assignment_status,planned_start_at,planned_end_at,projects(id,name,event_date,event_time)").in("asset_id", assetIds).is("deleted_at", null).order("planned_start_at")
     : { data: [], error: null };
   if (assignmentsError) throw assignmentsError;
   const { data: mediaLots, error: mediaLotsError } = assetIds.length
@@ -124,13 +126,14 @@ export async function loadBoxes(client: SupabaseClient) {
   const assignmentsByAsset = new Map<string, BoxEventAssignment[]>();
   for (const assignment of assignments ?? []) {
     const project = Array.isArray(assignment.projects) ? assignment.projects[0] : assignment.projects;
-    const item: BoxEventAssignment = { id: assignment.id, projectId: assignment.project_id, eventName: project?.name ?? "Evento", eventDate: project?.event_date ?? "", eventTime: project?.event_time ?? "", plannedStartAt: assignment.planned_start_at, plannedEndAt: assignment.planned_end_at };
+    const item: BoxEventAssignment = { id: assignment.id, projectId: assignment.project_id, eventName: project?.name ?? "Evento", eventDate: project?.event_date ?? "", eventTime: project?.event_time ?? "", plannedStartAt: assignment.planned_start_at, plannedEndAt: assignment.planned_end_at, assignmentStatus: assignment.assignment_status };
     assignmentsByAsset.set(assignment.asset_id, [...(assignmentsByAsset.get(assignment.asset_id) ?? []), item]);
   }
   return (boxes ?? []).map((box) => ({
     ...box,
     updated_by_name: box.updated_by ? profileNames.get(box.updated_by) ?? null : null,
-    assignments: assignmentsByAsset.get(box.id) ?? [],
+    assignments: (assignmentsByAsset.get(box.id) ?? []).filter((assignment) => assignment.assignmentStatus === "ASSIGNED"),
+    assignmentHistory: assignmentsByAsset.get(box.id) ?? [],
     paperLots: paperLotsByAsset.get(box.id) ?? [],
   })) as BoxAsset[];
 }
