@@ -19,6 +19,8 @@ test("storage backup is physical, checksummed, read-back verified and scoped", (
   assert.match(service, /createHash\("sha256"\)/);
   assert.match(service, /provider\.readFile/);
   assert.match(service, /ORBIT_BACKUP_/);
+  assert.match(service, /GOOGLE_DRIVE_PARENT_FOLDER_ID/);
+  assert.match(service, /md5Checksum/);
   assert.match(service, /orbitBackupRunId/);
 });
 
