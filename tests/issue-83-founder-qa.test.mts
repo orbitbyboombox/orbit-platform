@@ -47,3 +47,13 @@ test("Issue 85 preserves direct Logistics and compact paper inventory access", (
   assert.match(warehouse, /ASIGNAR CAJA A EVENTO/);
   assert.match(boxMaster, /Fotos disponibles|Saldo físico fiable/);
 });
+
+test("Issue 87 restores legacy operational photo stock without treating it as physical inventory", () => {
+  assert.match(warehouse, /blackBoxStock\(box\.metadata\)/);
+  assert.match(warehouse, /Fotos disponibles/);
+  assert.match(warehouse, /Lotes físicos: pendiente de conciliación/);
+  assert.match(warehouse, /STOCK BODEGA PAPEL/);
+  assert.match(warehouse, /data-issue87-stock-bodega-paper/);
+  assert.match(boxMaster, /blackBoxStock\(box\.metadata\)/);
+  assert.doesNotMatch(warehouse, /Saldo no conciliado/);
+});
