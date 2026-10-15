@@ -34,7 +34,7 @@ const sha256 = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest(
 const jsonBytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value, null, 2));
 
 function backupRootFolderId() {
-  const value = process.env.ORBIT_BACKUP_DRIVE_FOLDER_ID?.trim();
+  const value = (process.env.ORBIT_BACKUP_DRIVE_FOLDER_ID ?? process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID)?.trim();
   if (!value) throw new Error("BACKUP_DRIVE_FOLDER_NOT_CONFIGURED");
   return value;
 }
@@ -86,7 +86,11 @@ async function uploadIdempotent(provider: GoogleDriveLiveProvider, input: { name
   const existing = provider.findFilesByName
     ? await provider.findFilesByName({ name: input.name, parentFolderId: input.parentFolderId })
     : [];
-  const owned = existing.find((file) => Object.entries(input.appProperties).every(([key, value]) => file.appProperties?.[key] === value));
+  const inputMd5 = createHash("md5").update(input.bytes).digest("hex");
+  const owned = existing.find((file) =>
+    Object.entries(input.appProperties).every(([key, value]) => file.appProperties?.[key] === value)
+    || (file.md5Checksum === inputMd5 && file.size === String(input.bytes.byteLength))
+  );
   const file = owned ?? await provider.uploadFile(input);
   if (!provider.readFile) throw new Error("DRIVE_READBACK_UNAVAILABLE");
   const readback = await provider.readFile(file.id);
