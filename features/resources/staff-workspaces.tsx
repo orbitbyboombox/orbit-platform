@@ -65,8 +65,23 @@ export function StaffWorkspaces({
             </button>
           ))}
         </nav>
+        <div className="mt-4 flex flex-col gap-3 rounded-xl border border-brand/25 bg-brand/5 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4" data-issue75-staff-quick-access>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Acceso rápido Staff</p>
+            <p className="mt-1 text-sm text-muted">Pagos por pagar y adelantos con el flujo canónico de operador, monto, pago y comprobante.</p>
+          </div>
+          <button
+            aria-controls="staff-payroll-workspace"
+            className="min-h-11 shrink-0 rounded-xl bg-brand px-4 text-sm font-bold text-brand-foreground"
+            data-issue75-staff-quick-payments
+            onClick={() => setActive("PAYROLL")}
+            type="button"
+          >
+            PAGOS POR PAGAR / ADELANTOS
+          </button>
+        </div>
       </header>
-      {content}
+      <div id={active === "PAYROLL" ? "staff-payroll-workspace" : undefined} data-issue75-staff-payments-flow={active === "PAYROLL" ? "visible" : "hidden"}>{content}</div>
     </section>
   );
 }

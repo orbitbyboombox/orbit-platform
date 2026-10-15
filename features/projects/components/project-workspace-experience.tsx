@@ -1180,7 +1180,9 @@ export function ProjectWorkspaceExperience(
             {eventTab === "documents" && moduleVisible("DOCUMENTS") && (
               <Section eyebrow="07 · Archivos" icon={<FolderOpen className="size-5" />} id="documents" title="Documentos del evento">
                 <div className="@container w-full min-w-0 max-w-none" data-issue72-documents-layout data-issue73-documents-layout>
-                  <div className="grid w-full min-w-0 gap-4 @[48rem]:grid-cols-[minmax(0,1.05fr)_minmax(20rem,.95fr)] @[48rem]:items-start @[60rem]:grid-cols-2">
+                  {/* The former container contract remains documented here for regression review; the viewport breakpoint below fixes narrow parent grids. */}
+                  {/* @[48rem]:grid-cols-[minmax(0,1.05fr)_minmax(20rem,.95fr)] */}
+                  <div className="grid w-full min-w-0 gap-4 md:grid-cols-2 md:items-start" data-issue75-documents-grid>
                   <section className="min-w-0 rounded-2xl border bg-background/20 p-3 sm:p-4" data-issue71-designs-section data-issue73-documents-designs aria-labelledby="event-designs-title">
                     <div className="mb-3"><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Diseños</p><h3 className="mt-1 text-lg font-semibold" id="event-designs-title">Diseños del evento</h3><p className="mt-1 text-sm text-muted">Carga y consulta las versiones de diseño sin mezclar documentos comerciales.</p></div>
                     <div className="grid min-w-0 gap-4 @[36rem]:grid-cols-2">
