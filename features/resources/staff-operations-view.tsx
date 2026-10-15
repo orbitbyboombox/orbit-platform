@@ -104,11 +104,11 @@ export function StaffOperationsView({
     <section className="space-y-5 rounded-2xl border bg-card p-5 sm:p-7">
       <header>
         <p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">
-          Operaciones · próximos 15 días
+          Logística · próximos 15 días
         </p>
-        <h2 className="mt-2 text-2xl font-semibold">Control de publicación Staff</h2>
+        <h2 className="mt-2 text-2xl font-semibold">Logística Staff</h2>
         <p className="mt-2 text-sm text-muted">
-          Prepara y revisa cada Evento internamente. El Portal Staff sólo lo muestra después de una activación explícita.
+          Vista operativa compacta de rutas, eventos, responsables y estados de asignación. El Portal Staff sólo lo muestra después de una activación explícita.
         </p>
       </header>
       <div className="grid gap-5 xl:grid-cols-[1.3fr_.7fr]">

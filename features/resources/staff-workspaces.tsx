@@ -13,7 +13,7 @@ type Workspace = "TEAM" | "OPERATIONS" | "PORTAL" | "PAYROLL" | "ACADEMY";
 
 const workspaces = [
   { key: "TEAM" as const, label: "Equipo", icon: UsersRound },
-  { key: "OPERATIONS" as const, label: "Operaciones", icon: CalendarRange },
+  { key: "OPERATIONS" as const, label: "Logística", icon: CalendarRange },
   { key: "PORTAL" as const, label: "Portal Staff", icon: ShieldCheck },
   { key: "PAYROLL" as const, label: "Nómina Mensual", icon: CircleDollarSign },
   { key: "ACADEMY" as const, label: "Academy Manager", icon: GraduationCap },
@@ -79,9 +79,18 @@ export function StaffWorkspaces({
           >
             PAGOS POR PAGAR / ADELANTOS
           </button>
+          <button
+            aria-controls="staff-logistics-workspace"
+            className="min-h-11 shrink-0 rounded-xl border px-4 text-sm font-bold text-brand"
+            data-issue83-staff-logistics
+            onClick={() => setActive("OPERATIONS")}
+            type="button"
+          >
+            LOGÍSTICA
+          </button>
         </div>
       </header>
-      <div id={active === "PAYROLL" ? "staff-payroll-workspace" : undefined} data-issue75-staff-payments-flow={active === "PAYROLL" ? "visible" : "hidden"}>{content}</div>
+      <div id={active === "PAYROLL" ? "staff-payroll-workspace" : active === "OPERATIONS" ? "staff-logistics-workspace" : undefined} data-issue75-staff-payments-flow={active === "PAYROLL" ? "visible" : "hidden"}>{content}</div>
     </section>
   );
 }
