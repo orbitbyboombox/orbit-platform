@@ -2,12 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { blackBoxNumber, blackBoxStock, type BoxAsset } from "./box-inventory";
-import { currentChileMonth, monthKeyForChile } from "./box-history-date";
+import { currentChileMonth, monthKeyForChile, monthLabel } from "./box-history-date";
 import type { InventoryMovement } from "@/features/supply-engine/types/supply.types";
 
 type BoxManagementProps = { boxes: BoxAsset[]; movements: readonly InventoryMovement[]; warehousePhotos: number; onEditBox: (boxId: string) => void; onAssignBox: () => void };
 const monthValue = currentChileMonth;
-const monthLabel = (value: string) => { if (!value) return "Todos los meses"; const [year, month] = value.split("-").map(Number); return new Intl.DateTimeFormat("es-CL", { month: "long", year: "numeric", timeZone: "America/Santiago" }).format(new Date(Date.UTC(year, month - 1, 1))); };
 const inMonth = (value: string | null | undefined, month: string) => !month || monthKeyForChile(value) === month;
 const assignmentStatusLabel = (value: string) => value === "ASSIGNED" ? "Asignada" : value === "RETURNED" ? "Devuelta" : value;
 

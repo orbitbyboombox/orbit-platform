@@ -19,3 +19,9 @@ export function currentChileMonth(now = new Date()) {
   const parts = chileMonthParts(now);
   return parts.year && parts.month ? `${parts.year}-${parts.month}` : "";
 }
+
+export function monthLabel(value: string) {
+  if (!value) return "Todos los meses";
+  const [year, month] = value.split("-").map(Number);
+  return new Intl.DateTimeFormat("es-CL", { month: "long", year: "numeric" }).format(new Date(year, month - 1, 15));
+}
