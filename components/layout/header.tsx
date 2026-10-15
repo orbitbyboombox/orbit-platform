@@ -95,7 +95,7 @@ export function Header({ userEmail, userName, userRole, actionableNotifications,
         {userMenuOpen && <div className="absolute right-3 top-[4.1rem] z-50 w-56 rounded-xl border bg-card p-2 shadow-2xl sm:right-4"><Link className="flex min-h-11 items-center rounded-lg px-3 text-sm hover:bg-accent" href="/settings?section=profile" onClick={() => setUserMenuOpen(false)}>Perfil y configuración</Link><form action={signOutAction}><button className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-left text-sm hover:bg-accent" type="submit"><LogOut className="size-4" />Cerrar sesión</button></form></div>}
       </header>
       {menuOpen && (
-        <div className="fixed inset-x-3 top-[4.75rem] z-40 rounded-2xl border bg-card/95 p-2 shadow-2xl backdrop-blur-xl md:hidden">
+        <div className="fixed inset-x-3 top-[4.75rem] z-40 max-h-[calc(100dvh-5.5rem)] overflow-y-auto overscroll-contain rounded-2xl border bg-card/95 p-2 shadow-2xl backdrop-blur-xl md:hidden">
           <NavigationList hiddenNavigation={hiddenNavigation} navigationOrder={navigationOrder} onNavigate={() => setMenuOpen(false)} />
         </div>
       )}
