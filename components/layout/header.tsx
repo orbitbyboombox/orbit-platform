@@ -52,7 +52,7 @@ export function Header({ userEmail, userName, userRole, actionableNotifications,
           className="flex h-9 w-24 shrink-0 items-center px-1 sm:w-28 lg:hidden"
           href="/operations"
         >
-          <BrandLogo className="w-full" surface="dark" />
+          <BrandLogo className="w-full" surface="dark" productVersion="v2.1" developedBy="BOOMBOX" poweredBy="NOVA CORE" />
         </Link>
         <GlobalSearch />
         {resilientSyncEnabled ? <ResilientSyncIndicator /> : null}
