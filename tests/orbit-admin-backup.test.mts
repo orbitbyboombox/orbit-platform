@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { decryptBackupArtifact, encryptBackupArtifact } from "../features/connectors/google-drive/application/orbit-admin-backup.crypto.ts";
 
 const service = readFileSync("features/connectors/google-drive/application/orbit-admin-backup.service.ts", "utf8");
 const action = readFileSync("features/connectors/google-drive/actions/orbit-admin-backup.actions.ts", "utf8");
@@ -21,13 +22,28 @@ test("storage backup is physical, checksummed, read-back verified and scoped", (
   assert.match(service, /ORBIT_BACKUP_/);
   assert.match(service, /GOOGLE_DRIVE_PARENT_FOLDER_ID/);
   assert.match(service, /md5Checksum/);
+  assert.match(service, /iterateStorageObjects/);
+  assert.match(service, /for await/);
+  assert.match(readFileSync("features/connectors/google-drive/application/orbit-admin-backup.crypto.ts", "utf8"), /BACKUP_ENCRYPTION_NOT_CONFIGURED/);
   assert.match(service, /orbitBackupRunId/);
+});
+
+test("backup artifacts encrypt and restore without exposing plaintext", () => {
+  const key = Buffer.alloc(32, 7);
+  const plaintext = new TextEncoder().encode("private storage bytes");
+  const encrypted = encryptBackupArtifact(plaintext, key);
+  const retryCiphertext = encryptBackupArtifact(plaintext, key);
+  assert.notDeepEqual(encrypted, plaintext);
+  assert.notDeepEqual(encrypted, retryCiphertext);
+  assert.equal(new TextDecoder().decode(decryptBackupArtifact(encrypted, key)), "private storage bytes");
+  assert.equal(new TextDecoder().decode(decryptBackupArtifact(retryCiphertext, key)), "private storage bytes");
+  assert.throws(() => decryptBackupArtifact(encrypted, Buffer.alloc(32, 8)));
 });
 
 test("idempotency and concurrency use a persistent unique ledger", () => {
   assert.match(migration, /idempotency_key text not null unique/);
   assert.match(service, /BACKUP_ALREADY_RUNNING_OR_CLAIM_FAILED/);
-  assert.match(service, /select\("id,status"\)/);
+  assert.match(service, /select\("id,status,drive_folder_id,metadata"\)/);
 });
 
 test("database backup is not falsely represented by SQL metadata", () => {

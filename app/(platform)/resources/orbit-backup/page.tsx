@@ -13,7 +13,7 @@ async function runBackup(formData: FormData) {
     redirect(`/resources/orbit-backup?result=${encodeURIComponent(JSON.stringify(result))}`);
   } catch (error) {
     if (isRedirectError(error)) throw error;
-    redirect(`/resources/orbit-backup?error=${encodeURIComponent(error instanceof Error ? error.message : "No fue posible ejecutar el respaldo.")}`);
+    redirect("/resources/orbit-backup?error=BACKUP_REQUEST_REJECTED");
   }
 }
 

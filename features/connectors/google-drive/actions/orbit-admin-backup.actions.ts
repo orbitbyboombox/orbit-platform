@@ -15,5 +15,10 @@ export async function runOrbitAdminBackupAction(input: { scope: AdminBackupScope
   const idempotencyKey = input.idempotencyKey.trim();
   if (!idempotencyKey || idempotencyKey.length > 160) throw new Error("Clave de idempotencia inválida.");
   if (input.scope === "DATABASE") return runOrbitDatabaseBackup();
-  return runOrbitStorageBackup({ client: createAdminClient(), createdBy: auth.user.id, idempotencyKey });
+  try {
+    const result = await runOrbitStorageBackup({ client: createAdminClient(), createdBy: auth.user.id, idempotencyKey });
+    return result.status === "FAILED" ? { ...result, reason: "BACKUP_FAILED_RETRY_LATER" } : result;
+  } catch {
+    return { scope: "STORAGE" as const, status: "FAILED" as const, filesProcessed: 0, reason: "BACKUP_FAILED_RETRY_LATER" };
+  }
 }
