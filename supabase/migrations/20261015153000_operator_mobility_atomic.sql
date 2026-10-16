@@ -28,7 +28,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = public
-as $
+as $mobility$
 begin
   if tg_op = 'DELETE' then
     if old.reason = 'BONUS' and old.comment = 'Movilización operador' then
@@ -41,7 +41,7 @@ begin
   end if;
   return new;
 end;
-$;
+$mobility$;
 
 drop trigger if exists operator_mobility_settlement_recalculation on public.event_staff_settlement_adjustments;
 create trigger operator_mobility_settlement_recalculation
