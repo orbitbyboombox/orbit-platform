@@ -8,6 +8,7 @@ import {chileDateTime as operationalDateTime,resolveCanonicalStaffCallAt} from "
 import {portalStaffVisibility} from "./staff-portal-visibility";
 import {buildCanonicalOrbitEventStateFromRecord} from "@/features/operations/canonical-orbit-event-state";
 import {buildCanonicalOperationalExtras} from "@/features/operations/canonical-operational-extras";
+import {CANONICAL_BOX_CODES} from "@/features/asset-management/box-assignment-read-model";
 
 const today=()=>new Intl.DateTimeFormat("en-CA",{timeZone:"America/Santiago"}).format(new Date());
 const addDays=(value:string,days:number)=>{const date=new Date(`${value}T12:00:00Z`);date.setUTCDate(date.getUTCDate()+days);return date.toISOString().slice(0,10)};
@@ -53,7 +54,7 @@ export async function StaffPortal({staffId,initialEventId}:{staffId:string;initi
   admin.from("event_vehicle_assignments").select("project_id,operational_assets(asset_code,metadata)").eq("status","ASSIGNED").is("deleted_at",null),
   admin.from("cost_master_entries").select("code,amount").eq("enabled",true).is("deleted_at",null),
   admin.from("project_operational_contracts").select("project_id,contact_status,contact_first_name,contact_last_name,contact_phone,contact_role,service_start_at,service_end_at,staff_arrival_at,operational_notes,special_instructions,equipment_notes,setup_notes,emergency_notes,photo_style,operator_print_notes"),
-  admin.from("asset_assignments").select("project_id,operational_assets(asset_code)").eq("assignment_status","ASSIGNED").is("deleted_at",null),
+  admin.from("asset_assignments").select("project_id,assignment_status,deleted_at,operational_assets!inner(asset_code,asset_type)").eq("assignment_status","ASSIGNED").is("deleted_at",null).in("operational_assets.asset_type",["BOX","CASE"]).in("operational_assets.asset_code",CANONICAL_BOX_CODES),
   admin.from("event_staff_requirements").select("project_id,role,required_quantity,published").eq("published",true),
   admin.from("vehicle_trips").select("id,project_id,driver_staff_id,driver_name,trip_type,sequence,origin,destination,planned_start_at,planned_end_at,meeting_point,instructions,status,operational_assets(asset_code,vehicle_profiles(model)),staff(first_name,last_name)").eq("driver_staff_id",staffId).is("deleted_at",null).neq("status","CANCELLED").order("sequence"),
   admin.from("staff_expense_submissions").select("id,project_id,category,amount,occurred_on,description,status,rejection_reason,reimbursement").eq("staff_id",staffId).order("submitted_at",{ascending:false}).limit(30),

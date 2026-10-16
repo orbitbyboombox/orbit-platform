@@ -716,7 +716,7 @@ export default async function ProjectWorkspacePage({
     (asset) => asset?.asset_type === "TOTEM",
   );
   const caseReady = currentProjectAssets.some(
-    (asset) => asset?.asset_type === "CASE",
+    (asset) => asset?.asset_type === "CASE" || asset?.asset_type === "BOX",
   );
   const paymentReady =
     ["APPROVED", "CONFIRMED", "PAID"].includes(
