@@ -65,6 +65,7 @@ declare
   payment public.event_staff_payments%rowtype;
   adjustment public.event_staff_settlement_adjustments%rowtype;
   payment_count integer;
+  saved_assignment_id uuid;
   event_date date;
   event_commune text;
   normalized_commune text;
@@ -122,21 +123,37 @@ begin
   -- later validation error rolls both changes back.
   saved := public.save_event_staff_assignment(p_payload,p_request_id,p_assignment_id,p_replace_id);
 
+  -- Reuse ORBIT's existing financial obligation generator, in this same transaction.
+  -- This avoids a first-time OPERATOR assignment failing because payment did not
+  -- exist before the assignment was saved.
+  saved_assignment_id := nullif(saved->>'id','')::uuid;
+  if saved_assignment_id is null then
+    raise exception 'La asignación guardada no tiene identificador.';
+  end if;
+  if nullif(p_payload->>'block_id','') is not null then
+    raise exception 'La movilización por bloque requiere revisión financiera; no se guardó.';
+  end if;
+  perform public.refresh_staff_event_payment(v_project_id, v_staff_id, auth.uid());
+
+  -- The assignment, rather than project+staff, is the canonical finance identity.
+  -- Other roles for the same collaborator must not make the operator ambiguous.
   select count(*) into payment_count
-    from public.event_staff_payments
-   where public.event_staff_payments.project_id = v_project_id
-     and public.event_staff_payments.staff_id = v_staff_id
-     and public.event_staff_payments.deleted_at is null
-     and public.event_staff_payments.status <> 'CANCELLED';
+    from public.event_staff_payments p
+   where p.assignment_id = saved_assignment_id
+     and p.project_id = v_project_id
+     and p.staff_id = v_staff_id
+     and p.deleted_at is null
+     and p.status <> 'CANCELLED';
   if payment_count <> 1 then
-    raise exception 'La liquidación del operador no es única; movilización permanece bloqueada.';
+    raise exception 'La liquidación de esta asignación no es única; movilización bloqueada.';
   end if;
   select * into payment
-    from public.event_staff_payments
-   where public.event_staff_payments.project_id = v_project_id
-     and public.event_staff_payments.staff_id = v_staff_id
-     and public.event_staff_payments.deleted_at is null
-     and public.event_staff_payments.status <> 'CANCELLED'
+    from public.event_staff_payments p
+   where p.assignment_id = saved_assignment_id
+     and p.project_id = v_project_id
+     and p.staff_id = v_staff_id
+     and p.deleted_at is null
+     and p.status <> 'CANCELLED'
    for update;
   select * into adjustment
     from public.event_staff_settlement_adjustments
