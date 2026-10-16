@@ -116,3 +116,11 @@ test("operator mobility RPC rolls back on invalid or multiple settlements", () =
   assert.match(migration, /settlement_status in \('PAID','FINALIZED'\)/);
   assert.match(migration, /pg_advisory_xact_lock/);
 });
+
+test("mobility migration has valid PL/pgSQL quoting and remains isolated from legacy transport", () => {
+  const migration = readFileSync("supabase/migrations/20261015153000_operator_mobility_atomic.sql", "utf8");
+  assert.match(migration, /as \$mobility\$[\s\S]*?\$mobility\$;/);
+  assert.doesNotMatch(migration, /as \$(?!\$|[A-Za-z_])/);
+  assert.match(migration, /comment = 'Movilización operador'/);
+  assert.doesNotMatch(migration, /set transport_bonus\s*=/i);
+});
