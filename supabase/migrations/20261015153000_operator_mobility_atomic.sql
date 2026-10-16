@@ -20,6 +20,34 @@ create policy event_staff_settlement_adjustments_admin_delete
 
 grant update, delete on public.event_staff_settlement_adjustments to authenticated;
 
+-- Existing event_staff_adjustment_sync recalculates settlement on INSERT only.
+-- UPDATE and DELETE must also refresh the outstanding staff balance. The
+-- existing zz_event_operation_cost_sync already refreshes event profitability.
+create or replace function public.recalculate_operator_mobility_adjustment_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $
+begin
+  if tg_op = 'DELETE' then
+    if old.reason = 'BONUS' and old.comment = 'Movilización operador' then
+      perform public.recalculate_event_staff_settlement(old.settlement_id);
+    end if;
+    return old;
+  end if;
+  if new.reason = 'BONUS' and new.comment = 'Movilización operador' then
+    perform public.recalculate_event_staff_settlement(new.settlement_id);
+  end if;
+  return new;
+end;
+$;
+
+drop trigger if exists operator_mobility_settlement_recalculation on public.event_staff_settlement_adjustments;
+create trigger operator_mobility_settlement_recalculation
+after update or delete on public.event_staff_settlement_adjustments
+for each row execute function public.recalculate_operator_mobility_adjustment_change();
+
 create or replace function public.save_event_staff_assignment_with_mobility(
   p_payload jsonb,
   p_request_id uuid,
