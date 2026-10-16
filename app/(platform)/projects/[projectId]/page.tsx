@@ -10,6 +10,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { calculateAndPersistRealEventCost } from "@/features/profit-engine";
 import { loadFounderWorkspace } from "@/features/founder-workspace";
 import type { EquipmentAssignmentPanelProps } from "@/features/asset-management";
+import {
+  buildAssignedBoxByProject,
+  formatAssignedBoxLabel,
+} from "@/features/asset-management/box-assignment-read-model";
+import { buildEventEquipmentExtras } from "@/features/projects/event-equipment-extras-read-model";
 import type { EventLogisticsData } from "@/features/operations/event-logistics-center";
 import { resolveReceivablePaymentCategory } from "@/features/accounts-receivable/payment-term-classification";
 import { requiresPhotoStripDesign } from "@/features/business-core/catalog/service.catalog";
@@ -159,7 +164,7 @@ export default async function ProjectWorkspacePage({
     client
       .from("asset_assignments")
       .select(
-        "id,project_id,asset_id,operational_requirement_id,assignment_status,planned_start_at,planned_end_at,projects(name,event_date,event_time),operational_assets(asset_code,status)",
+        "id,project_id,asset_id,operational_requirement_id,assignment_status,deleted_at,planned_start_at,planned_end_at,projects(name,event_date,event_time),operational_assets(asset_code,asset_type,status)",
       )
       .eq("assignment_status", "ASSIGNED")
       .is("deleted_at", null),
@@ -520,7 +525,7 @@ export default async function ProjectWorkspacePage({
     planned_start_at: string | null;
     planned_end_at: string | null;
     projects: { name: string; event_date: string; event_time: string };
-    operational_assets: { asset_code: string; status: string };
+    operational_assets: { asset_code: string; asset_type: string; status: string };
   };
   type StaffAssignment = {
     created_at?: string;
@@ -543,6 +548,7 @@ export default async function ProjectWorkspacePage({
   };
   const activeAssets = (assetAssignments ??
     []) as unknown as ActiveAssetAssignment[];
+  const assignedBoxByProject = buildAssignedBoxByProject(assetAssignments ?? []);
   const confirmedAssignmentStatuses = new Set([
     "ASSIGNED",
     "PENDING",
@@ -718,6 +724,20 @@ export default async function ProjectWorkspacePage({
   const caseReady = currentProjectAssets.some(
     (asset) => asset?.asset_type === "CASE" || asset?.asset_type === "BOX",
   );
+  const eventExtras = buildEventEquipmentExtras({
+    serviceExtras: (serviceRows ?? []).flatMap((item) =>
+      Array.isArray(item.extras) ? item.extras : [],
+    ),
+    postReservationExtras: (postReservationExtras ?? []) as unknown as Array<{
+      name: unknown;
+      status: unknown;
+    }>,
+    acceptedQuotationItems: (quotation?.quotation_items ?? []) as unknown as Array<{
+      item_type: unknown;
+      label: unknown;
+      description: unknown;
+    }>,
+  });
   const paymentReady =
     ["APPROVED", "CONFIRMED", "PAID"].includes(
       String(finance.status ?? finance.paymentStatus ?? ""),
@@ -1619,6 +1639,10 @@ export default async function ProjectWorkspacePage({
       {...experienceProps}
       activities={activities}
       equipment={equipment}
+      eventEquipmentExtras={{
+        boxLabel: formatAssignedBoxLabel(assignedBoxByProject.get(projectId)),
+        extras: eventExtras,
+      }}
       event360={event360}
       operationalReadiness={operationalReadiness}
       logistics={logistics}

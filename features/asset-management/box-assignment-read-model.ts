@@ -31,3 +31,10 @@ export function buildAssignedBoxByProject(rows: AssignmentLike[]): Map<string, s
   }
   return result;
 }
+
+export function formatAssignedBoxLabel(code: string | null | undefined): string {
+  const normalized = code?.trim().toUpperCase() ?? "";
+  if (!CANONICAL_BOX_CODE_SET.has(normalized)) return "Caja pendiente de asignar";
+  const number = Number(normalized.slice("CASE-".length));
+  return `Caja ${number} · ${normalized}`;
+}

@@ -250,6 +250,7 @@ export type ProjectWorkspaceExperienceProps = Omit<
   eventDateIso?: string;
   activities?: readonly { title: string; detail: string; time: string }[];
   equipment: EquipmentAssignmentPanelProps;
+  eventEquipmentExtras: { boxLabel: string; extras: readonly string[] };
   signing: { agreementId?: string; quotationId?: string; status: string; href?: string; createdAt?:string; signedAt?:string };
   commercialHub: { customerTaxId?:string; customerKind:"PARTICULAR"|"EMPRESA"; paymentCondition:string; quotation?:{id:string;number:string;status:string;revision:number;acceptedAt:string;total:number;detailHref:string;pdfHref:string;items:readonly {label:string;quantity:number;total:number}[]} };
   productionIntegration: ProductionIntegrationPanelProps;
@@ -684,7 +685,46 @@ export function ProjectWorkspaceExperience(
               ))}
             </nav>
           </section>
-          {activeTab === "SUMMARY" && <div>{capacityPanel}</div>}
+          {activeTab === "SUMMARY" && (
+            <div className="space-y-3">
+              {capacityPanel}
+              <section
+                aria-label="Equipamiento y extras"
+                className="rounded-2xl border bg-card p-4 sm:p-5"
+              >
+                <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold uppercase tracking-[.16em] text-brand">
+                      Equipamiento y extras
+                    </p>
+                    <p className="mt-1 text-sm font-semibold">{props.eventEquipmentExtras.boxLabel}</p>
+                  </div>
+                  <span className="rounded-full border border-white/10 px-3 py-1 text-[11px] uppercase tracking-[.12em] text-muted">
+                    Fuente canónica · Cajas / Logística
+                  </span>
+                </div>
+                <div className="mt-4 border-t border-white/10 pt-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[.16em] text-brand">
+                    RECUERDA: ESTE EVENTO INCLUYE
+                  </p>
+                  {props.eventEquipmentExtras.extras.length ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {props.eventEquipmentExtras.extras.map((extra) => (
+                        <span
+                          className="rounded-full border border-brand/30 bg-brand/10 px-3 py-1.5 text-xs font-medium"
+                          key={extra}
+                        >
+                          {extra}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-xs text-muted">Sin extras contratados o incluidos registrados.</p>
+                  )}
+                </div>
+              </section>
+            </div>
+          )}
 
           <section className="grid min-w-0 gap-6 xl:grid-cols-2">
             {activeTab === "CLIENT" && moduleVisible("GENERAL_INFORMATION") && (
