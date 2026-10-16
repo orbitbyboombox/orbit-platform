@@ -81,3 +81,16 @@ test("assignment props read the independent mobility adjustment, not legacy tran
   assert.match(source, /settlementAdjustments \?\? \[\]\)\.find/);
   assert.doesNotMatch(source, /mobilityAmount:[^\n]*transport_bonus/);
 });
+
+test("preview blocks writes while allowing only verified read-only operations lookup", () => {
+  const guard = readFileSync("lib/supabase/read-only-preview.ts", "utf8");
+  assert.match(guard, /operations_drive_ready_projects/);
+  assert.match(guard, /blockedDatabaseMethods = new Set\(\["insert", "upsert", "update", "delete"\]\)/);
+  assert.match(guard, /if \(!readOnlyRpcNames\.has\(functionName\)\) return readOnlyError\(\)/);
+});
+
+test("mobility is hidden for pre-effective events and excluded staff", () => {
+  const source = readFileSync("features/staff-assignment-center/staff-assignment-center.tsx", "utf8");
+  assert.match(source, /eventDate\.slice\(0, 10\) >= "2026-10-17"/);
+  assert.match(source, /!EXCLUDED_OPERATOR_MOBILITY_STAFF_IDS\.has\(selectedStaffId\)/);
+});
