@@ -173,15 +173,15 @@ export async function saveStaffAssignmentAction(
       reason: value(input.observations) ?? "Asignación operacional",
       updated_by: ctx.user.id,
     };
+    const mobility = operatorMobilityEligibility({
+      eventDate: ctx.project.event_date,
+      role: input.role,
+      staffId: input.staffId,
+      excludedStaffIds: EXCLUDED_OPERATOR_MOBILITY_STAFF_IDS,
+      commune: ctx.project.city,
+    });
     let requestedMobilityAmount: number | null = null;
     if (input.role === "OPERATOR" && input.mobilityDecision !== "UNCHANGED") {
-      const mobility = operatorMobilityEligibility({
-        eventDate: ctx.project.event_date,
-        role: input.role,
-        staffId: input.staffId,
-        excludedStaffIds: EXCLUDED_OPERATOR_MOBILITY_STAFF_IDS,
-        commune: ctx.project.city,
-      });
       requestedMobilityAmount = resolveApprovedOperatorMobility({
         eligible: mobility.eligible,
         suggestedAmount: mobility.suggestedAmount,
@@ -192,7 +192,9 @@ export async function saveStaffAssignmentAction(
         throw new Error("La movilización no corresponde para este operador, fecha o comuna.");
       }
     }
-    const mobilityEnabled = input.role === "OPERATOR" && input.mobilityDecision !== "UNCHANGED";
+    // Preserve the existing assignment RPC for historic, excluded and unmapped events.
+    // Only eligible operator-event pairs can enter the new mobility transaction.
+    const mobilityEnabled = input.role === "OPERATOR" && mobility.eligible && input.mobilityDecision !== "UNCHANGED";
     const { data: saved, error: saveError } = await ctx.client.rpc(
       mobilityEnabled ? "save_event_staff_assignment_with_mobility" : "save_event_staff_assignment",
       {
