@@ -1368,7 +1368,7 @@ function AssignmentDialog({
       assignment.role === role && assignment.staffId === member.id && assignment.id !== item?.id &&
       !["CANCELLED", "REJECTED"].includes(assignment.status))),
   );
-  const mobilitySuggestion = role === "OPERATOR" && eventDate && !EXCLUDED_OPERATOR_MOBILITY_STAFF_IDS.has(selectedStaffId)
+  const mobilitySuggestion = role === "OPERATOR" && Boolean(eventDate && eventDate.slice(0, 10) >= "2026-10-17") && !EXCLUDED_OPERATOR_MOBILITY_STAFF_IDS.has(selectedStaffId)
     ? suggestedOperatorMobilityAmount(eventCommune)
     : null;
   const [mobilityChecked, setMobilityChecked] = useState(Boolean(item?.mobilityAmount));
