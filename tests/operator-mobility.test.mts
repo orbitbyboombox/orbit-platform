@@ -124,3 +124,12 @@ test("mobility migration has valid PL/pgSQL quoting and remains isolated from le
   assert.match(migration, /comment = 'Movilización operador'/);
   assert.doesNotMatch(migration, /set transport_bonus\s*=/i);
 });
+
+test("mobility uses ORBIT canonical assignment-based financial settlement in one SQL transaction", () => {
+  const migration = readFileSync("supabase/migrations/20261015153000_operator_mobility_atomic.sql", "utf8");
+  assert.match(migration, /saved := public\.save_event_staff_assignment\(/);
+  assert.match(migration, /refresh_staff_event_payment\(v_project_id, v_staff_id, auth\.uid\(\)\)/);
+  assert.match(migration, /p\.assignment_id = saved_assignment_id/);
+  assert.match(migration, /if payment_count <> 1 then/);
+  assert.match(migration, /block_id/);
+});
