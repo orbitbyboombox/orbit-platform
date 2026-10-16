@@ -102,3 +102,17 @@ test("mobility edit and removal refresh canonical operator balance", () => {
   assert.match(migration, /recalculate_event_staff_settlement\(new\.settlement_id\)/);
   assert.match(migration, /reason = 'BONUS' and .*comment = 'Movilización operador'/);
 });
+
+test("ineligible or historic assignments preserve the original save path", () => {
+  const source = readFileSync("features/staff-assignment-center/actions.ts", "utf8");
+  assert.match(source, /mobilityEnabled = input\.role === "OPERATOR" && mobility\.eligible/);
+  assert.match(source, /mobilityEnabled \? "save_event_staff_assignment_with_mobility" : "save_event_staff_assignment"/);
+});
+
+test("operator mobility RPC rolls back on invalid or multiple settlements", () => {
+  const migration = readFileSync("supabase/migrations/20261015153000_operator_mobility_atomic.sql", "utf8");
+  assert.match(migration, /save_event_staff_assignment\(p_payload,p_request_id,p_assignment_id,p_replace_id\)/);
+  assert.match(migration, /if payment_count <> 1 then/);
+  assert.match(migration, /settlement_status in \('PAID','FINALIZED'\)/);
+  assert.match(migration, /pg_advisory_xact_lock/);
+});
