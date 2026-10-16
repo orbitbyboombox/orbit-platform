@@ -94,3 +94,11 @@ test("mobility is hidden for pre-effective events and excluded staff", () => {
   assert.match(source, /eventDate\.slice\(0, 10\) >= "2026-10-17"/);
   assert.match(source, /!EXCLUDED_OPERATOR_MOBILITY_STAFF_IDS\.has\(selectedStaffId\)/);
 });
+
+test("mobility edit and removal refresh canonical operator balance", () => {
+  const migration = readFileSync("supabase/migrations/20261015153000_operator_mobility_atomic.sql", "utf8");
+  assert.match(migration, /after update or delete on public\.event_staff_settlement_adjustments/);
+  assert.match(migration, /recalculate_event_staff_settlement\(old\.settlement_id\)/);
+  assert.match(migration, /recalculate_event_staff_settlement\(new\.settlement_id\)/);
+  assert.match(migration, /reason = 'BONUS' and .*comment = 'Movilización operador'/);
+});
