@@ -406,8 +406,9 @@ function StaffHome({module, events, availableEvents, requests, weekEvents, today
 function staffLogisticsRow(event: StaffPortalEvent): StaffLogisticsEvent {
   const assignedBlocks = event.roles.includes("OPERATOR") ? event.operationalBlocks : [];
   const primaryBlock = assignedBlocks[0];
+  const boxCode = [event.box, ...event.equipment].find((value): value is string => typeof value === "string" && /^CASE-\d{2}$/.test(value));
   return {
-    id: event.id, projectId: event.orbitEventId, orbitEventId: event.orbitEventId, date: event.date,
+    id: event.id, projectId: event.id, orbitEventId: event.orbitEventId, date: event.date,
     time: primaryBlock ? staffBlockTime(primaryBlock.startAt) : event.start,
     endTime: primaryBlock ? staffBlockTime(primaryBlock.endAt) : event.finish,
     customer: event.customer,
@@ -416,7 +417,7 @@ function staffLogisticsRow(event: StaffPortalEvent): StaffLogisticsEvent {
     location: event.venue || event.address, commune: event.district, status: event.status,
     operator: assignedBlocks.length ? assignedBlocks.map(block => block.name).join(" + ") : event.roles.map(role => ROLE[role] ?? role).join(" + ") || "Sin asignar", staffCallAt: event.staffCallAt || "",
     setupTime: event.staffCallAt || "", setupStaff: "", teardownTime: event.finish, teardownStaff: "",
-    box: event.box ?? event.equipment.find(value => /^CASE-\d{2}$/.test(value)) ?? "Sin asignar", extras: event.extras, address: event.address,
+    boxCode, box: event.box ?? boxCode ?? "Sin asignar", extras: event.extras, address: event.address,
   };
 }
 

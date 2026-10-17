@@ -809,6 +809,7 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
     status: event.status,
     operator: event.operator || "Sin asignar",
     staffCallAt: event.staffCallAt ?? "",
+    boxCode: boxByProject.get(event.projectId),
     box: formatBoxLabel(boxByProject.get(event.projectId)),
     extras: event.extras,
     address: event.eventAddress || event.location || "",
