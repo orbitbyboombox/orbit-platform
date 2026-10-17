@@ -25,6 +25,7 @@ import {
   Link2,
   ListChecks,
   Package,
+  Printer,
   RotateCcw,
   Send,
   Sparkles,
@@ -100,6 +101,7 @@ import { PhotoStripDesignCenter } from "@/features/photo-strip-design";
 import { CapacityStatusPanel, type CapacityResult } from "@/features/capacity/capacity-status-panel";
 import { OperationalBlocksPanel } from "@/features/operations/operational-blocks-panel";
 import type { OperationalBlock } from "@/features/operations/operational-blocks";
+import { updateEventPrintInstructionsAction, type EventPhotoStyle } from "@/features/projects/event-paper.actions";
 
 type Event360Task = {
   id: string;
@@ -251,6 +253,7 @@ export type ProjectWorkspaceExperienceProps = Omit<
   activities?: readonly { title: string; detail: string; time: string }[];
   equipment: EquipmentAssignmentPanelProps;
   eventEquipmentExtras: { boxLabel: string; extras: readonly string[] };
+  printInstructions: { photoStyle: EventPhotoStyle | null; operatorNote: string };
   signing: { agreementId?: string; quotationId?: string; status: string; href?: string; createdAt?:string; signedAt?:string };
   commercialHub: { customerTaxId?:string; customerKind:"PARTICULAR"|"EMPRESA"; paymentCondition:string; quotation?:{id:string;number:string;status:string;revision:number;acceptedAt:string;total:number;detailHref:string;pdfHref:string;items:readonly {label:string;quantity:number;total:number}[]} };
   productionIntegration: ProductionIntegrationPanelProps;
@@ -433,6 +436,10 @@ export function ProjectWorkspaceExperience(
 ) {
   const router = useRouter();
   const [portalUrl, setPortalUrl] = useState("");
+  const [photoStyle, setPhotoStyle] = useState<EventPhotoStyle | null>(props.printInstructions.photoStyle);
+  const [operatorNote, setOperatorNote] = useState(props.printInstructions.operatorNote);
+  const [printPending, startPrintTransition] = useTransition();
+  const [printMessage, setPrintMessage] = useState("");
   const [portalFeedback, setPortalFeedback] = useState("");
   const [customerDeleteFeedback, setCustomerDeleteFeedback] = useState("");
   const [eventTimeDraft, setEventTimeDraft] = useState(props.eventTime?.slice(0, 5) || "22:00");
@@ -937,6 +944,75 @@ export function ProjectWorkspaceExperience(
                 moduleKey="OPERATIONAL_CONTROL"
                 onHide={hideModule}
               >
+                <Section
+                  eyebrow="03 · Impresión"
+                  icon={<Printer className="size-5" />}
+                  id="print-instructions"
+                  title="Tipo de fotografía"
+                >
+                  <div className="rounded-xl border border-brand/25 bg-brand/5 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Configuración para el operador</p>
+                        <p className="mt-1 text-sm text-muted">Selecciona cómo deben imprimirse las fotografías de este evento.</p>
+                      </div>
+                      <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${photoStyle ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300" : "border-amber-400/30 bg-amber-400/10 text-amber-300"}`}>
+                        {photoStyle === "COLOR" ? "COLOR" : photoStyle === "BLACK_WHITE" ? "BLANCO Y NEGRO" : photoStyle === "SEPIA" ? "SEPIA" : "PENDIENTE"}
+                      </span>
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {(["COLOR", "BLACK_WHITE", "SEPIA"] as const).map((value) => (
+                        <button
+                          className={`min-h-10 rounded-lg border px-3 text-xs font-semibold transition ${photoStyle === value ? "border-brand bg-brand/15 text-brand" : "border-white/10 text-white/75 hover:border-brand/50"}`}
+                          disabled={printPending}
+                          key={value}
+                          onClick={() => {
+                            setPhotoStyle(value);
+                            startPrintTransition(async () => {
+                              try {
+                                await updateEventPrintInstructionsAction({ projectId: props.projectKey ?? "", photoStyle: value, operatorNote });
+                                setPrintMessage("Configuración guardada y visible para el operador.");
+                                router.refresh();
+                              } catch (error) {
+                                setPrintMessage(error instanceof Error ? error.message : "No fue posible guardar la configuración.");
+                              }
+                            });
+                          }}
+                          type="button"
+                        >
+                          {value === "BLACK_WHITE" ? "BLANCO Y NEGRO" : value}
+                        </button>
+                      ))}
+                    </div>
+                    <label className="mt-4 block">
+                      <span className="text-[10px] uppercase tracking-[.14em] text-white/45">Indicaciones de impresión</span>
+                      <textarea
+                        className="mt-2 min-h-20 w-full rounded-xl border border-white/10 bg-background/40 p-3 text-sm outline-none focus:border-brand/50"
+                        maxLength={500}
+                        onChange={(event) => setOperatorNote(event.target.value)}
+                        placeholder="Ej: Mantener todas las fotografías en blanco y negro."
+                        value={operatorNote}
+                      />
+                    </label>
+                    <button
+                      className="mt-3 min-h-10 rounded-lg bg-brand px-3 text-xs font-semibold text-black disabled:opacity-50"
+                      disabled={printPending}
+                      onClick={() => startPrintTransition(async () => {
+                        try {
+                          await updateEventPrintInstructionsAction({ projectId: props.projectKey ?? "", photoStyle, operatorNote });
+                          setPrintMessage("Indicaciones guardadas y visibles para el operador.");
+                          router.refresh();
+                        } catch (error) {
+                          setPrintMessage(error instanceof Error ? error.message : "No fue posible guardar las indicaciones.");
+                        }
+                      })}
+                      type="button"
+                    >
+                      {printPending ? "GUARDANDO…" : "GUARDAR INDICACIONES"}
+                    </button>
+                    {printMessage ? <p className="mt-2 text-xs text-muted">{printMessage}</p> : null}
+                  </div>
+                </Section>
                 <Section
                   eyebrow="04 · Logística"
                   icon={<Package className="size-5" />}

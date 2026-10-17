@@ -1643,6 +1643,10 @@ export default async function ProjectWorkspacePage({
         boxLabel: formatAssignedBoxLabel(assignedBoxByProject.get(projectId)),
         extras: eventExtras,
       }}
+      printInstructions={{
+        photoStyle: operationalContract?.photo_style === "COLOR" || operationalContract?.photo_style === "BLACK_WHITE" || operationalContract?.photo_style === "SEPIA" ? operationalContract.photo_style : null,
+        operatorNote: operationalContract?.operator_print_notes ?? "",
+      }}
       event360={event360}
       operationalReadiness={operationalReadiness}
       logistics={logistics}
