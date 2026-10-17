@@ -7,10 +7,13 @@ import { synchronizeConfirmedReservationCalendar } from "@/features/connectors/g
 import { deliverAssignmentCancellationBoundary } from "@/features/operations/staff-assignment-cancellation.service";
 import { requestEvidence } from "@/features/portal-authentication/portal-auth.service";
 import {deliverStaffAssignmentNotification} from "@/features/operations/staff-assignment-notification.service";
+import {calculateStaffCallAt, chileLocalToIso} from "@/features/operations/event-operational-window";
 
 export type StaffAssignmentMutation = {
+  requestId?: string;
   id?: string;
   projectId: string;
+  blockId?: string;
   staffId: string;
   role: string;
   arrivalTime: string;
@@ -53,7 +56,7 @@ async function context(projectId: string) {
   const { data: project, error } = await client
     .from("projects")
     .select(
-      "id,customer_id,orbit_event_id,name,event_time,project_services(duration_hours)",
+      "id,customer_id,orbit_event_id,name,event_date,event_time,project_services(duration_hours),event_operational_blocks(id,start_at,end_at,name)",
     )
     .eq("id", projectId)
     .is("deleted_at", null)
@@ -103,11 +106,34 @@ export async function saveStaffAssignmentAction(
     )
       throw new Error("Selecciona Staff, rol y evento.");
     const ctx = await context(input.projectId);
-    const eventStart = ctx.project.event_time?.slice(0, 5) ?? "";
+    const selectedBlock = input.blockId
+      ? (Array.isArray(ctx.project.event_operational_blocks)
+          ? ctx.project.event_operational_blocks
+          : ctx.project.event_operational_blocks
+            ? [ctx.project.event_operational_blocks]
+            : []
+        ).find((block) => block.id === input.blockId)
+      : null;
+    const eventStart = selectedBlock
+      ? new Intl.DateTimeFormat("en-GB", {
+          timeZone: "America/Santiago",
+          hour: "2-digit",
+          minute: "2-digit",
+          hourCycle: "h23",
+        }).format(new Date(selectedBlock.start_at))
+      : ctx.project.event_time?.slice(0, 5) ?? "";
     const service = Array.isArray(ctx.project.project_services)
       ? ctx.project.project_services[0]
       : ctx.project.project_services;
     const duration = Math.max(0, Number(service?.duration_hours ?? 0));
+    const blockEnd = selectedBlock
+      ? new Intl.DateTimeFormat("en-GB", {
+          timeZone: "America/Santiago",
+          hour: "2-digit",
+          minute: "2-digit",
+          hourCycle: "h23",
+        }).format(new Date(selectedBlock.end_at))
+      : "";
     const clock = (base: string, minutes: number) => {
       if (!base) return null;
       const [h, m] = base.split(":").map(Number);
@@ -115,77 +141,45 @@ export async function saveStaffAssignmentAction(
       return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
     };
     const automaticArrival =
-      input.role === "OPERATOR" ? clock(eventStart, -90) : null;
+      input.role === "OPERATOR" && ctx.project.event_date && eventStart
+        ? calculateStaffCallAt(chileLocalToIso(`${ctx.project.event_date}T${eventStart}:00`))
+        : null;
     const automaticFinish = clock(eventStart, duration * 60);
+    // The dialog deliberately supports an empty start/end pair: in that case
+    // the event window is the documented fallback. Manual Montage/Disassembly
+    // times still win when supplied by the Founder.
     const payload = {
       project_id: input.projectId,
+      block_id: input.blockId || null,
       staff_id: input.staffId,
       assignment_type: input.role,
       status: "ASSIGNED",
-      arrival_time: value(input.arrivalTime) ?? automaticArrival,
-      staff_call_at:value(input.staffCallAt??""),
-      staff_call_source:value(input.staffCallAt??"")?"MANUAL_OVERRIDE":null,
-      start_time: value(input.startTime) ?? value(eventStart),
-      finish_time: value(input.finishTime) ?? automaticFinish,
+      arrival_time: value(input.arrivalTime) ?? (automaticArrival ? clock(eventStart, -60) : null),
+      staff_call_at:value(input.staffCallAt??"")||automaticArrival,
+      staff_call_source:value(input.staffCallAt??"")?"MANUAL_OVERRIDE":(automaticArrival?"DEFAULT_60_MINUTES":null),
+      start_time: input.role === "OPERATOR" && selectedBlock ? eventStart : value(input.startTime) ?? value(eventStart),
+      finish_time: input.role === "OPERATOR" && selectedBlock ? blockEnd : value(input.finishTime) ?? automaticFinish,
       assigned_vehicle: value(input.vehicleId),
       observations: value(input.observations),
       resources: { vehicle: value(input.vehicleId) },
       reason: value(input.observations) ?? "Asignación operacional",
       updated_by: ctx.user.id,
     };
-    let assignmentId=input.id??"";
-    if (input.replaceId) {
-      const { data: old, error: oldError } = await ctx.client
-        .from("assignments")
-        .update({
-          status: "CANCELLED",
-          deleted_at: new Date().toISOString(),
-          updated_by: ctx.user.id,
-          reason: "Staff reemplazado",
-        })
-        .eq("id", input.replaceId)
-        .eq("project_id", input.projectId)
-        .is("deleted_at", null)
-        .select("id,staff_id")
-        .single();
-      if (oldError) throw oldError;
+    const { data: saved, error: saveError } = await ctx.client.rpc("save_event_staff_assignment", {
+      p_payload: payload,
+      p_assignment_id: input.id ?? null,
+      p_request_id: input.requestId ?? crypto.randomUUID(),
+      p_replace_id: input.replaceId ?? null,
+    });
+    if (saveError) throw new Error(saveError.message);
+    const result = saved as { id: string; replay: boolean };
+    const assignmentId = result.id;
+    if (!result.replay) {
       await timeline(
         ctx,
-        old.id,
-        "STAFF_REMOVED",
-        "Staff anterior removido por reemplazo.",
-        old.staff_id,
-      );
-    }
-    if (input.id) {
-      const { error } = await ctx.client
-        .from("assignments")
-        .update(payload)
-        .eq("id", input.id)
-        .eq("project_id", input.projectId)
-        .is("deleted_at", null);
-      if (error) throw error;
-      assignmentId=input.id;
-      await timeline(
-        ctx,
-        input.id,
-        "STAFF_ASSIGNMENT_UPDATED",
-        "Asignación de Staff actualizada.",
-        input.staffId,
-      );
-    } else {
-      const { data: created, error } = await ctx.client
-        .from("assignments")
-        .insert({ ...payload, created_by: ctx.user.id })
-        .select("id")
-        .single();
-      if (error) throw error;
-      assignmentId=created.id;
-      await timeline(
-        ctx,
-        created.id,
-        input.replaceId ? "STAFF_REPLACED" : "STAFF_ASSIGNED",
-        input.replaceId
+        assignmentId,
+        input.id ? "STAFF_ASSIGNMENT_UPDATED" : input.replaceId ? "STAFF_REPLACED" : "STAFF_ASSIGNED",
+        input.id ? "Asignación de Staff actualizada." : input.replaceId
           ? "Staff reemplazado en el evento."
           : "Staff asignado al evento.",
         input.staffId,
@@ -207,6 +201,14 @@ export async function saveStaffAssignmentAction(
     revalidatePath("/notifications");
     return { ok: true };
   } catch (error) {
+    console.error("[ORBIT][STAFF_ASSIGNMENT_SAVE]", {
+      projectId: input.projectId,
+      assignmentId: input.id ?? null,
+      role: input.role,
+      staffId: input.staffId,
+      code: typeof error === "object" && error && "code" in error ? String(error.code) : null,
+      message: error instanceof Error ? error.message : String(error),
+    });
     return {
       ok: false,
       error: friendly(error, "No fue posible guardar la asignación."),

@@ -52,10 +52,11 @@ test("required responsive layouts retain safe reflow rules", () => {
 test("KPI source values continue to come from the canonical Finance read model", () => {
   assert.match(founder, /finance\.position\.find/);
   assert.match(founder, /finance\.month\.find/);
-  for (const label of ["Caja registrada", "Por cobrar total", "Crédito Empresas", "Saldos Clientes / Eventos", "Ventas del mes", "Resultado operativo", "Margen operativo"]) {
+  for (const label of ["Caja registrada", "Por cobrar total", "Ventas del mes", "Resultado operativo", "Margen operativo"]) {
     assert.match(founder, new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
     assert.match(financeReadModel, new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
+  assert.doesNotMatch(founder, /Crédito Empresas|Saldos Clientes \/ Eventos/);
 });
 
 test("the presentation fix introduces no financial write path", () => {
