@@ -45,6 +45,7 @@ export type StaffLogisticsEvent = {
   teardownTime: string;
   teardownStaff: string;
   box: string;
+  boxCode?: string;
   extras: string[];
   address: string;
 };
@@ -594,7 +595,10 @@ function QuickBoxAssignment({ event, options }: { event: StaffLogisticsEvent; op
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [pending, startTransition] = useTransition();
-  const current = options.find((option) => option.code === event.box || boxLabel(option.code) === event.box);
+  const current = event.boxCode ? options.find((option) => option.code === event.boxCode) : undefined;
+  if (!options.length) {
+    return <span className="mt-1 block truncate text-[10px] font-semibold text-brand">{event.boxCode ?? (event.box === "Sin asignar" ? "⚠ FALTA CAJA · ASIGNAR" : event.box)}</span>;
+  }
   const assign = (assetId: string) => {
     setMessage("");
     setOpen(false);

@@ -4,6 +4,7 @@ import test from "node:test";
 
 const view = readFileSync("features/resources/staff-logistics-view.tsx", "utf8");
 const page = readFileSync("app/(platform)/resources/staff/page.tsx", "utf8");
+const staffDashboard = readFileSync("features/portal-authentication/staff-portal-dashboard.tsx", "utf8");
 const action = readFileSync("features/asset-management/event-black-box.actions.ts", "utf8");
 
 test("Logistics quick assignment uses the canonical event Caja Negra action", () => {
@@ -19,19 +20,30 @@ test("Logistics quick assignment uses the canonical event Caja Negra action", ()
 });
 
 test("Logistics exposes only the nine operational CASE assets and route rows read event.box", () => {
-  assert.match(page, /\.eq\("asset_type", "CASE"\)/);
-  assert.match(page, /Array\.from\(\{ length: 9 \}/);
-  assert.match(page, /CASE-\$\{String\(index \+ 1\)\.padStart\(2, "0"\)\}/);
+  assert.match(page, /\.in\("asset_type", \["BOX", "CASE"\]\)/);
+  assert.match(page, /\.in\("operational_assets\.asset_type", \["BOX", "CASE"\]\)/);
+  assert.match(page, /CANONICAL_BOX_CODES/);
   assert.match(page, /boxOptions=\{logisticsBoxOptions\}/);
   assert.match(view, /event\.box === "Sin asignar" \? "⚠ FALTA CAJA" : event\.box/);
+  assert.match(page, /boxCode: boxByProject\.get\(event\.projectId\)/);
+  assert.match(view, /event\.boxCode \? options\.find\(\(option\) => option\.code === event\.boxCode\)/);
+  assert.match(view, /if \(!options\.length\)/);
+  assert.match(view, /event\.boxCode \?\? \(event\.box === "Sin asignar" \? "⚠ FALTA CAJA · ASIGNAR" : event\.box\)/);
+  assert.doesNotMatch(view, /boxLabel\(option\.code\) === event\.box/);
   assert.doesNotMatch(page, /route_box_assignment|logistics_box_assignment/);
+});
+
+test("Staff portal rows keep the UUID project identity and canonical box code", () => {
+  assert.match(staffDashboard, /id: event\.id, projectId: event\.id, orbitEventId: event\.orbitEventId/);
+  assert.match(staffDashboard, /const boxCode = \[event\.box, \.\.\.event\.equipment\]\.find/);
+  assert.match(staffDashboard, /boxCode, box: event\.box \?\? boxCode \?\? "Sin asignar"/);
+  assert.doesNotMatch(staffDashboard, /projectId: event\.orbitEventId/);
 });
 
 test("The Caja Negra popover exposes the full operational inventory without parent clipping", () => {
   assert.match(view, /max-h-64 w-48 overflow-y-auto overscroll-contain/);
   assert.match(view, /overflow-visible rounded-2xl/);
-  assert.match(page, /Array\.from\(\{ length: 9 \}/);
-  assert.match(page, /CASE-\$\{String\(index \+ 1\)\.padStart/);
+  assert.match(page, /CANONICAL_BOX_CODES/);
   assert.match(view, /const disabled = !isCurrent && \(unavailable \|\| conflictsThisEvent\)/);
   assert.match(view, /conflictingProjectIds\?\.includes\(event\.projectId\)/);
   assert.match(view, /OCUPADA \/ SIN MARGEN SUFICIENTE/);

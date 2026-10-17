@@ -9,6 +9,11 @@ import { requestEvidence } from "@/features/portal-authentication/portal-auth.se
 import {deliverStaffAssignmentNotification} from "@/features/operations/staff-assignment-notification.service";
 import {calculateStaffCallAt, chileLocalToIso} from "@/features/operations/event-operational-window";
 import { invalidateCalendarSyncForProject } from "@/features/connectors/google-calendar/application/google-calendar-resync.service";
+import {
+  EXCLUDED_OPERATOR_MOBILITY_STAFF_IDS,
+  operatorMobilityEligibility,
+  resolveApprovedOperatorMobility,
+} from "@/features/staff-payments/operator-mobility";
 
 export type StaffAssignmentMutation = {
   requestId?: string;
@@ -23,6 +28,8 @@ export type StaffAssignmentMutation = {
   finishTime: string;
   vehicleId: string;
   observations: string;
+  applyMobility?: boolean;
+  mobilityDecision?: "APPLY" | "CLEAR" | "UNCHANGED";
   replaceId?: string;
 };
 type Result = { ok: true } | { ok: false; error: string };
@@ -57,7 +64,7 @@ async function context(projectId: string) {
   const { data: project, error } = await client
     .from("projects")
     .select(
-      "id,customer_id,orbit_event_id,name,event_date,event_time,project_services(duration_hours),event_operational_blocks(id,start_at,end_at,name)",
+      "id,customer_id,orbit_event_id,name,event_date,event_time,city,location,project_services(duration_hours),event_operational_blocks(id,start_at,end_at,name)",
     )
     .eq("id", projectId)
     .is("deleted_at", null)
@@ -166,12 +173,43 @@ export async function saveStaffAssignmentAction(
       reason: value(input.observations) ?? "Asignación operacional",
       updated_by: ctx.user.id,
     };
-    const { data: saved, error: saveError } = await ctx.client.rpc("save_event_staff_assignment", {
+    const mobility = operatorMobilityEligibility({
+      eventDate: ctx.project.event_date,
+      role: input.role,
+      staffId: input.staffId,
+      excludedStaffIds: EXCLUDED_OPERATOR_MOBILITY_STAFF_IDS,
+      commune: ctx.project.city,
+    });
+    let requestedMobilityAmount: number | null = null;
+    if (input.role === "OPERATOR" && input.mobilityDecision !== "UNCHANGED") {
+      requestedMobilityAmount = resolveApprovedOperatorMobility({
+        eligible: mobility.eligible,
+        suggestedAmount: mobility.suggestedAmount,
+        approvedByFounder: Boolean(input.applyMobility),
+        travelsIndependently: Boolean(input.applyMobility),
+      });
+      if (input.mobilityDecision === "APPLY" && !mobility.eligible) {
+        throw new Error("La movilización no corresponde para este operador, fecha o comuna.");
+      }
+    }
+    // Preserve the existing assignment RPC for historic, excluded and unmapped events.
+    // Only eligible operator-event pairs can enter the new mobility transaction.
+    const mobilityEnabled = input.role === "OPERATOR" && mobility.eligible && input.mobilityDecision !== "UNCHANGED";
+    const { data: saved, error: saveError } = await ctx.client.rpc(
+      mobilityEnabled ? "save_event_staff_assignment_with_mobility" : "save_event_staff_assignment",
+      {
       p_payload: payload,
       p_assignment_id: input.id ?? null,
       p_request_id: input.requestId ?? crypto.randomUUID(),
       p_replace_id: input.replaceId ?? null,
-    });
+        ...(mobilityEnabled
+          ? {
+              p_mobility_action: input.mobilityDecision,
+              p_mobility_amount: requestedMobilityAmount ?? 0,
+            }
+          : {}),
+      },
+    );
     if (saveError) throw new Error(saveError.message);
     const result = saved as { id: string; replay: boolean };
     const assignmentId = result.id;

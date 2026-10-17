@@ -32,6 +32,10 @@ import { reviewStaffRequestAction, setEventStaffRequirementAction } from "@/feat
 import type { ResponsibilityReadModel } from "./staff-responsibility-read-model";
 import { buildStaffRoleSlots, validStaffQuantity } from "./staff-role-slots";
 import { formatOperationalBlockDuration } from "@/features/operations/staff-assignment-payment";
+import {
+  EXCLUDED_OPERATOR_MOBILITY_STAFF_IDS,
+  suggestedOperatorMobilityAmount,
+} from "@/features/staff-payments/operator-mobility";
 
 export type OperationalAssignment = {
   id: string;
@@ -49,6 +53,7 @@ export type OperationalAssignment = {
   vehicleId: string;
   vehicleName: string;
   observations: string;
+  mobilityAmount?: number;
   packageStatus?: Record<string, string>;
   createdAt?: string;
 };
@@ -117,6 +122,8 @@ export type EventStaffSettlement = {
 };
 export type StaffAssignmentCenterProps = {
   projectId: string;
+  eventDate?: string;
+  eventCommune?: string;
   assignments: OperationalAssignment[];
   staff: AssignmentStaffOption[];
   vehicles: AssignmentVehicleOption[];
@@ -192,6 +199,8 @@ const variant = (status: string): "success" | "warning" | "danger" | "info" =>
 
 export function StaffAssignmentCenter({
   projectId,
+  eventDate,
+  eventCommune,
   assignments,
   staff,
   vehicles,
@@ -517,6 +526,8 @@ export function StaffAssignmentCenter({
           initialBlockEndAt={panel.blockEndAt}
           assignments={assignments}
           projectId={projectId}
+          eventDate={eventDate}
+          eventCommune={eventCommune}
           staff={staff}
           vehicles={vehicles}
           pending={pending}
@@ -1317,6 +1328,8 @@ function AssignmentDialog({
   initialBlockEndAt,
   assignments,
   projectId,
+  eventDate,
+  eventCommune,
   staff,
   vehicles,
   pending,
@@ -1334,6 +1347,8 @@ function AssignmentDialog({
   initialBlockEndAt?: string;
   assignments: OperationalAssignment[];
   projectId: string;
+  eventDate?: string;
+  eventCommune?: string;
   staff: AssignmentStaffOption[];
   vehicles: AssignmentVehicleOption[];
   pending: boolean;
@@ -1342,6 +1357,7 @@ function AssignmentDialog({
   onSubmit: (input: StaffAssignmentMutation) => void;
 }) {
   const [role, setRole] = useState(item?.role ?? initialRole ?? "OPERATOR");
+  const [selectedStaffId, setSelectedStaffId] = useState(item?.staffId ?? "");
   const [requestId] = useState(() => crypto.randomUUID());
   const effectiveBlockId = initialBlockId ?? item?.blockId ?? undefined;
   const effectiveBlockName = initialBlockName ?? item?.blockName;
@@ -1352,6 +1368,11 @@ function AssignmentDialog({
       assignment.role === role && assignment.staffId === member.id && assignment.id !== item?.id &&
       !["CANCELLED", "REJECTED"].includes(assignment.status))),
   );
+  const mobilitySuggestion = role === "OPERATOR" && Boolean(eventDate && eventDate.slice(0, 10) >= "2026-10-17") && !EXCLUDED_OPERATOR_MOBILITY_STAFF_IDS.has(selectedStaffId)
+    ? suggestedOperatorMobilityAmount(eventCommune)
+    : null;
+  const [mobilityChecked, setMobilityChecked] = useState(Boolean(item?.mobilityAmount));
+  const [mobilityDecision, setMobilityDecision] = useState<"APPLY" | "CLEAR" | "UNCHANGED">(mode === "edit" ? "UNCHANGED" : "CLEAR");
   return (
     <MobileDialog
       description="Una persona distinta por slot. Cada colaborador conserva su liquidación individual según las tarifas oficiales."
@@ -1386,6 +1407,8 @@ function AssignmentDialog({
               finishTime: String(data.get("finishTime") ?? ""),
               vehicleId: String(data.get("vehicleId") ?? ""),
               observations: String(data.get("observations") ?? ""),
+              applyMobility: mobilityChecked,
+              mobilityDecision,
             });
           }}
         >
@@ -1401,6 +1424,7 @@ function AssignmentDialog({
             label="Staff compatible"
             name="staffId"
             value={mode === "edit" ? (item?.staffId ?? "") : ""}
+            onChange={setSelectedStaffId}
             options={[
               {
                 value: "",
@@ -1442,6 +1466,14 @@ function AssignmentDialog({
               ...vehicles.map((x) => ({ value: x.id, label: x.name })),
             ]}
           />
+          {role === "OPERATOR" && mobilitySuggestion !== null ? (
+            <label className="flex min-h-11 items-center gap-2 rounded-xl border border-brand/30 bg-brand/5 px-3 text-sm sm:col-span-2">
+              <input className="size-4 accent-brand" checked={mobilityChecked} onChange={(event) => { setMobilityChecked(event.target.checked); setMobilityDecision(event.target.checked ? "APPLY" : "CLEAR"); }} name="applyMobility" type="checkbox" />
+              <span>
+                Aplicar movilización adicional · sugerido {money(mobilitySuggestion)}
+              </span>
+            </label>
+          ) : null}
           <label className="text-sm font-medium sm:col-span-2">
             Observaciones
             <textarea

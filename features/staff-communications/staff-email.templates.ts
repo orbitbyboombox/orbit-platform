@@ -1,3 +1,5 @@
+import { calculateStaffCallAt, chileLocalToIso } from "../operations/event-operational-window.ts";
+
 const escapeHtml = (value: string) =>
   value
     .replaceAll("&", "&amp;")
@@ -16,6 +18,45 @@ const roleLabels: Record<string, string> = {
 
 const readableRole = (value: string) =>
   roleLabels[value] ?? value.replaceAll("_", " ");
+
+const formatClockTime = (value: string): string | null => {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (/^\d{1,2}:\d{2}/.test(trimmed)) {
+    const [, hour, minute] = trimmed.match(/^(\d{1,2}):(\d{2})/) ?? [];
+    return hour && minute ? `${hour.padStart(2, "0")}:${minute} hrs.` : null;
+  }
+  const date = new Date(trimmed);
+  if (Number.isNaN(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "America/Santiago",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const part = (type: "hour" | "minute") =>
+    parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("hour")}:${part("minute")} hrs.`;
+};
+
+/** Formats persisted ISO calls and legacy clock values without leaking the date. */
+export const formatStaffCallTime = (value: string | null | undefined): string | null =>
+  value
+    ?.split(" · ")
+    .map(formatClockTime)
+    .filter((item): item is string => Boolean(item))
+    .join(" · ") || null;
+
+const defaultOperatorCallTime = (eventDate: string, eventTime: string | null | undefined) => {
+  const time = eventTime?.slice(0, 5);
+  if (!time) return null;
+  try {
+    return formatStaffCallTime(calculateStaffCallAt(chileLocalToIso(`${eventDate}T${time}:00`)));
+  } catch {
+    return null;
+  }
+};
+
 const chileDate = (value: string) =>
   new Date(`${value}T12:00:00Z`).toLocaleDateString("es-CL", {
     day: "2-digit",
@@ -55,13 +96,28 @@ export function buildStaffD1ReminderEmail(input: {
   staffCallAt?: string | null;
   instructions?: string | null;
   specialElements?: readonly string[];
+  consolidatedRoutes?: readonly {
+    eventName: string;
+    customerName: string | null;
+    service: string | null;
+    boxCode: string | null;
+    location: string | null;
+    role: string;
+    scheduleAt: string | null;
+    instructions: string | null;
+    specialElements: readonly string[];
+  }[];
 }) {
   const roles =
     [...new Set(input.roles)].map(readableRole).join(" · ") ||
     "Staff operativo";
   const location = input.location?.trim();
   const time = input.eventTime?.slice(0, 5);
-  const callTime = input.staffCallAt?.slice(0, 5);
+  const persistedCallTime = formatStaffCallTime(input.staffCallAt);
+  const callTime = persistedCallTime ??
+    (input.roles.some((role) => role === "OPERATOR")
+      ? defaultOperatorCallTime(input.eventDate, input.eventTime)
+      : null);
   const detail = (label: string, value: string | null | undefined) =>
     value?.trim()
       ? `<p style="margin:5px 0"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value.trim())}</p>`
@@ -69,6 +125,27 @@ export function buildStaffD1ReminderEmail(input: {
   const instructions = input.instructions?.trim();
   const specialElements = [...new Set(input.specialElements ?? [])].filter((item) => item.trim());
   const portal = `${input.appUrl.replace(/\/$/, "")}/staff-portal`;
+  const routeLabel = (role: string) => role === "ASSEMBLY" ? "MONTAJE" : role === "DISASSEMBLY" ? "DESMONTAJE" : "OPERACIÓN";
+  const routes = (input.consolidatedRoutes ?? []).map((route) => ({
+    ...route,
+    label: routeLabel(route.role),
+    schedule: route.scheduleAt
+      ? formatStaffCallTime(route.scheduleAt)
+      : route.role === "ASSEMBLY" ? "Coordinar con Matías" : "Horario a confirmar",
+  }));
+  const routeText = routes.length ? [
+    "RUTAS DEL DÍA SIGUIENTE",
+    ...routes.map((route) => [
+      route.label,
+      `Evento: ${route.eventName}${route.customerName ? ` · ${route.customerName}` : ""}`,
+      `Dirección: ${route.location ?? "Por confirmar"}`,
+      `Servicio: ${route.service ?? "Por confirmar"}`,
+      `Caja: ${route.boxCode ?? "Caja no asignada"}`,
+      `${route.role === "DISASSEMBLY" ? "Horario de desmontaje" : "Horario de montaje"}: ${route.schedule}`,
+      route.instructions?.trim() ? `Observaciones: ${route.instructions.trim()}` : null,
+      route.specialElements.length ? `Elementos: ${route.specialElements.join(", ")}` : null,
+    ].filter((item): item is string => Boolean(item)).join("\n")),
+  ].join("\n\n") : null;
   const textBody = [
     `Hola ${input.firstName},`,
     "Recuerda que mañana tienes evento BOOMBOX.",
@@ -82,7 +159,7 @@ export function buildStaffD1ReminderEmail(input: {
     location ? `Recinto / dirección: ${location}` : null,
     instructions ? `Instrucciones: ${instructions}` : null,
     specialElements.length ? `Elementos: ${specialElements.join(", ")}` : null,
-    `Ver detalle en ORBIT: ${portal}`,
+    routeText ?? `Ver detalle en ORBIT: ${portal}`,
   ].filter((item): item is string => Boolean(item)).join("\n");
   const specialHtml = specialElements.length
     ? `<p style="margin:14px 0 0"><strong>Elementos operativos:</strong> ${escapeHtml(specialElements.join(" · "))}</p>`
@@ -90,9 +167,17 @@ export function buildStaffD1ReminderEmail(input: {
   const instructionHtml = instructions
     ? `<p style="margin:14px 0 0"><strong>Instrucciones:</strong><br>${escapeHtml(instructions).replaceAll("\n", "<br>")}</p>`
     : "";
-  const content = `<p style="margin:0">Hola ${escapeHtml(input.firstName)},</p><p style="margin:12px 0 0;font-size:18px;font-weight:700;color:#111214">Recuerda que mañana tienes evento BOOMBOX.</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:23px;border:1px solid #e8e2d8;border-radius:13px;background:#faf9f6"><tr><td style="padding:18px"><p style="margin:0 0 10px;font-size:17px;font-weight:700">${escapeHtml(input.eventName)}</p><p style="margin:5px 0"><strong>Fecha:</strong> ${escapeHtml(chileDate(input.eventDate))}</p>${detail("Cliente", input.customerName)}${detail("Servicio", input.service)}<p style="margin:5px 0"><strong>Rol(es):</strong> ${escapeHtml(roles)}</p>${detail("Horario", time)}${detail("Hora de citación", callTime)}${detail("Recinto / dirección", location)}${instructionHtml}${specialHtml}</td></tr></table>`;
+  const routesHtml = routes.length
+    ? `<div style="margin-top:18px"><p style="margin:0 0 9px;font-size:11px;font-weight:700;letter-spacing:.14em;color:#d76d00">RUTAS DEL DÍA SIGUIENTE</p>${routes.map((route) => `<div style="margin-top:10px;padding:14px;border:1px solid #e8e2d8;border-radius:10px;background:#ffffff"><p style="margin:0 0 10px;font-weight:700;color:#d76d00">${escapeHtml(route.label)}</p><p style="margin:5px 0"><strong>Evento:</strong> ${escapeHtml(route.eventName)}${route.customerName ? ` · ${escapeHtml(route.customerName)}` : ""}</p><p style="margin:5px 0"><strong>Dirección:</strong> ${escapeHtml(route.location ?? "Por confirmar")}</p><p style="margin:5px 0"><strong>Servicio:</strong> ${escapeHtml(route.service ?? "Por confirmar")}</p><p style="margin:5px 0"><strong>Caja:</strong> ${escapeHtml(route.boxCode ?? "Caja no asignada")}</p><p style="margin:5px 0"><strong>${route.role === "DISASSEMBLY" ? "Horario de desmontaje" : "Horario de montaje"}:</strong> ${escapeHtml(route.schedule ?? "Horario a confirmar")}</p>${route.instructions?.trim() ? `<p style="margin:10px 0 0"><strong>Observaciones:</strong> ${escapeHtml(route.instructions.trim())}</p>` : ""}${route.specialElements.length ? `<p style="margin:5px 0"><strong>Elementos:</strong> ${escapeHtml(route.specialElements.join(" · "))}</p>` : ""}</div>`).join("")}</div>`
+    : "";
+  const consolidatedContent = routes.length
+    ? `<p style="margin:0">Hola ${escapeHtml(input.firstName)},</p><p style="margin:12px 0 0;font-size:18px;font-weight:700;color:#111214">Recuerda que mañana tienes rutas BOOMBOX.</p>${routesHtml}`
+    : "";
+  const content = consolidatedContent || `<p style="margin:0">Hola ${escapeHtml(input.firstName)},</p><p style="margin:12px 0 0;font-size:18px;font-weight:700;color:#111214">Recuerda que mañana tienes evento BOOMBOX.</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:23px;border:1px solid #e8e2d8;border-radius:13px;background:#faf9f6"><tr><td style="padding:18px"><p style="margin:0 0 10px;font-size:17px;font-weight:700">${escapeHtml(input.eventName)}</p><p style="margin:5px 0"><strong>Fecha:</strong> ${escapeHtml(chileDate(input.eventDate))}</p>${detail("Cliente", input.customerName)}${detail("Servicio", input.service)}<p style="margin:5px 0"><strong>Rol(es):</strong> ${escapeHtml(roles)}</p>${detail("Horario", time)}${detail("Hora de citación", callTime)}${detail("Recinto / dirección", location)}${instructionHtml}${specialHtml}</td></tr></table>`;
   return {
-    subject: `Mañana tienes evento BOOMBOX · ${input.eventName}`,
+    subject: routes.length > 1
+      ? `Mañana tienes rutas BOOMBOX · ${routes.length} eventos`
+      : `Mañana tienes evento BOOMBOX · ${input.eventName}`,
     textBody,
     htmlBody: premiumFrame({
       appUrl: input.appUrl,
@@ -100,7 +185,7 @@ export function buildStaffD1ReminderEmail(input: {
       eyebrow: "Recordatorio operacional · D-1",
       title: "Tu evento es mañana",
       content,
-      ctaLabel: "Ver detalle en ORBIT",
+      ctaLabel: routes.length ? "Ver todas mis rutas en ORBIT" : "Ver detalle en ORBIT",
       ctaHref: portal,
     }),
   };

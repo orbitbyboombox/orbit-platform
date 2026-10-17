@@ -35,6 +35,7 @@ import { buildCanonicalOrbitEventState } from "@/features/operations/canonical-o
 import { StaffFinancialActions, type StaffReimbursementPaymentItem } from "@/features/staff-payments/staff-financial-actions";
 import type { StaffReimbursementDetail } from "@/features/staff-payments/staff-payments-center";
 import type { StaffExpenseReviewItem } from "@/features/staff-expenses/staff-expense-review";
+import { buildAssignedBoxByProject, CANONICAL_BOX_CODES } from "@/features/asset-management/box-assignment-read-model";
 
 export default async function StaffManagementPage({searchParams}:{searchParams:Promise<{reviewOnboarding?:string;reviewAccount?:string;reviewExpense?:string;view?:string}>}) {
   const {reviewOnboarding,reviewAccount,reviewExpense,view}=await searchParams;
@@ -46,14 +47,14 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
     .from("asset_assignments")
     .select("project_id,asset_id,assignment_status,planned_start_at,planned_end_at,operational_assets!inner(asset_code,asset_type)")
     .eq("assignment_status", "ASSIGNED")
-    .eq("operational_assets.asset_type", "CASE")
-    .in("operational_assets.asset_code", Array.from({ length: 9 }, (_, index) => `CASE-${String(index + 1).padStart(2, "0")}`))
+    .in("operational_assets.asset_type", ["BOX", "CASE"])
+    .in("operational_assets.asset_code", CANONICAL_BOX_CODES)
     .is("deleted_at", null);
   const boxAssetsPromise = client
     .from("operational_assets")
     .select("id,asset_code,status,asset_type")
-    .eq("asset_type", "CASE")
-    .in("asset_code", Array.from({ length: 9 }, (_, index) => `CASE-${String(index + 1).padStart(2, "0")}`))
+    .in("asset_type", ["BOX", "CASE"])
+    .in("asset_code", CANONICAL_BOX_CODES)
     .is("deleted_at", null)
     .order("asset_code");
   const [
@@ -762,13 +763,7 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
     status: asset.status as LogisticsBoxOption["status"],
     conflictingProjectIds: conflictingProjectIdsByAsset.get(asset.id) ?? [],
   }));
-  const boxByProject = new Map<string, string>();
-  for (const assignment of boxAssignments ?? []) {
-    const asset = Array.isArray(assignment.operational_assets)
-      ? assignment.operational_assets[0]
-      : assignment.operational_assets;
-    if (asset?.asset_code && !boxByProject.has(assignment.project_id)) boxByProject.set(assignment.project_id, asset.asset_code);
-  }
+  const boxByProject = buildAssignedBoxByProject(boxAssignments ?? []);
   const formatBoxLabel = (code: string | undefined) => {
     if (!code) return "Sin asignar";
     const number = Number(code.replace("CASE-", ""));
@@ -814,6 +809,7 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
     status: event.status,
     operator: event.operator || "Sin asignar",
     staffCallAt: event.staffCallAt ?? "",
+    boxCode: boxByProject.get(event.projectId),
     box: formatBoxLabel(boxByProject.get(event.projectId)),
     extras: event.extras,
     address: event.eventAddress || event.location || "",
