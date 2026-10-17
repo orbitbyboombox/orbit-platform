@@ -184,6 +184,7 @@ export function StaffAssignmentCenter({
   const [panel, setPanel] = useState<{
     mode: "create" | "edit" | "replace";
     item?: OperationalAssignment;
+    initialRole?: "OPERATOR" | "ASSEMBLY" | "DISASSEMBLY";
   } | null>(null);
   const [settlement, setSettlement] = useState<EventStaffSettlement | null>(
     null,
@@ -302,7 +303,7 @@ export function StaffAssignmentCenter({
         {roles.map((role) => {
           const members = assignments.filter((item) => item.role === role.value);
           return <section key={role.value} className="rounded-2xl border p-4" aria-label={`Bloque ${role.label}`}>
-            <h3 className="mb-3 text-base font-semibold text-brand">{role.label} · Bloque y horarios</h3>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3"><h3 className="text-base font-semibold text-brand">{role.label} · Bloque y horarios</h3><Button disabled={pending || hasPendingRequest} onClick={() => setPanel({ mode: "create", initialRole: role.value })}><Plus className="size-4"/>Añadir a este bloque</Button></div>
             <div className="grid gap-3 lg:grid-cols-2">
               {members.length ? members.map((item) => (
           <article className="rounded-xl border p-4" key={item.id}>
@@ -452,6 +453,7 @@ export function StaffAssignmentCenter({
         <AssignmentDialog
           mode={panel.mode}
           item={panel.item}
+          initialRole={panel.initialRole}
           projectId={projectId}
           staff={staff}
           vehicles={vehicles}
@@ -1105,6 +1107,7 @@ function SettlementDialog({
 function AssignmentDialog({
   mode,
   item,
+  initialRole,
   projectId,
   staff,
   vehicles,
@@ -1115,6 +1118,7 @@ function AssignmentDialog({
 }: {
   mode: "create" | "edit" | "replace";
   item?: OperationalAssignment;
+  initialRole?: "OPERATOR" | "ASSEMBLY" | "DISASSEMBLY";
   projectId: string;
   staff: AssignmentStaffOption[];
   vehicles: AssignmentVehicleOption[];
@@ -1123,7 +1127,7 @@ function AssignmentDialog({
   onClose: () => void;
   onSubmit: (input: StaffAssignmentMutation) => void;
 }) {
-  const [role, setRole] = useState(item?.role ?? "OPERATOR");
+  const [role, setRole] = useState(item?.role ?? initialRole ?? "OPERATOR");
   const compatible = staff.filter((member) =>
     member.capabilities.includes(role),
   );
