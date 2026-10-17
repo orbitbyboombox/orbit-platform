@@ -288,7 +288,13 @@ export function EventCenter({
                 {event.operator}
               </p>
             </div>
-            <div className="flex min-w-0 items-center justify-end gap-2">
+            <div className="flex min-w-0 flex-wrap items-center justify-start gap-2 md:justify-end">
+              <Link
+                className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#f78900] px-4 py-2 text-sm font-semibold text-black hover:bg-[#ffab35]"
+                href={`/projects/${event.projectId}`}
+              >
+                <ExternalLink className="size-4" />Abrir evento
+              </Link>
               <Link
                 className="rounded-xl border px-3 py-2 text-sm"
                 href={`/customers/${event.customerId}`}
