@@ -24,12 +24,21 @@ import {
 import {
   addStaffSettlementAdjustmentAction,
   addStaffSettlementReimbursementAction,
+  overrideStaffAssignmentPaymentAction,
+  resetStaffAssignmentPaymentAction,
   updateStaffEventSettlementAction,
 } from "@/features/staff-payments/actions";
 import { reviewStaffRequestAction, setEventStaffRequirementAction } from "@/features/operations/operations-planning.actions";
+import type { ResponsibilityReadModel } from "./staff-responsibility-read-model";
+import { buildStaffRoleSlots, validStaffQuantity } from "./staff-role-slots";
+import { formatOperationalBlockDuration } from "@/features/operations/staff-assignment-payment";
 
 export type OperationalAssignment = {
   id: string;
+  blockId?: string | null;
+  blockName?: string;
+  blockStartAt?: string;
+  blockEndAt?: string;
   staffId: string;
   staffName: string;
   role: string;
@@ -41,6 +50,7 @@ export type OperationalAssignment = {
   vehicleName: string;
   observations: string;
   packageStatus?: Record<string, string>;
+  createdAt?: string;
 };
 export type AssignmentStaffOption = {
   id: string;
@@ -77,8 +87,18 @@ export type EventStaffSettlementPayment = {
 };
 export type EventStaffSettlement = {
   id: string;
+  staffId: string;
   staffName: string;
+  blockId?: string | null;
+  blockName?: string | null;
+  contractedMinutes?: number | null;
   roles: string[];
+  defaultOperator: number;
+  defaultAssembly: number;
+  defaultDisassembly: number;
+  overrideOperator: number | null;
+  overrideAssembly: number | null;
+  overrideDisassembly: number | null;
   originalOperator: number;
   originalAssembly: number;
   originalDisassembly: number;
@@ -103,7 +123,9 @@ export type StaffAssignmentCenterProps = {
   hasPendingRequest?: boolean;
   published?: boolean;
   settlements?: EventStaffSettlement[];
-  requirements?: Array<{ role: string; required: number; published: boolean }>;
+  roleCosts?: Record<string, number>;
+  requirements?: ResponsibilityReadModel[];
+  blockRequirements?: Array<{ blockId: string; role: string; required: number; assigned: number; published: boolean; blockName?: string; startAt?: string; endAt?: string; durationMinutes?: number; rate?: number | null; projectedCost?: number | null }>;
   requests?: Array<{ id: string; role: string; staffName: string; status: string }>;
 };
 const roles = [
@@ -176,7 +198,9 @@ export function StaffAssignmentCenter({
   hasPendingRequest = false,
   published = false,
   settlements = [],
+  roleCosts = {},
   requirements = [],
+  blockRequirements = [],
   requests = [],
 }: StaffAssignmentCenterProps) {
   const router = useRouter();
@@ -184,8 +208,14 @@ export function StaffAssignmentCenter({
   const [panel, setPanel] = useState<{
     mode: "create" | "edit" | "replace";
     item?: OperationalAssignment;
+    role?: string;
+    slot?: number;
+    blockId?: string;
+    blockName?: string;
+    blockStartAt?: string;
+    blockEndAt?: string;
   } | null>(null);
-  const [settlement, setSettlement] = useState<EventStaffSettlement | null>(
+  const [settlement, setSettlement] = useState<(EventStaffSettlement & { editRole?: string }) | null>(
     null,
   );
   const [cancelling, setCancelling] = useState<OperationalAssignment | null>(
@@ -229,7 +259,7 @@ export function StaffAssignmentCenter({
     });
   const saveSettlement = (
     data: FormData,
-    kind: "adjustment" | "reimbursement" | "payment",
+    kind: "adjustment" | "reimbursement" | "payment" | "override" | "reset",
   ) =>
     startTransition(async () => {
       const result =
@@ -237,7 +267,11 @@ export function StaffAssignmentCenter({
           ? await addStaffSettlementAdjustmentAction(data)
           : kind === "reimbursement"
             ? await addStaffSettlementReimbursementAction(data)
-            : await updateStaffEventSettlementAction(data);
+            : kind === "payment"
+              ? await updateStaffEventSettlementAction(data)
+              : kind === "override"
+                ? await overrideStaffAssignmentPaymentAction(data)
+                : await resetStaffAssignmentPaymentAction(data);
       if (!result.ok) {
         setMessage(result.error);
         return;
@@ -268,12 +302,12 @@ export function StaffAssignmentCenter({
             </p>
           </div>
         </div>
-        {!hasPendingRequest ? (
+        {(
           <Button onClick={() => setPanel({ mode: "create" })}>
             <Plus className="size-4" />
             Asignar Staff
           </Button>
-        ) : null}
+        )}
       </header>
       {message && (
         <p
@@ -290,21 +324,32 @@ export function StaffAssignmentCenter({
           const configuredRequired = requirement?.required ?? (role.value === "OPERATOR" ? 1 : 0);
           const required = Math.max(configuredRequired, confirmed);
           const isPublished = requirement?.published ?? (role.value === "OPERATOR" && published);
-          return <form action={(data)=>startTransition(async()=>{const result=await setEventStaffRequirementAction(data);setMessage(result.message);if(result.ok)router.refresh()})} className="rounded-xl border p-4" key={role.value}>
-            <input name="projectId" type="hidden" value={projectId}/><input name="role" type="hidden" value={role.value}/>
-            <div className="flex items-center justify-between gap-3"><div><p className="font-semibold">{role.label}</p><p className="text-sm text-muted">{confirmed}/{required} asignado{required===1?"":"s"}</p></div><StatusBadge label={isPublished?"Publicado":"Interno"} variant={isPublished?"success":"info"}/></div>
-            <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end"><label className="grid min-w-0 gap-1 text-xs text-muted">Cantidad requerida<input className="min-h-10 min-w-0 rounded-lg border bg-background px-3 text-foreground" defaultValue={required} min="0" name="quantity" type="number"/></label><label className="flex min-h-10 items-center gap-2 text-sm"><input defaultChecked={isPublished} name="published" type="checkbox" value="true"/>Publicar</label><Button className="w-full sm:w-auto" disabled={pending} type="submit">Guardar</Button></div>
-          </form>;
+          return <StaffRoleRequirementCard
+            key={`${projectId}:${role.value}:${required}:${isPublished}`}
+            projectId={projectId} role={role} required={required} published={isPublished}
+            assignments={assignments} pending={pending}
+            cost={roleCosts[role.value] ?? 0}
+            onSave={(data) => startTransition(async () => {
+              const result = await setEventStaffRequirementAction(data);
+              setMessage(result.message);
+              if (result.ok) router.refresh();
+            })}
+            onAssign={(slot) => setPanel({ mode: "create", role: role.value, slot })}
+            onEdit={(item) => setPanel({ mode: "edit", item })}
+          />;
         })}
       </section>
-      {requests.length ? <section className="mb-5 border-b pb-5"><h3 className="font-semibold">Solicitudes Staff</h3><div className="mt-3 grid gap-3 lg:grid-cols-2">{requests.map((request)=><article className="rounded-xl border p-4" key={request.id}><p className="font-semibold">{request.staffName}</p><p className="mt-1 text-sm text-muted">{roleLabel(request.role)} · Solicitud pendiente</p><div className="mt-3 flex gap-2"><form action={(data)=>startTransition(async()=>{const result=await reviewStaffRequestAction(data);setMessage(result.message);if(result.ok)router.refresh()})}><input name="requestId" type="hidden" value={request.id}/><input name="decision" type="hidden" value="approve"/><Button disabled={pending} type="submit">Aprobar</Button></form><form action={(data)=>startTransition(async()=>{const result=await reviewStaffRequestAction(data);setMessage(result.message);if(result.ok)router.refresh()})}><input name="requestId" type="hidden" value={request.id}/><input name="decision" type="hidden" value="reject"/><Button disabled={pending} type="submit" variant="outline">Rechazar</Button></form></div></article>)}</div></section>:null}
-      <div className="space-y-5">
-        {roles.map((role) => {
-          const members = assignments.filter((item) => item.role === role.value);
-          return <section key={role.value} className="rounded-2xl border p-4" aria-label={`Bloque ${role.label}`}>
-            <h3 className="mb-3 text-base font-semibold text-brand">{role.label} · Bloque y horarios</h3>
-            <div className="grid gap-3 lg:grid-cols-2">
-              {members.length ? members.map((item) => (
+      {blockRequirements.length ? <section className="mb-5 border-b pb-5"><h3 className="font-semibold">Planificación por bloques</h3><p className="mt-1 text-sm text-muted">Cada asignación queda asociada al bloque y conserva su tarifa según duración.</p><div className="mt-3 grid gap-3 lg:grid-cols-2">{blockRequirements.map((item) => {
+        const blockAssignments = assignments.filter((assignment) => String(assignment.blockId ?? "") === String(item.blockId) && assignment.role === item.role && !["CANCELLED", "REJECTED"].includes(assignment.status));
+        const blockSettlements = settlements.filter((payment) => String(payment.blockId ?? "") === String(item.blockId) && payment.roles.includes(item.role));
+        const blockCost = blockSettlements.length
+          ? blockSettlements.reduce((sum, payment) => sum + payment.finalAmount, 0)
+          : item.projectedCost;
+        return <article className="rounded-xl border p-4" key={`${item.blockId}:${item.role}`}><p className="font-semibold">{item.blockName ?? "Bloque operacional"}</p><p className="mt-1 text-sm text-muted">{item.startAt ? `${new Date(item.startAt).toLocaleTimeString("es-CL", { timeZone: "America/Santiago", hour: "2-digit", minute: "2-digit" })}–${item.endAt ? new Date(item.endAt).toLocaleTimeString("es-CL", { timeZone: "America/Santiago", hour: "2-digit", minute: "2-digit" }) : ""}` : ""}</p><div className="mt-3 flex flex-wrap items-center justify-between gap-2"><p className="text-sm">{roleLabel(item.role)} <strong>{item.assigned}/{item.required}</strong></p><p className="text-sm font-semibold">{item.rate == null ? "REVIEW_REQUIRED" : money(item.rate)}</p></div><p className="mt-1 text-xs uppercase tracking-wide text-muted">{formatOperationalBlockDuration(item.durationMinutes) ? `${formatOperationalBlockDuration(item.durationMinutes)} · tarifa unitaria` : "Duración pendiente"}</p>{blockAssignments.length ? <div className="mt-3 space-y-2"><p className="text-xs font-semibold uppercase tracking-wide text-muted">Asignación real</p>{blockAssignments.map((assignment) => <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-background/60 p-3" key={assignment.id}><div><p className="font-semibold">{assignment.staffName}</p><p className="text-xs text-muted">{roleLabel(assignment.role)} · {item.startAt ? new Date(item.startAt).toLocaleTimeString("es-CL", { timeZone: "America/Santiago", hour: "2-digit", minute: "2-digit" }) : ""}–{item.endAt ? new Date(item.endAt).toLocaleTimeString("es-CL", { timeZone: "America/Santiago", hour: "2-digit", minute: "2-digit" }) : ""}</p></div><Button type="button" variant="outline" disabled={pending} onClick={() => setPanel({ mode: "edit", item: assignment })}>EDITAR ASIGNACIÓN</Button></div>)}</div> : <p className="mt-3 rounded-lg bg-background/60 p-3 text-sm text-muted">Sin operador asignado en este bloque.</p>}{blockSettlements.length ? <div className="mt-3 space-y-2">{blockSettlements.map((payment) => <div className="rounded-lg border border-brand/20 bg-brand/5 p-3" key={payment.id}><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs uppercase tracking-wide text-muted">Pago acordado · {payment.staffName}</p><p className="font-semibold">{money(payment.finalAmount)}{payment.overrideOperator !== null || payment.overrideAssembly !== null || payment.overrideDisassembly !== null ? <span className="ml-2 text-xs font-bold uppercase tracking-wide text-brand">Personalizado</span> : null}</p></div>{payment.settlementStatus === "PAID" || payment.settlementStatus === "FINALIZED" || payment.paid > 0 ? <span className="text-xs font-semibold text-muted">PAGADO · edición bloqueada</span> : <Button type="button" variant="outline" disabled={pending} onClick={() => setSettlement(payment)}>EDITAR PAGO</Button>}</div></div>)}</div> : <p className="mt-3 text-sm text-muted">Sin liquidación asociada.</p>}{blockCost != null ? <p className="mt-3 text-xs text-muted">Costo proyectado del bloque: <strong className="text-foreground">{money(blockCost)}</strong></p> : null}{!blockAssignments.length && item.required > item.assigned ? <Button className="mt-3" type="button" variant="outline" disabled={pending} onClick={() => setPanel({ mode: "create", role: item.role, blockId: item.blockId, blockName: item.blockName, blockStartAt: item.startAt, blockEndAt: item.endAt })}><Plus className="size-4"/>Asignar {roleLabel(item.role)}</Button> : null}</article>;
+      })}</div></section> : null}
+      {requests.length ? <section className="mb-5 border-b pb-5"><h3 className="font-semibold">Solicitudes Staff</h3><div className="mt-3 grid gap-3 lg:grid-cols-2">{requests.map((request)=><article className="rounded-xl border p-4" key={request.id}><p className="font-semibold">{request.staffName}</p><p className="mt-1 text-sm text-muted">{roleLabel(request.role)} · Solicitud pendiente</p><div className="mt-3 flex gap-2"><form action={(data)=>startTransition(async()=>{const result=await reviewStaffRequestAction(data);setMessage(result.message);if(result.ok)router.refresh()})}><input name="requestId" type="hidden" value={request.id}/><input name="decision" type="hidden" value="approve"/><Button aria-busy={pending} disabled={pending} type="submit">Aprobar</Button></form><form action={(data)=>startTransition(async()=>{const result=await reviewStaffRequestAction(data);setMessage(result.message);if(result.ok)router.refresh()})}><input name="requestId" type="hidden" value={request.id}/><input name="decision" type="hidden" value="reject"/><Button aria-busy={pending} disabled={pending} type="submit" variant="outline">Rechazar</Button></form></div></article>)}</div></section>:null}
+      <div className="grid gap-3 lg:grid-cols-2">
+        {assignments.map((item) => (
           <article className="rounded-xl border p-4" key={item.id}>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -312,6 +357,11 @@ export function StaffAssignmentCenter({
                 <p className="mt-1 text-sm text-muted">
                   {roleLabel(item.role)} · {item.vehicleName || "Sin vehículo"}
                 </p>
+                {item.blockName ? (
+                  <p className="mt-1 text-xs font-semibold text-brand">
+                    {item.blockName} · {item.blockStartAt ? new Date(item.blockStartAt).toLocaleTimeString("es-CL", { timeZone: "America/Santiago", hour: "2-digit", minute: "2-digit" }) : ""}–{item.blockEndAt ? new Date(item.blockEndAt).toLocaleTimeString("es-CL", { timeZone: "America/Santiago", hour: "2-digit", minute: "2-digit" }) : ""}
+                  </p>
+                ) : null}
               </div>
               <StatusBadge
                 label={statusLabel(item.status)}
@@ -319,7 +369,7 @@ export function StaffAssignmentCenter({
               />
             </div>
             <dl className="mt-4 grid grid-cols-3 gap-2 text-sm">
-              <Time label="Llegada" value={item.arrivalTime} />
+              <Time label="Citación Staff" value={item.arrivalTime} />
               <Time label="Inicio" value={item.startTime} />
               <Time label="Término" value={item.finishTime} />
             </dl>
@@ -336,6 +386,7 @@ export function StaffAssignmentCenter({
                 {item.observations}
               </p>
             )}
+            {(() => { const payment = paymentForAssignment(settlements, item); return payment ? <AssignmentPaymentSummary payment={payment} role={item.role} pending={pending} onEdit={() => setSettlement({ ...payment, editRole: item.role })} /> : null; })()}
             <div className="mt-4 flex flex-wrap gap-2 border-t pt-4">
               <Small
                 label="Editar"
@@ -380,10 +431,7 @@ export function StaffAssignmentCenter({
               )}
             </div>
           </article>
-        )) : <p className="rounded-xl border border-dashed p-4 text-sm text-muted lg:col-span-2">Sin personal asignado a este bloque.</p>}
-            </div>
-          </section>;
-        })}
+        ))}
         {!assignments.length && (
           <div className="rounded-xl border border-dashed p-7 text-center lg:col-span-2">
             <p className="font-semibold">Sin asignaciones confirmadas</p>
@@ -407,6 +455,14 @@ export function StaffAssignmentCenter({
                     <p className="mt-1 text-sm text-muted">
                       {item.roles.map(roleLabel).join(" + ")}
                     </p>
+                    {item.blockName ? (
+                      <p className="mt-1 text-xs text-muted">
+                        Bloque: {item.blockName}
+                        {item.contractedMinutes
+                          ? ` · ${Math.floor(item.contractedMinutes / 60)}h${String(item.contractedMinutes % 60).padStart(2, "0")}`
+                          : ""}
+                      </p>
+                    ) : null}
                   </div>
                   <StatusBadge
                     label={
@@ -441,8 +497,9 @@ export function StaffAssignmentCenter({
                   className="mt-3 text-xs font-semibold text-brand"
                   onClick={() => setSettlement(item)}
                 >
-                  Gestionar cierre financiero
-                </button>
+                 Gestionar pago y cierre financiero
+               </button>
+                {item.settlementStatus === "PAID" || item.settlementStatus === "FINALIZED" || item.paid > 0 ? <p className="mt-2 text-xs font-semibold text-muted">PAGO BLOQUEADO · ya liquidado</p> : <button type="button" className="mt-3 inline-flex min-h-10 rounded-xl bg-brand px-3 text-xs font-bold text-brand-foreground" onClick={() => setSettlement(item)}>EDITAR PAGO</button>}
               </article>
             ))}
           </div>
@@ -452,6 +509,13 @@ export function StaffAssignmentCenter({
         <AssignmentDialog
           mode={panel.mode}
           item={panel.item}
+          initialRole={panel.role}
+          slot={panel.slot}
+          initialBlockId={panel.blockId}
+          initialBlockName={panel.blockName}
+          initialBlockStartAt={panel.blockStartAt}
+          initialBlockEndAt={panel.blockEndAt}
+          assignments={assignments}
           projectId={projectId}
           staff={staff}
           vehicles={vehicles}
@@ -464,6 +528,7 @@ export function StaffAssignmentCenter({
       {settlement && (
         <SettlementDetailDialog
           item={settlement}
+          editRole={settlement.editRole}
           pending={pending}
           onClose={() => setSettlement(null)}
           onSubmit={saveSettlement}
@@ -484,6 +549,67 @@ export function StaffAssignmentCenter({
 }
 
 void SettlementDialog;
+
+function StaffRoleRequirementCard({ projectId, role, required, published, assignments, pending, cost, onSave, onAssign, onEdit }: {
+  projectId: string;
+  role: { value: string; label: string };
+  required: number;
+  published: boolean;
+  assignments: OperationalAssignment[];
+  pending: boolean;
+  cost: number;
+  onSave: (data: FormData) => void;
+  onAssign: (slot: number) => void;
+  onEdit: (item: OperationalAssignment) => void;
+}) {
+  const [quantity, setQuantity] = useState(String(Math.max(required, 1)));
+  const [isPublished, setPublished] = useState(published);
+  const [page, setPage] = useState(0);
+  const slots = buildStaffRoleSlots(role.value, required, assignments, { offset: page * 12, limit: 12 });
+  const covered = new Set(assignments.filter((item) => item.role === role.value && !["CANCELLED", "REJECTED"].includes(item.status)).map((item) => item.staffId)).size;
+  const save = (remove = false) => {
+    const data = new FormData();
+    data.set("projectId", projectId);
+    data.set("role", role.value);
+    data.set("quantity", remove ? "0" : quantity);
+    data.set("published", String(!remove && isPublished));
+    data.set("removeRole", String(remove));
+    onSave(data);
+  };
+  const missing = Math.max(required - covered, 0);
+  return <article className="min-w-0 rounded-xl border p-4">
+    <div className="flex items-start justify-between gap-3">
+      <div><p className="font-semibold">{role.label}</p><p className="text-sm text-muted">Asignados {covered}/{required} cubiertos · Requeridos {required} · Faltan {missing}</p></div>
+      <StatusBadge label={published ? "Publicado" : "Interno"} variant={published ? "success" : "info"}/>
+    </div>
+    <p className="mt-2 text-xs text-muted">Costo Staff del rol: <strong className="text-foreground">{money(cost)}</strong> · colaboradores asignados</p>
+    <form onSubmit={(event) => { event.preventDefault(); save(); }} className="mt-3 grid gap-3">
+      <label className="grid min-w-0 gap-1 text-xs text-muted">Cantidad requerida · {role.label}
+        <div className="flex min-w-0 gap-2">
+          <Button type="button" variant="outline" aria-label={`Quitar slot de ${role.label}`} aria-busy={pending} disabled={pending|| Number(quantity) <= Math.max(covered, 1)} onClick={() => setQuantity(String(Number(quantity) - 1))}>−</Button>
+          <input className="min-h-10 w-full min-w-0 rounded-lg border bg-background px-3 text-foreground" value={quantity} onChange={(event) => setQuantity(event.target.value)} min={Math.max(covered, 1)} max="99" step="1" required name="quantity" type="number"/>
+          <Button type="button" variant="outline" aria-label={`Agregar slot de ${role.label}`} aria-busy={pending} disabled={pending || Number(quantity) >= 99} onClick={() => setQuantity(String(Math.min(99, Math.max(1, Number(quantity) || 0) + 1)))}>+</Button>
+        </div>
+      </label>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <label className="flex min-h-10 items-center gap-2 text-sm"><input checked={isPublished} onChange={(event) => setPublished(event.target.checked)} name="published" type="checkbox"/>Publicar</label>
+        <Button aria-busy={pending} disabled={pending|| !validStaffQuantity(Number(quantity)) || Number(quantity) < covered} type="submit">Guardar</Button>
+      </div>
+    </form>
+    <ol className="mt-4 grid gap-2">
+      {slots.map((slot) => <li key={slot.assignment?.id ?? `${role.value}:${slot.number}`} className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-lg bg-background/60 p-3 text-sm">
+        <div className="min-w-0"><p className="font-medium">{role.label} {slot.number}</p><p className="break-words text-muted">{slot.assignment?.staffName ?? "Sin asignar"}</p>{slot.assignment ? <p className="text-xs text-muted">{statusLabel(slot.assignment.status)}</p> : null}</div>
+        <Button type="button" variant="outline" aria-busy={pending} disabled={pending} aria-label={`${slot.assignment ? "Editar" : "Asignar"} ${role.label} ${slot.number}`} onClick={() => slot.assignment ? onEdit(slot.assignment) : onAssign(slot.number)}>{slot.assignment ? "Editar" : "Asignar"}</Button>
+      </li>)}
+    </ol>
+    {required > 12 ? <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
+      <Button type="button" variant="outline" disabled={page === 0} onClick={() => setPage((value) => value - 1)}>Anterior</Button>
+      <span>{page * 12 + 1}–{Math.min((page + 1) * 12, required)} de {required}</span>
+      <Button type="button" variant="outline" disabled={(page + 1) * 12 >= required} onClick={() => setPage((value) => value + 1)}>Siguiente</Button>
+    </div> : null}
+    {required > 0 && covered === 0 ? <Button className="mt-3" type="button" variant="outline" aria-busy={pending} disabled={pending} onClick={() => save(true)}>Quitar rol</Button> : null}
+  </article>;
+}
 
 function AssignmentCancellationDialog({
   item,
@@ -554,7 +680,7 @@ function AssignmentCancellationDialog({
           />
         </label>
         <div className="mt-6 flex justify-end gap-2">
-          <Button disabled={pending} onClick={onClose} variant="outline">
+          <Button aria-busy={pending} disabled={pending} onClick={onClose} variant="outline">
             Volver
           </Button>
           <Button
@@ -571,18 +697,41 @@ function AssignmentCancellationDialog({
   );
 }
 
+function paymentForAssignment(settlements: readonly EventStaffSettlement[], assignment: OperationalAssignment) {
+  return settlements.find((payment) => payment.staffId === assignment.staffId && payment.roles.includes(assignment.role) && (assignment.blockId ? payment.blockId === assignment.blockId : payment.blockId == null));
+}
+
+function rolePayment(payment: EventStaffSettlement, role: string, kind: "base" | "final" | "override") {
+  const value = role === "ASSEMBLY" ? (kind === "base" ? payment.defaultAssembly : kind === "override" ? payment.overrideAssembly : payment.overrideAssembly ?? payment.defaultAssembly) : role === "DISASSEMBLY" ? (kind === "base" ? payment.defaultDisassembly : kind === "override" ? payment.overrideDisassembly : payment.overrideDisassembly ?? payment.defaultDisassembly) : (kind === "base" ? payment.defaultOperator : kind === "override" ? payment.overrideOperator : payment.overrideOperator ?? payment.defaultOperator);
+  return Number(value ?? 0);
+}
+
+function AssignmentPaymentSummary({ payment, role, pending, onEdit }: { payment: EventStaffSettlement; role: string; pending: boolean; onEdit: () => void }) {
+  const paid = payment.settlementStatus === "PAID" || payment.settlementStatus === "FINALIZED" || payment.paid > 0;
+  const override = rolePayment(payment, role, "override") !== null && ((role === "ASSEMBLY" && payment.overrideAssembly !== null) || (role === "DISASSEMBLY" && payment.overrideDisassembly !== null) || (role === "OPERATOR" && payment.overrideOperator !== null));
+  return <section className="mt-4 rounded-lg border border-brand/20 bg-brand/5 p-3" aria-label={`Pago ${roleLabel(role)}`}><div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-[11px] font-semibold uppercase tracking-wide text-muted">PAGO · {roleLabel(role)}</p><p className="mt-1 text-xs text-muted">Base: {money(rolePayment(payment, role, "base"))}</p><p className="mt-1 text-lg font-semibold">{money(rolePayment(payment, role, "final"))}{override ? <span className="ml-2 text-xs font-bold uppercase tracking-wide text-brand">Personalizado</span> : null}</p></div>{paid ? <span className="text-xs font-semibold text-muted">PAGADO · edición bloqueada</span> : <Button type="button" variant="outline" disabled={pending} onClick={onEdit}>EDITAR PAGO</Button>}</div></section>;
+}
+
+function AssignmentPaymentEditor({ item, editRole, pending, onSubmit }: { item: EventStaffSettlement; editRole?: string; pending: boolean; onSubmit: (data: FormData, kind: "adjustment" | "reimbursement" | "payment" | "override" | "reset") => void }) {
+  const role = editRole ?? item.roles[0] ?? "OPERATOR";
+  const paid = item.settlementStatus === "PAID" || item.settlementStatus === "FINALIZED" || item.paid > 0;
+  return <details className="mt-4 rounded-xl border border-brand/30 bg-brand/5 p-4" open={Boolean(editRole)}><summary className="cursor-pointer font-semibold">PAGO POR ASIGNACIÓN · {roleLabel(role)}</summary><p className="mt-2 text-sm text-muted">La tarifa Master es el valor base. El pago acordado solo afecta esta asignación/evento.</p><dl className="mt-3 grid grid-cols-2 gap-2 text-sm"><Money label="Tarifa base" value={rolePayment(item, role, "base")} /><Money label="Pago acordado" value={rolePayment(item, role, "final")} /></dl>{paid ? <p className="mt-3 text-xs font-semibold text-muted">PAGADO · edición bloqueada</p> : <form action={(data) => onSubmit(data, "override")} className="mt-4 grid gap-3 sm:grid-cols-2"><input name="paymentId" type="hidden" value={item.id} /><input name="paymentRole" type="hidden" value={role} /><Field label="Nuevo pago para este evento" name="paymentAmount" type="number" defaultValue={String(rolePayment(item, role, "final"))} /><Field label="Motivo" name="paymentReason" defaultValue="Acuerdo especial para este Evento" /><div className="flex flex-wrap gap-2 sm:col-span-2"><Button aria-busy={pending} disabled={pending}>Guardar pago</Button><button className="rounded-lg border px-3 py-2 text-sm font-semibold" disabled={pending} formAction={(data) => onSubmit(data, "reset")} type="submit">Restablecer tarifa</button></div></form>}</details>;
+}
+
 function SettlementDetailDialog({
   item,
+  editRole,
   pending,
   onClose,
   onSubmit,
 }: {
   item: EventStaffSettlement;
+  editRole?: string;
   pending: boolean;
   onClose: () => void;
   onSubmit: (
     data: FormData,
-    kind: "adjustment" | "reimbursement" | "payment",
+    kind: "adjustment" | "reimbursement" | "payment" | "override" | "reset",
   ) => void;
 }) {
   const movementLabel = (value: string) =>
@@ -616,6 +765,7 @@ function SettlementDetailDialog({
             Solo lectura.
           </p>
         </details>
+        <AssignmentPaymentEditor item={item} editRole={editRole} pending={pending} onSubmit={onSubmit} />
         <details className="mt-4 rounded-xl border p-4" open>
           <summary className="cursor-pointer font-semibold">
             AJUSTES MANUALES · {money(item.adjustmentTotal)}
@@ -701,7 +851,7 @@ function SettlementDetailDialog({
             />
             <Button
               className="sm:col-span-2"
-              disabled={pending}
+              aria-busy={pending} disabled={pending}
               variant="outline"
             >
               Agregar ajuste
@@ -785,7 +935,7 @@ function SettlementDetailDialog({
                 { value: "PAID", label: "Pagado" },
               ]}
             />
-            <Button disabled={pending} variant="outline">
+            <Button aria-busy={pending} disabled={pending} variant="outline">
               Agregar reembolso
             </Button>
           </form>
@@ -863,7 +1013,7 @@ function SettlementDetailDialog({
                 { value: "RECEIVED", label: "Recibida" },
               ]}
             />
-            <Button className="sm:col-span-2" disabled={pending}>
+            <Button className="sm:col-span-2" aria-busy={pending} disabled={pending}>
               {pending ? "Guardando…" : "Registrar movimiento"}
             </Button>
           </form>
@@ -900,7 +1050,7 @@ function SettlementDialog({
   onClose: () => void;
   onSubmit: (
     data: FormData,
-    kind: "adjustment" | "reimbursement" | "payment",
+    kind: "adjustment" | "reimbursement" | "payment" | "override" | "reset",
   ) => void;
 }) {
   return (
@@ -913,6 +1063,60 @@ function SettlementDialog({
       title={item.staffName}
     >
       <div className="max-h-[92dvh] w-full overflow-y-auto rounded-t-2xl border bg-card p-5 sm:max-w-2xl sm:rounded-2xl sm:p-7">
+        <section className="rounded-xl border border-brand/30 bg-brand/5 p-4">
+          <h4 className="font-semibold">Pago por asignación</h4>
+          <p className="mt-1 text-sm text-muted">
+            La tarifa general es el valor base. Este cambio solo afecta esta asignación/evento.
+          </p>
+          <form
+            action={(data) => onSubmit(data, "override")}
+            className="mt-4 grid gap-3 sm:grid-cols-2"
+          >
+            <input name="paymentId" type="hidden" value={item.id} />
+            <Select
+              label="Rol"
+              name="paymentRole"
+              value={item.roles[0] ?? "OPERATOR"}
+              options={item.roles.map((role) => ({ value: role, label: roleLabel(role) }))}
+            />
+            <Field
+              label="Pago para este evento"
+              name="paymentAmount"
+              type="number"
+              defaultValue={String(
+                item.overrideOperator ?? item.overrideAssembly ?? item.overrideDisassembly ??
+                  (item.roles[0] === "ASSEMBLY" ? item.defaultAssembly : item.roles[0] === "DISASSEMBLY" ? item.defaultDisassembly : item.defaultOperator),
+              )}
+            />
+            <Field
+              label="Motivo del pago especial"
+              name="paymentReason"
+              defaultValue="Acuerdo especial para este Evento"
+            />
+            <div className="flex flex-wrap gap-2 sm:col-span-2">
+              <Button aria-busy={pending} disabled={pending}>
+                {pending ? "Guardando…" : "Guardar pago"}
+              </Button>
+              <button
+                className="rounded-lg border px-3 py-2 text-sm font-semibold"
+                disabled={pending}
+                formAction={(data) => onSubmit(data, "reset")}
+                type="submit"
+              >
+                Restablecer tarifa
+              </button>
+            </div>
+          </form>
+          <dl className="mt-4 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+            <Money label="Base operador" value={item.defaultOperator} />
+            <Money label="Base montaje" value={item.defaultAssembly} />
+            <Money label="Base desmontaje" value={item.defaultDisassembly} />
+            <Money label="Pago final" value={item.finalAmount} />
+          </dl>
+          {item.overrideOperator !== null || item.overrideAssembly !== null || item.overrideDisassembly !== null ? (
+            <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-brand">Personalizado para este Evento</p>
+          ) : null}
+        </section>
         <section className="mt-6 rounded-xl border p-4">
           <h4 className="font-semibold">Liquidación original</h4>
           <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -960,7 +1164,7 @@ function SettlementDialog({
             type="number"
           />
           <Field defaultValue="" label="Comentario" name="adjustmentComment" />
-          <Button disabled={pending} variant="outline">
+          <Button aria-busy={pending} disabled={pending} variant="outline">
             Agregar ajuste
           </Button>
           {item.adjustments.length ? (
@@ -1029,7 +1233,7 @@ function SettlementDialog({
               { value: "PAID", label: "Pagado" },
             ]}
           />
-          <Button disabled={pending} variant="outline">
+          <Button aria-busy={pending} disabled={pending} variant="outline">
             Agregar reembolso
           </Button>
           {item.reimbursements.length ? (
@@ -1093,7 +1297,7 @@ function SettlementDialog({
               { value: "RECEIVED", label: "Recibida" },
             ]}
           />
-          <Button disabled={pending}>
+          <Button aria-busy={pending} disabled={pending}>
             {pending ? "Guardando…" : "Registrar movimiento"}
           </Button>
         </form>
@@ -1105,6 +1309,13 @@ function SettlementDialog({
 function AssignmentDialog({
   mode,
   item,
+  initialRole,
+  slot,
+  initialBlockId,
+  initialBlockName,
+  initialBlockStartAt,
+  initialBlockEndAt,
+  assignments,
   projectId,
   staff,
   vehicles,
@@ -1115,6 +1326,13 @@ function AssignmentDialog({
 }: {
   mode: "create" | "edit" | "replace";
   item?: OperationalAssignment;
+  initialRole?: string;
+  slot?: number;
+  initialBlockId?: string;
+  initialBlockName?: string;
+  initialBlockStartAt?: string;
+  initialBlockEndAt?: string;
+  assignments: OperationalAssignment[];
   projectId: string;
   staff: AssignmentStaffOption[];
   vehicles: AssignmentVehicleOption[];
@@ -1123,13 +1341,20 @@ function AssignmentDialog({
   onClose: () => void;
   onSubmit: (input: StaffAssignmentMutation) => void;
 }) {
-  const [role, setRole] = useState(item?.role ?? "OPERATOR");
+  const [role, setRole] = useState(item?.role ?? initialRole ?? "OPERATOR");
+  const [requestId] = useState(() => crypto.randomUUID());
+  const effectiveBlockId = initialBlockId ?? item?.blockId ?? undefined;
+  const effectiveBlockName = initialBlockName ?? item?.blockName;
+  const effectiveBlockStartAt = initialBlockStartAt ?? item?.blockStartAt;
+  const effectiveBlockEndAt = initialBlockEndAt ?? item?.blockEndAt;
   const compatible = staff.filter((member) =>
-    member.capabilities.includes(role),
+    member.capabilities.includes(role) && (effectiveBlockId ? true : !assignments.some((assignment) =>
+      assignment.role === role && assignment.staffId === member.id && assignment.id !== item?.id &&
+      !["CANCELLED", "REJECTED"].includes(assignment.status))),
   );
   return (
     <MobileDialog
-      description="Solo Operador, Montaje y Desmontaje. La llegada del Operador se calcula 90 minutos antes del inicio real."
+      description="Una persona distinta por slot. Cada colaborador conserva su liquidación individual según las tarifas oficiales."
       dismissOnOverlayClick={false}
       eyebrow="STAFF · EVENT 360°"
       onClose={onClose}
@@ -1139,7 +1364,7 @@ function AssignmentDialog({
           ? "Reemplazar Staff"
           : mode === "edit"
             ? "Editar asignación"
-            : "Asignar responsabilidad"
+            : slot ? `Asignar ${roleLabel(role)} ${slot}` : "Asignar responsabilidad"
       }
     >
       <div className="max-h-[92dvh] w-full overflow-y-auto rounded-t-2xl border bg-card p-5 sm:max-w-2xl sm:rounded-2xl sm:p-7">
@@ -1150,10 +1375,12 @@ function AssignmentDialog({
             const data = new FormData(event.currentTarget);
             onSubmit({
               id: mode === "edit" ? item?.id : undefined,
+              requestId,
               replaceId: mode === "replace" ? item?.id : undefined,
               projectId,
               staffId: String(data.get("staffId") ?? ""),
               role: String(data.get("role") ?? ""),
+              blockId: String(data.get("blockId") ?? "") || undefined,
               arrivalTime: String(data.get("arrivalTime") ?? ""),
               startTime: String(data.get("startTime") ?? ""),
               finishTime: String(data.get("finishTime") ?? ""),
@@ -1162,13 +1389,14 @@ function AssignmentDialog({
             });
           }}
         >
-          <Select
+          {initialRole ? <><input type="hidden" name="role" value={role}/><p className="text-sm font-semibold">{roleLabel(role)} {slot}</p></> : <Select
             label="Responsabilidad"
             name="role"
             value={role}
             onChange={setRole}
             options={roles}
-          />
+          />}
+          {effectiveBlockId ? <div className="rounded-xl border border-brand/30 bg-brand/5 p-3 text-sm sm:col-span-2"><input type="hidden" name="blockId" value={effectiveBlockId}/><p className="font-semibold">Bloque: {effectiveBlockName ?? "Operacional"}</p><p className="mt-1 text-muted">{effectiveBlockStartAt ? `${new Date(effectiveBlockStartAt).toLocaleTimeString("es-CL", { timeZone: "America/Santiago", hour: "2-digit", minute: "2-digit" })}–${effectiveBlockEndAt ? new Date(effectiveBlockEndAt).toLocaleTimeString("es-CL", { timeZone: "America/Santiago", hour: "2-digit", minute: "2-digit" }) : ""}` : ""}</p></div> : null}
           <Select
             label="Staff compatible"
             name="staffId"
@@ -1186,8 +1414,8 @@ function AssignmentDialog({
           <Field
             label={
               role === "OPERATOR"
-                ? "Llegada (automática si se deja vacía)"
-                : "Hora de llegada · manual"
+                ? "Citación Staff (automática si se deja vacía)"
+                : "Citación Staff · manual"
             }
             name="arrivalTime"
             type="time"
@@ -1227,7 +1455,7 @@ function AssignmentDialog({
           )}
           <Button
             className="sm:col-span-2"
-            disabled={pending || !compatible.length}
+            aria-busy={pending} disabled={pending|| !compatible.length}
           >
             {pending
               ? "Guardando..."
