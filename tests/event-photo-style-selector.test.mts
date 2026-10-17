@@ -11,6 +11,14 @@ test("event workspace exposes the canonical photo style values and persists them
   assert.match(workspace, /BLANCO Y NEGRO/);
   assert.match(workspace, /PENDIENTE/);
   assert.match(workspace, /photoStyle/);
+  assert.match(
+    workspace,
+    /activeTab === "OPERATION" && \(\s*<Section[\s\S]*id="print-instructions"/,
+  );
+  assert.doesNotMatch(
+    workspace,
+    /activeTab === "OPERATION" && moduleVisible\("OPERATIONAL_CONTROL"\) && \(\s*<OptionalModule[\s\S]*id="print-instructions"/,
+  );
   assert.match(page, /operationalContract\.photo_style/);
   assert.match(page, /operator_print_notes/);
 });
