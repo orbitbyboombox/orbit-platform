@@ -150,6 +150,7 @@ export type OperationalReminderAssignment = SpecialReminderAssignment & {
   customerId: string | null;
   customerName?: string | null;
   service?: string | null;
+  boxCode?: string | null;
   staffCallAt?: string | null;
   durationHours?: number;
   instructions?: string | null;
@@ -162,6 +163,7 @@ export type ConsolidatedOperationalRoute = {
   eventName: string;
   customerName: string | null;
   service: string | null;
+  boxCode: string | null;
   location: string | null;
   role: string;
   staffCallAt: string | null;
@@ -207,6 +209,7 @@ export function consolidatedOperationalRoute(
     eventName: row.eventName,
     customerName: row.customerName ?? null,
     service: row.service ?? null,
+    boxCode: row.boxCode ?? null,
     location: row.location ?? null,
     role: row.role,
     staffCallAt: row.staffCallAt ?? null,

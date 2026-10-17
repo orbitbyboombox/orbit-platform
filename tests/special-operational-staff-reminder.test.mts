@@ -298,14 +298,15 @@ test("operator fallback handles midnight rollover while assembly keeps its own s
 });
 test("selected logistics Staff receive one next-day email across all their routes", () => {
   const rows = [
-    { ...base(sebastian, "event-assembly"), firstName: "Sebastián", eventName: "Montaje Rosario", eventTime: "22:30:00", role: "ASSEMBLY", customerId: "c1", customerName: "Rosario Alonso", service: "BBOX360", location: "Av. Central", staffCallAt: "2026-09-15T21:30:00-03:00", durationHours: 3 },
-    { ...base(sebastian, "event-disassembly"), firstName: "Sebastián", eventName: "Desmontaje Hotel", eventTime: "23:30:00", role: "DISASSEMBLY", customerId: "c2", customerName: "Hotel", service: "BBOX360", location: "Ruta 5", durationHours: 3 },
+    { ...base(sebastian, "event-assembly"), firstName: "Sebastián", eventName: "Montaje Rosario", eventTime: "22:30:00", role: "ASSEMBLY", customerId: "c1", customerName: "Rosario Alonso", service: "BBOX360", location: "Av. Central", staffCallAt: "2026-09-15T21:30:00-03:00", durationHours: 3, boxCode: "CASE-02" },
+    { ...base(sebastian, "event-disassembly"), firstName: "Sebastián", eventName: "Desmontaje Hotel", eventTime: "23:30:00", role: "DISASSEMBLY", customerId: "c2", customerName: "Hotel", service: "BBOX360", location: "Ruta 5", durationHours: 3, boxCode: null },
   ];
   const [candidate] = consolidatedSpecialD1Candidates(rows, tomorrow);
   assert.equal(candidate.routes.length, 2);
   assert.equal(candidate.projectIds.length, 2);
   assert.equal(candidate.routes[0].role, "ASSEMBLY");
   assert.equal(candidate.routes[0].scheduleAt, "2026-09-15T21:30:00-03:00");
+  assert.equal(candidate.routes[0].boxCode, "CASE-02");
   assert.equal(candidate.routes[1].role, "DISASSEMBLY");
   assert.equal(candidate.routes[1].scheduleAt, "2026-09-17T05:30:00.000Z");
   assert.equal(consolidatedSpecialReminderCorrelation(sebastian, tomorrow), `staff-special-d1:${sebastian}:${tomorrow}`);
@@ -320,8 +321,38 @@ test("selected logistics Staff receive one next-day email across all their route
   assert.match(email.subject, /2 eventos/);
   assert.match(email.textBody, /MONTAJE/);
   assert.match(email.textBody, /DESMONTAJE/);
-  assert.match(email.textBody, /Término servicio: 02:30 hrs\./);
-  assert.match(email.htmlBody, /Ver detalle en ORBIT/);
+  assert.match(email.textBody, /Horario de desmontaje: 02:30 hrs\./);
+  assert.match(email.textBody, /Caja: CASE-02/);
+  assert.match(email.textBody, /Caja: Caja no asignada/);
+  assert.match(email.htmlBody, /Ver todas mis rutas en ORBIT/);
+  assert.doesNotMatch(email.htmlBody, /Ver detalle en ORBIT/);
+  const order = ["Evento:", "Dirección:", "Servicio:", "Caja:", "Horario de montaje:"];
+  const indexes = order.map((marker) => email.textBody.indexOf(marker));
+  assert.ok(indexes.every((index) => index >= 0));
+  assert.deepEqual(indexes, [...indexes].sort((left, right) => left - right));
+});
+test("consolidated routes show the manual assembly fallback without inventing a time", () => {
+  const email = buildStaffD1ReminderEmail({
+    appUrl: "https://orbit.boom-box.cl",
+    firstName: "Fernando",
+    eventName: "Evento sin hora",
+    eventDate: tomorrow,
+    roles: ["ASSEMBLY"],
+    consolidatedRoutes: [{
+      eventName: "Evento sin hora",
+      customerName: null,
+      service: "BBOX360",
+      location: "Dirección registrada",
+      boxCode: null,
+      role: "ASSEMBLY",
+      scheduleAt: null,
+      instructions: null,
+      specialElements: [],
+    }],
+  });
+  assert.match(email.textBody, /Horario de montaje: Coordinar con Matías/);
+  assert.match(email.htmlBody, /Caja no asignada/);
+  assert.match(email.htmlBody, /Ver todas mis rutas en ORBIT/);
 });
 test("removed Staff, closed event, missing email and inactive Staff are excluded", () => {
   for (const change of [

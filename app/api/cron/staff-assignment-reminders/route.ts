@@ -78,6 +78,41 @@ export async function GET(request: Request) {
   if (error)
     return NextResponse.json({ error: error.message }, { status: 500 });
 
+  const projectIds = [...new Set((data ?? []).map((row) => row.project_id).filter(Boolean))];
+  const { data: boxAssignmentRows, error: boxAssignmentError } = projectIds.length
+    ? await admin
+        .from("asset_assignments")
+        .select("project_id,assignment_status,deleted_at,operational_assets!inner(asset_code,asset_type)")
+        .in("project_id", projectIds)
+        .eq("assignment_status", "ASSIGNED")
+        .is("deleted_at", null)
+        .in("operational_assets.asset_type", ["BOX", "CASE"])
+        .in("operational_assets.asset_code", [
+          "CASE-01",
+          "CASE-02",
+          "CASE-03",
+          "CASE-04",
+          "CASE-05",
+          "CASE-06",
+          "CASE-07",
+          "CASE-08",
+          "CASE-09",
+        ])
+    : { data: [], error: null };
+  if (boxAssignmentError)
+    console.error("[ORBIT][STAFF_D1] canonical box lookup failed", {
+      error: boxAssignmentError.message,
+    });
+  const boxCodeByProject = new Map<string, string>();
+  for (const row of boxAssignmentRows ?? []) {
+    const asset = Array.isArray(row.operational_assets)
+      ? row.operational_assets[0]
+      : row.operational_assets;
+    if (row.project_id && asset?.asset_code && !boxCodeByProject.has(row.project_id)) {
+      boxCodeByProject.set(row.project_id, asset.asset_code);
+    }
+  }
+
   // C.5 paper closeout reminder. This uses the existing notification/email
   // channel and claims a unique correlation before invoking the provider.
   let paperDelivered = 0;
@@ -190,6 +225,7 @@ export async function GET(request: Request) {
         eventName: project.name,
         eventTime: project.event_time,
         service: service?.service_code ?? null,
+        boxCode: boxCodeByProject.get(project.id) ?? null,
         durationHours: Number(service?.duration_hours ?? 0),
         staffCallAt: row.staff_call_at,
         instructions: roleInstructions,
