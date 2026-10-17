@@ -1,3 +1,5 @@
+import { chileLocalToIso } from "./event-operational-window.ts";
+
 export const SPECIAL_OPERATIONAL_STAFF_IDS = [
   "07683338-3ff1-4235-9253-1efeeed4a7c1",
   "bd31d438-42fc-474a-87b6-a5f68f626fea",
@@ -149,8 +151,24 @@ export type OperationalReminderAssignment = SpecialReminderAssignment & {
   customerName?: string | null;
   service?: string | null;
   staffCallAt?: string | null;
+  durationHours?: number;
   instructions?: string | null;
   specialElements?: string[];
+};
+
+export type ConsolidatedOperationalRoute = {
+  projectId: string;
+  eventDate: string;
+  eventName: string;
+  customerName: string | null;
+  service: string | null;
+  location: string | null;
+  role: string;
+  staffCallAt: string | null;
+  serviceEndAt: string | null;
+  scheduleAt: string | null;
+  instructions: string | null;
+  specialElements: string[];
 };
 
 export type OperationalD1Candidate = Omit<
@@ -161,6 +179,57 @@ export type OperationalD1Candidate = Omit<
   instructions: string[];
   specialElements: string[];
   staffCallTimes: string[];
+  routes: ConsolidatedOperationalRoute[];
+  projectIds: string[];
+};
+
+const serviceEndAt = (row: OperationalReminderAssignment): string | null => {
+  if (!row.eventTime || !Number.isFinite(row.durationHours)) return null;
+  try {
+    return new Date(
+      new Date(chileLocalToIso(`${row.eventDate}T${row.eventTime.slice(0, 5)}:00`)).getTime() +
+        Number(row.durationHours ?? 0) * 60 * 60 * 1000,
+    ).toISOString();
+  } catch {
+    return null;
+  }
+};
+
+export function consolidatedOperationalRoute(
+  row: OperationalReminderAssignment,
+): ConsolidatedOperationalRoute {
+  const end = serviceEndAt(row);
+  const isAssembly = row.role === "ASSEMBLY";
+  const isDisassembly = row.role === "DISASSEMBLY";
+  return {
+    projectId: row.projectId,
+    eventDate: row.eventDate,
+    eventName: row.eventName,
+    customerName: row.customerName ?? null,
+    service: row.service ?? null,
+    location: row.location ?? null,
+    role: row.role,
+    staffCallAt: row.staffCallAt ?? null,
+    serviceEndAt: end,
+    scheduleAt: isAssembly ? row.staffCallAt ?? null : isDisassembly ? end : row.staffCallAt ?? null,
+    instructions: row.instructions ?? null,
+    specialElements: [...new Set(row.specialElements ?? [])],
+  };
+}
+
+const mergeCandidateRow = (
+  current: OperationalD1Candidate,
+  row: OperationalReminderAssignment,
+) => {
+  if (!current.roles.includes(row.role)) current.roles.push(row.role);
+  if (row.instructions?.trim())
+    current.instructions.push(`${row.role}: ${row.instructions.trim()}`);
+  for (const element of row.specialElements ?? [])
+    if (!current.specialElements.includes(element)) current.specialElements.push(element);
+  if (row.staffCallAt && !current.staffCallTimes.includes(row.staffCallAt))
+    current.staffCallTimes.push(row.staffCallAt);
+  if (!current.projectIds.includes(row.projectId)) current.projectIds.push(row.projectId);
+  current.routes.push(consolidatedOperationalRoute(row));
 };
 
 export function operationalD1Candidates(
@@ -185,14 +254,7 @@ export function operationalD1Candidates(
     const key = `${row.projectId}:${row.staffId}`;
     const current = unique.get(key);
     if (current) {
-      if (!current.roles.includes(row.role)) current.roles.push(row.role);
-      if (row.instructions?.trim())
-        current.instructions.push(`${row.role}: ${row.instructions.trim()}`);
-      for (const element of row.specialElements ?? [])
-        if (!current.specialElements.includes(element))
-          current.specialElements.push(element);
-      if (row.staffCallAt && !current.staffCallTimes.includes(row.staffCallAt))
-        current.staffCallTimes.push(row.staffCallAt);
+      mergeCandidateRow(current, row);
       continue;
     }
     unique.set(key, {
@@ -203,9 +265,58 @@ export function operationalD1Candidates(
         : [],
       specialElements: [...new Set(row.specialElements ?? [])],
       staffCallTimes: row.staffCallAt ? [row.staffCallAt] : [],
+      routes: [consolidatedOperationalRoute(row)],
+      projectIds: [row.projectId],
     });
   }
   return [...unique.values()];
+}
+
+/** One next-day message per selected logistics collaborator, across all events. */
+export function consolidatedSpecialD1Candidates(
+  rows: readonly OperationalReminderAssignment[],
+  tomorrow: string,
+): OperationalD1Candidate[] {
+  const unique = new Map<string, OperationalD1Candidate>();
+  for (const row of rows) {
+    if (!isSpecialOperationalStaffId(row.staffId) || row.eventDate !== tomorrow) continue;
+    if (
+      row.assignmentDeletedAt ||
+      !activeAssignmentStatuses.has(row.assignmentStatus) ||
+      row.projectDeletedAt ||
+      closedProjectStatuses.has(String(row.projectStatus ?? "").toUpperCase()) ||
+      row.staffDeletedAt ||
+      row.staffStatus !== "ACTIVE" ||
+      !row.email
+    ) continue;
+    const key = row.staffId;
+    const current = unique.get(key);
+    if (current) {
+      mergeCandidateRow(current, row);
+      continue;
+    }
+    unique.set(key, {
+      ...row,
+      roles: [row.role],
+      instructions: row.instructions?.trim() ? [`${row.role}: ${row.instructions.trim()}`] : [],
+      specialElements: [...new Set(row.specialElements ?? [])],
+      staffCallTimes: row.staffCallAt ? [row.staffCallAt] : [],
+      routes: [consolidatedOperationalRoute(row)],
+      projectIds: [row.projectId],
+    });
+  }
+  for (const candidate of unique.values()) {
+    candidate.routes.sort((left, right) => {
+      if (!left.scheduleAt) return 1;
+      if (!right.scheduleAt) return -1;
+      return new Date(left.scheduleAt).getTime() - new Date(right.scheduleAt).getTime();
+    });
+  }
+  return [...unique.values()];
+}
+
+export function consolidatedSpecialReminderCorrelation(staffId: string, tomorrow: string): string {
+  return `staff-special-d1:${staffId}:${tomorrow}`;
 }
 
 export function operationalReminderCorrelation(

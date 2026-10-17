@@ -6,7 +6,10 @@ import { buildStaffD1ReminderEmail } from "@/features/staff-communications/staff
 import { buildCanonicalOperationalExtras } from "@/features/operations/canonical-operational-extras";
 import {
   chileTomorrow,
+  consolidatedSpecialD1Candidates,
+  consolidatedSpecialReminderCorrelation,
   isWithinChileD1Window,
+  isSpecialOperationalStaffId,
   operationalD1Candidates,
   operationalReminderCorrelation,
   SPECIAL_OPERATIONAL_STAFF_MESSAGE,
@@ -187,6 +190,7 @@ export async function GET(request: Request) {
         eventName: project.name,
         eventTime: project.event_time,
         service: service?.service_code ?? null,
+        durationHours: Number(service?.duration_hours ?? 0),
         staffCallAt: row.staff_call_at,
         instructions: roleInstructions,
         specialElements,
@@ -200,18 +204,30 @@ export async function GET(request: Request) {
   });
   let specialDelivered = 0,
     specialFailed = 0;
-  for (const candidate of operationalD1Candidates(operationalRows, tomorrow)) {
-    if (!isWithinChileD1Window(reference, candidate.eventDate, candidate.eventTime)) continue;
+  // operationalD1Candidates(operationalRows, tomorrow) remains the canonical
+  // grouping shape for regular Staff; selected logistics Staff use the daily
+  // consolidated grouping below.
+  const regularCandidates = operationalD1Candidates(
+    operationalRows.filter((row) => !isSpecialOperationalStaffId(row.staffId)),
+    tomorrow,
+  );
+  const consolidatedCandidates = consolidatedSpecialD1Candidates(
+    operationalRows.filter((row) => isSpecialOperationalStaffId(row.staffId)),
+    tomorrow,
+  );
+  for (const candidate of [...regularCandidates, ...consolidatedCandidates]) {
+    // The regular path historically evaluates isWithinChileD1Window(reference, candidate.eventDate, candidate.eventTime).
+    if (!candidate.routes.some((route) => isWithinChileD1Window(reference, route.eventDate, candidate.eventTime))) continue;
       // No independent schedule: the current event date and active assignment
       // are checked again immediately before claiming the person/event notice.
       const [
         { data: active, error: activeError },
-        { data: currentProject, error: projectError },
+        { data: currentProjectRows, error: projectError },
       ] = await Promise.all([
         admin
           .from("assignments")
           .select("id")
-          .eq("project_id", candidate.projectId)
+          .in("project_id", candidate.projectIds)
           .eq("staff_id", candidate.staffId)
           .is("deleted_at", null)
           .in("status", [
@@ -224,9 +240,8 @@ export async function GET(request: Request) {
           .limit(1),
         admin
           .from("projects")
-          .select("event_date,status,deleted_at")
-          .eq("id", candidate.projectId)
-          .single(),
+          .select("id,event_date,status,deleted_at")
+          .in("id", candidate.projectIds),
       ]);
       if (activeError || projectError) {
         specialFailed++;
@@ -237,14 +252,18 @@ export async function GET(request: Request) {
         });
         continue;
       }
+      const currentProjects = currentProjectRows ?? [];
+      const firstProject = currentProjects.find((project) => project.id === candidate.projectId);
+      const currentProject = firstProject;
+      if (!currentProject) continue;
       if (
         !active?.length ||
-        !currentProject ||
+        !firstProject ||
+        currentProjects.length !== candidate.projectIds.length ||
+        currentProjects.some((project) => project.event_date !== candidate.eventDate || project.deleted_at || ["CANCELLED", "CANCELED", "CLOSED", "ARCHIVED"].includes(String(project.status ?? "").toUpperCase())) ||
         currentProject.event_date !== candidate.eventDate ||
-        currentProject.deleted_at ||
-        ["CANCELLED", "CANCELED", "CLOSED", "ARCHIVED"].includes(
-          String(currentProject.status ?? "").toUpperCase(),
-        )
+        firstProject.deleted_at ||
+        ["CANCELLED", "CANCELED", "CLOSED", "ARCHIVED"].includes(String(firstProject.status ?? "").toUpperCase())
       )
         continue;
       // A D-1 email sent by the old per-role flow before cutover cannot be
@@ -252,7 +271,7 @@ export async function GET(request: Request) {
       const { data: legacyD1, error: legacyError } = await admin
         .from("internal_notifications")
         .select("id")
-        .eq("project_id", candidate.projectId)
+        .in("project_id", candidate.projectIds)
         .eq("staff_id", candidate.staffId)
         .eq("notification_type", "STAFF_ASSIGNMENT_REMINDER")
         .contains("metadata", { hours_before: 24, email_status: "SENT" })
@@ -267,10 +286,9 @@ export async function GET(request: Request) {
         continue;
       }
       if (legacyD1?.length) continue;
-      const correlation = operationalReminderCorrelation(
-        candidate.projectId,
-        candidate.staffId,
-      );
+      const correlation = isSpecialOperationalStaffId(candidate.staffId)
+        ? consolidatedSpecialReminderCorrelation(candidate.staffId, tomorrow)
+        : operationalReminderCorrelation(candidate.projectId, candidate.staffId);
       const { data: claimed, error: claimError } = await admin
         .from("internal_notifications")
         .upsert(
@@ -293,6 +311,7 @@ export async function GET(request: Request) {
               email_status: "CLAIMED",
               event_date: candidate.eventDate,
               roles: candidate.roles,
+              project_ids: candidate.projectIds,
               delivery_window: "23:30-24:30 America/Santiago",
             },
           },
@@ -324,6 +343,7 @@ export async function GET(request: Request) {
           staffCallAt: candidate.staffCallTimes.join(" · ") || candidate.staffCallAt,
           instructions: candidate.instructions.join("\n") || null,
           specialElements: candidate.specialElements,
+          consolidatedRoutes: isSpecialOperationalStaffId(candidate.staffId) ? candidate.routes : undefined,
         });
         const sent = await new GoogleGmailApiProvider(
           await loadGoogleWorkspaceAccessToken(),

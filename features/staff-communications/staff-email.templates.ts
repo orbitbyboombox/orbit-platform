@@ -96,6 +96,16 @@ export function buildStaffD1ReminderEmail(input: {
   staffCallAt?: string | null;
   instructions?: string | null;
   specialElements?: readonly string[];
+  consolidatedRoutes?: readonly {
+    eventName: string;
+    customerName: string | null;
+    service: string | null;
+    location: string | null;
+    role: string;
+    scheduleAt: string | null;
+    instructions: string | null;
+    specialElements: readonly string[];
+  }[];
 }) {
   const roles =
     [...new Set(input.roles)].map(readableRole).join(" · ") ||
@@ -114,6 +124,27 @@ export function buildStaffD1ReminderEmail(input: {
   const instructions = input.instructions?.trim();
   const specialElements = [...new Set(input.specialElements ?? [])].filter((item) => item.trim());
   const portal = `${input.appUrl.replace(/\/$/, "")}/staff-portal`;
+  const routeLabel = (role: string) => role === "ASSEMBLY" ? "MONTAJE" : role === "DISASSEMBLY" ? "DESMONTAJE" : "OPERACIÓN";
+  const routes = (input.consolidatedRoutes ?? []).map((route) => ({
+    ...route,
+    label: routeLabel(route.role),
+    schedule: route.scheduleAt
+      ? formatStaffCallTime(route.scheduleAt)
+      : route.role === "ASSEMBLY" ? "Horario a establecer con Matías" : "Horario a confirmar",
+  }));
+  const routeText = routes.length ? [
+    "RUTAS DEL DÍA SIGUIENTE",
+    ...routes.map((route) => [
+      route.label,
+      `Cliente: ${route.customerName ?? "Por confirmar"}`,
+      `Evento: ${route.eventName}`,
+      `Servicio: ${route.service ?? "Por confirmar"}`,
+      `Dirección: ${route.location ?? "Por confirmar"}`,
+      `${route.role === "DISASSEMBLY" ? "Término servicio" : "Horario"}: ${route.schedule}`,
+      route.instructions?.trim() ? `Observaciones: ${route.instructions.trim()}` : null,
+      route.specialElements.length ? `Elementos: ${route.specialElements.join(", ")}` : null,
+    ].filter((item): item is string => Boolean(item)).join("\n")),
+  ].join("\n\n") : null;
   const textBody = [
     `Hola ${input.firstName},`,
     "Recuerda que mañana tienes evento BOOMBOX.",
@@ -127,7 +158,7 @@ export function buildStaffD1ReminderEmail(input: {
     location ? `Recinto / dirección: ${location}` : null,
     instructions ? `Instrucciones: ${instructions}` : null,
     specialElements.length ? `Elementos: ${specialElements.join(", ")}` : null,
-    `Ver detalle en ORBIT: ${portal}`,
+    routeText ?? `Ver detalle en ORBIT: ${portal}`,
   ].filter((item): item is string => Boolean(item)).join("\n");
   const specialHtml = specialElements.length
     ? `<p style="margin:14px 0 0"><strong>Elementos operativos:</strong> ${escapeHtml(specialElements.join(" · "))}</p>`
@@ -135,9 +166,14 @@ export function buildStaffD1ReminderEmail(input: {
   const instructionHtml = instructions
     ? `<p style="margin:14px 0 0"><strong>Instrucciones:</strong><br>${escapeHtml(instructions).replaceAll("\n", "<br>")}</p>`
     : "";
-  const content = `<p style="margin:0">Hola ${escapeHtml(input.firstName)},</p><p style="margin:12px 0 0;font-size:18px;font-weight:700;color:#111214">Recuerda que mañana tienes evento BOOMBOX.</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:23px;border:1px solid #e8e2d8;border-radius:13px;background:#faf9f6"><tr><td style="padding:18px"><p style="margin:0 0 10px;font-size:17px;font-weight:700">${escapeHtml(input.eventName)}</p><p style="margin:5px 0"><strong>Fecha:</strong> ${escapeHtml(chileDate(input.eventDate))}</p>${detail("Cliente", input.customerName)}${detail("Servicio", input.service)}<p style="margin:5px 0"><strong>Rol(es):</strong> ${escapeHtml(roles)}</p>${detail("Horario", time)}${detail("Hora de citación", callTime)}${detail("Recinto / dirección", location)}${instructionHtml}${specialHtml}</td></tr></table>`;
+  const routesHtml = routes.length
+    ? `<div style="margin-top:18px"><p style="margin:0 0 9px;font-size:11px;font-weight:700;letter-spacing:.14em;color:#d76d00">RUTAS DEL DÍA SIGUIENTE</p>${routes.map((route) => `<div style="margin-top:10px;padding:12px;border:1px solid #e8e2d8;border-radius:10px;background:#ffffff"><p style="margin:0;font-weight:700;color:#d76d00">${escapeHtml(route.label)}</p><p style="margin:5px 0"><strong>Cliente:</strong> ${escapeHtml(route.customerName ?? "Por confirmar")}<br><strong>Evento:</strong> ${escapeHtml(route.eventName)}<br><strong>Servicio:</strong> ${escapeHtml(route.service ?? "Por confirmar")}<br><strong>Dirección:</strong> ${escapeHtml(route.location ?? "Por confirmar")}<br><strong>${route.role === "DISASSEMBLY" ? "Término servicio" : "Horario"}:</strong> ${escapeHtml(route.schedule ?? "Horario a confirmar")}</p>${route.instructions?.trim() ? `<p style="margin:5px 0"><strong>Observaciones:</strong> ${escapeHtml(route.instructions.trim())}</p>` : ""}${route.specialElements.length ? `<p style="margin:5px 0"><strong>Elementos:</strong> ${escapeHtml(route.specialElements.join(" · "))}</p>` : ""}</div>`).join("")}</div>`
+    : "";
+  const content = `<p style="margin:0">Hola ${escapeHtml(input.firstName)},</p><p style="margin:12px 0 0;font-size:18px;font-weight:700;color:#111214">Recuerda que mañana tienes evento BOOMBOX.</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:23px;border:1px solid #e8e2d8;border-radius:13px;background:#faf9f6"><tr><td style="padding:18px"><p style="margin:0 0 10px;font-size:17px;font-weight:700">${escapeHtml(input.eventName)}</p><p style="margin:5px 0"><strong>Fecha:</strong> ${escapeHtml(chileDate(input.eventDate))}</p>${detail("Cliente", input.customerName)}${detail("Servicio", input.service)}<p style="margin:5px 0"><strong>Rol(es):</strong> ${escapeHtml(roles)}</p>${detail("Horario", time)}${detail("Hora de citación", callTime)}${detail("Recinto / dirección", location)}${instructionHtml}${specialHtml}${routesHtml}</td></tr></table>`;
   return {
-    subject: `Mañana tienes evento BOOMBOX · ${input.eventName}`,
+    subject: routes.length > 1
+      ? `Mañana tienes rutas BOOMBOX · ${routes.length} eventos`
+      : `Mañana tienes evento BOOMBOX · ${input.eventName}`,
     textBody,
     htmlBody: premiumFrame({
       appUrl: input.appUrl,
