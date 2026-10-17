@@ -15,7 +15,10 @@ import {
   type OperationalReminderAssignment,
   type SpecialReminderAssignment,
 } from "../features/operations/special-operational-staff-reminder.model.ts";
-import { buildStaffD1ReminderEmail } from "../features/staff-communications/staff-email.templates.ts";
+import {
+  buildStaffD1ReminderEmail,
+  formatStaffCallTime,
+} from "../features/staff-communications/staff-email.templates.ts";
 
 const [sebastian, jose, fernando] = SPECIAL_OPERATIONAL_STAFF_IDS;
 const tomorrow = "2026-09-16";
@@ -252,6 +255,44 @@ test("premium D-1 groups operational context and omits absent extras", () => {
   });
   assert.doesNotMatch(withoutExtras.textBody, /Elementos:/);
   assert.doesNotMatch(withoutExtras.htmlBody, /Elementos operativos/);
+});
+test("staff call displays only the Chilean clock from an ISO timestamp", () => {
+  assert.equal(
+    formatStaffCallTime("2026-10-17T21:30:00-03:00"),
+    "21:30 hrs.",
+  );
+  const email = buildStaffD1ReminderEmail({
+    appUrl: "https://orbit.boom-box.cl",
+    firstName: "Rosario",
+    eventName: "Evento Rosario Alonso",
+    eventDate: "2026-10-17",
+    eventTime: "22:30:00",
+    roles: ["OPERATOR"],
+    staffCallAt: "2026-10-17T21:30:00-03:00",
+  });
+  assert.match(email.textBody, /Citación: 21:30 hrs\./);
+  assert.doesNotMatch(email.textBody, /2026-/);
+  assert.match(email.htmlBody, /Hora de citación:<\/strong> 21:30 hrs\./);
+});
+test("operator fallback handles midnight rollover while assembly keeps its own schedule", () => {
+  const operator = buildStaffD1ReminderEmail({
+    appUrl: "https://orbit.boom-box.cl",
+    firstName: "Operador",
+    eventName: "Evento nocturno",
+    eventDate: "2026-10-18",
+    eventTime: "00:30:00",
+    roles: ["OPERATOR"],
+  });
+  assert.match(operator.textBody, /Citación: 23:30 hrs\./);
+  const assembly = buildStaffD1ReminderEmail({
+    appUrl: "https://orbit.boom-box.cl",
+    firstName: "Montaje",
+    eventName: "Evento nocturno",
+    eventDate: "2026-10-18",
+    eventTime: "00:30:00",
+    roles: ["ASSEMBLY"],
+  });
+  assert.doesNotMatch(assembly.textBody, /Citación:/);
 });
 test("removed Staff, closed event, missing email and inactive Staff are excluded", () => {
   for (const change of [

@@ -1,3 +1,5 @@
+import { calculateStaffCallAt, chileLocalToIso } from "../operations/event-operational-window.ts";
+
 const escapeHtml = (value: string) =>
   value
     .replaceAll("&", "&amp;")
@@ -16,6 +18,45 @@ const roleLabels: Record<string, string> = {
 
 const readableRole = (value: string) =>
   roleLabels[value] ?? value.replaceAll("_", " ");
+
+const formatClockTime = (value: string): string | null => {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (/^\d{1,2}:\d{2}/.test(trimmed)) {
+    const [, hour, minute] = trimmed.match(/^(\d{1,2}):(\d{2})/) ?? [];
+    return hour && minute ? `${hour.padStart(2, "0")}:${minute} hrs.` : null;
+  }
+  const date = new Date(trimmed);
+  if (Number.isNaN(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "America/Santiago",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const part = (type: "hour" | "minute") =>
+    parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("hour")}:${part("minute")} hrs.`;
+};
+
+/** Formats persisted ISO calls and legacy clock values without leaking the date. */
+export const formatStaffCallTime = (value: string | null | undefined): string | null =>
+  value
+    ?.split(" · ")
+    .map(formatClockTime)
+    .filter((item): item is string => Boolean(item))
+    .join(" · ") || null;
+
+const defaultOperatorCallTime = (eventDate: string, eventTime: string | null | undefined) => {
+  const time = eventTime?.slice(0, 5);
+  if (!time) return null;
+  try {
+    return formatStaffCallTime(calculateStaffCallAt(chileLocalToIso(`${eventDate}T${time}:00`)));
+  } catch {
+    return null;
+  }
+};
+
 const chileDate = (value: string) =>
   new Date(`${value}T12:00:00Z`).toLocaleDateString("es-CL", {
     day: "2-digit",
@@ -61,7 +102,11 @@ export function buildStaffD1ReminderEmail(input: {
     "Staff operativo";
   const location = input.location?.trim();
   const time = input.eventTime?.slice(0, 5);
-  const callTime = input.staffCallAt?.slice(0, 5);
+  const persistedCallTime = formatStaffCallTime(input.staffCallAt);
+  const callTime = persistedCallTime ??
+    (input.roles.some((role) => role === "OPERATOR")
+      ? defaultOperatorCallTime(input.eventDate, input.eventTime)
+      : null);
   const detail = (label: string, value: string | null | undefined) =>
     value?.trim()
       ? `<p style="margin:5px 0"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value.trim())}</p>`
