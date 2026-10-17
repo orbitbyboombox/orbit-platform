@@ -78,18 +78,8 @@ const quickActions: Array<{ id: DashboardQuickActionItemKey; label: string; href
 const money = (value: number) => new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(value);
 const formatMetric = (metric: FinanceMetric) => metric.format === "money" ? money(metric.value) : metric.format === "percent" ? `${metric.value.toFixed(1)}%` : new Intl.NumberFormat("es-CL").format(metric.value);
 const formatFounderActionTimestamp = (value: string) => {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Santiago",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(new Date(value));
-  const part = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((item) => item.type === type)?.value ?? "";
-
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(value));
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? "";
   return `${part("day")}-${part("month")}-${part("year").slice(-2)}, ${part("hour")}:${part("minute")}`;
 };
 const toneStyle = {
@@ -276,13 +266,11 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
     { label: "Reservas por cerrar", type: "SALES_RESERVATION_PENDING", href: "/leads?filter=reservation" },
   ];
   const compactSummary = <div className="flex flex-wrap items-center gap-2 text-xs" aria-label="Resumen compacto de pendientes"><span className="rounded-full bg-brand px-3 py-1.5 font-bold text-brand-foreground">{founderActions.length} pendientes</span>{attentionSummary.map((item) => <Link className="rounded-full border px-3 py-1.5 font-medium text-muted hover:border-brand/40 hover:text-brand" href={item.href} key={item.label}>{founderActions.filter((action) => action.type === item.type).length} {item.label.toLowerCase()}</Link>)}</div>;
-  const groupedActions = founderActions.reduce<Array<FounderActionItem & { count?: number }>>((groups, item) => {
-    const repeatable = !["P0", "P1"].includes(item.priority);
-    const existing = repeatable && groups.find((entry) => entry.type === item.type && entry.href === item.href);
-    if (existing) existing.count = (existing.count ?? 1) + 1;
-    else groups.push({ ...item, count: 1 });
-    return groups;
-  }, []).sort((a,b) => a.priority.localeCompare(b.priority) || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()).slice(0, 8);
+  const reviewActions = founderActions.filter((item) => [
+    "STAFF_EXPENSE_REVIEW_REQUIRED",
+    "STAFF_BOLETA_REVIEW_REQUIRED",
+  ].includes(item.type));
+  const reviewCount = reviewActions.length + staffApprovalItems.length;
 
   const welcome = <header className="pb-1 pt-2 sm:pb-2 sm:pt-4">
     <p data-command-label>Founder Command Center</p>
@@ -315,44 +303,50 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
     </div>
   </section>;
 
-  const staffExpenseActions = founderActions.filter((item) =>
-    ["STAFF_EXPENSE_REVIEW_REQUIRED", "STAFF_BOLETA_REVIEW_REQUIRED"].includes(item.type)
-  );
-  const pendingReviewsCount = staffExpenseActions.length + staffApprovalItems.length;
-  const actionCenter = pendingReviewsCount ? (
-    <section data-command-card aria-labelledby="founder-action-center-title" className="min-w-0 rounded-xl border border-brand/30 bg-card px-4 py-3 sm:px-5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold" id="founder-action-center-title">Pendientes por revisar</h2>
-        <span className="rounded-full bg-brand/10 px-2.5 py-1 text-xs font-bold text-brand">{pendingReviewsCount}</span>
-      </div>
-      <div className="mt-2 divide-y divide-border/60">
-        {staffExpenseActions.map(item => (
-          <Link className="flex min-w-0 items-center justify-between gap-3 py-2.5 text-xs hover:text-brand" href={item.href} key={item.id}>
-            <span className="min-w-0"><strong className="block break-words">{item.title}</strong><span className="block break-words text-muted">{item.detail}</span></span>
-            <span className="shrink-0 font-semibold text-brand">Revisar gasto →</span>
-          </Link>
-        ))}
-        {staffApprovalItems.map(item => (
-          <ReviewQueueStaffItem item={item} key={item.id} onResolved={(id) => setResolvedApprovalIds((current) => new Set(current).add(id))} />
-        ))}
-      </div>
-    </section>
-  ) : null;
+  const actionCenter = <details data-command-card className="rounded-2xl border border-brand/35 bg-brand/[.035] p-4 sm:p-5" aria-labelledby="founder-action-center-title">
+    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden"><span><span data-command-label>Requiere tu atención</span><strong className="mt-1 block text-lg font-semibold" id="founder-action-center-title">Pendientes por revisar</strong></span><span aria-label={`${reviewCount} pendientes de aprobación`} className="grid min-h-10 min-w-10 place-items-center rounded-full bg-brand px-3 text-lg font-bold text-brand-foreground">{reviewCount}</span></summary>
+    <div className="mt-4 divide-y rounded-xl border bg-card min-w-0 rounded-xl break-words"><span className="sr-only min-h-11 w-full lg:grid-cols-2 text-center">Pendientes administrativos</span>
+      {reviewActions.map((item) => <div className="flex min-w-0 items-center gap-2 px-3 py-2.5 sm:gap-3" key={item.id}><span className="grid size-7 shrink-0 place-items-center rounded-lg bg-warning-soft text-warning"><ReceiptText className="size-3.5" /></span><span className="min-w-0 flex-1 text-xs"><strong className="block truncate">{item.title}</strong><span className="block truncate text-muted">{item.detail}</span><span className="sr-only">{formatFounderActionTimestamp(item.createdAt)}</span></span><Link className="shrink-0 rounded-lg border px-2.5 py-1.5 text-[10px] font-bold text-brand" href={item.href}>{item.cta}</Link></div>)}
+      {staffApprovalItems.map((item) => <div className="flex min-w-0 items-center gap-2 px-3 py-2.5 sm:gap-3" key={item.id}><span className="grid size-7 shrink-0 place-items-center rounded-lg bg-warning-soft text-warning"><UserRoundCheck className="size-3.5" /></span><span className="min-w-0 flex-1 text-xs"><strong className="block truncate">{item.collaborator} · {item.role}</strong><span className="block truncate text-muted">{item.event} · {money(item.estimatedPayment)}</span></span><PendingApprovalButtons item={item} onResolved={(id) => setResolvedApprovalIds((current) => new Set(current).add(id))} /></div>)}
+      {!reviewCount ? <Empty label="No hay gastos, boletas o solicitudes de asignación pendientes." /> : null}
+    </div>
+  </details>;
 
-  const upcoming = <section data-command-card aria-labelledby="upcoming-events-title" className="rounded-2xl border p-4 sm:p-6">
-    <div className="flex flex-wrap items-center justify-between gap-2"><PanelTitle id="upcoming-events-title" label="Próximos eventos" /><span className="flex gap-3"><Link className="text-xs text-muted hover:text-brand" href="/operations/week">Agenda semanal</Link><Link className="text-xs text-muted hover:text-brand" href="/events">Ver calendario</Link></span></div>
+  const formatUpcomingDateParts = (value: string) => {
+    const iso = value.match(/^(\\d{4})-(\\d{2})-(\\d{2})/);
+    const date = iso ? new Date(`${iso[1]}-${iso[2]}-${iso[3]}T12:00:00Z`) : new Date(value);
+    if (Number.isNaN(date.getTime())) return { weekday: "FECHA", day: "—", month: "" };
+    return {
+      weekday: new Intl.DateTimeFormat("es-CL", { weekday: "short", timeZone: "UTC" }).format(date).replace(".", "").toUpperCase(),
+      day: new Intl.DateTimeFormat("es-CL", { day: "2-digit", timeZone: "UTC" }).format(date),
+      month: new Intl.DateTimeFormat("es-CL", { month: "short", timeZone: "UTC" }).format(date).replace(".", "").toUpperCase(),
+    };
+  };
+
+  const upcoming = <section data-command-card aria-labelledby="upcoming-events-title" className="min-w-0 rounded-2xl border p-4 sm:p-6">
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <PanelTitle id="upcoming-events-title" label="Próximos eventos" />
+      <span className="flex flex-wrap gap-x-3 gap-y-2"><Link className="text-xs text-muted transition hover:text-brand" href="/operations/week">Agenda semanal</Link><Link className="text-xs text-muted transition hover:text-brand" href="/events">Ver calendario</Link></span>
+    </div>
     <div className="mt-4 divide-y">{upcomingEvents.slice(0, 4).map(event => {
-      const parts = event.date.slice(0, 10).split("-");
-      const date = parts.length === 3 ? new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]))) : null;
-      const day = date && !Number.isNaN(date.getTime()) ? new Intl.DateTimeFormat("es-CL", { day: "2-digit", timeZone: "UTC" }).format(date) : event.date;
-      const month = date && !Number.isNaN(date.getTime()) ? new Intl.DateTimeFormat("es-CL", { month: "short", timeZone: "UTC" }).format(date) : "";
-      return <Link className="group flex min-w-0 items-center gap-3 py-3 first:pt-0 last:pb-0" href={event.href} key={event.id}>
-        <span className="flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-xl border bg-background/50"><strong className="text-xl leading-none">{day}</strong><span className="mt-1 text-[10px] font-semibold uppercase text-muted">{month}</span></span>
-        <span className="min-w-0 flex-1"><strong className="block truncate text-sm">{event.title}</strong><span className="mt-1 block truncate text-xs text-muted">{event.service}</span><span className="mt-1 block truncate text-[11px] text-muted">{event.location || "Ubicación pendiente"} · {event.staff}</span><span className="mt-1.5 inline-block rounded-md bg-info-soft px-2 py-0.5 text-[10px] font-semibold uppercase text-info">{event.status}</span></span>
-        <ArrowRight className="size-4 shrink-0 text-muted" />
+      const d = formatUpcomingDateParts(event.date);
+      return <Link className="group flex min-w-0 items-start gap-3 py-4 first:pt-0 last:pb-0" href={event.href} key={event.id}>
+        <span className="flex min-h-[76px] w-[58px] shrink-0 flex-col items-center justify-center rounded-xl border bg-background/50 text-center">
+          <span className="text-[10px] font-semibold tracking-wider text-muted">{d.weekday}</span>
+          <strong className="text-2xl leading-tight">{d.day}</strong>
+          <span className="text-[10px] font-bold tracking-wider text-brand">{d.month}</span>
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex min-w-0 flex-wrap items-center gap-2">
+            <strong className="min-w-0 break-words text-sm">{event.title}</strong>
+            <span className="max-w-full rounded-lg bg-info-soft px-2 py-1 text-[9px] font-semibold uppercase text-info break-words">{event.status}</span>
+          </span>
+          <span className="mt-1 block break-words text-xs text-muted">{event.service}</span>
+          <span className="mt-1 block break-words text-[11px] text-muted">{event.location || "Ubicación pendiente"} · {event.staff}</span>
+        </span>
       </Link>;
     })}{!upcomingEvents.length ? <Empty label="No hay eventos próximos." /> : null}</div>
-    <Link className="mt-4 flex items-center justify-center gap-2 border-t pt-3 text-xs font-semibold text-brand" href="/events">Ver todos los eventos <ArrowRight className="size-3.5" /></Link>
+    <Link className="mt-5 flex min-h-11 items-center justify-center gap-2 border-t pt-4 text-xs font-semibold text-brand" href="/events">Ver todos los eventos <ArrowRight className="size-3.5" /></Link>
   </section>;
 
   const activity = <section data-command-card aria-labelledby="recent-activity-title" className="rounded-2xl border p-5 sm:p-6">
@@ -375,7 +369,7 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
     alertItems.map(alert => <article className="rounded-xl border bg-background/30 p-4 transition hover:border-brand/35" key={alert.id}><span className="flex items-start gap-3"><span className={`grid size-9 shrink-0 place-items-center rounded-xl ${alert.tone === "danger" ? toneStyle.danger : toneStyle.warning}`}><AlertTriangle className="size-4" /></span><span><strong className="block text-sm">{alert.title}</strong><span className="mt-1 block text-xs text-muted">{alert.detail}</span></span></span><span className="mt-3 flex flex-wrap items-center gap-2"><Link className="inline-flex min-h-9 items-center rounded-lg border border-brand/25 px-3 text-xs font-semibold text-brand" href={alert.href}>{alert.acknowledgeable ? "Abrir Evento / Cobertura Staff" : "Ver detalles"}</Link>{alert.acknowledgeable ? <button className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold disabled:opacity-50" disabled={alertPending} onClick={() => acknowledgeAlert(alert.id)}><Check className="size-3.5" />OK, visto</button> : null}</span></article>)
   }</div>{!visibleOperationalAlerts.length && !finance.risks.length ? <Empty label="No hay alertas accionables." /> : null}</section>;
 
-  const commandGrid = <section aria-label="Jornada operacional" className="space-y-5">{today}</section>;
+  const commandGrid = <section aria-label="Jornada operacional" className="space-y-5"><div className="space-y-5">{today}{alerts}</div></section>;
 
   const actions = <section aria-labelledby="quick-actions-title"><PanelTitle id="quick-actions-title" label="Acciones rápidas" /><div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">{orderedQuickActions.map((action, index) => { const Icon = action.icon; return <OrderableItem controls={ordering ? <OrderControls disableDown={index === orderedQuickActions.length - 1} disableUp={index === 0} label={action.label} onDown={() => move("quickActionOrder", action.id, 1)} onUp={() => move("quickActionOrder", action.id, -1)} /> : null} key={action.id}><Link data-command-card className="group flex min-h-[4.75rem] items-center gap-3 rounded-2xl border p-4 transition hover:-translate-y-0.5" href={action.href}><span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand"><Icon className="size-4" /></span><span className="text-xs font-semibold uppercase">{action.label}</span></Link></OrderableItem>; })}</div></section>;
 
@@ -387,13 +381,12 @@ export function FounderWorkspaceExperience({ currentDate, finance, financialAler
   const calendarIndex = dashboardSections.indexOf("DASHBOARD_UPCOMING_EVENTS");
   const calendarSection = <OrderableItem controls={ordering ? <OrderControls avoidWorkspaceMenu disableDown={calendarIndex < 0 || calendarIndex === dashboardSections.length - 1} disableUp={calendarIndex <= 1} label="Próximos eventos" onDown={() => moveCalendar(1)} onUp={() => moveCalendar(-1)} /> : null}>{upcoming}</OrderableItem>;
 
-  return <main className="orbit-command-center" id="founder-workspace">{actionCenter ? <div className="mb-4">{actionCenter}</div> : null}<PersonalWorkspaceSections moduleKey="DASHBOARD" reorderEnabled={ordering} sections={[
-    { key: "DASHBOARD_HEADER", label: "Bienvenida", content: <>{welcome}</> },
+  return <main className="orbit-command-center" id="founder-workspace">{reviewCount > 0 ? <div className="mb-4" data-fixed-founder-pending-review>{actionCenter}</div> : null}<PersonalWorkspaceSections moduleKey="DASHBOARD" reorderEnabled={ordering} sections={[
+    { key: "DASHBOARD_HEADER", label: "Bienvenida", content: <>{welcome}<div className="mt-4">{compactSummary}</div></> },
     ...(biancaCard ? [{ key: "DASHBOARD_BIANCA", label: "BIANCA", content: biancaCard }] : []),
     { key: "DASHBOARD_UPCOMING_EVENTS", label: "Próximos eventos", content: calendarSection },
     { key: "DASHBOARD_WIDGETS", label: "KPIs del Founder", content: founderKpis },
     ...(financialAlerts ? [{ key: "DASHBOARD_FINANCIAL_ALERTS", label: "Obligaciones financieras", content: financialAlerts }] : []),
-
     { key: "DASHBOARD_QUICK_ACTIONS", label: "Acciones rápidas", content: actions },
     { key: "DASHBOARD_TODAY", label: "Jornada operacional", content: commandGrid },
     { key: "DASHBOARD_RECENT_ACTIVITY", label: "Actividad reciente", content: activity },
@@ -408,31 +401,6 @@ const roleLabel: Record<string, string> = {
   DISASSEMBLY: "Desmontaje",
   ASSEMBLY_DISASSEMBLY: "Montaje + Desmontaje",
 };
-
-function ReviewQueueStaffItem({ item, onResolved }: { item: PendingStaffApproval; onResolved: (id: string) => void }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const [message, setMessage] = useState("");
-  const review = (decision: "approve" | "reject") => startTransition(async () => {
-    const form = new FormData();
-    form.set("requestId", item.id);
-    form.set("decision", decision);
-    const result = await reviewStaffRequestAction(form);
-    setMessage(result.message);
-    if (result.ok) { onResolved(item.id); router.refresh(); }
-  });
-  return <div className="min-w-0 py-3 text-xs">
-    <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
-      <span className="min-w-0"><strong className="block break-words">{item.collaborator} · {roleLabel[item.role] ?? item.role}</strong><span className="block break-words text-muted">{item.event} · {money(item.estimatedPayment)}</span></span>
-      <span className="flex flex-wrap gap-2">
-        <button type="button" className="min-h-9 rounded-lg bg-brand px-3 font-semibold text-brand-foreground disabled:opacity-50" disabled={pending} onClick={() => review("approve")}>Aprobar</button>
-        <button type="button" className="min-h-9 rounded-lg border px-3 font-semibold disabled:opacity-50" disabled={pending} onClick={() => review("reject")}>Rechazar</button>
-        <Link className="inline-flex min-h-9 items-center rounded-lg border px-3 font-semibold text-brand" href={`/projects/${item.projectId}#staff-assignment`}>Ver</Link>
-      </span>
-    </div>
-    {message && <p aria-live="polite" className="mt-2 text-muted">{message}</p>}
-  </div>;
-}
 
 function PendingStaffApprovals({ items, onResolved }: { items: PendingStaffApproval[]; onResolved: (id: string) => void }) {
   const router = useRouter();
@@ -457,6 +425,19 @@ function PendingStaffApprovals({ items, onResolved }: { items: PendingStaffAppro
     });
   };
   return <section data-command-card aria-labelledby="pending-staff-approvals-title" className="rounded-2xl border border-brand/25 p-5 sm:p-6"><div className="flex items-center justify-between gap-3"><div><PanelTitle id="pending-staff-approvals-title" label="Aprobaciones de Staff pendientes"/><p className="mt-2 text-xs text-muted">Aprobar ejecuta la asignación canónica completa sin abrir Staff ni el Evento.</p></div><span className="rounded-full bg-brand/10 px-3 py-1 text-xs font-semibold text-brand">{items.length}</span></div>{message?<p aria-live="polite" className="mt-4 rounded-xl border bg-background/40 p-3 text-xs text-muted">{message}</p>:null}<div className="mt-5 space-y-3">{items.map(item=><article className="grid gap-3 rounded-xl border bg-background/30 p-4 lg:grid-cols-[1.1fr_1.1fr_.8fr_.8fr_auto] lg:items-center" key={item.id}><div><p className="text-[10px] uppercase tracking-[.12em] text-muted">Colaborador</p><p className="mt-1 text-sm font-semibold">{item.collaborator}</p></div><div><p className="text-[10px] uppercase tracking-[.12em] text-muted">Evento</p><p className="mt-1 text-sm font-semibold">{item.event}</p></div><div><p className="text-[10px] uppercase tracking-[.12em] text-muted">Rol</p><p className="mt-1 text-sm font-semibold">{roleLabel[item.role]??item.role}</p></div><div><p className="text-[10px] uppercase tracking-[.12em] text-muted">Pago estimado</p><p className="mt-1 text-sm font-semibold">{money(item.estimatedPayment)}</p></div><div className="flex flex-wrap gap-2 lg:justify-end"><button className="min-h-10 rounded-xl bg-brand px-3 text-xs font-semibold text-brand-foreground disabled:opacity-50" disabled={isPending} onClick={()=>review(item,"approve")}>{pendingId===item.id&&isPending?"Procesando…":"Aprobar"}</button><button className="min-h-10 rounded-xl border px-3 text-xs font-semibold disabled:opacity-50" disabled={isPending} onClick={()=>review(item,"reject")}>Rechazar</button><Link className="inline-flex min-h-10 items-center rounded-xl border px-3 text-xs font-semibold text-muted hover:text-brand" href={`/projects/${item.projectId}#staff-assignment`}>Ver</Link></div></article>)}</div></section>;
+}
+
+function PendingApprovalButtons({ item, onResolved }: { item: PendingStaffApproval; onResolved: (id: string) => void }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const review = (decision: "approve" | "reject") => startTransition(async () => {
+    const form = new FormData();
+    form.set("requestId", item.id);
+    form.set("decision", decision);
+    const result = await reviewStaffRequestAction(form);
+    if (result.ok) { onResolved(item.id); router.refresh(); }
+  });
+  return <span className="flex shrink-0 gap-1.5"><button className="rounded-lg bg-brand px-2.5 py-1.5 text-[10px] font-bold text-brand-foreground disabled:opacity-50" disabled={pending} onClick={() => review("approve")} type="button">Aprobar</button><button className="rounded-lg border px-2.5 py-1.5 text-[10px] font-bold disabled:opacity-50" disabled={pending} onClick={() => review("reject")} type="button">Rechazar</button><Link className="rounded-lg border px-2.5 py-1.5 text-[10px] font-bold text-brand" href={`/projects/${item.projectId}#staff-assignment`}>Ver</Link></span>;
 }
 
 function PanelTitle({ id, label }: { id: string; label: string }) { return <h2 data-command-label id={id}>{label}</h2>; }

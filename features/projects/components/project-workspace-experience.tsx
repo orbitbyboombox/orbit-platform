@@ -4,6 +4,7 @@ import { useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { EventCommercialDocumentHub } from "@/features/external-tax-documents/event-commercial-document-hub";
+import { InlineServiceEditor } from "./inline-service-editor";
 import {
   AlertTriangle,
   Archive,
@@ -271,7 +272,6 @@ function Section({
   icon,
   children,
   className = "",
-  dataEventArea,
 }: {
   id: string;
   eyebrow: string;
@@ -279,11 +279,9 @@ function Section({
   icon: ReactNode;
   children: ReactNode;
   className?: string;
-  dataEventArea?: string;
 }) {
   return (
     <section
-      data-event-area={dataEventArea}
       className={`scroll-mt-24 rounded-2xl border bg-card p-5 sm:p-6 ${className}`}
       id={id}
     >
@@ -398,8 +396,15 @@ export function ProjectWorkspaceExperience(
   props: ProjectWorkspaceExperienceProps,
 ) {
   const router = useRouter();
-  const [activeEventTab, setActiveEventTab] = useState<"summary" | "finance" | "staff" | "operations" | "documents" | "communications">("summary");
   const [portalUrl, setPortalUrl] = useState("");
+  type EventTab = "summary" | "finance" | "staff" | "operations" | "documents" | "communications";
+  const [eventTab, setEventTab] = useState<EventTab>(() => {
+    if (typeof window === "undefined") return "summary";
+    const requested = new URLSearchParams(window.location.search).get("eventTab");
+    return ["summary", "finance", "staff", "operations", "documents", "communications"].includes(requested ?? "")
+      ? requested as EventTab
+      : "summary";
+  });
   const [portalFeedback, setPortalFeedback] = useState("");
   const [customerDeleteFeedback, setCustomerDeleteFeedback] = useState("");
   const [workspacePreferences, setWorkspacePreferences] = useState(
@@ -511,10 +516,36 @@ export function ProjectWorkspaceExperience(
       router.refresh();
     } else setCustomerDeleteFeedback(result.message);
   };
-  const scroll = (id: string) =>
-    document
-      .getElementById(id)
-      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const selectEventTab = (tab: EventTab) => {
+    setEventTab(tab);
+    const url = new URL(window.location.href);
+    url.searchParams.set("eventTab", tab);
+    window.history.replaceState(window.history.state, "", url);
+  };
+  const scroll = (id: string) => {
+    const targetTab: Partial<Record<string, EventTab>> = {
+      "staff-assignment": "staff",
+      "event-finance": "finance",
+      "payroll": "finance",
+      "operations": "operations",
+      "event-readiness": "operations",
+      "equipment-assignment": "operations",
+      "documents": "documents",
+      "agreement-control": "documents",
+      "google": "communications",
+      "google-calendar": "communications",
+      "timeline": "communications",
+      "pre-event-reminder": "communications",
+      "customer-portal": "communications",
+    };
+    const tab = targetTab[id];
+    if (tab) {
+      selectEventTab(tab);
+      window.requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+      return;
+    }
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
   const moduleVisible = (key: EventModuleKey) =>
     !workspacePreferences.hiddenEventModules.includes(key);
   const hideModule = (key: EventModuleKey) => {
@@ -534,14 +565,55 @@ export function ProjectWorkspaceExperience(
       }
     });
   };
-  const eventTabs = [
-    { id: "summary", label: "Resumen", hint: "Cliente y experiencia" },
-    { id: "finance", label: "Finanzas", hint: "Pagos y rentabilidad" },
-    { id: "staff", label: "Staff", hint: "Equipo y asignaciones" },
-    { id: "operations", label: "Operación", hint: "Logística y checklist" },
-    { id: "documents", label: "Documentos", hint: "Cotizaciones y fotos" },
-    { id: "communications", label: "Comunicaciones", hint: "Historial, correo y portal" },
-  ] as const;
+  const navigationItems = [
+    {
+      id: "customer",
+      label: "Cliente",
+      module: "GENERAL_INFORMATION" as EventModuleKey,
+    },
+    {
+      id: "commercial",
+      label: "Comercial",
+      module: "COMMERCIAL_NEGOTIATION" as EventModuleKey,
+    },
+    {
+      id: "operations",
+      label: "Operaciones",
+      module: "OPERATIONAL_CONTROL" as EventModuleKey,
+    },
+    {
+      id: "staff-assignment",
+      label: "Staff",
+      module: "STAFF" as EventModuleKey,
+    },
+    {
+      id: "estimated-costs",
+      label: "Finanzas",
+      module: "FINANCIAL_SUMMARY" as EventModuleKey,
+    },
+    { id: "tasks", label: "Tareas", module: "TASK_CENTER" as EventModuleKey },
+    { id: "timeline", label: "Timeline", module: "TIMELINE" as EventModuleKey },
+    {
+      id: "documents",
+      label: "Documentos",
+      module: "DOCUMENTS" as EventModuleKey,
+    },
+    {
+      id: "customer-portal",
+      label: "Portal",
+      module: "CUSTOMER_PORTAL" as EventModuleKey,
+    },
+    {
+      id: "google-calendar",
+      label: "Calendar",
+      module: "GOOGLE_CALENDAR" as EventModuleKey,
+    },
+    {
+      id: "post-event",
+      label: "Cierre",
+      module: "MILESTONES" as EventModuleKey,
+    },
+  ].filter((item) => moduleVisible(item.module));
   const showLegacyDuplicatedEventSections = false;
   return (
     <WorkspaceLayout
@@ -550,8 +622,8 @@ export function ProjectWorkspaceExperience(
       timeline={null}
       copilot={null}
       mainContent={
-        <div id="event-six-tabs" data-active={activeEventTab} className="space-y-6 pb-8">
-          <section data-event-area="header" className="overflow-hidden rounded-3xl border bg-card">
+        <div className="space-y-6 pb-8">
+          <section className="overflow-hidden rounded-3xl border bg-card">
             <div className="grid gap-6 p-5 sm:p-7 lg:grid-cols-[1fr_auto] lg:items-end">
               <div>
                 <div className="flex flex-wrap gap-2">
@@ -581,56 +653,39 @@ export function ProjectWorkspaceExperience(
                 <HeroMetric label="Salud" value={`${health}%`} />
               </div>
             </div>
-            <nav aria-label="Secciones del evento" role="tablist" className="grid grid-cols-2 gap-2 border-t p-3 sm:grid-cols-3 sm:p-4 xl:grid-cols-6">
-              {eventTabs.map(({ id, label, hint }) => (
+            <nav aria-label="Pestañas del evento" role="tablist" className="grid grid-cols-2 gap-2 border-t p-3 sm:grid-cols-3 sm:p-4 lg:grid-cols-6">
+              {[
+                { id: "summary", label: "Resumen", hint: "Estado y prioridades" },
+                { id: "finance", label: "Finanzas", hint: "Cobros y costos" },
+                { id: "staff", label: "Staff", hint: "Equipo asignado" },
+                { id: "operations", label: "Operación", hint: "Logística y checklist" },
+                { id: "documents", label: "Documentos", hint: "Cotizaciones y archivos" },
+                { id: "communications", label: "Comunicaciones", hint: "Calendar y portal" },
+              ].map(({ id, label, hint }) => (
                 <button
+                  aria-controls={`event-tab-${id}`}
+                  aria-selected={eventTab === id}
+                  className={`min-w-0 min-h-14 rounded-xl border px-3 py-2 text-left transition hover:border-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand ${eventTab === id ? "border-brand bg-brand/10 text-foreground" : "text-muted"}`}
+                  data-event-tab={id}
+                  id={`event-tab-${id}-tab`}
                   key={id}
-                  type="button"
+                  onClick={() => selectEventTab(id as EventTab)}
                   role="tab"
-                  aria-selected={activeEventTab === id}
-                  aria-controls="event-six-tab-panel"
-                  onClick={() => setActiveEventTab(id)}
-                  className={`min-h-14 min-w-0 rounded-xl border px-3 py-2 text-left transition-colors hover:border-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand ${activeEventTab === id ? "border-brand bg-brand/10 text-foreground" : "border-border text-muted"}`}
+                  type="button"
                 >
-                  <span className="block break-words text-xs font-semibold uppercase tracking-wide">{label}</span>
+                  <span className="block text-xs font-semibold uppercase tracking-wide">{label}</span>
                   <span className="mt-1 block text-[10px] leading-tight text-muted">{hint}</span>
                 </button>
               ))}
             </nav>
+
           </section>
+          <div id="event-tab-panels" data-active-tab={eventTab} className="scroll-mt-24 space-y-6">
+          <div id="event-tab-summary" role="tabpanel" aria-labelledby="event-tab-summary-tab" className="space-y-6">
+            {eventTab === "summary" ? <div className="scroll-mt-24" id="event-summary-mobile">{capacityPanel}</div> : null}
 
-          <style jsx global>{`
-            #event-six-tabs > :where(*) { display: none !important; }
-            #event-six-tabs > [data-event-area="header"] { display: block !important; }
-            #event-six-tabs[data-active="summary"] > [data-event-area="summary"],
-            #event-six-tabs[data-active="operations"] > [data-event-area="operations"],
-            #event-six-tabs[data-active="finance"] > [data-event-area="finance"],
-            #event-six-tabs[data-active="communications"] > [data-event-area="communications"],
-            #event-six-tabs[data-active="documents"] > [data-event-area="documents"] { display: block !important; }
-            #event-six-tabs > [data-event-area="profile"],
-            #event-six-tabs > [data-event-area="details"] { display: none !important; }
-            #event-six-tabs[data-active="summary"] > [data-event-area="profile"],
-            #event-six-tabs[data-active="operations"] > [data-event-area="profile"],
-            #event-six-tabs[data-active="finance"] > [data-event-area="details"],
-            #event-six-tabs[data-active="staff"] > [data-event-area="details"],
-            #event-six-tabs[data-active="operations"] > [data-event-area="details"],
-            #event-six-tabs[data-active="documents"] > [data-event-area="details"],
-            #event-six-tabs[data-active="communications"] > [data-event-area="details"] { display: grid !important; }
-            #event-six-tabs > [data-event-area="shared"] { display: block !important; }
-            #event-profile-grid > *,
-            #event-details-grid > * { display: none !important; }
-            #event-six-tabs[data-active="summary"] #event-profile-grid > :is(#customer,#service,#commercial,:has(#commercial)),
-            #event-six-tabs[data-active="operations"] #event-profile-grid > :is(#operations,:has(#operations)),
-            #event-six-tabs[data-active="operations"] #event-details-grid > :is(#tasks,:has(#tasks)),
-            #event-six-tabs[data-active="documents"] #event-details-grid > :is(#documents,:has(#documents)),
-            #event-six-tabs[data-active="finance"] #event-details-grid > :is(#event-finance,:has(#event-finance)),
-            #event-six-tabs[data-active="staff"] #event-details-grid > :is(#payroll,:has(#payroll)),
-            #event-six-tabs[data-active="communications"] #event-details-grid > :is(#timeline,#google,#google-calendar,#customer-portal,:has(#timeline),:has(#google),:has(#google-calendar),:has(#customer-portal)) { display: block !important; }
-          `}</style>
-          <div data-event-area="summary">{capacityPanel}</div>
-
-          <section id="event-profile-grid" data-event-area="profile" className="grid min-w-0 gap-6 xl:grid-cols-2">
-            {moduleVisible("GENERAL_INFORMATION") && (
+          <section className="grid gap-6 xl:grid-cols-2">
+            {eventTab === "summary" && moduleVisible("GENERAL_INFORMATION") && (
               <Section
                 eyebrow="01 · Relación"
                 icon={<UserRound className="size-5" />}
@@ -682,7 +737,7 @@ export function ProjectWorkspaceExperience(
                 </dl>
               </Section>
             )}
-            {moduleVisible("COMMERCIAL_NEGOTIATION") && (
+            {eventTab === "summary" && moduleVisible("COMMERCIAL_NEGOTIATION") && (
               <OptionalModule
                 moduleKey="COMMERCIAL_NEGOTIATION"
                 onHide={hideModule}
@@ -781,7 +836,7 @@ export function ProjectWorkspaceExperience(
                 </Section>
               </OptionalModule>
             )}
-            {moduleVisible("GENERAL_INFORMATION") && (
+            {eventTab === "summary" && moduleVisible("GENERAL_INFORMATION") && (
               <Section
                 eyebrow="03 · Experiencia"
                 icon={<Sparkles className="size-5" />}
@@ -813,6 +868,16 @@ export function ProjectWorkspaceExperience(
                     <Empty text="Cuando se agregue un servicio contratado, aparecerá aquí con su duración y extras." />
                   )}
                 </div>
+                {props.projectKey && event.services.length === 1 ? (
+                  <InlineServiceEditor
+                    projectId={props.projectKey}
+                    currentCode={event.services[0].code}
+                    currentDuration={event.services[0].duration}
+                    commercialLocked={Boolean(props.commercialHub.quotation && !["DRAFT","REJECTED","CANCELLED"].includes(props.commercialHub.quotation.status))}
+                  />
+                ) : (
+                  <p className="mt-3 text-xs text-muted">Este evento tiene varios servicios; requiere una revisión comercial conjunta.</p>
+                )}
                 <dl className="mt-4">
                   <Row label="Branding" value="Según cotización" />
                   <Row label="QR" value="Según servicio" />
@@ -825,7 +890,7 @@ export function ProjectWorkspaceExperience(
                 </dl>
               </Section>
             )}
-            {moduleVisible("OPERATIONAL_CONTROL") && (
+            {eventTab === "operations" && moduleVisible("OPERATIONAL_CONTROL") && (
               <OptionalModule
                 moduleKey="OPERATIONAL_CONTROL"
                 onHide={hideModule}
@@ -873,16 +938,17 @@ export function ProjectWorkspaceExperience(
               </OptionalModule>
             )}
           </section>
+          </div>
 
-          {props.operationalReadiness ? <div data-event-area="operations"><EventOperationalReadiness data={props.operationalReadiness}/></div> : null}
-          <div data-event-area="operations"><EventLogisticsCenter data={props.logistics}/></div>
+          {eventTab === "operations" && props.operationalReadiness ? <EventOperationalReadiness data={props.operationalReadiness}/> : null}
+          {eventTab === "operations" ? <EventLogisticsCenter data={props.logistics}/> : null}
 
-          <section data-event-area="shared" className="scroll-mt-24" id="event-control-center" role="tabpanel" aria-label={eventTabs.find(tab => tab.id === activeEventTab)?.label}>
+          {eventTab === "operations" ? <section className="scroll-mt-24" id="event-control-center">
             <div className="mb-3"><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Centro operativo</p><h2 className="mt-1 text-2xl font-semibold">Gestión completa del Evento</h2><p className="mt-1 text-sm text-muted">Pagos, costos, Staff, documentos, Portal y Calendar pertenecen a este Evento.</p></div>
-            <CustomerEventOperations event={props.eventControl.event} onEditEvent={() => { setActiveEventTab("summary"); window.requestAnimationFrame(() => scroll("commercial")); }} operations={props.eventControl.operations} reconciliationId={props.reconciliationId} section={activeEventTab}/>
-          </section>
-          {moduleVisible("FINANCIAL_SUMMARY") && event.realCosts && (
-            <details data-event-area="finance" className="rounded-2xl border bg-card p-5" id="real-cost-adjustments">
+            <CustomerEventOperations event={props.eventControl.event} onEditEvent={() => scroll("commercial")} operations={props.eventControl.operations} reconciliationId={props.reconciliationId}/>
+          </section> : null}
+          {eventTab === "finance" && moduleVisible("FINANCIAL_SUMMARY") && event.realCosts && (
+            <details className="rounded-2xl border bg-card p-5" id="real-cost-adjustments">
               <summary className="cursor-pointer font-semibold text-brand">Detalle financiero y ajustes de costos reales</summary>
               <div className="mt-5"><RealCostOverridePanel data={event.realCosts} projectId={props.projectKey ?? ""}/></div>
             </details>
@@ -895,7 +961,7 @@ export function ProjectWorkspaceExperience(
             />
           )}
 
-          {showLegacyDuplicatedEventSections && moduleVisible("FINANCIAL_SUMMARY") && (
+          {eventTab === "finance" && moduleVisible("FINANCIAL_SUMMARY") && (
             <Section
               eyebrow="05 · Costos automáticos"
               icon={<Gauge className="size-5" />}
@@ -986,7 +1052,7 @@ export function ProjectWorkspaceExperience(
               )}
             </>
           )}
-          {moduleVisible("CHECKLIST") && (
+          {eventTab === "operations" && moduleVisible("CHECKLIST") && (
             <OptionalModule moduleKey="CHECKLIST" onHide={hideModule}>
               <EventCompletionAction projectId={props.projectKey ?? ""} status={String(event.status ?? "")} />
               <EventOperationsChecklist
@@ -995,10 +1061,13 @@ export function ProjectWorkspaceExperience(
               />
             </OptionalModule>
           )}
-          {showLegacyDuplicatedEventSections && moduleVisible("STAFF") && (
-            <StaffAssignmentCenter {...event.staffAssignments} />
+          {eventTab === "staff" && moduleVisible("STAFF") && (
+            <section aria-labelledby="staff-assignment-title" id="staff-assignment" role="tabpanel">
+              <div className="mb-3"><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Equipo del evento</p><h2 className="mt-1 text-2xl font-semibold" id="staff-assignment-title">Staff y asignaciones</h2></div>
+              <StaffAssignmentCenter {...event.staffAssignments} />
+            </section>
           )}
-          {moduleVisible("TASK_CENTER") && (
+          {eventTab === "operations" && moduleVisible("TASK_CENTER") && (
             <OptionalModule moduleKey="TASK_CENTER" onHide={hideModule}>
               <Section
                 eyebrow="05 · Trabajo pendiente"
@@ -1045,8 +1114,8 @@ export function ProjectWorkspaceExperience(
             </OptionalModule>
           )}
 
-          <section id="event-details-grid" data-event-area="details" className="grid min-w-0 gap-6 xl:grid-cols-2">
-            {moduleVisible("TIMELINE") && (
+          <section className="grid gap-6 xl:grid-cols-2">
+            {eventTab === "communications" && moduleVisible("TIMELINE") && (
               <OptionalModule moduleKey="TIMELINE" onHide={hideModule}>
                 <Section
                   eyebrow="06 · Historial inmutable"
@@ -1076,18 +1145,18 @@ export function ProjectWorkspaceExperience(
                 </Section>
               </OptionalModule>
             )}
-            {moduleVisible("DOCUMENTS") && (
+            {eventTab === "documents" && moduleVisible("DOCUMENTS") && (
               <Section
                 eyebrow="07 · Archivos"
                 icon={<FolderOpen className="size-5" />}
                 id="documents"
                 title="Documentos y estado comercial"
               >
-                {photoStripEligible ? <PhotoStripDesignCenter documents={photoStripDocuments} projectId={props.projectKey!}/> : null}
+                {photoStripEligible ? <div className="hidden md:block"><PhotoStripDesignCenter documents={photoStripDocuments} projectId={props.projectKey!}/></div> : null}
                 <EventCommercialDocumentHub projectId={props.projectKey!} customerName={props.clientName} customerTaxId={props.commercialHub.customerTaxId} customerKind={props.commercialHub.customerKind} quotation={props.commercialHub.quotation} contract={props.signing} receivable={event.receivable?{id:event.receivable.id,paid:event.receivable.paidAmount,outstanding:event.receivable.outstandingBalance,dueDate:event.receivable.dueDate,status:event.receivable.status}:undefined} paymentCondition={props.commercialHub.paymentCondition} documents={event.documents} taxDocuments={event.documents.filter(doc=>doc.taxType&&doc.folio&&doc.issueDate).map(doc=>({id:doc.id,taxType:doc.taxType!,folio:doc.folio!,issueDate:doc.issueDate!,total:doc.total??0,status:doc.status??"ADJUNTADO",href:doc.href}))}/>
               </Section>
             )}
-            {showLegacyDuplicatedEventSections && moduleVisible("GOOGLE_CALENDAR") && (
+            {eventTab === "communications" && showLegacyDuplicatedEventSections && moduleVisible("GOOGLE_CALENDAR") && (
               <Section
                 eyebrow="08 · Agenda"
                 icon={<CalendarDays className="size-5" />}
@@ -1107,7 +1176,7 @@ export function ProjectWorkspaceExperience(
                 </dl>
               </Section>
             )}
-            {showLegacyDuplicatedEventSections && moduleVisible("CUSTOMER_PORTAL") && (
+            {eventTab === "communications" && showLegacyDuplicatedEventSections && moduleVisible("CUSTOMER_PORTAL") && (
               <Section
                 eyebrow="09 · Cliente"
                 icon={<Link2 className="size-5" />}
@@ -1142,7 +1211,7 @@ export function ProjectWorkspaceExperience(
                 </button>
               </Section>
             )}
-            {moduleVisible("GOOGLE_WORKSPACE") && (
+            {eventTab === "communications" && moduleVisible("GOOGLE_WORKSPACE") && (
               <OptionalModule moduleKey="GOOGLE_WORKSPACE" onHide={hideModule}>
                 <Section
                   eyebrow="10 · Integraciones"
@@ -1180,7 +1249,7 @@ export function ProjectWorkspaceExperience(
                 </Section>
               </OptionalModule>
             )}
-            {moduleVisible("FINANCIAL_SUMMARY") && (
+            {eventTab === "finance" && moduleVisible("FINANCIAL_SUMMARY") && (
               <Section
                 eyebrow="09 · Rentabilidad real"
                 icon={<Gauge className="size-5" />}
@@ -1325,7 +1394,7 @@ export function ProjectWorkspaceExperience(
                 )}
               </Section>
             )}
-            {moduleVisible("PAYROLL") && (
+            {eventTab === "finance" && moduleVisible("PAYROLL") && (
               <OptionalModule moduleKey="PAYROLL" onHide={hideModule}>
                 <Section
                   eyebrow="10 · Costos de equipo"
@@ -1381,8 +1450,8 @@ export function ProjectWorkspaceExperience(
             )}
           </section>
 
-          {moduleVisible("EVENT_HEALTH") && (
-            <div data-event-area="summary"><OptionalModule moduleKey="EVENT_HEALTH" onHide={hideModule}>
+          {eventTab === "summary" && moduleVisible("EVENT_HEALTH") && (
+            <OptionalModule moduleKey="EVENT_HEALTH" onHide={hideModule}>
               <Section
                 eyebrow="10 · Lectura ejecutiva"
                 icon={<Gauge className="size-5" />}
@@ -1417,11 +1486,10 @@ export function ProjectWorkspaceExperience(
                   </div>
                 </div>
               </Section>
-            </OptionalModule></div>
+            </OptionalModule>
           )}
 
-          <Section
-            dataEventArea="summary"
+          {eventTab === "summary" && <Section
             eyebrow="11 · Decisiones"
             icon={<ClipboardCheck className="size-5" />}
             id="quick-actions"
@@ -1550,14 +1618,14 @@ export function ProjectWorkspaceExperience(
                 {customerDeleteFeedback}
               </p>
             )}
-          </Section>
+          </Section>}
 
-          <div data-event-area="communications"><PreEventReminderControl projectId={props.projectKey ?? ""} /></div>
+          {eventTab === "communications" ? <PreEventReminderControl projectId={props.projectKey ?? ""} /> : null}
 
-          <div data-event-area="documents"><DigitalPhotoDeliveryControl projectId={props.projectKey ?? ""} /></div>
+          {eventTab === "documents" ? <DigitalPhotoDeliveryControl projectId={props.projectKey ?? ""} /> : null}
 
-          {moduleVisible("MILESTONES") && (
-            <div data-event-area="operations"><OptionalModule moduleKey="MILESTONES" onHide={hideModule}>
+          {eventTab === "operations" && moduleVisible("MILESTONES") && (
+            <OptionalModule moduleKey="MILESTONES" onHide={hideModule}>
               <Section
                 eyebrow="12 · Post evento"
                 icon={<CheckCircle2 className="size-5" />}
@@ -1606,18 +1674,18 @@ export function ProjectWorkspaceExperience(
                   disassembly: disassembly?.name,
                 }}
               />
-            </OptionalModule></div>
+            </OptionalModule>
           )}
 
-          {moduleVisible("OPERATIONAL_CONTROL") && (
-            <div data-event-area="operations"><OptionalModule moduleKey="OPERATIONAL_CONTROL" onHide={hideModule}>
+          {eventTab === "operations" && moduleVisible("OPERATIONAL_CONTROL") && (
+            <OptionalModule moduleKey="OPERATIONAL_CONTROL" onHide={hideModule}>
               <div id="equipment-assignment">
                 <EquipmentAssignmentPanel {...props.equipment} />
               </div>
               <ProductionIntegrationPanel {...props.productionIntegration} />
-            </OptionalModule></div>
+            </OptionalModule>
           )}
-          {showLegacyDuplicatedEventSections && moduleVisible("DOCUMENTS") && (
+          {eventTab === "documents" && showLegacyDuplicatedEventSections && moduleVisible("DOCUMENTS") && (
             <div id="agreement-control">
               <AgreementSigningControl
                 agreementId={props.signing.agreementId}
@@ -1627,10 +1695,11 @@ export function ProjectWorkspaceExperience(
               />
             </div>
           )}
+          </div>
         </div>
       }
       bottomAction={
-        moduleVisible("EVENT_HEALTH") && activeEventTab === "summary" ? (
+        moduleVisible("EVENT_HEALTH") ? (
           <div className="sticky bottom-3 z-10 rounded-xl border bg-card/95 p-3 shadow-lg backdrop-blur">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
