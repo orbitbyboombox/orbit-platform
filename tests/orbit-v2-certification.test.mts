@@ -8,6 +8,10 @@ test("ORBIT BOOMBOX release identifies itself as v2.1.2", () => {
   assert.match(read("package.json"), /"version": "2\.0\.0"/);
   assert.match(read("app/page.tsx"), /ORBIT BOOMBOX v2\.1\.2/);
   assert.match(read("features/company-settings/types.ts"), /productVersion:"v2\.1\.2"/);
+  const signature = read("components/brand-signature.tsx");
+  assert.match(signature, /ORBIT_DISPLAY_VERSION = "v2\.1\.2"/);
+  assert.match(signature, /data-testid="brand-signature-version"[^>]*>\{settings\.productName\} \{ORBIT_DISPLAY_VERSION\}<\/p>/);
+  assert.doesNotMatch(signature, /settings\.productVersion<\/p>/);
 });
 
 test("receipt Content-Disposition remains ASCII-safe while preserving UTF-8 filename", () => {
