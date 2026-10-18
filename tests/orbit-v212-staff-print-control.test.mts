@@ -17,9 +17,15 @@ test("Staff portal reads canonical settlement adjustments without reusing transp
 test("event ficha renders the canonical print closeout fields", () => {
   assert.match(page, /event_paper_snapshots/);
   assert.match(page, /box_asset_id,printer_asset_id/);
+  assert.match(page, /staffById/);
+  assert.match(page, /operator\.first_name, operator\.last_name/);
   assert.match(workspace, /CONTROL DE IMPRESIONES/);
   assert.match(workspace, /Impresiones realizadas/);
   assert.match(workspace, /Papel restante al finalizar/);
+  assert.match(workspace, /Operador responsable/);
+  assert.match(workspace, /Fecha de registro/);
+  assert.match(workspace, /Operador no identificado/);
+  assert.doesNotMatch(workspace, /Impresora utilizada/);
   assert.match(workspace, /no recalcula ni descuenta inventario/);
 });
 

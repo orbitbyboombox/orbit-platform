@@ -1633,15 +1633,18 @@ export default async function ProjectWorkspacePage({
     expenses:(logisticsExpensesResult.data??[]).map(row=>{let description="";try{const metadata=JSON.parse(row.approval_reason??"{}");description=String(metadata.description??"")}catch{}return{id:row.id,tripId:String(row.vehicle_trip_id),category:row.category,description,total:Number(row.total),status:row.status,receiptPath:row.receipt_path??""}}),
   };
   const assetsById = new Map((assets ?? []).map((asset) => [asset.id, asset.asset_code]));
+  const staffById = new Map((staff ?? []).map((member) => [member.id, member]));
   const printControl = paperSnapshot
     ? {
         impressions: paperSnapshot.event_usage === null || paperSnapshot.event_usage === undefined ? null : Number(paperSnapshot.event_usage),
         remaining: paperSnapshot.final_remaining_balance === null || paperSnapshot.final_remaining_balance === undefined ? null : Number(paperSnapshot.final_remaining_balance),
         boxCode: paperSnapshot.black_box_asset_code ?? (paperSnapshot.box_asset_id ? assetsById.get(paperSnapshot.box_asset_id) ?? null : null),
-        printerCode: paperSnapshot.printer_asset_id ? assetsById.get(paperSnapshot.printer_asset_id) ?? null : null,
         status: paperSnapshot.status ?? null,
         confirmedAt: paperSnapshot.confirmed_at ?? null,
-        confirmedBy: paperSnapshot.confirmed_by ?? null,
+        confirmedBy: paperSnapshot.confirmed_by ? (() => {
+          const operator = staffById.get(paperSnapshot.confirmed_by);
+          return operator ? [operator.first_name, operator.last_name].filter(Boolean).join(" ") || null : null;
+        })() : null,
       }
     : undefined;
   return (

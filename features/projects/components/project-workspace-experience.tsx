@@ -260,7 +260,6 @@ export type ProjectWorkspaceExperienceProps = Omit<
       impressions: number | null;
       remaining: number | null;
       boxCode: string | null;
-      printerCode: string | null;
       status: string | null;
       confirmedAt: string | null;
       confirmedBy: string | null;
@@ -1033,8 +1032,8 @@ export function ProjectWorkspaceExperience(
                   <Row label="Impresiones realizadas" value={confirmed && control.impressions !== null ? `${control.impressions} fotos` : "Pendiente de cierre"} />
                   <Row label="Papel restante al finalizar" value={confirmed && control.remaining !== null ? `${control.remaining} fotos` : "Pendiente de cierre"} />
                   <Row label="Caja utilizada" value={control.boxCode ?? "Pendiente de registrar"} />
-                  <Row label="Impresora utilizada" value={control.printerCode ?? "No registrada"} />
-                  <Row label="Fecha y responsable" value={`${formatConfirmedAt}${control.confirmedBy ? ` · ${control.confirmedBy}` : ""}`} />
+                  <Row label="Operador responsable" value={control.confirmedBy ?? "Operador no identificado"} />
+                  <Row label="Fecha de registro" value={formatConfirmedAt} />
                 </dl>
                 <p className="mt-3 text-xs text-muted">Lectura del cierre de papel registrado; no recalcula ni descuenta inventario.</p>
               </Section>;
