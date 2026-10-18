@@ -253,7 +253,19 @@ export type ProjectWorkspaceExperienceProps = Omit<
   activities?: readonly { title: string; detail: string; time: string }[];
   equipment: EquipmentAssignmentPanelProps;
   eventEquipmentExtras: { boxLabel: string; extras: readonly string[] };
-  printInstructions: { photoStyle: EventPhotoStyle | null; operatorNote: string };
+  printInstructions: {
+    photoStyle: EventPhotoStyle | null;
+    operatorNote: string;
+    printControl?: {
+      impressions: number | null;
+      remaining: number | null;
+      boxCode: string | null;
+      printerCode: string | null;
+      status: string | null;
+      confirmedAt: string | null;
+      confirmedBy: string | null;
+    };
+  };
   signing: { agreementId?: string; quotationId?: string; status: string; href?: string; createdAt?:string; signedAt?:string };
   commercialHub: { customerTaxId?:string; customerKind:"PARTICULAR"|"EMPRESA"; paymentCondition:string; quotation?:{id:string;number:string;status:string;revision:number;acceptedAt:string;total:number;detailHref:string;pdfHref:string;items:readonly {label:string;quantity:number;total:number}[]} };
   productionIntegration: ProductionIntegrationPanelProps;
@@ -1010,6 +1022,23 @@ export function ProjectWorkspaceExperience(
                 </div>
               </Section>
             )}
+            {activeTab === "OPERATION" && props.printInstructions.printControl ? (() => {
+              const control = props.printInstructions.printControl;
+              const confirmed = ["CONFIRMED", "OVERRIDDEN", "CLOSED"].includes(control.status ?? "");
+              const formatConfirmedAt = control.confirmedAt
+                ? new Intl.DateTimeFormat("es-CL", { dateStyle: "short", timeStyle: "short", timeZone: "America/Santiago" }).format(new Date(control.confirmedAt))
+                : "Sin cierre registrado";
+              return <Section eyebrow="03 · Control operativo" icon={<Printer className="size-5" />} id="print-control" title="CONTROL DE IMPRESIONES">
+                <dl className="grid gap-3 sm:grid-cols-2">
+                  <Row label="Impresiones realizadas" value={confirmed && control.impressions !== null ? `${control.impressions} fotos` : "Pendiente de cierre"} />
+                  <Row label="Papel restante al finalizar" value={confirmed && control.remaining !== null ? `${control.remaining} fotos` : "Pendiente de cierre"} />
+                  <Row label="Caja utilizada" value={control.boxCode ?? "Pendiente de registrar"} />
+                  <Row label="Impresora utilizada" value={control.printerCode ?? "No registrada"} />
+                  <Row label="Fecha y responsable" value={`${formatConfirmedAt}${control.confirmedBy ? ` · ${control.confirmedBy}` : ""}`} />
+                </dl>
+                <p className="mt-3 text-xs text-muted">Lectura del cierre de papel registrado; no recalcula ni descuenta inventario.</p>
+              </Section>;
+            })() : null}
             {activeTab === "OPERATION" && moduleVisible("OPERATIONAL_CONTROL") && (
               <OptionalModule
                 moduleKey="OPERATIONAL_CONTROL"

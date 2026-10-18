@@ -299,7 +299,7 @@ export default async function ProjectWorkspacePage({
   }
   let { data: paperSnapshot, error: paperSnapshotError } = await adminReadClient
     .from("event_paper_snapshots")
-    .select("id,opening_balance,final_remaining_balance,event_usage,status,format_key,paper_variant,black_box_asset_code,confirmed_by,confirmed_at,created_at")
+    .select("id,opening_balance,final_remaining_balance,event_usage,status,format_key,paper_variant,black_box_asset_code,box_asset_id,printer_asset_id,confirmed_by,confirmed_at,created_at")
     .eq("project_id", projectId)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -312,7 +312,7 @@ export default async function ProjectWorkspacePage({
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    paperSnapshot = fallback.data ? { ...fallback.data, paper_variant: null, black_box_asset_code: null, confirmed_by: null, confirmed_at: null } : null;
+    paperSnapshot = fallback.data ? { ...fallback.data, paper_variant: null, black_box_asset_code: null, box_asset_id: null, printer_asset_id: null, confirmed_by: null, confirmed_at: null } : null;
     paperSnapshotError = fallback.error;
   }
   if (paperSnapshotError && !["42P01", "PGRST205"].includes(paperSnapshotError.code ?? "")) {
@@ -1632,6 +1632,18 @@ export default async function ProjectWorkspacePage({
     trips:(logisticsTripsResult.data??[]).map(row=>{const asset=Array.isArray(row.operational_assets)?row.operational_assets[0]:row.operational_assets,profile=asset?(Array.isArray(asset.vehicle_profiles)?asset.vehicle_profiles[0]:asset.vehicle_profiles):null,member=Array.isArray(row.staff)?row.staff[0]:row.staff;return{id:row.id,assetId:row.asset_id,vehicle:profile?.model??asset?.asset_code??"Transporte externo",driver:member?`${member.first_name} ${member.last_name}`:row.driver_name??"Founder",type:row.trip_type,sequence:Number(row.sequence),origin:row.origin,destination:row.destination,plannedStartAt:row.planned_start_at,plannedEndAt:row.planned_end_at,distance:row.distance===null?null:Number(row.distance),status:row.status,meetingPoint:row.meeting_point??"",instructions:row.instructions??""}}),
     expenses:(logisticsExpensesResult.data??[]).map(row=>{let description="";try{const metadata=JSON.parse(row.approval_reason??"{}");description=String(metadata.description??"")}catch{}return{id:row.id,tripId:String(row.vehicle_trip_id),category:row.category,description,total:Number(row.total),status:row.status,receiptPath:row.receipt_path??""}}),
   };
+  const assetsById = new Map((assets ?? []).map((asset) => [asset.id, asset.asset_code]));
+  const printControl = paperSnapshot
+    ? {
+        impressions: paperSnapshot.event_usage === null || paperSnapshot.event_usage === undefined ? null : Number(paperSnapshot.event_usage),
+        remaining: paperSnapshot.final_remaining_balance === null || paperSnapshot.final_remaining_balance === undefined ? null : Number(paperSnapshot.final_remaining_balance),
+        boxCode: paperSnapshot.black_box_asset_code ?? (paperSnapshot.box_asset_id ? assetsById.get(paperSnapshot.box_asset_id) ?? null : null),
+        printerCode: paperSnapshot.printer_asset_id ? assetsById.get(paperSnapshot.printer_asset_id) ?? null : null,
+        status: paperSnapshot.status ?? null,
+        confirmedAt: paperSnapshot.confirmed_at ?? null,
+        confirmedBy: paperSnapshot.confirmed_by ?? null,
+      }
+    : undefined;
   return (
     <ProjectWorkspaceExperience
       customerId={rawProject?.customer_id ?? ""}
@@ -1646,6 +1658,7 @@ export default async function ProjectWorkspacePage({
       printInstructions={{
         photoStyle: operationalContract?.photo_style === "COLOR" || operationalContract?.photo_style === "BLACK_WHITE" || operationalContract?.photo_style === "SEPIA" ? operationalContract.photo_style : null,
         operatorNote: operationalContract?.operator_print_notes ?? "",
+        printControl,
       }}
       event360={event360}
       operationalReadiness={operationalReadiness}

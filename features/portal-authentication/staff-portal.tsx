@@ -14,12 +14,14 @@ const today=()=>new Intl.DateTimeFormat("en-CA",{timeZone:"America/Santiago"}).f
 const addDays=(value:string,days:number)=>{const date=new Date(`${value}T12:00:00Z`);date.setUTCDate(date.getUTCDate()+days);return date.toISOString().slice(0,10)};
 const finish=(time:string,hours:number)=>{const[h,m]=time.slice(0,5).split(":").map(Number);const total=h*60+m+hours*60;return`${String(Math.floor(total/60)%24).padStart(2,"0")}:${String(total%60).padStart(2,"0")}`};
 const OPERATIONAL_ROLES = ["OPERATOR", "ASSEMBLY", "DISASSEMBLY"] as const;
-function mapStaffEventPayment(row: Record<string, unknown>, assignmentById: Map<string, Record<string, unknown>>, currentDate: string): StaffEventPayment {
+function mapStaffEventPayment(row: Record<string, unknown>, assignmentById: Map<string, Record<string, unknown>>, adjustmentsBySettlement: Map<string, Array<{ reason: string; amount: number; comment: string }>>, currentDate: string): StaffEventPayment {
   const project = Array.isArray(row.projects) ? row.projects[0] as Record<string, unknown> | undefined : row.projects as Record<string, unknown> | undefined;
   const services = project && Array.isArray(project.project_services) ? project.project_services as Array<Record<string, unknown>> : [];
   const customers = project && (Array.isArray(project.customers) ? project.customers[0] as Record<string, unknown> | undefined : project.customers as Record<string, unknown> | undefined);
   const paidAmount = Number(row.paid_amount ?? 0);
   const amount = Number(row.total_internal_payment ?? 0);
+  const adjustments = adjustmentsBySettlement.get(String(row.id)) ?? [];
+  const adjustmentAmount = adjustments.reduce((sum, item) => sum + item.amount, 0);
   const paidAt = String(row.paid_at ?? "");
   const assignment = assignmentById.get(String(row.assignment_id));
   const assignmentType = String(assignment?.assignment_type ?? "");
@@ -27,23 +29,25 @@ function mapStaffEventPayment(row: Record<string, unknown>, assignmentById: Map<
   const role = taskRoles.length > 1 ? taskRoles.join(" + ") : assignmentType || taskRoles[0] || "Staff";
   const defaultRoleAmount = taskRoles.length > 1 ? amount : assignmentType === "OPERATOR" ? Number(row.operator_payment ?? amount) : assignmentType === "ASSEMBLY" ? Number(row.assembly_payment ?? amount) : assignmentType === "DISASSEMBLY" ? Number(row.disassembly_payment ?? amount) : amount;
   const overrideRoleAmount = taskRoles.length > 1 ? null : assignmentType === "OPERATOR" ? row.override_operator_payment : assignmentType === "ASSEMBLY" ? row.override_assembly_payment : assignmentType === "DISASSEMBLY" ? row.override_disassembly_payment : null;
-  const finalAmount = overrideRoleAmount !== null && overrideRoleAmount !== undefined ? amount - defaultRoleAmount + Number(overrideRoleAmount) : amount;
+  const baseFinalAmount = overrideRoleAmount !== null && overrideRoleAmount !== undefined ? amount - defaultRoleAmount + Number(overrideRoleAmount) : amount;
+  const finalAmount = baseFinalAmount + adjustmentAmount;
   const rawBlock = assignment?.event_operational_blocks;
   const block = Array.isArray(rawBlock) ? rawBlock[0] as Record<string, unknown> | undefined : rawBlock && typeof rawBlock === "object" ? rawBlock as Record<string, unknown> : null;
   const settlementStatus = String(row.settlement_status ?? (paidAmount >= amount ? "PAID" : "PENDING"));
   const isPaid = settlementStatus === "PAID" && (paidAmount > 0 || Boolean(paidAt));
   const assignmentStatus = String(assignment?.status ?? row.status ?? "");
   const operationalCompleted = ["COMPLETED", "REALIZED", "FINISHED", "CLOSED"].includes(assignmentStatus) || String(project?.event_date ?? "") < currentDate;
-  return {id:String(row.id),projectId:String(row.project_id),accountingMonth:String(row.accounting_month),eventDate:String(project?.event_date ?? ""),eventTime:String(project?.event_time ?? ""),customer:String(customers?.full_name ?? project?.name ?? "Evento"),service:services.map(service=>String(service.service_code ?? "Servicio BOOMBOX")).join(" + ") || "Servicio BOOMBOX",role,blockName:String(block?.name ?? ""),blockStartAt:String(block?.start_at ?? ""),blockEndAt:String(block?.end_at ?? ""),amount,finalAmount,paidAmount,paidAt,settlementStatus,assignmentStatus,operationalCompleted,isPaid};
+  return {id:String(row.id),projectId:String(row.project_id),accountingMonth:String(row.accounting_month),eventDate:String(project?.event_date ?? ""),eventTime:String(project?.event_time ?? ""),customer:String(customers?.full_name ?? project?.name ?? "Evento"),service:services.map(service=>String(service.service_code ?? "Servicio BOOMBOX")).join(" + ") || "Servicio BOOMBOX",role,blockName:String(block?.name ?? ""),blockStartAt:String(block?.start_at ?? ""),blockEndAt:String(block?.end_at ?? ""),amount,finalAmount,paidAmount,paidAt,settlementStatus,assignmentStatus,operationalCompleted,isPaid,adjustments};
 }
 // Kept as the compatibility symbol for older integrations; canonical reads use buildCanonicalOrbitEventStateFromRecord below.
 void resolveCanonicalStaffCallAt;
 
-export async function StaffPortal({staffId,initialEventId}:{staffId:string;initialEventId?:string}){const admin=createAdminClient(),start=today(),expenseStart=addDays(start,-90),end=addDays(start,15),month=start.slice(0,7);const[staffResult,assignmentsResult,paymentsResult,eventStaffPaymentsResult,documentsResult,checkinsResult,notificationsResult,publicationsResult,allAssignmentsResult,requestsResult,checklistResult,vehiclesResult,costMasterResult,operationalContractsResult,physicalResourcesResult,staffRequirementsResult,logisticsTripsResult,expenseSubmissionsResult,monthlyAccountsResult,reimbursementPaymentsResult,routesResult,routeEventsResult,routeProjectsResult,routeTripsResult,routeAssetsResult,routeRevisionsResult,routeRevisionEventsResult,paperSnapshotsResult]=await Promise.all([
+export async function StaffPortal({staffId,initialEventId}:{staffId:string;initialEventId?:string}){const admin=createAdminClient(),start=today(),expenseStart=addDays(start,-90),end=addDays(start,15),month=start.slice(0,7);const[staffResult,assignmentsResult,paymentsResult,eventStaffPaymentsResult,settlementAdjustmentsResult,documentsResult,checkinsResult,notificationsResult,publicationsResult,allAssignmentsResult,requestsResult,checklistResult,vehiclesResult,costMasterResult,operationalContractsResult,physicalResourcesResult,staffRequirementsResult,logisticsTripsResult,expenseSubmissionsResult,monthlyAccountsResult,reimbursementPaymentsResult,routesResult,routeEventsResult,routeProjectsResult,routeTripsResult,routeAssetsResult,routeRevisionsResult,routeRevisionEventsResult,paperSnapshotsResult]=await Promise.all([
   admin.from("staff").select("first_name,last_name,capabilities,portal_password_change_required").eq("id",staffId).single(),
   admin.from("assignments").select("project_id,assignment_type,status,resources,assigned_vehicle,staff_call_at,staff_call_source,block_id,event_operational_blocks(id,name,start_at,end_at),projects!inner(id,name,orbit_event_id,project_type,event_date,event_time,event_time_mode,location,city,operations,customers(full_name,phone),project_services(service_code,duration_hours,extras),event_post_reservation_extras(name,status),quotations(transport_total,quotation_items(item_type,label,description)))").eq("staff_id",staffId).is("deleted_at",null).not("status","in",'(CANCELLED,REJECTED)').gte("projects.event_date",expenseStart).lte("projects.event_date",end).order("created_at",{ascending:false}),
   admin.from("staff_settlement_financials").select("project_id,final_amount,paid_amount,sii_receipt_status,accounting_month").eq("staff_id",staffId).eq("accounting_month",`${month}-01`),
   admin.from("event_staff_payments").select("id,project_id,assignment_id,tasks,total_internal_payment,paid_amount,paid_at,settlement_status,accounting_month,deleted_at,operator_payment,assembly_payment,disassembly_payment,override_operator_payment,override_assembly_payment,override_disassembly_payment,projects!inner(name,event_date,event_time,customers(full_name),project_services(service_code,duration_hours))").eq("staff_id",staffId).is("deleted_at",null).order("accounting_month",{ascending:false}),
+  admin.from("event_staff_settlement_adjustments").select("settlement_id,reason,amount,comment,created_at").order("created_at",{ascending:true}),
   admin.from("documents").select("id,project_id,document_type,operational_for_staff").eq("operational_for_staff",true).is("deleted_at",null),
   admin.from("staff_event_checkins").select("project_id,status").eq("staff_id",staffId),
   admin.from("internal_notifications").select("id,title,message,created_at").eq("staff_id",staffId).in("category",["OPERATIONS","STAFF"]).order("created_at",{ascending:false}).limit(12),
@@ -104,7 +108,14 @@ export async function StaffPortal({staffId,initialEventId}:{staffId:string;initi
     revisionEventsByRevision.set(event.revision_id, list);
   }
   const assignmentById = new Map((allAssignmentsResult.data ?? []).map(row => [String(row.id), row as Record<string, unknown>]));
-  const eventStaffPayments: StaffEventPayment[] = (eventStaffPaymentsResult.data ?? []).map((row) => mapStaffEventPayment(row as Record<string, unknown>, assignmentById, start));
+  if (settlementAdjustmentsResult.error) throw settlementAdjustmentsResult.error;
+  const adjustmentsBySettlement = new Map<string, Array<{ reason: string; amount: number; comment: string }>>();
+  for (const row of settlementAdjustmentsResult.data ?? []) {
+    const list = adjustmentsBySettlement.get(row.settlement_id) ?? [];
+    list.push({ reason: String(row.reason ?? "AJUSTE"), amount: Number(row.amount ?? 0), comment: String(row.comment ?? "") });
+    adjustmentsBySettlement.set(row.settlement_id, list);
+  }
+  const eventStaffPayments: StaffEventPayment[] = (eventStaffPaymentsResult.data ?? []).map((row) => mapStaffEventPayment(row as Record<string, unknown>, assignmentById, adjustmentsBySettlement, start));
   const routeStops: StaffRoute[] = [];
   for (const route of routesResult.data ?? []) {
     const asset = Array.isArray(route.operational_assets) ? route.operational_assets[0] : route.operational_assets;
