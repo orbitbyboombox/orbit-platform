@@ -101,7 +101,7 @@ import { PhotoStripDesignCenter } from "@/features/photo-strip-design";
 import { CapacityStatusPanel, type CapacityResult } from "@/features/capacity/capacity-status-panel";
 import { OperationalBlocksPanel } from "@/features/operations/operational-blocks-panel";
 import type { OperationalBlock } from "@/features/operations/operational-blocks";
-import { updateEventPrintInstructionsAction, type EventPhotoStyle } from "@/features/projects/event-paper.actions";
+import { saveEventPaperPrinterRecordAction, updateEventPrintInstructionsAction, type EventPhotoStyle } from "@/features/projects/event-paper.actions";
 
 type Event360Task = {
   id: string;
@@ -264,6 +264,10 @@ export type ProjectWorkspaceExperienceProps = Omit<
       status: string | null;
       confirmedAt: string | null;
       confirmedBy: string | null;
+      printerAssetId: string | null;
+      printerRecordedAt: string | null;
+      printerOptions: readonly { id: string; code: string }[];
+      printerPersistenceAvailable: boolean;
     };
   };
   signing: { agreementId?: string; quotationId?: string; status: string; href?: string; createdAt?:string; signedAt?:string };
@@ -452,6 +456,10 @@ export function ProjectWorkspaceExperience(
   const [operatorNote, setOperatorNote] = useState(props.printInstructions.operatorNote);
   const [printPending, startPrintTransition] = useTransition();
   const [printMessage, setPrintMessage] = useState("");
+  const [printerDraft, setPrinterDraft] = useState(props.printInstructions.printControl?.printerCode ?? "");
+  const [printerAssetDraft, setPrinterAssetDraft] = useState(props.printInstructions.printControl?.printerAssetId ?? "");
+  const [printerPending, startPrinterTransition] = useTransition();
+  const [printerMessage, setPrinterMessage] = useState("");
   const [portalFeedback, setPortalFeedback] = useState("");
   const [customerDeleteFeedback, setCustomerDeleteFeedback] = useState("");
   const [eventTimeDraft, setEventTimeDraft] = useState(props.eventTime?.slice(0, 5) || "22:00");
@@ -1036,6 +1044,56 @@ export function ProjectWorkspaceExperience(
                   <Row label="Impresora utilizada" value={control.printerCode ?? "No registrada"} />
                   <Row label="Fecha y responsable" value={`${formatConfirmedAt}${control.confirmedBy ? ` · ${control.confirmedBy}` : ""}`} />
                 </dl>
+                <div className="mt-4 rounded-xl border border-dashed p-3">
+                  <label className="grid gap-1 text-sm font-semibold" htmlFor="event-paper-printer">
+                    Impresora utilizada
+                    {control.printerOptions.length > 0 ? (
+                      <select
+                        id="event-paper-printer"
+                        className="min-h-10 rounded-lg border bg-background px-3 font-normal"
+                        value={printerAssetDraft}
+                        disabled={!control.printerPersistenceAvailable || printerPending}
+                        onChange={(event) => {
+                          const selected = control.printerOptions.find((option) => option.id === event.target.value);
+                          setPrinterAssetDraft(event.target.value);
+                          setPrinterDraft(selected?.code ?? "");
+                        }}
+                      >
+                        <option value="">Seleccionar asset registrado</option>
+                        {control.printerOptions.map((option) => <option key={option.id} value={option.id}>{option.code}</option>)}
+                      </select>
+                    ) : null}
+                    <input
+                      aria-label="Identificación manual de impresora"
+                      id={control.printerOptions.length > 0 ? undefined : "event-paper-printer"}
+                      className="min-h-10 rounded-lg border bg-background px-3 font-normal"
+                      value={printerDraft}
+                      disabled={!control.printerPersistenceAvailable || printerPending}
+                      onChange={(event) => { setPrinterDraft(event.target.value); if (control.printerOptions.length > 0) setPrinterAssetDraft(""); }}
+                      placeholder="Ej.: Impresora 3"
+                      maxLength={100}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="mt-2 min-h-10 rounded-lg bg-brand px-3 text-sm font-semibold text-brand-foreground disabled:opacity-50"
+                    disabled={!control.printerPersistenceAvailable || printerPending || !printerDraft.trim()}
+                    onClick={() => startPrinterTransition(async () => {
+                      try {
+                        await saveEventPaperPrinterRecordAction({ projectId: props.projectKey ?? "", printerLabel: printerDraft, printerAssetId: printerAssetDraft || null });
+                        setPrinterMessage("Impresora registrada. El cierre de papel y el inventario no fueron modificados.");
+                        router.refresh();
+                      } catch (error) {
+                        setPrinterMessage(error instanceof Error ? error.message : "No fue posible registrar la impresora.");
+                      }
+                    })}
+                  >
+                    {printerPending ? "GUARDANDO…" : "GUARDAR IMPRESORA"}
+                  </button>
+                  {!control.printerPersistenceAvailable ? <p className="mt-2 text-xs text-muted">Registro bloqueado hasta aplicar la migración aditiva en el entorno autorizado.</p> : null}
+                  {printerMessage ? <p className="mt-2 text-xs text-muted" aria-live="polite">{printerMessage}</p> : null}
+                  {control.printerRecordedAt ? <p className="mt-2 text-xs text-muted">Última corrección: {new Intl.DateTimeFormat("es-CL", { dateStyle: "short", timeStyle: "short", timeZone: "America/Santiago" }).format(new Date(control.printerRecordedAt))}</p> : null}
+                </div>
                 <p className="mt-3 text-xs text-muted">Lectura del cierre de papel registrado; no recalcula ni descuenta inventario.</p>
               </Section>;
             })() : null}

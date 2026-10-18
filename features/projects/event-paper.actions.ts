@@ -112,3 +112,56 @@ export async function updateEventPrintInstructionsAction(input: {
   revalidatePath("/staff-portal");
   return { ok: true as const };
 }
+
+/**
+ * Records the physically used printer without updating the immutable paper
+ * snapshot or any inventory ledger. Corrections are new append-only rows.
+ */
+export async function saveEventPaperPrinterRecordAction(input: {
+  projectId: string;
+  printerLabel: string;
+  printerAssetId?: string | null;
+}) {
+  const client = await createSupabaseServerClient();
+  const { data: auth } = await client.auth.getUser();
+  if (!auth.user) throw new Error("Sesión requerida.");
+  const { data: profile } = await client.from("profiles").select("role").eq("id", auth.user.id).maybeSingle();
+  if (!isAdministrativeRole(profile?.role)) throw new Error("Acceso administrativo requerido.");
+
+  const printerLabel = input.printerLabel.trim().slice(0, 100);
+  if (!printerLabel) throw new Error("Indica la impresora utilizada.");
+  if (input.printerAssetId) {
+    const { data: printer, error: printerError } = await client
+      .from("operational_assets")
+      .select("id,asset_type,asset_code,deleted_at")
+      .eq("id", input.printerAssetId)
+      .maybeSingle();
+    if (printerError) throw printerError;
+    if (!printer || printer.asset_type !== "PRINTER" || printer.deleted_at) {
+      throw new Error("La impresora seleccionada no es válida.");
+    }
+  }
+
+  const admin = createAdminClient();
+  const { data: snapshot, error: snapshotError } = await admin
+    .from("event_paper_snapshots")
+    .select("id")
+    .eq("project_id", input.projectId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (snapshotError && !["42P01", "PGRST205"].includes(snapshotError.code ?? "")) throw snapshotError;
+
+  const idempotencyKey = [input.projectId, input.printerAssetId ?? "manual", printerLabel.toLocaleLowerCase("es-CL")].join(":");
+  const { error } = await admin.from("event_paper_printer_records").upsert({
+    project_id: input.projectId,
+    snapshot_id: snapshot?.id ?? null,
+    printer_asset_id: input.printerAssetId ?? null,
+    printer_label: printerLabel,
+    idempotency_key: idempotencyKey,
+    created_by: auth.user.id,
+  }, { onConflict: "idempotency_key", ignoreDuplicates: true });
+  if (error) throw error;
+  revalidatePath(`/projects/${input.projectId}`);
+  return { ok: true as const };
+}

@@ -318,6 +318,16 @@ export default async function ProjectWorkspacePage({
   if (paperSnapshotError && !["42P01", "PGRST205"].includes(paperSnapshotError.code ?? "")) {
     throw paperSnapshotError;
   }
+  const { data: paperPrinterRecord, error: paperPrinterRecordError } = await adminReadClient
+    .from("event_paper_printer_records")
+    .select("printer_asset_id,printer_label,created_at,created_by")
+    .eq("project_id", projectId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (paperPrinterRecordError && !["42P01", "PGRST205"].includes(paperPrinterRecordError.code ?? "")) {
+    throw paperPrinterRecordError;
+  }
   const { data: staffRoleRequirements, error: staffRoleRequirementError } =
     await client
       .from("event_staff_requirements")
@@ -1633,12 +1643,20 @@ export default async function ProjectWorkspacePage({
     expenses:(logisticsExpensesResult.data??[]).map(row=>{let description="";try{const metadata=JSON.parse(row.approval_reason??"{}");description=String(metadata.description??"")}catch{}return{id:row.id,tripId:String(row.vehicle_trip_id),category:row.category,description,total:Number(row.total),status:row.status,receiptPath:row.receipt_path??""}}),
   };
   const assetsById = new Map((assets ?? []).map((asset) => [asset.id, asset.asset_code]));
+  const printerOptions = (assets ?? [])
+    .filter((asset) => asset.asset_type === "PRINTER")
+    .map((asset) => ({ id: asset.id, code: asset.asset_code }));
   const printControl = paperSnapshot
     ? {
         impressions: paperSnapshot.event_usage === null || paperSnapshot.event_usage === undefined ? null : Number(paperSnapshot.event_usage),
         remaining: paperSnapshot.final_remaining_balance === null || paperSnapshot.final_remaining_balance === undefined ? null : Number(paperSnapshot.final_remaining_balance),
         boxCode: paperSnapshot.black_box_asset_code ?? (paperSnapshot.box_asset_id ? assetsById.get(paperSnapshot.box_asset_id) ?? null : null),
-        printerCode: paperSnapshot.printer_asset_id ? assetsById.get(paperSnapshot.printer_asset_id) ?? null : null,
+        printerCode: paperPrinterRecord?.printer_label
+          ?? (paperSnapshot.printer_asset_id ? assetsById.get(paperSnapshot.printer_asset_id) ?? null : null),
+        printerAssetId: paperPrinterRecord?.printer_asset_id ?? paperSnapshot.printer_asset_id ?? null,
+        printerRecordedAt: paperPrinterRecord?.created_at ?? null,
+        printerOptions,
+        printerPersistenceAvailable: !paperPrinterRecordError,
         status: paperSnapshot.status ?? null,
         confirmedAt: paperSnapshot.confirmed_at ?? null,
         confirmedBy: paperSnapshot.confirmed_by ?? null,
