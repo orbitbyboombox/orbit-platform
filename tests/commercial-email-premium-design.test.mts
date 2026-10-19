@@ -25,9 +25,11 @@ test("shared premium commercial shell is email-client safe and branded", () => {
   assert.match(html, /role="presentation"/);
   assert.match(html, /name="viewport" content="width=device-width,initial-scale=1"/);
   assert.match(html, /width:100%;max-width:640px/);
-  assert.match(html, /min-width:260px/);
-  assert.match(html, /background:#111214/);
-  assert.match(html, /background:#f78900/);
+  assert.match(html, /width:300px/);
+  assert.match(html, /background-color:#000000/);
+  assert.match(html, /bgcolor="000000"/);
+  assert.match(html, /v:roundrect/);
+  assert.match(html, /background-color:#F78900/);
   assert.equal((html.match(/boombox-official-logo\.png/g) ?? []).length, 2);
   assert.match(html, /alt="BOOMBOX®"/);
   assert.match(html, />VER COTIZACIÓN</);
@@ -62,14 +64,14 @@ test("automatic booking invitation uses the canonical BOOMBOX welcome base", () 
   assert.doesNotMatch(html, /<p[^>]*color:#f78900[^>]*>BOOMBOX<\/p>/);
   assert.match(html, /Una vez dentro podrás:/);
   assert.match(html, /EXPERIENCIAS<br>RECUERDOS<br>MOMENTOS/);
-  assert.match(html, /background:#0b0c0e/);
+  assert.match(html, /background-color:#000000/);
   assert.match(html, /COMPLETAR MI RESERVA/);
   assert.match(html, /boombox-official-logo\.png/);
   assert.equal((html.match(/boombox-official-logo\.png/g) ?? []).length, 2);
   assert.match(html, /<a href="https:\/\/www\.bbox\.cl"[^>]*>www\.bbox\.cl<\/a>/);
   assert.match(html, /COMUNICACIÓN EMITIDA MEDIANTE ORBIT SOFTWARE DESARROLLADO POR BOOMBOX®/);
   assert.match(html, /margin-top:0[^>]*>EVENTOS QUE CONECTAN/);
-  assert.match(html, /margin:38px 0 0;border-top:1px solid #343538;padding-top:30px/);
+  assert.match(html, /margin:38px 0 0;background-color:#000000;border-top:1px solid #343538;padding-top:30px/);
 });
 
 test("official BOOMBOX logo asset and confirmation finance/portal contrast are canonical", () => {
@@ -97,7 +99,7 @@ test("Empresa reservation uses the shared premium shell and safe portal CTA", ()
   );
   assert.match(html, /RESERVA CONFIRMADA/);
   assert.match(html, /BIENVENIDOS A BOOMBOX/);
-  assert.equal((html.match(/ABRIR EVENTO EN ORBIT/g) ?? []).length, 1);
+  assert.equal((html.match(/ABRIR EVENTO EN ORBIT/g) ?? []).length, 2);
   assert.match(html, /href="https:\/\/orbit\.boom-box\.cl\/portal"/);
   assert.match(html, /PDF ADJUNTO/);
   assert.doesNotMatch(html, /\/projects\/|token=|access_token/i);
@@ -205,7 +207,7 @@ test("social premium HTML remains safe at Gmail mobile and contained on desktop"
   assert.match(html, /name="viewport" content="width=device-width,initial-scale=1"/);
   assert.match(html, /padding:24px 10px/);
   assert.match(html, /width:100%;max-width:640px/);
-  assert.match(html, /min-width:260px/);
+  assert.match(html, /width:300px/);
   assert.doesNotMatch(html, /width:\s*[7-9][0-9]{2}px/);
   assert.match(html, /@media only screen and \(max-width:520px\)/);
   assert.match(html, /orbit-action-link/);
