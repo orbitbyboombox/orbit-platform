@@ -74,13 +74,13 @@ export function renderBoomboxCommercialEmail(
   const websiteLabel = "www.bbox.cl";
   const footerLogo = `<img class="orbit-footer-logo" src="${escapeHtml(logoUrl)}" alt="BOOMBOX®" width="150" style="display:block;width:150px;max-width:100%;height:auto;margin:0;border:0"/>`;
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
-.orbit-signature img{display:block!important;width:100%!important;max-width:400px!important;height:auto!important;margin-left:auto!important;margin-right:auto!important}
+.orbit-signature img{display:block!important;width:auto!important;max-width:280px!important;max-height:72px!important;height:auto!important;margin-left:auto!important;margin-right:auto!important}
 @media only screen and (max-width:520px){
   .orbit-logo-frame{width:188px!important;height:47px!important}
   .orbit-logo{width:188px!important;height:auto!important}
   .orbit-header-label{margin-top:0!important}
   .orbit-signature{margin-top:6px!important;margin-bottom:0!important}
-  .orbit-signature img{max-width:310px!important}
+  .orbit-signature img{max-width:280px!important;max-height:72px!important}
   .orbit-footer-logo{width:132px!important;height:auto!important;margin:0 auto!important}
   .orbit-shell-cell{padding:12px 6px!important}
   .orbit-card{border-radius:16px!important}

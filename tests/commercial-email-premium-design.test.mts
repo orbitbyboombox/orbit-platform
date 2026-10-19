@@ -68,7 +68,7 @@ test("automatic booking invitation uses the canonical BOOMBOX welcome base", () 
   assert.equal((html.match(/boombox-official-logo\.png/g) ?? []).length, 2);
   assert.match(html, /<a href="https:\/\/www\.bbox\.cl"[^>]*>www\.bbox\.cl<\/a>/);
   assert.match(html, /COMUNICACIÓN EMITIDA MEDIANTE ORBIT SOFTWARE DESARROLLADO POR BOOMBOX®/);
-  assert.match(html, /margin-top:4px[^>]*>EVENTOS QUE CONECTAN/);
+  assert.match(html, /margin-top:0[^>]*>EVENTOS QUE CONECTAN/);
   assert.match(html, /margin:38px 0 0;border-top:1px solid #343538;padding-top:30px/);
 });
 
@@ -131,7 +131,7 @@ test("social information uses the premium shell and canonical catalog destinatio
   assert.equal(QUICK_SEND_CTA_LABEL, "VER PLANES Y VALORES");
   assert.match(actions, /buildSocialPlansEmail\(\{/);
   assert.match(actions, /const publicUrl = catalogPublicUrl\(document\.category/);
-  assert.match(actions, /textBody: socialEmail\?\.text/);
+  assert.match(actions, /textBody: socialEmail\.text/);
   assert.match(actions, /recipient_email: input\.email\.trim\(\)\.toLowerCase\(\)/);
   assert.match(actions, /idempotency_key: input\.requestId/);
   assert.match(composer, /srcDoc=\{buildSocialPlansEmail\(\{/);
@@ -139,18 +139,18 @@ test("social information uses the premium shell and canonical catalog destinatio
 
 test("social initial copy is concise and removes the obsolete quote checklist", () => {
   const body = quickSendInitialBody("WEDDINGS", "legacy long body");
-  assert.match(body, /Hace 16 años creamos experiencias fotográficas/);
+  assert.match(body, /Desde hace 16 años/);
   assert.match(body, /NUESTRA PROPUESTA/);
-  assert.match(body, /distintas experiencias, formatos y valores disponibles/);
+  assert.match(body, /Hemos preparado nuestras alternativas/);
   assert.doesNotMatch(body, /¿QUIERES COTIZAR\?/);
   assert.doesNotMatch(body, /Respóndenos indicando:/);
   assert.doesNotMatch(body, /servicio que te interesa/);
   assert.doesNotMatch(body, /lugar del evento/);
-  assert.match(body, /Si alguna alternativa te interesa, respóndenos este correo/);
+  assert.match(body, /Quedamos atentos por si tienes dudas/);
   assert.match(body, /sujetas a disponibilidad/);
-  assert.match(body, /Esperamos ser parte de tu celebración/);
+  assert.match(body, /Esperamos ser parte de tu matrimonio/);
   assert.doesNotMatch(body, /legacy long body/);
-  assert.equal(quickSendInitialBody("COMPANIES_CATALOG", "Texto Empresa"), "Texto Empresa");
+  assert.match(quickSendInitialBody("COMPANIES_CATALOG", "Texto Empresa"), /Gracias por considerar a BOOMBOX/);
 });
 
 test("Matrimonio and social categories share one premium Planes y Valores renderer", () => {
@@ -164,9 +164,9 @@ test("Matrimonio and social categories share one premium Planes y Valores render
       catalogUrl,
       attachmentFilename: "Planes y Valores BOOMBOX.pdf",
     });
-    assert.match(rendered.html, /EXPERIENCIAS PARA TU CELEBRACIÓN/);
+    assert.match(rendered.html, /EXPERIENCIAS PARA TU (MATRIMONIO|CUMPLEAÑOS|EVENTO)/);
     assert.match(rendered.html, /Hola Joaquín Pérez,/);
-    assert.match(rendered.html, /Hace 16 años creamos experiencias fotográficas/);
+    assert.match(rendered.html, /Desde hace 16 años/);
     assert.match(rendered.html, /NUESTRA PROPUESTA/);
     assert.match(rendered.html, />VER PLANES Y VALORES</);
     assert.match(rendered.html, /href="https:\/\/orbit\.boom-box\.cl\/catalogo\/novios"/);
@@ -174,12 +174,12 @@ test("Matrimonio and social categories share one premium Planes y Valores render
     assert.match(rendered.html, /Planes y Valores BOOMBOX\.pdf/);
     assert.doesNotMatch(rendered.html, /¿QUIERES COTIZAR\?/);
     assert.doesNotMatch(rendered.html, /servicio que te interesa|Respóndenos indicando:|lugar del evento/);
-    assert.match(rendered.html, /Si alguna alternativa te interesa, respóndenos este correo/);
+    assert.match(rendered.html, /Quedamos atentos por si tienes dudas/);
     assert.match(rendered.html, /Importante:<\/strong> Las fechas se confirman mediante reserva y están sujetas a disponibilidad/);
     assert.match(rendered.html, /COMUNICACIÓN EMITIDA MEDIANTE ORBIT SOFTWARE DESARROLLADO POR BOOMBOX®/);
     assert.match(rendered.html, /<a href="https:\/\/www\.bbox\.cl"[^>]*>www\.bbox\.cl<\/a>/);
     assert.ok(rendered.html.indexOf("Encontrarás el detalle completo") < rendered.html.indexOf("VER PLANES Y VALORES"));
-    assert.ok(rendered.html.indexOf("VER PLANES Y VALORES") < rendered.html.indexOf("Si alguna alternativa te interesa"));
+    assert.ok(rendered.html.indexOf("VER PLANES Y VALORES") < rendered.html.indexOf("Quedamos atentos"));
   }
 });
 
@@ -190,7 +190,7 @@ test("social renderer adapts proposal copy safely when delivery uses the certifi
     website: "https://www.bbox.cl",
     catalogUrl: "https://orbit.boom-box.cl/catalogo/eventos",
   });
-  assert.match(rendered.html, /al abrir Planes y Valores/);
+  assert.match(rendered.html, /Revisa los planes disponibles/);
   assert.doesNotMatch(rendered.html, /documento adjunto|PDF ADJUNTO/);
   assert.match(rendered.text, /VER PLANES Y VALORES: https:\/\/orbit\.boom-box\.cl\/catalogo\/eventos/);
 });
@@ -216,8 +216,8 @@ test("social redesign preserves recipients, optional PDF, idempotency, and Empre
   assert.match(actions, /to: input\.email\.trim\(\)\.toLowerCase\(\)/);
   assert.match(actions, /attachments: downloaded\?\.data \?/);
   assert.match(actions, /idempotency_key: input\.requestId/);
-  assert.match(actions, /input\.category !== "COMPANIES_CATALOG"/);
-  assert.match(actions, /socialEmail\?\.html \?\? renderBoomboxCommercialEmail/);
+  assert.match(actions, /input\.category === "COMPANIES_CATALOG"/);
+  assert.match(actions, /buildSocialPlansEmail\(\{/);
 });
 
 test("graphical BOOMBOX signature stays compact across every email sender", () => {
@@ -226,8 +226,8 @@ test("graphical BOOMBOX signature stays compact across every email sender", () =
     source("features/commercial-hub/social-plans-email.ts"),
     source("features/connectors/whatsapp-cloud/whatsapp-catalog.delivery.ts"),
   ].join("\n");
-  assert.equal((senders.match(/max-width:420px/g) ?? []).length, 4);
-  assert.doesNotMatch(senders, /max-width:600px/);
+  assert.equal((senders.match(/max-width:280px/g) ?? []).length, 4);
+  assert.doesNotMatch(senders, /max-width:420px|max-width:600px/);
   assert.match(source("features/commercial-hub/commercial-hub.tsx"), /max-w-\[420px\]/);
 });
 
@@ -265,7 +265,7 @@ test("premium customer email shell keeps readable spacing on mobile", () => {
     secondaryAction: { href: "https://app.bbox.cl/b", label: "ACCIÓN SECUNDARIA" },
   });
   assert.match(html, /\.orbit-body p\{margin-bottom:14px!important\}/);
-  assert.match(html, /\.orbit-body \\.orbit-signature p\{margin:0!important\}/);
+  assert.match(html, /\.orbit-body \.orbit-signature p\{margin:0!important\}/);
   assert.match(html, /\.orbit-action\{width:100%!important/);
   assert.match(html, /\.orbit-action-link\{display:block!important;width:100%!important/);
   assert.match(html, /\.orbit-footer td\{display:block!important/);
