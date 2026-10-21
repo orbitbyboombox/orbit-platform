@@ -2799,6 +2799,16 @@ export function NewProjectDrawer({
                 <p className="mt-3 text-lg font-medium">
                   El Founder decide cuándo comunicarla al cliente.
                 </p>
+                {createdProject.reservationNumber && (
+                  <p className="text-sm font-semibold text-foreground" role="status">
+                    Reserva confirmada: {createdProject.reservationNumber}
+                  </p>
+                )}
+                {createdProject.reservationIntegrationsPending && (
+                  <p className="mt-2 text-sm font-medium text-warning" role="status">
+                    Reserva confirmada. Estamos terminando de sincronizar los documentos.
+                  </p>
+                )}
               </div>
               <div className="grid gap-3 text-left sm:grid-cols-2">
                 {[

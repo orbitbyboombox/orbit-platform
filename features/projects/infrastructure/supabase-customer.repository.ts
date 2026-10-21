@@ -29,6 +29,7 @@ interface CustomerRow {
 interface ProjectRow {
   id: string;
   customer_id: string;
+  orbit_event_id: string;
   name: string;
   project_type: string;
   status: string;
@@ -126,7 +127,7 @@ export class SupabaseCustomerRepository implements CustomerRepository {
       this.client
         .from("projects")
         .select(
-          "id,customer_id,name,project_type,status,health,event_date,event_time,event_time_mode,location,city,operations,communication_recipient_snapshot",
+          "id,customer_id,orbit_event_id,name,project_type,status,health,event_date,event_time,event_time_mode,location,city,operations,communication_recipient_snapshot",
         )
         .is("deleted_at", null)
         .order("event_date", { ascending: true }),
@@ -217,6 +218,7 @@ export class SupabaseCustomerRepository implements CustomerRepository {
                 (tag): tag is string => typeof tag === "string",
               )
             : [],
+          reservationNumber: row.orbit_event_id,
         } satisfies Project,
       ];
     });
@@ -250,6 +252,7 @@ export class SupabaseCustomerRepository implements CustomerRepository {
     if (canonicalCustomerError) throw canonicalCustomerError;
     return {
       id: projectId,
+      reservationNumber: String(row.orbit_event_id),
       name: canonicalCustomer.company || canonicalCustomer.full_name,
       type: draft.type,
       client: {

@@ -94,8 +94,10 @@ export interface Project {
   salesOwner?: string;
   nextAction?: string;
   tags?: string[];
+  reservationNumber?: string;
   reservationTransactionId?: string;
   reservationResumed?: boolean;
+  reservationIntegrationsPending?: boolean;
 }
 
 export interface ProjectDraft {

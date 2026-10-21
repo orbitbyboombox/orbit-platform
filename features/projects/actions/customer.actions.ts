@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SupabaseCustomerRepository } from "../infrastructure";
@@ -49,6 +50,127 @@ const reservationExecutionSteps = [
   "Confirmation",
 ] as const;
 type ReservationStep = (typeof reservationExecutionSteps)[number];
+
+const confirmationStepForStage = (stage: ConfirmationStage): ReservationStep =>
+  stage === "RECORDS"
+    ? "Reservation Records"
+    : stage === "BUSINESS_ENGINE"
+      ? "Business Engine"
+      : stage === "GOOGLE_CALENDAR"
+        ? "Google Calendar"
+        : stage === "GOOGLE_DRIVE"
+          ? "Google Drive"
+          : stage === "PORTAL"
+            ? "Portal"
+            : stage === "CUSTOMER_EMAIL"
+              ? "Customer Email"
+              : stage === "FOUNDER_EMAIL"
+                ? "Founder Email"
+                : "Dashboard";
+
+const completedConfirmationStages = (steps: unknown): Set<ConfirmationStage> => {
+  const completed = new Set<ConfirmationStage>();
+  if (!Array.isArray(steps)) return completed;
+  const values = new Set(steps.filter((value): value is string => typeof value === "string"));
+  if (values.has("Reservation Records")) completed.add("RECORDS");
+  if (values.has("Business Engine")) completed.add("BUSINESS_ENGINE");
+  if (values.has("Google Calendar")) completed.add("GOOGLE_CALENDAR");
+  if (values.has("Google Drive")) completed.add("GOOGLE_DRIVE");
+  if (values.has("Portal")) completed.add("PORTAL");
+  if (values.has("Customer Email")) completed.add("CUSTOMER_EMAIL");
+  if (values.has("Founder Email")) completed.add("FOUNDER_EMAIL");
+  if (values.has("Dashboard")) completed.add("DASHBOARD");
+  return completed;
+};
+
+async function continueManualReservationIntegrations(input: {
+  client: Awaited<ReturnType<typeof createSupabaseServerClient>>;
+  transactionId: string;
+  projectId: string;
+  actorId: string;
+}) {
+  const { data: transaction, error: transactionError } = await input.client
+    .from("reservation_transactions")
+    .select("status,project_id,completed_steps")
+    .eq("id", input.transactionId)
+    .maybeSingle();
+  if (transactionError) throw transactionError;
+  if (!transaction || transaction.project_id !== input.projectId || transaction.status === "COMPLETED") return;
+
+  const leaseToken = crypto.randomUUID();
+  const { data: claimed, error: leaseError } = await input.client.rpc(
+    "claim_manual_reservation_integrations",
+    {
+      p_transaction_id: input.transactionId,
+      p_lease_token: leaseToken,
+      p_lease_seconds: 600,
+    },
+  );
+  if (leaseError) throw leaseError;
+  if (!claimed) return;
+
+  const checkpoint = async (step: ReservationStep, status: "PASS" | "FAIL", message?: string) => {
+    const { error } = await input.client.rpc("checkpoint_reservation_transaction", {
+      p_transaction_id: input.transactionId,
+      p_step: step,
+      p_status: status,
+      p_error: message ?? null,
+    });
+    if (error) throw error;
+  };
+
+  const confirmation = await confirmPersistedReservation({
+    client: input.client,
+    projectId: input.projectId,
+    actorId: input.actorId,
+    completedStages: completedConfirmationStages(transaction.completed_steps),
+    onStage: async (stage, status) => {
+      const label = confirmationStepForStage(stage);
+      if (status === "PASS") await checkpoint(label, "PASS");
+      if (status === "FAIL") await checkpoint(label, "FAIL", `La etapa ${label} requiere reintento.`);
+    },
+  });
+  if (confirmation.warnings.length) {
+    console.error(JSON.stringify({
+      level: "error",
+      event: "manual_reservation.post_commit_integrations_pending",
+      transactionId: input.transactionId,
+      projectId: input.projectId,
+      warnings: confirmation.warnings,
+      timestamp: new Date().toISOString(),
+    }));
+    return;
+  }
+  await checkpoint("Confirmation", "PASS");
+  revalidatePath("/projects");
+}
+
+export async function resumeManualReservationAction(transactionId: string) {
+  try {
+    const client = await createSupabaseServerClient();
+    const { data: auth } = await client.auth.getUser();
+    if (!auth.user) throw new Error("Sesión requerida.");
+    const { data: profile, error: profileError } = await client
+      .from("profiles")
+      .select("role")
+      .eq("id", auth.user.id)
+      .single();
+    if (profileError) throw profileError;
+    if (!isAdministrativeRole(profile.role)) throw new Error("No tienes permiso para reanudar esta reserva.");
+    const { data: transaction, error } = await client
+      .from("reservation_transactions")
+      .select("project_id,status")
+      .eq("id", transactionId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!transaction?.project_id) return { ok: false as const, error: "No existe una reserva reanudable." };
+    if (transaction.status === "COMPLETED") return { ok: true as const, status: "COMPLETED" as const, projectId: transaction.project_id };
+    await continueManualReservationIntegrations({ client, transactionId, projectId: transaction.project_id, actorId: auth.user.id });
+    return { ok: true as const, status: "PROCESSING" as const, projectId: transaction.project_id };
+  } catch (error) {
+    return { ok: false as const, error: error instanceof Error ? error.message : "No fue posible reanudar la reserva." };
+  }
+}
 
 function reservationErrorDetails(error: unknown) {
   if (error instanceof Error)
@@ -282,7 +404,6 @@ export async function createCustomerProjectAction(
       revalidatePath("/projects");
       return { ok: true, project: { ...project, reservationResumed: true } };
     }
-    let preparedPortal: { url: string; expiresAt: string } | undefined;
     projectId = project.id;
     for (const label of reservationExecutionSteps.slice(0, 5)) {
       mark(label, "PASS");
@@ -556,15 +677,11 @@ export async function createCustomerProjectAction(
           .eq("project_id", project.id);
       if (agreementLookupError) throw agreementLookupError;
       if (!existingAgreementCount) {
-        const result = await formalizeManualReservation({
+        await formalizeManualReservation({
           projectId: project.id,
           actorId: auth.user.id,
           formalization: draft.commercialFormalization,
         });
-        preparedPortal = {
-          url: ("url" in result ? result.url : result.portalUrl) ?? "",
-          expiresAt: "expiresAt" in result ? result.expiresAt : "",
-        };
       }
       const { data: persisted, error: persistedError } = await client
         .from("projects")
@@ -627,69 +744,53 @@ export async function createCustomerProjectAction(
       });
       if (shellError) throw shellError;
     }
-    const completedStages = new Set<ConfirmationStage>();
-    if (completedSteps.has("Business Engine"))
-      completedStages.add("BUSINESS_ENGINE");
-    if (completedSteps.has("Google Calendar"))
-      completedStages.add("GOOGLE_CALENDAR");
-    if (completedSteps.has("Google Drive")) completedStages.add("GOOGLE_DRIVE");
-    if (completedSteps.has("Portal")) completedStages.add("PORTAL");
-    if (completedSteps.has("Customer Email"))
-      completedStages.add("CUSTOMER_EMAIL");
-    if (completedSteps.has("Founder Email"))
-      completedStages.add("FOUNDER_EMAIL");
-    if (completedSteps.has("Dashboard")) completedStages.add("DASHBOARD");
-    if (completedSteps.has("Reservation Records"))
-      completedStages.add("RECORDS");
-    const confirmation = await confirmPersistedReservation({
-      client,
-      projectId: project.id,
-      actorId: auth.user.id,
-      portal: preparedPortal,
-      completedStages,
-      onStage: async (stage, status) => {
-        const label =
-          stage === "RECORDS"
-            ? "Reservation Records"
-            : stage === "BUSINESS_ENGINE"
-            ? "Business Engine"
-            : stage === "GOOGLE_CALENDAR"
-              ? "Google Calendar"
-              : stage === "GOOGLE_DRIVE"
-                ? "Google Drive"
-                : stage === "PORTAL"
-                  ? "Portal"
-                  : stage === "CUSTOMER_EMAIL"
-                    ? "Customer Email"
-                    : stage === "FOUNDER_EMAIL"
-                      ? "Founder Email"
-                      : "Dashboard";
-        currentStep = label;
-        if (status === "PASS") {
-          mark(label, "PASS");
-          log(label, "PASS", { projectId });
-          await checkpoint(label, "PASS");
-        } else if (status === "FAIL") {
-          mark(label, "FAIL");
-          log(label, "FAIL", { projectId });
-          await checkpoint(label, "FAIL", `La etapa ${label} requiere reintento.`);
-        }
-      },
-    });
-    if (confirmation.warnings.length) {
-      const pending = confirmation.warnings
-        .map((warning) => `${warning.stage}: ${warning.error}`)
-        .join(" · ");
-      throw new Error(`La reserva quedó creada, pero requiere reintento de integración: ${pending}`);
+    // Persist the reservation records before returning. Provider integrations
+    // are deliberately outside the response-critical path and resume from the
+    // durable transaction checkpoints below.
+    currentStep = "Reservation Records";
+    if (!completedSteps.has("Reservation Records")) {
+      const { error: recordsError } = await client.rpc(
+        "prepare_confirmed_reservation_records",
+        { p_project_id: project.id, p_actor_id: auth.user.id },
+      );
+      if (recordsError) throw recordsError;
+      mark("Reservation Records", "PASS");
+      log("Reservation Records", "PASS", { projectId });
+      await checkpoint("Reservation Records", "PASS");
     }
-    currentStep = "Confirmation";
-    mark("Confirmation", "PASS");
-    log("Confirmation", "PASS", { projectId });
-    await checkpoint("Confirmation", "PASS");
+
+    const pendingIntegrations = !["Business Engine", "Portal", "Google Calendar", "Google Drive", "Founder Email", "Dashboard", "Confirmation"].every((step) => completedSteps.has(step));
+    if (pendingIntegrations) {
+      after(async () => {
+        try {
+          await continueManualReservationIntegrations({
+            client,
+            transactionId,
+            projectId: project.id,
+            actorId: auth.user.id,
+          });
+        } catch (error) {
+          console.error(JSON.stringify({
+            level: "error",
+            event: "manual_reservation.post_commit_resume_failed",
+            transactionId,
+            projectId: project.id,
+            error: reservationErrorDetails(error),
+            timestamp: new Date().toISOString(),
+          }));
+        }
+      });
+    }
     await persistDiagnostic("PASS");
     revalidatePath("/projects");
     revalidatePath("/settings");
-    return { ok: true, project };
+    return {
+      ok: true,
+      project: {
+        ...project,
+        reservationIntegrationsPending: pendingIntegrations,
+      },
+    };
   } catch (error) {
     if (diagnosticClient && transactionId) {
       const details = reservationErrorDetails(error);
