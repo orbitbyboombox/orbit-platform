@@ -60,3 +60,12 @@ test("Videos BBOX 360 follows the Fotos digitales card structure without touchin
   assert.doesNotMatch(component, /DIGITAL_PHOTO_DELIVERY/);
   assert.match(photo, /data-digital-photo-delivery/);
 });
+
+
+test("BBOX360 email includes the same official Google review CTA as digital photos", async () => {
+  const template = await readFile(new URL("../features/connectors/google-gmail/application/bbox360-video-delivery.template.ts", import.meta.url), "utf8");
+  assert.match(template, /DIGITAL_PHOTO_REVIEW_URL/);
+  assert.match(template, /Tu experiencia nos importa/);
+  assert.match(template, /DEJAR UNA RESEÑA EN GOOGLE/);
+  assert.match(template, /bbox360VideoDeliveryText/);
+});
