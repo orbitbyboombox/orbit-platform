@@ -11,6 +11,8 @@ type PendingTransaction = {
   project_id: string;
   actor_id: string;
   integration_attempt_count: number | null;
+  status: string;
+  integration_stage_state: Record<string, unknown> | null;
 };
 
 export async function processPendingManualReservationIntegrations(
@@ -19,13 +21,11 @@ export async function processPendingManualReservationIntegrations(
   const now = new Date().toISOString();
   const { data, error } = await client
     .from("reservation_transactions")
-    .select("id,project_id,actor_id,integration_attempt_count")
+    .select("id,project_id,actor_id,integration_attempt_count,status,integration_stage_state")
     .eq("reservation_method", "MANUAL")
     .in("status", ["PROCESSING", "FAILED"])
     .not("project_id", "is", null)
-    // Only retry failures recorded by the new integration state machine.
-    // Historical FAILED rows have no integration stage state and must remain untouched.
-    .not("integration_stage_state", "eq", "{}")
+    // Legacy CREATED rows are not eligible for automatic recovery.
     .lt("integration_attempt_count", MAX_INTEGRATION_ATTEMPTS)
     .or(`integration_next_attempt_at.is.null,integration_next_attempt_at.lte.${now}`)
     .order("updated_at", { ascending: true })
@@ -34,6 +34,11 @@ export async function processPendingManualReservationIntegrations(
 
   const results: Array<Record<string, unknown>> = [];
   for (const transaction of (data ?? []) as PendingTransaction[]) {
+    // Old FAILED rows predate durable checkpoints; never replay them.
+    if (transaction.status === "FAILED" && !Object.keys(transaction.integration_stage_state ?? {}).length) {
+      results.push({ transactionId: transaction.id, status: "SKIPPED_LEGACY_FAILURE" });
+      continue;
+    }
     const startedAt = Date.now();
     try {
       const result = await continueManualReservationIntegrations({
