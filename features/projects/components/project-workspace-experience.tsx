@@ -45,6 +45,7 @@ import {
 } from "@/features/asset-management";
 import { AgreementSigningControl } from "@/features/projects/signing/agreement-signing-control";
 import { DigitalPhotoDeliveryControl } from "@/features/projects/communications/digital-photo-delivery-control";
+import { Bbox360VideoDeliveryControl } from "@/features/projects/communications/bbox360-video-delivery-control";
 import { PreEventReminderControl } from "@/features/projects/communications/pre-event-reminder-control";
 import {
   ProductionIntegrationPanel,
@@ -1759,6 +1760,8 @@ export function ProjectWorkspaceExperience(
           {activeTab === "COMMUNICATIONS" && <PreEventReminderControl projectId={props.projectKey ?? ""} />}
 
           {activeTab === "COMMUNICATIONS" && <DigitalPhotoDeliveryControl projectId={props.projectKey ?? ""} />}
+
+          {activeTab === "COMMUNICATIONS" && <Bbox360VideoDeliveryControl projectId={props.projectKey ?? ""} />}
 
           {activeTab === "OPERATION" && moduleVisible("MILESTONES") && (
             <OptionalModule moduleKey="MILESTONES" onHide={hideModule}>
