@@ -16,9 +16,10 @@ test("BBOX 360 video links require HTTPS and the renderer preserves the customer
   assert.match(html, /VER VIDEOS BBOX 360/);
 });
 
-test("BBOX 360 eligibility is canonical and the communication type is independent", async () => {
+test("BBOX 360 is available for all events and the communication type is independent", async () => {
   const source = await service();
-  assert.match(source, /service_code === "BBOX360"/);
+  assert.doesNotMatch(source, /service_code === "BBOX360"/);
+  assert.doesNotMatch(source, /project_services\(service_code\)/);
   assert.match(source, /BBOX360_VIDEO_DELIVERY/);
   assert.match(source, /bbox360_video_delivery_url/);
   assert.doesNotMatch(source, /DIGITAL_PHOTO_DELIVERY/);
