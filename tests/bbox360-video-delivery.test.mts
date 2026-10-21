@@ -30,3 +30,32 @@ test("workspace renders the independent card after Fotos digitales without autom
   assert.ok(source.indexOf("DigitalPhotoDeliveryControl") < source.indexOf("Bbox360VideoDeliveryControl"));
   assert.match(source, /activeTab === "COMMUNICATIONS"/);
 });
+
+test("first send requires an explicit confirmation and presents recipient and CC", async () => {
+  const source = await readFile(new URL("../features/projects/communications/bbox360-video-delivery-control.tsx", import.meta.url), "utf8");
+  assert.match(source, /setConfirming\(composer\.hasSuccessfulSend \? "resend" : "first"\)/);
+  assert.match(source, /Se enviará a <strong>\{composer\.to\}<\/strong>/);
+  assert.match(source, /onClick=\{\(\) => setConfirming\(false\)\}/);
+  assert.match(source, /onClick=\{\(\) => deliver\(true\)\}/);
+});
+
+test("confirmation sends confirmResend=true and keeps the stable request id for idempotency", async () => {
+  const source = await readFile(new URL("../features/projects/communications/bbox360-video-delivery-control.tsx", import.meta.url), "utf8");
+  const service = await readFile(new URL("../features/connectors/google-gmail/application/bbox360-video-delivery.service.ts", import.meta.url), "utf8");
+  assert.match(source, /data\.set\("confirmResend", String\(confirmed\)\)/);
+  assert.match(source, /data\.set\("requestId", requestId \|\| crypto\.randomUUID\(\)\)/);
+  assert.match(source, /submissionGate\.current = true/);
+  assert.match(service, /communication_type.*communicationType/);
+  assert.match(service, /BBOX360_VIDEO_DELIVERY/);
+});
+
+test("Videos BBOX 360 follows the Fotos digitales card structure without touching its module", async () => {
+  const component = await readFile(new URL("../features/projects/communications/bbox360-video-delivery-control.tsx", import.meta.url), "utf8");
+  const photo = await readFile(new URL("../features/projects/communications/digital-photo-delivery-control.tsx", import.meta.url), "utf8");
+  assert.match(component, /MobileDialog/);
+  assert.match(component, /VISTA PREVIA DEL CORREO/);
+  assert.match(component, /VER HISTORIAL/);
+  assert.match(component, /rounded-2xl border bg-card p-5 sm:p-6/);
+  assert.doesNotMatch(component, /DIGITAL_PHOTO_DELIVERY/);
+  assert.match(photo, /data-digital-photo-delivery/);
+});
