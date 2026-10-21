@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SupabaseCustomerRepository } from "../infrastructure";
@@ -54,6 +55,8 @@ type ReservationStep = (typeof reservationExecutionSteps)[number];
 const confirmationStepForStage = (stage: ConfirmationStage): ReservationStep =>
   stage === "RECORDS"
     ? "Reservation Records"
+    : stage === "TIMELINE"
+      ? "Timeline"
     : stage === "BUSINESS_ENGINE"
       ? "Business Engine"
       : stage === "GOOGLE_CALENDAR"
@@ -73,6 +76,7 @@ const completedConfirmationStages = (steps: unknown): Set<ConfirmationStage> => 
   if (!Array.isArray(steps)) return completed;
   const values = new Set(steps.filter((value): value is string => typeof value === "string"));
   if (values.has("Reservation Records")) completed.add("RECORDS");
+  if (values.has("Timeline")) completed.add("TIMELINE");
   if (values.has("Business Engine")) completed.add("BUSINESS_ENGINE");
   if (values.has("Google Calendar")) completed.add("GOOGLE_CALENDAR");
   if (values.has("Google Drive")) completed.add("GOOGLE_DRIVE");
@@ -83,66 +87,109 @@ const completedConfirmationStages = (steps: unknown): Set<ConfirmationStage> => 
   return completed;
 };
 
-async function continueManualReservationIntegrations(input: {
-  client: Awaited<ReturnType<typeof createSupabaseServerClient>>;
+export async function continueManualReservationIntegrations(input: {
+  client: SupabaseClient;
   transactionId: string;
   projectId: string;
   actorId: string;
+  internalWorker?: boolean;
 }) {
   const { data: transaction, error: transactionError } = await input.client
     .from("reservation_transactions")
-    .select("status,project_id,completed_steps")
+    .select("status,project_id,completed_steps,actor_id,integration_attempt_count")
     .eq("id", input.transactionId)
     .maybeSingle();
   if (transactionError) throw transactionError;
   if (!transaction || transaction.project_id !== input.projectId || transaction.status === "COMPLETED") return;
 
   const leaseToken = crypto.randomUUID();
+  const internalWorker = input.internalWorker === true;
+  const leaseArgs = {
+    p_transaction_id: input.transactionId,
+    p_lease_token: leaseToken,
+    p_lease_seconds: 600,
+    ...(internalWorker ? { p_internal_worker: true } : {}),
+  };
   const { data: claimed, error: leaseError } = await input.client.rpc(
     "claim_manual_reservation_integrations",
-    {
-      p_transaction_id: input.transactionId,
-      p_lease_token: leaseToken,
-      p_lease_seconds: 600,
-    },
+    leaseArgs,
   );
   if (leaseError) throw leaseError;
   if (!claimed) return;
 
-  const checkpoint = async (step: ReservationStep, status: "PASS" | "FAIL", message?: string) => {
-    const { error } = await input.client.rpc("checkpoint_reservation_transaction", {
+  const startedAt = new Map<string, number>();
+  const attempt = Number(transaction.integration_attempt_count ?? 1);
+  const nextAttemptSeconds = Math.min(3600, 30 * 2 ** Math.max(0, attempt - 1));
+  const checkpoint = async (
+    step: ReservationStep,
+    status: "STARTED" | "PASS" | "FAIL",
+    message?: string,
+  ) => {
+    const { error } = await input.client.rpc("record_manual_reservation_integration", {
       p_transaction_id: input.transactionId,
+      p_lease_token: leaseToken,
       p_step: step,
       p_status: status,
       p_error: message ?? null,
+      p_duration_ms: status === "STARTED" ? 0 : Math.max(0, Date.now() - (startedAt.get(step) ?? Date.now())),
+      p_next_attempt_seconds: nextAttemptSeconds,
+      p_internal_worker: internalWorker,
     });
     if (error) throw error;
   };
 
-  const confirmation = await confirmPersistedReservation({
-    client: input.client,
-    projectId: input.projectId,
-    actorId: input.actorId,
-    completedStages: completedConfirmationStages(transaction.completed_steps),
-    onStage: async (stage, status) => {
-      const label = confirmationStepForStage(stage);
-      if (status === "PASS") await checkpoint(label, "PASS");
-      if (status === "FAIL") await checkpoint(label, "FAIL", `La etapa ${label} requiere reintento.`);
-    },
-  });
-  if (confirmation.warnings.length) {
-    console.error(JSON.stringify({
-      level: "error",
-      event: "manual_reservation.post_commit_integrations_pending",
-      transactionId: input.transactionId,
+  try {
+    const confirmation = await confirmPersistedReservation({
+      client: input.client,
       projectId: input.projectId,
-      warnings: confirmation.warnings,
-      timestamp: new Date().toISOString(),
-    }));
-    return;
+      actorId: input.actorId,
+      // Customer Email is intentionally excluded. Historical pending customer
+      // emails require an explicit Founder action and are never cron work.
+      sendCustomerCommunication: false,
+      completedStages: completedConfirmationStages(transaction.completed_steps),
+      onStage: async (stage, status) => {
+        const label = confirmationStepForStage(stage);
+        if (status === "STARTED") {
+          startedAt.set(label, Date.now());
+          await checkpoint(label, "STARTED");
+        } else if (status === "PASS") {
+          await checkpoint(label, "PASS");
+        } else {
+          await checkpoint(label, "FAIL", `La etapa ${label} requiere reintento.`);
+        }
+      },
+    });
+    if (confirmation.warnings.length) {
+      console.error(JSON.stringify({
+        level: "error",
+        event: "manual_reservation.post_commit_integrations_pending",
+        transactionId: input.transactionId,
+        projectId: input.projectId,
+        warnings: confirmation.warnings,
+        timestamp: new Date().toISOString(),
+      }));
+      return { status: "PENDING" as const, warnings: confirmation.warnings };
+    }
+    await checkpoint("Confirmation", "PASS");
+    revalidatePath("/projects");
+    return { status: "COMPLETED" as const, warnings: [] };
+  } finally {
+    const { error: releaseError } = await input.client.rpc("release_manual_reservation_integration", {
+      p_transaction_id: input.transactionId,
+      p_lease_token: leaseToken,
+      p_internal_worker: internalWorker,
+    });
+    if (releaseError) {
+      console.error(JSON.stringify({
+        level: "error",
+        event: "manual_reservation.lease_release_failed",
+        transactionId: input.transactionId,
+        projectId: input.projectId,
+        error: releaseError.message,
+        timestamp: new Date().toISOString(),
+      }));
+    }
   }
-  await checkpoint("Confirmation", "PASS");
-  revalidatePath("/projects");
 }
 
 export async function resumeManualReservationAction(transactionId: string) {
