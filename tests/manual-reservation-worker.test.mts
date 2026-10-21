@@ -34,6 +34,21 @@ test("worker records lease-safe stages and never enables historical customer ema
   assert.match(migration, /integration_lease_until/);
   assert.match(migration, /for update/i);
   assert.match(migration, /service_role/);
+  assert.match(migration, /coalesce\(integration_attempt_count, 0\) < 8/);
+  assert.match(migration, /actor_id = auth\.uid\(\) or public\.can_administer\(\)/);
   assert.match(migration, /least\(greatest\(coalesce\(p_next_attempt_seconds, 30\), 30\), 3600\)/);
   assert.match(migration, /Customer Email/);
+});
+
+test("completed transactions with pending customer email remain pending and are not worker candidates", () => {
+  const action = read("features/projects/actions/customer.actions.ts");
+  const worker = read("features/projects/operations/manual-reservation-integrations-worker.service.ts");
+  const drawer = read("features/projects/components/new-project-drawer.tsx");
+
+  assert.match(action, /transaction\.status === "COMPLETED"/);
+  assert.match(action, /sendCustomerCommunication:\s*false/);
+  assert.match(action, /Customer Email/);
+  assert.match(worker, /\.in\("status", \["CREATED", "PROCESSING", "FAILED"\]\)/);
+  assert.match(drawer, /Confirmación cliente pendiente de envío/);
+  assert.doesNotMatch(drawer, /Customer Email.*enviado/);
 });

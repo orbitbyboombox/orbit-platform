@@ -35,6 +35,7 @@ begin
       updated_at = now()
   where id = p_transaction_id
     and status <> 'COMPLETED'
+    and coalesce(integration_attempt_count, 0) < 8
     and (integration_lease_until is null or integration_lease_until <= now() or integration_lease_token = p_lease_token)
     and (integration_next_attempt_at is null or integration_next_attempt_at <= now())
     and (actor_id = auth.uid() or public.can_administer())
@@ -72,6 +73,7 @@ begin
       updated_at = now()
   where id = p_transaction_id
     and status <> 'COMPLETED'
+    and coalesce(integration_attempt_count, 0) < 8
     and (integration_lease_until is null or integration_lease_until <= now() or integration_lease_token = p_lease_token)
     and (integration_next_attempt_at is null or integration_next_attempt_at <= now())
   returning true into claimed;
@@ -191,6 +193,7 @@ begin
       updated_at = now()
   where id = p_transaction_id
     and integration_lease_token = p_lease_token
+    and (p_internal_worker or actor_id = auth.uid() or public.can_administer())
   returning true into released;
   return coalesce(released, false);
 end;
