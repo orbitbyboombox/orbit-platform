@@ -42,7 +42,19 @@ export function renderBbox360VideoDeliveryHtml(
 }
 
 
-export function renderBbox360VideoDeliveryPreviewHtml(customerName: string, eventDate: string, suppliedVideoUrl: string) {
-  const placeholder = "https://preview.invalid/videos-bbox360";
-  try { return renderBbox360VideoDeliveryHtml(customerName, eventDate, suppliedVideoUrl); } catch { return renderBbox360VideoDeliveryHtml(customerName, eventDate, placeholder).replace("VER VIDEOS BBOX 360", "VER VIDEOS BBOX 360 (AGREGA EL ENLACE)"); }
+const BBOX360_VIDEO_PREVIEW_URL = "https://preview.invalid/videos-bbox360";
+
+export function renderBbox360VideoDeliveryPreviewHtml(
+  customerName: string,
+  eventDate: string,
+  suppliedVideoUrl: string,
+) {
+  try {
+    return renderBbox360VideoDeliveryHtml(customerName, eventDate, suppliedVideoUrl);
+  } catch {
+    const html = renderBbox360VideoDeliveryHtml(customerName, eventDate, BBOX360_VIDEO_PREVIEW_URL);
+    const activeCta = `<a href="${BBOX360_VIDEO_PREVIEW_URL}" target="_blank" rel="noopener noreferrer" style="display:inline-block;box-sizing:border-box;max-width:100%;border-radius:12px;background:#ed7203;padding:14px 28px;font-size:15px;font-weight:800;letter-spacing:.04em;color:#ffffff;text-decoration:none">VER VIDEOS BBOX 360</a>`;
+    const disabledCta = `<span aria-disabled="true" style="display:inline-block;box-sizing:border-box;max-width:100%;border-radius:12px;background:#ed7203;padding:14px 28px;font-size:15px;font-weight:800;letter-spacing:.04em;color:#ffffff;text-decoration:none;opacity:.55;cursor:not-allowed">VER VIDEOS BBOX 360</span><p style="margin:10px 0 0;font-size:12px;line-height:1.45;color:#6b7280">Agrega el enlace de los videos para habilitar este botón.</p>`;
+    return html.replace(activeCta, disabledCta);
+  }
 }
