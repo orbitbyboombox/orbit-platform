@@ -782,7 +782,7 @@ export function ProjectWorkspaceExperience(
                     value={
                       <a
                         className="text-brand hover:underline"
-                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(props.location)}`}
+                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([event.customer.address, event.customer.city, "Chile"].filter(Boolean).join(", ") || props.location)}`}
                         rel="noreferrer"
                         target="_blank"
                       >
