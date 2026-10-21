@@ -21,8 +21,9 @@ export async function processPendingManualReservationIntegrations(
     .from("reservation_transactions")
     .select("id,project_id,actor_id,integration_attempt_count")
     .eq("reservation_method", "MANUAL")
-    .in("status", ["CREATED", "PROCESSING", "FAILED"])
+    .in("status", ["PROCESSING"])
     .not("project_id", "is", null)
+    // Do not replay historical CREATED/FAILED transactions: some are cancelled or blocked by capacity.
     .lt("integration_attempt_count", MAX_INTEGRATION_ATTEMPTS)
     .or(`integration_next_attempt_at.is.null,integration_next_attempt_at.lte.${now}`)
     .order("updated_at", { ascending: true })
