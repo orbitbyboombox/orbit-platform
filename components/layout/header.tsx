@@ -5,10 +5,12 @@ import {
   ChevronDown,
   LogOut,
   Menu,
+  RefreshCw,
   Settings2,
   X,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Avatar } from "@/components/ui/avatar";
@@ -33,6 +35,8 @@ export interface HeaderProps {
 }
 
 export function Header({ userEmail, userName, userRole, actionableNotifications, navigationOrder, hiddenNavigation, resilientSyncEnabled }: HeaderProps) {
+  const router = useRouter();
+  const [isRefreshing, startRefresh] = useTransition();
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const pathname = usePathname();
@@ -77,6 +81,17 @@ export function Header({ userEmail, userName, userRole, actionableNotifications,
         </Link>
         <GlobalSearch />
         {resilientSyncEnabled ? <ResilientSyncIndicator /> : null}
+        <Button
+          aria-label={isRefreshing ? "Actualizando datos" : "Actualizar datos"}
+          title="Actualizar datos sin cerrar ORBIT"
+          size="icon"
+          variant="ghost"
+          disabled={isRefreshing}
+          onClick={() => startRefresh(() => router.refresh())}
+          type="button"
+        >
+          <RefreshCw aria-hidden="true" className={isRefreshing ? "size-4 animate-spin" : "size-4"} />
+        </Button>
         {isEnabled("OPERATIONS") && <Button
           aria-label={`${actionableNotifications} pendientes por revisar`}
           asChild
