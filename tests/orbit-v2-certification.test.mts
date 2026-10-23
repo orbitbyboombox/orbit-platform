@@ -14,6 +14,12 @@ test("ORBIT BOOMBOX release identifies itself as v2.1.2", () => {
   assert.doesNotMatch(signature, /settings\.productVersion<\/p>/);
 });
 
+test("document metadata uses the same visible release identifier", () => {
+  const layout = read("app/layout.tsx");
+  assert.match(layout, /title:`\$\{settings\.productName\} \$\{ORBIT_DISPLAY_VERSION\}`/);
+  assert.doesNotMatch(layout, /title:`\$\{settings\.productName\} \$\{settings\.productVersion\}`/);
+});
+
 test("receipt Content-Disposition remains ASCII-safe while preserving UTF-8 filename", () => {
   const route = read("app/api/staff-monthly-accounts/[accountId]/receipt/route.ts");
   assert.match(route, /filename\*=UTF-8''/);
