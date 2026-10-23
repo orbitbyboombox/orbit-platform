@@ -97,3 +97,11 @@ test("availability uses the canonical two-hour logistics buffer", () => {
   assert.match(migration, /p_project_ids uuid\[\]/);
   assert.doesNotMatch(migration, /asset_row\.status='ASSIGNED'/);
 });
+
+test("pre-event Event 360 replacements do not invoke the paper closeout guard", () => {
+  const migration = readFileSync("supabase/migrations/20261022140000_allow_pre_event_box_reassignment.sql", "utf8");
+  assert.match(migration, /new\.release_reason/);
+  assert.match(migration, /Reemplazo manual desde Event 360/);
+  assert.match(migration, /s\.paper_required/);
+  assert.match(migration, /s\.status not in\('CONFIRMED','OVERRIDDEN'\)/);
+});
