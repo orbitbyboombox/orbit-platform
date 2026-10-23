@@ -64,8 +64,8 @@ export function buildSocialPlansEmail(input: SocialPlansEmailInput) {
     !/NUESTRA PROPUESTA|Importante:|documento adjunto|planes y valores|Si alguna alternativa|Un abrazo|Equipo BOOMBOX/i.test(paragraph)
   ) || "Gracias por considerar a BOOMBOX para tu celebración.";
   const beforeAction = [greeting, intro];
-  const afterAction = ["Gracias por considerarnos para ser parte de tu celebración.", "Un abrazo,"];
-  const signatureHtml = '<p style="margin:0"><strong>Equipo BOOMBOX 📸✨</strong></p>';
+  const afterAction = ["Un abrazo,"];
+  const signatureHtml = '<p style="margin:0"><strong>Equipo BOOMBOX</strong></p>';
   const html = renderPremiumQuotationEmail({
     preheader: "Conoce las experiencias y valores BOOMBOX para tu celebración.",
     eyebrow: "",
@@ -90,7 +90,7 @@ export function buildSocialPlansEmail(input: SocialPlansEmailInput) {
     `${QUICK_SEND_CTA_LABEL}: ${input.catalogUrl}`,
     ...(input.transportUrl ? [`${input.transportLabel ?? "CONOCER VALOR DE TRASLADO"}: ${input.transportUrl}`] : []),
     ...afterAction,
-    input.signatureUrl ? "" : "Equipo BOOMBOX",
+    "Equipo BOOMBOX",
   ].filter(Boolean).join("\n\n");
   return { html, text };
 }
