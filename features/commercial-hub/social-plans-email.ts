@@ -56,13 +56,12 @@ export function buildSocialPlansEmail(input: SocialPlansEmailInput) {
       ? "Encontrarás el detalle completo de nuestras experiencias y valores al abrir Planes y Valores."
       : paragraph,
   );
-  const postActionIndex = paragraphs.findIndex((paragraph) =>
-    paragraph.startsWith("Si alguna alternativa te interesa,"),
-  );
+  const proposalIndex = paragraphs.findIndex((paragraph) => paragraph.replaceAll("**", "").trim() === "NUESTRA PROPUESTA");
+  const postActionIndex = proposalIndex >= 0 ? proposalIndex + 1 : Math.min(3, paragraphs.length);
   const beforeAction = postActionIndex < 0 ? paragraphs : paragraphs.slice(0, postActionIndex);
   const afterAction = postActionIndex < 0 ? [] : paragraphs.slice(postActionIndex);
   const signatureHtml = input.signatureUrl
-    ? `<p style="margin:0"><img src="${escapeHtml(input.signatureUrl)}" alt="BOOMBOX" style="display:block;max-width:420px;width:100%;height:auto;border:0"></p>`
+    ? `<p style="margin:0"><img src="${escapeHtml(input.signatureUrl)}" alt="BOOMBOX" style="display:block;max-width:320px;width:100%;height:auto;border:0"></p>`
     : `<p style="margin:0"><strong>Equipo BOOMBOX</strong></p>`;
   const html = renderPremiumQuotationEmail({
     preheader: "Conoce las experiencias y valores BOOMBOX para tu celebración.",
