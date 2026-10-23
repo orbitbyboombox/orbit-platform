@@ -4,11 +4,11 @@ import { buildSocialPlansEmail } from "@/features/commercial-hub/social-plans-em
 export const dynamic = "force-static";
 
 const examples = [
-  { label: "Matrimonios", message: "Gracias por considerar a BOOMBOX para su matrimonio. Te compartimos nuestra propuesta para celebrar este día especial." },
-  { label: "Eventos", message: "Hemos preparado una propuesta BOOMBOX para tu evento, con experiencias fotográficas adaptables a tu celebración." },
-  { label: "Cumpleaños", message: "¡Celebremos tu cumpleaños! Revisa nuestra propuesta de experiencias BOOMBOX." },
-  { label: "Graduaciones", message: "Tu graduación merece recuerdos inolvidables. Conoce nuestra propuesta BOOMBOX." },
-  { label: "Empresas", message: "Conoce nuestra propuesta de experiencias BOOMBOX para tu evento corporativo." },
+  { label: "Matrimonios", message: "Gracias por considerar a BOOMBOX para uno de los días más importantes de sus vidas. Preparamos una propuesta especial para que cada recuerdo de su matrimonio sea inolvidable." },
+  { label: "Eventos", message: "Gracias por pensar en BOOMBOX. Queremos que tu evento se transforme en una experiencia memorable para ti y tus invitados. Descubre nuestra propuesta preparada especialmente para tu celebración." },
+  { label: "Cumpleaños", message: "¡Cada cumpleaños merece celebrarse en grande! Preparamos experiencias fotográficas para compartir, reír y guardar los mejores recuerdos de tu celebración." },
+  { label: "Graduaciones", message: "Después de tanto esfuerzo, llegó el momento de celebrar. Queremos acompañarte con una experiencia fotográfica que capture la alegría de tu graduación." },
+  { label: "Empresas", message: "Las mejores experiencias de marca se recuerdan. Preparamos una propuesta BOOMBOX para conectar con tus invitados y destacar tu evento corporativo." },
 ] as const;
 
 export default function PremiumQuotationPreviewPage() {
