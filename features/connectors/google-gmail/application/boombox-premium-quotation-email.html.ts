@@ -4,13 +4,14 @@ const safe = (value: string) => value.replace(/[&<>"']/g, (char) => ({ "&": "&am
 
 /** Premium visual presentation only. Sending, PDF generation and recipients remain untouched. */
 export function renderPremiumQuotationEmail(input: BoomboxCommercialEmailInput): string {
-  const logo = safe(input.logoUrl || "https://app.bbox.cl/branding/boombox-email-logo.png");
+  const logo = safe(input.logoUrl || "https://app.bbox.cl/branding/boombox-official-logo.png");
   const button = (href: string, label: string, outlined = false) =>
     `<table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" style="margin:19px auto 0"><tr><td align="center" bgcolor="${outlined ? "#ffffff" : "#ed7203"}" style="border:1px solid #ed7203;border-radius:12px;padding:16px 29px;background:${outlined ? "#ffffff" : "#ed7203"}"><a href="${safe(href)}" style="font-family:Arial,sans-serif;font-size:15px;font-weight:800;letter-spacing:.02em;text-decoration:none;color:${outlined ? "#d85f00" : "#ffffff"};display:block">${safe(label)}</a></td></tr></table>`;
   const panel = (icon: string, heading: string, description: string, action: string) =>
     `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:22px 0 0;border:1px solid #f1c99f;border-radius:16px;background:#fff9f2"><tr><td style="padding:26px 23px;font-family:Arial,sans-serif"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td width="68" valign="top" style="width:68px;font-size:36px;line-height:1.3">${icon}</td><td valign="top"><div style="color:#e66d00;font-size:14px;font-weight:800;letter-spacing:.08em;line-height:1.5">${heading}</div><p style="margin:8px 0 0;font-size:15px;line-height:1.6;color:#333740">${description}</p></td></tr></table>${action}</td></tr></table>`;
+  const isPlans = /planes|valores|catálogo/i.test(input.primaryAction?.label || "");
   const primary = input.primaryAction
-    ? panel("📑", "TU COTIZACIÓN ESTÁ LISTA", "Preparamos una propuesta especialmente para tu evento. Descubre los servicios, valores y todos los detalles en tu cotización PDF.", button(input.primaryAction.href, input.primaryAction.label))
+    ? panel("📑", isPlans ? "CONOCE NUESTROS PLANES Y VALORES" : "TU COTIZACIÓN ESTÁ LISTA", isPlans ? "Descubre nuestras experiencias fotográficas, planes y valores para tu celebración." : "Preparamos una propuesta especialmente para tu evento. Descubre los servicios, valores y todos los detalles en tu cotización PDF.", button(input.primaryAction.href, input.primaryAction.label))
     : "";
   const secondaryLabel = input.secondaryAction?.label || "";
   const isTransport = /traslado|transporte/i.test(secondaryLabel);
