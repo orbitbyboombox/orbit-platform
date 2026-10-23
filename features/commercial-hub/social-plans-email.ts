@@ -59,13 +59,16 @@ export function buildSocialPlansEmail(input: SocialPlansEmailInput) {
   // Match the approved concise visual: greeting, one event-specific introduction,
   // action cards, then a short closing. Do not append the legacy long body or graphic signature.
   const greeting = paragraphs.find((paragraph) => /^Hola(?:\\s|,)/i.test(paragraph)) || `Hola ${input.contact},`;
-  const intro = paragraphs.find((paragraph) =>
-    paragraph !== greeting &&
-    !/NUESTRA PROPUESTA|Importante:|documento adjunto|planes y valores|Si alguna alternativa|Un abrazo|Equipo BOOMBOX/i.test(paragraph)
-  ) || "Gracias por considerar a BOOMBOX para tu celebración.";
+  const intro = /matrimonio/i.test(input.body)
+    ? "Gracias por considerar a BOOMBOX para uno de los días más importantes de sus vidas. Preparamos una propuesta especial para que cada recuerdo de su matrimonio sea inolvidable."
+    : /cumpleaños/i.test(input.body)
+      ? "¡Cada cumpleaños merece celebrarse en grande! Preparamos experiencias fotográficas para compartir, reír y guardar los mejores recuerdos de tu celebración."
+      : /graduaci[oó]n/i.test(input.body)
+        ? "Después de tanto esfuerzo, llegó el momento de celebrar. Queremos acompañarte con una experiencia fotográfica que capture la alegría de tu graduación."
+        : "Gracias por pensar en BOOMBOX. Queremos que tu evento se transforme en una experiencia memorable para ti y tus invitados.";
   const beforeAction = [greeting, intro];
-  const afterAction = ["Un abrazo,"];
-  const signatureHtml = '<p style="margin:0"><strong>Equipo BOOMBOX</strong></p>';
+  const afterAction: string[] = [];
+  const signatureHtml = '<p style="margin:0">Un abrazo,<br><strong>Equipo BOOMBOX</strong></p>';
   const html = renderPremiumQuotationEmail({
     preheader: "Conoce las experiencias y valores BOOMBOX para tu celebración.",
     eyebrow: "",
@@ -75,7 +78,7 @@ export function buildSocialPlansEmail(input: SocialPlansEmailInput) {
     contentHtml: beforeAction.map(renderParagraph).join(""),
     contentAfterActionsHtml: afterAction.map((paragraph, index) => renderParagraph(paragraph, beforeAction.length + index)).join(""),
     website: input.website,
-    primaryAction: { href: input.catalogUrl, label: QUICK_SEND_CTA_LABEL },
+    primaryAction: { href: input.catalogUrl, label: "VER PROPUESTA PDF" },
     secondaryAction: input.transportUrl
       ? { href: input.transportUrl, label: input.transportLabel ?? "CONOCER VALOR DE TRASLADO" }
       : undefined,
@@ -87,10 +90,10 @@ export function buildSocialPlansEmail(input: SocialPlansEmailInput) {
   });
   const text = [
     ...beforeAction,
-    `${QUICK_SEND_CTA_LABEL}: ${input.catalogUrl}`,
+    `VER PROPUESTA PDF: ${input.catalogUrl}`,
     ...(input.transportUrl ? [`${input.transportLabel ?? "CONOCER VALOR DE TRASLADO"}: ${input.transportUrl}`] : []),
     ...afterAction,
-    "Equipo BOOMBOX",
+    "Un abrazo, Equipo BOOMBOX",
   ].filter(Boolean).join("\n\n");
   return { html, text };
 }
