@@ -43,6 +43,7 @@ import {
   EquipmentAssignmentPanel,
   type EquipmentAssignmentPanelProps,
 } from "@/features/asset-management";
+import { EventBlackBoxPanel } from "@/features/asset-management/event-black-box-panel";
 import { AgreementSigningControl } from "@/features/projects/signing/agreement-signing-control";
 import { DigitalPhotoDeliveryControl } from "@/features/projects/communications/digital-photo-delivery-control";
 import { Bbox360VideoDeliveryControl } from "@/features/projects/communications/bbox360-video-delivery-control";
@@ -741,6 +742,7 @@ export function ProjectWorkspaceExperience(
                     <p className="mt-2 text-xs text-muted">Sin extras contratados o incluidos registrados.</p>
                   )}
                 </div>
+                <EventBlackBoxPanel projectId={props.projectKey ?? ""} />
               </section>
             </div>
           )}

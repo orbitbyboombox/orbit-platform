@@ -76,6 +76,18 @@ test("Event detail provides the canonical box assignment UX and preserves paper 
   assert.doesNotMatch(panel, /localStorage/);
 });
 
+test("Event 360 renders the canonical box editor inside Equipamiento y extras", () => {
+  const workspace = readFileSync("features/projects/components/project-workspace-experience.tsx", "utf8");
+  const panel = readFileSync("features/asset-management/event-black-box-panel.tsx", "utf8");
+  assert.match(workspace, /EventBlackBoxPanel/);
+  assert.ok(workspace.indexOf("eventEquipmentExtras") < workspace.indexOf("<EventBlackBoxPanel"));
+  assert.match(panel, /Cambiar Caja/);
+  assert.match(panel, /CONFIRMAR CAMBIO/);
+  assert.match(panel, /Caja anterior/);
+  assert.match(panel, /assignBlackBoxToEventAction/);
+  assert.match(panel, /currentAsset \? "Reemplazo manual desde Event 360"/);
+});
+
 test("availability uses the canonical two-hour logistics buffer", () => {
   const migration = readFileSync("supabase/migrations/20260927183000_black_box_logistics_buffer.sql", "utf8");
   assert.match(migration, /interval '2 hours'/g);
