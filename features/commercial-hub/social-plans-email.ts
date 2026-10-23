@@ -56,13 +56,16 @@ export function buildSocialPlansEmail(input: SocialPlansEmailInput) {
       ? "Encontrarás el detalle completo de nuestras experiencias y valores al abrir Planes y Valores."
       : paragraph,
   );
-  const proposalIndex = paragraphs.findIndex((paragraph) => paragraph.replaceAll("**", "").trim() === "NUESTRA PROPUESTA");
-  const postActionIndex = proposalIndex >= 0 ? proposalIndex + 1 : Math.min(3, paragraphs.length);
-  const beforeAction = postActionIndex < 0 ? paragraphs : paragraphs.slice(0, postActionIndex);
-  const afterAction = postActionIndex < 0 ? [] : paragraphs.slice(postActionIndex);
-  const signatureHtml = input.signatureUrl
-    ? `<p style="margin:0"><img src="${escapeHtml(input.signatureUrl)}" alt="BOOMBOX" style="display:block;max-width:320px;width:100%;height:auto;border:0"></p>`
-    : `<p style="margin:0"><strong>Equipo BOOMBOX</strong></p>`;
+  // Match the approved concise visual: greeting, one event-specific introduction,
+  // action cards, then a short closing. Do not append the legacy long body or graphic signature.
+  const greeting = paragraphs.find((paragraph) => /^Hola(?:\\s|,)/i.test(paragraph)) || `Hola ${input.contact},`;
+  const intro = paragraphs.find((paragraph) =>
+    paragraph !== greeting &&
+    !/NUESTRA PROPUESTA|Importante:|documento adjunto|planes y valores|Si alguna alternativa|Un abrazo|Equipo BOOMBOX/i.test(paragraph)
+  ) || "Gracias por considerar a BOOMBOX para tu celebración.";
+  const beforeAction = [greeting, intro];
+  const afterAction = ["Gracias por considerarnos para ser parte de tu celebración.", "Un abrazo,"];
+  const signatureHtml = '<p style="margin:0"><strong>Equipo BOOMBOX 📸✨</strong></p>';
   const html = renderPremiumQuotationEmail({
     preheader: "Conoce las experiencias y valores BOOMBOX para tu celebración.",
     eyebrow: "",
