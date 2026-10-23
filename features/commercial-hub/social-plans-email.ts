@@ -1,4 +1,4 @@
-import { renderBoomboxCommercialEmail } from "../connectors/google-gmail/application/boombox-commercial-email.html.ts";
+import { renderPremiumQuotationEmail } from "../connectors/google-gmail/application/boombox-premium-quotation-email.html";
 import {
   QUICK_SEND_CTA_LABEL,
   quickSendBodyParagraphs,
@@ -64,13 +64,13 @@ export function buildSocialPlansEmail(input: SocialPlansEmailInput) {
   const signatureHtml = input.signatureUrl
     ? `<p style="margin:0"><img src="${escapeHtml(input.signatureUrl)}" alt="BOOMBOX" style="display:block;max-width:420px;width:100%;height:auto;border:0"></p>`
     : `<p style="margin:0"><strong>Equipo BOOMBOX</strong></p>`;
-  const html = renderBoomboxCommercialEmail({
+  const html = renderPremiumQuotationEmail({
     preheader: "Conoce las experiencias y valores BOOMBOX para tu celebración.",
     eyebrow: "",
     title: "",
     headerLabel: "EXPERIENCIAS PARA TU CELEBRACIÓN",
     stackedHeader: true,
-    contentHtml: beforeAction.map(renderParagraph).join("") + (input.transportUrl ? `<p style="margin:12px 0 4px;font-size:14px;color:#ffffff">Revisa los planes disponibles y consulta el valor de traslado según la comuna del evento.</p>` : ""),
+    contentHtml: beforeAction.map(renderParagraph).join(""),
     contentAfterActionsHtml: afterAction.map((paragraph, index) => renderParagraph(paragraph, beforeAction.length + index)).join(""),
     website: input.website,
     primaryAction: { href: input.catalogUrl, label: QUICK_SEND_CTA_LABEL },
