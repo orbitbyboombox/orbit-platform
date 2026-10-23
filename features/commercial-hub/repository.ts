@@ -116,7 +116,7 @@ export async function loadCommercialHubData(
         "id,quotation_number,status,grand_total,issue_date,project_id,customer_id,customer_snapshot,commercial_snapshot,validity_days,deposit_percent,global_discount_type,global_discount_value,customers(full_name,company),quotation_items(code,description,label,quantity,catalog_price,quoted_price,unit_price,discount_type,discount_value,is_manual,display_order)",
       )
       .order("created_at", { ascending: false }),
-    client.from("commercial_sends").select("id,recipient_email,cc_recipients,category,subject,status,sent_at,external_message_id,quotation_id,project_id,customer_id").order("sent_at", { ascending: false }).limit(20),
+    client.from("commercial_sends").select("id,recipient_email,cc_recipients,category,subject,status,sent_at,external_message_id,quotation_id,project_id,customer_id,provider_thread_id,provider_account").order("sent_at", { ascending: false }).limit(20),
     loadCompanySettings(client),
   ]);
   for (const result of [customers, catalog, templates, documents, quotes, sends])
@@ -213,6 +213,6 @@ export async function loadCommercialHubData(
         }),
       };
     }),
-    recentSends: (sends.data ?? []).map((row) => ({ id: row.id, recipient: row.recipient_email, ccRecipients: row.cc_recipients ?? [], category: row.category, subject: row.subject, status: row.status, sentAt: row.sent_at, providerMessageId: row.external_message_id, quotationId: row.quotation_id, projectId: row.project_id, customerId: row.customer_id })),
+    recentSends: (sends.data ?? []).map((row) => ({ id: row.id, recipient: row.recipient_email, ccRecipients: row.cc_recipients ?? [], category: row.category, subject: row.subject, status: row.status, sentAt: row.sent_at, providerMessageId: row.external_message_id, providerThreadId: row.provider_thread_id, providerAccount: row.provider_account, quotationId: row.quotation_id, projectId: row.project_id, customerId: row.customer_id })),
   };
 }
