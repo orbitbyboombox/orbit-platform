@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { GoogleGmailApiProvider } from "@/features/connectors/google-gmail/provider/google-gmail-live.provider";
 import { renderBoomboxCommercialEmail } from "@/features/connectors/google-gmail/application/boombox-commercial-email.html";
+import { renderPremiumQuotationEmail } from "@/features/connectors/google-gmail/application/boombox-premium-quotation-email.html";
 import { loadGoogleWorkspaceAccessToken, loadGoogleWorkspaceConnection } from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import type { CommercialCategory, FormalQuoteDraft } from "./types";
 import { isCommercialEmail } from "./quote-calculation";
@@ -466,7 +467,7 @@ export async function sendFormalQuoteAction(input: { quoteId: string; email: str
     const cleanBody = withoutDuplicateSignature(withoutDuplicateSignature(body, company.emailSignature || signatureText), signatureText);
     const htmlParagraphs = emailParagraphs(cleanBody).map((paragraph) => `<p style="margin:0 0 16px">${escapeHtml(paragraph).replaceAll("\n", "<br>")}</p>`).join("");
     const attachmentFilename = quoteDisplayFilename(quote.quotation_number);
-    const htmlBody = renderBoomboxCommercialEmail({
+    const htmlBody = renderPremiumQuotationEmail({
       preheader: `Tu cotización ${quote.quotation_number} está lista.`,
       eyebrow: "COTIZACIÓN BOOMBOX",
       title: "Tu propuesta está lista",
