@@ -1,6 +1,4 @@
 import { renderPremiumQuotationEmail } from "../connectors/google-gmail/application/boombox-premium-quotation-email.html";
-import {
-} from "./presentation.ts";
 
 const escapeHtml = (value: string) =>
   value.replace(
@@ -68,7 +66,7 @@ export function buildSocialPlansEmail(input: SocialPlansEmailInput) {
     contentHtml: beforeAction.map(renderParagraph).join(""),
     contentAfterActionsHtml: afterAction.map((paragraph, index) => renderParagraph(paragraph, beforeAction.length + index)).join(""),
     website: input.website,
-    primaryAction: { href: input.catalogUrl.replace(/\\/$/, "") + "/document", label: "VER COTIZACIÓN PDF" },
+    primaryAction: { href: input.catalogUrl.replace(/\/$/, "") + "/document", label: "VER COTIZACIÓN PDF" },
     secondaryAction: input.transportUrl
       ? { href: input.transportUrl, label: input.transportLabel ?? "CONOCER VALOR DE TRASLADO" }
       : undefined,
@@ -80,7 +78,7 @@ export function buildSocialPlansEmail(input: SocialPlansEmailInput) {
   });
   const text = [
     ...beforeAction,
-    `VER COTIZACIÓN PDF: ${input.catalogUrl.replace(/\\/$/, "")}/document`,
+    `VER COTIZACIÓN PDF: ${input.catalogUrl.replace(/\/$/, "")}/document`,
     ...(input.transportUrl ? [`${input.transportLabel ?? "CONOCER VALOR DE TRASLADO"}: ${input.transportUrl}`] : []),
     ...afterAction,
     "Un abrazo, Equipo BOOMBOX",
