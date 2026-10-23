@@ -63,6 +63,94 @@ export function commercialGreeting(contact: string) {
 export const QUICK_SEND_CTA_LABEL = "VER PLANES Y VALORES";
 export const QUICK_SEND_CTA_FALLBACK = "Si el botón no funciona, puedes ver nuestros planes y valores aquí.";
 
+const WEDDING_QUICK_SEND_BODY = `Hola [Nombre],
+
+Gracias por considerar a BOOMBOX para ser parte de tu matrimonio.
+
+Desde hace 16 años acompañamos celebraciones creando propuestas fotográficas cuidadas, personalizadas y pensadas para guardar recuerdos especiales.
+
+Hemos preparado nuestras alternativas para que puedas revisarlas con calma y elegir la que mejor se adapte a tu matrimonio.
+
+**NUESTRA PROPUESTA**
+
+Cuando encuentres una alternativa que te interese, estaremos felices de ayudarte a revisar disponibilidad y preparar la propuesta final.
+
+Quedamos atentos por si tienes dudas o necesitas saber más de nuestros servicios.
+
+**Importante:** Las fechas se confirman mediante reserva y están sujetas a disponibilidad.
+
+Esperamos ser parte de tu matrimonio.
+
+Un abrazo,
+
+Equipo BOOMBOX`;
+
+const BIRTHDAY_QUICK_SEND_BODY = `Hola [Nombre],
+
+Gracias por considerar a BOOMBOX para ser parte de tu cumpleaños.
+
+Desde hace 16 años acompañamos celebraciones creando propuestas fotográficas entretenidas, cuidadas y pensadas para compartir buenos momentos.
+
+Hemos preparado nuestras alternativas para que puedas revisarlas con calma y elegir la que mejor se adapte a tu celebración.
+
+**NUESTRA PROPUESTA**
+
+Cuando encuentres una alternativa que te interese, estaremos felices de ayudarte a revisar disponibilidad y preparar la propuesta final.
+
+Quedamos atentos por si tienes dudas o necesitas saber más de nuestros servicios.
+
+**Importante:** Las fechas se confirman mediante reserva y están sujetas a disponibilidad.
+
+Esperamos ser parte de tu cumpleaños.
+
+Un abrazo,
+
+Equipo BOOMBOX`;
+
+const CELEBRATION_QUICK_SEND_BODY = `Hola [Nombre],
+
+Gracias por considerar a BOOMBOX para ser parte de tu evento.
+
+Desde hace 16 años acompañamos celebraciones creando propuestas fotográficas cuidadas, personalizadas y pensadas para conectar a las personas.
+
+Hemos preparado nuestras alternativas para que puedas revisarlas con calma y elegir la que mejor se adapte a tu evento.
+
+**NUESTRA PROPUESTA**
+
+Cuando encuentres una alternativa que te interese, estaremos felices de ayudarte a revisar disponibilidad y preparar la propuesta final.
+
+Quedamos atentos por si tienes dudas o necesitas saber más de nuestros servicios.
+
+**Importante:** Las fechas se confirman mediante reserva y están sujetas a disponibilidad.
+
+Esperamos ser parte de tu celebración.
+
+Un abrazo,
+
+Equipo BOOMBOX`;
+
+const COMPANY_QUICK_SEND_BODY = `Hola [Nombre],
+
+Gracias por considerar a BOOMBOX para tu próximo evento.
+
+Desde hace 16 años trabajamos junto a empresas, marcas y agencias creando propuestas fotográficas cuidadas, personalizadas y pensadas para conectar con las personas.
+
+Hemos preparado nuestras alternativas para que puedas revisarlas con calma y elegir la que mejor se adapte a tu evento.
+
+**NUESTRA PROPUESTA**
+
+Cuando encuentres una alternativa que te interese, estaremos felices de ayudarte a revisar disponibilidad y preparar la propuesta final.
+
+Quedamos atentos por si tienes dudas o necesitas saber más de nuestros servicios.
+
+**Importante:** Las fechas se confirman mediante reserva y están sujetas a disponibilidad.
+
+Esperamos ser parte de tu evento.
+
+Un abrazo,
+
+Equipo BOOMBOX`;
+
 const SOCIAL_QUICK_SEND_BODY = `Hola [Nombre],
 
 Gracias por considerar a BOOMBOX para ser parte de tu evento.
@@ -86,11 +174,16 @@ Un abrazo,
 Equipo BOOMBOX`;
 
 export function quickSendInitialBody(category: string, configuredBody: string) {
-  return quickSendEditableBody(
-    ["WEDDINGS", "BIRTHDAYS", "GRADUATIONS"].includes(category)
-      ? SOCIAL_QUICK_SEND_BODY
-      : configuredBody,
-  );
+  const canonical = category === "WEDDINGS"
+    ? WEDDING_QUICK_SEND_BODY
+    : category === "BIRTHDAYS"
+      ? BIRTHDAY_QUICK_SEND_BODY
+      : category === "GRADUATIONS"
+        ? CELEBRATION_QUICK_SEND_BODY
+        : category === "COMPANIES_CATALOG"
+          ? COMPANY_QUICK_SEND_BODY
+          : configuredBody || SOCIAL_QUICK_SEND_BODY;
+  return quickSendEditableBody(canonical);
 }
 
 export function resolveQuickSendBody(value: string, contact: string) {
