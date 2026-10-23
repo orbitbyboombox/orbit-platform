@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { buildCommercialInformationEmail } from "../features/commercial-hub/commercial-email-renderer.ts";
+import { OFFICIAL_BOOMBOX_LOGO_URL } from "../features/connectors/google-gmail/application/boombox-commercial-email.html.ts";
 
 const componentSource = () => readFile(new URL("../features/commercial-hub/commercial-hub.tsx", import.meta.url), "utf8");
 const actionSource = () => readFile(new URL("../features/commercial-hub/actions.ts", import.meta.url), "utf8");
@@ -45,6 +46,27 @@ test("catalog delivery uses the same light renderer while formal quotes stay sep
   assert.match(source, /textBody: renderedEmail\.text/);
   assert.match(source, /renderBoomboxCommercialEmail/);
   assert.doesNotMatch(source, /buildSocialPlansEmail/);
+});
+
+test("catalog HTML centralizes the clean BOOMBOX closing and ignores personal signatures", () => {
+  const email = buildCommercialInformationEmail({
+    category: "WEDDINGS",
+    body: "Hola [Nombre],\n\nGracias por considerar a BOOMBOX.\n\n**Importante:** Las fechas se confirman mediante reserva y están sujetas a disponibilidad.\n\nQuedamos atentos.\n\nUn abrazo,\n\nEquipo BOOMBOX",
+    contact: "Cliente QA",
+    website: "https://www.boom-box.cl/",
+    catalogUrl: "https://app.bbox.cl/catalogo/novios",
+    transportUrl: "https://app.bbox.cl/traslados?type=private",
+    transportLabel: "CONOCER VALOR DE TRASLADO",
+    signatureUrl: "https://example.invalid/matias-signature.gif",
+  });
+  assert.match(email.html, new RegExp(OFFICIAL_BOOMBOX_LOGO_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(email.html, /Si tienes dudas o necesitas más información, estaremos encantados de ayudarte\./);
+  assert.match(email.html, /Equipo BOOMBOX®/);
+  assert.match(email.html, /Las fechas están sujetas a disponibilidad y se confirman mediante reserva\./);
+  assert.match(email.html, /www\.boom-box\.cl/);
+  assert.doesNotMatch(email.html, /matias-signature/);
+  assert.doesNotMatch(email.html, /Comunicación emitida mediante ORBIT|Software desarrollado por BOOMBOX/);
+  assert.doesNotMatch(email.html, /Quedamos atentos|\*\*Importante:\*\*/);
 });
 
 test("preview changes cannot be confirmed with stale recipient or body", async () => {
