@@ -18,13 +18,12 @@ const status = (history: CommunicationRow[]): Bbox360VideoDeliveryStatus => !his
 export async function loadBbox360VideoDeliveryComposer(projectId: string): Promise<Bbox360VideoDeliveryComposer> {
   const admin = createAdminClient();
   const [{ data: project, error: projectError }, { data: rows, error: historyError }] = await Promise.all([
-    admin.from("projects").select("id,customer_id,orbit_event_id,event_date,bbox360_video_delivery_url,customers!inner(full_name,email,secondary_email),project_services(service_code)").eq("id", projectId).is("deleted_at", null).single(),
+    admin.from("projects").select("id,customer_id,orbit_event_id,event_date,bbox360_video_delivery_url,customers!inner(full_name,email,secondary_email)").eq("id", projectId).is("deleted_at", null).single(),
     admin.from("communications").select("id,status,to_recipient,cc_recipients,occurred_at,sent_at,external_message_id,failure_reason,original_communication_id,delivery_reference").eq("project_id", projectId).eq("communication_type", communicationType).order("occurred_at", { ascending: false }),
   ]);
   if (projectError) throw projectError;
   if (historyError) throw historyError;
-  const services = Array.isArray(project.project_services) ? project.project_services : [];
-  if (!services.some((item: { service_code?: string }) => item.service_code === "BBOX360")) return { projectId, eligible: false, reason: "NOT_ELIGIBLE" };
+  // Available for every event, independently of contracted services.
   const customer = Array.isArray(project.customers) ? project.customers[0] : project.customers;
   if (!customer?.email) throw new Error("El cliente no tiene correo principal registrado.");
   if (!project.event_date) throw new Error("El Evento no tiene una fecha canónica registrada.");
@@ -37,7 +36,7 @@ export async function loadBbox360VideoDeliveryComposer(projectId: string): Promi
 export async function saveBbox360VideoDeliveryUrl(input: { projectId: string; actorId: string; videoUrl: string }) {
   const videoUrl = validateBbox360VideoDeliveryUrl(input.videoUrl);
   const composer = await loadBbox360VideoDeliveryComposer(input.projectId);
-  if (!composer.eligible) throw new Error("Este Evento no tiene BBOX 360 contratado.");
+  if (!composer.eligible) throw new Error("No fue posible habilitar la entrega de videos BBOX 360.");
   const admin = createAdminClient();
   const { error } = await admin.from("projects").update({ bbox360_video_delivery_url: videoUrl, bbox360_video_delivery_updated_at: new Date().toISOString(), bbox360_video_delivery_updated_by: input.actorId }).eq("id", input.projectId).is("deleted_at", null).select("id").single();
   if (error) throw error;
@@ -52,8 +51,8 @@ export async function sendBbox360VideoDelivery(input: SendBbox360VideoDeliveryIn
   if (!attemptId) throw new Error("El envío requiere un identificador de intento.");
   const videoUrl = validateBbox360VideoDeliveryUrl(input.videoUrl);
   let composer = await loadBbox360VideoDeliveryComposer(input.projectId);
-  if (!composer.eligible) throw new Error("Este Evento no tiene BBOX 360 contratado.");
-  if (composer.currentVideoUrl !== videoUrl) { const saved = await saveBbox360VideoDeliveryUrl({ projectId: input.projectId, actorId: input.actorId, videoUrl }); if (!saved.eligible) throw new Error("Este Evento no tiene BBOX 360 contratado."); composer = saved; }
+  if (!composer.eligible) throw new Error("No fue posible habilitar la entrega de videos BBOX 360.");
+  if (composer.currentVideoUrl !== videoUrl) { const saved = await saveBbox360VideoDeliveryUrl({ projectId: input.projectId, actorId: input.actorId, videoUrl }); if (!saved.eligible) throw new Error("No fue posible habilitar la entrega de videos BBOX 360."); composer = saved; }
   const recipients = normalizeEmailRecipients({ to: composer.to, cc: input.cc ?? composer.cc });
   const key = requestKey(input.projectId, attemptId);
   const admin = createAdminClient();

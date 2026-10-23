@@ -16,9 +16,10 @@ test("BBOX 360 video links require HTTPS and the renderer preserves the customer
   assert.match(html, /VER VIDEOS BBOX 360/);
 });
 
-test("BBOX 360 eligibility is canonical and the communication type is independent", async () => {
+test("BBOX 360 is available for all events and the communication type is independent", async () => {
   const source = await service();
-  assert.match(source, /service_code === "BBOX360"/);
+  assert.doesNotMatch(source, /service_code === "BBOX360"/);
+  assert.doesNotMatch(source, /project_services\(service_code\)/);
   assert.match(source, /BBOX360_VIDEO_DELIVERY/);
   assert.match(source, /bbox360_video_delivery_url/);
   assert.doesNotMatch(source, /DIGITAL_PHOTO_DELIVERY/);
@@ -58,4 +59,13 @@ test("Videos BBOX 360 follows the Fotos digitales card structure without touchin
   assert.match(component, /rounded-2xl border bg-card p-5 sm:p-6/);
   assert.doesNotMatch(component, /DIGITAL_PHOTO_DELIVERY/);
   assert.match(photo, /data-digital-photo-delivery/);
+});
+
+
+test("BBOX360 email includes the same official Google review CTA as digital photos", async () => {
+  const template = await readFile(new URL("../features/connectors/google-gmail/application/bbox360-video-delivery.template.ts", import.meta.url), "utf8");
+  assert.match(template, /DIGITAL_PHOTO_REVIEW_URL/);
+  assert.match(template, /Tu experiencia nos importa/);
+  assert.match(template, /DEJAR UNA RESEÑA EN GOOGLE/);
+  assert.match(template, /bbox360VideoDeliveryText/);
 });
