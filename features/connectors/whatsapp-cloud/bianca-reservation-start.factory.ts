@@ -10,8 +10,8 @@ export async function createBiancaReservationStartAdapter() {
   const runtimeTest = process.env.BIANCA_RESERVATION_RUNTIME_TEST?.trim().toLowerCase() === "true";
   if (testMode && runtimeTest) {
     return new BiancaReservationStartAdapter(createAdminClient(), async (input) => {
-      const result = await createAutomaticBookingInvitation(input.customerEmail!, process.env.BIANCA_TEST_ACTOR_ID ?? input.customerId, { deliveryMode: "SANDBOX" });
-      return { reservationId: result.invitationId, url: result.url };
+      const result = await createAutomaticBookingInvitation(input.customerEmail!, process.env.BIANCA_TEST_ACTOR_ID ?? input.customerId);
+      return { reservationId: result.url, url: result.url };
     }, "SANDBOX");
   }
   if (testMode || !liveEnabled) {

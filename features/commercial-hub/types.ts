@@ -41,7 +41,6 @@ export interface RecentCommercialQuote {
   id: string;
   number: string;
   customer: string;
-  customerId: string | null;
   total: number;
   status: string;
   issuedAt: string;
@@ -70,10 +69,10 @@ export interface QuoteLineDraft {
   manual: boolean;
 }
 export interface FormalQuoteDraft {
-  quoteId?: string;
-  requestId?: string;
   changeReason?: string;
   officialPrice?: number;
+  quoteId?: string;
+  requestId?: string;
   existingCustomerId: string | null;
   saveTemporaryCustomer: boolean;
   company: string;

@@ -1,4 +1,4 @@
-import { DIGITAL_PHOTO_REVIEW_URL } from "./digital-photo-delivery.template";
+import { DIGITAL_PHOTO_REVIEW_URL } from "./digital-photo-delivery.template.ts";
 
 export const BBOX360_VIDEO_SUBJECT = "Tus videos BBOX 360 están disponibles | BOOMBOX";
 

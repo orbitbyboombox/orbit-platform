@@ -36,7 +36,7 @@ import type {
 } from "./types";
 import { calculateFormalQuote } from "./quote-calculation";
 import { QUICK_SEND_CTA_FALLBACK, QUICK_SEND_CTA_LABEL, commercialGreeting, displayChileanPhone, formalQuoteSubject, formatChileanRutInput, inlineCommercialText, moneyInputNumber, normalizeEmailNewlines, quickSendBodyParagraphs, quickSendInitialBody, quoteDisplayFilename, titleCasePerson, withoutDuplicateSignature } from "./presentation";
-import { InternationalPhoneInput } from "@/components/forms/international-phone-input";
+import { ChileanMobileInput } from "@/components/forms/chilean-mobile-input";
 import { PdfViewer } from "./pdf-viewer";
 import { getCommercialDocumentUrlAction } from "./settings.actions";
 import { activeCommercialDocument, catalogCategoryForQuickSend, catalogPublicPath, pendingCommercialDocuments } from "./catalogs";
@@ -317,7 +317,6 @@ function InformationSender({
               className="h-[42rem] w-full bg-white sm:h-[52rem]"
               sandbox=""
               srcDoc={buildSocialPlansEmail({
-                category,
                 body: withoutDuplicateSignature(body, "Equipo BOOMBOX"),
                 contact: name,
                 website: data.company.website,
@@ -354,7 +353,7 @@ function InformationSender({
           >
             {preview ? "Cerrar vista previa" : "Previsualizar"}
           </Button>
-          <Button aria-busy={pending} disabled={pending|| !document || !email} onClick={send}>
+          <Button disabled={pending || !document || !email} onClick={send}>
             <Send />
             {pending ? "Enviando…" : "Enviar"}
           </Button>
@@ -390,9 +389,6 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
   const [eventTime, setEventTime] = useState(initialDraft?.eventTime ?? "");
   const [eventLocation, setEventLocation] = useState(initialDraft?.eventLocation ?? "");
   const [eventCity, setEventCity] = useState(initialDraft?.eventCity ?? "");
-  const [changeReason, setChangeReason] = useState(initialDraft?.changeReason ?? "");
-  const [changeReasonError, setChangeReasonError] = useState("");
-  const changeReasonRef = useRef<HTMLInputElement>(null);
   const [attachCatalog, setAttachCatalog] = useState(initialDraft?.attachCatalog ?? false);
   const [createdQuote, setCreatedQuote] = useState<{ id: string; number: string; total: number } | null>(null);
   const [preview, setPreview] = useState(false);
@@ -420,10 +416,6 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
   const addCatalog = (code: string) => {
     const item = data.catalog.find((row) => row.code === code);
     if (!item) return;
-    if (lines.some((line) => !line.manual && line.code === code)) {
-      setMessage("Ese servicio ya está agregado a la cotización.");
-      return;
-    }
     setLines((current) => [
       ...current,
       {
@@ -472,27 +464,7 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
     () => calculateFormalQuote(lines, globalDiscountType, globalDiscountValue, depositPercent),
     [lines, globalDiscountType, globalDiscountValue, depositPercent],
   );
-  const negotiatedPostSend = Boolean(
-    initialDraft?.quoteId &&
-      initialDraft.officialPrice != null &&
-      Math.round(totals.total) !== Math.round(initialDraft.officialPrice),
-  );
-  const changeReasonValidationMessage =
-    negotiatedPostSend && changeReason.trim().length < 3
-      ? "Ingresa el motivo de negociación para guardar este nuevo valor."
-      : changeReasonError;
-  const focusChangeReason = () => {
-    setChangeReasonError("Ingresa el motivo de negociación para guardar este nuevo valor.");
-    window.requestAnimationFrame(() => {
-      changeReasonRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-      changeReasonRef.current?.focus();
-    });
-  };
   const create = () => {
-    if (negotiatedPostSend && changeReason.trim().length < 3) {
-      focusChangeReason();
-      return;
-    }
     if (saveInFlightRef.current) return;
     saveInFlightRef.current = true;
     start(async () => {
@@ -526,7 +498,6 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
           globalDiscountType,
           globalDiscountValue,
           attachCatalog,
-          changeReason,
           lines,
         };
         if (!resilient.online) {
@@ -557,25 +528,6 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
       <div className="rounded-2xl border bg-card p-5 sm:p-7">
         <h2 className="text-2xl font-semibold">Constructor de cotizaciones</h2>
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
-          {initialDraft?.quoteId ? (
-            <Field label={negotiatedPostSend ? "Motivo del cambio / negociación (obligatorio)" : "Motivo del cambio (opcional)"}>
-              <input
-                aria-describedby={negotiatedPostSend ? "change-reason-help" : undefined}
-                aria-invalid={Boolean(changeReasonValidationMessage)}
-                id="change-reason"
-                ref={changeReasonRef}
-                required={negotiatedPostSend}
-                value={changeReason}
-                onChange={(event) => {
-                  setChangeReason(event.target.value);
-                  if (changeReasonError && event.target.value.trim().length >= 3) setChangeReasonError("");
-                }}
-                placeholder="Cliente negoció valor"
-              />
-              {negotiatedPostSend ? <p className="mt-1 text-xs text-muted" id="change-reason-help">Obligatorio porque estás modificando el precio de una cotización ya enviada.</p> : null}
-              {changeReasonValidationMessage ? <p className="mt-1 text-sm font-semibold text-danger" role="alert">{changeReasonValidationMessage}</p> : null}
-            </Field>
-          ) : null}
           <Field label="Cliente existente">
             <select
               onChange={(e) => setCustomerId(e.target.value)}
@@ -634,7 +586,7 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
                 />
               </Field>
               <Field label="Teléfono (opcional)">
-                <InternationalPhoneInput value={temporary.phone} onChange={(phone) => setTemporary((v) => ({ ...v, phone }))} />
+                <ChileanMobileInput value={temporary.phone} onChange={(phone) => setTemporary((v) => ({ ...v, phone }))} />
               </Field>
               <Field label="Dirección">
                 <input
@@ -861,7 +813,7 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
               <FileDown />
               Previsualizar cotización
             </Button>
-            <Button aria-busy={pending} disabled={pending || !lines.length || (negotiatedPostSend && changeReason.trim().length < 3)} onClick={create}>
+            <Button disabled={pending || !lines.length} onClick={create}>
               <FilePlus2 />
               {pending ? "Guardando…" : "Guardar borrador"}
             </Button>
@@ -937,7 +889,7 @@ function FormalQuoteDelivery({ quote, email, secondaryEmail, company, contact, c
       <Field label="Asunto"><input value={subject} onChange={(e) => setSubject(e.target.value)} /></Field>
       <Field label="Mensaje"><textarea className="min-h-44" value={body} onChange={(e) => setBody(e.target.value)} /></Field>
       <div className="rounded-xl border bg-background p-4 text-sm"><p className="font-semibold">Adjuntos</p><p className="mt-2">{quoteDisplayFilename(quote.number)}</p>{catalog && <label className="mt-3 flex items-center gap-2"><input type="checkbox" checked={attachCatalog} onChange={(e) => onAttachCatalog(e.target.checked)} />Catálogo vigente: {catalog.name} · {catalog.version}</label>}</div>
-      <div className="grid gap-3 sm:grid-cols-2"><Button onClick={() => setPdfOpen(true)} variant="outline"><FileDown />Abrir PDF</Button><Button aria-busy={pending} disabled={pending} onClick={() => { if (!recipient.trim()) { setMessage("Ingresa un correo válido para enviar."); return; } const cc = ccInput.split(/[\n,;]+/).map((value) => value.trim()).filter(Boolean); const ccLabel = cc.length ? ` con copia a ${cc.join(", ")}` : ""; if (!window.confirm(`¿Enviar ${quote.number} a ${recipient}${ccLabel}?`)) return; start(async () => { const result = await sendFormalQuoteAction({ quoteId: quote.id, email: recipient, cc, subject, body: normalizeEmailNewlines(body), requestId, catalogDocumentId: attachCatalog ? catalog?.id : undefined }); setMessage(result.ok ? result.message : result.error); if (result.ok) setRequestId(uid()); }); }}><Send />{pending ? "Enviando…" : "Enviar email"}</Button></div>
+      <div className="grid gap-3 sm:grid-cols-2"><Button onClick={() => setPdfOpen(true)} variant="outline"><FileDown />Abrir PDF</Button><Button disabled={pending} onClick={() => { if (!recipient.trim()) { setMessage("Ingresa un correo válido para enviar."); return; } const cc = ccInput.split(/[\n,;]+/).map((value) => value.trim()).filter(Boolean); const ccLabel = cc.length ? ` con copia a ${cc.join(", ")}` : ""; if (!window.confirm(`¿Enviar ${quote.number} a ${recipient}${ccLabel}?`)) return; start(async () => { const result = await sendFormalQuoteAction({ quoteId: quote.id, email: recipient, cc, subject, body: normalizeEmailNewlines(body), requestId, catalogDocumentId: attachCatalog ? catalog?.id : undefined }); setMessage(result.ok ? result.message : result.error); if (result.ok) setRequestId(uid()); }); }}><Send />{pending ? "Enviando…" : "Enviar email"}</Button></div>
       <p className="text-xs text-muted">La reserva se genera únicamente después de marcar la cotización como aceptada, desde “Cotizaciones recientes”.</p>
       {message && <p aria-live="polite" className="text-sm font-medium">{message}</p>}
       {pdfOpen && <PdfViewer title={quoteDisplayFilename(quote.number)} src={`/api/commercial/quotes/${quote.id}/pdf`} onClose={() => setPdfOpen(false)} />}
@@ -1038,20 +990,11 @@ function RecentQuotes({
   const [expanded, setExpanded] = useState(false);
   const [review, setReview] = useState<QuoteConversionReview | null>(null);
   const [message, setMessage] = useState("");
-  const [filter, setFilter] = useState("ALL");
-  const filteredQuotes = quotes.filter((quote) => {
-    if (filter === "ALL") return true;
-    if (filter === "WITH_RESERVATION") return Boolean(quote.projectId);
-    if (filter === "WITHOUT_RESERVATION") return !quote.projectId;
-    if (filter === "LEGACY") return !quote.customerId;
-    return quote.status === filter;
-  });
   const [pending, startTransition] = useTransition();
-  const visibleQuotes = expanded ? filteredQuotes : filteredQuotes.slice(0, 5);
+  const visibleQuotes = expanded ? quotes : quotes.slice(0, 5);
   return (
     <section className="rounded-2xl border bg-card p-5">
       <h2 className="font-semibold">Cotizaciones recientes</h2>
-      <div className="mt-3 flex flex-wrap gap-2"><select aria-label="Filtrar cotizaciones" className="h-10 rounded-lg border bg-background px-3 text-sm" onChange={(event) => setFilter(event.target.value)} value={filter}><option value="ALL">Todas</option><option value="SENT">Enviadas</option><option value="ACCEPTED">Aceptadas</option><option value="REJECTED">Rechazadas</option><option value="EXPIRED">Vencidas</option><option value="WITH_RESERVATION">Con reserva</option><option value="WITHOUT_RESERVATION">Sin reserva</option><option value="LEGACY">Legacy</option></select></div>
       <div className="mt-4 divide-y">
         {quotes.length ? (
           visibleQuotes.map((q) => (
@@ -1065,8 +1008,8 @@ function RecentQuotes({
               <div className="flex min-w-0 flex-wrap gap-3 lg:justify-end">
                 <button className="min-h-11 font-medium text-brand" onClick={() => setOpenPdf({ id: q.id, number: q.number })}>PDF</button>
                 <Link className="inline-flex min-h-11 items-center font-medium text-brand" href={`/quotes/${q.id}`}>{q.draft ? "ABRIR / CONTINUAR" : "ABRIR"}</Link>
-                {["SENT","VIEWED"].includes(q.status) ? <Button className="min-h-11 px-2" loading={pending} loadingLabel="GUARDANDO ACEPTACIÓN…" onClick={() => { if(!window.confirm(`¿Confirmar que ${q.number} fue aceptada por el cliente?`))return; startTransition(async()=>{const result=await acceptCommercialQuoteAction(q.id);setMessage(result.ok?result.message:result.error);if(result.ok)window.location.reload()})}} variant="ghost">MARCAR COMO ACEPTADA</Button>:null}
-                {q.status==="ACCEPTED" ? <Button className="min-h-11 px-2" loading={pending} loadingLabel="PREPARANDO RESERVA…" onClick={()=>startTransition(async()=>{const result=await loadCommercialQuoteConversionReviewAction(q.id);if(!result.ok){setMessage(result.error);return}if(result.converted){window.location.assign(`/projects/${result.projectId}`);return}setReview(result.review)})} variant="ghost">GENERAR RESERVA DESDE COTIZACIÓN</Button>:null}
+                {["SENT","VIEWED"].includes(q.status) ? <button className="min-h-11 font-semibold text-brand" disabled={pending} onClick={() => { if(!window.confirm(`¿Confirmar que ${q.number} fue aceptada por el cliente?`))return; startTransition(async()=>{const result=await acceptCommercialQuoteAction(q.id);setMessage(result.ok?result.message:result.error);if(result.ok)window.location.reload()})}}>MARCAR COMO ACEPTADA</button>:null}
+                {q.status==="ACCEPTED" ? <button className="min-h-11 font-semibold text-brand" disabled={pending} onClick={()=>startTransition(async()=>{const result=await loadCommercialQuoteConversionReviewAction(q.id);if(!result.ok){setMessage(result.error);return}if(result.converted){window.location.assign(`/projects/${result.projectId}`);return}setReview(result.review)})}>GENERAR RESERVA DESDE COTIZACIÓN</button>:null}
                 {q.status==="CONVERTED" ? <><span className="inline-flex min-h-11 items-center font-semibold text-success">RESERVA YA GENERADA</span>{q.projectId?<Link className="inline-flex min-h-11 items-center font-semibold text-brand" href={`/projects/${q.projectId}`}>VER EVENTO</Link>:null}</>:null}
               </div>
             </div>
@@ -1075,7 +1018,7 @@ function RecentQuotes({
           <p className="py-5 text-sm text-muted">Aún no hay cotizaciones.</p>
         )}
       </div>
-      {filteredQuotes.length > 5 && <button className="mt-3 text-sm font-semibold text-brand" onClick={() => setExpanded((value) => !value)}>{expanded ? "Ver menos" : "Ver todas"}</button>}
+      {quotes.length > 5 && <button className="mt-3 text-sm font-semibold text-brand" onClick={() => setExpanded((value) => !value)}>{expanded ? "Ver menos" : "Ver todas"}</button>}
       {message?<p aria-live="polite" className="mt-3 text-sm font-medium">{message}</p>:null}
       {openPdf && <PdfViewer title={quoteDisplayFilename(openPdf.number)} src={`/api/commercial/quotes/${openPdf.id}/pdf`} onClose={() => setOpenPdf(null)} />}
       {review?<QuoteConversionReviewDialog review={review} onClose={()=>setReview(null)}/>:null}

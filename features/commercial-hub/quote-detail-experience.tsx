@@ -14,9 +14,7 @@ import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import {
   acceptCommercialQuoteAction,
-  createPostAcceptanceQuoteRevisionAction,
   loadCommercialQuoteConversionReviewAction,
-  resumeQuotationConversionAction,
 } from "./actions";
 import {
   quoteDetailActions,
@@ -48,7 +46,7 @@ export function CommercialQuoteDetailExperience({
   const [review, setReview] = useState<QuoteConversionReview | null>(null);
   const [message, setMessage] = useState("");
   const [pending, startTransition] = useTransition();
-  const actions = quoteDetailActions(quote.status, quote.projectId, quote.conversion);
+  const actions = quoteDetailActions(quote.status, quote.projectId);
 
   if (editing && quote.draft && hubData) {
     return (
@@ -94,24 +92,6 @@ export function CommercialQuoteDetailExperience({
     });
   };
 
-  const resumeConversion = () => {
-    startTransition(async () => {
-      const result = await resumeQuotationConversionAction(quote.id);
-      setMessage(result.ok ? result.message : result.error);
-      if (result.ok) router.refresh();
-    });
-  };
-
-  const createRevision = () => {
-    const reason = window.prompt("Motivo de la revisión post-aceptación:", "Cambio solicitado por el cliente")?.trim();
-    if (!reason) return;
-    startTransition(async () => {
-      const result = await createPostAcceptanceQuoteRevisionAction(quote.id, reason);
-      setMessage(result.ok ? result.message : result.error);
-      if (result.ok) router.refresh();
-    });
-  };
-
   return (
     <main className="mx-auto w-full max-w-6xl space-y-6 p-4 sm:p-6 lg:p-8" data-workspace-ignore>
       <header className="space-y-5">
@@ -140,7 +120,7 @@ export function CommercialQuoteDetailExperience({
         </div>
       </header>
 
-      <section className="scroll-mt-24 rounded-2xl border border-brand/30 bg-card p-4 sm:p-5" id="accion-comercial">
+      <section className="rounded-2xl border border-brand/30 bg-card p-4 sm:p-5">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="font-semibold">Acción comercial</h2>
@@ -150,28 +130,27 @@ export function CommercialQuoteDetailExperience({
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
             <Button asChild variant="outline">
-              <Link href={`/quotes/${quote.id}/pdf`}>
+              <a
+                href={`/api/commercial/quotes/${quote.id}/pdf`}
+                rel="noreferrer"
+                target="_blank"
+              >
                 <FileText /> VER PDF
-              </Link>
+              </a>
             </Button>
             {actions.canEdit && quote.draft && hubData ? (
               <Button onClick={() => setEditing(true)}>
-                <FilePenLine /> {quote.status === "DRAFT" ? "CONTINUAR EDITANDO" : "EDITAR COTIZACIÓN"}
+                <FilePenLine /> CONTINUAR EDITANDO
               </Button>
             ) : null}
             {actions.canAccept ? (
-              <Button aria-busy={pending} disabled={pending} onClick={accept}>
+              <Button disabled={pending} onClick={accept}>
                 <CheckCircle2 />
                 {pending ? "GUARDANDO…" : "MARCAR COMO ACEPTADA"}
               </Button>
             ) : null}
-            {actions.canCreatePostAcceptanceRevision ? (
-              <Button aria-busy={pending} disabled={pending} onClick={createRevision} variant="outline">
-                <FilePenLine /> CREAR REVISIÓN POST-ACEPTACIÓN
-              </Button>
-            ) : null}
             {actions.canConvert ? (
-              <Button aria-busy={pending} disabled={pending} onClick={openConversion}>
+              <Button disabled={pending} onClick={openConversion}>
                 {pending
                   ? "PREPARANDO…"
                   : "GENERAR RESERVA DESDE COTIZACIÓN"}
@@ -188,26 +167,6 @@ export function CommercialQuoteDetailExperience({
                   </Link>
                 </Button>
               </>
-            ) : null}
-            {actions.conversionIncomplete ? (
-              <div className="flex w-full flex-col gap-2 rounded-xl border border-warning/40 bg-warning/5 p-3 text-left sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="font-semibold text-warning">RESERVA CREADA · CONFIGURACIÓN PENDIENTE</p>
-                  <p className="mt-1 text-xs text-muted">
-                    {quote.conversion?.currentStep
-                      ? `La conversión se detuvo en: ${quote.conversion.currentStep}.`
-                      : "La reserva existe, pero su pipeline todavía no está completo."}
-                  </p>
-                  {quote.conversion?.lastError ? (
-                    <p className="mt-1 break-words text-xs text-danger">{quote.conversion.lastError}</p>
-                  ) : null}
-                </div>
-                {actions.canResume ? (
-                  <Button aria-busy={pending} disabled={pending} onClick={resumeConversion}>
-                    {pending ? "REANUDANDO…" : "REANUDAR CONVERSIÓN"}
-                  </Button>
-                ) : null}
-              </div>
             ) : null}
           </div>
         </div>
@@ -317,26 +276,6 @@ export function CommercialQuoteDetailExperience({
             </article>
           ))}
         </div>
-        {quote.versions.length ? (
-          <div className="mt-5 border-t pt-4">
-            <p className="text-sm font-semibold">Versiones documentales</p>
-            <div className="mt-3 space-y-2">
-              {quote.versions.map((version) => (
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3" key={version.id}>
-                  <div>
-                    <p className="text-sm font-medium">Versión {version.version} · {version.status}</p>
-                    <p className="text-xs text-muted">{version.reason || "Sin motivo adicional"}</p>
-                  </div>
-                  {version.pdfStoragePath ? (
-                    <Button asChild size="sm" variant="outline">
-                      <Link href={`/api/commercial/quotes/${quote.id}/versions/${version.version}/pdf`} target="_blank">VER PDF</Link>
-                    </Button>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : null}
       </Card>
 
       {review ? (
