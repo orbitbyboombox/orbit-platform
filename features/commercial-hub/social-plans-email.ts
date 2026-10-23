@@ -1,8 +1,5 @@
 import { renderPremiumQuotationEmail } from "../connectors/google-gmail/application/boombox-premium-quotation-email.html";
 import {
-  QUICK_SEND_CTA_LABEL,
-  quickSendBodyParagraphs,
-  withoutDuplicateSignature,
 } from "./presentation.ts";
 
 const escapeHtml = (value: string) =>
@@ -50,15 +47,8 @@ export type SocialPlansEmailInput = {
 };
 
 export function buildSocialPlansEmail(input: SocialPlansEmailInput) {
-  const cleanBody = withoutDuplicateSignature(input.body, "Equipo BOOMBOX");
-  const paragraphs = quickSendBodyParagraphs(cleanBody, input.contact).map((paragraph) =>
-    !input.attachmentFilename && paragraph === "Encontrarás el detalle completo de nuestras experiencias y valores en el documento adjunto."
-      ? "Encontrarás el detalle completo de nuestras experiencias y valores al abrir Planes y Valores."
-      : paragraph,
-  );
-  // Match the approved concise visual: greeting, one event-specific introduction,
-  // action cards, then a short closing. Do not append the legacy long body or graphic signature.
-  const greeting = paragraphs.find((paragraph) => /^Hola(?:\\s|,)/i.test(paragraph)) || `Hola ${input.contact},`;
+  const person = input.contact.trim().toLocaleLowerCase("es-CL").replace(/(^|[\\s'-])([\\p{L}])/gu, (_, prefix: string, letter: string) => prefix + letter.toLocaleUpperCase("es-CL"));
+  const greeting = person ? `Hola ${person},` : "Hola,";
   const intro = /matrimonio/i.test(input.body)
     ? "Gracias por considerar a BOOMBOX para uno de los días más importantes de sus vidas. Preparamos una propuesta especial para que cada recuerdo de su matrimonio sea inolvidable."
     : /cumpleaños/i.test(input.body)
@@ -78,7 +68,7 @@ export function buildSocialPlansEmail(input: SocialPlansEmailInput) {
     contentHtml: beforeAction.map(renderParagraph).join(""),
     contentAfterActionsHtml: afterAction.map((paragraph, index) => renderParagraph(paragraph, beforeAction.length + index)).join(""),
     website: input.website,
-    primaryAction: { href: input.catalogUrl, label: "VER PROPUESTA PDF" },
+    primaryAction: { href: input.catalogUrl.replace(/\\/$/, "") + "/document", label: "VER COTIZACIÓN PDF" },
     secondaryAction: input.transportUrl
       ? { href: input.transportUrl, label: input.transportLabel ?? "CONOCER VALOR DE TRASLADO" }
       : undefined,
@@ -90,7 +80,7 @@ export function buildSocialPlansEmail(input: SocialPlansEmailInput) {
   });
   const text = [
     ...beforeAction,
-    `VER PROPUESTA PDF: ${input.catalogUrl}`,
+    `VER COTIZACIÓN PDF: ${input.catalogUrl.replace(/\\/$/, "")}/document`,
     ...(input.transportUrl ? [`${input.transportLabel ?? "CONOCER VALOR DE TRASLADO"}: ${input.transportUrl}`] : []),
     ...afterAction,
     "Un abrazo, Equipo BOOMBOX",
