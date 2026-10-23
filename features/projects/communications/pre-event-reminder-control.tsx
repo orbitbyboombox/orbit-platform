@@ -79,7 +79,12 @@ export function PreEventReminderControl({ projectId }: { projectId: string }) {
 
   const refresh = (openComposer = false) =>
     startTransition(async () => {
-      const result = await getPreEventReminderPreviewAction(projectId);
+      const result = await Promise.race([
+        getPreEventReminderPreviewAction(projectId),
+        new Promise<{ ok: false; error: string }>((resolve) =>
+          setTimeout(() => resolve({ ok: false, error: "La consulta está tardando demasiado. Intenta nuevamente." }), 12000),
+        ),
+      ]);
       if (!result.ok) {
         setFeedback(result.error);
         return;
