@@ -308,7 +308,7 @@ function InformationSender({
           </div>
           {document && <div className="mt-4 grid gap-2 rounded-lg border p-3 text-sm"><label className="flex min-h-10 items-center gap-3"><input checked={!attachPdf} name={`delivery-${category}`} onChange={() => setAttachPdf(false)} type="radio" />Enviar como link <span className="text-emerald-500">Recomendado</span></label><label className="flex min-h-10 items-center gap-3"><input checked={attachPdf} name={`delivery-${category}`} onChange={() => setAttachPdf(true)} type="radio" />Adjuntar PDF al correo</label></div>}
         </div>
-        {preview && category !== "COMPANIES_CATALOG" && (
+        {preview && (
           <div className="overflow-hidden rounded-xl border border-brand/30 bg-white">
             <p className="bg-background px-4 py-3 text-xs font-semibold uppercase text-brand">
               Vista previa real del email
@@ -321,29 +321,17 @@ function InformationSender({
                 contact: name,
                 website: data.company.website,
                 catalogUrl: `${window.location.origin}${catalogPublicPath(catalogCategory)}`,
+                transportUrl: `${window.location.origin}/traslados?type=${category === "COMPANIES_CATALOG" ? "company" : "private"}`,
+                transportLabel: category === "COMPANIES_CATALOG"
+                  ? "CONOCER VALOR DE TRASLADO + IVA"
+                  : "CONOCER VALOR DE TRASLADO",
                 attachmentFilename: attachPdf && document
                   ? document.filename || `${document.name}.pdf`
                   : undefined,
                 signatureUrl: data.company.emailSignatureUrl,
               }).html}
-              title="Vista previa del email Planes y Valores"
+              title="Vista previa del correo BOOMBOX con catálogo"
             />
-          </div>
-        )}
-        {preview && category === "COMPANIES_CATALOG" && (
-          <div className="rounded-xl border border-brand/30 bg-background p-4">
-            <p className="text-xs font-semibold uppercase text-brand">
-              Vista previa
-            </p>
-            <p className="mt-3 font-semibold">Para: {email || "—"}</p>
-            <p className="mt-1">{subject}</p>
-            <div className="mt-4 space-y-3 text-sm text-muted">{quickSendBodyParagraphs(withoutDuplicateSignature(body, "Equipo BOOMBOX"), name).map((paragraph, index) => <FormattedParagraph key={`${paragraph}-${index}`} value={paragraph} />)}</div>
-            {document && <><span className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-brand px-5 text-sm font-semibold text-black">{QUICK_SEND_CTA_LABEL}</span><p className="mt-3 text-xs text-muted">{QUICK_SEND_CTA_FALLBACK}</p><p className="break-all text-sm text-brand">{catalogPublicPath(catalogCategory)}</p><p className="mt-2 text-sm">Catálogo: {document.name} · {document.version}</p><p className="mt-1 text-sm">Modo: {attachPdf ? "Link + PDF adjunto" : "Enviar como link"}</p></>}
-            <div className="mt-5">{data.company.emailSignatureUrl ? <>
-              {/* The signature is a Founder-managed email asset with a dynamic external URL. */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img alt="Firma gráfica BOOMBOX" className="h-auto w-full max-w-[420px]" src={data.company.emailSignatureUrl} />
-            </> : <p className="font-semibold">Equipo BOOMBOX</p>}</div>
           </div>
         )}
         <div className="grid gap-3 sm:grid-cols-2">
