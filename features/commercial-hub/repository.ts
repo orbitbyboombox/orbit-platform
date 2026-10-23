@@ -2,7 +2,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CommercialHubData } from "./types";
 import { normalizeEmailNewlines } from "./presentation";
 import { loadCompanySettings } from "@/features/company-settings";
-import { formatPhoneE164 } from "@/lib/phone/e164";
 import {
   buildCommercialQuoteDetail,
   type CommercialQuoteDetail,
@@ -12,7 +11,7 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const quoteDetailSelect =
-  "id,quotation_number,version,status,customer_id,project_id,conversion_transaction_id,current_version_id,accepted_version_id,issue_date,expiration_date,created_at,updated_at,approved_at,approved_by,approval_reason,converted_at,customer_snapshot,commercial_snapshot,pricing_snapshot,accepted_snapshot,validity_days,deposit_percent,global_discount_type,global_discount_value,subtotal,discount_total,tax_total,grand_total,final_customer_price,transport_total,customers(full_name,company,rut,email,secondary_email,phone,phone_e164,address),quotation_items(id,item_type,code,description,label,quantity,catalog_price,quoted_price,unit_price,total,discount_type,discount_value,is_manual,display_order)";
+  "id,quotation_number,version,status,customer_id,project_id,issue_date,expiration_date,created_at,updated_at,approved_at,approved_by,approval_reason,converted_at,customer_snapshot,commercial_snapshot,pricing_snapshot,accepted_snapshot,validity_days,deposit_percent,global_discount_type,global_discount_value,subtotal,discount_total,tax_total,grand_total,final_customer_price,transport_total,customers(full_name,company,rut,email,secondary_email,phone,address),quotation_items(id,item_type,code,description,label,quantity,catalog_price,quoted_price,unit_price,total,discount_type,discount_value,is_manual,display_order)";
 
 export async function loadCommercialQuoteDetail(
   client: SupabaseClient,
@@ -29,7 +28,7 @@ export async function loadCommercialQuoteDetail(
   const { data: quote, error } = await query.maybeSingle();
   if (error) throw error;
   if (!quote) return null;
-  const [sendsResult, originResult, transactionResult, versionsResult] = await Promise.all([
+  const [sendsResult, originResult] = await Promise.all([
     client
       .from("commercial_sends")
       .select(
@@ -42,46 +41,19 @@ export async function loadCommercialQuoteDetail(
       .select("project_id,created_at")
       .eq("quotation_id", quote.id)
       .maybeSingle(),
-    quote.conversion_transaction_id
-      ? client
-          .from("reservation_transactions")
-          .select("id,status,current_step,last_error,completed_steps,pending_steps,project_id")
-          .eq("id", quote.conversion_transaction_id)
-          .maybeSingle()
-      : Promise.resolve({ data: null, error: null }),
-    client
-      .from("quote_versions")
-      .select("id,version_number,status,change_reason,created_at,sent_at,accepted_at,pdf_storage_path")
-      .eq("quote_id", quote.id)
-      .order("version_number", { ascending: false }),
   ]);
   const { data: sends, error: sendsError } = sendsResult;
   if (sendsError) throw sendsError;
   if (originResult.error) throw originResult.error;
-  if (transactionResult.error) throw transactionResult.error;
-  if (versionsResult.error) throw versionsResult.error;
   const linkedProjectId = quote.project_id ?? originResult.data?.project_id;
-  const transaction = transactionResult.data;
-  const conversion = transaction
-    ? {
-        transactionId: transaction.id,
-        status: transaction.status,
-        currentStep: transaction.current_step,
-        lastError: transaction.last_error,
-        completedSteps: transaction.completed_steps,
-        pendingSteps: transaction.pending_steps,
-      }
-    : undefined;
   return buildCommercialQuoteDetail(
     {
       ...quote,
       project_id: linkedProjectId,
-      status: linkedProjectId && transaction?.status === "COMPLETED" ? "CONVERTED" : quote.status,
+      status: linkedProjectId ? "CONVERTED" : quote.status,
       converted_at: quote.converted_at ?? originResult.data?.created_at,
-      conversion,
     },
     sends ?? [],
-    versionsResult.data ?? [],
   );
 }
 
@@ -91,7 +63,7 @@ export async function loadCommercialHubData(
   const [customers, catalog, templates, documents, quotes, sends, company] = await Promise.all([
     client
       .from("customers")
-      .select("id,full_name,company,rut,email,secondary_email,phone,phone_e164,address")
+      .select("id,full_name,company,rut,email,secondary_email,phone,address")
       .is("deleted_at", null)
       .order("updated_at", { ascending: false }),
     client
@@ -115,8 +87,9 @@ export async function loadCommercialHubData(
       .select(
         "id,quotation_number,status,grand_total,issue_date,project_id,customer_id,customer_snapshot,commercial_snapshot,validity_days,deposit_percent,global_discount_type,global_discount_value,customers(full_name,company),quotation_items(code,description,label,quantity,catalog_price,quoted_price,unit_price,discount_type,discount_value,is_manual,display_order)",
       )
-      .order("created_at", { ascending: false }),
-    client.from("commercial_sends").select("id,recipient_email,cc_recipients,category,subject,status,sent_at,external_message_id,quotation_id,project_id,customer_id").order("sent_at", { ascending: false }).limit(20),
+      .order("created_at", { ascending: false })
+      .limit(20),
+    client.from("commercial_sends").select("id,recipient_email,cc_recipients,category,subject,status,sent_at,external_message_id,quotation_id,project_id,customer_id,provider_thread_id,provider_account").order("sent_at", { ascending: false }).limit(20),
     loadCompanySettings(client),
   ]);
   for (const result of [customers, catalog, templates, documents, quotes, sends])
@@ -136,7 +109,7 @@ export async function loadCommercialHubData(
       rut: row.rut ?? "",
       email: row.email ?? "",
       secondaryEmail: row.secondary_email ?? "",
-      phone: formatPhoneE164(row.phone_e164 ?? row.phone),
+      phone: row.phone ?? "",
       address: row.address ?? "",
     })),
     catalog: (catalog.data ?? []).map((row) => ({
@@ -170,7 +143,6 @@ export async function loadCommercialHubData(
       return {
         id: row.id,
         number: row.quotation_number,
-        customerId: row.customer_id,
         customer: String(
           customer?.company ||
             customer?.full_name ||
@@ -213,6 +185,6 @@ export async function loadCommercialHubData(
         }),
       };
     }),
-    recentSends: (sends.data ?? []).map((row) => ({ id: row.id, recipient: row.recipient_email, ccRecipients: row.cc_recipients ?? [], category: row.category, subject: row.subject, status: row.status, sentAt: row.sent_at, providerMessageId: row.external_message_id, quotationId: row.quotation_id, projectId: row.project_id, customerId: row.customer_id })),
+    recentSends: (sends.data ?? []).map((row) => ({ id: row.id, recipient: row.recipient_email, ccRecipients: row.cc_recipients ?? [], category: row.category, subject: row.subject, status: row.status, sentAt: row.sent_at, providerMessageId: row.external_message_id, providerThreadId: row.provider_thread_id, providerAccount: row.provider_account, quotationId: row.quotation_id, projectId: row.project_id, customerId: row.customer_id })),
   };
 }
