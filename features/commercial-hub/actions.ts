@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { GoogleGmailApiProvider } from "@/features/connectors/google-gmail/provider/google-gmail-live.provider";
 import { renderBoomboxCommercialEmail } from "@/features/connectors/google-gmail/application/boombox-commercial-email.html";
-import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-workspace/application/google-workspace.repository";
+import { loadGoogleWorkspaceAccessToken, loadGoogleWorkspaceConnection } from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import type { CommercialCategory, FormalQuoteDraft } from "./types";
 import { isCommercialEmail } from "./quote-calculation";
 import { prepareFormalQuotePersistence } from "./quote-persistence";
@@ -21,6 +21,7 @@ import { normalizeEmailRecipients, normalizeOptionalEmail } from "@/lib/email/re
 import { attachCustomerPurchaseOrderAction } from "@/features/commercial-documents/actions";
 import { archiveAcceptedQuoteForProject } from "@/features/commercial-documents/drive-archive";
 import { buildSocialPlansEmail } from "./social-plans-email";
+import { buildGmailAcceptancePatch, isCommercialSendAccepted } from "./commercial-delivery-ledger";
 import {
   assertQuoteConversionReady,
   buildQuoteConversionReview,
@@ -156,16 +157,21 @@ export async function sendCommercialInformationAction(input: {
   requestId: string;
   attachPdf?: boolean;
 }) {
+  let acceptedMessage: { messageId: string; threadId: string } | null = null;
+  let acceptedProviderAccount: string | undefined;
+  const admin = createAdminClient();
   try {
     const { user } = await founder();
     if (!isCommercialEmail(input.email))
       throw new Error("Ingresa un correo válido.");
     if (!input.documentId)
       throw new Error("No existe un documento ACTIVE para esta categoría.");
-    const admin = createAdminClient();
-    const company = await loadCompanySettings(admin);
+    const [company, workspace] = await Promise.all([loadCompanySettings(admin), loadGoogleWorkspaceConnection()]);
+    const senderEmail = workspace.workspaceAccount?.trim();
+    if (!senderEmail) throw new Error("La cuenta remitente de Google Workspace no está identificada.");
+    acceptedProviderAccount = senderEmail;
     const { data: existing } = await admin.from("commercial_sends").select("status").eq("idempotency_key", input.requestId).maybeSingle();
-    if (existing?.status === "SENT") return { ok: true as const, message: "Este envío ya fue procesado." };
+    if (isCommercialSendAccepted(existing?.status)) return { ok: true as const, message: "Este envío ya fue aceptado por Gmail." };
     const { data: document, error } = await admin
       .from("commercial_documents")
       .select("id,name,version,filename,storage_path,status,category")
@@ -191,6 +197,10 @@ export async function sendCommercialInformationAction(input: {
       document_snapshot: { name: document.name, version: document.version, storagePath: document.storage_path },
       status: "PREPARING",
       sent_by: user.id,
+      from_email: senderEmail,
+      reply_to_email: typeof company.emailConfiguration.replyTo === "string" ? company.emailConfiguration.replyTo : senderEmail,
+      mime_mode: "multipart/alternative",
+      attempt_count: 0,
     }).select("id").single();
     if (claimError) {
       if (claimError.code === "23505") return { ok: true as const, message: "Este envío ya está siendo procesado." };
@@ -237,10 +247,12 @@ export async function sendCommercialInformationAction(input: {
       attachmentNote: downloaded?.data ? `${document.filename || `${document.name}.pdf`} está incluido como archivo adjunto.` : undefined,
       signatureHtml: signature,
     });
-    const sent = await new GoogleGmailApiProvider(
+    acceptedMessage = await new GoogleGmailApiProvider(
       await loadGoogleWorkspaceAccessToken(),
     ).send({
       to: input.email.trim().toLowerCase(),
+      from: senderEmail,
+      replyTo: typeof company.emailConfiguration.replyTo === "string" && company.emailConfiguration.replyTo.trim() ? company.emailConfiguration.replyTo : senderEmail,
       subject,
       textBody: socialEmail?.text ?? `${quickSendBodyParagraphs(cleanBody, input.name).join("\n\n")}\n\n${QUICK_SEND_CTA_LABEL}: ${publicUrl}\n\n${signatureMode === "GRAPHICAL" ? "" : "Equipo BOOMBOX"}`.trim(),
       htmlBody,
@@ -250,14 +262,22 @@ export async function sendCommercialInformationAction(input: {
     const { error: write } = await admin
       .from("commercial_sends")
       .update({
-        status: "SENT",
-        external_message_id: sent.messageId,
+        status: "GMAIL_ACCEPTED",
+        external_message_id: acceptedMessage.messageId,
+        provider_thread_id: acceptedMessage.threadId,
+        provider_account: senderEmail,
+        provider_accepted_at: new Date().toISOString(),
+        provider_response: { accepted: true, messageId: acceptedMessage.messageId, threadId: acceptedMessage.threadId },
+        attempt_count: 1,
         document_snapshot: { name: document.name, version: document.version, storagePath: document.storage_path, publicUrl, deliveryMode: input.attachPdf ? "LINK_AND_ATTACHMENT" : "LINK" },
       }).eq("id", claimed.id);
     if (write) throw write;
     revalidatePath("/leads");
     return { ok: true as const, message: "Información enviada y registrada." };
   } catch (error) {
+    if (acceptedMessage) {
+      await admin.from("commercial_sends").update(buildGmailAcceptancePatch(acceptedMessage, acceptedProviderAccount, new Date().toISOString(), true)).eq("idempotency_key", input.requestId);
+    }
     return fail(error, "No fue posible enviar la información.");
   }
 }
@@ -383,14 +403,20 @@ export async function createFormalQuoteAction(input: FormalQuoteDraft) {
 }
 
 export async function sendFormalQuoteAction(input: { quoteId: string; email: string; cc?: string[]; subject: string; body: string; requestId: string; catalogDocumentId?: string }) {
+  let acceptedMessage: { messageId: string; threadId: string } | null = null;
+  let acceptedProviderAccount: string | undefined;
+  const admin = createAdminClient();
   try {
     const { user } = await founder();
     const recipients = normalizeEmailRecipients({ to: input.email, cc: input.cc });
-    const admin = createAdminClient();
-    const [{ data: quote, error }, company] = await Promise.all([
+    const [{ data: quote, error }, company, workspace] = await Promise.all([
       admin.from("quotations").select("id,quotation_number,issue_date,expiration_date,customer_id,project_id,customer_snapshot,commercial_snapshot,pricing_snapshot,quotation_items(description,label,quantity,quoted_price,unit_price,total,item_type,display_order)").eq("id", input.quoteId).single(),
       loadCompanySettings(admin),
+      loadGoogleWorkspaceConnection(),
     ]);
+    const senderEmail = workspace.workspaceAccount?.trim();
+    if (!senderEmail) throw new Error("La cuenta remitente de Google Workspace no está identificada.");
+    acceptedProviderAccount = senderEmail;
     if (error || !quote) throw new Error("La cotización ya no está disponible.");
     const pricingSnapshot = (quote.pricing_snapshot ?? {}) as Record<string, unknown>;
     const snapshot = (quote.commercial_snapshot ?? (Object.keys(pricingSnapshot).length ? pricingSnapshot.commercial ?? pricingSnapshot : {})) as Record<string, unknown>;
@@ -418,7 +444,10 @@ export async function sendFormalQuoteAction(input: { quoteId: string; email: str
     }
     const subject = normalizeEmailNewlines(input.subject || formalQuoteSubject(quote.quotation_number, customer.company || customer.contact)).replaceAll("\n", " ").trim();
     const body = normalizeEmailNewlines(input.body);
-    const { data: claim, error: claimError } = await admin.from("commercial_sends").insert({ idempotency_key: input.requestId, recipient_email: recipients.to, cc_recipients: recipients.cc, category: "COMPANIES_QUOTE", quotation_id: quote.id, customer_id: quote.customer_id, project_id: quote.project_id, subject, body_snapshot: body, document_snapshot: { quote: quote.quotation_number, pdfPath, catalog: catalogSnapshot }, status: "PREPARING", sent_by: user.id }).select("id").single();
+    const { data: existingSend } = await admin.from("commercial_sends").select("status,external_message_id").eq("idempotency_key", input.requestId).maybeSingle();
+    if (isCommercialSendAccepted(existingSend?.status)) return { ok: true as const, message: "Este envío ya fue aceptado por Gmail." };
+    if (existingSend?.status === "PREPARING") return { ok: true as const, message: "Este envío ya está siendo procesado." };
+    const { data: claim, error: claimError } = await admin.from("commercial_sends").insert({ idempotency_key: input.requestId, recipient_email: recipients.to, cc_recipients: recipients.cc, category: "COMPANIES_QUOTE", quotation_id: quote.id, customer_id: quote.customer_id, project_id: quote.project_id, subject, body_snapshot: body, document_snapshot: { quote: quote.quotation_number, pdfPath, catalog: catalogSnapshot }, status: "PREPARING", sent_by: user.id, from_email: senderEmail, reply_to_email: typeof company.emailConfiguration.replyTo === "string" ? company.emailConfiguration.replyTo : senderEmail, mime_mode: "multipart/alternative", attempt_count: 0 }).select("id").single();
     if (claimError) {
       if (claimError.code === "23505") return { ok: true as const, message: "Este envío ya está siendo procesado." };
       throw claimError;
@@ -445,15 +474,20 @@ export async function sendFormalQuoteAction(input: { quoteId: string; email: str
       attachmentNote: `${attachmentFilename} está incluido como archivo adjunto.`,
       signatureHtml: signature,
     });
-    const sent = await new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken()).send({ to: recipients.to, cc: recipients.cc, subject, textBody: `${cleanBody}\n\nCotización: ${pdfUrl.data.signedUrl}${catalogUrl ? `\nCatálogo: ${catalogUrl}` : ""}\n\n${signatureUrl ? "" : signatureText}`.trim(), htmlBody, driveFileIds: [], attachments: [{ filename: attachmentFilename, mimeType: "application/pdf", content: new Uint8Array(pdf) }] });
+    acceptedMessage = await new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken()).send({ to: recipients.to, cc: recipients.cc, from: senderEmail, replyTo: typeof company.emailConfiguration.replyTo === "string" && company.emailConfiguration.replyTo.trim() ? company.emailConfiguration.replyTo : senderEmail, subject, idempotencyKey: input.requestId, textBody: `${cleanBody}\n\nCotización: ${pdfUrl.data.signedUrl}${catalogUrl ? `\nCatálogo: ${catalogUrl}` : ""}\n\n${signatureUrl ? "" : signatureText}`.trim(), htmlBody, driveFileIds: [], attachments: [{ filename: attachmentFilename, mimeType: "application/pdf", content: new Uint8Array(pdf) }] });
     const timestamp = new Date().toISOString();
-    const { error: sendError } = await admin.from("commercial_sends").update({ status: "SENT", external_message_id: sent.messageId, sent_at: timestamp }).eq("id", claim.id);
+    const { error: sendError } = await admin.from("commercial_sends").update({ ...buildGmailAcceptancePatch(acceptedMessage, senderEmail, timestamp), sent_at: timestamp }).eq("id", claim.id);
     if (sendError) throw sendError;
     const { error: quoteError } = await admin.from("quotations").update({ status: "SENT", pdf_storage_path: pdfPath, updated_by: user.id, updated_at: timestamp }).eq("id", quote.id).eq("status", "DRAFT");
     if (quoteError) throw quoteError;
     revalidatePath("/leads");
     return { ok: true as const, message: `${quote.quotation_number} enviada y registrada.` };
-  } catch (error) { return fail(error, "No fue posible enviar la cotización."); }
+  } catch (error) {
+    if (acceptedMessage) {
+      await admin.from("commercial_sends").update(buildGmailAcceptancePatch(acceptedMessage, acceptedProviderAccount, new Date().toISOString(), true)).eq("idempotency_key", input.requestId);
+    }
+    return fail(error, "No fue posible enviar la cotización.");
+  }
 }
 
 export async function acceptCommercialQuoteAction(quoteId: string) {
