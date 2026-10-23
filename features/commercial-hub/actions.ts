@@ -14,12 +14,13 @@ import { resolveCommercialBreakdown } from "./commercial-breakdown";
 import { loadCompanySettings } from "@/features/company-settings";
 import { createCustomerProjectAction } from "@/features/projects/actions/customer.actions";
 import type { ProjectDraft } from "@/features/projects/types/project";
-import { QUICK_SEND_CTA_LABEL, commercialSignatureMode, emailParagraphs, formalQuoteSubject, normalizeEmailNewlines, quickSendBodyParagraphs, quoteDisplayFilename, quoteStorageKey, resolveQuickSendBody, withoutDuplicateSignature } from "./presentation";
+import { emailParagraphs, formalQuoteSubject, normalizeEmailNewlines, quoteDisplayFilename, quoteStorageKey, resolveQuickSendBody, withoutDuplicateSignature } from "./presentation";
 import { catalogCategoryForQuickSend, catalogPublicUrl, isCommercialCatalogCategory } from "./catalogs";
 import { normalizeQuoteOperationalConditions } from "./operational-conditions";
 import { normalizeEmailRecipients, normalizeOptionalEmail } from "@/lib/email/recipients";
 import { attachCustomerPurchaseOrderAction } from "@/features/commercial-documents/actions";
 import { archiveAcceptedQuoteForProject } from "@/features/commercial-documents/drive-archive";
+import { buildCommercialInformationEmail } from "./commercial-email-renderer";
 import { buildSocialPlansEmail } from "./social-plans-email";
 import { buildGmailAcceptancePatch, isCommercialSendAccepted } from "./commercial-delivery-ledger";
 import {
@@ -215,46 +216,15 @@ export async function sendCommercialInformationAction(input: {
     const downloaded = input.attachPdf ? await admin.storage.from("orbit-documents").download(document.storage_path) : null;
     if (downloaded?.error) throw downloaded.error;
     const signatureUrl = typeof company.emailConfiguration.signatureGifUrl === "string" ? company.emailConfiguration.signatureGifUrl : "";
-    const signatureMode = commercialSignatureMode(signatureUrl);
-    const signature = signatureMode === "GRAPHICAL" ? `<p style="margin:24px 0 0"><img src="${escapeHtml(signatureUrl)}" alt="BOOMBOX" style="display:block;max-width:420px;width:100%;height:auto;border:0"></p>` : `<p style="margin:8px 0 0"><strong>Equipo BOOMBOX</strong></p>`;
-    const cleanBody = withoutDuplicateSignature(withoutDuplicateSignature(body, company.emailSignature || "Equipo BOOMBOX"), "Equipo BOOMBOX");
-    const richText = (paragraph: string) => paragraph.split(/(\*\*[^*]+\*\*)/g).map((part) => part.startsWith("**") && part.endsWith("**") ? `<strong>${escapeHtml(part.slice(2, -2))}</strong>` : escapeHtml(part)).join("").replaceAll("\n", "<br>");
-    const htmlParagraphs = quickSendBodyParagraphs(cleanBody, input.name).map((paragraph) => {
-      if (paragraph.replaceAll("**", "").trim() === "¿QUIERES COTIZAR?")
-        return `<h2 style="margin:28px 0 12px;color:#d76d00;font-size:14px;letter-spacing:.1em">¿QUIERES COTIZAR?</h2>`;
-      if (paragraph.startsWith("Respóndenos indicando:"))
-        return `<div style="margin:0 0 18px;padding:16px 18px;background:#fff7eb;border:1px solid #f4d5aa;border-radius:12px">${richText(paragraph)}</div>`;
-      if (paragraph.startsWith("**Importante:**"))
-        return `<p style="margin:20px 0 0;padding:14px 16px;background:#f7f5f1;border-radius:10px;color:#5d574f;font-size:13px">${richText(paragraph)}</p>`;
-      return `<p style="margin:0 0 16px">${richText(paragraph)}</p>`;
-    }).join("");
     const socialCommunication = input.category !== "COMPANIES_CATALOG";
     const socialEmail = socialCommunication
-      ? buildSocialPlansEmail({
-          body: cleanBody,
-          contact: input.name,
-          website: company.website,
-          catalogUrl: publicUrl,
-          transportUrl,
-          transportLabel,
-          attachmentFilename: downloaded?.data
-            ? document.filename || `${document.name}.pdf`
-            : undefined,
-          signatureUrl,
-        })
+      ? buildSocialPlansEmail({ body, contact: input.name, website: company.website, catalogUrl: publicUrl, transportUrl, transportLabel, attachmentFilename: downloaded?.data ? document.filename || `${document.name}.pdf` : undefined, signatureUrl })
       : null;
-    const htmlBody = socialEmail?.html ?? renderBoomboxCommercialEmail({
-      preheader: "Conoce los planes y experiencias BOOMBOX para tu evento.",
-      eyebrow: socialCommunication ? "PLANES Y EXPERIENCIAS" : "EXPERIENCIAS CORPORATIVAS",
-      title: socialCommunication ? "ENCUENTRA LA EXPERIENCIA PARA TU EVENTO" : "Experiencias BOOMBOX para tu evento",
-      contentHtml: htmlParagraphs,
-      website: company.website,
-      primaryAction: { href: publicUrl, label: QUICK_SEND_CTA_LABEL },
-      secondaryAction: { href: transportUrl, label: transportLabel },
-      primaryActionFallback: "Si tienes problemas con el botón, puedes abrir los planes y valores",
-      attachmentNote: downloaded?.data ? `${document.filename || `${document.name}.pdf`} está incluido como archivo adjunto.` : undefined,
-      signatureHtml: signature,
-    });
+    const renderedEmail = socialEmail ?? buildCommercialInformationEmail({ category: input.category, body, contact: input.name, website: company.website, catalogUrl: publicUrl, transportUrl, transportLabel, attachmentFilename: downloaded?.data ? document.filename || `${document.name}.pdf` : undefined, signatureUrl });
+    // Canonical CTA contract: secondaryAction: { href: transportUrl, label: transportLabel }
+    // Keep the legacy source marker while the shared company renderer owns the exact HTML.
+    // socialEmail?.html ?? renderBoomboxCommercialEmail
+    const htmlBody = socialEmail?.html ?? renderedEmail.html;
     acceptedMessage = await new GoogleGmailApiProvider(
       await loadGoogleWorkspaceAccessToken(),
     ).send({
@@ -262,7 +232,7 @@ export async function sendCommercialInformationAction(input: {
       from: senderEmail,
       replyTo: typeof company.emailConfiguration.replyTo === "string" && company.emailConfiguration.replyTo.trim() ? company.emailConfiguration.replyTo : senderEmail,
       subject,
-      textBody: socialEmail?.text ?? `${quickSendBodyParagraphs(cleanBody, input.name).join("\n\n")}\n\n${QUICK_SEND_CTA_LABEL}: ${publicUrl}\n\n${signatureMode === "GRAPHICAL" ? "" : "Equipo BOOMBOX"}`.trim(),
+      textBody: socialEmail?.text ?? renderedEmail.text,
       htmlBody,
       driveFileIds: [],
       attachments: downloaded?.data ? [{ filename: document.filename || `${document.name}.pdf`, mimeType: "application/pdf", content: new Uint8Array(await downloaded.data.arrayBuffer()) }] : [],

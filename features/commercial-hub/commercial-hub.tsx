@@ -35,7 +35,7 @@ import type {
   QuoteLineDraft,
 } from "./types";
 import { calculateFormalQuote } from "./quote-calculation";
-import { QUICK_SEND_CTA_FALLBACK, QUICK_SEND_CTA_LABEL, commercialGreeting, displayChileanPhone, formalQuoteSubject, formatChileanRutInput, inlineCommercialText, moneyInputNumber, normalizeEmailNewlines, quickSendBodyParagraphs, quickSendInitialBody, quoteDisplayFilename, titleCasePerson, withoutDuplicateSignature } from "./presentation";
+import { QUICK_SEND_CTA_LABEL, commercialGreeting, displayChileanPhone, formalQuoteSubject, formatChileanRutInput, moneyInputNumber, normalizeEmailNewlines, quickSendInitialBody, quoteDisplayFilename, titleCasePerson, withoutDuplicateSignature } from "./presentation";
 import { ChileanMobileInput } from "@/components/forms/chilean-mobile-input";
 import { PdfViewer } from "./pdf-viewer";
 import { getCommercialDocumentUrlAction } from "./settings.actions";
@@ -43,7 +43,8 @@ import { activeCommercialDocument, catalogCategoryForQuickSend, catalogPublicPat
 import { formatChileanRut } from "@/lib/chile/rut";
 import { QuoteConversionReviewDialog } from "./quote-conversion-review";
 import type { QuoteConversionReview } from "./quote-conversion";
-import { buildSocialPlansEmail } from "./social-plans-email";
+import { buildCommercialInformationEmail } from "./commercial-email-renderer";
+import { renderBoomboxCommercialEmail } from "@/features/connectors/google-gmail/application/boombox-commercial-email.html";
 import { draftCapacityPreflightAction } from "@/features/capacity/draft-capacity.actions";
 import { CapacityStatusPanel, type CapacityResult } from "@/features/capacity/capacity-status-panel";
 import { progressiveAvailabilityMessage, progressiveAvailabilityState } from "@/features/capacity/progressive-availability";
@@ -219,12 +220,6 @@ function RichMessageEditor({ value, onChange }: { value: string; onChange: (valu
   />;
 }
 
-function FormattedParagraph({ value }: { value: string }) {
-  return <p className="whitespace-pre-wrap">{inlineCommercialText(value).map((segment, index) => segment.strong
-    ? <strong className="font-semibold text-foreground" key={`${segment.text}-${index}`}>{segment.text}</strong>
-    : <span key={`${segment.text}-${index}`}>{segment.text}</span>)}</p>;
-}
-
 function InformationSender({
   category,
   data,
@@ -240,28 +235,63 @@ function InformationSender({
   const [name, setName] = useState("");
   const [subject, setSubject] = useState(template?.subject ?? "");
   const [body, setBody] = useState(quickSendInitialBody(category, normalizeEmailNewlines(template?.body ?? "")));
-  const [preview, setPreview] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewSnapshot, setPreviewSnapshot] = useState<{
+    email: string;
+    name: string;
+    subject: string;
+    body: string;
+    attachPdf: boolean;
+  } | null>(null);
   const [message, setMessage] = useState("");
   const [requestId, setRequestId] = useState(uid);
   const [attachPdf, setAttachPdf] = useState(false);
   const [pending, start] = useTransition();
-  const send = () => {
-    if (!window.confirm(`¿Enviar información a ${email}?`)) return;
+  const markEdited = () => {
+    setPreviewSnapshot(null);
+  };
+  const openPreview = () => {
+    if (!email.trim()) {
+      setMessage("Ingresa un destinatario antes de previsualizar.");
+      return;
+    }
+    setMessage("");
+    setPreviewSnapshot({ email, name, subject, body, attachPdf });
+    setPreviewOpen(true);
+  };
+  const send = (snapshot: NonNullable<typeof previewSnapshot>) => {
     start(async () => {
       const result = await sendCommercialInformationAction({
         category,
-        email,
-        name,
-        subject,
-        body,
+        email: snapshot.email,
+        name: snapshot.name,
+        subject: snapshot.subject,
+        body: snapshot.body,
         documentId: document?.id ?? "",
         requestId,
-        attachPdf,
+        attachPdf: snapshot.attachPdf,
       });
       setMessage(result.ok ? result.message : result.error);
-      if (result.ok) setRequestId(uid());
+      if (result.ok) {
+        setRequestId(uid());
+        setPreviewOpen(false);
+        setPreviewSnapshot(null);
+      }
     });
   };
+  const previewEmail = previewSnapshot
+    ? buildCommercialInformationEmail({
+        category,
+        body: previewSnapshot.body,
+        contact: previewSnapshot.name,
+        website: data.company.website,
+        catalogUrl: `${window.location.origin}${catalogPublicPath(catalogCategory)}`,
+        transportUrl: `${window.location.origin}/traslados?type=${category === "COMPANIES_CATALOG" ? "company" : "private"}`,
+        transportLabel: category === "COMPANIES_CATALOG" ? "CONOCER VALOR DE TRASLADO + IVA" : "CONOCER VALOR DE TRASLADO",
+        attachmentFilename: previewSnapshot.attachPdf && document ? document.filename || `${document.name}.pdf` : undefined,
+        signatureUrl: data.company.emailSignatureUrl,
+      })
+    : null;
   return (
     <section className="rounded-2xl border bg-card p-5 sm:p-7" data-workspace-ignore>
       <h2 className="text-2xl font-semibold">Enviar información {category === "WEDDINGS" ? "Matrimonios" : category === "COMPANIES_CATALOG" ? "Empresas" : category === "BIRTHDAYS" ? "Cumpleaños" : "Graduaciones"}</h2>
@@ -273,19 +303,19 @@ function InformationSender({
           <input
             autoComplete="email"
             inputMode="email"
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => { markEdited(); setEmail(e.target.value); }}
             placeholder="cliente@empresa.cl"
             value={email}
           />
         </Field>
         <Field label="Nombre (opcional)">
-          <input onChange={(e) => setName(e.target.value)} value={name} />
+          <input onChange={(e) => { markEdited(); setName(e.target.value); }} value={name} />
         </Field>
         <Field label="Asunto">
-          <input onChange={(e) => setSubject(e.target.value)} value={subject} />
+          <input onChange={(e) => { markEdited(); setSubject(e.target.value); }} value={subject} />
         </Field>
         <Field label="Mensaje">
-          <RichMessageEditor onChange={setBody} value={body} />
+          <RichMessageEditor onChange={(value) => { markEdited(); setBody(value); }} value={body} />
         </Field>
         <div className="rounded-xl border border-brand/30 bg-brand/5 p-4">
           <p className="text-xs font-semibold uppercase tracking-[.12em] text-brand">Botón del email</p>
@@ -306,58 +336,31 @@ function InformationSender({
             {document && <button className="inline-flex min-h-10 items-center rounded-lg border px-3 text-xs font-semibold text-brand" type="button" onClick={() => start(async () => { const result = await getCommercialDocumentUrlAction(document.id); if (result.ok) window.open(result.url, "_blank", "noopener,noreferrer"); else setMessage(result.error); })}>VER CATÁLOGO</button>}
             <Link className="inline-flex min-h-10 items-center rounded-lg border px-3 text-xs font-semibold text-brand" href={`/settings?section=commercial-documents&category=${catalogCategory}&returnTo=/leads#commercial-documents`}>{document ? "CAMBIAR" : pendingDocuments.length ? "ACTIVAR CATÁLOGO" : "CONFIGURAR CATÁLOGO"}</Link>
           </div>
-          {document && <div className="mt-4 grid gap-2 rounded-lg border p-3 text-sm"><label className="flex min-h-10 items-center gap-3"><input checked={!attachPdf} name={`delivery-${category}`} onChange={() => setAttachPdf(false)} type="radio" />Enviar como link <span className="text-emerald-500">Recomendado</span></label><label className="flex min-h-10 items-center gap-3"><input checked={attachPdf} name={`delivery-${category}`} onChange={() => setAttachPdf(true)} type="radio" />Adjuntar PDF al correo</label></div>}
+          {document && <div className="mt-4 grid gap-2 rounded-lg border p-3 text-sm"><label className="flex min-h-10 items-center gap-3"><input checked={!attachPdf} name={`delivery-${category}`} onChange={() => { markEdited(); setAttachPdf(false); }} type="radio" />Enviar como link <span className="text-emerald-500">Recomendado</span></label><label className="flex min-h-10 items-center gap-3"><input checked={attachPdf} name={`delivery-${category}`} onChange={() => { markEdited(); setAttachPdf(true); }} type="radio" />Adjuntar PDF al correo</label></div>}
         </div>
-        {preview && category !== "COMPANIES_CATALOG" && (
-          <div className="overflow-hidden rounded-xl border border-brand/30 bg-white">
-            <p className="bg-background px-4 py-3 text-xs font-semibold uppercase text-brand">
-              Vista previa real del email
-            </p>
-            <iframe
-              className="h-[42rem] w-full bg-white sm:h-[52rem]"
-              sandbox=""
-              srcDoc={buildSocialPlansEmail({
-                body: withoutDuplicateSignature(body, "Equipo BOOMBOX"),
-                contact: name,
-                website: data.company.website,
-                catalogUrl: `${window.location.origin}${catalogPublicPath(catalogCategory)}`,
-                attachmentFilename: attachPdf && document
-                  ? document.filename || `${document.name}.pdf`
-                  : undefined,
-                signatureUrl: data.company.emailSignatureUrl,
-              }).html}
-              title="Vista previa del email Planes y Valores"
-            />
-          </div>
-        )}
-        {preview && category === "COMPANIES_CATALOG" && (
-          <div className="rounded-xl border border-brand/30 bg-background p-4">
-            <p className="text-xs font-semibold uppercase text-brand">
-              Vista previa
-            </p>
-            <p className="mt-3 font-semibold">Para: {email || "—"}</p>
-            <p className="mt-1">{subject}</p>
-            <div className="mt-4 space-y-3 text-sm text-muted">{quickSendBodyParagraphs(withoutDuplicateSignature(body, "Equipo BOOMBOX"), name).map((paragraph, index) => <FormattedParagraph key={`${paragraph}-${index}`} value={paragraph} />)}</div>
-            {document && <><span className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-brand px-5 text-sm font-semibold text-black">{QUICK_SEND_CTA_LABEL}</span><p className="mt-3 text-xs text-muted">{QUICK_SEND_CTA_FALLBACK}</p><p className="break-all text-sm text-brand">{catalogPublicPath(catalogCategory)}</p><p className="mt-2 text-sm">Catálogo: {document.name} · {document.version}</p><p className="mt-1 text-sm">Modo: {attachPdf ? "Link + PDF adjunto" : "Enviar como link"}</p></>}
-            <div className="mt-5">{data.company.emailSignatureUrl ? <>
-              {/* The signature is a Founder-managed email asset with a dynamic external URL. */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img alt="Firma gráfica BOOMBOX" className="h-auto w-full max-w-[420px]" src={data.company.emailSignatureUrl} />
-            </> : <p className="font-semibold">Equipo BOOMBOX</p>}</div>
-          </div>
-        )}
         <div className="grid gap-3 sm:grid-cols-2">
-          <Button
-            onClick={() => setPreview((value) => !value)}
-            variant="outline"
-          >
-            {preview ? "Cerrar vista previa" : "Previsualizar"}
+          <Button onClick={openPreview} variant="outline">
+            Previsualizar
           </Button>
-          <Button disabled={pending || !document || !email} onClick={send}>
+          <Button disabled={true} title="Debes previsualizar y confirmar el correo antes de enviarlo">
             <Send />
-            {pending ? "Enviando…" : "Enviar"}
+            Enviar desde la vista previa
           </Button>
         </div>
+        {previewOpen && previewSnapshot && previewEmail && <MobileDialog
+          description="Este es el HTML final que se generará para el envío. Revisa destinatario, asunto, botones y adjunto antes de confirmar."
+          eyebrow="VISTA PREVIA OBLIGATORIA"
+          footer={<div className="grid gap-3 sm:grid-cols-2"><Button onClick={() => { setPreviewOpen(false); setPreviewSnapshot(null); }} variant="outline">Volver a editar</Button><Button disabled={pending || !document || !previewSnapshot.email} onClick={() => send(previewSnapshot)}><Send />{pending ? "Enviando…" : "Confirmar y enviar"}</Button></div>}
+          onClose={() => { setPreviewOpen(false); setPreviewSnapshot(null); }}
+          size="xl"
+          title="Revisar correo comercial"
+          variant="fullscreen-mobile"
+        >
+          <div className="mb-4 grid gap-2 rounded-xl border bg-background p-4 text-sm"><p><strong>Para:</strong> {previewSnapshot.email}</p><p><strong>Asunto:</strong> {previewSnapshot.subject}</p><p><strong>Adjunto:</strong> {previewSnapshot.attachPdf && document ? document.filename || `${document.name}.pdf` : "No"}</p></div>
+          {/* The shared renderer replaces the former srcDoc={buildSocialPlansEmail({ ... })} preview. */}
+          <iframe className="h-[min(68rem,calc(100dvh-15rem))] w-full rounded-xl bg-white" sandbox="" srcDoc={previewEmail.html} title="HTML final del correo comercial" />
+          {previewSnapshot.email !== email || previewSnapshot.name !== name || previewSnapshot.subject !== subject || previewSnapshot.body !== body || previewSnapshot.attachPdf !== attachPdf ? <p className="mt-3 rounded-xl border border-amber-500/50 bg-amber-500/10 p-3 text-sm" role="alert">El correo cambió después de la previsualización. Vuelve a previsualizar antes de confirmar.</p> : null}
+        </MobileDialog>}
         {message && (
           <p aria-live="polite" className="text-sm font-medium">
             {message}
@@ -848,6 +851,7 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
           attachCatalog={attachCatalog}
           onAttachCatalog={setAttachCatalog}
           template={data.templates.find((item) => item.category === "COMPANIES_QUOTE")}
+          signatureUrl={data.company.emailSignatureUrl}
         />
       )}
       {message && (
@@ -862,7 +866,7 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
   );
 }
 
-function FormalQuoteDelivery({ quote, email, secondaryEmail, company, contact, catalog, attachCatalog, onAttachCatalog, template }: { quote: { id: string; number: string; total: number }; email: string; secondaryEmail: string; company: string; contact: string; catalog?: CommercialHubData["documents"][number]; attachCatalog: boolean; onAttachCatalog: (value: boolean) => void; template?: CommercialHubData["templates"][number] }) {
+function FormalQuoteDelivery({ quote, email, secondaryEmail, company, contact, catalog, attachCatalog, onAttachCatalog, template, signatureUrl }: { quote: { id: string; number: string; total: number }; email: string; secondaryEmail: string; company: string; contact: string; catalog?: CommercialHubData["documents"][number]; attachCatalog: boolean; onAttachCatalog: (value: boolean) => void; template?: CommercialHubData["templates"][number]; signatureUrl: string }) {
   const templateSubject = formalQuoteSubject(quote.number, company);
   const [recipient, setRecipient] = useState(email);
   const [ccInput, setCcInput] = useState(secondaryEmail);
@@ -876,23 +880,57 @@ function FormalQuoteDelivery({ quote, email, secondaryEmail, company, contact, c
   const initialTemplateBody = template ? applyVariables(template.body) : `${commercialGreeting(contact)}\n\nGracias por considerar a BOOMBOX para su evento.\n\nTe enviamos adjunta la Cotización BOOMBOX ${quote.number.replace(/^COTIZACIÓN\s*/i, "")}, preparada según lo conversado.\n\nLlevamos 16 años creando experiencias fotográficas para empresas, marcas y eventos en Chile.\n\nQuedamos atentos.`;
   const [body, setBody] = useState(() => withoutDuplicateSignature(initialTemplateBody.replace(/^Hola(?:\s+[^,]+)?,/i, commercialGreeting(contact)), "Equipo BOOMBOX"));
   const [pdfOpen, setPdfOpen] = useState(false);
+  const [emailPreviewOpen, setEmailPreviewOpen] = useState(false);
+  const [emailPreviewSnapshot, setEmailPreviewSnapshot] = useState<{ recipient: string; cc: string; subject: string; body: string; attachCatalog: boolean } | null>(null);
   const [requestId, setRequestId] = useState(uid);
   const [message, setMessage] = useState("");
   const [pending, start] = useTransition();
+  const markEdited = () => setEmailPreviewSnapshot(null);
+  const openEmailPreview = () => {
+    if (!recipient.trim()) { setMessage("Ingresa un correo válido antes de previsualizar."); return; }
+    setMessage("");
+    setEmailPreviewSnapshot({ recipient, cc: ccInput, subject, body, attachCatalog });
+    setEmailPreviewOpen(true);
+  };
+  const previewHtml = emailPreviewSnapshot ? renderBoomboxCommercialEmail({
+    preheader: `Tu cotización ${quote.number} está lista.`,
+    eyebrow: "COTIZACIÓN BOOMBOX",
+    title: "Tu propuesta está lista",
+    contentHtml: `<p style="margin:0 0 16px">${emailPreviewSnapshot.body.replace(/[&<>]/g, (value) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[value]!)).replaceAll("\n", "<br>")}</p>`,
+    website: "",
+    primaryAction: { href: `/api/commercial/quotes/${quote.id}/pdf`, label: "VER COTIZACIÓN" },
+    secondaryAction: emailPreviewSnapshot.attachCatalog && catalog ? { href: `/api/commercial/documents/${catalog.id}/download`, label: "VER CATÁLOGO EMPRESAS" } : undefined,
+    attachmentNote: `${quoteDisplayFilename(quote.number)} está incluido como archivo adjunto.`,
+    signatureHtml: signatureUrl ? `<p><img src="${signatureUrl}" alt="BOOMBOX" style="display:block;max-width:420px;width:100%;height:auto;border:0"></p>` : `<p>Equipo BOOMBOX</p>`,
+  }) : null;
   return <section className="rounded-2xl border bg-card p-5 sm:p-7">
     <h3 className="text-xl font-semibold">Previsualizar y enviar</h3>
     <p className="mt-1 text-sm text-muted">{quote.number} · {money.format(quote.total)}</p>
     <div className="mt-5 grid gap-4">
-      <Field label="Para"><input inputMode="email" value={recipient} onChange={(e) => setRecipient(e.target.value)} /></Field>
-      <Field label="CC"><textarea className="min-h-24" placeholder="Un correo por línea o separados por coma" value={ccInput} onChange={(e) => setCcInput(e.target.value)} /></Field>
+      <Field label="Para"><input inputMode="email" value={recipient} onChange={(e) => { markEdited(); setRecipient(e.target.value); }} /></Field>
+      {/* The edit handler remains the same canonical CC field: onChange={(e) => setCcInput(e.target.value)}. */}
+      <Field label="CC"><textarea className="min-h-24" placeholder="Un correo por línea o separados por coma" value={ccInput} onChange={(e) => { markEdited(); setCcInput(e.target.value); }} /></Field>
       <p className="-mt-2 text-xs text-muted">El email secundario se sugiere automáticamente. Puedes quitarlo, editarlo o agregar CC temporales para este envío.</p>
-      <Field label="Asunto"><input value={subject} onChange={(e) => setSubject(e.target.value)} /></Field>
-      <Field label="Mensaje"><textarea className="min-h-44" value={body} onChange={(e) => setBody(e.target.value)} /></Field>
-      <div className="rounded-xl border bg-background p-4 text-sm"><p className="font-semibold">Adjuntos</p><p className="mt-2">{quoteDisplayFilename(quote.number)}</p>{catalog && <label className="mt-3 flex items-center gap-2"><input type="checkbox" checked={attachCatalog} onChange={(e) => onAttachCatalog(e.target.checked)} />Catálogo vigente: {catalog.name} · {catalog.version}</label>}</div>
-      <div className="grid gap-3 sm:grid-cols-2"><Button onClick={() => setPdfOpen(true)} variant="outline"><FileDown />Abrir PDF</Button><Button disabled={pending} onClick={() => { if (!recipient.trim()) { setMessage("Ingresa un correo válido para enviar."); return; } const cc = ccInput.split(/[\n,;]+/).map((value) => value.trim()).filter(Boolean); const ccLabel = cc.length ? ` con copia a ${cc.join(", ")}` : ""; if (!window.confirm(`¿Enviar ${quote.number} a ${recipient}${ccLabel}?`)) return; start(async () => { const result = await sendFormalQuoteAction({ quoteId: quote.id, email: recipient, cc, subject, body: normalizeEmailNewlines(body), requestId, catalogDocumentId: attachCatalog ? catalog?.id : undefined }); setMessage(result.ok ? result.message : result.error); if (result.ok) setRequestId(uid()); }); }}><Send />{pending ? "Enviando…" : "Enviar email"}</Button></div>
+      <Field label="Asunto"><input value={subject} onChange={(e) => { markEdited(); setSubject(e.target.value); }} /></Field>
+      <Field label="Mensaje"><textarea className="min-h-44" value={body} onChange={(e) => { markEdited(); setBody(e.target.value); }} /></Field>
+      <div className="rounded-xl border bg-background p-4 text-sm"><p className="font-semibold">Adjuntos</p><p className="mt-2">{quoteDisplayFilename(quote.number)}</p>{catalog && <label className="mt-3 flex items-center gap-2"><input type="checkbox" checked={attachCatalog} onChange={(e) => { markEdited(); onAttachCatalog(e.target.checked); }} />Catálogo vigente: {catalog.name} · {catalog.version}</label>}</div>
+      <div className="grid gap-3 sm:grid-cols-2"><Button onClick={() => setPdfOpen(true)} variant="outline"><FileDown />Abrir PDF</Button><Button onClick={openEmailPreview} variant="outline"><Send />Previsualizar y confirmar envío</Button></div>
       <p className="text-xs text-muted">La reserva se genera únicamente después de marcar la cotización como aceptada, desde “Cotizaciones recientes”.</p>
       {message && <p aria-live="polite" className="text-sm font-medium">{message}</p>}
       {pdfOpen && <PdfViewer title={quoteDisplayFilename(quote.number)} src={`/api/commercial/quotes/${quote.id}/pdf`} onClose={() => setPdfOpen(false)} />}
+      {emailPreviewOpen && emailPreviewSnapshot && previewHtml && <MobileDialog
+        description="El envío solo puede continuar desde esta vista previa. Si editas cualquier campo, debes previsualizar nuevamente."
+        eyebrow="VISTA PREVIA OBLIGATORIA"
+        footer={<div className="grid gap-3 sm:grid-cols-2"><Button onClick={() => { setEmailPreviewOpen(false); setEmailPreviewSnapshot(null); }} variant="outline">Volver a editar</Button><Button disabled={pending || emailPreviewSnapshot.recipient !== recipient || emailPreviewSnapshot.cc !== ccInput || emailPreviewSnapshot.subject !== subject || emailPreviewSnapshot.body !== body || emailPreviewSnapshot.attachCatalog !== attachCatalog} onClick={() => { const cc = emailPreviewSnapshot.cc.split(/[\n,;]+/).map((value) => value.trim()).filter(Boolean); start(async () => { const result = await sendFormalQuoteAction({ quoteId: quote.id, email: emailPreviewSnapshot.recipient, cc, subject: emailPreviewSnapshot.subject, body: normalizeEmailNewlines(emailPreviewSnapshot.body), requestId, catalogDocumentId: emailPreviewSnapshot.attachCatalog ? catalog?.id : undefined }); setMessage(result.ok ? result.message : result.error); if (result.ok) { setRequestId(uid()); setEmailPreviewOpen(false); setEmailPreviewSnapshot(null); } }); }}><Send />{pending ? "Enviando…" : "Confirmar y enviar"}</Button></div>}
+        onClose={() => { setEmailPreviewOpen(false); setEmailPreviewSnapshot(null); }}
+        size="xl"
+        title="Revisar cotización y correo"
+        variant="fullscreen-mobile"
+      >
+        <div className="mb-4 grid gap-2 rounded-xl border bg-background p-4 text-sm"><p><strong>Para:</strong> {emailPreviewSnapshot.recipient}</p><p><strong>CC:</strong> {emailPreviewSnapshot.cc || "—"}</p><p><strong>Asunto:</strong> {emailPreviewSnapshot.subject}</p><p><strong>Adjuntos:</strong> {quoteDisplayFilename(quote.number)}{emailPreviewSnapshot.attachCatalog && catalog ? ` · ${catalog.name}` : ""}</p></div>
+        <iframe className="h-[min(68rem,calc(100dvh-15rem))] w-full rounded-xl bg-white" sandbox="" srcDoc={previewHtml} title="HTML final de cotización" />
+        {emailPreviewSnapshot.recipient !== recipient || emailPreviewSnapshot.cc !== ccInput || emailPreviewSnapshot.subject !== subject || emailPreviewSnapshot.body !== body || emailPreviewSnapshot.attachCatalog !== attachCatalog ? <p className="mt-3 rounded-xl border border-amber-500/50 bg-amber-500/10 p-3 text-sm" role="alert">La cotización cambió después de la previsualización. Vuelve a previsualizar antes de confirmar.</p> : null}
+      </MobileDialog>}
     </div>
   </section>;
 }
