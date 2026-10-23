@@ -1,8 +1,9 @@
 "use client";
 import { cn } from "@/lib/utils";
 import { useCompanySettings } from "@/features/company-settings";
+import { ORBIT_DISPLAY_VERSION } from "@/lib/orbit-version";
 
-export const ORBIT_DISPLAY_VERSION = "v2.1.2";
+export { ORBIT_DISPLAY_VERSION } from "@/lib/orbit-version";
 
 export function BrandSignature({ className, compact = false }: { className?: string; compact?: boolean }) {
   const settings=useCompanySettings();

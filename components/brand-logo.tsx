@@ -3,7 +3,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useCompanySettings } from "@/features/company-settings";
-import { ORBIT_DISPLAY_VERSION } from "./brand-signature";
+import { ORBIT_DISPLAY_VERSION } from "@/lib/orbit-version";
 
 export interface BrandLogoProps {
   variant?: "horizontal" | "isotype";

@@ -9,7 +9,8 @@ test("ORBIT BOOMBOX release identifies itself as v2.1.2", () => {
   assert.match(read("app/page.tsx"), /ORBIT BOOMBOX v2\.1\.2/);
   assert.match(read("features/company-settings/types.ts"), /productVersion:"v2\.1\.2"/);
   const signature = read("components/brand-signature.tsx");
-  assert.match(signature, /ORBIT_DISPLAY_VERSION = "v2\.1\.2"/);
+  const version = read("lib/orbit-version.ts");
+  assert.match(version, /ORBIT_DISPLAY_VERSION = "v2\.1\.2"/);
   assert.match(signature, /data-testid="brand-signature-version"[^>]*>\{settings\.productName\} \{ORBIT_DISPLAY_VERSION\}<\/p>/);
   assert.doesNotMatch(signature, /settings\.productVersion<\/p>/);
 });
