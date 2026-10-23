@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerActionClient } from "@/lib/supabase/server";
 import { isAdministrativeRole } from "@/lib/auth/roles";
 import { loadCompanySettings } from "@/features/company-settings/repository";
-import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-workspace/application/google-workspace.repository";
+import { loadGoogleWorkspaceAccessToken, loadGoogleWorkspaceConnection } from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import { GoogleGmailApiProvider } from "@/features/connectors/google-gmail/provider/google-gmail-live.provider";
 import { resolveCollectionBankDetails } from "./collection-bank-details";
 import {
@@ -247,11 +247,15 @@ export async function sendCollectionEmailAction(
 
     let sent;
     try {
+      const workspace = await loadGoogleWorkspaceConnection();
+      const senderEmail = workspace.workspaceAccount?.trim();
+      if (!senderEmail) throw new Error("No se pudo identificar la cuenta remitente de Google Workspace.");
       sent = await new GoogleGmailApiProvider(
         await loadGoogleWorkspaceAccessToken(),
       ).send({
         to: recipients.to,
         cc: recipients.cc,
+        from: `"BOOMBOX Cabinas Fotográficas" <${senderEmail}>`,
         subject,
         textBody: body,
         htmlBody: buildCollectionEmailHtml(draft, body),
