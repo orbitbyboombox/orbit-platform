@@ -151,17 +151,38 @@ Un abrazo,
 
 Equipo BOOMBOX`;
 
+const SOCIAL_QUICK_SEND_BODY = `Hola [Nombre],
+
+Gracias por considerar a BOOMBOX para ser parte de tu evento.
+
+Hace 16 años creamos experiencias fotográficas para matrimonios, cumpleaños y celebraciones en Chile.
+
+Hemos preparado nuestra propuesta para que puedas conocer las distintas experiencias, formatos y valores disponibles.
+
+**NUESTRA PROPUESTA**
+
+Encontrarás el detalle completo de nuestras experiencias y valores en el documento adjunto.
+
+Si alguna alternativa te interesa, respóndenos este correo y te ayudaremos a revisar disponibilidad y preparar tu cotización.
+
+**Importante:** Las fechas se confirman mediante reserva y están sujetas a disponibilidad.
+
+Esperamos ser parte de tu celebración.
+
+Un abrazo,
+
+Equipo BOOMBOX`;
+
 export function quickSendInitialBody(category: string, configuredBody: string) {
-  const canonical =
-    category === "WEDDINGS"
-      ? WEDDING_QUICK_SEND_BODY
-      : category === "BIRTHDAYS"
-        ? BIRTHDAY_QUICK_SEND_BODY
-        : category === "GRADUATIONS"
-          ? CELEBRATION_QUICK_SEND_BODY
-          : category === "COMPANIES_CATALOG"
-            ? COMPANY_QUICK_SEND_BODY
-            : configuredBody;
+  const canonical = category === "WEDDINGS"
+    ? WEDDING_QUICK_SEND_BODY
+    : category === "BIRTHDAYS"
+      ? BIRTHDAY_QUICK_SEND_BODY
+      : category === "GRADUATIONS"
+        ? CELEBRATION_QUICK_SEND_BODY
+        : category === "COMPANIES_CATALOG"
+          ? COMPANY_QUICK_SEND_BODY
+          : configuredBody || SOCIAL_QUICK_SEND_BODY;
   return quickSendEditableBody(canonical);
 }
 
