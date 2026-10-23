@@ -9,9 +9,11 @@ test("selective v2.1.2 UI keeps the official logo and visible version", async ()
   const logo = await source("components/brand-logo.tsx");
   const signature = await source("components/brand-signature.tsx");
   const login = await source("app/page.tsx");
+  const layout = await source("app/layout.tsx");
   assert.match(logo, /boombox-official-logo\.png/);
   assert.match(signature, /ORBIT_DISPLAY_VERSION = \"v2\.1\.2\"/);
   assert.match(login, /ORBIT BOOMBOX v2\.1\.2/);
+  assert.match(layout, /title:`ORBIT BOOMBOX \$\{ORBIT_DISPLAY_VERSION\}`/);
 });
 
 test("sidebar scrolls independently while preserving quick actions", async () => {
