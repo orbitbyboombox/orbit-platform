@@ -59,7 +59,12 @@ export function DigitalPhotoDeliveryControl({ projectId }: { projectId: string }
 
   const refresh = () =>
     startTransition(async () => {
-      const result = await getDigitalPhotoDeliveryPreviewAction(projectId);
+      const result = await Promise.race([
+        getDigitalPhotoDeliveryPreviewAction(projectId),
+        new Promise<{ ok: false; error: string }>((resolve) =>
+          setTimeout(() => resolve({ ok: false, error: "La consulta está tardando demasiado. Intenta nuevamente." }), 12000),
+        ),
+      ]);
       if (!result.ok) {
         setFeedback(result.error);
         return;
