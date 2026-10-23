@@ -51,7 +51,7 @@ export class GoogleGmailApiProvider implements GoogleGmailLiveProvider {
     const headers = [`To: ${safeHeaderValue(message.to, "recipient")}`, `Subject: ${encodedSubject(message.subject)}`, "MIME-Version: 1.0"];
     // Brand all ORBIT outbound mail while preserving the authenticated sender address.
     // Gmail accepts the From header only for the authenticated account or a verified send-as alias.
-    const explicitSender = message.from?.match(/<([^<>]+)>\\s*$/)?.[1] ?? message.from?.trim();
+    const explicitSender = message.from?.match(/<([^<>]+)>\s*$/)?.[1] ?? message.from?.trim();
     let senderAddress = explicitSender;
     if (!senderAddress) {
       const profileResponse = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/profile", {
@@ -61,7 +61,7 @@ export class GoogleGmailApiProvider implements GoogleGmailLiveProvider {
       const profile = (await profileResponse.json()) as { emailAddress?: string };
       senderAddress = profile.emailAddress?.trim();
     }
-    if (!senderAddress || !/^[^\\s@<>]+@[^\\s@<>]+\\.[^\\s@<>]+$/.test(senderAddress)) {
+    if (!senderAddress || !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(senderAddress)) {
       throw new Error("La dirección remitente de Gmail no es válida.");
     }
     headers.push(`From: =?UTF-8?B?${utf8Base64("BOOMBOX Cabinas Fotográficas")}?= <${safeHeaderValue(senderAddress, "From")}>`);
