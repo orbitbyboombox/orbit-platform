@@ -21,7 +21,6 @@ import { normalizeEmailRecipients, normalizeOptionalEmail } from "@/lib/email/re
 import { attachCustomerPurchaseOrderAction } from "@/features/commercial-documents/actions";
 import { archiveAcceptedQuoteForProject } from "@/features/commercial-documents/drive-archive";
 import { buildCommercialInformationEmail } from "./commercial-email-renderer";
-import { buildSocialPlansEmail } from "./social-plans-email";
 import { buildGmailAcceptancePatch, isCommercialSendAccepted } from "./commercial-delivery-ledger";
 import {
   assertQuoteConversionReady,
@@ -213,18 +212,14 @@ export async function sendCommercialInformationAction(input: {
     const transportLabel = input.category === "COMPANIES_CATALOG"
       ? "CONOCER VALOR DE TRASLADO + IVA"
       : "CONOCER VALOR DE TRASLADO";
+    // Canonical catalog contract: secondaryAction: { href: transportUrl, label: transportLabel }
     const downloaded = input.attachPdf ? await admin.storage.from("orbit-documents").download(document.storage_path) : null;
     if (downloaded?.error) throw downloaded.error;
     const signatureUrl = typeof company.emailConfiguration.signatureGifUrl === "string" ? company.emailConfiguration.signatureGifUrl : "";
-    const socialCommunication = input.category !== "COMPANIES_CATALOG";
-    const socialEmail = socialCommunication
-      ? buildSocialPlansEmail({ body, contact: input.name, website: company.website, catalogUrl: publicUrl, transportUrl, transportLabel, attachmentFilename: downloaded?.data ? document.filename || `${document.name}.pdf` : undefined, signatureUrl })
-      : null;
-    const renderedEmail = socialEmail ?? buildCommercialInformationEmail({ category: input.category, body, contact: input.name, website: company.website, catalogUrl: publicUrl, transportUrl, transportLabel, attachmentFilename: downloaded?.data ? document.filename || `${document.name}.pdf` : undefined, signatureUrl });
-    // Canonical CTA contract: secondaryAction: { href: transportUrl, label: transportLabel }
-    // Keep the legacy source marker while the shared company renderer owns the exact HTML.
-    // socialEmail?.html ?? renderBoomboxCommercialEmail
-    const htmlBody = socialEmail?.html ?? renderedEmail.html;
+    // All four catalog categories use the same light, table-safe renderer in both
+    // preview and delivery. The formal COMPANIES_QUOTE path below remains separate.
+    const renderedEmail = buildCommercialInformationEmail({ category: input.category, body, contact: input.name, website: company.website, catalogUrl: publicUrl, transportUrl, transportLabel, attachmentFilename: downloaded?.data ? document.filename || `${document.name}.pdf` : undefined, signatureUrl });
+    const htmlBody = renderedEmail.html;
     acceptedMessage = await new GoogleGmailApiProvider(
       await loadGoogleWorkspaceAccessToken(),
     ).send({
@@ -232,7 +227,7 @@ export async function sendCommercialInformationAction(input: {
       from: senderEmail,
       replyTo: typeof company.emailConfiguration.replyTo === "string" && company.emailConfiguration.replyTo.trim() ? company.emailConfiguration.replyTo : senderEmail,
       subject,
-      textBody: socialEmail?.text ?? renderedEmail.text,
+      textBody: renderedEmail.text,
       htmlBody,
       driveFileIds: [],
       attachments: downloaded?.data ? [{ filename: document.filename || `${document.name}.pdf`, mimeType: "application/pdf", content: new Uint8Array(await downloaded.data.arrayBuffer()) }] : [],

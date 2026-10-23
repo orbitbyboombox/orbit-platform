@@ -1,5 +1,4 @@
-import { renderBoomboxCommercialEmail } from "../connectors/google-gmail/application/boombox-commercial-email.html.ts";
-import { buildSocialPlansEmail } from "./social-plans-email.ts";
+import { OFFICIAL_BOOMBOX_LOGO_URL } from "../connectors/google-gmail/application/boombox-commercial-email.html.ts";
 import {
   QUICK_SEND_CTA_LABEL,
   commercialSignatureMode,
@@ -39,51 +38,40 @@ type Input = {
 
 export function buildCommercialInformationEmail(input: Input) {
   const cleanBody = withoutDuplicateSignature(input.body, "Equipo BOOMBOX");
-  if (input.category !== "COMPANIES_CATALOG") {
-    return buildSocialPlansEmail({
-      body: cleanBody,
-      contact: input.contact,
-      website: input.website,
-      catalogUrl: input.catalogUrl,
-      transportUrl: input.transportUrl,
-      transportLabel: input.transportLabel,
-      attachmentFilename: input.attachmentFilename,
-      signatureUrl: input.signatureUrl,
-    });
-  }
-
+  const paragraphs = quickSendBodyParagraphs(cleanBody, input.contact);
+  const labels: Record<string, string> = {
+    WEDDINGS: "EXPERIENCIAS PARA MATRIMONIOS",
+    BIRTHDAYS: "EXPERIENCIAS PARA CUMPLEAÑOS",
+    GRADUATIONS: "EXPERIENCIAS PARA GRADUACIONES",
+    COMPANIES_CATALOG: "EXPERIENCIAS CORPORATIVAS",
+  };
+  const proposalIndex = paragraphs.findIndex((paragraph) => paragraph.replaceAll("*", "").trim() === "NUESTRA PROPUESTA");
+  const intro = (proposalIndex < 0 ? paragraphs : paragraphs.slice(0, proposalIndex))
+    .map((paragraph, index) => renderCatalogParagraph(paragraph, index === 0))
+    .join("");
+  const closing = (proposalIndex < 0 ? [] : paragraphs.slice(proposalIndex + 1))
+    .filter((paragraph) => !paragraph.startsWith("Cuando encuentres una alternativa"))
+    .map((paragraph) => renderCatalogParagraph(paragraph, false))
+    .join("");
   const signatureMode = commercialSignatureMode(input.signatureUrl ?? "");
   const signature = signatureMode === "GRAPHICAL"
-    ? `<p style="margin:24px 0 0"><img src="${escapeHtml(input.signatureUrl ?? "")}" alt="BOOMBOX" style="display:block;max-width:420px;width:100%;height:auto;border:0"></p>`
-    : `<p style="margin:8px 0 0"><strong>Equipo BOOMBOX</strong></p>`;
-  const paragraphs = quickSendBodyParagraphs(cleanBody, input.contact);
-  const renderParagraph = (paragraph: string) => {
-    if (paragraph.replaceAll("**", "").trim() === "¿QUIERES COTIZAR?")
-      return `<h2 style="margin:28px 0 12px;color:#d76d00;font-size:14px;letter-spacing:.1em">¿QUIERES COTIZAR?</h2>`;
-    if (paragraph.startsWith("Respóndenos indicando:"))
-      return `<div style="margin:0 0 18px;padding:16px 18px;background:#fff7eb;border:1px solid #f4d5aa;border-radius:12px">${richText(paragraph)}</div>`;
-    if (paragraph.startsWith("**Importante:**"))
-      return `<p style="margin:20px 0 0;padding:14px 16px;background:#f7f5f1;border-radius:10px;color:#5d574f;font-size:13px">${richText(paragraph)}</p>`;
-    return `<p style="margin:0 0 16px">${richText(paragraph)}</p>`;
-  };
-  const html = renderBoomboxCommercialEmail({
-    preheader: "Conoce los planes y experiencias BOOMBOX para tu evento.",
-    eyebrow: "EXPERIENCIAS CORPORATIVAS",
-    title: "Experiencias BOOMBOX para tu evento",
-    contentHtml: paragraphs.map(renderParagraph).join(""),
-    website: input.website,
-    primaryAction: { href: input.catalogUrl, label: QUICK_SEND_CTA_LABEL },
-    secondaryAction: { href: input.transportUrl, label: input.transportLabel },
-    primaryActionFallback: "Si tienes problemas con el botón, puedes abrir los planes y valores",
-    attachmentNote: input.attachmentFilename
-      ? `${input.attachmentFilename} está incluido como archivo adjunto.`
-      : undefined,
-    signatureHtml: signature,
-  });
+    ? `<p style="margin:0"><img src="${escapeHtml(input.signatureUrl ?? "")}" alt="BOOMBOX" style="display:block;max-width:420px;width:100%;height:auto;border:0"></p>`
+    : `<p style="margin:0"><strong>Equipo BOOMBOX</strong></p>`;
+  const attachment = input.attachmentFilename
+    ? `<p style="margin:12px 0 0;font-size:12px;line-height:1.5;color:#6b7280">Adjunto: ${escapeHtml(input.attachmentFilename)}</p>`
+    : "";
+  const button = (href: string, label: string, filled = true) => `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto;border-collapse:separate"><tr><td align="center" bgcolor="${filled ? "#ed7203" : "#ffffff"}" style="border:1px solid #ed7203;border-radius:12px;background-color:${filled ? "#ed7203" : "#ffffff"};padding:14px 24px;mso-padding-alt:14px 24px"><a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" style="display:block;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:800;letter-spacing:.03em;line-height:20px;color:${filled ? "#ffffff" : "#d85f00"};text-decoration:none;white-space:nowrap">${escapeHtml(label)}</a></td></tr></table>`;
+  const card = (title: string, description: string, action: string, href: string, filled: boolean, extra = "") => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin:26px 0;border:1px solid #f1c99f;border-radius:16px;background-color:#fff9f2;background:#fff9f2"><tr><td style="padding:22px"><h2 style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:23px;color:#17191f">${title}</h2><p style="margin:8px 0 18px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;color:#333740">${description}</p>${button(href, action, filled)}${extra}</td></tr></table>`;
+  const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"></head><body style="margin:0;padding:0;background-color:#f4f5f7;background:#f4f5f7"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background-color:#f4f5f7;background:#f4f5f7"><tr><td align="center" style="padding:28px 12px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:620px;border:1px solid #e3e5e9;border-radius:20px;background-color:#ffffff;background:#ffffff;border-collapse:separate;overflow:hidden"><tr><td style="padding:25px 28px;border-bottom:4px solid #f78900;background-color:#101216;background:#101216"><img src="${OFFICIAL_BOOMBOX_LOGO_URL}" alt="BOOMBOX®" width="270" style="display:block;width:270px;max-width:100%;height:auto;border:0"><p style="margin:10px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:18px;letter-spacing:.12em;color:#f6a452;text-transform:uppercase">${escapeHtml(labels[input.category] ?? "EXPERIENCIAS BOOMBOX")}</p></td></tr><tr><td style="padding:28px;font-family:Arial,Helvetica,sans-serif;color:#17191f"><p style="margin:0 0 18px;font-size:18px;font-weight:700;line-height:26px;color:#17191f">Hola ${escapeHtml(input.contact.trim() || "Cliente")},</p>${intro}${card("Conoce nuestras experiencias BOOMBOX", "Revisa nuestras alternativas, formatos y valores para elegir la experiencia que mejor se adapte a tu evento.", QUICK_SEND_CTA_LABEL, input.catalogUrl, true, attachment)}${card("Conoce el valor de traslado", "Selecciona la comuna donde se realizará tu evento y consulta el valor de traslado correspondiente.", "CONSULTAR VALOR DE TRASLADO", input.transportUrl, false)}${closing}<p style="margin:0 0 14px;font-size:15px;line-height:24px;color:#333740">Las fechas se confirman mediante reserva y están sujetas a disponibilidad.</p><p style="margin:0;font-size:15px;line-height:23px;color:#333740">Esperamos ser parte de tu celebración.<br><br>Un abrazo,</p><div style="margin-top:14px">${signature}</div></td></tr><tr><td style="border-top:1px solid #eceef2;padding:18px 28px;font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:18px;color:#7a808b;background-color:#ffffff;background:#ffffff">BOOMBOX · Comunicación emitida mediante ORBIT<br>ORBIT · Software desarrollado por BOOMBOX<br><a href="https://www.bbox.cl" style="color:#f07f16;text-decoration:none">www.bbox.cl</a></td></tr></table></td></tr></table></body></html>`;
   return {
     html,
-    text: `${paragraphs.join("\n\n")}\n\n${QUICK_SEND_CTA_LABEL}: ${input.catalogUrl}\n\n${input.transportLabel}: ${input.transportUrl}\n\n${signatureMode === "GRAPHICAL" ? "" : "Equipo BOOMBOX"}`.trim(),
+    text: `${paragraphs.join("\n\n")}\n\n${QUICK_SEND_CTA_LABEL}: ${input.catalogUrl}\n\nCONSULTAR VALOR DE TRASLADO: ${input.transportUrl}\n\n${signatureMode === "GRAPHICAL" ? "" : "Equipo BOOMBOX"}`.trim(),
   };
+}
+
+function renderCatalogParagraph(paragraph: string, greeting: boolean) {
+  const content = richText(paragraph);
+  return `<p style="margin:0 0 14px;font-size:${greeting ? "17px" : "15px"};line-height:1.6;color:#333740${greeting ? ";font-weight:700" : ""}">${content}</p>`;
 }
 
 export function commercialEmailTextBody(body: string, contact: string, category: string, catalogUrl: string, transportUrl: string, transportLabel: string, signatureUrl?: string) {
