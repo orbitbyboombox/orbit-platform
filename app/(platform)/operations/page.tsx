@@ -63,6 +63,7 @@ type PlanningRequest = {
 };
 
 export default async function OperationsPage() {
+  const auditStartedAt = performance.now();
   const client = await createSupabaseServerClient();
   const { data: auth, error: authError } = await client.auth.getUser();
   if (authError || !auth.user)
@@ -218,6 +219,9 @@ export default async function OperationsPage() {
     financeDashboardPromise,
   ]);
 
+  if (process.env.ORBIT_PERF_AUDIT === "true") {
+    console.info("[orbit-perf] dashboard-data-ready", Math.round(performance.now() - auditStartedAt));
+  }
   const results = [
     assignmentsResult,
     staffResult,
