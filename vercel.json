@@ -36,5 +36,8 @@
       "schedule": "*/5 * * * *"
     }
   ],
-  "ignoreCommand": "if [ \"$VERCEL_PROJECT_ID\" = \"prj_Pa06wrQEaZMuEdbkVC5cCmmi6dGN\" ]; then exit 1; else echo \"Skipping legacy Vercel project $VERCEL_PROJECT_ID\"; exit 0; fi"
+  "ignoreCommand": "if [ \"$VERCEL_PROJECT_ID\" = \"prj_Pa06wrQEaZMuEdbkVC5cCmmi6dGN\" ]; then exit 1; else echo \"Skipping legacy Vercel project $VERCEL_PROJECT_ID\"; exit 0; fi",
+  "regions": [
+    "sfo1"
+  ]
 }
