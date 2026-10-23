@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
-import { buildCommercialInformationEmail } from "../features/commercial-hub/commercial-email-renderer.ts";
-import { OFFICIAL_BOOMBOX_LOGO_URL } from "../features/connectors/google-gmail/application/boombox-commercial-email.html.ts";
+import { buildCommercialInformationEmail, CATALOG_BOOMBOX_LOGO_URL } from "../features/commercial-hub/commercial-email-renderer.ts";
 
 const componentSource = () => readFile(new URL("../features/commercial-hub/commercial-hub.tsx", import.meta.url), "utf8");
 const actionSource = () => readFile(new URL("../features/commercial-hub/actions.ts", import.meta.url), "utf8");
@@ -36,6 +35,9 @@ test("social and company previews contain the same two commercial actions", () =
     assert.match(email.html, /#fff9f2/);
     assert.match(email.html, /#101216/);
     assert.match(email.html, /BOOMBOX/);
+    assert.match(email.html, /https:\/\/app\.bbox\.cl\/branding\/boombox-official-logo-transparent\.png/);
+    assert.match(email.html, /href="https:\/\/www\.bbox\.cl"/);
+    assert.doesNotMatch(email.html, /boom-box\.cl/);
   }
 });
 
@@ -59,11 +61,13 @@ test("catalog HTML centralizes the clean BOOMBOX closing and ignores personal si
     transportLabel: "CONOCER VALOR DE TRASLADO",
     signatureUrl: "https://example.invalid/matias-signature.gif",
   });
-  assert.match(email.html, new RegExp(OFFICIAL_BOOMBOX_LOGO_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(email.html, new RegExp(CATALOG_BOOMBOX_LOGO_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.match(email.html, /Si tienes dudas o necesitas más información, estaremos encantados de ayudarte\./);
   assert.match(email.html, /Equipo BOOMBOX®/);
   assert.match(email.html, /Las fechas están sujetas a disponibilidad y se confirman mediante reserva\./);
-  assert.match(email.html, /www\.boom-box\.cl/);
+  assert.match(email.html, /www\.bbox\.cl/);
+  assert.match(email.html, /href="https:\/\/www\.bbox\.cl"/);
+  assert.doesNotMatch(email.html, /boom-box\.cl/);
   assert.doesNotMatch(email.html, /matias-signature/);
   assert.doesNotMatch(email.html, /Comunicación emitida mediante ORBIT|Software desarrollado por BOOMBOX/);
   assert.doesNotMatch(email.html, /Quedamos atentos|\*\*Importante:\*\*/);

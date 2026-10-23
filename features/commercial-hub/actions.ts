@@ -218,7 +218,7 @@ export async function sendCommercialInformationAction(input: {
     const signatureUrl = typeof company.emailConfiguration.signatureGifUrl === "string" ? company.emailConfiguration.signatureGifUrl : "";
     // All four catalog categories use the same light, table-safe renderer in both
     // preview and delivery. The formal COMPANIES_QUOTE path below remains separate.
-    const renderedEmail = buildCommercialInformationEmail({ category: input.category, body, contact: input.name, website: company.website, catalogUrl: publicUrl, transportUrl, transportLabel, attachmentFilename: downloaded?.data ? document.filename || `${document.name}.pdf` : undefined, signatureUrl });
+    const renderedEmail = buildCommercialInformationEmail({ category: input.category, body, contact: input.name, website: company.website, catalogUrl: publicUrl, transportUrl, transportLabel, attachmentFilename: downloaded?.data ? document.filename || `${document.name}.pdf` : undefined, signatureUrl, logoUrl: `${appOrigin}/branding/boombox-official-logo-transparent.png` });
     const htmlBody = renderedEmail.html;
     acceptedMessage = await new GoogleGmailApiProvider(
       await loadGoogleWorkspaceAccessToken(),

@@ -290,6 +290,7 @@ function InformationSender({
         transportLabel: category === "COMPANIES_CATALOG" ? "CONOCER VALOR DE TRASLADO + IVA" : "CONOCER VALOR DE TRASLADO",
         attachmentFilename: previewSnapshot.attachPdf && document ? document.filename || `${document.name}.pdf` : undefined,
         signatureUrl: data.company.emailSignatureUrl,
+        logoUrl: `${window.location.origin}/branding/boombox-official-logo-transparent.png`,
       })
     : null;
   return (
