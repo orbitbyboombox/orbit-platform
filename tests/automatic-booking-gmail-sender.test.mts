@@ -9,7 +9,7 @@ const invitationService = readFileSync(
 );
 
 test("automatic booking invitation sends with the connected Workspace account", async () => {
-  assert.match(invitationService, /workspace\\.workspaceAccount\\?\\.trim\\(\\)/);
+  assert.match(invitationService, /workspace\.workspaceAccount\?\.trim\(\)/);
   assert.match(invitationService, /from: senderEmail/);
 
   const requests: string[] = [];
