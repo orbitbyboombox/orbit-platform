@@ -13,7 +13,7 @@ const appOrigin = () => process.env.NEXT_PUBLIC_APP_URL ?? "https://orbit.boom-b
 
 export async function createAutomaticBookingInvitation(email: string, actorId: string) {
   const customerEmail = email.trim().toLowerCase();
-  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(customerEmail)) throw new Error("Ingresa un correo válido.");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) throw new Error("Ingresa un correo válido.");
   const admin = createAdminClient();
   await admin.from("automatic_booking_invitations").update({ status: "REVOKED" }).eq("customer_email", customerEmail).is("consumed_at", null).in("status", ["SENT", "OPENED"]);
   const token = randomBytes(32).toString("base64url");
@@ -28,7 +28,7 @@ export async function createAutomaticBookingInvitation(email: string, actorId: s
     const senderEmail = workspace.workspaceAccount?.trim();
     if (!senderEmail) throw new Error("Google Workspace no tiene una cuenta remitente configurada.");
     const accessToken = await loadGoogleWorkspaceAccessToken();
-    const result = await new GoogleGmailApiProvider(accessToken).send({ to: customerEmail, from: senderEmail, subject, textBody: `Completa tu Reserva BOOMBOX: ${url}\\n\\nEste enlace vence en 7 días y funciona una sola vez.`, htmlBody, driveFileIds: [] });
+    const result = await new GoogleGmailApiProvider(accessToken).send({ to: customerEmail, from: senderEmail, subject, textBody: `Completa tu Reserva BOOMBOX: ${url}\n\nEste enlace vence en 7 días y funciona una sola vez.`, htmlBody, driveFileIds: [] });
     await admin.from("automatic_booking_invitations").update({ invitation_message_id: result.messageId }).eq("id", invitation.id);
     return { url, expiresAt };
   } catch (cause) {
