@@ -8,7 +8,7 @@ create table if not exists public.staff_monthly_boleta_requests(
   recipient_email text not null,
   settlement_document_id uuid references public.staff_onboarding_documents(id),
   idempotency_key text not null unique,
-  status text not null default 'PROCESSING' check(status in('PROCESSING','SENT','FAILED')),
+  status text not null default 'PROCESSING' check(status in('PROCESSING','SENT','FAILED','NEEDS_RECONCILIATION')),
   provider_message_id text,
   provider_thread_id text,
   error_code text,
@@ -38,7 +38,7 @@ declare current_row public.staff_monthly_boleta_requests;
 begin
   if not public.can_administer() then raise exception 'ADMIN_REQUIRED'; end if;
   select * into current_row from public.staff_monthly_boleta_requests where account_id=p_account_id for update;
-  if found and current_row.status='SENT' then return query select false,current_row.id,current_row.status; return; end if;
+  if found and current_row.status in ('SENT','NEEDS_RECONCILIATION') then return query select false,current_row.id,current_row.status; return; end if;
   if found and current_row.status='PROCESSING' and current_row.lease_expires_at>now() then return query select false,current_row.id,current_row.status; return; end if;
   if found then
     update public.staff_monthly_boleta_requests set status='PROCESSING',recipient_email=p_recipient_email,
@@ -58,7 +58,7 @@ create or replace function public.complete_staff_monthly_boleta_request(p_reques
 returns void language plpgsql security definer set search_path=public as $$
 begin
   if not public.can_administer() then raise exception 'ADMIN_REQUIRED'; end if;
-  if p_status not in('SENT','FAILED') then raise exception 'INVALID_STATUS'; end if;
+  if p_status not in('SENT','FAILED','NEEDS_RECONCILIATION') then raise exception 'INVALID_STATUS'; end if;
   update public.staff_monthly_boleta_requests set status=p_status,provider_message_id=p_message_id,provider_thread_id=p_thread_id,error_code=p_error_code,sent_at=case when p_status='SENT' then now() else null end,lease_expires_at=now(),updated_at=now() where id=p_request_id;
 end $$;
 revoke all on function public.complete_staff_monthly_boleta_request(uuid,text,text,text,text) from public,anon,authenticated;
