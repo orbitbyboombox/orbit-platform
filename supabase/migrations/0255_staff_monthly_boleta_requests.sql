@@ -37,6 +37,12 @@ language plpgsql security definer set search_path=public as $$
 declare current_row public.staff_monthly_boleta_requests;
 begin
   if not public.can_administer() then raise exception 'ADMIN_REQUIRED'; end if;
+  if not exists (
+    select 1 from public.staff_monthly_accounts a
+    where a.id=p_account_id and a.staff_id=p_staff_id and a.accounting_month=p_month
+      and a.settlement_document_id=p_document_id
+  ) then raise exception 'STAFF_MONTHLY_REQUEST_ACCOUNT_MISMATCH'; end if;
+  if p_recipient_email is null or btrim(p_recipient_email)='' then raise exception 'STAFF_MONTHLY_REQUEST_EMAIL_REQUIRED'; end if;
   select * into current_row from public.staff_monthly_boleta_requests where account_id=p_account_id for update;
   if found and current_row.status in ('SENT','NEEDS_RECONCILIATION') then return query select false,current_row.id,current_row.status; return; end if;
   if found and current_row.status='PROCESSING' and current_row.lease_expires_at>now() then return query select false,current_row.id,current_row.status; return; end if;
