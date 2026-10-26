@@ -6,7 +6,7 @@ import { createSupabaseServerActionClient } from "@/lib/supabase/server";
 import { loadPortalSession } from "@/features/portal-authentication/portal-auth.service";
 import { monthlyBoletaPath, monthlyReceiptPath } from "./model";
 import { syncStaffDocumentArchive } from "./drive-archive.service";
-import { sendMonthlySettlementReadyEmail, prepareMonthlySettlementDocument } from "./monthly-communication.service";
+import { sendMonthlySettlementReadyEmail } from "./monthly-communication.service";
 import {
   prepareMonthlySettlementDocument,
   sendMonthlyPaymentCompletedEmail,
