@@ -13,6 +13,8 @@ import {
 } from "./model";
 import { syncStaffDocumentArchive } from "./drive-archive.service";
 import { createStaffMonthlySettlementPdf } from "./settlement-pdf";
+import { GoogleGmailApiProvider } from "@/features/connectors/google-gmail/provider/google-gmail-live.provider";
+import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-workspace/application/google-workspace.repository";
 const allowed = new Set([
   "application/pdf",
   "image/jpeg",
@@ -460,6 +462,87 @@ export async function finalizeMonthlyStaffAccountAction(form: FormData) {
           ? error.message
           : "No fue posible finalizar la liquidación.",
     };
+  }
+}
+
+/** Prepare the month without invoking the strict final-close gate. */
+export async function prepareStaffMonthCloseAction(form: FormData) {
+  const month = String(form.get("month") ?? "").slice(0, 7);
+  const selectedStaffId = String(form.get("staffId") ?? "").trim();
+  const correlationId = randomUUID().slice(0, 8).toUpperCase();
+  try {
+    const client = await adminContext();
+    if (!/^\d{4}-\d{2}$/.test(month)) throw new Error("Mes inválido.");
+    if (!selectedStaffId) {
+      const generated = await client.rpc("generate_staff_monthly_accounts", { p_month: `${month}-01` });
+      if (generated.error) throw generated.error;
+    }
+    const admin = createAdminClient();
+    const { data: accounts, error: accountsError } = await admin
+      .from("staff_monthly_accounts")
+      .select(STAFF_MONTHLY_ACCOUNT_SELECT)
+      .eq("accounting_month", `${month}-01`);
+    if (accountsError) throw accountsError;
+    const selectedAccounts = selectedStaffId ? (accounts ?? []).filter(item => item.staff_id === selectedStaffId) : (accounts ?? []);
+    if (selectedStaffId && selectedAccounts.length !== 1) return { ok: false, message: "No existe una liquidación para ese operador y mes. Genérala antes de continuar." };
+    const blockers: string[] = [];
+    let sent = 0;
+    let sender: GoogleGmailApiProvider | null = null;
+    for (const raw of selectedAccounts) {
+      const { data: staff, error: staffError } = await admin.from("staff").select("id,first_name,last_name,email,rut,role").eq("id", raw.staff_id).single();
+      if (staffError || !staff) { blockers.push(`${raw.staff_id}: operador no encontrado`); continue; }
+      if (!staff?.email) { blockers.push(`${staff?.first_name ?? raw.staff_id}: email no registrado`); continue; }
+      if (raw.review_required || Number(raw.work_net ?? 0) <= 0) {
+        blockers.push(`${staff.first_name} ${staff.last_name}: requiere revisión o no tiene monto positivo`);
+        continue;
+      }
+      let row = raw;
+      if (raw.settlement_status === "DRAFT") {
+        const finalized = await client.rpc("finalize_staff_monthly_account", { p_account_id: raw.id });
+        if (finalized.error) { blockers.push(`${staff.first_name} ${staff.last_name}: ${finalized.error.message}`); continue; }
+        const refreshed = await admin.from("staff_monthly_accounts").select(STAFF_MONTHLY_ACCOUNT_SELECT).eq("id", raw.id).single();
+        if (refreshed.error || !refreshed.data) { blockers.push(`${staff.first_name} ${staff.last_name}: no se pudo leer la liquidación final`); continue; }
+        row = refreshed.data;
+      }
+      const account = mapStaffMonthlyAccount(row);
+      const path = monthlySettlementPath(account.staffId, account.month);
+       // Never overwrite an existing historical settlement PDF.
+       const existing = await admin.from("staff_onboarding_documents").select("id")
+         .eq("staff_id", account.staffId).eq("storage_bucket", "orbit-documents")
+         .eq("storage_path", path).eq("status", "ACTIVE").maybeSingle();
+       if (existing.error) { blockers.push(`${staff.first_name} ${staff.last_name}: documento histórico no verificable`); continue; }
+       let documentId = existing.data?.id;
+       if (!documentId) {
+         const pdf = await createStaffMonthlySettlementPdf({ account, staff: { name: `${staff.first_name} ${staff.last_name}`, rut: staff.rut ?? "", role: staff.role ?? "" } });
+         const upload = await admin.storage.from("orbit-documents").upload(path, pdf, { contentType: "application/pdf", upsert: false });
+         if (upload.error) { blockers.push(`${staff.first_name} ${staff.last_name}: PDF existente o no disponible; requiere conciliación`); continue; }
+         const inserted = await admin.from("staff_onboarding_documents").insert({ invitation_id: null, staff_id: account.staffId, document_type: "STAFF_MONTHLY_SETTLEMENT", category: "LIQUIDACIONES", applicable_month: account.month, friendly_label: `Liquidación mensual ${month}`, status: "ACTIVE", storage_bucket: "orbit-documents", storage_path: path, file_name: `liquidacion-staff-${month}.pdf`, mime_type: "application/pdf" }).select("id").single();
+         if (inserted.error) { blockers.push(`${staff.first_name} ${staff.last_name}: documento no registrado`); continue; }
+         documentId = inserted.data.id;
+       }
+       const linked = await admin.from("staff_monthly_accounts").update({ settlement_document_id: documentId }).eq("id", account.id).select("id").single();
+       if (linked.error || !linked.data) { blockers.push(`${staff.first_name} ${staff.last_name}: PDF no vinculado a liquidación`); continue; }
+      const claim = await client.rpc("claim_staff_monthly_boleta_request", { p_account_id: account.id, p_staff_id: account.staffId, p_month: account.month, p_recipient_email: staff.email, p_document_id: documentId, p_idempotency_key: `staff-boleta:${account.id}:${month}`, p_actor: null });
+      if (claim.error) { blockers.push(`${staff.first_name} ${staff.last_name}: solicitud no registrada`); continue; }
+      const request = Array.isArray(claim.data) ? claim.data[0] : claim.data;
+      if (!request?.claimed) continue;
+      const downloaded = await admin.storage.from("orbit-documents").download(path);
+      if (downloaded.error) { await client.rpc("complete_staff_monthly_boleta_request", { p_request_id: request.request_id, p_status: "FAILED", p_error_code: "PDF_DOWNLOAD_FAILED" }); blockers.push(`${staff.first_name} ${staff.last_name}: PDF no descargable`); continue; }
+      try {
+        if (!sender) sender = new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken());
+        const delivered = await sender.send({ to: staff.email, idempotencyKey: `staff-boleta:${account.id}:${month}`, subject: `BOOMBOX · Solicitud de boleta ${month}`, textBody: `Hola ${staff.first_name}, adjuntamos tu liquidación de ${month}. Emite tu boleta por el monto indicado y súbela en ORBIT.`, htmlBody: `<main style="font-family:Arial,sans-serif"><p>Hola ${staff.first_name},</p><p>Adjuntamos tu liquidación mensual de ${month}. Emite tu boleta de honorarios por el monto indicado y súbela en ORBIT.</p><p>BOOMBOX</p></main>`, driveFileIds: [], attachments: [{ filename: `liquidacion-staff-${month}.pdf`, mimeType: "application/pdf", content: new Uint8Array(await downloaded.data.arrayBuffer()) }] });
+        const completion = await client.rpc("complete_staff_monthly_boleta_request", { p_request_id: request.request_id, p_status: "SENT", p_message_id: delivered.messageId, p_thread_id: delivered.threadId });
+        if (completion.error) { blockers.push(`${staff.first_name} ${staff.last_name}: correo aceptado por Gmail pero confirmación pendiente; requiere conciliación manual`); continue; }
+        sent += 1;
+      } catch (error) {
+        await client.rpc("complete_staff_monthly_boleta_request", { p_request_id: request.request_id, p_status: "NEEDS_RECONCILIATION", p_error_code: error instanceof Error ? error.name : "GMAIL_SEND_UNCERTAIN" });
+        blockers.push(`${staff.first_name} ${staff.last_name}: correo no enviado`);
+      }
+    }
+    refresh();
+    return { ok: blockers.length === 0, message: blockers.length ? `Preparación parcial: ${sent} solicitudes enviadas. ${blockers.join(" · ")} Referencia ${correlationId}` : `✓ ${sent} solicitudes de boleta enviadas con PDF e idempotencia.` };
+  } catch {
+    return { ok: false, message: `No fue posible preparar el cierre mensual. Referencia ${correlationId}` };
   }
 }
 export async function approveMonthlySettlementReviewAction(form: FormData) {
