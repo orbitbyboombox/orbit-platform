@@ -665,6 +665,18 @@ export async function registerStaffAdvanceAction(form: FormData) {
   }
 }
 /** Explicitly finalize and request a boleta for exactly one selected staff member. */
+export async function getIndividualBoletaSentStatuses(accountIds: string[]) {
+  await adminContext();
+  const ids = [...new Set(accountIds)].filter((id) => /^[0-9a-f-]{36}$/i.test(id)).slice(0, 200);
+  if (!ids.length) return [] as string[];
+  const correlations = ids.map((id) => `staff-boleta-request:${id}:1`);
+  const { data, error } = await createAdminClient().from("internal_notifications")
+    .select("correlation_id,metadata").in("correlation_id", correlations);
+  if (error) throw error;
+  return (data ?? []).filter((row) => (row.metadata as Record<string, unknown> | null)?.email_status === "SENT")
+    .map((row) => String(row.correlation_id).split(":")[1]);
+}
+
 export async function requestIndividualStaffBoletaAction(form: FormData) {
   const month = String(form.get("month") ?? "");
   const staffId = String(form.get("staffId") ?? "");
