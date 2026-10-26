@@ -6,6 +6,7 @@ import { createSupabaseServerActionClient } from "@/lib/supabase/server";
 import { loadPortalSession } from "@/features/portal-authentication/portal-auth.service";
 import { monthlyBoletaPath, monthlyReceiptPath } from "./model";
 import { syncStaffDocumentArchive } from "./drive-archive.service";
+import { sendMonthlySettlementReadyEmail } from "./monthly-communication.service";
 import {
   prepareMonthlySettlementDocument,
   sendMonthlyPaymentCompletedEmail,
@@ -663,6 +664,46 @@ export async function registerStaffAdvanceAction(form: FormData) {
     };
   }
 }
+/** Explicitly finalize and request a boleta for exactly one selected staff member. */
+export async function getIndividualBoletaSentStatuses(accountIds: string[]) {
+  await adminContext();
+  const ids = [...new Set(accountIds)].filter((id) => /^[0-9a-f-]{36}$/i.test(id)).slice(0, 200);
+  if (!ids.length) return [] as string[];
+  const correlations = ids.map((id) => `staff-boleta-request:${id}:1`);
+  const { data, error } = await createAdminClient().from("internal_notifications")
+    .select("correlation_id,metadata").in("correlation_id", correlations);
+  if (error) throw error;
+  return (data ?? []).filter((row) => (row.metadata as Record<string, unknown> | null)?.email_status === "SENT")
+    .map((row) => String(row.correlation_id).split(":")[1]);
+}
+
+export async function requestIndividualStaffBoletaAction(form: FormData) {
+  const month = String(form.get("month") ?? "");
+  const staffId = String(form.get("staffId") ?? "");
+  if (!/^\d{4}-\d{2}$/.test(month) || !/^[0-9a-f-]{36}$/i.test(staffId))
+    return { ok: false, message: "Mes u operador inválido." };
+  try {
+    const client = await adminContext();
+    const admin = createAdminClient();
+    const { data: row, error } = await admin.from("staff_monthly_accounts")
+      .select("id,review_required,work_net,settlement_status")
+      .eq("staff_id", staffId).eq("accounting_month", month + "-01").maybeSingle();
+    if (error || !row) return { ok: false, message: "Genera primero la liquidación de este operador." };
+    if (row.review_required || Number(row.work_net) <= 0)
+      return { ok: false, message: "Liquidación bloqueada: requiere revisión." };
+    if (row.settlement_status === "DRAFT") {
+      const result = await client.rpc("finalize_staff_monthly_account", { p_account_id: row.id });
+      if (result.error) throw result.error;
+    }
+    const prepared = await prepareMonthlySettlementDocument(row.id);
+    const sent = await sendMonthlySettlementReadyEmail(prepared, 1);
+    refresh();
+    return { ok: true, message: sent.sent ? "Liquidación cerrada y solicitud de boleta enviada." : "Solicitud ya registrada anteriormente; no se reenvió." };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : "No se pudo solicitar la boleta." };
+  }
+}
+
 export async function finalizeMonthlyStaffAccountAction(form: FormData) {
   try {
     const client = await adminContext(),

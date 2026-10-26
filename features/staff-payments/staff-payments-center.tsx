@@ -12,7 +12,7 @@ import {
   registerQuickStaffSettlementPaymentAction,
 } from "./actions";
 import { StaffMonthlyAccountPanel } from "@/features/staff-monthly-account/staff-monthly-account-panel";
-import { generateMonthlyStaffAccountsAction } from "@/features/staff-monthly-account/actions";
+import { generateMonthlyStaffAccountsAction, getIndividualBoletaSentStatuses, requestIndividualStaffBoletaAction } from "@/features/staff-monthly-account/actions";
 import { registerMonthlyStaffPaymentAction } from "@/features/staff-monthly-account/actions";
 import type { StaffMonthlyAccount } from "@/features/staff-monthly-account/model";
 
@@ -182,6 +182,29 @@ export function StaffPaymentsCenter({
   const reimbursementDetails = reimbursements ?? [];
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const [openStaffId, setOpenStaffId] = useState<string | null>(null);
+  const [boletaRequested, setBoletaRequested] = useState<Record<string, boolean>>({});
+  const [boletaStatusLoaded, setBoletaStatusLoaded] = useState(false);
+  useEffect(() => {
+    let active = true;
+    setBoletaStatusLoaded(false);
+    const current = months.filter((item) => item.month.slice(0, 7) === month && item.account);
+    getIndividualBoletaSentStatuses(current.map((item) => item.account!.id))
+      .then((ids) => {
+        if (!active) return;
+        const sent = new Set(ids);
+        setBoletaRequested((previous) => {
+          const next = { ...previous };
+          for (const item of current) {
+            if (sent.has(item.account!.id)) next[`${month}:${item.staffId}`] = true;
+          }
+          return next;
+        });
+      })
+      .catch(() => { if (active) setCloseMessage("No fue posible verificar solicitudes enviadas. Reintenta antes de enviar."); })
+      .finally(() => { if (active) setBoletaStatusLoaded(true); });
+    return () => { active = false; };
+  }, [month, months]);
+
   const [query, setQuery] = useState("");
   const [closeState, setCloseState] = useState<{
       status?: string;
@@ -354,7 +377,7 @@ export function StaffPaymentsCenter({
                     const result =
                       await generateMonthlyStaffAccountsAction(form);
                     setCloseMessage(result.message);
-                    if (result.ok) location.reload();
+                    // Keep the response visible; server action revalidates the account without a full-page reload.
                   } finally {
                     setCloseOperation(null);
                   }
@@ -483,6 +506,30 @@ export function StaffPaymentsCenter({
             {closeMessage}
           </p>
         )}
+      </section>
+      <section className="rounded-2xl border p-4 sm:p-5">
+        <h3 className="text-lg font-semibold">Solicitar boleta por operador</h3>
+        <p className="mt-1 text-sm text-muted">Cada botón cierra únicamente la liquidación seleccionada y envía su solicitud de boleta. Los demás operadores permanecen pendientes.</p>
+        <div className="mt-3 space-y-2">
+          {rows.map((row) => {
+            const account = months.find((item) => item.staffId === row.member.id && item.month.slice(0, 7) === month)?.account;
+            if (!account) return null;
+            const done = Boolean(boletaRequested[`${month}:${row.member.id}`]);
+            const eligible = boletaStatusLoaded && !done && !account.reviewRequired && account.workNet > 0 && account.boletaStatus === "PENDING";
+            return <div key={row.member.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3">
+              <div><p className="font-medium">{row.member.name}</p><p className="text-xs text-muted">{account.settlementStatus} · {account.reviewRequired ? "Requiere revisión" : account.boletaStatus}</p></div>
+              <form action={(form) => startClosing(async () => {
+                const result = await requestIndividualStaffBoletaAction(form);
+                setCloseMessage(result.message);
+                if (result.ok) setBoletaRequested((previous) => ({ ...previous, [`${month}:${row.member.id}`]: true }));
+              })}>
+                <input type="hidden" name="month" value={month}/>
+                <input type="hidden" name="staffId" value={row.member.id}/>
+                <Button disabled={closing || !eligible}>{done ? "Listo ✓" : !boletaStatusLoaded ? "Verificando…" : closing ? "Procesando…" : "Cerrar y solicitar boleta"}</Button>
+              </form>
+            </div>;
+          })}
+        </div>
       </section>
       <StaffFinanceDriveSync />
       <QuickStaffPayment rows={rows} />
