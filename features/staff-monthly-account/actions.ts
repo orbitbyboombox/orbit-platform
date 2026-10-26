@@ -510,7 +510,8 @@ export async function prepareStaffMonthCloseAction(form: FormData) {
         if (inserted.error) { blockers.push(`${staff.first_name} ${staff.last_name}: documento no registrado`); continue; }
         documentId = inserted.data.id;
       }
-      await admin.from("staff_monthly_accounts").update({ settlement_document_id: documentId }).eq("id", account.id);
+      const linked = await admin.from("staff_monthly_accounts").update({ settlement_document_id: documentId }).eq("id", account.id).select("id").single();
+       if (linked.error || !linked.data) { blockers.push(`${staff.first_name} ${staff.last_name}: PDF no vinculado a liquidación`); continue; }
       const claim = await client.rpc("claim_staff_monthly_boleta_request", { p_account_id: account.id, p_staff_id: account.staffId, p_month: account.month, p_recipient_email: staff.email, p_document_id: documentId, p_idempotency_key: `staff-boleta:${account.id}:${month}`, p_actor: null });
       if (claim.error) { blockers.push(`${staff.first_name} ${staff.last_name}: solicitud no registrada`); continue; }
       const request = Array.isArray(claim.data) ? claim.data[0] : claim.data;
