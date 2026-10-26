@@ -182,6 +182,7 @@ export function StaffPaymentsCenter({
   const reimbursementDetails = reimbursements ?? [];
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const [openStaffId, setOpenStaffId] = useState<string | null>(null);
+  const [boletaRequested, setBoletaRequested] = useState<Record<string, boolean>>({});
   const [query, setQuery] = useState("");
   const [closeState, setCloseState] = useState<{
       status?: string;
@@ -491,17 +492,18 @@ export function StaffPaymentsCenter({
           {rows.map((row) => {
             const account = months.find((item) => item.staffId === row.member.id && item.month.slice(0, 7) === month)?.account;
             if (!account) return null;
-            const eligible = !account.reviewRequired && account.workNet > 0 && account.boletaStatus === "PENDING";
+            const done = Boolean(boletaRequested[`${month}:${row.member.id}`]);
+            const eligible = !done && !account.reviewRequired && account.workNet > 0 && account.boletaStatus === "PENDING";
             return <div key={row.member.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3">
               <div><p className="font-medium">{row.member.name}</p><p className="text-xs text-muted">{account.settlementStatus} · {account.reviewRequired ? "Requiere revisión" : account.boletaStatus}</p></div>
               <form action={(form) => startClosing(async () => {
                 const result = await requestIndividualStaffBoletaAction(form);
                 setCloseMessage(result.message);
-                if (result.ok) location.reload();
+                if (result.ok) setBoletaRequested((previous) => ({ ...previous, [`${month}:${row.member.id}`]: true }));
               })}>
                 <input type="hidden" name="month" value={month}/>
                 <input type="hidden" name="staffId" value={row.member.id}/>
-                <Button disabled={closing || !eligible}>Cerrar y solicitar boleta</Button>
+                <Button disabled={closing || !eligible}>{done ? "Listo ✓" : closing ? "Procesando…" : "Cerrar y solicitar boleta"}</Button>
               </form>
             </div>;
           })}
