@@ -500,17 +500,22 @@ export async function prepareStaffMonthCloseAction(form: FormData) {
         row = refreshed.data;
       }
       const account = mapStaffMonthlyAccount(row);
-      const pdf = await createStaffMonthlySettlementPdf({ account, staff: { name: `${staff.first_name} ${staff.last_name}`, rut: staff.rut ?? "", role: staff.role ?? "" } });
       const path = monthlySettlementPath(account.staffId, account.month);
-      const upload = await admin.storage.from("orbit-documents").upload(path, pdf, { contentType: "application/pdf", upsert: true });
-      if (upload.error) { blockers.push(`${staff.first_name} ${staff.last_name}: PDF no disponible`); continue; }
-      let documentId = (await admin.from("staff_onboarding_documents").select("id").eq("staff_id", account.staffId).eq("storage_bucket", "orbit-documents").eq("storage_path", path).eq("status", "ACTIVE").maybeSingle()).data?.id;
-      if (!documentId) {
-        const inserted = await admin.from("staff_onboarding_documents").insert({ invitation_id: null, staff_id: account.staffId, document_type: "STAFF_MONTHLY_SETTLEMENT", category: "LIQUIDACIONES", applicable_month: account.month, friendly_label: `Liquidación mensual ${month}`, status: "ACTIVE", storage_bucket: "orbit-documents", storage_path: path, file_name: `liquidacion-staff-${month}.pdf`, mime_type: "application/pdf" }).select("id").single();
-        if (inserted.error) { blockers.push(`${staff.first_name} ${staff.last_name}: documento no registrado`); continue; }
-        documentId = inserted.data.id;
-      }
-      const linked = await admin.from("staff_monthly_accounts").update({ settlement_document_id: documentId }).eq("id", account.id).select("id").single();
+       // Never overwrite an existing historical settlement PDF.
+       const existing = await admin.from("staff_onboarding_documents").select("id")
+         .eq("staff_id", account.staffId).eq("storage_bucket", "orbit-documents")
+         .eq("storage_path", path).eq("status", "ACTIVE").maybeSingle();
+       if (existing.error) { blockers.push(`${staff.first_name} ${staff.last_name}: documento histórico no verificable`); continue; }
+       let documentId = existing.data?.id;
+       if (!documentId) {
+         const pdf = await createStaffMonthlySettlementPdf({ account, staff: { name: `${staff.first_name} ${staff.last_name}`, rut: staff.rut ?? "", role: staff.role ?? "" } });
+         const upload = await admin.storage.from("orbit-documents").upload(path, pdf, { contentType: "application/pdf", upsert: false });
+         if (upload.error) { blockers.push(`${staff.first_name} ${staff.last_name}: PDF existente o no disponible; requiere conciliación`); continue; }
+         const inserted = await admin.from("staff_onboarding_documents").insert({ invitation_id: null, staff_id: account.staffId, document_type: "STAFF_MONTHLY_SETTLEMENT", category: "LIQUIDACIONES", applicable_month: account.month, friendly_label: `Liquidación mensual ${month}`, status: "ACTIVE", storage_bucket: "orbit-documents", storage_path: path, file_name: `liquidacion-staff-${month}.pdf`, mime_type: "application/pdf" }).select("id").single();
+         if (inserted.error) { blockers.push(`${staff.first_name} ${staff.last_name}: documento no registrado`); continue; }
+         documentId = inserted.data.id;
+       }
+       const linked = await admin.from("staff_monthly_accounts").update({ settlement_document_id: documentId }).eq("id", account.id).select("id").single();
        if (linked.error || !linked.data) { blockers.push(`${staff.first_name} ${staff.last_name}: PDF no vinculado a liquidación`); continue; }
       const claim = await client.rpc("claim_staff_monthly_boleta_request", { p_account_id: account.id, p_staff_id: account.staffId, p_month: account.month, p_recipient_email: staff.email, p_document_id: documentId, p_idempotency_key: `staff-boleta:${account.id}:${month}`, p_actor: null });
       if (claim.error) { blockers.push(`${staff.first_name} ${staff.last_name}: solicitud no registrada`); continue; }
