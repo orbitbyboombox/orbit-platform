@@ -354,7 +354,7 @@ export function StaffPaymentsCenter({
                     const result =
                       await generateMonthlyStaffAccountsAction(form);
                     setCloseMessage(result.message);
-                    if (result.ok) location.reload();
+                    // Keep the response visible; server action revalidates the account without a full-page reload.
                   } finally {
                     setCloseOperation(null);
                   }
