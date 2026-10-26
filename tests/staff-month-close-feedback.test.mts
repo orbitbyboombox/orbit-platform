@@ -16,6 +16,12 @@ assert.match(actions, /claim_staff_monthly_boleta_request/);
 assert.match(actions, /idempotencyKey/);
 assert.match(migration, /unique\(account_id\)/);
 assert.match(migration, /lease_expires_at/);
+assert.match(migration, /NEEDS_RECONCILIATION/);
+assert.match(migration, /STAFF_MONTHLY_REQUEST_ACCOUNT_MISMATCH/);
+assert.match(actions, /upsert: false/);
+assert.doesNotMatch(actions.slice(actions.indexOf("export async function prepareStaffMonthCloseAction"), actions.indexOf("export async function approveMonthlySettlementReviewAction")), /upsert: true/);
+assert.match(actions, /PDF no vinculado a liquidación/);
+assert.match(actions, /correo aceptado por Gmail pero confirmación pendiente/);
 assert.match(migration, /complete_staff_monthly_boleta_request/);
 assert.match(migration, /if not public\.can_administer\(\)/);
 
