@@ -32,7 +32,7 @@ export function EventBlackBoxPanel({ projectId }: { projectId: string }) {
     const metadata = asset.metadata && typeof asset.metadata === "object" ? asset.metadata as Record<string, unknown> : {};
     return Number(metadata.blackBoxPhotoStock ?? 0);
   };
-  const currentPaperStock = currentAsset
+  const currentPaperStock = result?.ok && currentAsset
     ? !result.assignmentIsActive && snapshot?.final_remaining_balance != null
       ? Number(snapshot.final_remaining_balance)
       : paperStock(currentAsset, snapshot?.black_box_initial_photo_stock)
