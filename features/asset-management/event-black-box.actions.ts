@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { canonicalBoxAssignment, isActiveBoxAssignment } from "./canonical-box-assignment";
 
 const MASTER_CODES = Array.from({ length: 9 }, (_, index) => `CASE-${String(index + 1).padStart(2, "0")}`);
 type Result = { ok: true } | { ok: false; error: string };
@@ -27,7 +28,7 @@ export async function loadEventBlackBoxOperationsAction(projectId: string) {
     const client = await adminClient();
     const [{ data: project, error: projectError }, { data: assignments, error: assignmentError }, { data: assets, error: assetError }, { data: availability, error: availabilityError }] = await Promise.all([
       client.from("projects").select("id,name,event_date").eq("id", projectId).single(),
-      client.from("asset_assignments").select("id,asset_id,assignment_status,assigned_at,assigned_by,operational_assets!inner(id,asset_code,status,asset_type,metadata)").eq("project_id", projectId).eq("assignment_status", "ASSIGNED").is("deleted_at", null).eq("operational_assets.asset_type", "CASE").in("operational_assets.asset_code", MASTER_CODES).limit(1),
+      client.from("asset_assignments").select("id,asset_id,assignment_status,assigned_at,returned_at,assigned_by,operational_assets!inner(id,asset_code,status,asset_type,metadata)").eq("project_id", projectId).is("deleted_at", null).eq("operational_assets.asset_type", "CASE").in("operational_assets.asset_code", MASTER_CODES),
       client.from("operational_assets").select("id,asset_code,status,metadata").eq("asset_type", "CASE").in("asset_code", MASTER_CODES).is("deleted_at", null).order("asset_code"),
       client.rpc("get_black_box_availability", { p_project_ids: [projectId] }),
     ]);
@@ -35,13 +36,13 @@ export async function loadEventBlackBoxOperationsAction(projectId: string) {
     if (assignmentError) throw assignmentError;
     if (assetError) throw assetError;
     if (availabilityError) throw availabilityError;
-    const assignment = assignments?.[0] ?? null;
+    const assignment = canonicalBoxAssignment(assignments ?? []);
     const { data: snapshots, error: snapshotError } = assignment
-      ? await client.from("event_paper_snapshots").select("id,asset_assignment_id,black_box_asset_code,black_box_name,black_box_initial_photo_stock,black_box_paper_format,black_box_assigned_at,black_box_assigned_by").eq("asset_assignment_id", assignment.id).limit(1)
+      ? await client.from("event_paper_snapshots").select("id,asset_assignment_id,status,opening_balance,final_remaining_balance,event_usage,confirmed_at,black_box_asset_code,black_box_name,black_box_initial_photo_stock,black_box_paper_format,black_box_assigned_at,black_box_assigned_by").eq("asset_assignment_id", assignment.id).order("created_at", { ascending: false }).limit(1)
       : { data: [], error: null };
     if (snapshotError) throw snapshotError;
     const availabilityByAsset = new Map((availability ?? []).map((item: { asset_id: string; conflicts: boolean }) => [item.asset_id, item.conflicts]));
-    return { ok: true as const, project, assignment, snapshot: snapshots?.[0] ?? null, assets: (assets ?? []).map((asset) => ({ ...asset, conflicts: Boolean(availabilityByAsset.get(asset.id)) })), };
+    return { ok: true as const, project, assignment, assignmentIsActive: isActiveBoxAssignment(assignment), snapshot: snapshots?.[0] ?? null, assets: (assets ?? []).map((asset) => ({ ...asset, conflicts: Boolean(availabilityByAsset.get(asset.id)) })), };
   } catch (error) {
     return { ok: false as const, message: error instanceof Error ? error.message : "No fue posible cargar la Caja Negra del Evento." };
   }

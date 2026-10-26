@@ -23,6 +23,8 @@ import { buildCanonicalOrbitEventStateFromRecord } from "@/features/operations/c
 import { buildResponsibilityReadModel } from "@/features/staff-assignment-center/staff-responsibility-read-model";
 import type { OperationalBlock } from "@/features/operations/operational-blocks";
 import { resolveOfficialOperatorRate } from "@/features/operations/staff-assignment-payment";
+import { canonicalStaffPaymentTotal } from "@/features/staff-payments/staff-payment-display";
+import { canonicalRealCostDisplay } from "@/features/projects/canonical-real-cost-display";
 
 export interface ProjectWorkspacePageProps {
   params: Promise<{ projectId: string }>;
@@ -1078,7 +1080,13 @@ export default async function ProjectWorkspacePage({
       disassembly: Number(item.disassembly_payment),
       transport: Number(item.transport_bonus),
       parking: Number(item.parking_payment),
-      total: Number(item.total_internal_payment),
+      total: canonicalStaffPaymentTotal({
+        assembly: Number(item.assembly_payment),
+        operator: Number(item.operator_payment),
+        disassembly: Number(item.disassembly_payment),
+        transport: Number(item.transport_bonus),
+        parking: Number(item.parking_payment),
+      }),
       status: item.status,
     })),
     profit: realCost,
@@ -1105,6 +1113,17 @@ export default async function ProjectWorkspacePage({
       : undefined,
     realCosts: estimatedCosts
       ? (() => {
+          const canonical = canonicalRealCostDisplay(profitabilityStatement);
+          const canonicalByCategory: Partial<Record<string, number>> = {
+            OPERATOR: canonical?.breakdown.operator,
+            ASSEMBLY: canonical?.breakdown.assembly,
+            DISASSEMBLY: canonical?.breakdown.disassembly,
+            FUEL: canonical?.breakdown.fuel,
+            TRANSPORT: canonical?.breakdown.transport,
+            SCRAPBOOK: canonical?.breakdown.scrapbook,
+            MAGNETS: canonical?.breakdown.magnets,
+            OTHER_OPERATIONAL: canonical?.breakdown.other ?? canonical?.breakdown.registeredExpenses,
+          };
           const definitions = [
             ["OPERATOR", "Operador", Number(estimatedCosts.operator)],
             ["ASSEMBLY", "Montaje", Number(estimatedCosts.assembly)],
@@ -1140,7 +1159,7 @@ export default async function ProjectWorkspacePage({
               category,
               label,
               estimated,
-              real: row ? Number(row.edited_value) : estimated,
+              real: row ? Number(row.edited_value) : canonicalByCategory[category] ?? estimated,
               reason: row?.reason,
               updatedAt: row?.created_at,
             };
@@ -1149,9 +1168,9 @@ export default async function ProjectWorkspacePage({
             paper: Number(estimatedCosts.paper),
             items,
             estimatedTotal: Number(estimatedCosts.total),
-            realTotal:
-              Number(estimatedCosts.paper) +
-              items.reduce((sum, item) => sum + item.real, 0),
+            realTotal: canonical?.total ??
+              Number(estimatedCosts.paper) + items.reduce((sum, item) => sum + item.real, 0),
+            canonicalTotal: canonical?.total,
           };
         })()
       : undefined,
