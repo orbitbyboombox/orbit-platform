@@ -12,7 +12,7 @@ import {
   registerQuickStaffSettlementPaymentAction,
 } from "./actions";
 import { StaffMonthlyAccountPanel } from "@/features/staff-monthly-account/staff-monthly-account-panel";
-import { generateMonthlyStaffAccountsAction, requestIndividualStaffBoletaAction } from "@/features/staff-monthly-account/actions";
+import { generateMonthlyStaffAccountsAction, getIndividualBoletaSentStatuses, requestIndividualStaffBoletaAction } from "@/features/staff-monthly-account/actions";
 import { registerMonthlyStaffPaymentAction } from "@/features/staff-monthly-account/actions";
 import type { StaffMonthlyAccount } from "@/features/staff-monthly-account/model";
 
@@ -183,6 +183,28 @@ export function StaffPaymentsCenter({
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const [openStaffId, setOpenStaffId] = useState<string | null>(null);
   const [boletaRequested, setBoletaRequested] = useState<Record<string, boolean>>({});
+  const [boletaStatusLoaded, setBoletaStatusLoaded] = useState(false);
+  useEffect(() => {
+    let active = true;
+    setBoletaStatusLoaded(false);
+    const current = months.filter((item) => item.month.slice(0, 7) === month && item.account);
+    getIndividualBoletaSentStatuses(current.map((item) => item.account!.id))
+      .then((ids) => {
+        if (!active) return;
+        const sent = new Set(ids);
+        setBoletaRequested((previous) => {
+          const next = { ...previous };
+          for (const item of current) {
+            if (sent.has(item.account!.id)) next[`${month}:${item.staffId}`] = true;
+          }
+          return next;
+        });
+      })
+      .catch(() => { if (active) setCloseMessage("No fue posible verificar solicitudes enviadas. Reintenta antes de enviar."); })
+      .finally(() => { if (active) setBoletaStatusLoaded(true); });
+    return () => { active = false; };
+  }, [month, months]);
+
   const [query, setQuery] = useState("");
   const [closeState, setCloseState] = useState<{
       status?: string;
@@ -493,7 +515,7 @@ export function StaffPaymentsCenter({
             const account = months.find((item) => item.staffId === row.member.id && item.month.slice(0, 7) === month)?.account;
             if (!account) return null;
             const done = Boolean(boletaRequested[`${month}:${row.member.id}`]);
-            const eligible = !done && !account.reviewRequired && account.workNet > 0 && account.boletaStatus === "PENDING";
+            const eligible = boletaStatusLoaded && !done && !account.reviewRequired && account.workNet > 0 && account.boletaStatus === "PENDING";
             return <div key={row.member.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3">
               <div><p className="font-medium">{row.member.name}</p><p className="text-xs text-muted">{account.settlementStatus} · {account.reviewRequired ? "Requiere revisión" : account.boletaStatus}</p></div>
               <form action={(form) => startClosing(async () => {
@@ -503,7 +525,7 @@ export function StaffPaymentsCenter({
               })}>
                 <input type="hidden" name="month" value={month}/>
                 <input type="hidden" name="staffId" value={row.member.id}/>
-                <Button disabled={closing || !eligible}>{done ? "Listo ✓" : closing ? "Procesando…" : "Cerrar y solicitar boleta"}</Button>
+                <Button disabled={closing || !eligible}>{done ? "Listo ✓" : !boletaStatusLoaded ? "Verificando…" : closing ? "Procesando…" : "Cerrar y solicitar boleta"}</Button>
               </form>
             </div>;
           })}
