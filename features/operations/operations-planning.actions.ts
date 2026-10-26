@@ -3,6 +3,8 @@
 import {revalidatePath} from "next/cache";
 import {createSupabaseServerActionClient} from "@/lib/supabase/server";
 import {deliverSmartAssignmentPackage} from "./smart-assignment-package.service";
+import {buildCanonicalOrbitEventStateFromRecord, canonicalStaffCallGuard} from "./canonical-orbit-event-state";
+import { validStaffQuantity } from "@/features/staff-assignment-center/staff-role-slots";
 
 type Result={ok:true;message:string}|{ok:false;message:string};
 async function context(){const client=await createSupabaseServerActionClient();const{data,error}=await client.auth.getUser();if(error||!data.user)throw new Error("Sesión requerida.");const{data:profile,error:profileError}=await client.from("profiles").select("role").eq("id",data.user.id).single();if(profileError||!["CEO","ADMINISTRATOR"].includes(profile?.role))throw new Error("Solo Administración puede asignar Staff.");return client;}
@@ -16,9 +18,67 @@ export async function assignEventResponsibilityAction(data:FormData):Promise<Res
 
 export async function adjustEventRolePayAction(data:FormData):Promise<Result>{try{const client=await context();const paymentId=value(data,"paymentId"),role=value(data,"role"),amount=Number(data.get("amount")),reason=value(data,"reason");if(!paymentId||!Number.isFinite(amount)||amount<0||!reason)throw new Error("Ingresa un neto válido y el motivo del ajuste.");const{data:payment,error:readError}=await client.from("event_staff_payments").select("project_id,automatic_operator_payment,automatic_assembly_payment,automatic_disassembly_payment,operator_payment,assembly_payment,disassembly_payment").eq("id",paymentId).is("deleted_at",null).single();if(readError)throw readError;const original=role==="OPERATOR"?Number(payment.automatic_operator_payment||payment.operator_payment):role==="ASSEMBLY"?Number(payment.automatic_assembly_payment||payment.assembly_payment):Number(payment.automatic_disassembly_payment||payment.disassembly_payment),difference=amount-original;if(difference===0)throw new Error("El valor ingresado es igual al original; no requiere ajuste.");const{error}=await client.rpc("add_staff_settlement_adjustment",{p_settlement_id:paymentId,p_reason:"DIFFERENCE_CORRECTION",p_amount:difference,p_comment:reason});if(error)throw error;revalidatePath("/operations");revalidatePath(`/projects/${payment.project_id}`);revalidatePath("/resources/staff");revalidatePath("/finance");revalidatePath("/reports");return{ok:true,message:"Ajuste registrado sin alterar la liquidación original."};}catch(error){return{ok:false,message:error instanceof Error?error.message:"No fue posible ajustar el pago."};}}
 
-export async function setStaffEventPublicationAction(data:FormData):Promise<Result>{try{const client=await context(),projectId=value(data,"projectId"),published=value(data,"published")==="true";const{data:project,error:projectError}=await client.from("projects").select("status,event_date,location,city,operations,customers(full_name),project_services(service_code,duration_hours)").eq("id",projectId).is("deleted_at",null).single();if(projectError)throw projectError;const closed=["COMPLETED","COMPLETED_EVENT","CLOSED","ARCHIVED","CANCELLED","Completed","Archived","Cancelled"].includes(project.status);if(published&&closed)throw new Error("Un Evento cerrado no puede recibir nuevas solicitudes de Staff.");const customer=Array.isArray(project.customers)?project.customers[0]:project.customers,services=Array.isArray(project.project_services)?project.project_services:[],operations=(project.operations??{})as Record<string,unknown>,address=String(operations.eventAddress??project.location??"");if(published&&(!project.event_date||!address||!project.city||!customer?.full_name||!services.some(item=>item.service_code&&Number(item.duration_hours)>0)))throw new Error("Completa fecha, ubicación, cliente, servicio y duración antes de activar el Evento para Staff.");const{error}=await client.rpc("set_staff_event_publication",{p_project_id:projectId,p_published:published});if(error)throw error;revalidatePath("/operations");revalidatePath("/resources/staff");revalidatePath(`/projects/${projectId}`);revalidatePath("/staff-portal");return{ok:true,message:published?"Evento activado y visible en Portal Staff.":"Evento desactivado. Las asignaciones confirmadas permanecen intactas."};}catch(error){return{ok:false,message:error instanceof Error?error.message:"No fue posible cambiar la publicación."};}}
+export async function setStaffEventPublicationAction(data: FormData): Promise<Result> {
+  try {
+    const client = await context();
+    const projectId = value(data, "projectId");
+    const published = value(data, "published") === "true";
+    const { data: project, error: projectError } = await client.from("projects").select("id,orbit_event_id,status,event_date,event_time,event_time_mode,location,city,operations,customers(full_name),project_services(service_code,duration_hours)").eq("id", projectId).is("deleted_at", null).single();
+    if (projectError) throw projectError;
+    const closed = ["COMPLETED", "COMPLETED_EVENT", "CLOSED", "ARCHIVED", "CANCELLED", "Completed", "Archived", "Cancelled"].includes(project.status);
+    if (published && closed) throw new Error("Un Evento cerrado no puede recibir nuevas solicitudes de Staff.");
+    const customer = Array.isArray(project.customers) ? project.customers[0] : project.customers;
+    const services = Array.isArray(project.project_services) ? project.project_services : [];
+    const operations = (project.operations ?? {}) as Record<string, unknown>;
+    const address = String(operations.eventAddress ?? project.location ?? "");
+    if (published && (!project.event_date || !address || !project.city || !customer?.full_name || !services.some(item => item.service_code && Number(item.duration_hours) > 0))) throw new Error("Completa fecha, ubicación, cliente, servicio y duración antes de activar el Evento para Staff.");
+    if (published) {
+      const canonical = buildCanonicalOrbitEventStateFromRecord({ id: project.id, orbit_event_id: project.orbit_event_id, event_date: project.event_date, event_time: project.event_time, event_time_mode: project.event_time_mode, duration_hours: Number(services[0]?.duration_hours ?? 0), location: project.location, city: project.city, operations });
+      if (!canonical.serviceStartAt || !canonical.staffCallAt || canonicalStaffCallGuard(canonical) !== "OK" || new Date(canonical.staffCallAt).getTime() >= new Date(canonical.serviceStartAt).getTime()) throw new Error("STAFF_CALL_INVALID_FOR_PUBLICATION: Corrige la hora de citación antes de publicar al Staff.");
+    }
+    const { error } = await client.rpc("set_staff_event_publication", { p_project_id: projectId, p_published: published });
+    if (error) throw error;
+    revalidatePath("/operations"); revalidatePath("/resources/staff"); revalidatePath(`/projects/${projectId}`); revalidatePath("/staff-portal");
+    return { ok: true, message: published ? "Evento activado y visible en Portal Staff." : "Evento desactivado. Las asignaciones confirmadas permanecen intactas." };
+  } catch (error) { return { ok: false, message: error instanceof Error ? error.message : "No fue posible cambiar la publicación." }; }
+}
 
-export async function setEventStaffRequirementAction(data:FormData):Promise<Result>{try{const client=await context(),projectId=value(data,"projectId"),role=value(data,"role"),quantity=Number(data.get("quantity")),published=value(data,"published")==="true";if(!Number.isInteger(quantity)||quantity<0)throw new Error("Ingresa una cantidad válida.");const{error}=await client.rpc("set_event_staff_requirement",{p_project_id:projectId,p_role:role,p_required_quantity:quantity,p_published:published});if(error)throw error;revalidatePath(`/projects/${projectId}`);revalidatePath("/operations");revalidatePath("/staff-portal");return{ok:true,message:published?"Necesidad publicada para Staff.":"Necesidad guardada sin publicar."};}catch(error){return{ok:false,message:error instanceof Error?error.message:"No fue posible configurar la necesidad de Staff."};}}
+export async function setEventStaffRequirementAction(data:FormData):Promise<Result>{try{const client=await context(),projectId=value(data,"projectId"),blockId=value(data,"blockId"),role=value(data,"role"),quantity=Number(data.get("quantity")),published=value(data,"published")==="true",removeRole=value(data,"removeRole")==="true";if(!validStaffQuantity(quantity)&&!(removeRole&&quantity===0&&!published))throw new Error("Ingresa una cantidad entera entre 1 y 99.");const rpcArgs=blockId?{p_project_id:projectId,p_block_id:blockId,p_role:role,p_required_quantity:quantity,p_published:published}:{p_project_id:projectId,p_role:role,p_required_quantity:quantity,p_published:published};const{error}=await client.rpc("set_event_staff_requirement",rpcArgs);if(error)throw new Error(error.message);revalidatePath(`/projects/${projectId}`);revalidatePath("/operations");revalidatePath("/staff-portal");revalidatePath("/resources/staff");revalidatePath("/finance");return{ok:true,message:removeRole?"Rol retirado sin alterar asignaciones.":published?`Cantidad ${quantity} guardada y publicada para Staff.`:`Cantidad ${quantity} guardada sin publicar.`};}catch(error){return{ok:false,message:error instanceof Error?error.message:"No fue posible configurar la necesidad de Staff."};}}
+
+export async function createEventOperationalBlockAction(data: FormData): Promise<Result> {
+  try {
+    const client = await context();
+    const projectId = value(data, "projectId");
+    const name = value(data, "name");
+    const startAt = value(data, "startAt");
+    const endAt = value(data, "endAt");
+    if (!projectId || !name || !startAt || !endAt || new Date(endAt).getTime() <= new Date(startAt).getTime()) throw new Error("Completa un bloque con horario válido.");
+    const { data: last } = await client.from("event_operational_blocks").select("sequence").eq("project_id", projectId).order("sequence", { ascending: false }).limit(1).maybeSingle();
+    const { data: block, error } = await client.from("event_operational_blocks").insert({ project_id: projectId, name, sequence: Number(last?.sequence ?? 0) + 1, start_at: new Date(startAt).toISOString(), end_at: new Date(endAt).toISOString(), status: "PLANNING" }).select("id").single();
+    if (error) throw error;
+    for (const role of ["OPERATOR", "ASSEMBLY", "DISASSEMBLY"]) {
+      const quantity = Number(data.get(`${role.toLowerCase()}Quantity`) ?? 0);
+      if (quantity > 0) {
+        const result = await client.rpc("set_event_staff_requirement", { p_project_id: projectId, p_block_id: block.id, p_role: role, p_required_quantity: quantity, p_published: false });
+        if (result.error) throw result.error;
+      }
+    }
+    revalidatePath(`/projects/${projectId}`); revalidatePath("/operations"); revalidatePath("/staff-portal");
+    return { ok: true, message: "Bloque creado y responsabilidades guardadas." };
+  } catch (error) { return { ok: false, message: error instanceof Error ? error.message : "No fue posible crear el bloque." }; }
+}
+
+export async function updateEventOperationalBlockAction(data: FormData): Promise<Result> {
+  try {
+    const client = await context();
+    const projectId = value(data, "projectId"); const blockId = value(data, "blockId"); const name = value(data, "name"); const startAt = value(data, "startAt"); const endAt = value(data, "endAt");
+    if (!projectId || !blockId || !name || !startAt || !endAt || new Date(endAt).getTime() <= new Date(startAt).getTime()) throw new Error("Completa un bloque con horario válido.");
+    const { error } = await client.from("event_operational_blocks").update({ name, start_at: new Date(startAt).toISOString(), end_at: new Date(endAt).toISOString() }).eq("id", blockId).eq("project_id", projectId);
+    if (error) throw error;
+    revalidatePath(`/projects/${projectId}`); revalidatePath("/operations"); revalidatePath("/staff-portal");
+    return { ok: true, message: "Bloque actualizado." };
+  } catch (error) { return { ok: false, message: error instanceof Error ? error.message : "No fue posible actualizar el bloque." }; }
+}
 
 export async function reviewStaffRequestAction(data:FormData):Promise<Result>{
   const reference=crypto.randomUUID().slice(0,8).toUpperCase(),requestId=value(data,"requestId"),decision=value(data,"decision"),approved=decision==="approve";
