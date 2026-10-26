@@ -668,7 +668,7 @@ export async function registerStaffAdvanceAction(form: FormData) {
 export async function requestIndividualStaffBoletaAction(form: FormData) {
   const month = String(form.get("month") ?? "");
   const staffId = String(form.get("staffId") ?? "");
-  if (!/^\\d{4}-\\d{2}$/.test(month) || !/^[0-9a-f-]{36}$/i.test(staffId))
+  if (!/^\d{4}-\d{2}$/.test(month) || !/^[0-9a-f-]{36}$/i.test(staffId))
     return { ok: false, message: "Mes u operador inválido." };
   try {
     const client = await adminContext();
