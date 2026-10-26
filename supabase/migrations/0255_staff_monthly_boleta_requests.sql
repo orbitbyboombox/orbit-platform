@@ -44,8 +44,7 @@ begin
   ) then raise exception 'STAFF_MONTHLY_REQUEST_ACCOUNT_MISMATCH'; end if;
   if p_recipient_email is null or btrim(p_recipient_email)='' then raise exception 'STAFF_MONTHLY_REQUEST_EMAIL_REQUIRED'; end if;
   select * into current_row from public.staff_monthly_boleta_requests where account_id=p_account_id for update;
-  if found and current_row.status in ('SENT','NEEDS_RECONCILIATION') then return query select false,current_row.id,current_row.status; return; end if;
-  if found and current_row.status='PROCESSING' and current_row.lease_expires_at>now() then return query select false,current_row.id,current_row.status; return; end if;
+  if found and current_row.status in ('SENT','NEEDS_RECONCILIATION','PROCESSING') then return query select false,current_row.id,current_row.status; return; end if;
   if found then
     update public.staff_monthly_boleta_requests set status='PROCESSING',recipient_email=p_recipient_email,
       settlement_document_id=p_document_id,idempotency_key=p_idempotency_key,
