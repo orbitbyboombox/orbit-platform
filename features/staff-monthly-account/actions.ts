@@ -473,8 +473,10 @@ export async function prepareStaffMonthCloseAction(form: FormData) {
   try {
     const client = await adminContext();
     if (!/^\d{4}-\d{2}$/.test(month)) throw new Error("Mes inválido.");
-    const generated = await client.rpc("generate_staff_monthly_accounts", { p_month: `${month}-01` });
-    if (generated.error) throw generated.error;
+    if (!selectedStaffId) {
+      const generated = await client.rpc("generate_staff_monthly_accounts", { p_month: `${month}-01` });
+      if (generated.error) throw generated.error;
+    }
     const admin = createAdminClient();
     const { data: accounts, error: accountsError } = await admin
       .from("staff_monthly_accounts")
