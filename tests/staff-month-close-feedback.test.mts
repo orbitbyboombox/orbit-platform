@@ -9,6 +9,10 @@ const [center, actions, migration] = await Promise.all([
 
 assert.match(center, /Cerrar mes y solicitar boletas/);
 assert.match(center, /Cerrar mes definitivo/);
+assert.match(center, /Cerrar y solicitar boleta/);
+assert.match(center, /name="staffId"/);
+assert.match(actions, /selectedStaffId/);
+assert.match(actions, /selectedAccounts/);
 assert.match(actions, /prepareStaffMonthCloseAction/);
 assert.match(actions, /finalize_staff_monthly_account/);
 assert.match(actions, /createStaffMonthlySettlementPdf/);
