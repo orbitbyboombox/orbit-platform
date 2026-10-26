@@ -195,7 +195,9 @@ test("24 mobile recipient fields cannot force horizontal overflow", () => {
 test("25 Gmail sends TO and CC in one canonical provider request", async () => {
   const originalFetch = globalThis.fetch;
   let raw = "";
-  globalThis.fetch = async (_input, init) => {
+  globalThis.fetch = async (input, init) => {
+    if (String(input) === "https://openidconnect.googleapis.com/v1/userinfo")
+      return new Response(JSON.stringify({ email: "matias@boom-box.cl" }), { status: 200 });
     raw = String(JSON.parse(String(init?.body)).raw);
     return new Response(JSON.stringify({ id: "message-1", threadId: "thread-1" }), {
       status: 200,

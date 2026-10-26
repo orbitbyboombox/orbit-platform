@@ -54,12 +54,15 @@ export class GoogleGmailApiProvider implements GoogleGmailLiveProvider {
     const explicitSender = message.from?.match(/<([^<>]+)>\s*$/)?.[1] ?? message.from?.trim();
     let senderAddress = explicitSender;
     if (!senderAddress) {
-      const profileResponse = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/profile", {
+      // Gmail's users.getProfile endpoint requires mailbox-read scopes such as
+      // gmail.metadata; ORBIT intentionally grants gmail.send only. Resolve the
+      // authenticated account through Google's OIDC email scope instead.
+      const profileResponse = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
         headers: { Authorization: `Bearer ${this.accessToken}` },
       });
       if (!profileResponse.ok) throw new Error("No se pudo verificar la cuenta remitente de Gmail.");
-      const profile = (await profileResponse.json()) as { emailAddress?: string };
-      senderAddress = profile.emailAddress?.trim();
+      const profile = (await profileResponse.json()) as { email?: string };
+      senderAddress = profile.email?.trim();
     }
     if (!senderAddress || !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(senderAddress)) {
       throw new Error("La dirección remitente de Gmail no es válida.");

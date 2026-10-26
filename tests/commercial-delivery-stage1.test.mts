@@ -27,7 +27,7 @@ test("commercial Gmail payload uses explicit sender and multipart alternative", 
     assert.deepEqual(result, { messageId: "gmail-accepted", threadId: "thread-1" });
     const payload = JSON.parse(String(calls[0]?.body)) as { raw: string };
     const raw = Buffer.from(payload.raw, "base64url").toString("utf8");
-    assert.match(raw, /From: matias@boom-box\.cl/);
+    assert.match(raw, /From: .* <matias@boom-box\.cl>/);
     assert.match(raw, /Reply-To: ventas@boom-box\.cl/);
     assert.match(raw, /multipart\/alternative/);
     assert.match(raw, /Versión de texto/);
@@ -41,7 +41,9 @@ test("commercial Gmail payload uses explicit sender and multipart alternative", 
 test("Gmail provider retries transient failures and does not retry permanent failures", async () => {
   let attempts = 0;
   const previousFetch = globalThis.fetch;
-  globalThis.fetch = (async () => {
+  globalThis.fetch = (async (input) => {
+    if (String(input) === "https://openidconnect.googleapis.com/v1/userinfo")
+      return new Response(JSON.stringify({ email: "matias@boom-box.cl" }), { status: 200 });
     attempts += 1;
     return attempts === 1
       ? new Response("temporary", { status: 503 })
@@ -56,7 +58,9 @@ test("Gmail provider retries transient failures and does not retry permanent fai
   }
 
   attempts = 0;
-  globalThis.fetch = (async () => {
+  globalThis.fetch = (async (input) => {
+    if (String(input) === "https://openidconnect.googleapis.com/v1/userinfo")
+      return new Response(JSON.stringify({ email: "matias@boom-box.cl" }), { status: 200 });
     attempts += 1;
     return new Response("forbidden", { status: 403 });
   }) as typeof fetch;

@@ -94,7 +94,9 @@ test("7 duplicate clicks and requests produce at most one provider send", () => 
 test("8 provider retry carries a stable idempotency identity", async () => {
   const originalFetch = globalThis.fetch;
   let raw = "";
-  globalThis.fetch = async (_input, init) => {
+  globalThis.fetch = async (input, init) => {
+    if (String(input) === "https://openidconnect.googleapis.com/v1/userinfo")
+      return new Response(JSON.stringify({ email: "matias@boom-box.cl" }), { status: 200 });
     raw = String(JSON.parse(String(init?.body)).raw);
     return new Response(JSON.stringify({ id: "message-1", threadId: "thread-1" }), { status: 200 });
   };
@@ -235,7 +237,9 @@ test("22 formal email work cannot mutate finance, credit or payment truth", () =
 test("23 provider emits a real PDF MIME attachment", async () => {
   const originalFetch = globalThis.fetch;
   let raw = "";
-  globalThis.fetch = async (_input, init) => {
+  globalThis.fetch = async (input, init) => {
+    if (String(input) === "https://openidconnect.googleapis.com/v1/userinfo")
+      return new Response(JSON.stringify({ email: "matias@boom-box.cl" }), { status: 200 });
     raw = String(JSON.parse(String(init?.body)).raw);
     return new Response(JSON.stringify({ id: "message-pdf", threadId: "thread-pdf" }), {
       status: 200,
