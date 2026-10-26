@@ -7,7 +7,7 @@ const [center, actions, migration] = await Promise.all([
   readFile(new URL("../supabase/migrations/0255_staff_monthly_boleta_requests.sql", import.meta.url), "utf8"),
 ]);
 
-assert.match(center, /Cerrar mes y solicitar boletas/);
+assert.doesNotMatch(center, />Cerrar mes y solicitar boletas</);
 assert.match(center, /Cerrar mes definitivo/);
 assert.match(center, /Cerrar y solicitar boleta/);
 assert.match(center, /name="staffId"/);
