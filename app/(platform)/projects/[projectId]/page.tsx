@@ -12,7 +12,7 @@ import { loadFounderWorkspace } from "@/features/founder-workspace";
 import type { EquipmentAssignmentPanelProps } from "@/features/asset-management";
 import {
   buildAssignedBoxByProject,
-  formatAssignedBoxLabel,
+  formatEventBoxLabel,
 } from "@/features/asset-management/box-assignment-read-model";
 import { buildEventEquipmentExtras } from "@/features/projects/event-equipment-extras-read-model";
 import type { EventLogisticsData } from "@/features/operations/event-logistics-center";
@@ -23,6 +23,8 @@ import { buildCanonicalOrbitEventStateFromRecord } from "@/features/operations/c
 import { buildResponsibilityReadModel } from "@/features/staff-assignment-center/staff-responsibility-read-model";
 import type { OperationalBlock } from "@/features/operations/operational-blocks";
 import { resolveOfficialOperatorRate } from "@/features/operations/staff-assignment-payment";
+import { canonicalStaffPaymentTotal } from "@/features/staff-payments/staff-payment-display";
+import { canonicalRealCostDisplay } from "@/features/projects/canonical-real-cost-display";
 
 export interface ProjectWorkspacePageProps {
   params: Promise<{ projectId: string }>;
@@ -164,9 +166,8 @@ export default async function ProjectWorkspacePage({
     client
       .from("asset_assignments")
       .select(
-        "id,project_id,asset_id,operational_requirement_id,assignment_status,deleted_at,planned_start_at,planned_end_at,projects(name,event_date,event_time),operational_assets(asset_code,asset_type,status)",
+        "id,project_id,asset_id,operational_requirement_id,assignment_status,deleted_at,assigned_at,returned_at,planned_start_at,planned_end_at,projects(name,event_date,event_time),operational_assets(asset_code,asset_type,status)",
       )
-      .eq("assignment_status", "ASSIGNED")
       .is("deleted_at", null),
     client
       .from("staff")
@@ -549,6 +550,11 @@ export default async function ProjectWorkspacePage({
   const activeAssets = (assetAssignments ??
     []) as unknown as ActiveAssetAssignment[];
   const assignedBoxByProject = buildAssignedBoxByProject(assetAssignments ?? []);
+  const assignedBoxCode = assignedBoxByProject.get(projectId);
+  const closedPaperUsage = paperSnapshot?.status === "CONFIRMED" && paperSnapshot.event_usage != null
+    ? Number(paperSnapshot.event_usage)
+    : null;
+  const equipmentBoxLabel = formatEventBoxLabel(assignedBoxCode, closedPaperUsage);
   const confirmedAssignmentStatuses = new Set([
     "ASSIGNED",
     "PENDING",
@@ -1078,10 +1084,25 @@ export default async function ProjectWorkspacePage({
       disassembly: Number(item.disassembly_payment),
       transport: Number(item.transport_bonus),
       parking: Number(item.parking_payment),
-      total: Number(item.total_internal_payment),
+      total: canonicalStaffPaymentTotal({
+        assembly: Number(item.assembly_payment),
+        operator: Number(item.operator_payment),
+        disassembly: Number(item.disassembly_payment),
+        transport: Number(item.transport_bonus),
+        parking: Number(item.parking_payment),
+      }),
       status: item.status,
     })),
-    profit: realCost,
+    profit: realCost
+      ? {
+          ...realCost,
+          costs: {
+            ...realCost.costs,
+            setup: (payroll ?? []).reduce((sum, item) => sum + Number(item.assembly_payment ?? 0), 0),
+            teardown: (payroll ?? []).reduce((sum, item) => sum + Number(item.disassembly_payment ?? 0), 0),
+          },
+        }
+      : realCost,
     estimatedCosts: estimatedCosts
       ? {
           status: estimatedCosts.status,
@@ -1105,6 +1126,17 @@ export default async function ProjectWorkspacePage({
       : undefined,
     realCosts: estimatedCosts
       ? (() => {
+          const canonical = canonicalRealCostDisplay(profitabilityStatement);
+          const canonicalByCategory: Partial<Record<string, number>> = {
+            OPERATOR: canonical?.breakdown.operator,
+            ASSEMBLY: canonical?.breakdown.assembly,
+            DISASSEMBLY: canonical?.breakdown.disassembly,
+            FUEL: canonical?.breakdown.fuel,
+            TRANSPORT: canonical?.breakdown.transport,
+            SCRAPBOOK: canonical?.breakdown.scrapbook,
+            MAGNETS: canonical?.breakdown.magnets,
+            OTHER_OPERATIONAL: canonical?.breakdown.other ?? canonical?.breakdown.registeredExpenses,
+          };
           const definitions = [
             ["OPERATOR", "Operador", Number(estimatedCosts.operator)],
             ["ASSEMBLY", "Montaje", Number(estimatedCosts.assembly)],
@@ -1140,7 +1172,7 @@ export default async function ProjectWorkspacePage({
               category,
               label,
               estimated,
-              real: row ? Number(row.edited_value) : estimated,
+              real: row ? Number(row.edited_value) : canonicalByCategory[category] ?? estimated,
               reason: row?.reason,
               updatedAt: row?.created_at,
             };
@@ -1149,9 +1181,9 @@ export default async function ProjectWorkspacePage({
             paper: Number(estimatedCosts.paper),
             items,
             estimatedTotal: Number(estimatedCosts.total),
-            realTotal:
-              Number(estimatedCosts.paper) +
-              items.reduce((sum, item) => sum + item.real, 0),
+            realTotal: canonical?.total ??
+              Number(estimatedCosts.paper) + items.reduce((sum, item) => sum + item.real, 0),
+            canonicalTotal: canonical?.total,
           };
         })()
       : undefined,
@@ -1655,7 +1687,7 @@ export default async function ProjectWorkspacePage({
       activities={activities}
       equipment={equipment}
       eventEquipmentExtras={{
-        boxLabel: formatAssignedBoxLabel(assignedBoxByProject.get(projectId)),
+        boxLabel: equipmentBoxLabel,
         extras: eventExtras,
       }}
       printInstructions={{

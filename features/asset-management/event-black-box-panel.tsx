@@ -21,7 +21,7 @@ export function EventBlackBoxPanel({ projectId }: { projectId: string }) {
   }), [projectId]);
   useEffect(() => { refresh(); }, [refresh]);
 
-  const currentAssetId = result?.ok ? result.assignment?.asset_id : null;
+  const currentAssetId = result?.ok && result.assignmentIsActive ? result.assignment?.asset_id : null;
   const available = useMemo(() => result?.ok ? result.assets.filter((asset) => asset.status !== "MAINTENANCE" && asset.status !== "OUT_OF_SERVICE" && (!asset.conflicts || asset.id === currentAssetId)) : [], [currentAssetId, result]);
   const currentAssetValue = result?.ok ? result.assignment?.operational_assets : null;
   const currentAsset = Array.isArray(currentAssetValue) ? currentAssetValue[0] : currentAssetValue;
@@ -32,7 +32,11 @@ export function EventBlackBoxPanel({ projectId }: { projectId: string }) {
     const metadata = asset.metadata && typeof asset.metadata === "object" ? asset.metadata as Record<string, unknown> : {};
     return Number(metadata.blackBoxPhotoStock ?? 0);
   };
-  const currentPaperStock = currentAsset ? paperStock(currentAsset, snapshot?.black_box_initial_photo_stock) : null;
+  const currentPaperStock = result?.ok && currentAsset
+    ? !result.assignmentIsActive && snapshot?.final_remaining_balance != null
+      ? Number(snapshot.final_remaining_balance)
+      : paperStock(currentAsset, snapshot?.black_box_initial_photo_stock)
+    : null;
   const run = (operation: () => Promise<{ ok: boolean; error?: string }>) => {
     setMessage("Guardando asignación…");
     startTransition(async () => {
@@ -48,9 +52,9 @@ export function EventBlackBoxPanel({ projectId }: { projectId: string }) {
   return <section className="rounded-2xl border bg-card p-4 sm:p-6" aria-label="Caja Negra del Evento">
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div className="flex items-start gap-3"><PackageCheck className="mt-1 size-5 shrink-0 text-brand" /><div><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">CAJA / PAPEL</p><h3 className="mt-1 text-xl font-semibold">Caja Negra del Evento</h3><p className="mt-1 text-sm text-muted">Reserva la Caja para este Evento; el stock Master no se descuenta al asignar.</p></div></div>
-      {currentAsset ? <StatusBadge label="Asignada" variant="success" /> : <StatusBadge label="Sin asignar" variant="warning" />}
+      {currentAsset ? <StatusBadge label={result.assignmentIsActive ? "Asignada" : "Cierre registrado"} variant={result.assignmentIsActive ? "success" : "info"} /> : <StatusBadge label="Sin asignar" variant="warning" />}
     </div>
-    <div className="mt-5 rounded-xl border bg-background/40 p-4"><div className="grid gap-4 sm:grid-cols-2"><div><p className="text-[11px] font-semibold uppercase tracking-[.16em] text-muted">CAJA ASIGNADA</p><p className="mt-1 text-lg font-semibold">{currentAsset ? `Caja ${Number(currentAsset.asset_code.slice(-2))}` : "Sin asignar"}</p></div><div><p className="text-[11px] font-semibold uppercase tracking-[.16em] text-muted">PAPEL DISPONIBLE</p><p className="mt-1 text-lg font-semibold">{currentPaperStock === null ? "—" : `${currentPaperStock} fotos`}</p></div></div>{currentAsset && snapshot ? <p className="mt-2 text-xs text-muted">{snapshot.black_box_paper_format === "4X6_PREPICADO" ? "4x6 PREPICADO" : "4x6"} · Snapshot de asignación</p> : null}<div className="mt-4 flex flex-wrap gap-2"><ActionButton aria-busy={pending} disabled={pending} icon={RefreshCw} label={currentAsset ? "Cambiar Caja" : "Asignar Caja"} onClick={() => { setSelectedAssetId(currentAssetId ?? ""); setDialogOpen(true); }} />{currentAsset ? <ActionButton className="sm:ml-auto" icon={Trash2} aria-busy={pending} disabled={pending} label="Liberar Caja" onClick={() => run(() => removeBlackBoxFromEventAction({ projectId, reason: "Retiro manual desde Operación del Evento" }))} variant="outline" /> : null}</div></div>
+    <div className="mt-5 rounded-xl border bg-background/40 p-4"><div className="grid gap-4 sm:grid-cols-2"><div><p className="text-[11px] font-semibold uppercase tracking-[.16em] text-muted">CAJA ASIGNADA</p><p className="mt-1 text-lg font-semibold">{currentAsset ? `Caja ${Number(currentAsset.asset_code.slice(-2))}` : "Sin asignar"}</p></div><div><p className="text-[11px] font-semibold uppercase tracking-[.16em] text-muted">PAPEL DISPONIBLE</p><p className="mt-1 text-lg font-semibold">{currentPaperStock === null ? "—" : `${currentPaperStock} fotos`}</p></div></div>{currentAsset && snapshot ? <p className="mt-2 text-xs text-muted">{snapshot.black_box_paper_format === "4X6_PREPICADO" ? "4x6 PREPICADO" : "4x6"} · {result.assignmentIsActive ? "Snapshot de asignación" : `Cierre confirmado · ${snapshot.event_usage ?? 0} fotos consumidas`}</p> : null}<div className="mt-4 flex flex-wrap gap-2">{result.assignmentIsActive ? <ActionButton aria-busy={pending} disabled={pending} icon={RefreshCw} label="Cambiar Caja" onClick={() => { setSelectedAssetId(currentAssetId ?? ""); setDialogOpen(true); }} /> : null}{result.assignmentIsActive && currentAsset ? <ActionButton className="sm:ml-auto" icon={Trash2} aria-busy={pending} disabled={pending} label="Liberar Caja" onClick={() => run(() => removeBlackBoxFromEventAction({ projectId, reason: "Retiro manual desde Operación del Evento" }))} variant="outline" /> : null}</div></div>
     {message ? <p aria-live="polite" className="mt-3 text-sm font-medium">{message}</p> : null}
     {dialogOpen ? <BoxAssignmentDialog project={project} assets={available} currentAssetId={currentAssetId} currentAssetCode={currentAsset?.asset_code ?? null} selectedAssetId={selectedAssetId} pending={pending} paperStock={paperStock} onSelect={setSelectedAssetId} onClose={() => setDialogOpen(false)} onConfirm={() => { setDialogOpen(false); run(() => assignBlackBoxToEventAction({ projectId, assetId: selectedAssetId, reason: currentAsset ? "Reemplazo manual desde Event 360" : "Asignación manual desde Event 360" })); }} /> : null}
   </section>;

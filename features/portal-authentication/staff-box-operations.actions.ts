@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadPortalSession } from "./portal-auth.service";
 import { reportStaffOperatorIncidentAction } from "./staff-portal.actions";
+import { canonicalBoxAssignment, isActiveBoxAssignment } from "@/features/asset-management/canonical-box-assignment";
 
 export type StaffBoxComponent = { id: string; code: string; type: string; status: string };
 export type StaffPaperStatus = "PENDING" | "READY_TO_CLOSE" | "CONFIRMED" | "OVERRIDDEN";
@@ -57,18 +58,18 @@ export async function loadStaffBoxOperationsAction(projectId: string): Promise<{
       const block = ownBlocks.get(row.block_id);
       return block ? [{ assignmentId: row.id, blockId: block.id, blockName: block.name, sequence: Number(block.sequence), startAt: block.start_at, endAt: block.end_at, status: row.status }] : [];
     }).sort((a, b) => a.sequence - b.sequence);
-    const { data: rows, error } = await admin.from("asset_assignments").select("id,asset_id,assignment_status,operational_assets!inner(id,asset_code,status,asset_type)").eq("project_id", projectId).eq("assignment_status", "ASSIGNED").is("deleted_at", null).in("operational_assets.asset_type", ["BOX", "CASE"]).in("operational_assets.asset_code", ["CASE-01", "CASE-02", "CASE-03", "CASE-04", "CASE-05", "CASE-06", "CASE-07", "CASE-08", "CASE-09"]).limit(1);
+    const { data: rows, error } = await admin.from("asset_assignments").select("id,asset_id,assignment_status,assigned_at,returned_at,operational_assets!inner(id,asset_code,status,asset_type)").eq("project_id", projectId).is("deleted_at", null).in("operational_assets.asset_type", ["BOX", "CASE"]).in("operational_assets.asset_code", ["CASE-01", "CASE-02", "CASE-03", "CASE-04", "CASE-05", "CASE-06", "CASE-07", "CASE-08", "CASE-09"]);
     if (error) throw error;
-    const row = rows?.[0];
+    const row = canonicalBoxAssignment(rows ?? []);
     if (!row) return { ok: true, roles, assignment: { id: "", boxId: "", boxCode: "", boxStatus: "", assignmentStatus: "", components: [], mediaLotId: null, mediaRemaining: null, format: null, lot: null, paper: null, canFinalizeEvent, turns } };
     const box = Array.isArray(row.operational_assets) ? row.operational_assets[0] : row.operational_assets;
     // Future Events can receive their paper snapshot before the previous Event using
     // the same Box is closed. Rebase only a still-pending snapshot when the current
     // Master stock is explained by the last confirmed close of this Box.
-    const { error: rebaseError } = await admin.rpc("rebase_pending_event_paper_snapshot", {
+    const { error: rebaseError } = isActiveBoxAssignment(row) ? await admin.rpc("rebase_pending_event_paper_snapshot", {
       p_project_id: projectId,
       p_asset_assignment_id: row.id,
-    });
+    }) : { error: null };
     if (rebaseError) throw rebaseError;
     const [{ data: components, error: componentError }, { data: lots, error: lotError }, { data: snapshots, error: snapshotError }] = await Promise.all([
       admin.from("operational_assets").select("id,asset_code,asset_type,status").eq("parent_asset_id", row.asset_id).is("deleted_at", null).order("asset_code"),

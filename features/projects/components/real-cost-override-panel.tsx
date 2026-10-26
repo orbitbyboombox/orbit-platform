@@ -35,6 +35,7 @@ export type RealCostData = {
   items: RealCostItem[];
   estimatedTotal: number;
   realTotal: number;
+  canonicalTotal?: number;
 };
 
 const money = new Intl.NumberFormat("es-CL", {
@@ -57,8 +58,11 @@ export function RealCostOverridePanel({
   );
   const [feedback, setFeedback] = useState("");
 
-  const realTotal =
-    data.paper + data.items.reduce((sum, item) => sum + (values[item.category] ?? 0), 0);
+  const editedDelta = data.items.reduce(
+    (sum, item) => sum + (values[item.category] ?? 0) - item.real,
+    0,
+  );
+  const realTotal = (data.canonicalTotal ?? data.realTotal) + editedDelta;
   const difference = realTotal - data.estimatedTotal;
 
   return (
@@ -100,6 +104,9 @@ export function RealCostOverridePanel({
           <Metric label="Total real" value={realTotal} />
           <Metric difference label="Diferencia" value={difference} />
         </div>
+        {data.canonicalTotal != null ? (
+          <p className="text-xs text-muted">Total real sincronizado con el registro canónico de rentabilidad.</p>
+        ) : null}
 
         <div className="overflow-x-auto">
           <table className="w-full min-w-[680px] text-sm">
