@@ -520,10 +520,11 @@ export async function prepareStaffMonthCloseAction(form: FormData) {
       if (downloaded.error) { await client.rpc("complete_staff_monthly_boleta_request", { p_request_id: request.request_id, p_status: "FAILED", p_error_code: "PDF_DOWNLOAD_FAILED" }); blockers.push(`${staff.first_name} ${staff.last_name}: PDF no descargable`); continue; }
       try {
         const delivered = await sender.send({ to: staff.email, idempotencyKey: `staff-boleta:${account.id}:${month}`, subject: `BOOMBOX · Solicitud de boleta ${month}`, textBody: `Hola ${staff.first_name}, adjuntamos tu liquidación de ${month}. Emite tu boleta por el monto indicado y súbela en ORBIT.`, htmlBody: `<main style="font-family:Arial,sans-serif"><p>Hola ${staff.first_name},</p><p>Adjuntamos tu liquidación mensual de ${month}. Emite tu boleta de honorarios por el monto indicado y súbela en ORBIT.</p><p>BOOMBOX</p></main>`, driveFileIds: [], attachments: [{ filename: `liquidacion-staff-${month}.pdf`, mimeType: "application/pdf", content: new Uint8Array(await downloaded.data.arrayBuffer()) }] });
-        await client.rpc("complete_staff_monthly_boleta_request", { p_request_id: request.request_id, p_status: "SENT", p_message_id: delivered.messageId, p_thread_id: delivered.threadId });
+        const completion = await client.rpc("complete_staff_monthly_boleta_request", { p_request_id: request.request_id, p_status: "SENT", p_message_id: delivered.messageId, p_thread_id: delivered.threadId });
+        if (completion.error) { blockers.push(`${staff.first_name} ${staff.last_name}: correo aceptado por Gmail pero confirmación pendiente; requiere conciliación manual`); continue; }
         sent += 1;
       } catch (error) {
-        await client.rpc("complete_staff_monthly_boleta_request", { p_request_id: request.request_id, p_status: "FAILED", p_error_code: error instanceof Error ? error.name : "GMAIL_SEND_FAILED" });
+        await client.rpc("complete_staff_monthly_boleta_request", { p_request_id: request.request_id, p_status: "NEEDS_RECONCILIATION", p_error_code: error instanceof Error ? error.name : "GMAIL_SEND_UNCERTAIN" });
         blockers.push(`${staff.first_name} ${staff.last_name}: correo no enviado`);
       }
     }
