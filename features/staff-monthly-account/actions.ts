@@ -468,6 +468,7 @@ export async function finalizeMonthlyStaffAccountAction(form: FormData) {
 /** Prepare the month without invoking the strict final-close gate. */
 export async function prepareStaffMonthCloseAction(form: FormData) {
   const month = String(form.get("month") ?? "").slice(0, 7);
+  const selectedStaffId = String(form.get("staffId") ?? "").trim();
   const correlationId = randomUUID().slice(0, 8).toUpperCase();
   try {
     const client = await adminContext();
@@ -480,10 +481,12 @@ export async function prepareStaffMonthCloseAction(form: FormData) {
       .select(STAFF_MONTHLY_ACCOUNT_SELECT)
       .eq("accounting_month", `${month}-01`);
     if (accountsError) throw accountsError;
+    const selectedAccounts = selectedStaffId ? (accounts ?? []).filter(item => item.staff_id === selectedStaffId) : (accounts ?? []);
+    if (selectedStaffId && selectedAccounts.length !== 1) return { ok: false, message: "No existe una liquidación para ese operador y mes. Genérala antes de continuar." };
     const blockers: string[] = [];
     let sent = 0;
     let sender: GoogleGmailApiProvider | null = null;
-    for (const raw of accounts ?? []) {
+    for (const raw of selectedAccounts) {
       const { data: staff, error: staffError } = await admin.from("staff").select("id,first_name,last_name,email,rut,role").eq("id", raw.staff_id).single();
       if (staffError || !staff) { blockers.push(`${raw.staff_id}: operador no encontrado`); continue; }
       if (!staff?.email) { blockers.push(`${staff?.first_name ?? raw.staff_id}: email no registrado`); continue; }
