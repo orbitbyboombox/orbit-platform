@@ -25,9 +25,6 @@ jobs:
       SUPABASE_URL: ${{ vars.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
-      GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON }}
-      GOOGLE_DRIVE_PARENT_FOLDER_ID: ${{ vars.GOOGLE_DRIVE_PARENT_FOLDER_ID }}
-
     steps:
       - name: Checkout exact backup source
         uses: actions/checkout@v4
@@ -40,31 +37,29 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install application dependencies
-        run: corepack enable && pnpm install --frozen-lockfile
+      - name: Install dependencies without lifecycle scripts
+        run: corepack enable && pnpm install --frozen-lockfile --ignore-scripts
 
-      - name: Validate protected Storage-only configuration
+      - name: Validate protected configuration
         shell: bash
         run: |
           set -euo pipefail
           umask 077
-          mkdir -p "$RUNNER_TEMP/orbit-storage-backup/storage"
           test -n "$SUPABASE_URL"
           test -n "$SUPABASE_SERVICE_ROLE_KEY"
           test -n "$BACKUP_ENCRYPTION_PASSPHRASE"
-          test -n "$GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON"
-          test -n "$GOOGLE_DRIVE_PARENT_FOLDER_ID"
+          mkdir -p "$RUNNER_TEMP/orbit-storage-backup/storage"
 
       - name: Run backup safety tests
         run: node --test tests/issue-66-backup-security.test.mts
 
-      - name: Export Storage objects and checksums
+      - name: Export Storage and SHA-256 manifest
         run: |
           node scripts/export-supabase-storage.mjs \
             "$RUNNER_TEMP/orbit-storage-backup/storage" \
             "$RUNNER_TEMP/orbit-storage-backup/storage-manifest.json"
 
-      - name: Encrypt Storage archive and manifests
+      - name: Encrypt all Storage data and metadata
         shell: bash
         run: |
           set -euo pipefail
@@ -76,23 +71,21 @@ jobs:
               -pass stdin -in "$work/$source" -out "$work/$source.enc"
           done
           rm -rf "$work/storage" "$work/storage.tar.gz" "$work/storage-manifest.json"
-          node scripts/write-storage-backup-manifest.mjs "$work" "$GITHUB_SHA"
+          (cd "$work" && sha256sum storage.tar.gz.enc storage-manifest.json.enc > encrypted-sha256sums.txt)
           printf '%s' "$BACKUP_ENCRYPTION_PASSPHRASE" | openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt \
-            -pass stdin -in "$work/storage-backup-manifest.json" -out "$work/storage-backup-manifest.json.enc"
-          rm -f "$work/storage-backup-manifest.json"
-          sha256sum "$work"/*.enc > "$work/sha256sums.txt"
-          printf '%s' "$BACKUP_ENCRYPTION_PASSPHRASE" | openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt \
-            -pass stdin -in "$work/sha256sums.txt" -out "$work/sha256sums.txt.enc"
-          rm -f "$work/sha256sums.txt"
+            -pass stdin -in "$work/encrypted-sha256sums.txt" -out "$work/encrypted-sha256sums.txt.enc"
+          rm -f "$work/encrypted-sha256sums.txt"
+          test "$(find "$work" -maxdepth 1 -type f -name '*.enc' | wc -l)" -eq 3
 
-      - name: Upload encrypted Storage backup and verify Drive readback
-        run: |
-          npm install --no-save --no-package-lock googleapis@144.0.0
-          node scripts/upload-drive-backup.mjs "$RUNNER_TEMP/orbit-storage-backup"
+      - name: Stage encrypted artifact for authenticated Drive transfer
+        uses: actions/upload-artifact@v4
+        with:
+          name: orbit-storage-encrypted-${{ github.run_id }}
+          path: ${{ runner.temp }}/orbit-storage-backup/*.enc
+          retention-days: 7
+          if-no-files-found: error
 
-      - name: Cleanup temporary Storage backup material
+      - name: Cleanup temporary Storage material
         if: always()
         shell: bash
-        run: |
-          set +e
-          rm -rf "$RUNNER_TEMP/orbit-storage-backup"
+        run: rm -rf "$RUNNER_TEMP/orbit-storage-backup"
