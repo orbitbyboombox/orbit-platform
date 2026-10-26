@@ -12,7 +12,7 @@ import {
   registerQuickStaffSettlementPaymentAction,
 } from "./actions";
 import { StaffMonthlyAccountPanel } from "@/features/staff-monthly-account/staff-monthly-account-panel";
-import { generateMonthlyStaffAccountsAction } from "@/features/staff-monthly-account/actions";
+import { generateMonthlyStaffAccountsAction, requestIndividualStaffBoletaAction } from "@/features/staff-monthly-account/actions";
 import { registerMonthlyStaffPaymentAction } from "@/features/staff-monthly-account/actions";
 import type { StaffMonthlyAccount } from "@/features/staff-monthly-account/model";
 
@@ -483,6 +483,29 @@ export function StaffPaymentsCenter({
             {closeMessage}
           </p>
         )}
+      </section>
+      <section className="rounded-2xl border p-4 sm:p-5">
+        <h3 className="text-lg font-semibold">Solicitar boleta por operador</h3>
+        <p className="mt-1 text-sm text-muted">Cada botón cierra únicamente la liquidación seleccionada y envía su solicitud de boleta. Los demás operadores permanecen pendientes.</p>
+        <div className="mt-3 space-y-2">
+          {rows.map((row) => {
+            const account = months.find((item) => item.staffId === row.member.id && item.month.slice(0, 7) === month)?.account;
+            if (!account) return null;
+            const eligible = !account.reviewRequired && account.workNet > 0 && account.boletaStatus === "PENDING";
+            return <div key={row.member.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3">
+              <div><p className="font-medium">{row.member.name}</p><p className="text-xs text-muted">{account.settlementStatus} · {account.reviewRequired ? "Requiere revisión" : account.boletaStatus}</p></div>
+              <form action={(form) => startClosing(async () => {
+                const result = await requestIndividualStaffBoletaAction(form);
+                setCloseMessage(result.message);
+                if (result.ok) location.reload();
+              })}>
+                <input type="hidden" name="month" value={month}/>
+                <input type="hidden" name="staffId" value={row.member.id}/>
+                <Button disabled={closing || !eligible}>Cerrar y solicitar boleta</Button>
+              </form>
+            </div>;
+          })}
+        </div>
       </section>
       <StaffFinanceDriveSync />
       <QuickStaffPayment rows={rows} />
