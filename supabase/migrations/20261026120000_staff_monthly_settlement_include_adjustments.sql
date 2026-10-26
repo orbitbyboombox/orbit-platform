@@ -138,8 +138,7 @@ begin
       'eventDate', (project).event_date,
       'event', (project).name,
       'customer', (customer).full_name,
-      'service', coalesce((select string_agg(service.service_code, ' + '
-        ' order by service.service_code)
+      'service', coalesce((select string_agg(service.service_code, ' + ' order by service.service_code)
         from public.project_services service
         where service.project_id = (project).id), (project).project_type),
       'location', concat_ws(' · ', nullif((project).location, ''), nullif((project).city, '')),
