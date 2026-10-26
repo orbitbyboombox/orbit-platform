@@ -12,7 +12,7 @@ import { loadFounderWorkspace } from "@/features/founder-workspace";
 import type { EquipmentAssignmentPanelProps } from "@/features/asset-management";
 import {
   buildAssignedBoxByProject,
-  formatAssignedBoxLabel,
+  formatEventBoxLabel,
 } from "@/features/asset-management/box-assignment-read-model";
 import { buildEventEquipmentExtras } from "@/features/projects/event-equipment-extras-read-model";
 import type { EventLogisticsData } from "@/features/operations/event-logistics-center";
@@ -166,9 +166,8 @@ export default async function ProjectWorkspacePage({
     client
       .from("asset_assignments")
       .select(
-        "id,project_id,asset_id,operational_requirement_id,assignment_status,deleted_at,planned_start_at,planned_end_at,projects(name,event_date,event_time),operational_assets(asset_code,asset_type,status)",
+        "id,project_id,asset_id,operational_requirement_id,assignment_status,deleted_at,assigned_at,returned_at,planned_start_at,planned_end_at,projects(name,event_date,event_time),operational_assets(asset_code,asset_type,status)",
       )
-      .eq("assignment_status", "ASSIGNED")
       .is("deleted_at", null),
     client
       .from("staff")
@@ -551,6 +550,11 @@ export default async function ProjectWorkspacePage({
   const activeAssets = (assetAssignments ??
     []) as unknown as ActiveAssetAssignment[];
   const assignedBoxByProject = buildAssignedBoxByProject(assetAssignments ?? []);
+  const assignedBoxCode = assignedBoxByProject.get(projectId);
+  const closedPaperUsage = paperSnapshot?.status === "CONFIRMED" && paperSnapshot.event_usage != null
+    ? Number(paperSnapshot.event_usage)
+    : null;
+  const equipmentBoxLabel = formatEventBoxLabel(assignedBoxCode, closedPaperUsage);
   const confirmedAssignmentStatuses = new Set([
     "ASSIGNED",
     "PENDING",
@@ -1089,7 +1093,16 @@ export default async function ProjectWorkspacePage({
       }),
       status: item.status,
     })),
-    profit: realCost,
+    profit: realCost
+      ? {
+          ...realCost,
+          costs: {
+            ...realCost.costs,
+            setup: (payroll ?? []).reduce((sum, item) => sum + Number(item.assembly_payment ?? 0), 0),
+            teardown: (payroll ?? []).reduce((sum, item) => sum + Number(item.disassembly_payment ?? 0), 0),
+          },
+        }
+      : realCost,
     estimatedCosts: estimatedCosts
       ? {
           status: estimatedCosts.status,
@@ -1674,7 +1687,7 @@ export default async function ProjectWorkspacePage({
       activities={activities}
       equipment={equipment}
       eventEquipmentExtras={{
-        boxLabel: formatAssignedBoxLabel(assignedBoxByProject.get(projectId)),
+        boxLabel: equipmentBoxLabel,
         extras: eventExtras,
       }}
       printInstructions={{

@@ -73,8 +73,7 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
   const communeSectorMappingsPromise = loadLogisticsCommuneSectorMappings(client);
   const boxAssignmentsPromise = client
     .from("asset_assignments")
-    .select("project_id,asset_id,assignment_status,planned_start_at,planned_end_at,operational_assets!inner(asset_code,asset_type)")
-    .eq("assignment_status", "ASSIGNED")
+    .select("project_id,asset_id,assignment_status,assigned_at,returned_at,planned_start_at,planned_end_at,operational_assets!inner(asset_code,asset_type)")
     .in("operational_assets.asset_type", ["BOX", "CASE"])
     .in("operational_assets.asset_code", CANONICAL_BOX_CODES)
     .is("deleted_at", null);

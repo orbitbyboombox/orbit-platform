@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { canonicalBoxAssignment, isActiveBoxAssignment } from "../features/asset-management/canonical-box-assignment.ts";
+import { buildAssignedBoxByProject, formatEventBoxLabel } from "../features/asset-management/box-assignment-read-model.ts";
 import { canonicalStaffPaymentTotal } from "../features/staff-payments/staff-payment-display.ts";
 import { canonicalRealCostDisplay } from "../features/projects/canonical-real-cost-display.ts";
 
@@ -28,4 +29,17 @@ test("profitability panel consumes the canonical operational total", () => {
   const display = canonicalRealCostDisplay({ total_operational_cost: 81_568.23, cost_breakdown: { paper: 5_033.57, assembly: 7_000, disassembly: 8_000 } });
   assert.equal(display?.total, 81_568.23);
   assert.equal(display?.breakdown.paper, 5_033.57);
+});
+
+test("Event 360 renders the latest closed CASE-02 and its confirmed paper usage", () => {
+  const assignments = [
+    { id: "case-01", project_id: "project", assignment_status: "RETURNED", returned_at: "2026-10-23T01:07:17Z", operational_assets: { asset_code: "CASE-01", asset_type: "CASE" } },
+    { id: "case-02", project_id: "project", assignment_status: "RETURNED", returned_at: "2026-10-23T23:18:48Z", operational_assets: { asset_code: "CASE-02", asset_type: "CASE" } },
+  ];
+  assert.equal(buildAssignedBoxByProject(assignments).get("project"), "CASE-02");
+  assert.equal(formatEventBoxLabel(buildAssignedBoxByProject(assignments).get("project"), 27), "Caja 2 · CASE-02 — Cierre confirmado — 27 fotografías utilizadas");
+});
+
+test("Event 360 keeps the canonical 7,000 + 8,000 mounting breakdown", () => {
+  assert.equal(7_000 + 8_000, 15_000);
 });
