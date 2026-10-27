@@ -45,3 +45,15 @@ export function resolveCollectionBankDetails(
     email,
   };
 }
+
+/** Shared display order for collection composer, visual preview and outgoing email. */
+export function collectionBankRows(details: CollectionBankDetails): Array<[string, string]> {
+  return [
+    ["Titular de la cuenta", details.companyLabel],
+    ["Banco", details.bankName],
+    ["Tipo de cuenta", details.accountType],
+    ["N° de cuenta", details.accountNumber],
+    ["RUT", details.rut],
+    ["Email", details.email],
+  ];
+}
