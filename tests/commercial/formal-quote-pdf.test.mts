@@ -54,6 +54,7 @@ const model = (lineCount: number): FormalQuotePdfModel => ({
     phone: "+56 9 6304 0989",
     email: "contabilidad@bbox.cl",
     website: "www.bbox.cl",
+    bankAccountHolder: "PRODUCCIONES BOOMBOX COMPANYB SPA",
     bankName: "BCI",
     bankAccountType: "Cuenta Corriente",
     bankAccountNumber: "52093409",
@@ -102,7 +103,7 @@ test("page one closes with the commercial total and compact reservation summary"
 test("final page contains complete reservation and conditions composition", async () => {
   const texts = await pageTexts(await createFormalQuotePdf(model(3)));
   const last = texts.at(-1) ?? "";
-  for (const expected of ["CONDICIONES DE RESERVA", "CONDICIONES OPERACIONALES", "FORMA DE PAGO", "IMPORTANTE", "LISTOS PARA CREAR LA EXPERIENCIA"]) assert.match(last, new RegExp(expected));
+  for (const expected of ["CONDICIONES DE RESERVA", "CONDICIONES OPERACIONALES", "FORMA DE PAGO", "IMPORTANTE", "LISTOS PARA CREAR LA EXPERIENCIA", "TITULAR DE LA CUENTA: PRODUCCIONES BOOMBOX COMPANYB SPA"]) assert.match(last, new RegExp(expected));
 });
 
 test("every page includes elegant total page numbering", async () => {
