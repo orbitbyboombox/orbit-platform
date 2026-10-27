@@ -52,6 +52,12 @@ export function collectionDraftFingerprint(draft: CollectionEmailDraft) {
     draft.totalLabel,
     draft.outstandingLabel,
     draft.dueDateLabel,
+    draft.bankDetails.companyLabel,
+    draft.bankDetails.bankName,
+    draft.bankDetails.accountType,
+    draft.bankDetails.accountNumber,
+    draft.bankDetails.rut,
+    draft.bankDetails.email,
   ]);
 }
 
