@@ -1,5 +1,5 @@
 import type { ReceivableInvoice } from "./types";
-import type { CollectionBankDetails } from "./collection-bank-details";
+import { collectionBankRows, type CollectionBankDetails } from "./collection-bank-details";
 
 export type CollectionEmailTemplateKey = "UPCOMING" | "OVERDUE";
 
@@ -81,14 +81,8 @@ export function buildCollectionEmailHtml(
     ["Servicio", draft.serviceLabel],
     ["Duración", draft.durationLabel],
   ].map(([label, value]) => detailCell(label, value)).join("");
-  const bankDetails = [
-    ["Titular de la cuenta", draft.bankDetails.companyLabel],
-    ["Banco", draft.bankDetails.bankName],
-    ["Tipo de cuenta", draft.bankDetails.accountType],
-    ["N° de cuenta", draft.bankDetails.accountNumber],
-    ["RUT", draft.bankDetails.rut],
-    ["Email", draft.bankDetails.email],
-  ].map(([label, value]) => detailCell(label, value)).join("");
+  const bankDetails = collectionBankRows(draft.bankDetails)
+    .map(([label, value]) => detailCell(label, value)).join("");
 
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>
 @media only screen and (max-width:520px){
