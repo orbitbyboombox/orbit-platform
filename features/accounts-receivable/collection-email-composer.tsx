@@ -269,6 +269,7 @@ export function CollectionEmailComposer({
                   Estos datos se insertan automáticamente en la cobranza profesional.
                 </p>
               </div>
+              <Detail label="Titular de la cuenta" value={draft.bankDetails.accountHolder} />
               <Detail label="Banco" value={draft.bankDetails.bankName} />
               <Detail label="Tipo de cuenta" value={draft.bankDetails.accountType} />
               <Detail label="N° de cuenta" value={draft.bankDetails.accountNumber} />
@@ -277,7 +278,6 @@ export function CollectionEmailComposer({
                 label="Email de transferencia"
                 value={draft.bankDetails.email}
               />
-              <Detail label="Marca" value={draft.bankDetails.companyLabel} />
             </div>
             <CollectionEmailVisualPreview draft={draft} invoice={invoice} />
             <label className="block text-sm font-medium">
@@ -391,6 +391,7 @@ function CollectionEmailVisualPreview({
             Datos para transferencia
           </p>
           <div className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2">
+            <PreviewDetail dark label="Titular de la cuenta" value={draft.bankDetails.accountHolder} />
             <PreviewDetail dark label="Banco" value={draft.bankDetails.bankName} />
             <PreviewDetail dark label="Tipo de cuenta" value={draft.bankDetails.accountType} />
             <PreviewDetail dark label="N° de cuenta" value={draft.bankDetails.accountNumber} />
