@@ -11,7 +11,7 @@ import {
   collectionDraftFingerprint,
 } from "./collection-email.template";
 import { sendCollectionEmailAction } from "./collection-email.actions";
-import type { CollectionBankDetails } from "./collection-bank-details";
+import { collectionBankRows, type CollectionBankDetails } from "./collection-bank-details";
 import type { ReceivableInvoice } from "./types";
 
 function fieldStyle(value: string) {
@@ -270,15 +270,9 @@ export function CollectionEmailComposer({
                   Estos datos se insertan automáticamente en la cobranza profesional.
                 </p>
               </div>
-              <Detail label="Banco" value={draft.bankDetails.bankName} />
-              <Detail label="Tipo de cuenta" value={draft.bankDetails.accountType} />
-              <Detail label="N° de cuenta" value={draft.bankDetails.accountNumber} />
-              <Detail label="RUT" value={draft.bankDetails.rut} />
-              <Detail
-                label="Email de transferencia"
-                value={draft.bankDetails.email}
-              />
-              <Detail label="Marca" value={draft.bankDetails.companyLabel} />
+              {collectionBankRows(draft.bankDetails).map(([label, value]) => (
+                <Detail key={label} label={label} value={value} />
+              ))}
             </div>
             <CollectionEmailVisualPreview draft={draft} invoice={invoice} />
             <label className="block text-sm font-medium">
@@ -392,11 +386,9 @@ function CollectionEmailVisualPreview({
             Datos para transferencia
           </p>
           <div className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2">
-            <PreviewDetail dark label="Banco" value={draft.bankDetails.bankName} />
-            <PreviewDetail dark label="Tipo de cuenta" value={draft.bankDetails.accountType} />
-            <PreviewDetail dark label="N° de cuenta" value={draft.bankDetails.accountNumber} />
-            <PreviewDetail dark label="RUT" value={draft.bankDetails.rut} />
-            <PreviewDetail dark label="Email" value={draft.bankDetails.email} />
+            {collectionBankRows(draft.bankDetails).map(([label, value]) => (
+              <PreviewDetail dark key={label} label={label} value={value} />
+            ))}
           </div>
         </div>
         <p className="text-xs leading-5 text-zinc-500">Una vez realizado el pago, envía el comprobante a <a className="text-orange-700 underline" href="mailto:contabilidad@bbox.cl">contabilidad@bbox.cl</a>.</p>
