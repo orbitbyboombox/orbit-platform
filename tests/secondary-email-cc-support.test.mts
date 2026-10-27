@@ -103,7 +103,7 @@ test("11 collection composer suggests only canonical secondary email", () => {
     daysRemaining: 0,
     status: "PENDING",
     collectionActions: [],
-  }, { bankName: "BCI", accountType: "Cuenta Corriente", accountNumber: "1", rut: "1-9", email: "pagos@boom-box.cl", companyLabel: "BOOMBOX" });
+  }, { bankName: "BCI", accountType: "Cuenta Corriente", accountNumber: "1", rut: "1-9", email: "pagos@boom-box.cl", accountHolder: "PRODUCCIONES BOOMBOX COMPANYB SPA" });
   assert.deepEqual(draft.cc, ["finanzas@empresa.cl"]);
 });
 
