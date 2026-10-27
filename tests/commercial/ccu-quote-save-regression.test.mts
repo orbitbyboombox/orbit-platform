@@ -163,6 +163,7 @@ test("CCU PDF renders the canonical saved totals", async () => {
       phone: "+56 9 6304 0989",
       email: "contabilidad@bbox.cl",
       website: "www.bbox.cl",
+      bankAccountHolder: "PRODUCCIONES BOOMBOX COMPANYB SPA",
       bankName: "BCI",
       bankAccountType: "Cuenta Corriente",
       bankAccountNumber: "52093409",
