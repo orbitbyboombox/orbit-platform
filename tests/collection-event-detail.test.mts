@@ -18,7 +18,7 @@ const composer = read("features/accounts-receivable/collection-email-composer.ts
 const repository = read("features/accounts-receivable/repository.ts");
 
 const bankDetails = {
-  companyLabel: "BOOMBOX",
+  accountHolder: "PRODUCCIONES BOOMBOX COMPANYB SPA",
   bankName: "BCI",
   accountType: "Cuenta Corriente",
   accountNumber: "52093409",
@@ -228,6 +228,8 @@ test("collection HTML matches Photo 3 hierarchy without duplicated canonical dat
   assert.match(html, /Detalle del evento/);
   assert.match(html, /Saldo pendiente/);
   assert.match(html, /Datos para transferencia/);
+  assert.match(html, /Titular de la cuenta/);
+  assert.ok(html.indexOf("Titular de la cuenta") < html.indexOf("Banco"));
   assert.match(html, /Una vez realizado el pago, envía el comprobante a/);
   assert.equal((html.match(/mailto:contabilidad@bbox\.cl/g) ?? []).length, 1);
   assert.match(html, /BOOMBOX · Comunicación emitida mediante ORBIT/);
