@@ -3,6 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadCompanySettings } from "@/features/company-settings";
+import { BOOMBOX_BANK_ACCOUNT_HOLDER } from "@/lib/company-bank-account-holder";
 import { createFormalQuotePdf } from "./formal-quote-pdf";
 import { normalizeQuoteOperationalConditions } from "./operational-conditions";
 import { quoteDisplayFilename } from "./presentation";
@@ -239,6 +240,7 @@ export async function loadFormalQuoteDocument(
       phone: company.phone,
       email: bank.email || company.salesEmail || company.supportEmail,
       website: company.website,
+      bankAccountHolder: BOOMBOX_BANK_ACCOUNT_HOLDER,
       bankName: bank.bankName || "Banco no configurado",
       bankAccountType: bank.accountType || "Cuenta no configurada",
       bankAccountNumber: bank.accountNumber || "Número no configurado",
