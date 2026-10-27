@@ -110,7 +110,7 @@ test("11 collection composer suggests only canonical secondary email", () => {
 test("12 collection without secondary email keeps CC empty", () => {
   const draft = buildCollectionEmailDraft({
     invoiceNumber: "INV-2", customerName: "Cliente", customerEmail: "cliente@empresa.cl", customerSecondaryEmail: null, projectName: "Evento", outstandingBalance: 1000, dueDate: null, daysRemaining: null, status: "PENDING", collectionActions: [],
-  }, { bankName: "BCI", accountType: "Cuenta Corriente", accountNumber: "1", rut: "1-9", email: "pagos@boom-box.cl", companyLabel: "BOOMBOX" });
+  }, { bankName: "BCI", accountType: "Cuenta Corriente", accountNumber: "1", rut: "1-9", email: "pagos@boom-box.cl", accountHolder: "PRODUCCIONES BOOMBOX COMPANYB SPA" });
   assert.deepEqual(draft.cc, []);
 });
 
