@@ -204,7 +204,7 @@ export function CollectionCenter({
             </p>
           </div>
           <div className="grid gap-3 rounded-2xl border bg-background/50 p-4 sm:grid-cols-2">
-            <BankDetail label="Marca" value={bankDetails.companyLabel} />
+            <BankDetail label="Titular / empresa" value={bankDetails.companyLabel} />
             <BankDetail label="Banco" value={bankDetails.bankName} />
             <BankDetail label="Tipo de cuenta" value={bankDetails.accountType} />
             <BankDetail label="N° de cuenta" value={bankDetails.accountNumber} />

@@ -278,7 +278,7 @@ export function CollectionEmailComposer({
                 label="Email de transferencia"
                 value={draft.bankDetails.email}
               />
-              <Detail label="Marca" value={draft.bankDetails.companyLabel} />
+              <Detail label="Titular / empresa" value={draft.bankDetails.companyLabel} />
             </div>
             <CollectionEmailVisualPreview draft={draft} invoice={invoice} />
             <label className="block text-sm font-medium">

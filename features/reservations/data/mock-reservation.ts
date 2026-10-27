@@ -15,9 +15,9 @@ export const MOCK_RESERVATION: ReservationPreview = {
   requiredDeposit: "$234.000",
   remainingBalance: "$546.000",
   bankDetails: {
-    bank: "Banco de Chile",
-    account: "Cuenta corriente · 123456789",
-    rut: "76.123.456-7",
-    email: "pagos@boom-box.cl",
+    bank: "BCI",
+    account: "Cuenta Corriente · 52093409",
+    rut: "76.565.272-3",
+    email: "contabilidad@bbox.cl",
   },
 };

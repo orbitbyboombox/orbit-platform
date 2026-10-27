@@ -1,15 +1,5 @@
-import { formatChileanRut } from "@/lib/chile/rut";
 import type { CompanySettings } from "@/features/company-settings/types";
-
-function object(value: unknown) {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
-}
-
-function text(value: unknown) {
-  return typeof value === "string" ? value.trim() : "";
-}
+import { OFFICIAL_BOOMBOX_BANK_DETAILS } from "@/features/company-settings/bank-details";
 
 export type CollectionBankDetails = {
   companyLabel: string;
@@ -23,25 +13,8 @@ export type CollectionBankDetails = {
 export function resolveCollectionBankDetails(
   settings: CompanySettings,
 ): CollectionBankDetails {
-  const bank = object(settings.pdfConfiguration.commercialBank);
-  // Legal identity is the canonical value for payment instructions.  The
-  // brand name is still available elsewhere, but must not replace the legal
-  // company name in copy/paste bank details.
-  const companyLabel =
-    settings.legalName || settings.companyName || settings.brandName || "BOOMBOX";
-  const bankName = text(bank.bankName) || "Banco no configurado";
-  const accountType = text(bank.accountType) || "Cuenta Corriente";
-  const accountNumber = text(bank.accountNumber) || "Sin número configurado";
-  const email =
-    text(bank.email) || settings.salesEmail || settings.supportEmail || "Sin correo configurado";
-  const rut = formatChileanRut(settings.taxId) || settings.taxId || "Sin RUT configurado";
-
-  return {
-    companyLabel,
-    bankName,
-    accountType,
-    accountNumber,
-    rut,
-    email,
-  };
+  // Keep the settings argument in the API so callers remain compatible, but
+  // do not let stale company_settings values leak into payment instructions.
+  void settings;
+  return { ...OFFICIAL_BOOMBOX_BANK_DETAILS };
 }

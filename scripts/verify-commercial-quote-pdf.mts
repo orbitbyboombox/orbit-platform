@@ -12,7 +12,7 @@ if (!destination) throw new Error("Destination directory is required.");
 await mkdir(destination, { recursive: true });
 
 const company: FormalQuotePdfModel["company"] = {
-  legalName: "PRODUCCIONES BOOMBOX COMPANY SpA",
+  legalName: "PRODUCCIONES BOOMBOX COMPANY SPA",
   taxId: "76.565.272-3",
   address: "Puerta Oriente 361 · Puertas de Chicureo",
   city: "Colina",

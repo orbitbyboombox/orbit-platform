@@ -3,6 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadCompanySettings } from "@/features/company-settings";
+import { OFFICIAL_BOOMBOX_BANK_DETAILS } from "@/features/company-settings/bank-details";
 import { createFormalQuotePdf } from "./formal-quote-pdf";
 import { normalizeQuoteOperationalConditions } from "./operational-conditions";
 import { quoteDisplayFilename } from "./presentation";
@@ -163,7 +164,6 @@ export async function loadFormalQuoteDocument(
     : object(quote.customer_snapshot);
   const event = object(snapshot.event);
   const pdfConfiguration = company.pdfConfiguration;
-  const bank = object(pdfConfiguration.commercialBank) as Record<string, string>;
   const configuredConditions = Array.isArray(
     pdfConfiguration.commercialReservationConditions,
   )
@@ -263,16 +263,16 @@ export async function loadFormalQuoteDocument(
     transportLookupUrl,
     transportCustomerType: isCompanyCustomer ? "company" : "private",
     company: {
-      legalName: company.legalName,
-      taxId: company.taxId,
+      legalName: OFFICIAL_BOOMBOX_BANK_DETAILS.companyLabel,
+      taxId: OFFICIAL_BOOMBOX_BANK_DETAILS.rut,
       address: company.address,
       city: company.city,
       phone: company.phone,
-      email: bank.email || company.salesEmail || company.supportEmail,
+      email: OFFICIAL_BOOMBOX_BANK_DETAILS.email,
       website: company.website,
-      bankName: bank.bankName || "Banco no configurado",
-      bankAccountType: bank.accountType || "Cuenta no configurada",
-      bankAccountNumber: bank.accountNumber || "Número no configurado",
+      bankName: OFFICIAL_BOOMBOX_BANK_DETAILS.bankName,
+      bankAccountType: OFFICIAL_BOOMBOX_BANK_DETAILS.accountType,
+      bankAccountNumber: OFFICIAL_BOOMBOX_BANK_DETAILS.accountNumber,
       reservationConditions: configuredConditions,
       operationalConditions: normalizeQuoteOperationalConditions(
         pdfConfiguration.commercialOperationalConditions,

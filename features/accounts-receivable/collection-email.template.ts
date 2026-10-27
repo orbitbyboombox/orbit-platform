@@ -82,6 +82,7 @@ export function buildCollectionEmailHtml(
     ["Duración", draft.durationLabel],
   ].map(([label, value]) => detailCell(label, value)).join("");
   const bankDetails = [
+    ["Titular / empresa", draft.bankDetails.companyLabel],
     ["Banco", draft.bankDetails.bankName],
     ["Tipo de cuenta", draft.bankDetails.accountType],
     ["N° de cuenta", draft.bankDetails.accountNumber],
@@ -189,6 +190,7 @@ export function buildCollectionEmailDraft(
     `Fecha de pago / vencimiento: ${dueDateLabel}`,
     "",
     "DATOS PARA TRANSFERENCIA",
+    `TITULAR / EMPRESA\n${bankDetails.companyLabel}`,
     `BANCO\n${bankDetails.bankName}`,
     `TIPO DE CUENTA\n${bankDetails.accountType}`,
     `N° DE CUENTA\n${bankDetails.accountNumber}`,
