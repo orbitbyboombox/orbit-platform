@@ -6,6 +6,7 @@ import {
   buildCollectionEmailHtml,
   getLastCollectionNoticeAt,
 } from "../features/accounts-receivable/collection-email.template.ts";
+import { resolveCollectionBankDetails } from "../features/accounts-receivable/collection-bank-details.ts";
 
 const root = new URL("../", import.meta.url);
 const read = (path: string) => readFileSync(new URL(path, root), "utf8");
@@ -31,8 +32,33 @@ const bankDetails = {
   accountType: "Cuenta Corriente",
   accountNumber: "52093409",
   rut: "76.565.272-3",
-  email: "contabilidad@boombox.cl",
+  email: "contabilidad@bbox.cl",
 };
+
+test("bank details resolve the canonical account holder and preserve configured fields", () => {
+  const resolved = resolveCollectionBankDetails({
+    legalName: "PRODUCCIONES BOOMBOX COMPANY SpA",
+    companyName: "BOOMBOX",
+    brandName: "BOOMBOX",
+    taxId: "76.565.272-3",
+    pdfConfiguration: {
+      commercialBank: {
+        bankName: "BCI",
+        accountType: "Cuenta Corriente",
+        accountNumber: "52093409",
+        email: "contabilidad@bbox.cl",
+      },
+    },
+  } as unknown as Parameters<typeof resolveCollectionBankDetails>[0]);
+  assert.deepEqual(resolved, {
+    accountHolder: "PRODUCCIONES BOOMBOX COMPANYB SPA",
+    bankName: "BCI",
+    accountType: "Cuenta Corriente",
+    accountNumber: "52093409",
+    rut: "76.565.272-3",
+    email: "contabilidad@bbox.cl",
+  });
+});
 
 test("collection email draft distinguishes overdue and upcoming invoices", () => {
   const overdue = buildCollectionEmailDraft(
@@ -62,7 +88,7 @@ test("collection email draft distinguishes overdue and upcoming invoices", () =>
   assert.ok(html.indexOf("PRODUCCIONES BOOMBOX COMPANYB SPA") < html.indexOf("BCI"));
   assert.match(overdue.body, /N° DE CUENTA\n52093409/);
   assert.match(overdue.body, /RUT\n76\.565\.272-3/);
-  assert.match(overdue.body, /EMAIL DE TRANSFERENCIA\ncontabilidad@boombox\.cl/);
+  assert.match(overdue.body, /EMAIL DE TRANSFERENCIA\ncontabilidad@bbox\.cl/);
   assert.equal(overdue.lastNoticeLabel.includes("18"), true);
   assert.equal(overdue.lastNoticeLabel.includes("2026"), true);
 
