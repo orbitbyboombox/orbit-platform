@@ -45,7 +45,7 @@ function CustomerRequests({ requests }: { requests: PortalData["requests"] }) {
 function formatMoney(value: number) { return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(value); }
 
 const bankDetails = [
-  ["Titular", "Producciones BoomBox Company SpA"],
+  ["Titular", "PRODUCCIONES BOOMBOX COMPANY SPA"],
   ["RUT", "76.565.272-3"],
   ["Banco", "BCI"],
   ["Tipo de cuenta", "Cuenta Corriente"],
