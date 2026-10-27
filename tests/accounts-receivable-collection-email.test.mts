@@ -3,8 +3,11 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   buildCollectionEmailDraft,
+  buildCollectionEmailHtml,
   getLastCollectionNoticeAt,
 } from "../features/accounts-receivable/collection-email.template.ts";
+
+import { collectionBankRows } from "../features/accounts-receivable/collection-bank-details.ts";
 
 const root = new URL("../", import.meta.url);
 const read = (path: string) => readFileSync(new URL(path, root), "utf8");
@@ -161,4 +164,23 @@ test("composer uses the canonical mobile dialog and request id gate", () => {
   assert.match(composer, /✓ Email enviado a/);
   assert.match(composer, /❌ No se pudo enviar el email/);
   assert.match(composer, /aria-live="polite"/);
+});
+
+
+test("collection bank account holder is shared by the composer preview and outgoing HTML", () => {
+  const official = { ...bankDetails, companyLabel: "PRODUCCIONES BOOMBOX COMPANY SPA" };
+  const rows = collectionBankRows(official);
+  assert.deepEqual(rows[0], ["Titular de la cuenta", official.companyLabel]);
+  assert.equal(rows.length, 6);
+  assert.match(composer, /collectionBankRows\\(draft\\.bankDetails\\)\\.map/);
+  const draft = buildCollectionEmailDraft({
+    invoiceNumber: "ORB-TEST", customerName: "Cliente", customerEmail: "cliente@example.com",
+    projectName: "Evento", outstandingBalance: 714000, dueDate: "2026-10-02",
+    daysRemaining: -1, status: "OVERDUE", collectionActions: [],
+  } as unknown as Parameters<typeof buildCollectionEmailDraft>[0], official);
+  const html = buildCollectionEmailHtml(draft);
+  assert.match(html, /Titular de la cuenta/);
+  assert.match(html, /PRODUCCIONES BOOMBOX COMPANY SPA/);
+  assert.match(html, /BCI/);
+  assert.match(html, /52093409/);
 });
