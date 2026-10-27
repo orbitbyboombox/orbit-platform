@@ -65,7 +65,7 @@ export async function createSignedAgreementPdf(input: SignedAgreementPdfInput): 
   sectionTitle(payment,bold,"DATOS PARA TRANSFERENCIA",692);
   payment.drawRectangle({x:42,y:405,width:511,height:245,color:pale,borderColor:orange,borderWidth:1.5});
   payment.drawRectangle({x:42,y:614,width:511,height:36,color:orange});
-  payment.drawText("Producciones BoomBox Company SpA",{x:60,y:626,size:11,font:bold,color:dark});
+  payment.drawText("PRODUCCIONES BOOMBOX COMPANY SPA",{x:60,y:626,size:11,font:bold,color:dark});
   drawTransferRows(payment,font,bold,[
     ["RUT","76.565.272-3"],
     ["Banco","BCI"],
