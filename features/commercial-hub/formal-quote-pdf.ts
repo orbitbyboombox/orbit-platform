@@ -456,7 +456,7 @@ export async function createFormalQuotePdf(model: FormalQuotePdfModel) {
   y -= 8;
 
   finalHeading("FORMA DE PAGO");
-  const paymentRows = [model.company.legalName, model.company.taxId ? `RUT ${formatChileanRut(model.company.taxId)}` : "", model.company.bankName, model.company.bankAccountType, model.company.bankAccountNumber ? `N.º ${model.company.bankAccountNumber}` : "", model.company.email].filter(Boolean);
+  const paymentRows = ["Titular: PRODUCCIONES BOOMBOX COMPANY SPA", model.company.taxId ? `RUT ${formatChileanRut(model.company.taxId)}` : "", model.company.bankName, model.company.bankAccountType, model.company.bankAccountNumber ? `N.º ${model.company.bankAccountNumber}` : "", model.company.email].filter(Boolean);
   paymentRows.forEach((row, index) => {
     page.drawText(safe(row), { x: 42, y, size: 8.8, font: index === 0 ? bold : regular, color: index === paymentRows.length - 1 ? orange : graphite, maxWidth: 511 });
     y -= 12;
