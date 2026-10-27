@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   buildCollectionEmailDraft,
+  buildCollectionEmailHtml,
   getLastCollectionNoticeAt,
 } from "../features/accounts-receivable/collection-email.template.ts";
 
@@ -25,7 +26,7 @@ const founderWorkspaceCatalog = read("features/founder-workspace/catalog.ts");
 const founderWorkspaceRepository = read("features/founder-workspace/repository.ts");
 
 const bankDetails = {
-  companyLabel: "BOOMBOX",
+  accountHolder: "PRODUCCIONES BOOMBOX COMPANYB SPA",
   bankName: "BCI",
   accountType: "Cuenta Corriente",
   accountNumber: "52093409",
@@ -54,7 +55,11 @@ test("collection email draft distinguishes overdue and upcoming invoices", () =>
   assert.equal(overdue.to, "sofia@example.com");
   assert.equal(overdue.subject, "Saldo vencido pendiente de regularización — BOOMBOX");
   assert.match(overdue.body, /DETALLE DEL EVENTO/);
+  assert.match(overdue.body, /TITULAR DE LA CUENTA\nPRODUCCIONES BOOMBOX COMPANYB SPA/);
   assert.match(overdue.body, /BANCO\nBCI/);
+  const html = buildCollectionEmailHtml(overdue);
+  assert.ok(html.indexOf("Titular de la cuenta") < html.indexOf("Banco"));
+  assert.ok(html.indexOf("PRODUCCIONES BOOMBOX COMPANYB SPA") < html.indexOf("BCI"));
   assert.match(overdue.body, /N° DE CUENTA\n52093409/);
   assert.match(overdue.body, /RUT\n76\.565\.272-3/);
   assert.match(overdue.body, /EMAIL DE TRANSFERENCIA\ncontabilidad@boombox\.cl/);
