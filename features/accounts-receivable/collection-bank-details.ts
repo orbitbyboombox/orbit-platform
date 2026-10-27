@@ -1,5 +1,6 @@
 import { formatChileanRut } from "@/lib/chile/rut";
 import type { CompanySettings } from "@/features/company-settings/types";
+import { BOOMBOX_BANK_ACCOUNT_HOLDER } from "@/lib/company-bank-account-holder";
 
 function object(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -12,7 +13,7 @@ function text(value: unknown) {
 }
 
 export type CollectionBankDetails = {
-  companyLabel: string;
+  accountHolder: string;
   bankName: string;
   accountType: string;
   accountNumber: string;
@@ -24,8 +25,7 @@ export function resolveCollectionBankDetails(
   settings: CompanySettings,
 ): CollectionBankDetails {
   const bank = object(settings.pdfConfiguration.commercialBank);
-  const companyLabel =
-    settings.brandName || settings.legalName || settings.companyName || "BOOMBOX";
+  const accountHolder = BOOMBOX_BANK_ACCOUNT_HOLDER;
   const bankName = text(bank.bankName) || "Banco no configurado";
   const accountType = text(bank.accountType) || "Cuenta Corriente";
   const accountNumber = text(bank.accountNumber) || "Sin número configurado";
@@ -34,7 +34,7 @@ export function resolveCollectionBankDetails(
   const rut = formatChileanRut(settings.taxId) || settings.taxId || "Sin RUT configurado";
 
   return {
-    companyLabel,
+    accountHolder,
     bankName,
     accountType,
     accountNumber,
