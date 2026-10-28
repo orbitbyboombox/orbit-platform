@@ -7,7 +7,10 @@ import { resolveCollectionBankDetails } from "@/features/accounts-receivable/col
 import { requiresPhotoStripDesign } from "@/features/business-core/catalog/service.catalog";
 import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import type { GoogleGmailLiveProvider } from "../provider/google-gmail-live.provider";
-import { GoogleGmailApiProvider } from "../provider/google-gmail-live.provider";
+import {
+  GoogleGmailApiProvider,
+  GoogleGmailDeliveryOutcomeUnknownError,
+} from "../provider/google-gmail-live.provider";
 import {
   PRE_EVENT_REMINDER_RENDERER_VERSION,
   PRE_EVENT_REMINDER_TYPE,
@@ -377,7 +380,7 @@ async function notifyPreEventAdmin(input: {
     throw write.error;
   }
   try {
-    const delivered = await (input.sender ?? new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken())).send({
+    const delivered = await (input.sender ?? new GoogleGmailApiProvider(await loadPreEventGoogleAccessToken())).send({
       to: PRE_EVENT_ADMIN_RECIPIENT,
       subject,
       textBody,
@@ -398,6 +401,25 @@ async function notifyPreEventAdmin(input: {
 
 const requestKey = (projectId: string, attemptId: string) =>
   `pre-event-reminder:${projectId}:${attemptId}`;
+
+const GOOGLE_WORKSPACE_AUTH_TIMEOUT_MS = 10_000;
+
+async function loadPreEventGoogleAccessToken() {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      loadGoogleWorkspaceAccessToken(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error("Google Workspace no respondió dentro del tiempo esperado.")),
+          GOOGLE_WORKSPACE_AUTH_TIMEOUT_MS,
+        );
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 export async function sendPreEventReminder(
   input: SendPreEventReminderInput,
@@ -442,6 +464,14 @@ export async function sendPreEventReminder(
   }
   if (composer.hasSuccessfulSend && !input.confirmResend) {
     throw new Error(`¿Enviar nuevamente el recordatorio pre-evento a ${recipients.to}?`);
+  }
+  if (
+    !existing &&
+    composer.history.some((item) => ["QUEUED", "PENDING"].includes(item.status))
+  ) {
+    throw new Error(
+      "Existe un intento de envío sin resultado confirmado. Revisa el historial antes de iniciar otro envío.",
+    );
   }
   const firstSuccessful = composer.history
     .filter((item) => item.status === "SENT")
@@ -537,7 +567,7 @@ export async function sendPreEventReminder(
   try {
     const sender =
       input.sender ??
-      new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken());
+      new GoogleGmailApiProvider(await loadPreEventGoogleAccessToken());
     const delivered = await sender.send({
       to: recipients.to,
       cc: recipients.cc,
@@ -627,6 +657,36 @@ export async function sendPreEventReminder(
       deduplicated: false,
     };
   } catch (error) {
+    if (error instanceof GoogleGmailDeliveryOutcomeUnknownError) {
+      const pendingReason = `${error.code}: ${error.message}`.slice(0, 2_000);
+      const pendingUpdate = await admin
+        .from("communications")
+        .update({
+          status: "PENDING",
+          failure_reason: pendingReason,
+          occurred_at: new Date().toISOString(),
+        })
+        .eq("id", communication.id);
+      if (pendingUpdate.error) throw pendingUpdate.error;
+      console.error(
+        JSON.stringify({
+          level: "error",
+          event: "pre_event_reminder.provider_outcome_unknown",
+          projectId: input.projectId,
+          communicationId: communication.id,
+          error: pendingReason,
+        }),
+      );
+      return {
+        status: "PENDING",
+        recipient: recipients.to,
+        ccRecipients: recipients.cc,
+        sentAt: queuedAt,
+        communicationId: communication.id,
+        providerMessageId: null,
+        deduplicated: false,
+      };
+    }
     if (!providerAccepted) {
       const failureReason =
         error instanceof Error
@@ -679,6 +739,7 @@ export async function sendAutomaticPreEventReminders(reference = new Date()) {
   let skipped = 0;
   let blocked = 0;
   let failed = 0;
+  let pending = 0;
 
   for (const project of projects ?? []) {
     const automaticAttemptId = `automatic-d10:${project.event_date}`;
@@ -731,6 +792,15 @@ export async function sendAutomaticPreEventReminders(reference = new Date()) {
       if (composer.daysUntilEvent !== 10) {
         console.info(JSON.stringify({ event: "pre_event_reminder.skipped", projectId: project.id, reason: "NOT_D10" }));
         skipped += 1;
+        continue;
+      }
+      if (!composer.reservationConfirmed) {
+        const blockedStatus = await recordBlocked(
+          "La reserva canónica no está confirmada; el D-10 automático permanece bloqueado.",
+          composer.to,
+        );
+        if (blockedStatus === "FAILED") failed += 1;
+        else blocked += 1;
         continue;
       }
       if (composer.hasSuccessfulSend) {
@@ -803,6 +873,7 @@ export async function sendAutomaticPreEventReminders(reference = new Date()) {
           }));
         }
       }
+      else if (result.status === "PENDING") pending += 1;
       else skipped += 1;
     } catch (error) {
       const reason =
@@ -853,6 +924,7 @@ export async function sendAutomaticPreEventReminders(reference = new Date()) {
     skipped,
     blocked,
     failed,
+    pending,
   };
 }
 
@@ -876,7 +948,7 @@ export async function inspectAutomaticPreEventReminders(reference = new Date()) 
       const composer = await loadPreEventReminderComposer(project.id);
       const eligible =
         composer.daysUntilEvent === 10 &&
-
+        composer.reservationConfirmed &&
         !composer.hasSuccessfulSend &&
         Boolean(composer.to.trim());
       return {

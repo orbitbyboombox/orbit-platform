@@ -18,6 +18,7 @@ const control = read("../features/projects/communications/pre-event-reminder-con
 const workspace = read("../features/projects/components/project-workspace-experience.tsx");
 const migration = read("../supabase/migrations/0215_pre_event_reminder_communication.sql");
 const adminNoticeMigration = read("../supabase/migrations/20261010120000_pre_event_admin_notifications.sql");
+const cronRoute = read("../app/api/cron/pre-event-reminders/route.ts");
 
 const bankDetails = {
   companyLabel: "PRODUCCIONES BOOMBOX COMPANY SPA",
@@ -120,12 +121,44 @@ test("dry run is read-only, authenticated, and unavailable in Production", () =>
   assert.doesNotMatch(inspection, /\.(insert|update)\(/);
 });
 
-test("cron follows 10:00 America/Santiago across DST by using an hourly schedule gate", () => {
+test("cron follows 11:00 America/Santiago across DST by using an hourly schedule gate", () => {
   const config = read("../vercel.json");
   const route = read("../app/api/cron/pre-event-reminders/route.ts");
   assert.match(config, /"path": "\/api\/cron\/pre-event-reminders",\s*"schedule": "0 \* \* \* \*"/);
   assert.match(route, /timeZone: "America\/Santiago"/);
-  assert.match(route, /chileHour\(\) !== 10/);
+  assert.match(route, /chileHour\(\) !== 11/);
+});
+
+test("automatic D-10 requires a confirmed canonical reservation", () => {
+  assert.match(service, /if \(!composer\.reservationConfirmed\)/);
+  assert.match(service, /reserva canónica no está confirmada/);
+  assert.match(
+    service.slice(service.indexOf("export async function inspectAutomaticPreEventReminders")),
+    /composer\.reservationConfirmed/,
+  );
+});
+
+test("unknown Gmail outcomes remain pending and block a second attempt", () => {
+  assert.match(service, /GoogleGmailDeliveryOutcomeUnknownError/);
+  assert.match(service, /status: "PENDING"/);
+  assert.match(service, /Existe un intento de envío sin resultado confirmado/);
+});
+
+test("manual action recovers visibly when the Server Action has no response", () => {
+  assert.match(control, /try \{/);
+  assert.match(control, /catch \(error\)/);
+  assert.match(control, /submissionGate\.current = false/);
+  assert.match(control, /setSendState\(\{\s*status: "error"/);
+  assert.match(control, /finally \{/);
+});
+
+test("cron authorization is exact and Chile 11:00 is DST-safe", () => {
+  const config = read("../vercel.json");
+  assert.match(cronRoute, /authorization.*Bearer/);
+  assert.match(cronRoute, /function isAuthorizedCronRequest/);
+  assert.match(cronRoute, /timeZone: "America\/Santiago"/);
+  assert.match(cronRoute, /chileHour\(\) !== 11/);
+  assert.match(config, /"schedule": "0 \* \* \* \*"/);
 });
 
 test("fully paid renderer contains zero payment, due-date or bank content", () => {
@@ -161,6 +194,27 @@ test("canonical positive balance renders the compact payment block near the end"
   assert.match(html, /contabilidad@bbox\.cl/);
   assert.ok(html.indexOf("Todo coordinado") < html.indexOf("Segundo pago"));
   assert.doesNotMatch(html, /50\s*%|0\.5\s*\*/);
+});
+
+test("positive D-10 balance is visually emphasized while zero balance stays paid", () => {
+  const positive = renderPreEventReminderHtml({
+    ...base,
+    payment: {
+      projectionId: "projection-positive",
+      outstandingBalance: 162_500,
+      dueDate: "2026-05-12",
+      customerType: "PRIVATE",
+      bankDetails,
+    },
+  });
+  assert.match(positive, /Saldo pendiente/);
+  assert.match(positive, /font-size:30px;font-weight:800;line-height:1\.15/);
+  assert.match(positive, /\$162\.500/);
+
+  const zero = renderPreEventReminderHtml(base);
+  assert.match(zero, /Pago/);
+  assert.match(zero, /✓ AL DÍA/);
+  assert.doesNotMatch(zero, /Saldo pendiente/);
 });
 
 test("Scrapbook and photo design blocks obey actual conditions", () => {

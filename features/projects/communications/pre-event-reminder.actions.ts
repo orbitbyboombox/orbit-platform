@@ -71,7 +71,7 @@ export async function sendPreEventReminderAction(formData: FormData) {
       result,
       message:
         result.status === "PENDING"
-          ? "El proveedor confirmó el envío. El historial está sincronizando."
+          ? "Gmail no confirmó el resultado todavía. El intento quedó pendiente; revisa el historial antes de reenviar."
           : "✓ Recordatorio pre-evento enviado correctamente",
     };
   } catch (error) {

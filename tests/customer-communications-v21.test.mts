@@ -54,7 +54,7 @@ test("automatic pre-event customer email is scheduled daily and only delivers D-
   assert.match(service + read("../features/connectors/google-gmail/application/pre-event-reminder.service.ts"), /sendAutomaticPreEventReminders/);
   assert.match(cron, /sendAutomaticPreEventReminders/);
   assert.match(vercel, /\/api\/cron\/pre-event-reminders/);
-  assert.match(vercel, /0 13 \* \* \*/);
+  assert.match(vercel, /0 \* \* \* \*/);
   assert.match(middleware, /\/api\/cron\/pre-event-reminders/);
 });
 

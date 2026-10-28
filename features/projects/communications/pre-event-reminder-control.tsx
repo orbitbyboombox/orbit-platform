@@ -27,6 +27,7 @@ import {
 type SendState =
   | { status: "idle" }
   | { status: "sending"; message: string }
+  | { status: "pending"; message: string }
   | { status: "success"; message: string; cc: string[] }
   | { status: "error"; message: string };
 
@@ -112,27 +113,37 @@ export function PreEventReminderControl({ projectId }: { projectId: string }) {
     setConfirmingResend(false);
     setSendState({ status: "sending", message: `Enviando a ${to}…` });
     startTransition(async () => {
-      const formData = new FormData();
-      formData.set("projectId", projectId);
-      formData.set("requestId", requestId || crypto.randomUUID());
-      formData.set("expectedFingerprint", composer.fingerprint);
-      formData.set("to", to);
-      formData.set("cc", cc);
-      formData.set("subject", subject);
-      formData.set("confirmResend", String(confirmResend));
-      const result = await sendPreEventReminderAction(formData);
-      submissionGate.current = false;
-      if (!result.ok) {
-        setSendState({ status: "error", message: result.error });
-        return;
+      try {
+        const formData = new FormData();
+        formData.set("projectId", projectId);
+        formData.set("requestId", requestId || crypto.randomUUID());
+        formData.set("expectedFingerprint", composer.fingerprint);
+        formData.set("to", to);
+        formData.set("cc", cc);
+        formData.set("subject", subject);
+        formData.set("confirmResend", String(confirmResend));
+        const result = await sendPreEventReminderAction(formData);
+        if (!result.ok) {
+          setSendState({ status: "error", message: result.error });
+          return;
+        }
+        setSendState(
+          result.result.status === "PENDING"
+            ? { status: "pending", message: result.message }
+            : { status: "success", message: result.message, cc: result.result.ccRecipients },
+        );
+        router.refresh();
+        refresh();
+      } catch (error) {
+        setSendState({
+          status: "error",
+          message: error instanceof Error
+            ? error.message
+            : "No se pudo completar el envío. Revisa el historial antes de intentar nuevamente.",
+        });
+      } finally {
+        submissionGate.current = false;
       }
-      setSendState({
-        status: "success",
-        message: result.message,
-        cc: result.result.ccRecipients,
-      });
-      router.refresh();
-      refresh();
     });
   };
 
@@ -261,6 +272,8 @@ export function PreEventReminderControl({ projectId }: { projectId: string }) {
                 className={`rounded-2xl border p-4 text-sm ${
                   sendState.status === "success"
                     ? "border-emerald-300 bg-emerald-50 text-emerald-900"
+                    : sendState.status === "pending"
+                      ? "border-amber-300 bg-amber-50 text-amber-950"
                     : sendState.status === "error"
                       ? "border-rose-300 bg-rose-50 text-rose-900"
                       : "border-brand/30 bg-brand/5"
@@ -389,7 +402,7 @@ export function PreEventReminderControl({ projectId }: { projectId: string }) {
             ) : null}
             <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-xs text-muted">
-                {sendState.status === "success"
+                {sendState.status === "success" || sendState.status === "pending"
                   ? sendState.message
                   : to.trim()
                     ? `Se enviará manualmente a ${to}${
