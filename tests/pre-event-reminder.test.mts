@@ -67,6 +67,17 @@ test("one renderer is global for Matrimonio, Social, Empresa and future Event ty
   assert.doesNotMatch(service, /project_type\s*===\s*["'](?:Wedding|Corporate|Birthday)/);
 });
 
+test("D-10 event status uses informative service and design copy while payment stays dynamic", () => {
+  const html = renderPreEventReminderHtml({ ...base, photoDesignRequired: true });
+  const text = buildPreEventReminderText({ ...base, photoDesignRequired: true });
+  for (const output of [html, text]) {
+    assert.match(output, /Servicio: Confirmar horario del servicio|>Servicio</);
+    assert.match(output, /Diseño: Confirmar tu diseño|>Diseño</);
+  }
+  assert.match(html, />Pago<|Pago/);
+  assert.match(service, /daysUntilEvent !== 10/);
+});
+
 test("canonical Event date is validated and formatted in Spanish", () => {
   assert.equal(formatPreEventDate("2026-05-15"), "15 de mayo de 2026");
   assert.equal(

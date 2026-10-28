@@ -173,13 +173,9 @@ export function buildPreEventReminderText(model: PreEventReminderModel) {
     `Fecha: ${eventDate}`,
     `Horario: ${serviceTime ?? "Por confirmar"}`,
     `Lugar: ${model.eventLocation || "Por confirmar"}`,
-    `Reserva: ${model.reservationConfirmed ? "CONFIRMADA" : "REQUIERE REVISIÓN"}`,
+    "Servicio: Confirmar horario del servicio",
+    "Diseño: Confirmar tu diseño",
   ];
-  if (model.photoDesignRequired) {
-    lines.push(
-      `Diseño: ${model.photoDesignApproved ? "APROBADO" : "PENDIENTE DE CONFIRMACIÓN"}`,
-    );
-  }
   if (model.payment) {
     lines.push(
       `Pago: ${formatPreEventCurrency(model.payment.outstandingBalance)} pendiente`,
@@ -271,11 +267,7 @@ export function renderPreEventReminderHtml(
   const statusCard = (label: string, value: string, ok: boolean) =>
     `<td width="33.33%" style="padding:8px;vertical-align:top"><div style="min-height:88px;border:1px solid #343538;border-radius:14px;padding:14px;background:#15171b"><div style="font-size:9px;font-weight:800;letter-spacing:.12em;color:#9fa3aa;text-transform:uppercase">${escapeHtml(label)}</div><div style="margin-top:8px;font-size:13px;font-weight:800;line-height:1.35;color:${ok ? "#7ee2a8" : "#f7a85a"}">${escapeHtml(value)}</div></div></td>`;
 
-  const designStatus = !model.photoDesignRequired
-    ? "NO REQUERIDO"
-    : model.photoDesignApproved
-      ? "✓ APROBADO"
-      : "PENDIENTE";
+  const designStatus = "Confirmar tu diseño";
   const paymentStatus = model.payment
     ? formatPreEventCurrency(model.payment.outstandingBalance)
     : "✓ AL DÍA";
@@ -283,8 +275,8 @@ export function renderPreEventReminderHtml(
     <section style="margin:24px 0 0">
       ${sectionTitle("Estado de tu evento")}
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;table-layout:fixed"><tr>
-        ${statusCard("Reserva", model.reservationConfirmed ? "✓ CONFIRMADA" : "REVISAR", model.reservationConfirmed)}
-        ${statusCard("Diseño", designStatus, !model.photoDesignRequired || model.photoDesignApproved)}
+        ${statusCard("Servicio", "Confirmar horario del servicio", model.reservationConfirmed)}
+        ${statusCard("Diseño", designStatus, model.photoDesignApproved)}
         ${statusCard("Pago", paymentStatus, !model.payment)}
       </tr></table>
     </section>
