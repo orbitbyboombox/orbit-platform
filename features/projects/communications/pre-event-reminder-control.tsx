@@ -113,27 +113,37 @@ export function PreEventReminderControl({ projectId }: { projectId: string }) {
     setConfirmingResend(false);
     setSendState({ status: "sending", message: `Enviando a ${to}…` });
     startTransition(async () => {
-      const formData = new FormData();
-      formData.set("projectId", projectId);
-      formData.set("requestId", requestId || crypto.randomUUID());
-      formData.set("expectedFingerprint", composer.fingerprint);
-      formData.set("to", to);
-      formData.set("cc", cc);
-      formData.set("subject", subject);
-      formData.set("confirmResend", String(confirmResend));
-      const result = await sendPreEventReminderAction(formData);
-      submissionGate.current = false;
-      if (!result.ok) {
-        setSendState({ status: "error", message: result.error });
-        return;
+      try {
+        const formData = new FormData();
+        formData.set("projectId", projectId);
+        formData.set("requestId", requestId || crypto.randomUUID());
+        formData.set("expectedFingerprint", composer.fingerprint);
+        formData.set("to", to);
+        formData.set("cc", cc);
+        formData.set("subject", subject);
+        formData.set("confirmResend", String(confirmResend));
+        const result = await sendPreEventReminderAction(formData);
+        if (!result.ok) {
+          setSendState({ status: "error", message: result.error });
+          return;
+        }
+        setSendState(
+          result.result.status === "PENDING"
+            ? { status: "pending", message: result.message }
+            : { status: "success", message: result.message, cc: result.result.ccRecipients },
+        );
+        router.refresh();
+        refresh();
+      } catch (error) {
+        setSendState({
+          status: "error",
+          message: error instanceof Error
+            ? error.message
+            : "No se pudo completar el envío. Revisa el historial antes de intentar nuevamente.",
+        });
+      } finally {
+        submissionGate.current = false;
       }
-      setSendState(
-        result.result.status === "PENDING"
-          ? { status: "pending", message: result.message }
-          : { status: "success", message: result.message, cc: result.result.ccRecipients },
-      );
-      router.refresh();
-      refresh();
     });
   };
 

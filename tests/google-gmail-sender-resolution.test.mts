@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { GoogleGmailApiProvider, GoogleGmailDeliveryOutcomeUnknownError } from "../features/connectors/google-gmail/provider/google-gmail-live.provider.ts";
+import {
+  GoogleGmailApiProvider,
+  GoogleGmailDeliveryOutcomeUnknownError,
+  GoogleGmailRequestTimeoutError,
+} from "../features/connectors/google-gmail/provider/google-gmail-live.provider.ts";
 
 test("sender resolution uses the granted OpenID email scope before sending", async () => {
   const previousFetch = globalThis.fetch;
@@ -67,6 +71,35 @@ test("Gmail delivery timeout is classified as unknown and is never retried", asy
       (error: unknown) => error instanceof GoogleGmailDeliveryOutcomeUnknownError,
     );
     assert.equal(sendAttempts, 1);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test("OAuth timeout happens before Gmail POST and is a known failure", async () => {
+  const previousFetch = globalThis.fetch;
+  let gmailPostAttempts = 0;
+  globalThis.fetch = (async (input, init) => {
+    if (String(input).includes("openidconnect.googleapis.com")) {
+      return await new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(Object.assign(new Error("aborted"), { name: "AbortError" })), { once: true });
+      });
+    }
+    gmailPostAttempts += 1;
+    return new Response(JSON.stringify({ id: "unexpected", threadId: "unexpected" }), { status: 200 });
+  }) as typeof fetch;
+  try {
+    await assert.rejects(
+      () => new GoogleGmailApiProvider("qa-token", "me", 1_000).send({
+        to: "client@example.com",
+        subject: "QA only",
+        textBody: "QA only",
+        htmlBody: "<p>QA only</p>",
+        driveFileIds: [],
+      }),
+      (error: unknown) => error instanceof GoogleGmailRequestTimeoutError,
+    );
+    assert.equal(gmailPostAttempts, 0);
   } finally {
     globalThis.fetch = previousFetch;
   }

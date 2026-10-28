@@ -18,6 +18,7 @@ const control = read("../features/projects/communications/pre-event-reminder-con
 const workspace = read("../features/projects/components/project-workspace-experience.tsx");
 const migration = read("../supabase/migrations/0215_pre_event_reminder_communication.sql");
 const adminNoticeMigration = read("../supabase/migrations/20261010120000_pre_event_admin_notifications.sql");
+const cronRoute = read("../app/api/cron/pre-event-reminders/route.ts");
 
 const bankDetails = {
   companyLabel: "PRODUCCIONES BOOMBOX COMPANY SPA",
@@ -141,6 +142,23 @@ test("unknown Gmail outcomes remain pending and block a second attempt", () => {
   assert.match(service, /GoogleGmailDeliveryOutcomeUnknownError/);
   assert.match(service, /status: "PENDING"/);
   assert.match(service, /Existe un intento de envío sin resultado confirmado/);
+});
+
+test("manual action recovers visibly when the Server Action has no response", () => {
+  assert.match(control, /try \{/);
+  assert.match(control, /catch \(error\)/);
+  assert.match(control, /submissionGate\.current = false/);
+  assert.match(control, /setSendState\(\{\s*status: "error"/);
+  assert.match(control, /finally \{/);
+});
+
+test("cron authorization is exact and Chile 11:00 is DST-safe", () => {
+  const config = read("../vercel.json");
+  assert.match(cronRoute, /authorization.*Bearer/);
+  assert.match(cronRoute, /function isAuthorizedCronRequest/);
+  assert.match(cronRoute, /timeZone: "America\/Santiago"/);
+  assert.match(cronRoute, /chileHour\(\) !== 11/);
+  assert.match(config, /"schedule": "0 \* \* \* \*"/);
 });
 
 test("fully paid renderer contains zero payment, due-date or bank content", () => {

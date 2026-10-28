@@ -12,9 +12,13 @@ function chileHour(reference = new Date()) {
   }).format(reference));
 }
 
+function isAuthorizedCronRequest(request: Request, secret = process.env.CRON_SECRET) {
+  return Boolean(secret) && request.headers.get("authorization") === `Bearer ${secret}`;
+}
+
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
-  if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
+  if (!isAuthorizedCronRequest(request, secret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const dryRun = new URL(request.url).searchParams.get("dry_run") === "1";
