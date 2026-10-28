@@ -10,13 +10,33 @@ import {
 
 async function requirePreEventReminderFounder() {
   const client = await createSupabaseServerClient();
+  const authStartedAt = performance.now();
   const { data: auth, error } = await client.auth.getUser();
+  console.info(
+    JSON.stringify({
+      level: "info",
+      event: "pre_event_reminder.auth_step",
+      step: "auth.getUser",
+      durationMs: Math.round(performance.now() - authStartedAt),
+      ok: !error && Boolean(auth.user),
+    }),
+  );
   if (error || !auth.user) throw error ?? new Error("Sesión requerida.");
+  const profileStartedAt = performance.now();
   const { data: profile, error: profileError } = await client
     .from("profiles")
     .select("role")
     .eq("id", auth.user.id)
     .single();
+  console.info(
+    JSON.stringify({
+      level: "info",
+      event: "pre_event_reminder.auth_step",
+      step: "profiles.role",
+      durationMs: Math.round(performance.now() - profileStartedAt),
+      ok: !profileError && Boolean(profile),
+    }),
+  );
   if (profileError) throw profileError;
   if (!isAdministrativeRole(profile.role)) {
     throw new Error(
