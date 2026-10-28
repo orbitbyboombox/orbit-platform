@@ -264,8 +264,8 @@ export function renderPreEventReminderHtml(
     `<h2 style="margin:0 0 14px;font-size:11px;font-weight:800;letter-spacing:.15em;color:#f78900;text-transform:uppercase">${escapeHtml(title)}</h2>`;
   const operationalItem = (title: string, copy: string) =>
     `<div style="margin-top:14px;border-left:3px solid #f78900;padding-left:14px"><div style="font-size:12px;font-weight:800;letter-spacing:.08em;color:#ffffff;text-transform:uppercase">${escapeHtml(title)}</div><p style="margin:5px 0 0;font-size:14px;line-height:1.6;color:#d7d8da">${copy}</p></div>`;
-  const statusCard = (label: string, value: string, ok: boolean) =>
-    `<td width="33.33%" style="padding:8px;vertical-align:top"><div style="min-height:88px;border:1px solid #343538;border-radius:14px;padding:14px;background:#15171b"><div style="font-size:9px;font-weight:800;letter-spacing:.12em;color:#9fa3aa;text-transform:uppercase">${escapeHtml(label)}</div><div style="margin-top:8px;font-size:13px;font-weight:800;line-height:1.35;color:${ok ? "#7ee2a8" : "#f7a85a"}">${escapeHtml(value)}</div></div></td>`;
+  const statusCard = (label: string, value: string, ok: boolean, informational = false) =>
+    `<td width="33.33%" style="padding:8px;vertical-align:top"><div style="min-height:88px;border:1px solid #343538;border-radius:14px;padding:14px;background:#15171b"><div style="font-size:9px;font-weight:800;letter-spacing:.12em;color:#9fa3aa;text-transform:uppercase">${escapeHtml(label)}</div><div style="margin-top:8px;font-size:13px;font-weight:800;line-height:1.35;color:${informational ? "#d7d8da" : ok ? "#7ee2a8" : "#f7a85a"}">${escapeHtml(value)}</div></div></td>`;
 
   const designStatus = "Confirmar tu diseño";
   const paymentStatus = model.payment
@@ -275,8 +275,8 @@ export function renderPreEventReminderHtml(
     <section style="margin:24px 0 0">
       ${sectionTitle("Estado de tu evento")}
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;table-layout:fixed"><tr>
-        ${statusCard("Servicio", "Confirmar horario del servicio", model.reservationConfirmed)}
-        ${statusCard("Diseño", designStatus, model.photoDesignApproved)}
+        ${statusCard("Servicio", "Confirmar horario del servicio", model.reservationConfirmed, true)}
+        ${statusCard("Diseño", designStatus, model.photoDesignApproved, true)}
         ${statusCard("Pago", paymentStatus, !model.payment)}
       </tr></table>
     </section>
