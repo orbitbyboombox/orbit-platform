@@ -196,6 +196,27 @@ test("canonical positive balance renders the compact payment block near the end"
   assert.doesNotMatch(html, /50\s*%|0\.5\s*\*/);
 });
 
+test("positive D-10 balance is visually emphasized while zero balance stays paid", () => {
+  const positive = renderPreEventReminderHtml({
+    ...base,
+    payment: {
+      projectionId: "projection-positive",
+      outstandingBalance: 162_500,
+      dueDate: "2026-05-12",
+      customerType: "PRIVATE",
+      bankDetails,
+    },
+  });
+  assert.match(positive, /Saldo pendiente/);
+  assert.match(positive, /font-size:30px;font-weight:800;line-height:1\.15/);
+  assert.match(positive, /\$162\.500/);
+
+  const zero = renderPreEventReminderHtml(base);
+  assert.match(zero, /Pago/);
+  assert.match(zero, /✓ AL DÍA/);
+  assert.doesNotMatch(zero, /Saldo pendiente/);
+});
+
 test("Scrapbook and photo design blocks obey actual conditions", () => {
   const empty = renderPreEventReminderHtml(base);
   assert.doesNotMatch(empty, /Tu Scrapbook/);
