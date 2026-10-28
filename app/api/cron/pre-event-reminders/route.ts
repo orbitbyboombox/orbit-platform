@@ -1,10 +1,21 @@
 import { NextResponse } from "next/server";
-import { sendAutomaticPreEventReminders } from "@/features/connectors/google-gmail/application/pre-event-reminder.service";
+import {
+  inspectAutomaticPreEventReminders,
+  sendAutomaticPreEventReminders,
+} from "@/features/connectors/google-gmail/application/pre-event-reminder.service";
 
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
   if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const dryRun = new URL(request.url).searchParams.get("dry_run") === "1";
+  if (dryRun) {
+    if (process.env.VERCEL_ENV === "production" || process.env.D10_DRY_RUN !== "true") {
+      return NextResponse.json({ error: "Dry run unavailable" }, { status: 404 });
+    }
+    const report = await inspectAutomaticPreEventReminders(new Date());
+    return NextResponse.json(report, { status: 200 });
   }
   const startedAt = Date.now();
   console.info(JSON.stringify({

@@ -854,3 +854,59 @@ export async function sendAutomaticPreEventReminders(reference = new Date()) {
     failed,
   };
 }
+
+/**
+ * Read-only inspection for an isolated Preview/local dry run. This deliberately
+ * does not create communication rows, call Gmail, or notify administrators.
+ */
+export async function inspectAutomaticPreEventReminders(reference = new Date()) {
+  const admin = createAdminClient();
+  const today = chileIsoDate(reference);
+  const targetDate = addIsoDays(today, 10);
+  const { data: projects, error } = await admin
+    .from("projects")
+    .select("id,customer_id,orbit_event_id,name,status,event_date,customers!inner(full_name,email)")
+    .eq("event_date", targetDate)
+    .is("deleted_at", null);
+  if (error) throw error;
+
+  const checks = await Promise.all((projects ?? []).map(async (project) => {
+    try {
+      const composer = await loadPreEventReminderComposer(project.id);
+      const eligible =
+        composer.daysUntilEvent === 10 &&
+        composer.reservationConfirmed &&
+        !composer.hasSuccessfulSend &&
+        Boolean(composer.to.trim());
+      return {
+        projectId: project.id,
+        orbitEventId: project.orbit_event_id,
+        eventDate: project.event_date,
+        daysUntilEvent: composer.daysUntilEvent,
+        reservationConfirmed: composer.reservationConfirmed,
+        hasSuccessfulSend: composer.hasSuccessfulSend,
+        hasRecipient: Boolean(composer.to.trim()),
+        eligible,
+      };
+    } catch (inspectionError) {
+      return {
+        projectId: project.id,
+        orbitEventId: project.orbit_event_id,
+        eventDate: project.event_date,
+        eligible: false,
+        errorName:
+          inspectionError instanceof Error
+            ? inspectionError.name
+            : "PreEventReminderInspectionError",
+      };
+    }
+  }));
+
+  return {
+    dryRun: true,
+    targetDate,
+    candidates: checks.length,
+    eligible: checks.filter((check) => check.eligible).length,
+    checks,
+  };
+}

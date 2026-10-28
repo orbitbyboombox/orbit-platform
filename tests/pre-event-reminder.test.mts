@@ -96,6 +96,19 @@ test("cron execution is observable without exposing message content or secrets",
   assert.doesNotMatch(route, /htmlBody|textBody|CRON_SECRET\s*:/);
 });
 
+test("dry run is read-only, authenticated, and unavailable in Production", () => {
+  const route = read("../app/api/cron/pre-event-reminders/route.ts");
+  const service = read("../features/connectors/google-gmail/application/pre-event-reminder.service.ts");
+  const inspection = service.slice(service.indexOf("export async function inspectAutomaticPreEventReminders"));
+  assert.match(route, /authorization[\s\S]*Bearer/);
+  assert.match(route, /D10_DRY_RUN !== "true"/);
+  assert.match(route, /VERCEL_ENV === "production"/);
+  assert.match(route, /inspectAutomaticPreEventReminders/);
+  assert.match(service, /dryRun: true/);
+  assert.doesNotMatch(inspection, /sendPreEventReminder/);
+  assert.doesNotMatch(inspection, /\.(insert|update)\(/);
+});
+
 test("fully paid renderer contains zero payment, due-date or bank content", () => {
   const html = renderPreEventReminderHtml(base);
   const text = buildPreEventReminderText(base);
