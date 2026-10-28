@@ -79,17 +79,21 @@ test("canonical Event date is validated and formatted in Spanish", () => {
 
 test("automatic delivery is exactly D-10 while manual sending stays available", () => {
   assert.equal(daysUntilPreEvent("2026-05-15", new Date("2026-05-05T16:00:00Z")), 10);
-  assert.match(service, /composer\.daysUntilEvent < 0 \|\| composer\.daysUntilEvent > 10/);
-  assert.match(service, /\.gte\("event_date", today\)/);
-  assert.match(service, /\.lte\("event_date", targetDate\)/);
+  assert.match(service, /composer\.daysUntilEvent !== 10/);
+  assert.match(service, /\.eq\("event_date", targetDate\)/);
+  assert.doesNotMatch(service, /\.gte\("event_date", today\)/);
+  assert.doesNotMatch(service, /automatic-d10-recovery/);
   assert.match(service, /sendAutomaticPreEventReminders/);
   assert.doesNotMatch(actions, /daysUntilEvent\s*[!=<>]=?\s*10/);
 });
 
-test("missed automatic attempts use a separate deterministic recovery key", () => {
-  assert.match(service, /automatic-d10-recovery:\$\{project\.event_date\}/);
-  assert.match(service, /existingAutomatic\.data\?\.status === "FAILED" \|\| existingAutomatic\.data\?\.status === "BLOCKED"/);
-  assert.match(service, /requestId,/);
+test("cron execution is observable without exposing message content or secrets", () => {
+  const route = read("../app/api/cron/pre-event-reminders/route.ts");
+  assert.match(route, /pre_event_reminder\.cron_started/);
+  assert.match(route, /pre_event_reminder\.cron_completed/);
+  assert.match(route, /pre_event_reminder\.cron_failed/);
+  assert.match(route, /durationMs/);
+  assert.doesNotMatch(route, /htmlBody|textBody|CRON_SECRET\s*:/);
 });
 
 test("fully paid renderer contains zero payment, due-date or bank content", () => {
