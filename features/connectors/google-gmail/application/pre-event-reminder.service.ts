@@ -728,7 +728,8 @@ export async function sendAutomaticPreEventReminders(reference = new Date()) {
     const customer = first(project.customers);
     try {
       composer = await loadPreEventReminderComposer(project.id);
-      if (composer.daysUntilEvent !== 10 || !composer.reservationConfirmed) {
+      if (composer.daysUntilEvent !== 10) {
+        console.info(JSON.stringify({ event: "pre_event_reminder.skipped", projectId: project.id, reason: "NOT_D10" }));
         skipped += 1;
         continue;
       }
@@ -875,7 +876,7 @@ export async function inspectAutomaticPreEventReminders(reference = new Date()) 
       const composer = await loadPreEventReminderComposer(project.id);
       const eligible =
         composer.daysUntilEvent === 10 &&
-        composer.reservationConfirmed &&
+
         !composer.hasSuccessfulSend &&
         Boolean(composer.to.trim());
       return {
