@@ -407,7 +407,7 @@ export function PreEventReminderControl({ projectId }: { projectId: string }) {
               </p>
               <iframe
                 className="h-[720px] w-full rounded-2xl border bg-white"
-                sandbox=""
+                sandbox="allow-popups allow-popups-to-escape-sandbox"
                 srcDoc={previewHtml}
                 title="Vista previa del recordatorio pre-evento"
               />

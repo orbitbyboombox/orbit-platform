@@ -15,6 +15,7 @@ const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf
 const service = read("../features/connectors/google-gmail/application/pre-event-reminder.service.ts");
 const actions = read("../features/projects/communications/pre-event-reminder.actions.ts");
 const control = read("../features/projects/communications/pre-event-reminder-control.tsx");
+const middleware = read("../middleware.ts");
 const workspace = read("../features/projects/components/project-workspace-experience.tsx");
 const migration = read("../supabase/migrations/0215_pre_event_reminder_communication.sql");
 const adminNoticeMigration = read("../supabase/migrations/20261010120000_pre_event_admin_notifications.sql");
@@ -226,6 +227,28 @@ test("canonical positive balance renders the compact payment block near the end"
   assert.match(html, /contabilidad@bbox\.cl/);
   assert.ok(html.indexOf("Todo coordinado") < html.indexOf("Segundo pago"));
   assert.doesNotMatch(html, /50\s*%|0\.5\s*\*/);
+});
+
+test("bank copy link opens the public page safely from the email and preview iframe", () => {
+  const html = renderPreEventReminderHtml({
+    ...base,
+    payment: {
+      projectionId: "projection-bank-link",
+      outstandingBalance: 120_000,
+      dueDate: "2026-05-12",
+      customerType: "PRIVATE",
+      bankDetails,
+    },
+    bankCopyUrl: "https://app.bbox.cl/datos-bancarios",
+  });
+  assert.match(
+    html,
+    /href="https:\/\/app\.bbox\.cl\/datos-bancarios"[^>]*target="_blank"[^>]*rel="noopener noreferrer"/,
+  );
+  assert.doesNotMatch(html, /javascript:|data:text\/html/i);
+  assert.match(control, /sandbox="allow-popups allow-popups-to-escape-sandbox"/);
+  assert.doesNotMatch(control, /sandbox="allow-scripts/);
+  assert.match(middleware, /pathname === "\/datos-bancarios"/);
 });
 
 test("positive D-10 balance is visually emphasized while zero balance stays paid", () => {
