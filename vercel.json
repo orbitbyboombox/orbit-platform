@@ -29,7 +29,7 @@
     },
     {
       "path": "/api/cron/pre-event-reminders",
-      "schedule": "30 * * * *"
+      "schedule": "45 * * * *"
     },
     {
       "path": "/api/cron/manual-reservation-integrations",
