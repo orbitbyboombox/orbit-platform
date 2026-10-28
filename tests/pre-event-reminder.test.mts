@@ -120,12 +120,25 @@ test("dry run is read-only, authenticated, and unavailable in Production", () =>
   assert.doesNotMatch(inspection, /\.(insert|update)\(/);
 });
 
-test("cron follows 10:00 America/Santiago across DST by using an hourly schedule gate", () => {
+test("cron follows 11:00 America/Santiago across DST by using an hourly schedule gate", () => {
   const config = read("../vercel.json");
   const route = read("../app/api/cron/pre-event-reminders/route.ts");
   assert.match(config, /"path": "\/api\/cron\/pre-event-reminders",\s*"schedule": "0 \* \* \* \*"/);
   assert.match(route, /timeZone: "America\/Santiago"/);
-  assert.match(route, /chileHour\(\) !== 10/);
+  assert.match(route, /chileHour\(\) !== 11/);
+});
+
+test("automatic candidates expose a sanitized outcome and cause without recipient data", () => {
+  assert.match(service, /pre_event_reminder\.candidate/);
+  for (const result of ["SENT", "SKIPPED", "BLOCKED", "FAILED"]) {
+    assert.match(service, new RegExp(`"${result}"|${result}`));
+  }
+  assert.match(service, /reservation_not_confirmed/);
+  assert.match(service, /already_sent/);
+  assert.match(service, /recipient_missing/);
+  assert.match(service, /executionId/);
+  assert.match(service, /eligible_pending_execution/);
+  assert.doesNotMatch(service, /customer\.email.*pre_event_reminder\.candidate/);
 });
 
 test("fully paid renderer contains zero payment, due-date or bank content", () => {

@@ -679,6 +679,22 @@ export async function sendAutomaticPreEventReminders(reference = new Date()) {
   let skipped = 0;
   let blocked = 0;
   let failed = 0;
+  const executionId = `d10:${reference.toISOString()}`;
+
+  const logCandidate = (project: { id: string; orbit_event_id: string; event_date: string }, result: "SENT" | "SKIPPED" | "BLOCKED" | "FAILED", reason: string, extra: Record<string, unknown> = {}) => {
+    const payload = {
+      event: "pre_event_reminder.candidate",
+      executionId,
+      projectId: project.id,
+      orbitEventId: project.orbit_event_id,
+      eventDate: project.event_date,
+      result,
+      reason,
+      ...extra,
+    };
+    if (result === "FAILED") console.error(JSON.stringify(payload));
+    else console.info(JSON.stringify(payload));
+  };
 
   for (const project of projects ?? []) {
     const automaticAttemptId = `automatic-d10:${project.event_date}`;
@@ -728,11 +744,18 @@ export async function sendAutomaticPreEventReminders(reference = new Date()) {
     const customer = first(project.customers);
     try {
       composer = await loadPreEventReminderComposer(project.id);
-      if (composer.daysUntilEvent !== 10 || !composer.reservationConfirmed) {
+      if (composer.daysUntilEvent !== 10) {
+        logCandidate(project, "SKIPPED", "days_until_event_not_10", { daysUntilEvent: composer.daysUntilEvent });
+        skipped += 1;
+        continue;
+      }
+      if (!composer.reservationConfirmed) {
+        logCandidate(project, "SKIPPED", "reservation_not_confirmed");
         skipped += 1;
         continue;
       }
       if (composer.hasSuccessfulSend) {
+        logCandidate(project, "SKIPPED", "already_sent");
         skipped += 1;
         continue;
       }
@@ -742,6 +765,7 @@ export async function sendAutomaticPreEventReminders(reference = new Date()) {
         );
         if (blockedStatus === "FAILED") failed += 1;
         else blocked += 1;
+        logCandidate(project, blockedStatus === "FAILED" ? "FAILED" : "BLOCKED", "recipient_missing");
         continue;
       }
 
@@ -757,6 +781,10 @@ export async function sendAutomaticPreEventReminders(reference = new Date()) {
       });
       if (result.status === "SENT") {
         sent += 1;
+        logCandidate(project, "SENT", "gmail_accepted", {
+          communicationId: result.communicationId,
+          providerMessageId: result.providerMessageId,
+        });
         try {
           await notifyPreEventAdmin({
             projectId: project.id,
@@ -780,6 +808,9 @@ export async function sendAutomaticPreEventReminders(reference = new Date()) {
       }
       else if (result.status === "FAILED") {
         failed += 1;
+        logCandidate(project, "FAILED", "gmail_send_failed", {
+          communicationId: result.communicationId,
+        });
         try {
           await notifyPreEventAdmin({
             projectId: project.id,
@@ -802,7 +833,10 @@ export async function sendAutomaticPreEventReminders(reference = new Date()) {
           }));
         }
       }
-      else skipped += 1;
+      else {
+        skipped += 1;
+        logCandidate(project, "SKIPPED", "send_result_pending");
+      }
     } catch (error) {
       const reason =
         error instanceof Error ? error.message : "No fue posible preparar el recordatorio D-10.";
@@ -831,6 +865,10 @@ export async function sendAutomaticPreEventReminders(reference = new Date()) {
         const blockedStatus = await recordBlocked(reason);
         if (blockedStatus === "FAILED") failed += 1;
         else blocked += 1;
+        const candidateResult = validEventStatus(String(project.status ?? "")) ? "FAILED" : "BLOCKED";
+        logCandidate(project, candidateResult, candidateResult === "BLOCKED" ? "project_status_not_eligible" : "processing_exception", {
+          errorName: error instanceof Error ? error.name : "PreEventReminderError",
+        });
       } catch (recordError) {
         failed += 1;
         console.error(
@@ -841,11 +879,15 @@ export async function sendAutomaticPreEventReminders(reference = new Date()) {
             error: recordError instanceof Error ? recordError.message : String(recordError),
           }),
         );
+        logCandidate(project, "FAILED", "failed_to_record_processing_error", {
+          errorName: recordError instanceof Error ? recordError.name : "PreEventReminderRecordError",
+        });
       }
     }
   }
 
   return {
+    executionId,
     targetDate,
     candidates: projects?.length ?? 0,
     sent,
@@ -878,22 +920,37 @@ export async function inspectAutomaticPreEventReminders(reference = new Date()) 
         composer.reservationConfirmed &&
         !composer.hasSuccessfulSend &&
         Boolean(composer.to.trim());
+      const reason = !composer.reservationConfirmed
+        ? "reservation_not_confirmed"
+        : composer.hasSuccessfulSend
+          ? "already_sent"
+          : !composer.to.trim()
+            ? "recipient_missing"
+            : composer.daysUntilEvent !== 10
+              ? "days_until_event_not_10"
+              : "eligible";
       return {
         projectId: project.id,
         orbitEventId: project.orbit_event_id,
         eventDate: project.event_date,
+        projectStatus: project.status,
         daysUntilEvent: composer.daysUntilEvent,
         reservationConfirmed: composer.reservationConfirmed,
         hasSuccessfulSend: composer.hasSuccessfulSend,
         hasRecipient: Boolean(composer.to.trim()),
         eligible,
+        result: eligible ? "SKIPPED" : (!composer.reservationConfirmed || composer.hasSuccessfulSend || !composer.to.trim() ? "BLOCKED" : "SKIPPED"),
+        reason: eligible ? "eligible_pending_execution" : reason,
       };
     } catch (inspectionError) {
       return {
         projectId: project.id,
         orbitEventId: project.orbit_event_id,
         eventDate: project.event_date,
+        projectStatus: project.status,
         eligible: false,
+        result: "FAILED",
+        reason: "composer_load_failed",
         errorName:
           inspectionError instanceof Error
             ? inspectionError.name

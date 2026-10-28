@@ -25,11 +25,11 @@ export async function GET(request: Request) {
     const report = await inspectAutomaticPreEventReminders(new Date());
     return NextResponse.json(report, { status: 200 });
   }
-  if (chileHour() !== 10) {
+  if (chileHour() !== 11) {
     return NextResponse.json({
       ok: true,
       skipped: true,
-      reason: "Outside the 10:00 America/Santiago processing window",
+      reason: "Outside the 11:00 America/Santiago processing window",
     });
   }
   const startedAt = Date.now();
