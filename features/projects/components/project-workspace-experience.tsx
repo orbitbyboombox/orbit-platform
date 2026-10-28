@@ -100,6 +100,7 @@ import { EventOperationalReadiness, type OperationalReadinessData } from "@/feat
 import { EventLogisticsCenter, type EventLogisticsData } from "@/features/operations/event-logistics-center";
 import { requiresPhotoStripDesign } from "@/features/business-core/catalog/service.catalog";
 import { PhotoStripDesignCenter } from "@/features/photo-strip-design";
+import { EventDigitalPhotoTemplateCenter } from "@/features/event-digital-photo-template";
 import { CapacityStatusPanel, type CapacityResult } from "@/features/capacity/capacity-status-panel";
 import { OperationalBlocksPanel } from "@/features/operations/operational-blocks-panel";
 import type { OperationalBlock } from "@/features/operations/operational-blocks";
@@ -488,6 +489,19 @@ export function ProjectWorkspaceExperience(
       createdAt: document.createdAt,
       uploadedBy: document.uploadedBy ?? "Founder / Administración",
       approvedAt: document.approvedAt,
+      driveStatus: document.driveSyncStatus === "SYNCED" ? "SYNCED" as const : document.driveSyncStatus === "ERROR" ? "ERROR" as const : "PENDING" as const,
+      driveError: document.driveSyncError,
+      href: document.href!,
+    }));
+  const digitalPhotoTemplateDocuments = event.documents
+    .filter((document) => document.type === "EVENT_DIGITAL_PHOTO_TEMPLATE")
+    .map((document) => ({
+      id: document.id,
+      version: document.version ?? 1,
+      isCurrent: Boolean(document.isCurrent),
+      originalFilename: document.originalFilename ?? `Template digital V${document.version ?? 1}`,
+      createdAt: document.createdAt,
+      uploadedBy: document.uploadedBy ?? "Founder / Administración",
       driveStatus: document.driveSyncStatus === "SYNCED" ? "SYNCED" as const : document.driveSyncStatus === "ERROR" ? "ERROR" as const : "PENDING" as const,
       driveError: document.driveSyncError,
       href: document.href!,
@@ -952,6 +966,12 @@ export function ProjectWorkspaceExperience(
                 paidAmount={event.receivable?.paidAmount ?? 0}
                 currentTotal={(event.receivable?.amount ?? 0) + props.postReservationExtras.filter((item) => item.status === "ACTIVE").reduce((sum, item) => sum + Number(item.amount), 0)}
               />
+            )}
+            {activeTab === "OPERATION" && (
+              <EventDigitalPhotoTemplateCenter documents={digitalPhotoTemplateDocuments} projectId={props.projectKey!} />
+            )}
+            {activeTab === "OPERATION" && photoStripEligible && (
+              <PhotoStripDesignCenter documents={photoStripDocuments} projectId={props.projectKey!} />
             )}
             {activeTab === "OPERATION" && (
               <Section
