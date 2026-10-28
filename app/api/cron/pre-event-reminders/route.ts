@@ -48,6 +48,7 @@ export async function GET(request: Request) {
       skipped: result.skipped,
       blocked: result.blocked,
       failed: result.failed,
+      pending: result.pending,
     }));
     return NextResponse.json({ ok: result.failed === 0, ...result }, { status: result.failed ? 500 : 200 });
   } catch (error) {

@@ -27,6 +27,7 @@ import {
 type SendState =
   | { status: "idle" }
   | { status: "sending"; message: string }
+  | { status: "pending"; message: string }
   | { status: "success"; message: string; cc: string[] }
   | { status: "error"; message: string };
 
@@ -126,11 +127,11 @@ export function PreEventReminderControl({ projectId }: { projectId: string }) {
         setSendState({ status: "error", message: result.error });
         return;
       }
-      setSendState({
-        status: "success",
-        message: result.message,
-        cc: result.result.ccRecipients,
-      });
+      setSendState(
+        result.result.status === "PENDING"
+          ? { status: "pending", message: result.message }
+          : { status: "success", message: result.message, cc: result.result.ccRecipients },
+      );
       router.refresh();
       refresh();
     });
@@ -261,6 +262,8 @@ export function PreEventReminderControl({ projectId }: { projectId: string }) {
                 className={`rounded-2xl border p-4 text-sm ${
                   sendState.status === "success"
                     ? "border-emerald-300 bg-emerald-50 text-emerald-900"
+                    : sendState.status === "pending"
+                      ? "border-amber-300 bg-amber-50 text-amber-950"
                     : sendState.status === "error"
                       ? "border-rose-300 bg-rose-50 text-rose-900"
                       : "border-brand/30 bg-brand/5"
@@ -389,7 +392,7 @@ export function PreEventReminderControl({ projectId }: { projectId: string }) {
             ) : null}
             <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-xs text-muted">
-                {sendState.status === "success"
+                {sendState.status === "success" || sendState.status === "pending"
                   ? sendState.message
                   : to.trim()
                     ? `Se enviará manualmente a ${to}${

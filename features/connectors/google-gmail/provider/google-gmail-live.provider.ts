@@ -32,6 +32,56 @@ export interface GoogleGmailProviderResult { messageId: string; threadId: string
 export interface GoogleGmailDraftResult extends GoogleGmailProviderResult { draftId: string; }
 export interface GoogleGmailLiveProvider { send(message: GoogleGmailProviderMessage): Promise<GoogleGmailProviderResult>; createDraft(message: GoogleGmailProviderMessage): Promise<GoogleGmailDraftResult>; }
 
+export class GoogleGmailDeliveryOutcomeUnknownError extends Error {
+  readonly code = "GMAIL_DELIVERY_OUTCOME_UNKNOWN";
+
+  constructor(message = "Gmail no confirmó el resultado del envío.") {
+    super(message);
+    this.name = "GoogleGmailDeliveryOutcomeUnknownError";
+  }
+}
+
+export class GoogleGmailRequestTimeoutError extends Error {
+  readonly code = "GMAIL_REQUEST_TIMEOUT";
+
+  constructor(phase: "AUTHENTICATION" | "DELIVERY", timeoutMs: number) {
+    super(`La solicitud de Gmail excedió el límite de ${timeoutMs} ms (${phase}).`);
+    this.name = "GoogleGmailRequestTimeoutError";
+  }
+}
+
+const defaultRequestTimeoutMs = 15_000;
+
+function requestTimeoutMs(value?: number) {
+  if (Number.isFinite(value) && value && value >= 1_000 && value <= 60_000) {
+    return Math.trunc(value);
+  }
+  const configured = Number(process.env.GOOGLE_GMAIL_REQUEST_TIMEOUT_MS);
+  return Number.isFinite(configured) && configured >= 1_000 && configured <= 60_000
+    ? Math.trunc(configured)
+    : defaultRequestTimeoutMs;
+}
+
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit,
+  timeoutMs: number,
+  phase: "AUTHENTICATION" | "DELIVERY",
+) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new GoogleGmailRequestTimeoutError(phase, timeoutMs);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export class InMemoryGoogleGmailLiveProvider implements GoogleGmailLiveProvider {
   async send(message: GoogleGmailProviderMessage) {
     const key = message.threadId ?? message.to.toLowerCase().replace(/[^a-z0-9]+/g, "-");
@@ -43,9 +93,11 @@ export class InMemoryGoogleGmailLiveProvider implements GoogleGmailLiveProvider 
 export class GoogleGmailApiProvider implements GoogleGmailLiveProvider {
   private readonly accessToken: string;
   private readonly userId: string;
-  constructor(accessToken: string, userId = "me") {
+  private readonly requestTimeoutMs: number;
+  constructor(accessToken: string, userId = "me", timeoutMs?: number) {
     this.accessToken = accessToken;
     this.userId = userId;
+    this.requestTimeoutMs = requestTimeoutMs(timeoutMs);
   }
   private async raw(message: GoogleGmailProviderMessage): Promise<string> {
     const headers = [`To: ${safeHeaderValue(message.to, "recipient")}`, `Subject: ${encodedSubject(message.subject)}`, "MIME-Version: 1.0"];
@@ -57,9 +109,9 @@ export class GoogleGmailApiProvider implements GoogleGmailLiveProvider {
       // Gmail's users.getProfile endpoint requires mailbox-read scopes such as
       // gmail.metadata; ORBIT intentionally grants gmail.send only. Resolve the
       // authenticated account through Google's OIDC email scope instead.
-      const profileResponse = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
+      const profileResponse = await fetchWithTimeout("https://openidconnect.googleapis.com/v1/userinfo", {
         headers: { Authorization: `Bearer ${this.accessToken}` },
-      });
+      }, this.requestTimeoutMs, "AUTHENTICATION");
       if (!profileResponse.ok) throw new Error("No se pudo verificar la cuenta remitente de Gmail.");
       const profile = (await profileResponse.json()) as { email?: string };
       senderAddress = profile.email?.trim();
@@ -120,8 +172,24 @@ export class GoogleGmailApiProvider implements GoogleGmailLiveProvider {
     const raw = await this.raw(message);
     const maxAttempts = Math.min(3, Math.max(1, Math.trunc(message.maxSendAttempts ?? 3)));
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-      const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/${encodeURIComponent(this.userId)}/messages/send`, { method: "POST", headers: { Authorization: `Bearer ${this.accessToken}`, "Content-Type": "application/json" }, body: JSON.stringify({ raw, threadId: message.threadId }) });
-      if (response.ok) { const result = await response.json() as { id: string; threadId: string }; return { messageId: result.id, threadId: result.threadId }; }
+      let response: Response;
+      try {
+        response = await fetchWithTimeout(`https://gmail.googleapis.com/gmail/v1/users/${encodeURIComponent(this.userId)}/messages/send`, { method: "POST", headers: { Authorization: `Bearer ${this.accessToken}`, "Content-Type": "application/json" }, body: JSON.stringify({ raw, threadId: message.threadId }) }, this.requestTimeoutMs, "DELIVERY");
+      } catch (error) {
+        if (error instanceof GoogleGmailRequestTimeoutError) {
+          throw new GoogleGmailDeliveryOutcomeUnknownError(error.message);
+        }
+        throw new GoogleGmailDeliveryOutcomeUnknownError("Gmail no confirmó el resultado del envío.");
+      }
+      if (response.ok) {
+        try {
+          const result = await response.json() as { id: string; threadId: string };
+          if (!result.id || !result.threadId) throw new Error("Respuesta incompleta de Gmail.");
+          return { messageId: result.id, threadId: result.threadId };
+        } catch {
+          throw new GoogleGmailDeliveryOutcomeUnknownError("Gmail respondió sin un identificador verificable.");
+        }
+      }
       const detail = await response.text();
       if (attempt === maxAttempts || (response.status < 500 && response.status !== 429)) throw new Error(`Gmail request failed (${response.status}): ${detail}`);
       await new Promise((resolve) => setTimeout(resolve, attempt * 300));

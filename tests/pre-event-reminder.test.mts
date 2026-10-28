@@ -120,12 +120,27 @@ test("dry run is read-only, authenticated, and unavailable in Production", () =>
   assert.doesNotMatch(inspection, /\.(insert|update)\(/);
 });
 
-test("cron follows 10:00 America/Santiago across DST by using an hourly schedule gate", () => {
+test("cron follows 11:00 America/Santiago across DST by using an hourly schedule gate", () => {
   const config = read("../vercel.json");
   const route = read("../app/api/cron/pre-event-reminders/route.ts");
   assert.match(config, /"path": "\/api\/cron\/pre-event-reminders",\s*"schedule": "0 \* \* \* \*"/);
   assert.match(route, /timeZone: "America\/Santiago"/);
-  assert.match(route, /chileHour\(\) !== 10/);
+  assert.match(route, /chileHour\(\) !== 11/);
+});
+
+test("automatic D-10 requires a confirmed canonical reservation", () => {
+  assert.match(service, /if \(!composer\.reservationConfirmed\)/);
+  assert.match(service, /reserva canónica no está confirmada/);
+  assert.match(
+    service.slice(service.indexOf("export async function inspectAutomaticPreEventReminders")),
+    /composer\.reservationConfirmed/,
+  );
+});
+
+test("unknown Gmail outcomes remain pending and block a second attempt", () => {
+  assert.match(service, /GoogleGmailDeliveryOutcomeUnknownError/);
+  assert.match(service, /status: "PENDING"/);
+  assert.match(service, /Existe un intento de envío sin resultado confirmado/);
 });
 
 test("fully paid renderer contains zero payment, due-date or bank content", () => {
