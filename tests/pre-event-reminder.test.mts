@@ -129,12 +129,15 @@ test("cron follows 11:00 America/Santiago across DST by using an hourly schedule
   assert.match(route, /chileHour\(\) !== 11/);
 });
 
-test("automatic D-10 requires a confirmed canonical reservation", () => {
-  assert.match(service, /if \(!composer\.reservationConfirmed\)/);
-  assert.match(service, /reserva canónica no está confirmada/);
+test("automatic D-10 requires a confirmed reservation or synchronized calendar event", () => {
+  assert.match(service, /if \(!composer\.eventConfirmed\)/);
+  assert.match(service, /calendar_sync/);
+  assert.match(service, /status === "SYNCHRONIZED"/);
+  assert.match(service, /external_event_id/);
+  assert.match(service, /Evento no está confirmado por reserva ni por calendario sincronizado/);
   assert.match(
     service.slice(service.indexOf("export async function inspectAutomaticPreEventReminders")),
-    /composer\.reservationConfirmed/,
+    /composer\.eventConfirmed/,
   );
 });
 
@@ -150,6 +153,9 @@ test("manual action recovers visibly when the Server Action has no response", ()
   assert.match(control, /submissionGate\.current = false/);
   assert.match(control, /setSendState\(\{\s*status: "error"/);
   assert.match(control, /finally \{/);
+  assert.match(control, /PRE_EVENT_ACTION_TIMEOUT_MS = 15_000/);
+  assert.match(control, /La vista previa está tardando demasiado/);
+  assert.match(control, /El envío está tardando demasiado/);
 });
 
 test("cron authorization is exact and Chile 11:00 is DST-safe", () => {
@@ -316,7 +322,7 @@ test("automatic D-10 notifies the administrator independently and idempotently",
 });
 
 test("send path does not mutate Finance, Drive, Calendar or WhatsApp", () => {
-  assert.doesNotMatch(service, /invoice_payments|payment_ledger|calendar_sync|drive_sync|whatsapp/i);
+  assert.doesNotMatch(service, /invoice_payments|payment_ledger|drive_sync|whatsapp/i);
   assert.match(service, /driveFileIds: \[\]/);
   assert.doesNotMatch(actions, /calendar|drive|whatsapp/i);
 });

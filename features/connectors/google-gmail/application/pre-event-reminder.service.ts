@@ -59,6 +59,8 @@ export type PreEventReminderComposer = {
   bankDataSource: string | null;
   paymentReceiptEmailSource: string | null;
   reservationConfirmed: boolean;
+  eventConfirmed: boolean;
+  confirmationSource: "RESERVATION" | "CALENDAR" | "NONE";
   automaticSendDate: string;
   status: PreEventReminderStatus;
   hasSuccessfulSend: boolean;
@@ -122,7 +124,7 @@ export async function loadPreEventReminderComposer(
   projectId: string,
 ): Promise<PreEventReminderComposer> {
   const admin = createAdminClient();
-  const [projectResult, receivableResult, reservationResult, historyResult, company] = await Promise.all([
+  const [projectResult, receivableResult, reservationResult, calendarResult, historyResult, company] = await Promise.all([
     admin
       .from("projects")
       .select(
@@ -146,6 +148,11 @@ export async function loadPreEventReminderComposer(
       .limit(1)
       .maybeSingle(),
     admin
+      .from("calendar_sync")
+      .select("status,external_event_id")
+      .eq("project_id", projectId)
+      .maybeSingle(),
+    admin
       .from("communications")
       .select(
         "id,status,to_recipient,cc_recipients,subject,occurred_at,sent_at,external_message_id,failure_reason,original_communication_id",
@@ -158,6 +165,7 @@ export async function loadPreEventReminderComposer(
   if (projectResult.error) throw projectResult.error;
   if (receivableResult.error) throw receivableResult.error;
   if (reservationResult.error) throw reservationResult.error;
+  if (calendarResult.error) throw calendarResult.error;
   if (historyResult.error) throw historyResult.error;
 
   const project = projectResult.data;
@@ -204,6 +212,15 @@ export async function loadPreEventReminderComposer(
   if (bankDetails) assertBankConfiguration(bankDetails);
   const daysUntilEvent = daysUntilPreEvent(project.event_date);
   const reservationConfirmed = reservationResult.data?.status === "CONFIRMED";
+  const calendarConfirmed =
+    calendarResult.data?.status === "SYNCHRONIZED" &&
+    Boolean(calendarResult.data.external_event_id);
+  const eventConfirmed = reservationConfirmed || calendarConfirmed;
+  const confirmationSource = reservationConfirmed
+    ? "RESERVATION"
+    : calendarConfirmed
+      ? "CALENDAR"
+      : "NONE";
   const model: PreEventReminderModel = {
     customerName: customer.full_name || "Cliente",
     eventName: project.name || project.orbit_event_id,
@@ -213,7 +230,7 @@ export async function loadPreEventReminderComposer(
     serviceStartAt: operational?.service_start_at ?? null,
     operatorArrivalAt: operational?.staff_arrival_at ?? null,
     assemblyStartAt: operational?.assembly_start_at ?? null,
-    reservationConfirmed,
+    reservationConfirmed: eventConfirmed,
     scrapbookIncluded,
     photoDesignRequired,
     photoDesignApproved: photoDesignRequired && designApproved,
@@ -265,6 +282,8 @@ export async function loadPreEventReminderComposer(
       ? "company_settings.pdf_configuration.commercialBank.email"
       : null,
     reservationConfirmed,
+    eventConfirmed,
+    confirmationSource,
     automaticSendDate: (() => {
       const date = new Date(`${project.event_date}T12:00:00Z`);
       date.setUTCDate(date.getUTCDate() - 10);
@@ -794,9 +813,9 @@ export async function sendAutomaticPreEventReminders(reference = new Date()) {
         skipped += 1;
         continue;
       }
-      if (!composer.reservationConfirmed) {
+      if (!composer.eventConfirmed) {
         const blockedStatus = await recordBlocked(
-          "La reserva canónica no está confirmada; el D-10 automático permanece bloqueado.",
+          "El Evento no está confirmado por reserva ni por calendario sincronizado; el D-10 automático permanece bloqueado.",
           composer.to,
         );
         if (blockedStatus === "FAILED") failed += 1;
@@ -948,7 +967,7 @@ export async function inspectAutomaticPreEventReminders(reference = new Date()) 
       const composer = await loadPreEventReminderComposer(project.id);
       const eligible =
         composer.daysUntilEvent === 10 &&
-        composer.reservationConfirmed &&
+        composer.eventConfirmed &&
         !composer.hasSuccessfulSend &&
         Boolean(composer.to.trim());
       return {
@@ -956,7 +975,8 @@ export async function inspectAutomaticPreEventReminders(reference = new Date()) 
         orbitEventId: project.orbit_event_id,
         eventDate: project.event_date,
         daysUntilEvent: composer.daysUntilEvent,
-        reservationConfirmed: composer.reservationConfirmed,
+        reservationConfirmed: composer.eventConfirmed,
+        confirmationSource: composer.confirmationSource,
         hasSuccessfulSend: composer.hasSuccessfulSend,
         hasRecipient: Boolean(composer.to.trim()),
         eligible,

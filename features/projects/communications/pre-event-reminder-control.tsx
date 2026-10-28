@@ -63,6 +63,27 @@ const timingLabel = (days: number) =>
         ? `Evento en ${days} días`
         : `Evento hace ${Math.abs(days)} días`;
 
+const PRE_EVENT_ACTION_TIMEOUT_MS = 15_000;
+
+function withPreEventActionTimeout<T>(promise: Promise<T>, message: string) {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(
+      () => reject(new Error(message)),
+      PRE_EVENT_ACTION_TIMEOUT_MS,
+    );
+    promise.then(
+      (value) => {
+        window.clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        window.clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
 export function PreEventReminderControl({ projectId }: { projectId: string }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -80,22 +101,33 @@ export function PreEventReminderControl({ projectId }: { projectId: string }) {
 
   const refresh = (openComposer = false) =>
     startTransition(async () => {
-      const result = await getPreEventReminderPreviewAction(projectId);
-      if (!result.ok) {
-        setFeedback(result.error);
-        return;
-      }
-      setComposer(result.preview);
-      setFeedback("");
-      if (openComposer) {
-        setTo(result.preview.to);
-        setCc(result.preview.cc.join("\n"));
-        setSubject(result.preview.subject);
-        setRequestId(crypto.randomUUID());
-        setConfirmingResend(false);
-        setSendState({ status: "idle" });
-        submissionGate.current = false;
-        setOpen(true);
+      try {
+        const result = await withPreEventActionTimeout(
+          getPreEventReminderPreviewAction(projectId),
+          "La vista previa está tardando demasiado. Intenta nuevamente; no se envió ningún correo.",
+        );
+        if (!result.ok) {
+          setFeedback(result.error);
+          return;
+        }
+        setComposer(result.preview);
+        setFeedback("");
+        if (openComposer) {
+          setTo(result.preview.to);
+          setCc(result.preview.cc.join("\n"));
+          setSubject(result.preview.subject);
+          setRequestId(crypto.randomUUID());
+          setConfirmingResend(false);
+          setSendState({ status: "idle" });
+          submissionGate.current = false;
+          setOpen(true);
+        }
+      } catch (error) {
+        setFeedback(
+          error instanceof Error
+            ? error.message
+            : "No fue posible cargar la vista previa. Intenta nuevamente.",
+        );
       }
     });
 
@@ -122,7 +154,10 @@ export function PreEventReminderControl({ projectId }: { projectId: string }) {
         formData.set("cc", cc);
         formData.set("subject", subject);
         formData.set("confirmResend", String(confirmResend));
-        const result = await sendPreEventReminderAction(formData);
+        const result = await withPreEventActionTimeout(
+          sendPreEventReminderAction(formData),
+          "El envío está tardando demasiado. El estado quedó sin confirmar; revisa el historial antes de reintentar.",
+        );
         if (!result.ok) {
           setSendState({ status: "error", message: result.error });
           return;
