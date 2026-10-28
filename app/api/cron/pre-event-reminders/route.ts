@@ -4,6 +4,14 @@ import {
   sendAutomaticPreEventReminders,
 } from "@/features/connectors/google-gmail/application/pre-event-reminder.service";
 
+function chileHour(reference = new Date()) {
+  return Number(new Intl.DateTimeFormat("en-US", {
+    hour: "2-digit",
+    hourCycle: "h23",
+    timeZone: "America/Santiago",
+  }).format(reference));
+}
+
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
   if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
@@ -16,6 +24,13 @@ export async function GET(request: Request) {
     }
     const report = await inspectAutomaticPreEventReminders(new Date());
     return NextResponse.json(report, { status: 200 });
+  }
+  if (chileHour() !== 10) {
+    return NextResponse.json({
+      ok: true,
+      skipped: true,
+      reason: "Outside the 10:00 America/Santiago processing window",
+    });
   }
   const startedAt = Date.now();
   console.info(JSON.stringify({

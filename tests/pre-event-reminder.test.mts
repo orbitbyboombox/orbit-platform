@@ -109,6 +109,14 @@ test("dry run is read-only, authenticated, and unavailable in Production", () =>
   assert.doesNotMatch(inspection, /\.(insert|update)\(/);
 });
 
+test("cron follows 10:00 America/Santiago across DST by using an hourly schedule gate", () => {
+  const config = read("../vercel.json");
+  const route = read("../app/api/cron/pre-event-reminders/route.ts");
+  assert.match(config, /"path": "\/api\/cron\/pre-event-reminders",\s*"schedule": "0 \* \* \* \*"/);
+  assert.match(route, /timeZone: "America\/Santiago"/);
+  assert.match(route, /chileHour\(\) !== 10/);
+});
+
 test("fully paid renderer contains zero payment, due-date or bank content", () => {
   const html = renderPreEventReminderHtml(base);
   const text = buildPreEventReminderText(base);
