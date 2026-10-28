@@ -953,6 +953,9 @@ export function ProjectWorkspaceExperience(
                 currentTotal={(event.receivable?.amount ?? 0) + props.postReservationExtras.filter((item) => item.status === "ACTIVE").reduce((sum, item) => sum + Number(item.amount), 0)}
               />
             )}
+            {activeTab === "OPERATION" && photoStripEligible && (
+              <PhotoStripDesignCenter documents={photoStripDocuments} projectId={props.projectKey!} />
+            )}
             {activeTab === "OPERATION" && (
               <Section
                 eyebrow="03 · Impresión"
