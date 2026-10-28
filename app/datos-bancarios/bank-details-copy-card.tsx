@@ -36,10 +36,16 @@ export function BankDetailsCopyCard({
   bank: CollectionBankDetails;
 }) {
   const [copied, setCopied] = useState(false);
-  const copy = async () => {
-    await copyWithFallback(bankText(bank));
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 2500);
+  const copy = async (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    try {
+      await copyWithFallback(bankText(bank));
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2500);
+    } catch {
+      setCopied(false);
+    }
   };
 
   return (
@@ -54,8 +60,10 @@ export function BankDetailsCopyCard({
       </div>
 
       <button
+        aria-live="polite"
         className="min-h-14 w-full rounded-2xl bg-[#F78900] px-5 text-sm font-extrabold tracking-wide text-black transition hover:brightness-105 active:scale-[0.99]"
         onClick={copy}
+        data-testid="copy-bank-details"
         type="button"
       >
         {copied ? "✓ DATOS COPIADOS" : "COPIAR DATOS BANCARIOS"}
