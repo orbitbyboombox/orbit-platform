@@ -158,6 +158,32 @@ test("manual action recovers visibly when the Server Action has no response", ()
   assert.match(control, /El envío está tardando demasiado/);
 });
 
+test("preview composer isolates every dependency and emits only safe timing fields", () => {
+  for (const step of [
+    "project",
+    "accounts_receivable_projection",
+    "crm_reservations",
+    "calendar_sync",
+    "communications",
+    "company_settings",
+  ]) {
+    assert.match(service, new RegExp(`withPreEventComposerStep\\(\\"${step}\\"`));
+  }
+  assert.match(service, /PRE_EVENT_COMPOSER_STEP_TIMEOUT_MS = 8_000/);
+  assert.match(service, /pre_event_reminder\.composer_step/);
+  assert.match(service, /pre_event_reminder\.composer_step_failed/);
+  assert.match(service, /pre_event_reminder\.composer_completed/);
+  assert.match(service, /loadCompanySettingsCached/);
+  assert.doesNotMatch(service, /loadCompanySettings\(admin\)/);
+  assert.doesNotMatch(
+    service,
+    /event: "pre_event_reminder\.composer_step"[\s\S]{0,320}(customerName|to_recipient|external_message_id|projectId)/,
+  );
+  assert.match(actions, /pre_event_reminder\.auth_step/);
+  assert.match(actions, /auth\.getUser/);
+  assert.match(actions, /profiles\.role/);
+});
+
 test("cron authorization is exact and Chile 11:00 is DST-safe", () => {
   const config = read("../vercel.json");
   assert.match(cronRoute, /authorization.*Bearer/);

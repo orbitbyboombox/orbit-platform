@@ -2,7 +2,7 @@ import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizeEmailRecipients, normalizeRequiredEmail } from "@/lib/email/recipients";
-import { loadCompanySettings } from "@/features/company-settings";
+import { loadCompanySettingsCached } from "@/features/company-settings";
 import { resolveCollectionBankDetails } from "@/features/accounts-receivable/collection-bank-details";
 import { requiresPhotoStripDesign } from "@/features/business-core/catalog/service.catalog";
 import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-workspace/application/google-workspace.repository";
@@ -68,6 +68,71 @@ export type PreEventReminderComposer = {
   history: PreEventReminderHistoryItem[];
 };
 
+const PRE_EVENT_COMPOSER_STEP_TIMEOUT_MS = 8_000;
+
+type ComposerStep =
+  | "project"
+  | "accounts_receivable_projection"
+  | "crm_reservations"
+  | "calendar_sync"
+  | "communications"
+  | "company_settings";
+
+function errorCode(error: unknown) {
+  if (!error || typeof error !== "object") return "UNKNOWN";
+  const candidate = error as { code?: unknown; name?: unknown };
+  return String(candidate.code ?? candidate.name ?? "UNKNOWN").slice(0, 80);
+}
+
+/**
+ * Keeps one stalled Supabase request from holding the whole Server Action open.
+ * The step name and duration are intentionally the only diagnostics emitted;
+ * project/customer/message data never enters these logs.
+ */
+export async function withPreEventComposerStep<T>(
+  step: ComposerStep,
+  operation: () => Promise<T> | PromiseLike<T>,
+  timeoutMs = PRE_EVENT_COMPOSER_STEP_TIMEOUT_MS,
+): Promise<T> {
+  const startedAt = performance.now();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const operationPromise = Promise.resolve().then(operation);
+    const value = await Promise.race([
+      operationPromise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`Supabase step timed out: ${step}`)),
+          timeoutMs,
+        );
+      }),
+    ]);
+    console.info(
+      JSON.stringify({
+        level: "info",
+        event: "pre_event_reminder.composer_step",
+        step,
+        durationMs: Math.round(performance.now() - startedAt),
+        ok: true,
+      }),
+    );
+    if (timer) clearTimeout(timer);
+    return value;
+  } catch (error) {
+    if (timer) clearTimeout(timer);
+    console.error(
+      JSON.stringify({
+        level: "error",
+        event: "pre_event_reminder.composer_step_failed",
+        step,
+        durationMs: Math.round(performance.now() - startedAt),
+        errorCode: errorCode(error),
+      }),
+    );
+    throw error;
+  }
+}
+
 type CommunicationRow = {
   id: string;
   status: string;
@@ -123,45 +188,47 @@ function assertBankConfiguration(bank: ReturnType<typeof resolveCollectionBankDe
 export async function loadPreEventReminderComposer(
   projectId: string,
 ): Promise<PreEventReminderComposer> {
+  const startedAt = performance.now();
   const admin = createAdminClient();
-  const [projectResult, receivableResult, reservationResult, calendarResult, historyResult, company] = await Promise.all([
-    admin
+  try {
+    const [projectResult, receivableResult, reservationResult, calendarResult, historyResult, company] = await Promise.all([
+      withPreEventComposerStep("project", () => admin
       .from("projects")
       .select(
         "id,customer_id,orbit_event_id,name,project_type,status,event_date,location,city,customers!inner(full_name,email,secondary_email),project_services(service_code,extras),project_operational_contracts(staff_arrival_at,assembly_start_at,service_start_at),event_operational_requirements(code,status),documents(document_type,is_current,workflow_status,deleted_at)",
       )
       .eq("id", projectId)
       .is("deleted_at", null)
-      .single(),
-    admin
+      .single()),
+      withPreEventComposerStep("accounts_receivable_projection", () => admin
       .from("accounts_receivable_projection")
       .select("id,outstanding_balance,due_date,effective_status,customer_type,created_at")
       .eq("project_id", projectId)
       .order("created_at", { ascending: false })
       .limit(1)
-      .maybeSingle(),
-    admin
+      .maybeSingle()),
+      withPreEventComposerStep("crm_reservations", () => admin
       .from("crm_reservations")
       .select("status")
       .eq("project_id", projectId)
       .order("created_at", { ascending: false })
       .limit(1)
-      .maybeSingle(),
-    admin
+      .maybeSingle()),
+      withPreEventComposerStep("calendar_sync", () => admin
       .from("calendar_sync")
       .select("status,external_event_id")
       .eq("project_id", projectId)
-      .maybeSingle(),
-    admin
+      .maybeSingle()),
+      withPreEventComposerStep("communications", () => admin
       .from("communications")
       .select(
         "id,status,to_recipient,cc_recipients,subject,occurred_at,sent_at,external_message_id,failure_reason,original_communication_id",
       )
       .eq("project_id", projectId)
       .eq("communication_type", PRE_EVENT_REMINDER_TYPE)
-      .order("occurred_at", { ascending: false }),
-    loadCompanySettings(admin),
-  ]);
+      .order("occurred_at", { ascending: false })),
+      withPreEventComposerStep("company_settings", () => loadCompanySettingsCached()),
+    ]);
   if (projectResult.error) throw projectResult.error;
   if (receivableResult.error) throw receivableResult.error;
   if (reservationResult.error) throw reservationResult.error;
@@ -255,7 +322,7 @@ export async function loadPreEventReminderComposer(
   renderPreEventReminderHtml(model);
   const history = (historyResult.data ?? []) as CommunicationRow[];
   const eventDateLabel = formatPreEventDate(project.event_date);
-  return {
+    return {
     projectId,
     orbitEventId: project.orbit_event_id,
     customerId: project.customer_id,
@@ -303,7 +370,16 @@ export async function loadPreEventReminderComposer(
       failureReason: item.failure_reason,
       isResend: Boolean(item.original_communication_id),
     })),
-  };
+    };
+  } finally {
+    console.info(
+      JSON.stringify({
+        level: "info",
+        event: "pre_event_reminder.composer_completed",
+        durationMs: Math.round(performance.now() - startedAt),
+      }),
+    );
+  }
 }
 
 export type SendPreEventReminderInput = {
