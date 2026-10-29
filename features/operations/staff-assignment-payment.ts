@@ -8,7 +8,7 @@ export function officialStaffAssignmentPayment(
 ) {
   const rate = new Map(rates.map((item) => [item.code, Number(item.amount)]));
   const rolePayment =
-    responsibility === "OPERATOR"
+    (responsibility === "OPERATOR" || responsibility === "SUPERVISOR")
       ? (rate.get(`OPERATOR_${hours}_HOURS`) ?? 0)
       : responsibility === "ASSEMBLY"
         ? (rate.get("ASSEMBLY") ?? 0)
@@ -39,8 +39,8 @@ export function effectiveStaffAssignmentPayment(
     return officialStaffAssignmentPayment(rates, hours, responsibility, transportationBonus);
   }
   let payment: number;
-  if (responsibility === "OPERATOR") {
-    if (!Number.isInteger(hours) || hours < 2) throw new Error("Operator hours must be an integer >= 2");
+  if (responsibility === "OPERATOR" || responsibility === "SUPERVISOR") {
+    if (!Number.isFinite(hours) || hours < 2) throw new Error("Operator/supervisor duration must be at least 2 hours");
     payment = 20000 + (hours - 2) * 5000;
   } else if (responsibility === "ASSEMBLY" || responsibility === "DISASSEMBLY") {
     payment = 10000;
