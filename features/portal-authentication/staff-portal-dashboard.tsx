@@ -426,7 +426,11 @@ function StaffWeeklyEventList({events, onSelect}:{events:StaffPortalEvent[];onSe
   return <section className="space-y-3" aria-label="Mi semana"><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">MI SEMANA</p><h2 className="mt-1 text-xl font-semibold">Tu agenda semanal</h2><p className="mt-1 text-sm text-muted">Próximos eventos asignados, incluidos los de las siguientes semanas.</p></div><div className="space-y-2">{events.length ? events.map(event => {
     const row = staffLogisticsRow(event);
     const sector = defaultSectorForCommune(row.commune);
-    return <div className="min-w-0" key={event.id}><div className="hidden lg:block"><LogisticsEventRow event={row} sector={sector} onSelect={() => onSelect(event)} selected={false} /></div><div className="lg:hidden"><ScaledLogisticsEventRow event={row} sector={sector} onSelect={() => onSelect(event)} selected={false} /></div><StaffOperationalExtras extras={event.operationalExtras} photoStyle={event.printInstructions.photoStyle} /></div>;
+    return <div className="min-w-0" key={event.id}><div className="hidden lg:block"><LogisticsEventRow event={row} sector={sector} onSelect={() => onSelect(event)} selected={false} /></div><div className="lg:hidden"><ScaledLogisticsEventRow event={row} sector={sector} onSelect={() => onSelect(event)} selected={false} /></div><div className="rounded-xl border bg-card/80 px-3 py-2 text-sm space-y-1" aria-label="Tus cargos y turnos">
+      {event.operationalBlocks.map(block => <div key={`${block.id}:${block.role}`} className="flex items-center justify-between gap-3"><span>{ROLE[block.role] ?? block.role} · {block.name}</span><span className="text-xs text-muted">{staffBlockTime(block.startAt)}–{staffBlockTime(block.endAt)}</span></div>)}
+      {event.roles.filter(role => !["OPERATOR","SUPERVISOR"].includes(role)).map(role => <div key={role}>{ROLE[role] ?? role}</div>)}
+      <p className="text-xs text-muted">Los pagos confirmados se detallan en Finanzas. No se muestran montos estimados sin tarifa validada.</p>
+    </div><StaffOperationalExtras extras={event.operationalExtras} photoStyle={event.printInstructions.photoStyle} /></div>;
   }) : <p className="rounded-2xl border border-dashed p-4 text-sm text-muted">No tienes próximos eventos asignados.</p>}</div></section>;
 }
 
