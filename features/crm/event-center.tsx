@@ -376,6 +376,7 @@ export function EventCenter({
               </div>
               <div className="flex min-w-0 items-center justify-end gap-2">
                 <Link aria-label={`Abrir evento ${event.customerName}`} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-brand px-3.5 text-xs font-bold text-black transition hover:brightness-110" href={`/projects/${event.projectId}`}><ExternalLink className="size-4" />ABRIR EVENTO</Link>
+                <button type="button" className="min-h-10 rounded-xl border border-brand px-3 py-1.5 text-xs font-bold text-brand sm:text-sm" onClick={() => openEditor(event)}>EDITAR EVENTO</button>
                 <Link className="min-h-9 rounded-xl border px-3 py-1.5 text-xs sm:text-sm" href={`/customers/${event.customerId}`}>Cliente</Link>
                 <details className="relative">
                   <summary aria-label={`Acciones para ${event.name}`} className="grid size-10 cursor-pointer list-none place-items-center rounded-xl border"><MoreVertical className="size-4" /></summary>
