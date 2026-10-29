@@ -26,11 +26,11 @@ function mapStaffEventPayment(row: Record<string, unknown>, assignmentById: Map<
   const assignment = assignmentById.get(String(row.assignment_id));
   const assignmentType = String(assignment?.assignment_type ?? "");
   const taskRoles = Array.isArray(row.tasks) ? row.tasks.map(String).filter(Boolean) : [];
-  const role = taskRoles.length > 1 ? taskRoles.join(" + ") : assignmentType || taskRoles[0] || "Staff";
+  const role = assignmentType || (taskRoles.length ? taskRoles.join(" + ") : "Staff");
   const defaultRoleAmount = taskRoles.length > 1 ? amount : ["OPERATOR", "SUPERVISOR"].includes(assignmentType) ? Number(row.operator_payment ?? amount) : assignmentType === "ASSEMBLY" ? Number(row.assembly_payment ?? amount) : assignmentType === "DISASSEMBLY" ? Number(row.disassembly_payment ?? amount) : amount;
   const overrideRoleAmount = taskRoles.length > 1 ? null : ["OPERATOR", "SUPERVISOR"].includes(assignmentType) ? row.override_operator_payment : assignmentType === "ASSEMBLY" ? row.override_assembly_payment : assignmentType === "DISASSEMBLY" ? row.override_disassembly_payment : null;
   const baseFinalAmount = overrideRoleAmount !== null && overrideRoleAmount !== undefined ? amount - defaultRoleAmount + Number(overrideRoleAmount) : amount;
-  const finalAmount = baseFinalAmount + adjustmentAmount;
+  const finalAmount = Math.max(0, baseFinalAmount + adjustmentAmount);
   const rawBlock = assignment?.event_operational_blocks;
   const block = Array.isArray(rawBlock) ? rawBlock[0] as Record<string, unknown> | undefined : rawBlock && typeof rawBlock === "object" ? rawBlock as Record<string, unknown> : null;
   const settlementStatus = String(row.settlement_status ?? (paidAmount >= amount ? "PAID" : "PENDING"));
