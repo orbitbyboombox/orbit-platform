@@ -128,6 +128,15 @@ begin
         null,hours*60,null,null,null
       ) returning id into payment_id;
     else
+      -- Never recompute paid/partially-paid or manually overridden snapshots.
+      if existing_payment.status='PAID' or existing_payment.settlement_status in ('PAID','FINALIZED','ADVANCE')
+        or coalesce(existing_payment.paid_amount,0)>0 or existing_payment.override_at is not null
+        or existing_payment.override_operator_payment is not null
+        or existing_payment.override_assembly_payment is not null
+        or existing_payment.override_disassembly_payment is not null then
+        last_payment_id:=existing_payment.id;
+        continue;
+      end if;
       final_amount:=case a.assignment_type
         when 'ASSEMBLY' then case when existing_payment.override_assembly_payment is null then rate else existing_payment.assembly_payment end
         when 'OPERATOR' then case when existing_payment.override_operator_payment is null then rate else existing_payment.operator_payment end
@@ -187,6 +196,12 @@ begin
     insert into public.event_staff_payments(project_id,assignment_id,staff_id,orbit_event_id,contracted_hours,contracted_minutes,block_id,tasks,destination_province,assembly_payment,operator_payment,disassembly_payment,automatic_assembly_payment,automatic_operator_payment,automatic_disassembly_payment,created_by,updated_by,status)
     values(a.project_id,a.id,a.staff_id,event_code,greatest(2,ceil(minutes/60.0)::integer),minutes,a.block_id,case when a.assignment_type='OPERATOR' then array['OPERATOR'] else array[a.assignment_type] end,'SANTIAGO',0,case when a.assignment_type='OPERATOR' then coalesce(rate,0) else 0 end,0,0,case when a.assignment_type='OPERATOR' then coalesce(rate,0) else 0 end,0,p_actor,p_actor,'ESTIMATED') returning id into payment_id;
   else
+    if exists (select 1 from public.event_staff_payments where id=payment_id and
+      (status='PAID' or settlement_status in ('PAID','FINALIZED','ADVANCE') or coalesce(paid_amount,0)>0
+       or override_at is not null or override_operator_payment is not null
+       or override_assembly_payment is not null or override_disassembly_payment is not null)) then
+      return payment_id;
+    end if;
     update public.event_staff_payments set contracted_hours=greatest(2,ceil(minutes/60.0)::integer),contracted_minutes=minutes,block_id=a.block_id,
       operator_payment=case when override_at is null and override_operator_payment is null and a.assignment_type='OPERATOR' then coalesce(rate,0) else operator_payment end,
       automatic_operator_payment=case when a.assignment_type='OPERATOR' then coalesce(rate,0) else automatic_operator_payment end,updated_by=p_actor where id=payment_id;
