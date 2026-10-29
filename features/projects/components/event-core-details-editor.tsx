@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { updateEventCoreDetailsAction } from "../actions/update-event-core-details.actions";
+import { useEffect, useState, useTransition } from "react";
+import { loadEventCoreDetailsAction, updateEventCoreDetailsAction } from "../actions/update-event-core-details.actions";
 
 export function EventCoreDetailsEditor(props: { projectId: string; version: number; eventDate: string; eventTime: string; location: string; city: string }) {
   const [version, setVersion] = useState(props.version);
+  const [loaded, setLoaded] = useState(false);
   const [eventDate, setEventDate] = useState(props.eventDate);
   const [eventTime, setEventTime] = useState(props.eventTime.slice(0, 5));
   const [location, setLocation] = useState(props.location);
@@ -13,6 +14,7 @@ export function EventCoreDetailsEditor(props: { projectId: string; version: numb
   const [confirmed, setConfirmed] = useState(false);
   const [message, setMessage] = useState("");
   const [pending, start] = useTransition();
+  useEffect(() => { let active = true; loadEventCoreDetailsAction(props.projectId).then(data => { if (!active) return; setVersion(data.version); setEventDate(data.eventDate); setEventTime(data.eventTime.slice(0,5)); setLocation(data.location); setCity(data.city); setLoaded(true); }).catch(error => { if (active) setMessage(error instanceof Error ? error.message : "Error al cargar evento."); }); return () => { active = false; }; }, [props.projectId]);
   const save = () => start(async () => {
     const result = await updateEventCoreDetailsAction({ projectId: props.projectId, expectedVersion: version, eventDate, eventTime, location, city, reason });
     setMessage(result.message);
@@ -30,7 +32,7 @@ export function EventCoreDetailsEditor(props: { projectId: string; version: numb
     </div>
     <label className="block text-sm">Motivo del cambio<textarea className="mt-1 w-full rounded-lg border bg-background p-2" value={reason} onChange={e => { setConfirmed(false); setReason(e.target.value); }} /></label>
     <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} />Confirmo los nuevos datos. Entiendo que se actualizará el evento y se intentará sincronizar Calendar.</label>
-    <button className="rounded-xl border px-4 py-2 font-semibold disabled:opacity-50" type="button" disabled={pending || !confirmed || reason.trim().length < 3 || !eventDate || !eventTime || !location.trim() || !city.trim()} onClick={save}>{pending ? "Guardando…" : "Guardar cambios del evento"}</button>
+    <button className="rounded-xl border px-4 py-2 font-semibold disabled:opacity-50" type="button" disabled={pending || !loaded || !confirmed || reason.trim().length < 3 || !eventDate || !eventTime || !location.trim() || !city.trim()} onClick={save}>{pending ? "Guardando…" : "Guardar cambios del evento"}</button>
     {message && <p role="status" className="text-sm">{message}</p>}
   </section>;
 }
