@@ -75,3 +75,79 @@ export async function approveQuotationAction(quotationId:string, reason="Aprobad
 }
 
 function escapeHtml(value:string){return value.replace(/[&<>"']/g,(character)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[character]!);}
+
+
+/**
+ * Prepara una propuesta revisada sin sobrescribir la cotización aceptada.
+ * No cambia contratos, facturas, pagos ni envía correos.
+ */
+export async function prepareAcceptedQuotationRevisionAction(input: {
+  quotationId: string;
+  netAmount: number;
+  vatPercent: number;
+  reason: string;
+}): Promise<Result> {
+  try {
+    const client = await createSupabaseServerClient();
+    const { data: auth, error: authError } = await client.auth.getUser();
+    if (authError || !auth.user) throw authError ?? new Error("Inicia sesión.");
+    const { data: allowed, error: permissionError } = await client.rpc("can_administer");
+    if (permissionError || allowed !== true) throw new Error("Solo Administración puede preparar revisiones.");
+    if (!Number.isFinite(input.netAmount) || input.netAmount < 0 ||
+        !Number.isFinite(input.vatPercent) || input.vatPercent < 0 || input.vatPercent > 100 ||
+        input.reason.trim().length < 3) throw new Error("Ingresa neto, IVA y motivo válidos.");
+
+    const admin = createAdminClient();
+    const { data: quotation, error } = await admin.from("quotations")
+      .select("id,quotation_number,status,project_id,customer_id,issue_date,expiration_date,accepted_version_id,customers!inner(full_name),projects!inner(name,event_date,location,city)")
+      .eq("id", input.quotationId).single();
+    if (error || !quotation) throw error ?? new Error("Cotización no encontrada.");
+    if (quotation.status !== "ACCEPTED" || !quotation.accepted_version_id)
+      throw new Error("La revisión independiente requiere una cotización aceptada.");
+    const net = Math.round(input.netAmount);
+    const tax = Math.round(net * input.vatPercent / 100);
+    const total = net + tax;
+    const company = await loadCompanySettings(admin);
+    const pdf = await createQuotationPdf({
+      quotationNumber: quotation.quotation_number + " · REVISIÓN PROPUESTA",
+      issueDate: new Date().toISOString().slice(0, 10),
+      expirationDate: quotation.expiration_date,
+      customer: quotation.customers.full_name,
+      project: quotation.projects.name,
+      eventDate: quotation.projects.event_date,
+      location: [quotation.projects.location, quotation.projects.city].filter(Boolean).join(", ") || "Por confirmar",
+      subtotal: net, transport: 0, taxes: tax, total,
+      items: [{ label: "Propuesta comercial revisada (neto)", quantity: 1, total: net }],
+      branding: { productName: company.productName, productVersion: company.productVersion,
+        brandName: company.brandName, developedBy: company.developedBy, poweredBy: company.poweredBy,
+        footer: company.quotationFooter, currency: company.currency, locale: company.locale },
+    });
+    const revisionId = randomUUID();
+    const storagePath = `${quotation.project_id}/quotations/revisions/${quotation.quotation_number}-${revisionId}.pdf`;
+    const uploaded = await admin.storage.from("orbit-documents").upload(storagePath, pdf, {
+      contentType: "application/pdf", upsert: false,
+    });
+    if (uploaded.error) throw uploaded.error;
+    const checksum = createHash("sha256").update(pdf).digest("hex");
+    const { error: documentError } = await admin.from("documents").insert({
+      project_id: quotation.project_id, customer_id: quotation.customer_id,
+      document_type: "QUOTATION", storage_bucket: "orbit-documents",
+      storage_path: storagePath, checksum, created_by: auth.user.id,
+    });
+    if (documentError) throw documentError;
+    const { error: timelineError } = await admin.from("timeline_events").insert({
+      customer_id: quotation.customer_id, project_id: quotation.project_id,
+      event_type: "QUOTATION_REVISION_PREPARED", title: "Revisión comercial preparada",
+      description: `Propuesta sin enviar: neto ${net}, IVA ${input.vatPercent}%, total ${total}. Motivo: ${input.reason.trim()}. PDF: ${storagePath}`,
+      actor_id: auth.user.id, actor_label: "Administrador", source: "Administrator",
+      action: "QUOTATION_REVISION_PREPARED", entity_type: "Quotation",
+      entity_id: quotation.id, human_message: "Revisión comercial preparada sin reemplazar la versión aceptada.",
+      correlation_id: revisionId, created_by: auth.user.id,
+    });
+    if (timelineError) throw timelineError;
+    revalidatePath(`/projects/${quotation.project_id}`);
+    return { ok: true, message: `Propuesta revisada preparada: neto $${net.toLocaleString("es-CL")}, IVA $${tax.toLocaleString("es-CL")}, total $${total.toLocaleString("es-CL")}. PDF archivado; no enviado.` };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "No fue posible preparar la revisión." };
+  }
+}
