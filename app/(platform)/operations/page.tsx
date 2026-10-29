@@ -13,7 +13,7 @@ import {
   FounderWorkspaceExperience,
 } from "@/features/founder-workspace";
 import { StaffOperationsView } from "@/features/resources/staff-operations-view";
-import { officialStaffAssignmentPayment } from "@/features/operations/staff-assignment-payment";
+import { staffAssignmentPaymentForEvent } from "@/features/operations/staff-assignment-payment";
 import { isInsideOperationalWindow } from "@/features/operations/operational-window";
 import { loadFounderActionCenter } from "@/features/founder-action-center";
 import { loadCommunicationHubProjection } from "@/features/communication-hub";
@@ -21,7 +21,7 @@ import { loadIntegrationHealth } from "@/features/integration-health/repository"
 import { getBiancaOperationalStatus } from "@/features/bianca-workspace/bianca-status";
 
 type PlanningRole = {
-  code: "OPERATOR" | "ASSEMBLY" | "DISASSEMBLY";
+  code: "OPERATOR" | "SUPERVISOR" | "ASSEMBLY" | "DISASSEMBLY";
   label: string;
   pay: number;
   paymentId: string | null;
@@ -41,6 +41,7 @@ type PlanningEvent = {
   booths: number;
   roles: {
     operator: PlanningRole;
+    supervisor: PlanningRole;
     assembly: PlanningRole;
     disassembly: PlanningRole;
   };
@@ -1152,7 +1153,7 @@ export default async function OperationsPage() {
       );
       const hours = Number(services[0]?.duration_hours ?? 0);
       const findRole = (
-        code: "OPERATOR" | "ASSEMBLY" | "DISASSEMBLY",
+        code: "OPERATOR" | "SUPERVISOR" | "ASSEMBLY" | "DISASSEMBLY",
         label: string,
       ) => {
         const assignment = projectAssignments.find(
@@ -1170,7 +1171,7 @@ export default async function OperationsPage() {
             item.status !== "CANCELLED",
         );
         const stored =
-          code === "OPERATOR"
+          code === "OPERATOR" || code === "SUPERVISOR"
             ? payment?.operator_payment
             : code === "ASSEMBLY"
               ? payment?.assembly_payment
@@ -1211,6 +1212,7 @@ export default async function OperationsPage() {
         booths: Number(operations.booths ?? finance.booths ?? 1),
         roles: {
           operator: findRole("OPERATOR", "Operador"),
+          supervisor: findRole("SUPERVISOR", "Supervisor"),
           assembly: findRole("ASSEMBLY", "Montaje"),
           disassembly: findRole("DISASSEMBLY", "Desmontaje"),
         },
@@ -1284,10 +1286,11 @@ export default async function OperationsPage() {
         : "Staff",
       event: customer?.full_name ?? project?.name ?? "Evento",
       role: row.responsibility,
-      estimatedPayment: officialStaffAssignmentPayment(
+      estimatedPayment: staffAssignmentPaymentForEvent(
         staffRatesResult.data ?? [],
         hours,
         row.responsibility,
+        project?.event_date ?? "",
         Number(operations.transportationBonus ?? operations.staffTransportBonus ?? 0),
       ),
     };
@@ -1315,6 +1318,7 @@ export default async function OperationsPage() {
         ),
         assignments: [
           event.roles.operator,
+          event.roles.supervisor,
           event.roles.assembly,
           event.roles.disassembly,
         ]
