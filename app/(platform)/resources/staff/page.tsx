@@ -40,8 +40,34 @@ import { buildAssignedBoxByProject, CANONICAL_BOX_CODES } from "@/features/asset
 export default async function StaffManagementPage({searchParams}:{searchParams:Promise<{reviewOnboarding?:string;reviewAccount?:string;reviewExpense?:string;view?:string}>}) {
   const {reviewOnboarding,reviewAccount,reviewExpense,view}=await searchParams;
   const client = await createSupabaseServerClient();
-  // Rendering Staff is read-only. Monthly account reconciliation must run in an
-  // explicit, authenticated mutation workflow, never during page loading.
+  // Repair missing monthly payroll accounts before loading the staff payment sheet.
+  // Existing accounts (including finalized or paid periods) are never rewritten here.
+  const chileMonth = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Santiago", year: "numeric", month: "2-digit",
+  }).format(new Date()) + "-01";
+  const previousMonthDate = new Date(chileMonth + "T12:00:00Z");
+  previousMonthDate.setUTCMonth(previousMonthDate.getUTCMonth() - 1);
+  const previousMonth = previousMonthDate.toISOString().slice(0, 7) + "-01";
+  const [{ data: payableSources, error: sourceError }, { data: existingAccounts, error: accountCheckError }] = await Promise.all([
+    client.from("event_staff_payments").select("staff_id,accounting_month")
+      .is("deleted_at", null).eq("status", "CONFIRMED").gt("total_internal_payment", 0)
+      .gte("accounting_month", previousMonth).lte("accounting_month", chileMonth),
+    client.from("staff_monthly_accounts").select("staff_id,accounting_month")
+      .gte("accounting_month", previousMonth).lte("accounting_month", chileMonth),
+  ]);
+  if (sourceError) throw sourceError;
+  if (accountCheckError) throw accountCheckError;
+  const knownAccounts = new Set((existingAccounts ?? []).map((row) => `${row.staff_id}:${row.accounting_month}`));
+  const missingAccounts = new Map<string, { staffId: string; month: string }>();
+  for (const row of payableSources ?? []) {
+    if (!row.staff_id || !row.accounting_month) continue;
+    const key = `${row.staff_id}:${row.accounting_month}`;
+    if (!knownAccounts.has(key)) missingAccounts.set(key, { staffId: row.staff_id, month: row.accounting_month });
+  }
+  for (const { staffId, month } of missingAccounts.values()) {
+    const { error } = await client.rpc("ensure_staff_monthly_account", { p_staff_id: staffId, p_month: month });
+    if (error) throw new Error(`No se pudo sincronizar la cuenta mensual de Staff: ${error.message}`);
+  }
   const academyArticlesPromise = loadAcademyArticles(client);
   const crmEventsPromise = loadCrmOperationalEvents(client);
   const communeSectorMappingsPromise = loadLogisticsCommuneSectorMappings(client);
