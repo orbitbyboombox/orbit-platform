@@ -34,10 +34,10 @@ test("the November 8 block planning projection renders the approved unit and sev
   assert.equal(unitRate * 7, 227_500);
 });
 
-test("migration is additive and protects settled snapshots", () => {
+test("migration verifies approved November rates without replacing production payment functions", () => {
   const sql = readFileSync(new URL("../supabase/migrations/20261029130000_staff_november_effective_rates.sql", import.meta.url), "utf8");
   assert.match(sql, /staff_rate_effective_20261101/);
   assert.match(sql, /SUPERVISOR/);
-  assert.match(sql, /settlement_status in \('PAID','FINALIZED','ADVANCE'\)/);
-  assert.doesNotMatch(sql, /drop table|delete from public\.(assignments|event_staff_payments)/i);
+  assert.match(sql, /32500/);
+  assert.doesNotMatch(sql, /create or replace function|drop (table|function)|alter table|delete from|update public\\.|insert into public\\./i);
 });
