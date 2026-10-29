@@ -7,9 +7,9 @@ type Line = { id: number; label: string; quantity: number; unitPrice: number };
 
 const money = (value: number) => new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(value);
 
-export function AcceptedQuotationRevisionEditor({ projectId }: { projectId: string }) {
-  const [items, setItems] = useState<Line[]>([{ id: 1, label: "", quantity: 1, unitPrice: 0 }]);
-  const [nextId, setNextId] = useState(2);
+export function AcceptedQuotationRevisionEditor({ projectId, originalItems = [] }: { projectId: string; originalItems?: readonly { label: string; quantity: number; total: number }[] }) {
+  const [items, setItems] = useState<Line[]>(() => originalItems.length ? originalItems.map((item, index) => ({ id: index + 1, label: item.label, quantity: item.quantity, unitPrice: item.quantity > 0 ? Math.round(item.total / item.quantity) : 0 })) : [{ id: 1, label: "", quantity: 1, unitPrice: 0 }]);
+  const [nextId, setNextId] = useState(originalItems.length + 1 || 2);
   const [vatPercent, setVatPercent] = useState(19);
   const [reason, setReason] = useState("");
   const [result, setResult] = useState("");
@@ -27,7 +27,7 @@ export function AcceptedQuotationRevisionEditor({ projectId }: { projectId: stri
     setResult(response.ok ? response.message : response.error);
   });
   return <section className="space-y-4 rounded-2xl border bg-card p-4" aria-label="Editor de revisión comercial">
-    <div><h3 className="text-lg font-semibold">Revisión de cotización aceptada</h3><p className="text-sm text-muted">Prepara una nueva propuesta desglosada. La cotización aceptada se conserva y no se envían correos.</p></div>
+    <div><h3 className="text-lg font-semibold">Revisión de cotización aceptada</h3><p className="text-sm text-muted">Se cargan las partidas de la cotización actual cuando están disponibles. Revisa los importes antes de preparar el PDF. La cotización aceptada se conserva y no se envían correos.</p></div>
     {items.map((item, index) => <div key={item.id} className="grid gap-2 rounded-xl border p-3 sm:grid-cols-12">
       <label className="sm:col-span-6 text-sm">Servicio o extra #{index + 1}<input className="mt-1 w-full rounded-lg border bg-background p-2" value={item.label} maxLength={200} onChange={e => edit(item.id, { label: e.target.value })} /></label>
       <label className="sm:col-span-2 text-sm">Cantidad<input className="mt-1 w-full rounded-lg border bg-background p-2" type="number" min="0.01" step="any" value={item.quantity} onChange={e => edit(item.id, { quantity: Number(e.target.value) })} /></label>
