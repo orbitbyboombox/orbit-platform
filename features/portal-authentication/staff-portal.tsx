@@ -116,6 +116,13 @@ export async function StaffPortal({staffId,initialEventId}:{staffId:string;initi
     adjustmentsBySettlement.set(row.settlement_id, list);
   }
   const eventStaffPayments: StaffEventPayment[] = (eventStaffPaymentsResult.data ?? []).map((row) => mapStaffEventPayment(row as Record<string, unknown>, assignmentById, adjustmentsBySettlement, start));
+  // Use the same canonical ledger as Finanzas; do not recompute or multiply shift rates.
+  for (const event of events) {
+    event.assignedPayments = eventStaffPayments.filter(payment => payment.projectId === event.id).map(payment => ({
+      id: payment.id, role: payment.role, blockName: payment.blockName,
+      amount: payment.finalAmount, settlementStatus: payment.settlementStatus, isPaid: payment.isPaid,
+    }));
+  }
   const routeStops: StaffRoute[] = [];
   for (const route of routesResult.data ?? []) {
     const asset = Array.isArray(route.operational_assets) ? route.operational_assets[0] : route.operational_assets;
