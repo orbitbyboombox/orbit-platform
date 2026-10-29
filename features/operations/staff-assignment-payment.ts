@@ -17,3 +17,37 @@ export function officialStaffAssignmentPayment(
           : (rate.get("ASSEMBLY_DISASSEMBLY") ?? 0);
   return rolePayment + Math.max(0, transportationBonus);
 }
+
+/**
+ * November 2026 rate calculation. Date is the local event date in
+ * America/Santiago (YYYY-MM-DD), never the publication or payment date.
+ * This helper does not modify persisted settlements.
+ */
+export function effectiveStaffAssignmentPayment(
+  rates: readonly OfficialStaffRate[],
+  hours: number,
+  responsibility: string,
+  eventLocalDate: string,
+  transportationBonus = 0,
+): number {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(eventLocalDate) ||
+      !Number.isFinite(Date.parse(eventLocalDate + "T12:00:00Z")) ||
+      new Date(eventLocalDate + "T12:00:00Z").toISOString().slice(0, 10) !== eventLocalDate) {
+    throw new Error("Invalid event date: expected YYYY-MM-DD");
+  }
+  if (eventLocalDate < "2026-11-01") {
+    return officialStaffAssignmentPayment(rates, hours, responsibility, transportationBonus);
+  }
+  let payment: number;
+  if (responsibility === "OPERATOR") {
+    if (!Number.isInteger(hours) || hours < 2) throw new Error("Operator hours must be an integer >= 2");
+    payment = 20000 + (hours - 2) * 5000;
+  } else if (responsibility === "ASSEMBLY" || responsibility === "DISASSEMBLY") {
+    payment = 10000;
+  } else if (responsibility === "ASSEMBLY_DISASSEMBLY") {
+    payment = 20000;
+  } else {
+    throw new Error("Unknown staff responsibility");
+  }
+  return payment + Math.max(0, transportationBonus);
+}
