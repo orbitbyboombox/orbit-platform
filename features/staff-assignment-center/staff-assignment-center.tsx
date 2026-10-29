@@ -373,7 +373,8 @@ export function StaffAssignmentCenter({
       </section>
       {blockRequirements.length ? <section className="mb-5 border-b pb-5"><h3 className="font-semibold">Planificación por bloques</h3><p className="mt-1 text-sm text-muted">Cada asignación queda asociada al bloque y conserva su tarifa según duración.</p><div className="mt-3 grid gap-3 lg:grid-cols-2">{blockRequirements.map((item) => {
         const blockAssignments = assignments.filter((assignment) => String(assignment.blockId ?? "") === String(item.blockId) && assignment.role === item.role && !["CANCELLED", "REJECTED"].includes(assignment.status));
-        const blockSettlements = settlements.filter((payment) => String(payment.blockId ?? "") === String(item.blockId) && payment.roles.includes(item.role));
+        const blockAssignmentIds = new Set(blockAssignments.map((assignment) => assignment.id));
+         const blockSettlements = settlements.filter((payment) => String(payment.blockId ?? "") === String(item.blockId) && payment.roles.includes(item.role) && Boolean(payment.assignmentId && blockAssignmentIds.has(payment.assignmentId)));
         const blockCost = blockSettlements.length
           ? blockSettlements.reduce((sum, payment) => sum + payment.finalAmount, 0)
           : item.projectedCost;
@@ -1446,7 +1447,7 @@ function AssignmentDialog({
           <Select
             label="Staff compatible"
             name="staffId"
-            value={mode === "edit" ? (item?.staffId ?? "") : ""}
+            value={selectedStaffId}
             onChange={setSelectedStaffId}
             options={[
               {
