@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { EventCommercialDocumentHub } from "@/features/external-tax-documents/event-commercial-document-hub";
 import { AcceptedQuotationRevisionEditor } from "@/features/quotation-engine/accepted-quotation-revision-editor";
-import { EventCoreDetailsEditor } from "./event-core-details-editor";
+import { GlobalEventEditor } from "./global-event-editor";
 import { EventPostReservationExtrasPanel } from "./event-post-reservation-extras-panel";
 import {
   AlertTriangle,
@@ -723,7 +723,7 @@ export function ProjectWorkspaceExperience(
             </nav>
           </section>
           {activeTab === "CLIENT" && props.projectKey && (
-            <EventCoreDetailsEditor projectId={props.projectKey} version={props.eventVersion ?? 0} eventDate={props.eventDateIso?.slice(0,10) ?? ""} eventTime={props.eventTime ?? ""} location={props.location ?? ""} city={props.event360.customer.city ?? ""} />
+            <GlobalEventEditor projectId={props.projectKey} />
           )}
           {activeTab === "SUMMARY" && (
             <div className="space-y-3">
