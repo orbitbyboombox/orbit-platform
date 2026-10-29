@@ -459,7 +459,7 @@ export function EventCenter({
               ["transport", "Transporte", String(editing.transport), "number"],
               ["boothQuantity", "Cantidad de cabinas (opcional)", "", "number"],
               ["extras", "Extras (separados por coma, opcional)", "", "text"],
-              ["appliedPrice", "Nuevo precio total (CLP) · solo cotizaciones no aceptadas", "", "number"],
+              ["appliedPrice", "Precio comercial (solo si no existe cotización aceptada)", "", "number"],
             ].map(([name, label, value, type]) => (
               <label className="text-sm" key={name}>
                 <span className="mb-1.5 block text-muted">{label}</span>
@@ -496,7 +496,7 @@ export function EventCenter({
             </label>
             <section className="sm:col-span-2 rounded-xl border p-4 space-y-3">
               <p className="font-semibold text-sm">Propuesta de revisión comercial (cotización aceptada)</p>
-              <p className="text-xs text-muted">Genera un PDF nuevo sin reemplazar el aceptado ni enviar correos. Guarda primero los cambios operativos del evento; después prepara esta propuesta.</p>
+              <p className="text-xs text-muted">Genera un PDF nuevo sin reemplazar el aceptado ni enviar correos. Primero guarda los cambios del evento; vuelve a abrir este editor y prepara la propuesta. Esta acción no modifica el valor de la cotización aceptada.</p>
               <div className="grid grid-cols-2 gap-3">
                 <label className="text-sm">Neto CLP<input name="revisionNet" type="number" min="0" step="1" className="h-11 w-full rounded-xl border bg-background px-3" /></label>
                 <label className="text-sm">IVA %<input name="revisionVat" type="number" min="0" max="100" step="0.01" defaultValue="19" className="h-11 w-full rounded-xl border bg-background px-3" /></label>
