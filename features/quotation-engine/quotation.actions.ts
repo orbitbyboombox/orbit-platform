@@ -82,7 +82,7 @@ function escapeHtml(value:string){return value.replace(/[&<>"']/g,(character)=>(
  * No cambia contratos, facturas, pagos ni envía correos.
  */
 export async function prepareAcceptedQuotationRevisionAction(input: {
-  quotationId: string;
+  projectId: string;
   netAmount: number;
   vatPercent: number;
   reason: string;
@@ -100,7 +100,7 @@ export async function prepareAcceptedQuotationRevisionAction(input: {
     const admin = createAdminClient();
     const { data: quotation, error } = await admin.from("quotations")
       .select("id,quotation_number,status,project_id,customer_id,issue_date,expiration_date,accepted_version_id,customers!inner(full_name),projects!inner(name,event_date,location,city)")
-      .eq("id", input.quotationId).single();
+      .eq("project_id", input.projectId).eq("status", "ACCEPTED").order("updated_at", { ascending: false }).limit(1).single();
     if (error || !quotation) throw error ?? new Error("Cotización no encontrada.");
     if (quotation.status !== "ACCEPTED" || !quotation.accepted_version_id)
       throw new Error("La revisión independiente requiere una cotización aceptada.");
