@@ -381,7 +381,7 @@ export function EventCenter({
                   <summary aria-label={`Acciones para ${event.name}`} className="grid size-10 cursor-pointer list-none place-items-center rounded-xl border"><MoreVertical className="size-4" /></summary>
                   <div className="absolute right-0 z-20 mt-2 w-56 max-w-[calc(100vw-3rem)] rounded-xl border bg-card p-2 shadow-xl">
                     <Link className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-accent" href={`/projects/${event.projectId}`}><ExternalLink className="size-4" />Abrir Evento</Link>
-                    {canForceDelete ? <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => openEditor(event)}>Editar Evento</button> : null}
+                    <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => openEditor(event)}>Editar Evento</button>
                     <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => duplicate(event)}><Copy className="size-4" />Duplicar Evento</button>
                     <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => lifecycle(event, "ARCHIVE")}><Archive className="size-4" />Archivar Evento</button>
                     <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-red-400 hover:bg-red-500/10" onClick={() => openDeleteDialog(event)}><Trash2 className="size-4" />Eliminar Evento</button>
