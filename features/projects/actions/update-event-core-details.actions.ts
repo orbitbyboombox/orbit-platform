@@ -4,6 +4,17 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { propagateCanonicalEventChange } from "@/features/projects/operations/canonical-event-propagation.service";
 
+export async function loadEventCoreDetailsAction(projectId: string): Promise<{ version: number; eventDate: string; eventTime: string; location: string; city: string }> {
+  const client = await createSupabaseServerClient();
+  const { data: auth } = await client.auth.getUser();
+  if (!auth.user) throw new Error("Debes iniciar sesión.");
+  const { data: profile, error: profileError } = await client.from("profiles").select("role").eq("id", auth.user.id).single();
+  if (profileError || !profile || !["CEO", "ADMINISTRATOR"].includes(profile.role)) throw new Error("Acceso reservado a Administración.");
+  const { data, error } = await client.from("projects").select("version,event_date,event_time,location,city").eq("id", projectId).is("deleted_at", null).single();
+  if (error || !data) throw error ?? new Error("Evento no encontrado.");
+  return { version: data.version, eventDate: data.event_date ?? "", eventTime: data.event_time ?? "", location: data.location ?? "", city: data.city ?? "" };
+}
+
 export async function updateEventCoreDetailsAction(input: {
   projectId: string;
   expectedVersion: number;
