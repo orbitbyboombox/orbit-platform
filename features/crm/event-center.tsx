@@ -227,6 +227,7 @@ export function EventCenter({
         service: String(form.get("service")),
         duration: String(form.get("duration")),
         transport: String(form.get("transport")),
+        ...(String(form.get("appliedPrice") ?? "").trim() ? { appliedPrice: String(form.get("appliedPrice")) } : {}),
         reason: String(form.get("reason")),
       });
       if (!result.ok) {
@@ -453,6 +454,7 @@ export function EventCenter({
                 "number",
               ],
               ["transport", "Transporte", String(editing.transport), "number"],
+              ["appliedPrice", "Nuevo precio total (CLP) · solo cotizaciones no aceptadas", "", "number"],
             ].map(([name, label, value, type]) => (
               <label className="text-sm" key={name}>
                 <span className="mb-1.5 block text-muted">{label}</span>
