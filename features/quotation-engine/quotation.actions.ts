@@ -86,6 +86,7 @@ export async function prepareAcceptedQuotationRevisionAction(input: {
   netAmount: number;
   vatPercent: number;
   reason: string;
+  items?: Array<{ label: string; quantity: number; unitPrice: number }>;
 }): Promise<Result> {
   try {
     const client = await createSupabaseServerClient();
@@ -104,7 +105,19 @@ export async function prepareAcceptedQuotationRevisionAction(input: {
     if (error || !quotation) throw error ?? new Error("Cotización no encontrada.");
     if (quotation.status !== "ACCEPTED" || !quotation.accepted_version_id)
       throw new Error("La revisión independiente requiere una cotización aceptada.");
-    const net = Math.round(input.netAmount);
+    const items = input.items?.map(item => ({
+      label: item.label.trim(),
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      total: Math.round(item.quantity * item.unitPrice),
+    }));
+    if (items && (!items.length || items.length > 100 || items.some(item =>
+      !item.label || item.label.length > 200 || !Number.isFinite(item.quantity) ||
+      item.quantity <= 0 || !Number.isFinite(item.unitPrice) || item.unitPrice < 0 ||
+      !Number.isSafeInteger(item.total)
+    ))) throw new Error("Las partidas deben tener descripción, cantidad y precio válidos.");
+    const net = items ? items.reduce((sum, item) => sum + item.total, 0) : Math.round(input.netAmount);
+    if (!Number.isSafeInteger(net) || net < 0) throw new Error("Total neto inválido.");
     const tax = Math.round(net * input.vatPercent / 100);
     const total = net + tax;
     const company = await loadCompanySettings(admin);
@@ -120,7 +133,7 @@ export async function prepareAcceptedQuotationRevisionAction(input: {
       eventDate: project.event_date,
       location: [project.location, project.city].filter(Boolean).join(", ") || "Por confirmar",
       subtotal: net, transport: 0, taxes: tax, total,
-      items: [{ label: "Propuesta comercial revisada (neto)", quantity: 1, total: net }],
+      items: items?.map(({ label, quantity, total }) => ({ label, quantity, total })) ?? [{ label: "Propuesta comercial revisada (neto)", quantity: 1, total: net }],
       branding: { productName: company.productName, productVersion: company.productVersion,
         brandName: company.brandName, developedBy: company.developedBy, poweredBy: company.poweredBy,
         footer: company.quotationFooter, currency: company.currency, locale: company.locale },
