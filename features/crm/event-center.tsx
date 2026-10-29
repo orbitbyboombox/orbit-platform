@@ -227,6 +227,8 @@ export function EventCenter({
         service: String(form.get("service")),
         duration: String(form.get("duration")),
         transport: String(form.get("transport")),
+        ...(String(form.get("boothQuantity") ?? "").trim() ? { boothQuantity: String(form.get("boothQuantity")) } : {}),
+        ...(String(form.get("extras") ?? "").trim() ? { extras: String(form.get("extras")) } : {}),
         ...(String(form.get("appliedPrice") ?? "").trim() ? { appliedPrice: String(form.get("appliedPrice")) } : {}),
         reason: String(form.get("reason")),
       });
@@ -454,6 +456,8 @@ export function EventCenter({
                 "number",
               ],
               ["transport", "Transporte", String(editing.transport), "number"],
+              ["boothQuantity", "Cantidad de cabinas (opcional)", "", "number"],
+              ["extras", "Extras (separados por coma, opcional)", "", "text"],
               ["appliedPrice", "Nuevo precio total (CLP) · solo cotizaciones no aceptadas", "", "number"],
             ].map(([name, label, value, type]) => (
               <label className="text-sm" key={name}>
