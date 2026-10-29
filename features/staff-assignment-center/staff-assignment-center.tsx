@@ -36,6 +36,7 @@ import {
   EXCLUDED_OPERATOR_MOBILITY_STAFF_IDS,
   suggestedOperatorMobilityAmount,
 } from "@/features/staff-payments/operator-mobility";
+import { buildOperatorBlockSummary } from "./staff-block-summary";
 
 export type OperationalAssignment = {
   id: string;
@@ -232,6 +233,8 @@ export function StaffAssignmentCenter({
     null,
   );
   const [message, setMessage] = useState("");
+  const operatorBlockRequirements = blockRequirements.filter((item) => item.role === "OPERATOR");
+  const operatorBlockSummary = buildOperatorBlockSummary(operatorBlockRequirements, assignments, settlements);
   const mutate = (action: () => Promise<{ ok: boolean; error?: string }>) => {
     setMessage("");
     startTransition(async () => {
@@ -327,8 +330,27 @@ export function StaffAssignmentCenter({
           {message}
         </p>
       )}
+      {operatorBlockRequirements.length ? <section className="mb-5 rounded-xl border border-brand/20 bg-brand/5 p-4" data-testid="operator-block-summary">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">OPERADORES DEL EVENTO</p><p className="mt-1 text-sm text-muted">La cobertura se calcula por bloque; el cupo general no limita estas asignaciones.</p></div>
+          <p className="text-sm font-semibold">Total asignado: {operatorBlockSummary.totalAssigned}/{operatorBlockSummary.totalRequired}</p>
+        </div>
+        <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
+          <span>Pendientes: <strong>{operatorBlockSummary.pending}</strong></span>
+          <span>Costo actual: <strong>{money(operatorBlockSummary.currentCost)}</strong></span>
+          <span>Costo proyectado: <strong>{money(operatorBlockSummary.projectedCost)}</strong></span>
+          <span>Bloques: <strong>{operatorBlockRequirements.length}</strong></span>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
+          {operatorBlockRequirements.map((item) => {
+            const block = operatorBlockSummary.blocks.find((candidate) => candidate.blockId === item.blockId);
+            return <span className="rounded-lg border bg-background/60 px-3 py-2" key={item.blockId}>{item.blockName ?? "Bloque"}: {block?.assigned ?? 0}/{block?.required ?? 0}</span>;
+          })}
+          {operatorBlockSummary.unscopedAssigned ? <span className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2">Generales sin bloque: {operatorBlockSummary.unscopedAssigned}</span> : null}
+        </div>
+      </section> : null}
       <section className="mb-5 grid gap-3 border-b pb-5 lg:grid-cols-3">
-        {roles.map((role) => {
+        {roles.filter((role) => role.value !== "OPERATOR" || !operatorBlockRequirements.length).map((role) => {
           const requirement = requirements.find((item) => item.role === role.value);
           const confirmed = assignments.filter((item) => item.role === role.value && !["CANCELLED", "REJECTED"].includes(item.status)).length;
           const configuredRequired = requirement?.required ?? (role.value === "OPERATOR" ? 1 : 0);
