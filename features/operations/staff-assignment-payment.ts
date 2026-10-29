@@ -38,7 +38,7 @@ export function officialStaffAssignmentPayment(
 ) {
   const rate = new Map(rates.map((item) => [item.code, Number(item.amount)]));
   const rolePayment =
-    responsibility === "OPERATOR"
+    (responsibility === "OPERATOR" || responsibility === "SUPERVISOR")
       ? (rate.get(`OPERATOR_${hours}_HOURS`) ?? 0)
       : responsibility === "ASSEMBLY"
         ? (rate.get("ASSEMBLY") ?? 0)
@@ -46,4 +46,47 @@ export function officialStaffAssignmentPayment(
           ? (rate.get("DISASSEMBLY") ?? 0)
           : (rate.get("ASSEMBLY_DISASSEMBLY") ?? 0);
   return rolePayment + Math.max(0, transportationBonus);
+}
+
+export const STAFF_RATE_EFFECTIVE_DATE = "2026-11-01";
+
+/**
+ * Founder-approved rates effective for events on or after 2026-11-01.
+ * `eventLocalDate` is the event's Chilean calendar date, not a timestamp.
+ */
+export function effectiveStaffAssignmentPayment(
+  rates: readonly OfficialStaffRate[],
+  hours: number,
+  responsibility: string,
+  eventLocalDate: string,
+  transportationBonus = 0,
+) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(eventLocalDate)) {
+    throw new Error("Invalid event date: expected YYYY-MM-DD");
+  }
+  if (eventLocalDate < STAFF_RATE_EFFECTIVE_DATE) {
+    return officialStaffAssignmentPayment(rates, hours, responsibility, transportationBonus);
+  }
+  if (!Number.isFinite(hours) || hours < 2) {
+    throw new Error("Operator/supervisor duration must be at least 2 hours");
+  }
+  const payment =
+    responsibility === "OPERATOR" || responsibility === "SUPERVISOR"
+      ? 20_000 + (hours - 2) * 5_000
+      : responsibility === "ASSEMBLY" || responsibility === "DISASSEMBLY"
+        ? 10_000
+        : responsibility === "ASSEMBLY_DISASSEMBLY"
+          ? 20_000
+          : (() => { throw new Error("Unknown staff responsibility"); })();
+  return Math.round(payment + Math.max(0, transportationBonus));
+}
+
+export function staffAssignmentPaymentForEvent(
+  rates: readonly OfficialStaffRate[],
+  hours: number,
+  responsibility: string,
+  eventLocalDate: string,
+  transportationBonus = 0,
+) {
+  return effectiveStaffAssignmentPayment(rates, hours, responsibility, eventLocalDate, transportationBonus);
 }

@@ -80,7 +80,7 @@ const money = new Intl.NumberFormat("es-CL", {
   maximumFractionDigits: 0,
 });
 const roleLabel = (value: string) =>
-  ({ OPERATOR: "Operador", ASSEMBLY: "Montaje", DISASSEMBLY: "Desmontaje" })[
+  ({ OPERATOR: "Operador", SUPERVISOR: "Supervisor", ASSEMBLY: "Montaje", DISASSEMBLY: "Desmontaje" })[
     value
   ] ?? value;
 const splitName = (name: string) => {

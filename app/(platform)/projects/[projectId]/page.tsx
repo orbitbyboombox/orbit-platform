@@ -22,7 +22,7 @@ import { chileDateTime } from "@/features/operations/event-operational-window";
 import { buildCanonicalOrbitEventStateFromRecord } from "@/features/operations/canonical-orbit-event-state";
 import { buildResponsibilityReadModel } from "@/features/staff-assignment-center/staff-responsibility-read-model";
 import type { OperationalBlock } from "@/features/operations/operational-blocks";
-import { resolveOfficialOperatorRate } from "@/features/operations/staff-assignment-payment";
+import { effectiveStaffAssignmentPayment } from "@/features/operations/staff-assignment-payment";
 import { canonicalStaffPaymentTotal } from "@/features/staff-payments/staff-payment-display";
 import { canonicalRealCostDisplay } from "@/features/projects/canonical-real-cost-display";
 
@@ -1374,11 +1374,34 @@ export default async function ProjectWorkspacePage({
           startAt: block?.start_at,
           endAt: block?.end_at,
           durationMinutes: block?.start_at && block?.end_at ? Math.round((new Date(block.end_at).getTime() - new Date(block.start_at).getTime()) / 60000) : undefined,
-          rate: block?.start_at && block?.end_at && item.role === "OPERATOR"
-            ? resolveOfficialOperatorRate(staffRates ?? [], Math.round((new Date(block.end_at).getTime() - new Date(block.start_at).getTime()) / 60000)).amount
+          rate: block?.start_at && block?.end_at && ["OPERATOR", "SUPERVISOR", "ASSEMBLY", "DISASSEMBLY"].includes(item.role)
+            ? (() => {
+                try {
+                  return effectiveStaffAssignmentPayment(
+                    staffRates ?? [],
+                    Math.round((new Date(block.end_at).getTime() - new Date(block.start_at).getTime()) / 60000) / 60,
+                    item.role,
+                    project.event.date,
+                  );
+                } catch {
+                  return null;
+                }
+              })()
             : null,
-          projectedCost: block?.start_at && block?.end_at && item.role === "OPERATOR"
-            ? (() => { const rate = resolveOfficialOperatorRate(staffRates ?? [], Math.round((new Date(block.end_at).getTime() - new Date(block.start_at).getTime()) / 60000)).amount; return rate == null ? null : rate * Number(item.required_quantity); })()
+          projectedCost: block?.start_at && block?.end_at && ["OPERATOR", "SUPERVISOR", "ASSEMBLY", "DISASSEMBLY"].includes(item.role)
+            ? (() => {
+                try {
+                  const rate = effectiveStaffAssignmentPayment(
+                    staffRates ?? [],
+                    Math.round((new Date(block.end_at).getTime() - new Date(block.start_at).getTime()) / 60000) / 60,
+                    item.role,
+                    project.event.date,
+                  );
+                  return rate * Number(item.required_quantity);
+                } catch {
+                  return null;
+                }
+              })()
             : null,
         };
       }),

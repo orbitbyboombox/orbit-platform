@@ -14,7 +14,7 @@ import {
   FounderWorkspaceExperience,
 } from "@/features/founder-workspace";
 import { StaffOperationsView } from "@/features/resources/staff-operations-view";
-import { formatOperationalBlockDuration, officialStaffAssignmentPayment, resolveOfficialOperatorRate } from "@/features/operations/staff-assignment-payment";
+import { formatOperationalBlockDuration, effectiveStaffAssignmentPayment, officialStaffAssignmentPayment, resolveOfficialOperatorRate } from "@/features/operations/staff-assignment-payment";
 import { isInsideOperationalWindow } from "@/features/operations/operational-window";
 import { loadFounderActionCenter, loadFounderActionDismissals } from "@/features/founder-action-center";
 import { loadCommunicationHubProjection } from "@/features/communication-hub";
@@ -22,7 +22,7 @@ import { loadIntegrationHealth } from "@/features/integration-health/repository"
 import { getBiancaOperationalStatus } from "@/features/bianca-workspace/bianca-status";
 
 type PlanningRole = {
-  code: "OPERATOR" | "ASSEMBLY" | "DISASSEMBLY";
+  code: "OPERATOR" | "SUPERVISOR" | "ASSEMBLY" | "DISASSEMBLY";
   label: string;
   pay: number;
   paymentId: string | null;
@@ -43,6 +43,7 @@ type PlanningEvent = {
   booths: number;
   roles: {
     operator: PlanningRole;
+    supervisor: PlanningRole;
     assembly: PlanningRole;
     disassembly: PlanningRole;
   };
@@ -145,7 +146,7 @@ export default async function OperationsPage() {
     client
       .from("event_staff_payments")
       .select(
-        "id,project_id,staff_id,total_internal_payment,paid_amount,settlement_status,operator_payment,assembly_payment,disassembly_payment,status,staff(first_name,last_name)",
+        "id,project_id,staff_id,total_internal_payment,paid_amount,settlement_status,operator_payment,assembly_payment,disassembly_payment,status,override_at,override_operator_payment,override_assembly_payment,override_disassembly_payment,staff(first_name,last_name)",
       )
       .is("deleted_at", null)
       .eq("status", "CONFIRMED")
@@ -1199,7 +1200,7 @@ export default async function OperationsPage() {
         ? [...new Set(blockDurations.map((minutes) => formatOperationalBlockDuration(minutes)).filter(Boolean))].join(" · ")
         : undefined;
       const findRole = (
-        code: "OPERATOR" | "ASSEMBLY" | "DISASSEMBLY",
+        code: "OPERATOR" | "SUPERVISOR" | "ASSEMBLY" | "DISASSEMBLY",
         label: string,
       ) => {
         const assignment = projectAssignments.find(
@@ -1217,15 +1218,37 @@ export default async function OperationsPage() {
             item.status !== "CANCELLED",
         );
         const stored =
-          code === "OPERATOR"
+          code === "OPERATOR" || code === "SUPERVISOR"
             ? payment?.operator_payment
             : code === "ASSEMBLY"
               ? payment?.assembly_payment
               : payment?.disassembly_payment;
+        const eventLocalDate = official?.event_date ?? project.event.date;
+        const blockMinutes = blockDurations[0];
+        const protectedPayment = Boolean(
+          payment && (payment.override_at || payment.override_operator_payment != null ||
+            payment.override_assembly_payment != null || payment.override_disassembly_payment != null ||
+            Number(payment.paid_amount ?? 0) > 0 ||
+            ["PAID", "FINALIZED", "ADVANCE"].includes(String(payment.settlement_status))),
+        );
+        let canonicalPay = Number(stored ?? 0);
+        if (!protectedPayment && eventLocalDate && (blockMinutes || hours > 0)) {
+          try {
+            canonicalPay = effectiveStaffAssignmentPayment(
+              staffRatesResult.data ?? [],
+              blockMinutes ? blockMinutes / 60 : hours,
+              code,
+              eventLocalDate,
+              Number(operations.transportationBonus ?? operations.staffTransportBonus ?? 0),
+            );
+          } catch {
+            canonicalPay = Number(stored ?? 0);
+          }
+        }
         return {
           code,
           label,
-          pay: Number(stored ?? 0),
+          pay: canonicalPay,
           paymentId: payment?.id ?? null,
           staffId: assignment?.staff_id ?? null,
           assignee: person ? `${person.first_name} ${person.last_name}` : null,
@@ -1259,6 +1282,7 @@ export default async function OperationsPage() {
         booths: Number(operations.booths ?? finance.booths ?? 1),
         roles: {
           operator: findRole("OPERATOR", "Operador"),
+          supervisor: findRole("SUPERVISOR", "Supervisor"),
           assembly: findRole("ASSEMBLY", "Montaje"),
           disassembly: findRole("DISASSEMBLY", "Desmontaje"),
         },
@@ -1327,7 +1351,17 @@ export default async function OperationsPage() {
     const hours = Number(services[0]?.duration_hours ?? 0);
     const requestBlock = row.block_id ? (operationalBlocksResult.data ?? []).find((block) => block.id === row.block_id) : null;
     const requestMinutes = requestBlock ? Math.round((new Date(requestBlock.end_at).getTime() - new Date(requestBlock.start_at).getTime()) / 60000) : hours * 60;
-    const requestOperatorRate = row.responsibility === "OPERATOR" ? resolveOfficialOperatorRate(staffRatesResult.data ?? [], requestMinutes).amount : null;
+    const requestOperatorRate = ["OPERATOR", "SUPERVISOR"].includes(row.responsibility) ? resolveOfficialOperatorRate(staffRatesResult.data ?? [], requestMinutes).amount : null;
+    const requestDate = project?.event_date ?? "";
+    const requestBonus = Number(operations.transportationBonus ?? operations.staffTransportBonus ?? 0);
+    let effectiveRequestPayment = officialStaffAssignmentPayment(staffRatesResult.data ?? [], hours, row.responsibility, requestBonus);
+    if (requestDate) {
+      try {
+        effectiveRequestPayment = effectiveStaffAssignmentPayment(staffRatesResult.data ?? [], requestMinutes / 60, row.responsibility, requestDate, requestBonus);
+      } catch {
+        // Keep the existing read-only estimate when legacy data is incomplete.
+      }
+    }
     return {
       id: row.id,
       projectId: row.project_id,
@@ -1336,9 +1370,11 @@ export default async function OperationsPage() {
         : "Staff",
       event: customer?.full_name ?? project?.name ?? "Evento",
       role: row.responsibility,
-      estimatedPayment: row.responsibility === "OPERATOR" && requestOperatorRate != null
+      estimatedPayment: !requestDate || requestDate < "2026-11-01"
+        ? (["OPERATOR", "SUPERVISOR"].includes(row.responsibility) && requestOperatorRate != null
         ? Number(requestOperatorRate) + Number(operations.transportationBonus ?? operations.staffTransportBonus ?? 0)
-        : officialStaffAssignmentPayment(staffRatesResult.data ?? [], hours, row.responsibility, Number(operations.transportationBonus ?? operations.staffTransportBonus ?? 0)),
+        : effectiveRequestPayment)
+        : effectiveRequestPayment,
     };
   });
   const publicationConsole = (
@@ -1364,6 +1400,7 @@ export default async function OperationsPage() {
         ),
         assignments: [
           event.roles.operator,
+          event.roles.supervisor,
           event.roles.assembly,
           event.roles.disassembly,
         ]
@@ -1455,6 +1492,7 @@ export default async function OperationsPage() {
       staff:
         [
           event.roles.operator.assignee,
+          event.roles.supervisor.assignee,
           event.roles.assembly.assignee,
           event.roles.disassembly.assignee,
         ]

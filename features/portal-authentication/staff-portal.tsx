@@ -13,7 +13,7 @@ import {CANONICAL_BOX_CODES} from "@/features/asset-management/box-assignment-re
 const today=()=>new Intl.DateTimeFormat("en-CA",{timeZone:"America/Santiago"}).format(new Date());
 const addDays=(value:string,days:number)=>{const date=new Date(`${value}T12:00:00Z`);date.setUTCDate(date.getUTCDate()+days);return date.toISOString().slice(0,10)};
 const finish=(time:string,hours:number)=>{const[h,m]=time.slice(0,5).split(":").map(Number);const total=h*60+m+hours*60;return`${String(Math.floor(total/60)%24).padStart(2,"0")}:${String(total%60).padStart(2,"0")}`};
-const OPERATIONAL_ROLES = ["OPERATOR", "ASSEMBLY", "DISASSEMBLY"] as const;
+const OPERATIONAL_ROLES = ["OPERATOR", "SUPERVISOR", "ASSEMBLY", "DISASSEMBLY"] as const;
 function mapStaffEventPayment(row: Record<string, unknown>, assignmentById: Map<string, Record<string, unknown>>, adjustmentsBySettlement: Map<string, Array<{ reason: string; amount: number; comment: string }>>, currentDate: string): StaffEventPayment {
   const project = Array.isArray(row.projects) ? row.projects[0] as Record<string, unknown> | undefined : row.projects as Record<string, unknown> | undefined;
   const services = project && Array.isArray(project.project_services) ? project.project_services as Array<Record<string, unknown>> : [];
@@ -27,8 +27,8 @@ function mapStaffEventPayment(row: Record<string, unknown>, assignmentById: Map<
   const assignmentType = String(assignment?.assignment_type ?? "");
   const taskRoles = Array.isArray(row.tasks) ? row.tasks.map(String).filter(Boolean) : [];
   const role = taskRoles.length > 1 ? taskRoles.join(" + ") : assignmentType || taskRoles[0] || "Staff";
-  const defaultRoleAmount = taskRoles.length > 1 ? amount : assignmentType === "OPERATOR" ? Number(row.operator_payment ?? amount) : assignmentType === "ASSEMBLY" ? Number(row.assembly_payment ?? amount) : assignmentType === "DISASSEMBLY" ? Number(row.disassembly_payment ?? amount) : amount;
-  const overrideRoleAmount = taskRoles.length > 1 ? null : assignmentType === "OPERATOR" ? row.override_operator_payment : assignmentType === "ASSEMBLY" ? row.override_assembly_payment : assignmentType === "DISASSEMBLY" ? row.override_disassembly_payment : null;
+  const defaultRoleAmount = taskRoles.length > 1 ? amount : ["OPERATOR", "SUPERVISOR"].includes(assignmentType) ? Number(row.operator_payment ?? amount) : assignmentType === "ASSEMBLY" ? Number(row.assembly_payment ?? amount) : assignmentType === "DISASSEMBLY" ? Number(row.disassembly_payment ?? amount) : amount;
+  const overrideRoleAmount = taskRoles.length > 1 ? null : ["OPERATOR", "SUPERVISOR"].includes(assignmentType) ? row.override_operator_payment : assignmentType === "ASSEMBLY" ? row.override_assembly_payment : assignmentType === "DISASSEMBLY" ? row.override_disassembly_payment : null;
   const baseFinalAmount = overrideRoleAmount !== null && overrideRoleAmount !== undefined ? amount - defaultRoleAmount + Number(overrideRoleAmount) : amount;
   const finalAmount = baseFinalAmount + adjustmentAmount;
   const rawBlock = assignment?.event_operational_blocks;
