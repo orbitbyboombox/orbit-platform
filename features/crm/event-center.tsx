@@ -20,6 +20,7 @@ import {
   transitionCrmEventAction,
   updateCrmEventAction,
 } from "./actions";
+import { prepareAcceptedQuotationRevisionAction } from "@/features/quotation-engine/quotation.actions";
 import { shiftEventScheduleDate } from "./event-schedule";
 import { FOUNDER_FORCE_DELETE_CONFIRMATION, TEST_FULL_PURGE_CONFIRMATION } from "@/features/founder-force-delete/policy";
 
@@ -493,6 +494,31 @@ export function EventCenter({
                 value={staffCallAt}
               />
             </label>
+            <section className="sm:col-span-2 rounded-xl border p-4 space-y-3">
+              <p className="font-semibold text-sm">Propuesta de revisión comercial (cotización aceptada)</p>
+              <p className="text-xs text-muted">Genera un PDF nuevo sin reemplazar el aceptado ni enviar correos. Guarda primero los cambios operativos del evento; después prepara esta propuesta.</p>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="text-sm">Neto CLP<input name="revisionNet" type="number" min="0" step="1" className="h-11 w-full rounded-xl border bg-background px-3" /></label>
+                <label className="text-sm">IVA %<input name="revisionVat" type="number" min="0" max="100" step="0.01" defaultValue="19" className="h-11 w-full rounded-xl border bg-background px-3" /></label>
+              </div>
+              <button type="button" disabled={pending} className="min-h-11 rounded-xl border px-4 text-sm font-semibold" onClick={() => {
+                const form = document.getElementById("mobile-event-editor") as HTMLFormElement | null;
+                if (!form || !editing) return;
+                const values = new FormData(form);
+                const rawNet = String(values.get("revisionNet") ?? "").trim();
+                const reason = String(values.get("reason") ?? "").trim();
+                if (!rawNet || reason.length < 3) { setError("Indica neto y motivo antes de preparar la revisión."); return; }
+                setError("");
+                start(async () => {
+                  const result = await prepareAcceptedQuotationRevisionAction({
+                    projectId: editing.projectId, netAmount: Number(rawNet),
+                    vatPercent: Number(values.get("revisionVat") ?? 19), reason,
+                  });
+                  if (!result.ok) setError(result.error);
+                  else { setFeedback(result.message); setEditing(null); router.refresh(); }
+                });
+              }}>Preparar PDF de revisión sin enviar</button>
+            </section>
             <label className="text-sm sm:col-span-2">
               <span className="mb-1.5 block text-muted">
                 Motivo obligatorio
