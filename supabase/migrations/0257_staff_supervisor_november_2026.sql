@@ -206,3 +206,4 @@ begin
   return last_payment_id;
 end $function$
 ;
+create or replace function public.staff_rate_effective_20261101(p_role text,p_hours numeric) returns numeric language plpgsql immutable set search_path=public as $rate$ begin if p_role in ('OPERATOR','SUPERVISOR') then if p_hours is null or p_hours<2 then return null; end if; return round(20000+(p_hours-2)*5000,0); elsif p_role in ('ASSEMBLY','DISASSEMBLY') then return 10000; elsif p_role='ASSEMBLY_DISASSEMBLY' then return 20000; end if; return null; end $rate$;
