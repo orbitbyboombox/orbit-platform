@@ -206,6 +206,20 @@ begin
       operator_payment=case when override_at is null and override_operator_payment is null and a.assignment_type='OPERATOR' then coalesce(rate,0) else operator_payment end,
       automatic_operator_payment=case when a.assignment_type='OPERATOR' then coalesce(rate,0) else automatic_operator_payment end,updated_by=p_actor where id=payment_id;
   end if;
+  -- Keep the block-cost projection in sync with protected payment snapshots.
+  -- Do not replace a paid or manually overridden cost with a fresh automatic rate.
+  if exists (
+    select 1 from public.event_staff_payments p
+    where p.id=payment_id and (
+      p.status='PAID' or p.settlement_status in ('PAID','FINALIZED','ADVANCE')
+      or coalesce(p.paid_amount,0)>0 or p.override_at is not null
+      or p.override_operator_payment is not null
+      or p.override_assembly_payment is not null
+      or p.override_disassembly_payment is not null
+    )
+  ) then
+    return payment_id;
+  end if;
   insert into public.event_staff_block_costs(project_id,block_id,staff_id,settlement_id,role,amount,duration_minutes,status,updated_at)
   values(a.project_id,a.block_id,a.staff_id,payment_id,a.assignment_type,rate,minutes,case when rate is null then 'REVIEW_REQUIRED' else 'RESOLVED' end,now())
   on conflict(block_id,staff_id,role) do update set settlement_id=excluded.settlement_id,amount=excluded.amount,duration_minutes=excluded.duration_minutes,status=excluded.status,updated_at=now();
