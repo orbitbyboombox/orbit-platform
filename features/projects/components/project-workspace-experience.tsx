@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { EventCommercialDocumentHub } from "@/features/external-tax-documents/event-commercial-document-hub";
+import { AcceptedQuotationRevisionEditor } from "@/features/quotation-engine/accepted-quotation-revision-editor";
 import { EventPostReservationExtrasPanel } from "./event-post-reservation-extras-panel";
 import {
   AlertTriangle,
@@ -813,6 +814,9 @@ export function ProjectWorkspaceExperience(
                   />
                 </dl>
               </Section>
+            )}
+            {activeTab === "FINANCE" && props.projectKey && (
+              <AcceptedQuotationRevisionEditor projectId={props.projectKey} />
             )}
             {activeTab === "FINANCE" && moduleVisible("COMMERCIAL_NEGOTIATION") && (
               <OptionalModule
