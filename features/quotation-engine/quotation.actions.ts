@@ -138,7 +138,8 @@ export async function prepareAcceptedQuotationRevisionAction(input: {
         brandName: company.brandName, developedBy: company.developedBy, poweredBy: company.poweredBy,
         footer: company.quotationFooter, currency: company.currency, locale: company.locale },
     });
-    // Immutable revision document: never mutate the accepted quotation or its version.\n    const revisionId = randomUUID();
+    // Immutable revision document: never mutate the accepted quotation or its version. 
+    const revisionId = randomUUID();
     const storagePath = `${quotation.project_id}/quotations/revisions/${quotation.quotation_number}-${revisionId}.pdf`;
     const uploaded = await admin.storage.from("orbit-documents").upload(storagePath, pdf, {
       contentType: "application/pdf", upsert: false,
@@ -150,7 +151,10 @@ export async function prepareAcceptedQuotationRevisionAction(input: {
       document_type: "QUOTATION", storage_bucket: "orbit-documents",
       storage_path: storagePath, checksum, created_by: auth.user.id,
     });
-    if (documentError) {\n      await admin.storage.from("orbit-documents").remove([storagePath]);\n      throw documentError;\n    }
+    if (documentError) { 
+      await admin.storage.from("orbit-documents").remove([storagePath]); 
+      throw documentError; 
+    }
     const { error: timelineError } = await admin.from("timeline_events").insert({
       customer_id: quotation.customer_id, project_id: quotation.project_id,
       event_type: "QUOTATION_REVISION_PREPARED", title: "Revisión comercial preparada",
