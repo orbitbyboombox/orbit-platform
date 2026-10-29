@@ -23,7 +23,7 @@ export type StaffAssignmentMutation = {
 };
 type Result = { ok: true } | { ok: false; error: string };
 
-const allowedRoles = ["OPERATOR", "ASSEMBLY", "DISASSEMBLY"];
+const allowedRoles = ["OPERATOR", "SUPERVISOR", "ASSEMBLY", "DISASSEMBLY"];
 const allowedStatuses = [
   "ASSIGNED",
   "PENDING_CONFIRMATION",
@@ -115,7 +115,7 @@ export async function saveStaffAssignmentAction(
       return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
     };
     const automaticArrival =
-      input.role === "OPERATOR" ? clock(eventStart, -90) : null;
+      ["OPERATOR", "SUPERVISOR"].includes(input.role) ? clock(eventStart, -90) : null;
     const automaticFinish = clock(eventStart, duration * 60);
     const payload = {
       project_id: input.projectId,
