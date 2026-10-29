@@ -14,12 +14,14 @@ export function AcceptedQuotationRevisionEditor({ projectId, originalItems = [] 
   const [reason, setReason] = useState("");
   const [result, setResult] = useState("");
   const [pending, startTransition] = useTransition();
+  const [confirmed, setConfirmed] = useState(false);
   const net = items.reduce((sum, item) => sum + Math.round(item.quantity * item.unitPrice), 0);
   const tax = Math.round(net * vatPercent / 100);
   const valid = items.length > 0 && items.every(item => item.label.trim() && Number.isFinite(item.quantity) && item.quantity > 0 && Number.isFinite(item.unitPrice) && item.unitPrice >= 0) && reason.trim().length >= 3;
-  const edit = (id: number, patch: Partial<Line>) => setItems(rows => rows.map(row => row.id === id ? { ...row, ...patch } : row));
+  const edit = (id: number, patch: Partial<Line>) => { setConfirmed(false); setItems(rows => rows.map(row => row.id === id ? { ...row, ...patch } : row)); };
   const prepare = () => startTransition(async () => {
     setResult("");
+    if (!confirmed) { setResult("Confirma primero que revisaste los valores y que este PDF no modifica la cotización aceptada."); return; }
     const response = await prepareAcceptedQuotationRevisionAction({
       projectId, netAmount: net, vatPercent, reason,
       items: items.map(({ label, quantity, unitPrice }) => ({ label, quantity, unitPrice })),
@@ -38,7 +40,8 @@ export function AcceptedQuotationRevisionEditor({ projectId, originalItems = [] 
     <label className="block text-sm">IVA (%)<input className="mt-1 block w-28 rounded-lg border bg-background p-2" type="number" min="0" max="100" value={vatPercent} onChange={e => setVatPercent(Number(e.target.value))} /></label>
     <div className="space-y-1 rounded-xl border p-3 text-sm"><p>Neto: {money(net)}</p><p>IVA: {money(tax)}</p><p className="font-semibold">Total propuesta: {money(net + tax)}</p></div>
     <label className="block text-sm">Motivo de la revisión<textarea className="mt-1 w-full rounded-lg border bg-background p-3" value={reason} onChange={e => setReason(e.target.value)} /></label>
-    <button type="button" className="min-h-11 rounded-xl bg-brand px-4 font-semibold text-brand-foreground disabled:opacity-50" disabled={pending || !valid || vatPercent < 0 || vatPercent > 100} onClick={prepare}>{pending ? "Preparando…" : "Preparar PDF revisado (sin enviar)"}</button>
+    <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} />Confirmo que revisé servicios, cantidades, precios y total. Solo preparar PDF, sin enviar ni reemplazar cotización aceptada.</label>
+    <button type="button" className="min-h-11 rounded-xl bg-brand px-4 font-semibold text-brand-foreground disabled:opacity-50" disabled={pending || !valid || !confirmed || vatPercent < 0 || vatPercent > 100} onClick={prepare}>{pending ? "Preparando…" : "Preparar PDF revisado (sin enviar)"}</button>
     {result && <p role="status" className="text-sm">{result}</p>}
   </section>;
 }
