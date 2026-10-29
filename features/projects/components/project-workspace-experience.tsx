@@ -820,9 +820,7 @@ export function ProjectWorkspaceExperience(
                 </dl>
               </Section>
             )}
-            {activeTab === "FINANCE" && props.projectKey && props.commercialHub.quotation?.status === "ACCEPTED" && (
-              <AcceptedQuotationRevisionEditor projectId={props.projectKey} originalItems={props.commercialHub.quotation?.items} />
-            )}
+
             {activeTab === "FINANCE" && moduleVisible("COMMERCIAL_NEGOTIATION") && (
               <OptionalModule
                 moduleKey="COMMERCIAL_NEGOTIATION"
@@ -965,6 +963,9 @@ export function ProjectWorkspaceExperience(
                   />
                 </dl>
               </Section>
+            )}
+            {activeTab === "SERVICE" && props.projectKey && props.commercialHub.quotation?.status === "ACCEPTED" && (
+              <AcceptedQuotationRevisionEditor projectId={props.projectKey} originalItems={props.commercialHub.quotation?.items} />
             )}
             {activeTab === "SERVICE" && (
               <EventPostReservationExtrasPanel
