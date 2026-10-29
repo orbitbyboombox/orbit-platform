@@ -53,6 +53,7 @@ export interface StaffPortalAccess {
 }
 const skillOptions: readonly { value: StaffSkill; label: string }[] = [
   { value: "OPERATOR", label: "Operador" },
+  { value: "SUPERVISOR", label: "Supervisor" },
   { value: "ASSEMBLY", label: "Montaje" },
   { value: "DISASSEMBLY", label: "Desmontaje" },
 ];

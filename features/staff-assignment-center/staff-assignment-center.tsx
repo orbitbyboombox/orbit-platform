@@ -137,6 +137,7 @@ export type StaffAssignmentCenterProps = {
 };
 const roles = [
   { value: "OPERATOR", label: "Operador" },
+  { value: "SUPERVISOR", label: "Supervisor" },
   { value: "ASSEMBLY", label: "Montaje" },
   { value: "DISASSEMBLY", label: "Desmontaje" },
 ];
@@ -1437,7 +1438,7 @@ function AssignmentDialog({
           />
           <Field
             label={
-              role === "OPERATOR"
+              ["OPERATOR", "SUPERVISOR"].includes(role)
                 ? "Citación Staff (automática si se deja vacía)"
                 : "Citación Staff · manual"
             }

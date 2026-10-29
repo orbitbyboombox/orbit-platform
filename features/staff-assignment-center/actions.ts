@@ -34,7 +34,7 @@ export type StaffAssignmentMutation = {
 };
 type Result = { ok: true } | { ok: false; error: string };
 
-const allowedRoles = ["OPERATOR", "ASSEMBLY", "DISASSEMBLY"];
+const allowedRoles = ["OPERATOR", "SUPERVISOR", "ASSEMBLY", "DISASSEMBLY"];
 const allowedStatuses = [
   "ASSIGNED",
   "PENDING_CONFIRMATION",
@@ -149,7 +149,7 @@ export async function saveStaffAssignmentAction(
       return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
     };
     const automaticArrival =
-      input.role === "OPERATOR" && ctx.project.event_date && eventStart
+      ["OPERATOR", "SUPERVISOR"].includes(input.role) && ctx.project.event_date && eventStart
         ? calculateStaffCallAt(chileLocalToIso(`${ctx.project.event_date}T${eventStart}:00`))
         : null;
     const automaticFinish = clock(eventStart, duration * 60);
@@ -165,8 +165,8 @@ export async function saveStaffAssignmentAction(
       arrival_time: value(input.arrivalTime) ?? (automaticArrival ? clock(eventStart, -60) : null),
       staff_call_at:value(input.staffCallAt??"")||automaticArrival,
       staff_call_source:value(input.staffCallAt??"")?"FOUNDER_OVERRIDE":(automaticArrival?"DEFAULT_60_MINUTES":null),
-      start_time: input.role === "OPERATOR" && selectedBlock ? eventStart : value(input.startTime) ?? value(eventStart),
-      finish_time: input.role === "OPERATOR" && selectedBlock ? blockEnd : value(input.finishTime) ?? automaticFinish,
+      start_time: ["OPERATOR", "SUPERVISOR"].includes(input.role) && selectedBlock ? eventStart : value(input.startTime) ?? value(eventStart),
+      finish_time: ["OPERATOR", "SUPERVISOR"].includes(input.role) && selectedBlock ? blockEnd : value(input.finishTime) ?? automaticFinish,
       assigned_vehicle: value(input.vehicleId),
       observations: value(input.observations),
       resources: { vehicle: value(input.vehicleId) },
