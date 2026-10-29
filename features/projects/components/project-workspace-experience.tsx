@@ -722,8 +722,8 @@ export function ProjectWorkspaceExperience(
               ))}
             </nav>
           </section>
-          {activeTab === "CLIENT" && props.projectKey && props.eventVersion !== undefined && (
-            <EventCoreDetailsEditor projectId={props.projectKey} version={props.eventVersion} eventDate={props.eventDateIso?.slice(0,10) ?? ""} eventTime={props.eventTime ?? ""} location={props.location ?? ""} city={props.event360.customer.city ?? ""} />
+          {activeTab === "CLIENT" && props.projectKey && (
+            <EventCoreDetailsEditor projectId={props.projectKey} version={props.eventVersion ?? 0} eventDate={props.eventDateIso?.slice(0,10) ?? ""} eventTime={props.eventTime ?? ""} location={props.location ?? ""} city={props.event360.customer.city ?? ""} />
           )}
           {activeTab === "SUMMARY" && (
             <div className="space-y-3">
