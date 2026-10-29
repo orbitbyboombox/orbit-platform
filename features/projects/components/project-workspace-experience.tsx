@@ -815,7 +815,7 @@ export function ProjectWorkspaceExperience(
                 </dl>
               </Section>
             )}
-            {activeTab === "FINANCE" && props.projectKey && (
+            {activeTab === "FINANCE" && props.projectKey && props.commercialHub.quotation?.status === "ACCEPTED" && (
               <AcceptedQuotationRevisionEditor projectId={props.projectKey} originalItems={props.commercialHub.quotation?.items} />
             )}
             {activeTab === "FINANCE" && moduleVisible("COMMERCIAL_NEGOTIATION") && (
