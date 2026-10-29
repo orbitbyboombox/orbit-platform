@@ -432,7 +432,14 @@ function StaffWeeklyEventList({events, onSelect}:{events:StaffPortalEvent[];onSe
       {event.operationalBlocks.map(block => <div key={`${block.id}:${block.role}`} className="flex items-center justify-between gap-3"><span>{ROLE[block.role] ?? block.role} · {block.name}</span><span className="text-xs text-muted">{staffBlockTime(block.startAt)}–{staffBlockTime(block.endAt)}</span></div>)}
       {event.roles.filter(role => !["OPERATOR","SUPERVISOR"].includes(role)).map(role => <div key={role}>{ROLE[role] ?? role}</div>)}
       <p className="text-xs text-muted">El monto de cada cargo se muestra aquí y en el detalle del evento; Finanzas conserva el historial y estado de pago.</p>
-    </div>{event.assignedPayments.length ? <div className="rounded-xl border border-brand/30 bg-brand/5 px-3 py-2 text-sm"><p className="font-semibold text-brand">Honorarios asignados: {money(event.assignedPayments.reduce((sum,p)=>sum+p.amount,0))}</p><p className="text-xs text-muted">{event.assignedPayments.length} cargo(s)/turno(s) · ver detalle al abrir el evento</p></div> : <p className="text-xs text-muted">Honorarios pendientes de asignación en Finanzas Staff.</p>}<StaffOperationalExtras extras={event.operationalExtras} photoStyle={event.printInstructions.photoStyle} /></div>;
+    </div>{event.assignedPayments.length ? <div className="rounded-xl border border-brand/30 bg-brand/5 px-3 py-2 text-sm"><p className="font-semibold text-brand">Honorarios asignados: {money(event.assignedPayments.reduce((sum,p)=>sum+p.amount,0))}</p><p className="text-xs text-muted">{event.assignedPayments.length} cargo(s)/turno(s) · ver detalle al abrir el evento</p></div> : <p className="text-xs text-muted">Honorarios pendientes de asignación en Finanzas Staff.</p>}<div className="rounded-xl border bg-card p-3 text-sm space-y-1" aria-label="Información para aceptar o rechazar asignación">
+      <p className="font-semibold">{event.eventType} · {event.service}</p>
+      <p><strong>Fecha:</strong> {event.date} · <strong>Horario evento:</strong> {event.start}–{event.finish}</p>
+      <p><strong>Lugar:</strong> {event.venue || "Por confirmar"}</p>
+      <p><strong>Dirección:</strong> {event.address || "Por confirmar"} · {event.district || "Comuna por confirmar"}</p>
+      <p><strong>Estado:</strong> {stateLabel(event)}</p>
+      <button type="button" className="mt-2 min-h-11 w-full rounded-xl bg-brand px-4 font-semibold text-brand-foreground" onClick={() => onSelect(event)}>{pendingAcceptance(event.status) ? "VER DETALLES Y ACEPTAR O RECHAZAR" : "VER EVENTO Y HONORARIOS"}</button>
+    </div><StaffOperationalExtras extras={event.operationalExtras} photoStyle={event.printInstructions.photoStyle} /></div>;
   }) : <p className="rounded-2xl border border-dashed p-4 text-sm text-muted">No tienes próximos eventos asignados.</p>}</div></section>;
 }
 
