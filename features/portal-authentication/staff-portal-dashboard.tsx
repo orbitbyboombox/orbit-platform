@@ -45,7 +45,7 @@ export type StaffPortalEvent = {
   duration: number;
   extras: string[];
   operationalExtras: CanonicalOperationalExtras;
-  operationalBlocks: Array<{ id: string; name: string; startAt: string; endAt: string }>;
+  operationalBlocks: Array<{ id: string; name: string; startAt: string; endAt: string; role: string }>;
   date: string;
   staffCallAt: string | null;
   start: string;
@@ -416,7 +416,7 @@ function staffLogisticsRow(event: StaffPortalEvent): StaffLogisticsEvent {
     service: primaryBlock ? `${event.service} · ${primaryBlock.name}` : event.service,
     duration: primaryBlock ? staffBlockHours(primaryBlock.startAt, primaryBlock.endAt) : event.duration,
     location: event.venue || event.address, commune: event.district, status: event.status,
-    operator: assignedBlocks.length ? assignedBlocks.map(block => block.name).join(" + ") : event.roles.map(role => ROLE[role] ?? role).join(" + ") || "Sin asignar", staffCallAt: event.staffCallAt || "",
+    operator: assignedBlocks.length ? assignedBlocks.map(block => `${ROLE[block.role] ?? block.role} · ${block.name}`).join(" + ") : event.roles.map(role => ROLE[role] ?? role).join(" + ") || "Sin asignar", staffCallAt: event.staffCallAt || "",
     setupTime: event.staffCallAt || "", setupStaff: "", teardownTime: event.finish, teardownStaff: "",
     boxCode, box: event.box ?? boxCode ?? "Sin asignar", extras: event.extras, address: event.address,
   };
@@ -861,7 +861,7 @@ function EventDetail({
       if (result.ok) location.reload();
     });
   const maps = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${event.address}, ${event.district}`)}`;
-  const assignedBlocks = event.roles.includes("OPERATOR") ? event.operationalBlocks : [];
+  const assignedBlocks = event.operationalBlocks;
   const hasAssignedBlocks = assignedBlocks.length > 0;
   const turnLabel = assignedBlocks.map(staffBlockLabel).join(" · ");
   const googleCalendar = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(`BOOMBOX · ${event.customer}`)}&dates=${event.date.replaceAll("-", "")}T${event.start.replace(":", "")}00/${event.date.replaceAll("-", "")}T${event.finish.replace(":", "")}00&details=${encodeURIComponent(`Servicio: ${event.service}\n${hasAssignedBlocks ? `Turno Staff: ${turnLabel}\n` : ""}ORBIT Event ID: ${event.orbitEventId}`)}&location=${encodeURIComponent(event.address)}`;
