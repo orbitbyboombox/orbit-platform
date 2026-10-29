@@ -193,6 +193,7 @@ const money = (value: number) =>
   }).format(value);
 const ROLE: Record<string, string> = {
   OPERATOR: "Operador",
+  SUPERVISOR: "Supervisor",
   ASSEMBLY: "Montaje",
   DISASSEMBLY: "Desmontaje",
   ASSEMBLY_DISASSEMBLY: "Montaje + Desmontaje",
