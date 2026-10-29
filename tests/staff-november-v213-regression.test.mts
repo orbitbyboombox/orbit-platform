@@ -28,6 +28,12 @@ test("November assembly and disassembly are independent 10,000 roles", () => {
   assert.equal(effectiveStaffAssignmentPayment(rates, 4.5, "DISASSEMBLY", "2026-11-08"), 10_000);
 });
 
+test("the November 8 block planning projection renders the approved unit and seven-person total", () => {
+  const unitRate = effectiveStaffAssignmentPayment(rates, 4.5, "OPERATOR", "2026-11-08");
+  assert.equal(unitRate, 32_500);
+  assert.equal(unitRate * 7, 227_500);
+});
+
 test("migration is additive and protects settled snapshots", () => {
   const sql = readFileSync(new URL("../supabase/migrations/20261029130000_staff_november_effective_rates.sql", import.meta.url), "utf8");
   assert.match(sql, /staff_rate_effective_20261101/);
