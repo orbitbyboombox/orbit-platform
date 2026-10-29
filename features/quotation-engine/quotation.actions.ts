@@ -108,14 +108,17 @@ export async function prepareAcceptedQuotationRevisionAction(input: {
     const tax = Math.round(net * input.vatPercent / 100);
     const total = net + tax;
     const company = await loadCompanySettings(admin);
+    const customer = Array.isArray(quotation.customers) ? quotation.customers[0] : quotation.customers;
+    const project = Array.isArray(quotation.projects) ? quotation.projects[0] : quotation.projects;
+    if (!customer || !project) throw new Error("Faltan datos del cliente o evento.");
     const pdf = await createQuotationPdf({
       quotationNumber: quotation.quotation_number + " · REVISIÓN PROPUESTA",
       issueDate: new Date().toISOString().slice(0, 10),
       expirationDate: quotation.expiration_date,
-      customer: quotation.customers.full_name,
-      project: quotation.projects.name,
-      eventDate: quotation.projects.event_date,
-      location: [quotation.projects.location, quotation.projects.city].filter(Boolean).join(", ") || "Por confirmar",
+      customer: customer.full_name,
+      project: project.name,
+      eventDate: project.event_date,
+      location: [project.location, project.city].filter(Boolean).join(", ") || "Por confirmar",
       subtotal: net, transport: 0, taxes: tax, total,
       items: [{ label: "Propuesta comercial revisada (neto)", quantity: 1, total: net }],
       branding: { productName: company.productName, productVersion: company.productVersion,
