@@ -170,7 +170,7 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
         "id,staff_id,project_id,document_id,category,amount,occurred_on,payment_method,description,notes,receipt_path,status,reimbursement,submitted_at,rejection_reason,materialized_expense_id,staff(first_name,last_name),projects(name,orbit_event_id)",
       )
       .order("submitted_at", { ascending: false }),
-    client.from("staff_monthly_accounts").select(STAFF_MONTHLY_ACCOUNT_SELECT).order("accounting_month",{ascending:false}),
+    client.from("staff_monthly_accounts").select(`${STAFF_MONTHLY_ACCOUNT_SELECT},finalized_snapshot`).order("accounting_month",{ascending:false}),
     client.from("staff_reimbursement_payments").select("id,expense_id,staff_expense_submission_id,settlement_id,amount,paid_on,receipt_document_id"),
   ]);
   if (staffError) throw staffError;
@@ -566,18 +566,25 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
   const complementarySettlements: ComplementarySettlement[] = (complementaryRows ?? []).flatMap((row) => {
     const event = paymentEventById.get(row.settlement_id);
     if (!event) return [];
-    return [{ id: row.id, staffId: row.staff_id, settlementId: row.settlement_id, eventName: event.eventName, eventDate: row.event_date, amount: Number(row.net_amount), status: row.status, boletaIssueDate: row.boleta_issue_date }];
+    return [{ id: row.id, staffId: row.staff_id, settlementId: row.settlement_id, eventName: event.eventName, staffName: (staff ?? []).find((member) => member.id === row.staff_id)?.first_name + " " + ((staff ?? []).find((member) => member.id === row.staff_id)?.last_name ?? ""), eventDate: row.event_date, amount: Number(row.net_amount), status: row.status, boletaIssueDate: row.boleta_issue_date }];
   });
   // The RPC independently verifies that the source month is finalized and the
   // event was excluded from its immutable snapshot before creating a record.
   const finalizedStaffMonths = new Set((monthlyAccounts ?? []).map(mapStaffMonthlyAccount)
     .filter((account) => account.settlementStatus === "FINALIZED")
     .map((account) => `${account.staffId}:${account.month}`));
+  const includedInOriginalClose = new Set((monthlyAccounts ?? []).flatMap((row) => {
+    if (row.settlement_status !== "FINALIZED") return [];
+    const snapshot = row.finalized_snapshot as { details?: Array<{ settlementId?: string }> } | null;
+    return (snapshot?.details ?? []).map((detail) => detail.settlementId).filter((id): id is string => Boolean(id));
+  }));
+  const staffNamesForComplementaries = new Map((staff ?? []).map((member) => [member.id, `${member.first_name} ${member.last_name}`.trim()]));
   const complementaryCandidates: ComplementaryCandidate[] = paymentEvents
     .filter((event) => event.status === "CONFIRMED" && event.settlementStatus === "PENDING"
       && finalizedStaffMonths.has(`${event.staffId}:${event.accountingMonth}`)
+      && !includedInOriginalClose.has(event.id)
       && !complementarySettlements.some((item) => item.settlementId === event.id))
-    .map((event) => ({ id: event.id, eventName: event.eventName, eventDate: event.eventDate, amount: event.originalNet + event.adjustmentTotal }));
+    .map((event) => ({ id: event.id, eventName: event.eventName, staffName: staffNamesForComplementaries.get(event.staffId) ?? "Operador sin nombre", eventDate: event.eventDate, amount: event.originalNet + event.adjustmentTotal }));
   const monthlyRecords: StaffPaymentMonth[] = (monthlyAccounts??[]).map(row=>{const account=mapStaffMonthlyAccount(row);return{id:account.id,staffId:account.staffId,month:account.month,tax:account.withholdingAmount,advances:account.advancesTotal,paid:account.paidAmount,status:account.paymentStatus,documents:[],account}});
   const lastLoginByStaff = new Map<string, string>();
   for (const entry of history ?? []) {
