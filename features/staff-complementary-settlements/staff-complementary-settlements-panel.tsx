@@ -15,6 +15,7 @@ export type ComplementarySettlement = {
   staffId: string;
   settlementId: string;
   eventName: string;
+  staffName: string;
   eventDate: string;
   amount: number;
   status: string;
@@ -24,6 +25,7 @@ export type ComplementarySettlement = {
 export type ComplementaryCandidate = {
   id: string;
   eventName: string;
+  staffName: string;
   eventDate: string;
   amount: number;
 };
@@ -59,7 +61,7 @@ export function StaffComplementarySettlementsPanel({
           {candidates.map((candidate) => (
             <form action={run(createComplementarySettlementAction)} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-background p-3" key={candidate.id}>
               <div>
-                <p className="font-medium">{candidate.eventName}</p>
+                <p className="font-medium">{candidate.eventName}</p><p className="text-sm text-brand">Operador: {candidate.staffName}</p>
                 <p className="text-xs text-muted">{candidate.eventDate} · Monto calculado {money(candidate.amount)}</p>
               </div>
               <input name="settlementId" type="hidden" value={candidate.id} />
@@ -74,7 +76,7 @@ export function StaffComplementarySettlementsPanel({
           {settlements.map((item) => (
             <article className="rounded-xl border bg-background p-4" key={item.id}>
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div><p className="font-semibold">{item.eventName}</p><p className="text-sm text-muted">{item.eventDate} · {money(item.amount)}</p></div>
+                <div><p className="font-semibold">{item.eventName}</p><p className="text-sm text-brand">Operador: {item.staffName}</p><p className="text-sm text-muted">{item.eventDate} · {money(item.amount)}</p></div>
                 <strong className="text-brand">{item.status}</strong>
               </div>
               {item.status === "PENDING" || item.status === "BOLETA_REJECTED" ? (
