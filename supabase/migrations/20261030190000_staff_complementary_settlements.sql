@@ -59,7 +59,7 @@ begin
  raise exception 'Evento con pagos previos requiere conciliación'; end if;
  select v_event.total_internal_payment+coalesce(sum(a.amount),0) into v_net
  from public.event_staff_settlement_adjustments a
- where a.settlement_id=v_event.id and a.deleted_at is null;
+ where a.settlement_id=v_event.id;
  if v_net is null or v_net<=0 then raise exception 'Monto inválido'; end if;
  insert into public.staff_complementary_settlements
  (staff_id,settlement_id,original_month,event_date,net_amount,reason,created_by)
