@@ -65,9 +65,13 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
     const key = `${row.staff_id}:${row.accounting_month}`;
     if (!knownAccounts.has(key)) missingAccounts.set(key, { staffId: row.staff_id, month: row.accounting_month });
   }
-  for (const { staffId, month } of missingAccounts.values()) {
-    const { error } = await client.rpc("ensure_staff_monthly_account", { p_staff_id: staffId, p_month: month });
-    if (error) throw new Error(`No se pudo sincronizar la cuenta mensual de Staff: ${error.message}`);
+  // Visual previews are read-only: never create financial records while rendering Staff.
+  // Production retains the existing account reconciliation behavior.
+  if (process.env.VERCEL_ENV !== "preview") {
+    for (const { staffId, month } of missingAccounts.values()) {
+      const { error } = await client.rpc("ensure_staff_monthly_account", { p_staff_id: staffId, p_month: month });
+      if (error) throw new Error(`No se pudo sincronizar la cuenta mensual de Staff: ${error.message}`);
+    }
   }
   const academyArticlesPromise = loadAcademyArticles(client);
   const crmEventsPromise = loadCrmOperationalEvents(client);
