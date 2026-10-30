@@ -63,6 +63,7 @@ create table if not exists public.commercial_quote_duplication_requests (
   created_at timestamptz not null default now(),
   primary key (actor_id, request_id)
 );
+alter table public.commercial_quote_duplication_requests enable row level security;
 revoke all on public.commercial_quote_duplication_requests from public, anon, authenticated;
 
 create or replace function public.duplicate_commercial_quote(
