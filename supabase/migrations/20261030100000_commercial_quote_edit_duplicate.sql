@@ -55,10 +55,21 @@ begin
 end;
 $$;
 
+create table if not exists public.commercial_quote_duplication_requests (
+  actor_id uuid not null,
+  request_id uuid not null,
+  payload_hash text not null,
+  quotation_id uuid not null references public.quotations(id),
+  created_at timestamptz not null default now(),
+  primary key (actor_id, request_id)
+);
+revoke all on public.commercial_quote_duplication_requests from public, anon, authenticated;
+
 create or replace function public.duplicate_commercial_quote(
   p_source_quote_id uuid,
   p_customer_id uuid default null,
-  p_event_overrides jsonb default '{}'::jsonb
+  p_event_overrides jsonb default '{}'::jsonb,
+  p_request_id uuid default null
 )
 returns jsonb
 language plpgsql
@@ -76,9 +87,27 @@ declare
   commercial_snapshot_value jsonb;
   financial_snapshot_value jsonb;
   new_version_id uuid;
+  request_hash text;
+  prior_request public.commercial_quote_duplication_requests%rowtype;
+  prior_number text;
 begin
   if actor is null or not public.can_manage_commercial() then
     raise exception 'Acceso comercial requerido.' using errcode = '42501';
+  end if;
+  if p_request_id is null then
+    raise exception 'Se requiere una clave de idempotencia.' using errcode = '22023';
+  end if;
+  request_hash := md5(jsonb_build_object('source', p_source_quote_id, 'customer', p_customer_id, 'event', p_event_overrides)::text);
+  perform pg_advisory_xact_lock(hashtextextended(actor::text || ':' || p_request_id::text, 0));
+  select * into prior_request from public.commercial_quote_duplication_requests
+    where actor_id = actor and request_id = p_request_id;
+  if found then
+    if prior_request.payload_hash <> request_hash then
+      raise exception 'Clave de operación reutilizada con datos diferentes.' using errcode = '22023';
+    end if;
+    select quotation_number into prior_number from public.quotations where id = prior_request.quotation_id;
+    return jsonb_build_object('quotationId', prior_request.quotation_id,
+      'quotationNumber', prior_number, 'operation', 'ALREADY_DUPLICATED', 'sourceQuotationId', p_source_quote_id);
   end if;
   perform pg_advisory_xact_lock(hashtextextended(p_source_quote_id::text, 0));
   select * into source from public.quotations
@@ -145,6 +174,8 @@ begin
     financial_snapshot_value, format('Duplicada desde %s.', source.quotation_number), actor
   returning id into new_version_id;
   update public.quotations set current_version_id = new_version_id where id = new_id;
+  insert into public.commercial_quote_duplication_requests(actor_id, request_id, payload_hash, quotation_id)
+    values (actor, p_request_id, request_hash, new_id);
   return jsonb_build_object('quotationId', new_id, 'quotationNumber', new_number,
     'operation', 'DUPLICATED', 'sourceQuotationId', source.id);
 end;
@@ -152,7 +183,7 @@ $$;
 
 revoke all on function public.prepare_commercial_quote_revision(uuid, text) from public, anon;
 grant execute on function public.prepare_commercial_quote_revision(uuid, text) to authenticated;
-revoke all on function public.duplicate_commercial_quote(uuid, uuid, jsonb) from public, anon;
-grant execute on function public.duplicate_commercial_quote(uuid, uuid, jsonb) to authenticated;
+revoke all on function public.duplicate_commercial_quote(uuid, uuid, jsonb, uuid) from public, anon;
+grant execute on function public.duplicate_commercial_quote(uuid, uuid, jsonb, uuid) to authenticated;
 
 commit;
