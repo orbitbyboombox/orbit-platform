@@ -194,6 +194,17 @@ begin
   end if;
   select * into source_account from public.staff_monthly_accounts where staff_id=settlement.staff_id and accounting_month=source_month for update;
   if not found or source_account.settlement_status<>'FINALIZED' or source_account.payment_status<>'PAID' then raise exception 'El mes original debe estar cerrado y pagado.'; end if;
+  -- A paid source monthly close is not proof that every individual event was
+  -- excluded from that close. Never charge it again in the destination.
+  if exists (
+    select 1 from jsonb_array_elements(
+      case when jsonb_typeof(source_account.finalized_snapshot->'details')='array'
+        then source_account.finalized_snapshot->'details' else '[]'::jsonb end
+    ) d
+    where d->>'settlementId'=settlement.id::text
+  ) then
+    raise exception 'El evento ya figura en el cierre original; no puede cobrarse de nuevo en otro mes.';
+  end if;
   if exists(select 1 from public.staff_monthly_accounts where staff_id=settlement.staff_id and accounting_month=target_month and settlement_status='FINALIZED') then raise exception 'La liquidación del mes destino ya está cerrada.'; end if;
   select greatest(
     coalesce((select financial.original_net+coalesce(financial.adjustment_total,0)
