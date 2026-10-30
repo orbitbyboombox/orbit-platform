@@ -139,6 +139,11 @@ export type AvailableStaffEvent = {
   start: string;
   timeMode?: "ESTIMATED" | "CONFIRMED";
   finish: string;
+  endsNextDay: boolean;
+  staffCallAt: string | null;
+  format: string;
+  box: string | null;
+  callout: string;
   address: string;
   district: string;
   venue: string;
@@ -754,8 +759,23 @@ function AvailableEvents({
       ) : null}
       <div className="mt-4 space-y-2">
         {events.map((event) => (
-          <button className="grid w-full min-w-0 grid-cols-[52px_4px_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border p-3 text-left transition hover:border-brand/50" key={event.id} onClick={() => setSelected(event)}>
-            <div className="text-center leading-tight"><strong className="block text-lg">{event.date.slice(8,10)}</strong><span className="block text-[10px] uppercase text-brand">{new Date(`${event.date}T12:00:00Z`).toLocaleDateString("es-CL",{weekday:"short"})}</span><span className="block text-[10px] uppercase text-muted">{new Date(`${event.date}T12:00:00Z`).toLocaleDateString("es-CL",{month:"short"})}</span></div><span className="h-12 w-1 rounded-full bg-brand" /><div className="min-w-0"><p className="truncate font-semibold">{event.customer}</p><p className="truncate text-sm text-muted">{event.start} → {event.finish} · {event.service} · {event.duration}h</p><p className="truncate text-xs text-muted"><MapPin className="mr-1 inline size-3" />{event.venue || event.address} · {event.district}</p></div><span className="whitespace-nowrap rounded-xl border border-brand/40 bg-brand/10 px-3 py-2 text-xs font-semibold text-brand">TOMAR · Ver pago</span>
+          <button className="w-full rounded-2xl border p-4 text-left transition hover:border-brand/50 sm:p-5" key={event.id} onClick={() => setSelected(event)}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div><p className="text-xs font-semibold uppercase tracking-[.14em] text-brand">{event.eventType || "EVENTO"}</p><p className="mt-1 text-lg font-semibold">{event.date} · {event.customer}</p><p className="mt-1 text-sm text-muted">{event.service} · {event.format} · {event.duration}h</p></div>
+              <span className="rounded-full border border-brand/40 bg-brand/10 px-3 py-1.5 text-xs font-semibold text-brand">DISPONIBLE</span>
+            </div>
+            <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+              <div><p className="text-xs text-muted">Recinto</p><p className="mt-1 font-medium">{event.venue}</p></div>
+              <div><p className="text-xs text-muted">Dirección</p><p className="mt-1 font-medium"><MapPin className="mr-1 inline size-3 text-brand" />{event.address} · {event.district}</p></div>
+              <div><p className="text-xs text-muted">Horario</p><p className="mt-1 font-medium">{event.start}–{event.finish}{event.endsNextDay ? " · día siguiente" : ""} · {event.timeMode === "CONFIRMED" ? "Confirmado" : "Estimado"}</p></div>
+              <div><p className="text-xs text-muted">Hora de citación</p><p className="mt-1 font-medium">{event.callout}</p></div>
+              <div><p className="text-xs text-muted">Caja asignada</p><p className="mt-1 font-medium">{event.box ?? "Pendiente de asignar"}</p></div>
+              <div><p className="text-xs text-muted">Responsabilidades</p><p className="mt-1 font-medium">{event.available.map((role) => ROLE[role] ?? role).join(" · ")}</p></div>
+            </div>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-3">
+              <p className="text-sm font-semibold text-brand">Honorarios: {event.available.map((role) => `${ROLE[role] ?? role} ${money(role === "OPERATOR" || role === "SUPERVISOR" ? event.payments.operator : role === "ASSEMBLY" ? event.payments.assembly : event.payments.disassembly)}`).join(" · ") || "Honorario pendiente de definir"}</p>
+              <span className="rounded-xl bg-brand px-4 py-2 text-xs font-semibold text-brand-foreground">TOMAR RESPONSABILIDAD · Ver detalle</span>
+            </div>
           </button>
         ))}
         {events.length === 0 ? (
