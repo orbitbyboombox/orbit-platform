@@ -109,10 +109,11 @@ export async function registerComplementaryPaymentAction(form: FormData) {
     const { error } = await client.rpc("register_staff_complementary_payment", {
       p_settlement_id: id, p_payment_date: String(form.get("paymentDate") ?? ""),
       p_amount: amount, p_method: String(form.get("method") ?? ""),
-      p_reference: String(form.get("reference") ?? ""), p_idempotency_key: key,
+      p_reference: String(form.get("reference") ?? ""), p_idempotency_key: id,
       p_bucket: "orbit-documents", p_path: path, p_file_name: file.name, p_mime_type: file.type,
     });
-    if (error) { await admin.storage.from("orbit-documents").remove([path]); throw error; }
+    if (error) throw error;
+    path = "";
     refresh();
     return { ok: true, message: "Pago registrado una sola vez; liquidación complementaria pagada." };
   } catch (error) {
