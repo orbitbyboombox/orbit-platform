@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { propagateCanonicalEventChange } from "@/features/projects/operations/canonical-event-propagation.service";
 import { synchronizeConfirmedReservationDrive } from "@/features/connectors/google-drive/application/google-drive-sync.service";
+import { buildGlobalEventEditorChanges, type GlobalEventEditorScope } from "../components/global-event-editor.logic";
 
 export type GlobalEventService = {
   id: string;
@@ -116,6 +117,7 @@ export async function updateGlobalEventEditorAction(input: {
   projectId: string;
   expectedVersion: number;
   reason: string;
+  scope: GlobalEventEditorScope;
   project: { name: string; eventDate: string; eventTime: string; location: string; city: string; eventAddress: string; notes: string };
   services: GlobalEventService[];
   quotation?: { items: GlobalEventItem[]; discount: number; transport: number; vatPercent: number };
@@ -127,18 +129,12 @@ export async function updateGlobalEventEditorAction(input: {
     if (!auth.user) throw new Error("Debes iniciar sesión.");
     if (input.reason.trim().length < 3) throw new Error("El motivo del cambio es obligatorio.");
     if (!input.services.length) throw new Error("El evento debe conservar al menos un servicio.");
+    const changes = buildGlobalEventEditorChanges(input, input.scope);
     const { data, error } = await client.rpc("update_global_event_editor", {
       p_project_id: input.projectId,
       p_expected_version: input.expectedVersion,
       p_reason: input.reason.trim(),
-      p_changes: {
-        name: input.project.name.trim(), eventDate: input.project.eventDate, eventTime: input.project.eventTime,
-        location: input.project.location.trim(), city: input.project.city.trim(),
-        eventAddress: input.project.eventAddress.trim(), notes: input.project.notes,
-        services: input.services.map((service) => ({ id: service.id || null, code: service.code.trim(), duration: service.duration, extras: service.extras, removed: Boolean(service.removed) })),
-        ...(input.quotation ? { items: input.quotation.items, discount: input.quotation.discount, transport: input.quotation.transport, vatPercent: input.quotation.vatPercent } : {}),
-        ...(input.schedule ?? {}),
-      },
+      p_changes: changes,
     });
     if (error) throw error;
     const propagation = await propagateCanonicalEventChange({ client, projectId: input.projectId, actorId: auth.user.id });

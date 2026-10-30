@@ -40,6 +40,18 @@ declare
   new_quote_version_id uuid;
   service_count integer := 0;
   item_index integer := 0;
+  has_services boolean := p_changes ? 'services';
+  has_operational_changes boolean := (p_changes ? 'name')
+    or (p_changes ? 'eventDate')
+    or (p_changes ? 'eventTime')
+    or (p_changes ? 'location')
+    or (p_changes ? 'city')
+    or (p_changes ? 'eventAddress')
+    or (p_changes ? 'notes')
+    or has_services
+    or (p_changes ? 'serviceStartLocal')
+    or (p_changes ? 'serviceEndLocal')
+    or (p_changes ? 'staffCallLocal');
   changed_commercial boolean := jsonb_typeof(p_changes->'items') = 'array';
 begin
   if actor is null or not public.can_administer() then
@@ -51,7 +63,7 @@ begin
   if p_expected_version is null or p_expected_version < 0 then
     raise exception 'La versión del evento no es válida.' using errcode = '22023';
   end if;
-  if jsonb_typeof(services) <> 'array' then
+  if has_services and jsonb_typeof(services) <> 'array' then
     raise exception 'La lista de servicios no es válida.' using errcode = '22023';
   end if;
   if changed_commercial and (jsonb_typeof(new_items) <> 'array' or jsonb_array_length(new_items) = 0) then
@@ -83,52 +95,56 @@ begin
 
   -- Replacing a service is explicit and safe: a removed service with active
   -- assignments is rejected instead of silently orphaning Staff work.
-  for service_row in
-    select * from jsonb_to_recordset(services)
-      as s(id uuid, code text, duration numeric, extras jsonb, removed boolean)
-  loop
-    if service_row.code is null or length(trim(service_row.code)) = 0 then
-      raise exception 'Cada servicio debe tener un código.' using errcode = '22023';
-    end if;
-    if service_row.duration is null or service_row.duration <= 0 or service_row.duration > 24 then
-      raise exception 'La duración de cada servicio debe estar entre 0 y 24 horas.' using errcode = '22023';
-    end if;
-    if coalesce(service_row.removed, false) then
-      if service_row.id is null then continue; end if;
-      if exists(select 1 from public.assignments a where a.project_id = p_project_id and a.deleted_at is null) then
-        raise exception 'No se puede eliminar un servicio con asignaciones activas.' using errcode = '55000';
+  if has_services then
+    for service_row in
+      select * from jsonb_to_recordset(services)
+        as s(id uuid, code text, duration numeric, extras jsonb, removed boolean)
+    loop
+      if service_row.code is null or length(trim(service_row.code)) = 0 then
+        raise exception 'Cada servicio debe tener un código.' using errcode = '22023';
       end if;
-      delete from public.project_services where id = service_row.id and project_id = p_project_id;
-    elsif service_row.id is null then
-      insert into public.project_services(project_id, service_code, duration_hours, extras)
-      values(p_project_id, trim(service_row.code), service_row.duration, coalesce(service_row.extras, '[]'::jsonb));
-    else
-      update public.project_services
-      set service_code = trim(service_row.code), duration_hours = service_row.duration,
-          extras = coalesce(service_row.extras, '[]'::jsonb)
-      where id = service_row.id and project_id = p_project_id;
-      if not found then raise exception 'El servicio no pertenece a este evento.'; end if;
-    end if;
-    service_count := service_count + case when coalesce(service_row.removed, false) then 0 else 1 end;
-  end loop;
-  if service_count = 0 then raise exception 'El evento debe conservar al menos un servicio.'; end if;
+      if service_row.duration is null or service_row.duration <= 0 or service_row.duration > 24 then
+        raise exception 'La duración de cada servicio debe estar entre 0 y 24 horas.' using errcode = '22023';
+      end if;
+      if coalesce(service_row.removed, false) then
+        if service_row.id is null then continue; end if;
+        if exists(select 1 from public.assignments a where a.project_id = p_project_id and a.deleted_at is null) then
+          raise exception 'No se puede eliminar un servicio con asignaciones activas.' using errcode = '55000';
+        end if;
+        delete from public.project_services where id = service_row.id and project_id = p_project_id;
+      elsif service_row.id is null then
+        insert into public.project_services(project_id, service_code, duration_hours, extras)
+        values(p_project_id, trim(service_row.code), service_row.duration, coalesce(service_row.extras, '[]'::jsonb));
+      else
+        update public.project_services
+        set service_code = trim(service_row.code), duration_hours = service_row.duration,
+            extras = coalesce(service_row.extras, '[]'::jsonb)
+        where id = service_row.id and project_id = p_project_id;
+        if not found then raise exception 'El servicio no pertenece a este evento.'; end if;
+      end if;
+      service_count := service_count + case when coalesce(service_row.removed, false) then 0 else 1 end;
+    end loop;
+    if service_count = 0 then raise exception 'El evento debe conservar al menos un servicio.'; end if;
+  end if;
 
-  update public.projects set
-    name = coalesce(nullif(trim(p_changes->>'name'), ''), name),
-    event_date = coalesce(nullif(p_changes->>'eventDate', '')::date, event_date),
-    event_time = coalesce(nullif(p_changes->>'eventTime', '')::time, event_time),
-    location = coalesce(nullif(trim(p_changes->>'location'), ''), location),
-    city = coalesce(nullif(trim(p_changes->>'city'), ''), city),
-    operations = coalesce(operations, '{}'::jsonb)
-      || case when p_changes ? 'eventAddress' then jsonb_build_object('eventAddress', trim(coalesce(p_changes->>'eventAddress', ''))) else '{}'::jsonb end
-      || case when p_changes ? 'notes' then jsonb_build_object('notes', coalesce(p_changes->>'notes', '')) else '{}'::jsonb end,
-    version = coalesce(version, 0) + 1,
-    updated_by = actor,
-    updated_at = now(),
-    approval_reason = trim(p_reason)
-  where id = p_project_id;
+  if has_operational_changes then
+    update public.projects set
+      name = coalesce(nullif(trim(p_changes->>'name'), ''), name),
+      event_date = coalesce(nullif(p_changes->>'eventDate', '')::date, event_date),
+      event_time = coalesce(nullif(p_changes->>'eventTime', '')::time, event_time),
+      location = coalesce(nullif(trim(p_changes->>'location'), ''), location),
+      city = coalesce(nullif(trim(p_changes->>'city'), ''), city),
+      operations = coalesce(operations, '{}'::jsonb)
+        || case when p_changes ? 'eventAddress' then jsonb_build_object('eventAddress', trim(coalesce(p_changes->>'eventAddress', ''))) else '{}'::jsonb end
+        || case when p_changes ? 'notes' then jsonb_build_object('notes', coalesce(p_changes->>'notes', '')) else '{}'::jsonb end,
+      version = coalesce(version, 0) + 1,
+      updated_by = actor,
+      updated_at = now(),
+      approval_reason = trim(p_reason)
+    where id = p_project_id;
+  end if;
 
-  if p_changes ? 'serviceStartLocal' and p_changes ? 'serviceEndLocal' then
+  if has_operational_changes and p_changes ? 'serviceStartLocal' and p_changes ? 'serviceEndLocal' then
     perform public.update_event_service_schedule(
       p_project_id, p_changes->>'serviceStartLocal', p_changes->>'serviceEndLocal', nullif(p_changes->>'staffCallLocal', '')
     );
@@ -207,7 +223,7 @@ begin
   insert into public.timeline_events(customer_id, project_id, orbit_event_id, event_type, title, description, actor_id, actor_label, source, action, entity_type, entity_id, human_message, correlation_id, reason, created_by)
   values(project_row.customer_id, p_project_id, project_row.orbit_event_id, 'GLOBAL_EVENT_UPDATED', 'Evento actualizado', jsonb_build_object('before', jsonb_build_object('name', project_row.name, 'eventDate', project_row.event_date, 'eventTime', project_row.event_time, 'location', project_row.location, 'city', project_row.city, 'items', before_items, 'financial', before_financial), 'after', p_changes, 'paymentsPreserved', true)::text, actor, 'Administrador', 'Administrator', 'GLOBAL_EVENT_UPDATED', 'Project', p_project_id, 'El evento fue actualizado con trazabilidad y sin eliminar pagos históricos.', 'global-event-editor:' || p_project_id::text || ':' || coalesce(project_row.version, 0)::text, trim(p_reason), actor);
 
-  return jsonb_build_object('projectId', p_project_id, 'version', coalesce(project_row.version, 0) + 1, 'total', total_value, 'paid', paid_value, 'balance', greatest(total_value - paid_value, 0), 'quotationVersion', new_quote_version_id);
+  return jsonb_build_object('projectId', p_project_id, 'version', coalesce(project_row.version, 0) + case when has_operational_changes then 1 else 0 end, 'total', total_value, 'paid', paid_value, 'balance', greatest(total_value - paid_value, 0), 'quotationVersion', new_quote_version_id);
 end;
 $$;
 

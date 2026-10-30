@@ -1,6 +1,32 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { calculateGlobalEventTotals, canApplyNewTotal } from "../features/projects/components/global-event-editor.logic.ts";
+import { buildGlobalEventEditorChanges, calculateGlobalEventTotals, canApplyNewTotal } from "../features/projects/components/global-event-editor.logic.ts";
+
+const editorInput = {
+  project: { name: "Evento", eventDate: "2026-11-08", eventTime: "20:00", location: "Recinto", city: "Santiago", eventAddress: "Dirección", notes: "Notas" },
+  services: [{ id: "service-1", code: "BBOX360", duration: 4, extras: ["QR"] }],
+  schedule: { serviceStartLocal: "2026-11-08T20:00", serviceEndLocal: "2026-11-09T00:00", staffCallLocal: "2026-11-08T19:00" },
+  quotation: { items: [{ itemType: "SERVICE" as const, code: "BBOX360", label: "BBOX360", quantity: 1, unitPrice: 100_000 }], discount: 0, transport: 0, vatPercent: 19 },
+};
+
+test("operational save excludes commercial values", () => {
+  const changes = buildGlobalEventEditorChanges(editorInput, "operational");
+  assert.equal("items" in changes, false);
+  assert.equal("discount" in changes, false);
+  assert.ok("eventDate" in changes);
+  assert.ok("services" in changes);
+  assert.equal(changes.eventDate, "2026-11-08");
+  assert.deepEqual(changes.services, [{ id: "service-1", code: "BBOX360", duration: 4, extras: ["QR"], removed: false }]);
+});
+
+test("commercial save excludes operational values", () => {
+  const changes = buildGlobalEventEditorChanges(editorInput, "commercial");
+  assert.equal("eventDate" in changes, false);
+  assert.equal("services" in changes, false);
+  assert.ok("items" in changes);
+  assert.deepEqual(changes.items, editorInput.quotation.items);
+  assert.equal(changes.vatPercent, 19);
+});
 
 test("global editor recalculates totals and preserves historical payments", () => {
   const result = calculateGlobalEventTotals({
