@@ -236,19 +236,19 @@ const pendingAcceptance = (status: string) =>
 export const staffGreeting = (hour: number) =>
   hour < 12 ? "Buenos días" : hour < 19 ? "Buenas tardes" : "Buenas noches";
 type StaffModule = "OPERADORES" | "MONTAJE" | "FINANZAS" | "PAPEL";
-// Asignación semanal · Eventos publicados remain inside OPERADORES.
+// Eventos publicados disponibles en una ventana móvil de 15 días.
 const chileToday = () =>
   new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(
     new Date(),
   );
-const currentWeekRange = () => {
-  const [year, month, day] = chileToday().split("-").map(Number);
-  const current = new Date(Date.UTC(year, month - 1, day));
-  const mondayOffset = (current.getUTCDay() + 6) % 7;
-  const start = new Date(current);
-  start.setUTCDate(current.getUTCDate() - mondayOffset);
-  const end = new Date(start);
-  end.setUTCDate(start.getUTCDate() + 6);
+const addChileDays = (value: string, days: number) => {
+  const date = new Date(`${value}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+};
+const next15DayRange = () => {
+  const start = chileToday();
+  const end = addChileDays(start, 14);
   const format = (value: Date) =>
     new Intl.DateTimeFormat("es-CL", {
       day: "numeric",
@@ -256,11 +256,7 @@ const currentWeekRange = () => {
       year: "numeric",
       timeZone: "UTC",
     }).format(value);
-  return {
-    start: start.toISOString().slice(0, 10),
-    end: end.toISOString().slice(0, 10),
-    label: `${format(start)} – ${format(end)}`,
-  };
+  return { start, end, label: `${format(new Date(`${start}T12:00:00Z`))} – ${format(new Date(`${end}T12:00:00Z`))}` };
 };
 const newestEventFirst = (
   a: { date: string; start?: string },
@@ -340,12 +336,12 @@ export function StaffPortalDashboard({
     timeZone: "America/Santiago",
   }).format(new Date());
   const todayEvents = events.filter((event) => event.date === today),
-    week = currentWeekRange(),
-    weekEvents = events.filter(
-      (event) => event.date >= week.start && event.date <= week.end,
+    availabilityWindow = next15DayRange(),
+    windowEvents = events.filter(
+      (event) => event.date >= availabilityWindow.start && event.date <= availabilityWindow.end,
     ),
-    weeklyAvailableEvents = availableEvents.filter(
-      (event) => event.date >= week.start && event.date <= week.end,
+    windowAvailableEvents = availableEvents.filter(
+      (event) => event.date >= availabilityWindow.start && event.date <= availabilityWindow.end,
     ),
     confirmed = events.filter(
       (event) =>
@@ -366,12 +362,12 @@ export function StaffPortalDashboard({
         <h1 className="mt-2 text-3xl font-semibold">
           {staffGreeting(hour ?? 12)}, {name}.
         </h1>
-        <p className="mt-2 max-w-2xl text-muted">Revisa tu operación, montaje y finanzas de esta semana.</p>
-        {module === null ? <div className="mt-5 flex flex-wrap gap-2">{[[`${weekEvents.length} evento${weekEvents.length === 1 ? "" : "s"}`, "esta semana"], [`${routes.length} ruta${routes.length === 1 ? "" : "s"}`, "asignadas"], [`${payment.pending > 0 ? 1 : 0} pago`, "pendiente"]].map(([value,label]) => <span className="rounded-full border border-white/10 bg-background/50 px-3 py-1.5 text-xs font-medium text-muted" key={`${value}-${label}`}><strong className="text-foreground">{value}</strong> · {label}</span>)}</div> : null}
+        <p className="mt-2 max-w-2xl text-muted">Revisa tu operación, montaje y finanzas de los próximos 15 días.</p>
+        {module === null ? <div className="mt-5 flex flex-wrap gap-2">{[[`${windowEvents.length} evento${windowEvents.length === 1 ? "" : "s"}`, "próximos 15 días"], [`${routes.length} ruta${routes.length === 1 ? "" : "s"}`, "asignadas"], [`${payment.pending > 0 ? 1 : 0} pago`, "pendiente"]].map(([value,label]) => <span className="rounded-full border border-white/10 bg-background/50 px-3 py-1.5 text-xs font-medium text-muted" key={`${value}-${label}`}><strong className="text-foreground">{value}</strong> · {label}</span>)}</div> : null}
       </header>
-      {module === null ? <StaffHome module={setModule} events={events.filter((event) => event.date >= today).sort((a,b) => `${a.date}${a.start}`.localeCompare(`${b.date}${b.start}`))} availableEvents={weeklyAvailableEvents} requests={requests} weekEvents={weekEvents.length} todayEvents={todayEvents.length} routes={routes.length} pendingExpenses={pendingExpenses} pendingPayments={payment.pending > 0 ? 1 : 0} canMount={canMount} onSelect={setSelected} /> : null}
+      {module === null ? <StaffHome module={setModule} events={events.filter((event) => event.date >= today).sort((a,b) => `${a.date}${a.start}`.localeCompare(`${b.date}${b.start}`))} availableEvents={windowAvailableEvents} requests={requests} windowEvents={windowEvents.length} todayEvents={todayEvents.length} routes={routes.length} pendingExpenses={pendingExpenses} pendingPayments={payment.pending > 0 ? 1 : 0} canMount={canMount} onSelect={setSelected} /> : null}
       {module !== null ? <StaffModuleNav active={module} onChange={setModule} canMount={canMount} /> : null}
-      {module === "OPERADORES" ? <OperatorsModule events={events} weeklyAvailableEvents={weeklyAvailableEvents} requests={requests} week={week} confirmed={confirmed.length} onSelect={setSelected} /> : null}
+      {module === "OPERADORES" ? <OperatorsModule events={events} availableEvents={windowAvailableEvents} requests={requests} window={availabilityWindow} confirmed={confirmed.length} onSelect={setSelected} /> : null}
       {module === "MONTAJE" && canMount ? <MontageModule routes={routes} /> : null}
       {module === "FINANZAS" ? <FinanceModule events={events} expenseSubmissions={expenseSubmissions} monthlyAccounts={monthlyAccounts} eventStaffPayments={eventStaffPayments} payment={payment} notifications={notifications} currentMonth={currentMonth} /> : null}
       {module === "PAPEL" ? <StaffPaperPrinterPanel events={events} /> : null}
@@ -396,13 +392,13 @@ function StaffPortalHeader({onFinance,onPaper,logoutAction}:{onFinance:()=>void;
   </header>;
 }
 
-function StaffHome({module, events, availableEvents, requests, weekEvents, todayEvents, routes, pendingExpenses, pendingPayments, canMount, onSelect}:{module:(value:StaffModule)=>void;events:StaffPortalEvent[];availableEvents:AvailableStaffEvent[];requests:StaffRequest[];weekEvents:number;todayEvents:number;routes:number;pendingExpenses:number;pendingPayments:number;canMount:boolean;onSelect:(event:StaffPortalEvent)=>void}) {
+function StaffHome({module, events, availableEvents, requests, windowEvents, todayEvents, routes, pendingExpenses, pendingPayments, canMount, onSelect}:{module:(value:StaffModule)=>void;events:StaffPortalEvent[];availableEvents:AvailableStaffEvent[];requests:StaffRequest[];windowEvents:number;todayEvents:number;routes:number;pendingExpenses:number;pendingPayments:number;canMount:boolean;onSelect:(event:StaffPortalEvent)=>void}) {
   const cards:[StaffModule,string,string,string,string,string][] = [
-    ["OPERADORES", "Operadores", `${weekEvents} evento${weekEvents === 1 ? "" : "s"} esta semana`, `${todayEvents} para hoy`, "Eventos, asignaciones y operación", "Ver módulo"],
+    ["OPERADORES", "Operadores", `${windowEvents} evento${windowEvents === 1 ? "" : "s"} próximos 15 días`, `${todayEvents} para hoy`, "Eventos, asignaciones y operación", "Ver módulo"],
     ...(canMount ? [["MONTAJE", "Montaje", `${routes} ruta${routes === 1 ? "" : "s"} activa${routes === 1 ? "" : "s"}`, "Orden oficial de jornada", "Montaje, desmontaje y vehículos", "Ver módulo"] as [StaffModule,string,string,string,string,string]] : []),
     ["FINANZAS", "Finanzas", `${pendingPayments} pago${pendingPayments === 1 ? "" : "s"} pendiente${pendingPayments === 1 ? "" : "s"}`, `${pendingExpenses} gasto${pendingExpenses === 1 ? "" : "s"} por rendir`, "Pagos, gastos y documentos", "Ver módulo"],
   ];
-  const summary = [["Eventos esta semana", weekEvents], ["Rutas asignadas", routes], ["Gastos pendientes", pendingExpenses], ["Pagos por revisar", pendingPayments]];
+  const summary = [["Eventos próximos 15 días", windowEvents], ["Rutas asignadas", routes], ["Gastos pendientes", pendingExpenses], ["Pagos por revisar", pendingPayments]];
   return <section className="space-y-6" data-staff-home-modules="3"><StaffWeeklyEventList events={events} onSelect={onSelect} /><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Resumen rápido</p><h2 className="mt-1 text-2xl font-semibold">Tu semana en BOOMBOX</h2><p className="mt-1 text-sm text-muted">{todayEvents ? `${todayEvents} evento${todayEvents === 1 ? "" : "s"} programado${todayEvents === 1 ? "" : "s"} para hoy.` : "Sin eventos para hoy."}</p></div><div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{summary.map(([label,value])=><article className="rounded-2xl border bg-card/80 p-4" key={label}><p className="text-2xl font-semibold text-brand">{value}</p><p className="mt-1 text-xs text-muted">{label}</p></article>)}</div><div className="grid gap-4 sm:grid-cols-3">{cards.map(([key,title,metric,secondary,description,cta])=><button key={key} data-staff-module={key} onClick={()=>module(key)} className="group flex min-h-56 flex-col rounded-3xl border bg-card p-5 text-left shadow-[0_16px_50px_rgba(0,0,0,.12)] transition hover:-translate-y-0.5 hover:border-brand/60 hover:bg-brand/5 sm:p-6"><span className="text-xs font-semibold uppercase tracking-[.16em] text-brand">{key}</span><h3 className="mt-5 text-2xl font-semibold">{title}</h3><div className="mt-4 flex flex-wrap gap-2"><span className="rounded-lg bg-background/70 px-2.5 py-1.5 text-xs font-semibold text-foreground">{metric}</span><span className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-muted">{secondary}</span></div><p className="mt-4 text-sm text-muted">{description}</p><span className="mt-auto pt-5 text-sm font-semibold text-brand">{cta} <ChevronRight className="ml-1 inline size-4 transition group-hover:translate-x-1" /></span></button>)}</div>{availableEvents.length ? <AvailableEvents events={availableEvents} requests={requests} /> : null}</section>;
 }
 
@@ -514,8 +510,10 @@ function StaffPaperPrinterPanel({ events }: { events: StaffPortalEvent[] }) {
   </section>;
 }
 
-function OperatorsModule({events,weeklyAvailableEvents,requests,week,confirmed,onSelect}:{events:StaffPortalEvent[];weeklyAvailableEvents:AvailableStaffEvent[];requests:StaffRequest[];week:{label:string};confirmed:number;onSelect:(event:StaffPortalEvent)=>void}) {
+function OperatorsModule({events,availableEvents,requests,window,confirmed,onSelect}:{events:StaffPortalEvent[];availableEvents:AvailableStaffEvent[];requests:StaffRequest[];window:{label:string};confirmed:number;onSelect:(event:StaffPortalEvent)=>void}) {
   const today=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Santiago"}).format(new Date());
+  const weeklyAvailableEvents = availableEvents;
+  const week = window;
   const active=events.filter(event=>event.date>=today).sort((a,b)=>`${a.date}${a.start}`.localeCompare(`${b.date}${b.start}`));
   const completed=events.filter(event=>event.date<today).sort(newestEventFirst);
   return <section className="space-y-6" data-staff-module-view="OPERADORES"><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">OPERADORES</p><h2 className="mt-1 text-2xl font-semibold">Eventos y operación</h2><p className="mt-1 text-sm text-muted">{week.label} · disponibles: {weeklyAvailableEvents.length} · confirmados: {confirmed}</p></div><AvailableEvents events={weeklyAvailableEvents} requests={requests} /><section className="rounded-3xl border border-white/10 bg-[#111214] p-5 text-white shadow-[0_20px_70px_rgba(0,0,0,.22)] sm:p-7"><h2 className="text-xl font-semibold">Mis eventos asignados</h2><p className="mt-1 text-sm text-white/60">Las asignaciones nuevas aparecen primero y requieren tu aceptación.</p><div className="mt-5 space-y-2">{active.map(event=>{const assignedBlocks=event.operationalBlocks;const turnLabel=assignedBlocks.map(staffBlockLabel).join(" · ");return <button className="group grid w-full gap-4 rounded-2xl border border-white/10 bg-[#191a1d] p-4 text-left transition hover:border-brand/70 sm:grid-cols-[72px_minmax(0,1fr)_auto] sm:items-center" key={event.id} onClick={()=>onSelect(event)}><div className="grid size-16 shrink-0 place-items-center rounded-xl bg-[#0d0e10] text-center ring-1 ring-white/10"><span className="text-[10px] uppercase tracking-[.16em] text-brand">{new Date(`${event.date}T12:00:00Z`).toLocaleDateString("es-CL",{weekday:"short"})}</span><strong className="text-2xl leading-none">{event.date.slice(8,10)}</strong><span className="text-[10px] text-white/50">{event.date.slice(5,7)}</span></div><div className="min-w-0"><p className="font-semibold">{event.customer}</p><p className="mt-1 text-sm font-semibold text-white/80">{event.service} · {assignedBlocks.length?`TU TURNO: ${turnLabel}`:`${event.duration}h · ${event.start}–${event.finish}`} · {event.timeMode === "CONFIRMED" ? "HORARIO CONFIRMADO" : "HORARIO ESTIMADO"}</p><p className="mt-1 text-sm text-white/60">{event.venue||event.address} · {event.district}</p><div className="mt-2"><StaffOperationalExtras extras={event.operationalExtras} photoStyle={event.printInstructions.photoStyle} compact /></div></div><div className="flex items-center gap-3 sm:justify-end"><span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-xs font-semibold text-emerald-300">{stateLabel(event)}</span><ChevronRight className="size-5 text-white/40 transition group-hover:text-brand" /></div></button>})}{active.length===0?<p className="py-8 text-sm text-white/60">No tienes eventos activos o próximos.</p>:null}</div>{completed.length?<details className="mt-5 rounded-2xl border border-white/10 bg-[#17181a]"><summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-white/70">REALIZADOS · {completed.length}</summary><div className="space-y-2 border-t border-white/10 p-3">{completed.map(event=><button className="w-full rounded-xl border border-white/10 p-3 text-left text-sm text-white/70" key={event.id} onClick={()=>onSelect(event)}><strong>{event.customer}</strong><span className="mt-1 block text-xs text-white/45">{event.date} · {event.service}</span><StaffOperationalExtras extras={event.operationalExtras} photoStyle={event.printInstructions.photoStyle} compact /></button>)}</div></details>:null}</section></section>; }
@@ -743,7 +741,7 @@ function AvailableEvents({
     });
   return (
     <section className="rounded-3xl border bg-card p-4 sm:p-6">
-      <p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">EVENTOS DISPONIBLES ESTA SEMANA</p>
+      <p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">EVENTOS DISPONIBLES · PRÓXIMOS 15 DÍAS</p>
       <h2 className="mt-1 text-xl font-semibold">Responsabilidades para tomar</h2>
       <p className="mt-1 text-sm text-muted">
         Solo aparecen eventos publicados por el Founder. Las responsabilidades

@@ -12,14 +12,21 @@ const operations = readFileSync(
   "utf8",
 );
 
-test("Staff Phase 1 keeps the dashboard greeting dynamic and weekly", () => {
+test("Staff keeps the dashboard greeting dynamic and uses a Chile 15-day window", () => {
   assert.match(dashboard, /export const staffGreeting/);
   assert.match(dashboard, /Buenos días/);
   assert.match(dashboard, /Buenas tardes/);
   assert.match(dashboard, /Buenas noches/);
-  assert.match(dashboard, /Asignación semanal/);
-  assert.match(dashboard, /Eventos publicados/);
-  assert.match(dashboard, /currentWeekRange/);
+  assert.match(dashboard, /ventana móvil de 15 días/);
+  assert.match(dashboard, /EVENTOS DISPONIBLES · PRÓXIMOS 15 DÍAS/);
+  assert.match(dashboard, /next15DayRange/);
+  assert.match(dashboard, /próximos 15 días/);
+});
+
+test("Staff availability window includes the current date through day 14", () => {
+  assert.match(portal, /availabilityEnd=addDays\(start,14\)/);
+  assert.match(dashboard, /event\.date >= availabilityWindow\.start && event\.date <= availabilityWindow\.end/);
+  assert.match(dashboard, /windowAvailableEvents/);
 });
 
 test("Staff Phase 1 keeps the published event visibility boundary", () => {
