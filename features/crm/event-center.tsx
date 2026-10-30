@@ -87,6 +87,7 @@ export function EventCenter({
   const [deleteTarget, setDeleteTarget] = useState<CrmOperationalEvent | null>(null);
   const [testPurgeRequested, setTestPurgeRequested] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [deleteError, setDeleteError] = useState("");
   const [editDate, setEditDate] = useState("");
   const [serviceEndAt, setServiceEndAt] = useState("");
   const [staffCallAt, setStaffCallAt] = useState("");
@@ -165,31 +166,40 @@ export function EventCenter({
   const openDeleteDialog = (event: CrmOperationalEvent) => {
     setDeleteTarget(event);
     setDeleteConfirmation("");
+    setDeleteError("");
     setTestPurgeRequested(event.dataClassification === "QA" || event.dataClassification === "TEST");
   };
   const closeDeleteDialog = () => {
     if (!pending) {
       setDeleteTarget(null);
       setDeleteConfirmation("");
+      setDeleteError("");
       setTestPurgeRequested(false);
     }
   };
   const confirmDelete = () => {
     const isTestPurge = testPurgeRequested || deleteTarget?.dataClassification === "QA" || deleteTarget?.dataClassification === "TEST";
     const requiredConfirmation = isTestPurge ? TEST_FULL_PURGE_CONFIRMATION : FOUNDER_FORCE_DELETE_CONFIRMATION;
-    if (!deleteTarget || deleteConfirmation !== requiredConfirmation) return;
+    const normalizedConfirmation = deleteConfirmation.trim().toUpperCase();
+    if (!deleteTarget || normalizedConfirmation !== requiredConfirmation) {
+      setDeleteError(`Escribe ${requiredConfirmation} para habilitar la eliminación.`);
+      return;
+    }
     const target = deleteTarget;
+    setDeleteError("");
     start(async () => {
       const result = await transitionCrmEventAction({
         customerId: target.customerId,
         projectId: target.projectId,
         action: isTestPurge ? "TEST_FULL_PURGE" : "PERMANENT_DELETE",
         reason: isTestPurge ? "Purga completa QA solicitada por Founder." : "Eliminación integral solicitada por Founder.",
-        confirmation: deleteConfirmation,
+        confirmation: normalizedConfirmation,
       });
-      if (!result.ok) setError(result.message);
+      if (!result.ok) setDeleteError(result.message);
       else {
         setDeleteTarget(null);
+        setDeleteConfirmation("");
+        setDeleteError("");
         setTestPurgeRequested(false);
         router.refresh();
       }
@@ -564,6 +574,7 @@ export function EventCenter({
             </dl>
             {!isTestPurge && canForceDelete ? <button className="rounded-xl border border-red-300 px-4 py-3 text-left text-sm text-red-700" type="button" onClick={() => { setTestPurgeRequested(true); setDeleteConfirmation(""); }}>Purgar prueba total…<span className="mt-1 block text-xs text-muted">Solo Founder/CEO. Elimina físicamente todo el grafo QA/TEST y exige PURGAR PRUEBA TOTAL.</span></button> : null}
             <label className="grid gap-2 font-medium">Escribe {requiredConfirmation}<input autoComplete="off" className="min-h-11 rounded-xl border bg-background px-3" value={deleteConfirmation} onChange={(event) => setDeleteConfirmation(event.target.value)} /></label>
+            {deleteError ? <p aria-live="assertive" className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-700" role="alert">{deleteError}</p> : null}
           </div>
         </MobileDialog>
         ); })()

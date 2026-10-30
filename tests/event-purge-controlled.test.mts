@@ -41,5 +41,8 @@ test("events delete action opens a parent-owned dialog before calling the RPC", 
   assert.match(center, /onClick=\{\(\) => openDeleteDialog\(event\)\}/);
   assert.match(center, /<MobileDialog[\s\S]*title="Eliminar Evento"/);
   assert.match(center, /const confirmDelete = \(\) =>/);
-  assert.match(center, /confirmation: deleteConfirmation/);
+  assert.match(center, /confirmation: normalizedConfirmation/);
+  assert.match(center, /deleteConfirmation\.trim\(\)\.toUpperCase\(\)/);
+  assert.match(center, /deleteError/);
+  assert.match(center, /aria-live="assertive"/);
 });
