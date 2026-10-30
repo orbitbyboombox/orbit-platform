@@ -23,6 +23,7 @@ import { MobileDialog } from "@/components/ui/mobile-dialog";
 import {
   acceptCommercialQuoteAction,
   createFormalQuoteAction,
+  duplicateCommercialQuoteAction,
   loadCommercialQuoteConversionReviewAction,
   sendCommercialInformationAction,
   sendFormalQuoteAction,
@@ -996,6 +997,7 @@ function RecentQuotes({
               <div className="flex min-w-0 flex-wrap gap-3 lg:justify-end">
                 <button className="min-h-11 font-medium text-brand" onClick={() => setOpenPdf({ id: q.id, number: q.number })}>PDF</button>
                 <Link className="inline-flex min-h-11 items-center font-medium text-brand" href={`/quotes/${q.id}`}>{q.draft ? "ABRIR / CONTINUAR" : "ABRIR"}</Link>
+                <button className="min-h-11 font-medium text-brand" disabled={pending} onClick={() => { if (!window.confirm(`¿Usar ${q.number} como base? La original no cambiará.`)) return; startTransition(async () => { const result = await duplicateCommercialQuoteAction({ quoteId: q.id }); setMessage(result.ok ? `Nueva cotización ${result.number} creada.` : result.error); if (result.ok) window.location.assign(`/quotes/${result.id}`); }); }}>DUPLICAR</button>
                 {["SENT","VIEWED"].includes(q.status) ? <button className="min-h-11 font-semibold text-brand" disabled={pending} onClick={() => { if(!window.confirm(`¿Confirmar que ${q.number} fue aceptada por el cliente?`))return; startTransition(async()=>{const result=await acceptCommercialQuoteAction(q.id);setMessage(result.ok?result.message:result.error);if(result.ok)window.location.reload()})}}>MARCAR COMO ACEPTADA</button>:null}
                 {q.status==="ACCEPTED" ? <button className="min-h-11 font-semibold text-brand" disabled={pending} onClick={()=>startTransition(async()=>{const result=await loadCommercialQuoteConversionReviewAction(q.id);if(!result.ok){setMessage(result.error);return}if(result.converted){window.location.assign(`/projects/${result.projectId}`);return}setReview(result.review)})}>GENERAR RESERVA DESDE COTIZACIÓN</button>:null}
                 {q.status==="CONVERTED" ? <><span className="inline-flex min-h-11 items-center font-semibold text-success">RESERVA YA GENERADA</span>{q.projectId?<Link className="inline-flex min-h-11 items-center font-semibold text-brand" href={`/projects/${q.projectId}`}>VER EVENTO</Link>:null}</>:null}

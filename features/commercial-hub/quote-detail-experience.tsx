@@ -14,7 +14,9 @@ import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import {
   acceptCommercialQuoteAction,
+  duplicateCommercialQuoteAction,
   loadCommercialQuoteConversionReviewAction,
+  prepareCommercialQuoteRevisionAction,
 } from "./actions";
 import {
   quoteDetailActions,
@@ -92,6 +94,27 @@ export function CommercialQuoteDetailExperience({
     });
   };
 
+  const duplicate = () => {
+    if (!window.confirm(`¿Usar ${quote.number} como base para una nueva cotización? La original no cambiará.`)) return;
+    startTransition(async () => {
+      const result = await duplicateCommercialQuoteAction({ quoteId: quote.id });
+      if (!result.ok) {
+        setMessage(result.error);
+        return;
+      }
+      router.push(`/quotes/${result.id}`);
+    });
+  };
+
+  const prepareRevision = () => {
+    if (!window.confirm("Se conservará la versión aceptada y se abrirá una propuesta comercial independiente. ¿Continuar?")) return;
+    startTransition(async () => {
+      const result = await prepareCommercialQuoteRevisionAction(quote.id);
+      setMessage(result.ok ? `✓ Revisión ${result.version ?? ""} preparada para editar.` : result.error);
+      if (result.ok) router.refresh();
+    });
+  };
+
   return (
     <main className="mx-auto w-full max-w-6xl space-y-6 p-4 sm:p-6 lg:p-8" data-workspace-ignore>
       <header className="space-y-5">
@@ -143,6 +166,14 @@ export function CommercialQuoteDetailExperience({
                 <FilePenLine /> CONTINUAR EDITANDO
               </Button>
             ) : null}
+            {actions.canCreatePostAcceptanceRevision ? (
+              <Button disabled={pending} onClick={prepareRevision} variant="outline">
+                <FilePenLine /> PREPARAR MODIFICACIÓN
+              </Button>
+            ) : null}
+            <Button disabled={pending} onClick={duplicate} variant="outline">
+              DUPLICAR / USAR COMO BASE
+            </Button>
             {actions.canAccept ? (
               <Button disabled={pending} onClick={accept}>
                 <CheckCircle2 />

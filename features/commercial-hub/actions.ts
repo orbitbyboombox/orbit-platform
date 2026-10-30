@@ -399,6 +399,47 @@ export async function createFormalQuoteAction(input: FormalQuoteDraft) {
   }
 }
 
+export async function duplicateCommercialQuoteAction(input: {
+  quoteId: string;
+  customerId?: string | null;
+  event?: { name?: string; date?: string; time?: string; location?: string; city?: string };
+}) {
+  try {
+    const { client } = await founder();
+    const { data, error } = await client.rpc("duplicate_commercial_quote", {
+      p_source_quote_id: input.quoteId,
+      p_customer_id: input.customerId || null,
+      p_event_overrides: input.event ?? {},
+    });
+    if (error) throw error;
+    const result = data as { quotationId?: string; quotationNumber?: string } | null;
+    if (!result?.quotationId || !result.quotationNumber)
+      throw new Error("La duplicación no fue confirmada.");
+    revalidatePath("/leads");
+    return { ok: true as const, id: result.quotationId, number: result.quotationNumber };
+  } catch (error) {
+    return fail(error, "No fue posible duplicar la cotización.");
+  }
+}
+
+export async function prepareCommercialQuoteRevisionAction(quoteId: string) {
+  try {
+    const { client } = await founder();
+    const { data, error } = await client.rpc("prepare_commercial_quote_revision", {
+      p_quote_id: quoteId,
+      p_reason: "Modificación comercial preparada por Founder.",
+    });
+    if (error) throw error;
+    const result = data as { quoteId?: string; version?: number } | null;
+    if (!result?.quoteId) throw new Error("La revisión no fue confirmada.");
+    revalidatePath(`/quotes/${quoteId}`);
+    revalidatePath("/leads");
+    return { ok: true as const, version: result.version ?? null };
+  } catch (error) {
+    return fail(error, "No fue posible preparar la modificación comercial.");
+  }
+}
+
 export async function sendFormalQuoteAction(input: { quoteId: string; email: string; cc?: string[]; subject: string; body: string; requestId: string; catalogDocumentId?: string }) {
   let acceptedMessage: { messageId: string; threadId: string } | null = null;
   let acceptedProviderAccount: string | undefined;
