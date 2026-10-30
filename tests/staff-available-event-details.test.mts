@@ -18,7 +18,8 @@ test("available details are read from canonical operational records and official
   assert.match(portal, /from\("projects"\)\.select\("id,location,city,operations/);
   assert.match(portal, /from\("asset_assignments"\)/);
   assert.match(portal, /from\("event_staff_requirements"\)\.select\("project_id,block_id,role/);
-  assert.match(portal, /interpolateOperatorRate/);
+  assert.match(portal, /resolveStaffRateForEvent/);
+  assert.match(portal, /STAFF_RATE_EFFECTIVE_DATE/);
   assert.match(portal, /America\/Santiago/);
 });
 
@@ -32,7 +33,7 @@ test("available event honoraria are isolated from commercial quote totals", () =
   const availableSection = portal.slice(portal.indexOf("const availableEvents"));
   assert.doesNotMatch(availableSection, /quotation_total|grand_total|final_customer_price|transport_total/);
   assert.match(portal, /const officialRates=new Map\(\(costMasterResult\.data/);
-  assert.match(availableSection, /interpolateOperatorRate/);
+  assert.match(availableSection, /resolveStaffRateForEvent/);
   assert.match(dashboard, /Este monto corresponde exclusivamente a tu responsabilidad/);
 });
 

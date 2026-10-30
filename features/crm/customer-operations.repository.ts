@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CrmCustomerEventOperations } from "./types";
-import { resolveOfficialOperatorRate } from "@/features/operations/staff-assignment-payment";
+import { resolveStaffRateForEvent } from "@/features/operations/staff-assignment-payment";
 
 type Relation<T> = T | T[] | null;
 const one = <T,>(value: Relation<T>): T | null =>
@@ -12,7 +12,7 @@ export async function loadCrmCustomerOperations(
   financialClient: SupabaseClient = client,
 ): Promise<CrmCustomerEventOperations[]> {
   if (!projectIds.length) return [];
-  const [receivables, assignments, staff, assets, agreements, documents, calendars, portals, invoices, financialTruth, quotations, expenses, services, staffRequirements, operationalBlocks, staffRates] =
+  const [receivables, assignments, staff, assets, agreements, documents, calendars, portals, invoices, financialTruth, quotations, expenses, services, staffRequirements, operationalBlocks, staffRates, projects] =
     await Promise.all([
       client.from("accounts_receivable_projection").select("id,project_id,invoice_number,amount,paid_amount,outstanding_balance,due_date,effective_status,payment_history").in("project_id", projectIds),
       client.from("assignments").select("id,project_id,block_id,staff_id,assignment_type,status,staff_call_at,arrival_time,start_time,finish_time,assigned_vehicle,observations,staff(first_name,last_name),operational_assets(asset_code)").in("project_id", projectIds).is("deleted_at", null),
@@ -29,9 +29,10 @@ export async function loadCrmCustomerOperations(
       client.from("project_services").select("project_id,service_code,duration_hours,extras").in("project_id", projectIds),
       client.from("event_staff_requirements").select("project_id,block_id,role,required_quantity,published").in("project_id", projectIds),
       client.from("event_operational_blocks").select("id,project_id,name,start_at,end_at").in("project_id", projectIds),
-      client.from("cost_master_entries").select("code,amount,enabled").in("code", ["OPERATOR_2_HOURS", "OPERATOR_3_HOURS", "OPERATOR_4_HOURS", "OPERATOR_5_HOURS", "OPERATOR_6_HOURS", "OPERATOR_7_HOURS", "OPERATOR_8_HOURS", "OPERATOR_9_HOURS", "OPERATOR_10_HOURS"]).eq("enabled", true).is("deleted_at", null),
+      client.from("cost_master_entries").select("code,amount,enabled").in("code", ["OPERATOR_2_HOURS", "OPERATOR_3_HOURS", "OPERATOR_4_HOURS", "OPERATOR_5_HOURS", "OPERATOR_6_HOURS", "OPERATOR_7_HOURS", "OPERATOR_8_HOURS", "OPERATOR_9_HOURS", "OPERATOR_10_HOURS", "ASSEMBLY", "DISASSEMBLY", "ASSEMBLY_DISASSEMBLY"]).eq("enabled", true).is("deleted_at", null),
+      client.from("projects").select("id,event_date").in("id", projectIds).is("deleted_at", null),
     ]);
-  const failures = [receivables, assignments, staff, assets, agreements, documents, calendars, portals, invoices, financialTruth, quotations, expenses, services, staffRequirements, operationalBlocks, staffRates].filter((result) => result.error);
+  const failures = [receivables, assignments, staff, assets, agreements, documents, calendars, portals, invoices, financialTruth, quotations, expenses, services, staffRequirements, operationalBlocks, staffRates, projects].filter((result) => result.error);
   if (failures.length) throw failures[0].error;
   const activeStaff = (staff.data ?? []).filter((member) => member.status === "ACTIVE").map((member) => ({
     id: member.id,
@@ -148,8 +149,9 @@ export async function loadCrmCustomerOperations(
             const durationMinutes = block?.start_at && block?.end_at
               ? Math.round((new Date(block.end_at).getTime() - new Date(block.start_at).getTime()) / 60000)
               : undefined;
-            const rate = durationMinutes && item.role === "OPERATOR"
-              ? resolveOfficialOperatorRate(staffRates.data ?? [], durationMinutes).amount
+            const eventDate = projects.data?.find((project) => project.id === projectId)?.event_date;
+            const rate = durationMinutes && eventDate
+              ? resolveStaffRateForEvent(staffRates.data ?? [], durationMinutes, item.role, eventDate)
               : null;
             return {
               blockId: item.block_id as string,

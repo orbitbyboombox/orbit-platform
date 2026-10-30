@@ -90,3 +90,28 @@ export function staffAssignmentPaymentForEvent(
 ) {
   return effectiveStaffAssignmentPayment(rates, hours, responsibility, eventLocalDate, transportationBonus);
 }
+
+export function resolveStaffRateForEvent(
+  rates: readonly OfficialStaffRate[],
+  minutes: number,
+  responsibility: string,
+  eventLocalDate: string,
+  transportationBonus = 0,
+) {
+  if (!Number.isInteger(minutes) || minutes < 120 || minutes > 600) return null;
+  if (eventLocalDate < STAFF_RATE_EFFECTIVE_DATE) {
+    if (responsibility === "OPERATOR" || responsibility === "SUPERVISOR") {
+      return resolveOfficialOperatorRate(rates, minutes).amount;
+    }
+    const code = responsibility === "ASSEMBLY" ? "ASSEMBLY" : responsibility === "DISASSEMBLY" ? "DISASSEMBLY" : "ASSEMBLY_DISASSEMBLY";
+    const amount = rates.find((item) => item.code === code)?.amount;
+    return amount === undefined ? null : Number(amount) + Math.max(0, transportationBonus);
+  }
+  return effectiveStaffAssignmentPayment(
+    rates,
+    minutes / 60,
+    responsibility,
+    eventLocalDate,
+    transportationBonus,
+  );
+}

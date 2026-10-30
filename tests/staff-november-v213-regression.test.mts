@@ -4,6 +4,7 @@ import { test } from "node:test";
 import {
   effectiveStaffAssignmentPayment,
   officialStaffAssignmentPayment,
+  resolveStaffRateForEvent,
 } from "../features/operations/staff-assignment-payment.ts";
 
 const rates = [
@@ -32,6 +33,25 @@ test("the November 8 block planning projection renders the approved unit and sev
   const unitRate = effectiveStaffAssignmentPayment(rates, 4.5, "OPERATOR", "2026-11-08");
   assert.equal(unitRate, 32_500);
   assert.equal(unitRate * 7, 227_500);
+});
+
+test("Portal Staff resolves November honoraria from the event date, not cost-master legacy values", () => {
+  const legacyRates = [
+    { code: "OPERATOR_4_HOURS", amount: 24_000 },
+    { code: "OPERATOR_5_HOURS", amount: 27_000 },
+    { code: "ASSEMBLY", amount: 7_000 },
+    { code: "DISASSEMBLY", amount: 7_000 },
+  ];
+  assert.equal(resolveStaffRateForEvent(legacyRates, 270, "OPERATOR", "2026-11-08"), 32_500);
+  assert.equal(resolveStaffRateForEvent(legacyRates, 270, "SUPERVISOR", "2026-11-08"), 32_500);
+  assert.equal(resolveStaffRateForEvent(legacyRates, 270, "OPERATOR", "2026-10-31"), 25_500);
+});
+
+test("Event operations use the same effective-date resolver for block projections", () => {
+  const repository = readFileSync(new URL("../features/crm/customer-operations.repository.ts", import.meta.url), "utf8");
+  assert.match(repository, /resolveStaffRateForEvent/);
+  assert.match(repository, /from\("projects"\)\.select\("id,event_date"/);
+  assert.match(repository, /durationMinutes, item\.role, eventDate/);
 });
 
 test("migration verifies approved November rates without replacing production payment functions", () => {
