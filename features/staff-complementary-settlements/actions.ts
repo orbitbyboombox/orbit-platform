@@ -117,7 +117,7 @@ export async function registerComplementaryPaymentAction(form: FormData) {
     refresh();
     return { ok: true, message: "Pago registrado una sola vez; liquidación complementaria pagada." };
   } catch (error) {
-    if (path) await createAdminClient().storage.from("orbit-documents").remove([path]);
+    // An RPC timeout can occur after the payment transaction commits. Never delete its receipt here.
     return fail(error);
   }
 }
