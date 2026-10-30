@@ -6,6 +6,9 @@ const sql = readFileSync("supabase/migrations/20261030190000_staff_complementary
 const actions = readFileSync("features/staff-complementary-settlements/actions.ts", "utf8");
 const panel = readFileSync("features/staff-complementary-settlements/staff-complementary-settlements-panel.tsx", "utf8");
 const page = readFileSync("app/(platform)/resources/staff/page.tsx", "utf8");
+const portalAction = readFileSync("features/portal-authentication/staff-portal.actions.ts", "utf8");
+const portal = readFileSync("features/portal-authentication/staff-portal.tsx", "utf8");
+const portalPanel = readFileSync("features/portal-authentication/staff-complementary-boleta-panel.tsx", "utf8");
 
 test("net amount is base plus scalar adjustments and supports base-only events", () => {
   assert.match(sql, /coalesce\(v_event\.total_internal_payment,0\)/);
@@ -57,4 +60,28 @@ test("the Finance Staff UI exposes independent complementary history and control
 test("the feature does not import the rejected month-transfer implementation", () => {
   assert.doesNotMatch(actions, /next-month|traspas|staff-advance-next-month/i);
   assert.doesNotMatch(sql, /next_month|carry_forward|transfer_month/i);
+});
+
+test("Staff upload is scoped to the signed-in operator and never registers payment", () => {
+  assert.match(portalAction, /loadPortalSession\("STAFF"\)/);
+  assert.match(portalAction, /eq\("staff_id", session\.staff_id\)/);
+  assert.match(portalAction, /submit_staff_complementary_boleta_for_staff/);
+  assert.doesNotMatch(portalAction, /register_staff_complementary_payment/);
+  assert.match(portalPanel, /BOLETA_REJECTED/);
+  assert.match(portalPanel, /type="file"/);
+});
+
+test("Staff portal reads only the operator's complementary settlements and stays compatible before migration", () => {
+  assert.match(portal, /from\("staff_complementary_settlements"\)/);
+  assert.match(portal, /eq\("staff_id",staffId\)/);
+  assert.match(portal, /missingComplementarySettlementRelation/);
+  assert.match(portal, /complementarySettlements/);
+});
+
+test("boleta submission creates an idempotent Drive path and admin notification", () => {
+  assert.match(portalAction, /04_LIQUIDACIONES_COMPLEMENTARIAS/);
+  assert.match(portalAction, /upsert: false/);
+  assert.match(sql, /STAFF_COMPLEMENTARY_BOLETA/);
+  assert.match(sql, /staff-complementary-boleta:/);
+  assert.match(sql, /on conflict\(correlation_id\)/);
 });

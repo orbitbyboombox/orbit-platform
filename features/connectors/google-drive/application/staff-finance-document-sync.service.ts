@@ -145,3 +145,46 @@ export async function syncStaffFinanceDocuments(input: { client: SupabaseClient;
   }
   return { processed: results.length, synced: results.filter((result) => result.status === "SYNCED").length, requiresReview: results.filter((result) => result.status === "REQUIRES_REVIEW").length, results };
 }
+
+export async function syncStaffComplementaryBoletaToDrive(input: {
+  client: SupabaseClient;
+  documentId: string;
+  staffId: string;
+  eventDate: string;
+  eventName: string;
+}) {
+  const [company, token] = await Promise.all([
+    loadCompanySettings(input.client),
+    loadGoogleWorkspaceAccessToken(),
+  ]);
+  const provider = new GoogleDriveApiProvider(token);
+  const rootFolderId = await resolveRootFolderId(provider, company.driveRootFolder);
+  const { data: staff, error: staffError } = await input.client.from("staff").select("first_name,last_name").eq("id", input.staffId).single();
+  if (staffError) throw staffError;
+  const staffName = clean([staff.first_name, staff.last_name].filter(Boolean).join(" ") || input.staffId);
+  const { year, month } = monthParts(input.eventDate);
+  const destination = await folder(provider, rootFolderId, [
+    "STAFF",
+    "OPERADORES",
+    staffName,
+    "04_LIQUIDACIONES_COMPLEMENTARIAS",
+    year,
+    month,
+    `${clean(input.eventName)} - ${input.eventDate}`,
+  ]);
+  const document = await readDocument(input.client, "staff_onboarding_documents", input.documentId);
+  if (!document) throw new Error("Boleta complementaria sin archivo en Storage.");
+  if (document.driveFileId) return { driveFileId: document.driveFileId, folderId: destination.id, folderPath: destination.path, reused: true };
+  const bytes = await download(input.client, document);
+  const filename = `BOLETA_COMPLEMENTARIA_${baseName(document.fileName)}`;
+  const existing = await provider.findFileByName({ name: filename, parentFolderId: destination.id });
+  const file = existing ?? await provider.uploadFile({ name: filename, mimeType: document.mimeType, bytes, parentFolderId: destination.id });
+  await markDocument(input.client, "staff_onboarding_documents", input.documentId, {
+    drive_file_id: file.id,
+    drive_folder_id: destination.id,
+    drive_sync_status: "SYNCED",
+    drive_sync_error: null,
+    drive_synced_at: new Date().toISOString(),
+  });
+  return { driveFileId: file.id, folderId: destination.id, folderPath: destination.path, reused: Boolean(existing) };
+}

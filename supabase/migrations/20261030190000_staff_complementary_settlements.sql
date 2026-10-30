@@ -102,7 +102,7 @@ create or replace function public.submit_staff_complementary_boleta(
   p_settlement_id uuid,p_bucket text,p_path text,p_file_name text,p_mime_type text,p_issue_date date
 ) returns public.staff_complementary_settlements
 language plpgsql security definer set search_path=public as $$
-declare item public.staff_complementary_settlements%rowtype; document_id uuid;
+declare item public.staff_complementary_settlements%rowtype; document_id uuid; creator_id uuid; project_id uuid;
 begin
   if auth.uid() is null or not public.can_administer() then raise exception 'Acceso denegado'; end if;
   if p_bucket <> 'orbit-documents' then raise exception 'Bucket no permitido'; end if;
@@ -115,6 +115,41 @@ begin
   returning id into document_id;
   update public.staff_complementary_settlements set status='BOLETA_RECEIVED',boleta_document_id=document_id,boleta_issue_date=p_issue_date,boleta_received_at=now(),boleta_reviewed_at=null,boleta_reviewed_by=null,boleta_rejection_reason=null,updated_at=now()
    where id=item.id returning * into item;
+  return item;
+end;
+$$;
+
+-- The Staff portal uses its own signed portal session rather than auth.uid().
+-- The server action validates that session and passes the bound staff_id here;
+-- the row lock makes the upload/transition idempotent under concurrent submits.
+create or replace function public.submit_staff_complementary_boleta_for_staff(
+  p_staff_id uuid,p_settlement_id uuid,p_bucket text,p_path text,p_file_name text,p_mime_type text,p_issue_date date
+) returns public.staff_complementary_settlements
+language plpgsql security definer set search_path=public as $$
+declare item public.staff_complementary_settlements%rowtype; document_id uuid;
+begin
+  if p_staff_id is null or p_settlement_id is null then raise exception 'Identidad Staff incompleta'; end if;
+  if p_bucket <> 'orbit-documents' then raise exception 'Bucket no permitido'; end if;
+  if p_issue_date is null or nullif(trim(p_path),'') is null then raise exception 'Boleta incompleta'; end if;
+  select * into item from public.staff_complementary_settlements
+    where id=p_settlement_id and staff_id=p_staff_id for update;
+  if not found then raise exception 'Liquidación no encontrada para este colaborador'; end if;
+  select p.created_by,p.project_id into creator_id,project_id from public.event_staff_payments p where p.id=item.settlement_id;
+  if item.status not in ('PENDING','BOLETA_REJECTED') then
+    raise exception 'La liquidación no acepta una nueva boleta';
+  end if;
+  insert into public.staff_onboarding_documents
+    (invitation_id,staff_id,document_type,category,applicable_month,friendly_label,status,storage_bucket,storage_path,file_name,mime_type,created_by)
+  values(null,item.staff_id,'BOLETA_HONORARIOS','BOLETAS',to_char(item.event_date,'YYYY-MM'),'Boleta complementaria de honorarios','ACTIVE',p_bucket,p_path,p_file_name,p_mime_type,coalesce(auth.uid(),creator_id))
+  returning id into document_id;
+  update public.staff_complementary_settlements
+    set status='BOLETA_RECEIVED',boleta_document_id=document_id,boleta_issue_date=p_issue_date,
+        boleta_received_at=now(),boleta_reviewed_at=null,boleta_reviewed_by=null,
+        boleta_rejection_reason=null,updated_at=now()
+    where id=item.id returning * into item;
+  insert into public.internal_notifications(project_id,staff_id,notification_type,title,message,status,correlation_id,category,priority,action_required,entity_type,entity_id,related_href,metadata)
+  values(project_id,item.staff_id,'STAFF_COMPLEMENTARY_BOLETA','Nueva boleta complementaria','Una boleta complementaria fue enviada y requiere revisión administrativa.','UNREAD','staff-complementary-boleta:'||item.id,'PAYMENTS','HIGH',true,'StaffComplementarySettlement',item.id::text,'/resources/staff',jsonb_build_object('settlement_id',item.id,'amount',item.net_amount))
+  on conflict(correlation_id) do update set status='UNREAD',action_required=true,metadata=excluded.metadata;
   return item;
 end;
 $$;
@@ -166,5 +201,7 @@ $$;
 
 revoke all on function public.create_staff_complementary_settlement(uuid,text),public.submit_staff_complementary_boleta(uuid,text,text,text,text,date),public.review_staff_complementary_boleta(uuid,text,text),public.register_staff_complementary_payment(uuid,date,numeric,text,text,text,text,text,text,text) from public,anon,authenticated;
 grant execute on function public.create_staff_complementary_settlement(uuid,text),public.submit_staff_complementary_boleta(uuid,text,text,text,text,date),public.review_staff_complementary_boleta(uuid,text,text),public.register_staff_complementary_payment(uuid,date,numeric,text,text,text,text,text,text,text) to authenticated;
+revoke all on function public.submit_staff_complementary_boleta_for_staff(uuid,uuid,text,text,text,text,date) from public,anon,authenticated;
+grant execute on function public.submit_staff_complementary_boleta_for_staff(uuid,uuid,text,text,text,text,date) to service_role;
 
 commit;
