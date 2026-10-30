@@ -94,10 +94,8 @@ begin
     paid:=greatest(coalesce(paid,0),0);
     advances:=greatest(coalesce(advances,0),0);
     payments:=greatest(coalesce(payments,0),0);
-    select coalesce(sum(a.amount),0) into adjustment
-      from public.event_staff_settlement_adjustments a
-      where a.settlement_id=transfer.settlement_id and a.amount<>0;
-    obligation:=obligation+coalesce(adjustment,0);
+    -- staff_settlement_financials.adjustment_total already includes the
+    -- canonical settlement adjustments; do not count them a second time.
     work_total:=work_total+obligation;
     work_paid:=work_paid+least(paid,obligation);
     work_pending:=work_pending+greatest(obligation-paid,0);
