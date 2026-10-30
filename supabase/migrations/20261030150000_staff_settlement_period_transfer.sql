@@ -69,12 +69,12 @@ begin
       and payment.status='CONFIRMED' and payment.deleted_at is null
       and project.deleted_at is null
   loop
-    select coalesce((
-             select coalesce(financial.original_net,transfer.total_internal_payment,0)
-                    +coalesce(financial.adjustment_total,0)
-             from public.staff_settlement_financials financial
-             where financial.settlement_id=transfer.settlement_id
-           ),transfer.total_internal_payment,0),
+    -- Match the existing canonical V6 calculation exactly: base event pay
+    -- plus event adjustments. financial.original_net is not the V6 base.
+    select coalesce(transfer.total_internal_payment,0)
+           + coalesce((select sum(a.amount)
+             from public.event_staff_settlement_adjustments a
+             where a.settlement_id=transfer.settlement_id and a.amount<>0),0),
            coalesce((select financial.reimbursement_total
              from public.staff_settlement_financials financial
              where financial.settlement_id=transfer.settlement_id),0),
