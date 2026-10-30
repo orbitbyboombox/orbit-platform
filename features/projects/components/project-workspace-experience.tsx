@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { EventCommercialDocumentHub } from "@/features/external-tax-documents/event-commercial-document-hub";
+import { GlobalEventEditor } from "./global-event-editor";
 import { EventPostReservationExtrasPanel } from "./event-post-reservation-extras-panel";
 import {
   AlertTriangle,
@@ -719,6 +720,9 @@ export function ProjectWorkspaceExperience(
               ))}
             </nav>
           </section>
+          {activeTab === "CLIENT" && props.projectKey && (
+            <GlobalEventEditor projectId={props.projectKey} />
+          )}
           {activeTab === "SUMMARY" && (
             <div className="space-y-3">
               {capacityPanel}
