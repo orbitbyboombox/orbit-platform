@@ -215,6 +215,17 @@ begin
     end if;
   end if;
 
+  -- Return the persisted financial values for operational-only edits.
+  -- No financial records are written or synchronized in this branch.
+  if not changed_commercial then
+    total_value := coalesce(quotation_row.grand_total, 0);
+    select coalesce(i.paid_amount, 0) into paid_value
+    from public.invoices i
+    where i.project_id = p_project_id and i.deleted_at is null and i.status <> 'CANCELLED'
+    order by i.created_at desc limit 1;
+    paid_value := coalesce(paid_value, 0);
+  end if;
+
   -- Operational-only edits must not recalculate or write financial projections.
   if changed_commercial then
     perform public.sync_estimated_cost_sheet(p_project_id);
