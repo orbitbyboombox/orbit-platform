@@ -1,3 +1,4 @@
+import type { ComplementaryCandidate, ComplementarySettlement } from "@/features/staff-complementary-settlements/staff-complementary-settlements-panel";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { StaffOperationCenter } from "@/features/resources/staff-operation-center";
 import type { StaffOperationalRecord } from "@/features/resources/staff-operation-center.actions";
@@ -64,9 +65,13 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
     const key = `${row.staff_id}:${row.accounting_month}`;
     if (!knownAccounts.has(key)) missingAccounts.set(key, { staffId: row.staff_id, month: row.accounting_month });
   }
-  for (const { staffId, month } of missingAccounts.values()) {
-    const { error } = await client.rpc("ensure_staff_monthly_account", { p_staff_id: staffId, p_month: month });
-    if (error) throw new Error(`No se pudo sincronizar la cuenta mensual de Staff: ${error.message}`);
+  // Visual previews are read-only: never create financial records while rendering Staff.
+  // Production retains the existing account reconciliation behavior.
+  if (process.env.VERCEL_ENV !== "preview") {
+    for (const { staffId, month } of missingAccounts.values()) {
+      const { error } = await client.rpc("ensure_staff_monthly_account", { p_staff_id: staffId, p_month: month });
+      if (error) throw new Error(`No se pudo sincronizar la cuenta mensual de Staff: ${error.message}`);
+    }
   }
   const academyArticlesPromise = loadAcademyArticles(client);
   const crmEventsPromise = loadCrmOperationalEvents(client);
@@ -165,7 +170,7 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
         "id,staff_id,project_id,document_id,category,amount,occurred_on,payment_method,description,notes,receipt_path,status,reimbursement,submitted_at,rejection_reason,materialized_expense_id,staff(first_name,last_name),projects(name,orbit_event_id)",
       )
       .order("submitted_at", { ascending: false }),
-    client.from("staff_monthly_accounts").select(STAFF_MONTHLY_ACCOUNT_SELECT).order("accounting_month",{ascending:false}),
+    client.from("staff_monthly_accounts").select(`${STAFF_MONTHLY_ACCOUNT_SELECT},finalized_snapshot`).order("accounting_month",{ascending:false}),
     client.from("staff_reimbursement_payments").select("id,expense_id,staff_expense_submission_id,settlement_id,amount,paid_on,receipt_document_id"),
   ]);
   if (staffError) throw staffError;
@@ -550,6 +555,36 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
       ];
     },
   );
+  // Complementary records are separate from the immutable finalized monthly account.
+  // Before the migration exists, PostgreSQL returns 42P01; no financial writes occur.
+  const { data: complementaryRows, error: complementaryError } = await client
+    .from("staff_complementary_settlements")
+    .select("id,staff_id,settlement_id,event_date,net_amount,status,boleta_issue_date")
+    .order("event_date", { ascending: false });
+  if (complementaryError && complementaryError.code !== "42P01" && complementaryError.code !== "PGRST205") throw complementaryError;
+  const paymentEventById = new Map(paymentEvents.map((event) => [event.id, event]));
+  const complementarySettlements: ComplementarySettlement[] = (complementaryRows ?? []).flatMap((row) => {
+    const event = paymentEventById.get(row.settlement_id);
+    if (!event) return [];
+    return [{ id: row.id, staffId: row.staff_id, settlementId: row.settlement_id, eventName: event.eventName, staffName: (staff ?? []).find((member) => member.id === row.staff_id)?.first_name + " " + ((staff ?? []).find((member) => member.id === row.staff_id)?.last_name ?? ""), eventDate: row.event_date, amount: Number(row.net_amount), status: row.status, boletaIssueDate: row.boleta_issue_date }];
+  });
+  // The RPC independently verifies that the source month is finalized and the
+  // event was excluded from its immutable snapshot before creating a record.
+  const finalizedStaffMonths = new Set((monthlyAccounts ?? []).map(mapStaffMonthlyAccount)
+    .filter((account) => account.settlementStatus === "FINALIZED")
+    .map((account) => `${account.staffId}:${account.month}`));
+  const includedInOriginalClose = new Set((monthlyAccounts ?? []).flatMap((row) => {
+    if (row.settlement_status !== "FINALIZED") return [];
+    const snapshot = row.finalized_snapshot as { details?: Array<{ settlementId?: string }> } | null;
+    return (snapshot?.details ?? []).map((detail) => detail.settlementId).filter((id): id is string => Boolean(id));
+  }));
+  const staffNamesForComplementaries = new Map((staff ?? []).map((member) => [member.id, `${member.first_name} ${member.last_name}`.trim()]));
+  const complementaryCandidates: ComplementaryCandidate[] = paymentEvents
+    .filter((event) => event.status === "CONFIRMED" && event.settlementStatus === "PENDING"
+      && finalizedStaffMonths.has(`${event.staffId}:${event.accountingMonth}`)
+      && !includedInOriginalClose.has(event.id)
+      && !complementarySettlements.some((item) => item.settlementId === event.id))
+    .map((event) => ({ id: event.id, eventName: event.eventName, staffName: staffNamesForComplementaries.get(event.staffId) ?? "Operador sin nombre", eventDate: event.eventDate, amount: event.originalNet + event.adjustmentTotal }));
   const monthlyRecords: StaffPaymentMonth[] = (monthlyAccounts??[]).map(row=>{const account=mapStaffMonthlyAccount(row);return{id:account.id,staffId:account.staffId,month:account.month,tax:account.withholdingAmount,advances:account.advancesTotal,paid:account.paidAmount,status:account.paymentStatus,documents:[],account}});
   const lastLoginByStaff = new Map<string, string>();
   for (const entry of history ?? []) {
@@ -776,7 +811,10 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
   if (boxAssetsError) throw boxAssetsError;
   const allBoxProjectIds = [...new Set([...(boxAssignments ?? []).map((assignment) => assignment.project_id), ...eventIds])];
   const conflictingProjectIdsByAsset = new Map<string, string[]>();
-  const { data: availabilityRows, error: availabilityError } = await client.rpc("get_black_box_availability", { p_project_ids: allBoxProjectIds });
+  const availabilityResult = process.env.VERCEL_ENV === "preview"
+    ? { data: [], error: null }
+    : await client.rpc("get_black_box_availability", { p_project_ids: allBoxProjectIds });
+  const { data: availabilityRows, error: availabilityError } = availabilityResult;
   if (availabilityError) throw availabilityError;
   for (const row of availabilityRows ?? []) {
     if (!row.conflicts) continue;
@@ -879,6 +917,8 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
           events={paymentEvents}
           months={monthlyRecords}
           reimbursements={adminReimbursements}
+          complementarySettlements={complementarySettlements}
+          complementaryCandidates={complementaryCandidates}
           initialReviewAccountId={reviewAccount}
         />
       }

@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { loadPortalSession, requestEvidence } from "./portal-auth.service";
 import { deliverAssignmentCancellationBoundary } from "@/features/operations/staff-assignment-cancellation.service";
 import {notifyOperationsOfStaffRejection} from "@/features/operations/staff-assignment-notification.service";
+import { syncStaffComplementaryBoletaToDrive } from "@/features/connectors/google-drive/application/staff-finance-document-sync.service";
 
 const CHECKLIST = new Set([
   "READ_OPERATIONAL_SHEET",
@@ -489,4 +490,65 @@ export async function submitStaffExpenseAction(form: FormData) {
   if (error) { if (!upload.error) await admin.storage.from("orbit-expenses").remove([path]); return { ok: false, message: error.message }; }
   revalidatePath("/staff-portal"); revalidatePath(`/projects/${projectId}/staff-expenses`); revalidatePath("/operations"); revalidatePath("/notifications"); revalidatePath("/", "layout");
   return { ok: true, message: "✓ Gasto enviado correctamente. Tu gasto quedó enviado para revisión." };
+}
+
+export async function submitStaffComplementaryBoletaAction(form: FormData) {
+  const session = await loadPortalSession("STAFF");
+  if (!session?.staff_id) return { ok: false, message: "Tu sesión expiró." };
+  const settlementId = String(form.get("settlementId") ?? "");
+  const issueDate = String(form.get("issueDate") ?? "");
+  const file = form.get("file");
+  if (!(file instanceof File) || !file.size) return { ok: false, message: "Adjunta tu segunda boleta." };
+  if (!["application/pdf", "image/jpeg", "image/png", "image/webp"].includes(file.type)) return { ok: false, message: "La boleta debe ser PDF o imagen." };
+  if (file.size > 15 * 1024 * 1024) return { ok: false, message: "La boleta no puede superar 15 MB." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(issueDate)) return { ok: false, message: "Indica una fecha de emisión válida." };
+  const admin = createAdminClient();
+  const { data: settlement, error: settlementError } = await admin
+    .from("staff_complementary_settlements")
+    .select("id,staff_id,status,event_date,event_staff_payments!inner(project_id,projects!inner(name))")
+    .eq("id", settlementId)
+    .eq("staff_id", session.staff_id)
+    .maybeSingle();
+  if (settlementError || !settlement) return { ok: false, message: "Liquidación complementaria no disponible." };
+  if (!["PENDING", "BOLETA_REJECTED"].includes(String(settlement.status))) return { ok: false, message: "Esta liquidación ya no acepta boletas." };
+  const bytes = await file.arrayBuffer();
+  const checksum = Buffer.from(await crypto.subtle.digest("SHA-256", bytes)).toString("hex");
+  const extension = file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "bin";
+  const path = `staff/${session.staff_id}/04_LIQUIDACIONES_COMPLEMENTARIAS/${settlement.event_date}/${settlementId}-${checksum}.${extension}`;
+  const upload = await admin.storage.from("orbit-documents").upload(path, bytes, { contentType: file.type, upsert: false });
+  if (upload.error && !upload.error.message.toLowerCase().includes("already exists")) return { ok: false, message: "No fue posible guardar la boleta." };
+  const { data: row, error } = await admin.rpc("submit_staff_complementary_boleta_for_staff", {
+    p_staff_id: session.staff_id,
+    p_settlement_id: settlementId,
+    p_bucket: "orbit-documents",
+    p_path: path,
+    p_file_name: file.name,
+    p_mime_type: file.type,
+    p_issue_date: issueDate,
+  });
+  if (error || !row) {
+    if (!upload.error) await admin.storage.from("orbit-documents").remove([path]);
+    return { ok: false, message: error?.message ?? "No fue posible registrar la boleta." };
+  }
+  const relation = settlement.event_staff_payments as unknown as Record<string, unknown> | Array<Record<string, unknown>>;
+  const payment = Array.isArray(relation) ? relation[0] : relation;
+  const project = payment?.projects as Record<string, unknown> | Array<Record<string, unknown>> | undefined;
+  const projectRow = Array.isArray(project) ? project[0] : project;
+  let driveMessage = " La copia en Drive quedó pendiente de verificación.";
+  try {
+    await syncStaffComplementaryBoletaToDrive({
+      client: admin,
+      documentId: String((row as Record<string, unknown>).boleta_document_id),
+      staffId: session.staff_id,
+      eventDate: String(settlement.event_date),
+      eventName: String(projectRow?.name ?? "Evento"),
+    });
+    driveMessage = " Copia de respaldo verificada en Google Drive.";
+  } catch (driveError) {
+    const ref = Buffer.from(String(driveError instanceof Error ? driveError.message : driveError)).toString("base64url").slice(0, 12);
+    await admin.from("staff_onboarding_documents").update({ drive_sync_status: "ERROR", drive_sync_error: `Referencia ${ref}`, drive_synced_at: null }).eq("id", String((row as Record<string, unknown>).boleta_document_id));
+  }
+  revalidatePath("/staff-portal");
+  revalidatePath("/resources/staff");
+  return { ok: true, message: `Boleta recibida y enviada a revisión.${driveMessage}` };
 }

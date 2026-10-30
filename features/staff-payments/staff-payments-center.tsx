@@ -11,6 +11,7 @@ import {
   reopenStaffMonthAction,
   registerQuickStaffSettlementPaymentAction,
 } from "./actions";
+import { StaffComplementarySettlementsPanel, type ComplementaryCandidate, type ComplementarySettlement } from "@/features/staff-complementary-settlements/staff-complementary-settlements-panel";
 import { StaffMonthlyAccountPanel } from "@/features/staff-monthly-account/staff-monthly-account-panel";
 import { generateMonthlyStaffAccountsAction, getIndividualBoletaSentStatuses, requestIndividualStaffBoletaAction } from "@/features/staff-monthly-account/actions";
 import { registerMonthlyStaffPaymentAction } from "@/features/staff-monthly-account/actions";
@@ -171,12 +172,16 @@ export function StaffPaymentsCenter({
   events,
   months,
   reimbursements,
+  complementarySettlements = [],
+  complementaryCandidates = [],
   initialReviewAccountId,
 }: {
   staff: StaffPaymentMember[];
   events: StaffPaymentEvent[];
   months: StaffPaymentMonth[];
   reimbursements?: StaffReimbursementDetail[];
+  complementarySettlements?: ComplementarySettlement[];
+  complementaryCandidates?: ComplementaryCandidate[];
   initialReviewAccountId?: string;
 }) {
   const reimbursementDetails = reimbursements ?? [];
@@ -318,6 +323,7 @@ export function StaffPaymentsCenter({
   const pendingStaffTotal = pendingStaffRows.reduce((sum, row) => sum + row.outstanding, 0);
   return (
     <section className="space-y-5 rounded-2xl border bg-card p-5 sm:p-7">
+      <StaffComplementarySettlementsPanel candidates={complementaryCandidates} settlements={complementarySettlements} />
       <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">
