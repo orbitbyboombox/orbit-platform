@@ -1,3 +1,4 @@
+import type { ComplementaryCandidate, ComplementarySettlement } from "@/features/staff-complementary-settlements/staff-complementary-settlements-panel";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { StaffOperationCenter } from "@/features/resources/staff-operation-center";
 import type { StaffOperationalRecord } from "@/features/resources/staff-operation-center.actions";
@@ -550,6 +551,24 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
       ];
     },
   );
+  // Complementary records are separate from the immutable finalized monthly account.
+  // Before the migration exists, PostgreSQL returns 42P01; no financial writes occur.
+  const { data: complementaryRows, error: complementaryError } = await client
+    .from("staff_complementary_settlements")
+    .select("id,staff_id,settlement_id,event_date,net_amount,status,boleta_issue_date")
+    .order("event_date", { ascending: false });
+  if (complementaryError && complementaryError.code !== "42P01" && complementaryError.code !== "PGRST205") throw complementaryError;
+  const paymentEventById = new Map(paymentEvents.map((event) => [event.id, event]));
+  const complementarySettlements: ComplementarySettlement[] = (complementaryRows ?? []).flatMap((row) => {
+    const event = paymentEventById.get(row.settlement_id);
+    if (!event) return [];
+    return [{ id: row.id, staffId: row.staff_id, settlementId: row.settlement_id, eventName: event.eventName, eventDate: row.event_date, amount: Number(row.net_amount), status: row.status, boletaIssueDate: row.boleta_issue_date }];
+  });
+  // The RPC independently verifies that the source month is finalized and the
+  // event was excluded from its immutable snapshot before creating a record.
+  const complementaryCandidates: ComplementaryCandidate[] = paymentEvents
+    .filter((event) => event.settlementStatus === "CONFIRMED" && !complementarySettlements.some((item) => item.settlementId === event.id))
+    .map((event) => ({ id: event.id, eventName: event.eventName, eventDate: event.eventDate, amount: event.originalNet + event.adjustmentTotal }));
   const monthlyRecords: StaffPaymentMonth[] = (monthlyAccounts??[]).map(row=>{const account=mapStaffMonthlyAccount(row);return{id:account.id,staffId:account.staffId,month:account.month,tax:account.withholdingAmount,advances:account.advancesTotal,paid:account.paidAmount,status:account.paymentStatus,documents:[],account}});
   const lastLoginByStaff = new Map<string, string>();
   for (const entry of history ?? []) {
@@ -879,6 +898,8 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
           events={paymentEvents}
           months={monthlyRecords}
           reimbursements={adminReimbursements}
+          complementarySettlements={complementarySettlements}
+          complementaryCandidates={complementaryCandidates}
           initialReviewAccountId={reviewAccount}
         />
       }
