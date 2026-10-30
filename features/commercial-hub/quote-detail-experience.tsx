@@ -10,7 +10,7 @@ import {
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import {
   acceptCommercialQuoteAction,
@@ -48,6 +48,7 @@ export function CommercialQuoteDetailExperience({
   const [review, setReview] = useState<QuoteConversionReview | null>(null);
   const [message, setMessage] = useState("");
   const [pending, startTransition] = useTransition();
+  const duplicateRequestId = useRef<string | null>(null);
   const actions = quoteDetailActions(quote.status, quote.projectId);
 
   if (editing && quote.draft && hubData) {
@@ -95,9 +96,12 @@ export function CommercialQuoteDetailExperience({
   };
 
   const duplicate = () => {
+    if (pending) return;
     if (!window.confirm(`¿Usar ${quote.number} como base para una nueva cotización? La original no cambiará.`)) return;
+    duplicateRequestId.current ??= crypto.randomUUID();
+    const requestId = duplicateRequestId.current;
     startTransition(async () => {
-      const result = await duplicateCommercialQuoteAction({ quoteId: quote.id });
+      const result = await duplicateCommercialQuoteAction({ quoteId: quote.id, requestId });
       if (!result.ok) {
         setMessage(result.error);
         return;
