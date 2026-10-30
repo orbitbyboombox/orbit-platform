@@ -10,7 +10,7 @@ export type StaffMonthlyAccount = {
   paymentStatus:"PENDING"|"READY_TO_PAY"|"PAID"; paidAmount:number; paidAt:string;
   paymentMethod:string; paymentReference:string; receiptDocumentId:string|null; driveSyncStatus:string;
 };
-export type StaffMonthlyDetail={settlementId:string;projectId:string;eventDate:string;event:string;customer:string;service:string;location:string;roles:string[];hours:number;workNet:number;baseWorkNet?:number;adjustmentTotal?:number;reimbursements:number;reimbursementsPaid:number;reimbursementsPending:number;advances:number};
+export type StaffMonthlyDetail={settlementId:string;projectId:string;eventDate:string;event:string;customer:string;service:string;location:string;roles:string[];hours:number;workNet:number;baseWorkNet?:number;adjustmentTotal?:number;reimbursements:number;reimbursementsPaid:number;reimbursementsPending:number;advances:number;workPending?:number;periodTransfer?:boolean;sourceMonth?:string;targetMonth?:string};
 export type StaffMonthlyUpcomingDetail={settlementId:string;projectId:string;eventDate:string;event:string;customer:string;roles:string[];workNet:number;status:string;assignmentId:string|null;blockId:string|null};
 export type StaffMonthlyBlockingEvent={settlementId:string;projectId:string;eventId:string;eventDate:string;event:string;service:string;status:string};
 export type StaffMonthlyClose={accountingMonth:string;status:"OPEN"|"CLOSED"|"REOPENED"|"PAID";dueDate:string|null;closedAt:string|null;paidAt:string|null};

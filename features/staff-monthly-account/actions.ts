@@ -664,6 +664,79 @@ export async function registerStaffAdvanceAction(form: FormData) {
     };
   }
 }
+export async function registerStaffNextPeriodAdvanceAction(form: FormData) {
+  const uploaded: string[] = [];
+  const correlationId = randomUUID().slice(0, 8).toUpperCase();
+  try {
+    const client = await adminContext();
+    const settlementId = String(form.get("settlementId") ?? "").trim();
+    const staffId = String(form.get("staffId") ?? "").trim();
+    const targetMonth = String(form.get("targetMonth") ?? "").trim();
+    const amount = Number(form.get("amount"));
+    const date = String(form.get("date") ?? "").trim();
+    const methodChoice = String(form.get("method") ?? "").trim();
+    const method = methodChoice === "OTRO"
+      ? String(form.get("methodOther") ?? "").trim()
+      : methodChoice;
+    const reason = String(form.get("reason") ?? "").trim();
+    const receipt = fileFrom({
+      get: (key: string) => form.get(key === "file" ? "receipt" : key),
+    });
+    if (!settlementId || !staffId || !/^\d{4}-\d{2}$/.test(targetMonth) ||
+      !date || !method || reason.length < 3 || !Number.isFinite(amount) || amount <= 0)
+      throw new Error("Completa mes destino, monto, fecha, método y motivo.");
+    const admin = createAdminClient();
+    const receiptHash = createHash("sha256")
+      .update(Buffer.from(await receipt.file.arrayBuffer()))
+      .digest("hex");
+    const idempotencyKey = createHash("sha256")
+      .update([settlementId, targetMonth, amount, date, method, reason, receiptHash].join("|"))
+      .digest("hex");
+    const receiptPath = `staff/advances/period-transfer/${staffId}/${settlementId}/${idempotencyKey}/${safeStorageFileName(receipt.file.name)}`;
+    const upload = await admin.storage.from("orbit-documents").upload(
+      receiptPath,
+      await receipt.file.arrayBuffer(),
+      { contentType: receipt.mime, upsert: true },
+    );
+    if (upload.error) throw upload.error;
+    uploaded.push(receiptPath);
+    const { data, error } = await client.rpc("register_staff_next_period_advance", {
+      p_settlement_id: settlementId,
+      p_target_month: `${targetMonth}-01`,
+      p_amount: amount,
+      p_date: date,
+      p_method: method,
+      p_reason: reason,
+      p_idempotency_key: idempotencyKey,
+      p_receipt_bucket: "orbit-documents",
+      p_receipt_path: receiptPath,
+      p_receipt_file_name: receipt.file.name,
+      p_receipt_mime_type: receipt.mime,
+    });
+    if (error) throw error;
+    refresh();
+    revalidatePath("/finance");
+    revalidatePath("/resources/staff");
+    const result = data && typeof data === "object" ? data as Record<string, unknown> : {};
+    return {
+      ok: true,
+      message: result.idempotent
+        ? "✓ Este traspaso ya estaba registrado; no se duplicó."
+        : "✓ Anticipo registrado y liquidación trasladada al mes siguiente.",
+    };
+  } catch (error) {
+    if (uploaded.length)
+      await createAdminClient().storage.from("orbit-documents").remove(uploaded);
+    const info = errorInfo(error);
+    console.error(JSON.stringify({
+      event: "staff_next_period_advance_failed",
+      correlationId,
+      code: info.code || info.name,
+      message: info.message,
+    }));
+    return { ok: false, message: `${info.message || "No fue posible trasladar la liquidación."} Referencia ${correlationId}` };
+  }
+}
 /** Explicitly finalize and request a boleta for exactly one selected staff member. */
 export async function getIndividualBoletaSentStatuses(accountIds: string[]) {
   await adminContext();
