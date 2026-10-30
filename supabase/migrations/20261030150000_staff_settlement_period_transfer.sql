@@ -168,10 +168,23 @@ begin
   if not found then raise exception 'Evento Staff no encontrado.'; end if;
   source_month:=date_trunc('month',settlement.accounting_month)::date;
   if target_month<=source_month then raise exception 'El mes destino debe ser posterior al mes original.'; end if;
-  if exists(select 1 from public.staff_settlement_period_transfers where settlement_id=settlement.id and status='ACTIVE') then raise exception 'Este evento ya fue trasladado a otro período.'; end if;
-  if exists(select 1 from public.event_staff_settlement_movements where legacy_source='staff-next-period:'||p_idempotency_key and deleted_at is null) then
-    select * into target_account from public.staff_monthly_accounts where staff_id=settlement.staff_id and accounting_month=target_month;
+  -- A genuine retry must succeed without inserting another advance.
+  -- Check it before rejecting an already transferred settlement.
+  if exists(
+    select 1 from public.staff_settlement_period_transfers t
+    join public.event_staff_settlement_movements m
+      on m.settlement_id=t.settlement_id
+    where t.settlement_id=settlement.id and t.status='ACTIVE'
+      and t.target_month=target_month and t.idempotency_key=p_idempotency_key
+      and m.legacy_source='staff-next-period:'||p_idempotency_key
+      and m.deleted_at is null
+  ) then
+    select * into target_account from public.staff_monthly_accounts
+      where staff_id=settlement.staff_id and accounting_month=target_month;
     return jsonb_build_object('idempotent',true,'settlementId',settlement.id,'accountId',target_account.id);
+  end if;
+  if exists(select 1 from public.staff_settlement_period_transfers where settlement_id=settlement.id and status='ACTIVE') then
+    raise exception 'Este evento ya fue trasladado a otro período.';
   end if;
   select * into source_account from public.staff_monthly_accounts where staff_id=settlement.staff_id and accounting_month=source_month for update;
   if not found or source_account.settlement_status<>'FINALIZED' or source_account.payment_status<>'PAID' then raise exception 'El mes original debe estar cerrado y pagado.'; end if;
