@@ -23,6 +23,10 @@ const interpolateOperatorRate=(hours:number,rates:Map<string,number>)=>{
   const lowerRate=rates.get(rateCodeForHours(lower)),upperRate=rates.get(rateCodeForHours(upper));
   return lowerRate===undefined||upperRate===undefined?null:Math.round(lowerRate+(upperRate-lowerRate)*((minutes-lower*60)/60));
 };
+const officialRate=(code:string,rates:Map<string,number>)=>{
+  const value=rates.get(code);
+  return value!==undefined&&Number.isFinite(value)&&value>0?value:null;
+};
 function mapStaffEventPayment(row: Record<string, unknown>, assignmentById: Map<string, Record<string, unknown>>, adjustmentsBySettlement: Map<string, Array<{ reason: string; amount: number; comment: string }>>, currentDate: string): StaffEventPayment {
   const project = Array.isArray(row.projects) ? row.projects[0] as Record<string, unknown> | undefined : row.projects as Record<string, unknown> | undefined;
   const services = project && Array.isArray(project.project_services) ? project.project_services as Array<Record<string, unknown>> : [];
@@ -116,7 +120,8 @@ export async function StaffPortal({staffId,initialEventId}:{staffId:string;initi
     const address=String(detailOperations.eventAddress??detail?.location??"Dirección pendiente de confirmar");
     const venue=String(detailOperations.venue??detailOperations.venueName??detail?.location??"Recinto pendiente de confirmar");
     const operatorRate=interpolateOperatorRate(hours,officialRates);
-    return[{id:row.project_id,orbitEventId:row.orbit_event_id,eventType:row.project_type,customer:"Evento BOOMBOX",clientPhone:"Disponible después de confirmación",productionContact:"Disponible después de confirmación",productionPhone:"Disponible después de confirmación",service:format,duration:hours,date:row.event_date,staffCallAt:callAt,start:startTime,timeMode:row.event_time_mode??"ESTIMATED",finish:finishTime,endsNextDay,format,callout:callAt?new Date(callAt).toLocaleTimeString("es-CL",{timeZone:"America/Santiago",hour:"2-digit",minute:"2-digit",hour12:false}):"A coordinar con Operaciones",box:assignedBoxByProject.get(row.project_id)??null,address,district:detail?.city??row.city??"Comuna pendiente de confirmar",venue,vehicle:"Disponible después de confirmación",equipment:[],available,payments:{operator:operatorRate??0,assembly:officialRates.get("ASSEMBLY")??0,disassembly:officialRates.get("DISASSEMBLY")??0,combined:officialRates.get("ASSEMBLY_DISASSEMBLY")??0,transportationBonus:0}}]
+    const assemblyRate=officialRate("ASSEMBLY",officialRates),disassemblyRate=officialRate("DISASSEMBLY",officialRates),combinedRate=officialRate("ASSEMBLY_DISASSEMBLY",officialRates);
+    return[{id:row.project_id,orbitEventId:row.orbit_event_id,eventType:row.project_type,customer:"Evento BOOMBOX",clientPhone:"Disponible después de confirmación",productionContact:"Disponible después de confirmación",productionPhone:"Disponible después de confirmación",service:format,duration:hours,date:row.event_date,staffCallAt:callAt,start:startTime,timeMode:row.event_time_mode??"ESTIMATED",finish:finishTime,endsNextDay,format,callout:callAt?new Date(callAt).toLocaleTimeString("es-CL",{timeZone:"America/Santiago",hour:"2-digit",minute:"2-digit",hour12:false}):"A coordinar con Operaciones",box:assignedBoxByProject.get(row.project_id)??null,address,district:detail?.city??row.city??"Comuna pendiente de confirmar",venue,vehicle:"Disponible después de confirmación",equipment:[],available,payments:{operator:operatorRate,assembly:assemblyRate,disassembly:disassemblyRate,combined:combinedRate,transportationBonus:null}}]
   }).sort((a,b)=>a.date.localeCompare(b.date)||a.start.localeCompare(b.start));
   const staffRouteRoles = new Map<string,string[]>();
   for (const row of allAssignmentsResult.data ?? []) {
