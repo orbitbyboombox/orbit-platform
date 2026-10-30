@@ -10,11 +10,13 @@ import {
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import {
   acceptCommercialQuoteAction,
+  duplicateCommercialQuoteAction,
   loadCommercialQuoteConversionReviewAction,
+  prepareCommercialQuoteRevisionAction,
 } from "./actions";
 import {
   quoteDetailActions,
@@ -46,6 +48,7 @@ export function CommercialQuoteDetailExperience({
   const [review, setReview] = useState<QuoteConversionReview | null>(null);
   const [message, setMessage] = useState("");
   const [pending, startTransition] = useTransition();
+  const duplicateRequestId = useRef<string | null>(null);
   const actions = quoteDetailActions(quote.status, quote.projectId);
 
   if (editing && quote.draft && hubData) {
@@ -89,6 +92,30 @@ export function CommercialQuoteDetailExperience({
         return;
       }
       setReview(result.review);
+    });
+  };
+
+  const duplicate = () => {
+    if (pending) return;
+    if (!window.confirm(`¿Usar ${quote.number} como base para una nueva cotización? La original no cambiará.`)) return;
+    duplicateRequestId.current ??= crypto.randomUUID();
+    const requestId = duplicateRequestId.current;
+    startTransition(async () => {
+      const result = await duplicateCommercialQuoteAction({ quoteId: quote.id, requestId });
+      if (!result.ok) {
+        setMessage(result.error);
+        return;
+      }
+      router.push(`/quotes/${result.id}`);
+    });
+  };
+
+  const prepareRevision = () => {
+    if (!window.confirm("Se conservará la versión aceptada y se abrirá una propuesta comercial independiente. ¿Continuar?")) return;
+    startTransition(async () => {
+      const result = await prepareCommercialQuoteRevisionAction(quote.id);
+      setMessage(result.ok ? `✓ Revisión ${result.version ?? ""} preparada para editar.` : result.error);
+      if (result.ok) router.refresh();
     });
   };
 
@@ -143,6 +170,14 @@ export function CommercialQuoteDetailExperience({
                 <FilePenLine /> CONTINUAR EDITANDO
               </Button>
             ) : null}
+            {actions.canCreatePostAcceptanceRevision ? (
+              <Button disabled={pending} onClick={prepareRevision} variant="outline">
+                <FilePenLine /> PREPARAR MODIFICACIÓN
+              </Button>
+            ) : null}
+            <Button disabled={pending} onClick={duplicate} variant="outline">
+              DUPLICAR / USAR COMO BASE
+            </Button>
             {actions.canAccept ? (
               <Button disabled={pending} onClick={accept}>
                 <CheckCircle2 />

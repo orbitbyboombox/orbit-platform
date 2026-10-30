@@ -110,7 +110,7 @@ export function quoteDetailActions(
     : Boolean(projectId);
   return {
     canEdit: ["DRAFT", "SENT", "VIEWED", "NEGOTIATION"].includes(status),
-    canCreatePostAcceptanceRevision: status === "ACCEPTED",
+    canCreatePostAcceptanceRevision: ["ACCEPTED", "CONVERTED"].includes(status),
     canAccept: ["SENT", "VIEWED"].includes(status),
     canConvert: status === "ACCEPTED" && !projectId,
     isConverted: Boolean(projectId) && conversionComplete,
@@ -127,13 +127,15 @@ export function buildCommercialQuoteDetail(
   versions: readonly SendRow[] = [],
 ): CommercialQuoteDetail {
   const id = text(row.id);
+  const status = text(row.status);
   const acceptedSnapshot = record(row.accepted_snapshot);
   const acceptedQuotation = record(acceptedSnapshot.quotation);
   const acceptedCommercial = record(acceptedSnapshot.commercial);
   const currentCommercial = record(row.commercial_snapshot);
   const pricingSnapshot = record(row.pricing_snapshot);
   const pricingCommercial = record(pricingSnapshot.commercial);
-  const commercial = Object.keys(acceptedCommercial).length
+  const useAcceptedSnapshot = status === "ACCEPTED" || status === "CONVERTED";
+  const commercial = useAcceptedSnapshot && Object.keys(acceptedCommercial).length
     ? acceptedCommercial
     : Object.keys(pricingCommercial).length
       ? pricingCommercial
@@ -143,11 +145,11 @@ export function buildCommercialQuoteDetail(
   const relatedCustomer = Array.isArray(row.customers)
     ? record(row.customers[0])
     : record(row.customers);
-  const customerSource = Object.keys(acceptedCustomer).length
+  const customerSource = useAcceptedSnapshot && Object.keys(acceptedCustomer).length
     ? acceptedCustomer
     : currentCustomer;
   const event = record(commercial.event);
-  const sourceItems = Array.isArray(acceptedSnapshot.items)
+  const sourceItems = useAcceptedSnapshot && Array.isArray(acceptedSnapshot.items)
     ? acceptedSnapshot.items
     : Array.isArray(pricingSnapshot.items)
       ? pricingSnapshot.items
@@ -208,7 +210,6 @@ export function buildCommercialQuoteDetail(
     phone: text(customerSource.phone) || text(relatedCustomer.phone),
     address: text(customerSource.address) || text(relatedCustomer.address),
   };
-  const status = text(row.status);
   const history: CommercialQuoteHistoryEntry[] = [
     {
       id: `${id}:created`,

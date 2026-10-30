@@ -28,7 +28,7 @@ export async function loadCommercialQuoteDetail(
   const { data: quote, error } = await query.maybeSingle();
   if (error) throw error;
   if (!quote) return null;
-  const [sendsResult, originResult] = await Promise.all([
+  const [sendsResult, originResult, versionsResult] = await Promise.all([
     client
       .from("commercial_sends")
       .select(
@@ -41,10 +41,16 @@ export async function loadCommercialQuoteDetail(
       .select("project_id,created_at")
       .eq("quotation_id", quote.id)
       .maybeSingle(),
+    client
+      .from("quote_versions")
+      .select("id,version_number,status,change_reason,created_at,sent_at,accepted_at,pdf_storage_path")
+      .eq("quote_id", quote.id)
+      .order("version_number", { ascending: false }),
   ]);
   const { data: sends, error: sendsError } = sendsResult;
   if (sendsError) throw sendsError;
   if (originResult.error) throw originResult.error;
+  if (versionsResult.error) throw versionsResult.error;
   const linkedProjectId = quote.project_id ?? originResult.data?.project_id;
   return buildCommercialQuoteDetail(
     {
@@ -54,6 +60,7 @@ export async function loadCommercialQuoteDetail(
       converted_at: quote.converted_at ?? originResult.data?.created_at,
     },
     sends ?? [],
+    versionsResult.data ?? [],
   );
 }
 
