@@ -570,8 +570,13 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
   });
   // The RPC independently verifies that the source month is finalized and the
   // event was excluded from its immutable snapshot before creating a record.
+  const finalizedStaffMonths = new Set((monthlyAccounts ?? []).map(mapStaffMonthlyAccount)
+    .filter((account) => account.settlementStatus === "FINALIZED")
+    .map((account) => `${account.staffId}:${account.month}`));
   const complementaryCandidates: ComplementaryCandidate[] = paymentEvents
-    .filter((event) => event.status === "CONFIRMED" && event.settlementStatus === "PENDING" && !complementarySettlements.some((item) => item.settlementId === event.id))
+    .filter((event) => event.status === "CONFIRMED" && event.settlementStatus === "PENDING"
+      && finalizedStaffMonths.has(`${event.staffId}:${event.accountingMonth}`)
+      && !complementarySettlements.some((item) => item.settlementId === event.id))
     .map((event) => ({ id: event.id, eventName: event.eventName, eventDate: event.eventDate, amount: event.originalNet + event.adjustmentTotal }));
   const monthlyRecords: StaffPaymentMonth[] = (monthlyAccounts??[]).map(row=>{const account=mapStaffMonthlyAccount(row);return{id:account.id,staffId:account.staffId,month:account.month,tax:account.withholdingAmount,advances:account.advancesTotal,paid:account.paidAmount,status:account.paymentStatus,documents:[],account}});
   const lastLoginByStaff = new Map<string, string>();
