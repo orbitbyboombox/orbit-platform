@@ -401,13 +401,17 @@ export async function createFormalQuoteAction(input: FormalQuoteDraft) {
 
 export async function duplicateCommercialQuoteAction(input: {
   quoteId: string;
+  requestId: string;
   customerId?: string | null;
   event?: { name?: string; date?: string; time?: string; location?: string; city?: string };
 }) {
   try {
     const { client } = await founder();
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.requestId))
+      throw new Error("Clave de operación inválida.");
     const { data, error } = await client.rpc("duplicate_commercial_quote", {
       p_source_quote_id: input.quoteId,
+      p_request_id: input.requestId,
       p_customer_id: input.customerId || null,
       p_event_overrides: input.event ?? {},
     });
