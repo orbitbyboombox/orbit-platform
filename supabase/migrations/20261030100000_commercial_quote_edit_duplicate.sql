@@ -98,6 +98,9 @@ begin
   if p_request_id is null then
     raise exception 'Se requiere una clave de idempotencia.' using errcode = '22023';
   end if;
+  if p_event_overrides is null or jsonb_typeof(p_event_overrides) <> 'object' then
+    raise exception 'Los cambios del evento deben ser un objeto JSON.' using errcode = '22023';
+  end if;
   request_hash := md5(jsonb_build_object('source', p_source_quote_id, 'customer', p_customer_id, 'event', p_event_overrides)::text);
   perform pg_advisory_xact_lock(hashtextextended(actor::text || ':' || p_request_id::text, 0));
   select * into prior_request from public.commercial_quote_duplication_requests
@@ -129,10 +132,9 @@ begin
   commercial_snapshot_value := coalesce(source.commercial_snapshot, '{}'::jsonb)
     || jsonb_build_object('duplicatedFrom', jsonb_build_object('id', source.id,
       'number', source.quotation_number, 'version', source.version));
-  if jsonb_typeof(p_event_overrides) = 'object' then
-    commercial_snapshot_value := jsonb_set(commercial_snapshot_value, '{event}',
-      coalesce(commercial_snapshot_value->'event', '{}'::jsonb) || p_event_overrides, true);
-  end if;
+  commercial_snapshot_value := jsonb_set(commercial_snapshot_value, '{event}',
+    (case when jsonb_typeof(commercial_snapshot_value->'event') = 'object'
+      then commercial_snapshot_value->'event' else '{}'::jsonb end) || p_event_overrides, true);
   financial_snapshot_value := jsonb_build_object('subtotal', source.subtotal,
     'discount', source.discount_total, 'net', source.subtotal - source.discount_total,
     'tax', source.tax_total, 'total', source.grand_total,
