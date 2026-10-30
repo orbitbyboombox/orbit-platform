@@ -215,10 +215,13 @@ begin
     end if;
   end if;
 
-  perform public.sync_estimated_cost_sheet(p_project_id);
-  perform public.sync_financial_event(p_project_id);
-  perform public.sync_event_operation_cost(p_project_id);
-  perform public.sync_event_profitability(p_project_id);
+  -- Operational-only edits must not recalculate or write financial projections.
+  if changed_commercial then
+    perform public.sync_estimated_cost_sheet(p_project_id);
+    perform public.sync_financial_event(p_project_id);
+    perform public.sync_event_operation_cost(p_project_id);
+    perform public.sync_event_profitability(p_project_id);
+  end if;
 
   insert into public.timeline_events(customer_id, project_id, orbit_event_id, event_type, title, description, actor_id, actor_label, source, action, entity_type, entity_id, human_message, correlation_id, reason, created_by)
   values(project_row.customer_id, p_project_id, project_row.orbit_event_id, 'GLOBAL_EVENT_UPDATED', 'Evento actualizado', jsonb_build_object('before', jsonb_build_object('name', project_row.name, 'eventDate', project_row.event_date, 'eventTime', project_row.event_time, 'location', project_row.location, 'city', project_row.city, 'items', before_items, 'financial', before_financial), 'after', p_changes, 'paymentsPreserved', true)::text, actor, 'Administrador', 'Administrator', 'GLOBAL_EVENT_UPDATED', 'Project', p_project_id, 'El evento fue actualizado con trazabilidad y sin eliminar pagos históricos.', 'global-event-editor:' || p_project_id::text || ':' || coalesce(project_row.version, 0)::text, trim(p_reason), actor);
