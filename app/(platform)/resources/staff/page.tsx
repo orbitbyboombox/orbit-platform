@@ -799,7 +799,10 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
   if (boxAssetsError) throw boxAssetsError;
   const allBoxProjectIds = [...new Set([...(boxAssignments ?? []).map((assignment) => assignment.project_id), ...eventIds])];
   const conflictingProjectIdsByAsset = new Map<string, string[]>();
-  const { data: availabilityRows, error: availabilityError } = await client.rpc("get_black_box_availability", { p_project_ids: allBoxProjectIds });
+  const availabilityResult = process.env.VERCEL_ENV === "preview"
+    ? { data: [], error: null }
+    : await client.rpc("get_black_box_availability", { p_project_ids: allBoxProjectIds });
+  const { data: availabilityRows, error: availabilityError } = availabilityResult;
   if (availabilityError) throw availabilityError;
   for (const row of availabilityRows ?? []) {
     if (!row.conflicts) continue;
