@@ -25,13 +25,13 @@ test("Staff capabilities remain nested in their owning module", () => {
 });
 
 test("Staff Home reuses compact weekly and logistics language", () => {
-  for (const marker of ["MI SEMANA", "Tu agenda semanal", "EVENTOS DISPONIBLES ESTA SEMANA", "SEMANA ACTUAL", "RUTA OFICIAL", "MONTAJE", "DESMONTAJE"]) {
+  for (const marker of ["MI SEMANA", "Tu agenda semanal", "EVENTOS DISPONIBLES · PRÓXIMOS 15 DÍAS", "SEMANA ACTUAL", "RUTA OFICIAL", "MONTAJE", "DESMONTAJE"]) {
     assert.match(dashboard, new RegExp(marker));
   }
   assert.match(dashboard, /LogisticsEventRow, ScaledLogisticsEventRow/);
   assert.match(dashboard, /<LogisticsEventRow event=\{row\}/);
   assert.match(dashboard, /<ScaledLogisticsEventRow event=\{row\}/);
-  assert.match(dashboard, /No tienes eventos asignados esta semana/);
+  assert.match(dashboard, /No tienes eventos activos o próximos/);
 });
 
 test("Staff operational extras reuse the canonical projection and hide prices", () => {
@@ -55,7 +55,7 @@ test("Staff Home places the weekly agenda before summary and modules", () => {
 test("Staff Portal keeps finance and capability visibility structural", () => {
   assert.match(dashboard, /capabilities: string\[\]/);
   assert.match(dashboard, /canMount = capabilities\.includes\("ASSEMBLY"\)/);
-  assert.match(dashboard, /events=\{weekEvents\}/);
+  assert.match(dashboard, /windowEvents=\{windowEvents\.length\}/);
   assert.match(dashboard, /currentMonth=\{currentMonth\}/);
   assert.match(dashboard, /notificationsOpen/);
   assert.match(dashboard, /staffMonthLabel/);
