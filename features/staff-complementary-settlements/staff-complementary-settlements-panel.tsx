@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   createComplementarySettlementAction,
@@ -37,12 +38,14 @@ export function StaffComplementarySettlementsPanel({
   settlements: ComplementarySettlement[];
   candidates: ComplementaryCandidate[];
 }) {
+  const router = useRouter();
   const [message, setMessage] = useState("");
   const [pending, start] = useTransition();
   const run = (action: (form: FormData) => Promise<{ ok: boolean; message: string }>) =>
     (form: FormData) => start(async () => {
       const result = await action(form);
       setMessage(result.message);
+      if (result.ok) router.refresh();
     });
   return (
     <section className="rounded-2xl border border-brand/30 bg-brand/5 p-4 sm:p-5">
