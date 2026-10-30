@@ -162,6 +162,12 @@ declare actor uuid:=auth.uid(); settlement public.event_staff_payments%rowtype;
 begin
   if actor is null or not public.can_administer() then raise exception 'Solo Founder o Administración puede trasladar liquidaciones.'; end if;
   if coalesce(p_amount,0)<=0 or nullif(trim(coalesce(p_reason,'')),'') is null or nullif(trim(coalesce(p_idempotency_key,'')),'') is null then raise exception 'Monto, motivo y clave idempotente son obligatorios.'; end if;
+  if p_date is null or p_date>current_date then
+    raise exception 'La fecha de transferencia debe corresponder a un pago ya realizado.';
+  end if;
+  if nullif(trim(coalesce(p_method,'')),'') is null or nullif(trim(coalesce(p_receipt_path,'')),'') is null or nullif(trim(coalesce(p_receipt_file_name,'')),'') is null then
+    raise exception 'Medio de pago y comprobante son obligatorios.';
+  end if;
   select * into settlement from public.event_staff_payments where id=p_settlement_id and status='CONFIRMED' and deleted_at is null for update;
   if not found then raise exception 'Liquidación Staff confirmada no encontrada.'; end if;
   select * into project_row from public.projects where id=settlement.project_id and deleted_at is null;
