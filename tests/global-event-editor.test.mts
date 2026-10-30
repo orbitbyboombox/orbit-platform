@@ -56,3 +56,12 @@ test("migration uses an atomic guarded function and no destructive event deletio
   assert.doesNotMatch(sql, /delete\s+from\s+public\.projects/i);
   assert.doesNotMatch(sql, /delete\s+from\s+public\.invoice_payments/i);
 });
+
+
+test("operational-only SQL save returns persisted financial amounts without synchronizing them", async () => {
+  const fs = await import("node:fs/promises");
+  const sql = await fs.readFile(new URL("../supabase/migrations/20261029170000_global_event_editor.sql", import.meta.url), "utf8");
+  assert.match(sql, /if not changed_commercial then\s+total_value := coalesce\(quotation_row\.grand_total, 0\\)/);
+  assert.match(sql, /select coalesce\(i\.paid_amount, 0\\) into paid_value/);
+  assert.match(sql, /if changed_commercial then\s+perform public\.sync_estimated_cost_sheet\(p_project_id\\)/);
+});
