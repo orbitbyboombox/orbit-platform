@@ -32,9 +32,11 @@ export function buildStaffRoleSlots<T extends StaffSlotAssignment>(
 }
 
 export function validStaffQuantity(value: number) {
-  return Number.isSafeInteger(value) && value >= 1 && value <= 99;
+  return Number.isSafeInteger(value) && value >= 1 && value <= 2_147_483_647;
 }
 
 export function canAssignBlockStaff(assigned: number, required: number) {
-  return required > 0 && assigned < required;
+  // Founder/Admin can correct operational coverage beyond the projected
+  // requirement. The requirement remains a reporting guide, not a hard cap.
+  return Number.isSafeInteger(assigned) && assigned >= 0 && Number.isSafeInteger(required) && required >= 0;
 }

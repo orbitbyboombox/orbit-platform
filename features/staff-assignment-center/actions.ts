@@ -114,6 +114,27 @@ export async function saveStaffAssignmentAction(
     )
       throw new Error("Selecciona Staff, rol y evento.");
     const ctx = await context(input.projectId);
+    if (input.id) {
+      const { data: existingPayment, error: paymentError } = await ctx.client
+        .from("event_staff_payments")
+        .select("settlement_status, paid_amount")
+        .eq("assignment_id", input.id)
+        .eq("project_id", input.projectId)
+        .is("deleted_at", null)
+        .maybeSingle();
+      if (paymentError) throw paymentError;
+      if (
+        existingPayment &&
+        (
+          (["PAID", "FINALIZED"] as string[]).includes(String(existingPayment.settlement_status)) ||
+          Number(existingPayment.paid_amount ?? 0) > 0
+        )
+      ) {
+        throw new Error(
+          "La asignación tiene un pago cerrado. Registra un ajuste auditable separado antes de cambiarla.",
+        );
+      }
+    }
     const selectedBlock = input.blockId
       ? (Array.isArray(ctx.project.event_operational_blocks)
           ? ctx.project.event_operational_blocks

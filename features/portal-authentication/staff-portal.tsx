@@ -9,24 +9,17 @@ import {portalStaffVisibility} from "./staff-portal-visibility";
 import {buildCanonicalOrbitEventStateFromRecord} from "@/features/operations/canonical-orbit-event-state";
 import {buildCanonicalOperationalExtras} from "@/features/operations/canonical-operational-extras";
 import {CANONICAL_BOX_CODES} from "@/features/asset-management/box-assignment-read-model";
+import {resolveStaffRateForEvent,STAFF_RATE_EFFECTIVE_DATE} from "@/features/operations/staff-assignment-payment";
 
 const today=()=>new Intl.DateTimeFormat("en-CA",{timeZone:"America/Santiago"}).format(new Date());
 const addDays=(value:string,days:number)=>{const date=new Date(`${value}T12:00:00Z`);date.setUTCDate(date.getUTCDate()+days);return date.toISOString().slice(0,10)};
 const finish=(time:string,hours:number)=>{const[h,m]=time.slice(0,5).split(":").map(Number);const total=h*60+m+hours*60;return`${String(Math.floor(total/60)%24).padStart(2,"0")}:${String(total%60).padStart(2,"0")}`};
 const OPERATIONAL_ROLES = ["OPERATOR", "SUPERVISOR", "ASSEMBLY", "DISASSEMBLY"] as const;
-const rateCodeForHours=(hours:number)=>Number.isInteger(hours)?`OPERATOR_${hours}_HOURS`:`OPERATOR_${String(hours).replace(".","_")}_HOURS`;
-const interpolateOperatorRate=(hours:number,rates:Map<string,number>)=>{
-  const minutes=Math.round(hours*60);
-  if(minutes<120)return null;
-  const lower=Math.floor(minutes/60),upper=Math.ceil(minutes/60);
-  if(lower===upper)return rates.get(rateCodeForHours(lower))??null;
-  const lowerRate=rates.get(rateCodeForHours(lower)),upperRate=rates.get(rateCodeForHours(upper));
-  return lowerRate===undefined||upperRate===undefined?null:Math.round(lowerRate+(upperRate-lowerRate)*((minutes-lower*60)/60));
-};
 const officialRate=(code:string,rates:Map<string,number>)=>{
   const value=rates.get(code);
   return value!==undefined&&Number.isFinite(value)&&value>0?value:null;
 };
+const eventDateAtOrAfterNovember=(eventDate:string)=>eventDate>=STAFF_RATE_EFFECTIVE_DATE;
 function mapStaffEventPayment(row: Record<string, unknown>, assignmentById: Map<string, Record<string, unknown>>, adjustmentsBySettlement: Map<string, Array<{ reason: string; amount: number; comment: string }>>, currentDate: string): StaffEventPayment {
   const project = Array.isArray(row.projects) ? row.projects[0] as Record<string, unknown> | undefined : row.projects as Record<string, unknown> | undefined;
   const services = project && Array.isArray(project.project_services) ? project.project_services as Array<Record<string, unknown>> : [];
@@ -119,8 +112,8 @@ export async function StaffPortal({staffId,initialEventId}:{staffId:string;initi
     const format=detailServices.map(value=>String(value.service_code??"Servicio")).filter(Boolean).join(" + ")||services.map(value=>`${Number(value.quantity??1)} × ${value.code??"Servicio"}`).join(" + ")||"Servicio BOOMBOX";
     const address=String(detailOperations.eventAddress??detail?.location??"Dirección pendiente de confirmar");
     const venue=String(detailOperations.venue??detailOperations.venueName??detail?.location??"Recinto pendiente de confirmar");
-    const operatorRate=interpolateOperatorRate(hours,officialRates);
-    const assemblyRate=officialRate("ASSEMBLY",officialRates),disassemblyRate=officialRate("DISASSEMBLY",officialRates),combinedRate=officialRate("ASSEMBLY_DISASSEMBLY",officialRates);
+    const operatorRate=resolveStaffRateForEvent(costMasterResult.data??[],Math.round(hours*60),"OPERATOR",row.event_date);
+    const assemblyRate=eventDateAtOrAfterNovember(row.event_date)?10000:officialRate("ASSEMBLY",officialRates),disassemblyRate=eventDateAtOrAfterNovember(row.event_date)?10000:officialRate("DISASSEMBLY",officialRates),combinedRate=eventDateAtOrAfterNovember(row.event_date)?20000:officialRate("ASSEMBLY_DISASSEMBLY",officialRates);
     return[{id:row.project_id,orbitEventId:row.orbit_event_id,eventType:row.project_type,customer:"Evento BOOMBOX",clientPhone:"Disponible después de confirmación",productionContact:"Disponible después de confirmación",productionPhone:"Disponible después de confirmación",service:format,duration:hours,date:row.event_date,staffCallAt:callAt,start:startTime,timeMode:row.event_time_mode??"ESTIMATED",finish:finishTime,endsNextDay,format,callout:callAt?new Date(callAt).toLocaleTimeString("es-CL",{timeZone:"America/Santiago",hour:"2-digit",minute:"2-digit",hour12:false}):"A coordinar con Operaciones",box:assignedBoxByProject.get(row.project_id)??null,address,district:detail?.city??row.city??"Comuna pendiente de confirmar",venue,vehicle:"Disponible después de confirmación",equipment:[],available,payments:{operator:operatorRate,assembly:assemblyRate,disassembly:disassemblyRate,combined:combinedRate,transportationBonus:null}}]
   }).sort((a,b)=>a.date.localeCompare(b.date)||a.start.localeCompare(b.start));
   const staffRouteRoles = new Map<string,string[]>();
