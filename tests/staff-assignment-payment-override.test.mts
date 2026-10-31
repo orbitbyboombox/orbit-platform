@@ -68,5 +68,7 @@ describe("staff assignment payment overrides", () => {
     assert.match(flexibilityMigration, /create or replace function public\.guard_event_staff_capacity/);
     assert.match(flexibilityMigration, /event_operational_blocks/);
     assert.doesNotMatch(flexibilityMigration, /occupied >= coalesce\(required/);
+    assert.doesNotMatch(flexibilityMigration, /p_required_quantity < occupied/);
+    assert.doesNotMatch(flexibilityMigration, /assigned_count>=coalesce\(required_count,0\)/);
   });
 });
