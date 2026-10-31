@@ -25,6 +25,7 @@ import type { OperationalBlock } from "@/features/operations/operational-blocks"
 import { effectiveStaffAssignmentPayment } from "@/features/operations/staff-assignment-payment";
 import { canonicalStaffPaymentTotal } from "@/features/staff-payments/staff-payment-display";
 import { canonicalRealCostDisplay } from "@/features/projects/canonical-real-cost-display";
+import { buildCanonicalStaffFinancials } from "@/features/staff-payments/canonical-staff-financials";
 
 export interface ProjectWorkspacePageProps {
   params: Promise<{ projectId: string }>;
@@ -100,6 +101,7 @@ export default async function ProjectWorkspacePage({
     { data: calendarSync },
     { data: driveSync },
     { data: payroll },
+    { data: paymentItems, error: paymentItemsError },
     { data: staffRates },
     { data: profit },
     { data: invoice },
@@ -198,6 +200,10 @@ export default async function ProjectWorkspacePage({
       )
       .eq("project_id", projectId)
       .is("deleted_at", null),
+    client
+      .from("event_staff_payment_items")
+      .select("id,project_id,staff_id,assignment_id,concept_code,amount,paid_amount,status,staff(first_name,last_name)")
+      .eq("project_id", projectId),
     client
       .from("cost_master_entries")
       .select("code,amount,enabled")
@@ -337,6 +343,9 @@ export default async function ProjectWorkspacePage({
     client.from("expenses").select("id,vehicle_trip_id,category,total,status,receipt_path,approval_reason").eq("project_id",projectId).not("vehicle_trip_id","is",null).is("deleted_at",null).neq("status","CANCELLED").order("occurred_on"),
     client.from("vehicle_profiles").select("asset_id,nickname,model,height_m,operational_status,operational_assets!inner(asset_code,status,deleted_at)").is("operational_assets.deleted_at",null).order("model"),
   ]);
+  if (paymentItemsError && !["42P01", "PGRST205"].includes(paymentItemsError.code ?? "")) {
+    throw paymentItemsError;
+  }
   const logisticsError=logisticsSummaryResult.error??logisticsTripsResult.error??logisticsExpensesResult.error??logisticsVehiclesResult.error;
   if(logisticsError)throw logisticsError;
   const physicalRequirements=(operationalRequirements??[]).filter(item=>item.requirement_type==="PHYSICAL_UNIT"&&item.asset_type);
@@ -570,6 +579,36 @@ export default async function ProjectWorkspacePage({
   const productionAssignments = (
     (operatorAssignments ?? []) as unknown as StaffAssignment[]
   ).filter((item) => confirmedAssignmentStatuses.has(item.status));
+  const canonicalStaffFinancials = buildCanonicalStaffFinancials({
+    projectId,
+    settlements: (payroll ?? []).map((item) => ({
+      id: item.id,
+      staffId: item.staff_id,
+      assignmentId: item.assignment_id,
+      status: item.status,
+      operatorPayment: item.operator_payment,
+      assemblyPayment: item.assembly_payment,
+      disassemblyPayment: item.disassembly_payment,
+      paidAmount: item.paid_amount,
+    })),
+    paymentItems: ((paymentItems ?? []) as Array<Record<string, unknown>>).map((item) => ({
+      id: String(item.id),
+      projectId: String(item.project_id),
+      staffId: String(item.staff_id),
+      assignmentId: item.assignment_id ? String(item.assignment_id) : null,
+      concept: String(item.concept_code) as "OPERATOR" | "SUPERVISOR" | "ASSEMBLY" | "DISASSEMBLY" | "TRAINING",
+      amount: Number(item.amount ?? 0),
+      paidAmount: Number(item.paid_amount ?? 0),
+      status: String(item.status),
+      source: "PAYMENT_ITEM" as const,
+    })),
+    assignments: productionAssignments.map((item) => ({
+      id: item.id,
+      staffId: item.staff_id,
+      role: item.assignment_type,
+      status: item.status,
+    })),
+  });
   const responsibilityRequirements = buildResponsibilityReadModel(
     (staffRoleRequirements ?? []).filter((item) => !item.block_id && !(operationalBlockRows?.length && item.role === "OPERATOR")).map((item) => ({
       role: item.role,
@@ -1405,9 +1444,9 @@ export default async function ProjectWorkspacePage({
             : null,
         };
       }),
-      roleCosts: Object.fromEntries(["OPERATOR", "ASSEMBLY", "DISASSEMBLY"].map((role) => [role,
-        (payroll ?? []).filter((item) => item.status !== "CANCELLED").reduce((sum, item) => sum + Number(role === "OPERATOR" ? item.operator_payment : role === "ASSEMBLY" ? item.assembly_payment : item.disassembly_payment), 0),
-      ])),
+      roleCosts: canonicalStaffFinancials.byConcept,
+      canonicalTotal: canonicalStaffFinancials.total,
+      reviewRequiredAssignmentIds: canonicalStaffFinancials.reviewRequiredAssignmentIds,
       requests: (staffRequests ?? []).map((item) => {
         const member = Array.isArray(item.staff) ? item.staff[0] : item.staff;
         return {
@@ -1542,7 +1581,47 @@ export default async function ProjectWorkspacePage({
               createdAt: value.created_at,
             })),
           };
-        }),
+        })
+        .concat(
+          ((paymentItems ?? []) as Array<Record<string, unknown>>)
+            .filter((item) => !["CANCELLED", "DELETED"].includes(String(item.status)))
+            .map((item) => {
+              const staffRecord = item.staff as { first_name?: string; last_name?: string } | { first_name?: string; last_name?: string }[] | null;
+              const staffRow = Array.isArray(staffRecord) ? staffRecord[0] : staffRecord;
+              const amount = Number(item.amount ?? 0);
+              const paid = Number(item.paid_amount ?? 0);
+              return {
+                id: String(item.id),
+                staffId: String(item.staff_id),
+                staffName: `${staffRow?.first_name ?? ""} ${staffRow?.last_name ?? ""}`.trim() || "Staff",
+                roles: [String(item.concept_code)],
+                defaultOperator: 0,
+                defaultAssembly: 0,
+                defaultDisassembly: 0,
+                overrideOperator: null,
+                overrideAssembly: null,
+                overrideDisassembly: null,
+                originalOperator: 0,
+                originalAssembly: 0,
+                originalDisassembly: 0,
+                originalNet: amount,
+                adjustmentTotal: 0,
+                reimbursementTotal: 0,
+                finalAmount: amount,
+                paid,
+                remaining: Math.max(0, amount - paid),
+                settlementStatus: String(item.status),
+                paidAt: "",
+                receiptStatus: "PENDING",
+                blockId: null,
+                blockName: null,
+                contractedMinutes: null,
+                adjustments: [],
+                reimbursements: [],
+                payments: [],
+              };
+            }),
+        ),
       hasPendingRequest: Boolean(staffRequests?.length),
       assignments: productionAssignments
         .filter((item) => item.project_id === projectId)

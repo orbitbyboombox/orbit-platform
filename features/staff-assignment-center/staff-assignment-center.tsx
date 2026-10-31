@@ -26,6 +26,7 @@ import {
   addStaffSettlementReimbursementAction,
   overrideStaffAssignmentPaymentAction,
   resetStaffAssignmentPaymentAction,
+  upsertStaffPaymentItemAction,
   updateStaffEventSettlementAction,
 } from "@/features/staff-payments/actions";
 import { reviewStaffRequestAction, setEventStaffRequirementAction } from "@/features/operations/operations-planning.actions";
@@ -132,6 +133,8 @@ export type StaffAssignmentCenterProps = {
   published?: boolean;
   settlements?: EventStaffSettlement[];
   roleCosts?: Record<string, number>;
+  canonicalTotal?: number;
+  reviewRequiredAssignmentIds?: string[];
   requirements?: ResponsibilityReadModel[];
   blockRequirements?: Array<{ blockId: string; role: string; required: number; assigned: number; published: boolean; blockName?: string; startAt?: string; endAt?: string; durationMinutes?: number; rate?: number | null; projectedCost?: number | null }>;
   requests?: Array<{ id: string; role: string; staffName: string; status: string }>;
@@ -143,7 +146,8 @@ const roles = [
   { value: "DISASSEMBLY", label: "Desmontaje" },
 ];
 const roleLabel = (role: string) =>
-  roles.find((x) => x.value === role)?.label ?? role;
+  roles.find((x) => x.value === role)?.label ??
+  ({ SUPERVISOR: "Supervisor", TRAINING: "Capacitación" }[role] ?? role);
 const money = (value: number) =>
   new Intl.NumberFormat("es-CL", {
     style: "currency",
@@ -210,6 +214,8 @@ export function StaffAssignmentCenter({
   published = false,
   settlements = [],
   roleCosts = {},
+  canonicalTotal = 0,
+  reviewRequiredAssignmentIds = [],
   requirements = [],
   blockRequirements = [],
   requests = [],
@@ -289,7 +295,7 @@ export function StaffAssignmentCenter({
     });
   const saveSettlement = (
     data: FormData,
-    kind: "adjustment" | "reimbursement" | "payment" | "override" | "reset",
+    kind: "adjustment" | "reimbursement" | "payment" | "override" | "reset" | "concept",
   ) =>
     startTransition(async () => {
       const result =
@@ -301,7 +307,9 @@ export function StaffAssignmentCenter({
               ? await updateStaffEventSettlementAction(data)
               : kind === "override"
                 ? await overrideStaffAssignmentPaymentAction(data)
-                : await resetStaffAssignmentPaymentAction(data);
+                : kind === "reset"
+                  ? await resetStaffAssignmentPaymentAction(data)
+                  : await upsertStaffPaymentItemAction(data);
       if (!result.ok) {
         setMessage(result.error);
         return;
@@ -347,6 +355,12 @@ export function StaffAssignmentCenter({
           {message}
         </p>
       )}
+      <section className="mb-5 border-b pb-5">
+        <div className="mb-3 rounded-xl border border-brand/20 bg-brand/5 p-3 text-sm">
+          <span className="font-semibold">Costo Staff canónico del Evento: </span>{money(canonicalTotal)}
+          {reviewRequiredAssignmentIds.length ? <span className="ml-2 font-semibold text-danger">REVISIÓN REQUERIDA · {reviewRequiredAssignmentIds.length} asignación(es) sin pago</span> : null}
+        </div>
+      </section>
       <section className="mb-5 rounded-xl border bg-background/50 p-4" aria-label="Resumen de costos Staff del día" data-testid="staff-daily-cost-summary">
         <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-semibold uppercase tracking-wider text-muted">COSTO STAFF DEL DÍA</p><p className="mt-1 text-xs text-muted">Liquidaciones asociadas a asignaciones activas; no incluye cupos pendientes.</p></div><strong className="text-xl">{money(dailyStaffTotal)}</strong></div>
         <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
@@ -394,6 +408,7 @@ export function StaffAssignmentCenter({
           />;
         })}
       </section>
+      <CustomPaymentItemForm projectId={projectId} staff={staff} pending={pending} onSubmit={(data) => saveSettlement(data, "concept")} />
       {blockRequirements.length ? <section className="mb-5 border-b pb-5"><h3 className="font-semibold">Planificación por bloques</h3><p className="mt-1 text-sm text-muted">Cada asignación queda asociada al bloque y conserva su tarifa según duración.</p><div className="mt-3 grid gap-3 lg:grid-cols-2">{blockRequirements.map((item) => {
         const blockAssignments = assignments.filter((assignment) => String(assignment.blockId ?? "") === String(item.blockId) && assignment.role === item.role && !["CANCELLED", "REJECTED"].includes(assignment.status));
         const blockActiveStaffIds = new Set(blockAssignments.map((assignment) => assignment.staffId));
@@ -669,6 +684,34 @@ function StaffRoleRequirementCard({ projectId, role, required, published, assign
   </article>;
 }
 
+function CustomPaymentItemForm({
+  projectId,
+  staff,
+  pending,
+  onSubmit,
+}: {
+  projectId: string;
+  staff: AssignmentStaffOption[];
+  pending: boolean;
+  onSubmit: (data: FormData) => void;
+}) {
+  const [idempotencyKey] = useState(() => `staff-payment-item:${crypto.randomUUID()}`);
+  if (!staff.length) return null;
+  return <details className="mb-5 rounded-xl border border-brand/20 bg-brand/5 p-4">
+    <summary className="cursor-pointer font-semibold">Agregar concepto de pago independiente</summary>
+    <p className="mt-2 text-sm text-muted">Usa esta vía para Supervisor o Capacitación. No crea una asignación operacional ni modifica tarifas oficiales.</p>
+    <form action={onSubmit} className="mt-4 grid gap-3 sm:grid-cols-2">
+      <input type="hidden" name="projectId" value={projectId} />
+      <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
+      <label className="grid gap-1 text-sm">Staff<select className="min-h-10 rounded-lg border bg-background px-3" name="staffId" required><option value="">Seleccionar</option>{staff.map((member) => <option value={member.id} key={member.id}>{member.name}</option>)}</select></label>
+      <label className="grid gap-1 text-sm">Concepto<select className="min-h-10 rounded-lg border bg-background px-3" name="paymentConcept" required><option value="SUPERVISOR">Supervisor</option><option value="TRAINING">Capacitación</option></select></label>
+      <Field label="Monto" name="paymentAmount" type="number" />
+      <Field label="Motivo auditable" name="paymentReason" defaultValue="Concepto independiente autorizado" />
+      <div className="sm:col-span-2"><Button disabled={pending}>Guardar concepto pendiente</Button></div>
+    </form>
+  </details>;
+}
+
 function AssignmentCancellationDialog({
   item,
   pending,
@@ -770,7 +813,7 @@ function AssignmentPaymentSummary({ payment, role, pending, onEdit }: { payment:
   return <section className="mt-4 rounded-lg border border-brand/20 bg-brand/5 p-3" aria-label={`Pago ${roleLabel(role)}`}><div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-[11px] font-semibold uppercase tracking-wide text-muted">PAGO · {roleLabel(role)}</p><p className="mt-1 text-xs text-muted">Base: {money(rolePayment(payment, role, "base"))}</p><p className="mt-1 text-lg font-semibold">{money(rolePayment(payment, role, "final"))}{override ? <span className="ml-2 text-xs font-bold uppercase tracking-wide text-brand">Personalizado</span> : null}</p></div>{paid ? <span className="text-xs font-semibold text-muted">PAGADO · edición bloqueada</span> : <Button type="button" variant="outline" disabled={pending} onClick={onEdit}>EDITAR PAGO</Button>}</div></section>;
 }
 
-function AssignmentPaymentEditor({ item, editRole, pending, onSubmit }: { item: EventStaffSettlement; editRole?: string; pending: boolean; onSubmit: (data: FormData, kind: "adjustment" | "reimbursement" | "payment" | "override" | "reset") => void }) {
+function AssignmentPaymentEditor({ item, editRole, pending, onSubmit }: { item: EventStaffSettlement; editRole?: string; pending: boolean; onSubmit: (data: FormData, kind: "adjustment" | "reimbursement" | "payment" | "override" | "reset" | "concept") => void }) {
   const role = editRole ?? item.roles[0] ?? "OPERATOR";
   const paid = item.settlementStatus === "PAID" || item.settlementStatus === "FINALIZED" || item.paid > 0;
   return <details className="mt-4 rounded-xl border border-brand/30 bg-brand/5 p-4" open={Boolean(editRole)}><summary className="cursor-pointer font-semibold">PAGO POR ASIGNACIÓN · {roleLabel(role)}</summary><p className="mt-2 text-sm text-muted">La tarifa Master es el valor base. El pago acordado solo afecta esta asignación/evento.</p><dl className="mt-3 grid grid-cols-2 gap-2 text-sm"><Money label="Tarifa base" value={rolePayment(item, role, "base")} /><Money label="Pago acordado" value={rolePayment(item, role, "final")} /></dl>{paid ? <p className="mt-3 text-xs font-semibold text-muted">PAGADO · edición bloqueada</p> : <form action={(data) => onSubmit(data, "override")} className="mt-4 grid gap-3 sm:grid-cols-2"><input name="paymentId" type="hidden" value={item.id} /><input name="paymentRole" type="hidden" value={role} /><Field label="Nuevo pago para este evento" name="paymentAmount" type="number" defaultValue={String(rolePayment(item, role, "final"))} /><Field label="Motivo" name="paymentReason" defaultValue="Acuerdo especial para este Evento" /><div className="flex flex-wrap gap-2 sm:col-span-2"><Button aria-busy={pending} disabled={pending}>Guardar pago</Button><button className="rounded-lg border px-3 py-2 text-sm font-semibold" disabled={pending} formAction={(data) => onSubmit(data, "reset")} type="submit">Restablecer tarifa</button></div></form>}</details>;
@@ -789,7 +832,7 @@ function SettlementDetailDialog({
   onClose: () => void;
   onSubmit: (
     data: FormData,
-    kind: "adjustment" | "reimbursement" | "payment" | "override" | "reset",
+    kind: "adjustment" | "reimbursement" | "payment" | "override" | "reset" | "concept",
   ) => void;
 }) {
   const movementLabel = (value: string) =>
