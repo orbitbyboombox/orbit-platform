@@ -116,6 +116,9 @@ export type EventStaffSettlement = {
   overrideOperator: number | null;
   overrideAssembly: number | null;
   overrideDisassembly: number | null;
+  overrideReason?: string | null;
+  overrideBy?: string | null;
+  overrideAt?: string | null;
   originalOperator: number;
   originalAssembly: number;
   originalDisassembly: number;
@@ -402,6 +405,7 @@ export function StaffAssignmentCenter({
           </table>
         </div>
       </section>
+      <CustomPaymentItemForm projectId={projectId} staff={staff} assignments={assignments} pending={pending} onSubmit={(data) => saveSettlement(data, "concept")} />
       {operatorBlockRequirements.length ? <section className="mb-5 rounded-xl border border-brand/20 bg-brand/5 p-4" data-testid="operator-block-summary">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">OPERADORES DEL EVENTO</p><p className="mt-1 text-sm text-muted">La cobertura se calcula por bloque; el cupo general no limita estas asignaciones.</p></div>
@@ -443,7 +447,6 @@ export function StaffAssignmentCenter({
           />;
         })}
       </section>
-      <CustomPaymentItemForm projectId={projectId} staff={staff} assignments={assignments} pending={pending} onSubmit={(data) => saveSettlement(data, "concept")} />
       {blockRequirements.length ? <section className="mb-5 border-b pb-5"><h3 className="font-semibold">Planificación por bloques</h3><p className="mt-1 text-sm text-muted">Cada asignación queda asociada al bloque y conserva su tarifa según duración.</p><div className="mt-3 grid gap-3 lg:grid-cols-2">{blockRequirements.map((item) => {
         const blockAssignments = assignments.filter((assignment) => String(assignment.blockId ?? "") === String(item.blockId) && assignment.role === item.role && !["CANCELLED", "REJECTED"].includes(assignment.status));
         const blockActiveStaffIds = new Set(blockAssignments.map((assignment) => assignment.staffId));
@@ -847,14 +850,19 @@ function rolePayment(payment: EventStaffSettlement, role: string, kind: "base" |
 
 function AssignmentPaymentSummary({ payment, role, pending, onEdit }: { payment: EventStaffSettlement; role: string; pending: boolean; onEdit: () => void }) {
   const paid = payment.settlementStatus === "PAID" || payment.settlementStatus === "FINALIZED" || payment.paid > 0;
-  const override = rolePayment(payment, role, "override") !== null && ((role === "ASSEMBLY" && payment.overrideAssembly !== null) || (role === "DISASSEMBLY" && payment.overrideDisassembly !== null) || (role === "OPERATOR" && payment.overrideOperator !== null));
-  return <section className="mt-4 rounded-lg border border-brand/20 bg-brand/5 p-3" aria-label={`Pago ${roleLabel(role)}`}><div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-[11px] font-semibold uppercase tracking-wide text-muted">PAGO · {roleLabel(role)}</p><p className="mt-1 text-xs text-muted">Base: {money(rolePayment(payment, role, "base"))}</p><p className="mt-1 text-lg font-semibold">{money(rolePayment(payment, role, "final"))}{override ? <span className="ml-2 text-xs font-bold uppercase tracking-wide text-brand">Personalizado</span> : null}</p></div>{paid ? <span className="text-xs font-semibold text-muted">PAGADO · edición bloqueada</span> : <Button type="button" variant="outline" disabled={pending} onClick={onEdit}>EDITAR PAGO</Button>}</div></section>;
+  const base = rolePayment(payment, role, "base");
+  const agreed = rolePayment(payment, role, "final");
+  const override = (role === "ASSEMBLY" && payment.overrideAssembly !== null) || (role === "DISASSEMBLY" && payment.overrideDisassembly !== null) || (role === "OPERATOR" && payment.overrideOperator !== null);
+  return <section className="mt-4 rounded-lg border border-brand/20 bg-brand/5 p-3" aria-label={`Pago ${roleLabel(role)}`}><div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-[11px] font-semibold uppercase tracking-wide text-muted">PAGO · {roleLabel(role)}</p><p className="mt-1 text-xs text-muted">Tarifa base: {money(base)}</p><p className="text-lg font-semibold">Pago acordado: {money(agreed)}{override ? <span className="ml-2 text-xs font-bold uppercase tracking-wide text-brand">Personalizado</span> : null}</p>{override ? <dl className="mt-2 grid gap-1 text-xs text-muted"><div><dt className="inline">Diferencia: </dt><dd className={`inline font-semibold ${agreed - base < 0 ? "text-danger" : "text-success"}`}>{agreed - base > 0 ? "+" : ""}{money(agreed - base)}</dd></div>{payment.overrideReason ? <div><dt className="inline">Motivo: </dt><dd className="inline">{payment.overrideReason}</dd></div> : null}{payment.overrideBy || payment.overrideAt ? <div><dt className="inline">Modificado por/fecha: </dt><dd className="inline">{payment.overrideBy ?? "Responsable no identificado"}{payment.overrideAt ? ` · ${chileDateTimeFormatter.format(new Date(payment.overrideAt))}` : ""}</dd></div> : null}</dl> : null}</div>{paid ? <span className="text-xs font-semibold text-muted">PAGADO · edición bloqueada</span> : <Button type="button" variant="outline" disabled={pending} onClick={onEdit}>EDITAR PAGO</Button>}</div></section>;
 }
 
 function AssignmentPaymentEditor({ item, editRole, pending, onSubmit }: { item: EventStaffSettlement; editRole?: string; pending: boolean; onSubmit: (data: FormData, kind: "adjustment" | "reimbursement" | "payment" | "override" | "reset" | "concept") => void }) {
   const role = editRole ?? item.roles[0] ?? "OPERATOR";
   const paid = item.settlementStatus === "PAID" || item.settlementStatus === "FINALIZED" || item.paid > 0;
-  return <details className="mt-4 rounded-xl border border-brand/30 bg-brand/5 p-4" open={Boolean(editRole)}><summary className="cursor-pointer font-semibold">PAGO POR ASIGNACIÓN · {roleLabel(role)}</summary><p className="mt-2 text-sm text-muted">La tarifa Master es el valor base. El pago acordado solo afecta esta asignación/evento.</p><dl className="mt-3 grid grid-cols-2 gap-2 text-sm"><Money label="Tarifa base" value={rolePayment(item, role, "base")} /><Money label="Pago acordado" value={rolePayment(item, role, "final")} /></dl>{paid ? <p className="mt-3 text-xs font-semibold text-muted">PAGADO · edición bloqueada</p> : <form action={(data) => onSubmit(data, "override")} className="mt-4 grid gap-3 sm:grid-cols-2"><input name="paymentId" type="hidden" value={item.id} /><input name="paymentRole" type="hidden" value={role} /><Field label="Nuevo pago para este evento" name="paymentAmount" type="number" defaultValue={String(rolePayment(item, role, "final"))} /><Field label="Motivo" name="paymentReason" defaultValue="Acuerdo especial para este Evento" /><div className="flex flex-wrap gap-2 sm:col-span-2"><Button aria-busy={pending} disabled={pending}>Guardar pago</Button><button className="rounded-lg border px-3 py-2 text-sm font-semibold" disabled={pending} formAction={(data) => onSubmit(data, "reset")} type="submit">Restablecer tarifa</button></div></form>}</details>;
+  const base = rolePayment(item, role, "base");
+  const agreed = rolePayment(item, role, "final");
+  const override = (role === "ASSEMBLY" && item.overrideAssembly !== null) || (role === "DISASSEMBLY" && item.overrideDisassembly !== null) || (role === "OPERATOR" && item.overrideOperator !== null);
+  return <details className="mt-4 rounded-xl border border-brand/30 bg-brand/5 p-4" open={Boolean(editRole)}><summary className="cursor-pointer font-semibold">PAGO POR ASIGNACIÓN · {roleLabel(role)}</summary><p className="mt-2 text-sm text-muted">La tarifa Master es el valor base. El pago acordado solo afecta esta asignación/evento.</p><dl className="mt-3 grid grid-cols-2 gap-2 text-sm"><Money label="Tarifa base" value={base} /><Money label="Pago acordado" value={agreed} /></dl>{override ? <dl className="mt-3 grid gap-1 text-xs text-muted"><div><dt className="inline">Diferencia: </dt><dd className={`inline font-semibold ${agreed - base < 0 ? "text-danger" : "text-success"}`}>{agreed - base > 0 ? "+" : ""}{money(agreed - base)}</dd></div>{item.overrideReason ? <div><dt className="inline">Motivo: </dt><dd className="inline">{item.overrideReason}</dd></div> : null}{item.overrideBy || item.overrideAt ? <div><dt className="inline">Modificado por/fecha: </dt><dd className="inline">{item.overrideBy ?? "Responsable no identificado"}{item.overrideAt ? ` · ${chileDateTimeFormatter.format(new Date(item.overrideAt))}` : ""}</dd></div> : null}</dl> : null}{paid ? <p className="mt-3 text-xs font-semibold text-muted">PAGADO · edición bloqueada</p> : <form action={(data) => onSubmit(data, "override")} className="mt-4 grid gap-3 sm:grid-cols-2"><input name="paymentId" type="hidden" value={item.id} /><input name="paymentRole" type="hidden" value={role} /><Field label="Nuevo pago para este evento" name="paymentAmount" type="number" defaultValue={String(agreed)} /><Field label="Motivo" name="paymentReason" defaultValue="Acuerdo especial para este Evento" /><div className="flex flex-wrap gap-2 sm:col-span-2"><Button aria-busy={pending} disabled={pending}>Guardar pago</Button><button className="rounded-lg border px-3 py-2 text-sm font-semibold" disabled={pending} formAction={(data) => onSubmit(data, "reset")} type="submit">Restablecer tarifa</button></div></form>}</details>;
 }
 
 function SettlementDetailDialog({

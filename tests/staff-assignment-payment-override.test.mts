@@ -64,6 +64,22 @@ describe("staff assignment payment overrides", () => {
     assert.match(eventUi, /option value="DISASSEMBLY"/);
   });
 
+  it("places the independent concept form after the financial detail and exposes override audit data", () => {
+    const eventUi = readFileSync(
+      "features/staff-assignment-center/staff-assignment-center.tsx",
+      "utf8",
+    );
+    const detailIndex = eventUi.indexOf('data-testid="staff-financial-concept-detail"');
+    const conceptIndex = eventUi.indexOf("<CustomPaymentItemForm");
+    assert.ok(detailIndex >= 0 && conceptIndex > detailIndex);
+    assert.match(eventUi, /Tarifa base/);
+    assert.match(eventUi, /Pago acordado/);
+    assert.match(eventUi, /Diferencia/);
+    assert.match(eventUi, /overrideReason/);
+    assert.match(eventUi, /overrideBy/);
+    assert.match(eventUi, /overrideAt/);
+  });
+
   it("removes only the artificial capacity ceiling and preserves block validation", () => {
     assert.match(flexibilityMigration, /create or replace function public\.guard_event_staff_capacity/);
     assert.match(flexibilityMigration, /event_operational_blocks/);

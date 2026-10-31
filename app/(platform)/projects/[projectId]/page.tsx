@@ -197,7 +197,7 @@ export default async function ProjectWorkspacePage({
     client
       .from("event_staff_payments")
       .select(
-        "id,project_id,assignment_id,staff_id,status,tasks,settlement_status,paid_amount,paid_at,sii_receipt_status,original_assembly_payment,original_operator_payment,original_disassembly_payment,automatic_assembly_payment,automatic_operator_payment,automatic_disassembly_payment,override_assembly_payment,override_operator_payment,override_disassembly_payment,assembly_payment,operator_payment,disassembly_payment,transport_bonus,parking_payment,total_internal_payment,block_id,contracted_minutes,event_operational_blocks(name,start_at,end_at),staff(first_name,last_name)",
+        "id,project_id,assignment_id,staff_id,status,tasks,settlement_status,paid_amount,paid_at,sii_receipt_status,original_assembly_payment,original_operator_payment,original_disassembly_payment,automatic_assembly_payment,automatic_operator_payment,automatic_disassembly_payment,override_assembly_payment,override_operator_payment,override_disassembly_payment,override_reason,override_by,override_at,assembly_payment,operator_payment,disassembly_payment,transport_bonus,parking_payment,total_internal_payment,block_id,contracted_minutes,event_operational_blocks(name,start_at,end_at),staff(first_name,last_name)",
       )
       .eq("project_id", projectId)
       .is("deleted_at", null),
@@ -1549,6 +1549,9 @@ export default async function ProjectWorkspacePage({
             overrideOperator: item.override_operator_payment == null ? null : Number(item.override_operator_payment),
             overrideAssembly: item.override_assembly_payment == null ? null : Number(item.override_assembly_payment),
             overrideDisassembly: item.override_disassembly_payment == null ? null : Number(item.override_disassembly_payment),
+            overrideReason: item.override_reason ?? null,
+            overrideBy: item.override_by ? actorName.get(item.override_by) ?? "Founder" : null,
+            overrideAt: item.override_at ?? null,
             originalOperator,
             originalAssembly,
             originalDisassembly,
@@ -1623,6 +1626,9 @@ export default async function ProjectWorkspacePage({
                 overrideOperator: null,
                 overrideAssembly: null,
                 overrideDisassembly: null,
+                overrideReason: null,
+                overrideBy: null,
+                overrideAt: null,
                 originalOperator: 0,
                 originalAssembly: 0,
                 originalDisassembly: 0,
