@@ -183,6 +183,7 @@ export default async function ProjectWorkspacePage({
       .select(
         "id,project_id,block_id,staff_id,assignment_type,status,created_at,staff_call_at,arrival_time,start_time,finish_time,assigned_vehicle,observations,resources,staff(first_name,last_name),operational_assets(asset_code),event_operational_blocks(id,name,start_at,end_at)",
       )
+      .eq("project_id", projectId)
       .is("deleted_at", null),
     client
       .from("calendar_sync")
@@ -578,7 +579,7 @@ export default async function ProjectWorkspacePage({
   ]);
   const productionAssignments = (
     (operatorAssignments ?? []) as unknown as StaffAssignment[]
-  ).filter((item) => confirmedAssignmentStatuses.has(item.status));
+  ).filter((item) => item.project_id === projectId && confirmedAssignmentStatuses.has(item.status));
   const canonicalStaffFinancials = buildCanonicalStaffFinancials({
     projectId,
     settlements: (payroll ?? []).map((item) => ({
@@ -604,11 +605,27 @@ export default async function ProjectWorkspacePage({
     })),
     assignments: productionAssignments.map((item) => ({
       id: item.id,
+      projectId: item.project_id,
       staffId: item.staff_id,
       role: item.assignment_type,
       status: item.status,
     })),
   });
+  const staffNameById = new Map(
+    (staff ?? []).map((member) => [
+      member.id,
+      `${member.first_name ?? ""} ${member.last_name ?? ""}`.trim() || "Staff",
+    ]),
+  );
+  const financialConceptItems = canonicalStaffFinancials.items.map((item) => ({
+    id: item.id,
+    staffId: item.staffId,
+    staffName: staffNameById.get(item.staffId) ?? "Staff",
+    concept: item.concept,
+    amount: item.amount,
+    paidAmount: item.paidAmount ?? 0,
+    status: item.status,
+  }));
   const responsibilityRequirements = buildResponsibilityReadModel(
     (staffRoleRequirements ?? []).filter((item) => !item.block_id && !(operationalBlockRows?.length && item.role === "OPERATOR")).map((item) => ({
       role: item.role,
@@ -641,11 +658,13 @@ export default async function ProjectWorkspacePage({
     location: project.event.location,
     city: project.event.city,
     operations,
-    assignments: ((operatorAssignments ?? []) as unknown as StaffAssignment[]).map((item) => ({
-      status: item.status,
-      staff_call_at: item.staff_call_at,
-      staff_call_source: null,
-    })),
+    assignments: ((operatorAssignments ?? []) as unknown as StaffAssignment[])
+      .filter((item) => item.project_id === projectId)
+      .map((item) => ({
+        status: item.status,
+        staff_call_at: item.staff_call_at,
+        staff_call_source: null,
+      })),
   });
   const equipment: EquipmentAssignmentPanelProps = {
     projectId,
@@ -1446,6 +1465,7 @@ export default async function ProjectWorkspacePage({
       }),
       roleCosts: canonicalStaffFinancials.byConcept,
       canonicalTotal: canonicalStaffFinancials.total,
+      financialConceptItems,
       reviewRequiredAssignmentIds: canonicalStaffFinancials.reviewRequiredAssignmentIds,
       requests: (staffRequests ?? []).map((item) => {
         const member = Array.isArray(item.staff) ? item.staff[0] : item.staff;

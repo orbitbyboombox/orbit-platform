@@ -22,6 +22,8 @@ export type CanonicalStaffPaymentItem = {
 
 export type StaffFinancialAssignment = {
   id: string;
+  /** Defensive scope carried from the database read model. */
+  projectId?: string;
   staffId: string;
   role: string;
   status: string;
@@ -78,8 +80,11 @@ export function buildCanonicalStaffFinancials(input: {
   assignments: StaffFinancialAssignment[];
 }): CanonicalStaffFinancials {
   const items: CanonicalStaffPaymentItem[] = [];
+  const scopedAssignments = input.assignments.filter(
+    (assignment) => assignment.projectId == null || assignment.projectId === input.projectId,
+  );
   const assignmentsByStaff = new Map<string, StaffFinancialAssignment[]>();
-  for (const assignment of input.assignments) {
+  for (const assignment of scopedAssignments) {
     const list = assignmentsByStaff.get(assignment.staffId) ?? [];
     list.push(assignment);
     assignmentsByStaff.set(assignment.staffId, list);
@@ -115,7 +120,7 @@ export function buildCanonicalStaffFinancials(input: {
     }
   }
 
-  for (const item of input.paymentItems ?? []) {
+  for (const item of (input.paymentItems ?? []).filter((candidate) => candidate.projectId === input.projectId)) {
     if (!["CANCELLED", "DELETED"].includes(item.status)) items.push(item);
   }
 
@@ -141,7 +146,7 @@ export function buildCanonicalStaffFinancials(input: {
   const coveredStaffConcepts = new Set(
     dedupedItems.map((item) => `${item.staffId}:${item.concept}`),
   );
-  const reviewRequiredAssignmentIds = input.assignments
+  const reviewRequiredAssignmentIds = scopedAssignments
     .filter((assignment) => ACTIVE_ASSIGNMENT_STATUSES.has(assignment.status))
     .filter((assignment) => Boolean(conceptFromRole(assignment.role)))
     .filter((assignment) => {

@@ -66,6 +66,15 @@ export type AssignmentStaffOption = {
   capabilities: string[];
 };
 export type AssignmentVehicleOption = { id: string; name: string };
+export type FinancialConceptItem = {
+  id: string;
+  staffId: string;
+  staffName: string;
+  concept: string;
+  amount: number;
+  paidAmount: number;
+  status: string;
+};
 export type EventStaffSettlementAdjustment = {
   id: string;
   reason: string;
@@ -134,6 +143,7 @@ export type StaffAssignmentCenterProps = {
   settlements?: EventStaffSettlement[];
   roleCosts?: Record<string, number>;
   canonicalTotal?: number;
+  financialConceptItems?: FinancialConceptItem[];
   reviewRequiredAssignmentIds?: string[];
   requirements?: ResponsibilityReadModel[];
   blockRequirements?: Array<{ blockId: string; role: string; required: number; assigned: number; published: boolean; blockName?: string; startAt?: string; endAt?: string; durationMinutes?: number; rate?: number | null; projectedCost?: number | null }>;
@@ -215,6 +225,7 @@ export function StaffAssignmentCenter({
   settlements = [],
   roleCosts = {},
   canonicalTotal = 0,
+  financialConceptItems = [],
   reviewRequiredAssignmentIds = [],
   requirements = [],
   blockRequirements = [],
@@ -239,23 +250,31 @@ export function StaffAssignmentCenter({
     null,
   );
   const [message, setMessage] = useState("");
-  // Group actual payable settlements by the assignment role. Supervisor payments
-  // are stored under the OPERATOR payment component, so their operational role
-  // must come from the active assignment rather than payment.roles.
-  const dailyRoleTotals: Record<string, number> = { ASSEMBLY: 0, DISASSEMBLY: 0, SUPERVISOR: 0, OPERATOR: 0 };
-  const activeAssignments = assignments.filter((item) => !["CANCELLED", "REJECTED"].includes(item.status));
-  const countedPaymentIds = new Set<string>();
-  for (const assignment of activeAssignments) {
-    const payment = settlements.find((item) =>
-      item.staffId === assignment.staffId &&
-      String(item.blockId ?? "") === String(assignment.blockId ?? "") &&
-      (item.roles.includes(assignment.role) || (assignment.role === "SUPERVISOR" && item.roles.includes("OPERATOR")))
-    );
-    if (!payment || countedPaymentIds.has(payment.id) || !(assignment.role in dailyRoleTotals)) continue;
-    countedPaymentIds.add(payment.id);
-    dailyRoleTotals[assignment.role] += payment.finalAmount;
+  // Both financial summaries are projections of the same canonical concept
+  // lines. Never derive one total from assignments and the other from legacy
+  // settlement rows, which can double-count migrated payment items.
+  const dailyRoleTotals: Record<string, number> = {
+    ASSEMBLY: 0,
+    DISASSEMBLY: 0,
+    SUPERVISOR: 0,
+    OPERATOR: 0,
+    TRAINING: 0,
+  };
+  for (const item of financialConceptItems) {
+    if (!(item.concept in dailyRoleTotals) || item.amount <= 0 || ["CANCELLED", "DELETED"].includes(item.status)) continue;
+    dailyRoleTotals[item.concept] += item.amount;
   }
-  const dailyStaffTotal = Object.values(dailyRoleTotals).reduce((sum, amount) => sum + amount, 0);
+  const dailyStaffTotal = canonicalTotal;
+  const collaboratorTotals = new Map<string, number>();
+  for (const item of financialConceptItems) {
+    collaboratorTotals.set(item.staffId, (collaboratorTotals.get(item.staffId) ?? 0) + item.amount);
+  }
+  const financialStatusLabel = (item: FinancialConceptItem) => {
+    if (item.status === "FINALIZED") return "Finalizado";
+    if (item.status === "PAID" || item.paidAmount >= item.amount) return "Pagado";
+    if (["CONFIRMED", "ACCEPTED", "COMPLETED"].includes(item.status)) return "Confirmado";
+    return "Pendiente";
+  };
   const operatorBlockRequirements = blockRequirements.filter((item) => item.role === "OPERATOR");
   const operatorBlockSummary = buildOperatorBlockSummary(operatorBlockRequirements, assignments, settlements);
   const mutate = (action: () => Promise<{ ok: boolean; error?: string }>) => {
@@ -364,7 +383,22 @@ export function StaffAssignmentCenter({
       <section className="mb-5 rounded-xl border bg-background/50 p-4" aria-label="Resumen de costos Staff del día" data-testid="staff-daily-cost-summary">
         <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-semibold uppercase tracking-wider text-muted">COSTO STAFF DEL DÍA</p><p className="mt-1 text-xs text-muted">Liquidaciones asociadas a asignaciones activas; no incluye cupos pendientes.</p></div><strong className="text-xl">{money(dailyStaffTotal)}</strong></div>
         <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-          {([{ role: "ASSEMBLY", label: "Montaje" }, { role: "DISASSEMBLY", label: "Desmontaje" }, { role: "SUPERVISOR", label: "Supervisores" }, { role: "OPERATOR", label: "Operadores" }] as const).map((item) => <div className="rounded-lg border bg-card p-3" key={item.role}><p className="text-xs text-muted">{item.label}</p><p className="mt-1 text-lg font-semibold">{money(dailyRoleTotals[item.role])}</p></div>)}
+          {([{ role: "ASSEMBLY", label: "Montaje" }, { role: "DISASSEMBLY", label: "Desmontaje" }, { role: "SUPERVISOR", label: "Supervisión" }, { role: "OPERATOR", label: "Operación" }, { role: "TRAINING", label: "Capacitación" }] as const).map((item) => <div className="rounded-lg border bg-card p-3" key={item.role}><p className="text-xs text-muted">{item.label}</p><p className="mt-1 text-lg font-semibold">{money(dailyRoleTotals[item.role])}</p></div>)}
+        </div>
+      </section>
+      <section className="mb-5 rounded-xl border bg-background/50 p-4" aria-label="Detalle financiero por colaborador" data-testid="staff-financial-concept-detail">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div><p className="text-xs font-semibold uppercase tracking-wider text-muted">DETALLE FINANCIERO</p><p className="mt-1 text-xs text-muted">Una línea canónica por colaborador y concepto; los pagos históricos no se recalculan.</p></div>
+          <strong className="text-sm">Total: {money(canonicalTotal)}</strong>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[680px] text-left text-sm">
+            <thead className="border-b text-xs uppercase tracking-wide text-muted"><tr><th className="px-2 py-2">Colaborador</th><th className="px-2 py-2">Concepto</th><th className="px-2 py-2">Monto</th><th className="px-2 py-2">Total colaborador</th><th className="px-2 py-2">Estado</th><th className="px-2 py-2">Saldo</th></tr></thead>
+            <tbody>
+              {financialConceptItems.map((item) => <tr key={item.id} className="border-b last:border-0"><td className="px-2 py-2 font-medium">{item.staffName}</td><td className="px-2 py-2">{roleLabel(item.concept)}</td><td className="px-2 py-2">{money(item.amount)}</td><td className="px-2 py-2">{money(collaboratorTotals.get(item.staffId) ?? item.amount)}</td><td className="px-2 py-2">{financialStatusLabel(item)}</td><td className="px-2 py-2">{money(Math.max(0, item.amount - item.paidAmount))}</td></tr>)}
+              {!financialConceptItems.length ? <tr><td className="px-2 py-4 text-muted" colSpan={6}>Sin conceptos financieros registrados.</td></tr> : null}
+            </tbody>
+          </table>
         </div>
       </section>
       {operatorBlockRequirements.length ? <section className="mb-5 rounded-xl border border-brand/20 bg-brand/5 p-4" data-testid="operator-block-summary">
