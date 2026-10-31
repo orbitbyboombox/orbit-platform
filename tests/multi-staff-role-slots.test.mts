@@ -73,9 +73,9 @@ test("different collaborators with identical names are both counted", () => {
   assert.equal(row.remaining, 0);
 });
 
-test("quantity accepts positive integers up to the technical 99-person cap", () => {
-  for (const count of [1, 2, 5, 12, 99]) assert.equal(validStaffQuantity(count), true);
-  for (const count of [0, -1, 1.5, NaN, Infinity, 100, 2147483648]) assert.equal(validStaffQuantity(count), false);
+test("quantity accepts positive PostgreSQL integer values without an artificial 99-person cap", () => {
+  for (const count of [1, 2, 5, 12, 99, 100, 2147483647]) assert.equal(validStaffQuantity(count), true);
+  for (const count of [0, -1, 1.5, NaN, Infinity, 2147483648]) assert.equal(validStaffQuantity(count), false);
 });
 
 test("quantity form is controlled and prevents React action automatic reset", () => {
@@ -86,7 +86,7 @@ test("quantity form is controlled and prevents React action automatic reset", ()
   assert.match(ui, /Agregar slot/);
   assert.match(ui, /Quitar slot/);
   assert.match(ui, /Asignados \{covered\}\/\{required\} cubiertos · Requeridos \{required\} · Faltan \{missing\}/);
-  assert.match(ui, /max="99"/);
+  assert.match(ui, /max="2147483647"/);
 });
 
 test("individual assignment UI excludes occupied collaborators and uses retry-stable UUID", () => {
@@ -96,7 +96,7 @@ test("individual assignment UI excludes occupied collaborators and uses retry-st
 });
 
 test("atomic mutations use the shared assignments/payment pipeline", () => {
-  assert.match(actions, /rpc\("save_event_staff_assignment"/);
+  assert.match(actions, /client\.rpc\([\s\S]*save_event_staff_assignment/);
   assert.match(sql, /insert into public\.assignments/);
   assert.doesNotMatch(sql, /insert into public\.(event_staff_payments|staff_payment|staff_monthly)/);
   assert.match(sql, /'replay',true/);

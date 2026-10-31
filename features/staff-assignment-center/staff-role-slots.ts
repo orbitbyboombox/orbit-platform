@@ -32,7 +32,7 @@ export function buildStaffRoleSlots<T extends StaffSlotAssignment>(
 }
 
 export function validStaffQuantity(value: number) {
-  return Number.isSafeInteger(value) && value >= 1 && value <= 99;
+  return Number.isSafeInteger(value) && value >= 1 && value <= 2_147_483_647;
 }
 
 export function canAssignBlockStaff(assigned: number, required: number) {

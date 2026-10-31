@@ -67,6 +67,8 @@ describe("staff assignment payment overrides", () => {
   it("removes only the artificial capacity ceiling and preserves block validation", () => {
     assert.match(flexibilityMigration, /create or replace function public\.guard_event_staff_capacity/);
     assert.match(flexibilityMigration, /event_operational_blocks/);
+    assert.match(flexibilityMigration, /on conflict \(project_id, role\) where block_id is null/);
+    assert.match(flexibilityMigration, /on conflict \(project_id,block_id,role\) where block_id is not null/);
     assert.doesNotMatch(flexibilityMigration, /occupied >= coalesce\(required/);
     assert.doesNotMatch(flexibilityMigration, /p_required_quantity < occupied/);
     assert.doesNotMatch(flexibilityMigration, /assigned_count>=coalesce\(required_count,0\)/);

@@ -77,7 +77,7 @@ begin
   end if;
   insert into public.event_staff_requirements(project_id, role, required_quantity, published, created_by, updated_by)
   values (p_project_id, p_role, p_required_quantity, p_published, auth.uid(), auth.uid())
-  on conflict (project_id, role) do update set
+  on conflict (project_id, role) where block_id is null do update set
     required_quantity = excluded.required_quantity,
     published = excluded.published,
     updated_at = now(),
@@ -92,6 +92,32 @@ $$;
 
 revoke all on function public.set_event_staff_requirement(uuid, text, integer, boolean) from public, anon;
 grant execute on function public.set_event_staff_requirement(uuid, text, integer, boolean) to authenticated;
+
+create or replace function public.set_event_staff_requirement(
+  p_project_id uuid, p_block_id uuid, p_role text,
+  p_required_quantity integer, p_published boolean
+) returns uuid language plpgsql security invoker set search_path = public as $$
+declare result uuid; event_status text; event_date date;
+begin
+  if not public.can_administer() then raise exception 'Solo Administración puede configurar Staff.'; end if;
+  if p_block_id is null then raise exception 'Bloque requerido para requisito por bloque.'; end if;
+  if not exists(select 1 from public.event_operational_blocks where id=p_block_id and project_id=p_project_id) then raise exception 'Bloque operacional no encontrado.'; end if;
+  if p_role is null or p_role not in ('OPERATOR','ASSEMBLY','DISASSEMBLY') then raise exception 'Responsabilidad inválida.'; end if;
+  if p_required_quantity is null or p_required_quantity < 0 then raise exception 'Cantidad requerida inválida.'; end if;
+  select status, projects.event_date into event_status,event_date from public.projects where id=p_project_id and deleted_at is null;
+  if event_status is null then raise exception 'Evento no encontrado.'; end if;
+  if p_published and (event_status in ('CANCELLED','CLOSED','COMPLETED','ARCHIVED') or event_date<timezone('America/Santiago',now())::date) then raise exception 'Un Evento cerrado o pasado no puede publicar requisitos.'; end if;
+  insert into public.event_staff_requirements(project_id,block_id,role,required_quantity,published,created_by,updated_by)
+  values(p_project_id,p_block_id,p_role,p_required_quantity,p_published,auth.uid(),auth.uid())
+  on conflict (project_id,block_id,role) where block_id is not null do update
+    set required_quantity=excluded.required_quantity,published=excluded.published,updated_at=now(),updated_by=auth.uid()
+  returning id into result;
+  return result;
+end;
+$$;
+
+revoke all on function public.set_event_staff_requirement(uuid,uuid,text,integer,boolean) from public,anon;
+grant execute on function public.set_event_staff_requirement(uuid,uuid,text,integer,boolean) to authenticated;
 
 -- Request review is still Founder/Admin-only, but a projected requirement must
 -- not reject a valid administrative assignment. The request and assignment

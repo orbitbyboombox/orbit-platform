@@ -694,8 +694,8 @@ function StaffRoleRequirementCard({ projectId, role, required, published, assign
       <label className="grid min-w-0 gap-1 text-xs text-muted">Cantidad requerida · {role.label}
         <div className="flex min-w-0 gap-2">
           <Button type="button" variant="outline" aria-label={`Quitar slot de ${role.label}`} aria-busy={pending} disabled={pending|| Number(quantity) <= Math.max(covered, 1)} onClick={() => setQuantity(String(Number(quantity) - 1))}>−</Button>
-          <input className="min-h-10 w-full min-w-0 rounded-lg border bg-background px-3 text-foreground" value={quantity} onChange={(event) => setQuantity(event.target.value)} min={Math.max(covered, 1)} max="99" step="1" required name="quantity" type="number"/>
-          <Button type="button" variant="outline" aria-label={`Agregar slot de ${role.label}`} aria-busy={pending} disabled={pending || Number(quantity) >= 99} onClick={() => setQuantity(String(Math.min(99, Math.max(1, Number(quantity) || 0) + 1)))}>+</Button>
+          <input className="min-h-10 w-full min-w-0 rounded-lg border bg-background px-3 text-foreground" value={quantity} onChange={(event) => setQuantity(event.target.value)} min={Math.max(covered, 1)} max="2147483647" step="1" required name="quantity" type="number"/>
+          <Button type="button" variant="outline" aria-label={`Agregar slot de ${role.label}`} aria-busy={pending} disabled={pending || Number(quantity) >= 2147483647} onClick={() => setQuantity(String(Math.min(2147483647, Math.max(1, Number(quantity) || 0) + 1)))}>+</Button>
         </div>
       </label>
       <div className="flex flex-wrap items-center justify-between gap-2">
