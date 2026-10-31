@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { buildCanonicalStaffFinancials } from "../features/staff-payments/canonical-staff-financials.ts";
+
+const migration = readFileSync(new URL("../supabase/migrations/20261031120000_staff_payment_concepts_integrity.sql", import.meta.url), "utf8");
 
 test("canonicaliza supervisor, montaje, desmontaje y capacitación en $48.000", () => {
   const result = buildCanonicalStaffFinancials({
@@ -61,4 +64,12 @@ test("no duplica líneas idempotentes ni cambia pagos históricos en el read mod
     assignments: [{ id: "a", staffId: "sebastian", role: "OPERATOR", status: "COMPLETED" }],
   });
   assert.equal(result.total, 19000);
+});
+
+test("la migración protege autorización, coherencia y concurrencia", () => {
+  assert.match(migration, /assignment_project_id uuid/);
+  assert.match(migration, /assignment_project_id <> p_project_id/);
+  assert.match(migration, /on conflict do nothing returning \* into current_item/);
+  assert.match(migration, /staff_payment_concept_totals\(uuid\) from public/);
+  assert.match(migration, /not public\.can_administer\(\)/);
 });

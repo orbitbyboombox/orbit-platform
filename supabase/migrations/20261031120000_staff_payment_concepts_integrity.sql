@@ -55,6 +55,8 @@ as $$
 declare
   actor uuid := auth.uid();
   current_item public.event_staff_payment_items%rowtype;
+  assignment_project_id uuid;
+  assignment_staff_id uuid;
 begin
   if actor is null or not public.can_administer() then
     raise exception using errcode = '42501', message = 'No autorizado para registrar pagos Staff.';
@@ -64,6 +66,18 @@ begin
   end if;
   if p_amount is null or p_amount < 0 or length(trim(coalesce(p_audit_reason,''))) < 3 then
     raise exception 'Monto y motivo de auditoría son obligatorios.';
+  end if;
+  if p_assignment_id is not null then
+    select a.project_id, a.staff_id
+      into assignment_project_id, assignment_staff_id
+      from public.assignments a
+     where a.id = p_assignment_id
+       and a.deleted_at is null;
+    if assignment_project_id is null
+       or assignment_project_id <> p_project_id
+       or assignment_staff_id <> p_staff_id then
+      raise exception 'La asignación no pertenece al proyecto y colaborador indicados.';
+    end if;
   end if;
 
   select * into current_item
@@ -92,14 +106,28 @@ begin
     project_id, staff_id, assignment_id, concept_code, amount, audit_reason, idempotency_key, created_by, updated_by
   ) values (
     p_project_id, p_staff_id, p_assignment_id, p_concept_code, p_amount, p_audit_reason, coalesce(p_idempotency_key, p_audit_reason), actor, actor
-  ) returning * into current_item;
+  ) on conflict do nothing returning * into current_item;
+  if current_item.id is null then
+    select * into current_item
+      from public.event_staff_payment_items
+     where ((p_assignment_id is not null and assignment_id = p_assignment_id and concept_code = p_concept_code)
+         or (p_assignment_id is null and p_idempotency_key is not null and idempotency_key = p_idempotency_key
+             and project_id = p_project_id and staff_id = p_staff_id and concept_code = p_concept_code))
+       and status <> 'CANCELLED'
+     for update;
+  end if;
   return current_item;
 end;
 $$;
 
 create or replace function public.staff_payment_concept_totals(p_project_id uuid)
-returns jsonb language sql stable security definer set search_path = public
+returns jsonb language plpgsql stable security definer set search_path = public
 as $$
+declare result jsonb;
+begin
+  if auth.uid() is null or not public.can_administer() then
+    raise exception using errcode = '42501', message = 'No autorizado para consultar pagos Staff.';
+  end if;
   select jsonb_build_object(
     'OPERATOR', coalesce(sum(amount) filter (where concept_code='OPERATOR' and status <> 'CANCELLED'),0),
     'SUPERVISOR', coalesce(sum(amount) filter (where concept_code='SUPERVISOR' and status <> 'CANCELLED'),0),
@@ -107,9 +135,16 @@ as $$
     'DISASSEMBLY', coalesce(sum(amount) filter (where concept_code='DISASSEMBLY' and status <> 'CANCELLED'),0),
     'TRAINING', coalesce(sum(amount) filter (where concept_code='TRAINING' and status <> 'CANCELLED'),0),
     'TOTAL', coalesce(sum(amount) filter (where status <> 'CANCELLED'),0)
-  )
+  ) into result
   from public.event_staff_payment_items
   where project_id = p_project_id;
+  return result;
+end;
 $$;
+
+revoke all on function public.staff_payment_concept_totals(uuid) from public;
+grant execute on function public.staff_payment_concept_totals(uuid) to authenticated;
+revoke all on function public.upsert_staff_payment_item(uuid, uuid, uuid, text, numeric, text, text) from public;
+grant execute on function public.upsert_staff_payment_item(uuid, uuid, uuid, text, numeric, text, text) to authenticated;
 
 comment on table public.event_staff_payment_items is 'v2.1.4 additive, auditable payment concepts; PAID and FINALIZED rows are immutable.';
