@@ -8,6 +8,10 @@ const migration = readFileSync(
 );
 const actions = readFileSync("features/staff-payments/actions.ts", "utf8");
 const page = readFileSync("app/(platform)/projects/[projectId]/page.tsx", "utf8");
+const flexibilityMigration = readFileSync(
+  "supabase/migrations/20261031160000_founder_staff_assignment_flexibility.sql",
+  "utf8",
+);
 
 describe("staff assignment payment overrides", () => {
   it("keeps defaults, stores role-specific overrides, and protects paid rows", () => {
@@ -47,5 +51,22 @@ describe("staff assignment payment overrides", () => {
     assert.match(migration, /override_at is null and override_operator_payment is null/);
     assert.match(migration, /override_at is null and override_assembly_payment is null/);
     assert.match(migration, /override_at is null and override_disassembly_payment is null/);
+  });
+
+  it("allows independent manual concepts without changing official rates", () => {
+    assert.match(actions, /upsert_staff_payment_item/);
+    const eventUi = readFileSync(
+      "features/staff-assignment-center/staff-assignment-center.tsx",
+      "utf8",
+    );
+    assert.match(eventUi, /option value="OPERATOR"/);
+    assert.match(eventUi, /option value="ASSEMBLY"/);
+    assert.match(eventUi, /option value="DISASSEMBLY"/);
+  });
+
+  it("removes only the artificial capacity ceiling and preserves block validation", () => {
+    assert.match(flexibilityMigration, /create or replace function public\.guard_event_staff_capacity/);
+    assert.match(flexibilityMigration, /event_operational_blocks/);
+    assert.doesNotMatch(flexibilityMigration, /occupied >= coalesce\(required/);
   });
 });
