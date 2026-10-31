@@ -101,7 +101,7 @@ export async function addStaffSettlementAdjustmentAction(
       throw new Error("Ingresa el ajuste, motivo y comentario.");
     const { data: payment, error: readError } = await client
       .from("event_staff_payments")
-      .select("project_id")
+      .select("project_id,staff_id,assignment_id")
       .eq("id", paymentId)
       .is("deleted_at", null)
       .single();
@@ -262,16 +262,19 @@ export async function overrideStaffAssignmentPaymentAction(
       throw new Error("Ingresa el monto y el motivo del pago especial.");
     const { data: payment, error: readError } = await client
       .from("event_staff_payments")
-      .select("project_id")
+      .select("project_id,staff_id,assignment_id")
       .eq("id", paymentId)
       .is("deleted_at", null)
       .single();
     if (readError) throw readError;
-    const { error } = await client.rpc("set_staff_assignment_payment_override", {
-      p_payment_id: paymentId,
-      p_role: role,
+    const { error } = await client.rpc("upsert_staff_payment_item", {
+      p_project_id: payment.project_id,
+      p_staff_id: payment.staff_id,
+      p_assignment_id: payment.assignment_id,
+      p_concept_code: role,
       p_amount: amount,
-      p_reason: reason,
+      p_audit_reason: reason,
+      p_idempotency_key: `assignment:${payment.assignment_id ?? paymentId}:${role}`,
     });
     if (error) throw error;
     revalidateSettlement(payment.project_id);

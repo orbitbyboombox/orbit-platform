@@ -103,6 +103,7 @@ export type EventStaffSettlementPayment = {
 };
 export type EventStaffSettlement = {
   id: string;
+  assignmentId?: string | null;
   staffId: string;
   staffName: string;
   blockId?: string | null;
@@ -442,7 +443,7 @@ export function StaffAssignmentCenter({
           />;
         })}
       </section>
-      <CustomPaymentItemForm projectId={projectId} staff={staff} pending={pending} onSubmit={(data) => saveSettlement(data, "concept")} />
+      <CustomPaymentItemForm projectId={projectId} staff={staff} assignments={assignments} pending={pending} onSubmit={(data) => saveSettlement(data, "concept")} />
       {blockRequirements.length ? <section className="mb-5 border-b pb-5"><h3 className="font-semibold">Planificación por bloques</h3><p className="mt-1 text-sm text-muted">Cada asignación queda asociada al bloque y conserva su tarifa según duración.</p><div className="mt-3 grid gap-3 lg:grid-cols-2">{blockRequirements.map((item) => {
         const blockAssignments = assignments.filter((assignment) => String(assignment.blockId ?? "") === String(item.blockId) && assignment.role === item.role && !["CANCELLED", "REJECTED"].includes(assignment.status));
         const blockActiveStaffIds = new Set(blockAssignments.map((assignment) => assignment.staffId));
@@ -721,11 +722,13 @@ function StaffRoleRequirementCard({ projectId, role, required, published, assign
 function CustomPaymentItemForm({
   projectId,
   staff,
+  assignments,
   pending,
   onSubmit,
 }: {
   projectId: string;
   staff: AssignmentStaffOption[];
+  assignments: OperationalAssignment[];
   pending: boolean;
   onSubmit: (data: FormData) => void;
 }) {
@@ -738,6 +741,7 @@ function CustomPaymentItemForm({
       <input type="hidden" name="projectId" value={projectId} />
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
       <label className="grid gap-1 text-sm">Staff<select className="min-h-10 rounded-lg border bg-background px-3" name="staffId" required><option value="">Seleccionar</option>{staff.map((member) => <option value={member.id} key={member.id}>{member.name}</option>)}</select></label>
+      <label className="grid gap-1 text-sm">Asignación exacta<select className="min-h-10 rounded-lg border bg-background px-3" name="assignmentId"><option value="">Sin asignación (concepto independiente)</option>{assignments.filter((assignment) => !["CANCELLED", "REJECTED"].includes(assignment.status)).map((assignment) => <option value={assignment.id} key={assignment.id}>{assignment.staffName} · {roleLabel(assignment.role)}</option>)}</select></label>
       <label className="grid gap-1 text-sm">Concepto<select className="min-h-10 rounded-lg border bg-background px-3" name="paymentConcept" required><option value="OPERATOR">Operador</option><option value="SUPERVISOR">Supervisor</option><option value="TRAINING">Capacitación</option><option value="ASSEMBLY">Montaje</option><option value="DISASSEMBLY">Desmontaje</option></select></label>
       <Field label="Monto" name="paymentAmount" type="number" />
       <Field label="Motivo auditable" name="paymentReason" defaultValue="Concepto independiente autorizado" />
@@ -833,7 +837,7 @@ function AssignmentCancellationDialog({
 }
 
 function paymentForAssignment(settlements: readonly EventStaffSettlement[], assignment: OperationalAssignment) {
-  return settlements.find((payment) => payment.staffId === assignment.staffId && payment.roles.includes(assignment.role) && (assignment.blockId ? payment.blockId === assignment.blockId : payment.blockId == null));
+  return settlements.find((payment) => payment.assignmentId === assignment.id) ?? settlements.find((payment) => payment.staffId === assignment.staffId && payment.roles.includes(assignment.role) && (assignment.blockId ? payment.blockId === assignment.blockId : payment.blockId == null));
 }
 
 function rolePayment(payment: EventStaffSettlement, role: string, kind: "base" | "final" | "override") {
