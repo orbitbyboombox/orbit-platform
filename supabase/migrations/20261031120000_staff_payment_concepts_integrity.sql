@@ -57,6 +57,7 @@ declare
   current_item public.event_staff_payment_items%rowtype;
   assignment_project_id uuid;
   assignment_staff_id uuid;
+  assignment_role text;
 begin
   if actor is null or not public.can_administer() then
     raise exception using errcode = '42501', message = 'No autorizado para registrar pagos Staff.';
@@ -68,8 +69,8 @@ begin
     raise exception 'Monto y motivo de auditoría son obligatorios.';
   end if;
   if p_assignment_id is not null then
-    select a.project_id, a.staff_id
-      into assignment_project_id, assignment_staff_id
+    select a.project_id, a.staff_id, a.assignment_type
+      into assignment_project_id, assignment_staff_id, assignment_role
       from public.assignments a
      where a.id = p_assignment_id
        and a.deleted_at is null;
@@ -77,6 +78,9 @@ begin
        or assignment_project_id <> p_project_id
        or assignment_staff_id <> p_staff_id then
       raise exception 'La asignación no pertenece al proyecto y colaborador indicados.';
+    end if;
+    if p_concept_code <> 'TRAINING' and assignment_role is distinct from p_concept_code then
+      raise exception 'El concepto no corresponde al rol de la asignación.';
     end if;
   end if;
 

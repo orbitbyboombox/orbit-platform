@@ -1537,6 +1537,7 @@ export default async function ProjectWorkspacePage({
             paid = Number(item.paid_amount);
           return {
             id: item.id,
+            assignmentId: item.assignment_id ?? null,
             staffId: item.staff_id,
             staffName: Array.isArray(item.staff)
               ? `${item.staff[0]?.first_name ?? ""} ${item.staff[0]?.last_name ?? ""}`.trim()
@@ -1612,6 +1613,7 @@ export default async function ProjectWorkspacePage({
               const paid = Number(item.paid_amount ?? 0);
               return {
                 id: String(item.id),
+                assignmentId: item.assignment_id ? String(item.assignment_id) : null,
                 staffId: String(item.staff_id),
                 staffName: `${staffRow?.first_name ?? ""} ${staffRow?.last_name ?? ""}`.trim() || "Staff",
                 roles: [String(item.concept_code)],

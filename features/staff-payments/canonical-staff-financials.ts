@@ -84,7 +84,9 @@ export function buildCanonicalStaffFinancials(input: {
     (assignment) => assignment.projectId == null || assignment.projectId === input.projectId,
   );
   const assignmentsByStaff = new Map<string, StaffFinancialAssignment[]>();
+  const assignmentsById = new Map<string, StaffFinancialAssignment>();
   for (const assignment of scopedAssignments) {
+    assignmentsById.set(assignment.id, assignment);
     const list = assignmentsByStaff.get(assignment.staffId) ?? [];
     list.push(assignment);
     assignmentsByStaff.set(assignment.staffId, list);
@@ -100,16 +102,23 @@ export function buildCanonicalStaffFinancials(input: {
     for (const [legacyConcept, field] of legacyMap) {
       const amount = toAmount(settlement[field]);
       if (amount <= 0) continue;
-      const staffAssignments = assignmentsByStaff.get(settlement.staffId) ?? [];
-      const hasOperator = staffAssignments.some((assignment) => assignment.role === "OPERATOR");
-      const hasSupervisor = staffAssignments.some((assignment) => assignment.role === "SUPERVISOR");
-      const concept = field === "operatorPayment" && !hasOperator && hasSupervisor
-        ? "SUPERVISOR"
-        : conceptFromRole(legacyConcept) ?? "OPERATOR";
+      // Resolve the concept from the exact assignment first. Inferring a role
+      // from the collaborator's other assignments turns a supervisor row into
+      // an operator row and can duplicate or omit money.
+      const assignment = settlement.assignmentId
+        ? assignmentsById.get(settlement.assignmentId)
+        : undefined;
+      const concept =
+        field === "operatorPayment" && assignment?.role === "SUPERVISOR"
+          ? "SUPERVISOR"
+          : conceptFromRole(legacyConcept) ?? "OPERATOR";
       items.push({
         id: `${settlement.id}:${concept}`,
         projectId: input.projectId,
-        staffId: settlement.staffId,
+        // Legacy rows can carry a stale staff_id after an assignment was
+        // replaced. Once assignment_id is present, the assignment's staff is
+        // the only safe owner for the financial line.
+        staffId: assignment?.staffId ?? settlement.staffId,
         assignmentId: settlement.assignmentId ?? null,
         concept,
         amount,
@@ -131,8 +140,17 @@ export function buildCanonicalStaffFinancials(input: {
       .filter((item) => item.source === "PAYMENT_ITEM" && item.assignmentId)
       .map((item) => `${item.assignmentId}:${item.concept}`),
   );
+  const unassignedItemKeys = new Set(
+    items
+      .filter((item) => item.source === "PAYMENT_ITEM" && !item.assignmentId)
+      .map((item) => `${item.staffId}:${item.concept}`),
+  );
   const dedupedItems = items.filter(
-    (item) => item.source !== "LEGACY_SETTLEMENT" || !item.assignmentId || !itemKeys.has(`${item.assignmentId}:${item.concept}`),
+    (item) =>
+      item.source !== "LEGACY_SETTLEMENT" ||
+      (item.assignmentId
+        ? !itemKeys.has(`${item.assignmentId}:${item.concept}`)
+        : !unassignedItemKeys.has(`${item.staffId}:${item.concept}`)),
   );
 
   const byConcept = Object.fromEntries(

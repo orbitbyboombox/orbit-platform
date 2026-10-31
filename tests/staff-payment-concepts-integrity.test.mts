@@ -66,6 +66,43 @@ test("no duplica líneas idempotentes ni cambia pagos históricos en el read mod
   assert.equal(result.total, 19000);
 });
 
+test("reconcilia el evento real por asignación: 43.000 heredados + conceptos corregidos = 48.000", () => {
+  const base = {
+    projectId: "carla-project",
+    assignments: [
+      { id: "seb-assembly", staffId: "sebastian", role: "ASSEMBLY", status: "CONFIRMED" },
+      { id: "seb-disassembly", staffId: "sebastian", role: "DISASSEMBLY", status: "CONFIRMED" },
+      { id: "sofia-operation", staffId: "sofia", role: "OPERATOR", status: "CONFIRMED" },
+      { id: "seb-supervisor", staffId: "sebastian", role: "SUPERVISOR", status: "ASSIGNED" },
+    ],
+    settlements: [
+      { id: "assembly", staffId: "sebastian", assignmentId: "seb-assembly", status: "CONFIRMED", assemblyPayment: 7000 },
+      { id: "disassembly", staffId: "sebastian", assignmentId: "seb-disassembly", status: "CONFIRMED", disassemblyPayment: 8000 },
+      { id: "sofia-operation-legacy", staffId: "sebastian", assignmentId: "sofia-operation", status: "CONFIRMED", operatorPayment: 14000 },
+      { id: "supervisor", staffId: "sebastian", assignmentId: "seb-supervisor", status: "ESTIMATED", operatorPayment: 14000 },
+    ],
+  };
+  const before = buildCanonicalStaffFinancials(base);
+  assert.equal(before.total, 43000);
+  assert.deepEqual(before.items.map((item) => [item.staffId, item.concept, item.amount]), [
+    ["sebastian", "ASSEMBLY", 7000],
+    ["sebastian", "DISASSEMBLY", 8000],
+    ["sofia", "OPERATOR", 14000],
+    ["sebastian", "SUPERVISOR", 14000],
+  ]);
+  assert.deepEqual(before.reviewRequiredAssignmentIds, []);
+  const after = buildCanonicalStaffFinancials({
+    ...base,
+    paymentItems: [
+      { id: "sofia-item", projectId: "carla-project", staffId: "sofia", assignmentId: "sofia-operation", concept: "OPERATOR", amount: 14000, paidAmount: 0, status: "PENDING", source: "PAYMENT_ITEM" },
+      { id: "supervisor-item", projectId: "carla-project", staffId: "sebastian", assignmentId: "seb-supervisor", concept: "SUPERVISOR", amount: 19000, paidAmount: 0, status: "PENDING", source: "PAYMENT_ITEM" },
+    ],
+  });
+  assert.equal(after.total, 48000);
+  assert.deepEqual(after.byConcept, { OPERATOR: 14000, SUPERVISOR: 19000, ASSEMBLY: 7000, DISASSEMBLY: 8000, TRAINING: 0 });
+  assert.deepEqual(after.reviewRequiredAssignmentIds, []);
+});
+
 test("aísla asignaciones de otros eventos antes de calcular revisión y totales", () => {
   const result = buildCanonicalStaffFinancials({
     projectId: "project-1",
@@ -102,6 +139,8 @@ test("la página mantiene el filtro project_id en la lectura defensiva", () => {
 test("la migración protege autorización, coherencia y concurrencia", () => {
   assert.match(migration, /assignment_project_id uuid/);
   assert.match(migration, /assignment_project_id <> p_project_id/);
+  assert.match(migration, /assignment_role/);
+  assert.match(migration, /concepto no corresponde al rol/);
   assert.match(migration, /on conflict do nothing returning \* into current_item/);
   assert.match(migration, /staff_payment_concept_totals\(uuid\) from public/);
   assert.match(migration, /not public\.can_administer\(\)/);
