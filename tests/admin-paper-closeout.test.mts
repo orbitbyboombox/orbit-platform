@@ -28,7 +28,7 @@ test("admin closeout action uses the canonical RPC and revalidates Cajas", () =>
 
 test("Logística Cajas exposes the controlled administrative closeout", () => {
   assert.match(historyActions, /AdminPaperCloseoutDialog/);
-  assert.match(ui, /FORZAR CIERRE DE EVENTO/);
+  assert.match(ui, /CERRAR PAPEL MANUALMENTE/);
   assert.match(ui, /Motivo obligatorio/);
   assert.match(ui, /CONFIRMAR CIERRE/);
   assert.match(ui, /Papel final real/);

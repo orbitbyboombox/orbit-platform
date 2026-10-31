@@ -25,7 +25,7 @@ export function AdminPaperCloseoutDialog({ projectId, assignmentId, eventName, b
   };
   const close = () => { if (!pending) setOpen(false); };
   return <>
-    <button type="button" className="mt-3 min-h-9 rounded-lg border border-brand/50 px-3 text-xs font-bold text-brand" onClick={show}>FORZAR CIERRE DE EVENTO</button>
+    <button type="button" className="mt-3 min-h-9 rounded-lg border border-brand/50 px-3 text-xs font-bold text-brand" onClick={show}>CERRAR PAPEL MANUALMENTE</button>
     {open ? <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby={`admin-paper-close-${assignmentId}`}>
       <div className="max-h-[92dvh] w-full overflow-y-auto rounded-t-2xl border bg-card p-5 sm:max-w-lg sm:rounded-2xl">
         <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">CIERRE ADMINISTRATIVO</p><h2 id={`admin-paper-close-${assignmentId}`} className="mt-1 text-xl font-semibold">{eventName}</h2><p className="mt-1 text-sm text-muted">Caja {boxCode} · no modifica pagos ni el estado comercial.</p></div><button type="button" className="rounded-lg border px-3 py-1 text-sm" onClick={close}>Cerrar</button></div>
