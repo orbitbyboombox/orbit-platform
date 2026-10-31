@@ -257,6 +257,37 @@ export async function resetStaffAssignmentPaymentAction(
   }
 }
 
+export async function upsertStaffPaymentItemAction(
+  data: FormData,
+): Promise<Result> {
+  try {
+    const { client } = await context();
+    const projectId = text(data, "projectId");
+    const staffId = text(data, "staffId");
+    const assignmentId = text(data, "assignmentId") || null;
+    const concept = text(data, "paymentConcept");
+    const amount = Number(data.get("paymentAmount"));
+    const reason = text(data, "paymentReason");
+    if (!projectId || !staffId || !concept || !reason || !Number.isFinite(amount) || amount < 0) {
+      throw new Error("Evento, Staff, concepto, monto y motivo son obligatorios.");
+    }
+    const { error } = await client.rpc("upsert_staff_payment_item", {
+      p_project_id: projectId,
+      p_staff_id: staffId,
+      p_assignment_id: assignmentId,
+      p_concept_code: concept,
+      p_amount: amount,
+      p_audit_reason: reason,
+      p_idempotency_key: text(data, "idempotencyKey") || null,
+    });
+    if (error) throw error;
+    revalidateSettlement(projectId);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: friendly(error, "No fue posible registrar el concepto de pago.") };
+  }
+}
+
 export async function updateStaffEventSettlementAction(
   data: FormData,
 ): Promise<Result> {
