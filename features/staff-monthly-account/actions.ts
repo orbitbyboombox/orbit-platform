@@ -704,6 +704,28 @@ export async function requestIndividualStaffBoletaAction(form: FormData) {
   }
 }
 
+export async function sendFinalizedStaffSettlementEmailAction(form: FormData) {
+  try {
+    await adminContext();
+    const accountId = String(form.get("accountId") ?? "");
+    if (!/^[0-9a-f-]{36}$/i.test(accountId)) throw new Error("Liquidación inválida.");
+    const admin = createAdminClient();
+    const { data, error } = await admin.from("staff_monthly_accounts")
+      .select("id,settlement_status,review_required")
+      .eq("id", accountId).single();
+    if (error || !data) throw error ?? new Error("Liquidación no encontrada.");
+    if (data.settlement_status !== "FINALIZED" || data.review_required)
+      throw new Error("La liquidación debe estar finalizada y sin revisión pendiente.");
+    const prepared = await prepareMonthlySettlementDocument(accountId);
+    const result = await sendMonthlySettlementReadyEmail(prepared, 1);
+    refresh();
+    return { ok: true, message: result.sent
+      ? "Liquidación enviada al correo del operador con PDF adjunto."
+      : "Esta liquidación ya fue enviada; no se duplicó el correo." };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : "No fue posible enviar la liquidación." };
+  }
+}
 export async function finalizeMonthlyStaffAccountAction(form: FormData) {
   try {
     const client = await adminContext(),
