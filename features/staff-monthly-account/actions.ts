@@ -717,7 +717,22 @@ export async function sendFinalizedStaffSettlementEmailAction(form: FormData) {
     if (data.settlement_status !== "FINALIZED" || data.review_required)
       throw new Error("La liquidación debe estar finalizada y sin revisión pendiente.");
     const prepared = await prepareMonthlySettlementDocument(accountId);
-    const result = await sendMonthlySettlementReadyEmail(prepared, 1);
+    // Use the immutable PDF bytes generated from the current canonical account.
+    // A new correction version must not reuse the previously sent email's key.
+    const expected = Number(prepared.account.finalTransferAmount);
+    const confirmed = String(form.get("expectedTransfer") ?? "");
+    if (!Number.isFinite(expected) || expected.toFixed(2) !== Number(confirmed).toFixed(2))
+      throw new Error("El saldo cambió. Actualiza la liquidación antes de enviar.");
+    const { data: notices, error: noticeError } = await admin.from("internal_notifications")
+      .select("correlation_id,metadata")
+      .eq("entity_id", accountId)
+      .like("correlation_id", `staff-boleta-request:${accountId}:%`);
+    if (noticeError) throw noticeError;
+    const sentVersions = (notices ?? []).filter((notice) =>
+      (notice.metadata as Record<string, unknown> | null)?.email_status === "SENT");
+    const nextVersion = Math.max(0, ...sentVersions.map((notice) =>
+      Number(String(notice.correlation_id).split(":").pop()) || 0)) + 1;
+    const result = await sendMonthlySettlementReadyEmail(prepared, nextVersion);
     refresh();
     return { ok: true, message: result.sent
       ? "Liquidación enviada al correo del operador con PDF adjunto."
