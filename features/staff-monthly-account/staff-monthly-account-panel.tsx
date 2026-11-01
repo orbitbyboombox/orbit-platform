@@ -89,7 +89,7 @@ export function StaffMonthlyAccountPanel({
         setMessage(result.message);
       });
   return (
-    <section className="min-w-0 overflow-hidden rounded-2xl border bg-card p-4 sm:p-5">
+    <section className="w-full min-w-0 max-w-full overflow-x-hidden rounded-2xl border bg-card p-3 sm:p-5">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">
@@ -104,7 +104,7 @@ export function StaffMonthlyAccountPanel({
             NETAS pactadas
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="min-w-0 flex flex-wrap items-center gap-2">
           {onBack ? (
             <button
               aria-label="Volver a liquidaciones mensuales"
@@ -287,7 +287,7 @@ export function StaffMonthlyAccountPanel({
           ) : null}
         </section>
       ) : null}
-      <div className="mt-4 rounded-2xl border-2 border-brand bg-brand/5 p-4">
+      <div className="mt-4 min-w-0 max-w-full overflow-hidden rounded-2xl border-2 border-brand bg-brand/5 p-3 sm:p-4">
         <p className="text-xs font-bold uppercase tracking-[.16em] text-brand">
           Monto total boleta SII a emitir
         </p>
@@ -348,7 +348,7 @@ export function StaffMonthlyAccountPanel({
           </div>
         </details>
       ) : null}
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-4 flex min-w-0 flex-wrap gap-2">
         <button
           className="inline-flex min-h-11 items-center rounded-xl border px-4 text-sm font-semibold"
           onClick={() => setViewerOpen(true)}
