@@ -52,7 +52,9 @@ export function StaffMonthlyAccountPanel({
       projectId: string;
       event: string;
     } | null>(null),
-    [viewerOpen, setViewerOpen] = useState(false);
+    [viewerOpen, setViewerOpen] = useState(false),
+    [emailReviewOpen, setEmailReviewOpen] = useState(false),
+    [emailReviewed, setEmailReviewed] = useState(false);
   const [advanceFor, setAdvanceFor] = useState<{ settlementId: string; event: string; projectId: string } | null>(null);
   const completionLock = useRef(false);
   const [advanceSelection, setAdvanceSelection] = useState("");
@@ -438,13 +440,30 @@ export function StaffMonthlyAccountPanel({
         </form>
       ) : null}
       {mode === "FOUNDER" && account.settlementStatus === "FINALIZED" ? (
-        <form action={run(sendFinalizedStaffSettlementEmailAction)} className="mt-4">
-          <input name="accountId" type="hidden" value={account.id} />
-          <input name="expectedTransfer" type="hidden" value={account.finalTransferAmount} />
-          <Button aria-busy={pending} disabled={pending || account.reviewRequired} type="submit">
-            Enviar liquidación actualizada por correo
+        <div className="mt-4">
+          <Button type="button" disabled={pending || account.reviewRequired} onClick={() => { setEmailReviewed(false); setEmailReviewOpen(true); }}>
+            Revisar PDF antes de enviar
           </Button>
-        </form>
+          <MobileDialog open={emailReviewOpen} onClose={() => { setEmailReviewOpen(false); setEmailReviewed(false); }} title="Confirmar liquidación y correo">
+            <div className="space-y-4">
+              <p className="text-sm">Revisa el documento completo antes de autorizar el correo. No se enviará nada al abrir esta vista.</p>
+              <p className="text-sm">Mes: <strong>{staffMonthLabel(account.month)}</strong> · Saldo a transferir: <strong>{money(account.finalTransferAmount)}</strong> · Boleta SII: <strong>{money(account.boletaGross)}</strong></p>
+              <iframe title="PDF que se revisará antes del envío" src={`/api/staff-monthly-accounts/${account.id}/settlement-pdf`} className="h-[55vh] w-full rounded-lg border" />
+              <label className="flex items-start gap-2 text-sm">
+                <input type="checkbox" checked={emailReviewed} onChange={(event) => setEmailReviewed(event.target.checked)} />
+                Confirmo que revisé el PDF y los importes y autorizo enviar la liquidación actualizada.
+              </label>
+              <form action={run(sendFinalizedStaffSettlementEmailAction)}>
+                <input name="accountId" type="hidden" value={account.id} />
+                <input name="expectedTransfer" type="hidden" value={account.finalTransferAmount} />
+                <Button type="submit" disabled={pending || !emailReviewed || account.reviewRequired}>
+                  {pending ? "Enviando…" : "Confirmar y enviar correo"}
+                </Button>
+              </form>
+              <Button type="button" onClick={() => { setEmailReviewOpen(false); setEmailReviewed(false); }}>Cancelar sin enviar</Button>
+            </div>
+          </MobileDialog>
+        </div>
       ) : null}
       {mode === "STAFF" &&
       account.calculation.blockingEvents.length === 0 &&
