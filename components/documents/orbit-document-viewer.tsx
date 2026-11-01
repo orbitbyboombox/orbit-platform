@@ -63,7 +63,7 @@ export function OrbitDocumentViewer({ title, src, onClose, downloadUrl }: OrbitD
         <Button asChild className="min-h-11 min-w-11" size="icon" variant="ghost">
           <a aria-label="Descargar documento" href={resolvedDownload}><Download/></a>
         </Button>
-        <Button aria-label="Compartir documento" className="hidden min-h-11 min-w-11 sm:inline-flex" onClick={share} size="icon" variant="ghost"><Share2/></Button>
+        <Button aria-label="Compartir documento" className="min-h-11 min-w-11" onClick={share} size="icon" variant="ghost"><Share2/></Button>
         <Button aria-label="Cerrar y volver al Evento" className="min-h-11 min-w-11" onClick={close} size="icon" variant="ghost"><X/></Button>
       </header>
       {message ? <p className="shrink-0 px-4 py-2 text-center text-xs text-success">{message}</p> : null}
