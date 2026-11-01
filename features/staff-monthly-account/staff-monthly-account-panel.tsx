@@ -440,8 +440,9 @@ export function StaffMonthlyAccountPanel({
       {mode === "FOUNDER" && account.settlementStatus === "FINALIZED" ? (
         <form action={run(sendFinalizedStaffSettlementEmailAction)} className="mt-4">
           <input name="accountId" type="hidden" value={account.id} />
+          <input name="expectedTransfer" type="hidden" value={account.finalTransferAmount} />
           <Button aria-busy={pending} disabled={pending || account.reviewRequired} type="submit">
-            Enviar liquidación por correo
+            Enviar liquidación actualizada por correo
           </Button>
         </form>
       ) : null}
