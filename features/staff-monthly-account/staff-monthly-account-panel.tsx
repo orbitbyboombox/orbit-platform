@@ -9,6 +9,7 @@ import {
   approveMonthlySettlementReviewAction,
   completeSettlementEventAction,
   finalizeMonthlyStaffAccountAction,
+  sendFinalizedStaffSettlementEmailAction,
   registerMonthlyStaffPaymentAction,
   registerStaffAdvanceAction,
   reviewMonthlyBoletaAction,
@@ -433,6 +434,14 @@ export function StaffMonthlyAccountPanel({
           <input name="accountId" type="hidden" value={account.id} />
           <Button aria-busy={pending} disabled={pending|| account.reviewRequired}>
             Finalizar liquidación
+          </Button>
+        </form>
+      ) : null}
+      {mode === "FOUNDER" && account.settlementStatus === "FINALIZED" ? (
+        <form action={run(sendFinalizedStaffSettlementEmailAction)} className="mt-4">
+          <input name="accountId" type="hidden" value={account.id} />
+          <Button aria-busy={pending} disabled={pending || account.reviewRequired} type="submit">
+            Enviar liquidación por correo
           </Button>
         </form>
       ) : null}
