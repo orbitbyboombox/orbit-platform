@@ -444,7 +444,7 @@ export function StaffMonthlyAccountPanel({
           <Button type="button" disabled={pending || account.reviewRequired} onClick={() => { setEmailReviewed(false); setEmailReviewOpen(true); }}>
             Revisar PDF antes de enviar
           </Button>
-          <MobileDialog open={emailReviewOpen} onClose={() => { setEmailReviewOpen(false); setEmailReviewed(false); }} title="Confirmar liquidación y correo">
+          {emailReviewOpen ? <MobileDialog onClose={() => { setEmailReviewOpen(false); setEmailReviewed(false); }} title="Confirmar liquidación y correo">
             <div className="space-y-4">
               <p className="text-sm">Revisa el documento completo antes de autorizar el correo. No se enviará nada al abrir esta vista.</p>
               <p className="text-sm">Mes: <strong>{staffMonthLabel(account.month)}</strong> · Saldo a transferir: <strong>{money(account.finalTransferAmount)}</strong> · Boleta SII: <strong>{money(account.boletaGross)}</strong></p>
@@ -462,7 +462,7 @@ export function StaffMonthlyAccountPanel({
               </form>
               <Button type="button" onClick={() => { setEmailReviewOpen(false); setEmailReviewed(false); }}>Cancelar sin enviar</Button>
             </div>
-          </MobileDialog>
+          </MobileDialog> : null}
         </div>
       ) : null}
       {mode === "STAFF" &&
