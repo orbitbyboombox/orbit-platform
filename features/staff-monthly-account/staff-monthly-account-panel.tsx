@@ -448,7 +448,11 @@ export function StaffMonthlyAccountPanel({
             <div className="space-y-4">
               <p className="text-sm">Revisa el documento completo antes de autorizar el correo. No se enviará nada al abrir esta vista.</p>
               <p className="text-sm">Mes: <strong>{staffMonthLabel(account.month)}</strong> · Saldo a transferir: <strong>{money(account.finalTransferAmount)}</strong> · Boleta SII: <strong>{money(account.boletaGross)}</strong></p>
-              <iframe title="PDF que se revisará antes del envío" src={`/api/staff-monthly-accounts/${account.id}/settlement-pdf`} className="h-[55vh] w-full rounded-lg border" />
+              <a href={`/api/staff-monthly-accounts/${account.id}/settlement-pdf`} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center rounded-xl border px-4 py-3 text-sm font-semibold underline">
+                Abrir PDF completo en otra pestaña
+              </a>
+              <p className="text-xs text-muted-foreground">En iPhone, abre el documento completo en el visor del navegador y vuelve a esta pantalla para confirmar. Puedes recorrer todas las páginas sin enviar nada.</p>
+              <iframe title="Vista previa del PDF para escritorio" src={`/api/staff-monthly-accounts/${account.id}/settlement-pdf`} className="hidden h-[65vh] w-full rounded-lg border md:block" />
               <label className="flex items-start gap-2 text-sm">
                 <input type="checkbox" checked={emailReviewed} onChange={(event) => setEmailReviewed(event.target.checked)} />
                 Confirmo que revisé el PDF y los importes y autorizo enviar la liquidación actualizada.
