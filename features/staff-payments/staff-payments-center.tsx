@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ExternalLink, Search, TriangleAlert } from "lucide-react";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -188,6 +188,18 @@ export function StaffPaymentsCenter({
 }) {
   const reimbursementDetails = reimbursements ?? [];
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
+  const selectMonth = useCallback((value: string) => {
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) return;
+    setMonth(value);
+    const url = new URL(window.location.href);
+    url.searchParams.set("staffMonth", value);
+    window.history.replaceState(window.history.state, "", url);
+  }, []);
+  useEffect(() => {
+    if (initialReviewAccountId) return;
+    const saved = new URL(window.location.href).searchParams.get("staffMonth");
+    if (saved && /^\d{4}-(0[1-9]|1[0-2])$/.test(saved)) setMonth(saved);
+  }, [initialReviewAccountId]);
   const [openStaffId, setOpenStaffId] = useState<string | null>(null);
   const [boletaRequested, setBoletaRequested] = useState<Record<string, boolean>>({});
   const [boletaStatusLoaded, setBoletaStatusLoaded] = useState(false);
@@ -240,10 +252,10 @@ export function StaffPaymentsCenter({
       (item) => item.account?.id === initialReviewAccountId,
     );
     if (target) {
-      setMonth(target.month.slice(0, 7));
+      selectMonth(target.month.slice(0, 7));
       setOpenStaffId(target.staffId);
     }
-  }, [initialReviewAccountId, months]);
+  }, [initialReviewAccountId, months, selectMonth]);
   useEffect(() => {
     let active = true;
     startClosing(async () => {
@@ -344,7 +356,7 @@ export function StaffPaymentsCenter({
             Mes
             <input
               className="mt-1 h-11 w-full rounded-xl border bg-background px-3"
-              onChange={(e) => setMonth(e.target.value)}
+              onChange={(e) => selectMonth(e.target.value)}
               type="month"
               value={month}
             />
