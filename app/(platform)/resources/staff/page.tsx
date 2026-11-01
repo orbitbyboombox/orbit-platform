@@ -36,6 +36,7 @@ import { StaffFinancialActions, type StaffReimbursementPaymentItem } from "@/fea
 import type { StaffReimbursementDetail } from "@/features/staff-payments/staff-payments-center";
 import type { StaffExpenseReviewItem } from "@/features/staff-expenses/staff-expense-review";
 import { buildAssignedBoxByProject, CANONICAL_BOX_CODES } from "@/features/asset-management/box-assignment-read-model";
+import { isReadOnlyVisualPreview } from "@/lib/supabase/environment-guard";
 
 export default async function StaffManagementPage({searchParams}:{searchParams:Promise<{reviewOnboarding?:string;reviewAccount?:string;reviewExpense?:string;view?:string}>}) {
   const {reviewOnboarding,reviewAccount,reviewExpense,view}=await searchParams;
@@ -64,9 +65,13 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
     const key = `${row.staff_id}:${row.accounting_month}`;
     if (!knownAccounts.has(key)) missingAccounts.set(key, { staffId: row.staff_id, month: row.accounting_month });
   }
-  for (const { staffId, month } of missingAccounts.values()) {
-    const { error } = await client.rpc("ensure_staff_monthly_account", { p_staff_id: staffId, p_month: month });
-    if (error) throw new Error(`No se pudo sincronizar la cuenta mensual de Staff: ${error.message}`);
+  // The visual Preview uses a read-only Supabase client; never invoke this
+  // materialization RPC there. Production keeps the existing repair behavior.
+  if (!isReadOnlyVisualPreview()) {
+    for (const { staffId, month } of missingAccounts.values()) {
+      const { error } = await client.rpc("ensure_staff_monthly_account", { p_staff_id: staffId, p_month: month });
+      if (error) throw new Error(`No se pudo sincronizar la cuenta mensual de Staff: ${error.message}`);
+    }
   }
   const academyArticlesPromise = loadAcademyArticles(client);
   const crmEventsPromise = loadCrmOperationalEvents(client);

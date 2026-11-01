@@ -112,6 +112,42 @@ export async function prepareMonthlySettlementDocument(accountId: string) {
   return { account, staff, pdf, documentId: document.id };
 }
 
+/** Load the finalized artifact itself so the preview and email use identical bytes. */
+export async function loadMonthlySettlementDocument(accountId: string) {
+  const admin = createAdminClient();
+  const { data: row, error: rowError } = await admin
+    .from("staff_monthly_accounts")
+    .select(STAFF_MONTHLY_ACCOUNT_SELECT)
+    .eq("id", accountId)
+    .single();
+  if (rowError || !row) throw rowError ?? new Error("Liquidación mensual no encontrada.");
+  if (!row.settlement_document_id) throw new Error("La liquidación no tiene un PDF protegido generado.");
+  const { data: staffRow, error: staffError } = await admin
+    .from("staff")
+    .select("id,first_name,last_name,email,rut,role")
+    .eq("id", row.staff_id)
+    .single();
+  if (staffError || !staffRow) throw staffError ?? new Error("Colaborador no encontrado.");
+  const account = mapStaffMonthlyAccount(row);
+  const path = monthlySettlementPath(account.staffId, account.month);
+  const { data: file, error: fileError } = await admin.storage.from("orbit-documents").download(path);
+  if (fileError || !file) throw fileError ?? new Error("No se encontró el PDF protegido de esta liquidación.");
+  return {
+    account,
+    staff: {
+      id: staffRow.id,
+      firstName: staffRow.first_name,
+      lastName: staffRow.last_name,
+      name: `${staffRow.first_name} ${staffRow.last_name}`.trim(),
+      email: staffRow.email ?? "",
+      rut: staffRow.rut ?? "",
+      role: staffRow.role ?? "",
+    },
+    pdf: Buffer.from(await file.arrayBuffer()),
+    documentId: row.settlement_document_id,
+  };
+}
+
 async function claimEmail(input: {
   correlationId: string;
   notificationType: string;

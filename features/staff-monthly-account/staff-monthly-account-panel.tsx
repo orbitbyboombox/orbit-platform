@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { MobileDialog } from "@/components/ui/mobile-dialog";
-import { OrbitDocumentViewer } from "@/components/documents/orbit-document-viewer";
+import { SettlementPdfViewer } from "@/components/documents/settlement-pdf-viewer";
 import {
   approveMonthlySettlementReviewAction,
   completeSettlementEventAction,
@@ -54,6 +54,7 @@ export function StaffMonthlyAccountPanel({
     } | null>(null),
     [viewerOpen, setViewerOpen] = useState(false),
     [emailReviewOpen, setEmailReviewOpen] = useState(false),
+    [emailPdfOpen, setEmailPdfOpen] = useState(false),
     [emailReviewed, setEmailReviewed] = useState(false);
   const [advanceFor, setAdvanceFor] = useState<{ settlementId: string; event: string; projectId: string } | null>(null);
   const completionLock = useRef(false);
@@ -390,7 +391,7 @@ export function StaffMonthlyAccountPanel({
         ) : null}
       </div>
       {viewerOpen ? (
-        <OrbitDocumentViewer
+        <SettlementPdfViewer
           onClose={() => setViewerOpen(false)}
           src={`/api/staff-monthly-accounts/${account.id}/settlement-pdf`}
           title={`Liquidación ${staffMonthLabel(account.month)}`}
@@ -431,6 +432,7 @@ export function StaffMonthlyAccountPanel({
           </form>
         </MobileDialog>
       ) : null}
+      {emailPdfOpen ? <SettlementPdfViewer onClose={() => setEmailPdfOpen(false)} src={`/api/staff-monthly-accounts/${account.id}/settlement-pdf`} title={`Liquidación ${staffMonthLabel(account.month)}`} /> : null}
       {mode === "FOUNDER" && account.settlementStatus === "DRAFT" ? (
         <form action={run(finalizeMonthlyStaffAccountAction)} className="mt-4">
           <input name="accountId" type="hidden" value={account.id} />
@@ -448,11 +450,10 @@ export function StaffMonthlyAccountPanel({
             <div className="space-y-4">
               <p className="text-sm">Revisa el documento completo antes de autorizar el correo. No se enviará nada al abrir esta vista.</p>
               <p className="text-sm">Mes: <strong>{staffMonthLabel(account.month)}</strong> · Saldo a transferir: <strong>{money(account.finalTransferAmount)}</strong> · Boleta SII: <strong>{money(account.boletaGross)}</strong></p>
-              <a href={`/api/staff-monthly-accounts/${account.id}/settlement-pdf`} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center rounded-xl border px-4 py-3 text-sm font-semibold underline">
-                Abrir PDF completo en otra pestaña
-              </a>
-              <p className="text-xs text-muted-foreground">En iPhone, abre el documento completo en el visor del navegador y vuelve a esta pantalla para confirmar. Puedes recorrer todas las páginas sin enviar nada.</p>
-              <iframe title="Vista previa del PDF para escritorio" src={`/api/staff-monthly-accounts/${account.id}/settlement-pdf`} className="hidden h-[65vh] w-full rounded-lg border md:block" />
+              <button className="inline-flex min-h-11 items-center rounded-xl border px-4 py-3 text-sm font-semibold" onClick={() => setEmailPdfOpen(true)} type="button">
+                Abrir visor y revisar todas las páginas
+              </button>
+              <p className="text-xs text-muted-foreground">La vista previa abre el PDF protegido que se adjuntará al correo. No se envía nada hasta que confirmes el botón de envío.</p>
               <label className="flex items-start gap-2 text-sm">
                 <input type="checkbox" checked={emailReviewed} onChange={(event) => setEmailReviewed(event.target.checked)} />
                 Confirmo que revisé el PDF y los importes y autorizo enviar la liquidación actualizada.

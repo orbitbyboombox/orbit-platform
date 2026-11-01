@@ -6,7 +6,7 @@ import { createSupabaseServerActionClient } from "@/lib/supabase/server";
 import { loadPortalSession } from "@/features/portal-authentication/portal-auth.service";
 import { monthlyBoletaPath, monthlyReceiptPath } from "./model";
 import { syncStaffDocumentArchive } from "./drive-archive.service";
-import { sendMonthlySettlementReadyEmail } from "./monthly-communication.service";
+import { loadMonthlySettlementDocument, sendMonthlySettlementReadyEmail } from "./monthly-communication.service";
 import {
   prepareMonthlySettlementDocument,
   sendMonthlyPaymentCompletedEmail,
@@ -716,9 +716,8 @@ export async function sendFinalizedStaffSettlementEmailAction(form: FormData) {
     if (error || !data) throw error ?? new Error("Liquidación no encontrada.");
     if (data.settlement_status !== "FINALIZED" || data.review_required)
       throw new Error("La liquidación debe estar finalizada y sin revisión pendiente.");
-    const prepared = await prepareMonthlySettlementDocument(accountId);
-    // Use the immutable PDF bytes generated from the current canonical account.
-    // A new correction version must not reuse the previously sent email's key.
+    const prepared = await loadMonthlySettlementDocument(accountId);
+    // Preview and email use the same protected PDF bytes; sending never regenerates it.
     const expected = Number(prepared.account.finalTransferAmount);
     const confirmed = String(form.get("expectedTransfer") ?? "");
     if (!Number.isFinite(expected) || expected.toFixed(2) !== Number(confirmed).toFixed(2))

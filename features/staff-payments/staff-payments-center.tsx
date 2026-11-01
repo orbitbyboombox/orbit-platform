@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ExternalLink, Search, TriangleAlert } from "lucide-react";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -166,6 +166,13 @@ function AdminFinanceSummary({
   );
 }
 
+function CompactFinanceValue({ label, value, accent = false }: { label: string; value: number; accent?: boolean }) {
+  return <span className="min-w-0 rounded-lg border bg-background/50 px-2 py-1.5 sm:px-3 sm:py-2">
+    <span className="block truncate text-[10px] text-muted sm:text-xs">{label}</span>
+    <strong className={`mt-0.5 block truncate text-xs tabular-nums sm:text-sm ${accent ? "text-brand" : ""}`}>{money.format(value)}</strong>
+  </span>;
+}
+
 export function StaffPaymentsCenter({
   staff,
   events,
@@ -181,6 +188,18 @@ export function StaffPaymentsCenter({
 }) {
   const reimbursementDetails = reimbursements ?? [];
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
+  const selectMonth = useCallback((value: string) => {
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) return;
+    setMonth(value);
+    const url = new URL(window.location.href);
+    url.searchParams.set("staffMonth", value);
+    window.history.replaceState(window.history.state, "", url);
+  }, []);
+  useEffect(() => {
+    if (initialReviewAccountId) return;
+    const saved = new URL(window.location.href).searchParams.get("staffMonth");
+    if (saved && /^\d{4}-(0[1-9]|1[0-2])$/.test(saved)) setMonth(saved);
+  }, [initialReviewAccountId]);
   const [openStaffId, setOpenStaffId] = useState<string | null>(null);
   const [boletaRequested, setBoletaRequested] = useState<Record<string, boolean>>({});
   const [boletaStatusLoaded, setBoletaStatusLoaded] = useState(false);
@@ -233,10 +252,10 @@ export function StaffPaymentsCenter({
       (item) => item.account?.id === initialReviewAccountId,
     );
     if (target) {
-      setMonth(target.month.slice(0, 7));
+      selectMonth(target.month.slice(0, 7));
       setOpenStaffId(target.staffId);
     }
-  }, [initialReviewAccountId, months]);
+  }, [initialReviewAccountId, months, selectMonth]);
   useEffect(() => {
     let active = true;
     startClosing(async () => {
@@ -337,7 +356,7 @@ export function StaffPaymentsCenter({
             Mes
             <input
               className="mt-1 h-11 w-full rounded-xl border bg-background px-3"
-              onChange={(e) => setMonth(e.target.value)}
+              onChange={(e) => selectMonth(e.target.value)}
               type="month"
               value={month}
             />
@@ -539,7 +558,7 @@ export function StaffPaymentsCenter({
         {rows.map((row) => (
           <details
             open={openStaffId === row.member.id}
-            className="rounded-2xl border p-4 sm:p-5"
+            className="min-w-0 rounded-2xl border p-3 sm:p-5"
             onToggle={(event) => {
               if (event.currentTarget.open) setOpenStaffId(row.member.id);
               else if (openStaffId === row.member.id) setOpenStaffId(null);
@@ -547,10 +566,10 @@ export function StaffPaymentsCenter({
             key={row.member.id}
           >
             <summary className="cursor-pointer list-none">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-semibold">{row.member.name}</p>
-                  <p className="mt-1 text-sm text-muted">
+              <div className="flex min-w-0 items-start justify-between gap-2 sm:gap-3">
+                <div className="min-w-0">
+                  <p className="break-words font-semibold">{row.member.name}</p>
+                  <p className="mt-1 text-sm capitalize text-muted">
                     {new Date(`${month}-01T12:00:00Z`).toLocaleDateString(
                       "es-CL",
                       { month: "long", year: "numeric" },
@@ -575,26 +594,34 @@ export function StaffPaymentsCenter({
                   }
                 />
               </div>
-              <p className="mt-4 text-xs text-muted">Abre el colaborador para ver el resumen financiero canónico y el detalle trazable.</p>
-              <p className="mt-3 text-xs font-semibold text-brand">
+              <div className="mt-3 grid grid-cols-3 gap-1.5 sm:mt-4 sm:gap-2">
+                <CompactFinanceValue label="Trabajado" value={row.account?.workNet ?? row.eventRows.reduce((sum, item) => sum + item.payrollNet, 0)} />
+                <CompactFinanceValue label="Pagado" value={row.paid} />
+                <CompactFinanceValue label="Pendiente" value={row.outstanding} accent />
+              </div>
+              <p className="mt-2 text-xs font-semibold text-brand">
                 Ver liquidación
               </p>
             </summary>
-            <div className="mt-4 space-y-3">
+            <div className="mt-3 min-w-0 space-y-3 sm:mt-4">
               <AdminFinanceSummary
                 row={row}
                 reimbursements={reimbursementDetails.filter((item) => item.staffId === row.member.id)}
               />
-              {row.account && (
-                <StaffMonthlyAccountPanel
-                  account={row.account}
-                  mode="FOUNDER"
-                  onBack={() => setOpenStaffId(null)}
-                />
-              )}
-              {[...row.eventRows].sort((a,b) => a.eventDate.localeCompare(b.eventDate) || a.eventTime.localeCompare(b.eventTime) || a.id.localeCompare(b.id)).map((item) => (
-                <EventRow item={item} key={item.id} />
-              ))}
+              {row.account ? <details className="min-w-0 rounded-xl border bg-background/40">
+                <summary className="flex min-h-12 cursor-pointer items-center justify-between gap-2 px-3 py-2 text-sm font-semibold">
+                  <span>CIERRE Y LIQUIDACIÓN PDF</span><span className="shrink-0 text-brand">{money.format(row.account.finalTransferAmount)}</span>
+                </summary>
+                <div className="min-w-0 border-t p-2 sm:p-3"><StaffMonthlyAccountPanel account={row.account} mode="FOUNDER" onBack={() => setOpenStaffId(null)} /></div>
+              </details> : null}
+              <details className="min-w-0 rounded-xl border bg-background/40">
+                <summary className="flex min-h-12 cursor-pointer items-center justify-between gap-2 px-3 py-2 text-sm font-semibold">
+                  <span>DETALLE DE EVENTOS</span><span className="shrink-0 text-muted">{row.eventRows.length}</span>
+                </summary>
+                <div className="min-w-0 space-y-2 border-t p-2 sm:p-3">
+                  {[...row.eventRows].sort((a,b) => a.eventDate.localeCompare(b.eventDate) || a.eventTime.localeCompare(b.eventTime) || a.id.localeCompare(b.id)).map((item) => <EventRow item={item} key={item.id} />)}
+                </div>
+              </details>
             </div>
           </details>
         ))}
