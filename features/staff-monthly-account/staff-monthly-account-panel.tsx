@@ -192,8 +192,8 @@ export function StaffMonthlyAccountPanel({
       ) : null}
       {account.calculation.blockingEvents.length ||
       account.calculation.details.length ? (
-        <section className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/5 p-3">
-          <h4 className="font-semibold text-amber-700">Eventos del mes</h4>
+        <details className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/5 p-3">
+          <summary className="cursor-pointer font-semibold text-amber-700">Ver eventos del mes ({account.calculation.details.length + account.calculation.blockingEvents.length})</summary>
           <p className="mt-1 text-sm text-muted">
             Completados: {account.calculation.details.length} · Pendientes de
             completar: {account.calculation.blockingEvents.length}
@@ -266,7 +266,7 @@ export function StaffMonthlyAccountPanel({
               </article>
             ))}
           </div>
-        </section>
+        </details>
       ) : null}
       <dl className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
         <Metric label="Total trabajado" value={account.workNet} />
