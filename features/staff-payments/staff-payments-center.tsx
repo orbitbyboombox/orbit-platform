@@ -304,7 +304,8 @@ export function StaffPaymentsCenter({
             finalAmount,
             paid,
             outstanding:
-              Math.max(payrollNet - payrollPaid, 0) + reimbursementsPending,
+              months.find((item) => item.staffId === member.id && item.month.startsWith(month))?.account?.finalTransferAmount ??
+              (Math.max(payrollNet - payrollPaid, 0) + reimbursementsPending),
             account: months.find(
               (item) =>
                 item.staffId === member.id && item.month.startsWith(month),
