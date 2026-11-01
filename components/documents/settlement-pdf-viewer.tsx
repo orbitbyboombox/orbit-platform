@@ -49,35 +49,60 @@ export function SettlementPdfViewer({ title, src, onClose }: Props) {
   useEffect(() => {
     if (!pdf || !container.current) return;
     let active = true;
-    let renderTasks: Array<{ cancel: () => void }> = [];
-    const render = async () => {
-      renderTasks.forEach((task) => task.cancel());
-      renderTasks = [];
+    let renderTasks: Array<{ cancel: () => void; promise: Promise<void> }> = [];
+    let renderQueue = Promise.resolve();
+    let renderVersion = 0;
+    let lastWidth = container.current.clientWidth;
+    const scheduleRender = () => {
+      const version = ++renderVersion;
       const width = Math.max(280, container.current?.clientWidth ?? 390);
-      for (let index = 1; index <= pdf.numPages; index += 1) {
-        if (!active) return;
-        const pageProxy = await pdf.getPage(index);
-        const base = pageProxy.getViewport({ scale: 1 });
-        const viewport = pageProxy.getViewport({ scale: Math.min((width - 24) / base.width, 1.8) });
-        const target = pageRefs.current[index - 1];
-        const canvas = target?.querySelector("canvas");
-        if (!canvas) continue;
-        const context = canvas.getContext("2d", { alpha: false });
-        if (!context) continue;
-        const ratio = window.devicePixelRatio || 1;
-        canvas.width = Math.floor(viewport.width * ratio);
-        canvas.height = Math.floor(viewport.height * ratio);
-        canvas.style.width = `${Math.floor(viewport.width)}px`;
-        canvas.style.height = `${Math.floor(viewport.height)}px`;
-        const task = pageProxy.render({ canvasContext: context, viewport, transform: ratio !== 1 ? [ratio, 0, 0, ratio, 0, 0] : undefined });
-        renderTasks.push(task);
-        await task.promise;
-      }
+      const previousTasks = renderTasks;
+      renderTasks = [];
+      previousTasks.forEach((task) => task.cancel());
+      renderQueue = renderQueue.then(async () => {
+        await Promise.all(previousTasks.map((task) => task.promise.catch(() => undefined)));
+        if (!active || version !== renderVersion) return;
+        for (let index = 1; index <= pdf.numPages; index += 1) {
+          if (!active || version !== renderVersion) return;
+          const pageProxy = await pdf.getPage(index);
+          const base = pageProxy.getViewport({ scale: 1 });
+          const viewport = pageProxy.getViewport({ scale: Math.min((width - 24) / base.width, 1.8) });
+          const target = pageRefs.current[index - 1];
+          const canvas = target?.querySelector("canvas");
+          if (!canvas) continue;
+          const context = canvas.getContext("2d", { alpha: false });
+          if (!context) continue;
+          const ratio = window.devicePixelRatio || 1;
+          canvas.width = Math.floor(viewport.width * ratio);
+          canvas.height = Math.floor(viewport.height * ratio);
+          canvas.style.width = `${Math.floor(viewport.width)}px`;
+          canvas.style.height = `${Math.floor(viewport.height)}px`;
+          const task = pageProxy.render({ canvasContext: context, viewport, transform: ratio !== 1 ? [ratio, 0, 0, ratio, 0, 0] : undefined });
+          renderTasks.push(task);
+          try {
+            await task.promise;
+          } catch (cause) {
+            if (!active || version !== renderVersion) return;
+            throw cause;
+          } finally {
+            renderTasks = renderTasks.filter((renderTask) => renderTask !== task);
+          }
+        }
+      });
+      void renderQueue.catch(() => {
+        if (active && version === renderVersion) setError("No se pudo representar una página del PDF.");
+      });
     };
-    void render().catch(() => { if (active) setError("No se pudo representar una página del PDF."); });
-    const observer = new ResizeObserver(() => { if (active) void render(); });
+    scheduleRender();
+    const observer = new ResizeObserver(() => {
+      const width = container.current?.clientWidth ?? 0;
+      if (active && width !== lastWidth) {
+        lastWidth = width;
+        scheduleRender();
+      }
+    });
     observer.observe(container.current);
-    return () => { active = false; observer.disconnect(); renderTasks.forEach((task) => task.cancel()); };
+    return () => { active = false; renderVersion += 1; observer.disconnect(); renderTasks.forEach((task) => task.cancel()); };
   }, [pdf]);
 
   const goToPage = useCallback((next: number) => {
