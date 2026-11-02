@@ -75,3 +75,20 @@ export async function uploadBoletaSosAction(form: FormData) {
     return resultError(e);
   }
 }
+
+export async function listBoletaSosCandidatesAction(staffId: string, month: string) {
+  try {
+    await assertStaffFinanceAdmin();
+    if (!uuid(staffId) || !/^\d{4}-\d{2}$/.test(month)) throw new Error("Operador o mes inválido.");
+    const admin = createAdminClient();
+    const { data, error } = await admin.from("staff_complementary_settlements")
+      .select("settlement_id,event_date,net_amount,status,boleta_document_id,paid_amount")
+      .eq("staff_id", staffId).eq("original_month", month + "-01");
+    if (error) throw new Error(error.message);
+    return { ok: true, candidates: (data ?? []).filter(row => !row.boleta_document_id && Number(row.paid_amount ?? 0) === 0 && row.status === "PENDING").map(row => ({
+      settlementId: String(row.settlement_id), eventDate: String(row.event_date), workNet: Number(row.net_amount)
+    })), message: "" };
+  } catch (e) {
+    return { ok: false, candidates: [], message: e instanceof Error ? e.message : "No fue posible consultar BOLETA SOS." };
+  }
+}
