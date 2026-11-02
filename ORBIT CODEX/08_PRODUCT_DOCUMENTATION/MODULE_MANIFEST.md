@@ -8,9 +8,9 @@
 | Reservas | Pipeline único manual/automático e idempotente | Certified |
 | Cotizaciones / Contratos | Valores aplicados, versionado y PDF | Certified |
 | Portal Cliente | Información, documentos y comprobantes | Certified |
-| Staff / Operations | Equipo, planificación, publicación y aprobación | Certified |
+| Staff / Operations | Equipo, planificación, publicación, aprobación y nómina oficial por bloques | Review required |
 | Portal Staff | Trabajo operacional, checklist, check-in y Academy | Certified |
-| Assignment / Settlement / Payroll | Asignación y liquidación canónica | Certified |
+| Assignment / Settlement / Payroll | Asignación, liquidación canónica y exportación de nómina oficial | Review required |
 | Costos / Cost Master | Recursos, personal y snapshots históricos | Certified |
 | Finanzas / CxC / CxP | Read models y drill-down a fuentes canónicas | Certified |
 | Recursos / Logística | Flota, equipos, rutas y suministros | Certified |
