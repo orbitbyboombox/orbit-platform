@@ -3,6 +3,9 @@
 ## Purpose
 An exceptional, manual second honorarios receipt for a specific staff assignment/event, without replacing the canonical monthly receipt.
 
+## Existing production backend (verified read-only)
+The database already contains `staff_complementary_settlements` with separate boleta review and payment fields, and RPCs `create_staff_complementary_settlement(p_settlement_id,p_reason)`, `submit_staff_complementary_boleta(p_settlement_id,p_bucket,p_path,p_file_name,p_mime_type,p_issue_date)`, `review_staff_complementary_boleta(p_settlement_id,p_action,p_reason)`, and `register_staff_complementary_payment(p_settlement_id,p_payment_date,p_amount,p_method,p_reference,p_idempotency_key,p_bucket,p_path,p_file_name,p_mime_type)`. Reuse these existing primitives after validating their security and invariants. Avoid creating a duplicate schema or parallel payment ledger. No RPC has been executed.
+
 ## Admin workflow
 1. From Staff → Finanzas → operator, choose **BOLETA SOS**.
 2. Select an existing verified assignment/settlement belonging to that operator and event.
