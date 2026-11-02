@@ -38,6 +38,7 @@ import {
   suggestedOperatorMobilityAmount,
 } from "@/features/staff-payments/operator-mobility";
 import { buildOperatorBlockSummary } from "./staff-block-summary";
+import { OfficialStaffRosterControl } from "@/features/staff-roster/official-staff-roster-control";
 
 export type OperationalAssignment = {
   id: string;
@@ -370,6 +371,7 @@ export function StaffAssignmentCenter({
           </Button>
         )}
       </header>
+      <OfficialStaffRosterControl projectId={projectId} />
       {message && (
         <p
           role="status"
