@@ -27,6 +27,7 @@ import {
   updateStaffEventSettlementAction,
 } from "@/features/staff-payments/actions";
 import { reviewStaffRequestAction, setEventStaffRequirementAction } from "@/features/operations/operations-planning.actions";
+import { OfficialStaffRosterControl } from "@/features/staff-roster/official-staff-roster-control";
 
 export type OperationalAssignment = {
   id: string;
@@ -276,6 +277,7 @@ export function StaffAssignmentCenter({
           </Button>
         ) : null}
       </header>
+      <OfficialStaffRosterControl projectId={projectId} />
       {message && (
         <p
           role="status"
