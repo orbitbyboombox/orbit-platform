@@ -80,7 +80,7 @@ export async function listBoletaSosCandidatesAction(staffId: string, month: stri
   try {
     await assertStaffFinanceAdmin();
     if (!uuid(staffId) || !/^\d{4}-\d{2}$/.test(month)) throw new Error("Operador o mes inválido.");
-    const admin = createAdminClient();
+    const admin = await createSupabaseServerActionClient();
     const { data, error } = await admin.from("staff_complementary_settlements")
       .select("settlement_id,event_date,net_amount,status,boleta_document_id,paid_amount")
       .eq("staff_id", staffId).eq("original_month", month + "-01");
