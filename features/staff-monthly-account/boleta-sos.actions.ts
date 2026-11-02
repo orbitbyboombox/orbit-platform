@@ -59,7 +59,8 @@ export async function uploadBoletaSosAction(form: FormData) {
     path = `staff/boleta-sos/${settlementId}/${randomUUID()}/${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
     const upload = await admin.storage.from("orbit-documents").upload(path, await file.arrayBuffer(), { contentType: file.type, upsert: false });
     if (upload.error) throw new Error(upload.error.message);
-    const { error } = await admin.rpc("submit_staff_complementary_boleta", {
+    const authenticated = await createSupabaseServerActionClient();
+    const { error } = await authenticated.rpc("submit_staff_complementary_boleta", {
       p_settlement_id: settlementId,
       p_bucket: "orbit-documents",
       p_path: path,
