@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import {
   CheckCircle2,
   Clock3,
@@ -38,7 +39,10 @@ import {
   suggestedOperatorMobilityAmount,
 } from "@/features/staff-payments/operator-mobility";
 import { buildOperatorBlockSummary } from "./staff-block-summary";
-import { OfficialStaffRosterControl } from "@/features/staff-roster/official-staff-roster-control";
+const OfficialStaffRosterControl = dynamic(
+  () => import("@/features/staff-roster/official-staff-roster-control").then((module) => module.OfficialStaffRosterControl),
+  { ssr: false },
+);
 
 export type OperationalAssignment = {
   id: string;
