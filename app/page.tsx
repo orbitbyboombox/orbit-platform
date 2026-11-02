@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { ShieldCheck, Sparkles } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { UnifiedAccess, type AccessType } from "@/features/authentication/components/unified-access";
+import { ORBIT_DISPLAY_VERSION } from "@/lib/orbit-version";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -32,7 +33,7 @@ export default async function OrbitHomePage({ searchParams }: { searchParams: Pr
     <div className="access-form-panel">
       <div className="access-form-top"><span>ORBIT / BOOMBOX</span><span className="access-status"><i /> Sistema operativo</span></div>
       <UnifiedAccess initialAccess={initialAccess} initialMessage={message} />
-      <div className="access-footer"><span>ORBIT BOOMBOX v2.1.2</span><span>Powered by ORBIT NOVA</span></div>
+      <div className="access-footer"><span>ORBIT BOOMBOX {ORBIT_DISPLAY_VERSION}</span><span>Powered by ORBIT NOVA</span></div>
     </div>
   </section></main>;
 }
