@@ -1,8 +1,8 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { uploadBoletaSosAction } from "./boleta-sos.actions";
+import { listBoletaSosCandidatesAction, uploadBoletaSosAction } from "./boleta-sos.actions";
 import type { StaffMonthlyAccount } from "./model";
 
 const pesos = (n: number) => new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(n);
@@ -12,7 +12,20 @@ export function BoletaSosPanel({ account, operatorName }: { account: StaffMonthl
   const [pending, start] = useTransition();
   const [message, setMessage] = useState("");
   const router = useRouter();
-  const details = account.calculation.details.filter(d => d.settlementId && d.workNet > 0);
+  const [details, setDetails] = useState<{ settlementId: string; eventDate: string; workNet: number }[]>([]);
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setLoading(true);
+    listBoletaSosCandidatesAction(account.staffId, account.month.slice(0, 7)).then(result => {
+      if (cancelled) return;
+      setDetails(result.candidates);
+      setMessage(result.ok ? "" : result.message);
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [open, account.staffId, account.month]);
   const [selectedId, setSelectedId] = useState("");
   const selected = details.find(d => d.settlementId === selectedId);
   return (
@@ -33,8 +46,8 @@ export function BoletaSosPanel({ account, operatorName }: { account: StaffMonthl
         <p className="text-sm font-medium">{operatorName} · {account.month}</p>
         <label className="block text-sm">Evento / liquidación
           <select required name="settlementId" value={selectedId} onChange={e => setSelectedId(e.target.value)} className="mt-1 min-h-11 w-full rounded-xl border bg-background px-3">
-            <option value="">Selecciona el evento</option>
-            {details.map(d => <option key={d.settlementId} value={d.settlementId}>{d.eventDate} · {d.event} · {pesos(d.workNet)} netos</option>)}
+            <option value="">{loading ? "Consultando pendientes…" : "Selecciona la liquidación complementaria"}</option>
+            {details.map(d => <option key={d.settlementId} value={d.settlementId}>{d.eventDate} · Liquidación complementaria · {pesos(d.workNet)} netos</option>)}
           </select>
         </label>
         {selected && <p className="rounded-lg bg-card p-3 text-sm">Honorarios del evento: <strong>{pesos(selected.workNet)} líquidos</strong>. Verifica el monto pendiente antes de pagar. Reembolsos fuera de esta boleta.</p>}
