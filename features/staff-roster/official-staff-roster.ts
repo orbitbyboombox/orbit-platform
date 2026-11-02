@@ -24,12 +24,13 @@ const plain = (value: string) => value.replace(/[\u0000-\u001f]/g, " ").trim();
 export async function loadOfficialRoster(projectId: string): Promise<RosterComposer> {
   const admin = createAdminClient();
   const [p, a] = await Promise.all([
-    admin.from("projects").select("id,orbit_event_id,name,event_date,event_time,location,city,customer_id,customers!inner(full_name,email,secondary_email)").eq("id", projectId).is("deleted_at", null).single(),
+    admin.from("projects").select("id,orbit_event_id,name,event_date,event_time,location,city,customer_id,customers!inner(full_name,email,secondary_email),project_operational_contracts(contact_email)").eq("id", projectId).is("deleted_at", null).single(),
     admin.from("assignments").select("id,staff_id,assignment_type,status,resources,staff!inner(first_name,last_name,rut)").eq("project_id", projectId).is("deleted_at", null),
   ]);
   if (p.error) throw p.error;
   if (a.error) throw a.error;
   const customer = Array.isArray(p.data.customers) ? p.data.customers[0] : p.data.customers;
+  const contract = Array.isArray(p.data.project_operational_contracts) ? p.data.project_operational_contracts[0] : p.data.project_operational_contracts;
   const members = ((a.data ?? []) as unknown as Array<{id:string;staff_id:string;assignment_type:string;status:string;resources:Record<string,unknown>|null;staff:{first_name:string;last_name:string;rut:string|null}|Array<{first_name:string;last_name:string;rut:string|null}>}>)
     .filter(x => !["CANCELLED","REJECTED","DELETED"].includes(String(x.status).toUpperCase()))
     .map(x => { const s = Array.isArray(x.staff) ? x.staff[0] : x.staff; return { assignmentId:x.id, staffId:x.staff_id, name:[s?.first_name,s?.last_name].filter(Boolean).join(" "), rut:s?.rut ?? "", role:x.assignment_type, roleLabel:roleNames[x.assignment_type] ?? x.assignment_type, block:blockValue(x.resources?.officialRosterBlock), status:x.status }; })
@@ -39,7 +40,7 @@ export async function loadOfficialRoster(projectId: string): Promise<RosterCompo
   for (const m of members) { if (!m.block) missing.push("Asigna un bloque a " + (m.name || "un integrante") + "."); if (!isValidChileanRut(m.rut)) missing.push("Revisa el RUT de " + (m.name || "un integrante") + "."); }
   const name = p.data.name || p.data.orbit_event_id || "Evento BOOMBOX";
   const fingerprint = createHash("sha256").update(JSON.stringify({event:p.data.orbit_event_id,name,date:p.data.event_date,members:members.map(({assignmentId,staffId,rut,role,block,status})=>({assignmentId,staffId,rut,role,block,status}))})).digest("hex");
-  return { projectId, orbitEventId:p.data.orbit_event_id ?? "", eventName:name, eventDate:p.data.event_date ?? "", eventTime:p.data.event_time ?? "", location:p.data.location ?? "", city:p.data.city ?? "", customerName:customer?.full_name ?? "", recipient:customer?.email ?? "", fingerprint, members, missing, canGenerate:missing.length===0 };
+  return { projectId, orbitEventId:p.data.orbit_event_id ?? "", eventName:name, eventDate:p.data.event_date ?? "", eventTime:p.data.event_time ?? "", location:p.data.location ?? "", city:p.data.city ?? "", customerName:customer?.full_name ?? "", recipient:contract?.contact_email ?? customer?.email ?? "", fingerprint, members, missing, canGenerate:missing.length===0 };
 }
 
 export async function makeOfficialRosterPdf(composer:RosterComposer) {
