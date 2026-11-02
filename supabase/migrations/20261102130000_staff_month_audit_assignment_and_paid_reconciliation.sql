@@ -33,7 +33,7 @@ begin
     from public.staff_monthly_accounts account cross join lateral public.calculate_staff_monthly_settlement(account.staff_id,month_start) calc
     where account.accounting_month=month_start and abs(coalesce(account.boleta_net,0)-coalesce((calc->>'workNet')::numeric,0))>0.01
     union all
-    select jsonb_build_object('code','FINAL_TRANSFER_MISMATCH','severity','RED','staffId',account.staff_id,'accountId',account.id,'expected',case when account.payment_status in ('PAID','FINALIZED') then account.paid_amount else calc->>'finalTransferAmount' end,'actual',account.final_transfer_amount,'message',case when account.payment_status in ('PAID','FINALIZED') then 'La transferencia histórica no coincide con el pago registrado.' else 'El saldo final pendiente no coincide con el ledger canónico.' end) finding
+    select jsonb_build_object('code','FINAL_TRANSFER_MISMATCH','severity','RED','staffId',account.staff_id,'accountId',account.id,'expected',case when account.payment_status in ('PAID','FINALIZED') then to_jsonb(account.paid_amount) else to_jsonb((calc->>'finalTransferAmount')::numeric) end,'actual',account.final_transfer_amount,'message',case when account.payment_status in ('PAID','FINALIZED') then 'La transferencia histórica no coincide con el pago registrado.' else 'El saldo final pendiente no coincide con el ledger canónico.' end) finding
     from public.staff_monthly_accounts account cross join lateral public.calculate_staff_monthly_settlement(account.staff_id,month_start) calc
     where account.accounting_month=month_start
       and abs(coalesce(account.final_transfer_amount,0)-coalesce(case when account.payment_status in ('PAID','FINALIZED') then account.paid_amount else (calc->>'finalTransferAmount')::numeric end,0))>0.01
