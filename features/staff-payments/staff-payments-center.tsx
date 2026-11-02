@@ -604,6 +604,28 @@ export function StaffPaymentsCenter({
               </p>
             </summary>
             <div className="mt-3 min-w-0 space-y-3 sm:mt-4">
+              <section className="rounded-xl border bg-background/40 p-3" aria-label={`Historial mensual de ${row.member.name}`}>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted">Historial por año y mes</p>
+                {[...new Set(months.filter((item) => item.staffId === row.member.id).map((item) => item.month.slice(0, 4)))].sort().reverse().map((year) => (
+                  <div className="mt-3" key={year}>
+                    <p className="mb-2 text-sm font-semibold">{year}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {[...new Set(months.filter((item) => item.staffId === row.member.id && item.month.startsWith(year)).map((item) => item.month.slice(0, 7)))].sort().reverse().map((historyMonth) => (
+                        <button
+                          key={historyMonth}
+                          type="button"
+                          aria-current={month === historyMonth ? "date" : undefined}
+                          className={`min-h-10 rounded-lg border px-3 text-sm font-medium ${month === historyMonth ? "border-brand bg-brand/10 text-brand" : "bg-background"}`}
+                          onClick={() => { selectMonth(historyMonth); setOpenStaffId(row.member.id); }}
+                        >
+                          {new Date(`${historyMonth}-01T12:00:00Z`).toLocaleDateString("es-CL", { month: "long" })}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                {!months.some((item) => item.staffId === row.member.id) ? <p className="mt-2 text-xs text-muted">Sin historial mensual registrado.</p> : null}
+              </section>
               <AdminFinanceSummary
                 row={row}
                 reimbursements={reimbursementDetails.filter((item) => item.staffId === row.member.id)}
