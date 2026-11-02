@@ -45,9 +45,10 @@ export async function uploadBoletaSosAction(form: FormData) {
     if (!(file instanceof File) || file.size < 1 || file.size > 15 * 1024 * 1024 || !allowed.has(file.type))
       throw new Error("Adjunta un PDF o imagen válida de máximo 15 MB.");
     const admin = createAdminClient();
-    const { data: existing, error: lookupError } = await admin.from("staff_complementary_settlements").select("id,boleta_document_id,paid_amount").eq("settlement_id", settlementId).maybeSingle();
+    const { data: existing, error: lookupError } = await admin.from("staff_complementary_settlements").select("id,status,boleta_document_id,paid_amount").eq("settlement_id", settlementId).maybeSingle();
     if (lookupError) throw new Error(lookupError.message);
     if (existing?.boleta_document_id) throw new Error("Este evento ya tiene una boleta SOS registrada.");
+    if (existing && !["PENDING", "BOLETA_REJECTED"].includes(existing.status)) throw new Error("Esta liquidación no admite una nueva boleta.");
     if (Number(existing?.paid_amount ?? 0) > 0) throw new Error("Este evento ya tiene pagos registrados.");
     if (!existing) {
       const { error: creationError } = await admin.rpc("create_staff_complementary_settlement", {
@@ -56,12 +57,15 @@ export async function uploadBoletaSosAction(form: FormData) {
       });
       if (creationError) throw new Error(creationError.message);
     }
+    const { data: complementary, error: complementaryError } = await admin.from("staff_complementary_settlements").select("id,status,boleta_document_id,paid_amount").eq("settlement_id", settlementId).single();
+    if (complementaryError || !complementary) throw new Error("No se encontró la liquidación complementaria.");
+    if (!["PENDING", "BOLETA_REJECTED"].includes(complementary.status) || complementary.boleta_document_id || Number(complementary.paid_amount ?? 0) > 0) throw new Error("La liquidación complementaria no admite una nueva boleta.");
     path = `staff/boleta-sos/${settlementId}/${randomUUID()}/${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
     const upload = await admin.storage.from("orbit-documents").upload(path, await file.arrayBuffer(), { contentType: file.type, upsert: false });
     if (upload.error) throw new Error(upload.error.message);
     const authenticated = await createSupabaseServerActionClient();
     const { error } = await authenticated.rpc("submit_staff_complementary_boleta", {
-      p_settlement_id: settlementId,
+      p_settlement_id: complementary.id,
       p_bucket: "orbit-documents",
       p_path: path,
       p_file_name: file.name,
