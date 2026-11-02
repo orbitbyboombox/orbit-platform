@@ -425,6 +425,65 @@ export async function auditStaffMonthAction(month: string) {
     };
   }
 }
+
+export async function manualCloseStaffMonthAction(month: string) {
+  try {
+    const { client } = await context();
+    const accountingMonth = `${month.slice(0, 7)}-01`;
+    const { data: audit, error: auditError } = await client.rpc(
+      "staff_month_financial_audit",
+      { p_month: accountingMonth },
+    );
+    if (auditError) throw auditError;
+    const criticalErrors = Array.isArray(audit?.criticalErrors)
+      ? audit.criticalErrors
+      : [];
+    if (Number(audit?.criticalErrorCount ?? criticalErrors.length) > 0) {
+      const detail = criticalErrors
+        .slice(0, 3)
+        .map((item: { code?: string; message?: string }) =>
+          `${item.code ?? "ERROR"}: ${item.message ?? "inconsistencia financiera"}`,
+        )
+        .join(" · ");
+      throw new Error(
+        `Cierre bloqueado por auditoría financiera (${audit.criticalErrorCount ?? criticalErrors.length}).${detail ? ` ${detail}` : ""}`,
+      );
+    }
+    const { data: preview, error: previewError } = await client.rpc(
+      "preview_staff_monthly_close",
+      { p_month: accountingMonth },
+    );
+    if (previewError) throw previewError;
+    if (preview?.status === "CLOSED" || preview?.status === "PAID") {
+      revalidatePath("/resources/staff");
+      return { ok: true, data: preview, idempotent: true };
+    }
+    const { data, error } = await client.rpc("close_staff_month", {
+      p_month: accountingMonth,
+    });
+    if (error) throw error;
+    const { data: closeRow, error: closeReadError } = await client
+      .from("staff_monthly_closes")
+      .select("status,close_version,closed_at,closed_by")
+      .eq("accounting_month", accountingMonth)
+      .single();
+    if (closeReadError || !closeRow) {
+      throw closeReadError ?? new Error("No fue posible verificar el cierre mensual.");
+    }
+    if (closeRow.status !== "CLOSED" && closeRow.status !== "PAID") {
+      throw new Error("El cierre no quedó confirmado por el servidor.");
+    }
+    revalidatePath("/resources/staff");
+    revalidatePath("/staff-portal");
+    return { ok: true, data, idempotent: false };
+  } catch (error) {
+    return {
+      ok: false,
+      error: friendly(error, "No fue posible cerrar manualmente el mes Staff."),
+    };
+  }
+}
+
 export async function closeStaffMonthAction(month: string) {
   try {
     const { client } = await context();

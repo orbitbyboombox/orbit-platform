@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { MobileDialog } from "@/components/ui/mobile-dialog";
 import {
   closeStaffMonthAction,
+  manualCloseStaffMonthAction,
   previewStaffMonthCloseAction,
   reopenStaffMonthAction,
   registerQuickStaffSettlementPaymentAction,
@@ -243,7 +244,7 @@ export function StaffPaymentsCenter({
     [closeMessage, setCloseMessage] = useState(""),
     [reopenReason, setReopenReason] = useState(""),
     [closeOperation, setCloseOperation] = useState<
-      "GENERATE" | "CLOSE" | "REOPEN" | null
+      "GENERATE" | "CLOSE" | "MANUAL_CLOSE" | "REOPEN" | null
     >(null),
     [closing, startClosing] = useTransition();
   useEffect(() => {
@@ -443,6 +444,44 @@ export function StaffPaymentsCenter({
               variant="outline"
             >
               CERRAR MES Y SOLICITAR BOLETAS
+            </Button>
+            <Button
+              disabled={
+                closing ||
+                closeState?.status === "CLOSED" ||
+                closeState?.status === "PAID"
+              }
+              loading={closeOperation === "MANUAL_CLOSE"}
+              loadingLabel="Validando y cerrando…"
+              onClick={() => {
+                if (
+                  !window.confirm(
+                    `¿Confirmas cerrar administrativamente ${month}? No se enviarán correos ni se generarán pagos.`,
+                  )
+                )
+                  return;
+                startClosing(async () => {
+                  setCloseOperation("MANUAL_CLOSE");
+                  try {
+                    const result = await manualCloseStaffMonthAction(month);
+                    if (result.ok) {
+                      setCloseState(result.data);
+                      setCloseMessage(
+                        result.idempotent
+                          ? "El mes ya estaba cerrado. No se creó un nuevo cierre."
+                          : "Mes cerrado administrativamente: CLOSED.",
+                      );
+                    } else {
+                      setCloseMessage(result.error ?? "No fue posible cerrar el mes.");
+                    }
+                  } finally {
+                    setCloseOperation(null);
+                  }
+                });
+              }}
+              variant="outline"
+            >
+              CERRAR MES MANUALMENTE
             </Button>
             <input
               className="min-h-11 rounded-xl border bg-background px-3"
