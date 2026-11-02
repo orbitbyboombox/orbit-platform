@@ -133,6 +133,9 @@ async function syncOne(client: SupabaseClient, provider: GoogleDriveLiveProvider
       parentFolderId: folderId,
       appProperties: { orbitDocumentId: document.id, orbitStorageChecksum: document.checksum! },
     });
+    const readback = await findExactFile(provider, folderId, source.filename, document.id);
+    if (!readback || readback.id !== file.id) throw new Error("Drive readback did not confirm the uploaded document.");
+    if (readback.size !== undefined && Number(readback.size) !== source.bytes.byteLength) throw new Error("Drive readback size mismatch.");
     const { data: updated, error } = await client.from("documents").update({ drive_file_id: file.id, drive_folder_id: folderId, drive_sync_status: "SYNCED", drive_sync_error: null, drive_synced_at: new Date().toISOString() }).eq("id", document.id).is("drive_file_id", null).select("id").maybeSingle();
     if (error) throw error;
     if (!updated && !document.drive_file_id) throw new Error("Documento cambió durante la sincronización; no se sobrescribió.");
