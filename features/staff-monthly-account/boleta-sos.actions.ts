@@ -41,10 +41,21 @@ export async function uploadBoletaSosAction(form: FormData) {
     const issueDate = String(form.get("issueDate") ?? "");
     const file = form.get("file");
     if (!uuid(settlementId)) throw new Error("Selecciona un evento válido.");
-    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(issueDate)) throw new Error("Indica la fecha de la boleta.");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(issueDate)) throw new Error("Indica la fecha de la boleta.");
     if (!(file instanceof File) || file.size < 1 || file.size > 15 * 1024 * 1024 || !allowed.has(file.type))
       throw new Error("Adjunta un PDF o imagen válida de máximo 15 MB.");
     const admin = createAdminClient();
+    const { data: existing, error: lookupError } = await admin.from("staff_complementary_settlements").select("id,boleta_document_id,paid_amount").eq("settlement_id", settlementId).maybeSingle();
+    if (lookupError) throw new Error(lookupError.message);
+    if (existing?.boleta_document_id) throw new Error("Este evento ya tiene una boleta SOS registrada.");
+    if (Number(existing?.paid_amount ?? 0) > 0) throw new Error("Este evento ya tiene pagos registrados.");
+    if (!existing) {
+      const { error: creationError } = await admin.rpc("create_staff_complementary_settlement", {
+        p_settlement_id: settlementId,
+        p_reason: "BOLETA SOS — carga excepcional administrativa",
+      });
+      if (creationError) throw new Error(creationError.message);
+    }
     path = `staff/boleta-sos/${settlementId}/${randomUUID()}/${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
     const upload = await admin.storage.from("orbit-documents").upload(path, await file.arrayBuffer(), { contentType: file.type, upsert: false });
     if (upload.error) throw new Error(upload.error.message);
