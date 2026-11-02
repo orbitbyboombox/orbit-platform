@@ -117,6 +117,20 @@ export async function saveStaffAssignmentAction(
     const automaticArrival =
       ["OPERATOR", "SUPERVISOR"].includes(input.role) ? clock(eventStart, -90) : null;
     const automaticFinish = clock(eventStart, duration * 60);
+    let preservedResources: Record<string, unknown> = {};
+    const resourcesSourceId = input.id ?? input.replaceId;
+    if (resourcesSourceId) {
+      const { data: current, error: currentError } = await ctx.client
+        .from("assignments")
+        .select("resources")
+        .eq("id", resourcesSourceId)
+        .eq("project_id", input.projectId)
+        .is("deleted_at", null)
+        .single();
+      if (currentError) throw currentError;
+      if (current?.resources && typeof current.resources === "object" && !Array.isArray(current.resources))
+        preservedResources = current.resources as Record<string, unknown>;
+    }
     const payload = {
       project_id: input.projectId,
       staff_id: input.staffId,
@@ -129,7 +143,7 @@ export async function saveStaffAssignmentAction(
       finish_time: value(input.finishTime) ?? automaticFinish,
       assigned_vehicle: value(input.vehicleId),
       observations: value(input.observations),
-      resources: { vehicle: value(input.vehicleId) },
+      resources: { ...preservedResources, vehicle: value(input.vehicleId) },
       reason: value(input.observations) ?? "Asignación operacional",
       updated_by: ctx.user.id,
     };
