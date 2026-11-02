@@ -609,12 +609,12 @@ export function StaffPaymentsCenter({
                 row={row}
                 reimbursements={reimbursementDetails.filter((item) => item.staffId === row.member.id)}
               />
+              {row.account ? <BoletaSosPanel account={row.account} operatorName={row.member.name} /> : null}
               {row.account ? <details className="min-w-0 rounded-xl border bg-background/40">
                 <summary className="flex min-h-12 cursor-pointer items-center justify-between gap-2 px-3 py-2 text-sm font-semibold">
                   <span>CIERRE Y LIQUIDACIÓN PDF</span><span className="shrink-0 text-brand">{money.format(row.account.finalTransferAmount)}</span>
                 </summary>
-                <div className="min-w-0 border-t p-2 sm:p-3"><StaffMonthlyAccountPanel account={row.account} mode="FOUNDER" onBack={() => setOpenStaffId(null)} />
-                  <BoletaSosPanel account={row.account} operatorName={row.member.name} /></div>
+                <div className="min-w-0 border-t p-2 sm:p-3"><StaffMonthlyAccountPanel account={row.account} mode="FOUNDER" onBack={() => setOpenStaffId(null)} /></div>
               </details> : null}
               <details className="min-w-0 rounded-xl border bg-background/40">
                 <summary className="flex min-h-12 cursor-pointer items-center justify-between gap-2 px-3 py-2 text-sm font-semibold">
