@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildCustomerFolderPlan } from "../features/connectors/google-drive/application/google-drive-folder-strategy.ts";
+import { buildStaffExpenseFolderParts } from "../features/connectors/google-drive/application/staff-expense-drive-folder-strategy.ts";
 import { InMemoryGoogleDriveLiveProvider } from "../features/connectors/google-drive/provider/google-drive-live.provider.ts";
 
 test("document repair derives a deterministic canonical event path", () => {
@@ -25,4 +26,10 @@ test("reusing an existing provider record does not create another file for the s
   const existing = (await drive.findFilesByName?.({ name: input.name, parentFolderId: input.parentFolderId }))?.find((item) => item.appProperties?.orbitDocumentId === "doc-1");
   assert.equal(existing?.id, first.id);
   assert.equal((await drive.findFilesByName?.({ name: input.name, parentFolderId: input.parentFolderId }))?.length, 1);
+});
+
+test("staff expense receipts use the approved operator month folder", () => {
+  assert.deepEqual(buildStaffExpenseFolderParts("Sebastián Jorquera", "2026-10-18"), [
+    "STAFF", "OPERADORES", "Sebastián Jorquera", "2026", "October", "04_GASTOS_Y_REEMBOLSOS",
+  ]);
 });

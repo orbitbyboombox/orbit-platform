@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadCompanySettings } from "@/features/company-settings";
 import { buildCustomerFolderPlan } from "../application/google-drive-folder-strategy";
+import { buildStaffExpenseFolderParts } from "../application/staff-expense-drive-folder-strategy";
 import { loadGoogleWorkspaceAccessToken } from "../../google-workspace/application/google-workspace.repository";
 import { GoogleDriveApiProvider, type GoogleDriveLiveProvider } from "../provider/google-drive-live.provider";
 
@@ -29,6 +30,7 @@ type RepairDocument = {
   file_size: number | null;
   drive_file_id: string | null;
   project: { name: string | null; event_date: string | null } | null;
+  staffExpense: { status: string | null; occurred_on: string | null; staff_name: string | null } | null;
 };
 
 const DOCUMENT_FOLDER: Record<string, string> = {
@@ -53,17 +55,50 @@ function asProject(value: unknown): { name: string | null; event_date: string | 
   return { name: typeof project.name === "string" ? project.name : null, event_date: typeof project.event_date === "string" ? project.event_date : null };
 }
 
+function asStaffExpense(value: unknown): RepairDocument["staffExpense"] {
+  const row = Array.isArray(value) ? value[0] : value;
+  if (!row || typeof row !== "object") return null;
+  const expense = row as Record<string, unknown>;
+  const staffValue = Array.isArray(expense.staff) ? expense.staff[0] : expense.staff;
+  const staff = staffValue && typeof staffValue === "object" ? staffValue as Record<string, unknown> : null;
+  const firstName = typeof staff?.first_name === "string" ? staff.first_name.trim() : "";
+  const lastName = typeof staff?.last_name === "string" ? staff.last_name.trim() : "";
+  return {
+    status: typeof expense.status === "string" ? expense.status : null,
+    occurred_on: typeof expense.occurred_on === "string" ? expense.occurred_on : null,
+    staff_name: [firstName, lastName].filter(Boolean).join(" ") || null,
+  };
+}
+
 async function loadPendingDocuments(client: SupabaseClient, documentIds?: readonly string[]): Promise<RepairDocument[]> {
-  let query = client.from("documents").select("id,project_id,document_type,storage_bucket,storage_path,checksum,original_filename,mime_type,file_size,drive_file_id,projects(name,event_date)").is("drive_file_id", null).is("deleted_at", null);
+  let query = client.from("documents").select("id,project_id,document_type,storage_bucket,storage_path,checksum,original_filename,mime_type,file_size,drive_file_id,projects(name,event_date),staff_expense_submissions(status,occurred_on,staff(first_name,last_name))").is("drive_file_id", null).is("deleted_at", null);
   if (documentIds?.length) query = query.in("id", [...new Set(documentIds)]);
   const { data, error } = await query;
   if (error) throw error;
-  return (data ?? []).map((row) => ({ ...row, project: asProject((row as Record<string, unknown>).projects) })) as unknown as RepairDocument[];
+  return (data ?? []).map((row) => {
+    const value = row as Record<string, unknown>;
+    return { ...row, project: asProject(value.projects), staffExpense: asStaffExpense(value.staff_expense_submissions) };
+  }) as unknown as RepairDocument[];
 }
 
 async function loadCanonicalFolderId(client: SupabaseClient, provider: GoogleDriveLiveProvider, document: RepairDocument, rootName: string): Promise<string> {
   if (document.document_type === "STAFF_EXPENSE_RECEIPT") {
-    throw new Error("El comprobante de gastos Staff requiere una carpeta canónica de operador; no se permite guardarlo en la carpeta del cliente.");
+    const expense = document.staffExpense;
+    if (expense?.status !== "APPROVED") throw new Error("El comprobante Staff no está aprobado para respaldo.");
+    if (!expense.staff_name || !expense.occurred_on) throw new Error("El comprobante Staff no tiene operador o fecha occurred_on canónicos.");
+    const root = /^[A-Za-z0-9_-]{20,}$/.test(rootName.trim())
+      ? { id: rootName.trim() }
+      : await provider.findFolder({ name: rootName.trim() });
+    if (!root) throw new Error(`No existe la carpeta raíz de Drive: ${rootName}`);
+    let parentId = root.id;
+    for (const name of buildStaffExpenseFolderParts(expense.staff_name, expense.occurred_on)) {
+      const folder = await provider.findFolder({ name, parentFolderId: parentId });
+      if (!folder) throw new Error(`No existe carpeta canónica de gastos Staff: ${name}`);
+      parentId = folder.id;
+    }
+    const parents = await provider.getFolderParents?.(parentId);
+    if (parents && parents.length === 0) throw new Error("La carpeta canónica de gastos Staff no es accesible.");
+    return parentId;
   }
   const project = document.project;
   if (!project?.name || !project.event_date) throw new Error("Proyecto sin nombre o fecha canónica.");
