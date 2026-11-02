@@ -12,7 +12,7 @@ export function BoletaSosPanel({ account, operatorName }: { account: StaffMonthl
   const [pending, start] = useTransition();
   const [message, setMessage] = useState("");
   const router = useRouter();
-  const details = account.calculation.details.filter(d => d.settlementId && d.workNet > 0 && d.workPending > 0);
+  const details = account.calculation.details.filter(d => d.settlementId && d.workNet > 0);
   const [selectedId, setSelectedId] = useState("");
   const selected = details.find(d => d.settlementId === selectedId);
   return (
