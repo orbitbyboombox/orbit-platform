@@ -626,6 +626,26 @@ export function StaffPaymentsCenter({
                 ))}
                 {!months.some((item) => item.staffId === row.member.id) ? <p className="mt-2 text-xs text-muted">Sin historial mensual registrado.</p> : null}
               </section>
+              <section className="rounded-xl border bg-background/40 p-3" aria-label="Expediente documental del mes">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted">Expediente documental · {month}</p>
+                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {[
+                    { label: "Boleta de honorarios", available: Boolean(row.account?.boletaDocumentId), status: row.account?.boletaStatus ?? "SIN REGISTRO" },
+                    { label: "Liquidación PDF", available: Boolean(row.account?.settlementDocumentId), status: row.account?.settlementStatus ?? "SIN REGISTRO" },
+                    { label: "Comprobante de pago", available: Boolean(row.account?.receiptDocumentId), status: row.account?.paymentStatus ?? "SIN REGISTRO" },
+                  ].map((document) => (
+                    <div className="rounded-lg border bg-background px-3 py-2" key={document.label}>
+                      <p className="text-sm font-medium">{document.label}</p>
+                      <p className="mt-1 text-xs text-muted">{document.available ? "Documento registrado" : "Sin documento registrado"} · {document.status}</p>
+                    </div>
+                  ))}
+                  <div className="rounded-lg border bg-background px-3 py-2">
+                    <p className="text-sm font-medium">Gastos y reembolsos</p>
+                    <p className="mt-1 text-xs text-muted">Ver desglose financiero del mes a continuación. Respaldo Drive sujeto a verificación.</p>
+                  </div>
+                </div>
+                <p className="mt-2 text-xs text-muted">Los documentos disponibles se revisan en Cierre y liquidación PDF. Esta vista no marca como respaldados los archivos pendientes de Drive.</p>
+              </section>
               <AdminFinanceSummary
                 row={row}
                 reimbursements={reimbursementDetails.filter((item) => item.staffId === row.member.id)}
