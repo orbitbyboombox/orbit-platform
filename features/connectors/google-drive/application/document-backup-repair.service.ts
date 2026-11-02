@@ -159,5 +159,13 @@ export async function repairPendingDocumentBackups(input: { client: SupabaseClie
     return documents.map((document) => ({ documentId: document.id, projectId: document.project_id, status: "REQUIRES_REVIEW", reason: "Dry-run: no se modificó Drive ni la base de datos." }));
   }
   const provider = input.provider ?? new GoogleDriveApiProvider(await loadGoogleWorkspaceAccessToken());
-  return Promise.all(documents.map((document) => syncOne(input.client, provider, rootName, document)));
+  // Bound simultaneous private Storage downloads and Drive uploads to avoid
+  // exhausting provider quotas or memory during a full reconciliation.
+  const results: DocumentBackupRepairResult[] = [];
+  const batchSize = 3;
+  for (let index = 0; index < documents.length; index += batchSize) {
+    const batch = documents.slice(index, index + batchSize);
+    results.push(...await Promise.all(batch.map((document) => syncOne(input.client, provider, rootName, document))));
+  }
+  return results;
 }
