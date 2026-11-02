@@ -63,6 +63,9 @@ async function loadPendingDocuments(client: SupabaseClient, documentIds?: readon
 }
 
 async function loadCanonicalFolderId(client: SupabaseClient, provider: GoogleDriveLiveProvider, document: RepairDocument, rootName: string): Promise<string> {
+  if (document.document_type === "STAFF_EXPENSE_RECEIPT") {
+    throw new Error("El comprobante de gastos Staff requiere una carpeta canónica de operador; no se permite guardarlo en la carpeta del cliente.");
+  }
   const project = document.project;
   if (!project?.name || !project.event_date) throw new Error("Proyecto sin nombre o fecha canónica.");
   const subfolder = DOCUMENT_FOLDER[document.document_type];
