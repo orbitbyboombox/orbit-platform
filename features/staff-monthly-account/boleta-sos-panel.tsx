@@ -2,7 +2,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { listBoletaSosCandidatesAction, uploadBoletaSosAction } from "./boleta-sos.actions";
+import { listBoletaSosCandidatesAction, uploadBoletaSosAction, listBoletaSosReviewAction, viewBoletaSosAction, approveBoletaSosAction } from "./boleta-sos.actions";
 import type { StaffMonthlyAccount } from "./model";
 
 const pesos = (n: number) => new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(n);
@@ -14,10 +14,14 @@ export function BoletaSosPanel({ account, operatorName }: { account: StaffMonthl
   const router = useRouter();
   const [details, setDetails] = useState<{ settlementId: string; eventDate: string; workNet: number }[]>([]);
   const [loading, setLoading] = useState(false);
+  const [reviewItems, setReviewItems] = useState<{id:string;eventDate:string;amount:number;fileName:string;paidAmount:number}[]>([]);
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     setLoading(true);
+    listBoletaSosReviewAction(account.staffId, account.month.slice(0, 7)).then(result => {
+      if (!cancelled) { setReviewItems(result.items); if (!result.ok) setMessage(result.message); }
+    });
     listBoletaSosCandidatesAction(account.staffId, account.month.slice(0, 7)).then(result => {
       if (cancelled) return;
       setDetails(result.candidates);
@@ -59,6 +63,27 @@ export function BoletaSosPanel({ account, operatorName }: { account: StaffMonthl
         </label>
         <Button type="submit" disabled={pending || !selectedId || !details.length}>{pending ? "Subiendo…" : "GUARDAR BOLETA SOS"}</Button>
       </form>}
+      {open && reviewItems.length > 0 && <div className="mt-4 space-y-3 border-t pt-4">
+        <p className="text-sm font-bold">Boletas pendientes de aprobación</p>
+        {reviewItems.map(item => <div key={item.id} className="rounded-lg border p-3 space-y-2">
+          <p className="text-sm">{item.eventDate} · {pesos(item.amount)} · {item.fileName}</p>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" disabled={pending} onClick={() => start(async () => {
+              const result = await viewBoletaSosAction(item.id);
+              if (result.ok) window.open(result.url, "_blank", "noopener,noreferrer");
+              else setMessage(result.message);
+            })}>VER BOLETA</Button>
+            <Button type="button" disabled={pending || item.paidAmount > 0} onClick={() => {
+              if (!window.confirm("¿Confirmas que revisaste la boleta SII y deseas APROBARLA? Esto NO registra ningún pago.")) return;
+              start(async () => {
+                const result = await approveBoletaSosAction(item.id);
+                setMessage(result.message);
+                if (result.ok) { setReviewItems(items => items.filter(x => x.id !== item.id)); router.refresh(); }
+              });
+            }}>APROBAR BOLETA</Button>
+          </div>
+        </div>)}
+      </div>}
       {message && <p aria-live="polite" className="mt-2 text-sm text-muted">{message}</p>}
     </section>
   );
