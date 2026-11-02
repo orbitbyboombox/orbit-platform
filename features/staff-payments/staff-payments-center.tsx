@@ -554,6 +554,26 @@ export function StaffPaymentsCenter({
       <StaffFinanceDriveSync />
       <QuickStaffPayment rows={rows} />
       <PaymentSheet month={month} rows={rows} />
+      <section className="rounded-xl border bg-background/40 p-3 sm:p-4" aria-label="Directorio histórico de operadores">
+        <h3 className="font-semibold">Historial de operadores</h3>
+        <p className="mt-1 text-xs text-muted">Selecciona un operador y un mes, aunque no tenga movimientos en el período actual.</p>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {staff.filter((member) => `${member.name} ${member.rut}`.toLowerCase().includes(query.toLowerCase())).map((member) => {
+            const history = [...new Set(months.filter((item) => item.staffId === member.id).map((item) => item.month.slice(0, 7)))].sort().reverse();
+            return <details key={member.id} className="min-w-0 rounded-lg border p-3">
+              <summary className="cursor-pointer break-words text-sm font-semibold">{member.name} <span className="text-xs font-normal text-muted">· {history.length} meses</span></summary>
+              {history.length ? [...new Set(history.map((value) => value.slice(0, 4)))].map((year) => <div className="mt-3" key={year}>
+                <p className="text-sm font-semibold">{year}</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {history.filter((value) => value.startsWith(year)).map((value) => <button key={value} type="button" aria-current={month === value ? "date" : undefined} className={`rounded-lg border px-3 py-2 text-sm ${month === value ? "border-brand bg-brand/10 text-brand" : "hover:border-brand"}`} onClick={() => { selectMonth(value); setOpenStaffId(member.id); }}>
+                    {new Date(`${value}-01T12:00:00Z`).toLocaleDateString("es-CL", { month: "long" })}
+                  </button>)}
+                </div>
+              </div>) : <p className="mt-2 text-xs text-muted">Sin meses registrados.</p>}
+            </details>;
+          })}
+        </div>
+      </section>
       <div className="grid gap-4 xl:grid-cols-2">
         {rows.map((row) => (
           <details
