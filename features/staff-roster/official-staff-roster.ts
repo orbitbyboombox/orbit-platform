@@ -12,14 +12,14 @@ export type RosterMember = { assignmentId: string; staffId: string; name: string
 export type RosterComposer = { projectId: string; orbitEventId: string; eventName: string; eventDate: string; eventTime: string; location: string; city: string; customerName: string; recipient: string; fingerprint: string; members: RosterMember[]; missing: string[]; canGenerate: boolean };
 
 const roleNames: Record<string,string> = { OPERATOR: "Operador", SUPERVISOR: "Supervisor", ASSEMBLY: "Montaje", DISASSEMBLY: "Desmontaje" };
-const blockValue = (value: unknown) => typeof value === "string" ? value.trim().replace(/\\s+/g, " ").slice(0, 50) : "";
+const blockValue = (value: unknown) => typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, 50) : "";
 export function rosterDate(value: string) {
-  const match = /^(\\d{4})-(\\d{2})-(\\d{2})/.exec(value || "");
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value || "");
   if (!match) return "Fecha por confirmar";
   return new Intl.DateTimeFormat("es-CL", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(Number(match[1]), Number(match[2])-1, Number(match[3]), 12)));
 }
-const safeFilename = (value: string) => value.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").replace(/[^a-zA-Z0-9_-]+/g, "-").slice(0, 60) || "evento";
-const plain = (value: string) => value.replace(/[\\u0000-\\u001f]/g, " ").trim();
+const safeFilename = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9_-]+/g, "-").slice(0, 60) || "evento";
+const plain = (value: string) => value.replace(/[\u0000-\u001f]/g, " ").trim();
 
 export async function loadOfficialRoster(projectId: string): Promise<RosterComposer> {
   const admin = createAdminClient();
