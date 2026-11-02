@@ -43,6 +43,18 @@ export async function loadOfficialRoster(projectId: string): Promise<RosterCompo
   return { projectId, orbitEventId:p.data.orbit_event_id ?? "", eventName:name, eventDate:p.data.event_date ?? "", eventTime:p.data.event_time ?? "", location:p.data.location ?? "", city:p.data.city ?? "", customerName:customer?.full_name ?? "", recipient:contract?.contact_email ?? customer?.email ?? "", fingerprint, members, missing, canGenerate:missing.length===0 };
 }
 
+export async function saveOfficialRosterBlock(input:{projectId:string;assignmentId:string;block:string;actorId:string}) {
+  const block=blockValue(input.block);
+  if(!block)throw new Error("Escribe un nombre de bloque.");
+  const admin=createAdminClient();
+  const {data:assignment,error:readError}=await admin.from("assignments").select("id,resources").eq("id",input.assignmentId).eq("project_id",input.projectId).is("deleted_at",null).single();
+  if(readError)throw readError;
+  const resources=assignment.resources&&typeof assignment.resources==="object"&&!Array.isArray(assignment.resources)?assignment.resources as Record<string,unknown>:{};
+  const {data:updated,error:updateError}=await admin.from("assignments").update({resources:{...resources,officialRosterBlock:block}}).eq("id",input.assignmentId).eq("project_id",input.projectId).is("deleted_at",null).select("id").single();
+  if(updateError)throw updateError;
+  if(!updated)throw new Error("No se pudo guardar el bloque de esta asignación.");
+}
+
 export async function makeOfficialRosterPdf(composer:RosterComposer) {
   if (!composer.canGenerate) throw new Error(composer.missing.join(" "));
   const pdf=await PDFDocument.create(), regular=await pdf.embedFont(StandardFonts.Helvetica), bold=await pdf.embedFont(StandardFonts.HelveticaBold);
