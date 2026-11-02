@@ -2,7 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { isAdministrativeRole } from "@/lib/auth/roles";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { buildOfficialRosterPdf, loadOfficialRoster, saveOfficialRosterBlock, sendOfficialRoster } from "./official-staff-roster";
+import { loadOfficialRoster, makeOfficialRosterPdf, saveOfficialRosterBlock, sendOfficialRoster } from "./official-staff-roster";
 
 async function actor() {
   const client=await createSupabaseServerClient();
@@ -32,7 +32,7 @@ export async function downloadOfficialRosterAction(projectId:string) {
     await actor();
     const composer=await loadOfficialRoster(projectId);
     if(!composer.canGenerate)return {ok:false as const,error:composer.missing.join(" "),missing:composer.missing};
-    const pdf=await buildOfficialRosterPdf(composer);
+    const pdf=await makeOfficialRosterPdf(composer);
     return {ok:true as const,filename:pdf.filename,base64:Buffer.from(pdf.bytes).toString("base64")};
   } catch(error) { return {ok:false as const,error:message(error)}; }
 }
