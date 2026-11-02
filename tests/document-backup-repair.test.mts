@@ -30,6 +30,6 @@ test("reusing an existing provider record does not create another file for the s
 
 test("staff expense receipts use the approved operator month folder", () => {
   assert.deepEqual(buildStaffExpenseFolderParts("Sebastián Jorquera", "2026-10-18"), [
-    "STAFF", "OPERADORES", "Sebastián Jorquera", "2026", "October", "04_GASTOS_Y_REEMBOLSOS",
+    "02_STAFF", "STAFF", "OPERADORES", "Sebastián Jorquera", "2026", "10 OCTUBRE", "04_GASTOS_Y_REEMBOLSOS",
   ]);
 });
