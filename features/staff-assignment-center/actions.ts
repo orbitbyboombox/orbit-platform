@@ -118,11 +118,12 @@ export async function saveStaffAssignmentAction(
       ["OPERATOR", "SUPERVISOR"].includes(input.role) ? clock(eventStart, -90) : null;
     const automaticFinish = clock(eventStart, duration * 60);
     let preservedResources: Record<string, unknown> = {};
-    if (input.id) {
+    const resourcesSourceId = input.id ?? input.replaceId;
+    if (resourcesSourceId) {
       const { data: current, error: currentError } = await ctx.client
         .from("assignments")
         .select("resources")
-        .eq("id", input.id)
+        .eq("id", resourcesSourceId)
         .eq("project_id", input.projectId)
         .is("deleted_at", null)
         .single();
