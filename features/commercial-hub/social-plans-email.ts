@@ -45,7 +45,7 @@ export type SocialPlansEmailInput = {
 };
 
 export function buildSocialPlansEmail(input: SocialPlansEmailInput) {
-  const person = input.contact.trim().toLocaleLowerCase("es-CL").replace(/(^|[\\s'-])([\\p{L}])/gu, (_, prefix: string, letter: string) => prefix + letter.toLocaleUpperCase("es-CL"));
+  const person = input.contact.trim().toLocaleLowerCase("es-CL").replace(/(^|[\s\u0027-])([\p{L}])/gu, (_, prefix: string, letter: string) => prefix + letter.toLocaleUpperCase("es-CL"));
   const greeting = person ? `Hola ${person},` : "Hola,";
   const intro = /matrimonio/i.test(input.body)
     ? "Gracias por considerar a BOOMBOX para uno de los días más importantes de sus vidas. Preparamos una propuesta especial para que cada recuerdo de su matrimonio sea inolvidable."
