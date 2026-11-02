@@ -34,7 +34,6 @@ type RepairDocument = {
 const DOCUMENT_FOLDER: Record<string, string> = {
   COMMERCIAL_DOCUMENT: "03_Cotizaciones",
   PAYMENT_RECEIPT: "02_Comprobantes",
-  STAFF_EXPENSE_RECEIPT: "02_Comprobantes",
 };
 
 const baseName = (path: string) => path.split("/").at(-1) || "documento";
