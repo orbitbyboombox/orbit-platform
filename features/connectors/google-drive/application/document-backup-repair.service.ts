@@ -154,10 +154,10 @@ async function syncOne(client: SupabaseClient, provider: GoogleDriveLiveProvider
 
 export async function repairPendingDocumentBackups(input: { client: SupabaseClient; documentIds?: readonly string[]; provider?: GoogleDriveLiveProvider; rootName?: string; dryRun?: boolean }): Promise<DocumentBackupRepairResult[]> {
   const [documents, company] = await Promise.all([loadPendingDocuments(input.client, input.documentIds), input.rootName ? Promise.resolve(null) : loadCompanySettings(input.client)]);
-  const provider = input.provider ?? new GoogleDriveApiProvider(await loadGoogleWorkspaceAccessToken());
   const rootName = input.rootName ?? company?.driveRootFolder ?? "BOOMBOX ORBIT";
   if (input.dryRun) {
     return documents.map((document) => ({ documentId: document.id, projectId: document.project_id, status: "REQUIRES_REVIEW", reason: "Dry-run: no se modificó Drive ni la base de datos." }));
   }
+  const provider = input.provider ?? new GoogleDriveApiProvider(await loadGoogleWorkspaceAccessToken());
   return Promise.all(documents.map((document) => syncOne(input.client, provider, rootName, document)));
 }
