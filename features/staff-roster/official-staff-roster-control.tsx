@@ -55,6 +55,7 @@ export function OfficialStaffRosterControl({projectId}:{projectId:string}) {
     setSendState("idle");
     setMailOpen(true);
   };
+  const hasUnsavedBlocks=!!composer?.members.some(member=>(blocks[member.assignmentId]??"")!==member.block);
   const send=()=>{
     if(!composer||!composer.canGenerate||!to.trim()||pending)return;
     setSendState("sending");
@@ -88,8 +89,8 @@ export function OfficialStaffRosterControl({projectId}:{projectId:string}) {
       </div>
       {!!composer.missing.length&&<div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950"><strong>Completa esto antes de generar o enviar:</strong><ul className="mt-2 list-disc pl-5">{composer.missing.map((item,index)=><li key={index}>{item}</li>)}</ul></div>}
       <div className="mt-4 flex flex-wrap gap-2">
-        <Button disabled={pending||!composer.canGenerate} onClick={download}><FileDown className="size-4"/>Descargar PDF oficial</Button>
-        <Button variant="outline" disabled={pending||!composer.canGenerate} onClick={openMail}><Mail className="size-4"/>Enviar por correo</Button>
+        <Button disabled={pending||!composer.canGenerate||hasUnsavedBlocks} onClick={download}><FileDown className="size-4"/>Descargar PDF oficial</Button>
+        <Button variant="outline" disabled={pending||!composer.canGenerate||hasUnsavedBlocks} onClick={openMail}><Mail className="size-4"/>Enviar por correo</Button>
       </div>
     </>}
     {mailOpen&&composer&&<div className="fixed inset-0 z-[100] grid place-items-center bg-black/50 p-3" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget&&sendState!=="sending")setMailOpen(false);}}>
