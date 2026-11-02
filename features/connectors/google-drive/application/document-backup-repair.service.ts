@@ -105,6 +105,16 @@ function md5(bytes: Uint8Array) {
   return createHash("md5").update(bytes).digest("base64");
 }
 
+async function persistSyncFailure(client: SupabaseClient, documentId: string, reason: string) {
+  const safeReason = reason.slice(0, 1000);
+  const { error } = await client.from("documents").update({
+    drive_sync_status: "ERROR",
+    drive_sync_error: safeReason,
+    drive_synced_at: null,
+  }).eq("id", documentId).is("drive_file_id", null);
+  if (error) throw error;
+}
+
 async function findExactFile(provider: GoogleDriveLiveProvider, folderId: string, filename: string, bytes: Uint8Array, documentId: string) {
   const files = provider.findFilesByName
     ? await provider.findFilesByName({ name: filename, parentFolderId: folderId })
@@ -129,7 +139,14 @@ async function syncOne(client: SupabaseClient, provider: GoogleDriveLiveProvider
     if (!updated && !document.drive_file_id) throw new Error("Documento cambió durante la sincronización; no se sobrescribió.");
     return { documentId: document.id, projectId: document.project_id, status: "SYNCED", driveFileId: file.id, driveFolderId: folderId };
   } catch (error) {
-    return { documentId: document.id, projectId: document.project_id, status: "REQUIRES_REVIEW", reason: error instanceof Error ? error.message : "No fue posible sincronizar el documento." };
+    const reason = error instanceof Error ? error.message : "No fue posible sincronizar el documento.";
+    try {
+      await persistSyncFailure(client, document.id, reason);
+    } catch (persistError) {
+      const persistenceReason = persistError instanceof Error ? persistError.message : "No fue posible registrar estado de sincronización.";
+      return { documentId: document.id, projectId: document.project_id, status: "ERROR", reason: `${reason.slice(0, 700)} | Error al registrar estado: ${persistenceReason.slice(0, 250)}` };
+    }
+    return { documentId: document.id, projectId: document.project_id, status: "REQUIRES_REVIEW", reason };
   }
 }
 
