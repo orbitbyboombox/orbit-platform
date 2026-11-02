@@ -12,6 +12,7 @@ import {
   registerQuickStaffSettlementPaymentAction,
 } from "./actions";
 import { StaffMonthlyAccountPanel } from "@/features/staff-monthly-account/staff-monthly-account-panel";
+import { BoletaSosPanel } from "@/features/staff-monthly-account/boleta-sos-panel";
 import { generateMonthlyStaffAccountsAction, getIndividualBoletaSentStatuses, requestIndividualStaffBoletaAction } from "@/features/staff-monthly-account/actions";
 import { registerMonthlyStaffPaymentAction } from "@/features/staff-monthly-account/actions";
 import type { StaffMonthlyAccount } from "@/features/staff-monthly-account/model";
@@ -612,7 +613,8 @@ export function StaffPaymentsCenter({
                 <summary className="flex min-h-12 cursor-pointer items-center justify-between gap-2 px-3 py-2 text-sm font-semibold">
                   <span>CIERRE Y LIQUIDACIÓN PDF</span><span className="shrink-0 text-brand">{money.format(row.account.finalTransferAmount)}</span>
                 </summary>
-                <div className="min-w-0 border-t p-2 sm:p-3"><StaffMonthlyAccountPanel account={row.account} mode="FOUNDER" onBack={() => setOpenStaffId(null)} /></div>
+                <div className="min-w-0 border-t p-2 sm:p-3"><StaffMonthlyAccountPanel account={row.account} mode="FOUNDER" onBack={() => setOpenStaffId(null)} />
+                  <BoletaSosPanel account={row.account} operatorName={row.member.name} /></div>
               </details> : null}
               <details className="min-w-0 rounded-xl border bg-background/40">
                 <summary className="flex min-h-12 cursor-pointer items-center justify-between gap-2 px-3 py-2 text-sm font-semibold">
