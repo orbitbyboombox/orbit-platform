@@ -53,6 +53,7 @@ export function StaffMonthlyAccountPanel({
       event: string;
     } | null>(null),
     [viewerOpen, setViewerOpen] = useState(false),
+    [boletaViewerOpen, setBoletaViewerOpen] = useState(false),
     [emailReviewOpen, setEmailReviewOpen] = useState(false),
     [emailPdfOpen, setEmailPdfOpen] = useState(false),
     [emailReviewed, setEmailReviewed] = useState(false);
@@ -381,15 +382,22 @@ export function StaffMonthlyAccountPanel({
           Ver liquidación PDF
         </button>
         {mode === "FOUNDER" && account.boletaDocumentId ? (
-          <a
+          <button
             className="inline-flex min-h-11 items-center rounded-xl border px-4 text-sm font-semibold"
-            href={`/api/staff-monthly-accounts/${account.id}/boleta`}
-            target="_blank"
+            onClick={() => setBoletaViewerOpen(true)}
+            type="button"
           >
             Ver boleta
-          </a>
+          </button>
         ) : null}
       </div>
+      {boletaViewerOpen ? (
+        <SettlementPdfViewer
+          onClose={() => setBoletaViewerOpen(false)}
+          src={`/api/staff-monthly-accounts/${account.id}/boleta`}
+          title={`Boleta de honorarios ${staffMonthLabel(account.month)}`}
+        />
+      ) : null}
       {viewerOpen ? (
         <SettlementPdfViewer
           onClose={() => setViewerOpen(false)}
