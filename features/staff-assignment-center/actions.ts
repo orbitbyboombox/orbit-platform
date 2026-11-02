@@ -174,6 +174,24 @@ export async function saveStaffAssignmentAction(
         ? calculateStaffCallAt(chileLocalToIso(`${ctx.project.event_date}T${eventStart}:00`))
         : null;
     const automaticFinish = clock(eventStart, duration * 60);
+    // Keep metadata attached to an assignment (including its official roster block)
+    // when the Founder edits or replaces the person assigned to it.
+    const metadataAssignmentId = input.id ?? input.replaceId;
+    let existingResources: Record<string, unknown> = {};
+    if (metadataAssignmentId) {
+      const { data: existingAssignment, error: existingAssignmentError } = await ctx.client
+        .from("assignments")
+        .select("resources")
+        .eq("id", metadataAssignmentId)
+        .eq("project_id", input.projectId)
+        .is("deleted_at", null)
+        .maybeSingle();
+      if (existingAssignmentError) throw existingAssignmentError;
+      const rawResources = existingAssignment?.resources;
+      if (rawResources && typeof rawResources === "object" && !Array.isArray(rawResources)) {
+        existingResources = rawResources as Record<string, unknown>;
+      }
+    }
     // The dialog deliberately supports an empty start/end pair: in that case
     // the event window is the documented fallback. Manual Montage/Disassembly
     // times still win when supplied by the Founder.
@@ -190,7 +208,7 @@ export async function saveStaffAssignmentAction(
       finish_time: ["OPERATOR", "SUPERVISOR"].includes(input.role) && selectedBlock ? blockEnd : value(input.finishTime) ?? automaticFinish,
       assigned_vehicle: value(input.vehicleId),
       observations: value(input.observations),
-      resources: { vehicle: value(input.vehicleId) },
+      resources: { ...existingResources, vehicle: value(input.vehicleId) },
       reason: value(input.observations) ?? "Asignación operacional",
       updated_by: ctx.user.id,
     };
