@@ -62,7 +62,8 @@ export async function makeOfficialRosterPdf(composer:RosterComposer) {
   const size:[number,number]=[595.28,841.89]; let page=pdf.addPage(size), y=0;
   const header=()=>{const top=page.getHeight();page.drawRectangle({x:0,y:top-124,width:size[0],height:124,color:dark});page.drawText("BOOMBOX",{x:42,y:top-47,size:25,font:bold,color:white});page.drawText("NÓMINA OFICIAL DEL EQUIPO",{x:42,y:top-77,size:13,font:bold,color:orange});page.drawText(plain(composer.orbitEventId||composer.eventName).slice(0,70),{x:42,y:top-101,size:9,font:regular,color:rgb(.84,.84,.86)});y=top-154;};
   const next=()=>{page=pdf.addPage(size);header();}; const ensure=(h:number)=>{if(y-h<70)next();}; header();
-  const details:[string,string][]=[["EVENTO",composer.eventName],["FECHA",rosterDate(composer.eventDate)],["HORARIO",composer.eventTime||"Por confirmar"],["LUGAR",[composer.location,composer.city].filter(Boolean).join(" · ")||"Por confirmar"]];
+  const isCcuRoster = /\bCCU\b/i.test([composer.eventName, composer.customerName].join(" "));
+  const details:[string,string][]=[["EVENTO",composer.eventName],["FECHA",rosterDate(composer.eventDate)],["HORARIO",isCcuRoster?"AM 09:00 a 13:30 hrs / PM 15:00 a 19:30 hrs":composer.eventTime||"Por confirmar"],...(isCcuRoster?[["CITACIÓN","AM 08:00 hrs / PM 14:00 hrs"] as [string,string]]:[]),["LUGAR",[composer.location,composer.city].filter(Boolean).join(" · ")||"Por confirmar"]];
   for(const d of details){page.drawText(d[0],{x:42,y,size:7,font:bold,color:muted});page.drawText(plain(d[1]).slice(0,78),{x:145,y,size:9,font:regular,color:dark});y-=17;} y-=9;
   const groups=new Map<string,RosterMember[]>(); for(const m of composer.members)groups.set(m.block,[...(groups.get(m.block)||[]),m]);
   for(const [block,members] of groups){ensure(44);page.drawRectangle({x:42,y:y-6,width:511,height:23,color:dark});page.drawText(plain(block.toUpperCase()).slice(0,45),{x:52,y:y+1,size:9,font:bold,color:orange});y-=25;
