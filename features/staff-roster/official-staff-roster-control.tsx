@@ -43,9 +43,9 @@ export function OfficialStaffRosterControl({projectId}:{projectId:string}) {
       const raw=atob(result.base64);
       const bytes=new Uint8Array(raw.length);
       for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);
-      const url=URL.createObjectURL(new Blob([bytes],{type:"application/pdf"}));
+      const url=URL.createObjectURL(new Blob([bytes as unknown as BlobPart],{type:"application/pdf"}));
       const anchor=document.createElement("a");
-      anchor.href=url;anchor.download=result.filename;anchor.click();URL.revokeObjectURL(url);
+      anchor.href=url;anchor.download=result.filename;anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
       setFeedback("PDF descargado.");
     });
   };
