@@ -25,6 +25,8 @@ jobs:
       SUPABASE_URL: ${{ vars.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+      GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON }}
+      GOOGLE_DRIVE_PARENT_FOLDER_ID: ${{ vars.GOOGLE_DRIVE_PARENT_FOLDER_ID }}
     steps:
       - name: Checkout exact backup source
         uses: actions/checkout@v4
@@ -45,9 +47,16 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          test -n "$SUPABASE_URL"
-          test -n "$SUPABASE_SERVICE_ROLE_KEY"
-          test -n "$BACKUP_ENCRYPTION_PASSPHRASE"
+          missing=()
+          for name in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY BACKUP_ENCRYPTION_PASSPHRASE GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON GOOGLE_DRIVE_PARENT_FOLDER_ID; do
+            if [[ -z "${!name:-}" ]]; then
+              missing+=("$name")
+            fi
+          done
+          if ((${#missing[@]} > 0)); then
+            printf 'Missing protected Storage backup configuration: %s\n' "${missing[*]}" >&2
+            exit 1
+          fi
           mkdir -p "$RUNNER_TEMP/orbit-storage-backup/storage"
 
       - name: Run backup safety tests
@@ -84,6 +93,11 @@ jobs:
           path: ${{ runner.temp }}/orbit-storage-backup/*.enc
           retention-days: 7
           if-no-files-found: error
+
+      - name: Upload encrypted Storage backup to Drive and verify SHA-256
+        run: |
+          npm install --no-save --no-package-lock googleapis@144.0.0
+          node scripts/upload-drive-backup.mjs "$RUNNER_TEMP/orbit-storage-backup"
 
       - name: Cleanup temporary Storage material
         if: always()
