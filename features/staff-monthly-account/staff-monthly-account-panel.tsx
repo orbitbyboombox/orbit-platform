@@ -471,7 +471,7 @@ export function StaffMonthlyAccountPanel({
         </div>
       ) : null}
       {mode === "STAFF" &&
-      account.calculation.blockingEvents.length === 0 &&
+      (account.boletaStatus === "REJECTED" || account.calculation.blockingEvents.length === 0) &&
       account.boletaGross > 0 &&
       account.boletaStatus !== "APPROVED" &&
       account.paymentStatus !== "PAID" ? (
