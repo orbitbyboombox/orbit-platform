@@ -25,3 +25,23 @@ test("monthly close audits before generating accounts or sending communications"
   assert.match(close, /criticalErrorCount/);
   assert.match(close, /sendMonthlySettlementReadyEmail/);
 });
+
+test("audit distinguishes independent assignments from duplicate settlements", () => {
+  const repair = readFileSync(
+    "supabase/migrations/20261102130000_staff_month_audit_assignment_and_paid_reconciliation.sql",
+    "utf8",
+  );
+  assert.match(repair, /group by payment\.staff_id,payment\.project_id,payment\.assignment_id/);
+  assert.match(repair, /misma asignaci/);
+  assert.match(repair, /payment\.assignment_id is not null/);
+});
+
+test("audit preserves historical paid transfers and blocks unpaid reimbursements", () => {
+  const repair = readFileSync(
+    "supabase/migrations/20261102130000_staff_month_audit_assignment_and_paid_reconciliation.sql",
+    "utf8",
+  );
+  assert.match(repair, /payment_status in \('PAID','FINALIZED'\)/);
+  assert.match(repair, /PENDING_REIMBURSEMENT/);
+  assert.match(repair, /reimbursementsPendingTotal/);
+});
