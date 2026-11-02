@@ -21,3 +21,15 @@ test("repair is explicit, admin-protected and idempotent", () => {
   assert.match(page, /Reparar documento seleccionado/);
   assert.match(page, /repairPendingDocumentBackupsAction\(\[documentId\]\)/);
 });
+
+test("sync failures persist a retryable error without changing the Drive link", () => {
+  assert.match(service, /drive_sync_status: "ERROR"/);
+  assert.match(service, /drive_sync_error: safeReason/);
+  assert.match(service, /\.is\("drive_file_id", null\)/);
+  assert.match(service, /status: "REQUIRES_REVIEW"/);
+});
+
+test("concurrent matches are never cleaned up destructively", () => {
+  assert.match(service, /no se eliminó ni sobrescribió ningún archivo/);
+  assert.doesNotMatch(service, /provider\.deleteFile\(/);
+});

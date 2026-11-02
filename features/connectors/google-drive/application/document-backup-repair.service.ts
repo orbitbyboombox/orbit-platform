@@ -131,13 +131,18 @@ async function findExactFile(provider: GoogleDriveLiveProvider, folderId: string
 async function reconcileAfterUpload(provider: GoogleDriveLiveProvider, folderId: string, filenames: readonly string[], bytes: Uint8Array, documentId: string, uploadedId: string) {
   const canonical = await findExactFile(provider, folderId, filenames, bytes, documentId);
   if (!canonical) throw new Error("El archivo subido no pudo verificarse en Drive.");
-  if (provider.deleteFile && canonical.id !== uploadedId) {
-    const candidates = (await Promise.all(filenames.map((name) => provider.findFilesByName?.({ name, parentFolderId: folderId }) ?? Promise.resolve([])))).flat();
-    for (const candidate of candidates) {
-      if (candidate.id !== canonical.id && candidate.appProperties?.orbitDocumentId === documentId) await provider.deleteFile(candidate.id);
-    }
-  }
+  if (canonical.id !== uploadedId) throw new Error("Se detectó un archivo coincidente durante la sincronización; no se eliminó ni sobrescribió ningún archivo.");
   return canonical;
+}
+
+async function persistSyncFailure(client: SupabaseClient, documentId: string, reason: string) {
+  const safeReason = reason.slice(0, 1000);
+  const { error } = await client.from("documents").update({
+    drive_sync_status: "ERROR",
+    drive_sync_error: safeReason,
+    drive_synced_at: null,
+  }).eq("id", documentId).is("drive_file_id", null);
+  if (error) throw error;
 }
 
 async function syncOne(client: SupabaseClient, provider: GoogleDriveLiveProvider, rootName: string, document: RepairDocument): Promise<DocumentBackupRepairResult> {
@@ -163,7 +168,14 @@ async function syncOne(client: SupabaseClient, provider: GoogleDriveLiveProvider
     }
     return { documentId: document.id, projectId: document.project_id, status: "SYNCED", driveFileId: verifiedFile.id, driveFolderId: folderId };
   } catch (error) {
-    return { documentId: document.id, projectId: document.project_id, status: "REQUIRES_REVIEW", reason: error instanceof Error ? error.message : "No fue posible sincronizar el documento." };
+    const reason = error instanceof Error ? error.message : "No fue posible sincronizar el documento.";
+    try {
+      await persistSyncFailure(client, document.id, reason);
+    } catch (persistError) {
+      const persistenceReason = persistError instanceof Error ? persistError.message : "No fue posible registrar el error de sincronización.";
+      return { documentId: document.id, projectId: document.project_id, status: "ERROR", reason: `${reason.slice(0, 700)} | Error al registrar estado: ${persistenceReason.slice(0, 250)}` };
+    }
+    return { documentId: document.id, projectId: document.project_id, status: "REQUIRES_REVIEW", reason };
   }
 }
 
