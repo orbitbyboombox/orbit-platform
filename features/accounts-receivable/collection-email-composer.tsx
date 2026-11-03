@@ -292,11 +292,11 @@ export function CollectionEmailComposer({
                 <Detail key={label} label={label} value={value} />
               ))}
             </div>
-            <label className="block text-sm font-medium">Factura PDF y respaldos (máximo 3 archivos, 8 MB cada uno)
+            <label className="block text-sm font-medium">Factura PDF y respaldos (máximo 3 archivos, 5 MB cada uno)
               <input className="mt-2 block w-full rounded-xl border bg-background p-3 text-sm" type="file" name="attachments" multiple accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" onChange={(event) => { setAttachmentNames(Array.from(event.target.files ?? []).map((file) => file.name)); setConfirmed(false); }} />
               <span className="mt-1 block text-xs font-normal text-muted">Se adjuntarán al correo exactamente los archivos seleccionados. Comprueba su contenido antes de enviar.</span>
             </label>
-            <div className="rounded-xl border border-brand/30 bg-brand/5 p-3 text-sm"><p className="font-semibold">Referencias que acompañarán el correo</p><p>Para: {recipientInput || "Sin destinatario"}</p><p>Orden de compra: {purchaseOrderInput || "No informada"}</p><p>Factura: {invoiceReferenceInput || "No informada"}</p><p>Adjuntos: {attachmentNames.length ? attachmentNames.join(", ") : "Sin archivos"}</p><p className="mt-2 text-xs text-muted">Revisa los archivos seleccionados y el texto antes de confirmar el envío.</p></div>
+            <div className="rounded-xl border border-brand/30 bg-brand/5 p-3 text-sm"><p className="font-semibold">Referencias que acompañarán el correo</p><p>Para: {recipientInput || "Sin destinatario"}</p><p>Orden de compra: {purchaseOrderInput || "No informada"}</p><p>Factura SII: {invoiceReferenceInput || "No informada"}</p><p>Adjuntos: {attachmentNames.length ? attachmentNames.join(", ") : "Sin archivos"}</p><p className="mt-2 text-xs text-muted">Revisa los archivos seleccionados y el texto antes de confirmar el envío.</p></div>
             <section className="min-w-0 space-y-3 rounded-2xl border p-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted">Vista previa del contenido del correo</p>
               <p className="break-words text-sm"><strong>Para:</strong> {recipientInput || "Sin destinatario"} · <strong>CC:</strong> {ccInput.trim() || "Sin CC"}</p>
