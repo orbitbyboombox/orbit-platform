@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { MobileDialog } from "@/components/ui/mobile-dialog";
 import {
   auditStaffMonthAction,
+  getStaffComplementaryPaidSummaryAction,
   closeStaffMonthAction,
   previewStaffMonthCloseAction,
   reopenStaffMonthAction,
@@ -205,6 +206,15 @@ export function StaffPaymentsCenter({
   const [openStaffId, setOpenStaffId] = useState<string | null>(null);
   const [boletaRequested, setBoletaRequested] = useState<Record<string, boolean>>({});
   const [boletaStatusLoaded, setBoletaStatusLoaded] = useState(false);
+  const [complementaryPaid, setComplementaryPaid] = useState<number | null>(null);
+  useEffect(() => {
+    let active = true;
+    setComplementaryPaid(null);
+    getStaffComplementaryPaidSummaryAction(month).then((result) => {
+      if (active && result.ok) setComplementaryPaid(result.paid);
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [month]);
   useEffect(() => {
     let active = true;
     setBoletaStatusLoaded(false);
@@ -531,8 +541,9 @@ export function StaffPaymentsCenter({
           <Metric label="Adelantos pagados" value={advancesPaid} />
           <Metric label="Honorarios desembolsados" value={advancesPaid + finalPaid} />
           <Metric label="Reembolsos pagados" value={reimbursementsPaid} />
-          <Metric label="Desembolsado registrado" value={advancesPaid + finalPaid + reimbursementsPaid} />
-          <p className="col-span-full text-xs text-muted">El desembolso registrado incluye adelantos, pagos finales y reembolsos pagados de liquidaciones mensuales. Los complementos BOLETA SOS se concilian por separado; no están incluidos en este total. El impuesto retenido no se suma como transferencia al operador.</p>
+          <Metric label="Complementos BOLETA SOS pagados" value={complementaryPaid ?? 0} />
+          {complementaryPaid !== null ? <Metric label="Total desembolsado conciliado" value={advancesPaid + finalPaid + reimbursementsPaid + complementaryPaid} /> : <p className="col-span-full text-xs text-muted">Consultando pagos complementarios; el total conciliado se mostrará cuando estén disponibles.</p>}
+          <p className="col-span-full text-xs text-muted">El desembolso registrado incluye adelantos, pagos finales y reembolsos pagados de liquidaciones mensuales. Los complementos BOLETA SOS pagados se incorporan únicamente al total conciliado, sin duplicar el subtotal mensual. El impuesto retenido no se suma como transferencia al operador.</p>
           <Metric label="Colaboradores pendientes" value={pendingStaffRows.length} />
           <Metric label="Total pendiente por pagar" value={pendingStaffTotal} />
           <Metric
