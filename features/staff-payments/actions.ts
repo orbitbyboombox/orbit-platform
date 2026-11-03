@@ -512,3 +512,16 @@ export async function reopenStaffMonthAction(month: string, reason: string) {
     };
   }
 }
+
+export async function getStaffComplementaryPaidSummaryAction(month: string): Promise<{ok:true;paid:number;count:number}|{ok:false;error:string}> {
+  try {
+    if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new Error("Mes inválido.");
+    const { client } = await context();
+    const { data, error } = await client.from("staff_complementary_settlements")
+      .select("id,paid_amount,status")
+      .eq("original_month", `${month}-01`)
+      .eq("status", "PAID");
+    if (error) throw error;
+    return {ok:true,paid:(data??[]).reduce((sum,row)=>sum+Number(row.paid_amount??0),0),count:(data??[]).length};
+  } catch(error) { return {ok:false,error:friendly(error,"No se pudieron consultar los pagos complementarios.")}; }
+}
