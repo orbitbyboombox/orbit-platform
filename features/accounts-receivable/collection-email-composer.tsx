@@ -258,12 +258,12 @@ export function CollectionEmailComposer({
             </section>
             <label className="block min-w-0 text-sm font-medium">
               Destinatario de cobranza (Finanzas / Cuentas por Pagar)
-              <input className="mt-2 min-h-11 w-full rounded-xl border bg-background px-3 text-sm" type="email" name="recipient" required value={recipientInput} onChange={(event) => setRecipientInput(event.target.value)} placeholder="pagos@empresa.cl" />
+              <input className="mt-2 min-h-11 w-full rounded-xl border bg-background px-3 text-sm" type="email" name="recipient" required value={recipientInput} onChange={(event) => { setRecipientInput(event.target.value); setConfirmed(false); }} placeholder="pagos@empresa.cl" />
               <span className="mt-1 block text-xs font-normal text-muted">Solo para este envío. No cambia el correo del cliente.</span>
             </label>
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className="block text-sm font-medium">Orden de compra<input className="mt-2 min-h-11 w-full rounded-xl border bg-background px-3 text-sm" name="purchaseOrder" value={purchaseOrderInput} onChange={(event) => setPurchaseOrderInput(event.target.value)} maxLength={100} /></label>
-              <label className="block text-sm font-medium">Número de factura<input className="mt-2 min-h-11 w-full rounded-xl border bg-background px-3 text-sm" name="invoiceReference" value={invoiceReferenceInput} onChange={(event) => setInvoiceReferenceInput(event.target.value)} maxLength={100} /></label>
+              <label className="block text-sm font-medium">Orden de compra<input className="mt-2 min-h-11 w-full rounded-xl border bg-background px-3 text-sm" name="purchaseOrder" value={purchaseOrderInput} onChange={(event) => { setPurchaseOrderInput(event.target.value); setConfirmed(false); }} maxLength={100} /></label>
+              <label className="block text-sm font-medium">Número de factura<input className="mt-2 min-h-11 w-full rounded-xl border bg-background px-3 text-sm" name="invoiceReference" value={invoiceReferenceInput} onChange={(event) => { setInvoiceReferenceInput(event.target.value); setConfirmed(false); }} maxLength={100} /></label>
             </div>
             <label className="block min-w-0 text-sm font-medium">
               CC
@@ -271,7 +271,7 @@ export function CollectionEmailComposer({
                 <textarea
                   className="min-h-24 w-full min-w-0 rounded-xl border bg-background p-3 text-sm"
                   name="cc"
-                  onChange={(event) => setCcInput(event.target.value)}
+                  onChange={(event) => { setCcInput(event.target.value); setConfirmed(false); }}
                   placeholder="Un correo por línea o separados por coma"
                   value={ccInput}
                 />
@@ -294,7 +294,7 @@ export function CollectionEmailComposer({
               ))}
             </div>
             <label className="block text-sm font-medium">Factura PDF y respaldos (máximo 3 archivos, 8 MB cada uno)
-              <input className="mt-2 block w-full rounded-xl border bg-background p-3 text-sm" type="file" name="attachments" multiple accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" onChange={(event) => setAttachmentNames(Array.from(event.target.files ?? []).map((file) => file.name))} />
+              <input className="mt-2 block w-full rounded-xl border bg-background p-3 text-sm" type="file" name="attachments" multiple accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" onChange={(event) => { setAttachmentNames(Array.from(event.target.files ?? []).map((file) => file.name)); setConfirmed(false); }} />
               <span className="mt-1 block text-xs font-normal text-muted">Se adjuntarán al correo exactamente los archivos seleccionados. Comprueba su contenido antes de enviar.</span>
             </label>
             <div className="rounded-xl border border-brand/30 bg-brand/5 p-3 text-sm"><p className="font-semibold">Referencias que acompañarán el correo</p><p>Para: {recipientInput || "Sin destinatario"}</p><p>Orden de compra: {purchaseOrderInput || "No informada"}</p><p>Factura: {invoiceReferenceInput || "No informada"}</p><p>Adjuntos: {attachmentNames.length ? attachmentNames.join(", ") : "Sin archivos"}</p><p className="mt-2 text-xs text-muted">Revisa los archivos seleccionados y el texto antes de confirmar el envío.</p></div>
@@ -311,7 +311,7 @@ export function CollectionEmailComposer({
                 <input
                   className={fieldStyle(subject)}
                   name="subject"
-                  onChange={(event) => setSubject(event.target.value)}
+                  onChange={(event) => { setSubject(event.target.value); setConfirmed(false); }}
                   value={subject}
                 />
               </span>
@@ -322,7 +322,7 @@ export function CollectionEmailComposer({
                 <textarea
                   className="min-h-60 w-full rounded-xl border bg-background p-3 text-sm"
                   name="body"
-                  onChange={(event) => setBody(event.target.value)}
+                  onChange={(event) => { setBody(event.target.value); setConfirmed(false); }}
                   value={body}
                 />
               </span>
