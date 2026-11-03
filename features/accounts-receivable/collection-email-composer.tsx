@@ -380,7 +380,12 @@ function CollectionEmailVisualPreview({
         </p>
       </header>
       <div className="min-w-0 space-y-5 p-5 sm:p-6">
-        <div className="space-y-4">{body.split(/\\n{2,}/).map((paragraph, index) => <p key={index} className={index === 0 && /^Hola\\b/i.test(paragraph.trim()) ? "whitespace-pre-wrap break-words text-xl font-bold leading-7 text-zinc-900" : "whitespace-pre-wrap break-words text-sm leading-6 text-zinc-700"}>{paragraph.split(/(\\*\\*[^*]+\\*\\*|\\*[^*]+\\*)/g).map((part, partIndex) => part.startsWith("**") && part.endsWith("**") ? <strong key={partIndex}>{part.slice(2, -2)}</strong> : part.startsWith("*") && part.endsWith("*") ? <em key={partIndex}>{part.slice(1, -1)}</em> : part)}</p>)}</div>
+        <div className="space-y-4">{body.split(/\n{2,}/).map((paragraph, index) => {
+          const greeting = index === 0 && /^Hola\b/i.test(paragraph.trim());
+          const thanks = /^¡Muchas gracias/i.test(paragraph.trim());
+          const spacing = thanks ? "mt-8" : index === 1 && /^Espero\b/i.test(paragraph.trim()) ? "mb-8" : "";
+          return <p key={index} className={`whitespace-pre-wrap break-words leading-6 ${greeting ? "text-xl font-bold text-zinc-900" : thanks ? "text-sm font-bold text-zinc-900" : "text-sm text-zinc-700"} ${spacing}`}>{paragraph.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g).map((part, partIndex) => part.startsWith("**") && part.endsWith("**") ? <strong key={partIndex}>{part.slice(2, -2)}</strong> : part.startsWith("*") && part.endsWith("*") ? <em key={partIndex}>{part.slice(1, -1)}</em> : part)}</p>;
+        })}</div>
         <div className="min-w-0 rounded-xl border bg-zinc-50 p-4">
           <p className="text-[10px] font-bold uppercase tracking-[.16em] text-orange-600">
             Detalle del evento
