@@ -170,6 +170,7 @@ export async function sendCollectionEmailAction(
       );
     }
 
+    if (String(formData.get("confirmed") ?? "") !== "yes") throw new Error("Confirma la revisión antes de enviar.");
     const subject = normalizeText(formData.get("subject"), draft.subject);
     const body = normalizeText(formData.get("body"), draft.body);
     const recipients = normalizeEmailRecipients({
@@ -223,7 +224,7 @@ export async function sendCollectionEmailAction(
         .from("communications")
         .update({
           subject,
-          body,
+          body: fullBody,
           status: "PENDING",
           to_recipient: recipients.to,
           cc_recipients: recipients.cc,
@@ -245,7 +246,7 @@ export async function sendCollectionEmailAction(
           communication_type: "COLLECTION_EMAIL",
           thread_key: threadKey,
           subject,
-          body,
+          body: fullBody,
           status: "PENDING",
           to_recipient: recipients.to,
           cc_recipients: recipients.cc,
