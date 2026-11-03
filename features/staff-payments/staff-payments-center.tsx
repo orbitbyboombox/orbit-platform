@@ -207,12 +207,16 @@ export function StaffPaymentsCenter({
   const [boletaRequested, setBoletaRequested] = useState<Record<string, boolean>>({});
   const [boletaStatusLoaded, setBoletaStatusLoaded] = useState(false);
   const [complementaryPaid, setComplementaryPaid] = useState<number | null>(null);
+  const [complementaryError, setComplementaryError] = useState<string | null>(null);
   useEffect(() => {
     let active = true;
     setComplementaryPaid(null);
+    setComplementaryError(null);
     getStaffComplementaryPaidSummaryAction(month).then((result) => {
-      if (active && result.ok) setComplementaryPaid(result.paid);
-    }).catch(() => {});
+      if (!active) return;
+      if (result.ok) setComplementaryPaid(result.paid);
+      else setComplementaryError(result.error);
+    }).catch(() => { if (active) setComplementaryError("No fue posible consultar los complementos."); });
     return () => { active = false; };
   }, [month]);
   useEffect(() => {
@@ -516,53 +520,48 @@ export function StaffPaymentsCenter({
             </Button>
           </div>
         </div>
-        <div className="mt-4 grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-5 2xl:grid-cols-7">
-          <Metric
-            label="Personas"
-            value={Number(closeState?.totals?.people ?? 0)}
-          />
-          <Metric
-            label="Transferencias finales"
-            value={Number(closeState?.totals?.total ?? 0)}
-          />
-          <Metric
-            label="Pagado"
-            value={Number(closeState?.totals?.paid ?? 0)}
-          />
-          <Metric
-            label="Pendiente"
-            value={Number(closeState?.totals?.pending ?? 0)}
-          />
-          <Metric label="Honorarios netos trabajados" value={totalWorkNet} />
-          <Metric label="Boletas bruto" value={totalBoletaGross} />
-          <Metric label="Boletas neto" value={totalBoletaNet} />
-          <Metric label="Retención boletas (impuesto)" value={totalWithholding} />
-          <Metric label="Reembolsos registrados" value={totalReimbursements} />
-          <Metric label="Adelantos pagados" value={advancesPaid} />
-          <Metric label="Honorarios desembolsados" value={advancesPaid + finalPaid} />
-          <Metric label="Reembolsos pagados" value={reimbursementsPaid} />
-          <Metric label="Complementos BOLETA SOS pagados" value={complementaryPaid ?? 0} />
-          {complementaryPaid !== null ? <Metric label="Total desembolsado conciliado" value={advancesPaid + finalPaid + reimbursementsPaid + complementaryPaid} /> : <p className="col-span-full text-xs text-muted">Consultando pagos complementarios; el total conciliado se mostrará cuando estén disponibles.</p>}
-          <p className="col-span-full text-xs text-muted">El desembolso registrado incluye adelantos, pagos finales y reembolsos pagados de liquidaciones mensuales. Los complementos BOLETA SOS pagados se incorporan únicamente al total conciliado, sin duplicar el subtotal mensual. El impuesto retenido no se suma como transferencia al operador.</p>
-          <Metric label="Colaboradores pendientes" value={pendingStaffRows.length} />
-          <Metric label="Total pendiente por pagar" value={pendingStaffTotal} />
-          <Metric
-            label="Boletas pendientes"
-            value={Number(closeState?.totals?.receiptsPending ?? 0)}
-          />
-          <Metric label="Elegibles" value={Number(closeState?.eligible ?? 0)} />
-          <Metric
-            label="Personas cerradas"
-            value={Number(closeState?.finalizedStaff ?? 0)}
-          />
-          <Metric
-            label="Boletas solicitadas"
-            value={Number(closeState?.finalizedStaff ?? 0)}
-          />
-          <Metric
-            label="Excluidas en cero"
-            value={Number(closeState?.excludedStaff ?? closeState?.ineligible ?? 0)}
-          />
+        <div className="mt-5 rounded-2xl border border-orange-500/30 bg-orange-500/[0.06] p-4 sm:p-6" aria-live="polite">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-orange-400">Gasto final · {month}</p>
+          {complementaryPaid === null ? (
+            <div className="mt-2 text-lg font-semibold">{complementaryError ? "Total no disponible" : "Conciliando pagos…"}</div>
+          ) : (
+            <div className="mt-2 text-4xl font-bold tracking-tight tabular-nums sm:text-5xl">{money.format(advancesPaid + finalPaid + reimbursementsPaid + complementaryPaid)}</div>
+          )}
+          <p className="mt-2 text-sm text-muted">Dinero efectivamente desembolsado: adelantos + transferencias finales + reembolsos pagados + complementos BOLETA SOS pagados.</p>
+          {complementaryError && <p className="mt-2 text-sm text-orange-400">{complementaryError}. No se presenta un gasto final incompleto.</p>}
+          <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
+            <Metric label="Adelantos pagados" value={advancesPaid} />
+            <Metric label="Transferencias finales pagadas" value={finalPaid} />
+            <Metric label="Reembolsos pagados" value={reimbursementsPaid} />
+            {complementaryPaid !== null ? <Metric label="BOLETA SOS pagadas" value={complementaryPaid} /> : <div className="rounded-lg border p-3 text-sm text-muted">BOLETA SOS: pendiente de consulta</div>}
+          </div>
+        </div>
+        <div className="mt-5 grid gap-4 lg:grid-cols-2">
+          <div className="min-w-0 rounded-xl border p-4">
+            <h3 className="text-sm font-semibold">Honorarios y boletas SII</h3>
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <Metric label="Honorarios netos trabajados" value={totalWorkNet} />
+              <Metric label="Boletas bruto" value={totalBoletaGross} />
+              <Metric label="Boletas neto" value={totalBoletaNet} />
+              <Metric label="Retención boletas (impuesto)" value={totalWithholding} />
+              <Metric label="Reembolsos registrados" value={totalReimbursements} />
+              <Metric label="Honorarios desembolsados" value={advancesPaid + finalPaid} />
+            </div>
+            <p className="mt-3 text-xs text-muted">La retención es información tributaria: no se suma nuevamente al dinero transferido.</p>
+          </div>
+          <div className="min-w-0 rounded-xl border p-4">
+            <h3 className="text-sm font-semibold">Estado del cierre mensual</h3>
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <CountMetric label="Personas" value={Number(closeState?.totals?.people ?? 0)} />
+              <Metric label="Pendiente por pagar" value={pendingStaffTotal} />
+              <CountMetric label="Colaboradores pendientes" value={pendingStaffRows.length} />
+              <CountMetric label="Boletas pendientes" value={Number(closeState?.totals?.receiptsPending ?? 0)} />
+              <CountMetric label="Elegibles" value={Number(closeState?.eligible ?? 0)} />
+              <CountMetric label="Personas cerradas" value={Number(closeState?.finalizedStaff ?? 0)} />
+              <CountMetric label="Boletas solicitadas" value={Number(closeState?.finalizedStaff ?? 0)} />
+              <CountMetric label="Excluidas en cero" value={Number(closeState?.excludedStaff ?? closeState?.ineligible ?? 0)} />
+            </div>
+          </div>
         </div>
         {closeMessage && (
           <p aria-live="polite" className="mt-3 text-sm text-muted">
@@ -1201,7 +1200,7 @@ function EventRow({ item }: { item: StaffPaymentEvent }) {
   );
 }
 function Metric({ label, value }: { label: string; value: number }) {
-  const financial = !(/^(Personas|Colaboradores|Elegibles|Excluidas|Boletas|Eventos)/.test(label));
+  const financial = true;
   return (
     <div className="rounded-lg border p-3">
       <dt className="text-xs text-muted">{label}</dt>
@@ -1210,6 +1209,9 @@ function Metric({ label, value }: { label: string; value: number }) {
       </dd>
     </div>
   );
+}
+function CountMetric({ label, value }: { label: string; value: number }) {
+  return <div className="rounded-lg border p-3"><dt className="text-xs text-muted">{label}</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{value}</dd></div>;
 }
 function Box({ label, value }: { label: string; value: string }) {
   return (
