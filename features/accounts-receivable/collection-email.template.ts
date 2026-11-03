@@ -73,9 +73,10 @@ export function buildCollectionEmailHtml(
       escapeHtml(line).replace(/\*\*(.+?)\*\*/g, '<strong style="font-weight:600;color:#30343a">$1</strong>').replace(/\*(.+?)\*/g, "<em>$1</em>")
     ).join("<br>");
     const greeting = index === 0 && /^Hola\b/i.test(paragraph.trim());
+    const greetingContent = greeting ? content.replace(/^(Hola,?\s+)([^!\n<]+)(!?)(.*)$/i, (_match, hello, name, punctuation, rest) => `${hello}<strong style="font-weight:600;color:#252930">${name.trim()}</strong>${punctuation}${rest}`) : content;
     const closing = /^¡Muchas gracias/i.test(paragraph.trim());
     const spacing = closing ? "margin:20px 0 5px" : "margin:0 0 13px";
-    return `<p style="${spacing};overflow-wrap:anywhere;font-size:${greeting ? "17px" : "14px"};font-weight:${greeting ? "600" : "400"};line-height:1.55;color:${greeting ? "#252930" : "#515661"}">${content}</p>`;
+    return `<p style="${spacing};overflow-wrap:anywhere;font-size:${greeting ? "17px" : "14px"};font-weight:400;line-height:1.55;color:${greeting ? "#252930" : "#515661"}">${greetingContent}</p>`;
   }).join("");
   const detailCell = (label: string, value: string, dark = false) =>
     `<div class="orbit-detail-cell" style="display:inline-block;vertical-align:top;box-sizing:border-box;width:49%;min-width:230px;padding:12px 12px 12px 0"><div style="font-size:10px;font-weight:700;letter-spacing:.08em;color:${dark ? "#aeb4bf" : "#6b7280"};text-transform:uppercase">${escapeHtml(label)}</div><div style="margin-top:5px;font-size:15px;font-weight:600;color:${dark ? "#ffffff" : "#17191f"};overflow-wrap:anywhere">${escapeHtml(value)}</div></div>`;
