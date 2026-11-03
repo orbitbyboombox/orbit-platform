@@ -521,13 +521,13 @@ export function StaffPaymentsCenter({
           </div>
         </div>
         <div className="mt-5 rounded-2xl border border-orange-500/30 bg-orange-500/[0.06] p-4 sm:p-6" aria-live="polite">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-orange-400">Gasto final · {month}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-orange-400">Gasto final del mes</p>
           {complementaryPaid === null ? (
             <div className="mt-2 text-lg font-semibold">{complementaryError ? "Total no disponible" : "Conciliando pagos…"}</div>
           ) : (
             <div className="mt-2 text-4xl font-bold tracking-tight tabular-nums sm:text-5xl">{money.format(advancesPaid + finalPaid + reimbursementsPaid + complementaryPaid)}</div>
           )}
-          <p className="mt-2 text-sm text-muted">Dinero efectivamente desembolsado: adelantos + transferencias finales + reembolsos pagados + complementos BOLETA SOS pagados.</p>
+          <p className="mt-2 text-sm text-muted">Total pagado en honorarios, reembolsos y complementos · {month}</p>
           {complementaryError && <p className="mt-2 text-sm text-orange-400">{complementaryError}. No se presenta un gasto final incompleto.</p>}
           <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
             <Metric label="Adelantos pagados" value={advancesPaid} />
@@ -538,28 +538,24 @@ export function StaffPaymentsCenter({
         </div>
         <div className="mt-5 grid gap-4 lg:grid-cols-2">
           <div className="min-w-0 rounded-xl border p-4">
-            <h3 className="text-sm font-semibold">Honorarios y boletas SII</h3>
+            <h3 className="text-sm font-semibold">Detalle tributario <span className="font-normal text-muted">· no sumar al gasto final</span></h3>
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
               <Metric label="Honorarios netos trabajados" value={totalWorkNet} />
               <Metric label="Boletas bruto" value={totalBoletaGross} />
               <Metric label="Boletas neto" value={totalBoletaNet} />
               <Metric label="Retención boletas (impuesto)" value={totalWithholding} />
-              <Metric label="Reembolsos registrados" value={totalReimbursements} />
-              <Metric label="Honorarios desembolsados" value={advancesPaid + finalPaid} />
+
             </div>
-            <p className="mt-3 text-xs text-muted">La retención es información tributaria: no se suma nuevamente al dinero transferido.</p>
+            <p className="mt-3 text-xs text-muted">El bruto, neto y la retención describen las boletas. No son transferencias adicionales.</p>
           </div>
           <div className="min-w-0 rounded-xl border p-4">
-            <h3 className="text-sm font-semibold">Estado del cierre mensual</h3>
+            <h3 className="text-sm font-semibold">Control administrativo <span className="font-normal text-muted">· {closeState?.status ?? "Sin cierre"}</span></h3>
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
               <CountMetric label="Personas" value={Number(closeState?.totals?.people ?? 0)} />
               <Metric label="Pendiente por pagar" value={pendingStaffTotal} />
               <CountMetric label="Colaboradores pendientes" value={pendingStaffRows.length} />
               <CountMetric label="Boletas pendientes" value={Number(closeState?.totals?.receiptsPending ?? 0)} />
-              <CountMetric label="Elegibles" value={Number(closeState?.eligible ?? 0)} />
-              <CountMetric label="Personas cerradas" value={Number(closeState?.finalizedStaff ?? 0)} />
-              <CountMetric label="Boletas solicitadas" value={Number(closeState?.finalizedStaff ?? 0)} />
-              <CountMetric label="Excluidas en cero" value={Number(closeState?.excludedStaff ?? closeState?.ineligible ?? 0)} />
+
             </div>
           </div>
         </div>
