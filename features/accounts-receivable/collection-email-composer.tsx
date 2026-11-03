@@ -66,6 +66,9 @@ export function CollectionEmailComposer({
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [ccInput, setCcInput] = useState("");
+  const [recipientInput, setRecipientInput] = useState("");
+  const [purchaseOrderInput, setPurchaseOrderInput] = useState("");
+  const [invoiceReferenceInput, setInvoiceReferenceInput] = useState("");
   const [requestId, setRequestId] = useState("");
   const [sendState, setSendState] = useState<SendState>({ status: "idle" });
   const [pending, startTransition] = useTransition();
@@ -76,7 +79,7 @@ export function CollectionEmailComposer({
   const canSend =
     invoice.outstandingBalance > 0 &&
     !["PAID", "CANCELLED", "ARCHIVED"].includes(invoice.status) &&
-    Boolean(invoice.customerEmail);
+    true;
 
   useEffect(() => {
     if (!open) return;
@@ -84,6 +87,9 @@ export function CollectionEmailComposer({
     setSubject(next.subject);
     setBody(next.body);
     setCcInput(next.cc.join("\n"));
+    setRecipientInput(next.to);
+    setPurchaseOrderInput(invoice.purchaseOrder ?? "");
+    setInvoiceReferenceInput(invoice.invoiceNumber);
     setRequestId(crypto.randomUUID());
     setSendState({ status: "idle" });
   }, [bankDetails, invoice, open]);
@@ -94,8 +100,8 @@ export function CollectionEmailComposer({
     formData.set("requestId", requestId || crypto.randomUUID());
     setSendState({
       status: "sending",
-      recipient: draft.to,
-      message: `Enviando... a ${draft.to}${ccInput.trim() ? " con CC aprobado" : ""}.`,
+      recipient: recipientInput,
+      message: `Enviando... a ${recipientInput}${ccInput.trim() ? " con CC aprobado" : ""}.`,
     });
     startTransition(async () => {
       const result = await sendCollectionEmailAction(formData);
@@ -246,6 +252,15 @@ export function CollectionEmailComposer({
                 />
               </div>
             </section>
+            <label className="block min-w-0 text-sm font-medium">
+              Destinatario de cobranza (Finanzas / Cuentas por Pagar)
+              <input className="mt-2 min-h-11 w-full rounded-xl border bg-background px-3 text-sm" type="email" name="recipient" required value={recipientInput} onChange={(event) => setRecipientInput(event.target.value)} placeholder="pagos@empresa.cl" />
+              <span className="mt-1 block text-xs font-normal text-muted">Solo para este envío. No cambia el correo del cliente.</span>
+            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block text-sm font-medium">Orden de compra<input className="mt-2 min-h-11 w-full rounded-xl border bg-background px-3 text-sm" name="purchaseOrder" value={purchaseOrderInput} onChange={(event) => setPurchaseOrderInput(event.target.value)} maxLength={100} /></label>
+              <label className="block text-sm font-medium">Número de factura<input className="mt-2 min-h-11 w-full rounded-xl border bg-background px-3 text-sm" name="invoiceReference" value={invoiceReferenceInput} onChange={(event) => setInvoiceReferenceInput(event.target.value)} maxLength={100} /></label>
+            </div>
             <label className="block min-w-0 text-sm font-medium">
               CC
               <span className="mt-2 block">
