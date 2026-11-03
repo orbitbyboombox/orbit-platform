@@ -437,12 +437,12 @@ export function StaffPaymentsCenter({
                       setCloseMessage("Cierre bloqueado: " + critical + " alertas financieras críticas. Revisa la conciliación antes de cerrar; no se modificaron pagos ni se enviaron correos.");
                       return;
                     }
-                    if (!window.confirm("¿Confirmas el cierre definitivo de " + month + "? ORBIT congelará liquidaciones y podrá enviar solicitudes de boleta. Esta operación quedará auditada.")) return;
+                    if (!window.confirm("¿Confirmas el cierre definitivo de " + month + "? ORBIT congelará las liquidaciones. NO se enviarán correos ni solicitudes de boleta. Esta operación quedará auditada.")) return;
                     const result = await closeStaffMonthAction(month);
                     if (result.ok) {
                       setCloseState(result.data);
                       setCloseMessage(
-                        `Mes cerrado · ${result.delivered ?? 0} correo(s) enviado(s) · ${result.idempotent ?? 0} ya procesado(s).`,
+                        "Mes cerrado definitivamente. No se enviaron correos.",
                       );
                     } else
                       setCloseMessage(
@@ -455,7 +455,7 @@ export function StaffPaymentsCenter({
               }
               variant="default"
             >
-              CERRAR MES Y SOLICITAR BOLETAS
+              CERRAR MES DEFINITIVAMENTE
             </Button>
             <input
               className="min-h-11 rounded-xl border bg-background px-3"
