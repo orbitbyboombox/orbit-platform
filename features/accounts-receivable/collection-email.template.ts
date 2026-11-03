@@ -159,35 +159,12 @@ export function buildCollectionEmailDraft(
     templateKey === "OVERDUE"
       ? `Saldo vencido pendiente de regularización — BOOMBOX`
       : `Recordatorio de saldo pendiente — BOOMBOX`;
-  const eventBlock = [
-    "DETALLE DEL EVENTO",
-    `FECHA\n${eventDateLabel}`,
-    ...(invoice.eventLocation
-      ? [`LUGAR\n${invoice.eventLocation}`]
-      : []),
-    `SERVICIO\n${invoice.service ?? "Sin servicio"}`,
-    `DURACIÓN\n${invoice.eventDuration ?? "Por confirmar"}`,
-  ];
   const body = [
     `Hola ${invoice.customerName},`,
     "",
-    "Te escribimos para recordarte el saldo pendiente de tu evento.",
+    "Te escribimos para recordar el saldo pendiente correspondiente a tu evento.",
     "",
-    ...eventBlock,
-    "",
-    "SALDO PENDIENTE",
-    outstandingLabel,
-    `Fecha de pago / vencimiento: ${dueDateLabel}`,
-    "",
-    "DATOS PARA TRANSFERENCIA",
-    `TITULAR DE LA CUENTA\n${bankDetails.companyLabel}`,
-    `BANCO\n${bankDetails.bankName}`,
-    `TIPO DE CUENTA\n${bankDetails.accountType}`,
-    `N° DE CUENTA\n${bankDetails.accountNumber}`,
-    `RUT\n${bankDetails.rut}`,
-    `EMAIL DE TRANSFERENCIA\n${bankDetails.email}`,
-    "",
-    "Una vez realizado el pago, envía el comprobante a contabilidad@bbox.cl.",
+    "Agradeceremos confirmar la fecha estimada de pago.",
   ].join("\n");
 
   return {
