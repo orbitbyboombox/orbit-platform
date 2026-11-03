@@ -376,16 +376,24 @@ function CollectionEmailVisualPreview({
 }) {
   // The preview must use the identical HTML generator used by the Gmail send action.
   const html = buildCollectionEmailHtml(draft, body, subject);
+  // Preview deployments can enforce frame-src CSP that blocks iframe srcDoc.
+  // Render the same trusted, escaped email markup inline rather than a blank frame.
+  const emailStyle = html.match(/<style>([\\s\\S]*?)<\\/style>/)?.[1] ?? "";
+  const emailMain = html.match(/<main\\b[\\s\\S]*?<\\/main>/)?.[0] ?? "";
+  const previewHtml = emailMain ? `<style>${emailStyle}</style>${emailMain}` : "";
   return (
     <div className="min-w-0 space-y-2">
-      <p className="text-xs text-muted">Vista previa HTML real del correo. Revísala completa antes de confirmar; los adjuntos se muestran por nombre arriba.</p>
-      <iframe
-        title="Vista previa exacta del HTML que se enviará por correo"
-        sandbox=""
-        srcDoc={html}
-        className="h-[640px] w-full rounded-xl border bg-white sm:h-[760px]"
-      />
-      <p className="text-xs text-muted">La visualización de Gmail puede variar ligeramente según el dispositivo y su tamaño de letra.</p>
+      <p className="text-xs text-muted">Vista previa del HTML real que se enviará por correo. Revisa todo el contenido antes de confirmar.</p>
+      {previewHtml ? (
+        <div
+          aria-label="Vista previa HTML de la cobranza"
+          className="max-h-[760px] min-w-0 overflow-y-auto rounded-xl border bg-white text-left"
+          dangerouslySetInnerHTML={{ __html: previewHtml }}
+        />
+      ) : (
+        <p role="alert" className="rounded-xl border border-red-400 p-4 text-sm text-red-600">No se pudo generar la vista previa. No envíes el correo.</p>
+      )}
+      <p className="text-xs text-muted">La presentación en Gmail puede variar según el dispositivo. Esta vista utiliza el mismo contenido HTML del envío.</p>
     </div>
   );
 }
