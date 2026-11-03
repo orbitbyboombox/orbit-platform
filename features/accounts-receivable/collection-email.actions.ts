@@ -272,7 +272,7 @@ export async function sendCollectionEmailAction(
         from: `"BOOMBOX Cabinas Fotográficas" <${senderEmail}>`,
         subject,
         textBody: fullBody,
-        htmlBody: buildCollectionEmailHtml(draft, fullBody),
+        htmlBody: buildCollectionEmailHtml(draft, fullBody, subject),
         driveFileIds: [],
         attachments,
       });
