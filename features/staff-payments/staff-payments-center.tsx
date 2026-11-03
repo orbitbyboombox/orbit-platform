@@ -337,6 +337,11 @@ export function StaffPaymentsCenter({
     [events, month, months, query, staff],
   );
   const accountsForMonth = months.filter((item) => item.month.startsWith(month) && item.account).map((item) => item.account!);
+  const totalWorkNet = accountsForMonth.reduce((sum, a) => sum + a.workNet, 0);
+  const totalBoletaGross = accountsForMonth.reduce((sum, a) => sum + a.boletaGross, 0);
+  const totalBoletaNet = accountsForMonth.reduce((sum, a) => sum + a.boletaNet, 0);
+  const totalWithholding = accountsForMonth.reduce((sum, a) => sum + a.withholdingAmount, 0);
+  const totalReimbursements = accountsForMonth.reduce((sum, a) => sum + a.reimbursementsTotal, 0);
   const advancesPaid = accountsForMonth.reduce((sum, a) => sum + a.advancesTotal, 0);
   const finalPaid = accountsForMonth.reduce((sum, a) => sum + (a.paymentStatus === "PAID" ? a.paidAmount : 0), 0);
   const reimbursementsPaid = accountsForMonth.reduce((sum, a) => sum + a.reimbursementsPaidTotal, 0);
@@ -518,10 +523,16 @@ export function StaffPaymentsCenter({
             label="Pendiente"
             value={Number(closeState?.totals?.pending ?? 0)}
           />
+          <Metric label="Honorarios netos trabajados" value={totalWorkNet} />
+          <Metric label="Boletas bruto" value={totalBoletaGross} />
+          <Metric label="Boletas neto" value={totalBoletaNet} />
+          <Metric label="Retención boletas (impuesto)" value={totalWithholding} />
+          <Metric label="Reembolsos registrados" value={totalReimbursements} />
           <Metric label="Adelantos pagados" value={advancesPaid} />
           <Metric label="Honorarios desembolsados" value={advancesPaid + finalPaid} />
           <Metric label="Reembolsos pagados" value={reimbursementsPaid} />
           <Metric label="Desembolsado registrado" value={advancesPaid + finalPaid + reimbursementsPaid} />
+          <p className="col-span-full text-xs text-muted">El desembolso registrado incluye adelantos, pagos finales y reembolsos pagados de liquidaciones mensuales. Los complementos BOLETA SOS se concilian por separado; no están incluidos en este total. El impuesto retenido no se suma como transferencia al operador.</p>
           <Metric label="Colaboradores pendientes" value={pendingStaffRows.length} />
           <Metric label="Total pendiente por pagar" value={pendingStaffTotal} />
           <Metric
