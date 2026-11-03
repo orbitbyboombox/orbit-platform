@@ -303,7 +303,7 @@ export function CollectionEmailComposer({
               <p className="break-words text-sm"><strong>Para:</strong> {recipientInput || "Sin destinatario"} · <strong>CC:</strong> {ccInput.trim() || "Sin CC"}</p>
               <p className="break-words text-sm"><strong>Asunto:</strong> {subject}</p>
               <p className="break-words text-sm"><strong>Adjuntos:</strong> {attachmentNames.length ? attachmentNames.join(", ") : "Sin archivos"}</p>
-              <iframe title="Vista previa del email de cobranza" sandbox="" className="h-[560px] w-full rounded-xl border bg-white" srcDoc={buildCollectionEmailHtml(draft, [body, purchaseOrderInput.trim() ? `Orden de compra: ${purchaseOrderInput.trim().slice(0, 100)}` : "", invoiceReferenceInput.trim() ? `Factura: ${invoiceReferenceInput.trim().slice(0, 100)}` : ""].filter(Boolean).join("\n\n"))} />
+              <iframe title="Vista previa del email de cobranza" sandbox="" className="h-[560px] w-full rounded-xl border bg-white" srcDoc={buildCollectionEmailHtml(draft, [body, purchaseOrderInput.trim() ? `Orden de compra: ${purchaseOrderInput.trim().slice(0, 100)}` : "", invoiceReferenceInput.trim() ? `Factura: ${invoiceReferenceInput.trim().slice(0, 100)}` : "" ].filter(Boolean).join("\n\n"), subject)} />
             </section>
             <label className="block text-sm font-medium">
               Asunto
