@@ -320,6 +320,7 @@ export function CollectionEmailComposer({
                 />
               </span>
             </label>
+            <input type="hidden" name="confirmed" value={confirmed ? "yes" : "no"} />
             <label className="flex items-start gap-2 rounded-xl border p-3 text-sm"><input className="mt-1" type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} required /><span>Confirmo que revisé el destinatario, el asunto, el cuerpo, las referencias, el saldo y los adjuntos. Autorizo el envío de esta cobranza.</span></label>
             <div className="flex flex-col gap-3 border-t bg-card pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-4 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-xs text-muted">
