@@ -159,13 +159,33 @@ export function buildCollectionEmailDraft(
     templateKey === "OVERDUE"
       ? `Saldo vencido pendiente de regularización — BOOMBOX`
       : `Recordatorio de saldo pendiente — BOOMBOX`;
-  const body = [
-    `Hola ${invoice.customerName},`,
-    "",
-    "Te escribimos para recordar el saldo pendiente correspondiente a tu evento.",
-    "",
-    "Agradeceremos confirmar la fecha estimada de pago.",
-  ].join("\n");
+  const body = overdue
+    ? [
+        `Hola ${invoice.customerName}, ¿cómo estás?`,
+        "",
+        "Te escribimos de BOOMBOX porque tenemos pendiente el pago correspondiente a tu evento.",
+        "",
+        `El plazo de pago ya se encuentra vencido y mantenemos un saldo pendiente de ${outstandingLabel}.`,
+        "",
+        "¿Nos ayudas gestionando el pago o confirmándonos una fecha estimada de transferencia?",
+        "",
+        "Te agradeceremos regularizarlo a la brevedad para evitar nuevas gestiones de cobranza.",
+        "",
+        "¡Muchas gracias por tu ayuda y por confiar en BOOMBOX!",
+        "Equipo BOOMBOX",
+      ].join("\n")
+    : [
+        `Hola ${invoice.customerName}, ¿cómo estás?`,
+        "",
+        "Te escribimos de BOOMBOX para recordarte el pago pendiente correspondiente a tu evento.",
+        "",
+        `El saldo pendiente es de ${outstandingLabel} y su vencimiento está programado para el ${dueDateLabel}.`,
+        "",
+        "¿Nos ayudas gestionando el pago dentro del plazo acordado?",
+        "",
+        "¡Muchas gracias por tu ayuda y por confiar en BOOMBOX!",
+        "Equipo BOOMBOX",
+      ].join("\n");
 
   return {
     templateKey,
