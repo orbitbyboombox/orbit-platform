@@ -68,7 +68,12 @@ export function buildCollectionEmailHtml(
   body = draft.body,
   subject = draft.subject,
 ) {
-  const messageHtml = `<div style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.65;color:#414651">${escapeHtml(body)}</div>`;
+  const messageHtml = body.split(/\\n{2,}/).map((paragraph, index) => {
+    const lines = paragraph.trim().split("\\n");
+    const content = lines.map((line) => escapeHtml(line).replace(/\\*\\*(.+?)\\*\\*/g, "<strong>$1</strong>").replace(/\\*(.+?)\\*/g, "<em>$1</em>")).join("<br>");
+    const greeting = index === 0 && /^Hola\\b/i.test(paragraph.trim());
+    return `<p style="margin:0 0 17px;overflow-wrap:anywhere;font-size:${greeting ? "20px" : "14px"};font-weight:${greeting ? "700" : "400"};line-height:1.65;color:${greeting ? "#17191f" : "#414651"}">${content}</p>`;
+  }).join("");
   const detailCell = (label: string, value: string, dark = false) =>
     `<div class="orbit-detail-cell" style="display:inline-block;vertical-align:top;box-sizing:border-box;width:49%;min-width:230px;padding:12px 12px 12px 0"><div style="font-size:10px;font-weight:700;letter-spacing:.08em;color:${dark ? "#aeb4bf" : "#6b7280"};text-transform:uppercase">${escapeHtml(label)}</div><div style="margin-top:5px;font-size:15px;font-weight:600;color:${dark ? "#ffffff" : "#17191f"};overflow-wrap:anywhere">${escapeHtml(value)}</div></div>`;
   const eventDetails = [
