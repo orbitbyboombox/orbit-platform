@@ -183,11 +183,12 @@ export async function sendCollectionEmailAction(
     const fullBody = billingReferences ? `${body}\n\n${billingReferences}` : body;
     const files = formData.getAll("attachments").filter((item): item is File => item instanceof File && item.size > 0);
     if (files.length > 3) throw new Error("Adjunta como máximo tres documentos.");
+    if (files.reduce((sum, file) => sum + file.size, 0) > 15 * 1024 * 1024) throw new Error("El total de adjuntos no debe superar 15 MB.");
     const attachments: { filename: string; mimeType: string; content: Uint8Array }[] = [];
     for (const file of files) {
       const mimeType = file.type || (file.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "");
       if (!["application/pdf", "image/png", "image/jpeg"].includes(mimeType) || !/\.(pdf|png|jpe?g)$/i.test(file.name)) throw new Error("Solo se permiten documentos PDF, JPG o PNG.");
-      if (file.size > 8 * 1024 * 1024) throw new Error("Cada adjunto debe pesar 8 MB o menos.");
+      if (file.size > 5 * 1024 * 1024) throw new Error("Cada adjunto debe pesar 5 MB o menos.");
       attachments.push({ filename: file.name.replace(/[\r\n"]/g, "_"), mimeType, content: new Uint8Array(await file.arrayBuffer()) });
     }
     const threadKey = buildRequestKey(invoiceId, requestId);
