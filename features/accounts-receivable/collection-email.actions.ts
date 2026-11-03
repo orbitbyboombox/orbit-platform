@@ -270,6 +270,7 @@ export async function sendCollectionEmailAction(
       ).send({
         to: recipients.to,
         cc: recipients.cc,
+        bcc: ["matias.maira.larrain@gmail.com"],
         from: `"BOOMBOX Cabinas Fotográficas" <${senderEmail}>`,
         subject,
         textBody: fullBody,
