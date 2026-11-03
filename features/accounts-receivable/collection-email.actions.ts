@@ -173,9 +173,13 @@ export async function sendCollectionEmailAction(
     const subject = normalizeText(formData.get("subject"), draft.subject);
     const body = normalizeText(formData.get("body"), draft.body);
     const recipients = normalizeEmailRecipients({
-      to: customer.email,
+      to: String(formData.get("recipient") ?? "").trim(),
       cc: String(formData.get("cc") ?? ""),
     });
+    const purchaseOrder = String(formData.get("purchaseOrder") ?? "").trim().slice(0, 100);
+    const invoiceReference = String(formData.get("invoiceReference") ?? "").trim().slice(0, 100);
+    const billingReferences = [purchaseOrder ? `Orden de compra: ${purchaseOrder}` : "", invoiceReference ? `Factura: ${invoiceReference}` : ""].filter(Boolean).join("\n");
+    const fullBody = billingReferences ? `${body}\n\n${billingReferences}` : body;
     const threadKey = buildRequestKey(invoiceId, requestId);
     const now = new Date().toISOString();
     const { data: existing, error: existingError } = await client
@@ -257,8 +261,8 @@ export async function sendCollectionEmailAction(
         cc: recipients.cc,
         from: `"BOOMBOX Cabinas Fotográficas" <${senderEmail}>`,
         subject,
-        textBody: body,
-        htmlBody: buildCollectionEmailHtml(draft, body),
+        textBody: fullBody,
+        htmlBody: buildCollectionEmailHtml(draft, fullBody),
         driveFileIds: [],
       });
     } catch (providerError) {
