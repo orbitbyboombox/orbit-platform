@@ -330,7 +330,7 @@ export async function sendOfficeLeaseReminderAction(form: FormData): Promise<Off
     const subject = text(form, "subject");
     const message = text(form, "message");
     if (!obligationId || !recipientName || !subject || !message) throw new Error("Completa los datos del recordatorio.");
-    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(recipientEmail)) throw new Error("Ingresa un correo válido.");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) throw new Error("Ingresa un correo válido.");
     if (subject.length > 180 || message.length > 4000) throw new Error("El asunto o mensaje es demasiado largo.");
     const [obligationResult, financialResult, company] = await Promise.all([
       client.from("office_lease_obligations").select("id,period,due_date,amount_due").eq("id", obligationId).single(),
