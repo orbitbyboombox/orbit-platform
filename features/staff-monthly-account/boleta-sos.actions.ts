@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerActionClient } from "@/lib/supabase/server";
+import { GoogleGmailApiProvider } from "@/features/connectors/google-gmail/provider/google-gmail-live.provider";
+import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-workspace/application/google-workspace.repository";
 
 async function assertStaffFinanceAdmin() {
   const client = await createSupabaseServerActionClient();
@@ -151,6 +153,56 @@ export async function approveBoletaSosAction(complementaryId: string) {
   } catch (e) { return resultError(e); }
 }
 
+async function notifyBoletaSosPayment(id: string) {
+  const admin = createAdminClient();
+  const { data: item, error } = await admin.from("staff_complementary_settlements")
+    .select("id,staff_id,original_month,net_amount,paid_at,payment_method,status")
+    .eq("id", id).single();
+  if (error || !item || item.status !== "PAID") throw new Error("Pago complementario no confirmado.");
+  const { data: staff, error: staffError } = await admin.from("staff")
+    .select("first_name,last_name,email").eq("id", item.staff_id).single();
+  if (staffError || !staff?.email) throw new Error("Staff sin correo de notificación.");
+  const correlationId = `staff-boleta-sos-paid:${item.id}`;
+  const { data: claimed, error: claimError } = await admin.from("internal_notifications").upsert({
+    staff_id: item.staff_id,
+    notification_type: "STAFF_COMPLEMENTARY_PAYMENT_COMPLETED",
+    title: "Pago complementario realizado",
+    message: `Honorarios complementarios ${item.original_month}: ${Number(item.net_amount).toLocaleString("es-CL")}`,
+    status: "UNREAD", correlation_id: correlationId, category: "STAFF", priority: "NORMAL",
+    action_required: false, entity_type: "StaffComplementarySettlement", entity_id: item.id,
+    related_href: "/staff-portal",
+    metadata: { email_status: "CLAIMED", accounting_month: item.original_month }
+  }, { onConflict: "correlation_id", ignoreDuplicates: true }).select("id");
+  if (claimError) throw claimError;
+  if (!claimed?.[0]?.id) return { sent: false, alreadyClaimed: true };
+  const notificationId = claimed[0].id;
+  try {
+    const amount = `${Number(item.net_amount).toLocaleString("es-CL")}`;
+    const firstName = staff.first_name || "Equipo";
+    const month = String(item.original_month).slice(0, 7);
+    const subject = `BOOMBOX · Pago complementario realizado · ${month}`;
+    const body = `Hola ${firstName},\\n\\nConfirmamos el pago complementario de honorarios de ${month} por ${amount}, realizado el ${item.paid_at}.\\nMedio de pago: ${item.payment_method}.\\n\\nPuedes consultar tus documentos en el portal Staff de BOOMBOX.\\n\\nEquipo BOOMBOX`;
+    const sent = await new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken()).send({
+      to: staff.email, cc: ["matias.maira.larrain@gmail.com"], subject,
+      textBody: body,
+      htmlBody: `<div style="font-family:Arial,sans-serif;line-height:1.6"><h2>BOOMBOX · Pago realizado</h2><p>Hola ${firstName.replace(/[<>&"]/g,"")},</p><p>Confirmamos tu pago complementario de honorarios de <strong>${month}</strong> por <strong>${amount}</strong>.</p><p>Fecha: ${item.paid_at}<br/>Medio: ${String(item.payment_method).replace(/[<>&"]/g,"")}</p><p>Consulta tus documentos en el portal Staff de BOOMBOX.</p></div>`,
+      driveFileIds: [], idempotencyKey: correlationId, maxSendAttempts: 1
+    });
+    await admin.from("internal_notifications").update({ metadata: {
+      email_status: "SENT", accounting_month: item.original_month,
+      message_id: sent.messageId, sent_at: new Date().toISOString()
+    }}).eq("id", notificationId);
+    return { sent: true, alreadyClaimed: false };
+  } catch (error) {
+    await admin.from("internal_notifications").update({ metadata: {
+      email_status: "FAILED_REQUIRES_RECONCILIATION",
+      accounting_month: item.original_month,
+      error: error instanceof Error ? error.message : "Unknown"
+    }}).eq("id", notificationId);
+    throw error;
+  }
+}
+
 export async function registerBoletaSosPaymentAction(form: FormData) {
   let path = "";
   let saved = false;
@@ -182,7 +234,13 @@ export async function registerBoletaSosPaymentAction(form: FormData) {
     if (error) throw new Error(error.message);
     saved = true;
     revalidatePath("/resources/staff");
-    return { ok: true, message: "Pago complementario registrado con comprobante. No se modificó la liquidación mensual." };
+    try {
+      const notice = await notifyBoletaSosPayment(id);
+      return { ok: true, message: notice.sent ? "Pago complementario registrado. Correo de confirmación enviado al Staff y copia administrativa." : "Pago registrado. El aviso ya había sido procesado; no se duplicó." };
+    } catch (noticeError) {
+      console.error("BOLETA_SOS_PAYMENT_EMAIL_FAILED", id, noticeError instanceof Error ? noticeError.message : "Unknown");
+      return { ok: true, message: "Pago registrado correctamente, pero el correo no pudo confirmarse. Revisa el estado de notificaciones antes de reenviar; NO repitas el pago." };
+    }
   } catch (e) {
     if (path && !saved) { try { await createAdminClient().storage.from("orbit-documents").remove([path]); } catch { /* preserve original error */ } }
     return resultError(e);
