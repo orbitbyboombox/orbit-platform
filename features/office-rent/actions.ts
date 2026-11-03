@@ -342,20 +342,13 @@ export async function sendOfficeLeaseReminderAction(form: FormData): Promise<Off
     const due = obligationResult.data;
     const outstanding = Number(financialResult.data?.outstanding_amount ?? due.amount_due);
     if (outstanding <= 0) throw new Error("Este arriendo ya está cubierto. No se enviará un recordatorio de deuda.");
-    const detailHtml = `<p style="margin:16px 0;padding:16px;background:#17181b;border:1px solid #343538;border-radius:12px"><strong style="color:#f78900">DETALLE DEL ARRIENDO</strong><br>Periodo: ${escapeOfficeEmailHtml(monthLabel(due.period))}<br>Saldo pendiente: ${escapeOfficeEmailHtml(formatClp(outstanding))}<br>Vencimiento: ${escapeOfficeEmailHtml(due.due_date)}</p>`;
-    const htmlBody = renderBoomboxCommercialEmail({
-      preheader: subject,
-      eyebrow: "ARRIENDO DE OFICINA",
-      title: `Hola ${recipientName},`,
-      headerLabel: "RECORDATORIO DE ARRIENDO",
-      stackedHeader: true,
-      prominentHeaderLabel: true,
-      compactTitle: true,
-      hideFooterLogo: true,
-      contentHtml: `<p style="white-space:pre-line">${escapeOfficeEmailHtml(message)}</p>${detailHtml}`,
-      website: company.website,
-      signatureHtml: "<p><strong>Administración BOOMBOX®</strong></p>",
-    });
+    const safeName = escapeOfficeEmailHtml(recipientName.replace(/\\b([^\\s]+)(?:\\s+\\1)\\b/gi, "$1"));
+    const safeMessage = escapeOfficeEmailHtml(message).replace(/\\n/g, "<br>");
+    const safePeriod = escapeOfficeEmailHtml(monthLabel(due.period));
+    const safeAmount = escapeOfficeEmailHtml(formatClp(outstanding));
+    const safeDate = escapeOfficeEmailHtml(due.due_date);
+    const logoUrl = "https://static.wixstatic.com/media/656838_8806aca30a19440dacffa70f7615a16b~mv2.png/v1/fill/w_400,h_140,al_c,q_90/656838_8806aca30a19440dacffa70f7615a16b~mv2.png";
+    const htmlBody = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0;background:#000000;color:#ffffff;font-family:Arial,Helvetica,sans-serif"><div style="display:none;max-height:0;overflow:hidden;opacity:0">${escapeOfficeEmailHtml(subject)}</div><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#000000"><tr><td align="center" style="padding:18px 10px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:620px;background:#000000;border:3px solid #ff9000;border-radius:25px"><tr><td align="center" style="padding:28px 22px 0"><img src="${logoUrl}" alt="BOOMBOX® — EXPERIENCIAS QUE CONECTAN" width="320" style="display:block;width:100%;max-width:320px;height:auto;border:0;margin:0 auto"></td></tr><tr><td align="center" style="padding:20px 24px 0"><div style="font-size:clamp(27px,6vw,38px);line-height:1.12;font-weight:900;letter-spacing:.02em;text-align:center;color:#ffffff">RECORDATORIO DE<br><span style="color:#ff9000">ARRIENDO</span></div><div style="font-size:14px;font-weight:700;letter-spacing:.23em;color:#ff9000;text-align:center;padding-top:24px">ARRIENDO DE OFICINA</div></td></tr><tr><td style="padding:28px 26px 0"><div style="font-size:23px;line-height:1.28;font-weight:700;color:#ffffff">Hola ${safeName},</div><p style="font-size:16px;line-height:1.75;color:#ffffff;margin:18px 0 0">${safeMessage}</p></td></tr><tr><td style="padding:25px 26px 0"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #ff9000;border-radius:18px;background:#101010"><tr><td style="padding:22px 20px"><div style="font-size:21px;font-weight:800;text-align:center;color:#ff9000;margin-bottom:18px">DETALLE DEL ARRIENDO</div><div style="font-size:16px;line-height:1.9;color:#ffffff">Período: ${safePeriod}<br>Saldo pendiente: <strong style="color:#ff9000">${safeAmount}</strong><br>Vencimiento: ${safeDate}</div></td></tr></table></td></tr><tr><td align="center" style="padding:32px 20px 35px;font-size:18px;font-weight:700;color:#ffffff">Administración BOOMBOX®</td></tr></table></td></tr></table></body></html>`;
     const sent = await new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken()).send({
       to: recipientEmail, subject,
       textBody: `Hola ${recipientName},\n\n${message}\n\nPeriodo: ${monthLabel(due.period)}\nSaldo pendiente: ${formatClp(outstanding)}\nVencimiento: ${due.due_date}\n\nAdministración BOOMBOX®`,
