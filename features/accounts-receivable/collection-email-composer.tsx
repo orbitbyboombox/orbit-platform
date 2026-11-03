@@ -90,7 +90,7 @@ export function CollectionEmailComposer({
     setCcInput(next.cc.join("\n"));
     setRecipientInput(next.to);
     setPurchaseOrderInput(invoice.purchaseOrder ?? "");
-    setInvoiceReferenceInput(invoice.invoiceNumber);
+    setInvoiceReferenceInput("");
     setAttachmentNames([]);
     setConfirmed(false);
     setRequestId(crypto.randomUUID());
@@ -262,7 +262,7 @@ export function CollectionEmailComposer({
             </label>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block text-sm font-medium">Orden de compra<input className="mt-2 min-h-11 w-full rounded-xl border bg-background px-3 text-sm" name="purchaseOrder" value={purchaseOrderInput} onChange={(event) => { setPurchaseOrderInput(event.target.value); setConfirmed(false); }} maxLength={100} /></label>
-              <label className="block text-sm font-medium">Número de factura<input className="mt-2 min-h-11 w-full rounded-xl border bg-background px-3 text-sm" name="invoiceReference" value={invoiceReferenceInput} onChange={(event) => { setInvoiceReferenceInput(event.target.value); setConfirmed(false); }} maxLength={100} /></label>
+              <label className="block text-sm font-medium">Número de factura<input className="mt-2 min-h-11 w-full rounded-xl border bg-background px-3 text-sm" name="invoiceReference" placeholder="Folio real SII (opcional)" value={invoiceReferenceInput} onChange={(event) => { setInvoiceReferenceInput(event.target.value); setConfirmed(false); }} maxLength={100} /></label>
             </div>
             <label className="block min-w-0 text-sm font-medium">
               CC
