@@ -8,6 +8,7 @@ import { OrbitLoader } from "@/components/ui/orbit-loader";
 import { MobileDialog } from "@/components/ui/mobile-dialog";
 import {
   buildCollectionEmailDraft,
+  buildCollectionEmailHtml,
   collectionDraftFingerprint,
 } from "./collection-email.template";
 import { sendCollectionEmailAction } from "./collection-email.actions";
@@ -297,7 +298,13 @@ export function CollectionEmailComposer({
               <span className="mt-1 block text-xs font-normal text-muted">Se adjuntarán al correo exactamente los archivos seleccionados. Comprueba su contenido antes de enviar.</span>
             </label>
             <div className="rounded-xl border border-brand/30 bg-brand/5 p-3 text-sm"><p className="font-semibold">Referencias que acompañarán el correo</p><p>Para: {recipientInput || "Sin destinatario"}</p><p>Orden de compra: {purchaseOrderInput || "No informada"}</p><p>Factura: {invoiceReferenceInput || "No informada"}</p><p>Adjuntos: {attachmentNames.length ? attachmentNames.join(", ") : "Sin archivos"}</p><p className="mt-2 text-xs text-muted">Revisa los archivos seleccionados y el texto antes de confirmar el envío.</p></div>
-            <CollectionEmailVisualPreview draft={draft} invoice={invoice} />
+            <section className="min-w-0 space-y-3 rounded-2xl border p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">Vista previa exacta del correo HTML</p>
+              <p className="break-words text-sm"><strong>Para:</strong> {recipientInput || "Sin destinatario"} · <strong>CC:</strong> {ccInput.trim() || "Sin CC"}</p>
+              <p className="break-words text-sm"><strong>Asunto:</strong> {subject}</p>
+              <p className="break-words text-sm"><strong>Adjuntos:</strong> {attachmentNames.length ? attachmentNames.join(", ") : "Sin archivos"}</p>
+              <iframe title="Vista previa del email de cobranza" sandbox="" className="h-[560px] w-full rounded-xl border bg-white" srcDoc={buildCollectionEmailHtml(draft, [body, purchaseOrderInput.trim() ? `Orden de compra: ${purchaseOrderInput.trim().slice(0, 100)}` : "", invoiceReferenceInput.trim() ? `Factura: ${invoiceReferenceInput.trim().slice(0, 100)}` : ""].filter(Boolean).join("\n\n"))} />
+            </section>
             <label className="block text-sm font-medium">
               Asunto
               <span className="mt-2 block">
