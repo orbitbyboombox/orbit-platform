@@ -239,7 +239,7 @@ export function CollectionEmailComposer({
                   </p>
                 </div>
                 <Detail label="Vencimiento" value={draft.dueDateLabel} />
-                <Detail label="Para" value={draft.to || "Sin correo"} />
+                <Detail label="Para" value={recipientInput || "Sin correo"} />
                 <Detail
                   label="CC"
                   value={draft.cc.length ? draft.cc.join(", ") : "Sin CC"}
@@ -289,6 +289,7 @@ export function CollectionEmailComposer({
                 <Detail key={label} label={label} value={value} />
               ))}
             </div>
+            <div className="rounded-xl border border-brand/30 bg-brand/5 p-3 text-sm"><p className="font-semibold">Referencias que acompañarán el correo</p><p>Para: {recipientInput || "Sin destinatario"}</p><p>Orden de compra: {purchaseOrderInput || "No informada"}</p><p>Factura: {invoiceReferenceInput || "No informada"}</p><p className="mt-2 text-xs text-muted">La factura PDF y otros archivos aún no están habilitados como adjuntos; no se enviarán documentos hasta completar esa integración.</p></div>
             <CollectionEmailVisualPreview draft={draft} invoice={invoice} />
             <label className="block text-sm font-medium">
               Asunto
@@ -319,15 +320,15 @@ export function CollectionEmailComposer({
                   : sendState.status === "error"
                     ? sendState.message
                     : canSend
-                      ? `Se enviará a ${draft.to}${ccInput.trim() ? ` · CC: ${ccInput.split(/[\n,;]+/).map((value) => value.trim()).filter(Boolean).join(", ")}` : ""}.`
-                      : "El saldo debe estar activo y el cliente debe tener correo registrado."}
+                      ? `Se enviará a ${recipientInput}${ccInput.trim() ? ` · CC: ${ccInput.split(/[\n,;]+/).map((value) => value.trim()).filter(Boolean).join(", ")}` : ""}.`
+                      : "El saldo debe estar activo."}
               </p>
               <div className="flex gap-2">
                 <Button onClick={() => setOpen(false)} type="button" variant="outline">
                   Cancelar
                 </Button>
                 <Button
-                  aria-busy={pending} disabled={pending|| !canSend || sendState.status === "success"}
+                  aria-busy={pending} disabled={pending || !canSend || !recipientInput.trim() || sendState.status === "success"}
                   type="submit"
                 >
                   {sendState.status === "success" ? (
