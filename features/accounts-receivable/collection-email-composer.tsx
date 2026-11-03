@@ -8,10 +8,11 @@ import { OrbitLoader } from "@/components/ui/orbit-loader";
 import { MobileDialog } from "@/components/ui/mobile-dialog";
 import {
   buildCollectionEmailDraft,
+  buildCollectionEmailHtml,
   collectionDraftFingerprint,
 } from "./collection-email.template";
 import { sendCollectionEmailAction } from "./collection-email.actions";
-import { collectionBankRows, type CollectionBankDetails } from "./collection-bank-details";
+import { type CollectionBankDetails } from "./collection-bank-details";
 import type { ReceivableInvoice } from "./types";
 
 function fieldStyle(value: string) {
@@ -302,7 +303,7 @@ export function CollectionEmailComposer({
               <p className="break-words text-sm"><strong>Para:</strong> {recipientInput || "Sin destinatario"} · <strong>CC:</strong> {ccInput.trim() || "Sin CC"}</p>
               <p className="break-words text-sm"><strong>Asunto:</strong> {subject}</p>
               <p className="break-words text-sm"><strong>Adjuntos:</strong> {attachmentNames.length ? attachmentNames.join(", ") : "Sin archivos"}</p>
-              <CollectionEmailVisualPreview draft={draft} body={[body, purchaseOrderInput.trim() ? `Orden de compra: ${purchaseOrderInput.trim().slice(0, 100)}` : "", invoiceReferenceInput.trim() ? `Factura: ${invoiceReferenceInput.trim().slice(0, 100)}` : ""].filter(Boolean).join("\n\n")} />
+              <CollectionEmailVisualPreview draft={draft} subject={subject} body={[body, purchaseOrderInput.trim() ? `Orden de compra: ${purchaseOrderInput.trim().slice(0, 100)}` : "", invoiceReferenceInput.trim() ? `Factura: ${invoiceReferenceInput.trim().slice(0, 100)}` : ""].filter(Boolean).join("\n\n")} />
             </section>
             <label className="block text-sm font-medium">
               Asunto
@@ -367,85 +368,24 @@ export function CollectionEmailComposer({
 function CollectionEmailVisualPreview({
   draft,
   body,
+  subject,
 }: {
   draft: ReturnType<typeof buildCollectionEmailDraft>;
   body: string;
+  subject: string;
 }) {
+  // The preview must use the identical HTML generator used by the Gmail send action.
+  const html = buildCollectionEmailHtml(draft, body, subject);
   return (
-    <section className="min-w-0 overflow-hidden rounded-2xl border bg-white text-zinc-900 shadow-sm">
-      <header className="border-b-4 border-orange-500 bg-white px-5 py-5 text-zinc-900 sm:px-6">
-        <p className="text-lg font-black tracking-[.12em]">BOOMBOX®</p>
-        <p className="mt-1 text-[10px] font-semibold uppercase tracking-[.18em] text-orange-300">
-          Vista previa · cobranza comercial
-        </p>
-      </header>
-      <div className="min-w-0 space-y-5 p-5 sm:p-6">
-        <div className="space-y-4">{body.split(/\n{2,}/).map((paragraph, index) => {
-          const greeting = index === 0 && /^Hola\b/i.test(paragraph.trim());
-          const thanks = /^¡Muchas gracias/i.test(paragraph.trim());
-          const spacing = thanks ? "mt-8" : index === 1 && /^Espero\b/i.test(paragraph.trim()) ? "mb-8" : "";
-          return <p key={index} className={`whitespace-pre-wrap break-words leading-6 ${greeting ? "text-xl font-bold text-zinc-900" : thanks ? "text-sm font-bold text-zinc-900" : "text-sm text-zinc-700"} ${spacing}`}>{paragraph.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g).map((part, partIndex) => part.startsWith("**") && part.endsWith("**") ? <strong key={partIndex}>{part.slice(2, -2)}</strong> : part.startsWith("*") && part.endsWith("*") ? <em key={partIndex}>{part.slice(1, -1)}</em> : part)}</p>;
-        })}</div>
-        <div className="min-w-0 rounded-xl border bg-zinc-50 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-[.16em] text-orange-600">
-            Detalle del evento
-          </p>
-          <div className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2">
-            <PreviewDetail label="Fecha" value={draft.eventDateLabel} />
-            {draft.eventLocation ? (
-              <PreviewDetail label="Lugar" value={draft.eventLocation} />
-            ) : null}
-            <PreviewDetail label="Servicio" value={draft.serviceLabel} />
-            <PreviewDetail label="Duración" value={draft.durationLabel} />
-          </div>
-        </div>
-        <div
-          className="min-w-0 rounded-xl border-2 border-zinc-700 bg-orange-50 p-5"
-        >
-          <p className="text-[10px] font-black uppercase tracking-[.16em] text-orange-700">
-            Saldo pendiente
-          </p>
-          <p className="mt-2 break-words text-3xl font-black text-zinc-950">
-            {draft.outstandingLabel}
-          </p>
-          <p className="mt-3 text-xs font-semibold text-zinc-600">
-            Fecha de pago / vencimiento: {draft.dueDateLabel}
-          </p>
-        </div>
-        <div className="min-w-0 rounded-xl bg-zinc-950 p-5 text-white">
-          <p className="text-[10px] font-bold uppercase tracking-[.16em] text-orange-300">
-            Datos para transferencia
-          </p>
-          <div className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2">
-            {collectionBankRows(draft.bankDetails).map(([label, value]) => (
-              <PreviewDetail dark key={label} label={label} value={value} />
-            ))}
-          </div>
-        </div>
-        <p className="text-xs leading-5 text-zinc-500">Una vez realizado el pago, envía el comprobante a <a className="text-orange-700 underline" href="mailto:contabilidad@bbox.cl">contabilidad@bbox.cl</a>.</p>
-      </div>
-      <footer className="border-t px-5 py-4 text-[10px] leading-4 text-zinc-500 sm:px-6">BOOMBOX · Comunicación emitida mediante ORBIT<br />ORBIT · Software desarrollado por BOOMBOX<br /><span className="text-orange-700">www.bbox.cl</span></footer>
-    </section>
-  );
-}
-
-function PreviewDetail({
-  label,
-  value,
-  dark = false,
-}: {
-  label: string;
-  value: string;
-  dark?: boolean;
-}) {
-  return (
-    <div className="min-w-0">
-      <p className={`text-[9px] font-bold uppercase tracking-wide ${dark ? "text-zinc-400" : "text-zinc-500"}`}>
-        {label}
-      </p>
-      <p className={`mt-1 break-words text-sm font-semibold ${dark ? "text-white" : "text-zinc-900"}`}>
-        {value}
-      </p>
+    <div className="min-w-0 space-y-2">
+      <p className="text-xs text-muted">Vista previa HTML real del correo. Revísala completa antes de confirmar; los adjuntos se muestran por nombre arriba.</p>
+      <iframe
+        title="Vista previa exacta del HTML que se enviará por correo"
+        sandbox=""
+        srcDoc={html}
+        className="h-[640px] w-full rounded-xl border bg-white sm:h-[760px]"
+      />
+      <p className="text-xs text-muted">La visualización de Gmail puede variar ligeramente según el dispositivo y su tamaño de letra.</p>
     </div>
   );
 }
