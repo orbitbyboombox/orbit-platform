@@ -69,6 +69,7 @@ export function CollectionEmailComposer({
   const [recipientInput, setRecipientInput] = useState("");
   const [purchaseOrderInput, setPurchaseOrderInput] = useState("");
   const [invoiceReferenceInput, setInvoiceReferenceInput] = useState("");
+  const [attachmentNames, setAttachmentNames] = useState<string[]>([]);
   const [requestId, setRequestId] = useState("");
   const [sendState, setSendState] = useState<SendState>({ status: "idle" });
   const [pending, startTransition] = useTransition();
@@ -90,6 +91,7 @@ export function CollectionEmailComposer({
     setRecipientInput(next.to);
     setPurchaseOrderInput(invoice.purchaseOrder ?? "");
     setInvoiceReferenceInput(invoice.invoiceNumber);
+    setAttachmentNames([]);
     setRequestId(crypto.randomUUID());
     setSendState({ status: "idle" });
   }, [bankDetails, invoice, open]);
@@ -289,7 +291,11 @@ export function CollectionEmailComposer({
                 <Detail key={label} label={label} value={value} />
               ))}
             </div>
-            <div className="rounded-xl border border-brand/30 bg-brand/5 p-3 text-sm"><p className="font-semibold">Referencias que acompañarán el correo</p><p>Para: {recipientInput || "Sin destinatario"}</p><p>Orden de compra: {purchaseOrderInput || "No informada"}</p><p>Factura: {invoiceReferenceInput || "No informada"}</p><p className="mt-2 text-xs text-muted">La factura PDF y otros archivos aún no están habilitados como adjuntos; no se enviarán documentos hasta completar esa integración.</p></div>
+            <label className="block text-sm font-medium">Factura PDF y respaldos (máximo 3 archivos, 8 MB cada uno)
+              <input className="mt-2 block w-full rounded-xl border bg-background p-3 text-sm" type="file" name="attachments" multiple accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" onChange={(event) => setAttachmentNames(Array.from(event.target.files ?? []).map((file) => file.name))} />
+              <span className="mt-1 block text-xs font-normal text-muted">Se adjuntarán al correo exactamente los archivos seleccionados. Comprueba su contenido antes de enviar.</span>
+            </label>
+            <div className="rounded-xl border border-brand/30 bg-brand/5 p-3 text-sm"><p className="font-semibold">Referencias que acompañarán el correo</p><p>Para: {recipientInput || "Sin destinatario"}</p><p>Orden de compra: {purchaseOrderInput || "No informada"}</p><p>Factura: {invoiceReferenceInput || "No informada"}</p><p>Adjuntos: {attachmentNames.length ? attachmentNames.join(", ") : "Sin archivos"}</p><p className="mt-2 text-xs text-muted">La factura PDF y otros archivos aún no están habilitados como adjuntos; no se enviarán documentos hasta completar esa integración.</p></div>
             <CollectionEmailVisualPreview draft={draft} invoice={invoice} />
             <label className="block text-sm font-medium">
               Asunto
@@ -328,7 +334,7 @@ export function CollectionEmailComposer({
                   Cancelar
                 </Button>
                 <Button
-                  aria-busy={pending} disabled={pending || !canSend || !recipientInput.trim() || sendState.status === "success"}
+                  aria-busy={pending} disabled={pending || !canSend || !recipientInput.trim() || attachmentNames.length > 3 || sendState.status === "success"}
                   type="submit"
                 >
                   {sendState.status === "success" ? (
