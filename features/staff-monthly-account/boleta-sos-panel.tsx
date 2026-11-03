@@ -2,7 +2,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { listBoletaSosCandidatesAction, uploadBoletaSosAction, listBoletaSosReviewAction, viewBoletaSosAction, approveBoletaSosAction } from "./boleta-sos.actions";
+import { listBoletaSosCandidatesAction, uploadBoletaSosAction, listBoletaSosReviewAction, viewBoletaSosAction, approveBoletaSosAction, registerBoletaSosPaymentAction } from "./boleta-sos.actions";
 import type { StaffMonthlyAccount } from "./model";
 
 const pesos = (n: number) => new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(n);
@@ -14,7 +14,7 @@ export function BoletaSosPanel({ account, operatorName }: { account: StaffMonthl
   const router = useRouter();
   const [details, setDetails] = useState<{ settlementId: string; eventDate: string; workNet: number }[]>([]);
   const [loading, setLoading] = useState(false);
-  const [reviewItems, setReviewItems] = useState<{id:string;eventDate:string;amount:number;fileName:string;paidAmount:number}[]>([]);
+  const [reviewItems, setReviewItems] = useState<{id:string;eventDate:string;amount:number;fileName:string;paidAmount:number;status:string}[]>([]);
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
@@ -73,15 +73,30 @@ export function BoletaSosPanel({ account, operatorName }: { account: StaffMonthl
               if (result.ok) window.open(result.url, "_blank", "noopener,noreferrer");
               else setMessage(result.message);
             })}>VER BOLETA</Button>
-            <Button type="button" disabled={pending || item.paidAmount > 0} onClick={() => {
+            {item.status === "BOLETA_RECEIVED" && <Button type="button" disabled={pending || item.paidAmount > 0} onClick={() => {
               if (!window.confirm("¿Confirmas que revisaste la boleta SII y deseas APROBARLA? Esto NO registra ningún pago.")) return;
               start(async () => {
                 const result = await approveBoletaSosAction(item.id);
                 setMessage(result.message);
-                if (result.ok) { setReviewItems(items => items.filter(x => x.id !== item.id)); router.refresh(); }
+                if (result.ok) { setReviewItems(items => items.map(x => x.id === item.id ? {...x,status:"READY_TO_PAY"} : x)); router.refresh(); }
               });
-            }}>APROBAR BOLETA</Button>
+            }}>APROBAR BOLETA</Button>}
+            {item.status === "PAID" && <p className="text-sm font-medium">Pago registrado: {pesos(item.paidAmount)}</p>}
           </div>
+          {item.status === "READY_TO_PAY" && <form className="space-y-2 rounded-lg border p-3" action={form => start(async () => {
+            if (!window.confirm(`¿Confirmas que YA pagaste ${pesos(item.amount)} y deseas registrar el comprobante? Esta operación marcará la liquidación complementaria como PAGADA.`)) return;
+            form.set("complementaryId", item.id);
+            const result = await registerBoletaSosPaymentAction(form);
+            setMessage(result.message);
+            if (result.ok) { setReviewItems(items => items.map(x => x.id === item.id ? {...x,status:"PAID",paidAmount:item.amount} : x)); router.refresh(); }
+          })}>
+            <p className="text-sm font-semibold">REGISTRAR PAGO · {pesos(item.amount)}</p>
+            <label className="block text-sm">Fecha efectiva del pago<input required name="paymentDate" type="date" className="mt-1 min-h-10 w-full rounded-lg border bg-background px-2"/></label>
+            <label className="block text-sm">Medio de pago<select required name="method" defaultValue="TRANSFERENCIA" className="mt-1 min-h-10 w-full rounded-lg border bg-background px-2"><option value="TRANSFERENCIA">Transferencia</option><option value="EFECTIVO">Efectivo</option><option value="OTRO">Otro</option></select></label>
+            <label className="block text-sm">Referencia (opcional)<input name="reference" className="mt-1 min-h-10 w-full rounded-lg border bg-background px-2"/></label>
+            <label className="block text-sm">Comprobante de pago<input required name="file" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" className="mt-1 block w-full text-sm"/></label>
+            <Button type="submit" disabled={pending}>{pending ? "Registrando…" : "CONFIRMAR PAGO REALIZADO"}</Button>
+          </form>}
         </div>)}
       </div>}
       {message && <p aria-live="polite" className="mt-2 text-sm text-muted">{message}</p>}
