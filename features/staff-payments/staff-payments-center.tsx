@@ -336,6 +336,10 @@ export function StaffPaymentsCenter({
         .filter((row) => row.eventRows.length > 0 || Boolean(row.account)),
     [events, month, months, query, staff],
   );
+  const accountsForMonth = months.filter((item) => item.month.startsWith(month) && item.account).map((item) => item.account!);
+  const advancesPaid = accountsForMonth.reduce((sum, a) => sum + a.advancesTotal, 0);
+  const finalPaid = accountsForMonth.reduce((sum, a) => sum + (a.paymentStatus === "PAID" ? a.paidAmount : 0), 0);
+  const reimbursementsPaid = accountsForMonth.reduce((sum, a) => sum + a.reimbursementsPaidTotal, 0);
   const pendingStaffRows = rows.filter((row) => row.outstanding > 0);
   const pendingStaffTotal = pendingStaffRows.reduce((sum, row) => sum + row.outstanding, 0);
   return (
@@ -503,7 +507,7 @@ export function StaffPaymentsCenter({
             value={Number(closeState?.totals?.people ?? 0)}
           />
           <Metric
-            label="Total"
+            label="Transferencias finales"
             value={Number(closeState?.totals?.total ?? 0)}
           />
           <Metric
@@ -514,6 +518,10 @@ export function StaffPaymentsCenter({
             label="Pendiente"
             value={Number(closeState?.totals?.pending ?? 0)}
           />
+          <Metric label="Adelantos pagados" value={advancesPaid} />
+          <Metric label="Honorarios desembolsados" value={advancesPaid + finalPaid} />
+          <Metric label="Reembolsos pagados" value={reimbursementsPaid} />
+          <Metric label="Desembolsado registrado" value={advancesPaid + finalPaid + reimbursementsPaid} />
           <Metric label="Colaboradores pendientes" value={pendingStaffRows.length} />
           <Metric label="Total pendiente por pagar" value={pendingStaffTotal} />
           <Metric
