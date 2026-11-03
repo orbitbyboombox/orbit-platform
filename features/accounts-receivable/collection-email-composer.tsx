@@ -378,8 +378,8 @@ function CollectionEmailVisualPreview({
   const html = buildCollectionEmailHtml(draft, body, subject);
   // Preview deployments can enforce frame-src CSP that blocks iframe srcDoc.
   // Render the same trusted, escaped email markup inline rather than a blank frame.
-  const emailStyle = html.match(/<style>([\\s\\S]*?)<\\/style>/)?.[1] ?? "";
-  const emailMain = html.match(/<main\\b[\\s\\S]*?<\\/main>/)?.[0] ?? "";
+  const emailStyle = html.match(new RegExp("<style>([\\s\\S]*?)</style>"))?.[1] ?? "";
+  const emailMain = html.match(new RegExp("<main\\b[\\s\\S]*?</main>"))?.[0] ?? "";
   const previewHtml = emailMain ? `<style>${emailStyle}</style>${emailMain}` : "";
   return (
     <div className="min-w-0 space-y-2">
