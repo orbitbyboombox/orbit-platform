@@ -515,7 +515,7 @@ export async function reopenStaffMonthAction(month: string, reason: string) {
 
 export async function getStaffComplementaryPaidSummaryAction(month: string): Promise<{ok:true;paid:number;count:number}|{ok:false;error:string}> {
   try {
-    if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new Error("Mes inválido.");
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new Error("Mes inválido.");
     const { client } = await context();
     const { data, error } = await createAdminClient().from("staff_complementary_settlements")
       .select("id,paid_amount,status")
