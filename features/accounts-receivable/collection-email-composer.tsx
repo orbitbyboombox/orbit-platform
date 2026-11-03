@@ -373,8 +373,8 @@ function CollectionEmailVisualPreview({
 }) {
   return (
     <section className="min-w-0 overflow-hidden rounded-2xl border bg-white text-zinc-900 shadow-sm">
-      <header className="border-b-4 border-orange-500 bg-zinc-950 px-5 py-5 text-white sm:px-6">
-        <p className="text-lg font-black tracking-[.12em]">BOOMBOX</p>
+      <header className="border-b-4 border-orange-500 bg-white px-5 py-5 text-zinc-900 sm:px-6">
+        <p className="text-lg font-black tracking-[.12em]">BOOMBOX®</p>
         <p className="mt-1 text-[10px] font-semibold uppercase tracking-[.18em] text-orange-300">
           Vista previa · cobranza comercial
         </p>
