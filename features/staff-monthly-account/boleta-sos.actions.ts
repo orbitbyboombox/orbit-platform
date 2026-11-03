@@ -105,7 +105,7 @@ export async function listBoletaSosReviewAction(staffId: string, month: string) 
     const admin = createAdminClient();
     const { data, error } = await admin.from("staff_complementary_settlements")
       .select("id,event_date,net_amount,status,boleta_document_id,paid_amount")
-      .eq("staff_id", staffId).eq("original_month", month + "-01").eq("status", "BOLETA_RECEIVED");
+      .eq("staff_id", staffId).eq("original_month", month + "-01").in("status", ["BOLETA_RECEIVED", "READY_TO_PAY", "PAID"]);
     if (error) throw new Error(error.message);
     const documentIds = (data ?? []).map(row => row.boleta_document_id).filter((id): id is string => typeof id === "string");
     const { data: documents, error: documentError } = documentIds.length
@@ -116,7 +116,7 @@ export async function listBoletaSosReviewAction(staffId: string, month: string) 
     const items = (data ?? []).flatMap(row => {
       const doc = byId.get(row.boleta_document_id);
       if (!doc || doc.storage_bucket !== "orbit-documents" || !doc.storage_path) return [];
-      return [{ id: row.id, eventDate: row.event_date, amount: Number(row.net_amount), fileName: doc.file_name ?? "Boleta", paidAmount: Number(row.paid_amount ?? 0) }];
+      return [{ id: row.id, eventDate: row.event_date, amount: Number(row.net_amount), fileName: doc.file_name ?? "Boleta", paidAmount: Number(row.paid_amount ?? 0), status: row.status }];
     });
     return { ok: true, items, message: "" };
   } catch (e) { return { ok: false, items: [], message: e instanceof Error ? e.message : "No se pudo consultar la revisión." }; }
@@ -149,4 +149,42 @@ export async function approveBoletaSosAction(complementaryId: string) {
     revalidatePath("/resources/staff");
     return { ok: true, message: "Boleta aprobada. Pendiente de pago; no se registró ningún pago." };
   } catch (e) { return resultError(e); }
+}
+
+export async function registerBoletaSosPaymentAction(form: FormData) {
+  let path = "";
+  let saved = false;
+  try {
+    await assertStaffFinanceAdmin();
+    const id = String(form.get("complementaryId") ?? "");
+    const paymentDate = String(form.get("paymentDate") ?? "");
+    const method = String(form.get("method") ?? "").trim();
+    const reference = String(form.get("reference") ?? "").trim();
+    const file = form.get("file");
+    if (!uuid(id)) throw new Error("Liquidación inválida.");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)) throw new Error("Fecha de pago inválida.");
+    if (!["TRANSFERENCIA", "EFECTIVO", "OTRO"].includes(method)) throw new Error("Selecciona un medio de pago.");
+    if (!(file instanceof File) || file.size < 1 || file.size > 15 * 1024 * 1024 || !allowed.has(file.type)) throw new Error("Adjunta un comprobante PDF o imagen (máximo 15 MB).");
+    const admin = createAdminClient();
+    const { data: item, error: lookupError } = await admin.from("staff_complementary_settlements").select("id,status,net_amount,paid_amount").eq("id", id).single();
+    if (lookupError || !item) throw new Error("Liquidación complementaria no encontrada.");
+    if (item.status !== "READY_TO_PAY" || Number(item.paid_amount ?? 0) !== 0) throw new Error("Este pago no está pendiente o ya fue registrado.");
+    const idempotencyKey = randomUUID();
+    path = `staff/boleta-sos/payments/${id}/${idempotencyKey}/${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+    const upload = await admin.storage.from("orbit-documents").upload(path, await file.arrayBuffer(), { contentType: file.type, upsert: false });
+    if (upload.error) throw new Error(upload.error.message);
+    const client = await createSupabaseServerActionClient();
+    const { error } = await client.rpc("register_staff_complementary_payment", {
+      p_settlement_id: id, p_payment_date: paymentDate, p_amount: Number(item.net_amount),
+      p_method: method, p_reference: reference || null, p_idempotency_key: idempotencyKey,
+      p_bucket: "orbit-documents", p_path: path, p_file_name: file.name, p_mime_type: file.type
+    });
+    if (error) throw new Error(error.message);
+    saved = true;
+    revalidatePath("/resources/staff");
+    return { ok: true, message: "Pago complementario registrado con comprobante. No se modificó la liquidación mensual." };
+  } catch (e) {
+    if (path && !saved) { try { await createAdminClient().storage.from("orbit-documents").remove([path]); } catch { /* preserve original error */ } }
+    return resultError(e);
+  }
 }
