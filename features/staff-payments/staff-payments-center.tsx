@@ -325,7 +325,7 @@ export function StaffPaymentsCenter({
             finalAmount,
             paid,
             outstanding:
-              months.find((item) => item.staffId === member.id && item.month.startsWith(month))?.account?.finalTransferAmount ??
+              ((account) => account ? (account.paymentStatus === "PAID" ? 0 : Math.max(account.finalTransferAmount - account.paidAmount, 0) + account.reimbursementsPendingTotal) : null)(months.find((item) => item.staffId === member.id && item.month.startsWith(month))?.account) ??
               (Math.max(payrollNet - payrollPaid, 0) + reimbursementsPending),
             account: months.find(
               (item) =>
@@ -422,7 +422,7 @@ export function StaffPaymentsCenter({
                 closeState?.status === "PAID"
               }
               loading={closeOperation === "CLOSE"}
-              loadingLabel="Generando y enviando…"
+              loadingLabel="Cerrando mes…"
               onClick={() =>
                 startClosing(async () => {
                   setCloseOperation("CLOSE");
@@ -1171,8 +1171,7 @@ function EventRow({ item }: { item: StaffPaymentEvent }) {
   );
 }
 function Metric({ label, value }: { label: string; value: number }) {
-  const financial =
-    !label.startsWith("Boletas") && label !== "Eventos trabajados";
+  const financial = !(/^(Personas|Colaboradores|Elegibles|Excluidas|Boletas|Eventos)/.test(label));
   return (
     <div className="rounded-lg border p-3">
       <dt className="text-xs text-muted">{label}</dt>
