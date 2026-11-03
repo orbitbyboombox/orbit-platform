@@ -68,11 +68,14 @@ export function buildCollectionEmailHtml(
   body = draft.body,
   subject = draft.subject,
 ) {
-  const messageHtml = body.split(/\\n{2,}/).map((paragraph, index) => {
-    const lines = paragraph.trim().split("\\n");
-    const content = lines.map((line) => escapeHtml(line).replace(/\\*\\*(.+?)\\*\\*/g, "<strong>$1</strong>").replace(/\\*(.+?)\\*/g, "<em>$1</em>")).join("<br>");
-    const greeting = index === 0 && /^Hola\\b/i.test(paragraph.trim());
-    return `<p style="margin:0 0 17px;overflow-wrap:anywhere;font-size:${greeting ? "20px" : "14px"};font-weight:${greeting ? "700" : "400"};line-height:1.65;color:${greeting ? "#17191f" : "#414651"}">${content}</p>`;
+  const messageHtml = body.split(/\n{2,}/).map((paragraph, index) => {
+    const content = paragraph.trim().split("\n").map((line) =>
+      escapeHtml(line).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/\*(.+?)\*/g, "<em>$1</em>")
+    ).join("<br>");
+    const greeting = index === 0 && /^Hola\b/i.test(paragraph.trim());
+    const closing = /^¡Muchas gracias/i.test(paragraph.trim());
+    const spacing = closing ? "margin:32px 0 5px" : index === 1 && /^Espero\b/i.test(paragraph.trim()) ? "margin:0 0 29px" : "margin:0 0 17px";
+    return `<p style="${spacing};overflow-wrap:anywhere;font-size:${greeting ? "22px" : "14px"};font-weight:${greeting || closing ? "700" : "400"};line-height:1.65;color:${greeting || closing ? "#17191f" : "#414651"}">${content}</p>`;
   }).join("");
   const detailCell = (label: string, value: string, dark = false) =>
     `<div class="orbit-detail-cell" style="display:inline-block;vertical-align:top;box-sizing:border-box;width:49%;min-width:230px;padding:12px 12px 12px 0"><div style="font-size:10px;font-weight:700;letter-spacing:.08em;color:${dark ? "#aeb4bf" : "#6b7280"};text-transform:uppercase">${escapeHtml(label)}</div><div style="margin-top:5px;font-size:15px;font-weight:600;color:${dark ? "#ffffff" : "#17191f"};overflow-wrap:anywhere">${escapeHtml(value)}</div></div>`;
@@ -166,29 +169,33 @@ export function buildCollectionEmailDraft(
       : `Recordatorio de saldo pendiente — BOOMBOX`;
   const body = overdue
     ? [
-        `Hola ${invoice.customerName}, ¿cómo estás?`,
+        `Hola, ${invoice.customerName}!`,
         "",
-        "Te escribimos de BOOMBOX porque tenemos pendiente el pago correspondiente a tu evento.",
+        "Espero que estés muy bien.",
         "",
-        `El plazo de pago ya se encuentra vencido y mantenemos un saldo pendiente de ${outstandingLabel}.`,
+        "Te cuento que en nuestro sistema figura un **pago pendiente** correspondiente a tu evento con BOOMBOX.",
         "",
-        "¿Nos ayudas gestionando el pago o confirmándonos una fecha estimada de transferencia?",
+        "Recuerda que **el plazo acordado ya se cumplió**. Te invitamos a regularizarlo a la brevedad para evitar nuevas gestiones de cobranza.",
         "",
-        "Te agradeceremos regularizarlo a la brevedad para evitar nuevas gestiones de cobranza.",
+        "¿Nos ayudas con la gestión?",
+        "Puedes confirmarnos una **fecha estimada de pago** o enviarnos el comprobante una vez realizada la transferencia.",
         "",
-        "¡Muchas gracias por tu ayuda y por confiar en BOOMBOX!",
+        "¡Muchas gracias por tu ayuda! 🧡",
         "Equipo BOOMBOX",
       ].join("\n")
     : [
-        `Hola ${invoice.customerName}, ¿cómo estás?`,
+        `Hola, ${invoice.customerName}!`,
         "",
-        "Te escribimos de BOOMBOX para recordarte el pago pendiente correspondiente a tu evento.",
+        "Espero que estés muy bien.",
         "",
-        `El saldo pendiente es de ${outstandingLabel} y su vencimiento está programado para el ${dueDateLabel}.`,
+        "Te cuento que en nuestro sistema figura un **pago pendiente** correspondiente a tu evento con BOOMBOX.",
         "",
-        "¿Nos ayudas gestionando el pago dentro del plazo acordado?",
+        `El vencimiento está programado para el **${dueDateLabel}**. Te invitamos a gestionar el pago dentro del plazo acordado.`,
         "",
-        "¡Muchas gracias por tu ayuda y por confiar en BOOMBOX!",
+        "¿Nos ayudas con la gestión?",
+        "Puedes confirmarnos una **fecha estimada de pago** o enviarnos el comprobante una vez realizada la transferencia.",
+        "",
+        "¡Muchas gracias por tu ayuda! 🧡",
         "Equipo BOOMBOX",
       ].join("\n");
 
