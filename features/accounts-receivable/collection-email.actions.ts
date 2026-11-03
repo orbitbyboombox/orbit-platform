@@ -180,6 +180,15 @@ export async function sendCollectionEmailAction(
     const invoiceReference = String(formData.get("invoiceReference") ?? "").trim().slice(0, 100);
     const billingReferences = [purchaseOrder ? `Orden de compra: ${purchaseOrder}` : "", invoiceReference ? `Factura: ${invoiceReference}` : ""].filter(Boolean).join("\n");
     const fullBody = billingReferences ? `${body}\n\n${billingReferences}` : body;
+    const files = formData.getAll("attachments").filter((item): item is File => item instanceof File && item.size > 0);
+    if (files.length > 3) throw new Error("Adjunta como máximo tres documentos.");
+    const attachments: { filename: string; mimeType: string; content: Uint8Array }[] = [];
+    for (const file of files) {
+      const mimeType = file.type || (file.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "");
+      if (!["application/pdf", "image/png", "image/jpeg"].includes(mimeType) || !/\.(pdf|png|jpe?g)$/i.test(file.name)) throw new Error("Solo se permiten documentos PDF, JPG o PNG.");
+      if (file.size > 8 * 1024 * 1024) throw new Error("Cada adjunto debe pesar 8 MB o menos.");
+      attachments.push({ filename: file.name.replace(/[\r\n"]/g, "_"), mimeType, content: new Uint8Array(await file.arrayBuffer()) });
+    }
     const threadKey = buildRequestKey(invoiceId, requestId);
     const now = new Date().toISOString();
     const { data: existing, error: existingError } = await client
@@ -264,6 +273,7 @@ export async function sendCollectionEmailAction(
         textBody: fullBody,
         htmlBody: buildCollectionEmailHtml(draft, fullBody),
         driveFileIds: [],
+        attachments,
       });
     } catch (providerError) {
       await client
