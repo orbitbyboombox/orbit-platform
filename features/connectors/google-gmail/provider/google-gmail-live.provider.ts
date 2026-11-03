@@ -1,6 +1,7 @@
 export interface GoogleGmailProviderMessage {
   to: string;
   cc?: readonly string[];
+  bcc?: readonly string[];
   from?: string;
   replyTo?: string;
   idempotencyKey?: string;
@@ -122,6 +123,7 @@ export class GoogleGmailApiProvider implements GoogleGmailLiveProvider {
     headers.push(`From: =?UTF-8?B?${utf8Base64("BOOMBOX Cabinas Fotográficas")}?= <${safeHeaderValue(senderAddress, "From")}>`);
     if (message.replyTo) headers.push(`Reply-To: ${safeHeaderValue(message.replyTo, "Reply-To")}`);
     if (message.cc?.length) headers.splice(1, 0, `Cc: ${message.cc.join(", ")}`);
+    if (message.bcc?.length) headers.splice(1, 0, `Bcc: ${message.bcc.join(", ")}`);
     if (message.idempotencyKey) {
       const safeKey = message.idempotencyKey.replace(/[^a-zA-Z0-9._-]+/g, "-");
       headers.push(`Message-ID: <${safeKey}@orbit.boom-box.cl>`, `X-ORBIT-Idempotency-Key: ${safeKey}`);
