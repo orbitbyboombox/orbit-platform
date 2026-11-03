@@ -12,7 +12,7 @@ import {
   collectionDraftFingerprint,
 } from "./collection-email.template";
 import { sendCollectionEmailAction } from "./collection-email.actions";
-import { type CollectionBankDetails } from "./collection-bank-details";
+import { collectionBankRows, type CollectionBankDetails } from "./collection-bank-details";
 import type { ReceivableInvoice } from "./types";
 
 function fieldStyle(value: string) {
