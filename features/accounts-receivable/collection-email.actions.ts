@@ -170,12 +170,27 @@ export async function sendCollectionEmailAction(
       );
     }
 
+    if (String(formData.get("confirmed") ?? "") !== "yes") throw new Error("Confirma la revisión antes de enviar.");
     const subject = normalizeText(formData.get("subject"), draft.subject);
     const body = normalizeText(formData.get("body"), draft.body);
     const recipients = normalizeEmailRecipients({
-      to: customer.email,
+      to: String(formData.get("recipient") ?? "").trim(),
       cc: String(formData.get("cc") ?? ""),
     });
+    const purchaseOrder = String(formData.get("purchaseOrder") ?? "").trim().slice(0, 100);
+    const invoiceReference = String(formData.get("invoiceReference") ?? "").trim().slice(0, 100);
+    const billingReferences = [purchaseOrder ? `Orden de compra: ${purchaseOrder}` : "", invoiceReference ? `Factura: ${invoiceReference}` : ""].filter(Boolean).join("\n");
+    const fullBody = billingReferences ? `${body}\n\n${billingReferences}` : body;
+    const files = formData.getAll("attachments").filter((item): item is File => item instanceof File && item.size > 0);
+    if (files.length > 3) throw new Error("Adjunta como máximo tres documentos.");
+    if (files.reduce((sum, file) => sum + file.size, 0) > 15 * 1024 * 1024) throw new Error("El total de adjuntos no debe superar 15 MB.");
+    const attachments: { filename: string; mimeType: string; content: Uint8Array }[] = [];
+    for (const file of files) {
+      const mimeType = file.type || (file.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "");
+      if (!["application/pdf", "image/png", "image/jpeg"].includes(mimeType) || !/\.(pdf|png|jpe?g)$/i.test(file.name)) throw new Error("Solo se permiten documentos PDF, JPG o PNG.");
+      if (file.size > 5 * 1024 * 1024) throw new Error("Cada adjunto debe pesar 5 MB o menos.");
+      attachments.push({ filename: file.name.replace(/[\r\n"]/g, "_"), mimeType, content: new Uint8Array(await file.arrayBuffer()) });
+    }
     const threadKey = buildRequestKey(invoiceId, requestId);
     const now = new Date().toISOString();
     const { data: existing, error: existingError } = await client
@@ -210,7 +225,7 @@ export async function sendCollectionEmailAction(
         .from("communications")
         .update({
           subject,
-          body,
+          body: fullBody,
           status: "PENDING",
           to_recipient: recipients.to,
           cc_recipients: recipients.cc,
@@ -232,7 +247,7 @@ export async function sendCollectionEmailAction(
           communication_type: "COLLECTION_EMAIL",
           thread_key: threadKey,
           subject,
-          body,
+          body: fullBody,
           status: "PENDING",
           to_recipient: recipients.to,
           cc_recipients: recipients.cc,
@@ -255,11 +270,13 @@ export async function sendCollectionEmailAction(
       ).send({
         to: recipients.to,
         cc: recipients.cc,
+        bcc: ["matias.maira.larrain@gmail.com"],
         from: `"BOOMBOX Cabinas Fotográficas" <${senderEmail}>`,
         subject,
-        textBody: body,
-        htmlBody: buildCollectionEmailHtml(draft, body),
+        textBody: fullBody,
+        htmlBody: buildCollectionEmailHtml(draft, fullBody, subject),
         driveFileIds: [],
+        attachments,
       });
     } catch (providerError) {
       await client

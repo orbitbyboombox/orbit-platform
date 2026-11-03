@@ -8,6 +8,7 @@ import { OrbitLoader } from "@/components/ui/orbit-loader";
 import { MobileDialog } from "@/components/ui/mobile-dialog";
 import {
   buildCollectionEmailDraft,
+  buildCollectionEmailHtml,
   collectionDraftFingerprint,
 } from "./collection-email.template";
 import { sendCollectionEmailAction } from "./collection-email.actions";
@@ -66,6 +67,11 @@ export function CollectionEmailComposer({
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [ccInput, setCcInput] = useState("");
+  const [recipientInput, setRecipientInput] = useState("");
+  const [purchaseOrderInput, setPurchaseOrderInput] = useState("");
+  const [invoiceReferenceInput, setInvoiceReferenceInput] = useState("");
+  const [attachmentNames, setAttachmentNames] = useState<string[]>([]);
+  const [confirmed, setConfirmed] = useState(false);
   const [requestId, setRequestId] = useState("");
   const [sendState, setSendState] = useState<SendState>({ status: "idle" });
   const [pending, startTransition] = useTransition();
@@ -75,8 +81,7 @@ export function CollectionEmailComposer({
   );
   const canSend =
     invoice.outstandingBalance > 0 &&
-    !["PAID", "CANCELLED", "ARCHIVED"].includes(invoice.status) &&
-    Boolean(invoice.customerEmail);
+    !["PAID", "CANCELLED", "ARCHIVED"].includes(invoice.status) ;
 
   useEffect(() => {
     if (!open) return;
@@ -84,18 +89,23 @@ export function CollectionEmailComposer({
     setSubject(next.subject);
     setBody(next.body);
     setCcInput(next.cc.join("\n"));
+    setRecipientInput(next.to);
+    setPurchaseOrderInput(invoice.purchaseOrder ?? "");
+    setInvoiceReferenceInput("");
+    setAttachmentNames([]);
+    setConfirmed(false);
     setRequestId(crypto.randomUUID());
     setSendState({ status: "idle" });
   }, [bankDetails, invoice, open]);
 
   const submit = (formData: FormData) => {
-    if (pending || sendState.status === "success") return;
+    if (pending || !confirmed || sendState.status === "success") return;
     formData.set("invoiceId", invoice.id);
     formData.set("requestId", requestId || crypto.randomUUID());
     setSendState({
       status: "sending",
-      recipient: draft.to,
-      message: `Enviando... a ${draft.to}${ccInput.trim() ? " con CC aprobado" : ""}.`,
+      recipient: recipientInput,
+      message: `Enviando... a ${recipientInput}${ccInput.trim() ? " con CC aprobado" : ""}.`,
     });
     startTransition(async () => {
       const result = await sendCollectionEmailAction(formData);
@@ -233,10 +243,10 @@ export function CollectionEmailComposer({
                   </p>
                 </div>
                 <Detail label="Vencimiento" value={draft.dueDateLabel} />
-                <Detail label="Para" value={draft.to || "Sin correo"} />
+                <Detail label="Para" value={recipientInput || "Sin correo"} />
                 <Detail
                   label="CC"
-                  value={draft.cc.length ? draft.cc.join(", ") : "Sin CC"}
+                  value={ccInput.trim() || "Sin CC"}
                 />
                 <Detail label="Estado" value={draft.statusLabel} />
                 <Detail label="Último aviso" value={draft.lastNoticeLabel} />
@@ -247,12 +257,21 @@ export function CollectionEmailComposer({
               </div>
             </section>
             <label className="block min-w-0 text-sm font-medium">
+              Destinatario de cobranza (Finanzas / Cuentas por Pagar)
+              <input className="mt-2 min-h-11 w-full rounded-xl border bg-background px-3 text-sm" type="email" name="recipient" required value={recipientInput} onChange={(event) => { setRecipientInput(event.target.value); setConfirmed(false); }} placeholder="pagos@empresa.cl" />
+              <span className="mt-1 block text-xs font-normal text-muted">Solo para este envío. No cambia el correo del cliente.</span>
+            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block text-sm font-medium">Orden de compra<input className="mt-2 min-h-11 w-full rounded-xl border bg-background px-3 text-sm" name="purchaseOrder" value={purchaseOrderInput} onChange={(event) => { setPurchaseOrderInput(event.target.value); setConfirmed(false); }} maxLength={100} /></label>
+              <label className="block text-sm font-medium">Número de factura<input className="mt-2 min-h-11 w-full rounded-xl border bg-background px-3 text-sm" name="invoiceReference" placeholder="Folio real SII (opcional)" value={invoiceReferenceInput} onChange={(event) => { setInvoiceReferenceInput(event.target.value); setConfirmed(false); }} maxLength={100} /></label>
+            </div>
+            <label className="block min-w-0 text-sm font-medium">
               CC
               <span className="mt-2 block">
                 <textarea
                   className="min-h-24 w-full min-w-0 rounded-xl border bg-background p-3 text-sm"
                   name="cc"
-                  onChange={(event) => setCcInput(event.target.value)}
+                  onChange={(event) => { setCcInput(event.target.value); setConfirmed(false); }}
                   placeholder="Un correo por línea o separados por coma"
                   value={ccInput}
                 />
@@ -274,14 +293,25 @@ export function CollectionEmailComposer({
                 <Detail key={label} label={label} value={value} />
               ))}
             </div>
-            <CollectionEmailVisualPreview draft={draft} invoice={invoice} />
+            <label className="block text-sm font-medium">Factura PDF y respaldos (máximo 3 archivos, 5 MB cada uno)
+              <input className="mt-2 block w-full rounded-xl border bg-background p-3 text-sm" type="file" name="attachments" multiple accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" onChange={(event) => { setAttachmentNames(Array.from(event.target.files ?? []).map((file) => file.name)); setConfirmed(false); }} />
+              <span className="mt-1 block text-xs font-normal text-muted">Se adjuntarán al correo exactamente los archivos seleccionados. Comprueba su contenido antes de enviar.</span>
+            </label>
+            <div className="rounded-xl border border-brand/30 bg-brand/5 p-3 text-sm"><p className="font-semibold">Referencias que acompañarán el correo</p><p>Para: {recipientInput || "Sin destinatario"}</p><p>Orden de compra: {purchaseOrderInput || "No informada"}</p><p>Factura SII: {invoiceReferenceInput || "No informada"}</p><p>Adjuntos: {attachmentNames.length ? attachmentNames.join(", ") : "Sin archivos"}</p><p className="mt-2 text-xs text-muted">Revisa los archivos seleccionados y el texto antes de confirmar el envío.</p></div>
+            <section className="min-w-0 space-y-3 rounded-2xl border p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">Vista previa del contenido del correo</p>
+              <p className="break-words text-sm"><strong>Para:</strong> {recipientInput || "Sin destinatario"} · <strong>CC:</strong> {ccInput.trim() || "Sin CC"}</p>
+              <p className="break-words text-sm"><strong>Asunto:</strong> {subject}</p>
+              <p className="break-words text-sm"><strong>Adjuntos:</strong> {attachmentNames.length ? attachmentNames.join(", ") : "Sin archivos"}</p>
+              <CollectionEmailVisualPreview draft={draft} subject={subject} body={[body, purchaseOrderInput.trim() ? `Orden de compra: ${purchaseOrderInput.trim().slice(0, 100)}` : "", invoiceReferenceInput.trim() ? `Factura: ${invoiceReferenceInput.trim().slice(0, 100)}` : ""].filter(Boolean).join("\n\n")} />
+            </section>
             <label className="block text-sm font-medium">
               Asunto
               <span className="mt-2 block">
                 <input
                   className={fieldStyle(subject)}
                   name="subject"
-                  onChange={(event) => setSubject(event.target.value)}
+                  onChange={(event) => { setSubject(event.target.value); setConfirmed(false); }}
                   value={subject}
                 />
               </span>
@@ -292,11 +322,13 @@ export function CollectionEmailComposer({
                 <textarea
                   className="min-h-60 w-full rounded-xl border bg-background p-3 text-sm"
                   name="body"
-                  onChange={(event) => setBody(event.target.value)}
+                  onChange={(event) => { setBody(event.target.value); setConfirmed(false); }}
                   value={body}
                 />
               </span>
             </label>
+            <input type="hidden" name="confirmed" value={confirmed ? "yes" : "no"} />
+            <label className="flex items-start gap-2 rounded-xl border p-3 text-sm"><input className="mt-1" type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} required /><span>Confirmo que revisé el destinatario, el asunto, el cuerpo, las referencias, el saldo y los adjuntos. Autorizo el envío de esta cobranza.</span></label>
             <div className="flex flex-col gap-3 border-t bg-card pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-4 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-xs text-muted">
                 {sendState.status === "success"
@@ -304,15 +336,15 @@ export function CollectionEmailComposer({
                   : sendState.status === "error"
                     ? sendState.message
                     : canSend
-                      ? `Se enviará a ${draft.to}${ccInput.trim() ? ` · CC: ${ccInput.split(/[\n,;]+/).map((value) => value.trim()).filter(Boolean).join(", ")}` : ""}.`
-                      : "El saldo debe estar activo y el cliente debe tener correo registrado."}
+                      ? `Se enviará a ${recipientInput}${ccInput.trim() ? ` · CC: ${ccInput.split(/[\n,;]+/).map((value) => value.trim()).filter(Boolean).join(", ")}` : ""}.`
+                      : "El saldo debe estar activo."}
               </p>
               <div className="flex gap-2">
                 <Button onClick={() => setOpen(false)} type="button" variant="outline">
                   Cancelar
                 </Button>
                 <Button
-                  aria-busy={pending} disabled={pending|| !canSend || sendState.status === "success"}
+                  aria-busy={pending} disabled={pending || !canSend || !recipientInput.trim() || !confirmed || attachmentNames.length > 3 || sendState.status === "success"}
                   type="submit"
                 >
                   {sendState.status === "success" ? (
@@ -335,86 +367,33 @@ export function CollectionEmailComposer({
 
 function CollectionEmailVisualPreview({
   draft,
-  invoice,
+  body,
+  subject,
 }: {
   draft: ReturnType<typeof buildCollectionEmailDraft>;
-  invoice: ReceivableInvoice;
+  body: string;
+  subject: string;
 }) {
+  // The preview must use the identical HTML generator used by the Gmail send action.
+  const html = buildCollectionEmailHtml(draft, body, subject);
+  // Preview deployments can enforce frame-src CSP that blocks iframe srcDoc.
+  // Render the same trusted, escaped email markup inline rather than a blank frame.
+  const emailStyle = html.match(new RegExp("<style>([\\s\\S]*?)</style>"))?.[1] ?? "";
+  const emailMain = html.match(new RegExp("<main\\b[\\s\\S]*?</main>"))?.[0] ?? "";
+  const previewHtml = emailMain ? `<style>${emailStyle}</style>${emailMain}` : "";
   return (
-    <section className="min-w-0 overflow-hidden rounded-2xl border bg-white text-zinc-900 shadow-sm">
-      <header className="border-b-4 border-orange-500 bg-zinc-950 px-5 py-5 text-white sm:px-6">
-        <p className="text-lg font-black tracking-[.12em]">BOOMBOX</p>
-        <p className="mt-1 text-[10px] font-semibold uppercase tracking-[.18em] text-orange-300">
-          Vista previa · cobranza comercial
-        </p>
-      </header>
-      <div className="min-w-0 space-y-5 p-5 sm:p-6">
-        <div>
-          <p className="text-base font-bold">Hola {invoice.customerName},</p>
-          <p className="mt-2 text-sm leading-6 text-zinc-600">
-            Te escribimos para recordarte el saldo pendiente de tu evento.
-          </p>
-        </div>
-        <div className="min-w-0 rounded-xl border bg-zinc-50 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-[.16em] text-orange-600">
-            Detalle del evento
-          </p>
-          <div className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2">
-            <PreviewDetail label="Fecha" value={draft.eventDateLabel} />
-            {draft.eventLocation ? (
-              <PreviewDetail label="Lugar" value={draft.eventLocation} />
-            ) : null}
-            <PreviewDetail label="Servicio" value={draft.serviceLabel} />
-            <PreviewDetail label="Duración" value={draft.durationLabel} />
-          </div>
-        </div>
+    <div className="min-w-0 space-y-2">
+      <p className="text-xs text-muted">Vista previa del HTML real que se enviará por correo. Revisa todo el contenido antes de confirmar.</p>
+      {previewHtml ? (
         <div
-          className="min-w-0 rounded-xl border-2 border-zinc-700 bg-orange-50 p-5"
-        >
-          <p className="text-[10px] font-black uppercase tracking-[.16em] text-orange-700">
-            Saldo pendiente
-          </p>
-          <p className="mt-2 break-words text-3xl font-black text-zinc-950">
-            {draft.outstandingLabel}
-          </p>
-          <p className="mt-3 text-xs font-semibold text-zinc-600">
-            Fecha de pago / vencimiento: {draft.dueDateLabel}
-          </p>
-        </div>
-        <div className="min-w-0 rounded-xl bg-zinc-950 p-5 text-white">
-          <p className="text-[10px] font-bold uppercase tracking-[.16em] text-orange-300">
-            Datos para transferencia
-          </p>
-          <div className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2">
-            {collectionBankRows(draft.bankDetails).map(([label, value]) => (
-              <PreviewDetail dark key={label} label={label} value={value} />
-            ))}
-          </div>
-        </div>
-        <p className="text-xs leading-5 text-zinc-500">Una vez realizado el pago, envía el comprobante a <a className="text-orange-700 underline" href="mailto:contabilidad@bbox.cl">contabilidad@bbox.cl</a>.</p>
-      </div>
-      <footer className="border-t px-5 py-4 text-[10px] leading-4 text-zinc-500 sm:px-6">BOOMBOX · Comunicación emitida mediante ORBIT<br />ORBIT · Software desarrollado por BOOMBOX<br /><span className="text-orange-700">www.bbox.cl</span></footer>
-    </section>
-  );
-}
-
-function PreviewDetail({
-  label,
-  value,
-  dark = false,
-}: {
-  label: string;
-  value: string;
-  dark?: boolean;
-}) {
-  return (
-    <div className="min-w-0">
-      <p className={`text-[9px] font-bold uppercase tracking-wide ${dark ? "text-zinc-400" : "text-zinc-500"}`}>
-        {label}
-      </p>
-      <p className={`mt-1 break-words text-sm font-semibold ${dark ? "text-white" : "text-zinc-900"}`}>
-        {value}
-      </p>
+          aria-label="Vista previa HTML de la cobranza"
+          className="max-h-[760px] min-w-0 overflow-y-auto rounded-xl border bg-white text-left"
+          dangerouslySetInnerHTML={{ __html: previewHtml }}
+        />
+      ) : (
+        <p role="alert" className="rounded-xl border border-red-400 p-4 text-sm text-red-600">No se pudo generar la vista previa. No envíes el correo.</p>
+      )}
+      <p className="text-xs text-muted">La presentación en Gmail puede variar según el dispositivo. Esta vista utiliza el mismo contenido HTML del envío.</p>
     </div>
   );
 }

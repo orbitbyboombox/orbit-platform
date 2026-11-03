@@ -66,13 +66,18 @@ const escapeHtml = (value: string) =>
 export function buildCollectionEmailHtml(
   draft: CollectionEmailDraft,
   body = draft.body,
+  subject = draft.subject,
 ) {
-  const firstParagraph = body
-    .split(/\n{2,}/)
-    .map((value) => value.trim())
-    .find(Boolean);
-  const greetingLine = firstParagraph?.split("\n")[0]?.trim() ?? "Hola,";
-  const greeting = /^Hola(?:\s|,)/i.test(greetingLine) ? greetingLine : "Hola,";
+  const messageHtml = body.split(/\n{2,}/).map((paragraph, index) => {
+    const content = paragraph.trim().split("\n").map((line) =>
+      escapeHtml(line).replace(/\*\*(.+?)\*\*/g, '<strong style="font-weight:600;color:#30343a">$1</strong>').replace(/\*(.+?)\*/g, "<em>$1</em>")
+    ).join("<br>");
+    const greeting = index === 0 && /^Hola\b/i.test(paragraph.trim());
+    const greetingContent = greeting ? content.replace(/^(Hola,?\s+)([^!\n<]+)(!?)(.*)$/i, (_match, hello, name, punctuation, rest) => `${hello}<strong style="font-weight:600;color:#252930">${name.trim()}</strong>${punctuation}${rest}`) : content;
+    const closing = /^¡Muchas gracias/i.test(paragraph.trim());
+    const spacing = closing ? "margin:20px 0 5px" : "margin:0 0 13px";
+    return `<p style="${spacing};overflow-wrap:anywhere;font-size:${greeting ? "17px" : "14px"};font-weight:400;line-height:1.55;color:${greeting ? "#252930" : "#515661"}">${greetingContent}</p>`;
+  }).join("");
   const detailCell = (label: string, value: string, dark = false) =>
     `<div class="orbit-detail-cell" style="display:inline-block;vertical-align:top;box-sizing:border-box;width:49%;min-width:230px;padding:12px 12px 12px 0"><div style="font-size:10px;font-weight:700;letter-spacing:.08em;color:${dark ? "#aeb4bf" : "#6b7280"};text-transform:uppercase">${escapeHtml(label)}</div><div style="margin-top:5px;font-size:15px;font-weight:600;color:${dark ? "#ffffff" : "#17191f"};overflow-wrap:anywhere">${escapeHtml(value)}</div></div>`;
   const eventDetails = [
@@ -90,12 +95,12 @@ export function buildCollectionEmailHtml(
   .orbit-collection-card{border-radius:14px!important}
   .orbit-collection-header{padding:24px 20px!important}
   .orbit-collection-body{padding:28px 20px!important}
-  .orbit-collection-body p{line-height:1.72!important}
+  .orbit-collection-body p{font-size:14px!important;line-height:1.55!important;font-weight:400!important;color:#515661!important}\n  .orbit-collection-body p strong{font-weight:600!important;color:#30343a!important}
   .orbit-collection-section{margin-top:26px!important;margin-bottom:26px!important;padding:18px!important}
   .orbit-detail-cell{display:block!important;width:100%!important;min-width:0!important;padding:11px 0!important}
   .orbit-collection-footer{padding:18px 20px!important}
 }
-</style></head><body style="margin:0;background:#f4f5f7;padding:0"><div style="display:none;max-height:0;overflow:hidden">${escapeHtml(draft.subject)}</div><main class="orbit-collection-shell" style="width:100%;padding:28px 12px;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;color:#17191f"><section class="orbit-collection-card" style="max-width:620px;margin:0 auto;overflow:hidden;border:1px solid #e3e5e9;border-radius:20px;background:#ffffff;box-shadow:0 16px 42px rgba(17,24,39,.08)"><header class="orbit-collection-header" style="background-color:#000000;background:#000000;padding:25px 28px;border-bottom:4px solid #f68b1f"><div style="font-size:22px;font-weight:800;letter-spacing:.08em;color:#ffffff;background:#000000">BOOMBOX</div><div style="margin-top:7px;font-size:12px;letter-spacing:.12em;color:#f6a452;text-transform:uppercase">Cobranza comercial</div></header><div class="orbit-collection-body" style="padding:28px"><p style="margin:0 0 12px;font-size:18px;font-weight:700;line-height:1.45;color:#17191f">${escapeHtml(greeting)}</p><p style="margin:0;font-size:15px;font-weight:400;line-height:1.65;color:#5f6470">Te escribimos para recordarte el saldo pendiente de tu evento.</p><section class="orbit-collection-section" style="margin:26px 0;border:1px solid #30343a;border-radius:16px;padding:18px 20px;background:#fafafa"><h2 style="margin:0 0 8px;font-size:11px;letter-spacing:.16em;color:#f07f16;text-transform:uppercase">Detalle del evento</h2><div style="font-size:0">${eventDetails}</div></section><section class="orbit-collection-section" style="margin:26px 0;border:2px solid #30343a;border-radius:16px;padding:22px 24px;background:#fff9f0"><div style="font-size:11px;font-weight:800;letter-spacing:.16em;color:#bf4a00;text-transform:uppercase">Saldo pendiente</div><div style="margin-top:10px;font-size:36px;font-weight:800;line-height:1.1;color:#090a0c;overflow-wrap:anywhere">${escapeHtml(draft.outstandingLabel)}</div><div style="margin-top:14px;font-size:13px;font-weight:600;color:#5f6470">Fecha de pago / vencimiento: ${escapeHtml(draft.dueDateLabel)}</div></section><section class="orbit-collection-section" style="margin:26px 0 0;border-radius:16px;padding:20px 22px;background:#fff9f2;border:1px solid #f1c99f;color:#17191f"><h2 style="margin:0 0 8px;font-size:11px;letter-spacing:.16em;color:#d76500;text-transform:uppercase">Datos para transferencia</h2><div style="font-size:0">${bankDetails}</div></section><p style="margin:18px 0 0;font-size:12px;font-weight:400;line-height:1.6;color:#6b7280">Una vez realizado el pago, envía el comprobante a <a href="mailto:contabilidad@bbox.cl" style="color:#bf4a00;text-decoration:underline">contabilidad@bbox.cl</a>.</p></div><footer class="orbit-collection-footer" style="border-top:1px solid #eceef2;padding:18px 28px;font-size:11px;line-height:1.6;color:#7a808b">BOOMBOX · Comunicación emitida mediante ORBIT<br>ORBIT · Software desarrollado por BOOMBOX<br><a href="https://www.bbox.cl" style="color:#f07f16;text-decoration:none">www.bbox.cl</a></footer></section></main></body></html>`;
+</style></head><body style="margin:0;background:#f4f5f7;padding:0;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%"><div style="display:none;max-height:0;overflow:hidden">${escapeHtml(subject)}</div><main class="orbit-collection-shell" style="width:100%;padding:28px 12px;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;color:#17191f;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%"><section class="orbit-collection-card" style="max-width:620px;margin:0 auto;overflow:hidden;border:1px solid #e3e5e9;border-radius:20px;background:#ffffff;box-shadow:0 16px 42px rgba(17,24,39,.08)"><header class="orbit-collection-header" style="background-color:#000000;background:#000000;padding:25px 28px;border-bottom:4px solid #f68b1f"><div style="font-size:22px;font-weight:800;letter-spacing:.08em;color:#ffffff;background:#000000">BOOMBOX</div><div style="margin-top:7px;font-size:12px;letter-spacing:.12em;color:#f6a452;text-transform:uppercase">Cobranza comercial</div></header><div class="orbit-collection-body" style="padding:28px"><div style="margin:0 0 12px">${messageHtml}</div><section class="orbit-collection-section" style="margin:26px 0;border:1px solid #30343a;border-radius:16px;padding:18px 20px;background:#fafafa"><h2 style="margin:0 0 8px;font-size:11px;letter-spacing:.16em;color:#f07f16;text-transform:uppercase">Detalle del evento</h2><div style="font-size:0">${eventDetails}</div></section><section class="orbit-collection-section" style="margin:26px 0;border:2px solid #30343a;border-radius:16px;padding:22px 24px;background:#fff9f0"><div style="font-size:11px;font-weight:800;letter-spacing:.16em;color:#bf4a00;text-transform:uppercase">Saldo pendiente</div><div style="margin-top:10px;font-size:36px;font-weight:800;line-height:1.1;color:#090a0c;overflow-wrap:anywhere">${escapeHtml(draft.outstandingLabel)}</div><div style="margin-top:14px;font-size:13px;font-weight:600;color:#5f6470">Fecha de pago / vencimiento: ${escapeHtml(draft.dueDateLabel)}</div></section><section class="orbit-collection-section" style="margin:26px 0 0;border-radius:16px;padding:20px 22px;background:#fff9f2;border:1px solid #f1c99f;color:#17191f"><h2 style="margin:0 0 8px;font-size:11px;letter-spacing:.16em;color:#d76500;text-transform:uppercase">Datos para transferencia</h2><div style="font-size:0">${bankDetails}</div></section><p style="margin:18px 0 0;font-size:12px;font-weight:400;line-height:1.6;color:#6b7280">Una vez realizado el pago, envía el comprobante a <a href="mailto:contabilidad@bbox.cl" style="color:#bf4a00;text-decoration:underline">contabilidad@bbox.cl</a>.</p></div><footer class="orbit-collection-footer" style="border-top:1px solid #eceef2;padding:18px 28px;font-size:11px;line-height:1.6;color:#7a808b">BOOMBOX · Comunicación emitida mediante ORBIT<br>ORBIT · Software desarrollado por BOOMBOX<br><a href="https://www.bbox.cl" style="color:#f07f16;text-decoration:none">www.bbox.cl</a></footer></section></main></body></html>`;
 }
 
 const money = (value: number) =>
@@ -163,36 +168,38 @@ export function buildCollectionEmailDraft(
     templateKey === "OVERDUE"
       ? `Saldo vencido pendiente de regularización — BOOMBOX`
       : `Recordatorio de saldo pendiente — BOOMBOX`;
-  const eventBlock = [
-    "DETALLE DEL EVENTO",
-    `FECHA\n${eventDateLabel}`,
-    ...(invoice.eventLocation
-      ? [`LUGAR\n${invoice.eventLocation}`]
-      : []),
-    `SERVICIO\n${invoice.service ?? "Sin servicio"}`,
-    `DURACIÓN\n${invoice.eventDuration ?? "Por confirmar"}`,
-  ];
-  const body = [
-    `Hola ${invoice.customerName},`,
-    "",
-    "Te escribimos para recordarte el saldo pendiente de tu evento.",
-    "",
-    ...eventBlock,
-    "",
-    "SALDO PENDIENTE",
-    outstandingLabel,
-    `Fecha de pago / vencimiento: ${dueDateLabel}`,
-    "",
-    "DATOS PARA TRANSFERENCIA",
-    `TITULAR DE LA CUENTA\n${bankDetails.companyLabel}`,
-    `BANCO\n${bankDetails.bankName}`,
-    `TIPO DE CUENTA\n${bankDetails.accountType}`,
-    `N° DE CUENTA\n${bankDetails.accountNumber}`,
-    `RUT\n${bankDetails.rut}`,
-    `EMAIL DE TRANSFERENCIA\n${bankDetails.email}`,
-    "",
-    "Una vez realizado el pago, envía el comprobante a contabilidad@bbox.cl.",
-  ].join("\n");
+  const firstName = invoice.customerName.trim().split(/\s+/)[0] || "hola";
+  const body = overdue
+    ? [
+        `Hola, ${firstName}!`,
+        "",
+        "Espero que estés muy bien.",
+        "",
+        "Te cuento que en nuestro sistema figura un **pago pendiente** correspondiente a tu evento con BOOMBOX.",
+        "",
+        "Recuerda que **el plazo acordado ya se cumplió**. Te invitamos a regularizarlo a la brevedad para evitar nuevas gestiones de cobranza.",
+        "",
+        "**¿Nos ayuda con la gestión?**",
+        "Puedes confirmarnos una **fecha estimada de pago** o enviarnos el comprobante una vez realizada la transferencia.",
+        "",
+        "¡Muchas gracias por tu ayuda! 🧡",
+        "Equipo BOOMBOX",
+      ].join("\n")
+    : [
+        `Hola, ${firstName}!`,
+        "",
+        "Espero que estés muy bien.",
+        "",
+        "Te cuento que en nuestro sistema figura un **pago pendiente** correspondiente a tu evento con BOOMBOX.",
+        "",
+        `El vencimiento está programado para el **${dueDateLabel}**. Te invitamos a gestionar el pago dentro del plazo acordado.`,
+        "",
+        "**¿Nos ayuda con la gestión?**",
+        "Puedes confirmarnos una **fecha estimada de pago** o enviarnos el comprobante una vez realizada la transferencia.",
+        "",
+        "¡Muchas gracias por tu ayuda! 🧡",
+        "Equipo BOOMBOX",
+      ].join("\n");
 
   return {
     templateKey,
