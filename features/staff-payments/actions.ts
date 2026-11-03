@@ -517,7 +517,7 @@ export async function getStaffComplementaryPaidSummaryAction(month: string): Pro
   try {
     if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new Error("Mes inválido.");
     const { client } = await context();
-    const { data, error } = await client.from("staff_complementary_settlements")
+    const { data, error } = await createAdminClient().from("staff_complementary_settlements")
       .select("id,paid_amount,status")
       .eq("original_month", `${month}-01`)
       .eq("status", "PAID");
