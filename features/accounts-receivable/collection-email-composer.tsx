@@ -70,6 +70,7 @@ export function CollectionEmailComposer({
   const [purchaseOrderInput, setPurchaseOrderInput] = useState("");
   const [invoiceReferenceInput, setInvoiceReferenceInput] = useState("");
   const [attachmentNames, setAttachmentNames] = useState<string[]>([]);
+  const [confirmed, setConfirmed] = useState(false);
   const [requestId, setRequestId] = useState("");
   const [sendState, setSendState] = useState<SendState>({ status: "idle" });
   const [pending, startTransition] = useTransition();
@@ -79,8 +80,7 @@ export function CollectionEmailComposer({
   );
   const canSend =
     invoice.outstandingBalance > 0 &&
-    !["PAID", "CANCELLED", "ARCHIVED"].includes(invoice.status) &&
-    true;
+    !["PAID", "CANCELLED", "ARCHIVED"].includes(invoice.status) ;
 
   useEffect(() => {
     if (!open) return;
@@ -92,12 +92,13 @@ export function CollectionEmailComposer({
     setPurchaseOrderInput(invoice.purchaseOrder ?? "");
     setInvoiceReferenceInput(invoice.invoiceNumber);
     setAttachmentNames([]);
+    setConfirmed(false);
     setRequestId(crypto.randomUUID());
     setSendState({ status: "idle" });
   }, [bankDetails, invoice, open]);
 
   const submit = (formData: FormData) => {
-    if (pending || sendState.status === "success") return;
+    if (pending || !confirmed || sendState.status === "success") return;
     formData.set("invoiceId", invoice.id);
     formData.set("requestId", requestId || crypto.randomUUID());
     setSendState({
@@ -244,7 +245,7 @@ export function CollectionEmailComposer({
                 <Detail label="Para" value={recipientInput || "Sin correo"} />
                 <Detail
                   label="CC"
-                  value={draft.cc.length ? draft.cc.join(", ") : "Sin CC"}
+                  value={ccInput.trim() || "Sin CC"}
                 />
                 <Detail label="Estado" value={draft.statusLabel} />
                 <Detail label="Último aviso" value={draft.lastNoticeLabel} />
@@ -295,7 +296,7 @@ export function CollectionEmailComposer({
               <input className="mt-2 block w-full rounded-xl border bg-background p-3 text-sm" type="file" name="attachments" multiple accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" onChange={(event) => setAttachmentNames(Array.from(event.target.files ?? []).map((file) => file.name))} />
               <span className="mt-1 block text-xs font-normal text-muted">Se adjuntarán al correo exactamente los archivos seleccionados. Comprueba su contenido antes de enviar.</span>
             </label>
-            <div className="rounded-xl border border-brand/30 bg-brand/5 p-3 text-sm"><p className="font-semibold">Referencias que acompañarán el correo</p><p>Para: {recipientInput || "Sin destinatario"}</p><p>Orden de compra: {purchaseOrderInput || "No informada"}</p><p>Factura: {invoiceReferenceInput || "No informada"}</p><p>Adjuntos: {attachmentNames.length ? attachmentNames.join(", ") : "Sin archivos"}</p><p className="mt-2 text-xs text-muted">La factura PDF y otros archivos aún no están habilitados como adjuntos; no se enviarán documentos hasta completar esa integración.</p></div>
+            <div className="rounded-xl border border-brand/30 bg-brand/5 p-3 text-sm"><p className="font-semibold">Referencias que acompañarán el correo</p><p>Para: {recipientInput || "Sin destinatario"}</p><p>Orden de compra: {purchaseOrderInput || "No informada"}</p><p>Factura: {invoiceReferenceInput || "No informada"}</p><p>Adjuntos: {attachmentNames.length ? attachmentNames.join(", ") : "Sin archivos"}</p><p className="mt-2 text-xs text-muted">Revisa los archivos seleccionados y el texto antes de confirmar el envío.</p></div>
             <CollectionEmailVisualPreview draft={draft} invoice={invoice} />
             <label className="block text-sm font-medium">
               Asunto
@@ -319,6 +320,7 @@ export function CollectionEmailComposer({
                 />
               </span>
             </label>
+            <label className="flex items-start gap-2 rounded-xl border p-3 text-sm"><input className="mt-1" type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} required /><span>Confirmo que revisé el destinatario, el asunto, el cuerpo, las referencias, el saldo y los adjuntos. Autorizo el envío de esta cobranza.</span></label>
             <div className="flex flex-col gap-3 border-t bg-card pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-4 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-xs text-muted">
                 {sendState.status === "success"
@@ -334,7 +336,7 @@ export function CollectionEmailComposer({
                   Cancelar
                 </Button>
                 <Button
-                  aria-busy={pending} disabled={pending || !canSend || !recipientInput.trim() || attachmentNames.length > 3 || sendState.status === "success"}
+                  aria-busy={pending} disabled={pending || !canSend || !recipientInput.trim() || !confirmed || attachmentNames.length > 3 || sendState.status === "success"}
                   type="submit"
                 >
                   {sendState.status === "success" ? (
