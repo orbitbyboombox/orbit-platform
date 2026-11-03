@@ -425,7 +425,7 @@ export async function auditStaffMonthAction(month: string) {
     };
   }
 }
-export async function closeStaffMonthAction(month: string) {
+export async function closeStaffMonthAction(month: string, sendEmails = false) {
   try {
     const { client } = await context();
     const accountingMonth = `${month.slice(0, 7)}-01`;
@@ -475,7 +475,7 @@ export async function closeStaffMonthAction(month: string) {
       (account) =>
         account.settlement_status === "FINALIZED" && Number(account.work_net) > 0,
     );
-    for (const account of finalizedAccounts) {
+    for (const account of sendEmails ? finalizedAccounts : []) {
       const prepared = await prepareMonthlySettlementDocument(account.id);
       const delivery = await sendMonthlySettlementReadyEmail(prepared, closeRow.close_version);
       if (delivery.sent) delivered += 1;
