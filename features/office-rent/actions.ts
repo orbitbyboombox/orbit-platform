@@ -319,3 +319,49 @@ export async function sendOfficeLeaseReceiptEmailAction(form: FormData): Promise
     return { ok: false, error: error instanceof Error ? error.message : "No fue posible enviar el comprobante." };
   }
 }
+
+/** Manual reminder only. Never sends without an explicit administrator submission. */
+export async function sendOfficeLeaseReminderAction(form: FormData): Promise<OfficeRentActionResult> {
+  try {
+    const { client } = await adminContext();
+    const obligationId = text(form, "obligationId");
+    const recipientName = text(form, "recipientName");
+    const recipientEmail = text(form, "recipientEmail").toLowerCase();
+    const subject = text(form, "subject");
+    const message = text(form, "message");
+    if (!obligationId || !recipientName || !subject || !message) throw new Error("Completa los datos del recordatorio.");
+    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(recipientEmail)) throw new Error("Ingresa un correo válido.");
+    if (subject.length > 180 || message.length > 4000) throw new Error("El asunto o mensaje es demasiado largo.");
+    const [obligationResult, financialResult, company] = await Promise.all([
+      client.from("office_lease_obligations").select("id,period,due_date,amount_due").eq("id", obligationId).single(),
+      client.from("office_lease_monthly_financials").select("outstanding_amount").eq("obligation_id", obligationId).maybeSingle(),
+      loadCompanySettings(client),
+    ]);
+    if (obligationResult.error) throw obligationResult.error;
+    if (financialResult.error) throw financialResult.error;
+    const due = obligationResult.data;
+    const outstanding = Number(financialResult.data?.outstanding_amount ?? due.amount_due);
+    if (outstanding <= 0) throw new Error("Este arriendo ya está cubierto. No se enviará un recordatorio de deuda.");
+    const detailHtml = `<p style="margin:16px 0;padding:16px;background:#17181b;border:1px solid #343538;border-radius:12px"><strong style="color:#f78900">DETALLE DEL ARRIENDO</strong><br>Periodo: ${escapeOfficeEmailHtml(monthLabel(due.period))}<br>Saldo pendiente: ${escapeOfficeEmailHtml(formatClp(outstanding))}<br>Vencimiento: ${escapeOfficeEmailHtml(due.due_date)}</p>`;
+    const htmlBody = renderBoomboxCommercialEmail({
+      preheader: subject,
+      eyebrow: "ARRIENDO DE OFICINA",
+      title: `Hola ${recipientName},`,
+      headerLabel: "RECORDATORIO DE ARRIENDO",
+      stackedHeader: true,
+      contentHtml: `<p style="white-space:pre-line">${escapeOfficeEmailHtml(message)}</p>${detailHtml}`,
+      website: company.website,
+      signatureHtml: "<p><strong>Administración BOOMBOX®</strong></p>",
+    });
+    const sent = await new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken()).send({
+      to: recipientEmail, subject,
+      textBody: `Hola ${recipientName},\n\n${message}\n\nPeriodo: ${monthLabel(due.period)}\nSaldo pendiente: ${formatClp(outstanding)}\nVencimiento: ${due.due_date}\n\nAdministración BOOMBOX®`,
+      htmlBody, driveFileIds: [],
+    });
+    console.info(JSON.stringify({ event: "office_rent_reminder_sent", obligationId, messageId: sent.messageId, recipientEmail }));
+    return { ok: true, message: `Recordatorio enviado a ${recipientEmail}.` };
+  } catch (error) {
+    console.error(JSON.stringify({ event: "office_rent_reminder_failed", error: error instanceof Error ? error.message : String(error) }));
+    return { ok: false, error: error instanceof Error ? error.message : "No fue posible enviar el recordatorio." };
+  }
+}
