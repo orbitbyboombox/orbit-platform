@@ -6,6 +6,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { MobileDialog } from "@/components/ui/mobile-dialog";
 import {
+  auditStaffMonthAction,
   closeStaffMonthAction,
   previewStaffMonthCloseAction,
   reopenStaffMonthAction,
@@ -426,6 +427,17 @@ export function StaffPaymentsCenter({
                 startClosing(async () => {
                   setCloseOperation("CLOSE");
                   try {
+                    const auditResult = await auditStaffMonthAction(month);
+                    if (!auditResult.ok) {
+                      setCloseMessage(auditResult.error ?? "No fue posible auditar el mes.");
+                      return;
+                    }
+                    const critical = Number(auditResult.data?.criticalErrorCount ?? 0);
+                    if (critical > 0) {
+                      setCloseMessage("Cierre bloqueado: " + critical + " alertas financieras críticas. Revisa la conciliación antes de cerrar; no se modificaron pagos ni se enviaron correos.");
+                      return;
+                    }
+                    if (!window.confirm("¿Confirmas el cierre definitivo de " + month + "? ORBIT congelará liquidaciones y podrá enviar solicitudes de boleta. Esta operación quedará auditada.")) return;
                     const result = await closeStaffMonthAction(month);
                     if (result.ok) {
                       setCloseState(result.data);
@@ -441,7 +453,7 @@ export function StaffPaymentsCenter({
                   }
                 })
               }
-              variant="outline"
+              variant="default"
             >
               CERRAR MES Y SOLICITAR BOLETAS
             </Button>
