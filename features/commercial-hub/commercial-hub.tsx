@@ -363,6 +363,8 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
   const saveRequestIdRef = useRef(initialDraft?.quoteId ?? uid());
   const saveInFlightRef = useRef(false);
   const [customerId, setCustomerId] = useState(initialDraft?.existingCustomerId ?? "");
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [customerSort, setCustomerSort] = useState<"asc" | "desc">("asc");
   const [temporary, setTemporary] = useState({ company: initialDraft?.company ?? "", rut: formatChileanRutInput(initialDraft?.rut ?? ""), contact: initialDraft?.contact ?? "", email: initialDraft?.email ?? "", secondaryEmail: initialDraft?.secondaryEmail ?? "", phone: initialDraft?.phone ?? "", address: initialDraft?.address ?? "" });
   const [lines, setLines] = useState<QuoteLineDraft[]>(initialDraft?.lines ?? []);
   const [validityDays, setValidityDays] = useState(initialDraft?.validityDays ?? 10);
@@ -402,6 +404,16 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
       .finally(() => { if (requestId === capacityRequest.current) setCapacityLoading(false); });
   }, [capacityMissingInputs, eventDate, eventTime, eventLocation, eventCity, eventName, lines]);
   const selected = data.customers.find((item) => item.id === customerId);
+  const visibleCustomers = data.customers
+    .filter((item) => {
+      const query = customerSearch.trim().toLocaleLowerCase("es-CL");
+      return !query || [item.company, item.name, item.rut, formatChileanRut(item.rut)]
+        .some((value) => String(value ?? "").toLocaleLowerCase("es-CL").includes(query));
+    })
+    .sort((a, b) => {
+      const order = (a.company || a.name).localeCompare(b.company || b.name, "es-CL", { sensitivity: "base" });
+      return customerSort === "asc" ? order : -order;
+    });
   const addCatalog = (code: string) => {
     const item = data.catalog.find((row) => row.code === code);
     if (!item) return;
@@ -518,17 +530,44 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
         <h2 className="text-2xl font-semibold">Constructor de cotizaciones</h2>
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           <Field label="Cliente existente">
-            <select
-              onChange={(e) => setCustomerId(e.target.value)}
-              value={customerId}
-            >
-              <option value="">Cliente temporal</option>
-              {data.customers.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.company || item.name} · {formatChileanRut(item.rut)}
-                </option>
-              ))}
-            </select>
+            <div className="space-y-2">
+              <div className="flex min-w-0 gap-2">
+                <input
+                  aria-label="Buscar cliente por nombre, empresa o RUT"
+                  placeholder="Buscar nombre, empresa o RUT…"
+                  value={customerSearch}
+                  onChange={(event) => setCustomerSearch(event.target.value)}
+                  className="min-w-0 flex-1"
+                />
+                <select
+                  aria-label="Ordenar clientes"
+                  value={customerSort}
+                  onChange={(event) => setCustomerSort(event.target.value as "asc" | "desc")}
+                  className="!w-auto shrink-0"
+                >
+                  <option value="asc">A–Z</option>
+                  <option value="desc">Z–A</option>
+                </select>
+              </div>
+              <select
+                aria-label="Seleccionar cliente existente"
+                onChange={(event) => setCustomerId(event.target.value)}
+                value={customerId}
+              >
+                <option value="">Cliente temporal</option>
+                {selected && !visibleCustomers.some((item) => item.id === selected.id) && (
+                  <option value={selected.id}>{selected.company || selected.name} · {formatChileanRut(selected.rut)}</option>
+                )}
+                {visibleCustomers.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.company || item.name} · {formatChileanRut(item.rut)}
+                  </option>
+                ))}
+              </select>
+              {customerSearch.trim() && visibleCustomers.length === 0 && (
+                <p className="text-xs text-muted-foreground">No hay clientes que coincidan con la búsqueda.</p>
+              )}
+            </div>
           </Field>
           {!selected && (
             <>
