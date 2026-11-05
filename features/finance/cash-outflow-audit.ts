@@ -34,7 +34,7 @@ export function auditCashOutflow(rows: readonly CashEvidence[]): CashEvidenceAud
     const reasons: string[] = [];
     if (!row.id || (counts.get(`${row.source}:${row.id}`) ?? 0) > 1) reasons.push("DUPLICATE_OR_MISSING_ID");
     if (!Number.isFinite(row.amount) || row.amount < 0) reasons.push("INVALID_AMOUNT");
-    if (!row.paidOn || !/^\\d{4}-\\d{2}-\\d{2}$/.test(row.paidOn)) reasons.push("MISSING_PAYMENT_DATE");
+    if (!row.paidOn || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(row.paidOn)) reasons.push("MISSING_PAYMENT_DATE");
     if (row.source === "event_staff_settlement_movements" && !row.settlementId) reasons.push("MISSING_SETTLEMENT_LINK");
     if (row.source === "staff_reimbursement_payments" && !row.expenseId && !row.submissionId && !row.settlementId) reasons.push("UNLINKED_REIMBURSEMENT");
     return { ...row, integrity: reasons.length ? "REVIEW_REQUIRED" as const : "OK" as const, reasons };
