@@ -19,11 +19,15 @@ type Row = {
 };
 
 function reconcile(rows: Row[]) {
-  const itemKeys = new Set(
-    rows.filter((row) => row.source === "ITEM").map((row) => `${row.settlementId}:${row.concept}`),
-  );
+  const itemKeys = rows.filter((row) => row.source === "ITEM").map((row) => ({
+      settlement: `${row.settlementId}:${row.concept}`,
+      assignment: `${row.projectId}:${row.staffId}:${row.assignmentId}:${row.concept}`,
+    }));
   return rows.filter(
-    (row) => row.source === "ITEM" || !itemKeys.has(`${row.settlementId}:${row.concept}`),
+    (row) => row.source === "ITEM" || !itemKeys.some((key) =>
+      key.settlement === `${row.settlementId}:${row.concept}` ||
+      (row.settlementId !== "" && key.settlement === `:${row.concept}` && key.assignment === `${row.projectId}:${row.staffId}:${row.assignmentId}:${row.concept}`),
+    ),
   );
 }
 
@@ -55,6 +59,15 @@ test("functional fixture deduplicates legacy concepts when payment items exist",
   assert.equal(result.length, 2);
   assert.deepEqual(result.map((row) => row.concept), ["OPERATOR", "ASSEMBLY"]);
   assert.match(sql, /where not exists \([\s\S]*item_concepts/i);
+});
+
+test("payment items without settlement_id still deduplicate by assignment and concept", () => {
+  const rows: Row[] = [
+    { projectId: "ccu", staffId: "sebastian", assignmentId: "assembly-1", settlementId: "legacy-1", concept: "ASSEMBLY", amount: 40000, paid: 0, source: "LEGACY" },
+    { projectId: "ccu", staffId: "sebastian", assignmentId: "assembly-1", settlementId: "", concept: "ASSEMBLY", amount: 40000, paid: 0, source: "ITEM" },
+  ];
+  assert.equal(reconcile(rows).length, 1);
+  assert.match(sql, /i\.settlement_id is null[\s\S]*i\.assignment_id = l\.assignment_id/i);
 });
 
 test("CCU fixture reconciles 21 payment rows and 11 collaborators without assuming duplicates", () => {
