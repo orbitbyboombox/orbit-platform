@@ -1,4 +1,4 @@
-import { previewTrainingAssignment, type TrainingAssignment } from "./staff-training-assignment";
+import { previewTrainingAssignment, type TrainingAssignment } from "./staff-training-assignment.ts";
 
 export type TrainingRecord = ReturnType<typeof previewTrainingAssignment> & {
   assignmentId: string;

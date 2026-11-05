@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { TrainingPreviewWorkspace } from "@/components/training-preview-workspace";
+import { TrainingRecordActions } from "@/components/training-record-actions";
 import { trainingSettlementPreview } from "@/lib/staff-training-settlement-preview";
 
 export const dynamic = "force-dynamic";
@@ -40,7 +41,7 @@ export default async function StaffTrainingPage() {
         <tbody>{training.map(t => <tr key={t.id} className="border-t">
           <td className="p-2">{eventNames.get(t.projectId) ?? t.projectId}</td>
           <td className="p-2">{t.trainee}</td><td className="p-2">{t.trainer}</td>
-          <td className="p-2">{t.status}</td><td className="p-2">CLP {t.trainingAmountClp.toLocaleString("es-CL")}</td>
+          <td className="p-2">{t.status} <TrainingRecordActions id={t.id} status={t.status} /></td><td className="p-2">CLP {t.trainingAmountClp.toLocaleString("es-CL")}</td>
         </tr>)}</tbody>
       </table></div>
     </section>

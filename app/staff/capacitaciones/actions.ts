@@ -29,3 +29,15 @@ export async function saveStaffTraining(input: TrainingAssignment): Promise<{ ok
   if (error) return { ok: false, message: "No se pudo guardar la capacitación." };
   return { ok: true, message: "Capacitación programada y guardada. No se ha generado pago." };
 }
+
+export async function completeStaffTraining(trainingId: string): Promise<{ ok: boolean; message: string }> {
+  if (!trainingId.trim()) return { ok: false, message: "Capacitación no válida." };
+  const client = await createSupabaseServerActionClient();
+  const { data: auth, error: authError } = await client.auth.getUser();
+  if (authError || !auth.user) return { ok: false, message: "Sesión no válida." };
+  const { data: profile } = await client.from("profiles").select("role").eq("id", auth.user.id).maybeSingle();
+  if (!profile || !["CEO", "ADMINISTRATOR"].includes(profile.role)) return { ok: false, message: "Acceso no autorizado." };
+  const { error } = await client.rpc("complete_staff_training", { p_training_id: trainingId });
+  if (error) return { ok: false, message: "No se pudo completar la capacitación." };
+  return { ok: true, message: "Capacitación completada e incluida en la próxima liquidación abierta." };
+}

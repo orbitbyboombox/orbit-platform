@@ -36,6 +36,6 @@ export function TrainingPreviewWorkspace({ staff, events }: { staff: TrainingSta
     />
     {pending && <p role="status">Guardando capacitación…</p>}
     {message && <p role="status" className="font-medium">{message}</p>}
-    <p className="text-xs opacity-75">El registro queda PROGRAMADO. No se contabiliza automáticamente en la liquidación ni en la nómina PDF.</p>
+    <p className="text-xs opacity-75">PROGRAMADO no se contabiliza. Al marcar COMPLETADA, el 50% se integra a la próxima liquidación mensual abierta del operador en capacitación y a su nómina PDF.</p>
   </div>;
 }

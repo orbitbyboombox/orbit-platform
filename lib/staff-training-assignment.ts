@@ -1,4 +1,4 @@
-import { calculateTrainingPay } from "./staff-training-pay";
+import { calculateTrainingPay } from "./staff-training-pay.ts";
 
 export type TrainingAssignment = {
   eventId: string;
