@@ -23,7 +23,7 @@ export function TrainingPreviewWorkspace({ staff, events }: { staff: TrainingSta
     <label className="block text-sm">Tarifa normal de operador del evento (CLP)
       <input className="mt-1 w-full rounded border p-2 text-gray-900" type="number" min="0" step="1" value={rate} onChange={e => setRate(e.target.value)} />
     </label>
-    <p className="text-xs opacity-75">Ingresa la tarifa real de operador de este evento antes de guardar. No se propone una tarifa por defecto. El pago del capacitador no cambia.</p>
+    <p className="text-xs opacity-75">Ingresa la tarifa real de operador de este evento antes de guardar. No se propone una tarifa por defecto. El capacitador no recibe pago extra por enseñar: conserva únicamente su tarifa habitual del evento.</p>
     <StaffTrainingPanel eventId={eventId} normalOperatorRateClp={numericRate} staff={staff}
       onConfirm={pending ? undefined : assignment => {
         setMessage("");
@@ -36,6 +36,6 @@ export function TrainingPreviewWorkspace({ staff, events }: { staff: TrainingSta
     />
     {pending && <p role="status">Guardando capacitación…</p>}
     {message && <p role="status" className="font-medium">{message}</p>}
-    <p className="text-xs opacity-75">PROGRAMADO no se contabiliza. Al marcar COMPLETADA, el 50% se integra a la próxima liquidación mensual abierta del operador en capacitación y a su nómina PDF.</p>
+    <p className="text-xs opacity-75">Solo se paga el 50% al operador nuevo cuando la capacitación esté COMPLETADA. PROGRAMADO no se contabiliza. Al marcar COMPLETADA, el 50% se integra a la próxima liquidación mensual abierta del operador en capacitación y a su nómina PDF.</p>
   </div>;
 }
