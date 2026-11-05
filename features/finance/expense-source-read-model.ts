@@ -31,7 +31,7 @@ export function normalizeExpenseCategory(value: string | null | undefined): Expe
 
 export type ExpenseSourceSnapshot = {
   projections: ExpenseProjection[];
-  sourceCounts: { expenses: number; staffSubmissions: number; reimbursements: number; staffSettlements: number };
+  sourceCounts: { expenses: number; staffSubmissions: number; reimbursements: number; staffSettlements: number; recurringRules: number; staffAdvances: number; staffMonthlyCloseItems: number };
   requiresReview: number;
 };
 
@@ -40,15 +40,18 @@ export type ExpenseSourceSnapshot = {
  * A failed query must fail closed; missing tables must never produce a false zero.
  */
 export async function loadExpenseSourceSnapshot(client: SupabaseClient): Promise<ExpenseSourceSnapshot> {
-  const [expenses, submissions, reimbursements, settlements] = await Promise.all([
+  const [expenses, submissions, reimbursements, settlements, recurringRules, advances, monthlyCloseItems] = await Promise.all([
     client.from("expenses").select("id,total,status,category,confirmed_category,project_id,event_staff_settlement_id").is("deleted_at", null),
     client.from("staff_expense_submissions").select("id,amount,status,project_id,materialized_expense_id"),
     client.from("staff_reimbursement_payments").select("id,amount,expense_id,staff_expense_submission_id,settlement_id,project_id"),
     client.from("event_staff_payments").select("id,total_internal_payment,status,project_id"),
+    client.from("finance_recurring_expense_rules").select("id,amount,category,active,frequency,next_due_date"),
+    client.from("staff_payment_advances").select("id,amount,payment_month_id"),
+    client.from("staff_monthly_close_items").select("id,settlement_id,monthly_close_id,close_version"),
   ]);
-  const error = expenses.error ?? submissions.error ?? reimbursements.error ?? settlements.error;
+  const error = expenses.error ?? submissions.error ?? reimbursements.error ?? settlements.error ?? recurringRules.error ?? advances.error ?? monthlyCloseItems.error;
   if (error) throw error;
-  if (!expenses.data || !submissions.data || !reimbursements.data || !settlements.data) {
+  if (!expenses.data || !submissions.data || !reimbursements.data || !settlements.data || !recurringRules.data || !advances.data || !monthlyCloseItems.data) {
     throw new Error("FINANCE_AUDIT_INCOMPLETE_SOURCE");
   }
   const safeAmount = (value: unknown) => value === null || value === undefined || value === "" ? Number.NaN : Number(value);
@@ -96,6 +99,9 @@ export async function loadExpenseSourceSnapshot(client: SupabaseClient): Promise
       staffSubmissions: submissions.data?.length ?? 0,
       reimbursements: reimbursements.data?.length ?? 0,
       staffSettlements: settlements.data?.length ?? 0,
+      recurringRules: recurringRules.data.length,
+      staffAdvances: advances.data.length,
+      staffMonthlyCloseItems: monthlyCloseItems.data.length,
     },
     requiresReview: projections.filter((row) => row.integrity === "REVIEW_REQUIRED").length,
   };
