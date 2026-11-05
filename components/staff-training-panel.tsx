@@ -40,10 +40,10 @@ export function StaffTrainingPanel({ eventId, normalOperatorRateClp, staff, onCo
         </select>
       </label>
       <div className="rounded-lg bg-gray-100 p-3 text-gray-900">
-        <p>Tarifa normal: ${normalOperatorRateClp.toLocaleString("es-CL")}</p>
+        <p>Tarifa normal: {Number.isFinite(normalOperatorRateClp) ? `${normalOperatorRateClp.toLocaleString("es-CL")}` : "—"}</p>
         <p>Capacitación (50%): <strong>{result.preview ? `$${result.preview.amountClp.toLocaleString("es-CL")}` : "—"}</strong></p>
       </div>
-      {result.error && <p role="status" className="text-sm text-gray-600">{result.error}</p>}
+      {result.error && Number.isFinite(normalOperatorRateClp) && <p role="status" className="text-sm text-gray-400">{result.error === "Event, trainee and trainer are required" ? "Selecciona un evento, un operador en capacitación y un capacitador." : result.error}</p>}
       <button type="button" disabled={!result.preview || !onConfirm} onClick={() => { if (result.preview && onConfirm) onConfirm(result.preview); }} className="rounded-lg border px-4 py-2 disabled:opacity-50">
         Confirmar capacitación
       </button>
