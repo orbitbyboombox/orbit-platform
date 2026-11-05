@@ -34,6 +34,7 @@ export function validateTotemLayout(layout: EventTotemLayout, context: {
   blockIds: ReadonlySet<string>;
   assignmentBlockIds: ReadonlyMap<string, string>;
 }): string[] {
+  if (!layout || typeof layout !== "object" || typeof layout.enabled !== "boolean") return ["Invalid layout"];
   if (!layout.enabled) return [];
   const errors: string[] = [];
   if (!Array.isArray(layout.positions) || layout.positions.length === 0 || layout.positions.length > 30) return ["Invalid position count"];
@@ -41,6 +42,7 @@ export function validateTotemLayout(layout: EventTotemLayout, context: {
   const assetIds = new Set<string>();
   const usedAssignments = new Set<string>();
   for (const position of layout.positions) {
+    if (!position || typeof position !== "object" || typeof position.id !== "string" || typeof position.label !== "string" || typeof position.location !== "string" || typeof position.reference !== "string" || (position.assetId !== null && typeof position.assetId !== "string")) { errors.push("Invalid position structure"); continue; }
     if (!position.id || !position.label || position.label.length > 100 || position.location.length > 250 || position.reference.length > 250) errors.push(`Invalid position fields: ${position.id}`);
     if (positionIds.has(position.id)) errors.push(`Duplicate position: ${position.id}`);
     positionIds.add(position.id);
@@ -52,6 +54,7 @@ export function validateTotemLayout(layout: EventTotemLayout, context: {
     const usedBlocks = new Set<string>();
     if (!Array.isArray(position.blocks)) { errors.push(`Invalid blocks: ${position.id}`); continue; }
     for (const block of position.blocks) {
+      if (!block || typeof block.blockId !== "string" || (block.assignmentId !== null && typeof block.assignmentId !== "string")) { errors.push(`Invalid block structure: ${position.id}`); continue; }
       if (!context.blockIds.has(block.blockId)) errors.push(`Unknown block: ${block.blockId}`);
       if (usedBlocks.has(block.blockId)) errors.push(`Duplicate block for ${position.id}: ${block.blockId}`);
       usedBlocks.add(block.blockId);
