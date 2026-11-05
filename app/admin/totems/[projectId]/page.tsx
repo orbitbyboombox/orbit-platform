@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { EventTotemLayoutEditor } from "@/features/operations/event-totem-layout-editor";
+import { EventTotemRosterPrint } from "@/features/operations/event-totem-roster-print";
 import { saveEventTotemLayoutAction } from "@/features/operations/event-totem-layout.actions";
 import { emptyTotemLayout, type EventTotemLayout } from "@/features/operations/event-totem-layout";
 
@@ -32,5 +33,6 @@ export default async function EventTotemsPage({ params }: { params: Promise<{ pr
   return <main className="mx-auto max-w-5xl space-y-6 p-6">
     <header><h1 className="text-2xl font-semibold">Multicaja · {project.orbit_event_id ?? project.name}</h1><p className="text-sm opacity-70">Ubicaciones y operadores por bloque. No modifica la reserva ni los pagos.</p></header>
     <EventTotemLayoutEditor initialLayout={layout} boxes={(assets ?? []).map(asset => ({ id: asset.id, label: asset.asset_code ?? asset.id }))} blocks={blockOptions} assignments={assignmentOptions} onSave={saveEventTotemLayoutAction.bind(null, projectId)} />
+    <EventTotemRosterPrint eventName={project.orbit_event_id ?? project.name} layout={layout} blocks={blockOptions.map(item => ({ id: item.id, name: item.label }))} boxes={(assets ?? []).map(asset => ({ id: asset.id, label: asset.asset_code ?? asset.id }))} assignments={assignmentOptions} />
   </main>;
 }
