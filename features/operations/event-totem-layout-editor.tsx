@@ -44,7 +44,7 @@ export function EventTotemLayoutEditor({
         setLayout(previous => ({
           ...previous,
           positions: Array.from({ length: count }, (_, index) => previous.positions[index] ?? {
-            id: `totem-${index + 1}`, label: `Tótem ${index + 1}`, location: "", reference: "", assetId: null, blocks: [],
+            id: crypto.randomUUID(), label: `Tótem ${index + 1}`, location: "", reference: "", assetId: null, blocks: [],
           }),
         }));
         setMessage("");
