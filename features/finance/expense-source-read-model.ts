@@ -44,7 +44,7 @@ export async function loadExpenseSourceSnapshot(client: SupabaseClient): Promise
     client.from("expenses").select("id,total,status,category,confirmed_category,project_id,event_staff_settlement_id").is("deleted_at", null),
     client.from("staff_expense_submissions").select("id,amount,status,project_id,materialized_expense_id"),
     client.from("staff_reimbursement_payments").select("id,amount,expense_id,staff_expense_submission_id,settlement_id,project_id"),
-    client.from("event_staff_payments").select("id,total_internal_payment,status,project_id"),
+    client.from("event_staff_payments").select("id,total_internal_payment,status,settlement_status,project_id").is("deleted_at", null),
     client.from("finance_recurring_expense_rules").select("id,amount,category,active,frequency,next_due_date"),
     client.from("staff_payment_advances").select("id,amount,payment_month_id"),
     client.from("staff_monthly_close_items").select("id,settlement_id,monthly_close_id,close_version"),
@@ -86,7 +86,9 @@ export async function loadExpenseSourceSnapshot(client: SupabaseClient): Promise
       source: "event_staff_payments" as const,
       id: row.id,
       amount: safeAmount(row.total_internal_payment),
-      status: row.status,
+      // Settlement state is financial; status is operational and must not override it.
+      // A missing financial state is explicitly reviewed, not inferred as paid.
+      status: row.settlement_status ?? null,
       category: "PERSONNEL_OPERATIONS" as const,
       projectId: row.project_id,
     })),
