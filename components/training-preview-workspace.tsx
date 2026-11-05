@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { StaffTrainingPanel, type TrainingStaffOption } from "@/components/staff-training-panel";
+import { saveStaffTraining } from "@/app/staff/capacitaciones/actions";
 
 type EventOption = { id: string; name: string };
 export function TrainingPreviewWorkspace({ staff, events }: { staff: TrainingStaffOption[]; events: EventOption[] }) {
   const [eventId, setEventId] = useState("");
   const [rate, setRate] = useState("12000");
+  const [message, setMessage] = useState("");
+  const [pending, startTransition] = useTransition();
   const numericRate = rate.trim() === "" ? NaN : Number(rate);
   return <div className="space-y-4">
     <label className="block text-sm">Evento
@@ -18,8 +21,18 @@ export function TrainingPreviewWorkspace({ staff, events }: { staff: TrainingSta
     <label className="block text-sm">Tarifa normal de operador del evento (CLP)
       <input className="mt-1 w-full rounded border p-2 text-gray-900" type="number" min="0" step="1" value={rate} onChange={e => setRate(e.target.value)} />
     </label>
-    <p className="text-xs opacity-75">La tarifa debe verificarse manualmente con el contrato del evento. No se toma de pagos personalizados.</p>
-    <StaffTrainingPanel eventId={eventId} normalOperatorRateClp={numericRate} staff={staff} />
-    <p className="text-xs opacity-75">Vista previa de solo lectura: no crea asignaciones ni liquida pagos.</p>
+    <p className="text-xs opacity-75">Verifica la tarifa normal del evento antes de guardar. El pago del capacitador no cambia.</p>
+    <StaffTrainingPanel eventId={eventId} normalOperatorRateClp={numericRate} staff={staff}
+      onConfirm={pending ? undefined : assignment => {
+        setMessage("");
+        startTransition(async () => {
+          const result = await saveStaffTraining(assignment);
+          setMessage(result.message);
+        });
+      }}
+    />
+    {pending && <p role="status">Guardando capacitación…</p>}
+    {message && <p role="status" className="font-medium">{message}</p>}
+    <p className="text-xs opacity-75">El registro queda PROGRAMADO. No se contabiliza automáticamente en la liquidación ni en la nómina PDF.</p>
   </div>;
 }
