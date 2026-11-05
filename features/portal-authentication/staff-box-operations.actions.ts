@@ -33,14 +33,17 @@ async function staffContext(projectId: string, allowedRoles?: string[]) {
   const ownOperatorAssignments = (data ?? []).filter((row) => row.assignment_type === "OPERATOR");
   const blockIds = operatorAssignments.map((row) => row.block_id).filter((id): id is string => Boolean(id));
   const { data: blocks, error: blockError } = blockIds.length
-    ? await admin.from("event_operational_blocks").select("id,sequence").in("id", blockIds)
+    ? await admin.from("event_operational_blocks").select("id,sequence,start_at").in("id", blockIds)
     : { data: [], error: null };
   if (blockError) throw blockError;
   const sequenceByBlock = new Map((blocks ?? []).map((block) => [block.id, Number(block.sequence)]));
-  const operatorSequences = operatorAssignments.map((row) => row.block_id ? sequenceByBlock.get(row.block_id) : null).filter((sequence): sequence is number => sequence !== undefined && Number.isFinite(sequence));
-  const highestOperatorSequence = operatorSequences.length ? Math.max(...operatorSequences) : null;
+  // Closing paper belongs to the chronologically last operator block, never an
+  // intermediate block. Historical block sequences can be out of order.
+  const blockStartById = new Map((blocks ?? []).map((block) => [block.id, Date.parse(String(block.start_at))]));
+  const operatorBlockStarts = operatorAssignments.filter((row) => row.block_id).map((row) => blockStartById.get(row.block_id!)).filter((value): value is number => value !== undefined && Number.isFinite(value));
+  const lastOperatorStart = operatorBlockStarts.length ? Math.max(...operatorBlockStarts) : null;
   const canFinalizeEvent = roles.includes("DISASSEMBLY")
-    || ownOperatorAssignments.some((row) => !row.block_id || sequenceByBlock.get(row.block_id) === highestOperatorSequence);
+    || ownOperatorAssignments.some((row) => !row.block_id || (lastOperatorStart !== null && blockStartById.get(row.block_id) === lastOperatorStart));
   return { admin, staffId: session.staff_id, portalSessionId: session.id, roles, canFinalizeEvent, ownOperatorAssignments, sequenceByBlock };
 }
 
