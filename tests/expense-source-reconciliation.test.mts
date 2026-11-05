@@ -53,3 +53,20 @@ test("category totals exclude unclassified and review-required rows", () => {
   assert.equal(transport?.recognizedCost, 20000);
   assert.equal(transport?.confirmedCashOutflow, 0);
 });
+
+test("linked settlement and expense are held for review instead of both entering category totals", () => {
+  const rows = reconcileExpenseSources([
+    { source: "expenses", id: "expense-1", amount: 40000, status: "APPROVED", category: "PERSONNEL_OPERATIONS", settlementId: "settlement-1" },
+    { source: "event_staff_payments", id: "settlement-1", amount: 40000, status: "FINALIZED", category: "PERSONNEL_OPERATIONS" },
+  ]);
+  assert.ok(rows.every((row) => row.integrity === "REVIEW_REQUIRED"));
+  assert.equal(expenseCategoryTotals(rows).find((row) => row.category === "PERSONNEL_OPERATIONS")?.recognizedCost, 0);
+});
+
+test("unknown expense state requires review and is excluded from totals", () => {
+  const rows = reconcileExpenseSources([
+    { source: "expenses", id: "e-unknown", amount: 2000, status: "UNRECOGNIZED", category: "OFFICE_ADMIN" },
+  ]);
+  assert.equal(rows[0].integrity, "REVIEW_REQUIRED");
+  assert.equal(expenseCategoryTotals(rows).find((row) => row.category === "OFFICE_ADMIN")?.recognizedCost, 0);
+});
