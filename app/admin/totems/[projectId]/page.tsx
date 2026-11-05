@@ -30,7 +30,7 @@ export default async function EventTotemsPage({ params }: { params: Promise<{ pr
     return { id: item.id, blockId: item.block_id!, label: [person?.first_name, person?.last_name].filter(Boolean).join(" ") || "Operador" };
   });
   return <main className="mx-auto max-w-5xl space-y-6 p-6">
-    <header><h1 className="text-2xl font-semibold">Multicaja · {project.orbit_event_id ?? project.name}</h1><p className="text-sm opacity-70">Ubicaciones y operadores por bloque. No modifica la reserva ni los pagos.</p></header>
+    <header className="print:hidden"><h1 className="text-2xl font-semibold">Multicaja · {project.orbit_event_id ?? project.name}</h1><p className="text-sm opacity-70">Ubicaciones y operadores por bloque. No modifica la reserva ni los pagos.</p></header>
     <EventTotemAdminWorkspace eventName={project.orbit_event_id ?? project.name} initialLayout={layout} boxes={(assets ?? []).map(asset => ({ id: asset.id, label: asset.asset_code ?? asset.id }))} blocks={blockOptions} assignments={assignmentOptions} onSave={saveEventTotemLayoutAction.bind(null, projectId)} />
   </main>;
 }
