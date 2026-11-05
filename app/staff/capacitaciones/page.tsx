@@ -33,14 +33,14 @@ export default async function StaffTrainingPage() {
     <TrainingPreviewWorkspace staff={staff} events={events} />
     <section className="space-y-3">
       <h2 className="text-xl font-semibold">Capacitaciones registradas</h2>
-      <p className="text-sm">Vista de control (últimos 200 registros). Pagos completados elegibles: ${summary.payableClp.toLocaleString("es-CL")} CLP. Pendientes: {summary.pendingCount}. Canceladas: {summary.cancelledCount}.</p>
+      <p className="text-sm">Vista de control (últimos 200 registros). Pagos completados elegibles: CLP {summary.payableClp.toLocaleString("es-CL")}. Pendientes: {summary.pendingCount}. Canceladas: {summary.cancelledCount}.</p>
       <p className="text-xs">Esta cifra es informativa; no se agrega a liquidaciones ni se paga automáticamente.</p>
       <div className="overflow-x-auto"><table className="w-full text-left text-sm">
         <thead><tr><th className="p-2">Evento</th><th className="p-2">En capacitación</th><th className="p-2">Capacitador</th><th className="p-2">Estado</th><th className="p-2">Monto</th></tr></thead>
         <tbody>{training.map(t => <tr key={t.id} className="border-t">
           <td className="p-2">{eventNames.get(t.projectId) ?? t.projectId}</td>
           <td className="p-2">{t.trainee}</td><td className="p-2">{t.trainer}</td>
-          <td className="p-2">{t.status}</td><td className="p-2">${t.trainingAmountClp.toLocaleString("es-CL")}</td>
+          <td className="p-2">{t.status}</td><td className="p-2">CLP {t.trainingAmountClp.toLocaleString("es-CL")}</td>
         </tr>)}</tbody>
       </table></div>
     </section>
