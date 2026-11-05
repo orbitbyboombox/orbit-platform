@@ -22,7 +22,7 @@ export default async function EventTotemsPage({ params }: { params: Promise<{ pr
   if (!project) notFound();
   const operations = project.operations as Record<string, unknown> | null;
   const stored = operations?.totemLayout as EventTotemLayout | undefined;
-  const layout = stored && Array.isArray(stored.positions) ? stored : emptyTotemLayout();
+  const layout = stored && Array.isArray(stored.positions) ? stored : emptyTotemLayout(project.orbit_event_id === "ORB-2026-268105" ? 7 : 1);
   const blockOptions = (blocks ?? []).map(block => ({ id: block.id, label: block.name ?? "Bloque" }));
   const assignmentOptions = (assignments ?? []).filter(item => item.block_id && item.assignment_type === "OPERATOR").map(item => {
     const staff = item.staff as unknown as { first_name: string; last_name: string } | { first_name: string; last_name: string }[] | null;
