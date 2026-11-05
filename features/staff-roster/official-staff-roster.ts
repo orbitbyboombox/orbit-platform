@@ -27,9 +27,13 @@ export async function loadOfficialRoster(projectId: string): Promise<RosterCompo
   const [p, a, blockResult, assetResult] = await Promise.all([
     admin.from("projects").select("id,orbit_event_id,name,event_date,event_time,location,city,operations,customer_id,customers!inner(full_name,email,secondary_email),project_operational_contracts(contact_email)").eq("id", projectId).is("deleted_at", null).single(),
     admin.from("assignments").select("id,staff_id,assignment_type,status,resources,staff!inner(first_name,last_name,rut)").eq("project_id", projectId).is("deleted_at", null),
+    admin.from("event_operational_blocks").select("id,name").eq("project_id", projectId),
+    admin.from("operational_assets").select("id,asset_code").eq("asset_type", "CASE"),
   ]);
   if (p.error) throw p.error;
-  if (a.error) throw a.error;\n  if (blockResult.error) throw blockResult.error;\n  if (assetResult.error) throw assetResult.error;
+  if (a.error) throw a.error;
+  if (blockResult.error) throw blockResult.error;
+  if (assetResult.error) throw assetResult.error;
   const customer = Array.isArray(p.data.customers) ? p.data.customers[0] : p.data.customers;
   const contract = Array.isArray(p.data.project_operational_contracts) ? p.data.project_operational_contracts[0] : p.data.project_operational_contracts;
   const members = ((a.data ?? []) as unknown as Array<{id:string;staff_id:string;assignment_type:string;status:string;resources:Record<string,unknown>|null;staff:{first_name:string;last_name:string;rut:string|null}|Array<{first_name:string;last_name:string;rut:string|null}>}>)
