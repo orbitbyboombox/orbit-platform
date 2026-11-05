@@ -35,6 +35,7 @@ export function validateTotemLayout(layout: EventTotemLayout, context: {
   assignmentBlockIds: ReadonlyMap<string, string>;
 }): string[] {
   if (!layout || typeof layout !== "object" || typeof layout.enabled !== "boolean") return ["Invalid layout"];
+  if (!Array.isArray(layout.positions)) return ["Invalid position count"];
   if (!layout.enabled) return [];
   const errors: string[] = [];
   if (!Array.isArray(layout.positions) || layout.positions.length === 0 || layout.positions.length > 30) return ["Invalid position count"];
