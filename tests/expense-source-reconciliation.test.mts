@@ -70,3 +70,12 @@ test("unknown expense state requires review and is excluded from totals", () => 
   assert.equal(rows[0].integrity, "REVIEW_REQUIRED");
   assert.equal(expenseCategoryTotals(rows).find((row) => row.category === "OFFICE_ADMIN")?.recognizedCost, 0);
 });
+
+test("every occurrence of a duplicated expense ID is excluded, regardless of input order", () => {
+  const rows = reconcileExpenseSources([
+    { source: "expenses", id: "same-id", amount: 25000, status: "PAID", category: "OFFICE_ADMIN" },
+    { source: "expenses", id: "same-id", amount: 25000, status: "PAID", category: "OFFICE_ADMIN" },
+  ]);
+  assert.ok(rows.every((row) => row.integrity === "REVIEW_REQUIRED"));
+  assert.equal(expenseCategoryTotals(rows).find((row) => row.category === "OFFICE_ADMIN")?.recognizedCost, 0);
+});
