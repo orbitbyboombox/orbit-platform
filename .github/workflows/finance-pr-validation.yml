@@ -3,8 +3,7 @@ name: Finance PR validation
 on:
   pull_request:
     branches:
-      - feat/commercial-customer-search-sort-20261104
-      - feat/finance-v2.1.5-foundation-20261105
+      - feat/staff-training-v215-production-integrated-20261105
 
 permissions:
   contents: read
