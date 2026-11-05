@@ -18,7 +18,7 @@ export function EventTotemLayoutEditor({
   boxes: Option[];
   blocks: Option[];
   assignments: Array<Option & { blockId: string }>;
-  onSave: (layout: EventTotemLayout) => Promise<void>;
+  onSave: (layout: EventTotemLayout) => Promise<unknown>;
   onSaved?: (layout: EventTotemLayout) => void;
 }) {
   const [layout, setLayout] = useState<EventTotemLayout>(() => initialLayout ?? emptyTotemLayout());
