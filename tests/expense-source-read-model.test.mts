@@ -39,3 +39,38 @@ test("missing recurring source fails closed instead of displaying a misleading t
 test("missing monthly staff close source fails closed", async () => {
   await assert.rejects(() => loadExpenseSourceSnapshot(mockClient("staff_monthly_close_items") as never), /source unavailable/);
 });
+
+
+test("financial settlement status takes precedence over operational status", async () => {
+  const original = sourceRows.event_staff_payments;
+  sourceRows.event_staff_payments = [{ id: "staff-1", total_internal_payment: "19000", status: "ACTIVE", settlement_status: "PAID", project_id: null }] as never;
+  try {
+    const snapshot = await loadExpenseSourceSnapshot(mockClient() as never);
+    const row = snapshot.projections.find((item) => item.id === "staff-1");
+    assert.equal(row?.recognizedCost, 19000);
+    assert.equal(row?.integrity, "OK");
+    assert.equal(row?.confirmedCashOutflow, 0);
+  } finally { sourceRows.event_staff_payments = original; }
+});
+
+test("pending financial settlement does not become paid because operational status says PAID", async () => {
+  const original = sourceRows.event_staff_payments;
+  sourceRows.event_staff_payments = [{ id: "staff-2", total_internal_payment: "21000", status: "PAID", settlement_status: "PENDING", project_id: null }] as never;
+  try {
+    const snapshot = await loadExpenseSourceSnapshot(mockClient() as never);
+    const row = snapshot.projections.find((item) => item.id === "staff-2");
+    assert.equal(row?.recognizedCost, 0);
+    assert.equal(row?.integrity, "OK");
+  } finally { sourceRows.event_staff_payments = original; }
+});
+
+test("missing financial settlement status remains review required", async () => {
+  const original = sourceRows.event_staff_payments;
+  sourceRows.event_staff_payments = [{ id: "staff-3", total_internal_payment: "9000", status: "PAID", settlement_status: null, project_id: null }] as never;
+  try {
+    const snapshot = await loadExpenseSourceSnapshot(mockClient() as never);
+    const row = snapshot.projections.find((item) => item.id === "staff-3");
+    assert.equal(row?.recognizedCost, 0);
+    assert.equal(row?.integrity, "REVIEW_REQUIRED");
+  } finally { sourceRows.event_staff_payments = original; }
+});
