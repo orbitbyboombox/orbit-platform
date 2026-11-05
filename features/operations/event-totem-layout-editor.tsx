@@ -28,6 +28,7 @@ export function EventTotemLayoutEditor({
     assignmentBlockIds: new Map(assignments.map(assignment => [assignment.id, assignment.blockId])),
   };
   const errors = validateTotemLayout(layout, context);
+  const canAdd = layout.positions.length < 30;
   const change = (index: number, patch: Partial<EventTotemLayout["positions"][number]>) => {
     setLayout(previous => ({ ...previous, positions: previous.positions.map((position, i) => i === index ? { ...position, ...patch } : position) }));
     setMessage("");
@@ -45,7 +46,7 @@ export function EventTotemLayoutEditor({
       <div className="grid gap-2 sm:grid-cols-2">{blocks.map(block => <label key={block.id} className="text-sm">{block.label}<select className="mt-1 w-full rounded border p-2" value={position.blocks.find(item => item.blockId === block.id)?.assignmentId ?? ""} onChange={event => change(index, { blocks: [...position.blocks.filter(item => item.blockId !== block.id), { blockId: block.id, assignmentId: event.target.value || null }] })}><option value="">Operador pendiente</option>{assignments.filter(assignment => assignment.blockId === block.id).map(assignment => <option key={assignment.id} value={assignment.id}>{assignment.label}</option>)}</select></label>)}</div>
       <button type="button" className="text-sm underline" onClick={() => setLayout(previous => ({ ...previous, positions: previous.positions.filter(item => item.id !== position.id) }))}>Quitar posición</button>
     </fieldset>)}
-    <button type="button" className="rounded border px-3 py-2" onClick={() => setLayout(previous => ({ ...previous, positions: [...previous.positions, { id: crypto.randomUUID(), label: `Tótem ${previous.positions.length + 1}`, location: "", reference: "", assetId: null, blocks: [] }] }))}>Agregar tótem</button></div>}
+    <button type="button" disabled={!canAdd} className="rounded border px-3 py-2 disabled:opacity-50" onClick={() => setLayout(previous => ({ ...previous, positions: [...previous.positions, { id: crypto.randomUUID(), label: `Tótem ${previous.positions.length + 1}`, location: "", reference: "", assetId: null, blocks: [] }] }))}>Agregar tótem</button></div>}
     {errors.length > 0 && <div role="alert" className="text-sm text-red-600">{errors.join("; ")}</div>}
     {message && <p role="status" className="text-sm">{message}</p>}
     <button type="button" disabled={saving || errors.length > 0} className="rounded bg-blue-700 px-4 py-2 text-white disabled:opacity-50" onClick={async () => { setSaving(true); setMessage(""); try { await onSave(layout); setMessage("Distribución guardada"); } catch { setMessage("No se pudo guardar la distribución"); } finally { setSaving(false); } }}>{saving ? "Guardando..." : "Guardar distribución"}</button>
