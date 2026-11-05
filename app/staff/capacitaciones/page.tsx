@@ -29,13 +29,13 @@ export default async function StaffTrainingPage() {
   }));
   const summary = trainingSettlementPreview(training);
   return <main className="mx-auto max-w-4xl space-y-6 p-6">
-    <h1 className="text-2xl font-bold">Staff · Capacitaciones</h1>
+    <div className="flex items-center justify-between gap-3"><h1 className="text-2xl font-bold">Staff · Capacitaciones</h1><a href="/operations" className="rounded-lg border px-3 py-2 text-sm">Volver a ORBIT</a></div>
     {(staffResult.error || eventResult.error || trainingResult.error) && <p role="alert">No se pudo cargar toda la información. Reintenta antes de registrar.</p>}
     <TrainingPreviewWorkspace staff={staff} events={events} />
     <section className="space-y-3">
       <h2 className="text-xl font-semibold">Capacitaciones registradas</h2>
       <p className="text-sm">Vista de control (últimos 200 registros). Pagos completados elegibles: CLP {summary.payableClp.toLocaleString("es-CL")}. Pendientes: {summary.pendingCount}. Canceladas: {summary.cancelledCount}.</p>
-      <p className="text-xs">Esta cifra es informativa; no se agrega a liquidaciones ni se paga automáticamente.</p>
+      <p className="text-xs">Esta cifra es informativa: las capacitaciones completadas se incluyen en la liquidación mensual abierta correspondiente; no se ejecutan pagos automáticamente.</p>
       <div className="overflow-x-auto"><table className="w-full text-left text-sm">
         <thead><tr><th className="p-2">Evento</th><th className="p-2">En capacitación</th><th className="p-2">Capacitador</th><th className="p-2">Estado</th><th className="p-2">Monto</th></tr></thead>
         <tbody>{training.map(t => <tr key={t.id} className="border-t">
