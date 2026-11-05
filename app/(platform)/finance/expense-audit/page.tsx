@@ -10,6 +10,7 @@ export default async function FinanceExpenseAuditPage() {
   const snapshot = await loadExpenseSourceSnapshot(client);
   const totals = expenseCategoryTotals(snapshot.projections);
   const reviewed = snapshot.projections.filter((item) => item.integrity === "REVIEW_REQUIRED");
+  const reviewReasons = Array.from(new Set(reviewed.flatMap((item) => item.reviewReasons))).map((reason) => ({ reason, count: reviewed.filter((item) => item.reviewReasons.includes(reason)).length })).sort((a, b) => b.count - a.count);
   return <main className="space-y-6" aria-label="Auditoría de gastos">
     <header className="rounded-3xl border bg-card p-6">
       <p className="text-xs font-semibold uppercase tracking-widest text-brand">Finanzas BOOMBOX · Etapa 2</p>
@@ -36,7 +37,9 @@ export default async function FinanceExpenseAuditPage() {
     <section className="rounded-2xl border bg-card p-5">
       <h2 className="text-xl font-semibold">Pendientes de revisión: {snapshot.requiresReview}</h2>
       <p className="mt-1 text-sm text-muted">Estos registros se excluyen de los subtotales anteriores hasta validar su origen y relación económica.</p>
-      <div className="mt-4 space-y-2">{reviewed.slice(0, 50).map((row) => <div className="rounded-lg border p-3 text-sm" key={row.key}><p className="font-medium">{row.source} · {row.id}</p><p className="mt-1 text-muted">{row.reviewReasons.join(", ")}</p></div>)}</div>
+      <div className="mt-4 grid gap-2 sm:grid-cols-2">{reviewReasons.map(({ reason, count }) => <div className="rounded-xl border p-3" key={reason}><p className="text-xs text-muted">{reason}</p><p className="mt-1 text-lg font-semibold">{count} registro{count === 1 ? "" : "s"}</p></div>)}</div>
+      <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-muted">Detalle de registros con alerta</p>
+      <div className="mt-2 space-y-2">{reviewed.slice(0, 50).map((row) => <div className="rounded-lg border p-3 text-sm" key={row.key}><p className="font-medium">{row.source} · {row.id}</p><p className="mt-1 text-muted">{row.reviewReasons.join(", ")}</p></div>)}</div>
       {reviewed.length > 50 ? <p className="mt-3 text-xs text-muted">Se muestran los primeros 50 casos; el total incluye todos los registros analizados.</p> : null}
     </section>
   </main>;
