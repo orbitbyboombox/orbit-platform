@@ -23,6 +23,13 @@ legacy_concepts as (
     ) v(concept_code, recorded_amount)
    where p.deleted_at is null
      and p.settlement_status <> 'CANCELLED'
+     and not exists (
+       select 1
+         from public.assignments cancelled_assignment
+        where cancelled_assignment.id = p.assignment_id
+          and (cancelled_assignment.deleted_at is not null
+               or cancelled_assignment.status in ('CANCELLED','REJECTED'))
+     )
      and v.recorded_amount > 0
 ),
 legacy_without_items as (
