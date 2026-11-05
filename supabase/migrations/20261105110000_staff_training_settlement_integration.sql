@@ -129,7 +129,7 @@ begin
 
   result := jsonb_set(result, '{workNet}', to_jsonb((result->>'workNet')::numeric + training_total), true);
   result := jsonb_set(result, '{boletaNet}', to_jsonb((result->>'boletaNet')::numeric + training_total), true);
-  result := jsonb_set(result, '{boletaGross}', to_jsonb(round(((result->>'boletaNet')::numeric + training_total) / greatest(1 - ((result->>'withholdingRate')::numeric / 100), 0.0001), 0)), true);
+  result := jsonb_set(result, '{boletaGross}', to_jsonb(round((result->>'boletaNet')::numeric / greatest(1 - ((result->>'withholdingRate')::numeric / 100), 0.0001), 0)), true);
   result := jsonb_set(result, '{withholdingAmount}', to_jsonb(greatest((result->>'boletaGross')::numeric - (result->>'boletaNet')::numeric, 0)), true);
   result := jsonb_set(result, '{workPending}', to_jsonb((result->>'workPending')::numeric + training_total), true);
   result := jsonb_set(result, '{cashObligation}', to_jsonb((result->>'cashObligation')::numeric + training_total), true);
