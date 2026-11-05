@@ -38,3 +38,15 @@ export function resolveStaffVenueInfo(input: {
     observations,
   };
 }
+
+/** Address is distinct from venue. Legacy reservations stored it in a labeled notes line. */
+export function resolveStaffEventAddress(input: {
+  operations: VenueOperations;
+}): string {
+  const operations = input.operations ?? {};
+  const canonical = text(operations.eventAddress) || text(operations.event_address);
+  if (canonical) return canonical;
+  const notes = text(operations.notes);
+  const legacy = notes.match(/(?:^|\n)\s*Direcci[oó]n\s+(?:del\s+)?evento\s*:\s*([^\r\n]+)/i);
+  return legacy?.[1]?.trim() || "Dirección por confirmar";
+}

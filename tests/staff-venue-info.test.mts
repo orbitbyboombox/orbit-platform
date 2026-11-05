@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { resolveStaffVenueInfo } from "../features/portal-authentication/staff-venue-info.ts";
+import { resolveStaffVenueInfo, resolveStaffEventAddress } from "../features/portal-authentication/staff-venue-info.ts";
 
 test("Portal Staff reuses Admin venue and operational access fields", () => {
   assert.deepEqual(resolveStaffVenueInfo({
@@ -37,4 +37,11 @@ test("Staff detail reads only events assigned to the authenticated staff member"
   assert.match(source, /from\("assignments"\)\.select\([\s\S]*?\.eq\("staff_id",staffId\)/);
   assert.match(source, /project_operational_contracts/);
   assert.match(source, /resolveStaffVenueInfo/);
+});
+
+test("Staff address reads the canonical field, or the labeled legacy event address, never the venue", () => {
+  assert.equal(resolveStaffEventAddress({ operations: { eventAddress: "Calle Nueva 123", notes: "Dirección evento: Antigua 99" } }), "Calle Nueva 123");
+  assert.equal(resolveStaffEventAddress({ operations: { notes: "Cliente: Ejemplo\\nDirección evento: Camino el Algarrobo 205\\nProvincia: Chacabuco" } }), "Camino el Algarrobo 205");
+  assert.equal(resolveStaffEventAddress({ operations: { notes: "Cliente: Ejemplo" } }), "Dirección por confirmar");
+  assert.equal(resolveStaffEventAddress({ operations: {} }), "Dirección por confirmar");
 });
