@@ -4,7 +4,7 @@ import {
   type ExpenseCategory,
   type ExpenseInput,
   type ExpenseProjection,
-} from "./expense-source-reconciliation";
+} from "./expense-source-reconciliation.ts";
 
 const categoryNames: Record<string, ExpenseCategory> = {
   PERSONAL: "PERSONNEL_OPERATIONS",
