@@ -29,9 +29,11 @@ export async function saveEventTotemLayoutAction(projectId: string, layout: Even
   // Optimistic compare prevents overwriting edits to other operational fields made since this read.
   const { data: saved, error: saveError } = await client.from("projects")
     .update({ operations: { ...operations, totemLayout: layout } })
-    .eq("id", projectId).eq("operations", operations).select("id").maybeSingle();
+    .eq("id", projectId).filter("operations", "eq", JSON.stringify(operations)).select("id").maybeSingle();
   if (saveError) throw new Error("Could not save layout");
   if (!saved) throw new Error("Event was changed by someone else. Reload before saving.");
   revalidatePath("/admin");
+  revalidatePath("/admin/totems");
+  revalidatePath(`/admin/totems/${projectId}`);
   return { ok: true };
 }
