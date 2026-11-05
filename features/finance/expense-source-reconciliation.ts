@@ -57,14 +57,17 @@ const validAmount = (value: number) => Number.isFinite(value) && value >= 0;
 
 export function reconcileExpenseSources(inputs: readonly ExpenseInput[]): ExpenseProjection[] {
   const known = new Set(inputs.map((item) => `${item.source}:${item.id}`));
-  const seen = new Set<string>();
+  const sourceKeyCounts = new Map<string, number>();
+  for (const item of inputs) {
+    const key = `${item.source}:${item.id}`;
+    sourceKeyCounts.set(key, (sourceKeyCounts.get(key) ?? 0) + 1);
+  }
   const expenseSettlementLinks = new Set(inputs.filter((item) => item.source === "expenses" && item.settlementId).map((item) => item.settlementId));
 
   return inputs.map((item) => {
     const key = `${item.source}:${item.id}`;
     const reasons: string[] = [];
-    if (!item.id || seen.has(key)) reasons.push("DUPLICATE_OR_MISSING_SOURCE_ID");
-    seen.add(key);
+    if (!item.id || (sourceKeyCounts.get(key) ?? 0) > 1) reasons.push("DUPLICATE_OR_MISSING_SOURCE_ID");
     if (!validAmount(item.amount)) reasons.push("INVALID_AMOUNT");
     if (!item.category && item.source === "expenses") reasons.push("UNCLASSIFIED_EXPENSE");
 
