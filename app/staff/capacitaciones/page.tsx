@@ -12,13 +12,14 @@ export default async function StaffTrainingPage() {
   if (!auth.user) redirect("/?access=admin");
   const { data: profile } = await client.from("profiles").select("role").eq("id", auth.user.id).maybeSingle();
   if (!profile || !["CEO", "ADMINISTRATOR"].includes(profile.role)) redirect("/?error=access-denied");
+  const today = new Date().toISOString().slice(0, 10);
   const [staffResult, eventResult, trainingResult] = await Promise.all([
     client.from("staff").select("id,first_name,last_name").is("deleted_at", null).order("first_name").limit(500),
-    client.from("projects").select("id,name,orbit_event_id,event_date").is("deleted_at", null).order("event_date", { ascending: false }).limit(200),
+    client.from("projects").select("id,name,orbit_event_id,event_date").is("deleted_at", null).gte("event_date", today).order("event_date", { ascending: true }).limit(1000),
     client.from("staff_training_assignments").select("id,project_id,trainee_staff_id,trainer_staff_id,status,training_amount_clp").order("created_at", { ascending: false }).limit(200),
   ]);
   const staff = (staffResult.data ?? []).map(s => ({ id: s.id, name: [s.first_name, s.last_name].filter(Boolean).join(" ") }));
-  const events = (eventResult.data ?? []).map(e => ({ id: e.id, name: [e.orbit_event_id, e.name, e.event_date].filter(Boolean).join(" · ") }));
+  const events = (eventResult.data ?? []).map(e => ({ id: e.id, date: e.event_date, name: [e.event_date, e.orbit_event_id, e.name].filter(Boolean).join(" · ") }));
   const names = new Map(staff.map(s => [s.id, s.name]));
   const eventNames = new Map(events.map(e => [e.id, e.name]));
   const training = (trainingResult.data ?? []).map(t => ({
