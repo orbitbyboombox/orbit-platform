@@ -12,12 +12,14 @@ export function EventTotemLayoutEditor({
   blocks,
   assignments,
   onSave,
+  onSaved,
 }: {
   initialLayout?: EventTotemLayout;
   boxes: Option[];
   blocks: Option[];
   assignments: Array<Option & { blockId: string }>;
   onSave: (layout: EventTotemLayout) => Promise<void>;
+  onSaved?: (layout: EventTotemLayout) => void;
 }) {
   const [layout, setLayout] = useState<EventTotemLayout>(() => initialLayout ?? emptyTotemLayout());
   const [saving, setSaving] = useState(false);
@@ -49,6 +51,6 @@ export function EventTotemLayoutEditor({
     <button type="button" disabled={!canAdd} className="rounded border px-3 py-2 disabled:opacity-50" onClick={() => setLayout(previous => ({ ...previous, positions: [...previous.positions, { id: crypto.randomUUID(), label: `Tótem ${previous.positions.length + 1}`, location: "", reference: "", assetId: null, blocks: [] }] }))}>Agregar tótem</button></div>}
     {errors.length > 0 && <div role="alert" className="text-sm text-red-600">{errors.join("; ")}</div>}
     {message && <p role="status" className="text-sm">{message}</p>}
-    <button type="button" disabled={saving || errors.length > 0} className="rounded bg-blue-700 px-4 py-2 text-white disabled:opacity-50" onClick={async () => { setSaving(true); setMessage(""); try { await onSave(layout); setMessage("Distribución guardada"); } catch { setMessage("No se pudo guardar la distribución"); } finally { setSaving(false); } }}>{saving ? "Guardando..." : "Guardar distribución"}</button>
+    <button type="button" disabled={saving || errors.length > 0} className="rounded bg-blue-700 px-4 py-2 text-white disabled:opacity-50" onClick={async () => { setSaving(true); setMessage(""); try { await onSave(layout); onSaved?.(layout); setMessage("Distribución guardada"); } catch { setMessage("No se pudo guardar la distribución"); } finally { setSaving(false); } }}>{saving ? "Guardando..." : "Guardar distribución"}</button>
   </section>;
 }
