@@ -15,14 +15,14 @@ export async function saveEventTotemLayoutAction(projectId: string, layout: Even
   const [{ data: project, error: projectError }, { data: blocks, error: blocksError }, { data: assignments, error: assignmentsError }, { data: assets, error: assetsError }] = await Promise.all([
     client.from("projects").select("id,operations").eq("id", projectId).is("deleted_at", null).single(),
     client.from("event_operational_blocks").select("id").eq("project_id", projectId),
-    client.from("assignments").select("id,block_id").eq("project_id", projectId).is("deleted_at", null),
+    client.from("assignments").select("id,block_id,assignment_type").eq("project_id", projectId).is("deleted_at", null),
     client.from("operational_assets").select("id").eq("asset_type", "CASE"),
   ]);
   if (projectError || !project || blocksError || assignmentsError || assetsError) throw new Error("Unable to load event assignment references");
   const errors = validateTotemLayout(layout, {
     assetIds: new Set((assets ?? []).map(item => item.id)),
     blockIds: new Set((blocks ?? []).map(item => item.id)),
-    assignmentBlockIds: new Map((assignments ?? []).filter(item => item.block_id).map(item => [item.id, item.block_id!])),
+    assignmentBlockIds: new Map((assignments ?? []).filter(item => item.block_id && item.assignment_type === "OPERATOR").map(item => [item.id, item.block_id!])),
   });
   if (errors.length) throw new Error(errors.join("; "));
   const operations = project.operations && typeof project.operations === "object" && !Array.isArray(project.operations) ? project.operations : {};
