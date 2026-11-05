@@ -17,7 +17,7 @@ export function EventTotemAdminWorkspace({ eventName, initialLayout, boxes, bloc
 }) {
   const [persistedLayout, setPersistedLayout] = useState(initialLayout);
   return <div className="space-y-6">
-    <EventTotemLayoutEditor initialLayout={initialLayout} boxes={boxes} blocks={blocks} assignments={assignments} onSave={onSave} onSaved={setPersistedLayout} />
+    <div className="print:hidden"><EventTotemLayoutEditor initialLayout={initialLayout} boxes={boxes} blocks={blocks} assignments={assignments} onSave={onSave} onSaved={setPersistedLayout} /></div>
     <EventTotemRosterPrint eventName={eventName} layout={persistedLayout} blocks={blocks.map(item => ({ id: item.id, name: item.label }))} boxes={boxes} assignments={assignments} />
   </div>;
 }
