@@ -75,6 +75,7 @@ export function OfficialStaffRosterControl({projectId}:{projectId:string}) {
         </div>)}
         {!composer.members.length&&<p className="rounded-xl border p-4 text-sm text-muted">Aún no hay staff asignado al evento.</p>}
       </div>
+      {!!composer.totemRows?.length&&<div className="mt-4 rounded-xl border p-3"><h4 className="font-semibold">Distribución Multicaja incluida en el PDF</h4><div className="mt-2 grid gap-2">{composer.totemRows.map((row,index)=><div key={index} className="grid gap-1 border-b pb-2 text-sm sm:grid-cols-4"><span className="font-medium">{row.position} · {row.box}</span><span>{row.block}</span><span>{row.operator}</span><span className="text-muted">{row.location} · {row.reference}</span></div>)}</div></div>}
       {!!composer.missing.length&&<div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950"><strong>Completa esto antes de generar o enviar:</strong><ul className="mt-2 list-disc pl-5">{composer.missing.map((item,index)=><li key={index}>{item}</li>)}</ul></div>}
       <div className="mt-4 flex flex-wrap gap-2">
         <Button disabled={pending||!composer.canGenerate} onClick={download}><FileDown className="size-4"/>Descargar PDF oficial</Button>
