@@ -1,3 +1,4 @@
+import Link from "next/link";
 "use client";
 import { useEffect, useState, useTransition } from "react";
 import { FileDown, Mail, RefreshCw, Send, UsersRound } from "lucide-react";
@@ -62,7 +63,7 @@ export function OfficialStaffRosterControl({projectId}:{projectId:string}) {
         <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand"><UsersRound className="size-5"/></span>
         <div><p className="text-[11px] font-semibold uppercase tracking-[.16em] text-muted">STAFF · DOCUMENTO PARA CLIENTE</p><h3 id="official-roster-title" className="mt-1 text-lg font-semibold">Nómina oficial del equipo</h3><p className="mt-1 text-sm text-muted">Operadores, supervisores y encargado del evento. Solo nombres y RUT, sin valores.</p></div>
       </div>
-      <Button variant="outline" disabled={pending||loading} onClick={()=>void refresh()}><RefreshCw className="size-4"/>Actualizar</Button>
+      <div className="flex flex-wrap gap-2"><Link href={"/admin/totems/"+projectId} className="inline-flex min-h-10 items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted">Configurar Multicaja</Link><Button variant="outline" disabled={pending||loading} onClick={()=>void refresh()}><RefreshCw className="size-4"/>Actualizar</Button></div>
     </header>
     {feedback&&<p role="status" className="mt-3 rounded-lg border p-3 text-sm">{feedback}</p>}
     {loading?<p className="mt-4 text-sm text-muted">Cargando asignaciones del evento…</p>:composer&&<>
