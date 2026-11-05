@@ -17,7 +17,7 @@ export default async function EventTotemsPage({ params }: { params: Promise<{ pr
     db.from("projects").select("id,name,orbit_event_id,operations").eq("id", projectId).is("deleted_at", null).single(),
     db.from("event_operational_blocks").select("id,name").eq("project_id", projectId),
     db.from("assignments").select("id,block_id,assignment_type,staff(first_name,last_name)").eq("project_id", projectId).is("deleted_at", null),
-    db.from("operational_assets").select("id,asset_code").eq("asset_type", "CASE"),
+    db.from("operational_assets").select("id,asset_code").eq("asset_type", "TOTEM"),
   ]);
   if (!project) notFound();
   const operations = project.operations as Record<string, unknown> | null;
