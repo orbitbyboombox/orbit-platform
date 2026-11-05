@@ -36,10 +36,12 @@ export function validateTotemLayout(layout: EventTotemLayout, context: {
 }): string[] {
   if (!layout.enabled) return [];
   const errors: string[] = [];
+  if (!Array.isArray(layout.positions) || layout.positions.length === 0 || layout.positions.length > 30) return ["Invalid position count"];
   const positionIds = new Set<string>();
   const assetIds = new Set<string>();
   const usedAssignments = new Set<string>();
   for (const position of layout.positions) {
+    if (!position.id || !position.label || position.label.length > 100 || position.location.length > 250 || position.reference.length > 250) errors.push(`Invalid position fields: ${position.id}`);
     if (positionIds.has(position.id)) errors.push(`Duplicate position: ${position.id}`);
     positionIds.add(position.id);
     if (position.assetId) {
@@ -48,6 +50,7 @@ export function validateTotemLayout(layout: EventTotemLayout, context: {
       assetIds.add(position.assetId);
     }
     const usedBlocks = new Set<string>();
+    if (!Array.isArray(position.blocks)) { errors.push(`Invalid blocks: ${position.id}`); continue; }
     for (const block of position.blocks) {
       if (!context.blockIds.has(block.blockId)) errors.push(`Unknown block: ${block.blockId}`);
       if (usedBlocks.has(block.blockId)) errors.push(`Duplicate block for ${position.id}: ${block.blockId}`);
