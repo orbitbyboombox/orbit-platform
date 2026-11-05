@@ -13,7 +13,7 @@ export function EventTotemAdminWorkspace({ eventName, initialLayout, boxes, bloc
   boxes: Option[];
   blocks: Option[];
   assignments: Array<Option & { blockId: string }>;
-  onSave: (layout: EventTotemLayout) => Promise<void>;
+  onSave: (layout: EventTotemLayout) => Promise<unknown>;
 }) {
   const [persistedLayout, setPersistedLayout] = useState(initialLayout);
   return <div className="space-y-6">
