@@ -67,3 +67,8 @@ export function totemsForStaff(layout: EventTotemLayout, assignmentIds: Readonly
   if (!layout.enabled) return [];
   return layout.positions.filter(position => position.blocks.some(block => block.assignmentId !== null && assignmentIds.has(block.assignmentId)));
 }
+
+export function visibleTotemsForStaff(layout: EventTotemLayout, assignmentIds: ReadonlySet<string>, supervisor: boolean): TotemPosition[] {
+  if (!layout.enabled || !Array.isArray(layout.positions)) return [];
+  return supervisor ? layout.positions : totemsForStaff(layout, assignmentIds);
+}
