@@ -41,8 +41,14 @@ legacy_without_items as (
     from legacy_concepts l
    where not exists (
      select 1 from item_concepts i
-      where i.settlement_id = l.settlement_id
-        and i.concept_code = l.concept_code
+      where i.concept_code = l.concept_code
+        and (
+          i.settlement_id = l.settlement_id
+          or (i.settlement_id is null
+              and i.project_id = l.project_id
+              and i.staff_id = l.staff_id
+              and i.assignment_id = l.assignment_id)
+        )
    )
 ),
 concepts as (
