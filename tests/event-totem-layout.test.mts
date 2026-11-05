@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { emptyTotemLayout, totemsForStaff, validateTotemLayout } from "../features/operations/event-totem-layout.ts";
+import { emptyTotemLayout, totemsForStaff, validateTotemLayout, visibleTotemsForStaff } from "../features/operations/event-totem-layout.ts";
 
 test("CCU starts with seven unassigned physical positions and disabled feature", () => {
   const layout = emptyTotemLayout();
@@ -30,4 +30,11 @@ test("duplicate boxes and cross-block staff assignments are rejected", () => {
   const errors = validateTotemLayout(layout, { assetIds: new Set(["box-1"]), blockIds: new Set(["am", "pm"]), assignmentBlockIds: new Map([["op-am", "am"]]) });
   assert.ok(errors.some(e => e.includes("Duplicate physical box")));
   assert.ok(errors.some(e => e.includes("does not belong to block")));
+});
+
+test("supervisor can see all positions but an unassigned operator cannot", () => {
+  const layout = emptyTotemLayout(7);
+  layout.enabled = true;
+  assert.equal(visibleTotemsForStaff(layout, new Set(), true).length, 7);
+  assert.equal(visibleTotemsForStaff(layout, new Set(), false).length, 0);
 });
