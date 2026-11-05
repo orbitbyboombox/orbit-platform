@@ -48,11 +48,15 @@ export async function loadExpenseSourceSnapshot(client: SupabaseClient): Promise
   ]);
   const error = expenses.error ?? submissions.error ?? reimbursements.error ?? settlements.error;
   if (error) throw error;
+  if (!expenses.data || !submissions.data || !reimbursements.data || !settlements.data) {
+    throw new Error("FINANCE_AUDIT_INCOMPLETE_SOURCE");
+  }
+  const safeAmount = (value: unknown) => value === null || value === undefined || value === "" ? Number.NaN : Number(value);
   const inputs: ExpenseInput[] = [
     ...(expenses.data ?? []).map((row) => ({
       source: "expenses" as const,
       id: row.id,
-      amount: Number(row.total),
+      amount: safeAmount(row.total),
       status: row.status,
       category: normalizeExpenseCategory(row.confirmed_category ?? row.category),
       projectId: row.project_id,
@@ -61,7 +65,7 @@ export async function loadExpenseSourceSnapshot(client: SupabaseClient): Promise
     ...(submissions.data ?? []).map((row) => ({
       source: "staff_expense_submissions" as const,
       id: row.id,
-      amount: Number(row.amount),
+      amount: safeAmount(row.amount),
       status: row.status,
       projectId: row.project_id,
       materializedExpenseId: row.materialized_expense_id,
@@ -69,7 +73,7 @@ export async function loadExpenseSourceSnapshot(client: SupabaseClient): Promise
     ...(reimbursements.data ?? []).map((row) => ({
       source: "staff_reimbursement_payments" as const,
       id: row.id,
-      amount: Number(row.amount),
+      amount: safeAmount(row.amount),
       expenseId: row.expense_id,
       submissionId: row.staff_expense_submission_id,
       settlementId: row.settlement_id,
@@ -78,7 +82,7 @@ export async function loadExpenseSourceSnapshot(client: SupabaseClient): Promise
     ...(settlements.data ?? []).map((row) => ({
       source: "event_staff_payments" as const,
       id: row.id,
-      amount: Number(row.total_internal_payment),
+      amount: safeAmount(row.total_internal_payment),
       status: row.status,
       category: "PERSONNEL_OPERATIONS" as const,
       projectId: row.project_id,
