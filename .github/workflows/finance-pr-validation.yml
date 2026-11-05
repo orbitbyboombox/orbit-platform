@@ -1,0 +1,28 @@
+name: Finance PR validation
+
+on:
+  pull_request:
+    branches:
+      - feat/commercial-customer-search-sort-20261104
+      - feat/finance-v2.1.5-foundation-20261105
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm exec tsc --noEmit
+      - run: pnpm exec eslint . --ignore-pattern .next
+      - run: pnpm exec node --experimental-strip-types --test tests/canonical-finance-ledger.test.mts tests/expense-source-reconciliation.test.mts tests/expense-category-normalization.test.mts tests/expense-source-read-model.test.mts tests/cash-outflow-audit.test.mts
+      - run: pnpm build
