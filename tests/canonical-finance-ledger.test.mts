@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildCanonicalFinanceLedger, canonicalLedgerSummary } from "../features/finance/canonical-ledger-core";
+import { buildCanonicalFinanceLedger, canonicalLedgerSummary } from "../features/finance/canonical-ledger-core.ts";
 
 const invoice = (overrides: Record<string, unknown> = {}) => ({ id: "inv-1", invoiceNumber: "F-1", projectId: "p-1", orbitEventId: "ORB-1", projectName: "Evento", customerName: "Cliente", amount: 100_000, recordedPaidAmount: 0, status: "ISSUED", dueDate: "2026-11-10", ...overrides });
 const payment = (overrides: Record<string, unknown> = {}) => ({ id: "pay-1", invoiceId: "inv-1", amount: 25_000, paidAt: "2026-11-01T12:00:00Z", method: "TRANSFER", ...overrides });
