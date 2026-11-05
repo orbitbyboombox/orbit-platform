@@ -38,6 +38,19 @@ export function EventTotemLayoutEditor({
   return <section aria-label="Distribución de tótems" className="space-y-4 rounded-2xl border p-4">
     <header><h2 className="text-lg font-semibold">Distribución de tótems</h2><p className="text-sm opacity-70">Una sola reserva, múltiples cajas. Las ubicaciones se mantienen entre bloques AM y PM.</p></header>
     <label className="flex items-center gap-2"><input type="checkbox" checked={layout.enabled} onChange={event => setLayout(previous => ({ ...previous, enabled: event.target.checked }))} /> Activar multicaja para este evento</label>
+    {layout.enabled && <label className="flex items-center gap-3 text-sm">Cantidad de posiciones
+      <select aria-label="Cantidad de posiciones" className="rounded border p-2" value={layout.positions.length} onChange={event => {
+        const count = Number(event.target.value);
+        setLayout(previous => ({
+          ...previous,
+          positions: Array.from({ length: count }, (_, index) => previous.positions[index] ?? {
+            id: `totem-${index + 1}`, label: `Tótem ${index + 1}`, location: "", reference: "", assetId: null, blocks: [],
+          }),
+        }));
+        setMessage("");
+      }}>{Array.from({ length: 30 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}</option>)}</select>
+      <span className="opacity-70">Usa los bloques operacionales existentes</span>
+    </label>}
     {layout.enabled && <div className="space-y-4">{layout.positions.map((position, index) => <fieldset key={position.id} className="space-y-3 rounded-xl border p-3"><legend className="font-semibold">{position.label}</legend>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="text-sm">Nombre<input className="mt-1 w-full rounded border p-2" value={position.label} maxLength={100} onChange={event => change(index, { label: event.target.value })} /></label>
