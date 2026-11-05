@@ -34,6 +34,14 @@ test("settlement items are detail, not extra expense", () => {
   assert.equal(rows.reduce((sum, row) => sum + row.recognizedCost, 0), 40000);
 });
 
+test("confirmed staff settlements are recognized without requiring a closed payroll", () => {
+  const [row] = reconcileExpenseSources([
+    { source: "event_staff_payments", id: "settlement-confirmed", amount: 34000, status: "CONFIRMED", category: "PERSONNEL_OPERATIONS" },
+  ]);
+  assert.equal(row.recognizedCost, 34000);
+  assert.equal(row.integrity, "OK");
+});
+
 test("unlinked reimbursements and duplicate IDs require review", () => {
   const rows = reconcileExpenseSources([
     { source: "staff_reimbursement_payments", id: "refund-1", amount: 1000 },
