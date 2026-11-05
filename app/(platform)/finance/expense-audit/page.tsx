@@ -15,7 +15,7 @@ export default async function FinanceExpenseAuditPage() {
     <header className="rounded-3xl border bg-card p-6">
       <p className="text-xs font-semibold uppercase tracking-widest text-brand">Finanzas BOOMBOX · Etapa 2</p>
       <h1 className="mt-2 text-3xl font-semibold">Auditoría de gastos</h1>
-      <p className="mt-2 text-sm text-muted">Vista de diagnóstico de solo lectura. No es un cierre contable ni un saldo bancario; no modifica pagos, gastos o inventario.</p>
+      <p className="mt-2 text-sm text-muted">Vista de diagnóstico de solo lectura. Los contadores de reglas recurrentes, adelantos y cierres son fuentes para conciliar, no importes sumables. No es un cierre contable ni un saldo bancario; no modifica pagos, gastos o inventario.</p>
       <Link href="/finance/expenses" className="mt-3 inline-block text-sm font-semibold text-brand hover:underline">Ir al centro de gastos</Link>
     </header>
     <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -24,6 +24,9 @@ export default async function FinanceExpenseAuditPage() {
         ["Solicitudes Staff", snapshot.sourceCounts.staffSubmissions],
         ["Reembolsos", snapshot.sourceCounts.reimbursements],
         ["Liquidaciones Staff", snapshot.sourceCounts.staffSettlements],
+        ["Reglas de gastos recurrentes (no pagos)", snapshot.sourceCounts.recurringRules],
+        ["Adelantos Staff (no sumar como gasto nuevo)", snapshot.sourceCounts.staffAdvances],
+        ["Líneas de cierre mensual (instantáneas)", snapshot.sourceCounts.staffMonthlyCloseItems],
       ].map(([label, count]) => <div className="rounded-2xl border bg-card p-4" key={label}><p className="text-xs text-muted">{label}</p><p className="mt-2 text-2xl font-semibold">{count}</p></div>)}
     </section>
     <section className="rounded-2xl border bg-card p-5">
