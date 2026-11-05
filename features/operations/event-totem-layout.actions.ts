@@ -16,7 +16,7 @@ export async function saveEventTotemLayoutAction(projectId: string, layout: Even
     client.from("projects").select("id,operations").eq("id", projectId).is("deleted_at", null).single(),
     client.from("event_operational_blocks").select("id").eq("project_id", projectId),
     client.from("assignments").select("id,block_id,assignment_type").eq("project_id", projectId).is("deleted_at", null),
-    client.from("operational_assets").select("id").eq("asset_type", "CASE"),
+    client.from("operational_assets").select("id").eq("asset_type", "TOTEM"),
   ]);
   if (projectError || !project || blocksError || assignmentsError || assetsError) throw new Error("Unable to load event assignment references");
   const errors = validateTotemLayout(layout, {
