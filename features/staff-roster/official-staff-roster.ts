@@ -9,7 +9,8 @@ import { GoogleGmailApiProvider } from "@/features/connectors/google-gmail/provi
 
 export const OFFICIAL_ROSTER_RESPONSIBLE = { name: "Matías Maira", rut: "16.357.402-0", phone: "+56 9 7306 9315" } as const;
 export type RosterMember = { assignmentId: string; staffId: string; name: string; rut: string; role: string; roleLabel: string; block: string; status: string };
-export type RosterComposer = { projectId: string; orbitEventId: string; eventName: string; eventDate: string; eventTime: string; location: string; city: string; customerName: string; recipient: string; fingerprint: string; members: RosterMember[]; missing: string[]; canGenerate: boolean };
+export type RosterTotemRow = { position:string; location:string; reference:string; box:string; block:string; operator:string };
+export type RosterComposer = { totemRows: RosterTotemRow[]; projectId: string; orbitEventId: string; eventName: string; eventDate: string; eventTime: string; location: string; city: string; customerName: string; recipient: string; fingerprint: string; members: RosterMember[]; missing: string[]; canGenerate: boolean };
 
 const roleNames: Record<string,string> = { OPERATOR: "Operador", SUPERVISOR: "Supervisor", ASSEMBLY: "Montaje", DISASSEMBLY: "Desmontaje" };
 const blockValue = (value: unknown) => typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, 50) : "";
@@ -23,12 +24,12 @@ const plain = (value: string) => value.replace(/[\u0000-\u001f]/g, " ").trim();
 
 export async function loadOfficialRoster(projectId: string): Promise<RosterComposer> {
   const admin = createAdminClient();
-  const [p, a] = await Promise.all([
-    admin.from("projects").select("id,orbit_event_id,name,event_date,event_time,location,city,customer_id,customers!inner(full_name,email,secondary_email),project_operational_contracts(contact_email)").eq("id", projectId).is("deleted_at", null).single(),
+  const [p, a, blockResult, assetResult] = await Promise.all([
+    admin.from("projects").select("id,orbit_event_id,name,event_date,event_time,location,city,operations,customer_id,customers!inner(full_name,email,secondary_email),project_operational_contracts(contact_email)").eq("id", projectId).is("deleted_at", null).single(),
     admin.from("assignments").select("id,staff_id,assignment_type,status,resources,staff!inner(first_name,last_name,rut)").eq("project_id", projectId).is("deleted_at", null),
   ]);
   if (p.error) throw p.error;
-  if (a.error) throw a.error;
+  if (a.error) throw a.error;\n  if (blockResult.error) throw blockResult.error;\n  if (assetResult.error) throw assetResult.error;
   const customer = Array.isArray(p.data.customers) ? p.data.customers[0] : p.data.customers;
   const contract = Array.isArray(p.data.project_operational_contracts) ? p.data.project_operational_contracts[0] : p.data.project_operational_contracts;
   const members = ((a.data ?? []) as unknown as Array<{id:string;staff_id:string;assignment_type:string;status:string;resources:Record<string,unknown>|null;staff:{first_name:string;last_name:string;rut:string|null}|Array<{first_name:string;last_name:string;rut:string|null}>}>)
@@ -36,12 +37,22 @@ export async function loadOfficialRoster(projectId: string): Promise<RosterCompo
     .map(x => { const s = Array.isArray(x.staff) ? x.staff[0] : x.staff; return { assignmentId:x.id, staffId:x.staff_id, name:[s?.first_name,s?.last_name].filter(Boolean).join(" "), rut:s?.rut ?? "", role:x.assignment_type, roleLabel:roleNames[x.assignment_type] ?? x.assignment_type, block:x.assignment_type === "SUPERVISOR" ? "Supervisores" : "Operadores", status:x.status }; })
     .filter((member,index,all) => all.findIndex(other => other.staffId === member.staffId && other.role === member.role) === index)
     .sort((x,y) => Number(x.role === "SUPERVISOR") - Number(y.role === "SUPERVISOR") || x.name.localeCompare(y.name,"es"));
+  const operations = p.data.operations && typeof p.data.operations === "object" ? p.data.operations as Record<string,unknown> : {};
+  const layout = operations.totemLayout as {enabled?:boolean;positions?:Array<{label:string;location:string;reference:string;assetId:string|null;blocks:Array<{blockId:string;assignmentId:string|null}>}>}|undefined;
+  const blockNames = new Map((blockResult.data??[]).map(block=>[block.id,block.name??"Bloque"]));
+  const assetNames = new Map((assetResult.data??[]).map(asset=>[asset.id,asset.asset_code??"CASE"]));
+  const assignmentNames = new Map(members.map(member=>[member.assignmentId,member.name]));
+  const totemRows:RosterTotemRow[] = layout?.enabled && Array.isArray(layout.positions) ? layout.positions.flatMap(position=>position.blocks.map(block=>({
+    position:position.label,location:position.location||"Por definir",reference:position.reference||"—",
+    box:position.assetId?assetNames.get(position.assetId)??"CASE sin identificar":"Sin asignar",
+    block:blockNames.get(block.blockId)??"Bloque",operator:block.assignmentId?assignmentNames.get(block.assignmentId)??"Operador sin identificar":"Pendiente",
+  }))) : [];
   const missing:string[] = [];
   if (!members.length) missing.push("No hay integrantes asignados.");
   for (const m of members) { if (!isValidChileanRut(m.rut)) missing.push("Revisa el RUT de " + (m.name || "un integrante") + "."); }
   const name = p.data.name || p.data.orbit_event_id || "Evento BOOMBOX";
-  const fingerprint = createHash("sha256").update(JSON.stringify({event:p.data.orbit_event_id,name,date:p.data.event_date,members:members.map(({assignmentId,staffId,rut,role,block,status})=>({assignmentId,staffId,rut,role,block,status}))})).digest("hex");
-  return { projectId, orbitEventId:p.data.orbit_event_id ?? "", eventName:name, eventDate:p.data.event_date ?? "", eventTime:p.data.event_time ?? "", location:p.data.location ?? "", city:p.data.city ?? "", customerName:customer?.full_name ?? "", recipient:contract?.contact_email ?? customer?.email ?? "", fingerprint, members, missing, canGenerate:missing.length===0 };
+  const fingerprint = createHash("sha256").update(JSON.stringify({event:p.data.orbit_event_id,name,date:p.data.event_date,members:members.map(({assignmentId,staffId,rut,role,block,status})=>({assignmentId,staffId,rut,role,block,status})),totemRows})).digest("hex");
+  return { totemRows, projectId, orbitEventId:p.data.orbit_event_id ?? "", eventName:name, eventDate:p.data.event_date ?? "", eventTime:p.data.event_time ?? "", location:p.data.location ?? "", city:p.data.city ?? "", customerName:customer?.full_name ?? "", recipient:contract?.contact_email ?? customer?.email ?? "", fingerprint, members, missing, canGenerate:missing.length===0 };
 }
 
 export async function saveOfficialRosterBlock(input:{projectId:string;assignmentId:string;block:string;actorId:string}) {
@@ -70,6 +81,10 @@ export async function makeOfficialRosterPdf(composer:RosterComposer) {
   for(const [block,members] of groups){ensure(44);page.drawRectangle({x:42,y:y-6,width:511,height:23,color:dark});page.drawText(plain(block.toUpperCase()).slice(0,45),{x:52,y:y+1,size:9,font:bold,color:orange});y-=25;
     for(const m of members){ensure(27);page.drawText(plain(m.name).slice(0,37),{x:52,y,size:8.5,font:bold,color:dark});page.drawText(formatChileanRut(m.rut),{x:280,y,size:8.5,font:regular,color:dark});page.drawText(plain(m.roleLabel),{x:420,y,size:8,font:regular,color:muted});y-=16;}y-=8;
   }
+  if(composer.totemRows.length){ensure(52);page.drawRectangle({x:42,y:y-6,width:511,height:23,color:dark});page.drawText("DISTRIBUCIÓN MULTICAJA",{x:52,y:y+1,size:9,font:bold,color:orange});y-=31;
+    for(const row of composer.totemRows){ensure(30);page.drawText(plain(row.position+" · "+row.box).slice(0,42),{x:48,y,size:7.5,font:bold,color:dark});page.drawText(plain(row.block+" · "+row.operator).slice(0,48),{x:235,y,size:7.2,font:regular,color:dark});y-=12;page.drawText(plain(row.location+" · "+row.reference).slice(0,100),{x:60,y,size:7,font:regular,color:muted});y-=13;}
+    y-=8;
+  }
   ensure(78);page.drawLine({start:{x:42,y:y-3},end:{x:553,y:y-3},thickness:1,color:orange});y-=21;page.drawText("ENCARGADO DEL EVENTO",{x:42,y,size:8,font:bold,color:orange});y-=15;page.drawText(OFFICIAL_ROSTER_RESPONSIBLE.name+" · RUT "+OFFICIAL_ROSTER_RESPONSIBLE.rut,{x:42,y,size:9,font:bold,color:dark});y-=14;page.drawText("Contacto: "+OFFICIAL_ROSTER_RESPONSIBLE.phone,{x:42,y,size:9,font:regular,color:dark});
   for(const [i,p] of pdf.getPages().entries()){p.drawLine({start:{x:42,y:42},end:{x:553,y:42},thickness:.5,color:rule});p.drawText("BOOMBOX · Nómina oficial del evento",{x:42,y:26,size:7,font:regular,color:muted});p.drawText((i+1)+" / "+pdf.getPageCount(),{x:530,y:26,size:7,font:regular,color:muted});}
   return {bytes:await pdf.save(),filename:"Nomina-Oficial-"+safeFilename(composer.eventName)+".pdf"};
@@ -86,7 +101,7 @@ export async function sendOfficialRoster(input:{projectId:string;actorId:string;
   if(already?.status==="SENT")return {status:"SENT" as const,recipient:already.to_recipient??to,deduplicated:true};
   const subject="Nómina oficial BOOMBOX · "+rosterDate(composer.eventDate);
   const greeting=plain(composer.customerName||"equipo").replace(/[&<>"]/g,"");
-  const htmlBody='<main style="font-family:Arial,sans-serif;color:#171719;line-height:1.65"><header style="background:#171719;padding:26px 30px;color:#fff"><b style="font-size:21px;letter-spacing:2px">BOOMBOX</b><div style="margin-top:8px;color:#f56e0a;font-size:12px;font-weight:700">NÓMINA OFICIAL DEL EQUIPO</div></header><section style="padding:26px 30px"><p>Hola '+greeting+',</p><p>Junto con saludar, adjuntamos la nómina oficial del equipo BOOMBOX que participará en <b>'+plain(composer.eventName).replace(/[&<>"]/g,"")+'</b> el <b>'+rosterDate(composer.eventDate)+'</b>.</p><p>El documento presenta al equipo organizado por operadores y supervisores, con sus datos de identificación.</p><p style="border-left:3px solid #f56e0a;padding:10px 14px;background:#f6f6f7"><b>Encargado del evento:</b> '+OFFICIAL_ROSTER_RESPONSIBLE.name+'<br>RUT '+OFFICIAL_ROSTER_RESPONSIBLE.rut+' · '+OFFICIAL_ROSTER_RESPONSIBLE.phone+'</p><p>Quedamos atentos.<br><b>Equipo BOOMBOX</b></p></section></main>';
+  const htmlBody='<main style="font-family:Arial,sans-serif;color:#171719;line-height:1.65"><header style="background:#171719;padding:26px 30px;color:#fff"><b style="font-size:21px;letter-spacing:2px">BOOMBOX</b><div style="margin-top:8px;color:#f56e0a;font-size:12px;font-weight:700">NÓMINA OFICIAL DEL EQUIPO</div></header><section style="padding:26px 30px"><p>Hola '+greeting+',</p><p>Junto con saludar, adjuntamos la nómina oficial del equipo BOOMBOX que participará en <b>'+plain(composer.eventName).replace(/[&<>"]/g,"")+'</b> el <b>'+rosterDate(composer.eventDate)+'</b>.</p><p>El documento presenta al equipo organizado por operadores y supervisores, con sus datos de identificación y, cuando corresponde, la distribución de CASE y ubicaciones.</p><p style="border-left:3px solid #f56e0a;padding:10px 14px;background:#f6f6f7"><b>Encargado del evento:</b> '+OFFICIAL_ROSTER_RESPONSIBLE.name+'<br>RUT '+OFFICIAL_ROSTER_RESPONSIBLE.rut+' · '+OFFICIAL_ROSTER_RESPONSIBLE.phone+'</p><p>Quedamos atentos.<br><b>Equipo BOOMBOX</b></p></section></main>';
   const textBody="Hola "+(composer.customerName||"equipo")+",\n\nAdjuntamos la nómina oficial del equipo BOOMBOX para "+composer.eventName+", el "+rosterDate(composer.eventDate)+".\n\nResponsable / Back up: "+OFFICIAL_ROSTER_RESPONSIBLE.name+" · RUT "+OFFICIAL_ROSTER_RESPONSIBLE.rut+" · "+OFFICIAL_ROSTER_RESPONSIBLE.phone+"\n\nEquipo BOOMBOX";
   const {bytes,filename}=await makeOfficialRosterPdf(composer);
   const {data:record,error:insertError}=await admin.from("communications").insert({customer_id:(await admin.from("projects").select("customer_id").eq("id",input.projectId).single()).data?.customer_id,project_id:input.projectId,channel:"GMAIL",direction:"OUTBOUND",communication_type:"OFFICIAL_STAFF_ROSTER",thread_key:key,request_key:key,subject,body:textBody,status:"QUEUED",to_recipient:to,cc_recipients:[],occurred_at:new Date().toISOString(),created_by:input.actorId,sent_by:input.actorId,context_snapshot:{rendererVersion:"OFFICIAL_STAFF_ROSTER_V1",fingerprint:composer.fingerprint,staffCount:composer.members.length,responsible:OFFICIAL_ROSTER_RESPONSIBLE}}).select("id").single();
