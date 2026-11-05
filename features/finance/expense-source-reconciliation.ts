@@ -58,6 +58,7 @@ const validAmount = (value: number) => Number.isFinite(value) && value >= 0;
 export function reconcileExpenseSources(inputs: readonly ExpenseInput[]): ExpenseProjection[] {
   const known = new Set(inputs.map((item) => `${item.source}:${item.id}`));
   const seen = new Set<string>();
+  const expenseSettlementLinks = new Set(inputs.filter((item) => item.source === "expenses" && item.settlementId).map((item) => item.settlementId));
 
   return inputs.map((item) => {
     const key = `${item.source}:${item.id}`;
@@ -73,6 +74,10 @@ export function reconcileExpenseSources(inputs: readonly ExpenseInput[]): Expens
     if (linkedExpense && !known.has(`expenses:${linkedExpense}`)) reasons.push("EXPENSE_LINK_NOT_IN_INPUT");
     if (item.source === "staff_reimbursement_payments" && !linkedExpense && !item.submissionId && !item.settlementId)
       reasons.push("UNLINKED_REIMBURSEMENT");
+    if (item.source === "expenses" && item.settlementId && known.has(`event_staff_payments:${item.settlementId}`))
+      reasons.push("EXPENSE_LINKED_TO_SETTLEMENT_REQUIRES_RECONCILIATION");
+    if (item.source === "event_staff_payments" && expenseSettlementLinks.has(item.id))
+      reasons.push("SETTLEMENT_LINKED_TO_EXPENSE_REQUIRES_RECONCILIATION");
     if (item.source === "event_staff_payment_items" && !item.settlementId)
       reasons.push("UNLINKED_SETTLEMENT_ITEM");
 
@@ -86,8 +91,8 @@ export function reconcileExpenseSources(inputs: readonly ExpenseInput[]): Expens
     // Thus never manufacture cash outflow from statuses or inventory records.
     const confirmedCashOutflow = 0;
 
-    if (item.source === "expenses" && !status) reasons.push("UNKNOWN_EXPENSE_STATUS");
-    if (item.source === "event_staff_payments" && !status) reasons.push("UNKNOWN_SETTLEMENT_STATUS");
+    if (item.source === "expenses" && !["APPROVED", "PAID", "FINALIZED", "PENDING", "DRAFT", "REJECTED", "CANCELLED"].includes(status)) reasons.push("UNKNOWN_EXPENSE_STATUS");
+    if (item.source === "event_staff_payments" && !["FINALIZED", "PAID", "PENDING", "DRAFT", "CANCELLED"].includes(status)) reasons.push("UNKNOWN_SETTLEMENT_STATUS");
 
     return {
       key, source: item.source, id: item.id,
