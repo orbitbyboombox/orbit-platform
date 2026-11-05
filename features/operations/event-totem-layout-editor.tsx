@@ -24,6 +24,9 @@ export function EventTotemLayoutEditor({
   const [layout, setLayout] = useState<EventTotemLayout>(() => initialLayout ?? emptyTotemLayout());
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [openPositions, setOpenPositions] = useState<string[]>([]);
+  const assignedBoxes = layout.positions.filter(position => position.assetId).length;
+  const pendingOperators = layout.positions.reduce((total, position) => total + blocks.filter(block => !position.blocks.some(item => item.blockId === block.id && item.assignmentId)).length, 0);
   const context = {
     assetIds: new Set(boxes.map(box => box.id)),
     blockIds: new Set(blocks.map(block => block.id)),
@@ -36,7 +39,8 @@ export function EventTotemLayoutEditor({
     setMessage("");
   };
   return <section aria-label="Distribución de tótems" className="space-y-4 rounded-2xl border p-4">
-    <header><h2 className="text-lg font-semibold">Distribución de tótems</h2><p className="text-sm opacity-70">Una sola reserva, múltiples cajas. Las ubicaciones se mantienen entre bloques AM y PM.</p></header>
+    <header className="space-y-2"><p className="text-xs font-semibold uppercase tracking-widest text-blue-400">Operaciones · BOOMBOX</p><h2 className="text-xl font-semibold">Distribución Multicaja</h2><p className="text-sm opacity-70">Una reserva, varias cajas y operadores por bloque. Abre solo el tótem que necesites editar.</p></header>
+    {layout.enabled && <div className="grid grid-cols-3 gap-2">{[["Tótems",layout.positions.length],["CASE asignadas",assignedBoxes],["Turnos pendientes",pendingOperators]].map(([label,value]) => <div key={label} className="rounded-xl border bg-white/[.03] p-3"><p className="text-xs opacity-65">{label}</p><p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p></div>)}</div>}
     <label className="flex items-center gap-2"><input type="checkbox" checked={layout.enabled} onChange={event => setLayout(previous => ({ ...previous, enabled: event.target.checked }))} /> Activar multicaja para este evento</label>
     {layout.enabled && <label className="flex items-center gap-3 text-sm">Cantidad de posiciones
       <select aria-label="Cantidad de posiciones" className="rounded border p-2" value={layout.positions.length} onChange={event => {
@@ -51,7 +55,7 @@ export function EventTotemLayoutEditor({
       }}>{Array.from({ length: 30 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}</option>)}</select>
       <span className="opacity-70">Usa los bloques operacionales existentes</span>
     </label>}
-    {layout.enabled && <div className="space-y-4">{layout.positions.map((position, index) => <fieldset key={position.id} className="space-y-3 rounded-xl border p-3"><legend className="font-semibold">{position.label}</legend>
+    {layout.enabled && <div className="space-y-4">{layout.positions.map((position, index) => <div key={position.id} className="overflow-hidden rounded-xl border bg-white/[.02]"><button type="button" aria-expanded={openPositions.includes(position.id)} className="flex w-full items-center justify-between gap-3 p-4 text-left hover:bg-white/[.04]" onClick={() => setOpenPositions(previous => previous.includes(position.id) ? previous.filter(id => id !== position.id) : [...previous, position.id])}><span className="min-w-0"><strong className="block">{position.label || `Tótem ${index + 1}`}</strong><span className="block truncate text-xs opacity-65">{boxes.find(box => box.id === position.assetId)?.label ?? "CASE pendiente"} · {position.location || "Ubicación pendiente"} · {blocks.filter(block => position.blocks.some(item => item.blockId === block.id && item.assignmentId)).length}/{blocks.length} turnos</span></span><span className="shrink-0 text-sm text-blue-400">{openPositions.includes(position.id) ? "Cerrar −" : "Editar +"}</span></button>{openPositions.includes(position.id) && <div className="space-y-3 border-t p-4">
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="text-sm">Nombre<input className="mt-1 w-full rounded border p-2" value={position.label} maxLength={100} onChange={event => change(index, { label: event.target.value })} /></label>
         <label className="text-sm">Caja física<select className="mt-1 w-full rounded border p-2" value={position.assetId ?? ""} onChange={event => change(index, { assetId: event.target.value || null })}><option value="">Sin asignar</option>{boxes.map(box => <option key={box.id} value={box.id}>{box.label}</option>)}</select></label>
@@ -60,8 +64,8 @@ export function EventTotemLayoutEditor({
       </div>
       <div className="grid gap-2 sm:grid-cols-2">{blocks.map(block => <label key={block.id} className="text-sm">{block.label}<select className="mt-1 w-full rounded border p-2" value={position.blocks.find(item => item.blockId === block.id)?.assignmentId ?? ""} onChange={event => change(index, { blocks: [...position.blocks.filter(item => item.blockId !== block.id), { blockId: block.id, assignmentId: event.target.value || null }] })}><option value="">Operador pendiente</option>{assignments.filter(assignment => assignment.blockId === block.id).map(assignment => <option key={assignment.id} value={assignment.id}>{assignment.label}</option>)}</select></label>)}</div>
       <button type="button" className="text-sm underline disabled:opacity-40" disabled={layout.positions.length <= 1} onClick={() => { setLayout(previous => ({ ...previous, positions: previous.positions.filter(item => item.id !== position.id) })); setMessage(""); }}>Quitar posición</button>
-    </fieldset>)}
-    <button type="button" disabled={!canAdd} className="rounded border px-3 py-2 disabled:opacity-50" onClick={() => setLayout(previous => ({ ...previous, positions: [...previous.positions, { id: crypto.randomUUID(), label: `Tótem ${previous.positions.length + 1}`, location: "", reference: "", assetId: null, blocks: [] }] }))}>Agregar tótem</button></div>}
+    </div>}</div>)}
+    <button type="button" disabled={!canAdd} className="rounded border px-3 py-2 disabled:opacity-50" onClick={() => { const id = crypto.randomUUID(); setLayout(previous => ({ ...previous, positions: [...previous.positions, { id, label: `Tótem ${previous.positions.length + 1}`, location: "", reference: "", assetId: null, blocks: [] }] })); setOpenPositions(previous => [...previous, id]); }}>Agregar tótem</button></div>}
     {errors.length > 0 && <div role="alert" className="text-sm text-red-600">{errors.join("; ")}</div>}
     {message && <p role="status" className="text-sm">{message}</p>}
     <button type="button" disabled={saving || errors.length > 0} className="rounded bg-blue-700 px-4 py-2 text-white disabled:opacity-50" onClick={async () => { setSaving(true); setMessage(""); try { await onSave(layout); onSaved?.(layout); setMessage("Distribución guardada"); } catch { setMessage("No se pudo guardar la distribución"); } finally { setSaving(false); } }}>{saving ? "Guardando..." : "Guardar distribución"}</button>
