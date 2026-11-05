@@ -75,6 +75,11 @@ test("CCU fixture reconciles 21 payment rows and 11 collaborators without assumi
   assert.match(sql, /project_id, staff_id, assignment_id/i);
 });
 
+test("cancelled assignments remain historical but are excluded from active cost", () => {
+  assert.match(sql, /not exists \([\s\S]*from public\.assignments cancelled_assignment/i);
+  assert.match(sql, /cancelled_assignment\.status in \('CANCELLED','REJECTED'\)/i);
+});
+
 test("personalized amounts and zero-paid participation are preserved", () => {
   const rows: Row[] = [
     { projectId: "ccu", staffId: "sebastian", assignmentId: "a1", settlementId: "p1", concept: "ASSEMBLY", amount: 40000, paid: 40000, source: "ITEM" },
