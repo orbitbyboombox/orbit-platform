@@ -256,6 +256,8 @@ jobs:
           # inventory movement are restored to their pre-PM values atomically.
           docker exec -i supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
           BEGIN;
+          -- Disposable synthetic runner only: rewind one fixture movement without weakening production triggers.
+          ALTER TABLE public.inventory_movements DISABLE TRIGGER USER;
           DO $race$
           DECLARE target record; n integer;
           BEGIN
@@ -276,6 +278,7 @@ jobs:
             GET DIAGNOSTICS n=ROW_COUNT;
             IF n<>1 THEN RAISE EXCEPTION 'Expected one synthetic PM closeout'; END IF;
           END $race$;
+          ALTER TABLE public.inventory_movements ENABLE TRIGGER USER;
           COMMIT;
           SQL
           IFS='|' read -r project block assignment opening reloads remaining request staff session < /tmp/pr183-pm.csv
