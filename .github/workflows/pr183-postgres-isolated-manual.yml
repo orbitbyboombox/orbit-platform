@@ -36,6 +36,9 @@ jobs:
           test -z "$SUPABASE_DB_PASSWORD"
           docker version
           supabase --version
+      - name: Confirm local Supabase configuration exists
+        run: |
+          test -f supabase/config.toml || { echo '::error::Missing supabase/config.toml; local Supabase cannot start safely.'; exit 1; }
       - name: Start isolated local Supabase PostgreSQL
         shell: bash
         run: |
@@ -72,7 +75,7 @@ jobs:
         run: |
           set -euo pipefail
           docker exec -i supabase_db_${GITHUB_REPOSITORY##*/} psql -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
-          DO $
+          DO $$
           DECLARE admin_fn regprocedure;
           BEGIN
             SELECT to_regprocedure('public.admin_record_staff_paper_block_closeout(uuid,uuid,uuid,integer,integer,integer,uuid,uuid,text)') INTO admin_fn;
@@ -86,7 +89,7 @@ jobs:
             IF NOT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname='event_paper_block_admin_audit' AND c.relrowsecurity) THEN
               RAISE EXCEPTION 'Admin audit RLS not enabled';
             END IF;
-          END $;
+          END $$;
           SQL
       - name: Execute real SQL integration fixture if present
         shell: bash
