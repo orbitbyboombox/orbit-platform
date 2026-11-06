@@ -47,12 +47,12 @@ jobs:
           # `supabase start` applies migrations during initialization, so the
           # runner-only duplicate-version normalization must happen before it.
           test -e supabase/migrations/0159_logistics_route_publication.sql
-          test ! -e supabase/migrations/0160_logistics_route_publication.sql
+          test ! -e supabase/migrations/0159a_logistics_route_publication.sql
           mv supabase/migrations/0159_logistics_route_publication.sql \
-            supabase/migrations/0160_logistics_route_publication.sql
+            supabase/migrations/0159a_logistics_route_publication.sql
           test ! -e supabase/migrations/0159_logistics_route_publication.sql
-          test -e supabase/migrations/0160_logistics_route_publication.sql
-          echo 'Applied isolated migration-version normalization before Supabase start: 0159_logistics_route_publication.sql -> 0160_logistics_route_publication.sql'
+          test -e supabase/migrations/0159a_logistics_route_publication.sql
+          echo 'Applied isolated migration-version normalization before Supabase start: 0159_logistics_route_publication.sql -> 0159a_logistics_route_publication.sql'
           # Keep storage-api enabled: the repository migrations seed storage.buckets.
           # Excluding it leaves the storage schema absent and fails the real bootstrap.
           supabase start --exclude studio,imgproxy,edge-runtime,logflare,vector,supavisor
