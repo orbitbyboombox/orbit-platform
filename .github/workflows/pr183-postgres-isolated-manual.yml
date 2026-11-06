@@ -88,6 +88,11 @@ jobs:
           end = source.index('end $$;', start) + len('end $$;')
           path.write_text(source[:start] + '-- Isolated runner omits Production-only paper inventory initialization.\n' + source[end:])
           print('Omitted isolated-only paper inventory initialization; schema and WCM table retained.')
+          path = Path('supabase/migrations/20261029130000_staff_november_effective_rates.sql')
+          if not path.exists():
+              raise SystemExit('Expected November rate validation migration was not found')
+          path.unlink()
+          print('Omitted Production-only November rate validation guard; no schema or data mutation was removed.')
           path = Path('supabase/migrations/20260916104753_office_lease_september_initial_income.sql')
           source = path.read_text()
           start_marker = '-- September 2026 was the initial, partial period.'
