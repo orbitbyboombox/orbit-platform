@@ -209,7 +209,9 @@ BEGIN
 
   SELECT count(*) INTO movements_before
   FROM public.event_paper_block_admin_audit
-  WHERE project_id=fixture_block.project_id AND request_id=admin_request AND admin_user_id=ceo;
+  WHERE event_paper_block_admin_audit.project_id=fixture_block.project_id
+    AND event_paper_block_admin_audit.request_id=admin_request
+    AND event_paper_block_admin_audit.admin_user_id=ceo;
   IF movements_before <> 1 THEN RAISE EXCEPTION 'Founder manual closeout audit was not recorded'; END IF;
   admin_result := public.admin_record_staff_paper_block_closeout(
     project_id, am_block, am_assignments[1], 1000, 50, 900,
