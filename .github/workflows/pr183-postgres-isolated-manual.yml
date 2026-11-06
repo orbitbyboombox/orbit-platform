@@ -256,7 +256,7 @@ jobs:
           # inventory movement are restored to their pre-PM values atomically.
           docker exec -i supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
           BEGIN;
-          DO $
+          DO $race$
           DECLARE target record; n integer;
           BEGIN
             SELECT c.*, l.id AS lot_id INTO target
@@ -275,7 +275,7 @@ jobs:
             DELETE FROM public.event_box_paper_block_closeouts WHERE id=target.id;
             GET DIAGNOSTICS n=ROW_COUNT;
             IF n<>1 THEN RAISE EXCEPTION 'Expected one synthetic PM closeout'; END IF;
-          END $;
+          END $race$;
           COMMIT;
           SQL
           IFS='|' read -r project block assignment opening reloads remaining request staff session < /tmp/pr183-pm.csv
@@ -289,7 +289,7 @@ jobs:
           grep -q '"duplicate": true' /tmp/pr183-fresh-1.log /tmp/pr183-fresh-2.log
           grep -q '"duplicate": false' /tmp/pr183-fresh-1.log /tmp/pr183-fresh-2.log
           docker exec -i supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
-          DO $
+          DO $race$
           DECLARE n integer;
           BEGIN
             SELECT count(*) INTO n FROM public.inventory_movements
@@ -298,7 +298,7 @@ jobs:
             SELECT count(*) INTO n FROM public.event_box_paper_block_closeouts
             WHERE project_id='f1830000-0000-4000-8000-000000000003';
             IF n<>14 THEN RAISE EXCEPTION 'Fresh concurrent PM race changed closeout count: %',n; END IF;
-          END $;
+          END $race$;
           SQL
           echo 'PASS: two independent fresh PM calls; exactly one creation, one idempotent retry and seven total inventory movements.'
       - name: Explicit test coverage boundary
