@@ -62,7 +62,7 @@ jobs:
             IF NOT has_function_privilege('service_role',fn,'EXECUTE') THEN
               RAISE EXCEPTION 'service_role lacks RPC execute';
             END IF;
-            IF to_regprocedure('public.admin_record_staff_paper_block_closeout(uuid,uuid,uuid,integer,integer,integer,uuid,uuid,uuid,text)') IS NULL THEN
+            IF to_regprocedure('public.admin_record_staff_paper_block_closeout(uuid,uuid,uuid,integer,integer,integer,uuid,uuid,text)') IS NULL THEN
               RAISE EXCEPTION 'Admin closeout RPC signature missing or changed';
             END IF;
           END $$;
