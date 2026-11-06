@@ -75,13 +75,13 @@ jobs:
           print('Omitted isolated-only Production data backfill from 20260916104753; schema and functions retained.')
           path = Path('supabase/migrations/20260923120000_founder_force_delete_status_safe_qa.sql')
           source = path.read_text()
-          old = """  if position(invalid_clause in ddl) = 0 then
-    raise exception 'Canonical purge function did not contain the known invalid reservation status mutation';
-  end if;
-  execute replace(ddl, invalid_clause, safe_clause);"""
-          new = """  if position(invalid_clause in ddl) > 0 then
-    execute replace(ddl, invalid_clause, safe_clause);
-  end if;"""
+          old = ("  if position(invalid_clause in ddl) = 0 then\n"
+                 "    raise exception 'Canonical purge function did not contain the known invalid reservation status mutation';\n"
+                 "  end if;\n"
+                 "  execute replace(ddl, invalid_clause, safe_clause);")
+          new = ("  if position(invalid_clause in ddl) > 0 then\n"
+                 "    execute replace(ddl, invalid_clause, safe_clause);\n"
+                 "  end if;")
           if old not in source:
               raise SystemExit('Expected strict purge assertion was not found')
           path.write_text(source.replace(old, new, 1))
