@@ -176,7 +176,7 @@ BEGIN
       snapshot_id, project_id, asset_assignment_id, media_lot_id, quantity,
       staff_id, portal_session_id, idempotency_key
     )
-    SELECT s.id, project_id, asset_assignment_ids[i], s.media_lot_id, 50,
+    SELECT s.id, fixture_block.project_id, asset_assignment_ids[i], s.media_lot_id, 50,
            am_staff[i], sessions[(i-1)*2+1], format('pr183-am-reload-%s',i)
     FROM public.event_paper_snapshots s
     WHERE s.asset_assignment_id=asset_assignment_ids[i];
