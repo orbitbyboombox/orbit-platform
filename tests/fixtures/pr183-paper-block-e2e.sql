@@ -172,16 +172,10 @@ BEGIN
 
   -- AM closes for all seven boxes. Each receives one synthetic reload.
   FOR i IN 1..7 LOOP
-    INSERT INTO public.event_paper_reloads(
-      snapshot_id, project_id, asset_assignment_id, media_lot_id, quantity,
-      staff_id, portal_session_id, idempotency_key
-    )
-    SELECT s.id, fixture_block.project_id, asset_assignment_ids[i], s.media_lot_id, 50,
-           am_staff[i], sessions[(i-1)*2+1], format('pr183-am-reload-%s',i)
-    FROM public.event_paper_snapshots s
-    WHERE s.asset_assignment_id=asset_assignment_ids[i];
-    UPDATE public.box_media_lots SET remaining_photo_capacity=remaining_photo_capacity+50
-    WHERE box_asset_id=boxes[i];
+    PERFORM public.record_staff_event_paper_reload(
+      fixture_block.project_id, asset_assignment_ids[i], 50, 'PR183 AM reload',
+      format('pr183-am-reload-%s',i), am_staff[i], sessions[(i-1)*2+1]
+    );
     result := public.record_staff_paper_block_closeout(
       project_id, am_block, am_assignments[i], 1000, 50, 900,
       gen_random_uuid(), am_staff[i], sessions[(i-1)*2+1]
