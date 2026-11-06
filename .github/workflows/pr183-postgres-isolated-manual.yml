@@ -136,6 +136,9 @@ jobs:
           echo 'Applied isolated migration-version normalization before Supabase start: 0159_logistics_route_publication.sql -> 01590000000001_logistics_route_publication.sql'
           # Keep storage-api enabled: the repository migrations seed storage.buckets.
           # Excluding it leaves the storage schema absent and fails the real bootstrap.
+          # A failed run can leave only the isolated database container behind;
+          # remove that runner-local residue before binding the fixed local port.
+          docker rm -f supabase_db_orbit_pr183_isolated >/dev/null 2>&1 || true
           supabase start --exclude studio,imgproxy,edge-runtime,logflare,vector,supavisor
       - name: Apply complete repository migration history
         shell: bash
