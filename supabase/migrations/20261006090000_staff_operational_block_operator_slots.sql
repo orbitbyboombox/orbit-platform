@@ -46,10 +46,10 @@ as $$
 declare
   published boolean;
 begin
-  select coalesce(published, false)
+  select coalesce(publication.published, false)
     into published
-  from public.staff_event_publications
-  where project_id = new.project_id;
+  from public.staff_event_publications as publication
+  where publication.project_id = new.project_id;
 
   perform public.ensure_event_operational_block_staff_requirements(new.project_id, published);
   return new;

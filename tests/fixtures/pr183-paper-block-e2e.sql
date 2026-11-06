@@ -150,6 +150,23 @@ BEGIN
   EXCEPTION WHEN OTHERS THEN rejected := position('bloque anterior' in lower(sqlerrm)) > 0; END;
   IF NOT rejected THEN RAISE EXCEPTION 'PM-before-AM was not rejected'; END IF;
 
+  -- A block/box mismatch must fail closed against the canonical layout.
+  UPDATE public.projects
+     SET operations = jsonb_set(
+       jsonb_set(operations, '{totemLayout,positions,0,blocks,0,blockId}', to_jsonb(pm_block::text)),
+       '{totemLayout,positions,0,assetId}', to_jsonb(printers[1]::text)
+     )
+   WHERE id = project_id;
+  rejected := false;
+  BEGIN
+    PERFORM public.record_staff_paper_block_closeout(
+      project_id, am_block, am_assignments[1], 1000, 50, 900,
+      gen_random_uuid(), am_staff[1], sessions[1]
+    );
+  EXCEPTION WHEN OTHERS THEN rejected := true; END;
+  IF NOT rejected THEN RAISE EXCEPTION 'Wrong canonical box/block was not rejected'; END IF;
+  UPDATE public.projects SET operations=jsonb_build_object('totemLayout',jsonb_build_object('positions',positions)) WHERE id=project_id;
+
   -- AM closes for all seven boxes. Each receives one synthetic reload.
   FOR i IN 1..7 LOOP
     INSERT INTO public.event_paper_reloads(
