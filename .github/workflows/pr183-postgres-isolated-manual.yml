@@ -50,7 +50,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          docker exec supabase_db_${GITHUB_REPOSITORY##*/} psql -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          docker exec -i supabase_db_${GITHUB_REPOSITORY##*/} psql -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
           DO $$
           DECLARE fn regprocedure;
           BEGIN
