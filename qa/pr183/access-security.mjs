@@ -26,7 +26,7 @@ await run('JavaScript disabled: SSR controls disabled and native fallback POST',
 },{javaScriptEnabled:false});
 await run('Delayed hydration: blocked controls, Enter safe, then canonical login',async(page,context,requests)=>{
  let release;const gate=new Promise(r=>release=r);await context.route('**/*.js*',async r=>{await gate;await r.continue();});
- try{await page.goto(base+'/',{waitUntil:'commit',timeout:120000});await ssrSafe(page);await page.screenshot({path:`${out}/pre-hydration.png`,fullPage:true});const before=requests.filter(r=>r.method==='POST').length;await page.keyboard.press('Enter');assert.equal(requests.filter(r=>r.method==='POST').length,before);}finally{release();}
+ try{await page.goto(base+'/',{waitUntil:'commit',timeout:120000});await ssrSafe(page);writeFileSync(`${out}/pre-hydration.json`,JSON.stringify({method:'post',emailDisabled:true,passwordDisabled:true,submitDisabled:true,scriptsHeld:true,applicationCommit:process.env.NEXT_PUBLIC_BUILD_SHA},null,2));const before=requests.filter(r=>r.method==='POST').length;await page.keyboard.press('Enter');assert.equal(requests.filter(r=>r.method==='POST').length,before);}finally{release();}
  await page.waitForFunction(()=>!document.querySelector('form.access-form button[type=submit]')?.disabled,null,{timeout:120000});
  await page.getByLabel('Correo electrónico',{exact:true}).fill(email);await page.getByLabel('Contraseña',{exact:true}).fill(password);await page.getByRole('button',{name:'INGRESAR A ORBIT',exact:true}).click();await page.waitForURL('**/operations',{timeout:120000});assert(requests.some(r=>r.method==='POST'&&r.hasPassword));
  await page.reload();await page.waitForURL('**/operations');
