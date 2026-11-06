@@ -29,7 +29,8 @@ test("server function enforces operator, project/block/asset identity, PM handof
   assert.match(rpc, /grant execute .* to service_role/);
   assert.match(rpc, /event_paper_snapshots/);
   assert.match(rpc, /snapshot_reload_total/);
-  assert.match(rpc, /Las recargas del bloque PM/);
+  assert.doesNotMatch(rpc, /Las recargas del bloque PM deben registrarse en AM/);
+  assert.match(rpc, /total_available := previous_closeout.opening \+ previous_closeout.reloads \+ final_reloads/);
   assert.match(rpc, /inventory_movements/);
   assert.match(rpc, /inventory_key/);
   assert.match(rpc, /inventory_reconciled_at/);
