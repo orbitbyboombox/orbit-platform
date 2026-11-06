@@ -48,10 +48,17 @@ jobs:
           # runner-only duplicate-version normalization must happen before it.
           test -e supabase/migrations/0159_logistics_route_publication.sql
           test ! -e supabase/migrations/01590000000001_logistics_route_publication.sql
+          test -e supabase/migrations/20260921230500_staff_assignment_request_block_scope.sql
+          test ! -e supabase/migrations/20260922095000_staff_assignment_request_block_scope.sql
           mv supabase/migrations/0159_logistics_route_publication.sql \
             supabase/migrations/01590000000001_logistics_route_publication.sql
+          # This legacy FK migration references event_operational_blocks,
+          # created by 20260922090000. Place only the runner copy after it.
+          mv supabase/migrations/20260921230500_staff_assignment_request_block_scope.sql \
+            supabase/migrations/20260922095000_staff_assignment_request_block_scope.sql
           test ! -e supabase/migrations/0159_logistics_route_publication.sql
           test -e supabase/migrations/01590000000001_logistics_route_publication.sql
+          test -e supabase/migrations/20260922095000_staff_assignment_request_block_scope.sql
           # This historical migration also contains a Production-only
           # September backfill. Keep its schema/functions in the isolated
           # bootstrap, but omit only the data-dependent block because the
