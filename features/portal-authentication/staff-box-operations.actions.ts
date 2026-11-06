@@ -206,7 +206,7 @@ export async function loadStaffPaperBlocksAction(projectId: string): Promise<{ o
       const previous = (closeouts ?? []).filter((candidate) =>
         candidate.asset_id === assetId && Number(blockById.get(candidate.block_id)?.sequence ?? Infinity) < Number(block.sequence))
         .sort((a, b) => Number(blockById.get(b.block_id)?.sequence ?? 0) - Number(blockById.get(a.block_id)?.sequence ?? 0))[0];
-      return [{ projectId, boxId: assetId, boxCode: asset.asset_code, blockId: block.id, blockName: block.name, blockSequence: Number(block.sequence), assignmentId: assignment.id, opening: row ? Number(row.opening) : Number(previous?.remaining ?? 0), reloads: row ? Number(row.reloads) : 0, remaining: row ? Number(row.remaining) : null, used: row ? Number(row.used) : null, status: row ? ("CLOSED" as const) : ("PENDING" as const), closedAt: row?.closed_at ?? null }];
+      return [{ projectId, boxId: assetId, boxCode: asset.asset_code, blockId: block.id, blockName: block.name, blockSequence: Number(block.sequence), assignmentId: assignment.id, opening: row ? Number(row.opening) : previous ? Number(previous.remaining) : -1, reloads: row ? Number(row.reloads) : 0, remaining: row ? Number(row.remaining) : null, used: row ? Number(row.used) : null, status: row ? ("CLOSED" as const) : ("PENDING" as const), closedAt: row?.closed_at ?? null }];
     }).sort((a, b) => a.blockSequence - b.blockSequence || a.boxCode.localeCompare(b.boxCode)) };
   } catch (error) {
     return { ok: false, message: error instanceof Error ? error.message : "No fue posible cargar tus cierres de papel." };
