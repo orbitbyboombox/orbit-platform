@@ -24,8 +24,7 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22'
-          cache: npm
-      - run: npm ci --ignore-scripts
+      - run: npm install --ignore-scripts --no-package-lock
       - name: Seven-case AM/PM and admin tests
         run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test tests/paper-block-reconciliation.test.mts tests/paper-block-seven-cases.test.mts tests/admin-paper-block-manual.test.mts
       - run: npm run typecheck
