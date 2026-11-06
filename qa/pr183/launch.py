@@ -1,7 +1,8 @@
 """Runner-only orchestration. App and browser inherit no host credentials."""
 import os,json,socket,subprocess,time,pathlib,zipfile,re,signal,urllib.parse
 root=pathlib.Path.cwd(); out=pathlib.Path(os.environ['QA_OUTPUT']);out.mkdir(parents=True,exist_ok=True)
-assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()=='cb9fd4c96066b5361b4282d2f1f3e18fc4a6b2e4'
+sha=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+assert sha==os.environ['QA_EXPECTED_SHA']
 assert set(x[4][0] for x in socket.getaddrinfo('pr183-local.supabase.co',54321))=={'127.0.0.1'}
 raw={}
 for line in pathlib.Path('/tmp/pr183-local.env').read_text().splitlines():
@@ -11,7 +12,7 @@ assert raw['API_URL']=='http://127.0.0.1:54321'
 assert raw.get('SERVICE_ROLE_KEY') and raw.get('ANON_KEY')
 for n in ['.env','.env.local','.env.development','.env.development.local','.env.production','.env.production.local']:
  assert not (root/n).exists(),f'Unexpected environment file: {n}'
-env={'PATH':os.environ['PATH'],'HOME':os.environ['HOME'],'NODE_ENV':'development','CI':'true','NEXT_TELEMETRY_DISABLED':'1','ORBIT_ENVIRONMENT':'test','SUPABASE_URL':'http://pr183-local.supabase.co:54321','SUPABASE_PUBLISHABLE_KEY':raw['ANON_KEY'],'SUPABASE_SERVICE_ROLE_KEY':raw['SERVICE_ROLE_KEY'],'NEXT_PUBLIC_BUILD_SHA':'cb9fd4c96066b5361b4282d2f1f3e18fc4a6b2e4','QA_OUTPUT':str(out),'PLAYWRIGHT_BROWSERS_PATH':os.environ.get('PLAYWRIGHT_BROWSERS_PATH',str(pathlib.Path.home()/'.cache/ms-playwright'))}
+env={'PATH':os.environ['PATH'],'HOME':os.environ['HOME'],'NODE_ENV':'development','CI':'true','NEXT_TELEMETRY_DISABLED':'1','ORBIT_ENVIRONMENT':'test','SUPABASE_URL':'http://pr183-local.supabase.co:54321','SUPABASE_PUBLISHABLE_KEY':raw['ANON_KEY'],'SUPABASE_SERVICE_ROLE_KEY':raw['SERVICE_ROLE_KEY'],'NEXT_PUBLIC_BUILD_SHA':sha,'QA_OUTPUT':str(out),'PLAYWRIGHT_BROWSERS_PATH':os.environ.get('PLAYWRIGHT_BROWSERS_PATH',str(pathlib.Path.home()/'.cache/ms-playwright'))}
 subprocess.run(['sudo','useradd','--create-home','orbitqa'],check=True)
 uid=subprocess.check_output(['id','-u','orbitqa'],text=True).strip();chain='ORBIT_PR183_QA';app=None
 subprocess.run(['sudo','chown','-R','orbitqa',str(root),str(out),'/tmp/pr183-local.env'],check=True)
@@ -45,7 +46,7 @@ try:
      print((out/'next.log').read_text()[-4000:],flush=True)
     time.sleep(1)
   else:raise RuntimeError('Next startup timed out')
-  result=subprocess.run(isolated(['node','qa/pr183/browser.mjs']),env=env,timeout=1000)
+  result=subprocess.run(isolated(['node','qa/pr183/access-security.mjs']),env=env,timeout=1000)
   (out/'firewall.txt').write_text(subprocess.check_output(['sudo','iptables','-L',chain,'-n','-v'],text=True))
   code=result.returncode
 finally:

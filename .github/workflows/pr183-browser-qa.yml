@@ -1,4 +1,4 @@
-name: PR183 isolated Staff Admin browser QA
+name: PR183 isolated login security regression
 on:
   push:
     branches: [fix/paper-block-handoff-clean-20261105]
@@ -22,7 +22,7 @@ jobs:
           path: harness
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          ref: cb9fd4c96066b5361b4282d2f1f3e18fc4a6b2e4
+          ref: ${{ github.sha }}
           persist-credentials: false
           path: app
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
@@ -34,11 +34,11 @@ jobs:
       - name: Prepare exact app and QA-only harness
         working-directory: app
         run: |
-          test "$(git rev-parse HEAD)" = cb9fd4c96066b5361b4282d2f1f3e18fc4a6b2e4
+          test "$(git rev-parse HEAD)" = "${{ github.sha }}"
           test -z "$(git status --porcelain)"
           mkdir -p qa/pr183 "$RUNNER_TEMP/pr183-evidence"
           cp ../harness/qa/pr183/* qa/pr183/
-          echo "QA setup; application fixed at cb9fd4c9" > "$RUNNER_TEMP/pr183-evidence/setup.log"
+          echo "Focused login security QA; application at triggering commit" > "$RUNNER_TEMP/pr183-evidence/setup.log"
           npm install --ignore-scripts --no-package-lock --no-audit --no-fund
           npm install --no-save --ignore-scripts --no-package-lock playwright@1.56.1
           sudo mkdir -p /opt/pr183-browsers
@@ -66,10 +66,11 @@ jobs:
           supabase status -o env > /tmp/pr183-local.env
           chmod 600 /tmp/pr183-local.env
           docker exec -i supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 < qa/pr183/seed.sql > "$RUNNER_TEMP/pr183-evidence/seed.log" 2>&1
-      - name: Real Staff and Admin UI QA with outbound blocking
+      - name: Login security Playwright with outbound blocking
         working-directory: app
         env:
           QA_OUTPUT: ${{ runner.temp }}/pr183-evidence
+          QA_EXPECTED_SHA: ${{ github.sha }}
         run: python3 qa/pr183/launch.py
       - name: Upload sanitized browser evidence
         if: always()

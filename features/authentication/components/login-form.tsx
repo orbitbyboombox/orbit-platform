@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { Eye, EyeOff, LockKeyhole, LogIn, Mail } from "lucide-react";
 import { ActionButton } from "@/components/ui/action-button";
@@ -13,6 +13,8 @@ interface LoginFormProps {
 }
 
 export function LoginForm({ initialMessage }: LoginFormProps) {
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => setHydrated(true), []);
   const [serverError, setServerError] = useState<string>();
   const [showPassword, setShowPassword] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -25,15 +27,15 @@ export function LoginForm({ initialMessage }: LoginFormProps) {
   });
 
   return (
-    <form className="access-form" noValidate onSubmit={handleSubmit(onSubmit)}>
+    <form className="access-form" method="post" noValidate onSubmit={handleSubmit(onSubmit)}>
       <div>
         <label htmlFor="email">Correo electrónico</label>
-        <div className="input-wrap"><Mail size={17} /><input aria-describedby={errors.email ? "email-error" : undefined} aria-invalid={Boolean(errors.email)} autoComplete="email" id="email" type="email" {...register("email")} /></div>
+        <div className="input-wrap"><Mail size={17} /><input aria-describedby={errors.email ? "email-error" : undefined} aria-invalid={Boolean(errors.email)} disabled={!hydrated} autoComplete="email" id="email" type="email" {...register("email")} /></div>
         {errors.email && <p className="mt-1.5 text-xs text-danger" id="email-error">Ingresa un correo electrónico válido.</p>}
       </div>
       <div>
         <label htmlFor="password">Contraseña</label>
-        <div className="input-wrap"><LockKeyhole size={17} /><input aria-describedby={errors.password ? "password-error" : undefined} aria-invalid={Boolean(errors.password)} autoComplete="current-password" id="password" type={showPassword ? "text" : "password"} {...register("password")} /><button aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"} className="password-toggle" onClick={() => setShowPassword(value => !value)} type="button">{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></div>
+        <div className="input-wrap"><LockKeyhole size={17} /><input aria-describedby={errors.password ? "password-error" : undefined} aria-invalid={Boolean(errors.password)} disabled={!hydrated} autoComplete="current-password" id="password" type={showPassword ? "text" : "password"} {...register("password")} /><button aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"} disabled={!hydrated} className="password-toggle" onClick={() => setShowPassword(value => !value)} type="button">{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></div>
         {errors.password && <p className="mt-1.5 text-xs text-danger" id="password-error">La contraseña debe tener al menos 8 caracteres.</p>}
       </div>
       <div className="access-options">
@@ -44,7 +46,8 @@ export function LoginForm({ initialMessage }: LoginFormProps) {
         <a className="forgot" href="mailto:admin@orbit.boom-box.cl?subject=Recuperar%20acceso%20a%20ORBIT">¿Olvidaste tu contraseña?</a>
       </div>
       {(serverError ?? initialMessage) && <p aria-live="polite" className="access-error" role="alert">{serverError ?? initialMessage}</p>}
-      <ActionButton className="access-submit" icon={LogIn} label={isPending ? "Verificando…" : "INGRESAR A ORBIT"} loading={isPending} type="submit" />
+      <noscript>Activa JavaScript para iniciar sesión de forma segura.</noscript>
+      <ActionButton disabled={!hydrated} className="access-submit" icon={LogIn} label={isPending ? "Verificando…" : "INGRESAR A ORBIT"} loading={isPending} type="submit" />
     </form>
   );
 }
