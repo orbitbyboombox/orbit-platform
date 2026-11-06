@@ -23,9 +23,16 @@ test("paper block panel exposes AM/PM controls and does not expose arbitrary eve
 });
 
 test("server function enforces operator, project/block/asset identity, PM handoff and request idempotency", () => {
-  for (const fragment of ["a.staff_id = p_staff_id", "a.block_id = p_block_id", "aa.block_id = p_block_id", "Debe cerrarse el bloque anterior", "unique_violation", "p_request_id"]) {
+  for (const fragment of ["a.staff_id = p_staff_id", "a.block_id = p_block_id", "into strict asset_row", "Debe cerrarse el bloque anterior", "unique_violation", "p_request_id"]) {
     assert.match(rpc, new RegExp(fragment.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
   assert.match(rpc, /grant execute .* to service_role/);
   assert.doesNotMatch(rpc, /inventory_movements/);
+});
+
+
+test("RPC enforces unique box selection and rejects conflicting retries", () => {
+  assert.match(rpc, /into strict asset_row/);
+  assert.match(rpc, /Solicitud duplicada con datos diferentes/);
+  assert.match(rpc, /Cantidad de papel fuera del rango permitido/);
 });
