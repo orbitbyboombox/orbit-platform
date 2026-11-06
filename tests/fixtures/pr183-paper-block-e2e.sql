@@ -5,6 +5,7 @@ BEGIN;
 SET LOCAL statement_timeout = '60s';
 
 DO $fixture$
+<<fixture_block>>
 DECLARE
   ceo uuid := 'f1830000-0000-4000-8000-000000000001';
   customer_id uuid := 'f1830000-0000-4000-8000-000000000002';
@@ -129,7 +130,7 @@ BEGIN
     VALUES (gen_random_uuid(), project_id, box_id, 'ASSIGNED', ceo, 'PR183 box fixture', ceo, ceo)
     RETURNING id INTO asset_assignment_id;
     asset_assignment_ids := asset_assignment_ids || asset_assignment_id;
-    SELECT s.id INTO snapshot_id FROM public.event_paper_snapshots s WHERE s.asset_assignment_id=asset_assignment_id;
+    SELECT s.id INTO snapshot_id FROM public.event_paper_snapshots s WHERE s.asset_assignment_id=asset_assignment_ids[i];
     IF snapshot_id IS NULL THEN RAISE EXCEPTION 'Paper snapshot missing for box %', i; END IF;
 
     positions := positions || jsonb_build_array(jsonb_build_object(
@@ -140,7 +141,7 @@ BEGIN
       )
     ));
   END LOOP;
-  UPDATE public.projects SET operations=jsonb_build_object('totemLayout',jsonb_build_object('positions',positions)) WHERE id=project_id;
+  UPDATE public.projects SET operations=jsonb_build_object('totemLayout',jsonb_build_object('positions',positions)) WHERE id=fixture_block.project_id;
 
   -- PM cannot close before AM.
   rejected := false;
@@ -167,7 +168,7 @@ BEGIN
     );
   EXCEPTION WHEN OTHERS THEN rejected := true; END;
   IF NOT rejected THEN RAISE EXCEPTION 'Wrong canonical box/block was not rejected'; END IF;
-  UPDATE public.projects SET operations=jsonb_build_object('totemLayout',jsonb_build_object('positions',positions)) WHERE id=project_id;
+  UPDATE public.projects SET operations=jsonb_build_object('totemLayout',jsonb_build_object('positions',positions)) WHERE id=fixture_block.project_id;
 
   -- AM closes for all seven boxes. Each receives one synthetic reload.
   FOR i IN 1..7 LOOP
@@ -208,10 +209,10 @@ BEGIN
   END LOOP;
 
   SELECT count(*) INTO movements_after FROM public.inventory_movements m
-  WHERE m.project_id=project_id AND m.movement_type='EVENT_USAGE';
+  WHERE m.project_id=fixture_block.project_id AND m.movement_type='EVENT_USAGE';
   IF movements_after <> 7 THEN RAISE EXCEPTION 'Expected one EVENT_USAGE per box, got %', movements_after; END IF;
   SELECT count(*) INTO movements_before FROM public.event_box_paper_block_closeouts c
-  WHERE c.project_id=project_id AND c.inventory_reconciled_at IS NOT NULL;
+  WHERE c.project_id=fixture_block.project_id AND c.inventory_reconciled_at IS NOT NULL;
   IF movements_before <> 7 THEN RAISE EXCEPTION 'Expected seven reconciled PM closeouts, got %', movements_before; END IF;
   SELECT count(*) INTO movements_before FROM public.box_media_lots l
   WHERE l.box_asset_id=ANY(boxes) AND l.remaining_photo_capacity=850;
@@ -220,7 +221,7 @@ BEGIN
   -- Same request is idempotent; changed payload with same request is rejected.
   result := public.record_staff_paper_block_closeout(
     project_id, am_block, am_assignments[1], 1000, 50, 900,
-    (SELECT c.request_id FROM public.event_box_paper_block_closeouts c WHERE c.project_id=project_id AND c.block_id=am_block LIMIT 1),
+    (SELECT c.request_id FROM public.event_box_paper_block_closeouts c WHERE c.project_id=fixture_block.project_id AND c.block_id=am_block LIMIT 1),
     am_staff[1], sessions[1]
   );
   IF (result->>'duplicate') <> 'true' THEN RAISE EXCEPTION 'AM retry was not idempotent'; END IF;
@@ -228,7 +229,7 @@ BEGIN
   BEGIN
     PERFORM public.record_staff_paper_block_closeout(
       project_id, am_block, am_assignments[1], 1000, 50, 899,
-      (SELECT c.request_id FROM public.event_box_paper_block_closeouts c WHERE c.project_id=project_id AND c.block_id=am_block LIMIT 1),
+      (SELECT c.request_id FROM public.event_box_paper_block_closeouts c WHERE c.project_id=fixture_block.project_id AND c.block_id=am_block LIMIT 1),
       am_staff[1], sessions[1]
     );
   EXCEPTION WHEN OTHERS THEN rejected := position('ya existe' in lower(sqlerrm)) > 0 OR position('solicitud duplicada' in lower(sqlerrm)) > 0; END;
