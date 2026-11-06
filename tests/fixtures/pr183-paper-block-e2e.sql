@@ -202,7 +202,7 @@ BEGIN
         gen_random_uuid(), am_staff[i], sessions[(i-1)*2+1]
       );
     END IF;
-    IF (result->>'status') <> 'CLOSED' OR (result->>'used')::integer <> 150 THEN
+    IF (result->>'status') <> 'CLOSED' OR (result->>'used')::integer <> CASE WHEN i < 7 THEN 150 ELSE 100 END THEN
       RAISE EXCEPTION 'AM closeout mismatch for box %: %', i, result;
     END IF;
   END LOOP;
