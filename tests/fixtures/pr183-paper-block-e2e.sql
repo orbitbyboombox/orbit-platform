@@ -80,17 +80,15 @@ BEGIN
   FOR i IN 1..7 LOOP
     box_id := gen_random_uuid();
     printer_id := gen_random_uuid();
-    INSERT INTO public.operational_assets(id, asset_code, asset_type, status, qr_key, created_by)
-    VALUES (
-      box_id,
-      CASE WHEN i=7 THEN 'CASE-07' ELSE format('PR183-BOX-%s', lpad(i::text,2,'0')) END,
-      CASE WHEN i=7 THEN 'CASE' ELSE 'BOX' END,
-      'ASSIGNED', format('pr183:box:%s',i), ceo
-    );
     IF i=7 THEN
+      SELECT id INTO box_id FROM public.operational_assets WHERE asset_code='CASE-07' AND deleted_at IS NULL;
+      IF box_id IS NULL THEN RAISE EXCEPTION 'Synthetic CASE-07 master asset is missing'; END IF;
       UPDATE public.operational_assets
          SET metadata=jsonb_build_object('blackBoxPhotoStock',1000,'blackBoxPaperFormat','PR183_FORMAT','name','PR183 CASE-07')
        WHERE id=box_id;
+    ELSE
+      INSERT INTO public.operational_assets(id, asset_code, asset_type, status, qr_key, created_by)
+      VALUES (box_id, format('PR183-BOX-%s', lpad(i::text,2,'0')), 'BOX', 'ASSIGNED', format('pr183:box:%s',i), ceo);
     END IF;
     INSERT INTO public.operational_assets(id, asset_code, asset_type, status, qr_key, parent_asset_id, created_by)
     VALUES (printer_id, format('PR183-PRINTER-%s', lpad(i::text,2,'0')), 'PRINTER', 'ASSIGNED', format('pr183:printer:%s',i), box_id, ceo);
