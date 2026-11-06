@@ -82,6 +82,12 @@ jobs:
               raise SystemExit('Expected isolated-only malformed migration prefix was not found')
           path.write_text(source.replace(malformed, '\ncreate or replace function public.calculate_staff_monthly_settlement(', 1))
           print('Removed one malformed patch prefix from isolated migration copy; repository file unchanged.')
+          path = Path('supabase/migrations/20261009223000_paper_initial_inventory_and_wcm.sql')
+          source = path.read_text()
+          start = source.index('do $$\n')
+          end = source.index('end $$;', start) + len('end $$;')
+          path.write_text(source[:start] + '-- Isolated runner omits Production-only paper inventory initialization.\n' + source[end:])
+          print('Omitted isolated-only paper inventory initialization; schema and WCM table retained.')
           path = Path('supabase/migrations/20260916104753_office_lease_september_initial_income.sql')
           source = path.read_text()
           start_marker = '-- September 2026 was the initial, partial period.'
