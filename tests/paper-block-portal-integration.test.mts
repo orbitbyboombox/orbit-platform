@@ -45,7 +45,7 @@ test("inventory is reconciled only on the final block and is idempotent", () => 
 });
 
 test("portal does not duplicate event reloads into the PM handoff", () => {
-  assert.match(actions, /const isFirstBlock = !prior/);
+  assert.match(actions, /const isFirstBlock = !\(blocks \?\? \[\]\)\.some/);
   assert.match(actions, /isFirstBlock && snapshot/);
 });
 
@@ -54,4 +54,12 @@ test("RPC enforces unique box selection and rejects conflicting retries", () => 
   assert.match(rpc, /into strict asset_row/);
   assert.match(rpc, /Solicitud duplicada con datos diferentes/);
   assert.match(rpc, /Cantidad de papel fuera del rango permitido/);
+});
+
+test("Staff resolves each operator's own box from canonical event layout, not first asset assignment in block", () => {
+  assert.match(actions, /operations\?\.totemLayout\?\.positions/);
+  assert.match(actions, /shift\.assignmentId && shift\.blockId/);
+  assert.match(actions, /ownById\.get\(shift\.assignmentId\)\?\.block_id === shift\.blockId/);
+  assert.doesNotMatch(actions.slice(actions.indexOf("export async function loadStaffPaperBlocksAction"), actions.indexOf("export async function closeStaffPaperBlockAction")), /assetRows \?\? \[\]\)\.find/);
+  assert.match(actions, /row\.asset_id === match\.assetId/);
 });
