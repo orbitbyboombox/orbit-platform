@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import { FileDown, Mail, RefreshCw, Send, UsersRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,8 @@ export function OfficialStaffRosterControl({projectId}:{projectId:string}) {
   const [pending,startTransition]=useTransition();
   const [feedback,setFeedback]=useState("");
   const [mailOpen,setMailOpen]=useState(false);
+  const [expandedSections,setExpandedSections]=useState<string[]>([]);
+  const toggleSection=(key:string)=>setExpandedSections(previous=>previous.includes(key)?previous.filter(item=>item!==key):[...previous,key]);
   const [to,setTo]=useState("");
   const [sendState,setSendState]=useState<"idle"|"sending"|"sent"|"error">("idle");
 
@@ -62,18 +65,34 @@ export function OfficialStaffRosterControl({projectId}:{projectId:string}) {
         <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand"><UsersRound className="size-5"/></span>
         <div><p className="text-[11px] font-semibold uppercase tracking-[.16em] text-muted">STAFF · DOCUMENTO PARA CLIENTE</p><h3 id="official-roster-title" className="mt-1 text-lg font-semibold">Nómina oficial del equipo</h3><p className="mt-1 text-sm text-muted">Operadores, supervisores y encargado del evento. Solo nombres y RUT, sin valores.</p></div>
       </div>
-      <Button variant="outline" disabled={pending||loading} onClick={()=>void refresh()}><RefreshCw className="size-4"/>Actualizar</Button>
+      <div className="flex flex-wrap gap-2"><Link href={"/admin/totems/"+projectId} className="inline-flex min-h-10 items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted">Configurar Multicaja</Link><Button variant="outline" disabled={pending||loading} onClick={()=>void refresh()}><RefreshCw className="size-4"/>Actualizar</Button></div>
     </header>
     {feedback&&<p role="status" className="mt-3 rounded-lg border p-3 text-sm">{feedback}</p>}
     {loading?<p className="mt-4 text-sm text-muted">Cargando asignaciones del evento…</p>:composer&&<>
-      <div className="mt-4 grid gap-2">
-        {composer.members.map(member=><div key={member.assignmentId} className="grid gap-2 rounded-xl border p-3 sm:grid-cols-[minmax(180px,1fr)_minmax(120px,.7fr)_minmax(130px,.8fr)_auto] sm:items-center">
-          <div><p className="font-medium">{member.name}</p><p className="text-xs text-muted">{member.roleLabel} · {member.rut||"RUT pendiente"}</p></div>
-          <p className="text-xs font-semibold text-brand">{member.block}</p>
-          <p className="text-xs text-muted">Estado: {member.status}</p>
-          
-        </div>)}
-        {!composer.members.length&&<p className="rounded-xl border p-4 text-sm text-muted">Aún no hay staff asignado al evento.</p>}
+      <div className="mt-4 space-y-3">
+        {Array.from(new Set(composer.members.map(member => member.block))).map(block => {
+          const members = composer.members.filter(member => member.block === block);
+          const key = "staff:" + block;
+          const expanded = expandedSections.includes(key);
+          return <section key={key} className="overflow-hidden rounded-xl border">
+            <button type="button" aria-expanded={expanded} onClick={() => toggleSection(key)} className="flex w-full items-center justify-between gap-3 p-4 text-left hover:bg-muted/20">
+              <span><strong className="block">{block}</strong><span className="text-xs text-muted">{members.length} integrantes</span></span>
+              <span className="text-sm text-brand">{expanded ? "Cerrar −" : "Ver integrantes +"}</span>
+            </button>
+            {expanded && <div className="space-y-2 border-t p-3">{members.map(member => <div key={member.assignmentId} className="grid gap-2 rounded-lg border p-3 sm:grid-cols-[minmax(180px,1fr)_minmax(120px,.7fr)_auto] sm:items-center">
+              <div><p className="font-medium">{member.name}</p><p className="text-xs text-muted">{member.roleLabel} · {member.rut || "RUT pendiente"}</p></div>
+              <p className="text-xs text-muted">{member.block}</p><p className="text-xs text-muted">Estado: {member.status}</p>
+            </div>)}</div>}
+          </section>;
+        })}
+        {!composer.members.length && <p className="rounded-xl border p-4 text-sm text-muted">Aún no hay staff asignado al evento.</p>}
+        {!!composer.totemRows?.length && <section className="overflow-hidden rounded-xl border">
+          <button type="button" aria-expanded={expandedSections.includes("multicaja")} onClick={() => toggleSection("multicaja")} className="flex w-full items-center justify-between gap-3 p-4 text-left hover:bg-muted/20">
+            <span><strong className="block">Distribución Multicaja · PDF oficial</strong><span className="text-xs text-muted">{composer.totemRows.length} asignaciones por posición y bloque</span></span>
+            <span className="text-sm text-brand">{expandedSections.includes("multicaja") ? "Cerrar −" : "Ver distribución +"}</span>
+          </button>
+          {expandedSections.includes("multicaja") && <div className="grid gap-2 border-t p-3">{composer.totemRows.map((row,index) => <div key={index} className="grid gap-1 rounded-lg border p-3 text-sm sm:grid-cols-4"><span className="font-medium">{row.position} · {row.box}</span><span>{row.block}</span><span>{row.operator}</span><span className="text-muted">{row.location} · {row.reference}</span></div>)}</div>}
+        </section>}
       </div>
       {!!composer.missing.length&&<div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950"><strong>Completa esto antes de generar o enviar:</strong><ul className="mt-2 list-disc pl-5">{composer.missing.map((item,index)=><li key={index}>{item}</li>)}</ul></div>}
       <div className="mt-4 flex flex-wrap gap-2">

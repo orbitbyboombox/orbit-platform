@@ -396,7 +396,7 @@ export function StaffAssignmentCenter({
           {([{ role: "ASSEMBLY", label: "Montaje" }, { role: "DISASSEMBLY", label: "Desmontaje" }, { role: "SUPERVISOR", label: "Supervisión" }, { role: "OPERATOR", label: "Operación" }, { role: "TRAINING", label: "Capacitación" }] as const).map((item) => <div className="rounded-lg border bg-card p-3" key={item.role}><p className="text-xs text-muted">{item.label}</p><p className="mt-1 text-lg font-semibold">{money(dailyRoleTotals[item.role])}</p></div>)}
         </div>
       </section>
-      <section className="mb-5 rounded-xl border bg-background/50 p-4" aria-label="Detalle financiero por colaborador" data-testid="staff-financial-concept-detail">
+       <details className="group mb-5 rounded-xl border bg-background/50 p-4" aria-label="Detalle financiero por colaborador" data-testid="staff-financial-concept-detail"><summary className="cursor-pointer text-sm font-semibold">Detalle financiero por colaborador · {money(canonicalTotal)} <span className="text-brand group-open:hidden">· Ver desglose +</span><span className="hidden text-brand group-open:inline">· Cerrar −</span></summary>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div><p className="text-xs font-semibold uppercase tracking-wider text-muted">DETALLE FINANCIERO</p><p className="mt-1 text-xs text-muted">Una línea canónica por colaborador y concepto; los pagos históricos no se recalculan.</p></div>
           <strong className="text-sm">Total: {money(canonicalTotal)}</strong>
@@ -410,7 +410,7 @@ export function StaffAssignmentCenter({
             </tbody>
           </table>
         </div>
-      </section>
+       </details>
       <CustomPaymentItemForm projectId={projectId} staff={staff} assignments={assignments} pending={pending} onSubmit={(data) => saveSettlement(data, "concept")} />
       {operatorBlockRequirements.length ? <section className="mb-5 rounded-xl border border-brand/20 bg-brand/5 p-4" data-testid="operator-block-summary">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -431,7 +431,7 @@ export function StaffAssignmentCenter({
           {operatorBlockSummary.unscopedAssigned ? <span className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2">Generales sin bloque: {operatorBlockSummary.unscopedAssigned}</span> : null}
         </div>
       </section> : null}
-      <section className="mb-5 grid gap-3 border-b pb-5 lg:grid-cols-3">
+       <details className="group mb-5 border-b pb-5"><summary className="cursor-pointer rounded-xl border bg-background/50 p-4 font-semibold">Supervisores, montaje y otros roles <span className="text-brand group-open:hidden">· Ver posiciones +</span><span className="hidden text-brand group-open:inline">· Cerrar −</span></summary><div className="mt-3 grid gap-3 lg:grid-cols-3">
         {roles.filter((role) => role.value !== "OPERATOR" || !operatorBlockRequirements.length).map((role) => {
           const requirement = requirements.find((item) => item.role === role.value);
           const confirmed = assignments.filter((item) => item.role === role.value && !["CANCELLED", "REJECTED"].includes(item.status)).length;
@@ -452,8 +452,8 @@ export function StaffAssignmentCenter({
             onEdit={(item) => setPanel({ mode: "edit", item })}
           />;
         })}
-      </section>
-      {blockRequirements.length ? <section className="mb-5 border-b pb-5"><h3 className="font-semibold">Planificación por bloques</h3><p className="mt-1 text-sm text-muted">Cada asignación queda asociada al bloque y conserva su tarifa según duración.</p><div className="mt-3 grid gap-3 lg:grid-cols-2">{blockRequirements.map((item) => {
+       </div></details>
+      {blockRequirements.length ? <details className="group mb-5 border-b pb-5"><summary className="cursor-pointer rounded-xl border bg-background/50 p-4 font-semibold">Planificación por bloques · {blockRequirements.length} bloques <span className="text-brand group-open:hidden">· Ver bloques +</span><span className="hidden text-brand group-open:inline">· Cerrar −</span></summary><p className="mt-1 text-sm text-muted">Cada asignación queda asociada al bloque y conserva su tarifa según duración.</p><div className="mt-3 grid gap-3 lg:grid-cols-2">{blockRequirements.map((item) => {
         const blockAssignments = assignments.filter((assignment) => String(assignment.blockId ?? "") === String(item.blockId) && assignment.role === item.role && !["CANCELLED", "REJECTED"].includes(assignment.status));
         const blockActiveStaffIds = new Set(blockAssignments.map((assignment) => assignment.staffId));
          const blockSettlements = settlements.filter((payment) => String(payment.blockId ?? "") === String(item.blockId) && payment.roles.includes(item.role) && blockActiveStaffIds.has(payment.staffId));
@@ -461,9 +461,9 @@ export function StaffAssignmentCenter({
           ? blockSettlements.reduce((sum, payment) => sum + payment.finalAmount, 0)
           : item.projectedCost;
         return <article className="rounded-xl border p-4" key={`${item.blockId}:${item.role}`}><p className="font-semibold">{item.blockName ?? "Bloque operacional"}</p><p className="mt-1 text-sm text-muted">{item.startAt ? `${new Date(item.startAt).toLocaleTimeString("es-CL", { timeZone: "America/Santiago", hour: "2-digit", minute: "2-digit" })}–${item.endAt ? new Date(item.endAt).toLocaleTimeString("es-CL", { timeZone: "America/Santiago", hour: "2-digit", minute: "2-digit" }) : ""}` : ""}</p><div className="mt-3 flex flex-wrap items-center justify-between gap-2"><p className="text-sm">{roleLabel(item.role)} <strong>{item.assigned}/{item.required}</strong></p><p className="text-sm font-semibold">{item.rate == null ? "REVIEW_REQUIRED" : money(item.rate)}</p></div><p className="mt-1 text-xs uppercase tracking-wide text-muted">{formatOperationalBlockDuration(item.durationMinutes) ? `${formatOperationalBlockDuration(item.durationMinutes)} · tarifa unitaria` : "Duración pendiente"}</p>{blockAssignments.length ? <div className="mt-3 space-y-2"><p className="text-xs font-semibold uppercase tracking-wide text-muted">Asignación real</p>{blockAssignments.map((assignment) => <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-background/60 p-3" key={assignment.id}><div><p className="font-semibold">{assignment.staffName}</p><p className="text-xs text-muted">{roleLabel(assignment.role)} · {item.startAt ? new Date(item.startAt).toLocaleTimeString("es-CL", { timeZone: "America/Santiago", hour: "2-digit", minute: "2-digit" }) : ""}–{item.endAt ? new Date(item.endAt).toLocaleTimeString("es-CL", { timeZone: "America/Santiago", hour: "2-digit", minute: "2-digit" }) : ""}</p></div><Button type="button" variant="outline" disabled={pending} onClick={() => setPanel({ mode: "edit", item: assignment })}>EDITAR ASIGNACIÓN</Button></div>)}</div> : <p className="mt-3 rounded-lg bg-background/60 p-3 text-sm text-muted">Sin operador asignado en este bloque.</p>}{blockSettlements.length ? <div className="mt-3 space-y-2">{blockSettlements.map((payment) => <div className="rounded-lg border border-brand/20 bg-brand/5 p-3" key={payment.id}><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs uppercase tracking-wide text-muted">Pago acordado · {payment.staffName}</p><p className="font-semibold">{money(payment.finalAmount)}{payment.overrideOperator !== null || payment.overrideAssembly !== null || payment.overrideDisassembly !== null ? <span className="ml-2 text-xs font-bold uppercase tracking-wide text-brand">Personalizado</span> : null}</p></div>{payment.settlementStatus === "PAID" || payment.settlementStatus === "FINALIZED" || payment.paid > 0 ? <span className="text-xs font-semibold text-muted">PAGADO · edición bloqueada</span> : <Button type="button" variant="outline" disabled={pending} onClick={() => setSettlement(payment)}>EDITAR PAGO</Button>}</div></div>)}</div> : <p className="mt-3 text-sm text-muted">Sin liquidación asociada.</p>}{blockCost != null ? <p className="mt-3 text-xs text-muted">Costo proyectado del bloque: <strong className="text-foreground">{money(blockCost)}</strong></p> : null}{canAssignBlockStaff(item.assigned, item.required) ? <Button className="mt-3" type="button" variant="outline" disabled={pending} onClick={() => setPanel({ mode: "create", role: item.role, blockId: item.blockId, blockName: item.blockName, blockStartAt: item.startAt, blockEndAt: item.endAt })}><Plus className="size-4"/>Asignar {roleLabel(item.role)}</Button> : null}</article>;
-      })}</div></section> : null}
+      })}</div></details> : null}
       {requests.length ? <section className="mb-5 border-b pb-5"><h3 className="font-semibold">Solicitudes Staff</h3><div className="mt-3 grid gap-3 lg:grid-cols-2">{requests.map((request)=><article className="rounded-xl border p-4" key={request.id}><p className="font-semibold">{request.staffName}</p><p className="mt-1 text-sm text-muted">{roleLabel(request.role)} · Solicitud pendiente</p><div className="mt-3 flex gap-2"><form action={(data)=>startTransition(async()=>{const result=await reviewStaffRequestAction(data);setMessage(result.message);if(result.ok)router.refresh()})}><input name="requestId" type="hidden" value={request.id}/><input name="decision" type="hidden" value="approve"/><Button aria-busy={pending} disabled={pending} type="submit">Aprobar</Button></form><form action={(data)=>startTransition(async()=>{const result=await reviewStaffRequestAction(data);setMessage(result.message);if(result.ok)router.refresh()})}><input name="requestId" type="hidden" value={request.id}/><input name="decision" type="hidden" value="reject"/><Button aria-busy={pending} disabled={pending} type="submit" variant="outline">Rechazar</Button></form></div></article>)}</div></section>:null}
-      <div className="grid gap-3 lg:grid-cols-2">
+       <details className="group mt-5 rounded-xl border bg-background/30 p-4"><summary className="cursor-pointer font-semibold">Asignaciones y confirmaciones · {assignments.length} registros <span className="text-brand group-open:hidden">· Ver integrantes +</span><span className="hidden text-brand group-open:inline">· Cerrar −</span></summary><div className="mt-4 grid gap-3 lg:grid-cols-2">
         {assignments.map((item) => (
           <article className="rounded-xl border p-4" key={item.id}>
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -557,9 +557,9 @@ export function StaffAssignmentCenter({
             </p>
           </div>
         )}
-      </div>
+       </div></details>
       {settlements.length ? (
-        <section className="mt-5 border-t pt-5">
+         <details className="group mt-5 border-t pt-5"><summary className="cursor-pointer rounded-xl border bg-background/50 p-4 font-semibold">Liquidaciones oficiales · {settlements.length} registros <span className="text-brand group-open:hidden">· Ver liquidaciones +</span><span className="hidden text-brand group-open:inline">· Cerrar −</span></summary>
           <h3 className="font-semibold">Liquidaciones oficiales del Evento</h3>
           <div className="mt-3 grid gap-3 lg:grid-cols-2">
             {settlements.map((item) => (
@@ -618,7 +618,7 @@ export function StaffAssignmentCenter({
               </article>
             ))}
           </div>
-        </section>
+         </details>
       ) : null}
       {panel && (
         <AssignmentDialog

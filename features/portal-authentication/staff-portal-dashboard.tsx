@@ -33,6 +33,7 @@ import { StaffBoxOperationsPanel } from "./staff-box-operations-panel";
 import { LogisticsEventRow, ScaledLogisticsEventRow, type StaffLogisticsEvent } from "@/features/resources/staff-logistics-view";
 import { defaultSectorForCommune } from "@/features/resources/logistics-commune-catalog";
 import { type CanonicalOperationalExtras, type OperationalExtraCategory } from "@/features/operations/canonical-operational-extras";
+import type { StaffVenueInfo } from "./staff-venue-info";
 
 export type StaffPortalEvent = {
   id: string;
@@ -56,6 +57,8 @@ export type StaffPortalEvent = {
   address: string;
   district: string;
   venue: string;
+  venueInfo: StaffVenueInfo;
+  totemPositions?: Array<{label:string;location:string;reference:string;assetId:string|null}>;
   roles: string[];
   net: number;
   status: string;
@@ -969,6 +972,17 @@ function EventDetail({
           <Small label="Lugar" value={event.venue} />
           <Small label="Dirección" value={event.address} />
           <Small label="Comuna" value={event.district} />
+          {event.totemPositions?.length ? <section className="sm:col-span-2 lg:col-span-3 rounded-2xl border border-brand/30 bg-brand/5 p-4" aria-label="Mi ubicación de tótem"><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Mi tótem / ubicación</p><div className="mt-3 grid gap-3 sm:grid-cols-2">{event.totemPositions.map((position,index)=><div key={`${position.label}-${index}`} className="rounded-xl border border-brand/20 p-3"><Small label="Tótem" value={position.label}/><Small label="CASE" value={position.assetId ?? "Pendiente de asignación"}/><Small label="Ubicación" value={position.location||"Ubicación pendiente"}/>{position.reference?<Small label="Referencia" value={position.reference}/>:null}</div>)}</div></section> : null}
+          <section className="sm:col-span-2 lg:col-span-3 rounded-2xl border border-brand/30 bg-brand/5 p-4" aria-label="Información del recinto">
+            <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Información del recinto</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <Small label="Recinto" value={event.venueInfo.name} />
+              {event.venueInfo.reference ? <Small label="Referencia" value={event.venueInfo.reference} /> : null}
+              {event.venueInfo.accessInstructions ? <Small label="Acceso / carga" value={event.venueInfo.accessInstructions} /> : null}
+              {event.venueInfo.parking ? <Small label="Estacionamiento" value={event.venueInfo.parking} /> : null}
+              {event.venueInfo.observations ? <div className="sm:col-span-2"><Small label="Observaciones del recinto" value={event.venueInfo.observations} /></div> : null}
+            </div>
+          </section>
           <div className="sm:col-span-2 lg:col-span-3"><StaffOperationalExtras extras={event.operationalExtras} photoStyle={event.printInstructions.photoStyle} /></div>
           <Small
             label="Encargado del evento"

@@ -2,6 +2,7 @@ import {
   BarChart3,
   Building2,
   CalendarDays,
+  GraduationCap,
   CircleDollarSign,
   FolderKanban,
   Gauge,
@@ -39,6 +40,7 @@ export type NavigationKey =
   | "EVENTS"
   | "CALENDAR"
   | "STAFF"
+  | "STAFF_TRAINING"
   | "RESOURCES"
   | "BOXES"
   | "FINANCE"
@@ -90,6 +92,13 @@ export const navigationItems: readonly NavigationItem[] = [
     label: "Staff",
     href: "/resources/staff",
     icon: UsersRound,
+    module: "STAFF",
+  },
+  {
+    key: "STAFF_TRAINING",
+    label: "Capacitaciones",
+    href: "/staff/capacitaciones",
+    icon: GraduationCap,
     module: "STAFF",
   },
   {
