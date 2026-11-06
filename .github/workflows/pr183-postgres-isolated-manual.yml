@@ -56,6 +56,14 @@ jobs:
           # clean reset cannot apply both files as-is. Normalize only the
           # runner workspace; never rename or rewrite the tracked migrations.
           migration_backup="$(mktemp -d)"
+          cleanup_migrations() {
+            if [ -d "$migration_backup/migrations" ]; then
+              rm -rf supabase/migrations
+              mv "$migration_backup/migrations" supabase/migrations
+            fi
+            rm -rf "$migration_backup"
+          }
+          trap cleanup_migrations EXIT
           cp -R supabase/migrations "$migration_backup/migrations"
           mv supabase/migrations/0159_logistics_route_publication.sql \
             supabase/migrations/0160_logistics_route_publication.sql
@@ -63,9 +71,6 @@ jobs:
           test -e supabase/migrations/0160_logistics_route_publication.sql
           echo 'Applied isolated migration-version normalization: 0159_logistics_route_publication.sql -> 0160_logistics_route_publication.sql'
           supabase db reset --local --no-seed
-          rm -rf supabase/migrations
-          mv "$migration_backup/migrations" supabase/migrations
-          rm -rf "$migration_backup"
       - name: Verify PR RPCs and privileges in real PostgreSQL
         shell: bash
         run: |
