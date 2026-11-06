@@ -28,3 +28,11 @@ test("manual controls are only in CEO protected multicase admin page", () => {
   assert.match(panel, /block\.canClose/);
   assert.match(panel, /CERRAR \$\{block\.blockName\.toUpperCase\(\)\} MANUALMENTE/);
 });
+
+test("manual and Staff PM openings refresh from verified AM remaining", () => {
+  const staffPanel = readFileSync("features/portal-authentication/staff-paper-block-closeout-panel.tsx", "utf8");
+  assert.match(panel, /opening: String\(row\.opening\)/);
+  assert.match(staffPanel, /opening: block\.opening < 0 \? "" : String\(block\.opening\)/);
+  assert.doesNotMatch(panel, /old\[row\.assignmentId\] \?\? \{/);
+  assert.doesNotMatch(staffPanel, /current\[block\.assignmentId\] \?\? \{/);
+});
