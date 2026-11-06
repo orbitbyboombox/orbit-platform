@@ -1,4 +1,4 @@
-name: PR 183 isolated PostgreSQL integration
+name: PR 183 isolated PostgreSQL integration (local Supabase PG17)
 
 on:
   workflow_dispatch:
@@ -53,7 +53,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          docker exec -i supabase_db_${GITHUB_REPOSITORY##*/} psql -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          docker exec -i supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
           DO $$
           DECLARE fn regprocedure;
           BEGIN
@@ -74,7 +74,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          docker exec -i supabase_db_${GITHUB_REPOSITORY##*/} psql -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          docker exec -i supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
           DO $$
           DECLARE admin_fn regprocedure;
           BEGIN
@@ -91,15 +91,19 @@ jobs:
             END IF;
           END $$;
           SQL
-      - name: Execute real SQL integration fixture if present
+      - name: Execute real PostgreSQL security integration fixture
         shell: bash
         run: |
           set -euo pipefail
           test -f tests/fixtures/pr183-postgres-integration.sql || {
-            echo "::error::Missing real integration fixture for AM/PM, RLS, concurrency and idempotency. Smoke checks alone are not a PASS."
+            echo "::error::Missing real SQL security integration fixture; no validation can be reported."
             exit 1
           }
-          docker exec -i supabase_db_${GITHUB_REPOSITORY##*/} psql -U postgres -d postgres -v ON_ERROR_STOP=1 < tests/fixtures/pr183-postgres-integration.sql
+          docker exec -i supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 < tests/fixtures/pr183-postgres-integration.sql
+      - name: Explicit test coverage boundary
+        run: |
+          echo 'PostgreSQL catalog, RLS, grants and negative authorization tested.'
+          echo 'Seven-case AM/PM, concurrency and browser QA remain unverified until dedicated fixtures are added.'
       - name: Stop local Supabase
         if: always()
         run: supabase stop --no-backup || true
