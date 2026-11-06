@@ -32,6 +32,9 @@ begin
   if p_opening is null or p_reloads is null or p_remaining is null or p_opening < 0 or p_reloads < 0 or p_remaining < 0 then
     raise exception 'El papel debe ser un entero no negativo.';
   end if;
+  if p_opening::bigint + p_reloads::bigint > 2147483647 then
+    raise exception 'Cantidad de papel fuera del rango permitido.';
+  end if;
   if p_remaining::bigint > p_opening::bigint + p_reloads::bigint then
     raise exception 'El saldo final supera el papel disponible.';
   end if;
@@ -79,6 +82,7 @@ begin
    for update;
   if found then
     if existing_closeout.request_id = p_request_id
+       and existing_closeout.closed_by = p_staff_id
        and existing_closeout.operator_assignment_id = p_operator_assignment_id
        and existing_closeout.opening = p_opening
        and existing_closeout.reloads = p_reloads
@@ -129,7 +133,16 @@ exception when unique_violation then
     from public.event_box_paper_block_closeouts c
    where c.request_id = p_request_id;
   if found then
-    return jsonb_build_object('closeout_id', existing_closeout.id, 'duplicate', true, 'used', existing_closeout.used, 'status', 'CLOSED');
+    if existing_closeout.project_id = p_project_id
+       and existing_closeout.block_id = p_block_id
+       and existing_closeout.operator_assignment_id = p_operator_assignment_id
+       and existing_closeout.closed_by = p_staff_id
+       and existing_closeout.opening = p_opening
+       and existing_closeout.reloads = p_reloads
+       and existing_closeout.remaining = p_remaining then
+      return jsonb_build_object('closeout_id', existing_closeout.id, 'duplicate', true, 'used', existing_closeout.used, 'status', 'CLOSED');
+    end if;
+    raise exception 'Solicitud duplicada con datos diferentes.';
   end if;
   raise;
 end;
