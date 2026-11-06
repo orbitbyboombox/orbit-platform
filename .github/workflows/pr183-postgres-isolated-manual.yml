@@ -1,0 +1,72 @@
+name: PR 183 PostgreSQL isolated validation (manual)
+
+# Manual only: never runs on push, PR, schedule or production.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-postgres:
+    if: github.ref == 'refs/heads/fix/paper-block-handoff-clean-20261105'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: orbit_test
+          POSTGRES_PASSWORD: orbit_test_only
+          POSTGRES_DB: orbit_pr183_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U orbit_test -d orbit_pr183_test"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: orbit_test
+      PGPASSWORD: orbit_test_only
+      PGDATABASE: orbit_pr183_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify isolation and branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/fix/paper-block-handoff-clean-20261105"
+          test -z "${SUPABASE_DB_URL:-}"
+          psql -v ON_ERROR_STOP=1 -c 'select current_database(), current_user, version();'
+      - name: Check prerequisites (fail closed)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # A real schema baseline is mandatory; do NOT fake tables or report
+          # RPC/RLS PASS against synthetic fixtures.
+          if [ ! -f tests/fixtures/pr183-postgres-baseline.sql ]; then
+            echo "::error::Missing isolated schema baseline: tests/fixtures/pr183-postgres-baseline.sql. This workflow does not run against Production or invent schema."
+            exit 1
+          fi
+          psql -v ON_ERROR_STOP=1 -f tests/fixtures/pr183-postgres-baseline.sql
+      - name: Apply PR 183 RPC migration
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261105113000_staff_paper_block_closeout_rpc.sql
+      - name: Verify function exists and execute permission is restricted
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$
+          BEGIN
+            IF to_regprocedure('public.record_staff_paper_block_closeout(uuid,uuid,uuid,integer,integer,integer,uuid,uuid,uuid)') IS NULL THEN
+              RAISE EXCEPTION 'PR 183 RPC is missing';
+            END IF;
+            IF has_function_privilege('public', 'public.record_staff_paper_block_closeout(uuid,uuid,uuid,integer,integer,integer,uuid,uuid,uuid)', 'EXECUTE') THEN
+              RAISE EXCEPTION 'RPC must not be executable by PUBLIC';
+            END IF;
+          END $$;
+          SQL
+      - name: Explicit result boundary
+        run: |
+          echo 'Schema and RPC smoke checks only. RLS, concurrency, AM/PM integration and authenticated Staff QA are NOT validated by this workflow.'
