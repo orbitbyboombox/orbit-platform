@@ -188,7 +188,7 @@ BEGIN
   -- PM receives exactly AM remaining, then gets an additional reload through the
   -- canonical reload ledger and closes at 850. It must reconcile one movement.
   FOR i IN 1..7 LOOP
-    SELECT id INTO snapshot_id FROM public.event_paper_snapshots WHERE asset_assignment_id=asset_assignment_ids[i];
+    SELECT s.id INTO snapshot_id FROM public.event_paper_snapshots s WHERE s.asset_assignment_id=asset_assignment_ids[i];
     PERFORM public.record_staff_event_paper_reload(
       project_id, asset_assignment_ids[i], 20, 'PR183 PM reload',
       format('pr183-pm-reload-%s',i), pm_staff[i], sessions[(i-1)*2+2]
