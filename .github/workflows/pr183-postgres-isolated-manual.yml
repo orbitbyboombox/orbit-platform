@@ -67,6 +67,27 @@ jobs:
             END IF;
           END $$;
           SQL
+      - name: Verify RLS on audit table and both RPC grants
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker exec -i supabase_db_${GITHUB_REPOSITORY##*/} psql -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          DO $
+          DECLARE admin_fn regprocedure;
+          BEGIN
+            SELECT to_regprocedure('public.admin_record_staff_paper_block_closeout(uuid,uuid,uuid,integer,integer,integer,uuid,uuid,text)') INTO admin_fn;
+            IF admin_fn IS NULL THEN RAISE EXCEPTION 'Admin RPC missing'; END IF;
+            IF has_function_privilege('anon',admin_fn,'EXECUTE') OR has_function_privilege('authenticated',admin_fn,'EXECUTE') THEN
+              RAISE EXCEPTION 'Admin RPC exposed to public roles';
+            END IF;
+            IF NOT has_function_privilege('service_role',admin_fn,'EXECUTE') THEN
+              RAISE EXCEPTION 'service_role lacks Admin RPC execute';
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname='event_paper_block_admin_audit' AND c.relrowsecurity) THEN
+              RAISE EXCEPTION 'Admin audit RLS not enabled';
+            END IF;
+          END $;
+          SQL
       - name: Execute real SQL integration fixture if present
         shell: bash
         run: |
