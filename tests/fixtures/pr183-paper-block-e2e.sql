@@ -60,8 +60,8 @@ BEGIN
   );
   INSERT INTO public.event_operational_blocks(id, project_id, name, sequence, start_at, end_at)
   VALUES
-    (am_block, project_id, 'AM', 1, now() + interval '30 days', now() + interval '30 days 4 hours 30 minutes'),
-    (pm_block, project_id, 'PM', 2, now() + interval '30 days 6 hours', now() + interval '30 days 10 hours 30 minutes');
+    (am_block, project_id, 'AM', 1, date_trunc('minute',now()) + interval '30 days', date_trunc('minute',now()) + interval '30 days 4 hours 30 minutes'),
+    (pm_block, project_id, 'PM', 2, date_trunc('minute',now()) + interval '30 days 6 hours', date_trunc('minute',now()) + interval '30 days 10 hours 30 minutes');
 
   INSERT INTO public.supplies(
     id, name, purchase_price, vat_included, unit, calculation_method, status,
