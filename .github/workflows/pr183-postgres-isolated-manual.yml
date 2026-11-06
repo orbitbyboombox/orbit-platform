@@ -47,12 +47,27 @@ jobs:
           # `supabase start` applies migrations during initialization, so the
           # runner-only duplicate-version normalization must happen before it.
           test -e supabase/migrations/0159_logistics_route_publication.sql
-          test ! -e supabase/migrations/0159a_logistics_route_publication.sql
+          test ! -e supabase/migrations/01590000000001_logistics_route_publication.sql
           mv supabase/migrations/0159_logistics_route_publication.sql \
-            supabase/migrations/0159a_logistics_route_publication.sql
+            supabase/migrations/01590000000001_logistics_route_publication.sql
           test ! -e supabase/migrations/0159_logistics_route_publication.sql
-          test -e supabase/migrations/0159a_logistics_route_publication.sql
-          echo 'Applied isolated migration-version normalization before Supabase start: 0159_logistics_route_publication.sql -> 0159a_logistics_route_publication.sql'
+          test -e supabase/migrations/01590000000001_logistics_route_publication.sql
+          # This historical migration also contains a Production-only
+          # September backfill. Keep its schema/functions in the isolated
+          # bootstrap, but omit only the data-dependent block because the
+          # runner intentionally has no Production records.
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('supabase/migrations/20260916104753_office_lease_september_initial_income.sql')
+          source = path.read_text()
+          start_marker = '-- September 2026 was the initial, partial period.'
+          end_marker = 'create or replace function public.register_office_lease_payment('
+          start = source.index(start_marker)
+          end = source.index(end_marker, start)
+          path.write_text(source[:start] + source[end:])
+          print('Omitted isolated-only Production data backfill from 20260916104753; schema and functions retained.')
+          PY
+          echo 'Applied isolated migration-version normalization before Supabase start: 0159_logistics_route_publication.sql -> 01590000000001_logistics_route_publication.sql'
           # Keep storage-api enabled: the repository migrations seed storage.buckets.
           # Excluding it leaves the storage schema absent and fails the real bootstrap.
           supabase start --exclude studio,imgproxy,edge-runtime,logflare,vector,supavisor
