@@ -248,10 +248,63 @@ jobs:
           END $;
           SQL
           echo 'PASS: two independent concurrent PostgreSQL sessions retry same PM closeout; no duplicate inventory movement.'
+      - name: Two fresh simultaneous PM closeouts in isolated PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Reopen exactly one synthetic PM closeout. The corresponding lot and
+          # inventory movement are restored to their pre-PM values atomically.
+          docker exec -i supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          BEGIN;
+          DO $
+          DECLARE target record; n integer;
+          BEGIN
+            SELECT c.*, l.id AS lot_id INTO target
+            FROM public.event_box_paper_block_closeouts c
+            JOIN public.box_media_lots l ON l.box_asset_id=c.asset_id
+            WHERE c.project_id='f1830000-0000-4000-8000-000000000003'
+              AND c.block_id='f1830000-0000-4000-8000-000000000005'
+            ORDER BY c.id LIMIT 1;
+            IF target.id IS NULL OR target.inventory_movement_id IS NULL THEN
+              RAISE EXCEPTION 'Synthetic PM reconciliation not found';
+            END IF;
+            DELETE FROM public.inventory_movements WHERE id=target.inventory_movement_id;
+            GET DIAGNOSTICS n=ROW_COUNT;
+            IF n<>1 THEN RAISE EXCEPTION 'Expected one synthetic movement'; END IF;
+            UPDATE public.box_media_lots SET remaining_photo_capacity=1070 WHERE id=target.lot_id;
+            DELETE FROM public.event_box_paper_block_closeouts WHERE id=target.id;
+            GET DIAGNOSTICS n=ROW_COUNT;
+            IF n<>1 THEN RAISE EXCEPTION 'Expected one synthetic PM closeout'; END IF;
+          END $;
+          COMMIT;
+          SQL
+          IFS='|' read -r project block assignment opening reloads remaining request staff session < /tmp/pr183-pm.csv
+          call="SELECT public.record_staff_paper_block_closeout('$project','$block','$assignment',$opening,$reloads,$remaining,'$request','$staff','$session');"
+          for i in 1 2; do
+            (docker exec supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -At -v ON_ERROR_STOP=1 -c "$call" > "/tmp/pr183-fresh-$i.log" 2>&1) &
+            pids[$i]=$!
+          done
+          wait "${pids[1]}"
+          wait "${pids[2]}"
+          grep -q '"duplicate": true' /tmp/pr183-fresh-1.log /tmp/pr183-fresh-2.log
+          grep -q '"duplicate": false' /tmp/pr183-fresh-1.log /tmp/pr183-fresh-2.log
+          docker exec -i supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          DO $
+          DECLARE n integer;
+          BEGIN
+            SELECT count(*) INTO n FROM public.inventory_movements
+            WHERE project_id='f1830000-0000-4000-8000-000000000003' AND movement_type='EVENT_USAGE';
+            IF n<>7 THEN RAISE EXCEPTION 'Fresh concurrent PM race changed inventory movements: %',n; END IF;
+            SELECT count(*) INTO n FROM public.event_box_paper_block_closeouts
+            WHERE project_id='f1830000-0000-4000-8000-000000000003';
+            IF n<>14 THEN RAISE EXCEPTION 'Fresh concurrent PM race changed closeout count: %',n; END IF;
+          END $;
+          SQL
+          echo 'PASS: two independent fresh PM calls; exactly one creation, one idempotent retry and seven total inventory movements.'
       - name: Explicit test coverage boundary
         run: |
           echo 'PostgreSQL catalog, RLS, grants and negative authorization tested.'
-          echo 'Seven-box AM/PM and inventory/idempotency fixture executed; concurrent PM retries use two real PostgreSQL sessions; fresh PM closeout race and authenticated browser QA remain unverified.'
+          echo 'Seven-box AM/PM and inventory/idempotency fixture executed; concurrent PM retries use two real PostgreSQL sessions; fresh PM closeout race tested using two independent sessions; authenticated browser write QA remains unverified.'
       - name: Stop local Supabase
         if: always()
         run: supabase stop --no-backup || true
