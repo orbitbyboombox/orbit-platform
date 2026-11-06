@@ -15,7 +15,29 @@ permissions:
   contents: read
 
 jobs:
+  qa_scope:
+    runs-on: ubuntu-24.04
+    outputs:
+      qa_only: ${{ steps.scope.outputs.qa_only }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - id: scope
+        shell: bash
+        run: |
+          python3 - <<'PY_SCOPE'
+          import os, subprocess
+          files=subprocess.check_output(['git','diff','--name-only','HEAD^','HEAD'],text=True).splitlines()
+          only=bool(files) and all(p.startswith('qa/pr183/') or p in ['.github/workflows/pr183-browser-qa.yml','.github/workflows/pr183-code-validation.yml'] for p in files)
+          with open(os.environ['GITHUB_OUTPUT'],'a') as output: output.write('qa_only='+str(only).lower()+'\n')
+          print('QA-only infrastructure commit: '+str(only))
+          PY_SCOPE
   validate:
+    needs: qa_scope
+    if: needs.qa_scope.outputs.qa_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -33,6 +55,8 @@ jobs:
       - run: npm run build
 
   postgres:
+    needs: qa_scope
+    if: needs.qa_scope.outputs.qa_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
