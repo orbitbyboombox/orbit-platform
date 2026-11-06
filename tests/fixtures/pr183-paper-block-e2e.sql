@@ -58,6 +58,8 @@ BEGIN
     'EVENT', 'CONFIRMED', 'GREEN', current_date + 30, '09:00',
     'Isolated QA Venue', 'Santiago', '{}'::jsonb, ceo
   );
+  INSERT INTO public.project_services(project_id, service_code, duration_hours, extras)
+  VALUES (project_id, 'CLASSIC', 4.5, '[]'::jsonb);
   INSERT INTO public.event_operational_blocks(id, project_id, name, sequence, start_at, end_at)
   VALUES
     (am_block, project_id, 'AM', 1, date_trunc('minute',now()) + interval '30 days', date_trunc('minute',now()) + interval '30 days 4 hours 30 minutes'),
