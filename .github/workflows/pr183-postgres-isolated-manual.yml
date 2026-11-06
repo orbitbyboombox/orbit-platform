@@ -206,10 +206,52 @@ jobs:
           }
           docker exec -i supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 < tests/fixtures/pr183-paper-block-e2e.sql
           echo 'Seven-box AM/PM, handoff, reload, authorization, idempotency and inventory fixture passed.'
+      - name: Concurrent independent-session PM retry verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Persist synthetic-only fixture in disposable runner database for
+          # independent PostgreSQL connections; never use a remote project.
+          sed '$s/^ROLLBACK;$/COMMIT;/' tests/fixtures/pr183-paper-block-e2e.sql > /tmp/pr183-persisted-fixture.sql
+          tail -1 /tmp/pr183-persisted-fixture.sql | grep -qx 'COMMIT;'
+          docker exec -i supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 < /tmp/pr183-persisted-fixture.sql
+          docker exec supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -At -v ON_ERROR_STOP=1 -c "
+            SELECT c.project_id,c.block_id,c.operator_assignment_id,c.opening,c.reloads,c.remaining,c.request_id,c.closed_by,s.id
+            FROM public.event_box_paper_block_closeouts c
+            JOIN public.portal_access_sessions s ON s.staff_id=c.closed_by
+            WHERE c.project_id='f1830000-0000-4000-8000-000000000003'
+              AND c.block_id='f1830000-0000-4000-8000-000000000005'
+            ORDER BY c.created_at,c.id LIMIT 1" > /tmp/pr183-pm.csv
+          test "$(wc -l < /tmp/pr183-pm.csv)" -eq 1
+          IFS='|' read -r project block assignment opening reloads remaining request staff session < /tmp/pr183-pm.csv
+          test -n "$session"
+          call="SELECT public.record_staff_paper_block_closeout('$project','$block','$assignment',$opening,$reloads,$remaining,'$request','$staff','$session');"
+          for i in 1 2; do
+            (docker exec supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -At -v ON_ERROR_STOP=1 -c "$call" > "/tmp/pr183-concurrent-$i.log" 2>&1) &
+            pids[$i]=$!
+          done
+          wait "${pids[1]}"
+          wait "${pids[2]}"
+          grep -q '"duplicate": true' /tmp/pr183-concurrent-1.log
+          grep -q '"duplicate": true' /tmp/pr183-concurrent-2.log
+          docker exec supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          DO $
+          DECLARE n integer;
+          BEGIN
+            SELECT count(*) INTO n FROM public.inventory_movements
+            WHERE project_id='f1830000-0000-4000-8000-000000000003'
+              AND movement_type='EVENT_USAGE';
+            IF n<>7 THEN RAISE EXCEPTION 'Concurrent retries changed inventory movement count: %',n; END IF;
+            SELECT count(*) INTO n FROM public.event_box_paper_block_closeouts
+            WHERE project_id='f1830000-0000-4000-8000-000000000003';
+            IF n<>14 THEN RAISE EXCEPTION 'Concurrent retries changed closeout count: %',n; END IF;
+          END $;
+          SQL
+          echo 'PASS: two independent concurrent PostgreSQL sessions retry same PM closeout; no duplicate inventory movement.'
       - name: Explicit test coverage boundary
         run: |
           echo 'PostgreSQL catalog, RLS, grants and negative authorization tested.'
-          echo 'Seven-box AM/PM and inventory/idempotency fixture executed; true concurrent-session race and authenticated browser QA remain unverified.'
+          echo 'Seven-box AM/PM and inventory/idempotency fixture executed; concurrent PM retries use two real PostgreSQL sessions; fresh PM closeout race and authenticated browser QA remain unverified.'
       - name: Stop local Supabase
         if: always()
         run: supabase stop --no-backup || true
