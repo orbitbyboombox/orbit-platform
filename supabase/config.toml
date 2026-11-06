@@ -27,7 +27,7 @@ jwt_expiry = 3600
 enabled = false
 
 [storage]
-enabled = false
+enabled = true
 
 [realtime]
 enabled = false
