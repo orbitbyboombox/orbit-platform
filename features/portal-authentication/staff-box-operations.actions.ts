@@ -11,6 +11,7 @@ export type StaffPaperStatus = "PENDING" | "READY_TO_CLOSE" | "CONFIRMED" | "OVE
 export type StaffPaperSnapshot = { id: string; paperRequired: boolean; openingBalance: number; reloads: number; finalRemaining: number | null; eventUsage: number | null; status: StaffPaperStatus; format: string | null; variant: "NORMAL_4X6" | "PRECUT_4X6" | null; lot: string | null; reminderSentAt: string | null; confirmedBy: string | null; confirmedAt: string | null; masterVersionBefore: number | null; masterVersionAfter: number | null };
 export type StaffOperationalTurn = { assignmentId: string; blockId: string; blockName: string; sequence: number; startAt: string; endAt: string; status: string };
 export type StaffBoxAssignment = { id: string; boxId: string; boxCode: string; boxStatus: string; assignmentStatus: string; components: StaffBoxComponent[]; mediaLotId: string | null; mediaRemaining: number | null; format: string | null; lot: string | null; paper: StaffPaperSnapshot | null; canFinalizeEvent: boolean; turns: StaffOperationalTurn[] };
+export type StaffPaperBlock = { projectId: string; boxId: string; boxCode: string; blockId: string; blockName: string; blockSequence: number; assignmentId: string; opening: number; reloads: number; remaining: number | null; used: number | null; status: "PENDING" | "CLOSED"; closedAt: string | null };
 type StaffComponentInput = { componentId: string; status: string; notes?: string; incident?: boolean };
 
 async function staffContext(projectId: string, allowedRoles?: string[]) {
@@ -163,4 +164,78 @@ export async function finalizeStaffPaperCloseoutAction(input: { projectId: strin
   const incident = await reportStaffOperatorIncidentAction({ projectId: input.projectId, category: "EQUIPMENT", severity: "HIGH", description: issue });
   if (!incident.ok) return { ok: false as const, message: `Cierre registrado, pero no se pudo crear la alerta: ${incident.message}` };
   return closeout;
+}
+
+/**
+ * Loads only the operator's own box/block rows. The service-role client is
+ * intentionally kept behind this server action because the closeout table has
+ * no direct authenticated-client access.
+ */
+export async function loadStaffPaperBlocksAction(projectId: string): Promise<{ ok: true; blocks: StaffPaperBlock[] } | { ok: false; message: string }> {
+  try {
+    const { admin, ownOperatorAssignments } = await staffContext(projectId, ["OPERATOR"]);
+    const own = ownOperatorAssignments.filter((row) => row.block_id);
+    if (!own.length) return { ok: true, blocks: [] };
+    const blockIds = own.map((row) => row.block_id!).filter(Boolean);
+    const [{ data: blocks, error: blockError }, { data: assetRows, error: assetError }, { data: closeouts, error: closeoutError }] = await Promise.all([
+      admin.from("event_operational_blocks").select("id,name,sequence").eq("project_id", projectId).in("id", blockIds),
+      admin.from("asset_assignments").select("id,asset_id,block_id,assignment_status,operational_assets!inner(id,asset_code,asset_type)").eq("project_id", projectId).in("block_id", blockIds).eq("assignment_status", "ASSIGNED").is("deleted_at", null),
+      admin.from("event_box_paper_block_closeouts").select("project_id,asset_id,block_id,operator_assignment_id,opening,reloads,remaining,used,closed_at").eq("project_id", projectId).in("block_id", blockIds),
+    ]);
+    if (blockError) throw blockError;
+    if (assetError) throw assetError;
+    if (closeoutError) throw closeoutError;
+    const assetAssignmentIds = (assetRows ?? []).map((row) => row.id);
+    const [{ data: snapshots, error: snapshotError }, { data: reloads, error: reloadError }] = assetAssignmentIds.length ? await Promise.all([
+      admin.from("event_paper_snapshots").select("asset_assignment_id,opening_balance,id").in("asset_assignment_id", assetAssignmentIds),
+      admin.from("event_paper_reloads").select("snapshot_id,quantity").in("asset_assignment_id", assetAssignmentIds),
+    ]) : [{ data: [], error: null }, { data: [], error: null }];
+    if (snapshotError) throw snapshotError;
+    if (reloadError) throw reloadError;
+    const blockById = new Map((blocks ?? []).map((block) => [block.id, block]));
+    const closeoutByKey = new Map((closeouts ?? []).map((row) => [`${row.block_id}:${row.operator_assignment_id}`, row]));
+    const snapshotByAssignment = new Map((snapshots ?? []).map((row) => [row.asset_assignment_id, row]));
+    const reloadBySnapshot = new Map<string, number>();
+    for (const reload of reloads ?? []) reloadBySnapshot.set(reload.snapshot_id, (reloadBySnapshot.get(reload.snapshot_id) ?? 0) + Number(reload.quantity));
+    return { ok: true, blocks: own.flatMap((assignment) => {
+      const block = blockById.get(assignment.block_id!);
+      const asset = (assetRows ?? []).find((row) => row.block_id === assignment.block_id);
+      if (!block || !asset) return [];
+      const joined = Array.isArray(asset.operational_assets) ? asset.operational_assets[0] : asset.operational_assets;
+      if (!joined || !["CASE", "BOX"].includes(joined.asset_type)) return [];
+      const row = closeoutByKey.get(`${block.id}:${assignment.id}`);
+      const snapshot = snapshotByAssignment.get(asset.id);
+      const prior = row ? null : (closeouts ?? []).find((candidate) => candidate.asset_id === asset.asset_id && Number((blocks ?? []).find((item) => item.id === candidate.block_id)?.sequence ?? 0) < Number(block.sequence));
+      return [{ projectId, boxId: asset.asset_id, boxCode: joined.asset_code, blockId: block.id, blockName: block.name, blockSequence: Number(block.sequence), assignmentId: assignment.id, opening: row ? Number(row.opening) : Number(prior?.remaining ?? snapshot?.opening_balance ?? 0), reloads: row ? Number(row.reloads) : snapshot ? (reloadBySnapshot.get(snapshot.id) ?? 0) : 0, remaining: row ? Number(row.remaining) : null, used: row ? Number(row.used) : null, status: row ? ("CLOSED" as const) : ("PENDING" as const), closedAt: row?.closed_at ?? null }];
+    }).sort((a, b) => a.blockSequence - b.blockSequence || a.boxCode.localeCompare(b.boxCode)) };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : "No fue posible cargar tus cierres de papel." };
+  }
+}
+
+export async function closeStaffPaperBlockAction(input: { projectId: string; blockId: string; assignmentId: string; opening: number; reloads: number; remaining: number; requestId: string }) {
+  try {
+    const { admin, staffId, portalSessionId } = await staffContext(input.projectId, ["OPERATOR"]);
+    for (const [value, label] of [[input.opening, "Papel inicial"], [input.reloads, "Recargas"], [input.remaining, "Saldo final"]] as const) {
+      if (!Number.isSafeInteger(value) || value < 0) return { ok: false as const, message: `${label} debe ser un entero no negativo.` };
+    }
+    if (!input.requestId?.trim()) return { ok: false as const, message: "Falta la solicitud idempotente." };
+    if (input.remaining > input.opening + input.reloads) return { ok: false as const, message: "El saldo final supera el papel disponible." };
+    const { data, error } = await admin.rpc("record_staff_paper_block_closeout", {
+      p_project_id: input.projectId,
+      p_block_id: input.blockId,
+      p_operator_assignment_id: input.assignmentId,
+      p_opening: input.opening,
+      p_reloads: input.reloads,
+      p_remaining: input.remaining,
+      p_request_id: input.requestId,
+      p_staff_id: staffId,
+      p_portal_session_id: portalSessionId,
+    });
+    if (error) throw error;
+    revalidatePath("/staff-portal");
+    return { ok: true as const, data };
+  } catch (error) {
+    return { ok: false as const, message: error instanceof Error ? error.message : "No fue posible cerrar este bloque." };
+  }
 }
