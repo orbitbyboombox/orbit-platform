@@ -193,10 +193,20 @@ jobs:
             exit 1
           }
           docker exec -i supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 < tests/fixtures/pr183-postgres-integration.sql
+      - name: Execute real PostgreSQL seven-box AM/PM fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f tests/fixtures/pr183-paper-block-e2e.sql || {
+            echo "::error::Missing seven-box AM/PM fixture; no end-to-end validation can be reported."
+            exit 1
+          }
+          docker exec -i supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 < tests/fixtures/pr183-paper-block-e2e.sql
+          echo 'Seven-box AM/PM, handoff, reload, authorization, idempotency and inventory fixture passed.'
       - name: Explicit test coverage boundary
         run: |
           echo 'PostgreSQL catalog, RLS, grants and negative authorization tested.'
-          echo 'Seven-case AM/PM, concurrency and browser QA remain unverified until dedicated fixtures are added.'
+          echo 'Seven-box AM/PM and inventory/idempotency fixture executed; true concurrent-session race and authenticated browser QA remain unverified.'
       - name: Stop local Supabase
         if: always()
         run: supabase stop --no-backup || true
