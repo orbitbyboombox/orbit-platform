@@ -30,8 +30,12 @@ for dest in ['127.0.0.0/8','172.16.0.0/12']:
  subprocess.run(['sudo','iptables','-A',chain,'-d',dest,'-j','ACCEPT'],check=True)
 subprocess.run(['sudo','iptables','-A',chain,'-j','REJECT'],check=True)
 subprocess.run(['sudo','iptables','-I','OUTPUT','1','-m','owner','--uid-owner',uid,'-j',chain],check=True)
+subprocess.run(['sudo','ip6tables','-N',chain],check=True)
+subprocess.run(['sudo','ip6tables','-A',chain,'-d','::1/128','-j','ACCEPT'],check=True)
+subprocess.run(['sudo','ip6tables','-A',chain,'-j','REJECT'],check=True)
+subprocess.run(['sudo','ip6tables','-I','OUTPUT','1','-m','owner','--uid-owner',uid,'-j',chain],check=True)
 try:
- proof={'applicationCommit':env['NEXT_PUBLIC_BUILD_SHA'],'supabaseHost':'pr183-local.supabase.co','resolvedAddresses':['127.0.0.1'],'apiPort':54321,'environmentKeys':sorted(env),'outboundPolicy':'OUTPUT orbitqa UID rejects non-loopback/non-Docker addresses; browser allowlist; no repository/environment secrets passed'}
+ proof={'applicationCommit':env['NEXT_PUBLIC_BUILD_SHA'],'supabaseHost':'pr183-local.supabase.co','resolvedAddresses':['127.0.0.1'],'apiPort':54321,'environmentKeys':sorted(env),'outboundPolicy':'OUTPUT orbitqa UID rejects non-loopback/non-Docker addresses; IPv6 rejects non-loopback addresses; browser allowlist; no repository/environment secrets passed'}
  (out/'isolation.json').write_text(json.dumps(proof,indent=2))
  with (out/'next.log').open('w') as log:
   app=subprocess.Popen(isolated(['node',str(next_bin),'dev','--hostname','127.0.0.1']),env=env,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
@@ -48,10 +52,13 @@ try:
   else:raise RuntimeError('Next startup timed out')
   result=subprocess.run(isolated(['node','qa/pr183/access-security.mjs']),env=env,timeout=1000)
   (out/'firewall.txt').write_text(subprocess.check_output(['sudo','iptables','-L',chain,'-n','-v'],text=True))
+  (out/'firewall-ipv6.txt').write_text(subprocess.check_output(['sudo','ip6tables','-L',chain,'-n','-v'],text=True))
   code=result.returncode
 finally:
  if app:
   subprocess.run(['sudo','kill','--','-'+str(app.pid)],check=False)
+ subprocess.run(['sudo','ip6tables','-D','OUTPUT','-m','owner','--uid-owner',uid,'-j',chain],check=True)
+ subprocess.run(['sudo','ip6tables','-F',chain],check=True);subprocess.run(['sudo','ip6tables','-X',chain],check=True)
  subprocess.run(['sudo','iptables','-D','OUTPUT','-m','owner','--uid-owner',uid,'-j',chain],check=True)
  subprocess.run(['sudo','iptables','-F',chain],check=True);subprocess.run(['sudo','iptables','-X',chain],check=True)
  subprocess.run(['sudo','chown','-R',str(os.getuid()),str(out)],check=True)
