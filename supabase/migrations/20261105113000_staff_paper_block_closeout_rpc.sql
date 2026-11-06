@@ -145,9 +145,8 @@ begin
     if previous_closeout.remaining <> p_opening then
       raise exception 'El papel inicial no coincide con el saldo final del bloque anterior.';
     end if;
-    if p_reloads <> 0 then
-      raise exception 'Las recargas del bloque PM deben registrarse en AM antes del relevo.';
-    end if;
+    -- PM may register its own verified reloads; they are included in
+    -- total_available and reconciled once at the final block.
     previous_closeout_id := previous_closeout.id;
   elsif p_opening <> snapshot_row.opening_balance::integer or p_reloads <> snapshot_reload_total then
     raise exception 'El cierre AM no coincide con el snapshot y las recargas registradas.';
