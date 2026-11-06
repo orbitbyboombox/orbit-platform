@@ -14,9 +14,7 @@ export function AdminPaperBlockManualPanel({ projectId }: { projectId: string })
     try {
       const rows = await loadAdminPaperBlocksAction(projectId);
       setBlocks(rows);
-      setDrafts((old) => Object.fromEntries(rows.map((row) => [row.assignmentId, old[row.assignmentId] ?? {
-        opening: String(row.opening), reloads: String(row.reloads), remaining: "", reason: "",
-      }])));
+      setDrafts((old) => Object.fromEntries(rows.map((row) => [row.assignmentId, { opening: String(row.opening), reloads: old[row.assignmentId]?.reloads ?? String(row.reloads), remaining: old[row.assignmentId]?.remaining ?? "", reason: old[row.assignmentId]?.reason ?? "" }])));
     } catch (error) { setMessage(error instanceof Error ? error.message : "No fue posible cargar los cierres."); }
   }, [projectId]);
   useEffect(() => { void load(); }, [load]);
