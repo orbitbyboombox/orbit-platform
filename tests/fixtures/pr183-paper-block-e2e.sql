@@ -81,13 +81,18 @@ BEGIN
     box_id := gen_random_uuid();
     printer_id := gen_random_uuid();
     INSERT INTO public.operational_assets(id, asset_code, asset_type, status, qr_key, created_by)
-    VALUES (box_id, format('PR183-BOX-%s', lpad(i::text,2,'0')), 'BOX', 'ASSIGNED', format('pr183:box:%s',i), ceo);
+    VALUES (box_id, format('PR183-BOX-%s', lpad(i::text,2,'0')), CASE WHEN i=7 THEN 'CASE' ELSE 'BOX' END, 'ASSIGNED', format('pr183:box:%s',i), ceo);
+    IF i=7 THEN
+      UPDATE public.operational_assets SET metadata=jsonb_build_object('blackBoxPhotoStock',1000) WHERE id=box_id;
+    END IF;
     INSERT INTO public.operational_assets(id, asset_code, asset_type, status, qr_key, parent_asset_id, created_by)
     VALUES (printer_id, format('PR183-PRINTER-%s', lpad(i::text,2,'0')), 'PRINTER', 'ASSIGNED', format('pr183:printer:%s',i), box_id, ceo);
-    INSERT INTO public.box_media_lots(
-      supply_id, box_asset_id, printer_asset_id, format_key, lot,
-      initial_photo_capacity, remaining_photo_capacity, created_by
-    ) VALUES (supply_id, box_id, printer_id, 'PR183_FORMAT', format('PR183-LOT-%s',i), 1000, 1000, ceo);
+    IF i<7 THEN
+      INSERT INTO public.box_media_lots(
+        supply_id, box_asset_id, printer_asset_id, format_key, lot,
+        initial_photo_capacity, remaining_photo_capacity, created_by
+      ) VALUES (supply_id, box_id, printer_id, 'PR183_FORMAT', format('PR183-LOT-%s',i), 1000, 1000, ceo);
+    END IF;
     boxes := boxes || box_id;
     printers := printers || printer_id;
 
@@ -204,13 +209,16 @@ BEGIN
 
   SELECT count(*) INTO movements_after FROM public.inventory_movements m
   WHERE m.project_id=fixture_block.project_id AND m.movement_type='EVENT_USAGE';
-  IF movements_after <> 7 THEN RAISE EXCEPTION 'Expected one EVENT_USAGE per box, got %', movements_after; END IF;
+  IF movements_after <> 6 THEN RAISE EXCEPTION 'Expected six BOX lot EVENT_USAGE movements, got %', movements_after; END IF;
   SELECT count(*) INTO movements_before FROM public.event_box_paper_block_closeouts c
   WHERE c.project_id=fixture_block.project_id AND c.inventory_reconciled_at IS NOT NULL;
   IF movements_before <> 7 THEN RAISE EXCEPTION 'Expected seven reconciled PM closeouts, got %', movements_before; END IF;
   SELECT count(*) INTO movements_before FROM public.box_media_lots l
   WHERE l.box_asset_id=ANY(boxes) AND l.remaining_photo_capacity=850;
-  IF movements_before <> 7 THEN RAISE EXCEPTION 'Master inventory did not end at 850 for all boxes'; END IF;
+  IF movements_before <> 6 THEN RAISE EXCEPTION 'Six BOX lots did not end at 850'; END IF;
+  SELECT count(*) INTO movements_before FROM public.operational_assets a
+  WHERE a.id=boxes[7] AND a.asset_type='CASE' AND (a.metadata->>'blackBoxPhotoStock')::integer=850;
+  IF movements_before <> 1 THEN RAISE EXCEPTION 'CASE without lot did not reconcile master stock to 850'; END IF;
 
   -- Same request is idempotent; changed payload with same request is rejected.
   result := public.record_staff_paper_block_closeout(
@@ -237,7 +245,7 @@ BEGIN
   EXCEPTION WHEN OTHERS THEN rejected := position('no pertenece' in lower(sqlerrm)) > 0; END;
   IF NOT rejected THEN RAISE EXCEPTION 'Wrong operator was not rejected'; END IF;
 
-  RAISE NOTICE 'PASS: seven boxes, fourteen AM/PM closeouts, PM handoff, reloads, inventory, idempotency and authorization.';
+  RAISE NOTICE 'PASS: six BOX lots plus one CASE without lot, fourteen AM/PM closeouts, PM handoff, reloads, inventory, idempotency and authorization.';
 END;
 $fixture$;
 ROLLBACK;
