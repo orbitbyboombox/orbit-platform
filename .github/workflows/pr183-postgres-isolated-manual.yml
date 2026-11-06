@@ -10,6 +10,7 @@ on:
       - 'supabase/config.toml'
       - 'supabase/migrations/**'
       - 'tests/fixtures/pr183-*.sql'
+      - 'features/portal-authentication/staff-box-operations.actions.ts'
 
 permissions:
   contents: read
