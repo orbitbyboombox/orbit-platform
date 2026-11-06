@@ -29,10 +29,10 @@ begin
      or p_request_id is null or p_staff_id is null or p_portal_session_id is null then
     raise exception 'Datos de cierre incompletos.';
   end if;
-  if p_opening < 0 or p_reloads < 0 or p_remaining < 0 then
+  if p_opening is null or p_reloads is null or p_remaining is null or p_opening < 0 or p_reloads < 0 or p_remaining < 0 then
     raise exception 'El papel debe ser un entero no negativo.';
   end if;
-  if p_remaining > p_opening + p_reloads then
+  if p_remaining::bigint > p_opening::bigint + p_reloads::bigint then
     raise exception 'El saldo final supera el papel disponible.';
   end if;
 
@@ -56,18 +56,20 @@ begin
    for update;
   if not found then raise exception 'La asignación no pertenece a este operador, evento y bloque.'; end if;
 
-  select aa.id, aa.asset_id, aa.block_id, aa.assignment_status, oa.asset_code, oa.asset_type
-    into asset_row
-    from public.asset_assignments aa
-    join public.operational_assets oa on oa.id = aa.asset_id
-   where aa.project_id = p_project_id
-     and aa.block_id = p_block_id
-     and aa.assignment_status = 'ASSIGNED'
-     and aa.deleted_at is null
+  -- Resolve the exact box from the canonical event layout, never from an
+  -- arbitrary asset assignment shared by multiple operators in the same block.
+  select oa.id as asset_id, oa.asset_code, oa.asset_type
+    into strict asset_row
+    from public.projects p
+    cross join lateral jsonb_array_elements(coalesce(p.operations->'totemLayout'->'positions', '[]'::jsonb)) pos(value)
+    cross join lateral jsonb_array_elements(coalesce(pos.value->'blocks', '[]'::jsonb)) shift(value)
+    join public.operational_assets oa on oa.id = (pos.value->>'assetId')::uuid
+   where p.id = p_project_id
+     and shift.value->>'blockId' = p_block_id::text
+     and shift.value->>'assignmentId' = p_operator_assignment_id::text
      and oa.deleted_at is null
-     and oa.asset_type in ('CASE','BOX')
-   for update;
-  if not found then raise exception 'No existe una Caja asignada a este bloque.'; end if;
+     and oa.asset_type in ('CASE','BOX');
+  -- STRICT rejects zero or multiple matching positions, failing closed.
 
   select c.* into existing_closeout
     from public.event_box_paper_block_closeouts c
