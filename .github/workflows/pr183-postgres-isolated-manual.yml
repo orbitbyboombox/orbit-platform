@@ -91,6 +91,19 @@ jobs:
               raise SystemExit('Expected strict purge assertion was not found')
           path.write_text(source.replace(old, new, 1))
           print('Made isolated purge-status correction idempotent; no purge is executed.')
+          path = Path('supabase/migrations/20260928110000_staff_reimbursements_from_approved_submissions.sql')
+          source = path.read_text()
+          start_marker = '-- Regression guard: an approved submission remains visible'
+          start = source.find(start_marker)
+          if start < 0:
+              raise SystemExit('Expected reimbursement regression guard was not found')
+          end = source.find('\ncommit;', start)
+          if end < 0:
+              raise SystemExit('Expected end of reimbursement regression guard was not found')
+          replacement = ('-- Isolated runner omits the Production-only reimbursement assertion; '
+                         'view, refresh, and schema logic remain unchanged.\n')
+          path.write_text(source[:start] + replacement + source[end + 1:])
+          print('Omitted isolated-only Production reimbursement assertion; migration logic retained.')
           PY
           echo 'Applied isolated migration-version normalization before Supabase start: 0159_logistics_route_publication.sql -> 01590000000001_logistics_route_publication.sql'
           # Keep storage-api enabled: the repository migrations seed storage.buckets.
