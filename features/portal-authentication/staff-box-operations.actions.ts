@@ -230,6 +230,7 @@ export async function loadStaffPaperBlocksAction(projectId: string): Promise<{ o
       const earlier = (closeouts ?? []).filter((row) => row.asset_id === match.assetId && Number(blockById.get(row.block_id)?.sequence ?? Infinity) < Number(block.sequence)).sort((a, b) => Number(blockById.get(b.block_id)?.sequence ?? 0) - Number(blockById.get(a.block_id)?.sequence ?? 0));
       const prior = earlier[0];
       const isFirstBlock = !(blocks ?? []).some((candidate) => Number(candidate.sequence) < Number(block.sequence));
+      if (!isFirstBlock && !prior && !current) throw new Error(`Primero debe cerrarse el bloque AM de ${asset.asset_code}.`);
       const snapshot = snapshotByAsset.get(match.assetId);
       if (isFirstBlock && !snapshot) throw new Error(`Falta snapshot de papel para ${asset.asset_code}.`);
       result.push({
