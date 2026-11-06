@@ -44,6 +44,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # `supabase start` applies migrations during initialization, so the
+          # runner-only duplicate-version normalization must happen before it.
+          test -e supabase/migrations/0159_logistics_route_publication.sql
+          test ! -e supabase/migrations/0160_logistics_route_publication.sql
+          mv supabase/migrations/0159_logistics_route_publication.sql \
+            supabase/migrations/0160_logistics_route_publication.sql
+          test ! -e supabase/migrations/0159_logistics_route_publication.sql
+          test -e supabase/migrations/0160_logistics_route_publication.sql
+          echo 'Applied isolated migration-version normalization before Supabase start: 0159_logistics_route_publication.sql -> 0160_logistics_route_publication.sql'
           # Keep storage-api enabled: the repository migrations seed storage.buckets.
           # Excluding it leaves the storage schema absent and fails the real bootstrap.
           supabase start --exclude studio,imgproxy,edge-runtime,logflare,vector,supavisor
@@ -51,25 +60,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # The repository contains two historical files with version 0159.
-          # Supabase stores only the numeric version in schema_migrations, so a
-          # clean reset cannot apply both files as-is. Normalize only the
-          # runner workspace; never rename or rewrite the tracked migrations.
-          migration_backup="$(mktemp -d)"
-          cleanup_migrations() {
-            if [ -d "$migration_backup/migrations" ]; then
-              rm -rf supabase/migrations
-              mv "$migration_backup/migrations" supabase/migrations
-            fi
-            rm -rf "$migration_backup"
-          }
-          trap cleanup_migrations EXIT
-          cp -R supabase/migrations "$migration_backup/migrations"
-          mv supabase/migrations/0159_logistics_route_publication.sql \
-            supabase/migrations/0160_logistics_route_publication.sql
-          test ! -e supabase/migrations/0159_logistics_route_publication.sql
-          test -e supabase/migrations/0160_logistics_route_publication.sql
-          echo 'Applied isolated migration-version normalization: 0159_logistics_route_publication.sql -> 0160_logistics_route_publication.sql'
           supabase db reset --local --no-seed
       - name: Verify PR RPCs and privileges in real PostgreSQL
         shell: bash
