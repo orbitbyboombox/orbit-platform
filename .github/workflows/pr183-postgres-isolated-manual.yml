@@ -50,12 +50,16 @@ jobs:
           test ! -e supabase/migrations/01590000000001_logistics_route_publication.sql
           test -e supabase/migrations/20260921230500_staff_assignment_request_block_scope.sql
           test ! -e supabase/migrations/20260922095000_staff_assignment_request_block_scope.sql
+          test -e supabase/migrations/20261006120000_staff_assignment_payment_overrides.sql
+          test -e supabase/migrations/20261006120000_staff_accounting_month_from_event_date.sql
           mv supabase/migrations/0159_logistics_route_publication.sql \
             supabase/migrations/01590000000001_logistics_route_publication.sql
           # This legacy FK migration references event_operational_blocks,
           # created by 20260922090000. Place only the runner copy after it.
           mv supabase/migrations/20260921230500_staff_assignment_request_block_scope.sql \
             supabase/migrations/20260922095000_staff_assignment_request_block_scope.sql
+          mv supabase/migrations/20261006120000_staff_accounting_month_from_event_date.sql \
+            supabase/migrations/20261006120001_staff_accounting_month_from_event_date.sql
           test -e supabase/migrations/20260927170000_staff_reimbursement_zero_defaults.sql
           test ! -e supabase/migrations/20260927170001_staff_reimbursement_zero_defaults.sql
           mv supabase/migrations/20260927170000_staff_reimbursement_zero_defaults.sql \
@@ -64,6 +68,7 @@ jobs:
           test -e supabase/migrations/01590000000001_logistics_route_publication.sql
           test -e supabase/migrations/20260922095000_staff_assignment_request_block_scope.sql
           test -e supabase/migrations/20260927170001_staff_reimbursement_zero_defaults.sql
+          test -e supabase/migrations/20261006120001_staff_accounting_month_from_event_date.sql
           # This historical migration also contains a Production-only
           # September backfill. Keep its schema/functions in the isolated
           # bootstrap, but omit only the data-dependent block because the
