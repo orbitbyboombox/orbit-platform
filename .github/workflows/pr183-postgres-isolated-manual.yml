@@ -1,72 +1,81 @@
-name: PR 183 PostgreSQL isolated validation (manual)
+name: PR 183 isolated PostgreSQL integration
 
-# Manual only: never runs on push, PR, schedule or production.
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - fix/paper-block-handoff-clean-20261105
+    paths:
+      - '.github/workflows/pr183-postgres-isolated-manual.yml'
+      - 'supabase/migrations/**'
+      - 'tests/fixtures/pr183-*.sql'
 
 permissions:
   contents: read
 
 jobs:
-  isolated-postgres:
-    if: github.ref == 'refs/heads/fix/paper-block-handoff-clean-20261105'
+  postgres:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: orbit_test
-          POSTGRES_PASSWORD: orbit_test_only
-          POSTGRES_DB: orbit_pr183_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U orbit_test -d orbit_pr183_test"
-          --health-interval 10s --health-timeout 5s --health-retries 5
+    timeout-minutes: 30
     env:
-      PGHOST: localhost
-      PGPORT: "5432"
-      PGUSER: orbit_test
-      PGPASSWORD: orbit_test_only
-      PGDATABASE: orbit_pr183_test
+      SUPABASE_ACCESS_TOKEN: ''
+      SUPABASE_DB_PASSWORD: ''
+      SUPABASE_PROJECT_ID: ''
     steps:
       - uses: actions/checkout@v4
-      - name: Verify isolation and branch
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Verify isolated environment
         shell: bash
         run: |
           set -euo pipefail
           test "$GITHUB_REF" = "refs/heads/fix/paper-block-handoff-clean-20261105"
-          test -z "${SUPABASE_DB_URL:-}"
-          psql -v ON_ERROR_STOP=1 -c 'select current_database(), current_user, version();'
-      - name: Check prerequisites (fail closed)
+          test -z "$SUPABASE_ACCESS_TOKEN"
+          test -z "$SUPABASE_PROJECT_ID"
+          test -z "$SUPABASE_DB_PASSWORD"
+          docker version
+          supabase --version
+      - name: Start isolated local Supabase PostgreSQL
         shell: bash
         run: |
           set -euo pipefail
-          # A real schema baseline is mandatory; do NOT fake tables or report
-          # RPC/RLS PASS against synthetic fixtures.
-          if [ ! -f tests/fixtures/pr183-postgres-baseline.sql ]; then
-            echo "::error::Missing isolated schema baseline: tests/fixtures/pr183-postgres-baseline.sql. This workflow does not run against Production or invent schema."
-            exit 1
-          fi
-          psql -v ON_ERROR_STOP=1 -f tests/fixtures/pr183-postgres-baseline.sql
-      - name: Apply PR 183 RPC migration
-        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261105113000_staff_paper_block_closeout_rpc.sql
-      - name: Verify function exists and execute permission is restricted
+          supabase start --exclude studio,imgproxy,inbucket,edge-runtime,logflare,vector,supavisor
+      - name: Apply complete repository migration history
         shell: bash
         run: |
           set -euo pipefail
-          psql -v ON_ERROR_STOP=1 <<'SQL'
+          supabase db reset --local --no-seed
+      - name: Verify PR RPCs and privileges in real PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker exec supabase_db_${GITHUB_REPOSITORY##*/} psql -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
           DO $$
+          DECLARE fn regprocedure;
           BEGIN
-            IF to_regprocedure('public.record_staff_paper_block_closeout(uuid,uuid,uuid,integer,integer,integer,uuid,uuid,uuid)') IS NULL THEN
-              RAISE EXCEPTION 'PR 183 RPC is missing';
+            fn := to_regprocedure('public.record_staff_paper_block_closeout(uuid,uuid,uuid,integer,integer,integer,uuid,uuid,uuid)');
+            IF fn IS NULL THEN RAISE EXCEPTION 'Staff closeout RPC missing'; END IF;
+            IF has_function_privilege('anon',fn,'EXECUTE') OR has_function_privilege('authenticated',fn,'EXECUTE') THEN
+              RAISE EXCEPTION 'Staff closeout RPC exposed to public roles';
             END IF;
-            IF has_function_privilege('public', 'public.record_staff_paper_block_closeout(uuid,uuid,uuid,integer,integer,integer,uuid,uuid,uuid)', 'EXECUTE') THEN
-              RAISE EXCEPTION 'RPC must not be executable by PUBLIC';
+            IF NOT has_function_privilege('service_role',fn,'EXECUTE') THEN
+              RAISE EXCEPTION 'service_role lacks RPC execute';
+            END IF;
+            IF to_regprocedure('public.admin_record_staff_paper_block_closeout(uuid,uuid,uuid,integer,integer,integer,uuid,uuid,uuid,text)') IS NULL THEN
+              RAISE EXCEPTION 'Admin closeout RPC signature missing or changed';
             END IF;
           END $$;
           SQL
-      - name: Explicit result boundary
+      - name: Execute real SQL integration fixture if present
+        shell: bash
         run: |
-          echo 'Schema and RPC smoke checks only. RLS, concurrency, AM/PM integration and authenticated Staff QA are NOT validated by this workflow.'
+          set -euo pipefail
+          test -f tests/fixtures/pr183-postgres-integration.sql || {
+            echo "::error::Missing real integration fixture for AM/PM, RLS, concurrency and idempotency. Smoke checks alone are not a PASS."
+            exit 1
+          }
+          docker exec -i supabase_db_${GITHUB_REPOSITORY##*/} psql -U postgres -d postgres -v ON_ERROR_STOP=1 < tests/fixtures/pr183-postgres-integration.sql
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop --no-backup || true
