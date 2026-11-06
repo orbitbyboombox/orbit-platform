@@ -215,7 +215,7 @@ BEGIN
   -- Same request is idempotent; changed payload with same request is rejected.
   result := public.record_staff_paper_block_closeout(
     project_id, am_block, am_assignments[1], 1000, 50, 900,
-    (SELECT c.request_id FROM public.event_box_paper_block_closeouts c WHERE c.project_id=fixture_block.project_id AND c.block_id=am_block LIMIT 1),
+    (SELECT c.request_id FROM public.event_box_paper_block_closeouts c WHERE c.project_id=fixture_block.project_id AND c.block_id=am_block AND c.operator_assignment_id=am_assignments[1] LIMIT 1),
     am_staff[1], sessions[1]
   );
   IF (result->>'duplicate') <> 'true' THEN RAISE EXCEPTION 'AM retry was not idempotent'; END IF;
@@ -223,7 +223,7 @@ BEGIN
   BEGIN
     PERFORM public.record_staff_paper_block_closeout(
       project_id, am_block, am_assignments[1], 1000, 50, 899,
-      (SELECT c.request_id FROM public.event_box_paper_block_closeouts c WHERE c.project_id=fixture_block.project_id AND c.block_id=am_block LIMIT 1),
+      (SELECT c.request_id FROM public.event_box_paper_block_closeouts c WHERE c.project_id=fixture_block.project_id AND c.block_id=am_block AND c.operator_assignment_id=am_assignments[1] LIMIT 1),
       am_staff[1], sessions[1]
     );
   EXCEPTION WHEN OTHERS THEN rejected := position('ya existe' in lower(sqlerrm)) > 0 OR position('solicitud duplicada' in lower(sqlerrm)) > 0; END;
