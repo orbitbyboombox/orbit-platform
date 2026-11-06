@@ -27,7 +27,25 @@ test("server function enforces operator, project/block/asset identity, PM handof
     assert.match(rpc, new RegExp(fragment.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
   assert.match(rpc, /grant execute .* to service_role/);
-  assert.doesNotMatch(rpc, /inventory_movements/);
+  assert.match(rpc, /event_paper_snapshots/);
+  assert.match(rpc, /snapshot_reload_total/);
+  assert.match(rpc, /Las recargas del bloque PM/);
+  assert.match(rpc, /inventory_movements/);
+  assert.match(rpc, /inventory_key/);
+  assert.match(rpc, /inventory_reconciled_at/);
+  assert.match(rpc, /final_block/);
+});
+
+test("inventory is reconciled only on the final block and is idempotent", () => {
+  assert.match(rpc, /if final_block and previous_closeout_id is not null then/);
+  assert.match(rpc, /where im\.idempotency_key = inventory_key/);
+  assert.match(rpc, /set inventory_reconciled_at = now\(\)/);
+  assert.match(rpc, /quantity_delta/);
+});
+
+test("portal does not duplicate event reloads into the PM handoff", () => {
+  assert.match(actions, /const isFirstBlock = !prior/);
+  assert.match(actions, /isFirstBlock && snapshot/);
 });
 
 

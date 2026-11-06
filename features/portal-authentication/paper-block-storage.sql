@@ -14,6 +14,8 @@ create table if not exists public.event_box_paper_block_closeouts (
   request_id uuid not null,
   closed_by uuid not null,
   closed_at timestamptz not null default now(),
+  inventory_reconciled_at timestamptz,
+  inventory_movement_id uuid,
   constraint paper_block_remaining_valid check (remaining <= opening + reloads),
   constraint paper_block_one_closeout_per_box_shift unique (project_id,asset_id,block_id),
   constraint paper_block_idempotent_request unique (request_id)
@@ -28,4 +30,5 @@ revoke all on public.event_box_paper_block_closeouts from anon, authenticated;
 -- 2) asset belongs to the event's totemLayout and operator assignment matches that position;
 -- 3) PM opening equals locked AM remaining, with AM preceding PM;
 -- 4) request_id retry returns the same payload; conflicting retries are rejected;
--- 5) inventory ledger uses UNIQUE(project_id,asset_id) and a transaction so stock deducts once.
+-- 5) inventory ledger uses a stable event/box idempotency key and a transaction
+--    so stock deducts once, only after both AM and PM are closed.
