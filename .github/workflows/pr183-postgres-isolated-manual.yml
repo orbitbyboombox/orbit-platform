@@ -93,6 +93,11 @@ jobs:
               raise SystemExit('Expected November rate validation migration was not found')
           path.unlink()
           print('Omitted Production-only November rate validation guard; no schema or data mutation was removed.')
+          source = Path('features/portal-authentication/paper-block-storage.sql')
+          if not source.exists():
+              raise SystemExit('Expected staged paper block schema was not found')
+          Path('supabase/migrations/20261105112900_staff_paper_block_closeouts_schema.sql').write_text(source.read_text())
+          print('Added runner-only migration from staged paper block schema before the PR RPC.')
           path = Path('supabase/migrations/20260916104753_office_lease_september_initial_income.sql')
           source = path.read_text()
           start_marker = '-- September 2026 was the initial, partial period.'
