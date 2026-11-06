@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadPortalSession } from "./portal-auth.service";
 import { reportStaffOperatorIncidentAction } from "./staff-portal.actions";
-import { canonicalBoxAssignment, isActiveBoxAssignment } from "@/features/asset-management/canonical-box-assignment";
+import { canonicalBoxAssignment } from "@/features/asset-management/canonical-box-assignment";
 
 export type StaffBoxComponent = { id: string; code: string; type: string; status: string };
 export type StaffPaperStatus = "PENDING" | "READY_TO_CLOSE" | "CONFIRMED" | "OVERRIDDEN";
