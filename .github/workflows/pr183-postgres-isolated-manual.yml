@@ -297,13 +297,13 @@ jobs:
           BEGIN
             SELECT count(*) INTO n FROM public.inventory_movements
             WHERE project_id='f1830000-0000-4000-8000-000000000003' AND movement_type='EVENT_USAGE';
-            IF n<>7 THEN RAISE EXCEPTION 'Fresh concurrent PM race changed inventory movements: %',n; END IF;
+            IF n<>6 THEN RAISE EXCEPTION 'Fresh concurrent PM race changed BOX inventory movements: %',n; END IF;
             SELECT count(*) INTO n FROM public.event_box_paper_block_closeouts
             WHERE project_id='f1830000-0000-4000-8000-000000000003';
             IF n<>14 THEN RAISE EXCEPTION 'Fresh concurrent PM race changed closeout count: %',n; END IF;
           END $race$;
           SQL
-          echo 'PASS: two independent fresh PM calls; exactly one creation, one idempotent retry and seven total inventory movements.'
+          echo 'PASS: two independent fresh PM calls; exactly one creation, one idempotent retry and six BOX inventory movements (CASE uses master stock).'
       - name: Explicit test coverage boundary
         run: |
           echo 'PostgreSQL catalog, RLS, grants and negative authorization tested.'
