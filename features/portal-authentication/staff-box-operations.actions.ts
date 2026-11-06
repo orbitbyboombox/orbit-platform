@@ -176,37 +176,37 @@ export async function loadStaffPaperBlocksAction(projectId: string): Promise<{ o
     const { admin, ownOperatorAssignments } = await staffContext(projectId, ["OPERATOR"]);
     const own = ownOperatorAssignments.filter((row) => row.block_id);
     if (!own.length) return { ok: true, blocks: [] };
-    const blockIds = own.map((row) => row.block_id!).filter(Boolean);
-    const [{ data: blocks, error: blockError }, { data: assetRows, error: assetError }, { data: closeouts, error: closeoutError }] = await Promise.all([
-      admin.from("event_operational_blocks").select("id,name,sequence").eq("project_id", projectId).in("id", blockIds),
-      admin.from("asset_assignments").select("id,asset_id,block_id,assignment_status,operational_assets!inner(id,asset_code,asset_type)").eq("project_id", projectId).in("block_id", blockIds).eq("assignment_status", "ASSIGNED").is("deleted_at", null),
-      admin.from("event_box_paper_block_closeouts").select("project_id,asset_id,block_id,operator_assignment_id,opening,reloads,remaining,used,closed_at").eq("project_id", projectId).in("block_id", blockIds),
+    const [{ data: project, error: projectError }, { data: blocks, error: blockError }, { data: closeouts, error: closeoutError }] = await Promise.all([
+      admin.from("projects").select("operations").eq("id", projectId).single(),
+      admin.from("event_operational_blocks").select("id,name,sequence").eq("project_id", projectId),
+      admin.from("event_box_paper_block_closeouts").select("project_id,asset_id,block_id,operator_assignment_id,opening,reloads,remaining,used,closed_at").eq("project_id", projectId),
     ]);
+    if (projectError) throw projectError;
     if (blockError) throw blockError;
-    if (assetError) throw assetError;
     if (closeoutError) throw closeoutError;
-    const assetAssignmentIds = (assetRows ?? []).map((row) => row.id);
-    const [{ data: snapshots, error: snapshotError }, { data: reloads, error: reloadError }] = assetAssignmentIds.length ? await Promise.all([
-      admin.from("event_paper_snapshots").select("asset_assignment_id,opening_balance,id").in("asset_assignment_id", assetAssignmentIds),
-      admin.from("event_paper_reloads").select("snapshot_id,quantity").in("asset_assignment_id", assetAssignmentIds),
-    ]) : [{ data: [], error: null }, { data: [], error: null }];
-    if (snapshotError) throw snapshotError;
-    if (reloadError) throw reloadError;
+    const layout = (project?.operations as { totemLayout?: { positions?: Array<{ assetId?: string; blocks?: Array<{ blockId?: string; assignmentId?: string }> }> } } | null)?.totemLayout?.positions ?? [];
+    const candidates = own.flatMap((assignment) => layout.flatMap((position) =>
+      (position.blocks ?? []).some((shift) => shift.blockId === assignment.block_id && shift.assignmentId === assignment.id) && position.assetId
+        ? [{ assignment, assetId: position.assetId }] : []));
+    const keys = candidates.map(({ assignment }) => assignment.id);
+    if (new Set(keys).size !== keys.length) throw new Error("Asignación de caja duplicada en el plano del evento.");
+    const assetIds = [...new Set(candidates.map((candidate) => candidate.assetId))];
+    const { data: assets, error: assetsError } = assetIds.length
+      ? await admin.from("operational_assets").select("id,asset_code,asset_type").in("id", assetIds).is("deleted_at", null)
+      : { data: [], error: null };
+    if (assetsError) throw assetsError;
+    const assetById = new Map((assets ?? []).map((asset) => [asset.id, asset]));
     const blockById = new Map((blocks ?? []).map((block) => [block.id, block]));
     const closeoutByKey = new Map((closeouts ?? []).map((row) => [`${row.block_id}:${row.operator_assignment_id}`, row]));
-    const snapshotByAssignment = new Map((snapshots ?? []).map((row) => [row.asset_assignment_id, row]));
-    const reloadBySnapshot = new Map<string, number>();
-    for (const reload of reloads ?? []) reloadBySnapshot.set(reload.snapshot_id, (reloadBySnapshot.get(reload.snapshot_id) ?? 0) + Number(reload.quantity));
-    return { ok: true, blocks: own.flatMap((assignment) => {
+    return { ok: true, blocks: candidates.flatMap(({ assignment, assetId }) => {
       const block = blockById.get(assignment.block_id!);
-      const asset = (assetRows ?? []).find((row) => row.block_id === assignment.block_id);
-      if (!block || !asset) return [];
-      const joined = Array.isArray(asset.operational_assets) ? asset.operational_assets[0] : asset.operational_assets;
-      if (!joined || !["CASE", "BOX"].includes(joined.asset_type)) return [];
+      const asset = assetById.get(assetId);
+      if (!block || !asset || !["CASE", "BOX"].includes(asset.asset_type)) return [];
       const row = closeoutByKey.get(`${block.id}:${assignment.id}`);
-      const snapshot = snapshotByAssignment.get(asset.id);
-      const prior = row ? null : (closeouts ?? []).find((candidate) => candidate.asset_id === asset.asset_id && Number((blocks ?? []).find((item) => item.id === candidate.block_id)?.sequence ?? 0) < Number(block.sequence));
-      return [{ projectId, boxId: asset.asset_id, boxCode: joined.asset_code, blockId: block.id, blockName: block.name, blockSequence: Number(block.sequence), assignmentId: assignment.id, opening: row ? Number(row.opening) : Number(prior?.remaining ?? snapshot?.opening_balance ?? 0), reloads: row ? Number(row.reloads) : snapshot ? (reloadBySnapshot.get(snapshot.id) ?? 0) : 0, remaining: row ? Number(row.remaining) : null, used: row ? Number(row.used) : null, status: row ? ("CLOSED" as const) : ("PENDING" as const), closedAt: row?.closed_at ?? null }];
+      const previous = (closeouts ?? []).filter((candidate) =>
+        candidate.asset_id === assetId && Number(blockById.get(candidate.block_id)?.sequence ?? Infinity) < Number(block.sequence))
+        .sort((a, b) => Number(blockById.get(b.block_id)?.sequence ?? 0) - Number(blockById.get(a.block_id)?.sequence ?? 0))[0];
+      return [{ projectId, boxId: assetId, boxCode: asset.asset_code, blockId: block.id, blockName: block.name, blockSequence: Number(block.sequence), assignmentId: assignment.id, opening: row ? Number(row.opening) : Number(previous?.remaining ?? 0), reloads: row ? Number(row.reloads) : 0, remaining: row ? Number(row.remaining) : null, used: row ? Number(row.used) : null, status: row ? ("CLOSED" as const) : ("PENDING" as const), closedAt: row?.closed_at ?? null }];
     }).sort((a, b) => a.blockSequence - b.blockSequence || a.boxCode.localeCompare(b.boxCode)) };
   } catch (error) {
     return { ok: false, message: error instanceof Error ? error.message : "No fue posible cargar tus cierres de papel." };
