@@ -16,7 +16,7 @@ export function StaffPaperBlockCloseoutPanel({ projectId }: { projectId: string 
     const result = await loadStaffPaperBlocksAction(projectId);
     if (result.ok) {
       setBlocks(result.blocks);
-      setValues((current) => Object.fromEntries(result.blocks.map((block) => [block.assignmentId, current[block.assignmentId] ?? { opening: block.opening < 0 ? "" : String(block.opening), reloads: String(block.reloads), remaining: block.remaining === null ? "" : String(block.remaining) }])));
+      setValues((current) => Object.fromEntries(result.blocks.map((block) => [block.assignmentId, { opening: block.opening < 0 ? "" : String(block.opening), reloads: current[block.assignmentId]?.reloads ?? String(block.reloads), remaining: current[block.assignmentId]?.remaining ?? (block.remaining === null ? "" : String(block.remaining)) }])));
     } else setMessage(result.message);
   }), [projectId]);
   useEffect(() => { load(); }, [load]);
