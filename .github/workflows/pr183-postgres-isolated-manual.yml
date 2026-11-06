@@ -77,10 +77,10 @@ jobs:
           from pathlib import Path
           path = Path('supabase/migrations/20261007200500_fix_staff_settlement_record_access.sql')
           source = path.read_text()
-          malformed = '+create or replace function public.calculate_staff_monthly_settlement('
-          if not source.startswith(malformed):
+          malformed = '\n+create or replace function public.calculate_staff_monthly_settlement('
+          if malformed not in source:
               raise SystemExit('Expected isolated-only malformed migration prefix was not found')
-          path.write_text(source.replace(malformed, malformed[1:], 1))
+          path.write_text(source.replace(malformed, '\ncreate or replace function public.calculate_staff_monthly_settlement(', 1))
           print('Removed one malformed patch prefix from isolated migration copy; repository file unchanged.')
           path = Path('supabase/migrations/20260916104753_office_lease_september_initial_income.sql')
           source = path.read_text()
