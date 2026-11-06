@@ -30,6 +30,7 @@ import { submitMonthlyBoletaAction } from "@/features/staff-monthly-account/acti
 import { staffMonthLabel, type StaffMonthlyAccount } from "@/features/staff-monthly-account/model";
 import { StaffConsumablesPanel } from "./staff-consumables-panel";
 import { StaffBoxOperationsPanel } from "./staff-box-operations-panel";
+import { StaffPaperBlockCloseoutPanel } from "./staff-paper-block-closeout-panel";
 import { LogisticsEventRow, ScaledLogisticsEventRow, type StaffLogisticsEvent } from "@/features/resources/staff-logistics-view";
 import { defaultSectorForCommune } from "@/features/resources/logistics-commune-catalog";
 import { type CanonicalOperationalExtras, type OperationalExtraCategory } from "@/features/operations/canonical-operational-extras";
@@ -477,6 +478,7 @@ function StaffPaperPrinterPanel({ events }: { events: StaffPortalEvent[] }) {
         <span className="rounded-full border px-3 py-1 text-xs font-semibold">{stateLabel(event)}</span>
       </div>
       <StaffBoxOperationsPanel projectId={event.id} paperOnly />
+      <StaffPaperBlockCloseoutPanel projectId={event.id} />
     </article>
   );
 

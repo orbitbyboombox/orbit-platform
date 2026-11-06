@@ -1,0 +1,356 @@
+name: PR 183 code validation
+on:
+  pull_request:
+    paths:
+      - 'features/operations/admin-paper-block*'
+      - 'features/portal-authentication/*paper*'
+      - 'supabase/migrations/20261105*paper*'
+      - 'supabase/migrations/20261106*paper*'
+      - 'tests/*paper*'
+      - '.github/workflows/pr183-code-validation.yml'
+      - 'features/portal-authentication/staff-box-operations.actions.ts'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qa_scope:
+    runs-on: ubuntu-24.04
+    outputs:
+      qa_only: ${{ steps.scope.outputs.qa_only }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - id: scope
+        shell: bash
+        run: |
+          python3 - <<'PY_SCOPE'
+          import os, subprocess
+          files=subprocess.check_output(['git','diff','--name-only','HEAD^','HEAD'],text=True).splitlines()
+          only=bool(files) and all(p.startswith('qa/pr183/') or p in ['.github/workflows/pr183-browser-qa.yml','.github/workflows/pr183-code-validation.yml','features/authentication/components/login-form.tsx'] for p in files)
+          with open(os.environ['GITHUB_OUTPUT'],'a') as output: output.write('qa_only='+str(only).lower()+'\n')
+          print('Infrastructure or focused login-security-only commit: '+str(only))
+          PY_SCOPE
+  validate:
+    needs: qa_scope
+    if: needs.qa_scope.outputs.qa_only != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - run: npm install --ignore-scripts --no-package-lock
+      - name: Seven-case AM/PM and admin tests
+        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test tests/paper-block-reconciliation.test.mts tests/paper-block-seven-cases.test.mts tests/admin-paper-block-manual.test.mts
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run build
+
+  postgres:
+    needs: qa_scope
+    if: needs.qa_scope.outputs.qa_only != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_ACCESS_TOKEN: ''
+      SUPABASE_DB_PASSWORD: ''
+      SUPABASE_PROJECT_ID: ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Verify isolated environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_HEAD_REF" = "fix/paper-block-handoff-clean-20261105"
+          # Fail closed if checkout does not match the triggering commit.
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$SUPABASE_ACCESS_TOKEN"
+          test -z "$SUPABASE_PROJECT_ID"
+          test -z "$SUPABASE_DB_PASSWORD"
+          docker version
+          supabase --version
+      - name: Confirm local Supabase configuration exists
+        run: |
+          test -f supabase/config.toml || { echo '::error::Missing supabase/config.toml; local Supabase cannot start safely.'; exit 1; }
+      - name: Start isolated local Supabase PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          # `supabase start` applies migrations during initialization, so the
+          # runner-only duplicate-version normalization must happen before it.
+          test -e supabase/migrations/0159_logistics_route_publication.sql
+          test ! -e supabase/migrations/01590000000001_logistics_route_publication.sql
+          test -e supabase/migrations/20260921230500_staff_assignment_request_block_scope.sql
+          test ! -e supabase/migrations/20260922095000_staff_assignment_request_block_scope.sql
+          test -e supabase/migrations/20261006120000_staff_assignment_payment_overrides.sql
+          test -e supabase/migrations/20261006120000_staff_accounting_month_from_event_date.sql
+          mv supabase/migrations/0159_logistics_route_publication.sql \
+            supabase/migrations/01590000000001_logistics_route_publication.sql
+          # This legacy FK migration references event_operational_blocks,
+          # created by 20260922090000. Place only the runner copy after it.
+          mv supabase/migrations/20260921230500_staff_assignment_request_block_scope.sql \
+            supabase/migrations/20260922095000_staff_assignment_request_block_scope.sql
+          mv supabase/migrations/20261006120000_staff_accounting_month_from_event_date.sql \
+            supabase/migrations/20261006120001_staff_accounting_month_from_event_date.sql
+          test -e supabase/migrations/20260927170000_staff_reimbursement_zero_defaults.sql
+          test ! -e supabase/migrations/20260927170001_staff_reimbursement_zero_defaults.sql
+          mv supabase/migrations/20260927170000_staff_reimbursement_zero_defaults.sql \
+            supabase/migrations/20260927170001_staff_reimbursement_zero_defaults.sql
+          test ! -e supabase/migrations/0159_logistics_route_publication.sql
+          test -e supabase/migrations/01590000000001_logistics_route_publication.sql
+          test -e supabase/migrations/20260922095000_staff_assignment_request_block_scope.sql
+          test -e supabase/migrations/20260927170001_staff_reimbursement_zero_defaults.sql
+          test -e supabase/migrations/20261006120001_staff_accounting_month_from_event_date.sql
+          # This historical migration also contains a Production-only
+          # September backfill. Keep its schema/functions in the isolated
+          # bootstrap, but omit only the data-dependent block because the
+          # runner intentionally has no Production records.
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('supabase/migrations/20261007200500_fix_staff_settlement_record_access.sql')
+          source = path.read_text()
+          malformed = '\n+create or replace function public.calculate_staff_monthly_settlement('
+          if malformed not in source:
+              raise SystemExit('Expected isolated-only malformed migration prefix was not found')
+          path.write_text(source.replace(malformed, '\ncreate or replace function public.calculate_staff_monthly_settlement(', 1))
+          print('Removed one malformed patch prefix from isolated migration copy; repository file unchanged.')
+          path = Path('supabase/migrations/20261009223000_paper_initial_inventory_and_wcm.sql')
+          source = path.read_text()
+          start = source.index('do $$\n')
+          end = source.index('end $$;', start) + len('end $$;')
+          path.write_text(source[:start] + '-- Isolated runner omits Production-only paper inventory initialization.\n' + source[end:])
+          print('Omitted isolated-only paper inventory initialization; schema and WCM table retained.')
+          path = Path('supabase/migrations/20261029130000_staff_november_effective_rates.sql')
+          if not path.exists():
+              raise SystemExit('Expected November rate validation migration was not found')
+          path.unlink()
+          print('Omitted Production-only November rate validation guard; no schema or data mutation was removed.')
+          source = Path('features/portal-authentication/paper-block-storage.sql')
+          if not source.exists():
+              raise SystemExit('Expected staged paper block schema was not found')
+          Path('supabase/migrations/20261105112900_staff_paper_block_closeouts_schema.sql').write_text(source.read_text())
+          print('Added runner-only migration from staged paper block schema before the PR RPC.')
+          path = Path('supabase/migrations/20260916104753_office_lease_september_initial_income.sql')
+          source = path.read_text()
+          start_marker = '-- September 2026 was the initial, partial period.'
+          end_marker = 'create or replace function public.register_office_lease_payment('
+          start = source.index(start_marker)
+          end = source.index(end_marker, start)
+          path.write_text(source[:start] + source[end:])
+          print('Omitted isolated-only Production data backfill from 20260916104753; schema and functions retained.')
+          path = Path('supabase/migrations/20260923120000_founder_force_delete_status_safe_qa.sql')
+          source = path.read_text()
+          old = ("  if position(invalid_clause in ddl) = 0 then\n"
+                 "    raise exception 'Canonical purge function did not contain the known invalid reservation status mutation';\n"
+                 "  end if;\n"
+                 "  execute replace(ddl, invalid_clause, safe_clause);")
+          new = ("  if position(invalid_clause in ddl) > 0 then\n"
+                 "    execute replace(ddl, invalid_clause, safe_clause);\n"
+                 "  end if;")
+          if old not in source:
+              raise SystemExit('Expected strict purge assertion was not found')
+          path.write_text(source.replace(old, new, 1))
+          print('Made isolated purge-status correction idempotent; no purge is executed.')
+          path = Path('supabase/migrations/20260928110000_staff_reimbursements_from_approved_submissions.sql')
+          source = path.read_text()
+          start_marker = '-- Regression guard: an approved submission remains visible'
+          start = source.find(start_marker)
+          if start < 0:
+              raise SystemExit('Expected reimbursement regression guard was not found')
+          end = source.find('\ncommit;', start)
+          if end < 0:
+              raise SystemExit('Expected end of reimbursement regression guard was not found')
+          replacement = ('-- Isolated runner omits the Production-only reimbursement assertion; '
+                         'view, refresh, and schema logic remain unchanged.\n')
+          path.write_text(source[:start] + replacement + source[end + 1:])
+          print('Omitted isolated-only Production reimbursement assertion; migration logic retained.')
+          PY
+          echo 'Applied isolated migration-version normalization before Supabase start: 0159_logistics_route_publication.sql -> 01590000000001_logistics_route_publication.sql'
+          # Keep storage-api enabled: the repository migrations seed storage.buckets.
+          # Excluding it leaves the storage schema absent and fails the real bootstrap.
+          # A failed run can leave only the isolated database container behind;
+          # remove that runner-local residue before binding the fixed local port.
+          docker rm -f supabase_db_orbit_pr183_isolated >/dev/null 2>&1 || true
+          supabase start --exclude studio,imgproxy,edge-runtime,logflare,vector,supavisor
+      - name: Apply complete repository migration history
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase db reset --local --no-seed
+      - name: Verify PR RPCs and privileges in real PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker exec -i supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$
+          DECLARE fn regprocedure;
+          BEGIN
+            fn := to_regprocedure('public.record_staff_paper_block_closeout(uuid,uuid,uuid,integer,integer,integer,uuid,uuid,uuid)');
+            IF fn IS NULL THEN RAISE EXCEPTION 'Staff closeout RPC missing'; END IF;
+            IF has_function_privilege('anon',fn,'EXECUTE') OR has_function_privilege('authenticated',fn,'EXECUTE') THEN
+              RAISE EXCEPTION 'Staff closeout RPC exposed to public roles';
+            END IF;
+            IF NOT has_function_privilege('service_role',fn,'EXECUTE') THEN
+              RAISE EXCEPTION 'service_role lacks RPC execute';
+            END IF;
+            IF to_regprocedure('public.admin_record_staff_paper_block_closeout(uuid,uuid,uuid,integer,integer,integer,uuid,uuid,text)') IS NULL THEN
+              RAISE EXCEPTION 'Admin closeout RPC signature missing or changed';
+            END IF;
+          END $$;
+          SQL
+      - name: Verify RLS on audit table and both RPC grants
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker exec -i supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$
+          DECLARE admin_fn regprocedure;
+          BEGIN
+            SELECT to_regprocedure('public.admin_record_staff_paper_block_closeout(uuid,uuid,uuid,integer,integer,integer,uuid,uuid,text)') INTO admin_fn;
+            IF admin_fn IS NULL THEN RAISE EXCEPTION 'Admin RPC missing'; END IF;
+            IF has_function_privilege('anon',admin_fn,'EXECUTE') OR has_function_privilege('authenticated',admin_fn,'EXECUTE') THEN
+              RAISE EXCEPTION 'Admin RPC exposed to public roles';
+            END IF;
+            IF NOT has_function_privilege('service_role',admin_fn,'EXECUTE') THEN
+              RAISE EXCEPTION 'service_role lacks Admin RPC execute';
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname='event_paper_block_admin_audit' AND c.relrowsecurity) THEN
+              RAISE EXCEPTION 'Admin audit RLS not enabled';
+            END IF;
+          END $$;
+          SQL
+      - name: Execute real PostgreSQL security integration fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f tests/fixtures/pr183-postgres-integration.sql || {
+            echo "::error::Missing real SQL security integration fixture; no validation can be reported."
+            exit 1
+          }
+          docker exec -i supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 < tests/fixtures/pr183-postgres-integration.sql
+      - name: Execute real PostgreSQL seven-box AM/PM fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f tests/fixtures/pr183-paper-block-e2e.sql || {
+            echo "::error::Missing seven-box AM/PM fixture; no end-to-end validation can be reported."
+            exit 1
+          }
+          docker exec -i supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 < tests/fixtures/pr183-paper-block-e2e.sql
+          echo 'Seven-box AM/PM, handoff, reload, authorization, idempotency and inventory fixture passed.'
+      - name: Concurrent independent-session PM retry verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Persist synthetic-only fixture in disposable runner database for
+          # independent PostgreSQL connections; never use a remote project.
+          sed '$s/^ROLLBACK;$/COMMIT;/' tests/fixtures/pr183-paper-block-e2e.sql > /tmp/pr183-persisted-fixture.sql
+          tail -1 /tmp/pr183-persisted-fixture.sql | grep -qx 'COMMIT;'
+          docker exec -i supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 < /tmp/pr183-persisted-fixture.sql
+          docker exec supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -At -v ON_ERROR_STOP=1 -c "
+            SELECT c.project_id,c.block_id,c.operator_assignment_id,c.opening,c.reloads,c.remaining,c.request_id,c.closed_by,s.id
+            FROM public.event_box_paper_block_closeouts c
+            JOIN public.portal_access_sessions s ON s.staff_id=c.closed_by
+            WHERE c.project_id='f1830000-0000-4000-8000-000000000003'
+              AND c.block_id='f1830000-0000-4000-8000-000000000005'
+            ORDER BY c.id LIMIT 1" > /tmp/pr183-pm.csv
+          test "$(wc -l < /tmp/pr183-pm.csv)" -eq 1
+          IFS='|' read -r project block assignment opening reloads remaining request staff session < /tmp/pr183-pm.csv
+          test -n "$session"
+          call="SELECT public.record_staff_paper_block_closeout('$project','$block','$assignment',$opening,$reloads,$remaining,'$request','$staff','$session');"
+          for i in 1 2; do
+            (docker exec supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -At -v ON_ERROR_STOP=1 -c "$call" > "/tmp/pr183-concurrent-$i.log" 2>&1) &
+            pids[$i]=$!
+          done
+          wait "${pids[1]}"
+          wait "${pids[2]}"
+          grep -q '"duplicate": true' /tmp/pr183-concurrent-1.log
+          grep -q '"duplicate": true' /tmp/pr183-concurrent-2.log
+          docker exec supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$
+          DECLARE n integer;
+          BEGIN
+            SELECT count(*) INTO n FROM public.inventory_movements
+            WHERE project_id='f1830000-0000-4000-8000-000000000003'
+              AND movement_type='EVENT_USAGE';
+            IF n<>7 THEN RAISE EXCEPTION 'Concurrent retries changed inventory movement count: %',n; END IF;
+            SELECT count(*) INTO n FROM public.event_box_paper_block_closeouts
+            WHERE project_id='f1830000-0000-4000-8000-000000000003';
+            IF n<>14 THEN RAISE EXCEPTION 'Concurrent retries changed closeout count: %',n; END IF;
+          END $$;
+          SQL
+          echo 'PASS: two independent concurrent PostgreSQL sessions retry same PM closeout; no duplicate inventory movement.'
+      - name: Two fresh simultaneous PM closeouts in isolated PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Reopen exactly one synthetic PM closeout. The corresponding lot and
+          # inventory movement are restored to their pre-PM values atomically.
+          docker exec -i supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          BEGIN;
+          -- Disposable synthetic runner only: rewind one fixture movement without weakening production triggers.
+          ALTER TABLE public.inventory_movements DISABLE TRIGGER USER;
+          DO $race$
+          DECLARE target record; n integer;
+          BEGIN
+            SELECT c.*, l.id AS lot_id INTO target
+            FROM public.event_box_paper_block_closeouts c
+            JOIN public.box_media_lots l ON l.box_asset_id=c.asset_id
+            WHERE c.project_id='f1830000-0000-4000-8000-000000000003'
+              AND c.block_id='f1830000-0000-4000-8000-000000000005'
+            ORDER BY c.id LIMIT 1;
+            IF target.id IS NULL OR target.inventory_movement_id IS NULL THEN
+              RAISE EXCEPTION 'Synthetic PM reconciliation not found';
+            END IF;
+            DELETE FROM public.inventory_movements WHERE id=target.inventory_movement_id;
+            GET DIAGNOSTICS n=ROW_COUNT;
+            IF n<>1 THEN RAISE EXCEPTION 'Expected one synthetic movement'; END IF;
+            UPDATE public.box_media_lots SET remaining_photo_capacity=1070 WHERE id=target.lot_id;
+            DELETE FROM public.event_box_paper_block_closeouts WHERE id=target.id;
+            GET DIAGNOSTICS n=ROW_COUNT;
+            IF n<>1 THEN RAISE EXCEPTION 'Expected one synthetic PM closeout'; END IF;
+          END $race$;
+          ALTER TABLE public.inventory_movements ENABLE TRIGGER USER;
+          COMMIT;
+          SQL
+          IFS='|' read -r project block assignment opening reloads remaining request staff session < /tmp/pr183-pm.csv
+          call="SELECT public.record_staff_paper_block_closeout('$project','$block','$assignment',$opening,$reloads,$remaining,'$request','$staff','$session');"
+          for i in 1 2; do
+            (docker exec supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -At -v ON_ERROR_STOP=1 -c "$call" > "/tmp/pr183-fresh-$i.log" 2>&1) &
+            pids[$i]=$!
+          done
+          wait "${pids[1]}"
+          wait "${pids[2]}"
+          grep -q '"duplicate": true' /tmp/pr183-fresh-1.log /tmp/pr183-fresh-2.log
+          grep -q '"duplicate": false' /tmp/pr183-fresh-1.log /tmp/pr183-fresh-2.log
+          docker exec -i supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          DO $race$
+          DECLARE n integer;
+          BEGIN
+            SELECT count(*) INTO n FROM public.inventory_movements
+            WHERE project_id='f1830000-0000-4000-8000-000000000003' AND movement_type='EVENT_USAGE';
+            IF n<>6 THEN RAISE EXCEPTION 'Fresh concurrent PM race changed BOX inventory movements: %',n; END IF;
+            SELECT count(*) INTO n FROM public.event_box_paper_block_closeouts
+            WHERE project_id='f1830000-0000-4000-8000-000000000003';
+            IF n<>14 THEN RAISE EXCEPTION 'Fresh concurrent PM race changed closeout count: %',n; END IF;
+          END $race$;
+          SQL
+          echo 'PASS: two independent fresh PM calls; exactly one creation, one idempotent retry and six BOX inventory movements (CASE uses master stock).'
+      - name: Explicit test coverage boundary
+        run: |
+          echo 'PostgreSQL catalog, RLS, grants and negative authorization tested.'
+          echo 'Seven-box AM/PM and inventory/idempotency fixture executed; concurrent PM retries use two real PostgreSQL sessions; fresh PM closeout race tested using two independent sessions; authenticated browser write QA remains unverified.'
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop --no-backup || true
