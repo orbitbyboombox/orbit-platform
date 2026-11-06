@@ -30,6 +30,8 @@ DECLARE
   snapshot_id uuid;
   i integer;
   result jsonb;
+  admin_result jsonb;
+  admin_request uuid := 'f1830000-0000-4000-8000-000000000101';
   duplicate_result jsonb;
   rejected boolean;
   movements_before integer;
@@ -186,14 +188,32 @@ BEGIN
       fixture_block.project_id, asset_assignment_ids[i], 50, 'PR183 AM reload',
       format('pr183-am-reload-%s',i), am_staff[i], sessions[(i-1)*2+1]
     );
-    result := public.record_staff_paper_block_closeout(
-      project_id, am_block, am_assignments[i], 1000, 50, 900,
-      gen_random_uuid(), am_staff[i], sessions[(i-1)*2+1]
-    );
+    IF i = 1 THEN
+      admin_result := public.admin_record_staff_paper_block_closeout(
+        project_id, am_block, am_assignments[i], 1000, 50, 900,
+        admin_request, ceo, 'PR183 synthetic Founder manual closeout'
+      );
+      result := admin_result;
+    ELSE
+      result := public.record_staff_paper_block_closeout(
+        project_id, am_block, am_assignments[i], 1000, 50, 900,
+        gen_random_uuid(), am_staff[i], sessions[(i-1)*2+1]
+      );
+    END IF;
     IF (result->>'status') <> 'CLOSED' OR (result->>'used')::integer <> 150 THEN
       RAISE EXCEPTION 'AM closeout mismatch for box %: %', i, result;
     END IF;
   END LOOP;
+
+  SELECT count(*) INTO movements_before
+  FROM public.event_paper_block_admin_audit
+  WHERE project_id=fixture_block.project_id AND request_id=admin_request AND admin_user_id=ceo;
+  IF movements_before <> 1 THEN RAISE EXCEPTION 'Founder manual closeout audit was not recorded'; END IF;
+  admin_result := public.admin_record_staff_paper_block_closeout(
+    project_id, am_block, am_assignments[1], 1000, 50, 900,
+    admin_request, ceo, 'PR183 synthetic Founder manual closeout'
+  );
+  IF (admin_result->>'duplicate') <> 'true' THEN RAISE EXCEPTION 'Founder manual retry was not idempotent'; END IF;
 
   -- PM receives exactly AM remaining, then gets an additional reload through the
   -- canonical reload ledger and closes at 850. It must reconcile one movement.

@@ -235,7 +235,7 @@ jobs:
           grep -q '"duplicate": true' /tmp/pr183-concurrent-1.log
           grep -q '"duplicate": true' /tmp/pr183-concurrent-2.log
           docker exec supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
-          DO $
+          DO $$
           DECLARE n integer;
           BEGIN
             SELECT count(*) INTO n FROM public.inventory_movements
@@ -245,7 +245,7 @@ jobs:
             SELECT count(*) INTO n FROM public.event_box_paper_block_closeouts
             WHERE project_id='f1830000-0000-4000-8000-000000000003';
             IF n<>14 THEN RAISE EXCEPTION 'Concurrent retries changed closeout count: %',n; END IF;
-          END $;
+          END $$;
           SQL
           echo 'PASS: two independent concurrent PostgreSQL sessions retry same PM closeout; no duplicate inventory movement.'
       - name: Two fresh simultaneous PM closeouts in isolated PostgreSQL
