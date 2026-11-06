@@ -221,7 +221,7 @@ jobs:
             JOIN public.portal_access_sessions s ON s.staff_id=c.closed_by
             WHERE c.project_id='f1830000-0000-4000-8000-000000000003'
               AND c.block_id='f1830000-0000-4000-8000-000000000005'
-            ORDER BY c.created_at,c.id LIMIT 1" > /tmp/pr183-pm.csv
+            ORDER BY c.id LIMIT 1" > /tmp/pr183-pm.csv
           test "$(wc -l < /tmp/pr183-pm.csv)" -eq 1
           IFS='|' read -r project block assignment opening reloads remaining request staff session < /tmp/pr183-pm.csv
           test -n "$session"
