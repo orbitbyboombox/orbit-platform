@@ -184,19 +184,21 @@ BEGIN
 
   -- AM closes for all seven boxes. Each receives one synthetic reload.
   FOR i IN 1..7 LOOP
-    PERFORM public.record_staff_event_paper_reload(
-      fixture_block.project_id, asset_assignment_ids[i], 50, 'PR183 AM reload',
-      format('pr183-am-reload-%s',i), am_staff[i], sessions[(i-1)*2+1]
-    );
+    IF i < 7 THEN
+      PERFORM public.record_staff_event_paper_reload(
+        fixture_block.project_id, asset_assignment_ids[i], 50, 'PR183 AM reload',
+        format('pr183-am-reload-%s',i), am_staff[i], sessions[(i-1)*2+1]
+      );
+    END IF;
     IF i = 1 THEN
       admin_result := public.admin_record_staff_paper_block_closeout(
-        project_id, am_block, am_assignments[i], 1000, 50, 900,
+        project_id, am_block, am_assignments[i], 1000, CASE WHEN i < 7 THEN 50 ELSE 0 END, 900,
         admin_request, ceo, 'PR183 synthetic Founder manual closeout'
       );
       result := admin_result;
     ELSE
       result := public.record_staff_paper_block_closeout(
-        project_id, am_block, am_assignments[i], 1000, 50, 900,
+        project_id, am_block, am_assignments[i], 1000, CASE WHEN i < 7 THEN 50 ELSE 0 END, 900,
         gen_random_uuid(), am_staff[i], sessions[(i-1)*2+1]
       );
     END IF;
@@ -219,12 +221,14 @@ BEGIN
   -- canonical reload ledger and closes at 850. It must reconcile one movement.
   FOR i IN 1..7 LOOP
     SELECT s.id INTO snapshot_id FROM public.event_paper_snapshots s WHERE s.asset_assignment_id=asset_assignment_ids[i];
-    PERFORM public.record_staff_event_paper_reload(
-      project_id, asset_assignment_ids[i], 20, 'PR183 PM reload',
-      format('pr183-pm-reload-%s',i), pm_staff[i], sessions[(i-1)*2+2]
-    );
+    IF i < 7 THEN
+      PERFORM public.record_staff_event_paper_reload(
+        project_id, asset_assignment_ids[i], 20, 'PR183 PM reload',
+        format('pr183-pm-reload-%s',i), pm_staff[i], sessions[(i-1)*2+2]
+      );
+    END IF;
     result := public.record_staff_paper_block_closeout(
-      project_id, pm_block, pm_assignments[i], 900, 20, 850,
+      project_id, pm_block, pm_assignments[i], 900, CASE WHEN i < 7 THEN 20 ELSE 0 END, 850,
       gen_random_uuid(), pm_staff[i], sessions[(i-1)*2+2]
     );
     IF (result->>'status') <> 'CLOSED' OR (result->>'inventory_reconciled') <> 'true' THEN
