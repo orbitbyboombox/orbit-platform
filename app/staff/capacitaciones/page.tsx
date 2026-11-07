@@ -12,10 +12,13 @@ export default async function StaffTrainingPage() {
   if (!auth.user) redirect("/?access=admin");
   const { data: profile } = await client.from("profiles").select("role").eq("id", auth.user.id).maybeSingle();
   if (!profile || !["CEO", "ADMINISTRATOR"].includes(profile.role)) redirect("/?error=access-denied");
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Date();
+  const lookback = new Date(today);
+  lookback.setUTCDate(lookback.getUTCDate() - 30);
+  const earliestEventDate = lookback.toISOString().slice(0, 10);
   const [staffResult, eventResult, trainingResult] = await Promise.all([
     client.from("staff").select("id,first_name,last_name").is("deleted_at", null).order("first_name").limit(500),
-    client.from("projects").select("id,name,orbit_event_id,event_date").is("deleted_at", null).gte("event_date", today).order("event_date", { ascending: true }).limit(1000),
+    client.from("projects").select("id,name,orbit_event_id,event_date").is("deleted_at", null).gte("event_date", earliestEventDate).order("event_date", { ascending: true }).limit(1000),
     client.from("staff_training_assignments").select("id,project_id,trainee_staff_id,trainer_staff_id,status,training_amount_clp").order("created_at", { ascending: false }).limit(200),
   ]);
   const staff = (staffResult.data ?? []).map(s => ({ id: s.id, name: [s.first_name, s.last_name].filter(Boolean).join(" ") }));
