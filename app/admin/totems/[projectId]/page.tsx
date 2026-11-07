@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { EventTotemAdminWorkspace } from "@/features/operations/event-totem-admin-workspace";
@@ -30,6 +31,7 @@ export default async function EventTotemsPage({ params }: { params: Promise<{ pr
     return { id: item.id, blockId: item.block_id!, label: [person?.first_name, person?.last_name].filter(Boolean).join(" ") || "Operador" };
   });
   return <main className="mx-auto max-w-5xl space-y-6 p-6">
+    <div className="flex flex-wrap gap-3"><Link href="/admin" className="rounded-lg border px-3 py-2 text-sm hover:bg-white/10">← Volver a ORBIT</Link><Link href="/admin/totems" className="rounded-lg border px-3 py-2 text-sm hover:bg-white/10">← Eventos Multicaja</Link></div>
     <header className="print:hidden"><h1 className="text-2xl font-semibold">Multicaja · {project.orbit_event_id ?? project.name}</h1><p className="text-sm opacity-70">Ubicaciones y operadores por bloque. No modifica la reserva ni los pagos.</p></header>
     <EventTotemAdminWorkspace eventName={project.orbit_event_id ?? project.name} initialLayout={layout} boxes={(assets ?? []).map(asset => ({ id: asset.id, label: asset.asset_code ?? asset.id }))} blocks={blockOptions} assignments={assignmentOptions} onSave={saveEventTotemLayoutAction.bind(null, projectId)} />
   </main>;
