@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { signInSchema, type SignInInput } from "../schemas/auth.schema";
 import { signIn, signOut } from "@/services/auth.service";
 import { hasSupabaseAuthCookie } from "@/lib/supabase/server";
+import { isReadOnlyVisualPreview } from "@/lib/supabase/environment-guard";
 import { recordAdministratorAccess } from "@/features/notification-center/repository";
 
 export interface AuthActionResult {
@@ -11,6 +12,7 @@ export interface AuthActionResult {
 }
 
 export async function signInAction(input: SignInInput): Promise<AuthActionResult> {
+  if (isReadOnlyVisualPreview()) return { error: "Esta Preview es solo de lectura. Para ingresar utiliza app.bbox.cl; aquí no se permiten sesiones ni cambios reales." };
   const parsed = signInSchema.safeParse(input);
   if (!parsed.success) return { error: "Ingresa un correo y una contraseña válidos." };
 
