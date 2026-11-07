@@ -16,6 +16,7 @@ export default async function MulticajaEventsPage() {
     .limit(100);
   if (error) throw new Error("No se pudo cargar la lista de eventos");
   return <main className="mx-auto max-w-5xl space-y-5 p-6">
+    <Link href="/admin" className="inline-flex rounded-lg border px-3 py-2 text-sm hover:bg-white/10">← Volver a ORBIT</Link>
     <header><h1 className="text-2xl font-semibold">Multicaja por evento</h1>
       <p className="text-sm opacity-70">Activa varias CASE únicamente en los eventos que lo necesiten. Se reutilizan los bloques y operadores existentes.</p></header>
     <div className="space-y-2">{(projects ?? []).map(project => {
