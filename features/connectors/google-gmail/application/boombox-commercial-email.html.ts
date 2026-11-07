@@ -17,7 +17,7 @@ type CommercialEmailAction = {
 };
 
 export const OFFICIAL_BOOMBOX_LOGO_URL =
-  "https://app.bbox.cl/branding/boombox-email-transparent.png";
+  "https://app.bbox.cl/branding/boombox-email-transparent-hq.png";
 
 export type BoomboxCommercialEmailInput = {
   benefits?: string[];
