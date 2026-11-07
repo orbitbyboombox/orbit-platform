@@ -19,3 +19,14 @@ test("official settlement PDF renders the canonical detail service and roles", (
   assert.match(pdf, /detail\.roles\.join/);
   assert.match(pdf, /detail\.workNet/);
 });
+
+const generationMigration = readFileSync(new URL("../supabase/migrations/20261107190000_include_completed_training_in_monthly_accounts.sql", import.meta.url), "utf8");
+
+test("monthly generator includes completed training-only staff without duplicates", () => {
+  assert.match(generationMigration, /select distinct source\.staff_id/);
+  assert.match(generationMigration, /union all\s+select training\.trainee_staff_id/);
+  assert.match(generationMigration, /training\.status = 'COMPLETED'/);
+  assert.match(generationMigration, /project\.deleted_at is null/);
+  assert.match(generationMigration, /project\.event_date >= month_start/);
+  assert.match(generationMigration, /ensure_staff_monthly_account\(member\.staff_id, month_start\)/);
+});
