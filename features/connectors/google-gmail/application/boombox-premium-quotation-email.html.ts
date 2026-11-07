@@ -4,7 +4,7 @@ const safe = (value: string) => value.replace(/[&<>"']/g, (char) => ({ "&": "&am
 
 /** Premium visual presentation only. Sending, PDF generation and recipients remain untouched. */
 export function renderPremiumQuotationEmail(input: BoomboxCommercialEmailInput): string {
-  const logo = safe(input.logoUrl || "https://app.bbox.cl/branding/boombox-email-transparent.png");
+  const logo = safe(input.logoUrl || "https://app.bbox.cl/branding/boombox-email-transparent-hq.png");
   const button = (href: string, label: string, outlined = false) =>
     `<table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" style="margin:19px auto 0"><tr><td align="center" bgcolor="${outlined ? "#ffffff" : "#ed7203"}" style="border:1px solid #ed7203;border-radius:12px;padding:16px 29px;background:${outlined ? "#ffffff" : "#ed7203"}"><a href="${safe(href)}" style="font-family:Arial,sans-serif;font-size:15px;font-weight:800;letter-spacing:.02em;text-decoration:none;color:${outlined ? "#d85f00" : "#ffffff"};display:block">${safe(label)}</a></td></tr></table>`;
   const panel = (icon: string, heading: string, description: string, action: string) =>
