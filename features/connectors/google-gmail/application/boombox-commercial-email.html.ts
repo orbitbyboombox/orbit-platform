@@ -17,7 +17,7 @@ type CommercialEmailAction = {
 };
 
 export const OFFICIAL_BOOMBOX_LOGO_URL =
-  "https://static.wixstatic.com/media/656838_8806aca30a19440dacffa70f7615a16b~mv2.png/v1/fill/w_400,h_140,al_c,q_90/656838_8806aca30a19440dacffa70f7615a16b~mv2.png";
+  "https://app.bbox.cl/branding/boombox-email-transparent.png";
 
 export type BoomboxCommercialEmailInput = {
   benefits?: string[];
