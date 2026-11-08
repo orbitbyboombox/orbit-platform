@@ -13,6 +13,10 @@ on:
       - 'tests/fixtures/pr183-*.sql'
       - 'features/portal-authentication/staff-box-operations.actions.ts'
 
+concurrency:
+  group: isolated-paper-closeout-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
