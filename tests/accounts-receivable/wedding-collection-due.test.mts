@@ -26,3 +26,19 @@ test("calendar dates stay stable across Santiago DST boundaries", () => {
   assert.equal(isWeddingCollectionDue({...base, eventDate: "2026-09-16"}, "2026-09-06"), true);
   assert.equal(isWeddingCollectionDue({...base, eventDate: "2026-09-16"}, "2026-09-05"), false);
 });
+
+test("D-10 respects all supported wedding type spellings and mixed case", () => {
+  for (const projectType of ["WEDDING", "MATRIMONIO", " matrimonio ", "wedding"]) {
+    assert.equal(isWeddingCollectionDue({...base, projectType}, "2026-11-10"), true);
+  }
+});
+test("D-10 rejects non-finite or non-positive outstanding balances", () => {
+  for (const outstandingBalance of [0, -1, NaN, Infinity, -Infinity]) {
+    assert.equal(isWeddingCollectionDue({...base, outstandingBalance}, "2026-11-10"), false);
+  }
+});
+test("D-10 rejects invalid calendar dates and past events", () => {
+  for (const eventDate of ["2026-11-31", "2026-13-01", "not-a-date", "2026-11-09"]) {
+    assert.equal(isWeddingCollectionDue({...base, eventDate}, "2026-11-10"), false);
+  }
+});
