@@ -157,7 +157,7 @@ begin
 
   update public.event_paper_snapshots
   set status = 'OVERRIDDEN', final_remaining_balance = p_final_remaining, event_usage = new_usage,
-      overridden_by = actor, overridden_at = now(), confirmed_at = coalesce(confirmed_at, now()),
+      overridden_by = actor, overridden_at = now(),
       override_reason = trim(p_reason),
       master_asset_version_before = asset_row.version,
       master_asset_version_after = master_version_after,
