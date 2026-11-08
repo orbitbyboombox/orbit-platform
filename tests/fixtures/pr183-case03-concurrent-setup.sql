@@ -30,7 +30,7 @@ BEGIN
   INSERT INTO public.project_services(project_id,service_code,duration_hours,extras)
   VALUES(project_id,'CLASSIC',2,'[]'::jsonb);
   INSERT INTO public.event_operational_blocks(id,project_id,name,sequence,start_at,end_at)
-  VALUES(block_id,project_id,'QA',1,now()+interval '2 days',now()+interval '2 days 2 hours');
+  VALUES(block_id,project_id,'QA',1,date_trunc('minute',now())+interval '2 days',date_trunc('minute',now())+interval '2 days 2 hours');
   INSERT INTO public.staff(id,first_name,last_name,role,capabilities,status,portal_enabled,created_by)
   VALUES(operator_id,'Sebastián','Race','OPERATOR',ARRAY['OPERATOR'],'ACTIVE',true,admin_id);
   INSERT INTO public.assignments(project_id,block_id,staff_id,assignment_type,status,reason,created_by,updated_by)
