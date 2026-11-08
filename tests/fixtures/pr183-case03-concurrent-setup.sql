@@ -42,16 +42,16 @@ BEGIN
   VALUES(assignment_id,project_id,asset_id,'ASSIGNED',admin_id,'Synthetic race assignment',admin_id,admin_id);
 
   UPDATE public.event_paper_snapshots
-  SET project_id=project_id,orbit_event_id='ORB-CASE03-RACE',box_asset_id=asset_id,
+  SET project_id=setup.project_id,orbit_event_id='ORB-CASE03-RACE',box_asset_id=setup.asset_id,
       media_lot_id=NULL,paper_required=true,opening_balance=390,status='PENDING',
       final_remaining_balance=NULL,event_usage=NULL,close_note='Revisar drive del PC'
-  WHERE asset_assignment_id=assignment_id;
+  WHERE asset_assignment_id=setup.assignment_id;
   IF NOT FOUND THEN
     INSERT INTO public.event_paper_snapshots(
       project_id,orbit_event_id,asset_assignment_id,box_asset_id,media_lot_id,
       paper_required,opening_balance,status,close_note
     ) VALUES(
-      project_id,'ORB-CASE03-RACE',assignment_id,asset_id,NULL,true,390,'PENDING','Revisar drive del PC'
+      setup.project_id,'ORB-CASE03-RACE',setup.assignment_id,setup.asset_id,NULL,true,390,'PENDING','Revisar drive del PC'
     );
   END IF;
 END
