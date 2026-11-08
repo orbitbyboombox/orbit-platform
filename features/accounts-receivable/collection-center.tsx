@@ -37,7 +37,8 @@ export type CollectionFilter =
   | "OVERDUE"
   | "NO_NOTICE"
   | "WEEK"
-  | "HISTORY";
+  | "HISTORY"
+  | "WEDDINGS_D10";
 
 const filterMeta: Record<
   CollectionFilter,
@@ -49,7 +50,26 @@ const filterMeta: Record<
   NO_NOTICE: { label: "SIN AVISO", description: "Sin contacto previo." },
   WEEK: { label: "AVISADOS ESTA SEMANA", description: "Con último aviso reciente." },
   HISTORY: { label: "PAGADOS / HISTÓRICO", description: "Historial de cobranza." },
+  WEDDINGS_D10: { label: "MATRIMONIOS D-10", description: "Matrimonios con saldo a diez días o menos." },
 };
+
+// Comparación de fechas civiles: evita diferencias por horario de verano en Chile.
+function calendarDayNumber(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (!match) return null;
+  const day = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return Number.isFinite(day) ? Math.floor(day / 86400000) : null;
+}
+
+function isWeddingD10(invoice: ReceivableInvoice, today: string) {
+  const eventDay = invoice.eventDate ? calendarDayNumber(invoice.eventDate) : null;
+  const todayDay = calendarDayNumber(today);
+  if (eventDay === null || todayDay === null) return false;
+  const type = invoice.projectType.toUpperCase();
+  return (type === "WEDDING" || type === "MATRIMONIO") &&
+    eventDay - todayDay >= 0 && eventDay - todayDay <= 10 &&
+    invoice.outstandingBalance > 0 && invoice.status !== "CANCELLED";
+}
 
 function latestNotice(invoice: ReceivableInvoice) {
   return getLastCollectionNoticeAt(invoice.collectionActions);
@@ -113,6 +133,7 @@ export function CollectionCenter({
           return !query || text.includes(query.toLowerCase());
         })
         .filter((invoice) => {
+          if (filter === "WEDDINGS_D10") return isWeddingD10(invoice, today);
           if (filter === "PENDING") return true;
           if (filter === "UPCOMING") return invoice.daysRemaining !== null && invoice.daysRemaining > 0;
           if (filter === "OVERDUE") return isOverdue(invoice, today);
@@ -228,7 +249,7 @@ export function CollectionCenter({
           </label>
           <div className="flex flex-wrap gap-2">
             {(
-              ["PENDING", "UPCOMING", "OVERDUE", "NO_NOTICE", "WEEK", "HISTORY"] as const
+              ["PENDING", "WEDDINGS_D10", "UPCOMING", "OVERDUE", "NO_NOTICE", "WEEK", "HISTORY"] as const
             ).map((key) => (
               <button
                 className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
@@ -290,7 +311,7 @@ function CollectionCard({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">
-            {invoice.customerType === "CORPORATE" ? "Empresa" : "Cliente"} · {status}
+            {["WEDDING", "MATRIMONIO"].includes(invoice.projectType.toUpperCase()) ? "Matrimonio" : invoice.customerType === "CORPORATE" ? "Empresa" : "Cliente"} · {status}
           </p>
           <h3 className="mt-2 truncate text-xl font-semibold">
             {invoice.customerCompany ?? invoice.customerName}
@@ -312,6 +333,11 @@ function CollectionCard({
         </div>
       </div>
 
+      {isWeddingD10(invoice, today) ? (
+        <p className="mt-3 rounded-xl border border-amber-300/40 bg-amber-50/50 px-3 py-2 text-xs font-semibold text-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
+          Matrimonio próximo · revisar cobro pendiente (D-10). No se envían correos automáticamente.
+        </p>
+      ) : null}
       <dl className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Info label="Total" value={money(invoice.amount)} />
         <Info label="Pagado" value={money(invoice.paidAmount)} />
