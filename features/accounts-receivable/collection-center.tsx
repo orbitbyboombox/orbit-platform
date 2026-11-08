@@ -7,6 +7,7 @@ import { CollectionEmailComposer } from "./collection-email-composer";
 import { getLastCollectionNoticeAt } from "./collection-email.template";
 import type { CollectionBankDetails } from "./collection-bank-details";
 import type { ReceivableDataset, ReceivableInvoice } from "./types";
+import { isWeddingCollectionDue } from "./wedding-collection-due";
 
 const money = (value: number) =>
   new Intl.NumberFormat("es-CL", {
@@ -53,24 +54,6 @@ const filterMeta: Record<
   WEDDINGS_D10: { label: "MATRIMONIOS D-10", description: "Matrimonios con saldo a diez días o menos." },
 };
 
-// Comparación de fechas civiles: evita diferencias por horario de verano en Chile.
-function calendarDayNumber(value: string) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
-  if (!match) return null;
-  const day = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-  return Number.isFinite(day) ? Math.floor(day / 86400000) : null;
-}
-
-function isWeddingD10(invoice: ReceivableInvoice, today: string) {
-  const eventDay = invoice.eventDate ? calendarDayNumber(invoice.eventDate) : null;
-  const todayDay = calendarDayNumber(today);
-  if (eventDay === null || todayDay === null) return false;
-  const type = invoice.projectType.toUpperCase();
-  return (type === "WEDDING" || type === "MATRIMONIO") &&
-    eventDay - todayDay >= 0 && eventDay - todayDay <= 10 &&
-    invoice.outstandingBalance > 0 && invoice.status !== "CANCELLED";
-}
-
 function latestNotice(invoice: ReceivableInvoice) {
   return getLastCollectionNoticeAt(invoice.collectionActions);
 }
@@ -90,7 +73,7 @@ function priorityRank(invoice: ReceivableInvoice, today: string) {
   const notice = latestNotice(invoice);
   const recent = daysSince(notice);
   if (invoice.outstandingBalance <= 0) return 99;
-  if (isWeddingD10(invoice, today)) return -1;
+  if (isWeddingCollectionDue(invoice, today)) return -1;
   if (isOverdue(invoice, today) && recent === null) return 0;
   if (isOverdue(invoice, today)) return 1;
   if (invoice.dueDate === today) return 2;
@@ -134,7 +117,7 @@ export function CollectionCenter({
           return !query || text.includes(query.toLowerCase());
         })
         .filter((invoice) => {
-          if (filter === "WEDDINGS_D10") return isWeddingD10(invoice, today);
+          if (filter === "WEDDINGS_D10") return isWeddingCollectionDue(invoice, today);
           if (filter === "PENDING") return true;
           if (filter === "UPCOMING") return invoice.daysRemaining !== null && invoice.daysRemaining > 0;
           if (filter === "OVERDUE") return isOverdue(invoice, today);
@@ -334,7 +317,7 @@ function CollectionCard({
         </div>
       </div>
 
-      {isWeddingD10(invoice, today) ? (
+      {isWeddingCollectionDue(invoice, today) ? (
         <p className="mt-3 rounded-xl border border-amber-300/40 bg-amber-50/50 px-3 py-2 text-xs font-semibold text-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
           Matrimonio próximo · revisar cobro pendiente (D-10). No se envían correos automáticamente.
         </p>
