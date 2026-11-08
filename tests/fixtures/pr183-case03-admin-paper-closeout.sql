@@ -1,5 +1,5 @@
 -- Legacy CASE administrative paper closeout regression; synthetic-only and rolled back.
-\\set ON_ERROR_STOP on
+\set ON_ERROR_STOP on
 BEGIN;
 SET LOCAL statement_timeout = '30s';
 
@@ -76,12 +76,12 @@ BEGIN
     RAISE EXCEPTION 'Same-key retry was not idempotent: %',answer;
   END IF;
 
-  SELECT count(*) INTO movement_count FROM public.inventory_movements
-  WHERE idempotency_key='staff-paper-admin-close:'||call_key
-    AND project_id=project_id AND movement_type='EVENT_USAGE'
-    AND box_asset_id=asset_id AND media_lot_id IS NULL
-    AND supply_id IS NULL AND quantity=-38
-    AND quantity_before=390 AND quantity_delta=-38 AND quantity_after=352;
+  SELECT count(*) INTO movement_count FROM public.inventory_movements im
+  WHERE im.idempotency_key='staff-paper-admin-close:'||call_key
+    AND im.project_id=case03.project_id AND im.movement_type='EVENT_USAGE'
+    AND im.box_asset_id=case03.asset_id AND im.media_lot_id IS NULL
+    AND im.supply_id IS NULL AND im.quantity=-38
+    AND im.quantity_before=390 AND im.quantity_delta=-38 AND im.quantity_after=352;
   IF movement_count <> 1 THEN RAISE EXCEPTION 'Expected exactly one legacy CASE movement; got %',movement_count; END IF;
 
   SELECT (metadata->>'blackBoxPhotoStock')::numeric INTO stock
