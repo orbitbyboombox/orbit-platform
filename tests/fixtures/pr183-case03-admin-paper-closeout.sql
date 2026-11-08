@@ -40,6 +40,9 @@ BEGIN
     project_id,customer_id,'ORB-CASE03-ISOLATED','CASE-03 legacy paper closeout test',
     'EVENT','CONFIRMED','GREEN',current_date + 2,'09:00','Isolated QA venue','Santiago','{}'::jsonb,admin_id
   );
+  INSERT INTO public.project_services(project_id,service_code,duration_hours,extras)
+  VALUES(project_id,'CLASSIC',2,'[]'::jsonb);
+
   INSERT INTO public.operational_assets(id,asset_code,asset_type,status,qr_key,metadata,created_by)
   VALUES(asset_id,'CASE-03-ISOLATED','CASE','ASSIGNED','case03-isolated-qr',
     '{"blackBoxPhotoStock":390,"blackBoxPaperFormat":"4X6"}'::jsonb,admin_id);
