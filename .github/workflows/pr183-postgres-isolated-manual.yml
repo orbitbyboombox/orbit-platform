@@ -210,6 +210,16 @@ jobs:
           }
           docker exec -i supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 < tests/fixtures/pr183-paper-block-e2e.sql
           echo 'Seven-box AM/PM, handoff, reload, authorization, idempotency and inventory fixture passed.'
+      - name: Execute isolated legacy CASE paper closeout fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f tests/fixtures/pr183-case03-admin-paper-closeout.sql || {
+            echo "::error::Missing CASE-03 isolated PostgreSQL fixture."
+            exit 1
+          }
+          docker exec -i supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 < tests/fixtures/pr183-case03-admin-paper-closeout.sql
+          echo 'PASS: no-lot CASE closeout, 38-photo movement, 352 Master stock, preserved operator report, no fabricated staff confirmation, unchanged assignment, and idempotent retry.'
       - name: Concurrent independent-session PM retry verification
         shell: bash
         run: |
