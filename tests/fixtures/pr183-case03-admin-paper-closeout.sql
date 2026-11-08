@@ -9,6 +9,8 @@ DECLARE
   admin_id uuid := 'c3030000-0000-4000-8000-000000000001';
   customer_id uuid := 'c3030000-0000-4000-8000-000000000002';
   project_id uuid := 'c3030000-0000-4000-8000-000000000003';
+  future_project_id uuid := 'c3030000-0000-4000-8000-000000000008';
+  future_assignment_id uuid := 'c3030000-0000-4000-8000-000000000009';
   asset_id uuid := 'c3030000-0000-4000-8000-000000000004';
   assignment_id uuid := 'c3030000-0000-4000-8000-000000000005';
   operator_id uuid := 'c3030000-0000-4000-8000-000000000007';
@@ -40,8 +42,15 @@ BEGIN
     project_id,customer_id,'ORB-CASE03-ISOLATED','CASE-03 legacy paper closeout test',
     'EVENT','CONFIRMED','GREEN',current_date + 2,'09:00','Isolated QA venue','Santiago','{}'::jsonb,admin_id
   );
+  INSERT INTO public.projects(
+    id,customer_id,orbit_event_id,name,project_type,status,health,event_date,event_time,
+    location,city,operations,created_by
+  ) VALUES(
+    future_project_id,customer_id,'ORB-CASE03-FUTURE','CASE-03 future snapshot test',
+    'EVENT','CONFIRMED','GREEN',current_date + 3,'09:00','Isolated QA venue','Santiago','{}'::jsonb,admin_id
+  );
   INSERT INTO public.project_services(project_id,service_code,duration_hours,extras)
-  VALUES(project_id,'CLASSIC',2,'[]'::jsonb);
+  VALUES(project_id,'CLASSIC',2,'[]'::jsonb),(future_project_id,'CLASSIC',2,'[]'::jsonb);
 
   INSERT INTO public.operational_assets(id,asset_code,asset_type,status,qr_key,metadata,created_by)
   VALUES(asset_id,'CASE-03-ISOLATED','CASE','ASSIGNED','case03-isolated-qr',
@@ -54,6 +63,21 @@ BEGIN
 
   INSERT INTO public.asset_assignments(id,project_id,asset_id,assignment_status,assigned_by,reason,created_by,updated_by)
   VALUES(assignment_id,project_id,asset_id,'ASSIGNED',admin_id,'Synthetic isolated closeout test',admin_id,admin_id);
+
+  INSERT INTO public.asset_assignments(id,project_id,asset_id,assignment_status,assigned_by,reason,created_by,updated_by)
+  VALUES(future_assignment_id,future_project_id,asset_id,'ASSIGNED',admin_id,'Synthetic future event assignment',admin_id,admin_id);
+
+  UPDATE public.event_paper_snapshots
+  SET project_id=future_project_id,orbit_event_id='ORB-CASE03-FUTURE',box_asset_id=asset_id,
+      media_lot_id=NULL,paper_required=true,opening_balance=390,status='PENDING',
+      final_remaining_balance=NULL,event_usage=NULL
+  WHERE asset_assignment_id=future_assignment_id;
+  IF NOT FOUND THEN
+    INSERT INTO public.event_paper_snapshots(
+      project_id,orbit_event_id,asset_assignment_id,box_asset_id,media_lot_id,
+      paper_required,opening_balance,status
+    ) VALUES(future_project_id,'ORB-CASE03-FUTURE',future_assignment_id,asset_id,NULL,true,390,'PENDING');
+  END IF;
 
   INSERT INTO public.event_paper_snapshots(
     id,project_id,orbit_event_id,asset_assignment_id,box_asset_id,media_lot_id,
@@ -111,6 +135,21 @@ BEGIN
   FROM public.asset_assignments aa WHERE aa.id=assignment_id;
   IF assignment_status <> 'ASSIGNED' OR returned_at IS NOT NULL THEN
     RAISE EXCEPTION 'Admin paper-only closeout changed the box assignment.';
+  END IF;
+
+  SELECT opening_balance INTO stock FROM public.event_paper_snapshots
+  WHERE asset_assignment_id=future_assignment_id AND status='PENDING'
+    AND final_remaining_balance IS NULL AND event_usage IS NULL;
+  IF stock <> 352 THEN
+    RAISE EXCEPTION 'Future pending snapshot was not reconciled to 352; got %',stock;
+  END IF;
+  SELECT aa.assignment_status,aa.returned_at INTO assignment_status,returned_at
+  FROM public.asset_assignments aa WHERE aa.id=future_assignment_id;
+  IF assignment_status <> 'ASSIGNED' OR returned_at IS NOT NULL THEN
+    RAISE EXCEPTION 'Admin paper-only closeout changed the future assignment.';
+  END IF;
+  IF EXISTS (SELECT 1 FROM public.inventory_movements WHERE project_id=future_project_id) THEN
+    RAISE EXCEPTION 'Future event received an inventory movement before its closeout.';
   END IF;
 END
 $case03$;
