@@ -117,6 +117,7 @@ begin
 end
 $function$;
 
+
 create or replace function public.admin_force_staff_event_paper_closeout(
   p_project_id uuid,
   p_asset_assignment_id uuid,
@@ -178,7 +179,9 @@ begin
     raise exception 'Este evento no tiene una carga de papel válida.' using errcode = 'P0002';
   end if;
 
-  if exists (select 1 from public.timeline_events where correlation_id = correlation) then
+  if exists (select 1 from public.timeline_events where correlation_id = correlation)
+     and not (snapshot_row.status in ('CONFIRMED','OVERRIDDEN')
+              and snapshot_row.final_remaining_balance = p_final_remaining) then
     return jsonb_build_object(
       'duplicate', true, 'snapshot_id', snapshot_row.id, 'status', snapshot_row.status,
       'final_remaining', snapshot_row.final_remaining_balance, 'event_usage', snapshot_row.event_usage,
