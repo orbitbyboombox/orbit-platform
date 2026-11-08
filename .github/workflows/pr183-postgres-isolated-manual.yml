@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - fix/paper-block-handoff-clean-20261105
+      - fix/case03-admin-paper-closeout-20261108
     paths:
       - '.github/workflows/pr183-postgres-isolated-manual.yml'
       - 'supabase/config.toml'
@@ -32,7 +33,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$GITHUB_REF" = "refs/heads/fix/paper-block-handoff-clean-20261105"
+          case "$GITHUB_REF" in\n            refs/heads/fix/paper-block-handoff-clean-20261105|refs/heads/fix/case03-admin-paper-closeout-20261108) ;;\n            *) echo "::error::Branch is not allowlisted for isolated paper-closeout tests"; exit 1 ;;\n          esac
           # Fail closed if checkout does not match the triggering commit.
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           test -z "$SUPABASE_ACCESS_TOKEN"
