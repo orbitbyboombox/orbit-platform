@@ -11,6 +11,7 @@ DECLARE
   project_id uuid := 'c3030000-0000-4000-8000-000000000003';
   asset_id uuid := 'c3030000-0000-4000-8000-000000000004';
   assignment_id uuid := 'c3030000-0000-4000-8000-000000000005';
+  operator_id uuid := 'c3030000-0000-4000-8000-000000000007';
   snapshot_id uuid := 'c3030000-0000-4000-8000-000000000006';
   call_key text := 'isolated-case03-mara-regression';
   close_note text := 'Operador Sebastián · restante declarado 352 · papel de repuesto NO · Revisar drive del PC';
@@ -42,6 +43,11 @@ BEGIN
   INSERT INTO public.operational_assets(id,asset_code,asset_type,status,qr_key,metadata,created_by)
   VALUES(asset_id,'CASE-03-ISOLATED','CASE','ASSIGNED','case03-isolated-qr',
     '{"blackBoxPhotoStock":390,"blackBoxPaperFormat":"4X6"}'::jsonb,admin_id);
+
+  INSERT INTO public.staff(id,first_name,last_name,role,capabilities,status,portal_enabled,created_by)
+  VALUES(operator_id,'Sebastián','Synthetic','OPERATOR',ARRAY['OPERATOR'],'ACTIVE',true,admin_id);
+  INSERT INTO public.assignments(project_id,staff_id,assignment_type,status,reason,created_by,updated_by)
+  VALUES(project_id,operator_id,'OPERATOR','CONFIRMED','Synthetic operator source assignment',admin_id,admin_id);
 
   INSERT INTO public.asset_assignments(id,project_id,asset_id,assignment_status,assigned_by,reason,created_by,updated_by)
   VALUES(assignment_id,project_id,asset_id,'ASSIGNED',admin_id,'Synthetic isolated closeout test',admin_id,admin_id);
@@ -81,7 +87,7 @@ BEGIN
   WHERE im.idempotency_key='staff-paper-admin-close:'||call_key
     AND im.project_id=case03.project_id AND im.movement_type='EVENT_USAGE'
     AND im.box_asset_id=case03.asset_id AND im.media_lot_id IS NULL
-    AND im.supply_id IS NULL AND im.quantity=-38
+    AND im.supply_id IS NULL AND im.staff_id=operator_id AND im.quantity=-38
     AND im.quantity_before=390 AND im.quantity_delta=-38 AND im.quantity_after=352;
   IF movement_count <> 1 THEN RAISE EXCEPTION 'Expected exactly one legacy CASE movement; got %',movement_count; END IF;
 
