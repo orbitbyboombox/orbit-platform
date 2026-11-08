@@ -1,5 +1,5 @@
 -- Seed one isolated pending legacy CASE snapshot for independent concurrent RPC sessions.
-\\set ON_ERROR_STOP on
+\set ON_ERROR_STOP on
 BEGIN;
 DO $setup$
 <<setup>>
