@@ -4,6 +4,7 @@ BEGIN;
 SET LOCAL statement_timeout = '30s';
 
 DO $case03$
+<<case03>>
 DECLARE
   admin_id uuid := 'c3030000-0000-4000-8000-000000000001';
   customer_id uuid := 'c3030000-0000-4000-8000-000000000002';
