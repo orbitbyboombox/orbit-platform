@@ -33,7 +33,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          case "$GITHUB_REF" in\n            refs/heads/fix/paper-block-handoff-clean-20261105|refs/heads/fix/case03-admin-paper-closeout-20261108) ;;\n            *) echo "::error::Branch is not allowlisted for isolated paper-closeout tests"; exit 1 ;;\n          esac
+          [[ "$GITHUB_REF" == "refs/heads/fix/paper-block-handoff-clean-20261105" || "$GITHUB_REF" == "refs/heads/fix/case03-admin-paper-closeout-20261108" ]] || { echo "::error::Branch is not allowlisted for isolated paper-closeout tests"; exit 1; }
           # Fail closed if checkout does not match the triggering commit.
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           test -z "$SUPABASE_ACCESS_TOKEN"
