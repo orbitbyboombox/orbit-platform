@@ -16,6 +16,67 @@ alter table public.inventory_movements
     )
   );
 
+-- The canonical inventory timeline trigger historically required a supply
+-- reference. Legacy CASE stock has no media lot/supply; audit that movement by
+-- its box asset while keeping all supply-backed timeline rows unchanged.
+create or replace function public.record_inventory_timeline()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $function$
+declare
+  movement_label text;
+  timeline_type text;
+  timeline_action text;
+  timeline_entity_type text;
+  timeline_entity_id text;
+begin
+  if new.project_id is null then return new; end if;
+
+  movement_label := case new.movement_type
+    when 'PURCHASE' then 'Compra de insumo registrada.'
+    when 'CONSUMPTION' then 'Consumo de insumo registrado.'
+    when 'ADJUSTMENT' then 'Inventario de insumo ajustado.'
+    when 'LOSS' then 'Pérdida de insumo registrada.'
+    when 'REPLACEMENT' then 'Reemplazo de insumo registrado.'
+    when 'LOAD' then 'Media cargada en caja.'
+    when 'EVENT_USAGE' then 'Consumo de media durante evento.'
+    when 'MANUAL_ADJUSTMENT' then 'Ajuste manual de media registrado.'
+    when 'RETURN' then 'Saldo de media registrado al retorno.'
+    else 'Media descartada.'
+  end;
+
+  if new.supply_id is null then
+    if new.movement_type <> 'EVENT_USAGE' or new.box_asset_id is null then
+      raise exception 'Movimiento sin insumo requiere consumo de evento asociado a Caja.' using errcode = '23514';
+    end if;
+    timeline_type := 'BOX_' || new.movement_type;
+    timeline_action := 'BOX_' || new.movement_type;
+    timeline_entity_type := 'OperationalAsset';
+    timeline_entity_id := new.box_asset_id::text;
+    movement_label := 'Consumo de papel de Caja durante evento.';
+  else
+    timeline_type := 'SUPPLY_' || new.movement_type;
+    timeline_action := timeline_type;
+    timeline_entity_type := 'Supply';
+    timeline_entity_id := new.supply_id::text;
+  end if;
+
+  insert into public.timeline_events(
+    customer_id,project_id,event_type,title,description,reason,occurred_at,created_by,
+    orbit_event_id,actor_id,actor_label,source,action,entity_type,entity_id,human_message,correlation_id
+  )
+  values(
+    new.customer_id,new.project_id,timeline_type,movement_label,movement_label,new.reason,
+    new.occurred_at,new.created_by,coalesce(new.orbit_event_id,'SUPPLY-'||new.id::text),
+    new.created_by,'Operaciones','Operations',timeline_action,timeline_entity_type,timeline_entity_id,
+    movement_label,'inventory-'||new.id::text
+  );
+  return new;
+end
+$function$;
+
 create or replace function public.admin_force_staff_event_paper_closeout(
   p_project_id uuid,
   p_asset_assignment_id uuid,
