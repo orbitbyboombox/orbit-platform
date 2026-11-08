@@ -13,7 +13,7 @@ as $function$
 declare
   actor uuid := auth.uid();
   s public.event_paper_snapshots%rowtype;
-  a record;
+  asset_rec record;
   original_count integer;
   wrong_count integer;
   movement_net numeric;
@@ -46,16 +46,16 @@ begin
     raise exception 'El snapshot no coincide con los valores ya confirmados; reparación detenida.' using errcode = '40001';
   end if;
 
-  select aa.asset_id,a.asset_code,coalesce((a.metadata->>'blackBoxPhotoStock')::numeric,0) stock
-    into a from public.asset_assignments aa
-    join public.operational_assets a on a.id=aa.asset_id
+  select aa.asset_id,oa.asset_code,coalesce((oa.metadata->>'blackBoxPhotoStock')::numeric,0) stock
+    into asset_rec from public.asset_assignments aa
+    join public.operational_assets oa on oa.id=aa.asset_id
    where aa.id=p_asset_assignment_id and aa.project_id=p_project_id
      and aa.deleted_at is null and aa.assignment_status='ASSIGNED'
-   for update of aa,a;
-  if not found or a.stock <> p_final_remaining then
+   for update of aa,oa;
+  if not found or asset_rec.stock <> p_final_remaining then
     raise exception 'La Caja no conserva el saldo Master confirmado.' using errcode='40001';
   end if;
-  stock := a.stock;
+  stock := asset_rec.stock;
 
   if p_asset_assignment_id='45fd9a4b-8818-4616-8294-a1ca33dfdbe4'::uuid then
     if p_final_remaining<>484 or s.event_usage<>216 then raise exception 'Valores CASE-06 inesperados.' using errcode='40001'; end if;
@@ -69,12 +69,12 @@ begin
   repair_key := 'staff-paper-admin-correction-repair:'||s.id::text;
   select count(*)::int,coalesce(sum(quantity),0) into original_count,movement_net
    from public.inventory_movements
-   where project_id=p_project_id and box_asset_id=a.asset_id
+   where project_id=p_project_id and box_asset_id=asset_rec.asset_id
      and movement_type='EVENT_USAGE' and deleted_at is null
      and (idempotency_key like 'staff-paper-admin-close:%'
        or idempotency_key like 'staff-paper-admin-correction:%');
   select count(*)::int into wrong_count from public.inventory_movements
-   where project_id=p_project_id and box_asset_id=a.asset_id
+   where project_id=p_project_id and box_asset_id=asset_rec.asset_id
      and movement_type='EVENT_USAGE' and deleted_at is null
      and idempotency_key=correction_key and quantity=wrong_delta;
   if original_count<>2 or wrong_count<>1 or movement_net<>-(s.event_usage+2*abs(wrong_delta)) then
@@ -92,7 +92,7 @@ begin
   ) values (
     null,customer_id,p_project_id,event_id,null,'EVENT_USAGE',repair_delta,now(),
     'Compensación administrativa del error de signo en una rectificación previa. Saldo final ya confirmado; no vuelve a descontar Master.',
-    actor,actor,a.asset_id,s.printer_asset_id,null,s.format_key,s.lot,
+    actor,actor,asset_rec.asset_id,s.printer_asset_id,null,s.format_key,s.lot,
     p_final_remaining-repair_delta,repair_delta,p_final_remaining,repair_key
   ) returning id into repair_id;
 
@@ -105,7 +105,7 @@ begin
     actor_label,actor_id,source,action,entity_type,entity_id,human_message,correlation_id)
   values(customer_id,p_project_id,event_id,'STAFF_PAPER_ADMIN_CORRECTION',
     'Reparación auditada de movimiento de cierre',
-    format('Caja %s · ledger %s → %s · Master %s (sin cambio)',a.asset_code,movement_net,movement_net+repair_delta,stock),
+    format('Caja %s · ledger %s → %s · Master %s (sin cambio)',asset_rec.asset_code,movement_net,movement_net+repair_delta,stock),
     trim(p_reason),'Administrador',actor,'Administrator','STAFF_PAPER_ADMIN_CORRECTION',
     'EventPaperSnapshot',s.id::text,
     'Se compensó el signo incorrecto de un movimiento previo; no se repitió el cierre ni se modificó el stock Master.',
