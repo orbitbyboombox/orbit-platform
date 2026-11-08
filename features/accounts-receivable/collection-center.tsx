@@ -90,6 +90,7 @@ function priorityRank(invoice: ReceivableInvoice, today: string) {
   const notice = latestNotice(invoice);
   const recent = daysSince(notice);
   if (invoice.outstandingBalance <= 0) return 99;
+  if (isWeddingD10(invoice, today)) return -1;
   if (isOverdue(invoice, today) && recent === null) return 0;
   if (isOverdue(invoice, today)) return 1;
   if (invoice.dueDate === today) return 2;
@@ -342,6 +343,9 @@ function CollectionCard({
         <Info label="Total" value={money(invoice.amount)} />
         <Info label="Pagado" value={money(invoice.paidAmount)} />
         <Info label="Vencimiento" value={date(invoice.dueDate)} />
+        {["WEDDING", "MATRIMONIO"].includes(invoice.projectType.toUpperCase()) ? (
+          <Info label="Fecha matrimonio" value={date(invoice.eventDate)} />
+        ) : null}
         <Info
           label="Último aviso"
           value={noticeAt ? `${date(noticeAt)}${noticeDays !== null ? ` · hace ${noticeDays} día${noticeDays === 1 ? "" : "s"}` : ""}` : "Sin aviso"}
