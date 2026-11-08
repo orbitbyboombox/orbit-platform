@@ -29,7 +29,8 @@ export function planD10AutoEmails(
   const days = validDate
     ? Math.round((Date.parse(event.eventDate! + "T00:00:00Z") - Date.parse(today + "T00:00:00Z")) / 86400000)
     : NaN;
-  const eligible = event.confirmed &&
+  const validCalendarDay = validDate && Number.isFinite(days) && new Date(event.eventDate! + "T00:00:00Z").toISOString().slice(0, 10) === event.eventDate;
+  const eligible = validCalendarDay && event.confirmed &&
     Boolean(event.customerEmail?.trim()) &&
     !["CANCELLED", "ARCHIVED", "DELETED"].includes(event.status.toUpperCase()) &&
     Number.isFinite(days) && days === 10;
