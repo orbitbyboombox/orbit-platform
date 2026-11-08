@@ -23,7 +23,7 @@ declare
   repair_key text;
   repair_id uuid;
   stock numeric;
-  event_id uuid;
+  event_id text;
   customer_id uuid;
 begin
   if actor is null or not public.can_administer() then
