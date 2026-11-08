@@ -35,6 +35,8 @@ declare
   asset_row public.operational_assets%rowtype;
   lot_row public.box_media_lots%rowtype;
   project_row record;
+  reported_operator_id uuid;
+  reported_operator_count integer := 0;
   reload_total numeric := 0;
   expected_balance numeric;
   previous_usage numeric := 0;
@@ -129,15 +131,27 @@ begin
   from public.projects p where p.id = p_project_id for share;
   if not found then raise exception 'Evento inexistente.' using errcode = 'P0002'; end if;
 
+  -- Link the report to the unique assigned operator when unambiguous. This
+  -- records source attribution only; the administrator remains the closer.
+  select count(distinct a.staff_id), (array_agg(distinct a.staff_id))[1]
+    into reported_operator_count, reported_operator_id
+  from public.assignments a
+  where a.project_id = p_project_id
+    and a.assignment_type = 'OPERATOR'
+    and a.staff_id is not null;
+  if reported_operator_count <> 1 then
+    reported_operator_id := null;
+  end if;
+
   if delta_usage > 0 then
     insert into public.inventory_movements(
-      supply_id, customer_id, project_id, orbit_event_id, movement_type, quantity, occurred_at, reason,
+      supply_id, customer_id, project_id, orbit_event_id, staff_id, movement_type, quantity, occurred_at, reason,
       created_by, updated_by, box_asset_id, printer_asset_id, media_lot_id, format_key, lot,
       quantity_before, quantity_delta, quantity_after, idempotency_key
     )
     values(
       case when snapshot_row.media_lot_id is null then null else lot_row.supply_id end,
-      project_row.customer_id, p_project_id, project_row.orbit_event_id,
+      project_row.customer_id, p_project_id, project_row.orbit_event_id, reported_operator_id,
       'EVENT_USAGE', -delta_usage, now(),
       'Cierre administrativo de papel; reporte operador preservado. ' || trim(p_reason),
       actor, actor, asset_row.id, snapshot_row.printer_asset_id, snapshot_row.media_lot_id,
@@ -172,7 +186,7 @@ begin
       'confirmedByBefore', snapshot_row.confirmed_by),
     jsonb_build_object('eventId', p_project_id, 'assetId', asset_row.id, 'final', p_final_remaining,
       'consumption', new_usage, 'stock', next_stock, 'closedBy', actor, 'closedAt', now(),
-      'operatorReport', snapshot_row.close_note, 'operatorConfirmationFabricated', false),
+      'operatorReport', snapshot_row.close_note, 'reportedOperatorStaffId', reported_operator_id, 'operatorConfirmationFabricated', false),
     project_row.orbit_event_id
   );
   insert into public.timeline_events(
@@ -180,10 +194,10 @@ begin
     actor_label, actor_id, source, action, entity_type, entity_id, human_message, correlation_id, reason
   )
   values(
-    project_row.customer_id, p_project_id, null, project_row.orbit_event_id, 'STAFF_PAPER_ADMIN_CLOSEOUT',
+    project_row.customer_id, p_project_id, reported_operator_id, project_row.orbit_event_id, 'STAFF_PAPER_ADMIN_CLOSEOUT',
     'Cierre administrativo de papel',
-    format('Caja %s · inicial %s · final %s · consumido %s · reporte operador conservado',
-      assignment_row.asset_code, expected_balance, p_final_remaining, new_usage),
+    format('Caja %s · inicial %s · final %s · consumido %s · reporte operador conservado (asignación fuente %s)',
+      assignment_row.asset_code, expected_balance, p_final_remaining, new_usage, coalesce(reported_operator_id::text, 'sin operador único')),
     'Administrador', actor, 'Administrator', 'STAFF_PAPER_ADMIN_CLOSEOUT', 'EventPaperSnapshot', snapshot_row.id,
     'Se confirmó administrativamente el cierre de papel. La asignación de Caja no fue liberada.',
     correlation, trim(p_reason)
