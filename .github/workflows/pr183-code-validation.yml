@@ -56,7 +56,7 @@ jobs:
 
   postgres:
     needs: qa_scope
-    if: needs.qa_scope.outputs.qa_only != 'true'
+    if: needs.qa_scope.outputs.qa_only != 'true' && github.head_ref == 'fix/paper-block-handoff-clean-20261105'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:

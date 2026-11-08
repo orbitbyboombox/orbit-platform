@@ -5,12 +5,17 @@ on:
   push:
     branches:
       - fix/paper-block-handoff-clean-20261105
+      - fix/case03-admin-paper-closeout-20261108
     paths:
       - '.github/workflows/pr183-postgres-isolated-manual.yml'
       - 'supabase/config.toml'
       - 'supabase/migrations/**'
       - 'tests/fixtures/pr183-*.sql'
       - 'features/portal-authentication/staff-box-operations.actions.ts'
+
+concurrency:
+  group: isolated-paper-closeout-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -32,7 +37,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$GITHUB_REF" = "refs/heads/fix/paper-block-handoff-clean-20261105"
+          [[ "$GITHUB_REF" == "refs/heads/fix/paper-block-handoff-clean-20261105" || "$GITHUB_REF" == "refs/heads/fix/case03-admin-paper-closeout-20261108" ]] || { echo "::error::Branch is not allowlisted for isolated paper-closeout tests"; exit 1; }
           # Fail closed if checkout does not match the triggering commit.
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           test -z "$SUPABASE_ACCESS_TOKEN"
@@ -209,6 +214,56 @@ jobs:
           }
           docker exec -i supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 < tests/fixtures/pr183-paper-block-e2e.sql
           echo 'Seven-box AM/PM, handoff, reload, authorization, idempotency and inventory fixture passed.'
+      - name: Execute isolated legacy CASE paper closeout fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f tests/fixtures/pr183-case03-admin-paper-closeout.sql || {
+            echo "::error::Missing CASE-03 isolated PostgreSQL fixture."
+            exit 1
+          }
+          docker exec -i supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 < tests/fixtures/pr183-case03-admin-paper-closeout.sql
+          echo 'PASS: no-lot CASE closeout, 38-photo movement, 352 Master stock, preserved operator report, no fabricated staff confirmation, unchanged assignment, and idempotent retry.'
+      - name: Race two fresh CASE-03 admin closeout RPCs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f tests/fixtures/pr183-case03-concurrent-setup.sql || {
+            echo "::error::Missing isolated CASE-03 concurrency setup."
+            exit 1
+          }
+          docker exec -i supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 < tests/fixtures/pr183-case03-concurrent-setup.sql
+          call="BEGIN; SELECT set_config('request.jwt.claim.sub','c3040000-0000-4000-8000-000000000001',true); SELECT set_config('request.jwt.claims',jsonb_build_object('sub','c3040000-0000-4000-8000-000000000001','role','authenticated')::text,true); SELECT public.admin_force_staff_event_paper_closeout('c3040000-0000-4000-8000-000000000003','c3040000-0000-4000-8000-000000000006',352,'Concurrent isolated admin closeout','case03-fresh-race'); COMMIT;"
+          for i in 1 2; do
+            (docker exec supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -At -v ON_ERROR_STOP=1 -c "$call" > "/tmp/case03-race-$i.log" 2>&1) &
+            pids[$i]=$!
+          done
+          wait "${pids[1]}"
+          wait "${pids[2]}"
+          test "$(grep -h -c '"duplicate": false' /tmp/case03-race-1.log /tmp/case03-race-2.log | awk -F: '{s+=$NF} END{print s+0}')" -eq 1
+          test "$(grep -h -c '"duplicate": true' /tmp/case03-race-1.log /tmp/case03-race-2.log | awk -F: '{s+=$NF} END{print s+0}')" -eq 1
+          docker exec -i supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          DO $race$
+          DECLARE n integer; current_stock numeric; current_snapshot public.event_paper_snapshots%rowtype;
+          BEGIN
+            SELECT count(*) INTO n FROM public.inventory_movements
+            WHERE idempotency_key='staff-paper-admin-close:case03-fresh-race'
+              AND movement_type='EVENT_USAGE' AND supply_id IS NULL AND quantity=-38;
+            IF n<>1 THEN RAISE EXCEPTION 'Concurrent CASE retries produced % movements',n; END IF;
+            SELECT (metadata->>'blackBoxPhotoStock')::numeric INTO current_stock
+            FROM public.operational_assets WHERE id='c3040000-0000-4000-8000-000000000005';
+            IF current_stock<>352 THEN RAISE EXCEPTION 'Concurrent CASE retries left Master at %',current_stock; END IF;
+            SELECT * INTO current_snapshot FROM public.event_paper_snapshots
+            WHERE asset_assignment_id='c3040000-0000-4000-8000-000000000006';
+            IF current_snapshot.status<>'OVERRIDDEN' OR current_snapshot.event_usage<>38
+               OR current_snapshot.final_remaining_balance<>352
+               OR current_snapshot.close_note<>'Revisar drive del PC'
+               OR current_snapshot.confirmed_by IS NOT NULL THEN
+              RAISE EXCEPTION 'Concurrent CASE closeout snapshot mismatch: %',row_to_json(current_snapshot);
+            END IF;
+          END $race$;
+          SQL
+          echo 'PASS: concurrent first-call CASE closeouts produce exactly one EVENT_USAGE and one idempotent duplicate.'
       - name: Concurrent independent-session PM retry verification
         shell: bash
         run: |

@@ -68,7 +68,7 @@ export async function loadAdminPaperCloseoutAction(assetAssignmentId: string) {
   if (!isAdministrativeRole(profile?.role)) throw new Error("Acceso administrativo requerido.");
   const admin = createAdminClient();
   const { data: snapshot, error } = await admin.from("event_paper_snapshots")
-    .select("id,project_id,asset_assignment_id,opening_balance,final_remaining_balance,event_usage,status,format_key,black_box_paper_format")
+    .select("id,project_id,asset_assignment_id,opening_balance,final_remaining_balance,event_usage,status,format_key,black_box_paper_format,close_note")
     .eq("asset_assignment_id", assetAssignmentId).maybeSingle();
   if (error) throw error;
   if (!snapshot) throw new Error("Este evento todavía no tiene snapshot de papel.");
