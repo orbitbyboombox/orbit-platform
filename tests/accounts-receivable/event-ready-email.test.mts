@@ -15,8 +15,9 @@ test("event-ready email preserves premium brand and required confirmation copy",
   const { subject, html } = buildEventReadyEmail(base);
   assert.match(subject, /Todo listo para tu celebración/);
   assert.match(html, /BOOMBOX/);
-  assert.match(html, /#101216/);
-  assert.match(html, /#f68b1f/);
+  assert.match(html, /#111214/);
+  assert.match(html, /#f78900/);
+  assert.match(html, /EXPERIENCIAS QUE CONECTAN/);
   assert.match(html, /Confirmar horario del servicio/);
   assert.match(html, /Confirmar diseño/);
   assert.match(html, /18:30 a 20:30/);

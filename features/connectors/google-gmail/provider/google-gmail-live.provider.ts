@@ -79,6 +79,18 @@ export class GoogleGmailApiProvider implements GoogleGmailLiveProvider {
     }
     throw new Error("Gmail request failed after retries.");
   }
+  /** One provider attempt for durable outbox claims. Ambiguous responses must
+   * be reconciled from communications history instead of resending automatically. */
+  async sendOnce(message: GoogleGmailProviderMessage): Promise<GoogleGmailProviderResult> {
+    const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/${encodeURIComponent(this.userId)}/messages/send`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${this.accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ raw: await this.raw(message), threadId: message.threadId }),
+    });
+    if (!response.ok) throw new Error(`Gmail request failed (${response.status}): ${await response.text()}`);
+    const result = await response.json() as { id: string; threadId: string };
+    return { messageId: result.id, threadId: result.threadId };
+  }
   async createDraft(message: GoogleGmailProviderMessage): Promise<GoogleGmailDraftResult> {
     const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/${encodeURIComponent(this.userId)}/drafts`, { method: "POST", headers: { Authorization: `Bearer ${this.accessToken}`, "Content-Type": "application/json" }, body: JSON.stringify({ message: { raw: await this.raw(message), threadId: message.threadId } }) });
     if (!response.ok) throw new Error(`Gmail draft request failed (${response.status}): ${await response.text()}`);

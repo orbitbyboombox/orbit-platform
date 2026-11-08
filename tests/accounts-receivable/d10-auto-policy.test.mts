@@ -25,7 +25,7 @@ test("unconfirmed, cancelled, missing email or incomplete details block unsafe d
   assert.deepEqual(planD10AutoEmails({...base, readyDetailsComplete: false}, "2026-11-10", []), { eventReady: false, collection: true });
 });
 test("prior pending, sent or failed communication blocks automatic retries", () => {
-  for (const status of ["PENDING", "SENT", "FAILED"] as const) {
+  for (const status of ["QUEUED", "PENDING", "SENT", "FAILED"] as const) {
     const communications = [
       {projectId: "event-1", type: "EVENT_READY_D10" as const, status},
       {projectId: "event-1", type: "COLLECTION_D10" as const, status},

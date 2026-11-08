@@ -1,4 +1,4 @@
-import { isWeddingCollectionDue } from "./wedding-collection-due";
+import { isWeddingCollectionDue } from "./wedding-collection-due.ts";
 
 export type D10AutoEvent = {
   projectId: string;
@@ -13,7 +13,7 @@ export type D10AutoEvent = {
 export type D10Communication = {
   projectId: string;
   type: "EVENT_READY_D10" | "COLLECTION_D10";
-  status: "PENDING" | "SENT" | "FAILED";
+  status: "QUEUED" | "PENDING" | "SENT" | "FAILED";
 };
 
 /** Read-only eligibility plan. The delivery worker must atomically claim each
@@ -36,7 +36,7 @@ export function planD10AutoEmails(
     Number.isFinite(days) && days === 10;
   const blocked = (type: D10Communication["type"]) =>
     communications.some(item => item.projectId === event.projectId &&
-      item.type === type && ["PENDING", "SENT", "FAILED"].includes(item.status));
+      item.type === type && ["QUEUED", "PENDING", "SENT", "FAILED"].includes(item.status));
   return {
     eventReady: eligible && event.readyDetailsComplete && !blocked("EVENT_READY_D10"),
     collection: eligible && isWeddingCollectionDue(event, today) && !blocked("COLLECTION_D10"),
