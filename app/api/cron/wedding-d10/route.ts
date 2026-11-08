@@ -20,17 +20,17 @@ export async function GET(request: Request) {
   eventDate.setUTCDate(eventDate.getUTCDate() + 10);
   const target = eventDate.toISOString().slice(0, 10);
   const admin = createAdminClient();
-  const { data: projects, error } = await admin.from("projects")
-    .select("id,project_type,event_date,status,customers(email),accounts_receivable_projection(outstanding_balance,status)")
-    .eq("event_date", target)
+  const { data: invoices, error } = await admin.from("accounts_receivable_projection")
+    .select("id,project_id,status,outstanding_balance,customers(email),projects(project_type,event_date,status)")
     .limit(500);
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-  const results = (projects ?? []).map(project => {
-    const customer = Array.isArray(project.customers) ? project.customers[0] : project.customers;
-    const invoices = project.accounts_receivable_projection ?? [];
-    const outstanding = invoices.reduce((sum, item) => sum + Math.max(0, Number(item.outstanding_balance) || 0), 0);
+  const results = (invoices ?? []).flatMap(invoice => {
+    const project = Array.isArray(invoice.projects) ? invoice.projects[0] : invoice.projects;
+    if (!project || project.event_date !== target) return [];
+    const customer = Array.isArray(invoice.customers) ? invoice.customers[0] : invoice.customers;
+    const outstanding = Number(invoice.outstanding_balance) || 0;
     const planned = planD10AutoEmails({
-      projectId: project.id,
+      projectId: invoice.project_id,
       projectType: project.project_type ?? "",
       eventDate: project.event_date,
       status: project.status ?? "",
@@ -39,7 +39,7 @@ export async function GET(request: Request) {
       confirmed: project.status === "CONFIRMED",
       readyDetailsComplete: false,
     }, today, []);
-    return { projectId: project.id, collectionCandidate: planned.collection, readyRequiresValidatedDetails: true };
+    return [{ projectId: invoice.project_id, collectionCandidate: planned.collection, readyRequiresValidatedDetails: true }];
   });
   return NextResponse.json({ ok: true, mode: "PREVIEW_ONLY", today, target, candidates: results, sent: 0 });
 }
