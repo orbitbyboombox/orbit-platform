@@ -148,7 +148,7 @@ BEGIN
   IF assignment_status <> 'ASSIGNED' OR returned_at IS NOT NULL THEN
     RAISE EXCEPTION 'Admin paper-only closeout changed the future assignment.';
   END IF;
-  IF EXISTS (SELECT 1 FROM public.inventory_movements WHERE project_id=future_project_id) THEN
+  IF EXISTS (SELECT 1 FROM public.inventory_movements im WHERE im.project_id=case03.future_project_id) THEN
     RAISE EXCEPTION 'Future event received an inventory movement before its closeout.';
   END IF;
 END
