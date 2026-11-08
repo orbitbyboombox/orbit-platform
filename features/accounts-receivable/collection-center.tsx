@@ -100,7 +100,7 @@ export function CollectionCenter({
   const actionable = useMemo(
     () =>
       dataset.invoices
-        .filter((invoice) => invoice.outstandingBalance > 0 && invoice.status !== "CANCELLED")
+        .filter((invoice) => invoice.outstandingBalance > 0 && !["CANCELLED", "ARCHIVED", "DELETED", "PAID"].includes(invoice.status.toUpperCase()))
         .filter((invoice) => {
           const text = [
             invoice.customerName,
