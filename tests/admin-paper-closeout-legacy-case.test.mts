@@ -13,6 +13,7 @@ test("legacy no-lot CASE closeout writes one auditable EVENT_USAGE movement", ()
   assert.match(migration, /quantity_before, quantity_delta, quantity_after, idempotency_key/i);
   assert.match(migration, /hashtextextended\(correlation, 0\)/i);
   assert.match(migration, /perform pg_advisory_xact_lock/i);
+  assert.match(migration, /create or replace function public\.record_inventory_timeline\(\)[\s\S]*if new\.supply_id is null[\s\S]*OperationalAsset/i);
   assert.match(migration, /status not in \('PENDING','READY_TO_CLOSE'\)/i);
 });
 
