@@ -64,9 +64,9 @@ export default async function ProjectWorkspacePage({
   // client only for this protected financial read model.
   const adminReadClient = createAdminClient();
   const founderWorkspace = await loadFounderWorkspace(client, auth.user.id);
-  let projects;
+  let project;
   try {
-    projects = await new SupabaseCustomerRepository(client).findAll();
+    project = await new SupabaseCustomerRepository(client).findById(projectId);
   } catch (error) {
     if (
       typeof error === "object" &&
@@ -78,7 +78,6 @@ export default async function ProjectWorkspacePage({
     }
     throw error;
   }
-  const project = projects.find((candidate) => candidate.id === projectId);
   if (!project) notFound();
   const realCost = await calculateAndPersistRealEventCost(adminReadClient, projectId);
   const timeline =
