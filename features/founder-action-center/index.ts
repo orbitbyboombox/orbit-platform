@@ -1,4 +1,5 @@
 import "server-only";
+import { after } from "next/server";
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -115,7 +116,19 @@ const loadFounderActionCenterCached = cache(
   async (userId: string): Promise<FounderActionCenter> => {
     const admin = createAdminClient();
     if (!isReadOnlyVisualPreview()) {
-      await reconcileFounderActionSources();
+      // Keep alert reconciliation off the dashboard's critical render path.
+      // Existing notification rows are returned immediately; reconciliation
+      // still runs after the response and retains its 30-second cache.
+      after(async () => {
+        try {
+          await reconcileFounderActionSources();
+        } catch (error) {
+          console.error(
+            "[founder-action-center] Deferred reconciliation failed",
+            error instanceof Error ? error.message : "Unknown error",
+          );
+        }
+      });
     }
     const [
       { data: rows, error },
