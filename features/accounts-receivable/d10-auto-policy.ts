@@ -1,5 +1,3 @@
-import { isWeddingCollectionDue } from "./wedding-collection-due.ts";
-
 export type D10AutoEvent = {
   projectId: string;
   projectType: string;
@@ -39,6 +37,6 @@ export function planD10AutoEmails(
       item.type === type && ["QUEUED", "PENDING", "SENT", "FAILED"].includes(item.status));
   return {
     eventReady: eligible && event.readyDetailsComplete && !blocked("EVENT_READY_D10"),
-    collection: eligible && isWeddingCollectionDue(event, today) && !blocked("COLLECTION_D10"),
+    collection: eligible && Number.isFinite(event.outstandingBalance) && event.outstandingBalance > 0 && !["PAID"].includes(event.status.toUpperCase()) && !blocked("COLLECTION_D10"),
   };
 }
