@@ -367,23 +367,45 @@ export default async function OperationsPage() {
     (project) => !certificationProjects.has(project.id),
   );
 
+  const firstByProject = <T extends { project_id: string }>(rows: readonly T[]) => {
+    const map = new Map<string, T>();
+    for (const row of rows) if (!map.has(row.project_id)) map.set(row.project_id, row);
+    return map;
+  };
+  // Reuse indexed read models instead of searching entire datasets per event.
+  const agreementByProject = firstByProject(agreements);
+  const quotationByProject = firstByProject(quotations);
+  const operationalByProject = firstByProject(operationalContractsResult.data ?? []);
+  const assetsByProject = new Map<string, { hasTotem: boolean; hasCase: boolean }>();
+  for (const item of assetAssignments) {
+    const state = assetsByProject.get(item.project_id) ?? { hasTotem: false, hasCase: false };
+    if (item.operational_assets?.asset_type === "TOTEM") state.hasTotem = true;
+    if (item.operational_assets?.asset_type === "CASE") state.hasCase = true;
+    assetsByProject.set(item.project_id, state);
+  }
+  const resourcesReadyByProject = new Map<string, boolean>();
+  for (const item of resourceRequirementsResult.data ?? []) {
+    resourcesReadyByProject.set(
+      item.project_id,
+      (resourcesReadyByProject.get(item.project_id) ?? true) &&
+        Number(item.assigned_quantity) >= Number(item.required_quantity),
+    );
+  }
+  const synchronizedCalendar = new Set(calendar.filter((item) => item.status === "SYNCHRONIZED").map((item) => item.project_id));
+  const assignedOperatorProjects = new Set(assignments.filter((item) => item.type === "OPERATOR" && item.status !== "REJECTED").map((item) => item.projectId));
+  const payrollProjectIds = new Set(payroll.map((item) => item.project_id));
+  const profitProjectIds = new Set(profit.map((item) => item.projectId));
+  const timelineProjectIds = new Set(timeline.map((item) => item.project_id));
+
   const readiness: CommandCenterProjectReadiness[] = projects
     .filter((project) => project.status !== "Archived")
     .map((project) => {
-      const agreement = agreements.find(
-        (item) => item.project_id === project.id,
-      );
-      const quotation = quotations.find(
-        (item) => item.project_id === project.id,
-      );
-      const projectAssets = assetAssignments.filter(
-        (item) => item.project_id === project.id,
-      );
+      const agreement = agreementByProject.get(project.id);
+      const quotation = quotationByProject.get(project.id);
+      const projectAssets = assetsByProject.get(project.id);
       const finance = financeByProject.get(project.id) ?? {};
-      const operational = (operationalContractsResult.data ?? []).find(
-        (item) => item.project_id === project.id,
-      );
-      const resourceRequirements=(resourceRequirementsResult.data??[]).filter(item=>item.project_id===project.id);
+      const operational = operationalByProject.get(project.id);
+      const resourcesReady = resourcesReadyByProject.get(project.id) ?? true;
       const paymentReady =
         ["APPROVED", "CONFIRMED", "PAID"].includes(
           String(finance.status ?? finance.paymentStatus ?? ""),
@@ -407,7 +429,7 @@ export default async function OperationsPage() {
           },
           {
             label:"Recursos",
-            state:state(!resourceRequirements.length||resourceRequirements.every(item=>Number(item.assigned_quantity)>=Number(item.required_quantity))),
+            state:state(resourcesReady),
           },
           { label: "Cliente", state: state(Boolean(project.client.name)) },
           {
@@ -422,11 +444,7 @@ export default async function OperationsPage() {
           {
             label: "Calendar",
             state: state(
-              calendar.some(
-                (item) =>
-                  item.project_id === project.id &&
-                  item.status === "SYNCHRONIZED",
-              ),
+              synchronizedCalendar.has(project.id),
               true,
             ),
           },
@@ -440,48 +458,39 @@ export default async function OperationsPage() {
           {
             label: "Operador",
             state: state(
-              assignments.some(
-                (item) =>
-                  item.projectId === project.id &&
-                  item.type === "OPERATOR" &&
-                  item.status !== "REJECTED",
-              ),
+              assignedOperatorProjects.has(project.id),
             ),
           },
           {
             label: "Tótem",
             state: state(
-              projectAssets.some(
-                (item) => item.operational_assets?.asset_type === "TOTEM",
-              ),
+              projectAssets?.hasTotem ?? false,
             ),
           },
           {
             label: "Case",
             state: state(
-              projectAssets.some(
-                (item) => item.operational_assets?.asset_type === "CASE",
-              ),
+              projectAssets?.hasCase ?? false,
             ),
           },
           {
             label: "Payroll",
             state: state(
-              payroll.some((item) => item.project_id === project.id),
+              payrollProjectIds.has(project.id),
               true,
             ),
           },
           {
             label: "Profit",
             state: state(
-              profit.some((item) => item.projectId === project.id),
+              profitProjectIds.has(project.id),
               true,
             ),
           },
           {
             label: "Timeline",
             state: state(
-              timeline.some((item) => item.project_id === project.id),
+              timelineProjectIds.has(project.id),
               true,
             ),
           },
