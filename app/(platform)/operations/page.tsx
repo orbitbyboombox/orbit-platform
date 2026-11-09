@@ -230,6 +230,15 @@ export default async function OperationsPage() {
       .from("event_logistics_summary")
       .select("project_id,logistics_mode,logistics_status,trip_count"),
   ]);
+  // Start acknowledgement reads immediately after fetching alert IDs, instead of
+  // waiting for all dashboard maps, readiness and planning calculations.
+  const cancellationAlertIds = (cancellationAlertsResult.data ?? []).map((alert) => alert.id);
+  const cancellationAlertStatesPromise = cancellationAlertIds.length
+    ? client.from("notification_user_states")
+        .select("notification_id,read_at,archived_at,dismissed_at")
+        .eq("user_id", auth.user.id)
+        .in("notification_id", cancellationAlertIds)
+    : Promise.resolve({ data: [], error: null });
   const [financialTruth, financeDashboard] = await Promise.all([
     financialTruthPromise,
     financeDashboardPromise,
@@ -1537,8 +1546,8 @@ export default async function OperationsPage() {
       href: item.project_id ? `/projects/${item.project_id}` : "/notifications",
     };
   });
-  const cancellationAlertIds=(cancellationAlertsResult.data??[]).map((alert)=>alert.id);
-  const {data:cancellationAlertStates,error:cancellationAlertStatesError}=cancellationAlertIds.length?await client.from("notification_user_states").select("notification_id,read_at,archived_at,dismissed_at").eq("user_id",auth.user.id).in("notification_id",cancellationAlertIds):{data:[],error:null};
+  const {data:cancellationAlertStates,error:cancellationAlertStatesError} =
+    await cancellationAlertStatesPromise;
   if(cancellationAlertStatesError)throw cancellationAlertStatesError;
   const acknowledgedCancellationAlerts=new Set((cancellationAlertStates??[]).filter((state)=>state.read_at||state.archived_at||state.dismissed_at).map((state)=>state.notification_id));
   const cancellationAlerts: CommandCenterItem[] = (cancellationAlertsResult.data ?? []).filter((alert)=>!acknowledgedCancellationAlerts.has(alert.id)).map((alert) => {
