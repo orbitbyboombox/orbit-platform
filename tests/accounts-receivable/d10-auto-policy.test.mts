@@ -36,3 +36,15 @@ test("prior pending, sent or failed communication blocks automatic retries", () 
 test("invalid calendar dates cannot trigger either message", () => {
   assert.deepEqual(planD10AutoEmails({...base, eventDate: "2026-02-30"}, "2026-02-20", []), { eventReady: false, collection: false });
 });
+
+test("D-10 collection includes corporate and private events with partial balances", () => {
+  for (const projectType of ["CORPORATE", "EMPRESA", "PRIVATE", "PARTICULAR", "EVENT"]) {
+    assert.deepEqual(planD10AutoEmails({ ...base, projectType, outstandingBalance: 500 }, "2026-11-10", []), { eventReady: true, collection: true });
+  }
+});
+test("D-10 never collects paid events of any type", () => {
+  for (const projectType of ["WEDDING", "CORPORATE", "PRIVATE"]) {
+    assert.deepEqual(planD10AutoEmails({ ...base, projectType, outstandingBalance: 0 }, "2026-11-10", []), { eventReady: true, collection: false });
+    assert.deepEqual(planD10AutoEmails({ ...base, projectType, outstandingBalance: Number.NaN }, "2026-11-10", []), { eventReady: true, collection: false });
+  }
+});
