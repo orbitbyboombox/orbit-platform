@@ -72,12 +72,23 @@ export async function GET(request: Request) {
     existing.push(invoice);
     invoicesByProject.set(invoice.project_id, existing);
   }
-  const projectIds = [...grouped.keys()];
-  const { data: history, error: historyError } = projectIds.length
-    ? await admin.from("communications").select("id,project_id,communication_type,status,request_key,thread_key,occurred_at")
-      .in("project_id", projectIds).in("communication_type", ["COLLECTION_D10", "EVENT_READY_D10", "COLLECTION_EMAIL"])
-    : { data: [], error: null };
-  if (historyError) return NextResponse.json({ ok: false, error: historyError.message }, { status: 500 });
+  // Read the entire D-10 history before dispatch. The PostgREST default
+  // row limit may otherwise hide a prior send and cause a duplicate.
+  const history: Row[] = [];
+  for (let offset = 0; offset < ids.length; offset += 100) {
+    const subset = ids.slice(offset, offset + 100);
+    for (let page = 0; page < 100; page++) {
+      const { data: batch, error: historyError } = await admin.from("communications")
+        .select("id,project_id,communication_type,status,request_key,thread_key,occurred_at")
+        .in("project_id", subset)
+        .in("communication_type", ["COLLECTION_D10", "EVENT_READY_D10", "COLLECTION_EMAIL"])
+        .order("id", { ascending: true }).range(page * 500, page * 500 + 499);
+      if (historyError) return NextResponse.json({ ok: false, error: historyError.message }, { status: 500 });
+      history.push(...(batch ?? []));
+      if ((batch ?? []).length < 500) break;
+      if (page === 99) return NextResponse.json({ ok: false, error: "D-10 history batch limit reached" }, { status: 503 });
+    }
+  }
 
   let sent = 0;
   let skipped = 0;
@@ -100,7 +111,7 @@ export async function GET(request: Request) {
     const end = clock(operational?.service_end_at);
     const eventTime = start ? `${start}${end ? ` a ${end}` : ""}` : "";
     const readyDetailsComplete = Boolean(details.eventDate && details.eventLocation && details.service && eventTime && details.eventDuration);
-    const comms = ((history ?? []) as Row[]).filter((item) => item.project_id === projectId).flatMap((item) => {
+    const comms = history.filter((item) => item.project_id === projectId).flatMap((item) => {
       const sameDayManualCollection = item.communication_type === "COLLECTION_EMAIL" && item.status === "SENT" && item.occurred_at && chileDate(item.occurred_at) === today;
       if (item.communication_type === "COLLECTION_EMAIL" && !sameDayManualCollection) return [];
       return [{
