@@ -36,18 +36,40 @@ export async function GET(request: Request) {
   targetDate.setUTCDate(targetDate.getUTCDate() + 10);
   const eventDate = targetDate.toISOString().slice(0, 10);
   const admin = createAdminClient();
-  const { data: invoices, error } = await admin.from("accounts_receivable_projection")
-    .select("id,invoice_number,customer_id,project_id,status,amount,paid_amount,outstanding_balance,due_date,days_remaining,customers(full_name,email,secondary_email),projects(id,name,project_type,event_date,event_time,status,location,city,operations,deleted_at,project_services(service_code,duration_hours),project_operational_contracts(service_start_at,service_end_at))")
-    .limit(1000);
+  // Query events first: an event with no invoice still receives "Todo listo".
+  const { data: events, error } = await admin.from("projects")
+    .select("id,customer_id,name,project_type,event_date,event_time,status,location,city,operations,deleted_at,customers(full_name,email,secondary_email),project_services(service_code,duration_hours),project_operational_contracts(service_start_at,service_end_at)")
+    .eq("event_date", eventDate).eq("status", "CONFIRMED").is("deleted_at", null).limit(1000);
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  if ((events ?? []).length === 1000) return NextResponse.json({ ok: false, error: "D-10 event batch limit reached" }, { status: 503 });
   const company = await loadCompanySettings(admin);
   const bankDetails = resolveCollectionBankDetails(company);
-  const grouped = new Map<string, { invoice: Row; project: Row; customer: Row }>();
-  for (const invoice of (invoices ?? []) as Row[]) {
-    const project = first<Row>(invoice.projects);
-    const customer = first<Row>(invoice.customers);
-    if (!project || project.event_date !== eventDate || project.deleted_at || !customer || !invoice.project_id) continue;
-    if (!grouped.has(invoice.project_id)) grouped.set(invoice.project_id, { invoice, project, customer });
+  const grouped = new Map<string, { project: Row; customer: Row }>();
+  for (const project of (events ?? []) as Row[]) {
+    const customer = first<Row>(project.customers);
+    if (project.id && customer) grouped.set(project.id, { project, customer });
+  }
+  const ids = [...grouped.keys()];
+  const invoiceRows: Row[] = [];
+  for (let offset = 0; offset < ids.length; offset += 100) {
+    const subset = ids.slice(offset, offset + 100);
+    for (let page = 0; page < 100; page++) {
+      const { data: batch, error: invoiceError } = await admin.from("accounts_receivable_projection")
+        .select("id,invoice_number,customer_id,project_id,status,effective_status,amount,paid_amount,outstanding_balance,due_date,days_remaining,currency,deleted_at,archived_at,cancelled_at")
+        .in("project_id", subset).order("id", { ascending: true }).range(page * 500, page * 500 + 499);
+      if (invoiceError) return NextResponse.json({ ok: false, error: invoiceError.message }, { status: 500 });
+      invoiceRows.push(...(batch ?? []));
+      if ((batch ?? []).length < 500) break;
+      if (page === 99) return NextResponse.json({ ok: false, error: "D-10 invoice batch limit reached" }, { status: 503 });
+    }
+  }
+  const invoicesByProject = new Map<string, Row[]>();
+  for (const invoice of invoiceRows) {
+    if (!invoice.project_id || invoice.deleted_at || invoice.archived_at || invoice.cancelled_at ||
+        ["CANCELLED", "ARCHIVED", "DELETED", "VOID"].includes(String(invoice.status ?? "").toUpperCase())) continue;
+    const existing = invoicesByProject.get(invoice.project_id) ?? [];
+    existing.push(invoice);
+    invoicesByProject.set(invoice.project_id, existing);
   }
   const projectIds = [...grouped.keys()];
   const { data: history, error: historyError } = projectIds.length
@@ -60,7 +82,14 @@ export async function GET(request: Request) {
   let skipped = 0;
   let failed = 0;
   let sender: GoogleGmailApiProvider | null = null;
-  for (const [projectId, { invoice, project, customer }] of grouped) {
+  for (const [projectId, { project, customer }] of grouped) {
+    const invoices = invoicesByProject.get(projectId) ?? [];
+    const balance = invoices.reduce((sum, item) => sum + Number(item.outstanding_balance ?? 0), 0);
+    const amount = invoices.reduce((sum, item) => sum + Number(item.amount ?? 0), 0);
+    const paidAmount = invoices.reduce((sum, item) => sum + Number(item.paid_amount ?? 0), 0);
+    const invoice = invoices.find(item => Number(item.outstanding_balance ?? 0) > 0) ?? invoices[0] ?? null;
+    const balanceValid = invoices.every(item => Number.isFinite(Number(item.outstanding_balance)) && Number(item.outstanding_balance) >= 0) && Number.isFinite(balance);
+    const singleCurrency = new Set(invoices.map(item => String(item.currency ?? "CLP").toUpperCase())).size <= 1;
     const operational = first<Row>(project.project_operational_contracts);
     const services = (project.project_services ?? []) as Row[];
     const details = resolveCollectionEventDetail({
@@ -83,7 +112,7 @@ export async function GET(request: Request) {
     });
     const balance = Number(invoice.outstanding_balance ?? 0);
     const ready = planD10AutoEmails({ projectId, projectType: project.project_type ?? "", eventDate: project.event_date,
-      status: project.status ?? "", outstandingBalance: balance, customerEmail: customer.email ?? null,
+      status: project.status ?? "", outstandingBalance: balanceValid && singleCurrency ? balance : 0, customerEmail: customer.email ?? null,
       confirmed: String(project.status).toUpperCase() === "CONFIRMED", readyDetailsComplete,
     }, today, comms);
 
@@ -94,10 +123,10 @@ export async function GET(request: Request) {
       tasks.push({ type: "EVENT_READY_D10", to: customer.email, cc: [], subject: template.subject, textBody: `${template.subject}\n${dateLabel(details.eventDate!)} · ${details.eventLocation} · ${eventTime} · ${details.service} · ${details.eventDuration}\n\nConfirmar horario del servicio\nConfirmar diseño`, htmlBody: template.html });
     }
     const bankConfigured = !/no configurad|sin (?:número|rut)/i.test(`${bankDetails.bankName} ${bankDetails.accountNumber} ${bankDetails.rut}`);
-    if (ready.collection && balance > 0 && bankConfigured) {
+    if (ready.collection && invoice && balanceValid && singleCurrency && balance > 0 && bankConfigured) {
       const draft = buildCollectionEmailDraft({ invoiceNumber: invoice.invoice_number, customerName: customer.full_name ?? "Cliente",
         customerEmail: customer.email ?? null, customerSecondaryEmail: customer.secondary_email ?? null,
-        projectName: project.name ?? "BOOMBOX", amount: Number(invoice.amount ?? balance), outstandingBalance: balance,
+        projectName: project.name ?? "BOOMBOX", amount, outstandingBalance: balance,
         dueDate: invoice.due_date, daysRemaining: invoice.days_remaining, status: invoice.status as "PENDING",
         eventDate: details.eventDate, eventLocation: details.eventLocation, service: details.service,
         eventDuration: details.eventDuration, collectionActions: [] }, bankDetails);
@@ -112,10 +141,10 @@ export async function GET(request: Request) {
       const outcome = await deliverClaimedD10({
         claim: async () => {
           const { data: claim, error: claimError } = await admin.from("communications").insert({
-            customer_id: invoice.customer_id, project_id: projectId, channel: "GMAIL", direction: "OUTBOUND",
+            customer_id: project.customer_id, project_id: projectId, channel: "GMAIL", direction: "OUTBOUND",
             communication_type: task.type, request_key: key, thread_key: key, subject: task.subject, body: task.textBody,
             status: "QUEUED", occurred_at: queuedAt, to_recipient: task.to, cc_recipients: task.cc,
-            context_snapshot: { eventDate, outstandingBalance: balance, paidAmount: Number(invoice.paid_amount ?? 0), invoiceId: invoice.id },
+            context_snapshot: { eventDate, outstandingBalance: balance, paidAmount, invoiceIds: invoices.map(item => item.id) },
           }).select("id").single();
           if (claimError?.code === "23505") return false;
           if (claimError || !claim) throw claimError ?? new Error("D-10 claim insert returned no record");
