@@ -48,7 +48,8 @@ export async function loadCrmOperationalEvents(client: SupabaseClient): Promise<
   if(customerError)throw customerError;if(assignmentError)throw assignmentError;if(contractError)throw contractError;
   const customerMap=new Map((customers??[]).map(customer=>[customer.id,customer]));
   const operatorMap=new Map<string,string>();
-  const assignmentsByProject=new Map<string, NonNullable<typeof assignments>>();
+  type AssignmentRow = (NonNullable<typeof assignments>)[number];
+  const assignmentsByProject=new Map<string, AssignmentRow[]>();
   for(const assignment of assignments??[]){
     const rows=assignmentsByProject.get(assignment.project_id)??[];
     rows.push(assignment);
