@@ -110,7 +110,6 @@ export async function GET(request: Request) {
       status: item.status as "QUEUED" | "PENDING" | "SENT" | "FAILED",
       }];
     });
-    const balance = Number(invoice.outstanding_balance ?? 0);
     const ready = planD10AutoEmails({ projectId, projectType: project.project_type ?? "", eventDate: project.event_date,
       status: project.status ?? "", outstandingBalance: balanceValid && singleCurrency ? balance : 0, customerEmail: customer.email ?? null,
       confirmed: String(project.status).toUpperCase() === "CONFIRMED", readyDetailsComplete,
