@@ -77,6 +77,22 @@ export default async function OperationsPage() {
   const founderActionDismissalsPromise = loadFounderActionDismissals(auth.user.id);
   const communicationPromise = loadCommunicationHubProjection(client);
   const integrationHealthPromise = loadIntegrationHealth();
+  // Schedule financial-alert reconciliation alongside the initial reads.
+  // It used to start only after all dashboard projections had been built,
+  // adding a serial round trip to every visit to Operaciones.
+  const financialAlertHistoryPromise = (async () => {
+    if (!isReadOnlyVisualPreview()) {
+      const { error: ensureError } = await client.rpc("ensure_financial_alerts", {
+        p_now: new Date().toISOString(),
+      });
+      if (ensureError) return { data: null, error: ensureError };
+    }
+    return client
+      .from("financial_alert_obligations")
+      .select("id,obligation_key,accounting_period,status,paid_at,financial_alert_rules(name,escalation_day,timezone)")
+      .order("accounting_period", { ascending: false })
+      .limit(24);
+  })();
   const today = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Santiago",
   }).format(new Date());
@@ -1545,15 +1561,8 @@ export default async function OperationsPage() {
           : ("warning" as const),
     }),
   )];
-  if (!isReadOnlyVisualPreview()) {
-    const { error: financialAlertEnsureError } = await client.rpc("ensure_financial_alerts", { p_now: new Date().toISOString() });
-    if (financialAlertEnsureError) throw financialAlertEnsureError;
-  }
-  const { data: financialAlertRows, error: financialAlertError } = await client
-    .from("financial_alert_obligations")
-    .select("id,obligation_key,accounting_period,status,paid_at,financial_alert_rules(name,escalation_day,timezone)")
-    .order("accounting_period", { ascending: false })
-    .limit(24);
+  const { data: financialAlertRows, error: financialAlertError } =
+    await financialAlertHistoryPromise;
   if (financialAlertError) throw financialAlertError;
   const financialAlertHistory = (financialAlertRows ?? []).map((row) => {
     const rule = Array.isArray(row.financial_alert_rules) ? row.financial_alert_rules[0] : row.financial_alert_rules;
