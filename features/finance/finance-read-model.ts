@@ -64,6 +64,14 @@ const accountKey = (value: unknown,accounts:readonly CashAccount[]): string | nu
 const monthName = new Intl.DateTimeFormat("es-CL", { month: "long", year: "numeric", timeZone: "America/Santiago" });
 const moneyMetric = (label: string, value: number, detail: string, href: string, tone?: FinanceMetric["tone"]): FinanceMetric => ({ label, value, detail, href, format: "money", tone });
 const financialRisk = (risk: FinanceRisk): FinanceRisk => risk;
+/** Mirrors the immutable public.invoice_payment_cash_impact SQL function. */
+export const invoicePaymentCashImpact = (movementType: string | null, amount: number | string | null): number => {
+  const type = (movementType?.trim() ?? "PARTIAL_PAYMENT").toUpperCase();
+  const value = number(amount);
+  if (type === "DEPOSIT" || type === "PARTIAL_PAYMENT" || type === "FULL_PAYMENT") return value;
+  if (type === "RETURN_COMPLETED") return -Math.abs(value);
+  return 0;
+};
 
 /**
  * Canonical Finance Read Model for the Founder dashboard.
@@ -107,10 +115,12 @@ export async function loadFinanceDashboardReadModel(
   const monthTruth = activeTruth.filter((row) => row.eventDate?.startsWith(month));
   const receivables = receivablesResult.data ?? [];
   const payments = paymentsResult.data ?? [];
-  const cashImpactResults = await Promise.all(payments.map((row) => client.rpc("invoice_payment_cash_impact", { p_movement_type: row.movement_type, p_amount: row.amount })));
-  const cashImpactError = cashImpactResults.find((result) => result.error)?.error;
-  if (cashImpactError) throw cashImpactError;
-  const canonicalPayments = payments.map((row, index) => ({ ...row, cashImpact: number(cashImpactResults[index]?.data) }));
+  // Exact equivalent of public.invoice_payment_cash_impact (immutable SQL CASE):
+  // one in-process calculation per row instead of one network RPC per payment.
+  const canonicalPayments = payments.map((row) => ({
+    ...row,
+    cashImpact: invoicePaymentCashImpact(row.movement_type, row.amount),
+  }));
   const expenses = (expensesResult.data ?? []).filter((row) => !row.project_id || activeProjectIds.has(row.project_id));
   const settlements = (settlementsResult.data ?? []).filter((row) => activeProjectIds.has(row.project_id));
   const activeSettlementIds = new Set(settlements.map((row) => row.settlement_id));
