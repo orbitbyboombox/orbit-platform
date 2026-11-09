@@ -1,11 +1,14 @@
 export type D10Invoice = {
   id: string;
+  project_id?: string | null;
   invoice_number?: string | null;
   status?: string | null;
   currency?: string | null;
   outstanding_balance?: number | string | null;
   amount?: number | string | null;
   paid_amount?: number | string | null;
+  due_date?: string | null;
+  days_remaining?: number | null;
   deleted_at?: string | null;
   archived_at?: string | null;
   cancelled_at?: string | null;

@@ -10,6 +10,7 @@ import { loadCompanySettings } from "@/features/company-settings/repository";
 import { resolveCollectionEventDetail } from "@/features/accounts-receivable/collection-event-detail";
 import { buildEventReadyEmail } from "@/features/accounts-receivable/event-ready-email.template";
 import { deliverClaimedD10 } from "@/features/accounts-receivable/d10-delivery";
+import type { D10Invoice } from "@/features/accounts-receivable/d10-invoice-summary";
 
 // Supabase relation payloads are runtime-shaped joins; all properties used below are narrowed at access.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -51,7 +52,7 @@ export async function GET(request: Request) {
     if (project.id && customer) grouped.set(project.id, { project, customer });
   }
   const ids = [...grouped.keys()];
-  const invoiceRows: Row[] = [];
+  const invoiceRows: D10Invoice[] = [];
   for (let offset = 0; offset < ids.length; offset += 100) {
     const subset = ids.slice(offset, offset + 100);
     for (let page = 0; page < 100; page++) {
@@ -59,12 +60,12 @@ export async function GET(request: Request) {
         .select("id,invoice_number,customer_id,project_id,status,effective_status,amount,paid_amount,outstanding_balance,due_date,days_remaining,currency,deleted_at,archived_at,cancelled_at")
         .in("project_id", subset).order("id", { ascending: true }).range(page * 500, page * 500 + 499);
       if (invoiceError) return NextResponse.json({ ok: false, error: invoiceError.message }, { status: 500 });
-      invoiceRows.push(...(batch ?? []));
+      invoiceRows.push(...((batch ?? []) as D10Invoice[]));
       if ((batch ?? []).length < 500) break;
       if (page === 99) return NextResponse.json({ ok: false, error: "D-10 invoice batch limit reached" }, { status: 503 });
     }
   }
-  const invoicesByProject = new Map<string, Row[]>();
+  const invoicesByProject = new Map<string, D10Invoice[]>();
   for (const invoice of invoiceRows) {
     if (!invoice.project_id || invoice.deleted_at || invoice.archived_at || invoice.cancelled_at ||
         ["CANCELLED", "ARCHIVED", "DELETED", "VOID"].includes(String(invoice.status ?? "").toUpperCase())) continue;
@@ -133,10 +134,10 @@ export async function GET(request: Request) {
     }
     const bankConfigured = !/no configurad|sin (?:número|rut)/i.test(`${bankDetails.bankName} ${bankDetails.accountNumber} ${bankDetails.rut}`);
     if (ready.collection && invoice && balanceValid && singleCurrency && balance > 0 && bankConfigured) {
-      const draft = buildCollectionEmailDraft({ invoiceNumber: invoice.invoice_number, customerName: customer.full_name ?? "Cliente",
+      const draft = buildCollectionEmailDraft({ invoiceNumber: invoice.invoice_number ?? "Sin número", customerName: customer.full_name ?? "Cliente",
         customerEmail: customer.email ?? null, customerSecondaryEmail: customer.secondary_email ?? null,
         projectName: project.name ?? "BOOMBOX", amount, outstandingBalance: balance,
-        dueDate: invoice.due_date, daysRemaining: invoice.days_remaining, status: invoice.status as "PENDING",
+        dueDate: invoice.due_date ?? null, daysRemaining: invoice.days_remaining ?? null, status: invoice.status as "PENDING",
         eventDate: details.eventDate, eventLocation: details.eventLocation, service: details.service,
         eventDuration: details.eventDuration, collectionActions: [] }, bankDetails);
       tasks.push({ type: "COLLECTION_D10", to: draft.to, cc: draft.cc, subject: draft.subject, textBody: draft.body, htmlBody: buildCollectionEmailHtml(draft) });
