@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { GoogleGmailApiProvider } from "@/features/connectors/google-gmail/provider/google-gmail-live.provider";
 import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import { planD10AutoEmails } from "@/features/accounts-receivable/d10-auto-policy";
+import { summarizeD10Invoices } from "@/features/accounts-receivable/d10-invoice-summary";
 import { buildCollectionEmailDraft, buildCollectionEmailHtml } from "@/features/accounts-receivable/collection-email.template";
 import { resolveCollectionBankDetails } from "@/features/accounts-receivable/collection-bank-details";
 import { loadCompanySettings } from "@/features/company-settings/repository";
@@ -83,13 +84,11 @@ export async function GET(request: Request) {
   let failed = 0;
   let sender: GoogleGmailApiProvider | null = null;
   for (const [projectId, { project, customer }] of grouped) {
-    const invoices = invoicesByProject.get(projectId) ?? [];
-    const balance = invoices.reduce((sum, item) => sum + Number(item.outstanding_balance ?? 0), 0);
-    const amount = invoices.reduce((sum, item) => sum + Number(item.amount ?? 0), 0);
-    const paidAmount = invoices.reduce((sum, item) => sum + Number(item.paid_amount ?? 0), 0);
-    const invoice = invoices.find(item => Number(item.outstanding_balance ?? 0) > 0) ?? invoices[0] ?? null;
-    const balanceValid = invoices.every(item => Number.isFinite(Number(item.outstanding_balance)) && Number(item.outstanding_balance) >= 0) && Number.isFinite(balance);
-    const singleCurrency = new Set(invoices.map(item => String(item.currency ?? "CLP").toUpperCase())).size <= 1;
+    const financial = summarizeD10Invoices(invoicesByProject.get(projectId) ?? []);
+    const { invoices, amount, paidAmount, representative: invoice } = financial;
+    const balance = financial.outstandingBalance;
+    const balanceValid = financial.valid;
+    const singleCurrency = financial.valid;
     const operational = first<Row>(project.project_operational_contracts);
     const services = (project.project_services ?? []) as Row[];
     const details = resolveCollectionEventDetail({
