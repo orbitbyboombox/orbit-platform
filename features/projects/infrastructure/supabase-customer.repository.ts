@@ -111,6 +111,82 @@ export class SupabaseCustomerRepository implements CustomerRepository {
     this.timeline = new SupabaseTimelineRepository(client);
   }
 
+  /**
+   * Read a single event without loading the global CRM, all projects,
+   * all customer memories and the entire timeline on every navigation.
+   */
+  async findById(id: string): Promise<Project | null> {
+    const { data: row, error: projectError } = await this.client
+      .from("projects")
+      .select("id,customer_id,orbit_event_id,name,project_type,status,health,event_date,event_time,event_time_mode,location,city,operations,communication_recipient_snapshot")
+      .eq("id", id)
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (projectError) throw projectError;
+    if (!row) return null;
+    const project = row as ProjectRow;
+    const [customerResult, servicesResult, timelineResult, memoryResult] = await Promise.all([
+      this.client.from("customers")
+        .select("id,full_name,email,secondary_email,phone,company,city,metadata,version")
+        .eq("id", project.customer_id).is("deleted_at", null).maybeSingle(),
+      this.client.from("project_services").select("project_id,service_code").eq("project_id", id),
+      this.client.from("timeline_events").select("customer_id,project_id,human_message,occurred_at")
+        .or(`customer_id.eq.${project.customer_id},project_id.eq.${id}`)
+        .order("occurred_at", { ascending: false }).limit(1),
+      this.client.from("customer_memory").select("customer_id,context")
+        .eq("customer_id", project.customer_id).is("deleted_at", null).maybeSingle(),
+    ]);
+    const error = customerResult.error ?? servicesResult.error ?? timelineResult.error ?? memoryResult.error;
+    if (error) throw error;
+    const customer = customerResult.data as CustomerRow | null;
+    if (!customer) return null;
+    const memory = (memoryResult.data?.context ?? {}) as Record<string, unknown>;
+    const recent = (timelineResult.data?.[0] ?? null) as TimelineRow | null;
+    const snapshotCc = Array.isArray(project.communication_recipient_snapshot?.cc)
+      ? project.communication_recipient_snapshot.cc.find(
+          (value): value is string => typeof value === "string",
+        )
+      : undefined;
+    return {
+      id: project.id,
+      name: project.name,
+      type: projectType(project.project_type),
+      client: {
+        name: customer.full_name,
+        email: customer.email ?? "",
+        secondaryEmail: snapshotCc ?? customer.secondary_email ?? "",
+        phone: customer.phone ?? "",
+        company: customer.company ?? undefined,
+      },
+      event: {
+        date: project.event_date ?? "",
+        time: project.event_time?.slice(0, 5) ?? "",
+        timeMode: project.event_time_mode ?? "ESTIMATED",
+        location: project.location ?? "Por confirmar",
+        city: project.city ?? customer.city ?? "",
+        specialVenue: asString(project.operations.specialVenue, "") || undefined,
+      },
+      services: (servicesResult.data ?? []).map((service: ServiceRow) => service.service_code).filter(Boolean),
+      status: projectStatus(project.status),
+      health: projectHealth(project.health),
+      stage: asString(project.operations.stage, "Primer contacto"),
+      score: typeof project.operations.score === "number" ? project.operations.score : 60,
+      commercialStage: commercialStage(project.operations.commercialStage),
+      origin: origin(project.operations.origin),
+      notes: asString(project.operations.notes) || undefined,
+      customerVersion: customer.version,
+      lastCommunication: recent
+        ? `${recent.human_message} · ${new Date(recent.occurred_at).toLocaleDateString("es-CL")}`
+        : "Sin comunicaciones recientes",
+      salesOwner: asString(memory.salesOwner, "Sin asignar"),
+      nextAction: asString(memory.nextRecommendedAction, "Revisar relación"),
+      tags: Array.isArray(memory.tags)
+        ? memory.tags.filter((tag): tag is string => typeof tag === "string")
+        : [],
+      reservationNumber: project.orbit_event_id,
+    } satisfies Project;
+  }
+
   async findAll(): Promise<Project[]> {
     const [
       { data: customers, error: customerError },
