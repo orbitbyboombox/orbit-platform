@@ -54,8 +54,8 @@ export async function sendOverdueCollections(reference=new Date(), opts:{dryRun?
       invoiceNumber:invoices.map(i=>i.invoice_number).filter(Boolean).join(", ")||"Pendiente",
       customerName:String(customer.full_name??"Cliente"),customerEmail:recipient,customerSecondaryEmail:customer.secondary_email??null,
       projectName:String(project.name??"BOOMBOX"),amount:invoices.reduce((s,i)=>s+Number(i.amount??0),0),
-      outstandingBalance:balance,dueDate,eventDate:project.event_date??null,eventLocation:project.location??null,
-      service:null,eventDuration:null,daysRemaining:-1,status:"OVERDUE",collectionActions:[],
+      outstandingBalance:balance,dueDate,eventDate:project.event_date??undefined,eventLocation:project.location??undefined,
+      service:undefined,eventDuration:undefined,daysRemaining:-1,status:"OVERDUE",collectionActions:[],
     },resolveCollectionBankDetails(await loadCompanySettingsCached()));
     const payload={customer_id:invoices[0].customer_id,project_id:project.id,channel:"GMAIL",direction:"OUTBOUND",communication_type:"COLLECTION_OVERDUE_AUTOMATIC",request_key:key,thread_key:key,subject:draft.subject,body:draft.body,status:"PENDING",to_recipient:recipient,cc_recipients:[],occurred_at:new Date().toISOString(),sent_at:null,external_message_id:null,failure_reason:null,context_snapshot:{automatic:true,trigger:"OVERDUE_MON_THU",sendMode:"AUTOMATIC",date:today,outstandingBalance:balance,invoiceIds:invoices.map(i=>i.id),recipient}};
     const {data:claim,error:claimError}=await admin.from("communications").insert(payload).select("id").maybeSingle();
