@@ -5,8 +5,10 @@ on:
   pull_request:
     paths:
       - "features/accounts-receivable/d10-*.ts"
+      - "features/accounts-receivable/collection-email-status.ts"
       - "features/connectors/google-gmail/provider/google-gmail-live.provider.ts"
       - "tests/accounts-receivable/d10-*.test.mts"
+      - "tests/accounts-receivable/collection-email-status.test.mts"
       - ".github/workflows/d10-runtime-validation.yml"
 
 permissions:
@@ -43,6 +45,7 @@ jobs:
           tests/accounts-receivable/d10-collection-policy.test.mts
           tests/accounts-receivable/d10-auto-policy.test.mts
           tests/accounts-receivable/d10-delivery.test.mts
+          tests/accounts-receivable/collection-email-status.test.mts
 
       - name: Assert no production transport configuration is present
         run: |
