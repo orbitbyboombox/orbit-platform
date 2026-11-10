@@ -129,7 +129,7 @@ export async function loadAccountsReceivable(
   const profiles=new Map((profilesResult.data??[]).map(row=>[row.id,row.display_name]));
   const schedulesByProject = new Map((financialRecordsResult.data ?? []).map((row) => [row.project_id, row.payment_schedule]));
   const d10ByProject = new Map((d10SchedulesResult.data ?? []).map((row) => [row.project_id, row.scheduled_for]));
-  const actionsByProject=new Map<string,Array<{id:string;type:string;channel:string;subject:string;status:string;occurredAt:string}>>();
+  const actionsByProject=new Map<string,Array<{id:string;type:string;channel:string;subject:string;status:string;occurredAt:string;sentAt:string|null;toRecipient:string|null;createdBy:string|null;sentBy:string|null;failureReason:string|null}>>();
   for(const row of collectionActionsResult.data??[]){const list=actionsByProject.get(row.project_id??"")??[];list.push({id:row.id,type:row.communication_type,channel:row.channel,subject:row.subject??"Acción de cobranza",status:row.status,occurredAt:row.occurred_at,sentAt:row.sent_at,toRecipient:row.to_recipient,createdBy:profiles.get(row.created_by??"")??row.created_by,sentBy:profiles.get(row.sent_by??"")??row.sent_by,failureReason:row.failure_reason});actionsByProject.set(row.project_id??"",list);}
   const invoices: ReceivableInvoice[] = (invoicesResult.data ?? []).map(
     (row) => {
