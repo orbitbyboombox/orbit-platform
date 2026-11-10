@@ -1,0 +1,53 @@
+name: D-10 runtime validation
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "features/accounts-receivable/d10-*.ts"
+      - "features/connectors/google-gmail/provider/google-gmail-live.provider.ts"
+      - "tests/accounts-receivable/d10-*.test.mts"
+      - ".github/workflows/d10-runtime-validation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-runtime:
+    name: Synthetic D-10 runtime tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Run D-10 policy, idempotency and Gmail-mock tests
+        env:
+          VERCEL_ENV: preview
+          D10_DRY_RUN: "true"
+          D10_QA_EMAIL_MOCK: "true"
+        run: >-
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+          --experimental-strip-types --test
+          tests/accounts-receivable/d10-collection-policy.test.mts
+          tests/accounts-receivable/d10-auto-policy.test.mts
+          tests/accounts-receivable/d10-delivery.test.mts
+
+      - name: Assert no production transport configuration is present
+        run: |
+          test -z "${SUPABASE_SERVICE_ROLE_KEY:-}"
+          test -z "${GOOGLE_WORKSPACE_ACCESS_TOKEN:-}"
+          test -z "${GMAIL_ACCESS_TOKEN:-}"
+          echo "Synthetic-only runtime job: no production transport credentials present."

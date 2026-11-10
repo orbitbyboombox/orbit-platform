@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { deliverClaimedD10 } from "../../features/accounts-receivable/d10-delivery.ts";
+import { GoogleGmailDeliveryOutcomeUnknownError } from "../../features/connectors/google-gmail/provider/google-gmail-live.provider.ts";
 
 test("concurrent isolated cron claims send once and persist the winning message id", async () => {
   let claimed = false;
@@ -46,4 +47,24 @@ test("Gmail acceptance followed by history-write failure does not retry the emai
   assert.equal(await run(), "SENT");
   assert.equal(await run(), "SKIPPED");
   assert.equal(sends, 1);
+});
+
+test("an uncertain Gmail result becomes PENDING and blocks automatic retry", async () => {
+  let claimed = false;
+  let sends = 0;
+  let pendingReason = "";
+  const run = () => deliverClaimedD10({
+    claim: async () => { if (claimed) return false; claimed = true; return true; },
+    sendOnce: async () => {
+      sends += 1;
+      throw new GoogleGmailDeliveryOutcomeUnknownError("respuesta ambigua del proveedor");
+    },
+    markSent: async () => assert.fail("un resultado incierto no puede marcarse SENT"),
+    markPending: async (error) => { pendingReason = error instanceof Error ? error.message : String(error); },
+    markFailed: async () => assert.fail("un resultado incierto no puede marcarse FAILED"),
+  });
+  assert.equal(await run(), "PENDING");
+  assert.equal(await run(), "SKIPPED");
+  assert.equal(sends, 1);
+  assert.match(pendingReason, /respuesta ambigua/);
 });

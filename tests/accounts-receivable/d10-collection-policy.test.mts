@@ -18,3 +18,15 @@ test("requiere revisión si falta vencimiento o destinatario", () => {
   assert.equal(resolveD10CollectionEligibility({ eventDate: "2026-11-20", dueDate: null, outstandingBalance: 1000, recipient: "cliente@example.com" }).reason, "MISSING_DUE_DATE");
   assert.equal(resolveD10CollectionEligibility({ eventDate: "2026-11-20", dueDate: "2026-11-20", outstandingBalance: 1000, recipient: null }).reason, "MISSING_RECIPIENT");
 });
+
+test("mantiene la cobranza fuera de D-10 cuando una reprogramación cambia la fecha del evento", () => {
+  const original = resolveD10CollectionEligibility({ eventDate: "2026-11-20", dueDate: "2026-11-20", outstandingBalance: 1000, recipient: "cliente@example.com" });
+  const rescheduled = resolveD10CollectionEligibility({ eventDate: "2026-12-05", dueDate: "2026-11-20", outstandingBalance: 1000, recipient: "cliente@example.com" });
+  assert.equal(original.reason, "ELIGIBLE");
+  assert.equal(rescheduled.reason, "ELIGIBLE");
+});
+
+test("mantiene pendiente un saldo positivo con plazo posterior, sin enviar cobranza anticipada", () => {
+  const result = resolveD10CollectionEligibility({ eventDate: "2026-11-20", dueDate: "2026-12-20", outstandingBalance: 5000, recipient: "empresa@example.com" });
+  assert.deepEqual(result, { eligible: false, reason: "NOT_DUE_BEFORE_EVENT" });
+});
