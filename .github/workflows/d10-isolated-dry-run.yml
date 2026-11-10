@@ -115,7 +115,7 @@ jobs:
             console.log("PASS: repeat D-10 run is deduplicated");
           '
           rows=$(docker exec supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -Atc "select count(*) || '|' || min(status) || '|' || min(to_recipient) || '|' || bool_and(external_message_id like 'gmail-message-%') from public.communications where project_id='d1000000-0000-4000-8000-000000000011' and communication_type='COLLECTION_D10' and request_key like 'automatic-collection-d10:%'")
-          if [ "$rows" != "1|SENT|eligible@example.invalid|t" ]; then
+          if [ "$rows" != "1|SENT|eligible@example.invalid|t" ] && [ "$rows" != "1|SENT|eligible@example.invalid|true" ]; then
             echo "Unexpected synthetic collection history: $rows"
             exit 1
           fi
