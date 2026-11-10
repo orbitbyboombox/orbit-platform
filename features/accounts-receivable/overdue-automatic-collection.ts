@@ -69,6 +69,19 @@ export async function sendOverdueCollections(reference=new Date(), opts:{dryRun?
     if(claimError?.code==="23505"){skipped++;continue;}
     if(claimError) throw claimError;
     if(!claim?.id){skipped++;continue;}
+    const notify=async(status:"SENT"|"FAILED"|"PENDING",details?:string)=>{
+      const {error:notificationError}=await admin.from("internal_notifications").upsert({
+        project_id:project.id,customer_id:invoices[0].customer_id,
+        notification_type:"COLLECTION_OVERDUE_AUTOMATIC",
+        category:"FINANCE",priority:status==="SENT"?"NORMAL":"HIGH",
+        title:status==="SENT"?"Cobranza automática enviada":status==="PENDING"?"Cobranza pendiente de verificación":"Cobranza automática fallida",
+        message:`${project.name??"Evento"} · ${recipient} · Saldo ${balance.toLocaleString("es-CL")} · ${status}`,
+        correlation_id:key,entity_type:"project",entity_id:project.id,
+        related_href:`/admin/events/${project.id}`,
+        metadata:{communicationId:claim.id,requestKey:key,recipient,bcc:"matias.maira.larrain@gmail.com",balance,status,details:details??null}
+      },{onConflict:"correlation_id"});
+      if(notificationError) console.error("overdue_collection.notification_failed",{communicationId:claim.id,error:notificationError.message});
+    };
     const result=await deliverClaimedD10({
       claim:async()=>true,
       sendOnce:async()=>{
@@ -78,9 +91,9 @@ export async function sendOverdueCollections(reference=new Date(), opts:{dryRun?
         if(!workspace.workspaceAccount?.trim()) throw new Error("Google Workspace sender unavailable");
         return new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken()).send({...msg,from:'"BOOMBOX Cabinas Fotográficas" <'+workspace.workspaceAccount.trim()+'>'});
       },
-      markSent:async(r)=>{const {error:e}=await admin.from("communications").update({status:"SENT",external_message_id:r.messageId,sent_at:new Date().toISOString(),failure_reason:null}).eq("id",claim.id);if(e)throw e;},
-      markPending:async(e)=>{await admin.from("communications").update({status:"PENDING",failure_reason:String(e).slice(0,500)}).eq("id",claim.id);},
-      markFailed:async(e)=>{await admin.from("communications").update({status:"FAILED",failure_reason:String(e).slice(0,500)}).eq("id",claim.id);}
+      markSent:async(r)=>{const {error:e}=await admin.from("communications").update({status:"SENT",external_message_id:r.messageId,sent_at:new Date().toISOString(),failure_reason:null}).eq("id",claim.id);if(e)throw e;await notify("SENT");},
+      markPending:async(e)=>{await admin.from("communications").update({status:"PENDING",failure_reason:String(e).slice(0,500)}).eq("id",claim.id);await notify("PENDING",String(e).slice(0,500));},
+      markFailed:async(e)=>{await admin.from("communications").update({status:"FAILED",failure_reason:String(e).slice(0,500)}).eq("id",claim.id);await notify("FAILED",String(e).slice(0,500));}
     });
     if(result==="SENT")sent++;else if(result==="FAILED")failed++;else if(result==="PENDING")pending++;else skipped++;
   }
