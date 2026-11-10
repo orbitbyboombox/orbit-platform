@@ -73,7 +73,7 @@ export async function sendOverdueCollections(reference=new Date(), opts:{dryRun?
       const {error:notificationError}=await admin.from("internal_notifications").upsert({
         project_id:project.id,customer_id:invoices[0].customer_id,
         notification_type:"COLLECTION_OVERDUE_AUTOMATIC",
-        category:"FINANCE",priority:status==="SENT"?"NORMAL":"HIGH",
+        category:"PAYMENTS",priority:status==="SENT"?"NORMAL":"HIGH",
         title:status==="SENT"?"Cobranza automática enviada":status==="PENDING"?"Cobranza pendiente de verificación":"Cobranza automática fallida",
         message:`${project.name??"Evento"} · ${recipient} · Saldo ${balance.toLocaleString("es-CL")} · ${status}`,
         correlation_id:key,entity_type:"project",entity_id:project.id,
