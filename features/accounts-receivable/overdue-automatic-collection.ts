@@ -29,7 +29,7 @@ export async function sendOverdueCollections(reference=new Date(), opts:{dryRun?
   const grouped=new Map<string,Invoice[]>();
   for(const invoice of eligible as Invoice[]) {
     const project=projectMap.get(invoice.project_id!);
-    if(!project || blocked.has(String(project.status??"").toUpperCase()) || project.customer_id!==invoice.customer_id) continue;
+    if(!project || !project.event_date || String(project.event_date).slice(0,10)>=today || blocked.has(String(project.status??"").toUpperCase()) || project.customer_id!==invoice.customer_id) continue;
     const key=invoice.customer_id+":"+invoice.project_id;
     grouped.set(key,[...(grouped.get(key)??[]),invoice]);
   }
@@ -62,6 +62,10 @@ export async function sendOverdueCollections(reference=new Date(), opts:{dryRun?
     if(latestError) throw latestError;
     const latestRows=(latest??[]) as Array<{id:string;outstanding_balance:number|null;due_date:string|null;effective_status:string|null;status:string|null;deleted_at:string|null;archived_at:string|null;cancelled_at:string|null}>;
     if(latestRows.length!==invoices.length || latestRows.some(i=>!i.due_date || i.due_date>=today || Number(i.outstanding_balance)<=0 || !Number.isFinite(Number(i.outstanding_balance)) || i.deleted_at || i.archived_at || i.cancelled_at || blocked.has(String(i.effective_status??i.status??"").toUpperCase()))){skipped++;continue;}
+    // Never collect before or on the event date, even when an invoice due date has passed.
+    const {data:currentProject,error:currentProjectError}=await admin.from("projects").select("event_date,status,deleted_at").eq("id",project.id).maybeSingle();
+    if(currentProjectError) throw currentProjectError;
+    if(!currentProject || currentProject.deleted_at || !currentProject.event_date || String(currentProject.event_date).slice(0,10)>=today || blocked.has(String(currentProject.status??"").toUpperCase())){skipped++;continue;}
     const refreshedBalance=latestRows.reduce((sum,i)=>sum+Number(i.outstanding_balance),0);
     if(refreshedBalance!==balance){skipped++;continue;}
     const payload={customer_id:invoices[0].customer_id,project_id:project.id,channel:"GMAIL",direction:"OUTBOUND",communication_type:"COLLECTION_OVERDUE_AUTOMATIC",request_key:key,thread_key:key,subject:draft.subject,body:draft.body,status:"PENDING",to_recipient:recipient,cc_recipients:[],occurred_at:new Date().toISOString(),sent_at:null,external_message_id:null,failure_reason:null,context_snapshot:{automatic:true,trigger:"OVERDUE_WED_13",sendMode:"AUTOMATIC",date:today,outstandingBalance:balance,invoiceIds:invoices.map(i=>i.id),recipient}};
