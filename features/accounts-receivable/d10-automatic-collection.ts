@@ -174,7 +174,6 @@ async function sendAutomaticCollection(
     customerSecondaryEmail: recipients.cc[0] ?? null,
     projectName: String(project.name ?? "BOOMBOX"),
     amount,
-    paidAmount,
     outstandingBalance,
     dueDate: representative.due_date,
     eventDate: detail.eventDate,
