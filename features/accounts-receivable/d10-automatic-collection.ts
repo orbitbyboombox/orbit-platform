@@ -8,7 +8,7 @@ import { normalizeEmailRecipients } from "@/lib/email/recipients";
 import { resolveCollectionBankDetails } from "./collection-bank-details";
 import { buildCollectionEmailDraft, buildCollectionEmailHtml } from "./collection-email.template";
 import { resolveCollectionEventDetail } from "./collection-event-detail";
-import { summarizeD10Invoices, type D10Invoice } from "./d10-invoice-summary";
+import { selectD10CollectibleInvoices, summarizeD10Invoices, type D10Invoice } from "./d10-invoice-summary";
 import { resolveD10CollectionEligibility } from "./d10-collection-policy";
 import { deliverClaimedD10 } from "./d10-delivery";
 
@@ -312,7 +312,7 @@ export async function sendAutomaticCollectionD10(reference = new Date(), options
     const checks = (projects ?? []).map((project) => {
       const summary = summarizeD10Invoices(invoicesByProject.get(project.id) ?? []);
       const customer = first(project.customers);
-      const collectible = summary.valid ? summary.invoices.filter((invoice) => Number(invoice.outstanding_balance) > 0 && Boolean(invoice.due_date) && String(invoice.due_date) <= targetDate) : [];
+      const collectible = selectD10CollectibleInvoices(invoicesByProject.get(project.id) ?? [], targetDate);
       const collectibleBalance = collectible.reduce((sum, invoice) => sum + Number(invoice.outstanding_balance ?? 0), 0);
       const futureBalance = Math.max(0, summary.outstandingBalance - collectibleBalance);
       const representative = collectible[0] ?? summary.representative;
@@ -336,10 +336,7 @@ export async function sendAutomaticCollectionD10(reference = new Date(), options
   for (const project of (projects ?? []) as Row[]) {
     const customer = first<Row>(project.customers);
     const summary = summarizeD10Invoices(invoicesByProject.get(project.id) ?? []);
-    const activeInvoices = summary.invoices.filter((invoice) => Number(invoice.outstanding_balance) > 0);
-    const collectibleInvoices = summary.valid
-      ? activeInvoices.filter((invoice) => Boolean(invoice.due_date) && String(invoice.due_date) <= targetDate)
-      : [];
+    const collectibleInvoices = selectD10CollectibleInvoices(invoicesByProject.get(project.id) ?? [], targetDate);
     const collectibleBalance = collectibleInvoices.reduce((sum, invoice) => sum + Number(invoice.outstanding_balance ?? 0), 0);
 
     if (!summary.valid) {
