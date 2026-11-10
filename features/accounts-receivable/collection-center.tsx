@@ -354,7 +354,7 @@ function CollectionCard({
   const status = collectionStatus(invoice, today);
   const emailStatus = resolveCollectionEmailStatus(
     invoice.collectionActions
-      .filter((item) => item.type === "COLLECTION_EMAIL")
+      .filter((item) => ["PAYMENT_REMINDER", "COLLECTION_EMAIL", "COLLECTION_D10", "COLLECTION_OVERDUE_AUTOMATIC"].includes(item.type))
       .map((item) => ({
         id: item.id,
         status: item.status,
@@ -364,6 +364,7 @@ function CollectionCard({
         createdBy: item.createdBy,
         sentBy: item.sentBy,
         failureReason: item.failureReason,
+        externalMessageId: item.externalMessageId,
       })),
   );
   const hasEmail = Boolean(invoice.customerEmail);
