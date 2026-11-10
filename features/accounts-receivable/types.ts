@@ -105,7 +105,7 @@ export interface ReceivableDataset {
   generatedAt: string;
   invoices: readonly ReceivableInvoice[];
   historyInvoices: readonly ReceivableInvoice[];
-  collectionEmailHistory: readonly CollectionEmailHistoryRecord[];
+  collectionEmailHistory?: readonly CollectionEmailHistoryRecord[];
   customers: readonly ReceivableCustomer[];
   projects: readonly {
     id: string;
