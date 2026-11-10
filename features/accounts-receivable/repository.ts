@@ -169,7 +169,7 @@ export async function loadAccountsReceivable(
         eventCode: String(project?.orbit_event_id ?? invoice?.orbit_event_id ?? "—"),
         recipient: String(row.to_recipient ?? "Sin destinatario"),
         balance: Number.isFinite(snapshotBalance) ? snapshotBalance : null,
-        occurredAt: confirmed ? String(row.sent_at) : String(row.occurred_at),
+        occurredAt: status === "ENVIADO" ? String(row.sent_at) : String(row.occurred_at),
         status,
         internalNotificationRecorded: notificationCommunicationIds.has(row.id),
       };
