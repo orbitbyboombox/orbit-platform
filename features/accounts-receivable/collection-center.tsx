@@ -171,6 +171,10 @@ export function CollectionCenter({
   );
 
   const rows = filter === "HISTORY" ? history : actionable;
+  const emailHistory = useMemo(() => dataset.collectionEmailHistory.filter((item) => {
+    const text = [item.customerName, item.customerCompany ?? "", item.eventName, item.eventCode, item.recipient].join(" ").toLowerCase();
+    return !query || text.includes(query.toLowerCase());
+  }), [dataset.collectionEmailHistory, query]);
   const summaryOutstanding = dataset.metrics.outstandingBalance;
   const summaryOverdue = actionable
     .filter((invoice) => isOverdue(invoice, today))
@@ -273,6 +277,60 @@ export function CollectionCenter({
             No hay cuentas para estos filtros.
           </div>
         ) : null}
+      </section>
+
+      <section aria-labelledby="collection-email-history-title" className="rounded-2xl border bg-card p-4 sm:p-5">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Trazabilidad de correo</p>
+            <h2 id="collection-email-history-title" className="mt-1 text-xl font-semibold">Historial real de cobranzas</h2>
+            <p className="mt-1 text-sm text-muted">El estado ENVIADO requiere confirmación de Gmail; los registros pendientes y fallidos se conservan.</p>
+          </div>
+          <span className="text-sm text-muted">{emailHistory.length} registro{emailHistory.length === 1 ? "" : "s"}</span>
+        </div>
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full min-w-[820px] border-collapse text-left text-sm">
+            <thead>
+              <tr className="border-b text-xs uppercase tracking-wide text-muted">
+                <th className="px-3 py-3 font-semibold">Cliente</th>
+                <th className="px-3 py-3 font-semibold">Evento</th>
+                <th className="px-3 py-3 font-semibold">Destinatario</th>
+                <th className="px-3 py-3 text-right font-semibold">Saldo</th>
+                <th className="px-3 py-3 font-semibold">Fecha y hora</th>
+                <th className="px-3 py-3 font-semibold">Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {emailHistory.map((item) => (
+                <tr className="border-b last:border-0" key={item.id} data-collection-email-id={item.id}>
+                  <td className="px-3 py-3">
+                    <p className="font-medium">{item.customerName}</p>
+                    {item.customerCompany ? <p className="mt-0.5 text-xs text-muted">{item.customerCompany}</p> : null}
+                  </td>
+                  <td className="px-3 py-3">
+                    <p className="font-medium">{item.eventName}</p>
+                    <p className="mt-0.5 text-xs text-muted">{item.eventCode}{item.internalNotificationRecorded ? " · Aviso ORBIT registrado" : ""}</p>
+                  </td>
+                  <td className="px-3 py-3">{item.recipient}</td>
+                  <td className="px-3 py-3 text-right font-semibold">{item.balance === null ? "Saldo sin registro" : money(item.balance)}</td>
+                  <td className="px-3 py-3 whitespace-nowrap">{dateTime(item.occurredAt)}</td>
+                  <td className="px-3 py-3">
+                    <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${
+                      item.status === "ENVIADO"
+                        ? "border-success/30 bg-success/5 text-success"
+                        : item.status === "FALLIDO"
+                          ? "border-danger/30 bg-danger/5 text-danger"
+                          : "border-amber-400/40 bg-amber-50/60 text-amber-800 dark:bg-amber-950/20 dark:text-amber-200"
+                    }`}>{item.status}</span>
+                  </td>
+                </tr>
+              ))}
+              {!emailHistory.length ? (
+                <tr><td className="px-3 py-8 text-center text-sm text-muted" colSpan={6}>Aún no hay correos de cobranza registrados.</td></tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
       </section>
     </main>
   );
