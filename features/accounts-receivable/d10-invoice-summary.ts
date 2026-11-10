@@ -46,3 +46,14 @@ export function summarizeD10Invoices(rows: readonly D10Invoice[]) {
     representative: invoices.find(row => Number(row.outstanding_balance ?? 0) > 0) ?? invoices[0] ?? null,
   };
 }
+
+/** Only invoices with a positive canonical balance payable no later than the event are collectible at D-10. */
+export function selectD10CollectibleInvoices(rows: readonly D10Invoice[], eventDate: string) {
+  const summary = summarizeD10Invoices(rows);
+  if (!summary.valid) return [];
+  return summary.invoices.filter(row =>
+    Number(row.outstanding_balance) > 0 &&
+    Boolean(row.due_date) &&
+    String(row.due_date) <= eventDate
+  );
+}
