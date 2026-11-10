@@ -109,6 +109,15 @@ test("cron execution is observable without exposing message content or secrets",
   assert.doesNotMatch(route, /htmlBody|textBody|CRON_SECRET\s*:/);
 });
 
+test("scheduled cron records collection review items without dispatching collection email", () => {
+  assert.match(cronRoute, /sendAutomaticCollectionD10\(new Date\(\), \{ internalOnly: true \}\)/);
+  const collection = read("../features/accounts-receivable/d10-automatic-collection.ts");
+  assert.match(collection, /internalOnly\?: boolean/);
+  assert.match(collection, /Cobranza D-10 disponible para revisión y envío manual/);
+  assert.match(collection, /if \(options\?\.internalOnly\)/);
+  assert.match(collection, /continue;/);
+});
+
 test("dry run is read-only, authenticated, and unavailable in Production", () => {
   const route = read("../app/api/cron/pre-event-reminders/route.ts");
   const service = read("../features/connectors/google-gmail/application/pre-event-reminder.service.ts");
