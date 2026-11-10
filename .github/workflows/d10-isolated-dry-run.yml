@@ -1,0 +1,90 @@
+name: D-10 isolated worker dry-run
+
+on:
+  pull_request:
+    paths:
+      - 'app/api/cron/pre-event-reminders/**'
+      - 'features/accounts-receivable/**'
+      - 'features/connectors/google-gmail/**'
+      - 'qa/d10/**'
+      - '.github/workflows/d10-isolated-dry-run.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-worker:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      SUPABASE_ACCESS_TOKEN: ''
+      SUPABASE_DB_PASSWORD: ''
+      SUPABASE_PROJECT_ID: ''
+      D10_QA_EMAIL_MOCK: 'true'
+      D10_DRY_RUN: 'true'
+      VERCEL_ENV: 'preview'
+      CRON_SECRET: 'synthetic-only-cron-secret'
+      ORBIT_ENVIRONMENT: 'local'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.0'
+      - name: Enable pnpm
+        run: npm install --global pnpm@10.28.0
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Bootstrap disposable local Supabase
+        run: |
+          set -euo pipefail
+          bash qa/pr183/bootstrap.sh >/tmp/d10-supabase-bootstrap.log 2>&1
+          supabase db reset --local --no-seed >/tmp/d10-supabase-reset.log 2>&1
+      - name: Seed synthetic D-10 data
+        run: |
+          set -euo pipefail
+          docker exec -i supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 < qa/d10/seed.sql
+      - name: Build isolated application
+        run: pnpm build
+      - name: Run real D-10 route in dry-run mode
+        run: |
+          set -euo pipefail
+          eval "$(supabase status -o env)"
+          export SUPABASE_URL="$API_URL"
+          export SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
+          pnpm start >/tmp/d10-next.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true; supabase stop --no-backup >/dev/null 2>&1 || true' EXIT
+          for attempt in $(seq 1 60); do
+            curl --silent --fail http://127.0.0.1:3000/login >/dev/null && break
+            sleep 2
+          done
+          status=$(curl --silent --show-error --output /tmp/d10-response.json --write-out '%{http_code}' \
+            -H 'Authorization: Bearer synthetic-only-cron-secret' \
+            'http://127.0.0.1:3000/api/cron/pre-event-reminders?dry_run=1')
+          if [ "$status" != "200" ]; then
+            echo "D-10 dry-run returned HTTP $status"
+            cat /tmp/d10-response.json
+            echo '--- application log ---'
+            tail -120 /tmp/d10-next.log || true
+            exit 1
+          fi
+          node -e '
+            const fs = require("fs");
+            const body = JSON.parse(fs.readFileSync("/tmp/d10-response.json", "utf8"));
+            if (body.collection?.checks?.length !== 3) throw new Error(`Expected 3 collection checks, got ${body.collection?.checks?.length}`);
+            const byId = Object.fromEntries(body.collection.checks.map((item) => [item.orbitEventId, item]));
+            if (byId["D10-SYN-ELIGIBLE"]?.eligibility !== "ELIGIBLE") throw new Error("Eligible synthetic event was not eligible");
+            if (byId["D10-SYN-30-DAY"]?.eligibility !== "NOT_DUE_BEFORE_EVENT") throw new Error("30-day payment was not blocked");
+            if (byId["D10-SYN-PAID"]?.eligibility !== "PAID") throw new Error("Paid synthetic event was not suppressed");
+            if (body.collection.sent !== 0 || body.collection.pending !== 0) throw new Error("Dry-run attempted delivery");
+            console.log("PASS: real cron route, real collection worker, synthetic DB, 30-day guard, paid suppression, and zero delivery");
+          '
+      - name: Assert no production transport credentials exist
+        run: |
+          test -z "${SUPABASE_SERVICE_ROLE_KEY:-}"
+          test -z "${GOOGLE_WORKSPACE_ACCESS_TOKEN:-}"
+          test -z "${GMAIL_ACCESS_TOKEN:-}"

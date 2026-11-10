@@ -77,6 +77,25 @@ export default async function OperationsPage() {
   const founderActionDismissalsPromise = loadFounderActionDismissals(auth.user.id);
   const communicationPromise = loadCommunicationHubProjection(client);
   const integrationHealthPromise = loadIntegrationHealth();
+  const d10DashboardPromise = (async () => {
+    const day = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(new Date());
+    const target = new Date(`${day}T12:00:00Z`);
+    target.setUTCDate(target.getUTCDate() + 10);
+    const targetDate = target.toISOString().slice(0, 10);
+    const [projectsResult, communicationsResult] = await Promise.all([
+      client.from("projects").select("id").eq("event_date", targetDate).is("deleted_at", null).not("status", "in", "(CANCELLED,CANCELED,ARCHIVED,DELETED)"),
+      client.from("communications").select("communication_type,status").in("communication_type", ["PRE_EVENT_REMINDER", "COLLECTION_D10"]),
+    ]);
+    if (projectsResult.error) throw projectsResult.error;
+    if (communicationsResult.error) throw communicationsResult.error;
+    const rows = communicationsResult.data ?? [];
+    const count = (type: string, statuses: string[]) => rows.filter((row) => row.communication_type === type && statuses.includes(row.status)).length;
+    return {
+      targetDate,
+      events: { scheduled: projectsResult.data?.length ?? 0, sent: count("PRE_EVENT_REMINDER", ["SENT"]), pending: count("PRE_EVENT_REMINDER", ["QUEUED", "PENDING"]), errors: count("PRE_EVENT_REMINDER", ["FAILED"]) },
+      collections: { eligible: count("COLLECTION_D10", ["QUEUED", "PENDING", "SENT"]), sent: count("COLLECTION_D10", ["SENT"]), errors: count("COLLECTION_D10", ["FAILED"]), review: count("COLLECTION_D10", ["REVIEW_REQUIRED"]) },
+    };
+  })();
   // Schedule financial-alert reconciliation alongside the initial reads.
   // It used to start only after all dashboard projections had been built,
   // adding a serial round trip to every visit to Operaciones.
@@ -1588,11 +1607,12 @@ export default async function OperationsPage() {
     return { id: row.id, key: row.obligation_key, title: localDay >= (rule?.escalation_day ?? 20) ? `${rule?.name ?? "PAGAR IVA"} HOY` : rule?.name ?? "PAGAR IVA", status: row.status as "PENDING" | "PAID", period: row.accounting_period.slice(0,7), paidAt: row.paid_at };
   });
   const financialAlert = financialAlertHistory.find((item) => item.status === "PENDING") ?? null;
-  const [founderActionCenter, founderActionDismissals, communication, integrationHealth] = await Promise.all([
+  const [founderActionCenter, founderActionDismissals, communication, integrationHealth, d10Dashboard] = await Promise.all([
     founderActionCenterPromise,
     founderActionDismissalsPromise,
     communicationPromise,
     integrationHealthPromise,
+    d10DashboardPromise,
   ]);
   const whatsappConnected = integrationHealth.whatsapp.some((item) => item.label === "Configuración webhook" && item.status === "PASS");
   const biancaStatus = getBiancaOperationalStatus({ whatsappConnected, active: communication.whatsappSummary.active, human: communication.whatsappSummary.human });
@@ -1618,6 +1638,7 @@ export default async function OperationsPage() {
       }
       todayOperation={commandCenterToday}
       upcomingEvents={commandCenterEvents}
+      d10Dashboard={d10Dashboard}
     />
   );
 }

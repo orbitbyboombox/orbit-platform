@@ -34,10 +34,6 @@
     {
       "path": "/api/cron/manual-reservation-integrations",
       "schedule": "*/5 * * * *"
-    },
-    {
-      "path": "/api/cron/wedding-d10",
-      "schedule": "0 12 * * *"
     }
   ],
   "ignoreCommand": "if [ \"$VERCEL_PROJECT_ID\" = \"prj_Pa06wrQEaZMuEdbkVC5cCmmi6dGN\" ]; then exit 1; else echo \"Skipping legacy Vercel project $VERCEL_PROJECT_ID\"; exit 0; fi"

@@ -12,6 +12,15 @@ function projectRefFromUrl(url: string) {
   }
 }
 
+function isLocalSupabaseUrl(url: string) {
+  try {
+    const hostname = new URL(url).hostname;
+    return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+  } catch {
+    return false;
+  }
+}
+
 export function resolveOrbitEnvironment(env: EnvironmentInput = process.env): OrbitEnvironment {
   const explicit = env.ORBIT_ENVIRONMENT?.trim().toLowerCase();
   if (explicit === "production" || explicit === "preview" || explicit === "test" || explicit === "local") return explicit;
@@ -31,7 +40,12 @@ export function assertSupabaseEnvironmentSafe(url: string, env: EnvironmentInput
   const projectRef = projectRefFromUrl(url);
   const productionRef = env.ORBIT_PRODUCTION_SUPABASE_PROJECT_REF?.trim() || KNOWN_PRODUCTION_PROJECT_REF;
 
-  if (!projectRef) throw new Error("SUPABASE_URL must be a valid Supabase project URL.");
+  if (!projectRef) {
+    if ((environment === "local" || environment === "test") && isLocalSupabaseUrl(url)) {
+      return { environment, projectRef: null, productionMatch: false } as const;
+    }
+    throw new Error("SUPABASE_URL must be a valid Supabase project URL.");
+  }
   if ((environment === "test" || environment === "preview") && projectRef === productionRef && !isReadOnlyVisualPreview(env)) {
     throw new Error("SUPABASE_PRODUCTION_TARGET_BLOCKED: TEST/PREVIEW cannot use the production project.");
   }

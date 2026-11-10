@@ -3,6 +3,7 @@ import {
   inspectAutomaticPreEventReminders,
   sendAutomaticPreEventReminders,
 } from "@/features/connectors/google-gmail/application/pre-event-reminder.service";
+import { sendAutomaticCollectionD10 } from "@/features/accounts-receivable/d10-automatic-collection";
 
 function chileHour(reference = new Date()) {
   return Number(new Intl.DateTimeFormat("en-US", {
@@ -26,8 +27,11 @@ export async function GET(request: Request) {
     if (process.env.VERCEL_ENV === "production" || process.env.D10_DRY_RUN !== "true") {
       return NextResponse.json({ error: "Dry run unavailable" }, { status: 404 });
     }
-    const report = await inspectAutomaticPreEventReminders(new Date());
-    return NextResponse.json(report, { status: 200 });
+    const [events, collections] = await Promise.all([
+      inspectAutomaticPreEventReminders(new Date()),
+      sendAutomaticCollectionD10(new Date(), { dryRun: true }),
+    ]);
+    return NextResponse.json({ ...events, collection: collections }, { status: 200 });
   }
   if (chileHour() !== 11) {
     return NextResponse.json({
@@ -42,7 +46,19 @@ export async function GET(request: Request) {
     trigger: "D-10",
   }));
   try {
-    const result = await sendAutomaticPreEventReminders(new Date());
+    const [events, collections] = await Promise.all([
+      sendAutomaticPreEventReminders(new Date()),
+      sendAutomaticCollectionD10(new Date()),
+    ]);
+    const result = {
+      ...events,
+      collection: collections,
+      failed: events.failed + collections.failed,
+      sent: events.sent + collections.sent,
+      skipped: events.skipped + collections.skipped,
+      pending: events.pending + collections.pending,
+      blocked: events.blocked + collections.reviewRequired,
+    };
     console.info(JSON.stringify({
       event: "pre_event_reminder.cron_completed",
       trigger: "D-10",

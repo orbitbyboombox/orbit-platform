@@ -20,6 +20,18 @@ test("TEST environment accepts an independent project ref", () => {
   });
 });
 
+test("local Supabase URLs are accepted only in local or test environments", () => {
+  assert.deepEqual(assertSupabaseEnvironmentSafe("http://127.0.0.1:54321", { ORBIT_ENVIRONMENT: "local" }), {
+    environment: "local",
+    projectRef: null,
+    productionMatch: false,
+  });
+  assert.throws(
+    () => assertSupabaseEnvironmentSafe("http://127.0.0.1:54321", { ORBIT_ENVIRONMENT: "preview" }),
+    /SUPABASE_URL must be a valid Supabase project URL/,
+  );
+});
+
 test("environment classification is explicit and fail-closed for unknown values", () => {
   assert.equal(resolveOrbitEnvironment({ ORBIT_ENVIRONMENT: "test" }), "test");
   assert.equal(resolveOrbitEnvironment({ ORBIT_ENVIRONMENT: "production" }), "production");
