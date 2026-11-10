@@ -72,6 +72,7 @@ export interface ReceivableInvoice {
     createdBy?: string | null;
     sentBy?: string | null;
     failureReason?: string | null;
+    externalMessageId?: string | null;
   }[];
   lastPayment: { id: string; amount: number; paidAt: string; method: string } | null;
   paymentHistory: readonly { id: string; amount: number; paidAt: string; method: string; observation: string }[];
