@@ -121,6 +121,14 @@ type Event360Task = {
 type Event360Data = {
   orbitEventId: string;
   status: string;
+  collectionEmailStatus: {
+    state: "NOT_SENT" | "SENT" | "FAILED";
+    label: string;
+    sentAt: string | null;
+    recipient: string | null;
+    actorId: string | null;
+    failureReason: string | null;
+  };
   customer: {
     phone: string;
     email: string;
@@ -1413,6 +1421,22 @@ export function ProjectWorkspaceExperience(
                   </dl>
                 </Section>
               </OptionalModule>
+            )}
+            {activeTab === "COMMUNICATIONS" && (
+              <Section
+                eyebrow="10 · Cobranza D-10"
+                icon={<Send className="size-5" />}
+                id="collection-email-status"
+                title="Estado del correo de cobro"
+              >
+                {event.receivable?.outstandingBalance && event.receivable.outstandingBalance > 0 ? (
+                  <div className={`rounded-xl border p-4 ${event.collectionEmailStatus.state === "SENT" ? "border-success/30 bg-success/5" : event.collectionEmailStatus.state === "FAILED" ? "border-danger/30 bg-danger/5" : "border-amber-400/40 bg-amber-50/60 dark:bg-amber-950/20"}`} data-collection-email-status={event.collectionEmailStatus.state}>
+                    <p className="text-sm font-semibold">{event.collectionEmailStatus.label}</p>
+                    {event.collectionEmailStatus.state === "SENT" ? <p className="mt-1 text-xs text-muted">{event.collectionEmailStatus.sentAt ? dateTime(event.collectionEmailStatus.sentAt) : "Fecha no registrada"}{event.collectionEmailStatus.recipient ? ` · ${event.collectionEmailStatus.recipient}` : ""}{event.collectionEmailStatus.actorId ? ` · ${event.collectionEmailStatus.actorId}` : ""}</p> : null}
+                    {event.collectionEmailStatus.state === "FAILED" ? <p className="mt-1 text-xs text-danger">{event.collectionEmailStatus.failureReason ?? "Revisa el historial de comunicaciones."}</p> : null}
+                  </div>
+                ) : <p className="rounded-xl border border-success/30 bg-success/5 p-4 text-sm font-semibold text-success">PAGADO · Cobranza pendiente retirada</p>}
+              </Section>
             )}
             {activeTab === "FINANCE" && moduleVisible("FINANCIAL_SUMMARY") && (
               <Section

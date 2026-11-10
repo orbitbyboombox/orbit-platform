@@ -9,6 +9,7 @@ import type { CollectionBankDetails } from "./collection-bank-details";
 import type { ReceivableDataset, ReceivableInvoice } from "./types";
 import { isD10ManualCollectionDue } from "./d10-manual-collection";
 import { setD10CollectionDateAction } from "./d10-manual-collection.actions";
+import { resolveCollectionEmailStatus } from "./collection-email-status";
 
 const money = (value: number) =>
   new Intl.NumberFormat("es-CL", {
@@ -293,6 +294,20 @@ function CollectionCard({
   const actionLabel = noticeAt ? "REENVIAR COBRANZA" : "ENVIAR EMAIL";
   const isD10 = isD10ManualCollectionDue({ eventDate: invoice.eventDate, outstandingBalance: invoice.outstandingBalance, status: invoice.status, scheduledFor: invoice.d10CollectionDate }, today);
   const status = collectionStatus(invoice, today);
+  const emailStatus = resolveCollectionEmailStatus(
+    invoice.collectionActions
+      .filter((item) => item.type === "COLLECTION_EMAIL")
+      .map((item) => ({
+        id: item.id,
+        status: item.status,
+        occurredAt: item.occurredAt,
+        sentAt: item.sentAt,
+        toRecipient: item.toRecipient,
+        createdBy: item.createdBy,
+        sentBy: item.sentBy,
+        failureReason: item.failureReason,
+      })),
+  );
   const hasEmail = Boolean(invoice.customerEmail);
   const contactPath = `/customers/${invoice.customerId}`;
 
@@ -332,6 +347,8 @@ function CollectionCard({
           value={noticeAt ? `${date(noticeAt)}${noticeDays !== null ? ` · hace ${noticeDays} día${noticeDays === 1 ? "" : "s"}` : ""}` : "Sin aviso"}
         />
       </dl>
+
+      <CollectionEmailStatusBadge invoice={invoice} emailStatus={emailStatus} />
 
       <div className="mt-4 flex flex-wrap gap-2">
         {hasEmail ? (
@@ -397,6 +414,46 @@ function CollectionCard({
       ) : null}
     </article>
   );
+}
+
+function CollectionEmailStatusBadge({
+  invoice,
+  emailStatus,
+}: {
+  invoice: ReceivableInvoice;
+  emailStatus: ReturnType<typeof resolveCollectionEmailStatus>;
+}) {
+  if (invoice.outstandingBalance <= 0 || invoice.status === "PAID") {
+    return <p className="mt-4 rounded-xl border border-success/30 bg-success/5 px-3 py-2 text-sm font-semibold text-success">PAGADO · Cobranza pendiente retirada</p>;
+  }
+  const tone = emailStatus.state === "SENT"
+    ? "border-success/30 bg-success/5 text-success"
+    : emailStatus.state === "FAILED"
+      ? "border-danger/30 bg-danger/5 text-danger"
+      : "border-amber-400/40 bg-amber-50/60 text-amber-800 dark:bg-amber-950/20 dark:text-amber-200";
+  return (
+    <div className={`mt-4 rounded-xl border px-3 py-2 ${tone}`} data-collection-email-status={emailStatus.state}>
+      <p className="text-sm font-semibold">{emailStatus.label}</p>
+      {emailStatus.state === "SENT" ? (
+        <p className="mt-1 text-xs">
+          {emailStatus.sentAt ? dateTime(emailStatus.sentAt) : "Fecha no registrada"}
+          {emailStatus.recipient ? ` · ${emailStatus.recipient}` : ""}
+          {emailStatus.actorId ? ` · ${emailStatus.actorId}` : ""}
+        </p>
+      ) : null}
+      {emailStatus.state === "FAILED" ? (
+        <p className="mt-1 text-xs">{emailStatus.failureReason ?? "Revisa el historial para conocer el detalle."}</p>
+      ) : null}
+    </div>
+  );
+}
+
+function dateTime(value: string) {
+  return new Intl.DateTimeFormat("es-CL", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "America/Santiago",
+  }).format(new Date(value));
 }
 
 function D10ScheduleEditor({ invoice }: { invoice: ReceivableInvoice }) {

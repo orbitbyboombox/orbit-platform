@@ -26,6 +26,7 @@ const collectionPage = read("app/(platform)/finance/collections/page.tsx");
 const receivablesPage = read("app/(platform)/finance/receivables/page.tsx");
 const founderWorkspaceCatalog = read("features/founder-workspace/catalog.ts");
 const founderWorkspaceRepository = read("features/founder-workspace/repository.ts");
+const status = read("features/accounts-receivable/collection-email-status.ts");
 
 const bankDetails = {
   companyLabel: "BOOMBOX",
@@ -111,6 +112,14 @@ test("collection email action is Founder-only, canonical and idempotent", () => 
   assert.match(action, /"\/finance\/receivables"/);
   assert.match(action, /"\/finance\/collections"/);
   assert.match(action, /`\/customers\/\$\{data\.customer_id\}`/);
+});
+
+test("collection status is rendered from communications without changing collection logic", () => {
+  assert.match(status, /CORREO DE COBRO NO ENVIADO/);
+  assert.match(status, /CORREO DE COBRO ENVIADO/);
+  assert.match(status, /ERROR DE ENVÍO/);
+  assert.match(repository, /sent_at,to_recipient,created_by,sent_by,failure_reason/);
+  assert.match(collectionCenter, /resolveCollectionEmailStatus/);
 });
 
 test("receivables center exposes the collection composer and last notice label", () => {

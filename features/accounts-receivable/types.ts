@@ -60,7 +60,19 @@ export interface ReceivableInvoice {
   contractAvailable: boolean;
   collectorId: string | null;
   collectorName: string;
-  collectionActions: readonly { id: string; type: string; channel: string; subject: string; status: string; occurredAt: string }[];
+  collectionActions: readonly {
+    id: string;
+    type: string;
+    channel: string;
+    subject: string;
+    status: string;
+    occurredAt: string;
+    sentAt?: string | null;
+    toRecipient?: string | null;
+    createdBy?: string | null;
+    sentBy?: string | null;
+    failureReason?: string | null;
+  }[];
   lastPayment: { id: string; amount: number; paidAt: string; method: string } | null;
   paymentHistory: readonly { id: string; amount: number; paidAt: string; method: string; observation: string }[];
   recordState?: "ACTIVE" | "ARCHIVED" | "CANCELLED" | "DELETED";

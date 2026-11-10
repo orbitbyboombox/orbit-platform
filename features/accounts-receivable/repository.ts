@@ -108,7 +108,7 @@ export async function loadAccountsReceivable(
       .order("created_at", { ascending: false }),
     client.from("invoice_payments").select("id,invoice_id,amount,paid_at,method,reason,created_at").is("deleted_at",null).gt("amount",0).order("paid_at",{ascending:false}),
     client.from("profiles").select("id,display_name"),
-    client.from("communications").select("id,project_id,communication_type,channel,subject,status,occurred_at").in("communication_type",["PAYMENT_REMINDER","COLLECTION_EMAIL","COLLECTION_WHATSAPP_OPENED","COLLECTION_EMAIL_OPENED","COLLECTION_PHONE_OPENED"]).order("occurred_at",{ascending:false}),
+    client.from("communications").select("id,project_id,communication_type,channel,subject,status,occurred_at,sent_at,to_recipient,created_by,sent_by,failure_reason").in("communication_type",["PAYMENT_REMINDER","COLLECTION_EMAIL","COLLECTION_WHATSAPP_OPENED","COLLECTION_EMAIL_OPENED","COLLECTION_PHONE_OPENED"]).order("occurred_at",{ascending:false}),
     client.from("financial_event_records").select("project_id,payment_schedule"),
     client.from("d10_manual_collection_schedules").select("project_id,scheduled_for"),
   ]);
@@ -130,7 +130,7 @@ export async function loadAccountsReceivable(
   const schedulesByProject = new Map((financialRecordsResult.data ?? []).map((row) => [row.project_id, row.payment_schedule]));
   const d10ByProject = new Map((d10SchedulesResult.data ?? []).map((row) => [row.project_id, row.scheduled_for]));
   const actionsByProject=new Map<string,Array<{id:string;type:string;channel:string;subject:string;status:string;occurredAt:string}>>();
-  for(const row of collectionActionsResult.data??[]){const list=actionsByProject.get(row.project_id??"")??[];list.push({id:row.id,type:row.communication_type,channel:row.channel,subject:row.subject??"Acción de cobranza",status:row.status,occurredAt:row.occurred_at});actionsByProject.set(row.project_id??"",list);}
+  for(const row of collectionActionsResult.data??[]){const list=actionsByProject.get(row.project_id??"")??[];list.push({id:row.id,type:row.communication_type,channel:row.channel,subject:row.subject??"Acción de cobranza",status:row.status,occurredAt:row.occurred_at,sentAt:row.sent_at,toRecipient:row.to_recipient,createdBy:profiles.get(row.created_by??"")??row.created_by,sentBy:profiles.get(row.sent_by??"")??row.sent_by,failureReason:row.failure_reason});actionsByProject.set(row.project_id??"",list);}
   const invoices: ReceivableInvoice[] = (invoicesResult.data ?? []).map(
     (row) => {
       const customer = Array.isArray(row.customers)

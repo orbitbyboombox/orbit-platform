@@ -281,7 +281,7 @@ export async function sendCollectionEmailAction(
     } catch (providerError) {
       await client
         .from("communications")
-        .update({ status: "FAILED", occurred_at: new Date().toISOString() })
+        .update({ status: "FAILED", failure_reason: providerError instanceof Error ? providerError.message.slice(0, 500) : "Error de envío", occurred_at: new Date().toISOString() })
         .eq("id", communication.id);
       throw providerError;
     }
@@ -294,6 +294,8 @@ export async function sendCollectionEmailAction(
       .update({
         status: "SENT",
         external_message_id: providerMessageId,
+        sent_at: sentAt,
+        sent_by: userId,
         occurred_at: sentAt,
       })
       .eq("id", communication.id);
@@ -303,6 +305,8 @@ export async function sendCollectionEmailAction(
         .update({
           status: "SENT",
           external_message_id: providerMessageId,
+          sent_at: sentAt,
+          sent_by: userId,
           occurred_at: sentAt,
         })
         .eq("id", communication.id);
