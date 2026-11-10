@@ -57,6 +57,13 @@ export async function sendOverdueCollections(reference=new Date(), opts:{dryRun?
       outstandingBalance:balance,dueDate,eventDate:project.event_date??undefined,eventLocation:project.location??undefined,
       service:undefined,eventDuration:undefined,daysRemaining:-1,status:"OVERDUE",collectionActions:[],
     },resolveCollectionBankDetails(await loadCompanySettingsCached()));
+    // Re-read canonical balances immediately before claiming an email; never charge a paid invoice.
+    const {data:latest,error:latestError}=await admin.from("accounts_receivable_projection").select("id,outstanding_balance,due_date,effective_status,status,deleted_at,archived_at,cancelled_at").in("id",invoices.map(i=>i.id));
+    if(latestError) throw latestError;
+    const latestRows=(latest??[]) as Array<{id:string;outstanding_balance:number|null;due_date:string|null;effective_status:string|null;status:string|null;deleted_at:string|null;archived_at:string|null;cancelled_at:string|null}>;
+    if(latestRows.length!==invoices.length || latestRows.some(i=>!i.due_date || i.due_date>=today || Number(i.outstanding_balance)<=0 || !Number.isFinite(Number(i.outstanding_balance)) || i.deleted_at || i.archived_at || i.cancelled_at || blocked.has(String(i.effective_status??i.status??"").toUpperCase()))){skipped++;continue;}
+    const refreshedBalance=latestRows.reduce((sum,i)=>sum+Number(i.outstanding_balance),0);
+    if(refreshedBalance!==balance){skipped++;continue;}
     const payload={customer_id:invoices[0].customer_id,project_id:project.id,channel:"GMAIL",direction:"OUTBOUND",communication_type:"COLLECTION_OVERDUE_AUTOMATIC",request_key:key,thread_key:key,subject:draft.subject,body:draft.body,status:"PENDING",to_recipient:recipient,cc_recipients:[],occurred_at:new Date().toISOString(),sent_at:null,external_message_id:null,failure_reason:null,context_snapshot:{automatic:true,trigger:"OVERDUE_MON_THU",sendMode:"AUTOMATIC",date:today,outstandingBalance:balance,invoiceIds:invoices.map(i=>i.id),recipient}};
     const {data:claim,error:claimError}=await admin.from("communications").insert(payload).select("id").maybeSingle();
     if(claimError?.code==="23505"){skipped++;continue;}
