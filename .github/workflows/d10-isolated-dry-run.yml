@@ -83,6 +83,42 @@ jobs:
             if (body.collection.sent !== 0 || body.collection.pending !== 0) throw new Error("Dry-run attempted delivery");
             console.log("PASS: real cron route, real collection worker, synthetic DB, 30-day guard, paid suppression, and zero delivery");
           '
+          qa_status=$(curl --silent --show-error --output /tmp/d10-send-response.json --write-out '%{http_code}' \
+            -H 'Authorization: Bearer synthetic-only-cron-secret' \
+            'http://127.0.0.1:3000/api/cron/pre-event-reminders?qa_collection_send=1')
+          if [ "$qa_status" != "200" ]; then
+            echo "D-10 mock send returned HTTP $qa_status"
+            cat /tmp/d10-send-response.json
+            tail -120 /tmp/d10-next.log || true
+            exit 1
+          fi
+          node -e '
+            const fs = require("fs");
+            const result = JSON.parse(fs.readFileSync("/tmp/d10-send-response.json", "utf8"));
+            if (result.qaOnly !== true || result.collection?.sent !== 1 || result.collection?.failed !== 0 || result.collection?.pending !== 0) {
+              throw new Error("Synthetic D-10 mail did not send exactly once through the mock");
+            }
+            console.log("PASS: collection D-10 sent once through the in-memory Gmail provider");
+          '
+          repeat_status=$(curl --silent --show-error --output /tmp/d10-repeat-response.json --write-out '%{http_code}' \
+            -H 'Authorization: Bearer synthetic-only-cron-secret' \
+            'http://127.0.0.1:3000/api/cron/pre-event-reminders?qa_collection_send=1')
+          if [ "$repeat_status" != "200" ]; then
+            echo "D-10 repeat guard returned HTTP $repeat_status"
+            cat /tmp/d10-repeat-response.json
+            exit 1
+          fi
+          node -e '
+            const fs = require("fs");
+            const result = JSON.parse(fs.readFileSync("/tmp/d10-repeat-response.json", "utf8"));
+            if (result.collection?.sent !== 0 || result.collection?.skipped !== 1) throw new Error("Repeated D-10 run was not deduplicated");
+            console.log("PASS: repeat D-10 run is deduplicated");
+          '
+          rows=$(docker exec supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -Atc "select count(*) || '|' || min(status) || '|' || min(to_recipient) || '|' || min(external_message_id like 'gmail-message-%') from public.communications where project_id='d1000000-0000-4000-8000-000000000011' and communication_type='COLLECTION_D10' and request_key like 'automatic-collection-d10:%'")
+          if [ "$rows" != "1|SENT|eligible@example.invalid|t" ]; then
+            echo "Unexpected synthetic collection history: $rows"
+            exit 1
+          fi
       - name: Assert no production transport credentials exist
         run: |
           test -z "${SUPABASE_SERVICE_ROLE_KEY:-}"
