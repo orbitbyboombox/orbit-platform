@@ -122,7 +122,7 @@ type Event360Data = {
   orbitEventId: string;
   status: string;
   collectionEmailStatus: {
-    state: "NOT_SENT" | "SENT" | "FAILED";
+    state: "NOT_SENT" | "PENDING" | "SENT" | "FAILED";
     label: string;
     sentAt: string | null;
     recipient: string | null;

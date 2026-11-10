@@ -72,6 +72,7 @@ export interface ReceivableInvoice {
     createdBy?: string | null;
     sentBy?: string | null;
     failureReason?: string | null;
+    externalMessageId?: string | null;
   }[];
   lastPayment: { id: string; amount: number; paidAt: string; method: string } | null;
   paymentHistory: readonly { id: string; amount: number; paidAt: string; method: string; observation: string }[];
@@ -87,10 +88,24 @@ export interface ReceivableCustomer {
   averagePaymentDays: number | null;
   creditHistory: "AL_DIA" | "CON_ATRASO" | "SIN_HISTORIAL";
 }
+export interface CollectionEmailHistoryRecord {
+  id: string;
+  customerName: string;
+  customerCompany: string | null;
+  eventName: string;
+  eventCode: string;
+  recipient: string;
+  balance: number | null;
+  occurredAt: string;
+  status: "ENVIADO" | "PENDIENTE" | "FALLIDO";
+  internalNotificationRecorded: boolean;
+}
+
 export interface ReceivableDataset {
   generatedAt: string;
   invoices: readonly ReceivableInvoice[];
   historyInvoices: readonly ReceivableInvoice[];
+  collectionEmailHistory?: readonly CollectionEmailHistoryRecord[];
   customers: readonly ReceivableCustomer[];
   projects: readonly {
     id: string;

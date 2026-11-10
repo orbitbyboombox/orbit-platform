@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
+  CollectionEmailHistoryRecord,
   ReceivableCustomer,
   ReceivableDataset,
   ReceivableInvoice,
@@ -13,6 +14,7 @@ import { resolveCollectionEventDetail } from "./collection-event-detail";
 import { isReadOnlyVisualPreview } from "@/lib/supabase/environment-guard";
 import { actualPaidAmount, daysUntilDue, effectiveReceivableStatus, scheduleDueDate } from "./canonical-financial-state";
 import { defaultD10Date } from "./d10-manual-collection";
+import { collectionDeliveryLabel } from "./collection-email-status";
 
 function relation<T>(value: T | T[] | null | undefined): T | null {
   return Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
@@ -71,6 +73,7 @@ export async function loadAccountsReceivable(
     collectionActionsResult,
     financialRecordsResult,
     d10SchedulesResult,
+    internalNotificationsResult,
   ] = await Promise.all([
     client
       .from("accounts_receivable_projection")
@@ -92,7 +95,7 @@ export async function loadAccountsReceivable(
     client
       .from("projects")
       .select(
-        "id,name,orbit_event_id,customer_id,customers(full_name,company,metadata)",
+        "id,name,orbit_event_id,customer_id,event_date,customers(full_name,company,metadata)",
       )
       .is("deleted_at", null)
       .order("event_date", { ascending: true, nullsFirst: false }),
@@ -108,9 +111,10 @@ export async function loadAccountsReceivable(
       .order("created_at", { ascending: false }),
     client.from("invoice_payments").select("id,invoice_id,amount,paid_at,method,reason,created_at").is("deleted_at",null).gt("amount",0).order("paid_at",{ascending:false}),
     client.from("profiles").select("id,display_name"),
-    client.from("communications").select("id,project_id,communication_type,channel,subject,status,occurred_at,sent_at,to_recipient,created_by,sent_by,failure_reason").in("communication_type",["PAYMENT_REMINDER","COLLECTION_EMAIL","COLLECTION_WHATSAPP_OPENED","COLLECTION_EMAIL_OPENED","COLLECTION_PHONE_OPENED"]).order("occurred_at",{ascending:false}),
+    client.from("communications").select("id,project_id,communication_type,channel,subject,status,occurred_at,sent_at,to_recipient,created_by,sent_by,failure_reason,external_message_id,context_snapshot").in("communication_type",["PAYMENT_REMINDER","COLLECTION_EMAIL","COLLECTION_D10","COLLECTION_OVERDUE_AUTOMATIC","COLLECTION_WHATSAPP_OPENED","COLLECTION_EMAIL_OPENED","COLLECTION_PHONE_OPENED"]).order("occurred_at",{ascending:false}),
     client.from("financial_event_records").select("project_id,payment_schedule"),
     client.from("d10_manual_collection_schedules").select("project_id,scheduled_for"),
+    client.from("internal_notifications").select("project_id,notification_type,metadata").in("notification_type",["COLLECTION_D10","COLLECTION_OVERDUE_AUTOMATIC"]),
   ]);
   const failure = [
     invoicesResult,
@@ -129,8 +133,48 @@ export async function loadAccountsReceivable(
   const profiles=new Map((profilesResult.data??[]).map(row=>[row.id,row.display_name]));
   const schedulesByProject = new Map((financialRecordsResult.data ?? []).map((row) => [row.project_id, row.payment_schedule]));
   const d10ByProject = new Map((d10SchedulesResult.data ?? []).map((row) => [row.project_id, row.scheduled_for]));
-  const actionsByProject=new Map<string,Array<{id:string;type:string;channel:string;subject:string;status:string;occurredAt:string;sentAt:string|null;toRecipient:string|null;createdBy:string|null;sentBy:string|null;failureReason:string|null}>>();
-  for(const row of collectionActionsResult.data??[]){const list=actionsByProject.get(row.project_id??"")??[];list.push({id:row.id,type:row.communication_type,channel:row.channel,subject:row.subject??"Acción de cobranza",status:row.status,occurredAt:row.occurred_at,sentAt:row.sent_at,toRecipient:row.to_recipient,createdBy:profiles.get(row.created_by??"")??row.created_by,sentBy:profiles.get(row.sent_by??"")??row.sent_by,failureReason:row.failure_reason});actionsByProject.set(row.project_id??"",list);}
+  const actionsByProject=new Map<string,Array<{id:string;type:string;channel:string;subject:string;status:string;occurredAt:string;sentAt:string|null;toRecipient:string|null;createdBy:string|null;sentBy:string|null;failureReason:string|null;externalMessageId:string|null}>>();
+  for(const row of collectionActionsResult.data??[]){const list=actionsByProject.get(row.project_id??"")??[];list.push({id:row.id,type:row.communication_type,channel:row.channel,subject:row.subject??"Acción de cobranza",status:row.status,occurredAt:row.occurred_at,sentAt:row.sent_at,toRecipient:row.to_recipient,createdBy:profiles.get(row.created_by??"")??row.created_by,sentBy:profiles.get(row.sent_by??"")??row.sent_by,failureReason:row.failure_reason,externalMessageId:row.external_message_id});actionsByProject.set(row.project_id??"",list);}
+  const projectRows = new Map((projectsResult.data ?? []).map((row) => [row.id, row]));
+  const invoiceByProject = new Map<string, any>();
+  for (const invoice of [...(historyResult.data ?? []), ...(invoicesResult.data ?? [])]) {
+    if (invoice.project_id && !invoiceByProject.has(invoice.project_id)) invoiceByProject.set(invoice.project_id, invoice);
+  }
+  const notificationCommunicationIds = new Set(
+    (internalNotificationsResult.data ?? [])
+      .map((row) => (row.metadata as Record<string, unknown> | null)?.communicationId)
+      .filter((id): id is string => typeof id === "string"),
+  );
+  const collectionEmailHistory: CollectionEmailHistoryRecord[] = (collectionActionsResult.data ?? [])
+    .filter((row) => ["PAYMENT_REMINDER", "COLLECTION_EMAIL", "COLLECTION_D10", "COLLECTION_OVERDUE_AUTOMATIC"].includes(row.communication_type))
+    .filter((row) => ["SENT", "PENDING", "FAILED"].includes(String(row.status).toUpperCase()))
+    .map((row) => {
+      const project = projectRows.get(row.project_id ?? "") as Record<string, any> | undefined;
+      const customer = project ? (Array.isArray(project.customers) ? project.customers[0] : project.customers) : null;
+      const invoice = invoiceByProject.get(row.project_id ?? "");
+      const snapshot = row.context_snapshot && typeof row.context_snapshot === "object"
+        ? row.context_snapshot as Record<string, unknown>
+        : {};
+      const snapshotBalance = Number(snapshot.outstandingBalance ?? snapshot.balance);
+      const status = collectionDeliveryLabel({
+        status: String(row.status).toUpperCase(),
+        sentAt: row.sent_at,
+        externalMessageId: row.external_message_id,
+      });
+      return {
+        id: row.id,
+        customerName: String(customer?.full_name ?? "Cliente"),
+        customerCompany: customer?.company ? String(customer.company) : null,
+        eventName: String(project?.name ?? invoice?.projects?.name ?? "Evento"),
+        eventCode: String(project?.orbit_event_id ?? invoice?.orbit_event_id ?? "—"),
+        recipient: String(row.to_recipient ?? "Sin destinatario"),
+        balance: Number.isFinite(snapshotBalance) ? snapshotBalance : null,
+        occurredAt: status === "ENVIADO" ? String(row.sent_at) : String(row.occurred_at),
+        status,
+        internalNotificationRecorded: notificationCommunicationIds.has(row.id),
+      };
+    })
+    .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
   const invoices: ReceivableInvoice[] = (invoicesResult.data ?? []).map(
     (row) => {
       const customer = Array.isArray(row.customers)
@@ -363,6 +407,7 @@ export async function loadAccountsReceivable(
     generatedAt: new Date().toISOString(),
     invoices,
     historyInvoices,
+    collectionEmailHistory,
     customers,
     projects,
     metrics: {

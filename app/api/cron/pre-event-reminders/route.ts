@@ -44,11 +44,11 @@ export async function GET(request: Request) {
     ]);
     return NextResponse.json({ ...events, collection: collections }, { status: 200 });
   }
-  if (chileHour() !== 11) {
+  if (chileHour() !== 15) {
     return NextResponse.json({
       ok: true,
       skipped: true,
-      reason: "Outside the 11:00 America/Santiago processing window",
+      reason: "Outside the 15:00 America/Santiago processing window",
     });
   }
   const startedAt = Date.now();

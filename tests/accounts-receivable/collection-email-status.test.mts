@@ -1,18 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { resolveCollectionEmailStatus } from "../../features/accounts-receivable/collection-email-status.ts";
+import { collectionDeliveryLabel, resolveCollectionEmailStatus } from "../../features/accounts-receivable/collection-email-status.ts";
 
 const sent = (overrides: Record<string, unknown> = {}) => ({
   id: "sent-1",
   status: "SENT",
   occurredAt: "2026-11-10T15:00:00.000Z",
   sentAt: "2026-11-10T15:00:00.000Z",
+  externalMessageId: "gmail-message-1",
   toRecipient: "cliente@example.com",
   createdBy: "Founder",
   ...overrides,
 });
 
-test("D-10 cobranza without a successful delivery is visibly pending", () => {
+test("no communication record remains not sent until an attempt is created", () => {
   const result = resolveCollectionEmailStatus([]);
   assert.equal(result.state, "NOT_SENT");
   assert.equal(result.label, "CORREO DE COBRO NO ENVIADO");
@@ -46,7 +47,21 @@ test("a later retry changes the visible state while retaining the old failure in
   assert.equal(result.sentAt, "2026-11-11T15:00:00.000Z");
 });
 
-test("queued or pending records do not become a false positive", () => {
+test("queued or pending records remain visibly pending", () => {
   const result = resolveCollectionEmailStatus([{ id: "pending", status: "PENDING", occurredAt: "2026-11-10T15:00:00.000Z" }]);
-  assert.equal(result.state, "NOT_SENT");
+  assert.equal(result.state, "PENDING");
+  assert.equal(result.label, "CORREO DE COBRO PENDIENTE");
+});
+
+test("SENT without a Gmail receipt remains visibly pending", () => {
+  const result = resolveCollectionEmailStatus([sent({ externalMessageId: null })]);
+  assert.equal(result.state, "PENDING");
+  assert.equal(result.sentAt, null);
+});
+
+test("only a Gmail-confirmed record is labeled ENVIADO", () => {
+  assert.equal(collectionDeliveryLabel({ status: "SENT", sentAt: "2026-11-10T16:00:00.000Z", externalMessageId: "gmail-message-1" }), "ENVIADO");
+  assert.equal(collectionDeliveryLabel({ status: "SENT", sentAt: "2026-11-10T16:00:00.000Z", externalMessageId: null }), "PENDIENTE");
+  assert.equal(collectionDeliveryLabel({ status: "PENDING", sentAt: null, externalMessageId: null }), "PENDIENTE");
+  assert.equal(collectionDeliveryLabel({ status: "FAILED", sentAt: null, externalMessageId: null }), "FALLIDO");
 });
