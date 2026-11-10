@@ -26,6 +26,7 @@ import { effectiveStaffAssignmentPayment } from "@/features/operations/staff-ass
 import { canonicalStaffPaymentTotal } from "@/features/staff-payments/staff-payment-display";
 import { canonicalRealCostDisplay } from "@/features/projects/canonical-real-cost-display";
 import { buildCanonicalStaffFinancials } from "@/features/staff-payments/canonical-staff-financials";
+import { resolveCollectionEmailStatus } from "@/features/accounts-receivable/collection-email-status";
 
 export interface ProjectWorkspacePageProps {
   params: Promise<{ projectId: string }>;
@@ -441,7 +442,7 @@ export default async function ProjectWorkspacePage({
       .order("due_at", { ascending: true, nullsFirst: false }),
     client
       .from("communications")
-      .select("id,channel,status,communication_type,subject,thread_key,occurred_at,to_recipient,sent_at,context_snapshot")
+      .select("id,channel,status,communication_type,subject,thread_key,occurred_at,to_recipient,sent_at,sent_by,created_by,failure_reason,context_snapshot")
       .eq("project_id", projectId)
       .order("occurred_at", { ascending: false }),
     client
@@ -1000,10 +1001,29 @@ export default async function ProjectWorkspacePage({
       .filter((doc) => doc.document_type === "PAYMENT_RECEIPT" && doc.payment_id)
       .map((doc) => [doc.payment_id!, doc] as const),
   );
+  const collectionEmailStatus = resolveCollectionEmailStatus(
+    (communications ?? [])
+      .filter((item) => item.communication_type === "COLLECTION_EMAIL")
+      .map((item) => ({
+        id: item.id,
+        status: item.status,
+        occurredAt: item.occurred_at,
+        sentAt: item.sent_at,
+        toRecipient: item.to_recipient,
+        sentBy: item.sent_by
+          ? (settlementActors ?? []).find((actor) => actor.id === item.sent_by)?.display_name ?? item.sent_by
+          : null,
+        createdBy: item.created_by
+          ? (settlementActors ?? []).find((actor) => actor.id === item.created_by)?.display_name ?? item.created_by
+          : null,
+        failureReason: item.failure_reason,
+      })),
+  );
 
   const event360 = {
     orbitEventId: rawProject?.orbit_event_id ?? `ORB-${projectId}`,
     status: rawProject?.status ?? project.status,
+    collectionEmailStatus,
     customer: {
       phone: customer?.phone ?? project.client.phone,
       email: customer?.email ?? project.client.email,
