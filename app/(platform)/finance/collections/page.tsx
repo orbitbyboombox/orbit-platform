@@ -13,6 +13,7 @@ const filters = new Set<CollectionFilter>([
   "OVERDUE",
   "NO_NOTICE",
   "WEEK",
+  "D10",
   "HISTORY",
 ]);
 
