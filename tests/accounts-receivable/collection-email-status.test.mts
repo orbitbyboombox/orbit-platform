@@ -13,10 +13,10 @@ const sent = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-test("D-10 cobranza without a successful delivery is visibly pending", () => {
+test("no communication record remains not sent until an attempt is created", () => {
   const result = resolveCollectionEmailStatus([]);
-  assert.equal(result.state, "PENDING");
-  assert.equal(result.label, "CORREO DE COBRO PENDIENTE");
+  assert.equal(result.state, "NOT_SENT");
+  assert.equal(result.label, "CORREO DE COBRO NO ENVIADO");
 });
 
 test("successful manual delivery exposes time, recipient and actor", () => {
