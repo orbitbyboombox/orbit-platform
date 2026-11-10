@@ -7,13 +7,14 @@ export type CollectionEmailCommunication = {
   createdBy?: string | null;
   sentBy?: string | null;
   failureReason?: string | null;
+  externalMessageId?: string | null;
 };
 
-export type CollectionEmailState = "NOT_SENT" | "SENT" | "FAILED";
+export type CollectionEmailState = "NOT_SENT" | "PENDING" | "SENT" | "FAILED";
 
 export type CollectionEmailStatus = {
   state: CollectionEmailState;
-  label: "CORREO DE COBRO NO ENVIADO" | "CORREO DE COBRO ENVIADO" | "ERROR DE ENVÍO";
+  label: "CORREO DE COBRO NO ENVIADO" | "CORREO DE COBRO PENDIENTE" | "CORREO DE COBRO ENVIADO" | "ERROR DE ENVÍO";
   sentAt: string | null;
   recipient: string | null;
   actorId: string | null;
@@ -29,7 +30,7 @@ export function resolveCollectionEmailStatus(
   communications: readonly CollectionEmailCommunication[],
 ): CollectionEmailStatus {
   const attempts = communications
-    .filter((item) => item.status === "SENT" || item.status === "FAILED")
+    .filter((item) => item.status === "SENT" || item.status === "FAILED" || item.status === "PENDING")
     .slice()
     .sort((left, right) => timestamp(right).localeCompare(timestamp(left)));
   const latest = attempts[0];
@@ -41,6 +42,16 @@ export function resolveCollectionEmailStatus(
       recipient: null,
       actorId: null,
       failureReason: null,
+    };
+  }
+  if (latest.status === "PENDING" || (latest.status === "SENT" && (!latest.sentAt || !latest.externalMessageId))) {
+    return {
+      state: "PENDING",
+      label: "CORREO DE COBRO PENDIENTE",
+      sentAt: null,
+      recipient: latest.toRecipient ?? null,
+      actorId: latest.sentBy ?? latest.createdBy ?? null,
+      failureReason: latest.failureReason ?? null,
     };
   }
   if (latest.status === "FAILED") {
