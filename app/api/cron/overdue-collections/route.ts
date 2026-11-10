@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { sendOverdueCollections } from "@/features/accounts-receivable/overdue-automatic-collection";
 export async function GET(request:Request){
+  // Safe rollout: dashboard/history can deploy without activating customer emails.
+  if(process.env.OVERDUE_COLLECTIONS_ENABLED!=="true") return NextResponse.json({ok:true,skipped:true,reason:"Overdue collections disabled by rollout flag",sent:0});
   const secret=process.env.CRON_SECRET;
   if(!secret || request.headers.get("authorization")!==`Bearer ${secret}`) return NextResponse.json({error:"Unauthorized"},{status:401});
   try{
