@@ -14,6 +14,7 @@ import { resolveCollectionEventDetail } from "./collection-event-detail";
 import { isReadOnlyVisualPreview } from "@/lib/supabase/environment-guard";
 import { actualPaidAmount, daysUntilDue, effectiveReceivableStatus, scheduleDueDate } from "./canonical-financial-state";
 import { defaultD10Date } from "./d10-manual-collection";
+import { collectionDeliveryLabel } from "./collection-email-status";
 
 function relation<T>(value: T | T[] | null | undefined): T | null {
   return Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
@@ -132,8 +133,8 @@ export async function loadAccountsReceivable(
   const profiles=new Map((profilesResult.data??[]).map(row=>[row.id,row.display_name]));
   const schedulesByProject = new Map((financialRecordsResult.data ?? []).map((row) => [row.project_id, row.payment_schedule]));
   const d10ByProject = new Map((d10SchedulesResult.data ?? []).map((row) => [row.project_id, row.scheduled_for]));
-  const actionsByProject=new Map<string,Array<{id:string;type:string;channel:string;subject:string;status:string;occurredAt:string;sentAt:string|null;toRecipient:string|null;createdBy:string|null;sentBy:string|null;failureReason:string|null}>>();
-  for(const row of collectionActionsResult.data??[]){const list=actionsByProject.get(row.project_id??"")??[];list.push({id:row.id,type:row.communication_type,channel:row.channel,subject:row.subject??"Acción de cobranza",status:row.status,occurredAt:row.occurred_at,sentAt:row.sent_at,toRecipient:row.to_recipient,createdBy:profiles.get(row.created_by??"")??row.created_by,sentBy:profiles.get(row.sent_by??"")??row.sent_by,failureReason:row.failure_reason});actionsByProject.set(row.project_id??"",list);}
+  const actionsByProject=new Map<string,Array<{id:string;type:string;channel:string;subject:string;status:string;occurredAt:string;sentAt:string|null;toRecipient:string|null;createdBy:string|null;sentBy:string|null;failureReason:string|null;externalMessageId:string|null}>>();
+  for(const row of collectionActionsResult.data??[]){const list=actionsByProject.get(row.project_id??"")??[];list.push({id:row.id,type:row.communication_type,channel:row.channel,subject:row.subject??"Acción de cobranza",status:row.status,occurredAt:row.occurred_at,sentAt:row.sent_at,toRecipient:row.to_recipient,createdBy:profiles.get(row.created_by??"")??row.created_by,sentBy:profiles.get(row.sent_by??"")??row.sent_by,failureReason:row.failure_reason,externalMessageId:row.external_message_id});actionsByProject.set(row.project_id??"",list);}
   const projectRows = new Map((projectsResult.data ?? []).map((row) => [row.id, row]));
   const invoiceByProject = new Map<string, any>();
   for (const invoice of [...(historyResult.data ?? []), ...(invoicesResult.data ?? [])]) {
@@ -155,10 +156,11 @@ export async function loadAccountsReceivable(
         ? row.context_snapshot as Record<string, unknown>
         : {};
       const snapshotBalance = Number(snapshot.outstandingBalance ?? snapshot.balance);
-      const confirmed = String(row.status).toUpperCase() === "SENT" && Boolean(row.sent_at) && Boolean(row.external_message_id);
-      const status: CollectionEmailHistoryRecord["status"] = String(row.status).toUpperCase() === "FAILED"
-        ? "FALLIDO"
-        : confirmed ? "ENVIADO" : "PENDIENTE";
+      const status = collectionDeliveryLabel({
+        status: String(row.status).toUpperCase(),
+        sentAt: row.sent_at,
+        externalMessageId: row.external_message_id,
+      });
       return {
         id: row.id,
         customerName: String(customer?.full_name ?? "Cliente"),
