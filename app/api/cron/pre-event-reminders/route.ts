@@ -57,18 +57,16 @@ export async function GET(request: Request) {
     trigger: "D-10",
   }));
   try {
-    const [events, collections] = await Promise.all([
-      sendAutomaticPreEventReminders(new Date()),
-      sendAutomaticCollectionD10(new Date()),
-    ]);
+    // Only the premium pre-event reminder is customer-facing at D-10.
+    // Do not send a second collection email in the same automatic run.
+    const events = await sendAutomaticPreEventReminders(new Date());
     const result = {
       ...events,
-      collection: collections,
-      failed: events.failed + collections.failed,
-      sent: events.sent + collections.sent,
-      skipped: events.skipped + collections.skipped,
-      pending: events.pending + collections.pending,
-      blocked: events.blocked + collections.reviewRequired,
+      failed: events.failed,
+      sent: events.sent,
+      skipped: events.skipped,
+      pending: events.pending,
+      blocked: events.blocked,
     };
     console.info(JSON.stringify({
       event: "pre_event_reminder.cron_completed",
