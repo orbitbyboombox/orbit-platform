@@ -1,7 +1,6 @@
 import type { GoogleGmailLiveProvider, GoogleGmailProviderMessage } from "../provider/google-gmail-live.provider";
 import {
   buildPreEventReminderText,
-  formatPreEventDate,
   renderPreEventReminderHtml,
   type PreEventReminderModel,
 } from "./pre-event-reminder.template.ts";

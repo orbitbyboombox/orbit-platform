@@ -11,7 +11,7 @@ test("administrative D-10 test is fixed to the owner and stored separately from 
   assert.equal(D10_ADMIN_TEST_RECIPIENT, "matias.maira.larrain@gmail.com");
   assert.equal(message.to, D10_ADMIN_TEST_RECIPIENT);
   assert.equal(message.subject, "PRUEBA D-10 · BOOMBOX");
-  assert.equal(D10_ADMIN_TEST_COMMUNICATION_TYPE, "PRE_EVENT_REMINDER_ADMIN_TEST");
+  assert.equal(D10_ADMIN_TEST_LOG_TYPE, "PRE_EVENT_REMINDER_ADMIN_TEST");
   assert.equal(daysUntilPreEvent(message.eventDate, now), 10);
   assert.match(message.textBody, /PRUEBA D-10/);
   assert.match(message.htmlBody, /PRUEBA D-10/);
