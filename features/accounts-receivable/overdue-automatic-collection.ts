@@ -16,7 +16,7 @@ const blocked = new Set(["PAID","CANCELLED","CANCELED","ARCHIVED","DELETED","VOI
 const first = (v:any) => Array.isArray(v)?v[0]:v;
 export async function sendOverdueCollections(reference=new Date(), opts:{dryRun?:boolean}={}) {
   const today=day(reference);
-  if(!["Mon","Thu"].includes(weekday(reference)) || hour(reference)!==10) return {skipped:true,reason:"Outside Chile Monday/Thursday 10:00 window",sent:0,failed:0,pending:0,candidates:0};
+  if(weekday(reference)!=="Wed" || hour(reference)!==13) return {skipped:true,reason:"Outside Chile Wednesday 13:00 window",sent:0,failed:0,pending:0,candidates:0};
   const admin=createAdminClient();
   const {data:raw,error}=await admin.from("accounts_receivable_projection").select("id,project_id,customer_id,invoice_number,amount,paid_amount,outstanding_balance,due_date,status,effective_status,deleted_at,archived_at,cancelled_at").lt("due_date",today).gt("outstanding_balance",0);
   if(error) throw error;
@@ -64,7 +64,7 @@ export async function sendOverdueCollections(reference=new Date(), opts:{dryRun?
     if(latestRows.length!==invoices.length || latestRows.some(i=>!i.due_date || i.due_date>=today || Number(i.outstanding_balance)<=0 || !Number.isFinite(Number(i.outstanding_balance)) || i.deleted_at || i.archived_at || i.cancelled_at || blocked.has(String(i.effective_status??i.status??"").toUpperCase()))){skipped++;continue;}
     const refreshedBalance=latestRows.reduce((sum,i)=>sum+Number(i.outstanding_balance),0);
     if(refreshedBalance!==balance){skipped++;continue;}
-    const payload={customer_id:invoices[0].customer_id,project_id:project.id,channel:"GMAIL",direction:"OUTBOUND",communication_type:"COLLECTION_OVERDUE_AUTOMATIC",request_key:key,thread_key:key,subject:draft.subject,body:draft.body,status:"PENDING",to_recipient:recipient,cc_recipients:[],occurred_at:new Date().toISOString(),sent_at:null,external_message_id:null,failure_reason:null,context_snapshot:{automatic:true,trigger:"OVERDUE_MON_THU",sendMode:"AUTOMATIC",date:today,outstandingBalance:balance,invoiceIds:invoices.map(i=>i.id),recipient}};
+    const payload={customer_id:invoices[0].customer_id,project_id:project.id,channel:"GMAIL",direction:"OUTBOUND",communication_type:"COLLECTION_OVERDUE_AUTOMATIC",request_key:key,thread_key:key,subject:draft.subject,body:draft.body,status:"PENDING",to_recipient:recipient,cc_recipients:[],occurred_at:new Date().toISOString(),sent_at:null,external_message_id:null,failure_reason:null,context_snapshot:{automatic:true,trigger:"OVERDUE_WED_13",sendMode:"AUTOMATIC",date:today,outstandingBalance:balance,invoiceIds:invoices.map(i=>i.id),recipient}};
     const {data:claim,error:claimError}=await admin.from("communications").insert(payload).select("id").maybeSingle();
     if(claimError?.code==="23505"){skipped++;continue;}
     if(claimError) throw claimError;
