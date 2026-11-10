@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildAdminD10TestMessage, D10_ADMIN_TEST_COMMUNICATION_TYPE, D10_ADMIN_TEST_RECIPIENT, D10_ADMIN_TEST_SUBJECT, sendAdminD10TestMessage } from "../../features/connectors/google-gmail/application/d10-admin-test-email.ts";
+import { buildAdminD10TestMessage, D10_ADMIN_TEST_LOG_TYPE, D10_ADMIN_TEST_RECIPIENT, D10_ADMIN_TEST_SUBJECT, sendAdminD10TestMessage } from "../../features/connectors/google-gmail/application/d10-admin-test-email.ts";
 import { daysUntilPreEvent } from "../../features/connectors/google-gmail/application/pre-event-reminder.template.ts";
 
 const now = new Date("2026-11-10T16:00:00.000Z");
 const key = "pre-event-admin-test:synthetic-founder:2026-11-10";
 
-test("administrative D-10 test is fixed to the owner and separate from real communications", () => {
+test("administrative D-10 test is fixed to the owner and stored separately from operational mail", () => {
   const message = buildAdminD10TestMessage(key, now);
   assert.equal(D10_ADMIN_TEST_RECIPIENT, "matias.maira.larrain@gmail.com");
   assert.equal(message.to, D10_ADMIN_TEST_RECIPIENT);

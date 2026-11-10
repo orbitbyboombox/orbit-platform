@@ -8,7 +8,7 @@ import {
 
 export const D10_ADMIN_TEST_RECIPIENT = "matias.maira.larrain@gmail.com";
 export const D10_ADMIN_TEST_SUBJECT = "PRUEBA D-10 · BOOMBOX";
-export const D10_ADMIN_TEST_COMMUNICATION_TYPE = "PRE_EVENT_REMINDER_ADMIN_TEST";
+export const D10_ADMIN_TEST_LOG_TYPE = "PRE_EVENT_REMINDER_ADMIN_TEST";
 
 function chileDate(reference: Date) {
   const parts = new Intl.DateTimeFormat("en-CA", {

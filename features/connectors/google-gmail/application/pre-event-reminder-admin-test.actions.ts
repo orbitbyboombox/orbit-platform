@@ -5,7 +5,7 @@ import { createSupabaseServerActionClient } from "@/lib/supabase/server";
 import { isAdministrativeRole } from "@/lib/auth/roles";
 import { loadGoogleWorkspaceAccessToken, loadGoogleWorkspaceConnection } from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import { GoogleGmailApiProvider, GoogleGmailDeliveryOutcomeUnknownError } from "@/features/connectors/google-gmail/provider/google-gmail-live.provider";
-import { D10_ADMIN_TEST_COMMUNICATION_TYPE, D10_ADMIN_TEST_RECIPIENT, D10_ADMIN_TEST_SUBJECT, sendAdminD10TestMessage } from "./d10-admin-test-email";
+import { D10_ADMIN_TEST_LOG_TYPE, D10_ADMIN_TEST_RECIPIENT, D10_ADMIN_TEST_SUBJECT, sendAdminD10TestMessage } from "./d10-admin-test-email";
 import { isReadOnlyVisualPreview } from "@/lib/supabase/environment-guard";
 
 type TestResult = {
@@ -35,7 +35,7 @@ const resultForExisting = (row: { status: string; sent_at: string | null }) => (
 } satisfies TestResult);
 
 export async function sendAdminD10EmailTestAction(): Promise<TestResult> {
-  let communicationId: string | null = null;
+  let testLogId: string | null = null;
   const admin = createAdminClient();
   try {
     if (isReadOnlyVisualPreview()) throw new Error("La Preview está en modo solo lectura.");
@@ -55,28 +55,22 @@ export async function sendAdminD10EmailTestAction(): Promise<TestResult> {
     const date = chileDate(reference);
     const requestKey = `pre-event-admin-test:${auth.user.id}:${date}`;
     const { data: existing, error: existingError } = await admin
-      .from("communications")
+      .from("pre_event_admin_test_logs")
       .select("id,status,sent_at")
-      .eq("communication_type", D10_ADMIN_TEST_COMMUNICATION_TYPE)
       .eq("request_key", requestKey)
       .maybeSingle();
     if (existingError) throw existingError;
     if (existing) return resultForExisting(existing);
 
     const message = (await import("./d10-admin-test-email")).buildAdminD10TestMessage(requestKey, reference);
-    const { data: created, error: insertError } = await admin.from("communications").insert({
-      customer_id: null,
-      project_id: null,
-      channel: "GMAIL",
-      direction: "OUTBOUND",
-      communication_type: D10_ADMIN_TEST_COMMUNICATION_TYPE,
+    const { data: created, error: insertError } = await admin.from("pre_event_admin_test_logs").insert({
+      actor_id: auth.user.id,
+      test_type: D10_ADMIN_TEST_LOG_TYPE,
       request_key: requestKey,
-      thread_key: requestKey,
+      recipient: D10_ADMIN_TEST_RECIPIENT,
       subject: D10_ADMIN_TEST_SUBJECT,
       body: message.body,
       status: "PENDING",
-      to_recipient: D10_ADMIN_TEST_RECIPIENT,
-      cc_recipients: [],
       occurred_at: reference.toISOString(),
       sent_at: null,
       external_message_id: null,
@@ -85,18 +79,18 @@ export async function sendAdminD10EmailTestAction(): Promise<TestResult> {
     }).select("id").single();
     if (insertError) {
       if (insertError.code === "23505") {
-        const { data: duplicate } = await admin.from("communications").select("status,sent_at").eq("communication_type", D10_ADMIN_TEST_COMMUNICATION_TYPE).eq("request_key", requestKey).maybeSingle();
+        const { data: duplicate } = await admin.from("pre_event_admin_test_logs").select("status,sent_at").eq("request_key", requestKey).maybeSingle();
         if (duplicate) return resultForExisting(duplicate);
       }
       throw insertError;
     }
-    communicationId = created.id;
+    testLogId = created.id;
 
     try {
       const sender = new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken());
       const delivery = await sendAdminD10TestMessage(sender, requestKey, reference);
       const sentAt = new Date().toISOString();
-      const { error: updateError } = await admin.from("communications").update({
+      const { error: updateError } = await admin.from("pre_event_admin_test_logs").update({
         status: "SENT",
         sent_at: sentAt,
         occurred_at: sentAt,
@@ -104,7 +98,7 @@ export async function sendAdminD10EmailTestAction(): Promise<TestResult> {
         failure_reason: null,
       }).eq("id", created.id);
       if (updateError) {
-        console.error(JSON.stringify({ event: "d10_admin_test.confirmed_but_history_pending", communicationId: created.id, errorCode: updateError.code ?? "DB_UPDATE_FAILED" }));
+        console.error(JSON.stringify({ event: "d10_admin_test.confirmed_but_history_pending", testLogId: created.id, errorCode: updateError.code ?? "DB_UPDATE_FAILED" }));
         return { ok: false, status: "PENDING", recipient: D10_ADMIN_TEST_RECIPIENT, sentAt: null, message: "Gmail confirmó el envío, pero ORBIT no pudo confirmar el historial. No vuelvas a enviar hoy." };
       }
       return { ok: true, status: "SENT", recipient: D10_ADMIN_TEST_RECIPIENT, sentAt, message: "Gmail Workspace confirmó el envío de la prueba." };
@@ -112,7 +106,7 @@ export async function sendAdminD10EmailTestAction(): Promise<TestResult> {
       const uncertain = sendError instanceof GoogleGmailDeliveryOutcomeUnknownError;
       const status = uncertain ? "PENDING" : "FAILED";
       const failureReason = uncertain ? "Gmail no confirmó el resultado; reintento bloqueado." : "Gmail no pudo completar el envío de la prueba.";
-      await admin.from("communications").update({ status, failure_reason: failureReason, occurred_at: new Date().toISOString() }).eq("id", created.id);
+      await admin.from("pre_event_admin_test_logs").update({ status, failure_reason: failureReason, occurred_at: new Date().toISOString() }).eq("id", created.id);
       return { ok: false, status, recipient: D10_ADMIN_TEST_RECIPIENT, sentAt: null, message: failureReason };
     }
   } catch (error) {
