@@ -62,10 +62,16 @@ jobs:
             curl --silent --fail http://127.0.0.1:3000/login >/dev/null && break
             sleep 2
           done
-          response=$(curl --silent --show-error --fail \
+          status=$(curl --silent --show-error --output /tmp/d10-response.json --write-out '%{http_code}' \
             -H 'Authorization: Bearer synthetic-only-cron-secret' \
             'http://127.0.0.1:3000/api/cron/pre-event-reminders?dry_run=1')
-          printf '%s' "$response" > /tmp/d10-response.json
+          if [ "$status" != "200" ]; then
+            echo "D-10 dry-run returned HTTP $status"
+            cat /tmp/d10-response.json
+            echo '--- application log ---'
+            tail -120 /tmp/d10-next.log || true
+            exit 1
+          fi
           node -e '
             const fs = require("fs");
             const body = JSON.parse(fs.readFileSync("/tmp/d10-response.json", "utf8"));
