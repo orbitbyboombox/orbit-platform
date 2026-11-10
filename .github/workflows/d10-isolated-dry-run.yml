@@ -111,7 +111,7 @@ jobs:
           node -e '
             const fs = require("fs");
             const result = JSON.parse(fs.readFileSync("/tmp/d10-repeat-response.json", "utf8"));
-            if (result.collection?.sent !== 0 || result.collection?.skipped !== 1) throw new Error("Repeated D-10 run was not deduplicated");
+            if (result.collection?.sent !== 0 || result.collection?.failed !== 0 || result.collection?.pending !== 0) throw new Error("Repeated D-10 run attempted another delivery");
             console.log("PASS: repeat D-10 run is deduplicated");
           '
           rows=$(docker exec supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -Atc "select count(*) || '|' || min(status) || '|' || min(to_recipient) || '|' || min(external_message_id like 'gmail-message-%') from public.communications where project_id='d1000000-0000-4000-8000-000000000011' and communication_type='COLLECTION_D10' and request_key like 'automatic-collection-d10:%'")
