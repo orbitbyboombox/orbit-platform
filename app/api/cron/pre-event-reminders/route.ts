@@ -22,7 +22,18 @@ export async function GET(request: Request) {
   if (!isAuthorizedCronRequest(request, secret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const dryRun = new URL(request.url).searchParams.get("dry_run") === "1";
+  const search = new URL(request.url).searchParams;
+  const qaCollectionSend = search.get("qa_collection_send") === "1";
+  if (qaCollectionSend) {
+    const qaAllowed =
+      process.env.VERCEL_ENV === "preview" &&
+      process.env.D10_QA_EMAIL_MOCK === "true" &&
+      process.env.D10_DRY_RUN === "true";
+    if (!qaAllowed) return NextResponse.json({ error: "QA-only route unavailable" }, { status: 404 });
+    const collection = await sendAutomaticCollectionD10(new Date());
+    return NextResponse.json({ ok: collection.failed === 0, qaOnly: true, collection }, { status: collection.failed ? 500 : 200 });
+  }
+  const dryRun = search.get("dry_run") === "1";
   if (dryRun) {
     if (process.env.VERCEL_ENV === "production" || process.env.D10_DRY_RUN !== "true") {
       return NextResponse.json({ error: "Dry run unavailable" }, { status: 404 });
