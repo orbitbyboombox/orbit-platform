@@ -17,7 +17,8 @@ import type { ServiceAssetMapping } from "@/features/resources/service-asset-map
 
 export default async function ResourcesPage() {
   const client = await createSupabaseServerClient();
-  const modules = await loadModuleStates(client);
+  // Load module visibility concurrently with resource data, rather than adding a serial request.
+  const modulesPromise = loadModuleStates(client);
   const [{ data: staff, error: staffError }, { data: assignments, error: assignmentError }, { data: projects, error: projectError }, { data: assets, error: assetError }, { data: assetAssignments, error: assetAssignmentError }, { data: assetHistory, error: historyError }, { data: supplies, error: supplyError }, { data: vehicleProfiles, error: vehicleError }, { data: fuelLogs, error: fuelError }, { data: vehicleRoutes, error: routeError }, { data: serviceMappings, error: serviceMappingError }] = await Promise.all([
     client.from("staff").select("id,first_name,last_name,rut,role,availability,status,version").is("deleted_at", null),
     client.from("assignments").select("id,project_id,staff_id,status,resources").is("deleted_at", null),
@@ -31,6 +32,7 @@ export default async function ResourcesPage() {
     client.from("vehicle_routes").select("id,asset_id,route_date,driver_staff_id,distance,notes,version,fuel:vehicle_fuel_logs!vehicle_routes_fuel_log_id_fkey(total_amount,receipt_path),events:vehicle_route_events(project_id,allocated_fuel_cost)").is("deleted_at", null).eq("status", "ACTIVE").order("route_date", { ascending: false }),
     client.from("service_asset_type_mappings").select("id,service_code,asset_type,units_per_service,buffer_before_minutes,buffer_after_minutes,enabled,version").order("service_code"),
   ]);
+  const modules = await modulesPromise;
   if (staffError) throw staffError;
   if (assignmentError) throw assignmentError;
   if (projectError) throw projectError;

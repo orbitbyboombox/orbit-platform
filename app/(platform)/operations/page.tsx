@@ -77,6 +77,22 @@ export default async function OperationsPage() {
   const founderActionDismissalsPromise = loadFounderActionDismissals(auth.user.id);
   const communicationPromise = loadCommunicationHubProjection(client);
   const integrationHealthPromise = loadIntegrationHealth();
+  // Schedule financial-alert reconciliation alongside the initial reads.
+  // It used to start only after all dashboard projections had been built,
+  // adding a serial round trip to every visit to Operaciones.
+  const financialAlertHistoryPromise = (async () => {
+    if (!isReadOnlyVisualPreview()) {
+      const { error: ensureError } = await client.rpc("ensure_financial_alerts", {
+        p_now: new Date().toISOString(),
+      });
+      if (ensureError) return { data: null, error: ensureError };
+    }
+    return client
+      .from("financial_alert_obligations")
+      .select("id,obligation_key,accounting_period,status,paid_at,financial_alert_rules(name,escalation_day,timezone)")
+      .order("accounting_period", { ascending: false })
+      .limit(24);
+  })();
   const today = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Santiago",
   }).format(new Date());
@@ -214,6 +230,15 @@ export default async function OperationsPage() {
       .from("event_logistics_summary")
       .select("project_id,logistics_mode,logistics_status,trip_count"),
   ]);
+  // Start acknowledgement reads immediately after fetching alert IDs, instead of
+  // waiting for all dashboard maps, readiness and planning calculations.
+  const cancellationAlertIds = (cancellationAlertsResult.data ?? []).map((alert) => alert.id);
+  const cancellationAlertStatesPromise = cancellationAlertIds.length
+    ? client.from("notification_user_states")
+        .select("notification_id,read_at,archived_at,dismissed_at")
+        .eq("user_id", auth.user.id)
+        .in("notification_id", cancellationAlertIds)
+    : Promise.resolve({ data: [], error: null });
   const [financialTruth, financeDashboard] = await Promise.all([
     financialTruthPromise,
     financeDashboardPromise,
@@ -342,23 +367,45 @@ export default async function OperationsPage() {
     (project) => !certificationProjects.has(project.id),
   );
 
+  const firstByProject = <T extends { project_id: string }>(rows: readonly T[]) => {
+    const map = new Map<string, T>();
+    for (const row of rows) if (!map.has(row.project_id)) map.set(row.project_id, row);
+    return map;
+  };
+  // Reuse indexed read models instead of searching entire datasets per event.
+  const agreementByProject = firstByProject(agreements);
+  const quotationByProject = firstByProject(quotations);
+  const operationalByProject = firstByProject(operationalContractsResult.data ?? []);
+  const assetsByProject = new Map<string, { hasTotem: boolean; hasCase: boolean }>();
+  for (const item of assetAssignments) {
+    const state = assetsByProject.get(item.project_id) ?? { hasTotem: false, hasCase: false };
+    if (item.operational_assets?.asset_type === "TOTEM") state.hasTotem = true;
+    if (item.operational_assets?.asset_type === "CASE") state.hasCase = true;
+    assetsByProject.set(item.project_id, state);
+  }
+  const resourcesReadyByProject = new Map<string, boolean>();
+  for (const item of resourceRequirementsResult.data ?? []) {
+    resourcesReadyByProject.set(
+      item.project_id,
+      (resourcesReadyByProject.get(item.project_id) ?? true) &&
+        Number(item.assigned_quantity) >= Number(item.required_quantity),
+    );
+  }
+  const synchronizedCalendar = new Set(calendar.filter((item) => item.status === "SYNCHRONIZED").map((item) => item.project_id));
+  const assignedOperatorProjects = new Set(assignments.filter((item) => item.type === "OPERATOR" && item.status !== "REJECTED").map((item) => item.projectId));
+  const payrollProjectIds = new Set(payroll.map((item) => item.project_id));
+  const profitProjectIds = new Set(profit.map((item) => item.projectId));
+  const timelineProjectIds = new Set(timeline.map((item) => item.project_id));
+
   const readiness: CommandCenterProjectReadiness[] = projects
     .filter((project) => project.status !== "Archived")
     .map((project) => {
-      const agreement = agreements.find(
-        (item) => item.project_id === project.id,
-      );
-      const quotation = quotations.find(
-        (item) => item.project_id === project.id,
-      );
-      const projectAssets = assetAssignments.filter(
-        (item) => item.project_id === project.id,
-      );
+      const agreement = agreementByProject.get(project.id);
+      const quotation = quotationByProject.get(project.id);
+      const projectAssets = assetsByProject.get(project.id);
       const finance = financeByProject.get(project.id) ?? {};
-      const operational = (operationalContractsResult.data ?? []).find(
-        (item) => item.project_id === project.id,
-      );
-      const resourceRequirements=(resourceRequirementsResult.data??[]).filter(item=>item.project_id===project.id);
+      const operational = operationalByProject.get(project.id);
+      const resourcesReady = resourcesReadyByProject.get(project.id) ?? true;
       const paymentReady =
         ["APPROVED", "CONFIRMED", "PAID"].includes(
           String(finance.status ?? finance.paymentStatus ?? ""),
@@ -382,7 +429,7 @@ export default async function OperationsPage() {
           },
           {
             label:"Recursos",
-            state:state(!resourceRequirements.length||resourceRequirements.every(item=>Number(item.assigned_quantity)>=Number(item.required_quantity))),
+            state:state(resourcesReady),
           },
           { label: "Cliente", state: state(Boolean(project.client.name)) },
           {
@@ -397,11 +444,7 @@ export default async function OperationsPage() {
           {
             label: "Calendar",
             state: state(
-              calendar.some(
-                (item) =>
-                  item.project_id === project.id &&
-                  item.status === "SYNCHRONIZED",
-              ),
+              synchronizedCalendar.has(project.id),
               true,
             ),
           },
@@ -415,48 +458,39 @@ export default async function OperationsPage() {
           {
             label: "Operador",
             state: state(
-              assignments.some(
-                (item) =>
-                  item.projectId === project.id &&
-                  item.type === "OPERATOR" &&
-                  item.status !== "REJECTED",
-              ),
+              assignedOperatorProjects.has(project.id),
             ),
           },
           {
             label: "Tótem",
             state: state(
-              projectAssets.some(
-                (item) => item.operational_assets?.asset_type === "TOTEM",
-              ),
+              projectAssets?.hasTotem ?? false,
             ),
           },
           {
             label: "Case",
             state: state(
-              projectAssets.some(
-                (item) => item.operational_assets?.asset_type === "CASE",
-              ),
+              projectAssets?.hasCase ?? false,
             ),
           },
           {
             label: "Payroll",
             state: state(
-              payroll.some((item) => item.project_id === project.id),
+              payrollProjectIds.has(project.id),
               true,
             ),
           },
           {
             label: "Profit",
             state: state(
-              profit.some((item) => item.projectId === project.id),
+              profitProjectIds.has(project.id),
               true,
             ),
           },
           {
             label: "Timeline",
             state: state(
-              timeline.some((item) => item.project_id === project.id),
+              timelineProjectIds.has(project.id),
               true,
             ),
           },
@@ -1521,8 +1555,8 @@ export default async function OperationsPage() {
       href: item.project_id ? `/projects/${item.project_id}` : "/notifications",
     };
   });
-  const cancellationAlertIds=(cancellationAlertsResult.data??[]).map((alert)=>alert.id);
-  const {data:cancellationAlertStates,error:cancellationAlertStatesError}=cancellationAlertIds.length?await client.from("notification_user_states").select("notification_id,read_at,archived_at,dismissed_at").eq("user_id",auth.user.id).in("notification_id",cancellationAlertIds):{data:[],error:null};
+  const {data:cancellationAlertStates,error:cancellationAlertStatesError} =
+    await cancellationAlertStatesPromise;
   if(cancellationAlertStatesError)throw cancellationAlertStatesError;
   const acknowledgedCancellationAlerts=new Set((cancellationAlertStates??[]).filter((state)=>state.read_at||state.archived_at||state.dismissed_at).map((state)=>state.notification_id));
   const cancellationAlerts: CommandCenterItem[] = (cancellationAlertsResult.data ?? []).filter((alert)=>!acknowledgedCancellationAlerts.has(alert.id)).map((alert) => {
@@ -1545,15 +1579,8 @@ export default async function OperationsPage() {
           : ("warning" as const),
     }),
   )];
-  if (!isReadOnlyVisualPreview()) {
-    const { error: financialAlertEnsureError } = await client.rpc("ensure_financial_alerts", { p_now: new Date().toISOString() });
-    if (financialAlertEnsureError) throw financialAlertEnsureError;
-  }
-  const { data: financialAlertRows, error: financialAlertError } = await client
-    .from("financial_alert_obligations")
-    .select("id,obligation_key,accounting_period,status,paid_at,financial_alert_rules(name,escalation_day,timezone)")
-    .order("accounting_period", { ascending: false })
-    .limit(24);
+  const { data: financialAlertRows, error: financialAlertError } =
+    await financialAlertHistoryPromise;
   if (financialAlertError) throw financialAlertError;
   const financialAlertHistory = (financialAlertRows ?? []).map((row) => {
     const rule = Array.isArray(row.financial_alert_rules) ? row.financial_alert_rules[0] : row.financial_alert_rules;

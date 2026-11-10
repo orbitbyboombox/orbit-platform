@@ -64,9 +64,9 @@ export default async function ProjectWorkspacePage({
   // client only for this protected financial read model.
   const adminReadClient = createAdminClient();
   const founderWorkspace = await loadFounderWorkspace(client, auth.user.id);
-  let projects;
+  let project;
   try {
-    projects = await new SupabaseCustomerRepository(client).findAll();
+    project = await new SupabaseCustomerRepository(client).findById(projectId);
   } catch (error) {
     if (
       typeof error === "object" &&
@@ -78,7 +78,6 @@ export default async function ProjectWorkspacePage({
     }
     throw error;
   }
-  const project = projects.find((candidate) => candidate.id === projectId);
   if (!project) notFound();
   const realCost = await calculateAndPersistRealEventCost(adminReadClient, projectId);
   const timeline =
@@ -145,7 +144,7 @@ export default async function ProjectWorkspacePage({
     client
       .from("documents")
       .select(
-        "id,document_type,storage_bucket,storage_path,drive_file_id,drive_folder_id,drive_sync_status,drive_sync_error,drive_synced_at,created_at,external_tax_document_type,external_folio,external_issue_date,external_total_amount,external_document_status,purchase_order_number,original_filename,mime_type,file_size,metadata,version,is_current,workflow_status,uploaded_by,approved_at",
+        "id,document_type,payment_id,storage_bucket,storage_path,drive_file_id,drive_folder_id,drive_sync_status,drive_sync_error,drive_synced_at,created_at,external_tax_document_type,external_folio,external_issue_date,external_total_amount,external_document_status,purchase_order_number,original_filename,mime_type,file_size,metadata,version,is_current,workflow_status,uploaded_by,approved_at",
       )
       .eq("project_id", projectId)
       .is("deleted_at", null)
@@ -993,6 +992,15 @@ export default async function ProjectWorkspacePage({
       }] : []),
     ],
   };
+  // The receivable projection contains payment amounts and receipt paths, but not
+  // Drive metadata. Reuse the already-loaded canonical documents for this event.
+  // Legacy uploads may have a drive_file_id with a NULL sync status.
+  const receiptDocumentsByPaymentId = new Map(
+    (documents ?? [])
+      .filter((doc) => doc.document_type === "PAYMENT_RECEIPT" && doc.payment_id)
+      .map((doc) => [doc.payment_id!, doc] as const),
+  );
+
   const event360 = {
     orbitEventId: rawProject?.orbit_event_id ?? `ORB-${projectId}`,
     status: rawProject?.status ?? project.status,
@@ -1349,17 +1357,29 @@ export default async function ProjectWorkspacePage({
           movements: (Array.isArray(invoice.payment_history)
             ? invoice.payment_history
             : []
-          ).map((movement) => ({
-            id: String(movement.id),
-            amount: Number(movement.amount),
-            paidAt: String(movement.paidAt),
-            method: String(movement.method ?? ""),
-            reason: String(movement.reason ?? ""),
-            type: String(movement.type ?? "PAYMENT"),
-            receiptPath: movement.receiptPath
-              ? String(movement.receiptPath)
-              : null,
-          })),
+          ).map((movement) => {
+            const receipt = receiptDocumentsByPaymentId.get(String(movement.id));
+            return {
+              id: String(movement.id),
+              amount: Number(movement.amount),
+              paidAt: String(movement.paidAt),
+              method: String(movement.method ?? ""),
+              reason: String(movement.reason ?? ""),
+              type: String(movement.type ?? "PAYMENT"),
+              receiptPath: movement.receiptPath
+                ? String(movement.receiptPath)
+                : null,
+              receiptDocumentId: receipt?.id ?? null,
+              receiptName: receipt?.original_filename ?? null,
+              receiptUploadedAt: receipt?.created_at ?? null,
+              receiptDriveStatus: receipt?.drive_file_id
+                ? ("SYNCED" as const)
+                : receipt?.drive_sync_status === "ERROR"
+                  ? ("ERROR" as const)
+                  : ("PENDING" as const),
+              receiptDriveError: receipt?.drive_sync_error ?? null,
+            };
+          }),
         }
       : undefined,
     checklist: (() => {

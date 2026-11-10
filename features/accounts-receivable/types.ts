@@ -55,6 +55,7 @@ export interface ReceivableInvoice {
   eventDate: string | null;
   eventLocation: string | null;
   eventDuration: string;
+  d10CollectionDate?: string | null;
   agreementId: string | null;
   contractAvailable: boolean;
   collectorId: string | null;

@@ -559,7 +559,22 @@ function FinanceModule({events,expenseSubmissions,monthlyAccounts,eventStaffPaym
   const months=[...new Set([currentMonth,...monthlyAccounts.map(account=>account.month.slice(0,7)),...eventStaffPayments.map(payment=>payment.accountingMonth.slice(0,7))])].sort();
   const selectedIndex=Math.max(0,months.indexOf(selectedMonth));
   const visibleAccounts=monthlyAccounts.filter(account=>account.month.slice(0,7)===selectedMonth);
-  const visibleEventPayments=eventStaffPayments.filter(payment=>payment.accountingMonth.slice(0,7)===selectedMonth);
+  const operationalPayments=eventStaffPayments.filter(payment=>payment.accountingMonth.slice(0,7)===selectedMonth);
+   // Training honorarios live in the canonical monthly settlement, not in event_staff_payments.
+   // Present them as read-only finance rows, without creating another financial obligation.
+   const trainingPayments:StaffEventPayment[]=visibleAccounts.flatMap(account=>account.calculation.details)
+     .filter(detail=>detail.roles.includes("OPERADOR EN CAPACITACIÓN")&&detail.eventDate<=new Date().toLocaleDateString("en-CA",{timeZone:"America/Santiago"})&&!operationalPayments.some(payment=>payment.projectId===detail.projectId))
+     .map(detail=>{
+       const training=detail as typeof detail&{workPaid?:number;workPending?:number};
+       const paidAmount=Math.min(Number(detail.workNet),Math.max(0,Number(training.workPaid??0)));
+       return {id:`training-${detail.settlementId}`,projectId:detail.projectId,accountingMonth:`${selectedMonth}-01`,
+         eventDate:detail.eventDate,eventTime:"00:00",customer:detail.customer||detail.event,
+         service:"CAPACITACIÓN",role:"OPERADOR EN CAPACITACIÓN",blockName:"",blockStartAt:"",blockEndAt:"",
+         amount:Number(detail.workNet),finalAmount:Number(detail.workNet),paidAmount,paidAt:"",
+         settlementStatus:paidAmount>=Number(detail.workNet)?"PAID":"PENDING",assignmentStatus:"COMPLETED",
+         operationalCompleted:true,isPaid:paidAmount>=Number(detail.workNet),adjustments:[]};
+     });
+   const visibleEventPayments=[...operationalPayments,...trainingPayments];
   const byEventChronology=(a:StaffEventPayment,b:StaffEventPayment)=>a.eventDate.localeCompare(b.eventDate)||a.eventTime.localeCompare(b.eventTime)||a.id.localeCompare(b.id);
   const pendingEventPayments=visibleEventPayments.filter(payment=>payment.operationalCompleted&&!payment.isPaid).sort(byEventChronology);
   const paidEventPayments=visibleEventPayments.filter(payment=>payment.operationalCompleted&&payment.isPaid).sort((a,b)=>(b.paidAt||`${b.eventDate}T${b.eventTime}`).localeCompare(a.paidAt||`${a.eventDate}T${a.eventTime}`)||b.id.localeCompare(a.id));

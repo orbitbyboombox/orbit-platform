@@ -7,6 +7,8 @@ import { CollectionEmailComposer } from "./collection-email-composer";
 import { getLastCollectionNoticeAt } from "./collection-email.template";
 import type { CollectionBankDetails } from "./collection-bank-details";
 import type { ReceivableDataset, ReceivableInvoice } from "./types";
+import { isD10ManualCollectionDue } from "./d10-manual-collection";
+import { setD10CollectionDateAction } from "./d10-manual-collection.actions";
 
 const money = (value: number) =>
   new Intl.NumberFormat("es-CL", {
@@ -37,6 +39,7 @@ export type CollectionFilter =
   | "OVERDUE"
   | "NO_NOTICE"
   | "WEEK"
+  | "D10"
   | "HISTORY";
 
 const filterMeta: Record<
@@ -48,6 +51,7 @@ const filterMeta: Record<
   OVERDUE: { label: "VENCIDOS", description: "Saldo exigible vencido." },
   NO_NOTICE: { label: "SIN AVISO", description: "Sin contacto previo." },
   WEEK: { label: "AVISADOS ESTA SEMANA", description: "Con último aviso reciente." },
+  D10: { label: "D-10 MANUAL", description: "Eventos a 10 días con saldo pendiente." },
   HISTORY: { label: "PAGADOS / HISTÓRICO", description: "Historial de cobranza." },
 };
 
@@ -122,6 +126,12 @@ export function CollectionCenter({
             const recent = daysSince(notice);
             return recent !== null && recent <= 7;
           }
+          if (filter === "D10") return isD10ManualCollectionDue({
+            eventDate: invoice.eventDate,
+            outstandingBalance: invoice.outstandingBalance,
+            status: invoice.status,
+            scheduledFor: invoice.d10CollectionDate,
+          }, today);
           return false;
         })
         .sort((left, right) => {
@@ -228,7 +238,7 @@ export function CollectionCenter({
           </label>
           <div className="flex flex-wrap gap-2">
             {(
-              ["PENDING", "UPCOMING", "OVERDUE", "NO_NOTICE", "WEEK", "HISTORY"] as const
+              ["PENDING", "UPCOMING", "OVERDUE", "NO_NOTICE", "WEEK", "D10", "HISTORY"] as const
             ).map((key) => (
               <button
                 className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
@@ -281,6 +291,7 @@ function CollectionCard({
   const noticeAt = latestNotice(invoice);
   const noticeDays = daysSince(noticeAt);
   const actionLabel = noticeAt ? "REENVIAR COBRANZA" : "ENVIAR EMAIL";
+  const isD10 = isD10ManualCollectionDue({ eventDate: invoice.eventDate, outstandingBalance: invoice.outstandingBalance, status: invoice.status, scheduledFor: invoice.d10CollectionDate }, today);
   const status = collectionStatus(invoice, today);
   const hasEmail = Boolean(invoice.customerEmail);
   const contactPath = `/customers/${invoice.customerId}`;
@@ -327,7 +338,7 @@ function CollectionCard({
           <CollectionEmailComposer
             bankDetails={bankDetails}
             invoice={invoice}
-            label={actionLabel}
+            label={isD10 ? "REVISAR / ENVIAR D-10" : actionLabel}
           />
         ) : (
           <Link
@@ -353,6 +364,8 @@ function CollectionCard({
           Abrir evento
         </Link>
       </div>
+
+      {isD10 ? <D10ScheduleEditor invoice={invoice} /> : null}
 
       <details className="mt-4 rounded-2xl border bg-background/40 p-4">
         <summary className="cursor-pointer list-none text-sm font-semibold text-brand">
@@ -384,6 +397,27 @@ function CollectionCard({
       ) : null}
     </article>
   );
+}
+
+function D10ScheduleEditor({ invoice }: { invoice: ReceivableInvoice }) {
+  const [scheduledFor, setScheduledFor] = useState(invoice.d10CollectionDate ?? "");
+  const [reason, setReason] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  return <form className="mt-4 rounded-xl border border-brand/20 bg-brand/5 p-3" onSubmit={async (event) => {
+    event.preventDefault(); setSaving(true); setMessage(null);
+    try { const form = new FormData(); form.set("projectId", invoice.projectId); form.set("scheduledFor", scheduledFor); form.set("reason", reason); await setD10CollectionDateAction(form); setMessage("Fecha D-10 guardada."); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "No fue posible guardar la fecha."); }
+    finally { setSaving(false); }
+  }}>
+    <p className="text-xs font-semibold uppercase tracking-wide text-brand">Cobranza D-10 manual</p>
+    <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-end">
+      <label className="flex-1 text-xs font-medium">Fecha de revisión<input className="mt-1 min-h-10 w-full rounded-lg border bg-background px-2 text-sm" type="date" value={scheduledFor} onChange={(event) => setScheduledFor(event.target.value)} /></label>
+      <label className="flex-1 text-xs font-medium">Motivo (opcional)<input className="mt-1 min-h-10 w-full rounded-lg border bg-background px-2 text-sm" value={reason} onChange={(event) => setReason(event.target.value)} /></label>
+      <button className="min-h-10 rounded-lg bg-brand px-3 text-xs font-semibold text-brand-foreground disabled:opacity-50" disabled={saving} type="submit">{saving ? "GUARDANDO…" : "GUARDAR FECHA"}</button>
+    </div>
+    {message ? <p className="mt-2 text-xs text-muted">{message}</p> : null}
+  </form>;
 }
 
 function Stat({ label, value, detail }: { label: string; value: string; detail: string }) {

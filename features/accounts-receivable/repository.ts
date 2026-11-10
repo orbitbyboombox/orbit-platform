@@ -12,6 +12,7 @@ import {
 import { resolveCollectionEventDetail } from "./collection-event-detail";
 import { isReadOnlyVisualPreview } from "@/lib/supabase/environment-guard";
 import { actualPaidAmount, daysUntilDue, effectiveReceivableStatus, scheduleDueDate } from "./canonical-financial-state";
+import { defaultD10Date } from "./d10-manual-collection";
 
 function relation<T>(value: T | T[] | null | undefined): T | null {
   return Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
@@ -69,6 +70,7 @@ export async function loadAccountsReceivable(
     profilesResult,
     collectionActionsResult,
     financialRecordsResult,
+    d10SchedulesResult,
   ] = await Promise.all([
     client
       .from("accounts_receivable_projection")
@@ -108,6 +110,7 @@ export async function loadAccountsReceivable(
     client.from("profiles").select("id,display_name"),
     client.from("communications").select("id,project_id,communication_type,channel,subject,status,occurred_at").in("communication_type",["PAYMENT_REMINDER","COLLECTION_EMAIL","COLLECTION_WHATSAPP_OPENED","COLLECTION_EMAIL_OPENED","COLLECTION_PHONE_OPENED"]).order("occurred_at",{ascending:false}),
     client.from("financial_event_records").select("project_id,payment_schedule"),
+    client.from("d10_manual_collection_schedules").select("project_id,scheduled_for"),
   ]);
   const failure = [
     invoicesResult,
@@ -120,10 +123,12 @@ export async function loadAccountsReceivable(
     profilesResult,
     collectionActionsResult,
     financialRecordsResult,
+    d10SchedulesResult,
   ].find((x) => x.error)?.error;
-  if (failure) throw failure;
+  if (failure && failure.code !== "42P01" && failure.code !== "PGRST205") throw failure;
   const profiles=new Map((profilesResult.data??[]).map(row=>[row.id,row.display_name]));
   const schedulesByProject = new Map((financialRecordsResult.data ?? []).map((row) => [row.project_id, row.payment_schedule]));
+  const d10ByProject = new Map((d10SchedulesResult.data ?? []).map((row) => [row.project_id, row.scheduled_for]));
   const actionsByProject=new Map<string,Array<{id:string;type:string;channel:string;subject:string;status:string;occurredAt:string}>>();
   for(const row of collectionActionsResult.data??[]){const list=actionsByProject.get(row.project_id??"")??[];list.push({id:row.id,type:row.communication_type,channel:row.channel,subject:row.subject??"Acción de cobranza",status:row.status,occurredAt:row.occurred_at});actionsByProject.set(row.project_id??"",list);}
   const invoices: ReceivableInvoice[] = (invoicesResult.data ?? []).map(
@@ -181,6 +186,7 @@ export async function loadAccountsReceivable(
         eventDate: detail.eventDate,
         eventLocation: detail.eventLocation,
         eventDuration: detail.eventDuration,
+        d10CollectionDate: d10ByProject.get(row.project_id) ?? defaultD10Date(detail.eventDate),
         agreementId:agreement?.id??null,
         contractAvailable:Boolean(agreement?.signed_pdf_path),
         collectorId:row.issued_by??row.created_by??null,
@@ -246,6 +252,7 @@ export async function loadAccountsReceivable(
         eventDate: detail.eventDate,
         eventLocation: detail.eventLocation,
         eventDuration: detail.eventDuration,
+        d10CollectionDate: d10ByProject.get(row.project_id) ?? defaultD10Date(detail.eventDate),
         agreementId:agreement?.id??null,
         contractAvailable:Boolean(agreement?.signed_pdf_path),
         collectorId:row.issued_by??row.created_by??null,
