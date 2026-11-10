@@ -7,6 +7,7 @@ const sent = (overrides: Record<string, unknown> = {}) => ({
   status: "SENT",
   occurredAt: "2026-11-10T15:00:00.000Z",
   sentAt: "2026-11-10T15:00:00.000Z",
+  externalMessageId: "gmail-message-1",
   toRecipient: "cliente@example.com",
   createdBy: "Founder",
   ...overrides,
@@ -14,8 +15,8 @@ const sent = (overrides: Record<string, unknown> = {}) => ({
 
 test("D-10 cobranza without a successful delivery is visibly pending", () => {
   const result = resolveCollectionEmailStatus([]);
-  assert.equal(result.state, "NOT_SENT");
-  assert.equal(result.label, "CORREO DE COBRO NO ENVIADO");
+  assert.equal(result.state, "PENDING");
+  assert.equal(result.label, "CORREO DE COBRO PENDIENTE");
 });
 
 test("successful manual delivery exposes time, recipient and actor", () => {
@@ -46,7 +47,14 @@ test("a later retry changes the visible state while retaining the old failure in
   assert.equal(result.sentAt, "2026-11-11T15:00:00.000Z");
 });
 
-test("queued or pending records do not become a false positive", () => {
+test("queued or pending records remain visibly pending", () => {
   const result = resolveCollectionEmailStatus([{ id: "pending", status: "PENDING", occurredAt: "2026-11-10T15:00:00.000Z" }]);
-  assert.equal(result.state, "NOT_SENT");
+  assert.equal(result.state, "PENDING");
+  assert.equal(result.label, "CORREO DE COBRO PENDIENTE");
+});
+
+test("SENT without a Gmail receipt remains visibly pending", () => {
+  const result = resolveCollectionEmailStatus([sent({ externalMessageId: null })]);
+  assert.equal(result.state, "PENDING");
+  assert.equal(result.sentAt, null);
 });
