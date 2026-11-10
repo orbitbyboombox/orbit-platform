@@ -87,6 +87,7 @@ export async function sendOverdueCollections(reference=new Date(), opts:{dryRun?
       sendOnce:async()=>{
         const msg={to:recipient,cc:[],bcc:["matias.maira.larrain@gmail.com"],subject:draft.subject,textBody:draft.body,htmlBody:buildCollectionEmailHtml(draft),driveFileIds:[],idempotencyKey:key,maxSendAttempts:1};
         if(process.env.VERCEL_ENV==="preview" && process.env.D10_QA_EMAIL_MOCK==="true") return new InMemoryGoogleGmailLiveProvider().send({...msg,bcc:[],from:'"BOOMBOX QA" <qa@synthetic.invalid>'});
+        if(process.env.VERCEL_ENV==="preview") throw new Error("Preview email sending blocked: enable D10_QA_EMAIL_MOCK for synthetic QA");
         const workspace=await loadGoogleWorkspaceConnection();
         if(!workspace.workspaceAccount?.trim()) throw new Error("Google Workspace sender unavailable");
         return new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken()).send({...msg,from:'"BOOMBOX Cabinas Fotográficas" <'+workspace.workspaceAccount.trim()+'>'});
