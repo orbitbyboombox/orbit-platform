@@ -1010,8 +1010,12 @@ export default async function ProjectWorkspacePage({
         occurredAt: item.occurred_at,
         sentAt: item.sent_at,
         toRecipient: item.to_recipient,
-        sentBy: item.sent_by,
-        createdBy: item.created_by,
+        sentBy: item.sent_by
+          ? (settlementActors ?? []).find((actor) => actor.id === item.sent_by)?.display_name ?? item.sent_by
+          : null,
+        createdBy: item.created_by
+          ? (settlementActors ?? []).find((actor) => actor.id === item.created_by)?.display_name ?? item.created_by
+          : null,
         failureReason: item.failure_reason,
       })),
   );
