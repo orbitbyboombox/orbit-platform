@@ -10,6 +10,7 @@ import type { ReceivableDataset, ReceivableInvoice } from "./types";
 import { isD10ManualCollectionDue } from "./d10-manual-collection";
 import { setD10CollectionDateAction } from "./d10-manual-collection.actions";
 import { resolveCollectionEmailStatus } from "./collection-email-status";
+import { D10AdminEmailTest } from "@/features/connectors/google-gmail/ui/d10-admin-email-test";
 
 const money = (value: number) =>
   new Intl.NumberFormat("es-CL", {
@@ -198,6 +199,8 @@ export function CollectionCenter({
           profesionales de cobranza sin alterar saldos ni registros financieros.
         </p>
       </section>
+
+      <D10AdminEmailTest />
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <Stat label="TOTAL POR COBRAR" value={money(summaryOutstanding)} detail="Saldo canónico vigente" />
