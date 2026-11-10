@@ -4,7 +4,7 @@ import {
   formatPreEventDate,
   renderPreEventReminderHtml,
   type PreEventReminderModel,
-} from "./pre-event-reminder.template";
+} from "./pre-event-reminder.template.ts";
 
 export const D10_ADMIN_TEST_RECIPIENT = "matias.maira.larrain@gmail.com";
 export const D10_ADMIN_TEST_SUBJECT = "PRUEBA D-10 · BOOMBOX";
