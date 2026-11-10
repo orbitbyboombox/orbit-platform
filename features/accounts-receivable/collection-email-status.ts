@@ -73,3 +73,13 @@ export function resolveCollectionEmailStatus(
     failureReason: null,
   };
 }
+
+export function collectionDeliveryLabel(item: {
+  status: string | null;
+  sentAt: string | null;
+  externalMessageId: string | null;
+}): "ENVIADO" | "PENDIENTE" | "FALLIDO" {
+  if (item.status === "FAILED") return "FALLIDO";
+  if (item.status === "SENT" && item.sentAt && item.externalMessageId) return "ENVIADO";
+  return "PENDIENTE";
+}
