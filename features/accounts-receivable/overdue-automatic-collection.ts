@@ -14,6 +14,12 @@ const hour = (d:Date) => Number(new Intl.DateTimeFormat("en-US",{timeZone:"Ameri
 const weekday = (d:Date) => new Intl.DateTimeFormat("en-US",{timeZone:"America/Santiago",weekday:"short"}).format(d);
 const blocked = new Set(["PAID","CANCELLED","CANCELED","ARCHIVED","DELETED","VOID"]);
 const first = (v:any) => Array.isArray(v)?v[0]:v;
+// At Wednesday 13:00, only events from the preceding Monday-Sunday qualify.
+const isPreviousWeekEvent = (eventDate:string|null|undefined, today:string) => {
+  if (!eventDate || !/^\d{4}-\d{2}-\d{2}$/.test(String(eventDate).slice(0,10))) return false;
+  const elapsed = (Date.parse(today+"T12:00:00Z")-Date.parse(String(eventDate).slice(0,10)+"T12:00:00Z"))/86400000;
+  return Number.isInteger(elapsed) && elapsed>=3 && elapsed<=9;
+};
 export async function sendOverdueCollections(reference=new Date(), opts:{dryRun?:boolean}={}) {
   const today=day(reference);
   if(weekday(reference)!=="Wed" || hour(reference)!==13) return {skipped:true,reason:"Outside Chile Wednesday 13:00 window",sent:0,failed:0,pending:0,candidates:0};
@@ -29,7 +35,7 @@ export async function sendOverdueCollections(reference=new Date(), opts:{dryRun?
   const grouped=new Map<string,Invoice[]>();
   for(const invoice of eligible as Invoice[]) {
     const project=projectMap.get(invoice.project_id!);
-    if(!project || !project.event_date || String(project.event_date).slice(0,10)>=today || blocked.has(String(project.status??"").toUpperCase()) || project.customer_id!==invoice.customer_id) continue;
+    if(!project || !isPreviousWeekEvent(project.event_date,today) || blocked.has(String(project.status??"").toUpperCase()) || project.customer_id!==invoice.customer_id) continue;
     const key=invoice.customer_id+":"+invoice.project_id;
     grouped.set(key,[...(grouped.get(key)??[]),invoice]);
   }
@@ -65,7 +71,7 @@ export async function sendOverdueCollections(reference=new Date(), opts:{dryRun?
     // Never collect before or on the event date, even when an invoice due date has passed.
     const {data:currentProject,error:currentProjectError}=await admin.from("projects").select("event_date,status,deleted_at").eq("id",project.id).maybeSingle();
     if(currentProjectError) throw currentProjectError;
-    if(!currentProject || currentProject.deleted_at || !currentProject.event_date || String(currentProject.event_date).slice(0,10)>=today || blocked.has(String(currentProject.status??"").toUpperCase())){skipped++;continue;}
+    if(!currentProject || currentProject.deleted_at || !isPreviousWeekEvent(currentProject.event_date,today) || blocked.has(String(currentProject.status??"").toUpperCase())){skipped++;continue;}
     const refreshedBalance=latestRows.reduce((sum,i)=>sum+Number(i.outstanding_balance),0);
     if(refreshedBalance!==balance){skipped++;continue;}
     const payload={customer_id:invoices[0].customer_id,project_id:project.id,channel:"GMAIL",direction:"OUTBOUND",communication_type:"COLLECTION_OVERDUE_AUTOMATIC",request_key:key,thread_key:key,subject:draft.subject,body:draft.body,status:"PENDING",to_recipient:recipient,cc_recipients:[],occurred_at:new Date().toISOString(),sent_at:null,external_message_id:null,failure_reason:null,context_snapshot:{automatic:true,trigger:"OVERDUE_WED_13",sendMode:"AUTOMATIC",date:today,outstandingBalance:balance,invoiceIds:invoices.map(i=>i.id),recipient}};
