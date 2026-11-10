@@ -171,7 +171,7 @@ export function CollectionCenter({
   );
 
   const rows = filter === "HISTORY" ? history : actionable;
-  const emailHistory = useMemo(() => dataset.collectionEmailHistory.filter((item) => {
+  const emailHistory = useMemo(() => (dataset.collectionEmailHistory ?? []).filter((item) => {
     const text = [item.customerName, item.customerCompany ?? "", item.eventName, item.eventCode, item.recipient].join(" ").toLowerCase();
     return !query || text.includes(query.toLowerCase());
   }), [dataset.collectionEmailHistory, query]);
