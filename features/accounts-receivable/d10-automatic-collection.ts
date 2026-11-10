@@ -3,7 +3,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadCompanySettingsCached } from "@/features/company-settings";
 import { loadGoogleWorkspaceAccessToken, loadGoogleWorkspaceConnection } from "@/features/connectors/google-workspace/application/google-workspace.repository";
-import { GoogleGmailApiProvider, GoogleGmailDeliveryOutcomeUnknownError, InMemoryGoogleGmailLiveProvider } from "@/features/connectors/google-gmail/provider/google-gmail-live.provider";
+import { GoogleGmailApiProvider, InMemoryGoogleGmailLiveProvider } from "@/features/connectors/google-gmail/provider/google-gmail-live.provider";
 import { normalizeEmailRecipients } from "@/lib/email/recipients";
 import { resolveCollectionBankDetails } from "./collection-bank-details";
 import { buildCollectionEmailDraft, buildCollectionEmailHtml } from "./collection-email.template";
@@ -296,7 +296,9 @@ export async function sendAutomaticCollectionD10(reference = new Date(), options
     .not("status", "in", "(CANCELLED,CANCELED,ARCHIVED,DELETED)");
   if (projectError) throw projectError;
 
-  const projectIds = (projects ?? []).map((project) => project.id);
+  const qaMockMode = process.env.VERCEL_ENV === "preview" && process.env.D10_QA_EMAIL_MOCK === "true";
+  const candidateProjects = (projects ?? []).filter((project) => !qaMockMode || (String(project.orbit_event_id ?? "").startsWith("D10-SYN-") && String(first<Row>(project.customers)?.email ?? "").toLowerCase().endsWith(".invalid")));
+  const projectIds = candidateProjects.map((project) => project.id);
   const { data: invoices, error: invoiceError } = projectIds.length
     ? await admin.from("accounts_receivable_projection").select("id,invoice_number,customer_id,project_id,status,effective_status,amount,paid_amount,outstanding_balance,due_date,days_remaining,currency,deleted_at,archived_at,cancelled_at").in("project_id", projectIds)
     : { data: [], error: null };
@@ -309,7 +311,7 @@ export async function sendAutomaticCollectionD10(reference = new Date(), options
     invoicesByProject.set(invoice.project_id, list);
   }
   if (options?.dryRun) {
-    const checks = (projects ?? []).map((project) => {
+    const checks = candidateProjects.map((project) => {
       const summary = summarizeD10Invoices(invoicesByProject.get(project.id) ?? []);
       const customer = first(project.customers);
       const collectible = selectD10CollectibleInvoices(invoicesByProject.get(project.id) ?? [], targetDate);
@@ -333,7 +335,7 @@ export async function sendAutomaticCollectionD10(reference = new Date(), options
   }
 
   let sent = 0, skipped = 0, reviewRequired = 0, failed = 0, pending = 0;
-  for (const project of (projects ?? []) as Row[]) {
+  for (const project of candidateProjects as Row[]) {
     const customer = first<Row>(project.customers);
     const summary = summarizeD10Invoices(invoicesByProject.get(project.id) ?? []);
     const collectibleInvoices = selectD10CollectibleInvoices(invoicesByProject.get(project.id) ?? [], targetDate);
@@ -388,5 +390,5 @@ export async function sendAutomaticCollectionD10(reference = new Date(), options
     else skipped += 1;
   }
 
-  return { targetDate, candidates: projects?.length ?? 0, sent, skipped, reviewRequired, failed, pending };
+  return { targetDate, candidates: candidateProjects.length, sent, skipped, reviewRequired, failed, pending };
 }
