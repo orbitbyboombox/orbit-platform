@@ -111,6 +111,84 @@ export function StaffPaymentPeriodsPanel({
           persona conserva su modalidad del mes.
         </p>
       </div>
+      {data && (
+        <div
+          className="space-y-3 rounded-xl border border-white/10 p-3"
+          aria-label="Resumen primera quincena"
+        >
+          <h4 className="font-semibold">
+            Primera quincena · {month}-01 al {month}-14
+          </h4>
+          <p className="text-sm text-muted">
+            Montos de servicios realizados. Honorarios incluyen capacitación.
+            Reembolsos separados de la boleta. El cierre estará disponible el
+            día 14; el primer pago no exige boleta mensual y mantiene la
+            validación tributaria.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr>
+                  <th className="p-2">Trabajador</th>
+                  <th className="p-2">Honorarios</th>
+                  <th className="p-2">Reembolsos pendientes</th>
+                  <th className="p-2">Honorarios pagados</th>
+                  <th className="p-2">Total pendiente</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.summary.map((row) => (
+                  <tr key={row.staff_id} className="border-t border-white/10">
+                    <td className="p-2">
+                      {row.staff_name}
+                      {row.review_required && (
+                        <span className="block text-xs text-amber-300">
+                          {row.review_reason || "Revisión requerida"}
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-2 whitespace-nowrap">
+                      {money(Number(row.work_net))}
+                      {Number(row.training_net) > 0 && (
+                        <span className="block text-xs text-muted">
+                          Capacitación {money(Number(row.training_net))}{" "}
+                          incluida
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-2">{money(Number(row.reimbursements))}</td>
+                    <td className="p-2">{money(Number(row.paid))}</td>
+                    <td className="p-2">
+                      {money(Number(row.pending) + Number(row.reimbursements))}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-sm font-semibold">
+            Honorarios{" "}
+            {money(
+              data.summary.reduce((sum, row) => sum + Number(row.work_net), 0),
+            )}{" "}
+            · Reembolsos{" "}
+            {money(
+              data.summary.reduce(
+                (sum, row) => sum + Number(row.reimbursements),
+                0,
+              ),
+            )}{" "}
+            · Total pendiente{" "}
+            {money(
+              data.summary.reduce(
+                (sum, row) =>
+                  sum + Number(row.pending) + Number(row.reimbursements),
+                0,
+              ),
+            )}
+          </p>
+        </div>
+      )}
       <form
         className="space-y-3"
         action={(form) => run(() => configureStaffPaymentPeriodsAction(form))}

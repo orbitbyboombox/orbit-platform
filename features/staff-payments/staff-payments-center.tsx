@@ -1,4 +1,5 @@
 "use client";
+import { staffAccountOutstanding } from "@/features/staff-monthly-account/model";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ExternalLink, Search, TriangleAlert } from "lucide-react";
@@ -340,7 +341,7 @@ export function StaffPaymentsCenter({
             finalAmount,
             paid,
             outstanding:
-              ((account) => account ? (account.paymentStatus === "PAID" ? 0 : Math.max(account.finalTransferAmount - account.paidAmount, 0) + account.reimbursementsPendingTotal) : null)(months.find((item) => item.staffId === member.id && item.month.startsWith(month))?.account) ??
+              ((account) => account ? staffAccountOutstanding(account) : null)(months.find((item) => item.staffId === member.id && item.month.startsWith(month))?.account) ??
               (Math.max(payrollNet - payrollPaid, 0) + reimbursementsPending),
             account: months.find(
               (item) =>
@@ -849,7 +850,7 @@ function PaymentSheet({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">
-            Planilla de pagos Staff
+            Planilla de pagos Staff · mensual
           </p>
           <h3 className="mt-1 text-xl font-semibold capitalize">
             {new Date(`${month}-01T12:00:00Z`).toLocaleDateString("es-CL", {
