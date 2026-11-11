@@ -15,6 +15,7 @@ import {
   reviewMonthlyBoletaAction,
   submitMonthlyBoletaAction,
 } from "./actions";
+import { OwnPaymentPeriods } from "./own-payment-periods";
 import { staffMonthLabel, type StaffMonthlyAccount } from "./model";
 const money = (v: number) =>
   new Intl.NumberFormat("es-CL", {
@@ -159,6 +160,7 @@ export function StaffMonthlyAccountPanel({
       <p className="mt-3 rounded-xl border bg-background/50 p-3 text-sm font-semibold" data-staff-workflow-state>
         Estado de flujo: {workflowLabel}
       </p>
+      {mode === "STAFF" ? <OwnPaymentPeriods accountId={account.id} /> : null}
       {account.reviewRequired ? (
         <div className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
           <p className="font-semibold text-amber-700">
