@@ -1,5 +1,10 @@
 "use server";
 
+import {
+  loadPeriodDocumentPayload,
+  periodCloseEmailPreview,
+  deliverStaffPeriodCloseEmail,
+} from "./period-communication.service";
 import { createHash, randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerActionClient } from "@/lib/supabase/server";
@@ -57,6 +62,14 @@ export async function getStaffPaymentPeriodsAction(month: string) {
     if (!ids.length)
       return {
         ok: true as const,
+        deliveries: [] as {
+          periodId: string;
+          status: string;
+          recipient: string;
+          messageId: string;
+          sentAt: string;
+          error: string;
+        }[],
         summary: [] as FirstFortnightSummary[],
         accounts: [],
         schedules: [],
@@ -93,8 +106,26 @@ export async function getStaffPaymentPeriodsAction(month: string) {
           .order("created_at")
       : { data: [], error: null };
     if (payments.error) throw payments.error;
+    const notices = await createAdminClient()
+      .from("internal_notifications")
+      .select("metadata")
+      .eq("notification_type", "STAFF_PERIOD_SETTLEMENT_READY")
+      .in("entity_id", ids);
+    if (notices.error) throw notices.error;
+    const deliveries = (notices.data ?? []).map((row) => {
+      const meta = row.metadata as Record<string, unknown>;
+      return {
+        periodId: String(meta.period_id),
+        status: String(meta.email_status),
+        recipient: String(meta.recipient ?? ""),
+        messageId: String(meta.message_id ?? ""),
+        sentAt: String(meta.sent_at ?? ""),
+        error: String(meta.last_error ?? ""),
+      };
+    });
     return {
       ok: true as const,
+      deliveries,
       summary: (summary.data ?? []) as FirstFortnightSummary[],
       accounts: accounts.data ?? [],
       schedules: (schedules.data ?? []) as PaymentSchedule[],
@@ -152,11 +183,18 @@ export async function closeStaffPaymentPeriodAction(periodId: string) {
       p_period_id: periodId,
     });
     if (error) throw error;
-    refreshPeriods();
-    return {
-      ok: true,
-      message: "Bloque cerrado con liquidación histórica protegida.",
-    };
+    try {
+      const delivery = await deliverStaffPeriodCloseEmail(periodId);
+      refreshPeriods();
+      return { ok: true, message: delivery.message };
+    } catch {
+      refreshPeriods();
+      return {
+        ok: true,
+        message:
+          "Cierre confirmado. El correo quedó pendiente de preparación; revisa el historial de envío.",
+      };
+    }
   } catch (error) {
     return { ok: false, message: messageOf(error) };
   }
@@ -266,8 +304,9 @@ export async function registerStaffPeriodPaymentAction(form: FormData) {
 
 export async function getOwnStaffPaymentPeriodsAction(accountId: string) {
   try {
-    const { loadPortalSession } =
-      await import("@/features/portal-authentication/portal-auth.service");
+    const { loadPortalSession } = await import(
+      "@/features/portal-authentication/portal-auth.service"
+    );
     const session = await loadPortalSession("STAFF");
     if (!session?.staff_id) throw new Error("Sesión Staff requerida.");
     const admin = createAdminClient();
@@ -315,6 +354,29 @@ export async function getOwnStaffPaymentPeriodsAction(accountId: string) {
       modality: schedule.data.modality as PaymentModality,
       periods: (periods.data ?? []) as StaffPaymentPeriod[],
       payments: (payments.data ?? []) as StaffPeriodPayment[],
+    };
+  } catch (error) {
+    return { ok: false as const, message: messageOf(error) };
+  }
+}
+
+export async function retryStaffPeriodCloseEmailAction(periodId: string) {
+  try {
+    await adminContext();
+    const delivery = await deliverStaffPeriodCloseEmail(periodId);
+    refreshPeriods();
+    return { ok: true, message: delivery.message };
+  } catch (error) {
+    return { ok: false, message: messageOf(error) };
+  }
+}
+
+export async function previewStaffPeriodCloseEmailAction(periodId: string) {
+  try {
+    await adminContext();
+    return {
+      ok: true as const,
+      email: periodCloseEmailPreview(await loadPeriodDocumentPayload(periodId)),
     };
   } catch (error) {
     return { ok: false as const, message: messageOf(error) };

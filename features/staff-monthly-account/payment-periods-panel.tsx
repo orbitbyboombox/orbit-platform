@@ -8,6 +8,8 @@ import { MobileDialog } from "@/components/ui/mobile-dialog";
 import { OrbitDocumentViewer } from "@/components/documents/orbit-document-viewer";
 import { requestIndividualStaffBoletaAction } from "./actions";
 import {
+  previewStaffPeriodCloseEmailAction,
+  retryStaffPeriodCloseEmailAction,
   closeStaffPaymentPeriodAction,
   configureStaffPaymentPeriodsAction,
   getStaffPaymentPeriodsAction,
@@ -50,6 +52,11 @@ export function StaffPaymentPeriodsPanel({
     preview: StaffPeriodPreview;
     name: string;
     key: string;
+  } | null>(null);
+  const [emailPreview, setEmailPreview] = useState<{
+    recipient: string;
+    subject: string;
+    htmlBody: string;
   } | null>(null);
   const [closing, setClosing] = useState<StaffPaymentPeriod | null>(null);
   const router = useRouter();
@@ -328,6 +335,9 @@ export function StaffPaymentPeriodsPanel({
               </div>
               {periods.map((period) => {
                 const calc = period.snapshot;
+                const delivery = data.deliveries.find(
+                  (row) => row.periodId === period.id,
+                );
                 const payments = data.payments.filter(
                   (row) => row.period_id === period.id,
                 );
@@ -365,6 +375,45 @@ export function StaffPaymentPeriodsPanel({
                         gestionados en su registro de gastos.
                       </p>
                     ) : null}
+                    {delivery && (
+                      <div className="rounded-lg border p-3 text-xs space-y-1">
+                        <p>
+                          Correo de cierre:{" "}
+                          {delivery.status === "SENT"
+                            ? "ACEPTADO POR GMAIL"
+                            : delivery.status === "PENDING"
+                              ? "PENDIENTE"
+                              : delivery.status === "UNKNOWN"
+                                ? "POR CONCILIAR"
+                                : "EN PROCESO"}
+                        </p>
+                        {delivery.recipient && (
+                          <p>Destinatario: {delivery.recipient}</p>
+                        )}
+                        {delivery.messageId && (
+                          <p className="break-all">
+                            ID Gmail: {delivery.messageId}
+                          </p>
+                        )}
+                        {delivery.sentAt && (
+                          <p>{formatDisplayDate(delivery.sentAt)}</p>
+                        )}
+                        {delivery.error && <p>{delivery.error}</p>}
+                        {delivery.status === "PENDING" && (
+                          <Button
+                            disabled={pending}
+                            variant="outline"
+                            onClick={() =>
+                              run(() =>
+                                retryStaffPeriodCloseEmailAction(period.id),
+                              )
+                            }
+                          >
+                            REINTENTAR ENVÍO PENDIENTE
+                          </Button>
+                        )}
+                      </div>
+                    )}
                     <div className="flex flex-wrap gap-2">
                       <Button
                         variant="outline"
@@ -372,6 +421,22 @@ export function StaffPaymentPeriodsPanel({
                         onClick={() => setViewer(period)}
                       >
                         PREVISUALIZAR LIQUIDACIÓN
+                      </Button>
+                      <Button
+                        variant="outline"
+                        disabled={pending}
+                        onClick={() =>
+                          start(async () => {
+                            const result =
+                              await previewStaffPeriodCloseEmailAction(
+                                period.id,
+                              );
+                            if (result.ok) setEmailPreview(result.email);
+                            else setMessage(result.message);
+                          })
+                        }
+                      >
+                        PREVISUALIZAR CORREO
                       </Button>
                       {period.status === "DRAFT" ? (
                         <Button
@@ -530,6 +595,21 @@ export function StaffPaymentPeriodsPanel({
           title={periodLabel(viewer.period_code)}
         />
       ) : null}
+      {emailPreview && (
+        <MobileDialog
+          title="Vista previa del correo BOOMBOX"
+          description={`Para: ${emailPreview.recipient || "Correo sin registrar"}`}
+          onClose={() => setEmailPreview(null)}
+        >
+          <p className="mb-3 text-sm font-semibold">{emailPreview.subject}</p>
+          <iframe
+            title="Correo premium de liquidación"
+            sandbox=""
+            srcDoc={emailPreview.htmlBody}
+            className="h-[65vh] w-full rounded-lg border bg-white"
+          />
+        </MobileDialog>
+      )}
       {closing ? (
         <MobileDialog
           title="Cerrar bloque Staff"
@@ -538,7 +618,11 @@ export function StaffPaymentPeriodsPanel({
         >
           <p className="text-sm">
             El cierre congela los servicios y conceptos del bloque. Revisa la
-            liquidación antes de confirmar.
+            liquidación antes de confirmar. Al confirmar se enviará
+            automáticamente el PDF premium al correo registrado del trabajador.
+            La primera quincena no solicita boleta; el cierre mensual solicita
+            una sola boleta por todos los honorarios, sin descontar pagos
+            previos.
           </p>
           <Button
             className="mt-4"
@@ -549,7 +633,7 @@ export function StaffPaymentPeriodsPanel({
               run(() => closeStaffPaymentPeriodAction(id));
             }}
           >
-            Confirmar cierre
+            Confirmar cierre y enviar PDF
           </Button>
         </MobileDialog>
       ) : null}
