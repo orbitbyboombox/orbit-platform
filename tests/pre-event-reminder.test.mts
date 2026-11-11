@@ -109,13 +109,12 @@ test("cron execution is observable without exposing message content or secrets",
   assert.doesNotMatch(route, /htmlBody|textBody|CRON_SECRET\s*:/);
 });
 
-test("scheduled cron records collection review items without dispatching collection email", () => {
-  assert.match(cronRoute, /sendAutomaticCollectionD10\(new Date\(\), \{ internalOnly: true \}\)/);
-  const collection = read("../features/accounts-receivable/d10-automatic-collection.ts");
-  assert.match(collection, /internalOnly\?: boolean/);
-  assert.match(collection, /Cobranza D-10 disponible para revisión y envío manual/);
-  assert.match(collection, /if \(options\?\.internalOnly\)/);
-  assert.match(collection, /continue;/);
+test("scheduled D-10 sends the premium reminder once and keeps collection test paths isolated", () => {
+  const productionRun = cronRoute.slice(cronRoute.indexOf("if (chileHour() !== 15)"));
+  assert.match(productionRun, /sendAutomaticPreEventReminders\(new Date\(\)\)/);
+  assert.doesNotMatch(productionRun, /sendAutomaticCollectionD10/);
+  assert.match(cronRoute, /process\.env\.D10_QA_EMAIL_MOCK === "true"/);
+  assert.match(cronRoute, /dryRun: true/);
 });
 
 test("dry run is read-only, authenticated, and unavailable in Production", () => {
@@ -131,12 +130,12 @@ test("dry run is read-only, authenticated, and unavailable in Production", () =>
   assert.doesNotMatch(inspection, /\.(insert|update)\(/);
 });
 
-test("cron follows 11:00 America/Santiago across DST by using an hourly schedule gate", () => {
+test("cron follows 15:00 America/Santiago across DST by using an hourly schedule gate", () => {
   const config = read("../vercel.json");
   const route = read("../app/api/cron/pre-event-reminders/route.ts");
   assert.match(config, /"path": "\/api\/cron\/pre-event-reminders",\s*"schedule": "0 \* \* \* \*"/);
   assert.match(route, /timeZone: "America\/Santiago"/);
-  assert.match(route, /chileHour\(\) !== 11/);
+  assert.match(route, /chileHour\(\) !== 15/);
 });
 
 test("automatic D-10 requires a confirmed reservation or synchronized calendar event", () => {
@@ -194,12 +193,12 @@ test("preview composer isolates every dependency and emits only safe timing fiel
   assert.match(actions, /profiles\.role/);
 });
 
-test("cron authorization is exact and Chile 11:00 is DST-safe", () => {
+test("cron authorization is exact and Chile 15:00 is DST-safe", () => {
   const config = read("../vercel.json");
   assert.match(cronRoute, /authorization.*Bearer/);
   assert.match(cronRoute, /function isAuthorizedCronRequest/);
   assert.match(cronRoute, /timeZone: "America\/Santiago"/);
-  assert.match(cronRoute, /chileHour\(\) !== 11/);
+  assert.match(cronRoute, /chileHour\(\) !== 15/);
   assert.match(config, /"schedule": "0 \* \* \* \*"/);
 });
 

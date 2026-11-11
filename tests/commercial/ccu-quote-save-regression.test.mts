@@ -126,7 +126,7 @@ test("canonical RPC is atomic, authenticated and idempotent by draft id", () => 
   assert.match(migration, /insert into public\.quotation_items/);
   assert.match(migration, /old\.status <> 'DRAFT' or new\.status <> 'DRAFT'/);
   assert.match(migration, /deposit_percent_value < 0 or deposit_percent_value > 100/);
-  assert.match(action, /executeCanonicalQuoteDraft/);
+  assert.match(action, /client\.rpc\(\s*"save_commercial_quote_draft"/);
   assert.match(canonicalService, /client\.rpc\(\s*"save_commercial_quote_draft"/);
   assert.match(canonicalService, /draft\.quoteId \?\? draft\.requestId \?\? crypto\.randomUUID\(\)/);
   assert.doesNotMatch(action, /client\.rpc\("update_commercial_quote_draft"/);
