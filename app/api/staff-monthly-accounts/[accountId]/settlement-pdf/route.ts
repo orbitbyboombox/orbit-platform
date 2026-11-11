@@ -1,3 +1,4 @@
+import {formatDisplayDate} from "@/lib/display-date";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadPortalSession } from "@/features/portal-authentication/portal-auth.service";
@@ -108,7 +109,7 @@ export async function GET(
         paidAmount: 0,
         remaining: 0,
       } as StaffPeriodPreview);
-      periodTitle = `${periodLabel(period.period_code)} | ${period.starts_on} - ${period.ends_on}`;
+      periodTitle = `${periodLabel(period.period_code)} | ${formatDisplayDate(period.starts_on)} - ${formatDisplayDate(period.ends_on)}`;
       firstQuincena = period.period_code !== "MONTH";
       fileSuffix = `-${period.period_code}`;
     }

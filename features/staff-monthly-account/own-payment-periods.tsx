@@ -1,4 +1,6 @@
 "use client";
+import {formatDisplayDate} from "@/lib/display-date";
+
 import { useEffect, useState } from "react";
 import { getOwnStaffPaymentPeriodsAction } from "./payment-periods.actions";
 import { periodLabel } from "./payment-periods.model";
@@ -47,7 +49,7 @@ export function OwnPaymentPeriods({ accountId }: { accountId: string }) {
             </p>
             {payments.map((payment) => (
               <p key={payment.id}>
-                {payment.paid_on} · {money(Number(payment.amount))} ·{" "}
+                {formatDisplayDate(payment.paid_on)} · {money(Number(payment.amount))} ·{" "}
                 {payment.method}
               </p>
             ))}

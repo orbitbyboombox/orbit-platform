@@ -1,4 +1,6 @@
 "use client";
+import {formatDisplayDate} from "@/lib/display-date";
+
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import { FileDown, Mail, RefreshCw, Send, UsersRound } from "lucide-react";
@@ -106,7 +108,7 @@ export function OfficialStaffRosterControl({projectId}:{projectId:string}) {
         <label className="mt-4 grid gap-1 text-sm font-medium">Correo del cliente<input type="email" className="min-h-11 rounded-lg border bg-background px-3" value={to} onChange={event=>setTo(event.target.value)} placeholder="cliente@empresa.cl"/></label>
         <div className="mt-3 rounded-xl border bg-muted/10 p-4 text-sm">
           <p><strong>Asunto:</strong> Nómina oficial BOOMBOX · {composer.eventName}</p>
-          <p className="mt-2"><strong>Mensaje:</strong> Hola {composer.customerName||"equipo"}, adjuntamos la nómina oficial del equipo BOOMBOX para {composer.eventName}, el {composer.eventDate}. El PDF presenta al equipo organizado por operadores y supervisores.</p>
+          <p className="mt-2"><strong>Mensaje:</strong> Hola {composer.customerName||"equipo"}, adjuntamos la nómina oficial del equipo BOOMBOX para {composer.eventName}, el {formatDisplayDate(composer.eventDate)}. El PDF presenta al equipo organizado por operadores y supervisores.</p>
           <p className="mt-2"><strong>Encargado del evento:</strong> Matías Maira · RUT 16.357.402-0 · +56 9 7306 9315</p>
           <p className="mt-3 text-xs text-muted">Adjunto: nómina oficial en PDF ({composer.members.length} integrantes). El envío quedará registrado en el historial del evento.</p>
         </div>

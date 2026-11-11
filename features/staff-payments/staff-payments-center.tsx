@@ -1,4 +1,6 @@
 "use client";
+import {formatDisplayDate,formatDisplayMonth} from "@/lib/display-date";
+
 import { staffAccountOutstanding } from "@/features/staff-monthly-account/model";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -408,7 +410,7 @@ export function StaffPaymentsCenter({
               Cierre mensual Staff
             </p>
             <h3 className="mt-1 text-lg font-semibold">
-              {month} · {closeState?.status ?? "OPEN"}
+              {formatDisplayMonth(month)} · {closeState?.status ?? "OPEN"}
             </h3>
             <p className="mt-1 text-sm text-muted">
               Al cerrar, ORBIT congela las liquidaciones, genera cada PDF y
@@ -529,7 +531,7 @@ export function StaffPaymentsCenter({
           ) : (
             <div className="mt-2 text-4xl font-bold tracking-tight tabular-nums sm:text-5xl">{money.format(advancesPaid + finalPaid + reimbursementsPaid + complementaryPaid)}</div>
           )}
-          <p className="mt-2 text-sm text-muted">Total pagado en honorarios, reembolsos y complementos · {month}</p>
+          <p className="mt-2 text-sm text-muted">Total pagado en honorarios, reembolsos y complementos · {formatDisplayMonth(month)}</p>
           {complementaryError && <p className="mt-2 text-sm text-orange-400">{complementaryError}. No se presenta un gasto final incompleto.</p>}
           <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
             <Metric label="Adelantos pagados" value={advancesPaid} />
@@ -700,7 +702,7 @@ function QuickStaffPayment({
       </div>
       <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_auto] lg:items-end">
         <label className="text-sm">Operador<select className="mt-1 min-h-11 w-full rounded-xl border bg-background px-3" value={staffId} onChange={(e) => { setStaffId(e.target.value); setEventId(""); }}><option value="">Seleccionar operador</option>{eligibleRows.map((item) => <option key={item.member.id} value={item.member.id}>{item.member.name}</option>)}</select></label>
-        <label className="text-sm">Evento pendiente<select className="mt-1 min-h-11 w-full rounded-xl border bg-background px-3" disabled={!row} value={eventId} onChange={(e) => setEventId(e.target.value)}><option value="">Seleccionar obligación pendiente</option>{row?.eventRows.map((item) => <option key={item.id} value={item.id}>{item.eventName} · {item.eventDate} · {item.roles.map(roleLabel).join(" + ")} · {money.format(honorariaOutstanding(item))}</option>)}</select></label>
+        <label className="text-sm">Evento pendiente<select className="mt-1 min-h-11 w-full rounded-xl border bg-background px-3" disabled={!row} value={eventId} onChange={(e) => setEventId(e.target.value)}><option value="">Seleccionar obligación pendiente</option>{row?.eventRows.map((item) => <option key={item.id} value={item.id}>{item.eventName} · {formatDisplayDate(item.eventDate)} · {item.roles.map(roleLabel).join(" + ")} · {money.format(honorariaOutstanding(item))}</option>)}</select></label>
         <span className="min-h-11 rounded-xl border bg-background/60 px-3 py-2 text-sm"><span className="block text-xs text-muted">Saldo real pendiente</span><strong>{event ? money.format(outstanding) : "—"}</strong></span>
       </div>
       {event ? <form action={submit} className="mt-4 grid gap-3 rounded-xl border bg-background/40 p-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -974,7 +976,7 @@ function PaymentSheet({
                 <td className="p-3 font-semibold">
                   {splitName(member.name).lastName}
                 </td>
-                <td className="p-3">{month}</td>
+                <td className="p-3">{formatDisplayMonth(month)}</td>
                 <td className="p-3 text-right">
                   {money.format(account.workNet)}
                 </td>
@@ -1029,14 +1031,14 @@ function PaymentSheet({
         <MobileDialog
           eyebrow="Payment Ledger · Staff"
           title="REGISTRAR PAGO STAFF"
-          description={`${chosen.member.name} · ${month}`}
+          description={`${chosen.member.name} · ${formatDisplayMonth(month)}`}
           onClose={() => !pending && setChosen(null)}
         >
           <form action={submit} className="space-y-3">
             <p className="text-sm">
               ¿Confirmas el pago de{" "}
               {money.format(chosen.account.finalTransferAmount)} correspondiente
-              a {month} para {chosen.member.name}?
+              a {formatDisplayMonth(month)} para {chosen.member.name}?
             </p>
             <dl className="grid grid-cols-2 gap-2 text-sm">
               <div>
@@ -1131,7 +1133,7 @@ function EventRow({ item }: { item: StaffPaymentEvent }) {
         <div>
           <strong>{item.eventName}</strong>
           <p className="mt-1 text-xs text-muted">
-            {item.eventDate} · {item.customer}
+            {formatDisplayDate(item.eventDate)} · {item.customer}
           </p>
           <p className="mt-1 text-xs text-muted">
             {item.service} · {item.durationHours} horas · {item.roles.map(roleLabel).join(" + ")}

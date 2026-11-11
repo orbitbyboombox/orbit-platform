@@ -1,4 +1,6 @@
 "use client";
+import {formatDisplayDate} from "@/lib/display-date";
+
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -51,7 +53,7 @@ export function BoletaSosPanel({ account, operatorName }: { account: StaffMonthl
         <label className="block text-sm">Evento / liquidación
           <select required name="settlementId" value={selectedId} onChange={e => setSelectedId(e.target.value)} className="mt-1 min-h-11 w-full rounded-xl border bg-background px-3">
             <option value="">{loading ? "Consultando pendientes…" : "Selecciona la liquidación complementaria"}</option>
-            {details.map(d => <option key={d.settlementId} value={d.settlementId}>{d.eventDate} · Liquidación complementaria · {pesos(d.workNet)} netos</option>)}
+            {details.map(d => <option key={d.settlementId} value={d.settlementId}>{formatDisplayDate(d.eventDate)} · Liquidación complementaria · {pesos(d.workNet)} netos</option>)}
           </select>
         </label>
         {selected && <p className="rounded-lg bg-card p-3 text-sm">Honorarios del evento: <strong>{pesos(selected.workNet)} líquidos</strong>. Verifica el monto pendiente antes de pagar. Reembolsos fuera de esta boleta.</p>}
@@ -66,7 +68,7 @@ export function BoletaSosPanel({ account, operatorName }: { account: StaffMonthl
       {open && reviewItems.length > 0 && <div className="mt-4 space-y-3 border-t pt-4">
         <p className="text-sm font-bold">Boletas pendientes de aprobación</p>
         {reviewItems.map(item => <div key={item.id} className="rounded-lg border p-3 space-y-2">
-          <p className="text-sm">{item.eventDate} · {pesos(item.amount)} · {item.fileName}</p>
+          <p className="text-sm">{formatDisplayDate(item.eventDate)} · {pesos(item.amount)} · {item.fileName}</p>
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="outline" disabled={pending} onClick={() => start(async () => {
               const result = await viewBoletaSosAction(item.id);

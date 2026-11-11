@@ -1,3 +1,5 @@
+
+import {formatDisplayDate} from "@/lib/display-date";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -23,7 +25,7 @@ export default async function MulticajaEventsPage() {
       const operations = project.operations as Record<string, unknown> | null;
       const layout = operations?.totemLayout as { enabled?: boolean; positions?: unknown[] } | undefined;
       return <Link key={project.id} href={`/admin/totems/${project.id}`} className="flex items-center justify-between gap-4 rounded-xl border p-4 hover:bg-white/5">
-        <span><strong>{project.orbit_event_id ?? project.name}</strong><span className="block text-sm opacity-70">{project.name} · {project.event_date}</span></span>
+        <span><strong>{project.orbit_event_id ?? project.name}</strong><span className="block text-sm opacity-70">{project.name} · {formatDisplayDate(project.event_date)}</span></span>
         <span className="text-sm">{layout?.enabled ? `Activo · ${layout.positions?.length ?? 0} CASE` : "Configurar multicaja →"}</span>
       </Link>;
     })}</div>

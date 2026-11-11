@@ -1,4 +1,6 @@
 "use client";
+import {formatDisplayDate} from "@/lib/display-date";
+
 
 import { useMemo, useState, useTransition } from "react";
 import {
@@ -591,7 +593,7 @@ function ProfileView({
         <div className="mt-4 space-y-3">
           {paymentEvents.map((event) => (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3" key={event.id}>
-              <div><p className="font-semibold">{event.eventName}</p><p className="text-xs text-muted">{event.eventDate} · {event.service} · ORB {event.projectId.slice(0, 8)}</p></div>
+              <div><p className="font-semibold">{event.eventName}</p><p className="text-xs text-muted">{formatDisplayDate(event.eventDate)} · {event.service} · ORB {event.projectId.slice(0, 8)}</p></div>
               <button className="inline-flex min-h-11 items-center rounded-xl border px-3 font-semibold text-brand" onClick={() => setAdvanceFor(event)} type="button">[ADELANTO PAGO]</button>
             </div>
           ))}

@@ -1,4 +1,6 @@
 "use client";
+import {formatDisplayDate} from "@/lib/display-date";
+
 
 import {
   CheckCircle2,
@@ -360,7 +362,7 @@ export function CustomerSigningExperience(
             Revisa y firma tu contrato
           </h1>
           <p className="mt-4 leading-7 text-muted">
-            {props.customer} · {props.project} · {props.eventDate}
+            {props.customer} · {props.project} · {formatDisplayDate(props.eventDate)}
           </p>
           <div className="mt-6 rounded-2xl border bg-background/40 p-5">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand">

@@ -1,3 +1,4 @@
+import {formatDisplayDate} from "../../lib/display-date.ts";
 import {
   PDFDocument,
   StandardFonts,
@@ -134,7 +135,7 @@ export async function createStaffMonthlySettlementPdf({
       color: line,
     });
     text(
-      new Date(`${detail.eventDate}T12:00:00Z`).toLocaleDateString("es-CL"),
+      formatDisplayDate(detail.eventDate),
       42,
       y - 8,
       bold,
