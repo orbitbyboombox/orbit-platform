@@ -1,4 +1,4 @@
-import { formatChileanRut } from "@/lib/chile/rut";
+import { formatChileanRut } from "../../lib/chile/rut.ts";
 import type { CompanySettings } from "@/features/company-settings/types";
 
 function object(value: unknown) {

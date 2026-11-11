@@ -193,3 +193,22 @@ test("collection bank account holder is shared by the composer preview and outgo
   assert.match(html, /BCI/);
   assert.match(html, /52093409/);
 });
+
+test("long collection balances stay intact in narrow Gmail layouts", () => {
+  const draft = buildCollectionEmailDraft({
+    invoiceNumber: "ORB-TEST-LONG-BALANCE",
+    customerName: "Cliente",
+    customerEmail: "cliente@example.com",
+    projectName: "Evento",
+    outstandingBalance: 1_234_567_890,
+    dueDate: "2026-10-02",
+    daysRemaining: -1,
+    status: "OVERDUE",
+    collectionActions: [],
+  } as unknown as Parameters<typeof buildCollectionEmailDraft>[0], bankDetails);
+  const html = buildCollectionEmailHtml(draft);
+  assert.equal(draft.outstandingLabel, "$1.234.567.890");
+  assert.match(html, /max-width:520px/);
+  assert.match(html, /font-size:24\.4px;font-weight:800;line-height:1\.1/);
+  assert.match(html, /white-space:nowrap;word-break:keep-all;overflow-wrap:normal">\$1\.234\.567\.890/);
+});
