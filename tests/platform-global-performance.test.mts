@@ -5,11 +5,12 @@ import test from "node:test";
 const source = (path: string) =>
   readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("platform navigation skips duplicate middleware auth and relies on protected layout", () => {
-  const middleware = source("middleware.ts");
+test("platform middleware skips a duplicate profile query while keeping session refresh and layout authorization", () => {
+  const middleware = source("lib/supabase/middleware.ts");
   const layout = source("app/(platform)/layout.tsx");
   assert.match(middleware, /platformPagePrefixes/);
-  assert.match(middleware, /return NextResponse\.next\(\)/);
+  assert.match(middleware, /platformPagePrefixes\.some[\s\S]*return response/);
+  assert.match(middleware, /supabase\.auth\.getUser\(\)/);
   assert.match(layout, /client\.auth\.getUser\(\)/);
   assert.match(layout, /profiles/);
 });
