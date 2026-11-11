@@ -1,4 +1,6 @@
 "use client";
+import {formatDisplayDate} from "@/lib/display-date";
+
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -208,7 +210,7 @@ export function StaffMonthlyAccountPanel({
                 key={item.settlementId}
               >
                 <p className="font-semibold">
-                  {item.eventDate} · {item.event}
+                  {formatDisplayDate(item.eventDate)} · {item.event}
                 </p>
                 <p className="mt-1 text-muted">{item.service} · COMPLETADO ✓</p>
                 {mode === "FOUNDER" ? (
@@ -229,7 +231,7 @@ export function StaffMonthlyAccountPanel({
               >
                 <p className="font-semibold">{item.eventId}</p>
                 <p className="mt-1">
-                  {item.eventDate} · {item.event}
+                  {formatDisplayDate(item.eventDate)} · {item.event}
                 </p>
                 <p className="mt-1 text-muted">
                   {item.service} · Estado operativo: {item.status}
@@ -307,7 +309,7 @@ export function StaffMonthlyAccountPanel({
             <div className="flex flex-wrap items-center gap-2">
               <select aria-label="Evento para adelanto" className="min-h-11 rounded-xl border bg-background px-3 text-sm" value={advanceSelection} onChange={(event) => setAdvanceSelection(event.target.value)}>
                 <option value="">Selecciona Evento</option>
-                {[...account.calculation.details, ...account.calculation.blockingEvents].map((item) => <option key={item.settlementId} value={item.settlementId}>{item.eventDate} · {item.event}</option>)}
+                {[...account.calculation.details, ...account.calculation.blockingEvents].map((item) => <option key={item.settlementId} value={item.settlementId}>{formatDisplayDate(item.eventDate)} · {item.event}</option>)}
               </select>
               <button className="inline-flex min-h-11 items-center rounded-xl border px-3 font-semibold text-brand" disabled={!advanceSelection} onClick={() => { const item = [...account.calculation.details, ...account.calculation.blockingEvents].find((entry) => entry.settlementId === advanceSelection); if (item) setAdvanceFor({ settlementId: item.settlementId, event: item.event, projectId: item.projectId }); }} type="button">+ REGISTRAR ADELANTO</button>
             </div>
@@ -332,7 +334,7 @@ export function StaffMonthlyAccountPanel({
           <div className="mt-2 space-y-2 text-sm">
             {account.calculation.details.filter((item) => item.advances > 0).map((item) => (
               <div className="flex flex-wrap justify-between gap-2" key={item.settlementId}>
-                <span>{item.eventDate} · {item.event}</span><strong>{money(item.advances)}</strong>
+                <span>{formatDisplayDate(item.eventDate)} · {item.event}</span><strong>{money(item.advances)}</strong>
               </div>
             ))}
           </div>
@@ -357,7 +359,7 @@ export function StaffMonthlyAccountPanel({
               >
                 <div className="flex flex-col gap-1 sm:flex-row sm:justify-between">
                   <strong>
-                    {item.eventDate} · {item.service}
+                    {formatDisplayDate(item.eventDate)} · {item.service}
                   </strong>
                   <strong>{money(item.workNet)}</strong>
                 </div>
@@ -525,7 +527,7 @@ export function StaffMonthlyAccountPanel({
       {mode === "STAFF" && account.paymentStatus === "PAID" ? (
         <div className="mt-4">
           <p className="font-semibold">PAGADO · {money(account.paidAmount)}</p>
-          <p className="text-sm text-muted">Fecha {account.paidAt}</p>
+          <p className="text-sm text-muted">Fecha {formatDisplayDate(account.paidAt)}</p>
           {account.receiptDocumentId ? (
             <a
               className="mt-2 inline-flex min-h-11 items-center font-semibold text-brand"
@@ -685,7 +687,7 @@ function StaffFinanceAccountView({ account, context }: { account: StaffMonthlyAc
   const advances = (context?.movements ?? []).filter((item) => item.month.slice(0, 7) === account.month.slice(0, 7) && item.type === "ADVANCE");
   const boletaLabel = { PENDING: "NO SUBIDA", RECEIVED: "PENDIENTE VALIDACIÓN", APPROVED: "APROBADA", REJECTED: "RECHAZADA" }[account.boletaStatus] ?? account.boletaStatus;
   const closeLabel = close?.status === "PAID" ? "PAGADO" : close?.status === "CLOSED" ? "CERRADO" : "MES ABIERTO";
-  const dateLabel = (value: string) => value ? new Date(`${value.slice(0, 10)}T12:00:00Z`).toLocaleDateString("es-CL") : "—";
+  const dateLabel = formatDisplayDate;
   return <section className="space-y-4 rounded-3xl border bg-card p-4 sm:p-6" data-staff-finance-center>
     <header className="flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-start sm:justify-between">
       <div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">CENTRO FINANCIERO PERSONAL</p><h3 className="mt-1 text-2xl font-semibold capitalize">{staffMonthLabel(account.month)}</h3><p className="mt-1 text-sm text-muted">Todo lo trabajado, rendido y pagado en este mes.</p></div>

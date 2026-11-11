@@ -1,4 +1,5 @@
 "use client";
+import { formatDisplayDate, formatDisplayMonth } from "@/lib/display-date";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -107,8 +108,9 @@ export function StaffPaymentPeriodsPanel({
       <div>
         <h3 className="text-lg font-semibold">Pagos quincenales y mensuales</h3>
         <p className="mt-1 text-sm text-muted">
-          Selecciona uno, varios o todos los trabajadores para {month}. Cada
-          persona conserva su modalidad del mes.
+          Selecciona uno, varios o todos los trabajadores para{" "}
+          {formatDisplayMonth(month)}. Cada persona conserva su modalidad del
+          mes.
         </p>
       </div>
       {data && (
@@ -117,7 +119,8 @@ export function StaffPaymentPeriodsPanel({
           aria-label="Resumen primera quincena"
         >
           <h4 className="font-semibold">
-            Primera quincena · {month}-01 al {month}-14
+            Primera quincena · {formatDisplayDate(`${month}-01`)} al{" "}
+            {formatDisplayDate(`${month}-14`)}
           </h4>
           <p className="text-sm text-muted">
             Montos de servicios realizados. Honorarios incluyen capacitación.
@@ -320,7 +323,7 @@ export function StaffPaymentPeriodsPanel({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <strong>{member?.name ?? "Trabajador"}</strong>
                 <span className="text-xs font-semibold text-brand">
-                  {schedule.modality} · {month}
+                  {schedule.modality} · {formatDisplayMonth(month)}
                 </span>
               </div>
               {periods.map((period) => {
@@ -345,7 +348,8 @@ export function StaffPaymentPeriodsPanel({
                       {periodLabel(period.period_code)}
                     </p>
                     <p className="text-muted">
-                      {period.starts_on} a {period.ends_on} ·{" "}
+                      {formatDisplayDate(period.starts_on)} a{" "}
+                      {formatDisplayDate(period.ends_on)} ·{" "}
                       {period.status === "FINALIZED" ? "CERRADO" : "ABIERTO"}
                     </p>
                     {calc ? (
@@ -425,8 +429,9 @@ export function StaffPaymentPeriodsPanel({
                         <ul className="space-y-2">
                           {payments.map((row) => (
                             <li key={row.id} className="break-words">
-                              {row.paid_on} · {money(Number(row.amount))} ·{" "}
-                              {row.method} · {row.reference}
+                              {formatDisplayDate(row.paid_on)} ·{" "}
+                              {money(Number(row.amount))} · {row.method} ·{" "}
+                              {row.reference}
                               <a
                                 className="ml-2 font-semibold text-brand"
                                 href={`/api/staff-documents/${account?.staff_id}/${row.receipt_document_id}`}
@@ -482,8 +487,11 @@ export function StaffPaymentPeriodsPanel({
           <ul className="mt-3 space-y-2">
             {data.audit.map((row) => (
               <li key={row.id}>
-                {new Date(row.occurred_at).toLocaleString("es-CL", {
+                {formatDisplayDate(row.occurred_at)}{" "}
+                {new Date(row.occurred_at).toLocaleTimeString("es-CL", {
                   timeZone: "America/Santiago",
+                  hour: "2-digit",
+                  minute: "2-digit",
                 })}{" "}
                 ·{" "}
                 {
