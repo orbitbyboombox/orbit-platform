@@ -281,6 +281,27 @@ test("positive D-10 balance is visually emphasized while zero balance stays paid
   assert.doesNotMatch(zero, /Saldo pendiente/);
 });
 
+test("long CLP balances stay on one line in narrow email clients", () => {
+  const html = renderPreEventReminderHtml({
+    ...base,
+    payment: {
+      projectionId: "projection-mobile-balance",
+      outstandingBalance: 1_234_567_890,
+      dueDate: "2026-05-12",
+      customerType: "PRIVATE",
+      bankDetails,
+    },
+  });
+  assert.match(html, /\$1\.234\.567\.890/);
+  assert.match(html, /white-space:nowrap;word-break:keep-all;overflow-wrap:normal/);
+  assert.match(html, /font-size:24\.4px;font-weight:800;line-height:1\.15/);
+  assert.match(html, /orbit-summary-cell\{display:block!important;width:100%!important/);
+  assert.match(
+    html,
+    /class="orbit-summary-amount" style="[^"]*white-space:nowrap;word-break:keep-all;overflow-wrap:normal">\$1\.234\.567\.890/,
+  );
+});
+
 test("Scrapbook and photo design blocks obey actual conditions", () => {
   const empty = renderPreEventReminderHtml(base);
   assert.doesNotMatch(empty, /Tu Scrapbook/);
