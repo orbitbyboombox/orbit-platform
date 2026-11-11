@@ -21,7 +21,11 @@ create schema auth; create table auth.users(id uuid primary key);
 create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('test.actor',true),'')::uuid $$;
 create function public.staff_withholding_rate_for_period(date) returns numeric language sql stable as $$ select 0.1525::numeric $$;
 create function public.can_administer() returns boolean language sql stable as $$ select coalesce(current_setting('test.admin',true),'')='true' $$;
-create table staff(id uuid primary key,deleted_at timestamptz);
+create table staff(id uuid primary key,deleted_at timestamptz,first_name text default 'QA',last_name text default 'Sintético',email text default 'staff@example.invalid',rut text default '1-9',role text default 'OPERATOR');
+create table company_settings(settings_key text primary key,legal_name text,tax_id text,address text,city text);
+insert into company_settings values('PRIMARY','Empresa QA','1-9','Dirección QA','Santiago');
+create table internal_notifications(id uuid primary key default gen_random_uuid(),staff_id uuid,notification_type text,title text,message text,status text,correlation_id text unique,category text,priority text,action_required boolean,entity_type text,entity_id uuid,related_href text,metadata jsonb);
+
 create table staff_onboarding_documents(id uuid primary key default gen_random_uuid(),invitation_id uuid,staff_id uuid,document_type text,category text,applicable_month text,friendly_label text,status text,storage_bucket text,storage_path text,file_name text,mime_type text,created_by uuid);
 create table staff_monthly_accounts(id uuid primary key default gen_random_uuid(),staff_id uuid,accounting_month date,expected_amount numeric,work_net numeric,boleta_gross numeric,boleta_net numeric,withholding_rate numeric,withholding_amount numeric,calculation jsonb,settlement_status text default 'DRAFT',payment_status text default 'PENDING',boleta_status text default 'PENDING',boleta_document_id uuid,finalized_snapshot jsonb,paid_amount numeric,paid_at date,payment_method text,payment_reference text,payment_receipt_document_id uuid,payment_idempotency_key text,drive_sync_status text,updated_at timestamptz,unique(staff_id,accounting_month));
 create table staff_monthly_closes(accounting_month date,status text);
@@ -45,6 +49,12 @@ create function public.register_staff_monthly_payment(uuid,date,numeric,text,tex
         "utf8",
       ),
     );
+    await db.exec(
+      readFileSync(
+        "supabase/migrations/20261111012400_staff_period_close_email.sql",
+        "utf8",
+      ),
+    );
     const actor = "10000000-0000-0000-0000-000000000001";
     const s1 = "20000000-0000-0000-0000-000000000001",
       s2 = "20000000-0000-0000-0000-000000000002",
@@ -61,7 +71,7 @@ create function public.register_staff_monthly_payment(uuid,date,numeric,text,tex
       console.log("PASS expected rejection", match.source);
     };
     await db.exec(`select set_config('test.actor','${actor}',false);select set_config('test.admin','true',false);
-insert into auth.users values('${actor}');insert into staff values('${s1}',null),('${s2}',null),('${s3}',null);
+insert into auth.users values('${actor}');insert into staff(id,deleted_at) values('${s1}',null),('${s2}',null),('${s3}',null);
 insert into projects(id,event_date,name) values('${event1}','2026-10-14','Evento 14'),('${event2}','2026-10-15','Evento 15'),('${event3}','2026-10-31','Evento 31');
 insert into event_staff_payments(id,staff_id,project_id,accounting_month,total_internal_payment) values('${settlement1}','${s1}','${event1}','2026-10-01',24000),('40000000-0000-0000-0000-000000000002','${s1}','${event2}','2026-10-01',19000),('40000000-0000-0000-0000-000000000003','${s2}','${event3}','2026-10-01',15000);
 insert into staff_training_assignments values('${training}','${event1}','${s1}',12000,'COMPLETED');`);
@@ -81,6 +91,11 @@ insert into staff_training_assignments values('${training}','${event1}','${s1}',
       3,
     );
     console.log("PASS bulk and individual mixed modalities");
+    assert.equal(
+      (await query("select count(*)::int n from staff_period_email_outbox"))
+        .rows[0].n,
+      0,
+    );
     const periods = (
       await query(
         `select p.*,a.staff_id from staff_payment_periods p join staff_monthly_accounts a on a.id=p.account_id`,
@@ -95,6 +110,46 @@ insert into staff_training_assignments values('${training}','${event1}','${s1}',
         (p) => p.staff_id === s1 && p.period_code === "Q1",
       )!,
       q2 = periods.find((p) => p.staff_id === s1 && p.period_code === "Q2")!;
+    const emptyQ1 = periods.find(
+      (p) => p.staff_id === s3 && p.period_code === "Q1",
+    )!;
+    await query("update staff set email='' where id=$1", [s3]);
+    await fail("select close_staff_payment_period($1)", /correo válido/, [
+      emptyQ1.id,
+    ]);
+    assert.equal(
+      (
+        await query("select status from staff_payment_periods where id=$1", [
+          emptyQ1.id,
+        ])
+      ).rows[0].status,
+      "DRAFT",
+    );
+    await query("update staff set email='staff@example.invalid' where id=$1", [
+      s3,
+    ]);
+    await query("delete from company_settings");
+    await fail(
+      "select close_staff_payment_period($1)",
+      /configuración tributaria/,
+      [q1.id],
+    );
+    assert.equal(
+      (
+        await query("select status from staff_payment_periods where id=$1", [
+          q1.id,
+        ])
+      ).rows[0].status,
+      "DRAFT",
+    );
+    assert.equal(
+      (await query("select count(*)::int n from staff_period_email_outbox"))
+        .rows[0].n,
+      0,
+    );
+    await query(
+      "insert into company_settings values('PRIMARY','Empresa QA','1-9','Dirección QA','Santiago')",
+    );
     let preview = (
       await query("select preview_staff_payment_period($1) p", [q1.id])
     ).rows[0].p;
@@ -115,6 +170,25 @@ insert into staff_training_assignments values('${training}','${event1}','${s1}',
       (
         await query(
           `select count(*)::int n from staff_payment_period_audit where period_id=$1 and action='PERIOD_CLOSED'`,
+          [q1.id],
+        )
+      ).rows[0].n,
+      1,
+    );
+    const firstIntent = (
+      await query(
+        "select o.payload,n.metadata,n.correlation_id from staff_period_email_outbox o join internal_notifications n on n.id=o.notification_id where o.period_id=$1",
+        [q1.id],
+      )
+    ).rows[0];
+    assert.equal(firstIntent.payload.period.period_code, "Q1");
+    assert.equal(firstIntent.metadata.email_status, "PENDING");
+    assert.equal(firstIntent.metadata.payload, undefined);
+    assert.equal(firstIntent.correlation_id, `staff-period-close:${q1.id}`);
+    assert.equal(
+      (
+        await query(
+          "select count(*)::int n from staff_period_email_outbox where period_id=$1",
           [q1.id],
         )
       ).rows[0].n,
@@ -293,6 +367,44 @@ insert into staff_training_assignments values('${training}','${event1}','${s1}',
       [q1.id],
     );
     console.log("PASS authorization");
+    const intents = (
+      await query(
+        "select o.payload,n.metadata,n.correlation_id from staff_period_email_outbox o join internal_notifications n on n.id=o.notification_id",
+      )
+    ).rows;
+    const secondIntent = intents.find(
+      (row: any) => row.payload.period.period_code === "Q2",
+    );
+    assert.ok(secondIntent);
+    assert.equal(secondIntent.payload.monthly.workNet, 55000);
+    assert.equal(secondIntent.payload.monthly.workPaid, 36000);
+    assert.equal(secondIntent.payload.monthly.workPending, 19000);
+    assert.equal(secondIntent.payload.monthly.boletaGross, 64897);
+    assert.match(secondIntent.correlation_id, /^staff-boleta-request:/);
+    assert.ok(
+      intents.some((row: any) => row.payload.period.period_code === "MONTH"),
+    );
+    assert.ok(
+      intents.every((row: any) => row.metadata.email_status === "PENDING"),
+    );
+    await query("select set_config('test.admin','false',false)");
+    await db.exec("set role authenticated");
+    assert.equal(
+      (await query("select count(*)::int n from staff_period_email_outbox"))
+        .rows[0].n,
+      0,
+    );
+    await assert.rejects(
+      () =>
+        query(
+          "insert into staff_period_email_outbox(period_id,notification_id,payload) values(gen_random_uuid(),gen_random_uuid(),'{}')",
+        ),
+      /permission denied/,
+    );
+    await db.exec("reset role");
+    console.log(
+      "PASS Q1/Q2/MONTH durable close email intents, gross unchanged by first payment, no notification salary payload, admin-only snapshots",
+    );
   } finally {
     await db.close();
   }

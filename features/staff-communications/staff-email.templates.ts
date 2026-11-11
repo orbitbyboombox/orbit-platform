@@ -1,4 +1,7 @@
-import { calculateStaffCallAt, chileLocalToIso } from "../operations/event-operational-window.ts";
+import {
+  calculateStaffCallAt,
+  chileLocalToIso,
+} from "../operations/event-operational-window.ts";
 
 const escapeHtml = (value: string) =>
   value
@@ -40,18 +43,25 @@ const formatClockTime = (value: string): string | null => {
 };
 
 /** Formats persisted ISO calls and legacy clock values without leaking the date. */
-export const formatStaffCallTime = (value: string | null | undefined): string | null =>
+export const formatStaffCallTime = (
+  value: string | null | undefined,
+): string | null =>
   value
     ?.split(" · ")
     .map(formatClockTime)
     .filter((item): item is string => Boolean(item))
     .join(" · ") || null;
 
-const defaultOperatorCallTime = (eventDate: string, eventTime: string | null | undefined) => {
+const defaultOperatorCallTime = (
+  eventDate: string,
+  eventTime: string | null | undefined,
+) => {
   const time = eventTime?.slice(0, 5);
   if (!time) return null;
   try {
-    return formatStaffCallTime(calculateStaffCallAt(chileLocalToIso(`${eventDate}T${time}:00`)));
+    return formatStaffCallTime(
+      calculateStaffCallAt(chileLocalToIso(`${eventDate}T${time}:00`)),
+    );
   } catch {
     return null;
   }
@@ -114,7 +124,8 @@ export function buildStaffD1ReminderEmail(input: {
   const location = input.location?.trim();
   const time = input.eventTime?.slice(0, 5);
   const persistedCallTime = formatStaffCallTime(input.staffCallAt);
-  const callTime = persistedCallTime ??
+  const callTime =
+    persistedCallTime ??
     (input.roles.some((role) => role === "OPERATOR")
       ? defaultOperatorCallTime(input.eventDate, input.eventTime)
       : null);
@@ -123,29 +134,48 @@ export function buildStaffD1ReminderEmail(input: {
       ? `<p style="margin:5px 0"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value.trim())}</p>`
       : "";
   const instructions = input.instructions?.trim();
-  const specialElements = [...new Set(input.specialElements ?? [])].filter((item) => item.trim());
+  const specialElements = [...new Set(input.specialElements ?? [])].filter(
+    (item) => item.trim(),
+  );
   const portal = `${input.appUrl.replace(/\/$/, "")}/staff-portal`;
-  const routeLabel = (role: string) => role === "ASSEMBLY" ? "MONTAJE" : role === "DISASSEMBLY" ? "DESMONTAJE" : "OPERACIÓN";
+  const routeLabel = (role: string) =>
+    role === "ASSEMBLY"
+      ? "MONTAJE"
+      : role === "DISASSEMBLY"
+        ? "DESMONTAJE"
+        : "OPERACIÓN";
   const routes = (input.consolidatedRoutes ?? []).map((route) => ({
     ...route,
     label: routeLabel(route.role),
     schedule: route.scheduleAt
       ? formatStaffCallTime(route.scheduleAt)
-      : route.role === "ASSEMBLY" ? "Coordinar con Matías" : "Horario a confirmar",
+      : route.role === "ASSEMBLY"
+        ? "Coordinar con Matías"
+        : "Horario a confirmar",
   }));
-  const routeText = routes.length ? [
-    "RUTAS DEL DÍA SIGUIENTE",
-    ...routes.map((route) => [
-      route.label,
-      `Evento: ${route.eventName}${route.customerName ? ` · ${route.customerName}` : ""}`,
-      `Dirección: ${route.location ?? "Por confirmar"}`,
-      `Servicio: ${route.service ?? "Por confirmar"}`,
-      `Caja: ${route.boxCode ?? "Caja no asignada"}`,
-      `${route.role === "DISASSEMBLY" ? "Horario de desmontaje" : "Horario de montaje"}: ${route.schedule}`,
-      route.instructions?.trim() ? `Observaciones: ${route.instructions.trim()}` : null,
-      route.specialElements.length ? `Elementos: ${route.specialElements.join(", ")}` : null,
-    ].filter((item): item is string => Boolean(item)).join("\n")),
-  ].join("\n\n") : null;
+  const routeText = routes.length
+    ? [
+        "RUTAS DEL DÍA SIGUIENTE",
+        ...routes.map((route) =>
+          [
+            route.label,
+            `Evento: ${route.eventName}${route.customerName ? ` · ${route.customerName}` : ""}`,
+            `Dirección: ${route.location ?? "Por confirmar"}`,
+            `Servicio: ${route.service ?? "Por confirmar"}`,
+            `Caja: ${route.boxCode ?? "Caja no asignada"}`,
+            `${route.role === "DISASSEMBLY" ? "Horario de desmontaje" : "Horario de montaje"}: ${route.schedule}`,
+            route.instructions?.trim()
+              ? `Observaciones: ${route.instructions.trim()}`
+              : null,
+            route.specialElements.length
+              ? `Elementos: ${route.specialElements.join(", ")}`
+              : null,
+          ]
+            .filter((item): item is string => Boolean(item))
+            .join("\n"),
+        ),
+      ].join("\n\n")
+    : null;
   const textBody = [
     `Hola ${input.firstName},`,
     "Recuerda que mañana tienes evento BOOMBOX.",
@@ -160,7 +190,9 @@ export function buildStaffD1ReminderEmail(input: {
     instructions ? `Instrucciones: ${instructions}` : null,
     specialElements.length ? `Elementos: ${specialElements.join(", ")}` : null,
     routeText ?? `Ver detalle en ORBIT: ${portal}`,
-  ].filter((item): item is string => Boolean(item)).join("\n");
+  ]
+    .filter((item): item is string => Boolean(item))
+    .join("\n");
   const specialHtml = specialElements.length
     ? `<p style="margin:14px 0 0"><strong>Elementos operativos:</strong> ${escapeHtml(specialElements.join(" · "))}</p>`
     : "";
@@ -173,11 +205,14 @@ export function buildStaffD1ReminderEmail(input: {
   const consolidatedContent = routes.length
     ? `<p style="margin:0">Hola ${escapeHtml(input.firstName)},</p><p style="margin:12px 0 0;font-size:18px;font-weight:700;color:#111214">Recuerda que mañana tienes rutas BOOMBOX.</p>${routesHtml}`
     : "";
-  const content = consolidatedContent || `<p style="margin:0">Hola ${escapeHtml(input.firstName)},</p><p style="margin:12px 0 0;font-size:18px;font-weight:700;color:#111214">Recuerda que mañana tienes evento BOOMBOX.</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:23px;border:1px solid #e8e2d8;border-radius:13px;background:#faf9f6"><tr><td style="padding:18px"><p style="margin:0 0 10px;font-size:17px;font-weight:700">${escapeHtml(input.eventName)}</p><p style="margin:5px 0"><strong>Fecha:</strong> ${escapeHtml(chileDate(input.eventDate))}</p>${detail("Cliente", input.customerName)}${detail("Servicio", input.service)}<p style="margin:5px 0"><strong>Rol(es):</strong> ${escapeHtml(roles)}</p>${detail("Horario", time)}${detail("Hora de citación", callTime)}${detail("Recinto / dirección", location)}${instructionHtml}${specialHtml}</td></tr></table>`;
+  const content =
+    consolidatedContent ||
+    `<p style="margin:0">Hola ${escapeHtml(input.firstName)},</p><p style="margin:12px 0 0;font-size:18px;font-weight:700;color:#111214">Recuerda que mañana tienes evento BOOMBOX.</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:23px;border:1px solid #e8e2d8;border-radius:13px;background:#faf9f6"><tr><td style="padding:18px"><p style="margin:0 0 10px;font-size:17px;font-weight:700">${escapeHtml(input.eventName)}</p><p style="margin:5px 0"><strong>Fecha:</strong> ${escapeHtml(chileDate(input.eventDate))}</p>${detail("Cliente", input.customerName)}${detail("Servicio", input.service)}<p style="margin:5px 0"><strong>Rol(es):</strong> ${escapeHtml(roles)}</p>${detail("Horario", time)}${detail("Hora de citación", callTime)}${detail("Recinto / dirección", location)}${instructionHtml}${specialHtml}</td></tr></table>`;
   return {
-    subject: routes.length > 1
-      ? `Mañana tienes rutas BOOMBOX · ${routes.length} eventos`
-      : `Mañana tienes evento BOOMBOX · ${input.eventName}`,
+    subject:
+      routes.length > 1
+        ? `Mañana tienes rutas BOOMBOX · ${routes.length} eventos`
+        : `Mañana tienes evento BOOMBOX · ${input.eventName}`,
     textBody,
     htmlBody: premiumFrame({
       appUrl: input.appUrl,
@@ -185,7 +220,9 @@ export function buildStaffD1ReminderEmail(input: {
       eyebrow: "Recordatorio operacional · D-1",
       title: "Tu evento es mañana",
       content,
-      ctaLabel: routes.length ? "Ver todas mis rutas en ORBIT" : "Ver detalle en ORBIT",
+      ctaLabel: routes.length
+        ? "Ver todas mis rutas en ORBIT"
+        : "Ver detalle en ORBIT",
       ctaHref: portal,
     }),
   };
@@ -243,6 +280,64 @@ export function buildStaffPaymentCompletedEmail(input: {
       title: "PAGO REALIZADO",
       content,
       ctaLabel: "Ver comprobante en ORBIT",
+      ctaHref: portal,
+    }),
+  };
+}
+
+export function buildStaffPeriodClosedEmail(input: {
+  appUrl: string;
+  firstName: string;
+  periodLabel: string;
+  firstQuincena: boolean;
+  periodWork: number;
+  monthlyWork: number;
+  monthlyGross: number;
+  paid: number;
+  remaining: number;
+  reimbursementsPending: number;
+  company: { legalName: string; taxId: string; address: string; city: string };
+}) {
+  const portal = `${input.appUrl.replace(/\/$/, "")}/staff-portal`;
+  const lines = [
+    `Hola ${input.firstName},`,
+    `Tu liquidación ${input.periodLabel} está cerrada. Adjuntamos el detalle de tus eventos.`,
+    `Honorarios del bloque: ${money(input.periodWork)}`,
+    ...(input.firstQuincena
+      ? [
+          `Honorarios efectivamente pagados del bloque: ${money(input.paid)}`,
+          `Saldo de honorarios del bloque: ${money(input.remaining)}`,
+          "En este primer cierre no debes emitir ni subir boleta mensual. El pago mantiene su validación tributaria.",
+        ]
+      : [
+          `Honorarios líquidos del mes: ${money(input.monthlyWork)}`,
+          `Boleta mensual bruta a emitir: ${money(input.monthlyGross)}`,
+          `Honorarios efectivamente pagados: ${money(input.paid)}`,
+          `Saldo de honorarios pendiente: ${money(input.remaining)}`,
+          "Emite una sola boleta mensual por el total indicado. Los pagos previos se descuentan únicamente del saldo por transferir.",
+          `Razón social: ${input.company.legalName}`,
+          `RUT: ${input.company.taxId}`,
+          `Dirección: ${input.company.address} · ${input.company.city}`,
+          "Glosa: HONORARIOS SERVICIOS EVENTOS",
+        ]),
+    `Reembolsos pendientes, separados de honorarios y boleta: ${money(input.reimbursementsPending)}`,
+  ];
+  return {
+    subject: `BOOMBOX · Liquidación ${input.periodLabel}`,
+    textBody: lines.join("\n\n") + `\n\n${portal}`,
+    htmlBody: premiumFrame({
+      appUrl: input.appUrl,
+      preheader: "Tu liquidación BOOMBOX con PDF adjunto.",
+      eyebrow: "Staff · Liquidación",
+      title: input.firstQuincena
+        ? "Tu primera quincena está lista"
+        : "Tu cierre mensual está listo",
+      content: lines
+        .map((line) => `<p style="margin:0 0 14px">${escapeHtml(line)}</p>`)
+        .join(""),
+      ctaLabel: input.firstQuincena
+        ? "Ver liquidación en ORBIT"
+        : "Subir boleta mensual",
       ctaHref: portal,
     }),
   };

@@ -1,4 +1,9 @@
-import {formatDisplayDate} from "@/lib/display-date";
+import {
+  getPeriodCloseNotice,
+  renderPeriodCloseDocument,
+  loadPeriodDocumentPayload,
+} from "@/features/staff-monthly-account/period-communication.service";
+import { periodDocumentInput } from "@/features/staff-monthly-account/period-document.model";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadPortalSession } from "@/features/portal-authentication/portal-auth.service";
@@ -9,11 +14,6 @@ import {
   monthlySettlementPath,
   STAFF_MONTHLY_ACCOUNT_SELECT,
 } from "@/features/staff-monthly-account/model";
-import {
-  periodLabel,
-  periodPdfAccount,
-  type StaffPeriodPreview,
-} from "@/features/staff-monthly-account/payment-periods.model";
 
 async function access() {
   const portal = await loadPortalSession("STAFF");
@@ -79,6 +79,8 @@ export async function GET(
     let account = mapStaffMonthlyAccount(row);
     let periodTitle: string | undefined;
     let firstQuincena = false;
+    let periodSummary;
+    let protectedBody: Buffer | undefined;
     if (periodId) {
       const { data: period } = await admin
         .from("staff_payment_periods")
@@ -91,38 +93,38 @@ export async function GET(
           { message: "Período no disponible." },
           { status: 404 },
         );
-      let calculation = period.snapshot;
-      if (period.status !== "FINALIZED") {
-        const result = await admin.rpc("staff_payment_period_calculation", {
-          p_period_id: periodId,
-        });
-        if (result.error)
-          return NextResponse.json(
-            { message: "No se pudo previsualizar el bloque." },
-            { status: 409 },
-          );
-        calculation = result.data;
+      const notice = await getPeriodCloseNotice(periodId);
+      if (notice && notice.metadata.payload.account.id !== accountId)
+        return NextResponse.json(
+          { message: "Período no autorizado." },
+          { status: 403 },
+        );
+      if (notice)
+        protectedBody = await renderPeriodCloseDocument(notice.metadata);
+      else {
+        const input = periodDocumentInput(
+          await loadPeriodDocumentPayload(periodId, accountId),
+        );
+        account = input.account;
+        periodTitle = input.periodTitle;
+        firstQuincena = input.firstQuincena;
+        periodSummary = input.periodSummary;
       }
-      account = periodPdfAccount(account, {
-        ...period,
-        calculation,
-        paidAmount: 0,
-        remaining: 0,
-      } as StaffPeriodPreview);
-      periodTitle = `${periodLabel(period.period_code)} | ${formatDisplayDate(period.starts_on)} - ${formatDisplayDate(period.ends_on)}`;
-      firstQuincena = period.period_code !== "MONTH";
       fileSuffix = `-${period.period_code}`;
     }
-    body = await createStaffMonthlySettlementPdf({
-      account,
-      staff: {
-        name: `${staff.first_name} ${staff.last_name}`,
-        rut: staff.rut ?? "",
-        role: staff.role ?? "",
-      },
-      periodTitle,
-      firstQuincena,
-    });
+    body =
+      protectedBody ??
+      (await createStaffMonthlySettlementPdf({
+        account,
+        staff: {
+          name: `${staff.first_name} ${staff.last_name}`,
+          rut: staff.rut ?? "",
+          role: staff.role ?? "",
+        },
+        periodTitle,
+        firstQuincena,
+        periodSummary,
+      }));
   }
   const download = url.searchParams.get("download") === "1";
   return new NextResponse(new Uint8Array(body), {

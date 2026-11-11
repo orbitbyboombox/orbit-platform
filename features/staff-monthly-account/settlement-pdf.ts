@@ -1,16 +1,13 @@
-import {formatDisplayDate} from "../../lib/display-date.ts";
-import {
-  PDFDocument,
-  StandardFonts,
-  rgb,
-  type PDFFont,
-} from "pdf-lib";
+import type { PeriodDocumentSummary } from "./period-document.model.ts";
+import { formatDisplayDate } from "../../lib/display-date.ts";
+import { PDFDocument, StandardFonts, rgb, type PDFFont } from "pdf-lib";
 import type { StaffMonthlyAccount } from "./model.ts";
 type Input = {
   account: StaffMonthlyAccount;
   staff: { name: string; rut: string; role: string };
   periodTitle?: string;
   firstQuincena?: boolean;
+  periodSummary?: PeriodDocumentSummary;
 };
 const PAGE: [number, number] = [595.28, 841.89];
 const orange = rgb(0.96, 0.49, 0.05),
@@ -86,12 +83,19 @@ export async function createStaffMonthlySettlementPdf({
   staff,
   periodTitle,
   firstQuincena = false,
+  periodSummary,
 }: Input) {
   const pdf = await PDFDocument.create();
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
   const period = periodTitle ?? staffMonthLabel(account.month);
-  let page = base(pdf, regular, bold, period, firstQuincena),
+  let page = base(
+      pdf,
+      regular,
+      bold,
+      period,
+      firstQuincena || periodSummary?.code === "Q2",
+    ),
     y = PAGE[1] - 150;
   const text = (
     value: string,
@@ -111,7 +115,7 @@ export async function createStaffMonthlySettlementPdf({
   for (const detail of account.calculation.details) {
     const eventLines = wrapped(detail.event || detail.service, bold, 9, 350);
     const infoLines = wrapped(
-      `${detail.service} · ${detail.roles.join(" + ")} · ${detail.hours} horas`,
+      `${detail.service} · ${detail.roles.join(" + ")}${detail.blockName ? ` · ${detail.blockName}` : ""} · ${detail.hours} horas`,
       regular,
       8,
       430,
@@ -125,7 +129,13 @@ export async function createStaffMonthlySettlementPdf({
     const height =
       20 + (eventLines.length + infoLines.length + locationLines.length) * 12;
     if (y - height < 65) {
-      page = base(pdf, regular, bold, period, firstQuincena);
+      page = base(
+        pdf,
+        regular,
+        bold,
+        period,
+        firstQuincena || periodSummary?.code === "Q2",
+      );
       y = PAGE[1] - 150;
     }
     page.drawLine({
@@ -134,13 +144,7 @@ export async function createStaffMonthlySettlementPdf({
       thickness: 0.6,
       color: line,
     });
-    text(
-      formatDisplayDate(detail.eventDate),
-      42,
-      y - 8,
-      bold,
-      9,
-    );
+    text(formatDisplayDate(detail.eventDate), 42, y - 8, bold, 9);
     text(money(detail.workNet), 475, y - 8, bold, 9);
     for (const value of eventLines) {
       text(value, 112, y - 8, bold, 9);
@@ -154,7 +158,13 @@ export async function createStaffMonthlySettlementPdf({
   }
   // Keep the complete financial summary and its tax reference together.
   if (y < 480) {
-    page = base(pdf, regular, bold, period, firstQuincena);
+    page = base(
+      pdf,
+      regular,
+      bold,
+      period,
+      firstQuincena || periodSummary?.code === "Q2",
+    );
     y = PAGE[1] - 150;
   }
   text(
@@ -170,10 +180,13 @@ export async function createStaffMonthlySettlementPdf({
     ["N° de servicios", String(account.eventCount)],
     ["Total trabajado", money(account.workNet)],
     [
-      `Retención / impuesto (${account.withholdingRate.toLocaleString("es-CL")}%)`,
+      `${periodSummary ? "Retención referencial del bloque" : "Retención / impuesto"} (${account.withholdingRate.toLocaleString("es-CL")}%)`,
       money(account.withholdingAmount),
     ],
-    ["Líquido según boleta", money(account.boletaNet)],
+    [
+      periodSummary ? "Honorarios líquidos del bloque" : "Líquido según boleta",
+      money(account.boletaNet),
+    ],
     ["Adelantos realizados", `-${money(account.advancesTotal)}`],
     ["Reembolsos aprobados", money(account.reimbursementsTotal)],
     ["Reembolsos pagados", money(account.reimbursementsPaidTotal)],
@@ -222,5 +235,60 @@ export async function createStaffMonthlySettlementPdf({
     9,
     muted,
   );
+  if (periodSummary && periodSummary.code !== "Q1") {
+    page = base(
+      pdf,
+      regular,
+      bold,
+      `Consolidado mensual · ${staffMonthLabel(account.month)}`,
+      false,
+    );
+    y = PAGE[1] - 150;
+    text("CONSOLIDADO MENSUAL DE HONORARIOS", 42, y, bold, 12, orange);
+    y -= 32;
+    const values: [string, number][] = [
+      ...(periodSummary.code === "Q2"
+        ? ([
+            ["Honorarios primera quincena", periodSummary.firstWork],
+            ["Pagado por primera quincena", periodSummary.firstPaid],
+            ["Honorarios segunda quincena", periodSummary.periodWork],
+          ] as [string, number][])
+        : []),
+      ["Honorarios líquidos mensuales", periodSummary.monthlyWork],
+      [
+        "Boleta mensual bruta (sin descontar pagos)",
+        periodSummary.monthlyGross,
+      ],
+      [
+        `Retención mensual (${periodSummary.rate.toLocaleString("es-CL")}%)`,
+        periodSummary.monthlyRetention,
+      ],
+      ["Honorarios efectivamente pagados", periodSummary.paid],
+      ["Saldo de honorarios por transferir", periodSummary.remaining],
+      ["Reembolsos aprobados (fuera de boleta)", periodSummary.reimbursements],
+      ["Reembolsos pendientes", periodSummary.reimbursementsPending],
+    ];
+    for (const [label, amount] of values) {
+      text(label, 48, y);
+      text(money(amount), 425, y, bold, 10);
+      y -= 34;
+    }
+    y -= 12;
+    text(
+      "Emite una sola boleta mensual por el bruto indicado.",
+      48,
+      y,
+      bold,
+      10,
+    );
+    y -= 20;
+    text(
+      "Los anticipos reducen el saldo por transferir, no el total de honorarios.",
+      48,
+      y,
+      regular,
+      9,
+    );
+  }
   return Buffer.from(await pdf.save());
 }
