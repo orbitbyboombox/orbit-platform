@@ -35,6 +35,7 @@ export function NavigationList({ onNavigate, compact, hiddenNavigation = [], ico
             isActive && "border border-brand/20 bg-[linear-gradient(90deg,rgba(255,149,0,.20),rgba(255,149,0,.08))] text-foreground shadow-[0_10px_30px_rgba(255,149,0,.08)]",
           )}
           href={href}
+          prefetch={false}
           key={label}
           onClick={onNavigate}
         >
