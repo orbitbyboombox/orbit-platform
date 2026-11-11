@@ -65,3 +65,15 @@ export function periodPdfAccount(
     },
   };
 }
+
+export type FirstFortnightSummary = {
+  staff_id: string;
+  staff_name: string;
+  work_net: number;
+  training_net: number;
+  reimbursements: number;
+  paid: number;
+  pending: number;
+  review_required: boolean;
+  review_reason: string;
+};

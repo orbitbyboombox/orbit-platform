@@ -6,6 +6,7 @@ import { createSupabaseServerActionClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { syncStaffDocumentArchive } from "./drive-archive.service";
 import type {
+  FirstFortnightSummary,
   PaymentModality,
   PaymentSchedule,
   StaffPaymentPeriod,
@@ -56,13 +57,15 @@ export async function getStaffPaymentPeriodsAction(month: string) {
     if (!ids.length)
       return {
         ok: true as const,
+        summary: [] as FirstFortnightSummary[],
         accounts: [],
         schedules: [],
         periods: [],
         payments: [],
         audit: [],
       };
-    const [schedules, periods, audit] = await Promise.all([
+    const [summary, schedules, periods, audit] = await Promise.all([
+      client.rpc("preview_staff_first_fortnight", { p_month: `${month}-01` }),
       client
         .from("staff_payment_schedules")
         .select("account_id,modality,monthly_boleta_validation")
@@ -79,7 +82,7 @@ export async function getStaffPaymentPeriodsAction(month: string) {
         .order("occurred_at", { ascending: false })
         .limit(200),
     ]);
-    for (const result of [schedules, periods, audit])
+    for (const result of [summary, schedules, periods, audit])
       if (result.error) throw result.error;
     const periodIds = (periods.data ?? []).map((row) => row.id);
     const payments = periodIds.length
@@ -92,6 +95,7 @@ export async function getStaffPaymentPeriodsAction(month: string) {
     if (payments.error) throw payments.error;
     return {
       ok: true as const,
+      summary: (summary.data ?? []) as FirstFortnightSummary[],
       accounts: accounts.data ?? [],
       schedules: (schedules.data ?? []) as PaymentSchedule[],
       periods: (periods.data ?? []) as StaffPaymentPeriod[],

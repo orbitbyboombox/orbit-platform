@@ -1,0 +1,84 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {staffAccountOutstanding,mapStaffMonthlyAccount} from '../features/staff-monthly-account/model.ts';
+test('Outstanding counts reimbursements once and preserves partial payments',()=>{
+const account=mapStaffMonthlyAccount({id:'x',staff_id:'s',work_net:295000,reimbursements_pending_total:16000,final_transfer_amount:311000,calculation:{workPending:295000},paid_amount:0});
+assert.equal(staffAccountOutstanding(account),311000);
+account.calculation.workPending=195000; account.paidAmount=100000;
+assert.equal(staffAccountOutstanding(account),211000);
+account.settlementStatus='FINALIZED'; account.calculation.workPending=295000;
+assert.equal(staffAccountOutstanding(account),211000);
+account.paymentStatus='PAID';assert.equal(staffAccountOutstanding(account),16000);
+});
+test('Reconciliation migration executes real V6 and protects history',async context=>{
+if(!process.env.ORBIT_PGLITE_MODULE){context.skip('Isolated PostgreSQL required');return;}
+const {PGlite}=await import(process.env.ORBIT_PGLITE_MODULE);const db=new PGlite();
+try{await db.exec(`
+create role anon; create role authenticated; create role service_role;
+create schema auth; create table auth.users(id uuid primary key);
+create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('test.actor',true),'')::uuid $$;
+create function public.staff_withholding_rate_for_period(date) returns numeric language sql stable as $$ select 0.1525::numeric $$;
+create function public.can_administer() returns boolean language sql stable as $$ select coalesce(current_setting('test.admin',true),'')='true' $$;
+create table staff(id uuid primary key,deleted_at timestamptz);
+create table staff_onboarding_documents(id uuid primary key default gen_random_uuid(),invitation_id uuid,staff_id uuid,document_type text,category text,applicable_month text,friendly_label text,status text,storage_bucket text,storage_path text,file_name text,mime_type text,created_by uuid);
+create table staff_monthly_accounts(id uuid primary key default gen_random_uuid(),staff_id uuid,accounting_month date,expected_amount numeric,work_net numeric,boleta_gross numeric,boleta_net numeric,withholding_rate numeric,withholding_amount numeric,calculation jsonb,settlement_status text default 'DRAFT',payment_status text default 'PENDING',boleta_status text default 'PENDING',boleta_document_id uuid,finalized_snapshot jsonb,paid_amount numeric,paid_at date,payment_method text,payment_reference text,payment_receipt_document_id uuid,payment_idempotency_key text,drive_sync_status text,updated_at timestamptz,unique(staff_id,accounting_month));
+create table staff_monthly_closes(accounting_month date,status text);
+create table projects(id uuid primary key,event_date date,status text,name text,location text,city text,customer_id uuid,deleted_at timestamptz);
+create table customers(id uuid primary key,full_name text);
+create table event_staff_payments(id uuid primary key,staff_id uuid,project_id uuid,accounting_month date,total_internal_payment numeric,paid_amount numeric default 0,paid_at date,settlement_status text,updated_at timestamptz,updated_by uuid);
+create table event_staff_settlement_movements(id uuid primary key default gen_random_uuid(),settlement_id uuid,movement_type text,amount numeric,movement_date date,method text,receipt_path text,receipt_document_id uuid,notes text,legacy_source text unique,created_by uuid,updated_by uuid);
+create table event_staff_settlement_adjustments(id uuid primary key,settlement_id uuid,amount numeric);
+create table staff_training_assignments(id uuid primary key,project_id uuid,trainee_staff_id uuid,training_amount_clp numeric,status text);
+create function public.calculate_staff_monthly_settlement_legacy(s uuid,m date) returns jsonb language sql stable set search_path=public as $$
+with details as (select jsonb_build_object('settlementId',p.id,'projectId',p.project_id,'eventDate',e.event_date,'event',e.name,'workNet',p.total_internal_payment,'workPaid',coalesce((select sum(amount) from event_staff_settlement_movements x where x.settlement_id=p.id),0),'workPending',p.total_internal_payment-coalesce((select sum(amount) from event_staff_settlement_movements x where x.settlement_id=p.id),0),'advances',0,'reimbursements',0,'reimbursementsPaid',0,'roles',jsonb_build_array('OPERATOR')) d from event_staff_payments p join projects e on e.id=p.project_id where p.staff_id=s and p.accounting_month=m)
+select jsonb_build_object('details',coalesce(jsonb_agg(d),'[]'),'workNet',coalesce(sum((d->>'workNet')::numeric),0),'boletaNet',coalesce(sum((d->>'workNet')::numeric),0),'boletaGross',0,'withholdingRate',15.25,'workPaid',coalesce(sum((d->>'workPaid')::numeric),0),'workPending',coalesce(sum((d->>'workPending')::numeric),0),'cashObligation',coalesce(sum((d->>'workPending')::numeric),0),'finalTransferAmount',coalesce(sum((d->>'workPending')::numeric),0),'eventCount',count(*),'reviewRequired',false,'upcomingDetails','[]'::jsonb) from details $$;
+create function public.calculate_staff_monthly_settlement(p_staff_id uuid,p_month date) returns jsonb language sql stable set search_path=public as $$select public.calculate_staff_monthly_settlement_legacy(p_staff_id,p_month)$$;
+create function public.ensure_staff_monthly_account(s uuid,m date) returns public.staff_monthly_accounts language plpgsql set search_path=public as $$declare a public.staff_monthly_accounts; begin insert into public.staff_monthly_accounts(staff_id,accounting_month) values(s,date_trunc('month',m)::date) on conflict do nothing; select * into a from staff_monthly_accounts where staff_id=s and accounting_month=date_trunc('month',m)::date; return a; end $$;
+create function public.finalize_staff_monthly_account(p_account_id uuid) returns public.staff_monthly_accounts language plpgsql set search_path=public as $$declare a public.staff_monthly_accounts; begin update public.staff_monthly_accounts set settlement_status='FINALIZED',finalized_snapshot=public.calculate_staff_monthly_settlement(staff_id,accounting_month) where id=p_account_id returning * into a; return a; end $$;
+create function public.register_staff_monthly_payment(uuid,date,numeric,text,text,text,text,text,text,text) returns public.staff_monthly_accounts language sql as $$select * from public.staff_monthly_accounts where id=$1$$;
+`);
+await db.exec(readFileSync('supabase/migrations/20261111000753_staff_payment_periods.sql','utf8'));
+await db.exec(`
+alter table staff add first_name text,add last_name text;
+alter table projects add operations jsonb,add project_type text,add event_time time;
+alter table event_staff_payments add assignment_id uuid,add block_id uuid,add contracted_minutes integer,add contracted_hours integer,add tasks text[],add deleted_at timestamptz,add status text;
+alter table event_staff_settlement_movements add deleted_at timestamptz;
+alter table staff_monthly_accounts add advances_total numeric,add reimbursements_total numeric,add reimbursements_paid_total numeric,add reimbursements_pending_total numeric,add final_transfer_amount numeric,add excess_advance numeric,add event_count integer,add review_required boolean,add review_reason text;
+create table assignments(id uuid primary key,project_id uuid,staff_id uuid,block_id uuid,status text,deleted_at timestamptz,assignment_type text);
+create table project_services(project_id uuid,service_code text,duration_hours numeric);
+create table event_operational_blocks(id uuid primary key,name text);
+create table staff_settlement_financials(settlement_id uuid,reimbursement_total numeric,reimbursement_paid_amount numeric);
+create table staff_monthly_settlement_audit(account_id uuid,action text,actor_id uuid,reason text,state jsonb);
+create function staff_payment_is_realized(uuid,uuid,date) returns boolean language sql stable as $$select $3<current_date$$;
+create function staff_monthly_blocking_events(uuid,date) returns jsonb language sql stable as $$select '[]'::jsonb$$;
+select set_config('test.actor','10000000-0000-0000-0000-000000000001',false);select set_config('test.admin','true',false);
+insert into staff(id,first_name,last_name) values('20000000-0000-0000-0000-000000000001','QA','Supervisor');
+insert into projects(id,event_date,name) values('30000000-0000-0000-0000-000000000001','2026-11-08','CCU sintético');
+insert into event_operational_blocks values('60000000-0000-0000-0000-000000000001','AM');
+insert into assignments values('70000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000001','60000000-0000-0000-0000-000000000001','COMPLETED',null,'SUPERVISOR');
+insert into project_services values('30000000-0000-0000-0000-000000000001','CLASSIC',2);
+insert into event_staff_payments(id,staff_id,project_id,accounting_month,total_internal_payment,status,settlement_status,assignment_id,block_id,contracted_minutes,contracted_hours,tasks) values('40000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000001','2026-11-01',32500,'CONFIRMED','PENDING','70000000-0000-0000-0000-000000000001','60000000-0000-0000-0000-000000000001',270,5,array['OPERATOR']);
+insert into staff_monthly_accounts(staff_id,accounting_month,work_net) values('20000000-0000-0000-0000-000000000001','2026-11-01',0);
+`);
+await db.exec('drop function public.ensure_staff_monthly_account(uuid,date); drop function public.calculate_staff_monthly_settlement_legacy(uuid,date) cascade;');
+await db.exec(readFileSync('tests/fixtures/ensure-staff-monthly-account-v6.sql','utf8'));
+await db.exec(readFileSync('supabase/migrations/20261111005940_staff_fortnight_reconciliation.sql','utf8'));
+const q=async(sql:string)=> (await db.query(sql)).rows;
+let calc=(await q("select calculate_staff_monthly_settlement_legacy('20000000-0000-0000-0000-000000000001','2026-11-01') c"))[0].c;
+assert.equal(calc.workNet,32500);assert.equal(calc.details[0].hours,4.5);assert.deepEqual(calc.details[0].roles,['SUPERVISOR']);assert.equal(calc.details[0].blockName,'AM');
+assert.equal(Number((await q('select work_net from staff_monthly_accounts'))[0].work_net),32500);
+let preview=await q("select * from preview_staff_first_fortnight('2026-11-01')");assert.equal(Number(preview[0].work_net),32500);
+await db.exec("update event_staff_payments set total_internal_payment=65000");
+assert.equal(Number((await q('select work_net from staff_monthly_accounts'))[0].work_net),65000);
+await db.exec("insert into event_staff_settlement_adjustments values(gen_random_uuid(),'40000000-0000-0000-0000-000000000001',1000)");
+assert.equal(Number((await q('select work_net from staff_monthly_accounts'))[0].work_net),66000);
+await db.exec("update staff_monthly_accounts set settlement_status='FINALIZED';");
+const before=JSON.stringify(await q('select * from staff_monthly_accounts'));
+await db.exec("update event_staff_payments set total_internal_payment=70000");
+assert.equal(JSON.stringify(await q('select * from staff_monthly_accounts')),before);
+await db.exec("update assignments set status='CANCELLED'");
+calc=(await q("select calculate_staff_monthly_settlement_legacy('20000000-0000-0000-0000-000000000001','2026-11-01') c"))[0].c;assert.equal(calc.workNet,0);
+await assert.rejects(()=>db.exec("select set_config('test.admin','false',false);select * from preview_staff_first_fortnight('2026-11-01')"),/administrativo/);
+console.log('PASS roles, 4.5 hours, preview, source refresh, adjustments, immutable history, cancelled exclusions and auth');
+}finally{await db.close();}});
