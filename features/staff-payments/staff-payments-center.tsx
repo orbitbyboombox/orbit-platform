@@ -13,6 +13,7 @@ import {
   reopenStaffMonthAction,
   registerQuickStaffSettlementPaymentAction,
 } from "./actions";
+import { StaffPaymentPeriodsPanel } from "@/features/staff-monthly-account/payment-periods-panel";
 import { StaffMonthlyAccountPanel } from "@/features/staff-monthly-account/staff-monthly-account-panel";
 import { BoletaSosPanel } from "@/features/staff-monthly-account/boleta-sos-panel";
 import { generateMonthlyStaffAccountsAction, getIndividualBoletaSentStatuses, requestIndividualStaffBoletaAction } from "@/features/staff-monthly-account/actions";
@@ -357,7 +358,7 @@ export function StaffPaymentsCenter({
   const totalWithholding = accountsForMonth.reduce((sum, a) => sum + a.withholdingAmount, 0);
   const totalReimbursements = accountsForMonth.reduce((sum, a) => sum + a.reimbursementsTotal, 0);
   const advancesPaid = accountsForMonth.reduce((sum, a) => sum + a.advancesTotal, 0);
-  const finalPaid = accountsForMonth.reduce((sum, a) => sum + (a.paymentStatus === "PAID" ? a.paidAmount : 0), 0);
+  const finalPaid = accountsForMonth.reduce((sum, a) => sum + Math.max(0, (a.calculation.workPaid ?? 0) - a.advancesTotal) + a.paidAmount, 0);
   const reimbursementsPaid = accountsForMonth.reduce((sum, a) => sum + a.reimbursementsPaidTotal, 0);
   const pendingStaffRows = rows.filter((row) => row.outstanding > 0);
   const pendingStaffTotal = pendingStaffRows.reduce((sum, row) => sum + row.outstanding, 0);
@@ -591,6 +592,7 @@ export function StaffPaymentsCenter({
       </section>
       <StaffFinanceDriveSync />
       <QuickStaffPayment rows={rows} />
+      <StaffPaymentPeriodsPanel key={month} month={month} staff={staff} />
       <PaymentSheet month={month} rows={rows} />
       <div className="grid gap-4 xl:grid-cols-2">
         {rows.map((row) => (

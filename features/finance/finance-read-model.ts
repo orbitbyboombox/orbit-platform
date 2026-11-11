@@ -91,7 +91,7 @@ export async function loadFinanceDashboardReadModel(
   next30Date.setUTCDate(next30Date.getUTCDate() + 30);
   const next30 = next30Date.toISOString().slice(0, 10);
 
-  const [truth, receivableDataset, receivablesResult, paymentsResult, expensesResult, settlementsResult, staffMovementsResult, fuelResult, routesResult, routeEventsResult, integrityResult,bankAccountsResult,fixedRulesResult] = await Promise.all([
+  const [truth, receivableDataset, receivablesResult, paymentsResult, expensesResult, settlementsResult, staffMovementsResult, fuelResult, routesResult, routeEventsResult, integrityResult,bankAccountsResult,fixedRulesResult,trainingPaymentsResult] = await Promise.all([
     financialTruthSource ? Promise.resolve(financialTruthSource) : loadFinancialTruth(client),
     loadAccountsReceivable(client),
     client.from("accounts_receivable_projection").select("id,project_id,customer_id,due_date,amount,paid_amount,outstanding_balance,effective_status"),
@@ -105,8 +105,9 @@ export async function loadFinanceDashboardReadModel(
     client.from("financial_integrity_issues").select("id,status").eq("status", "OPEN"),
     client.from("finance_bank_accounts").select("code,name,account_kind,is_primary").eq("active",true).order("is_primary",{ascending:false}),
     client.from("finance_recurring_expense_rules").select("id,name,category,amount,currency,frequency,next_due_date,active,metadata"),
+    client.from("staff_training_payment_movements").select("id,project_id,amount,movement_date,method"),
   ]);
-  const error = receivablesResult.error ?? paymentsResult.error ?? expensesResult.error ?? settlementsResult.error ?? staffMovementsResult.error ?? fuelResult.error??routesResult.error??routeEventsResult.error??bankAccountsResult.error??fixedRulesResult.error;
+  const error = receivablesResult.error ?? paymentsResult.error ?? expensesResult.error ?? settlementsResult.error ?? staffMovementsResult.error ?? fuelResult.error??routesResult.error??routeEventsResult.error??bankAccountsResult.error??fixedRulesResult.error??trainingPaymentsResult.error;
   if (error) throw error;
 
   const activeTruth = truth.filter((row) => row.status === "CONFIRMED");
@@ -136,6 +137,10 @@ export async function loadFinanceDashboardReadModel(
   const collectedAll = sum(canonicalPayments, (row) => row.cashImpact);
   const paidExpenses = expenses.filter((row) => row.status === "PAID");
   const staffCashMovements = staffMovements.map((row) => ({ ...row, signedAmount: row.movement_type === "REVERSAL" ? -number(row.amount) : number(row.amount) }));
+  staffCashMovements.push(...(trainingPaymentsResult.data ?? []).filter(row => activeProjectIds.has(row.project_id)).map(row => ({
+    id: row.id, settlement_id: row.id, movement_type: "PAYMENT", amount: row.amount,
+    movement_date: row.movement_date, method: row.method, signedAmount: number(row.amount),
+  })));
   const outgoingAll = sum(paidExpenses, (row) => number(row.total)) + sum(staffCashMovements, (row) => row.signedAmount) + sum(fuel, (row) => number(row.total_amount));
   const availableCash = collectedAll - outgoingAll;
 
