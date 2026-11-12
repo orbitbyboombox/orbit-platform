@@ -63,7 +63,6 @@ const canonicalFounderActionTypeList = [
   "STAFF_BOLETA_REVIEW_REQUIRED",
   "STAFF_OPERATOR_INCIDENT",
   "HEALTH_WARNING",
-  "EVENT_NOT_READY",
   "SALES_LEAD_UNATTENDED",
   "SALES_QUOTE_NO_FOLLOWUP",
   "SALES_FOLLOWUP_OVERDUE",
@@ -74,7 +73,6 @@ const canonicalFounderActionTypeList = [
   "WHATSAPP_WAITING_FOR_BOOMBOX",
   "WHATSAPP_HUMAN_STALE",
   "WHATSAPP_UNREAD_CRITICAL",
-  "PHYSICAL_CONFIGURATION_MISSING",
 ] as const;
 const canonicalFounderActionTypes = new Set<string>(
   canonicalFounderActionTypeList,
@@ -154,6 +152,7 @@ const loadFounderActionCenterCached = cache(
       { data: rows, error },
       { data: states, error: statesError },
       { data: overdueInvoices, error: overdueError },
+      { data: reviewedStates, error: reviewedError },
     ] = await Promise.all([
       loadAllFounderNotifications(admin),
       admin
@@ -168,9 +167,11 @@ const loadFounderActionCenterCached = cache(
         .not("effective_status", "in", "(PAID,CANCELLED,ARCHIVED)")
         .order("due_date", { ascending: true })
         .limit(100),
+      admin.from("founder_action_user_states").select("action_key").eq("user_id", userId),
     ]);
-    if (error || statesError || overdueError)
-      throw error ?? statesError ?? overdueError;
+    if (error || statesError || overdueError || reviewedError)
+      throw error ?? statesError ?? overdueError ?? reviewedError;
+    const reviewedIds = new Set((reviewedStates ?? []).map(row => row.action_key));
     const incidentIds = (rows ?? []).filter(row => row.notification_type === "STAFF_OPERATOR_INCIDENT").map(row => row.entity_id).filter(Boolean);
     const incidentResult = incidentIds.length ? await admin.from("event_incidents").select("id,project_id,description,status,resolution,created_at,operational_assets(asset_code),projects(name),staff(first_name,last_name)").in("id", incidentIds) : { data: [], error: null };
     if (incidentResult.error) throw incidentResult.error;
@@ -229,7 +230,7 @@ const loadFounderActionCenterCached = cache(
       );
     const seen = new Set<string>();
     const items: FounderActionItem[] = projected.filter(item => {
-      if (seen.has(item.canonicalKey)) return false;
+      if (seen.has(item.canonicalKey) || reviewedIds.has(item.id)) return false;
       seen.add(item.canonicalKey); return true;
     });
     for (const invoice of overdueInvoices ?? []) {
@@ -256,12 +257,13 @@ const loadFounderActionCenterCached = cache(
         type: "INVOICE_OVERDUE",
       });
     }
-    items.sort(
+    const visibleItems = items.filter(item => !reviewedIds.has(item.id));
+    visibleItems.sort(
       (a, b) =>
         a.priority.localeCompare(b.priority) ||
         new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
     );
-    return { count: items.length, items };
+    return { count: visibleItems.length, items: visibleItems };
   },
 );
 
