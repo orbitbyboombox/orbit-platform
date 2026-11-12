@@ -1,11 +1,13 @@
 'use client';
 import Link from 'next/link';
+import type { recordIncidentResolution } from './incident-resolution.actions';
+import { IncidentQuickCard } from '@/features/resources/incident-quick-card';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import type { FounderActionItem } from './index';
 import type { ActionDiagnostic } from './diagnostic-model';
 import { inspectFounderAction, validateFounderActions } from './diagnostic.actions';
 
-export function ActionDiagnosticPanel({ item, onResolved, inspectAction = inspectFounderAction, validateAction = validateFounderActions }: { item: FounderActionItem; onResolved: (id: string) => void; inspectAction?: typeof inspectFounderAction; validateAction?: typeof validateFounderActions }) {
+export function ActionDiagnosticPanel({ item, onResolved, inspectAction = inspectFounderAction, validateAction = validateFounderActions, repairAction }: { item: FounderActionItem; onResolved: (id: string) => void; inspectAction?: typeof inspectFounderAction; validateAction?: typeof validateFounderActions; repairAction?: typeof recordIncidentResolution }) {
   const [open, setOpen] = useState(false);
   const [diagnostic, setDiagnostic] = useState<ActionDiagnostic | null>(null);
   const [feedback, setFeedback] = useState('');
@@ -19,6 +21,7 @@ export function ActionDiagnosticPanel({ item, onResolved, inspectAction = inspec
     });
   };
   useEffect(() => { if (open) heading.current?.focus(); }, [open]);
+  if (item.incident) return <IncidentQuickCard incident={item.incident} saveAction={repairAction} onResolved={() => onResolved(item.id)} />;
   return <article className="min-w-0 px-3 py-4 sm:px-4" data-action-id={item.id}>
     <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start">
       <div className="min-w-0 flex-1 break-words [overflow-wrap:anywhere]"><span className="mr-2 rounded border px-1.5 py-0.5 text-[10px] font-bold">{item.priority}</span><strong className="text-sm">{item.title}</strong><p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-muted">{item.detail}</p></div>

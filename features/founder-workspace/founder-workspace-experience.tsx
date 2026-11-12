@@ -569,7 +569,7 @@ export function FounderWorkspaceExperience({
   const totalAttentionCount = attentionActions.length + staffApprovalItems.length;
   const [visibleActionCount, setVisibleActionCount] = useState(8);
   const groupedActions = attentionActions
-    .sort((a, b) => a.priority.localeCompare(b.priority) || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+    .sort((a, b) => Number(Boolean(b.incident)) - Number(Boolean(a.incident)) || a.priority.localeCompare(b.priority) || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
     .slice(0, visibleActionCount);
 
   const completeFounderAction = (id: string) => {

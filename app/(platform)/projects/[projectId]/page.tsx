@@ -1,3 +1,4 @@
+import { mapIncidentObservation } from "@/features/resources/incident-observation";
 import { notFound, redirect } from "next/navigation";
 import { ProjectHealth, ProjectType } from "@/features/projects/domain";
 import { ProjectWorkspaceExperience } from "@/features/projects/components/project-workspace-experience";
@@ -1849,6 +1850,11 @@ export default async function ProjectWorkspacePage({
         })() : null,
       }
     : undefined;
+  const [incidentObservationResult, incidentMetadataResult] = await Promise.all([
+    client.from("event_incidents").select("id,project_id,description,status,resolution,created_at,operational_assets(asset_code),projects(name),staff(first_name,last_name)").eq("project_id", projectId).order("created_at", { ascending: false }),
+    client.from("internal_notifications").select("entity_id,metadata").eq("project_id", projectId).eq("notification_type", "STAFF_OPERATOR_INCIDENT"),
+  ]);
+  const incidentMetadata = new Map((incidentMetadataResult.data ?? []).map(row => [row.entity_id, (row.metadata ?? {}) as Record<string, unknown>]));
   return (
     <ProjectWorkspaceExperience
       customerId={rawProject?.customer_id ?? ""}
@@ -1867,6 +1873,7 @@ export default async function ProjectWorkspacePage({
       }}
       event360={event360}
       operationalReadiness={operationalReadiness}
+      incidentObservations={{ items: (incidentObservationResult.data ?? []).map(row => mapIncidentObservation(row, incidentMetadata.get(row.id))), unavailable: Boolean(incidentObservationResult.error || incidentMetadataResult.error) }}
       logistics={logistics}
       eventDateIso={date}
       portalStage={portalStage}
