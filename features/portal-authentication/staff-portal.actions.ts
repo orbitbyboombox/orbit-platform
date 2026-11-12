@@ -1,4 +1,5 @@
 "use server";
+import { isNoIssueObservation } from "@/features/resources/incident-observation";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -240,6 +241,7 @@ export async function reportStaffOperatorIncidentAction(input: {
     .maybeSingle();
   if (assignmentError) return { ok: false, message: assignmentError.message };
   if (!assignment) return { ok: false, message: "Solo el operador asignado puede reportar este evento." };
+  if (isNoIssueObservation(description)) return { ok: true, message: "Sin incidencias reportadas." };
   const { data: boxAssignment } = await admin
     .from("asset_assignments")
     .select("id,asset_id,operational_assets(asset_code)")

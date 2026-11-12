@@ -1,4 +1,6 @@
 "use client";
+import { EventIncidentObservations } from "@/features/resources/event-incident-observations";
+import type { IncidentObservation } from "@/features/resources/incident-observation";
 
 import { useEffect, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
@@ -281,6 +283,7 @@ export type ProjectWorkspaceExperienceProps = Omit<
   productionIntegration: ProductionIntegrationPanelProps;
   event360: Event360Data;
   operationalReadiness?: OperationalReadinessData;
+  incidentObservations?: { items: IncidentObservation[]; unavailable: boolean };
   logistics: EventLogisticsData;
   reconciliationId?: string;
   workspacePreferences: FounderWorkspacePreferences;
@@ -1118,6 +1121,7 @@ export function ProjectWorkspaceExperience(
             )}
           </section>
 
+          {activeTab === "OPERATION" && props.incidentObservations ? <EventIncidentObservations {...props.incidentObservations} /> : null}
           {activeTab === "OPERATION" && props.operationalReadiness ? <EventOperationalReadiness data={props.operationalReadiness}/> : null}
           {activeTab === "OPERATION" && <EventLogisticsCenter data={props.logistics}/>}
           {activeTab === "OPERATION" && <OperationalBlocksPanel projectId={props.projectKey ?? ""} initialBlocks={props.operationalBlocks ?? []} />}

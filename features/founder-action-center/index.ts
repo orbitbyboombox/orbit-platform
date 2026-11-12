@@ -1,4 +1,5 @@
 import "server-only";
+import { isNoIssueObservation, mapIncidentObservation, type IncidentObservation } from "@/features/resources/incident-observation";
 import { after } from "next/server";
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
@@ -20,6 +21,7 @@ export type FounderActionItem = {
   category: string;
   read: boolean;
   cta: string;
+  incident?: IncidentObservation;
 };
 
 export type FounderActionCenter = {
@@ -114,7 +116,7 @@ const reconcileFounderActionSources = unstable_cache(
 );
 
 async function loadAllFounderNotifications(admin: ReturnType<typeof createAdminClient>) {
-  const page = (offset: number) => admin.from("internal_notifications").select("id,notification_type,title,message,created_at,category,priority,related_href,entity_type,entity_id,projects(pipeline_stage,operations,project_operational_contracts(readiness_status))")
+  const page = (offset: number) => admin.from("internal_notifications").select("id,notification_type,title,message,created_at,category,priority,related_href,entity_type,entity_id,metadata,projects(pipeline_stage,operations,project_operational_contracts(readiness_status))")
     .eq("action_required", true).neq("status", "RESOLVED")
     .in("notification_type", [...canonicalFounderActionTypeList])
     .order("created_at", { ascending: false }).order("id").range(offset, offset + 499);
@@ -169,6 +171,10 @@ const loadFounderActionCenterCached = cache(
     ]);
     if (error || statesError || overdueError)
       throw error ?? statesError ?? overdueError;
+    const incidentIds = (rows ?? []).filter(row => row.notification_type === "STAFF_OPERATOR_INCIDENT").map(row => row.entity_id).filter(Boolean);
+    const incidentResult = incidentIds.length ? await admin.from("event_incidents").select("id,project_id,description,status,resolution,created_at,operational_assets(asset_code),projects(name),staff(first_name,last_name)").in("id", incidentIds) : { data: [], error: null };
+    if (incidentResult.error) throw incidentResult.error;
+    const incidentById = new Map((incidentResult.data ?? []).map(row => [row.id, row]));
     const readIds = new Set(
       (states ?? [])
         .filter((state) => state.read_at)
@@ -178,6 +184,10 @@ const loadFounderActionCenterCached = cache(
       .filter((row) => {
         if (!canonicalFounderActionTypes.has(row.notification_type))
           return false;
+        if (row.notification_type === "STAFF_OPERATOR_INCIDENT") {
+          const incident = incidentById.get(row.entity_id);
+          if (incident && (incident.status === "RESOLVED" || isNoIssueObservation(incident.description))) return false;
+        }
         const project = Array.isArray(row.projects)
           ? row.projects[0]
           : row.projects;
@@ -197,6 +207,7 @@ const loadFounderActionCenterCached = cache(
       .map((row) => ({
         id: row.id,
         type: row.notification_type,
+        incident: row.notification_type === "STAFF_OPERATOR_INCIDENT" && incidentById.has(row.entity_id) ? mapIncidentObservation(incidentById.get(row.entity_id)!, (row.metadata ?? {}) as Record<string, unknown>) : undefined,
         title: row.title,
         detail: row.message,
         href: founderActionHref(
