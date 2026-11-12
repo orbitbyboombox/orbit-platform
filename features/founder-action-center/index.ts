@@ -161,7 +161,6 @@ const loadFounderActionCenterCached = cache(
         .from("notification_user_states")
         .select("notification_id,read_at")
         .eq("user_id", userId),
-      admin.from("founder_action_user_states").select("action_key").eq("user_id", userId),
       admin
         .from("accounts_receivable_projection")
         .select("id,invoice_number,due_date,outstanding_balance,projects(name)")
@@ -170,6 +169,7 @@ const loadFounderActionCenterCached = cache(
         .not("effective_status", "in", "(PAID,CANCELLED,ARCHIVED)")
         .order("due_date", { ascending: true })
         .limit(100),
+      admin.from("founder_action_user_states").select("action_key").eq("user_id", userId),
     ]);
     if (error || statesError || overdueError || reviewedError)
       throw error ?? statesError ?? overdueError ?? reviewedError;
