@@ -154,12 +154,14 @@ const loadFounderActionCenterCached = cache(
       { data: rows, error },
       { data: states, error: statesError },
       { data: overdueInvoices, error: overdueError },
+      { data: reviewedStates, error: reviewedError },
     ] = await Promise.all([
       loadAllFounderNotifications(admin),
       admin
         .from("notification_user_states")
         .select("notification_id,read_at")
         .eq("user_id", userId),
+      admin.from("founder_action_user_states").select("action_key").eq("user_id", userId),
       admin
         .from("accounts_receivable_projection")
         .select("id,invoice_number,due_date,outstanding_balance,projects(name)")
@@ -169,8 +171,9 @@ const loadFounderActionCenterCached = cache(
         .order("due_date", { ascending: true })
         .limit(100),
     ]);
-    if (error || statesError || overdueError)
-      throw error ?? statesError ?? overdueError;
+    if (error || statesError || overdueError || reviewedError)
+      throw error ?? statesError ?? overdueError ?? reviewedError;
+    const reviewedIds = new Set((reviewedStates ?? []).map(row => row.action_key));
     const incidentIds = (rows ?? []).filter(row => row.notification_type === "STAFF_OPERATOR_INCIDENT").map(row => row.entity_id).filter(Boolean);
     const incidentResult = incidentIds.length ? await admin.from("event_incidents").select("id,project_id,description,status,resolution,created_at,operational_assets(asset_code),projects(name),staff(first_name,last_name)").in("id", incidentIds) : { data: [], error: null };
     if (incidentResult.error) throw incidentResult.error;
@@ -229,7 +232,7 @@ const loadFounderActionCenterCached = cache(
       );
     const seen = new Set<string>();
     const items: FounderActionItem[] = projected.filter(item => {
-      if (seen.has(item.canonicalKey)) return false;
+      if (seen.has(item.canonicalKey) || reviewedIds.has(item.id)) return false;
       seen.add(item.canonicalKey); return true;
     });
     for (const invoice of overdueInvoices ?? []) {
@@ -256,12 +259,13 @@ const loadFounderActionCenterCached = cache(
         type: "INVOICE_OVERDUE",
       });
     }
-    items.sort(
+    const visibleItems = items.filter(item => !reviewedIds.has(item.id));
+    visibleItems.sort(
       (a, b) =>
         a.priority.localeCompare(b.priority) ||
         new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
     );
-    return { count: items.length, items };
+    return { count: visibleItems.length, items: visibleItems };
   },
 );
 
