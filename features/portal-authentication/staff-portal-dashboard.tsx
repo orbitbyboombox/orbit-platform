@@ -917,6 +917,47 @@ function Small({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+function StaffPrintInstructions({ event }: { event: StaffPortalEvent }) {
+  const [instructions, setInstructions] = useState(event.printInstructions);
+  const [unavailable, setUnavailable] = useState(false);
+  useEffect(() => {
+    setInstructions(event.printInstructions);
+    setUnavailable(false);
+    const controller = new AbortController();
+    let loading = false;
+    const refresh = async () => {
+      if (loading || document.visibilityState === "hidden") return;
+      loading = true;
+      try {
+        const response = await fetch(`/api/staff-portal/events/${encodeURIComponent(event.id)}/print-instructions`, { cache: "no-store", signal: controller.signal });
+        if (!response.ok) throw new Error("No disponible");
+        const current = await response.json();
+        if (!controller.signal.aborted) {
+          setInstructions(current);
+          setUnavailable(false);
+        }
+      } catch {
+        if (!controller.signal.aborted) setUnavailable(true);
+      } finally { loading = false; }
+    };
+    void refresh();
+    const interval = window.setInterval(() => void refresh(), 30000);
+    const onFocus = () => void refresh();
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      controller.abort();
+      window.clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, [event.id, event.printInstructions]);
+  if (unavailable) return <section className="mt-5 rounded-2xl border border-amber-400/40 p-4" aria-label="Instrucciones de impresión"><p className="text-sm text-amber-300">No fue posible verificar las indicaciones actuales. Se reintentará automáticamente.</p></section>;
+  return (
+        <section className="mt-5 rounded-2xl border border-brand/40 bg-brand/10 p-4" aria-label="Instrucciones de impresión"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Instrucciones de impresión</p><h3 className="mt-1 text-lg font-semibold">Configuración del evento</h3></div>{!instructions.photoStyle ? <span className="rounded-full border border-amber-400/40 bg-amber-400/10 px-3 py-1 text-xs font-bold text-amber-300">ESTILO PENDIENTE</span> : null}</div><div className="mt-3 grid gap-2 sm:grid-cols-3"><div className="rounded-xl border border-white/10 bg-[#111214] p-3"><p className="text-[10px] uppercase tracking-[.14em] text-white/45">Foto</p><p className="mt-1 text-sm font-bold text-white">{instructions.photoStyle === "COLOR" ? "COLOR" : instructions.photoStyle === "BLACK_WHITE" ? "BLANCO Y NEGRO" : instructions.photoStyle === "SEPIA" ? "SEPIA" : "PENDIENTE"}</p></div><div className="rounded-xl border border-white/10 bg-[#111214] p-3"><p className="text-[10px] uppercase tracking-[.14em] text-white/45">Papel</p><p className="mt-1 text-sm font-bold text-white">{instructions.paperVariant === "NORMAL_4X6" ? "4x6 NORMAL" : instructions.paperVariant === "PRECUT_4X6" ? "4x6 PREPICADO" : "PENDIENTE"}</p></div><div className="rounded-xl border border-white/10 bg-[#111214] p-3"><p className="text-[10px] uppercase tracking-[.14em] text-white/45">Formato</p><p className="mt-1 text-sm font-bold text-white">{event.service}</p></div></div>{instructions.operatorNote ? <div className="mt-3 rounded-xl border border-brand/30 bg-[#111214] p-3"><p className="text-[10px] uppercase tracking-[.14em] text-brand">Observación para operador</p><p className="mt-1 whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-sm font-semibold text-white">{instructions.operatorNote}</p></div> : <p className="mt-3 text-sm text-white/60">Sin indicaciones de impresión adicionales.</p>}</section>
+  );
+}
+
 function EventDetail({
   event,
   close,
@@ -978,7 +1019,7 @@ function EventDetail({
             <X className="size-4" />
           </button>
         </div>
-        <section className="mt-5 rounded-2xl border border-brand/40 bg-brand/10 p-4" aria-label="Instrucciones de impresión"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Instrucciones de impresión</p><h3 className="mt-1 text-lg font-semibold">Configuración del evento</h3></div>{!event.printInstructions.photoStyle ? <span className="rounded-full border border-amber-400/40 bg-amber-400/10 px-3 py-1 text-xs font-bold text-amber-300">ESTILO PENDIENTE</span> : null}</div><div className="mt-3 grid gap-2 sm:grid-cols-3"><div className="rounded-xl border border-white/10 bg-[#111214] p-3"><p className="text-[10px] uppercase tracking-[.14em] text-white/45">Foto</p><p className="mt-1 text-sm font-bold text-white">{event.printInstructions.photoStyle === "COLOR" ? "COLOR" : event.printInstructions.photoStyle === "BLACK_WHITE" ? "BLANCO Y NEGRO" : event.printInstructions.photoStyle === "SEPIA" ? "SEPIA" : "PENDIENTE"}</p></div><div className="rounded-xl border border-white/10 bg-[#111214] p-3"><p className="text-[10px] uppercase tracking-[.14em] text-white/45">Papel</p><p className="mt-1 text-sm font-bold text-white">{event.printInstructions.paperVariant === "NORMAL_4X6" ? "4x6 NORMAL" : event.printInstructions.paperVariant === "PRECUT_4X6" ? "4x6 PREPICADO" : "PENDIENTE"}</p></div><div className="rounded-xl border border-white/10 bg-[#111214] p-3"><p className="text-[10px] uppercase tracking-[.14em] text-white/45">Formato</p><p className="mt-1 text-sm font-bold text-white">{event.service}</p></div></div>{event.printInstructions.operatorNote ? <div className="mt-3 rounded-xl border border-brand/30 bg-[#111214] p-3"><p className="text-[10px] uppercase tracking-[.14em] text-brand">Observación para operador</p><p className="mt-1 whitespace-pre-wrap text-sm font-semibold text-white">{event.printInstructions.operatorNote}</p></div> : null}</section>
+        <StaffPrintInstructions event={event} />
         <section className="mt-5 rounded-2xl border border-brand/40 bg-brand/10 p-4" aria-label="Tus honorarios de este evento">
           <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">TUS CARGOS Y HONORARIOS</p>
           {event.assignedPayments.length ? <><p className="mt-2 text-2xl font-bold">{money(event.assignedPayments.reduce((sum,p)=>sum+p.amount,0))}</p><div className="mt-3 space-y-2">{event.assignedPayments.map(p=><div key={p.id} className="flex items-center justify-between gap-3 rounded-lg border border-white/10 p-2 text-sm"><span>{ROLE[p.role] ?? p.role}{p.blockName ? ` · ${p.blockName}` : ""}<span className="block text-xs text-white/55">{p.isPaid ? "Pagado" : p.settlementStatus === "PENDING" ? "Pendiente de liquidación/pago" : p.settlementStatus}</span></span><strong>{money(p.amount)}</strong></div>)}</div></> : <p className="mt-2 text-sm text-white/65">Monto aún no asignado en Finanzas Staff.</p>}
