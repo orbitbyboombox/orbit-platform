@@ -10,7 +10,6 @@ import {
   TrendingUp,
   UsersRound,
   WalletCards,
-  UserRoundCheck,
   ArrowDown,
   ArrowUp,
   GripVertical,
@@ -33,7 +32,7 @@ import {
   type FinancialAlertView,
 } from "@/features/financial-alerts/financial-alert-center";
 import type { FounderActionItem } from "@/features/founder-action-center";
-import { dismissFounderActionsAction } from "@/features/founder-action-center/actions";
+import { ActionDiagnosticPanel } from "@/features/founder-action-center/diagnostic-panel";
 import type { WhatsAppSummary } from "@/features/communication-hub";
 import type { BiancaOperationalStatus } from "@/features/bianca-workspace/bianca-status";
 import { usePersonalWorkspace } from "./personal-workspace";
@@ -135,21 +134,7 @@ const formatMetric = (metric: FinanceMetric) =>
     : metric.format === "percent"
       ? `${metric.value.toFixed(1)}%`
       : new Intl.NumberFormat("es-CL").format(metric.value);
-const formatFounderActionTimestamp = (value: string) => {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Santiago",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(new Date(value));
-  const part = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((item) => item.type === type)?.value ?? "";
 
-  return `${part("day")}-${part("month")}-${part("year").slice(-2)}, ${part("hour")}:${part("minute")}`;
-};
 const toneStyle = {
   default: "bg-accent text-muted",
   success: "bg-success-soft text-success",
@@ -165,7 +150,6 @@ export function FounderWorkspaceExperience({
   financialAlertHistory,
   founderName,
   founderActions,
-  initialDismissedFounderActionIds,
   operationalAlerts,
   pendingStaffApprovals,
   pendingTasks,
@@ -221,9 +205,6 @@ export function FounderWorkspaceExperience({
     () => new Set(),
   );
   const [dismissedFounderActionIds, setDismissedFounderActionIds] = useState<Set<string>>(
-    () => new Set(initialDismissedFounderActionIds),
-  );
-  const [dismissingFounderActionIds, setDismissingFounderActionIds] = useState<Set<string>>(
     () => new Set(),
   );
   useEffect(() => {
@@ -231,6 +212,12 @@ export function FounderWorkspaceExperience({
       reconcileDashboardLayout(workspace.preferences.dashboardLayout),
     );
   }, [workspace.preferences.dashboardLayout]);
+  useEffect(() => {
+    const refresh = () => { if (document.visibilityState === "visible") router.refresh(); };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => { window.removeEventListener("focus", refresh); document.removeEventListener("visibilitychange", refresh); };
+  }, [router]);
   const staffApprovalItems = pendingStaffApprovals.filter(
     (item) => !resolvedApprovalIds.has(item.id),
   );
@@ -580,52 +567,14 @@ export function FounderWorkspaceExperience({
     (item) => !dismissedFounderActionIds.has(item.id),
   );
   const totalAttentionCount = attentionActions.length + staffApprovalItems.length;
+  const [visibleActionCount, setVisibleActionCount] = useState(8);
   const groupedActions = attentionActions
-    .reduce<Array<FounderActionItem & { count?: number; dismissIds: string[] }>>((groups, item) => {
-      const repeatable = !["P0", "P1"].includes(item.priority);
-      const existing =
-        repeatable &&
-        groups.find(
-          (entry) => entry.type === item.type && entry.href === item.href,
-        );
-      if (existing) {
-        existing.count = (existing.count ?? 1) + 1;
-        existing.dismissIds.push(item.id);
-      } else groups.push({ ...item, count: 1, dismissIds: [item.id] });
-      return groups;
-    }, [])
-    .sort(
-      (a, b) =>
-        a.priority.localeCompare(b.priority) ||
-        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-    )
-    .slice(0, 8);
+    .sort((a, b) => a.priority.localeCompare(b.priority) || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+    .slice(0, visibleActionCount);
 
-  const dismissFounderActions = (ids: string[]) => {
-    const keys = Array.from(new Set(ids));
-    setDismissingFounderActionIds((current) => {
-      const next = new Set(current);
-      keys.forEach((id) => next.add(id));
-      return next;
-    });
-    startOrderTransition(async () => {
-      const result = await dismissFounderActionsAction(keys);
-      setDismissingFounderActionIds((current) => {
-        const next = new Set(current);
-        keys.forEach((id) => next.delete(id));
-        return next;
-      });
-      if (result.ok) {
-        setDismissedFounderActionIds((current) => {
-          const next = new Set(current);
-          keys.forEach((id) => next.add(id));
-          return next;
-        });
-        router.refresh();
-      } else {
-        setOrderMessage(result.error);
-      }
-    });
+  const completeFounderAction = (id: string) => {
+    setDismissedFounderActionIds(current => new Set([...current, id]));
+    router.refresh();
   };
 
   const welcome = (
@@ -774,58 +723,9 @@ export function FounderWorkspaceExperience({
       </summary>
       <div className="mt-4 min-w-0 divide-y rounded-xl border bg-card break-words">
         <span className="sr-only">min-h-11 w-full lg:grid-cols-2</span>
-        {groupedActions.map((item) => {
-          const Icon =
-            item.type === "STAFF_ONBOARDING_REVIEW_REQUIRED"
-              ? UserRoundCheck
-              : item.type === "INVOICE_OVERDUE"
-                ? CircleDollarSign
-                : ReceiptText;
-          return (
-            <div
-              className="flex min-w-0 items-center gap-2 px-3 py-2.5 sm:gap-3"
-              key={item.id}
-            >
-              <span
-                className={`grid size-7 shrink-0 place-items-center rounded-lg ${item.priority === "P0" ? toneStyle.danger : toneStyle.warning}`}
-              >
-                <Icon className="size-3.5" />
-              </span>
-              <span className="min-w-0 flex-1 truncate text-xs">
-                <span className="mr-1 rounded border px-1 py-0.5 text-[9px] font-bold">
-                  {item.priority}
-                </span>
-                <strong>
-                  {item.count && item.count > 1 ? `${item.count}× ` : ""}
-                  {item.title}
-                </strong>
-                <span className="ml-1 text-muted">· {item.detail}</span>
-              </span>
-              <span className="hidden shrink-0 text-[10px] text-muted sm:inline">
-                {formatFounderActionTimestamp(item.createdAt)}
-              </span>
-              <Link
-                className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg border px-3 py-2 text-center text-[10px] font-bold text-brand"
-                href={item.href}
-              >
-                {item.count && item.count > 1 ? "Ver grupo" : item.cta}
-              </Link>
-              <button
-                className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg border border-success/35 px-3 py-2 text-center text-[10px] font-bold text-success transition hover:bg-success/10 disabled:opacity-50"
-                disabled={item.dismissIds.some((id) => dismissingFounderActionIds.has(id))}
-                onClick={() => dismissFounderActions(item.dismissIds)}
-                title="Sacar de mis pendientes sin eliminar el registro"
-                type="button"
-              >
-                {item.dismissIds.some((id) => dismissingFounderActionIds.has(id))
-                  ? "GUARDANDO…"
-                  : item.count && item.count > 1
-                    ? "LISTO GRUPO"
-                    : "LISTO"}
-              </button>
-            </div>
-          );
-        })}
+        {groupedActions.map(item => <ActionDiagnosticPanel key={item.id} item={item} onResolved={completeFounderAction} />)}
+        {attentionActions.length > visibleActionCount ? <button type="button" className="min-h-11 w-full p-3 text-sm font-semibold text-brand" onClick={() => setVisibleActionCount(value => value + 8)}>Ver más pendientes ({attentionActions.length - visibleActionCount})</button> : null}
+
       </div>
       {staffApprovalItems.length ? (
         <div className="mt-4 border-t border-brand/20 pt-4">

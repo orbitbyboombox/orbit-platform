@@ -1,0 +1,15 @@
+'use client';
+import { useState } from 'react';
+import { ActionDiagnosticPanel } from './diagnostic-panel';
+import type { FounderActionItem } from './index';
+import type { ActionDiagnostic } from './diagnostic-model';
+const items: FounderActionItem[] = [
+  {id:'qa-incident',type:'STAFF_OPERATOR_INCIDENT',title:'Revisar caja / equipo',detail:'Evento de prueba · CASE-02 · El cable de alimentación está dañado.',priority:'P0',href:'#resolution',createdAt:'2026-11-12',category:'OPERATIONS',read:false,cta:'REVISAR'},
+  {id:'qa-ready',type:'EVENT_NOT_READY',title:'Requisito corregido en origen',detail:'El diagnóstico debe confirmar el estado actual.',priority:'P1',href:'#contact',createdAt:'2026-11-12',category:'OPERATIONS',read:false,cta:'REVISAR'},
+  {id:'qa-missing',type:'STAFF_OPERATOR_INCIDENT',title:'Reporte sin caja registrada',detail:'Texto completo y datos faltantes, sin suposiciones.',priority:'P2',href:'#resolution',createdAt:'2026-11-12',category:'OPERATIONS',read:false,cta:'REVISAR'},
+];
+export function DiagnosticQaFixture() {
+  const [corrected,setCorrected]=useState(false),[done,setDone]=useState<string[]>([]);
+  const diagnostic=(id:string):ActionDiagnostic=>({id,title:'Diagnóstico de prueba',event:'Evento sintético · QA-001',box:id==='qa-missing'?'Caja no registrada en el reporte':'CASE-02',problem:id==='qa-missing'?'Reporte completo\n'+'ComponenteSinEspacios'.repeat(60):'Cable dañado.\nReemplazar y comprobar conexión.',solution:'Revisa el reporte y registra la reparación en el campo correspondiente.',resolved:id==='qa-ready'||corrected,checkedAt:'2026-11-12T15:00:00Z',targets:[{label:'Ir al campo de reparación',href:'#resolution'}]});
+  return <main className="mx-auto w-full min-w-0 max-w-4xl p-4 sm:p-8"><p className="text-xs text-muted">QA · Datos sintéticos · Sin acceso a datos operativos</p><h1 className="mt-3 text-2xl font-semibold">Pendientes por revisar <span aria-label="Pendientes de prueba">{items.length-done.length}</span></h1><div className="mt-4 divide-y rounded-2xl border bg-card">{items.filter(item=>!done.includes(item.id)).map(item=><ActionDiagnosticPanel key={item.id} item={item} onResolved={id=>setDone(current=>[...current,id])} inspectAction={async id=>({ok:true as const,diagnostic:diagnostic(id)})} validateAction={async ids=>{const diagnostics=ids.map(diagnostic);return diagnostics.every(row=>row.resolved)?{ok:true as const,diagnostics}:{ok:false as const,error:'El problema sigue activo. Corrige el origen antes de marcar LISTO.',diagnostics};}} />)}</div><section className="mt-6 rounded-xl border p-4" id="resolution"><label className="grid gap-2 text-sm">Resolución de prueba<textarea className="min-h-24 rounded-xl border bg-background p-3 text-base" /></label><button type="button" className="mt-3 min-h-11 rounded-xl border px-4 text-sm" onClick={()=>setCorrected(true)}>Simular origen corregido</button>{corrected?<p role="status" className="mt-3">Origen de prueba corregido.</p>:null}</section></main>;
+}
