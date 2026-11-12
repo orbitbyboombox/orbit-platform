@@ -2,7 +2,7 @@ import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { loadFinanceDashboardReadModel } from '@/features/finance/finance-read-model';
-import { diagnosticSolution, operationalTarget, safeActionHref, type ActionDiagnostic } from './diagnostic-model';
+import { diagnosticSolution, operationalTarget, safeActionHref, isPhysicalConfigurationReady, type ActionDiagnostic } from './diagnostic-model';
 
 export async function requireDiagnosticAdmin() {
   const client = await createSupabaseServerClient();
@@ -27,7 +27,7 @@ export async function loadActionDiagnostic(id: string): Promise<ActionDiagnostic
     const invoice = await admin.from('accounts_receivable_projection').select('id,invoice_number,outstanding_balance,effective_status,due_date,projects(name)').eq('id', id.slice('founder-action:invoice:'.length)).maybeSingle();
     if (invoice.error || !invoice.data) throw new Error('No fue posible verificar la factura.');
     const row = invoice.data, project = Array.isArray(row.projects) ? row.projects[0] : row.projects;
-    return { ...base, event: project?.name ?? base.event, title: `Factura ${row.invoice_number}`, problem: `Saldo: ${Number(row.outstanding_balance).toLocaleString('es-CL')} · Vencimiento: ${row.due_date}`, solution: diagnosticSolution('INVOICE_OVERDUE'), resolved: Number(row.outstanding_balance) <= 0 || ['PAID','CANCELLED','ARCHIVED','VOID'].includes(row.effective_status), targets: [{ label: 'Abrir factura', href: `/finance/receivables?invoice=${encodeURIComponent(row.id)}` }] };
+    return { ...base, event: project?.name ?? base.event, title: `Factura ${row.invoice_number}`, problem: `Saldo: ${Number(row.outstanding_balance).toLocaleString('es-CL')} · Vencimiento: ${row.due_date}`, solution: diagnosticSolution('INVOICE_OVERDUE'), resolved: Number(row.outstanding_balance) <= 0 || ['PAID','CANCELLED','ARCHIVED','VOID'].includes(row.effective_status) || Boolean(row.due_date && row.due_date >= new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(new Date())), targets: [{ label: 'Abrir factura', href: `/finance/receivables?invoice=${encodeURIComponent(row.id)}` }] };
   }
   if (!/^[\da-f-]{36}$/i.test(id)) throw new Error('Pendiente inválido.');
   const notification = await admin.from('internal_notifications').select('id,notification_type,title,message,status,action_required,project_id,entity_id,related_href,metadata,projects(name,orbit_event_id,operations)').eq('id', id).maybeSingle();
@@ -55,7 +55,7 @@ export async function loadActionDiagnostic(id: string): Promise<ActionDiagnostic
     targets = reasons.map(reason => ({ label: reason.label, href: operationalTarget(row.project_id, reason.code) }));
   } else if (row.notification_type === 'PHYSICAL_CONFIGURATION_MISSING' && row.project_id) {
     const operations = (project?.operations ?? {}) as Record<string, unknown>;
-    resolved = Boolean(operations.physicalConfiguration && operations.physicalConfiguration !== 'UNDEFINED');
+    resolved = isPhysicalConfigurationReady(operations.physicalConfiguration);
     targets = [{ label: 'Definir configuración física', href: `/projects/${encodeURIComponent(row.project_id)}?eventTab=OPERATION&focusField=physicalConfiguration#physical-resource-planning` }];
   }
   return { ...base, title: row.title, event: project ? `${project.name} · ${project.orbit_event_id ?? ''}` : typeof meta.event_name === 'string' ? meta.event_name : base.event, box, problem, solution: diagnosticSolution(row.notification_type), targets, resolved, checkedAt };

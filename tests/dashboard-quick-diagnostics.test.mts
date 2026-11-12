@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { canCompleteDiagnostics, diagnosticSolution, operationalTarget, safeActionHref } from '../features/founder-action-center/diagnostic-model.ts';
+import { canCompleteDiagnostics, diagnosticSolution, operationalTarget, safeActionHref, isPhysicalConfigurationReady } from '../features/founder-action-center/diagnostic-model.ts';
 const require = createRequire(import.meta.url), ts = require('typescript');
 const source = (path: string) => readFileSync(path, 'utf8');
-const model = { canCompleteDiagnostics, diagnosticSolution, operationalTarget, safeActionHref };
+const model = { canCompleteDiagnostics, diagnosticSolution, operationalTarget, safeActionHref, isPhysicalConfigurationReady };
 function compile(path: string, modules: Record<string, unknown>) {
   const output = ts.transpileModule(source(path), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
   const exports: any = {};
@@ -45,6 +45,10 @@ test('invoice and finance risks are projected from their current source',async()
     assert.equal((await fixture().service.loadActionDiagnostic(key)).resolved,false);
     assert.equal((await fixture({status:'RESOLVED'}).service.loadActionDiagnostic(key)).resolved,true);
   }
+});
+test('invalid physical configurations never certify LISTO',()=>{
+  for(const value of [null, '', 'UNDEFINED', 'garbage', false]) assert.equal(isPhysicalConfigurationReady(value),false);
+  assert.equal(isPhysicalConfigurationReady('WHITE_TOTEM'),true);
 });
 test('missing data and database failures never certify LISTO',async()=>{
   await assert.rejects(fixture({error:true}).service.loadActionDiagnostic(id));

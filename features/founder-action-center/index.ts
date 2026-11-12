@@ -4,6 +4,7 @@ import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isReadOnlyVisualPreview } from "@/lib/supabase/environment-guard";
+import { isPhysicalConfigurationReady } from "./diagnostic-model";
 import { founderActionHref, isFounderActionVisible } from "./visibility";
 
 export type FounderActionPriority = "P0" | "P1" | "P2" | "P3";
@@ -187,7 +188,7 @@ const loadFounderActionCenterCached = cache(
         const contracts = project?.project_operational_contracts;
         const contract = Array.isArray(contracts) ? contracts[0] : contracts;
         if (row.notification_type === "EVENT_NOT_READY" && contract?.readiness_status === "READY") return false;
-        if (row.notification_type === "PHYSICAL_CONFIGURATION_MISSING" && operations.physicalConfiguration && operations.physicalConfiguration !== "UNDEFINED") return false;
+        if (row.notification_type === "PHYSICAL_CONFIGURATION_MISSING" && isPhysicalConfigurationReady(operations.physicalConfiguration)) return false;
         const stage = String(
           project?.pipeline_stage ?? operations.pipelineStage ?? "",
         ).toUpperCase();

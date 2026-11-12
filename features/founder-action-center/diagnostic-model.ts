@@ -34,3 +34,7 @@ export function diagnosticSolution(type: string) {
 export function canCompleteDiagnostics(rows: readonly ActionDiagnostic[]) {
   return rows.length > 0 && rows.every(row => row.resolved);
 }
+
+export function isPhysicalConfigurationReady(value: unknown) {
+  return typeof value === 'string' && ['WHITE_TOTEM', 'BLACK_TOTEM', 'BBOX360_PLATFORM', 'IA43_INTEGRATED'].includes(value);
+}
