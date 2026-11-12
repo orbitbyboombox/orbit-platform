@@ -63,7 +63,6 @@ const canonicalFounderActionTypeList = [
   "STAFF_BOLETA_REVIEW_REQUIRED",
   "STAFF_OPERATOR_INCIDENT",
   "HEALTH_WARNING",
-  "EVENT_NOT_READY",
   "SALES_LEAD_UNATTENDED",
   "SALES_QUOTE_NO_FOLLOWUP",
   "SALES_FOLLOWUP_OVERDUE",
@@ -74,7 +73,6 @@ const canonicalFounderActionTypeList = [
   "WHATSAPP_WAITING_FOR_BOOMBOX",
   "WHATSAPP_HUMAN_STALE",
   "WHATSAPP_UNREAD_CRITICAL",
-  "PHYSICAL_CONFIGURATION_MISSING",
 ] as const;
 const canonicalFounderActionTypes = new Set<string>(
   canonicalFounderActionTypeList,
