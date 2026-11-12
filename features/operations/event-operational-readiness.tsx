@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, CheckCircle2, Clock3, Package, UserRound } from "lucide-react";
 import { updateEventOperationalContractAction } from "./event-operational-contract.actions";
@@ -29,6 +29,18 @@ export function EventOperationalReadiness({ data }: { data: OperationalReadiness
   const [editing, setEditing] = useState(false);
   const [pending, start] = useTransition();
   const [feedback, setFeedback] = useState("");
+  useEffect(() => {
+    const field = new URLSearchParams(window.location.search).get("operationField");
+    if (["contactFirstName", "serviceStartAt", "shellType"].includes(field ?? "")) setEditing(true);
+  }, []);
+  useEffect(() => {
+    if (!editing) return;
+    const field = new URLSearchParams(window.location.search).get("operationField");
+    if (!["contactFirstName", "serviceStartAt", "shellType"].includes(field ?? "")) return;
+    const input = document.getElementsByName(field!)[0];
+    input?.scrollIntoView({ block: "center" });
+    input?.focus();
+  }, [editing]);
   const save = (form: FormData) => start(async () => {
     const result = await updateEventOperationalContractAction(form);
     setFeedback(result.ok ? result.message : result.error);

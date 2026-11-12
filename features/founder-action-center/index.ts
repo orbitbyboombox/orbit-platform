@@ -112,6 +112,23 @@ const reconcileFounderActionSources = unstable_cache(
   { revalidate: 30 },
 );
 
+async function loadAllFounderNotifications(admin: ReturnType<typeof createAdminClient>) {
+  const page = (offset: number) => admin.from("internal_notifications").select("id,notification_type,title,message,created_at,category,priority,related_href,entity_type,entity_id,projects(pipeline_stage,operations,project_operational_contracts(readiness_status))")
+    .eq("action_required", true).neq("status", "RESOLVED")
+    .in("notification_type", [...canonicalFounderActionTypeList])
+    .order("created_at", { ascending: false }).order("id").range(offset, offset + 499);
+  const result = await page(0);
+  if (result.error) return result;
+  const rows = [...(result.data ?? [])];
+  for (let offset = 500; rows.length === offset; offset += 500) {
+    const next = await page(offset);
+    if (next.error) return next;
+    rows.push(...(next.data ?? []));
+    if ((next.data?.length ?? 0) < 500) break;
+  }
+  return { ...result, data: rows };
+}
+
 const loadFounderActionCenterCached = cache(
   async (userId: string): Promise<FounderActionCenter> => {
     const admin = createAdminClient();
@@ -135,16 +152,7 @@ const loadFounderActionCenterCached = cache(
       { data: states, error: statesError },
       { data: overdueInvoices, error: overdueError },
     ] = await Promise.all([
-      admin
-        .from("internal_notifications")
-        .select(
-          "id,notification_type,title,message,created_at,category,priority,related_href,entity_type,entity_id,projects(pipeline_stage,operations)",
-        )
-        .eq("action_required", true)
-        .neq("status", "RESOLVED")
-        .in("notification_type", [...canonicalFounderActionTypeList])
-        .order("created_at", { ascending: false })
-        .limit(250),
+      loadAllFounderNotifications(admin),
       admin
         .from("notification_user_states")
         .select("notification_id,read_at")
@@ -176,6 +184,10 @@ const loadFounderActionCenterCached = cache(
           project?.operations && typeof project.operations === "object"
             ? (project.operations as Record<string, unknown>)
             : {};
+        const contracts = project?.project_operational_contracts;
+        const contract = Array.isArray(contracts) ? contracts[0] : contracts;
+        if (row.notification_type === "EVENT_NOT_READY" && contract?.readiness_status === "READY") return false;
+        if (row.notification_type === "PHYSICAL_CONFIGURATION_MISSING" && operations.physicalConfiguration && operations.physicalConfiguration !== "UNDEFINED") return false;
         const stage = String(
           project?.pipeline_stage ?? operations.pipelineStage ?? "",
         ).toUpperCase();
@@ -196,43 +208,18 @@ const loadFounderActionCenterCached = cache(
         category: row.category,
         read: readIds.has(row.id),
         cta: cta(row.notification_type),
-        canonicalKey: `${row.entity_type ?? row.notification_type}:${row.entity_id ?? row.id}`,
+        canonicalKey: `${row.notification_type}:${row.entity_type ?? row.notification_type}:${row.entity_id ?? row.id}`,
       }))
       .sort(
         (a, b) =>
           a.priority.localeCompare(b.priority) ||
           new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
       );
-    const physicalItems = projected.filter(
-      (item) => item.type === "PHYSICAL_CONFIGURATION_MISSING",
-    );
     const seen = new Set<string>();
-    const items: FounderActionItem[] = projected
-      .filter((item) => item.type !== "PHYSICAL_CONFIGURATION_MISSING")
-      .filter((item) => {
-        if (seen.has(item.canonicalKey)) return false;
-        seen.add(item.canonicalKey);
-        return true;
-      });
-    if (physicalItems.length > 0) {
-      const first = physicalItems[0];
-      items.splice(items.length, 0, {
-        id: "PHYSICAL_CONFIGURATION_MISSING_GROUP",
-        type: "PHYSICAL_CONFIGURATION_MISSING",
-        title: `${physicalItems.length} eventos sin configuración física`,
-        detail: "Eventos próximos requieren definir una configuración física.",
-        href: "/operations/week#physical-configuration-missing",
-        createdAt: first.createdAt,
-        priority: physicalItems.some((item) => item.priority === "P0")
-          ? "P0"
-          : physicalItems.some((item) => item.priority === "P2")
-            ? "P2"
-            : "P3",
-        category: "OPERATIONS",
-        read: physicalItems.every((item) => item.read),
-        cta: "DEFINIR CONFIGURACIÓN",
-      });
-    }
+    const items: FounderActionItem[] = projected.filter(item => {
+      if (seen.has(item.canonicalKey)) return false;
+      seen.add(item.canonicalKey); return true;
+    });
     for (const invoice of overdueInvoices ?? []) {
       const project = Array.isArray(invoice.projects)
         ? invoice.projects[0]
@@ -277,44 +264,10 @@ export async function loadFounderActionDismissals(userId: string) {
 }
 
 export async function loadFounderActionCenter(userId: string) {
-  const [center, dismissed] = await Promise.all([
-    loadFounderActionCenterCached(userId),
-    loadFounderActionDismissals(userId),
-  ]);
-  const items = center.items.filter((item) => !dismissed.has(item.id));
-  return { count: items.length, items };
+  // Canonical active records cannot be hidden with a personal dismissal.
+  return loadFounderActionCenterCached(userId);
 }
 
-const loadFounderActionCountCached = unstable_cache(
-  async () => {
-    const admin = createAdminClient();
-    const [
-      { count: notificationCount, error: notificationError },
-      { count: overdueCount, error: overdueError },
-    ] = await Promise.all([
-      admin
-        .from("internal_notifications")
-        .select("id", { count: "exact", head: true })
-        .eq("action_required", true)
-        .neq("status", "RESOLVED"),
-      admin
-        .from("accounts_receivable_projection")
-        .select("id", { count: "exact", head: true })
-        .gt("outstanding_balance", 0)
-        .lt("days_remaining", 0)
-        .not("effective_status", "in", "(PAID,CANCELLED,ARCHIVED)"),
-    ]);
-    if (notificationError || overdueError)
-      throw notificationError ?? overdueError;
-    return (notificationCount ?? 0) + (overdueCount ?? 0);
-  },
-  ["founder-action-count-v2"],
-  { revalidate: 15 },
-);
-
 export async function loadFounderActionCount(userId: string) {
-  // Shared CEO/Admin badge count; short cache removes two DB reads from most
-  // internal navigations while keeping operational freshness.
-  void userId;
-  return loadFounderActionCountCached();
+  return (await loadFounderActionCenter(userId)).count;
 }
