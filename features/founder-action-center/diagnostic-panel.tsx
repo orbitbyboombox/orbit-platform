@@ -20,12 +20,26 @@ export function ActionDiagnosticPanel({ item, onResolved, inspectAction = inspec
       if (result.ok) setDiagnostic(result.diagnostic); else setFeedback(result.error);
     });
   };
+  const markReady = () => {
+    setFeedback('');
+    start(async () => {
+      try {
+        const result = await validateAction([item.id]);
+        if (result.diagnostics?.[0]) setDiagnostic(result.diagnostics[0]);
+        if (result.ok) onResolved(item.id);
+        else { setOpen(true); setFeedback(result.error || 'El pendiente sigue activo en su origen.'); }
+      } catch {
+        setOpen(true);
+        setFeedback('No fue posible verificar el pendiente. No se ha retirado de la lista.');
+      }
+    });
+  };
   useEffect(() => { if (open) heading.current?.focus(); }, [open]);
   if (item.incident) return <IncidentQuickCard incident={item.incident} saveAction={repairAction} onResolved={() => onResolved(item.id)} />;
   return <article className="min-w-0 px-3 py-4 sm:px-4" data-action-id={item.id}>
     <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start">
       <div className="min-w-0 flex-1 break-words [overflow-wrap:anywhere]"><span className="mr-2 rounded border px-1.5 py-0.5 text-[10px] font-bold">{item.priority}</span><strong className="text-sm">{item.title}</strong><p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-muted">{item.detail}</p></div>
-      <button className="min-h-11 shrink-0 rounded-xl border px-4 text-xs font-bold text-brand" type="button" aria-expanded={open} aria-controls={`diagnostic-${item.id}`} disabled={pending} onClick={() => open ? setOpen(false) : inspect()}>{open ? 'CERRAR DIAGNÓSTICO' : 'REVISAR'}</button>
+      <div className="flex shrink-0 flex-wrap gap-2"><button className="min-h-11 rounded-xl border px-4 text-xs font-bold text-brand" type="button" aria-expanded={open} aria-controls={`diagnostic-${item.id}`} disabled={pending} onClick={() => open ? setOpen(false) : inspect()}>{open ? 'CERRAR DIAGNÓSTICO' : 'REVISAR'}</button><button className="min-h-11 rounded-xl border border-success/40 px-4 text-xs font-bold text-success disabled:opacity-50" type="button" disabled={pending} onClick={markReady}>{pending ? 'VALIDANDO…' : 'LISTO'}</button></div>
     </div>
     {open ? <section id={`diagnostic-${item.id}`} className="mt-3 min-w-0 rounded-xl border border-brand/30 bg-background/50 p-4" aria-busy={pending}>
       <h3 ref={heading} tabIndex={-1} className="font-semibold outline-none">Diagnóstico del pendiente</h3>
