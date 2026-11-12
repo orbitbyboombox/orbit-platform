@@ -449,7 +449,7 @@ function StaffWeeklyEventList({events, onSelect}:{events:StaffPortalEvent[];onSe
       <p><strong>Dirección:</strong> {event.address || "Por confirmar"} · {event.district || "Comuna por confirmar"}</p>
       <p><strong>Estado:</strong> {stateLabel(event)}</p>
       <button type="button" className="mt-2 min-h-11 w-full rounded-xl bg-brand px-4 font-semibold text-brand-foreground" onClick={() => onSelect(event)}>{pendingAcceptance(event.status) ? "VER DETALLES Y ACEPTAR O RECHAZAR" : "VER EVENTO Y HONORARIOS"}</button>
-    </div><StaffOperationalExtras extras={event.operationalExtras} photoStyle={event.printInstructions.photoStyle} /></div>;
+    </div><StaffOperationalExtras extras={event.operationalExtras} photoStyle={event.printInstructions.photoStyle} />{event.printInstructions.operatorNote?.trim() ? <section className="mt-3 rounded-xl border border-brand/40 bg-brand/10 p-3" aria-label="Indicaciones de impresión para operador"><p className="text-xs font-bold uppercase tracking-wide text-brand">Indicaciones de impresión</p><p className="mt-1 whitespace-pre-wrap break-words text-sm font-semibold">{event.printInstructions.operatorNote}</p></section> : null}</div>;
   }) : <p className="rounded-2xl border border-dashed p-4 text-sm text-muted">No tienes próximos eventos asignados.</p>}</div></section>;
 }
 
