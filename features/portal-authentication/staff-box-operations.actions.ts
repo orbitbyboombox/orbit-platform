@@ -156,7 +156,7 @@ export async function finalizeStaffPaperCloseoutAction(input: { projectId: strin
   const note = `Papel de repuesto: ${input.usedSparePaper ? "SÍ" : "NO"}${issue ? `\nReporte Staff: ${issue}` : ""}`;
   const closeout = await confirmStaffPaperCloseoutAction({ ...input, note });
   if (!closeout.ok || !issue) return closeout;
-  const incident = await reportStaffOperatorIncidentAction({ projectId: input.projectId, category: "EQUIPMENT", severity: "HIGH", description: issue });
+  const incident = await reportStaffOperatorIncidentAction({ projectId: input.projectId, boxAssignmentId: input.assignmentId, category: "EQUIPMENT", severity: "HIGH", description: issue });
   if (!incident.ok) return { ok: false as const, message: `Cierre registrado, pero no se pudo crear la alerta: ${incident.message}` };
   return closeout;
 }

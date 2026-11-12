@@ -1,4 +1,5 @@
 "use server";
+import { resolveIncidentBoxAssignment } from "@/features/resources/incident-box-link";
 import { isNoIssueObservation } from "@/features/resources/incident-observation";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
@@ -208,6 +209,7 @@ export async function completeStaffChecklistItemAction(
 
 export async function reportStaffOperatorIncidentAction(input: {
   projectId: string;
+  boxAssignmentId?: string;
   category: "EQUIPMENT" | "STAFF" | "CLIENT" | "DELAY" | "OTHER";
   description: string;
   severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
@@ -242,14 +244,15 @@ export async function reportStaffOperatorIncidentAction(input: {
   if (assignmentError) return { ok: false, message: assignmentError.message };
   if (!assignment) return { ok: false, message: "Solo el operador asignado puede reportar este evento." };
   if (isNoIssueObservation(description)) return { ok: true, message: "Sin incidencias reportadas." };
-  const { data: boxAssignment } = await admin
-    .from("asset_assignments")
-    .select("id,asset_id,operational_assets(asset_code)")
-    .eq("project_id", input.projectId)
-    .eq("assignment_status", "ASSIGNED")
-    .is("deleted_at", null)
-    .limit(1)
-    .maybeSingle();
+  const [boxAssignments, snapshots] = await Promise.all([
+    admin.from("asset_assignments").select("id,asset_id,assignment_status,operational_assets!inner(asset_code,asset_type)")
+      .eq("project_id", input.projectId).in("assignment_status", ["ASSIGNED", "RETURNED"])
+      .is("deleted_at", null).in("operational_assets.asset_type", ["BOX", "CASE"]),
+    admin.from("event_paper_snapshots").select("asset_assignment_id").eq("project_id", input.projectId).eq("confirmed_by", session.staff_id),
+  ]);
+  if (boxAssignments.error || snapshots.error) return { ok: false, message: "No fue posible verificar la caja utilizada. Reintenta el reporte." };
+  const boxAssignment = resolveIncidentBoxAssignment(boxAssignments.data ?? [], (snapshots.data ?? []).map(row => row.asset_assignment_id).filter(Boolean), input.boxAssignmentId);
+  if (input.category === "EQUIPMENT" && !boxAssignment) return { ok: false, message: "No se pudo identificar una caja única. Envía el reporte desde el cierre de la caja correspondiente." };
   const box = boxAssignment?.operational_assets as unknown as { asset_code?: string } | { asset_code?: string }[] | null;
   const boxCode = Array.isArray(box) ? box[0]?.asset_code : box?.asset_code;
   const { data: incident, error: incidentError } = await admin
