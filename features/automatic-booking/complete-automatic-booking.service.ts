@@ -1,4 +1,5 @@
 import "server-only";
+import { isScrapbook, scrapbookPrice, validateScrapbookSelection } from "./scrapbook-policy";
 
 import { randomBytes, randomUUID } from "node:crypto";
 import { generateOrbitEventId } from "@/features/connectors/google-calendar";
@@ -209,7 +210,7 @@ export async function completeAutomaticBooking(input: { token: string; tokenHash
     if (customerError) throw customerError;
     const notes = [`Dirección evento: ${input.submission.event.address}`, `Contacto operacional: ${input.submission.event.operationalContact} · ${input.submission.event.operationalPhone}`, "Solicitud automática en validación de capacidad.", "Términos BOOMBOX aceptados."].join("\n");
     const selectedServiceCodes = requestedServiceCodes(input.submission);
-    const persistedExtras=input.submission.service.extras.map(extra=>extra==="Branding"?`Branding · ${Math.max(1,input.submission.service.brandingQuantity)} caras`:extra);
+    const persistedExtras=input.submission.service.extras.map(extra=>isScrapbook(extra)?"Scrapbook":extra==="Branding"?`Branding · ${Math.max(1,input.submission.service.brandingQuantity)} caras`:extra);
     // Everything written before the final capacity gate is resumable draft
     // state. The commit boundary is the only place allowed to expose a
     // confirmed commercial/operational state.
@@ -353,6 +354,7 @@ export async function completeAutomaticBooking(input: { token: string; tokenHash
 }
 
 export function validateAutomaticBookingSubmission(input: AutomaticBookingSubmission) {
+  validateScrapbookSelection(input.event.type, input.service.extras);
   if (!input.customer.name.trim() || !isValidChileanRut(input.customer.rut) || !requirePhoneE164(input.customer.phone)) throw new Error("Revisa tus datos personales.");
   if (!input.event.type || !input.event.date || !input.event.time || !input.event.venue || !input.event.municipality) throw new Error("Revisa la información del evento.");
   if (!input.service.code || input.service.hours < 1 || (input.service.additionalCodes ?? []).some((code) => !code || code === input.service.code) || !input.signatureDataUrl.startsWith("data:image/png;base64,")) throw new Error("Revisa los servicios y la firma.");
@@ -360,9 +362,10 @@ export function validateAutomaticBookingSubmission(input: AutomaticBookingSubmis
 }
 
 export async function calculateAutomaticBookingPricing(admin: ReturnType<typeof createAdminClient>, input: AutomaticBookingSubmission) {
+  validateScrapbookSelection(input.event.type, input.service.extras);
   const serviceCodes = requestedServiceCodes(input);
   const [pricesResult, serviceResult, venuesResult, municipalities] = await Promise.all([
-    admin.from("commercial_prices").select("category,code,duration_hours,destination,unit_price,rules").eq("enabled", true).is("deleted_at", null),
+    admin.from("commercial_prices").select("category,code,duration_hours,destination,unit_price,pricing_status,rules").eq("enabled", true).is("deleted_at", null),
     admin.from("master_data_entries").select("code,configuration").eq("domain", "SERVICES").in("code", serviceCodes).eq("enabled", true),
     admin.from("master_data_entries").select("configuration").eq("domain", "SYSTEM_PARAMETERS").eq("code", "EVENT_VENUES").eq("enabled", true).maybeSingle(),
     loadActiveMunicipalities(admin),
@@ -379,7 +382,7 @@ export async function calculateAutomaticBookingPricing(admin: ReturnType<typeof 
     return { code, ...resolved };
   });
     const extraCodes: Record<string, string> = { QR: "QR", Branding: "BRANDING", Imanes: "UNLIMITED_MAGNETS", Scrapbook: "SCRAPBOOK", "Fondo 230x200 Blanco": "BACKDROP_230X200_WHITE" };
-  const extras = input.service.extras.reduce((sum, extra) => { const row = prices.find((price) => price.category === "EXTRA" && price.code === extraCodes[extra]); return sum + Number(row?.unit_price ?? 0) * (extra === "Branding" ? Math.max(2, input.service.brandingQuantity) : 1); }, 0);
+  const extras = input.service.extras.reduce((sum, extra) => { if (isScrapbook(extra)) return sum + scrapbookPrice(prices); const row = prices.find((price) => price.category === "EXTRA" && price.code === extraCodes[extra]); return sum + Number(row?.unit_price ?? 0) * (extra === "Branding" ? Math.max(2, input.service.brandingQuantity) : 1); }, 0);
   const municipality = municipalities.find((item) => item.name.localeCompare(input.event.municipality.trim(), "es", { sensitivity: "base" }) === 0);
   if (!municipality) throw new Error("La comuna seleccionada no tiene una configuración de transporte vigente.");
   const transport = municipality.transport;
