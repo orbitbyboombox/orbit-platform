@@ -588,16 +588,6 @@ export function FounderWorkspaceExperience({
         {todayEvents} eventos hoy <span className="px-1.5 text-border">·</span>{" "}
         {pendingTasks} prioridades pendientes
       </p>
-      <div className="mt-5 grid gap-3 sm:grid-cols-2" aria-label="Centro D-10">
-        <Link className="rounded-2xl border bg-card p-4 transition hover:border-brand/60" href="/notifications?filter=D10">
-          <div className="flex items-center justify-between gap-3"><span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[.16em] text-brand"><MailCheck className="size-4" />D-10 EVENTOS</span><ArrowRight className="size-4 text-muted" /></div>
-          <div className="mt-3 grid grid-cols-3 gap-3 text-sm"><span><b className="block text-lg">{d10Dashboard.events.scheduled}</b><small className="text-muted">Programados</small></span><span><b className="block text-lg">{d10Dashboard.events.sent}</b><small className="text-muted">Enviados</small></span><span><b className="block text-lg">{d10Dashboard.events.errors}</b><small className="text-muted">Errores</small></span></div>
-        </Link>
-        <Link className="rounded-2xl border bg-card p-4 transition hover:border-brand/60" href="/finance/collections?filter=D10">
-          <div className="flex items-center justify-between gap-3"><span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[.16em] text-brand"><MailWarning className="size-4" />D-10 COBRANZA</span><ArrowRight className="size-4 text-muted" /></div>
-          <div className="mt-3 grid grid-cols-3 gap-3 text-sm"><span><b className="block text-lg">{d10Dashboard.collections.eligible}</b><small className="text-muted">Elegibles</small></span><span><b className="block text-lg">{d10Dashboard.collections.sent}</b><small className="text-muted">Enviados</small></span><span><b className="block text-lg">{d10Dashboard.collections.review}</b><small className="text-muted">Revisión</small></span></div>
-        </Link>
-      </div>
       {/* Compatibility label retained for existing dashboard controls: ordering ? "Terminar" : "Ordenar escritorio" */}
       <span className="mt-4 flex flex-wrap items-center gap-2">
         <Link
