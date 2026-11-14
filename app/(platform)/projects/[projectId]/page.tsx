@@ -1866,6 +1866,22 @@ export default async function ProjectWorkspacePage({
         boxLabel: equipmentBoxLabel,
         extras: eventExtras,
       }}
+      eventDetail={{
+        startTime: operationalContract?.service_start_at
+          ? chileDateTime(operationalContract.service_start_at).time
+          : query.time ?? project.event.time ?? "",
+        endTime: operationalContract?.service_end_at
+          ? chileDateTime(operationalContract.service_end_at).time
+          : "",
+        duration: serviceRows?.[0]?.duration_hours
+          ? `${Number(serviceRows[0].duration_hours)} horas`
+          : "Duración por confirmar",
+        venue: query.venue ?? project.event.location ?? "",
+        address: typeof operations.eventAddress === "string" ? operations.eventAddress : "",
+        municipality: query.city ?? project.event.city ?? "",
+        contact: customer?.full_name ?? project.client.name,
+        phone: customer?.phone ?? project.client.phone,
+      }}
       printInstructions={{
         photoStyle: operationalContract?.photo_style === "COLOR" || operationalContract?.photo_style === "BLACK_WHITE" || operationalContract?.photo_style === "SEPIA" ? operationalContract.photo_style : null,
         operatorNote: operationalContract?.operator_print_notes ?? "",
