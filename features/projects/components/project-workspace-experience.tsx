@@ -25,6 +25,9 @@ import {
   Gauge,
   History,
   Link2,
+  MapPin,
+  Pencil,
+  Phone,
   ListChecks,
   Package,
   Printer,
@@ -266,6 +269,16 @@ export type ProjectWorkspaceExperienceProps = Omit<
   activities?: readonly { title: string; detail: string; time: string }[];
   equipment: EquipmentAssignmentPanelProps;
   eventEquipmentExtras: { boxLabel: string; extras: readonly string[] };
+  eventDetail: {
+    startTime: string;
+    endTime: string;
+    duration: string;
+    venue: string;
+    address: string;
+    municipality: string;
+    contact: string;
+    phone: string;
+  };
   printInstructions: {
     photoStyle: EventPhotoStyle | null;
     operatorNote: string;
@@ -666,6 +679,26 @@ export function ProjectWorkspaceExperience(
       copilot={null}
       mainContent={
         <div className="min-w-0 space-y-6 pb-8">
+          <section aria-labelledby="event-detail-heading" className="min-w-0 overflow-hidden rounded-3xl border border-brand/25 bg-card p-4 shadow-sm sm:p-6">
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-[.18em] text-brand">BOOMBOX · EVENT 360°</p>
+                <h2 className="mt-1 text-lg font-semibold sm:text-xl" id="event-detail-heading">DETALLE DEL EVENTO</h2>
+                <p className="mt-1 break-words text-sm text-muted">{props.clientName} · {({ WEDDING: "Matrimonio", CORPORATE: "Corporativo", BIRTHDAY: "Cumpleaños", PRIVATE: "Privado", OTHER: "Otro" } as const)[props.projectType]} · {props.projectName}</p>
+              </div>
+              {props.projectKey ? <Link className="inline-flex min-h-11 max-w-full shrink-0 items-center justify-center gap-2 rounded-xl border border-brand/40 px-4 text-sm font-semibold hover:bg-brand/10" href={`/events?projectId=${encodeURIComponent(props.projectKey)}&returnTo=${encodeURIComponent(`/projects/${props.projectKey}`)}`}><Pencil aria-hidden="true" className="size-4"/>EDITAR EVENTO</Link> : null}
+            </div>
+            <dl className="mt-4 grid min-w-0 grid-cols-1 gap-3 border-t pt-4 sm:grid-cols-2 xl:grid-cols-4">
+              <EventDetailItem label="Fecha" value={props.eventDate}/>
+              <EventDetailItem label="Horario del servicio" value={`${props.eventDetail.startTime || "Por confirmar"} – ${props.eventDetail.endTime || "Por confirmar"} · ${props.eventDetail.duration || "Duración por confirmar"}`}/>
+              <EventDetailItem label="Recinto" value={props.eventDetail.venue || "Por confirmar"}/>
+              <div className="min-w-0 rounded-xl bg-background/50 p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-muted">Dirección y comuna</dt><dd className="mt-1 break-words text-sm font-medium">{[props.eventDetail.address, props.eventDetail.municipality].filter(Boolean).join(", ") || "Por confirmar"}</dd>{[props.eventDetail.address, props.eventDetail.municipality].some(Boolean) ? <dd className="mt-2"><a className="inline-flex min-h-9 items-center gap-1.5 text-sm font-semibold text-brand underline-offset-4 hover:underline" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([props.eventDetail.venue, props.eventDetail.address, props.eventDetail.municipality].filter(Boolean).join(", "))}`} rel="noreferrer" target="_blank"><MapPin aria-hidden="true" className="size-4"/>Abrir en Google Maps</a></dd> : null}</div>
+              <EventDetailItem label="Servicio contratado" value={props.services.join(" + ") || "Por confirmar"}/>
+              <EventDetailItem label="Extras incluidos" value={props.eventEquipmentExtras.extras.join(", ") || "Sin extras incluidos registrados"}/>
+              <div className="min-w-0 rounded-xl bg-background/50 p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-muted">Contacto del cliente</dt><dd className="mt-1 break-words text-sm font-medium">{props.eventDetail.contact || props.clientName}</dd><dd className="mt-1 break-all text-sm text-muted">{props.eventDetail.phone || "Teléfono por confirmar"}</dd>{props.eventDetail.phone ? <dd className="mt-2"><a className="inline-flex min-h-9 items-center gap-1.5 text-sm font-semibold text-brand" href={`tel:${props.eventDetail.phone}`}><Phone aria-hidden="true" className="size-4"/>Llamar</a></dd> : null}</div>
+              <EventDetailItem label="Confirmación del horario" value={props.eventTimeMode === "CONFIRMED" ? "CONFIRMADO" : "ESTIMADO · PENDIENTE DE CONFIRMACIÓN"}/>
+            </dl>
+          </section>
           <section className="min-w-0 overflow-hidden rounded-3xl border bg-card">
             <div className="grid min-w-0 gap-6 p-5 sm:p-7 lg:grid-cols-[minmax(0,1fr)_minmax(0,auto)] lg:items-end">
               <div className="min-w-0">
@@ -1924,6 +1957,10 @@ function HeroMetric({ label, value }: { label: string; value: string }) {
       <p className="mt-1 line-clamp-2 text-sm font-semibold">{value}</p>
     </div>
   );
+}
+
+function EventDetailItem({ label, value }: { label: string; value: string }) {
+  return <div className="min-w-0 rounded-xl bg-background/50 p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-muted">{label}</dt><dd className="mt-1 break-words text-sm font-medium">{value}</dd></div>;
 }
 function MiniMetric({ label, value }: { label: string; value: number }) {
   return (
