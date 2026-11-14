@@ -1024,6 +1024,14 @@ export default async function ProjectWorkspacePage({
   const event360 = {
     orbitEventId: rawProject?.orbit_event_id ?? `ORB-${projectId}`,
     status: rawProject?.status ?? project.status,
+    venue: project.event.location || "",
+    eventAddress: typeof operations.eventAddress === "string"
+      ? operations.eventAddress
+      : typeof operations.notes === "string"
+        ? operations.notes.match(/Dirección evento:\s*([^\n]+)/i)?.[1]?.trim() ?? ""
+        : "",
+    serviceStartAt: operationalContract?.service_start_at ?? null,
+    serviceEndAt: operationalContract?.service_end_at ?? null,
     collectionEmailStatus,
     customer: {
       phone: customer?.phone ?? project.client.phone,
