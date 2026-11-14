@@ -10,7 +10,7 @@ import {
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { MobileDialog } from "@/components/ui/mobile-dialog";
 import { OrbitLoader } from "@/components/ui/orbit-loader";
@@ -125,6 +125,19 @@ export function EventCenter({
     setError("");
     setFeedback("");
   };
+  useEffect(() => {
+    const projectId = new URLSearchParams(window.location.search).get("editEvent");
+    if (!projectId) return;
+    const event = initialEvents.find((item) => item.projectId === projectId);
+    if (!event) return;
+    const operationalDate = event.serviceStartAt?.slice(0, 10) ?? event.date ?? "";
+    const canonicalDate = event.date ?? operationalDate;
+    setEditing(event);
+    setEditDate(canonicalDate);
+    setServiceEndAt(shiftEventScheduleDate(event.serviceEndAt, operationalDate, canonicalDate));
+    setStaffCallAt(shiftEventScheduleDate(event.staffCallAt, operationalDate, canonicalDate));
+    router.replace("/events", { scroll: false });
+  }, [initialEvents, router]);
   const changeDate = (nextDate: string) => {
     setServiceEndAt((value) =>
       shiftEventScheduleDate(value, editDate, nextDate),

@@ -123,6 +123,10 @@ type Event360Task = {
 type Event360Data = {
   orbitEventId: string;
   status: string;
+  venue: string;
+  eventAddress: string;
+  serviceStartAt: string | null;
+  serviceEndAt: string | null;
   collectionEmailStatus: {
     state: "NOT_SENT" | "PENDING" | "SENT" | "FAILED";
     label: string;
@@ -373,6 +377,15 @@ function Row({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
+function EventDetail({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted">{label}</dt>
+      <dd className="mt-1 break-words text-sm font-medium">{value || "Por confirmar"}</dd>
+    </div>
+  );
+}
+
 function OptionalModule({
   moduleKey,
   onHide,
@@ -488,6 +501,12 @@ export function ProjectWorkspaceExperience(
       );
     });
   const event = props.event360;
+  const formatClock = (value: string | null | undefined) => {
+    if (!value) return "Por confirmar";
+    if (/^\d{2}:\d{2}/.test(value)) return value.slice(0, 5);
+    return new Intl.DateTimeFormat("es-CL", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "America/Santiago" }).format(new Date(value));
+  };
+  const mapQuery = [event.eventAddress, event.venue, event.customer.city, "Chile"].filter(Boolean).join(", ");
   const photoStripEligible = requiresPhotoStripDesign(event.services.map((service) => service.code));
   const photoStripDocuments = event.documents
     .filter((document) => document.type === "PHOTO_STRIP_DESIGN")
@@ -714,6 +733,36 @@ export function ProjectWorkspaceExperience(
                 <HeroMetric label="Salud" value={`${health}%`} />
               </div>
             </div>
+            <section aria-label="Detalle del evento" className="border-t bg-card px-5 py-5 sm:px-7">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Detalle del evento</p>
+                  <p className="mt-1 text-sm text-muted">Información principal para la ejecución</p>
+                </div>
+                <Link className="inline-flex min-h-10 items-center justify-center rounded-xl border border-brand/40 px-4 text-sm font-semibold text-brand hover:bg-brand/10" href={`/events?editEvent=${encodeURIComponent(props.projectKey ?? "")}`}>
+                  EDITAR EVENTO
+                </Link>
+              </div>
+              <dl className="grid min-w-0 grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-4">
+                <EventDetail label="Cliente · tipo" value={`${props.clientName} · ${({ WEDDING: "Matrimonio", CORPORATE: "Corporativo", BIRTHDAY: "Cumpleaños", PRIVATE: "Privado", OTHER: "Otro" } as Record<ProjectHeaderProps["projectType"], string>)[props.projectType]}`} />
+                <EventDetail label="Fecha" value={props.eventDate} />
+                <EventDetail label="Inicio · término" value={`${formatClock(event.serviceStartAt ?? props.eventTime)} · ${formatClock(event.serviceEndAt)}`} />
+                <EventDetail label="Duración del servicio" value={event.services.map((service) => service.duration).filter(Boolean).join(" · ") || "Por confirmar"} />
+                <EventDetail label="Recinto" value={event.venue || props.location || "Por confirmar"} />
+                <div className="min-w-0">
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted">Dirección · comuna</dt>
+                  <dd className="mt-1 break-words text-sm font-medium">{[event.eventAddress, event.customer.city].filter(Boolean).join(" · ") || "Por confirmar"}</dd>
+                  <a className="mt-1 inline-flex text-sm font-semibold text-brand hover:underline" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery || props.location)}`} rel="noreferrer" target="_blank">Abrir en Google Maps</a>
+                </div>
+                <EventDetail label="Servicio contratado" value={event.services.map((service) => service.code).join(" · ") || "Por confirmar"} />
+                <EventDetail label="Extras incluidos" value={props.eventEquipmentExtras.extras.join(" · ") || "Sin extras incluidos"} />
+                <EventDetail label="Contacto · teléfono" value={`${props.clientName} · ${event.customer.phone || "Teléfono sin registrar"}`} />
+                <div className="min-w-0">
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted">Estado del horario</dt>
+                  <dd className="mt-1 text-sm font-semibold">{props.eventTimeMode === "CONFIRMED" ? "CONFIRMADO" : "PENDIENTE DE CONFIRMACIÓN"}</dd>
+                </div>
+              </dl>
+            </section>
             <nav aria-label="Navegación contextual del evento" className="sticky top-0 z-20 grid grid-cols-2 gap-2 border-t bg-card/95 p-3 backdrop-blur sm:grid-cols-4 sm:px-7 xl:grid-cols-8" role="tablist">
               {EVENT_ADMIN_TABS.map(({ id, label, hint }) => (
                 <button
