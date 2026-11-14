@@ -51,10 +51,11 @@ function base(
     height: 112,
     color: black,
   });
-  page.drawText("BOOMBOX", {
+  page.drawRectangle({ x: 0, y: PAGE[1] - 6, width: PAGE[0], height: 6, color: orange });
+  page.drawText("BOOMBOX®", {
     x: 42,
     y: PAGE[1] - 52,
-    size: 20,
+    size: 25,
     font: bold,
     color: rgb(1, 1, 1),
   });
@@ -235,6 +236,20 @@ export async function createStaffMonthlySettlementPdf({
     9,
     muted,
   );
+  if (firstQuincena) {
+    page = base(pdf, regular, bold, period, true);
+    y = PAGE[1] - 154;
+    text("INFORMACIÓN DE PAGO", 42, y, bold, 12, orange);
+    y -= 28;
+    for (const line of wrapped("El pago se realizará dentro de los 3 primeros días hábiles posteriores al cierre. El registro de pago se realizará individualmente una vez efectuado.", regular, 11, 490)) {
+      text(line, 42, y, regular, 11);
+      y -= 18;
+    }
+    y -= 16;
+    text("No se solicita boleta en la primera quincena.", 42, y, bold, 10);
+    y -= 25;
+    text("Los reembolsos se informan por separado de los honorarios.", 42, y, regular, 10, muted);
+  }
   if (periodSummary && periodSummary.code !== "Q1") {
     page = base(
       pdf,
