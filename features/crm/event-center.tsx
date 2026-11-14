@@ -10,7 +10,7 @@ import {
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { MobileDialog } from "@/components/ui/mobile-dialog";
 import { OrbitLoader } from "@/components/ui/orbit-loader";
@@ -75,9 +75,13 @@ const mobileStatusView = (status: string) => {
 export function EventCenter({
   canForceDelete,
   initialEvents,
+  initialProjectId,
+  returnTo,
 }: {
   canForceDelete: boolean;
   initialEvents: CrmOperationalEvent[];
+  initialProjectId?: string;
+  returnTo?: string;
 }) {
   const router = useRouter();
   const [view, setView] = useState<View>("UPCOMING");
@@ -94,6 +98,7 @@ export function EventCenter({
   const [error, setError] = useState("");
   const [feedback, setFeedback] = useState("");
   const [pending, start] = useTransition();
+  const initialEditOpened = useRef(false);
   const events = initialEvents;
   const filtered = useMemo(() => {
     const matches = events.filter(
@@ -125,6 +130,14 @@ export function EventCenter({
     setError("");
     setFeedback("");
   };
+  useEffect(() => {
+    if (initialEditOpened.current || !initialProjectId) return;
+    const target = initialEvents.find((event) => event.projectId === initialProjectId);
+    if (target) {
+      initialEditOpened.current = true;
+      openEditor(target);
+    }
+  }, [initialEvents, initialProjectId]);
   const changeDate = (nextDate: string) => {
     setServiceEndAt((value) =>
       shiftEventScheduleDate(value, editDate, nextDate),
@@ -251,6 +264,10 @@ export function EventCenter({
         `${result.message}${result.warning ? ` · ${result.warning}` : ""}`,
       );
       setEditing(null);
+      if (returnTo) {
+        router.push(returnTo);
+        return;
+      }
       router.refresh();
     });
   };
