@@ -392,7 +392,7 @@ export async function previewStaffPeriodCloseEmailAction(periodId: string) {
 export async function closeStaffPaymentPeriodBatchAction(month: string, code: "Q1" | "Q2" | "MONTH") {
   try {
     const client = await adminContext();
-    if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(month) || !["Q1", "Q2", "MONTH"].includes(code))
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || !["Q1", "Q2", "MONTH"].includes(code))
       throw new Error("Mes o período inválido.");
     const snapshot = await getStaffPaymentPeriodsAction(month);
     if (!snapshot.ok) throw new Error(snapshot.message);
