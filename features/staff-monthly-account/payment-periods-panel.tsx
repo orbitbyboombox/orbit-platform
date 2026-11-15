@@ -240,6 +240,17 @@ export function StaffPaymentPeriodsPanel({
         action={(form) => run(() => configureStaffPaymentPeriodsAction(form))}
       >
         <input type="hidden" name="month" value={month} />
+        <div className="rounded-xl border border-brand/40 p-3 space-y-2">
+          <p className="text-sm font-semibold">Configurar trabajadores con servicios como QUINCENALES</p>
+          <p className="text-xs text-muted">Selecciona automáticamente a quienes tienen honorarios registrados en el resumen de la primera quincena. Revisa la selección y documenta la validación tributaria antes de aplicar. No cierra períodos ni registra pagos.</p>
+          <Button type="button" variant="outline" disabled={pending || !data} onClick={() => {
+            setModality("QUINCENAL");
+            const worked = new Set((data?.summary ?? []).filter((row) => Number(row.work_net) > 0).map((row) => row.staff_id));
+            const ids = eligible.filter((member) => worked.has(member.id)).map((member) => member.id);
+            setSelected(ids);
+            setMessage(ids.length ? `${ids.length} trabajadores con honorarios seleccionados. Completa la validación tributaria y pulsa Aplicar modalidad.` : "No se encontraron trabajadores elegibles con honorarios en la primera quincena.");
+          }}>Seleccionar quienes trabajaron · primera quincena</Button>
+        </div>
         <div className="flex flex-wrap items-center gap-3">
           <label className="flex min-h-11 items-center gap-2 text-sm">
             <input
