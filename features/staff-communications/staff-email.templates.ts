@@ -307,6 +307,8 @@ export function buildStaffPeriodClosedEmail(input: {
       ? [
           `Honorarios efectivamente pagados del bloque: ${money(input.paid)}`,
           `Saldo de honorarios del bloque: ${money(input.remaining)}`,
+          `Reembolsos pendientes: ${money(input.reimbursementsPending)}`,
+          `TOTAL PENDIENTE POR TRANSFERIR (honorarios + reembolsos): ${money(input.remaining + input.reimbursementsPending)}`,
           "En este primer cierre no debes emitir ni subir boleta mensual. El pago mantiene su validación tributaria.",
           "El pago se realizará dentro de los 3 primeros días hábiles posteriores al cierre, sujeto a la validación correspondiente. Se registrará como pagado únicamente cuando se efectúe.",
         ]
