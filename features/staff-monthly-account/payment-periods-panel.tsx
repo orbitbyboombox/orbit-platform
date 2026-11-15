@@ -412,6 +412,9 @@ export function StaffPaymentPeriodsPanel({
                         bloque {money(paid)} · Saldo {money(remaining)}
                       </p>
                     ) : null}
+                    {calc && period.period_code === "Q1" ? (
+                      <p className="font-semibold">Total pendiente por transferir: {money(remaining + Number(data.accounts.find((account) => account.id === period.account_id)?.reimbursements_pending_total ?? 0))} <span className="font-normal text-muted">(honorarios {money(remaining)} + reembolsos pendientes {money(Number(data.accounts.find((account) => account.id === period.account_id)?.reimbursements_pending_total ?? 0))}; no incluye reembolsos en boleta)</span></p>
+                    ) : null}
                     {calc ? (
                       <p className="text-xs text-muted">
                         Reembolsos {money(Number(calc.reimbursementsTotal))},
