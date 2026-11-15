@@ -396,20 +396,46 @@ export async function closeStaffPaymentPeriodBatchAction(month: string, code: "Q
       throw new Error("Mes o período inválido.");
     const snapshot = await getStaffPaymentPeriodsAction(month);
     if (!snapshot.ok) throw new Error(snapshot.message);
+    // Automatically enroll only staff with recorded Q1 honorarios. This runs
+    // after explicit confirmation; it never creates payments or closes periods.
+    if (code === "Q1") {
+      const already = new Set(snapshot.schedules.filter((row) => row.modality === "QUINCENAL").map((row) => row.account_id));
+      const candidates = snapshot.summary.filter((row) =>
+        Number(row.work_net) > 0 && !row.review_required && !already.has(row.account_id)
+      );
+      const protectedAccounts = new Set(snapshot.accounts.filter((row) =>
+        row.settlement_status === "FINALIZED" || row.payment_status === "PAID"
+      ).map((row) => row.id));
+      if (candidates.some((row) => protectedAccounts.has(row.account_id)))
+        throw new Error("Hay trabajadores con honorarios y cuentas protegidas. Revisa antes de cerrar.");
+      if (snapshot.summary.some((row) => Number(row.work_net) > 0 && row.review_required))
+        throw new Error("Hay honorarios que requieren revisión. Resuelve las observaciones antes del cierre masivo.");
+      if (candidates.length) {
+        const { error } = await client.rpc("configure_staff_payment_periods", {
+          p_staff_ids: candidates.map((row) => row.staff_id),
+          p_month: `${month}-01`,
+          p_modality: "QUINCENAL",
+          p_tax_validation: "Modalidad quincenal y boleta mensual confirmadas expresamente por administración el 15-11-2026.",
+        });
+        if (error) throw error;
+      }
+    }
+    const fresh = code === "Q1" ? await getStaffPaymentPeriodsAction(month) : snapshot;
+    if (!fresh.ok) throw new Error(fresh.message);
     const modality = code === "MONTH" ? "MENSUAL" : "QUINCENAL";
-    const cohort = snapshot.schedules.filter((row) => row.modality === modality);
+    const cohort = fresh.schedules.filter((row) => row.modality === modality);
     if (!cohort.length) throw new Error("No existen trabajadores configurados en esta modalidad.");
     const selected = cohort.map((schedule) => {
-      const periods = snapshot.periods.filter((row) => row.account_id === schedule.account_id && row.period_code === code);
+      const periods = fresh.periods.filter((row) => row.account_id === schedule.account_id && row.period_code === code);
       if (periods.length !== 1) throw new Error("Falta o está duplicado un período de la modalidad seleccionada. Revisa la configuración antes de cerrar.");
-      const account = snapshot.accounts.find((row) => row.id === schedule.account_id);
+      const account = fresh.accounts.find((row) => row.id === schedule.account_id);
       if (!account) throw new Error("Falta una cuenta mensual del grupo.");
       if (account.payment_status === "PAID" && periods[0].status !== "FINALIZED")
         throw new Error("Existe una cuenta pagada sin período cerrado. Requiere revisión.");
       return periods[0];
     });
     if (code === "Q2" && cohort.some((schedule) =>
-      !snapshot.periods.some((row) => row.account_id === schedule.account_id && row.period_code === "Q1" && row.status === "FINALIZED")))
+      !fresh.periods.some((row) => row.account_id === schedule.account_id && row.period_code === "Q1" && row.status === "FINALIZED")))
       throw new Error("Primero debes cerrar la primera quincena de todos los trabajadores quincenales.");
     const pending = selected.filter((row) => row.status === "DRAFT");
     if (selected.some((row) => !["DRAFT", "FINALIZED"].includes(row.status)))
