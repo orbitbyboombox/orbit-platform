@@ -11,6 +11,7 @@ import {
   previewStaffPeriodCloseEmailAction,
   retryStaffPeriodCloseEmailAction,
   closeStaffPaymentPeriodAction,
+  closeStaffPaymentPeriodBatchAction,
   configureStaffPaymentPeriodsAction,
   getStaffPaymentPeriodsAction,
   previewStaffPaymentPeriodAction,
@@ -46,6 +47,7 @@ export function StaffPaymentPeriodsPanel({
   const [selected, setSelected] = useState<string[]>([]);
   const [modality, setModality] = useState<PaymentModality>("MENSUAL");
   const [message, setMessage] = useState("");
+  const [batchPeriod, setBatchPeriod] = useState<"Q1" | "Q2" | "MONTH">("Q1");
   const [pending, start] = useTransition();
   const [viewer, setViewer] = useState<StaffPaymentPeriod | null>(null);
   const [payment, setPayment] = useState<{
@@ -120,6 +122,23 @@ export function StaffPaymentPeriodsPanel({
           mes.
         </p>
       </div>
+      <section className="space-y-3 rounded-xl border border-brand/40 bg-background p-4" aria-label="Cierre masivo por período">
+        <h4 className="font-semibold">Cerrar Staff por período</h4>
+        <p className="text-sm text-muted">Elige qué período cerrar para todos los trabajadores de esa modalidad. No se registran pagos automáticamente.</p>
+        <label className="block text-sm font-medium" htmlFor="staff-close-period">Período a cerrar</label>
+        <select id="staff-close-period" className="min-h-11 w-full rounded-xl border bg-background px-3 sm:max-w-lg" value={batchPeriod} onChange={(event) => setBatchPeriod(event.target.value as "Q1" | "Q2" | "MONTH")}>
+          <option value="Q1">Primera quincena · 1–14 · solo quincenales</option>
+          <option value="Q2">Segunda quincena · 15–fin · solo quincenales</option>
+          <option value="MONTH">Mes completo · 1–fin · solo mensuales</option>
+        </select>
+        <p className="text-xs text-muted">{batchPeriod === "Q1" ? "El mes continúa abierto; no se solicita boleta mensual en este cierre." : batchPeriod === "Q2" ? "Requiere primera quincena cerrada. Completa el mes de los trabajadores quincenales, sin cerrar a los mensuales." : "Cierra una sola vez el mes para los trabajadores configurados como mensuales, sin afectar a los quincenales."}</p>
+        <Button disabled={pending || !data} onClick={() => {
+          const count = data?.schedules.filter((row) => row.modality === (batchPeriod === "MONTH" ? "MENSUAL" : "QUINCENAL")).length ?? 0;
+          if (!count) { setMessage("No hay trabajadores configurados en la modalidad seleccionada."); return; }
+          if (!window.confirm(`Confirmar cierre de ${batchPeriod === "Q1" ? "primera quincena" : batchPeriod === "Q2" ? "segunda quincena" : "mes completo"} de ${formatDisplayMonth(month)} para ${count} trabajadores. Se generarán liquidaciones y podrán enviarse correos. No se registrarán pagos. ¿Continuar?`)) return;
+          run(() => closeStaffPaymentPeriodBatchAction(month, batchPeriod));
+        }}>Cerrar {batchPeriod === "Q1" ? "primera quincena" : batchPeriod === "Q2" ? "segunda quincena" : "mes completo"} · todos los de esta modalidad</Button>
+      </section>
       {data && (
         <div
           className="space-y-3 rounded-xl border border-white/10 p-3"

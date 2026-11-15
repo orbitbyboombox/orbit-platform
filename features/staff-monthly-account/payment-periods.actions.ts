@@ -382,3 +382,48 @@ export async function previewStaffPeriodCloseEmailAction(periodId: string) {
     return { ok: false as const, message: messageOf(error) };
   }
 }
+
+
+/**
+ * Close every eligible period in one chosen cohort. Never closes a different
+ * modality or period; an incomplete cohort is rejected before any mutation.
+ * Existing per-period RPC preserves financial guards, idempotency and audit.
+ */
+export async function closeStaffPaymentPeriodBatchAction(month: string, code: "Q1" | "Q2" | "MONTH") {
+  try {
+    const client = await adminContext();
+    if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(month) || !["Q1", "Q2", "MONTH"].includes(code))
+      throw new Error("Mes o período inválido.");
+    const snapshot = await getStaffPaymentPeriodsAction(month);
+    if (!snapshot.ok) throw new Error(snapshot.message);
+    const modality = code === "MONTH" ? "MENSUAL" : "QUINCENAL";
+    const cohort = snapshot.schedules.filter((row) => row.modality === modality);
+    if (!cohort.length) throw new Error("No existen trabajadores configurados en esta modalidad.");
+    const selected = cohort.map((schedule) => {
+      const periods = snapshot.periods.filter((row) => row.account_id === schedule.account_id && row.period_code === code);
+      if (periods.length !== 1) throw new Error("Falta o está duplicado un período de la modalidad seleccionada. Revisa la configuración antes de cerrar.");
+      const account = snapshot.accounts.find((row) => row.id === schedule.account_id);
+      if (!account) throw new Error("Falta una cuenta mensual del grupo.");
+      if (account.payment_status === "PAID" && periods[0].status !== "FINALIZED")
+        throw new Error("Existe una cuenta pagada sin período cerrado. Requiere revisión.");
+      return periods[0];
+    });
+    if (code === "Q2" && cohort.some((schedule) =>
+      !snapshot.periods.some((row) => row.account_id === schedule.account_id && row.period_code === "Q1" && row.status === "FINALIZED")))
+      throw new Error("Primero debes cerrar la primera quincena de todos los trabajadores quincenales.");
+    const pending = selected.filter((row) => row.status === "DRAFT");
+    if (selected.some((row) => !["DRAFT", "FINALIZED"].includes(row.status)))
+      throw new Error("Hay períodos con estado no reconocido. Requieren revisión.");
+    if (!pending.length) return { ok: true, message: "Todos los períodos seleccionados ya estaban cerrados.", closed: 0, total: selected.length };
+    let closed = 0;
+    for (const period of pending) {
+      const result = await closeStaffPaymentPeriodAction(period.id);
+      if (!result.ok) return { ok: false, message: `Se cerraron ${closed} de ${pending.length} períodos pendientes. Se detuvo por seguridad: ${result.message}. Revisa antes de reintentar.` };
+      closed += 1;
+    }
+    refreshPeriods();
+    return { ok: true, message: `Cierre ${code === "Q1" ? "primera quincena" : code === "Q2" ? "segunda quincena" : "mensual"} completado: ${closed} períodos nuevos; ${selected.length - closed} ya cerrados. Los pagos siguen independientes.`, closed, total: selected.length };
+  } catch (error) {
+    return { ok: false, message: messageOf(error) };
+  }
+}
