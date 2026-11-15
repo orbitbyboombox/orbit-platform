@@ -323,7 +323,7 @@ export function buildStaffPeriodClosedEmail(input: {
           `Dirección: ${input.company.address} · ${input.company.city}`,
           "Glosa: HONORARIOS SERVICIOS EVENTOS",
         ]),
-    `Reembolsos pendientes, separados de honorarios y boleta: ${money(input.reimbursementsPending)}`,
+    ...(!input.firstQuincena ? [`Reembolsos pendientes, separados de honorarios y boleta: ${money(input.reimbursementsPending)}`] : []),
   ];
   return {
     subject: `BOOMBOX · Liquidación ${input.periodLabel}`,
