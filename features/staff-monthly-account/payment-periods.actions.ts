@@ -55,7 +55,7 @@ export async function getStaffPaymentPeriodsAction(month: string) {
       throw new Error("Mes inválido.");
     const accounts = await client
       .from("staff_monthly_accounts")
-      .select("id,staff_id,settlement_status,payment_status,boleta_status")
+      .select("id,staff_id,settlement_status,payment_status,boleta_status,reimbursements_pending_total")
       .eq("accounting_month", `${month}-01`);
     if (accounts.error) throw accounts.error;
     const ids = (accounts.data ?? []).map((row) => row.id);
