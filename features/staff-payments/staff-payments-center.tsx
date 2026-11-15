@@ -403,6 +403,7 @@ export function StaffPaymentsCenter({
           </label>
         </div>
       </header>
+      <StaffPaymentPeriodsPanel key={month} month={month} staff={staff} />
       <section className="rounded-2xl border border-brand/25 bg-brand/5 p-4 sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
@@ -481,8 +482,9 @@ export function StaffPaymentsCenter({
                 })
               }
               variant="default"
+              disabled
             >
-              CERRAR MES DEFINITIVAMENTE
+              CIERRE GLOBAL DESHABILITADO · USA EL SELECTOR POR PERÍODO
             </Button>
             <input
               className="min-h-11 rounded-xl border bg-background px-3"
@@ -595,7 +597,7 @@ export function StaffPaymentsCenter({
       </section>
       <StaffFinanceDriveSync />
       <QuickStaffPayment rows={rows} />
-      <StaffPaymentPeriodsPanel key={month} month={month} staff={staff} />
+
       <PaymentSheet month={month} rows={rows} />
       <div className="grid gap-4 xl:grid-cols-2">
         {rows.map((row) => (
