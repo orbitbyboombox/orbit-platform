@@ -125,7 +125,7 @@ export function StaffPaymentPeriodsPanel({
       </div>
       <section className="space-y-3 rounded-xl border border-brand/40 bg-background p-4" aria-label="Cierre masivo por período">
         <h4 className="font-semibold">Cerrar Staff por período</h4>
-        <p className="text-sm text-muted">Elige qué período cerrar para todos los trabajadores de esa modalidad. No se registran pagos automáticamente.</p>
+        <p className="text-sm text-muted">Elige el período. En la primera quincena ORBIT identifica y configura automáticamente a quienes trabajaron; no debes seleccionarlos. No se registran pagos automáticamente.</p>
         <label className="block text-sm font-medium" htmlFor="staff-close-period">Período a cerrar</label>
         <select id="staff-close-period" className="min-h-11 w-full rounded-xl border bg-background px-3 sm:max-w-lg" value={batchPeriod} onChange={(event) => { setBatchPeriod(event.target.value as "Q1" | "Q2" | "MONTH"); setConfirmBatch(false); setMessage(""); }}>
           <option value="Q1">Primera quincena · 1–14 · solo quincenales</option>
@@ -135,9 +135,9 @@ export function StaffPaymentPeriodsPanel({
         <p className="text-xs text-muted">{batchPeriod === "Q1" ? "El mes continúa abierto; no se solicita boleta mensual en este cierre." : batchPeriod === "Q2" ? "Requiere primera quincena cerrada. Completa el mes de los trabajadores quincenales, sin cerrar a los mensuales." : "Cierra una sola vez el mes para los trabajadores configurados como mensuales, sin afectar a los quincenales."}</p>
         <Button disabled={pending || !data} onClick={() => {
           setMessage("");
-          const count = data?.schedules.filter((row) => row.modality === (batchPeriod === "MONTH" ? "MENSUAL" : "QUINCENAL")).length ?? 0;
+          const count = batchPeriod === "Q1" ? (data?.summary.filter((row) => Number(row.work_net) > 0).length ?? 0) : (data?.schedules.filter((row) => row.modality === (batchPeriod === "MONTH" ? "MENSUAL" : "QUINCENAL")).length ?? 0);
           if (!count) {
-            setMessage("No hay trabajadores configurados en la modalidad seleccionada. Primero configura su modalidad en la sección inferior.");
+            setMessage("No hay trabajadores con servicios registrados para este cierre.");
             return;
           }
           setConfirmBatch(true);
@@ -145,7 +145,7 @@ export function StaffPaymentPeriodsPanel({
         {message ? <p className="rounded-lg border border-amber-500/40 p-3 text-sm" role="alert">{message}</p> : null}
         {confirmBatch ? (
           <div className="space-y-3 rounded-xl border border-amber-500/50 p-4" role="group" aria-label="Confirmar cierre masivo">
-            <p className="text-sm">Confirmar cierre de {batchPeriod === "Q1" ? "primera quincena" : batchPeriod === "Q2" ? "segunda quincena" : "mes completo"} de {formatDisplayMonth(month)} para {data?.schedules.filter((row) => row.modality === (batchPeriod === "MONTH" ? "MENSUAL" : "QUINCENAL")).length ?? 0} trabajadores. Se generarán liquidaciones y podrán enviarse correos. No se registrarán pagos.</p>
+            <p className="text-sm">Confirmar cierre de {batchPeriod === "Q1" ? "primera quincena" : batchPeriod === "Q2" ? "segunda quincena" : "mes completo"} de {formatDisplayMonth(month)} para {batchPeriod === "Q1" ? data?.summary.filter((row) => Number(row.work_net) > 0).length ?? 0 : data?.schedules.filter((row) => row.modality === (batchPeriod === "MONTH" ? "MENSUAL" : "QUINCENAL")).length ?? 0} trabajadores con servicios. Se generarán liquidaciones y podrán enviarse correos. No se registrarán pagos.</p>
             <div className="flex flex-wrap gap-2">
               <Button disabled={pending} onClick={() => {
                 setConfirmBatch(false);
@@ -240,17 +240,6 @@ export function StaffPaymentPeriodsPanel({
         action={(form) => run(() => configureStaffPaymentPeriodsAction(form))}
       >
         <input type="hidden" name="month" value={month} />
-        <div className="rounded-xl border border-brand/40 p-3 space-y-2">
-          <p className="text-sm font-semibold">Configurar trabajadores con servicios como QUINCENALES</p>
-          <p className="text-xs text-muted">Selecciona automáticamente a quienes tienen honorarios registrados en el resumen de la primera quincena. Revisa la selección y documenta la validación tributaria antes de aplicar. No cierra períodos ni registra pagos.</p>
-          <Button type="button" variant="outline" disabled={pending || !data} onClick={() => {
-            setModality("QUINCENAL");
-            const worked = new Set((data?.summary ?? []).filter((row) => Number(row.work_net) > 0).map((row) => row.staff_id));
-            const ids = eligible.filter((member) => worked.has(member.id)).map((member) => member.id);
-            setSelected(ids);
-            setMessage(ids.length ? `${ids.length} trabajadores con honorarios seleccionados. Completa la validación tributaria y pulsa Aplicar modalidad.` : "No se encontraron trabajadores elegibles con honorarios en la primera quincena.");
-          }}>Seleccionar quienes trabajaron · primera quincena</Button>
-        </div>
         <div className="flex flex-wrap items-center gap-3">
           <label className="flex min-h-11 items-center gap-2 text-sm">
             <input
