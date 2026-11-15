@@ -482,7 +482,6 @@ export function StaffPaymentsCenter({
                 })
               }
               variant="default"
-              disabled
             >
               CIERRE GLOBAL DESHABILITADO · USA EL SELECTOR POR PERÍODO
             </Button>
