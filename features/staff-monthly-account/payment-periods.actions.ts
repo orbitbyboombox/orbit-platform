@@ -401,12 +401,12 @@ export async function closeStaffPaymentPeriodBatchAction(month: string, code: "Q
     if (code === "Q1") {
       const already = new Set(snapshot.schedules.filter((row) => row.modality === "QUINCENAL").map((row) => row.account_id));
       const candidates = snapshot.summary.filter((row) =>
-        Number(row.work_net) > 0 && !row.review_required && !already.has(row.account_id)
+        Number(row.work_net) > 0 && !row.review_required && !already.has(snapshot.accounts.find((account) => account.staff_id === row.staff_id)?.id ?? "")
       );
       const protectedAccounts = new Set(snapshot.accounts.filter((row) =>
         row.settlement_status === "FINALIZED" || row.payment_status === "PAID"
       ).map((row) => row.id));
-      if (candidates.some((row) => protectedAccounts.has(row.account_id)))
+      if (candidates.some((row) => protectedAccounts.has(snapshot.accounts.find((account) => account.staff_id === row.staff_id)?.id ?? "")))
         throw new Error("Hay trabajadores con honorarios y cuentas protegidas. Revisa antes de cerrar.");
       if (snapshot.summary.some((row) => Number(row.work_net) > 0 && row.review_required))
         throw new Error("Hay honorarios que requieren revisión. Resuelve las observaciones antes del cierre masivo.");
