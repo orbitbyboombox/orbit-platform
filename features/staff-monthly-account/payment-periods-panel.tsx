@@ -123,6 +123,13 @@ export function StaffPaymentPeriodsPanel({
           mes.
         </p>
       </div>
+      {data && data.periods.some((period) => period.status === "FINALIZED") ? (
+        <div className="rounded-xl border border-brand/40 bg-background p-4" role="status" aria-live="polite">
+          <p className="font-semibold">Estado de liquidaciones · {formatDisplayMonth(month)}</p>
+          <p className="mt-1 text-sm">Cerradas: {data.periods.filter((period) => period.status === "FINALIZED").length} · Correos enviados: {data.periods.filter((period) => period.status === "FINALIZED" && data.deliveries.some((delivery) => delivery.periodId === period.id && delivery.status === "SENT")).length} · Correos pendientes o por revisar: {data.periods.filter((period) => period.status === "FINALIZED" && !data.deliveries.some((delivery) => delivery.periodId === period.id && delivery.status === "SENT")).length}</p>
+          <p className="mt-1 text-xs text-muted">ENVIADO significa aceptado por Gmail; no confirma lectura ni pago. Revisa el detalle por trabajador más abajo.</p>
+        </div>
+      ) : null}
       <section className="space-y-3 rounded-xl border border-brand/40 bg-background p-4" aria-label="Cierre masivo por período">
         <h4 className="font-semibold">Cerrar Staff por período</h4>
         <p className="text-sm text-muted">Elige el período. En la primera quincena ORBIT identifica y configura automáticamente a quienes trabajaron; no debes seleccionarlos. No se registran pagos automáticamente.</p>
