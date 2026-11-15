@@ -389,14 +389,14 @@ export async function previewStaffPeriodCloseEmailAction(periodId: string) {
  * modality or period; an incomplete cohort is rejected before any mutation.
  * Existing per-period RPC preserves financial guards, idempotency and audit.
  */
-export async function closeStaffPaymentPeriodBatchAction(month: string, code: "Q1" | "Q2" | "M") {
+export async function closeStaffPaymentPeriodBatchAction(month: string, code: "Q1" | "Q2" | "MONTH") {
   try {
     const client = await adminContext();
-    if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(month) || !["Q1", "Q2", "M"].includes(code))
+    if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(month) || !["Q1", "Q2", "MONTH"].includes(code))
       throw new Error("Mes o período inválido.");
     const snapshot = await getStaffPaymentPeriodsAction(month);
     if (!snapshot.ok) throw new Error(snapshot.message);
-    const modality = code === "M" ? "MENSUAL" : "QUINCENAL";
+    const modality = code === "MONTH" ? "MENSUAL" : "QUINCENAL";
     const cohort = snapshot.schedules.filter((row) => row.modality === modality);
     if (!cohort.length) throw new Error("No existen trabajadores configurados en esta modalidad.");
     const selected = cohort.map((schedule) => {
