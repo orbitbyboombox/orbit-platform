@@ -9,6 +9,7 @@ const tabs = [
   ["/finance/expenses", "Gastos"],
   ["/finance/receivables", "Por cobrar"],
   ["/finance/payables", "Por pagar"],
+  ["/finance/staff", "Staff"],
   ["/finance/cash-flow", "Caja"],
   ["/finance/taxes", "Impuestos"],
   ["/finance/reports", "Reportes"],
