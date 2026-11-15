@@ -849,7 +849,7 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
   const communeSectorMappings = await communeSectorMappingsPromise;
   return (
       <StaffWorkspaces
-        initialWorkspace={view === "logistics" ? "LOGISTICS" : reviewAccount ? "PAYROLL" : reviewExpense ? "TEAM" : undefined}
+        initialWorkspace={view === "logistics" ? "LOGISTICS" : view === "payroll" ? "PAYROLL" : reviewAccount ? "PAYROLL" : reviewExpense ? "TEAM" : undefined}
       team={
         <div className="space-y-6">
           <StaffFinancialActions
