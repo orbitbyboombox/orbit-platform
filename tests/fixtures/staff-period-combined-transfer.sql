@@ -72,6 +72,15 @@ BEGIN
         (submission_video,staff_id,project_id,'OTHER',10000,'2026-11-10','pr239/video.pdf','APPROVED',true,expense_video,'pr239-submission-video');
 
   SELECT public.staff_payment_period_calculation(period_id) INTO first;
+  RAISE NOTICE 'PR239 fixture pre-finalize payment=% total_internal=% operator=% override=% automatic=% status=% accounting=% calc=%',
+    settlement_id,
+    (SELECT total_internal_payment FROM public.event_staff_payments WHERE id=settlement_id),
+    (SELECT operator_payment FROM public.event_staff_payments WHERE id=settlement_id),
+    (SELECT override_operator_payment FROM public.event_staff_payments WHERE id=settlement_id),
+    (SELECT automatic_operator_payment FROM public.event_staff_payments WHERE id=settlement_id),
+    (SELECT status FROM public.event_staff_payments WHERE id=settlement_id),
+    (SELECT accounting_month FROM public.event_staff_payments WHERE id=settlement_id),
+    first;
   IF (first->>'workPending')::numeric <> 400000 THEN RAISE EXCEPTION 'Expected Q1 honoraria 400000, got %',first; END IF;
   UPDATE public.staff_payment_periods SET status='FINALIZED',snapshot=first,closed_by=actor,closed_at=now() WHERE id=period_id;
   SELECT snapshot INTO snapshot_before FROM public.staff_payment_periods WHERE id=period_id;
