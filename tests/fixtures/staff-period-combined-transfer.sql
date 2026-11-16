@@ -59,7 +59,7 @@ BEGIN
       override_at=now(), status='CONFIRMED', updated_by=actor
   WHERE id=settlement_id;
   INSERT INTO public.staff_monthly_accounts(id,staff_id,accounting_month,expected_amount,boleta_status,payment_status,work_net,boleta_net,withholding_rate,withholding_amount,final_transfer_amount,settlement_status)
-  VALUES(account_id,staff_id,'2026-11-01',400000,'APPROVED','READY_TO_PAY',400000,400000,15.25,0,400000,'DRAFT');
+  VALUES(account_id,staff_id,'2026-11-01',400000,'APPROVED','READY_TO_PAY',400000,400000,15.25,0,400000,'FINALIZED');
   INSERT INTO public.staff_payment_schedules(account_id,modality,monthly_boleta_validation,validated_by,validated_at,created_by)
   VALUES(schedule_id,'QUINCENAL','pr239-validacion',actor,now(),actor);
   INSERT INTO public.staff_payment_periods(id,account_id,period_code,starts_on,ends_on,status)
