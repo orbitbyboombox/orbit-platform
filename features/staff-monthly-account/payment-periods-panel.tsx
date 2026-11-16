@@ -742,7 +742,13 @@ export function StaffPaymentPeriodsPanel({
         >
           <form
             className="space-y-3"
-            action={(form) =>
+            onSubmit={(event) => {
+              // Keep the dialog mounted until the server confirms both the
+              // upload and the atomic payment transaction. A native form
+              // navigation can otherwise make a failed submission look like
+              // a successful close to the operator.
+              event.preventDefault();
+              const form = new FormData(event.currentTarget);
               start(async () => {
                 const result = await registerStaffPeriodPaymentAction(form);
                 setMessage(result.message);
@@ -751,8 +757,8 @@ export function StaffPaymentPeriodsPanel({
                   await load();
                   router.refresh();
                 }
-              })
-            }
+              });
+            }}
           >
             {(() => {
               const honoraria = Number(payment.preview.remaining ?? 0);
@@ -830,7 +836,14 @@ export function StaffPaymentPeriodsPanel({
                 className="mt-2 block w-full"
               />
             </label>
-            <Button disabled={pending}>REGISTRAR PAGO</Button>
+            {message && !pending ? (
+              <p className="rounded-xl border border-danger/30 bg-danger/5 p-3 text-sm text-danger" role="alert">
+                {message}
+              </p>
+            ) : null}
+            <Button type="submit" disabled={pending} aria-busy={pending}>
+              {pending ? "REGISTRANDO PAGO…" : "REGISTRAR PAGO"}
+            </Button>
           </form>
         </MobileDialog>
       ) : null}
