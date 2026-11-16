@@ -369,7 +369,7 @@ export function buildStaffPeriodClosedEmail(input: {
       <p style="margin:7px 0 0;font:12px/1.5 Arial,sans-serif;color:#d6d3cf">${first ? "Incluye honorarios pendientes y reembolsos, mostrados por separado arriba." : "Corresponde al 100% de honorarios brutos mensuales; no incluye reembolsos ni se reduce por anticipos."}</p>
     </td></tr></table>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:23px;background:${first ? "#fff4e5" : "#f6f3ee"};border-left:5px solid #f78900;border-radius:8px"><tr><td style="padding:16px;font:700 14px/1.6 Arial,sans-serif;color:#202124"><p style="margin:0 0 7px;font:700 11px Arial,sans-serif;letter-spacing:.08em;color:#b35b00">${first ? "PRIMERA QUINCENA · SIN BOLETA" : "SEGUNDA QUINCENA · BOLETA MENSUAL"}</p>${escapeHtml(boletaInstruction)}</td></tr></table>
-    <p style="margin:0 0 14px;font:13px/1.6 Arial,sans-serif;color:#56534f">${escapeHtml(paymentNotice)}</p>
+    <p style="margin:${first ? "18px" : "0"} 0 14px;font:13px/1.6 Arial,sans-serif;color:#56534f">${escapeHtml(paymentNotice)}</p>
     ${first ? "" : `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f6f3ee;border-radius:8px"><tr><td style="padding:16px;font:13px/1.7 Arial,sans-serif;color:#242424"><strong>DATOS PARA EMITIR</strong><p style="margin:8px 0 0">Razón social: ${escapeHtml(input.company.legalName)}<br>RUT: ${escapeHtml(input.company.taxId)}<br>Dirección: ${escapeHtml(input.company.address)} · ${escapeHtml(input.company.city)}<br>Glosa: HONORARIOS SERVICIOS EVENTOS</p></td></tr></table>`}
   `;
   return {
