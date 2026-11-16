@@ -45,7 +45,7 @@ BEGIN
   INSERT INTO public.staff(id,first_name,last_name,email,role,capabilities,status,portal_enabled,created_by)
   VALUES(staff_id,'PR239','Synthetic','pr239-staff@example.invalid','OPERATOR',ARRAY['OPERATOR'],'ACTIVE',true,actor);
   INSERT INTO public.assignments(id,project_id,staff_id,assignment_type,status,reason,created_by,updated_by)
-  VALUES(assignment_id,project_id,staff_id,'OPERATOR','CONFIRMED','PR239 fixture',actor,actor);
+  VALUES(assignment_id,project_id,staff_id,'OPERATOR','COMPLETED','PR239 fixture',actor,actor);
   SELECT id INTO settlement_id
   FROM public.event_staff_payments AS ep
   WHERE ep.assignment_id=target_assignment_id AND ep.deleted_at IS NULL
