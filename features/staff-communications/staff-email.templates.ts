@@ -309,15 +309,16 @@ export function buildStaffPeriodClosedEmail(input: {
           `Saldo de honorarios del bloque: ${money(input.remaining)}`,
           `Reembolsos pendientes: ${money(input.reimbursementsPending)}`,
           `TOTAL PENDIENTE POR TRANSFERIR (honorarios + reembolsos): ${money(input.remaining + input.reimbursementsPending)}`,
-          "En este primer cierre no debes emitir ni subir boleta mensual. El pago mantiene su validación tributaria.",
+          "PRIMERA QUINCENA: NO DEBES EMITIR NI SUBIR BOLETA DE HONORARIOS A ORBIT.",
+          "Al cierre del mes recibirás el total de honorarios mensuales para emitir una sola boleta.",
           "El pago se realizará dentro de los 3 primeros días hábiles posteriores al cierre, sujeto a la validación correspondiente. Se registrará como pagado únicamente cuando se efectúe.",
         ]
       : [
           `Honorarios líquidos del mes: ${money(input.monthlyWork)}`,
-          `Boleta mensual bruta a emitir: ${money(input.monthlyGross)}`,
+          `TOTAL PARA EMITIR BOLETA (100% honorarios mensuales brutos, sin reembolsos): ${money(input.monthlyGross)}`,
           `Honorarios efectivamente pagados: ${money(input.paid)}`,
-          `Saldo de honorarios pendiente: ${money(input.remaining)}`,
-          "Emite una sola boleta mensual por el total indicado. Los pagos previos se descuentan únicamente del saldo por transferir.",
+          `SALDO PENDIENTE DE PAGO (honorarios): ${money(input.remaining)}`,
+          "SEGUNDA QUINCENA: AHORA SÍ DEBES EMITIR Y SUBIR UNA SOLA BOLETA MENSUAL A ORBIT por el total bruto indicado, incluso si solo trabajaste en la primera quincena. Los pagos anteriores se descuentan del saldo pendiente, no del monto de la boleta.",
           `Razón social: ${input.company.legalName}`,
           `RUT: ${input.company.taxId}`,
           `Dirección: ${input.company.address} · ${input.company.city}`,
@@ -333,8 +334,8 @@ export function buildStaffPeriodClosedEmail(input: {
       preheader: "Tu liquidación BOOMBOX con PDF adjunto.",
       eyebrow: "Staff · Liquidación",
       title: input.firstQuincena
-        ? "Tu primera quincena está lista"
-        : "Tu cierre mensual está listo",
+        ? "PRIMERA QUINCENA · Liquidación lista"
+        : "SEGUNDA QUINCENA · Cierre mensual",
       content: lines
         .map((line, index) => `<p style="margin:0 0 14px${input.firstQuincena && line.startsWith("El pago se realizará") ? ";padding:16px;background:#101113;color:#ffffff;border-left:5px solid #f78900;border-radius:8px;font-weight:700" : ""}">${escapeHtml(line)}</p>`)
         .join(""),
