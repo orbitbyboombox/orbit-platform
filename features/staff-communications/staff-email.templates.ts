@@ -299,49 +299,77 @@ export function buildStaffPeriodClosedEmail(input: {
   company: { legalName: string; taxId: string; address: string; city: string };
 }) {
   const portal = `${input.appUrl.replace(/\/$/, "")}/staff-portal`;
-  const lines = [
+  const first = input.firstQuincena;
+  const label = first ? "PRIMERA QUINCENA" : "SEGUNDA QUINCENA";
+  const title = first ? "Liquidación de primera quincena" : "Cierre de segunda quincena";
+  const details = first
+    ? [
+        ["Honorarios del período", money(input.periodWork)],
+        ["Honorarios ya pagados", money(input.paid)],
+        ["Saldo pendiente de honorarios", money(input.remaining)],
+        ["Reembolsos pendientes", money(input.reimbursementsPending)],
+      ]
+    : [
+        ["Honorarios líquidos del mes", money(input.monthlyWork)],
+        ["Honorarios ya pagados", money(input.paid)],
+        ["Saldo pendiente de honorarios", money(input.remaining)],
+        ["Reembolsos pendientes (no sujetos a boleta)", money(input.reimbursementsPending)],
+      ];
+  const totalTransfer = input.remaining + input.reimbursementsPending;
+  const boletaInstruction = first
+    ? "NO debes emitir ni subir boleta en esta primera quincena. Al cierre del mes recibirás la información para emitir una única boleta mensual."
+    : "Debes emitir y subir UNA SOLA boleta por el 100% de los honorarios brutos del mes, aunque hayas trabajado solamente en la primera quincena. Los pagos anteriores no disminuyen el monto de la boleta.";
+  const paymentNotice = first
+    ? "El pago se realizará dentro de los 3 primeros días hábiles posteriores al cierre, sujeto a las validaciones correspondientes. Este aviso no confirma una transferencia."
+    : "El saldo pendiente de pago es distinto del total bruto de la boleta. Los reembolsos se presentan por separado y no forman parte de ella.";
+  const subject = `BOOMBOX® | ${label} — ${first ? "Liquidación disponible" : "Cierre mensual y boleta"}`;
+  const textBody = [
     `Hola ${input.firstName},`,
-    `Tu liquidación ${input.periodLabel} está cerrada. Adjuntamos el detalle de tus eventos.`,
-    `Honorarios del bloque: ${money(input.periodWork)}`,
-    ...(input.firstQuincena
-      ? [
-          `Honorarios efectivamente pagados del bloque: ${money(input.paid)}`,
-          `Saldo de honorarios del bloque: ${money(input.remaining)}`,
-          `Reembolsos pendientes: ${money(input.reimbursementsPending)}`,
-          `TOTAL PENDIENTE POR TRANSFERIR (honorarios + reembolsos): ${money(input.remaining + input.reimbursementsPending)}`,
-          "PRIMERA QUINCENA: NO DEBES EMITIR NI SUBIR BOLETA DE HONORARIOS A ORBIT.",
-          "Al cierre del mes recibirás el total de honorarios mensuales para emitir una sola boleta.",
-          "El pago se realizará dentro de los 3 primeros días hábiles posteriores al cierre, sujeto a la validación correspondiente. Se registrará como pagado únicamente cuando se efectúe.",
-        ]
-      : [
-          `Honorarios líquidos del mes: ${money(input.monthlyWork)}`,
-          `TOTAL PARA EMITIR BOLETA (100% honorarios mensuales brutos, sin reembolsos): ${money(input.monthlyGross)}`,
-          `Honorarios efectivamente pagados: ${money(input.paid)}`,
-          `SALDO PENDIENTE DE PAGO (honorarios): ${money(input.remaining)}`,
-          "SEGUNDA QUINCENA: AHORA SÍ DEBES EMITIR Y SUBIR UNA SOLA BOLETA MENSUAL A ORBIT por el total bruto indicado, incluso si solo trabajaste en la primera quincena. Los pagos anteriores se descuentan del saldo pendiente, no del monto de la boleta.",
-          `Razón social: ${input.company.legalName}`,
-          `RUT: ${input.company.taxId}`,
-          `Dirección: ${input.company.address} · ${input.company.city}`,
-          "Glosa: HONORARIOS SERVICIOS EVENTOS",
-        ]),
-    ...(!input.firstQuincena ? [`Reembolsos pendientes, separados de honorarios y boleta: ${money(input.reimbursementsPending)}`] : []),
-  ];
+    `${label} — ${input.periodLabel}`,
+    "Tu liquidación está cerrada. Adjuntamos el PDF con el detalle de tus eventos.",
+    ...details.map(([name, value]) => `${name}: ${value}`),
+    first
+      ? `TOTAL PENDIENTE POR TRANSFERIR: ${money(totalTransfer)}`
+      : `TOTAL BRUTO PARA EMITIR BOLETA: ${money(input.monthlyGross)}`,
+    boletaInstruction,
+    paymentNotice,
+    ...(first ? [] : [
+      `Razón social: ${input.company.legalName}`,
+      `RUT: ${input.company.taxId}`,
+      `Dirección: ${input.company.address} · ${input.company.city}`,
+      "Glosa: HONORARIOS SERVICIOS EVENTOS",
+    ]),
+    `Portal Staff: ${portal}`,
+  ].join("\\n\\n");
+  const row = (name: string, value: string) =>
+    `<tr><td style="padding:11px 12px;border-bottom:1px solid #ece8e1;font:13px/1.45 Arial,sans-serif;color:#56534f">${escapeHtml(name)}</td><td align="right" style="padding:11px 12px;border-bottom:1px solid #ece8e1;font:700 14px/1.45 Arial,sans-serif;color:#111214;white-space:nowrap">${escapeHtml(value)}</td></tr>`;
+  const content = `
+    <p style="margin:0;font:15px/1.6 Arial,sans-serif">Hola <strong>${escapeHtml(input.firstName)}</strong>,</p>
+    <p style="margin:12px 0 20px;font:15px/1.6 Arial,sans-serif">Tu liquidación correspondiente a <strong>${escapeHtml(input.periodLabel)}</strong> está cerrada. Encontrarás el detalle de los eventos en el PDF adjunto.</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border:1px solid #e7e1d8;border-radius:10px;background:#fff">
+      <tr><td colspan="2" style="padding:13px 12px;background:#f6f3ee;font:700 11px Arial,sans-serif;letter-spacing:.1em;color:#b35b00">RESUMEN DE LIQUIDACIÓN</td></tr>
+      ${details.map(([name, value]) => row(name, value)).join("")}
+    </table>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:16px;background:#101113;border-left:5px solid #f78900;border-radius:8px"><tr><td style="padding:17px 16px">
+      <p style="margin:0 0 6px;font:700 11px Arial,sans-serif;letter-spacing:.08em;color:#f78900">${first ? "TOTAL PENDIENTE POR TRANSFERIR" : "TOTAL BRUTO PARA EMITIR BOLETA"}</p>
+      <p style="margin:0;font:700 26px/1.25 Arial,sans-serif;color:#ffffff">${escapeHtml(money(first ? totalTransfer : input.monthlyGross))}</p>
+      <p style="margin:7px 0 0;font:12px/1.5 Arial,sans-serif;color:#d6d3cf">${first ? "Incluye honorarios pendientes y reembolsos, mostrados por separado arriba." : "Corresponde al 100% de honorarios brutos mensuales; no incluye reembolsos ni se reduce por anticipos."}</p>
+    </td></tr></table>
+    <p style="margin:23px 0 8px;font:700 13px Arial,sans-serif;color:#b35b00">INSTRUCCIONES DE BOLETA</p>
+    <p style="margin:0 0 14px;font:15px/1.6 Arial,sans-serif">${escapeHtml(boletaInstruction)}</p>
+    <p style="margin:0 0 14px;font:13px/1.6 Arial,sans-serif;color:#56534f">${escapeHtml(paymentNotice)}</p>
+    ${first ? "" : `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f6f3ee;border-radius:8px"><tr><td style="padding:16px;font:13px/1.7 Arial,sans-serif;color:#242424"><strong>DATOS PARA EMITIR</strong><p style="margin:8px 0 0">Razón social: ${escapeHtml(input.company.legalName)}<br>RUT: ${escapeHtml(input.company.taxId)}<br>Dirección: ${escapeHtml(input.company.address)} · ${escapeHtml(input.company.city)}<br>Glosa: HONORARIOS SERVICIOS EVENTOS</p></td></tr></table>`}
+  `;
   return {
-    subject: `BOOMBOX · Liquidación ${input.periodLabel}`,
-    textBody: lines.join("\n\n") + `\n\n${portal}`,
+    subject,
+    textBody,
     htmlBody: premiumFrame({
       appUrl: input.appUrl,
-      preheader: "Tu liquidación BOOMBOX con PDF adjunto.",
-      eyebrow: "Staff · Liquidación",
-      title: input.firstQuincena
-        ? "PRIMERA QUINCENA · Liquidación lista"
-        : "SEGUNDA QUINCENA · Cierre mensual",
-      content: lines
-        .map((line, index) => `<p style="margin:0 0 14px${input.firstQuincena && line.startsWith("El pago se realizará") ? ";padding:16px;background:#101113;color:#ffffff;border-left:5px solid #f78900;border-radius:8px;font-weight:700" : ""}">${escapeHtml(line)}</p>`)
-        .join(""),
-      ctaLabel: input.firstQuincena
-        ? "Ver liquidación en ORBIT"
-        : "Subir boleta mensual",
+      preheader: first ? "Tu liquidación de primera quincena está disponible." : "Cierre mensual: revisa tu liquidación y emite una sola boleta.",
+      eyebrow: "BOOMBOX® · Administración y Finanzas",
+      title,
+      content,
+      ctaLabel: first ? "Ver liquidación en ORBIT" : "Subir boleta mensual en ORBIT",
       ctaHref: portal,
     }),
   };
