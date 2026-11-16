@@ -83,6 +83,6 @@ BEGIN
   END IF;
   RAISE NOTICE 'PASS: combined transfer 400000 honoraria + 6000 + 10000 reimbursements, FINALIZED snapshot protected, idempotent retry, transaction rollback';
 END;
-$$;
+$fixture$;
 ROLLBACK;
 \echo 'PASS: PR239 isolated combined Staff transfer fixture rolled back without production writes.'
