@@ -45,8 +45,16 @@ BEGIN
   VALUES(staff_id,'PR239','Synthetic','OPERATOR',ARRAY['OPERATOR'],'ACTIVE',true,actor);
   INSERT INTO public.assignments(id,project_id,staff_id,assignment_type,status,reason,created_by,updated_by)
   VALUES(assignment_id,project_id,staff_id,'OPERATOR','CONFIRMED','PR239 fixture',actor,actor);
-  INSERT INTO public.event_staff_payments(id,project_id,assignment_id,staff_id,orbit_event_id,contracted_hours,contracted_minutes,tasks,destination_province,assembly_payment,operator_payment,disassembly_payment,automatic_assembly_payment,automatic_operator_payment,automatic_disassembly_payment,status,created_by,updated_by)
-  VALUES(settlement_id,project_id,assignment_id,staff_id,'ORB-PR239-SYNTHETIC',4,240,ARRAY['OPERATOR'],'SANTIAGO',0,400000,0,0,400000,0,'CONFIRMED',actor,actor);
+  SELECT id INTO settlement_id
+  FROM public.event_staff_payments AS ep
+  WHERE ep.assignment_id=assignment_id AND ep.deleted_at IS NULL
+  ORDER BY ep.created_at DESC
+  LIMIT 1;
+  IF settlement_id IS NULL THEN RAISE EXCEPTION 'Assignment payment was not materialized'; END IF;
+  UPDATE public.event_staff_payments
+  SET contracted_hours=4, contracted_minutes=240, operator_payment=400000,
+      automatic_operator_payment=400000, status='CONFIRMED', updated_by=actor
+  WHERE id=settlement_id;
   INSERT INTO public.staff_monthly_accounts(id,staff_id,accounting_month,expected_amount,boleta_status,payment_status,work_net,boleta_net,withholding_rate,withholding_amount,final_transfer_amount,settlement_status)
   VALUES(account_id,staff_id,'2026-11-01',400000,'APPROVED','READY_TO_PAY',400000,400000,15.25,0,400000,'DRAFT');
   INSERT INTO public.staff_payment_schedules(account_id,modality,monthly_boleta_validation,validated_by,validated_at,created_by)
