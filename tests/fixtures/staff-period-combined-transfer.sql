@@ -53,7 +53,7 @@ BEGIN
   LIMIT 1;
   IF settlement_id IS NULL THEN RAISE EXCEPTION 'Assignment payment was not materialized'; END IF;
   UPDATE public.event_staff_payments
-  SET contracted_hours=4, contracted_minutes=240, operator_payment=400000,
+  SET accounting_month='2026-11-01', contracted_hours=4, contracted_minutes=240, operator_payment=400000,
       automatic_operator_payment=24000, override_operator_payment=400000,
       override_reason='PR239 synthetic agreed amount', override_by=actor,
       override_at=now(), status='CONFIRMED', updated_by=actor
