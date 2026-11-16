@@ -21,7 +21,7 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '24'
-      - run: npm ci --ignore-scripts
+      - run: npm install --ignore-scripts --no-package-lock
       - run: node --experimental-strip-types --test tests/sii-existing-drive-folder.test.mts tests/external-sii-document-attachment.test.mts
       - run: npm run typecheck
       - run: npm run lint
