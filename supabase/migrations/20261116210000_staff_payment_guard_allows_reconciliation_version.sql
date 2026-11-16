@@ -49,15 +49,13 @@ begin
       return new;
     end if;
 
-    -- touch_versioned_row runs before this guard and increments version for
-    -- every legitimate recalculation. It is not a financial input.
+    -- The PAYMENT ledger insert invokes the canonical settlement recalculation,
+    -- which performs a realization-only UPDATE in the same trusted RPC. The
+    -- transaction-local period capability is the authorization boundary for
+    -- that UPDATE; financial inputs remain protected by this guard.
     if tg_table_name='event_staff_payments'
        and tg_op='UPDATE'
-       and (before_row-array[
-         'paid_amount','paid_at','settlement_status','updated_at','updated_by','version'
-       ])=(after_row-array[
-         'paid_amount','paid_at','settlement_status','updated_at','updated_by','version'
-       ]) then
+       and current_setting('orbit.staff_period_payment',true)=frozen_period::text then
       return new;
     end if;
 
