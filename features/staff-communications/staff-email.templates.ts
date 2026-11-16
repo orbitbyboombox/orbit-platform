@@ -81,7 +81,7 @@ const money = (value: number) =>
   }).format(value);
 
 const STAFF_EMAIL_LOGO_URL =
-  "https://app.bbox.cl/branding/boombox-email-transparent.png";
+  "https://app.bbox.cl/branding/boombox-email-transparent-4x.png";
 
 function premiumFrame(input: {
   appUrl: string;

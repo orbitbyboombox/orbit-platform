@@ -138,7 +138,7 @@ test("Q1 email does not request boleta; monthly email requests a single full bol
     });
     assert.ok(email.htmlBody.includes("Persona &lt;QA&gt;"));
     assert.ok(!email.htmlBody.includes("Persona <QA>"));
-    assert.match(email.htmlBody, /boombox-email-transparent\.png/);
+    assert.match(email.htmlBody, /boombox-email-transparent-4x\.png/);
     assert.match(email.htmlBody, /alt="BOOMBOX®" width="220" height="56"/);
     assert.match(email.textBody, /\n\n/);
     assert.doesNotMatch(email.textBody, /\\n\\n/);
