@@ -91,16 +91,22 @@ BEGIN
   END IF;
   SELECT snapshot INTO snapshot_after FROM public.staff_payment_periods WHERE id=period_id;
   IF snapshot_after IS DISTINCT FROM snapshot_before THEN RAISE EXCEPTION 'FINALIZED snapshot changed'; END IF;
-  SELECT withholding_amount INTO withholding FROM public.staff_period_payments WHERE period_id=period_id;
+  SELECT spp.withholding_amount INTO withholding
+  FROM public.staff_period_payments AS spp
+  WHERE spp.period_id=period_id;
   IF withholding IS NULL OR withholding < 0 THEN RAISE EXCEPTION 'Period payment not persisted correctly'; END IF;
-  SELECT count(*) INTO payment_count FROM public.staff_period_payments WHERE period_id=period_id;
+  SELECT count(*) INTO payment_count
+  FROM public.staff_period_payments AS spp
+  WHERE spp.period_id=period_id;
   SELECT count(*) INTO reimbursement_count FROM public.staff_reimbursement_payments WHERE staff_id=staff_id AND notes='55611659';
-  SELECT count(*) INTO movement_count FROM public.event_staff_settlement_movements WHERE settlement_id=settlement_id AND movement_type='PAYMENT';
+  SELECT count(*) INTO movement_count
+  FROM public.event_staff_settlement_movements AS esm
+  WHERE esm.settlement_id=settlement_id AND esm.movement_type='PAYMENT';
   IF payment_count<>1 OR reimbursement_count<>2 OR movement_count<>1 THEN RAISE EXCEPTION 'Unexpected row counts: payment %, reimbursements %, movements %',payment_count,reimbursement_count,movement_count; END IF;
 
   retry := public.register_staff_period_transfer(period_id,416000,'2026-11-16','BCI','55611659','pr239-transfer-55611659','orbit-documents','staff/pr239/transfer.pdf','transfer.pdf','application/pdf');
   IF coalesce((retry->>'idempotent')::boolean,false) IS DISTINCT FROM true THEN RAISE EXCEPTION 'Retry was not idempotent: %',retry; END IF;
-  IF (SELECT count(*) FROM public.staff_period_payments WHERE period_id=period_id)<>1 OR (SELECT count(*) FROM public.staff_reimbursement_payments WHERE staff_id=staff_id AND notes='55611659')<>2 THEN
+  IF (SELECT count(*) FROM public.staff_period_payments AS spp WHERE spp.period_id=period_id)<>1 OR (SELECT count(*) FROM public.staff_reimbursement_payments AS srp WHERE srp.staff_id=staff_id AND srp.notes='55611659')<>2 THEN
     RAISE EXCEPTION 'Idempotent retry duplicated rows';
   END IF;
   RAISE NOTICE 'PASS: combined transfer 400000 honoraria + 6000 + 10000 reimbursements, FINALIZED snapshot protected, idempotent retry, transaction rollback';
