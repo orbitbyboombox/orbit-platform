@@ -1,5 +1,8 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
+import { resolveExistingBillingFolder } from "./existing-billing-folder";
+
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadCompanySettings } from "@/features/company-settings";
 import { loadGoogleWorkspaceAccessToken, loadGoogleWorkspaceConnection } from "@/features/connectors/google-workspace/application/google-workspace.repository";
@@ -16,9 +19,26 @@ interface ReservationDocumentContext {
   customerName: string;
   eventDate: string;
   kind: GoogleDriveDocumentKind;
+  preserveExistingStructure?: boolean;
 }
 
 export async function resolveReservationDocumentFolder(input: ReservationDocumentContext) {
+  if (input.preserveExistingStructure) {
+    if (input.kind !== "INVOICE") throw new Error("El destino SII debe ser Facturación.");
+    const { data: project, error } = await input.client.from("projects").select("operations").eq("id", input.projectId).is("deleted_at", null).single();
+    if (error) throw error;
+    const linked = project.operations?.googleDrive;
+    if (!linked?.folderId || !linked?.path) throw new Error("El evento no tiene una carpeta Drive vinculada. Revisa el vínculo antes de adjuntar el documento SII.");
+    const folderPath = `${linked.path}/07_Facturación`;
+    const repository = new SupabaseGoogleDriveFolderRepository(input.client, input.projectId);
+    const stored = await repository.findByPath(folderPath);
+    const provider = new GoogleDriveApiProvider(await loadGoogleWorkspaceAccessToken());
+    const folderId = await resolveExistingBillingFolder({ provider, eventFolderId: linked.folderId, storedFolderId: stored?.driveFolderId });
+    if (folderId !== stored?.driveFolderId) {
+      await repository.save({ name: "07_Facturación", path: folderPath, parentPath: linked.path, driveFolderId: folderId, status: "UPDATED", lastUpdatedAt: new Date().toISOString() });
+    }
+    return { folderId, folderPath, provider };
+  }
   await synchronizeConfirmedReservationDrive({ client: input.client, projectId: input.projectId, recordTimeline: false });
   const [company, accessToken, connection] = await Promise.all([
     loadCompanySettings(input.client),
@@ -40,7 +60,12 @@ export async function resolveReservationDocumentFolder(input: ReservationDocumen
 
 export async function uploadReservationDocumentToDrive(input: ReservationDocumentContext & { name: string; mimeType: string; bytes: Uint8Array }) {
   const destination = await resolveReservationDocumentFolder(input);
-  const file = await destination.provider.uploadFile({ name: input.name, mimeType: input.mimeType, bytes: input.bytes, parentFolderId: destination.folderId });
+  const checksum = input.preserveExistingStructure ? createHash("sha256").update(input.bytes).digest("hex") : undefined;
+  const existing = checksum ? await destination.provider.findFilesByName({ name: input.name, parentFolderId: destination.folderId }) : [];
+  const md5 = checksum ? createHash("md5").update(input.bytes).digest("hex") : undefined;
+  const matching = existing.find(file => file.appProperties?.orbitSha256 === checksum || file.md5Checksum === md5);
+  if (existing.length && !matching) throw new Error("Ya existe un archivo con ese nombre y contenido diferente en Facturación. No se reemplazó.");
+  const file = matching ?? await destination.provider.uploadFile({ name: input.name, mimeType: input.mimeType, bytes: input.bytes, parentFolderId: destination.folderId, ...(checksum && { appProperties: { orbitSha256: checksum } }) });
   return { ...file, folderId: destination.folderId, folderPath: destination.folderPath };
 }
 
