@@ -39,6 +39,8 @@ BEGIN
   VALUES(customer_id,'PR239 synthetic customer','pr239-customer@example.invalid',actor);
   INSERT INTO public.projects(id,customer_id,orbit_event_id,name,project_type,status,health,event_date,event_time,location,city,operations,created_by)
   VALUES(project_id,customer_id,'ORB-PR239-SYNTHETIC','PR239 combined transfer','EVENT','COMPLETED','GREEN','2026-11-10','09:00','Isolated QA','Santiago','{}',actor);
+  INSERT INTO public.project_services(project_id,service_code,duration_hours,extras)
+  VALUES(project_id,'PHOTOBOOTH',4,'{}');
   INSERT INTO public.staff(id,first_name,last_name,role,capabilities,status,portal_enabled,created_by)
   VALUES(staff_id,'PR239','Synthetic','OPERATOR',ARRAY['OPERATOR'],'ACTIVE',true,actor);
   INSERT INTO public.assignments(id,project_id,staff_id,assignment_type,status,reason,created_by,updated_by)
