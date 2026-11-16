@@ -1,0 +1,41 @@
+name: Staff combined transfer regression (isolated checks)
+
+on:
+  push:
+    branches:
+      - release/finance-staff-v217-20261115
+    paths:
+      - '.github/workflows/staff-transfer-regression.yml'
+      - 'tests/staff-period-combined-transfer.test.mts'
+      - 'supabase/migrations/20261116193000_staff_period_combined_transfer.sql'
+      - 'supabase/migrations/20261116203000_staff_period_transfer_after_close.sql'
+      - 'supabase/migrations/20261116210000_staff_payment_guard_allows_reconciliation_version.sql'
+      - 'features/staff-monthly-account/payment-periods.actions.ts'
+      - 'features/staff-monthly-account/payment-periods-panel.tsx'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  staff-transfer-static-regression:
+    name: Staff transfer source regression (not PostgreSQL transaction QA)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Confirm release branch and migration files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/release/finance-staff-v217-20261115"
+          test -f supabase/migrations/20261116210000_staff_payment_guard_allows_reconciliation_version.sql
+          test -f tests/staff-period-combined-transfer.test.mts
+      - name: Run focal source regression
+        run: node --test tests/staff-period-combined-transfer.test.mts
+      - name: Report coverage boundary
+        run: |
+          echo 'Source regression only. Does not prove transactional PostgreSQL rollback, authenticated RPC, or Production readiness.'
