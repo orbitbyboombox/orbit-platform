@@ -1,0 +1,28 @@
+name: SII Drive repair validation
+on:
+  pull_request:
+    branches: ['release/finance-staff-v217-20261115']
+    paths:
+      - 'features/external-tax-documents/actions.ts'
+      - 'features/connectors/google-drive/**'
+      - 'tests/sii-existing-drive-folder.test.mts'
+      - '.github/workflows/sii-drive-repair.yml'
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+      - run: npm ci --ignore-scripts
+      - run: node --experimental-strip-types --test tests/sii-existing-drive-folder.test.mts tests/external-sii-document-attachment.test.mts
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run build
