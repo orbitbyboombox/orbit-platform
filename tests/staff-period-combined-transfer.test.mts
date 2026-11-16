@@ -6,6 +6,10 @@ const migration = readFileSync(
   "supabase/migrations/20261116193000_staff_period_combined_transfer.sql",
   "utf8",
 );
+const postCloseMigration = readFileSync(
+  "supabase/migrations/20261116203000_staff_period_transfer_after_close.sql",
+  "utf8",
+);
 const action = readFileSync(
   "features/staff-monthly-account/payment-periods.actions.ts",
   "utf8",
@@ -45,4 +49,14 @@ test("payment receipt remains mandatory and the tax withholding is not editable"
   assert.match(action, /p_bucket: "orbit-documents"/);
   assert.match(panel, /name="file"/);
   assert.match(panel, /Se usará la validación tributaria documentada/);
+});
+
+test("post-close transfer re-enters the narrow payment guard for reimbursements", () => {
+  assert.match(postCloseMigration, /period\.status <> 'FINALIZED'/);
+  assert.match(postCloseMigration, /perform set_config\('orbit\.staff_period_payment', period\.id::text, true\)/);
+  assert.match(postCloseMigration, /perform set_config\('orbit\.staff_period_payment', '', true\)/);
+  assert.match(postCloseMigration, /exception when others then/);
+  assert.match(postCloseMigration, /La referencia bancaria ya fue registrada/);
+  assert.doesNotMatch(postCloseMigration, /update public\.staff_payment_periods/);
+  assert.doesNotMatch(postCloseMigration, /final_transfer_amount/);
 });
