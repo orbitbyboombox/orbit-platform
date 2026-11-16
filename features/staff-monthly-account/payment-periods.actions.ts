@@ -273,7 +273,7 @@ export async function registerStaffPeriodPaymentAction(form: FormData) {
     if (uploaded.error) throw uploaded.error;
     const result = await client.rpc("register_staff_period_transfer", {
       p_period_id: periodId,
-      p_amount: amount,
+      p_total_amount: amount,
       p_paid_on: String(form.get("paidOn")),
       p_method: String(form.get("method") ?? "").trim(),
       p_reference: String(form.get("reference") ?? ""),
@@ -300,6 +300,11 @@ export async function registerStaffPeriodPaymentAction(form: FormData) {
         "Transferencia registrada una sola vez: honorarios y reembolsos conciliados con el mismo comprobante.",
     };
   } catch (error) {
+    console.error("staff_period_transfer_failed", {
+      periodId: String(form.get("periodId") ?? ""),
+      reference: String(form.get("reference") ?? ""),
+      error: messageOf(error),
+    });
     return { ok: false, message: messageOf(error) };
   }
 }

@@ -33,6 +33,8 @@ test("combined transfer is atomic and refuses a reused bank reference", () => {
 
 test("payment action uses the combined transfer RPC and the UI shows the cash total", () => {
   assert.match(action, /register_staff_period_transfer/);
+  assert.match(action, /p_total_amount:\s*amount/);
+  assert.doesNotMatch(action, /p_amount:\s*amount/);
   assert.match(panel, /reimbursementsPendingTotal/);
   assert.match(panel, /transferTotal/);
   assert.match(panel, /Monto total de transferencia/);
