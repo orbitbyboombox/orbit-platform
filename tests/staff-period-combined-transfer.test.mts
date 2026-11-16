@@ -1,0 +1,46 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+
+const migration = readFileSync(
+  "supabase/migrations/20261116193000_staff_period_combined_transfer.sql",
+  "utf8",
+);
+const action = readFileSync(
+  "features/staff-monthly-account/payment-periods.actions.ts",
+  "utf8",
+);
+const panel = readFileSync(
+  "features/staff-monthly-account/payment-periods-panel.tsx",
+  "utf8",
+);
+
+test("combined staff transfer keeps honoraria tax ledger separate from reimbursements", () => {
+  assert.match(migration, /register_staff_period_transfer/);
+  assert.match(migration, /register_staff_period_payment/);
+  assert.match(migration, /staff_reimbursement_payments/);
+  assert.match(migration, /withholdingAmount/);
+  assert.match(migration, /p_total_amount - expected_reimbursements/);
+  assert.match(migration, /reimbursement_key := 'staff-period-transfer:'/);
+});
+
+test("combined transfer is atomic and refuses a reused bank reference", () => {
+  assert.match(migration, /for update of a/);
+  assert.match(migration, /for update of e, submission/);
+  assert.match(migration, /La referencia bancaria ya fue registrada/);
+  assert.match(migration, /on conflict\(correlation_id\) do nothing/);
+});
+
+test("payment action uses the combined transfer RPC and the UI shows the cash total", () => {
+  assert.match(action, /register_staff_period_transfer/);
+  assert.match(panel, /reimbursementsPendingTotal/);
+  assert.match(panel, /transferTotal/);
+  assert.match(panel, /Monto total de transferencia/);
+});
+
+test("payment receipt remains mandatory and the tax withholding is not editable", () => {
+  assert.match(action, /file\.arrayBuffer\(\)/);
+  assert.match(action, /p_bucket: "orbit-documents"/);
+  assert.match(panel, /name="file"/);
+  assert.match(panel, /Se usará la validación tributaria documentada/);
+});

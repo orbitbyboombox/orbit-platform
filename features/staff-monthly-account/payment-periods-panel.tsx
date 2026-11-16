@@ -754,10 +754,36 @@ export function StaffPaymentPeriodsPanel({
               })
             }
           >
-            <p>
-              Saldo del bloque {money(payment.preview.remaining)}. Puedes
-              registrar un pago parcial.
-            </p>
+            {(() => {
+              const honoraria = Number(payment.preview.remaining ?? 0);
+              const reimbursements = Number(
+                payment.preview.calculation.reimbursementsPendingTotal ?? 0,
+              );
+              const transferTotal = honoraria + reimbursements;
+              return (
+                <>
+                  <p>
+                    Honorarios pendientes {money(honoraria)}
+                    {reimbursements > 0
+                      ? ` · reembolsos aprobados pendientes ${money(reimbursements)}`
+                      : ""}
+                    {reimbursements > 0
+                      ? ` · transferencia total ${money(transferTotal)}`
+                      : ""}
+                  </p>
+                  <input
+                    name="amount"
+                    type="number"
+                    min="1"
+                    step="1"
+                    defaultValue={transferTotal}
+                    required
+                    className="mt-1 min-h-11 w-full rounded-xl border px-3"
+                    aria-label="Monto total de transferencia"
+                  />
+                </>
+              );
+            })()}
             {payment.preview.period_code === "Q1" ? (
               <p className="rounded-xl border border-amber-500/40 p-3 text-sm">
                 Se usará la validación tributaria documentada al aplicar la
@@ -769,19 +795,6 @@ export function StaffPaymentPeriodsPanel({
             )}
             <input type="hidden" name="periodId" value={payment.preview.id} />
             <input type="hidden" name="idempotencyKey" value={payment.key} />
-            <label className="block text-sm">
-              Monto de honorarios
-              <input
-                name="amount"
-                type="number"
-                min="1"
-                step="1"
-                max={payment.preview.remaining}
-                defaultValue={payment.preview.remaining}
-                required
-                className="mt-1 min-h-11 w-full rounded-xl border px-3"
-              />
-            </label>
             <label className="block text-sm">
               Fecha del pago
               <input

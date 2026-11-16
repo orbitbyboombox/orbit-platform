@@ -271,7 +271,7 @@ export async function registerStaffPeriodPaymentAction(form: FormData) {
       .from("orbit-documents")
       .upload(uploadPath, bytes, { contentType: file.type, upsert: false });
     if (uploaded.error) throw uploaded.error;
-    const result = await client.rpc("register_staff_period_payment", {
+    const result = await client.rpc("register_staff_period_transfer", {
       p_period_id: periodId,
       p_amount: amount,
       p_paid_on: String(form.get("paidOn")),
@@ -297,7 +297,7 @@ export async function registerStaffPeriodPaymentAction(form: FormData) {
     return {
       ok: true,
       message:
-        "Pago registrado con comprobante e historial. Honorarios separados de reembolsos.",
+        "Transferencia registrada una sola vez: honorarios y reembolsos conciliados con el mismo comprobante.",
     };
   } catch (error) {
     return { ok: false, message: messageOf(error) };
