@@ -12,6 +12,7 @@ on:
       - 'supabase/config.toml'
       - 'supabase/migrations/**'
       - 'tests/fixtures/pr183-*.sql'
+      - 'tests/fixtures/staff-period-combined-transfer.sql'
       - 'features/portal-authentication/staff-box-operations.actions.ts'
 
 concurrency:
@@ -215,6 +216,16 @@ jobs:
           }
           docker exec -i supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 < tests/fixtures/pr183-paper-block-e2e.sql
           echo 'Seven-box AM/PM, handoff, reload, authorization, idempotency and inventory fixture passed.'
+      - name: Execute isolated combined Staff transfer fixture with rollback
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f tests/fixtures/staff-period-combined-transfer.sql || {
+            echo '::error::Missing combined Staff transfer fixture.'
+            exit 1
+          }
+          docker exec -i supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 < tests/fixtures/staff-period-combined-transfer.sql
+          echo 'PASS: $400000 honoraria + $6000 + $10000 reimbursements, FINALIZED protection, idempotency and rollback.'
       - name: Execute isolated legacy CASE paper closeout fixture
         shell: bash
         run: |
