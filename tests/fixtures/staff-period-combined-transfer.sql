@@ -14,7 +14,7 @@ DECLARE
   settlement_id uuid := 'f2390000-0000-4000-8000-000000000006';
   account_id uuid := 'f2390000-0000-4000-8000-000000000007';
   schedule_id uuid := account_id;
-  period_id uuid := 'f2390000-0000-4000-8000-000000000008';
+  target_period_id uuid := 'f2390000-0000-4000-8000-000000000008';
   expense_food uuid := 'f2390000-0000-4000-8000-000000000009';
   expense_video uuid := 'f2390000-0000-4000-8000-00000000000a';
   submission_food uuid := 'f2390000-0000-4000-8000-00000000000b';
@@ -63,7 +63,7 @@ BEGIN
   INSERT INTO public.staff_payment_schedules(account_id,modality,monthly_boleta_validation,validated_by,validated_at,created_by)
   VALUES(schedule_id,'QUINCENAL','pr239-validacion',actor,now(),actor);
   INSERT INTO public.staff_payment_periods(id,account_id,period_code,starts_on,ends_on,status)
-  VALUES(period_id,account_id,'Q1','2026-11-01','2026-11-14','DRAFT');
+  VALUES(target_period_id,account_id,'Q1','2026-11-01','2026-11-14','DRAFT');
   INSERT INTO public.expenses(id,project_id,category,expense_scope,occurred_on,subtotal,vat,total,currency,receipt_path,status,responsible_staff_id,event_staff_settlement_id,idempotency_key,approval_reason,created_by,updated_by,approved_by,approved_at)
   VALUES(expense_food,project_id,'OTHER_OPERATIONAL','STAFF_REIMBURSEMENT','2026-11-10',6000,0,6000,'CLP','pr239/food.pdf','APPROVED',staff_id,settlement_id,'pr239-expense-food',jsonb_build_object('associationType','STAFF','associationId',staff_id::text)::text,actor,actor,actor,now()),
         (expense_video,project_id,'OTHER_OPERATIONAL','STAFF_REIMBURSEMENT','2026-11-10',10000,0,10000,'CLP','pr239/video.pdf','APPROVED',staff_id,settlement_id,'pr239-expense-video',jsonb_build_object('associationType','STAFF','associationId',staff_id::text)::text,actor,actor,actor,now());
@@ -71,7 +71,7 @@ BEGIN
   VALUES(submission_food,staff_id,project_id,'FOOD',6000,'2026-11-10','pr239/food.pdf','APPROVED',true,expense_food,'pr239-submission-food'),
         (submission_video,staff_id,project_id,'OTHER',10000,'2026-11-10','pr239/video.pdf','APPROVED',true,expense_video,'pr239-submission-video');
 
-  SELECT public.staff_payment_period_calculation(period_id) INTO first;
+  SELECT public.staff_payment_period_calculation(target_period_id) INTO first;
   RAISE NOTICE 'PR239 fixture pre-finalize payment=% total_internal=% operator=% override=% automatic=% status=% accounting=% calc=%',
     settlement_id,
     (SELECT total_internal_payment FROM public.event_staff_payments WHERE id=settlement_id),
@@ -82,31 +82,31 @@ BEGIN
     (SELECT accounting_month FROM public.event_staff_payments WHERE id=settlement_id),
     first;
   IF (first->>'workPending')::numeric <> 400000 THEN RAISE EXCEPTION 'Expected Q1 honoraria 400000, got %',first; END IF;
-  UPDATE public.staff_payment_periods SET status='FINALIZED',snapshot=first,closed_by=actor,closed_at=now() WHERE id=period_id;
-  SELECT snapshot INTO snapshot_before FROM public.staff_payment_periods WHERE id=period_id;
+  UPDATE public.staff_payment_periods SET status='FINALIZED',snapshot=first,closed_by=actor,closed_at=now() WHERE id=target_period_id;
+  SELECT snapshot INTO snapshot_before FROM public.staff_payment_periods WHERE id=target_period_id;
 
-  first := public.register_staff_period_transfer(period_id,416000,'2026-11-16','BCI','55611659','pr239-transfer-55611659','orbit-documents','staff/pr239/transfer.pdf','transfer.pdf','application/pdf');
+  first := public.register_staff_period_transfer(target_period_id,416000,'2026-11-16','BCI','55611659','pr239-transfer-55611659','orbit-documents','staff/pr239/transfer.pdf','transfer.pdf','application/pdf');
   IF (first->>'honoraria')::numeric <> 400000 OR (first->>'reimbursements')::numeric <> 16000 OR (first->>'total')::numeric <> 416000 THEN
     RAISE EXCEPTION 'Combined transfer distribution mismatch: %',first;
   END IF;
-  SELECT snapshot INTO snapshot_after FROM public.staff_payment_periods WHERE id=period_id;
+  SELECT snapshot INTO snapshot_after FROM public.staff_payment_periods WHERE id=target_period_id;
   IF snapshot_after IS DISTINCT FROM snapshot_before THEN RAISE EXCEPTION 'FINALIZED snapshot changed'; END IF;
   SELECT spp.withholding_amount INTO withholding
   FROM public.staff_period_payments AS spp
-  WHERE spp.period_id=period_id;
+  WHERE spp.period_id=target_period_id;
   IF withholding IS NULL OR withholding < 0 THEN RAISE EXCEPTION 'Period payment not persisted correctly'; END IF;
   SELECT count(*) INTO payment_count
   FROM public.staff_period_payments AS spp
-  WHERE spp.period_id=period_id;
+  WHERE spp.period_id=target_period_id;
   SELECT count(*) INTO reimbursement_count FROM public.staff_reimbursement_payments WHERE staff_id=staff_id AND notes='55611659';
   SELECT count(*) INTO movement_count
   FROM public.event_staff_settlement_movements AS esm
   WHERE esm.settlement_id=settlement_id AND esm.movement_type='PAYMENT';
   IF payment_count<>1 OR reimbursement_count<>2 OR movement_count<>1 THEN RAISE EXCEPTION 'Unexpected row counts: payment %, reimbursements %, movements %',payment_count,reimbursement_count,movement_count; END IF;
 
-  retry := public.register_staff_period_transfer(period_id,416000,'2026-11-16','BCI','55611659','pr239-transfer-55611659','orbit-documents','staff/pr239/transfer.pdf','transfer.pdf','application/pdf');
+  retry := public.register_staff_period_transfer(target_period_id,416000,'2026-11-16','BCI','55611659','pr239-transfer-55611659','orbit-documents','staff/pr239/transfer.pdf','transfer.pdf','application/pdf');
   IF coalesce((retry->>'idempotent')::boolean,false) IS DISTINCT FROM true THEN RAISE EXCEPTION 'Retry was not idempotent: %',retry; END IF;
-  IF (SELECT count(*) FROM public.staff_period_payments AS spp WHERE spp.period_id=period_id)<>1 OR (SELECT count(*) FROM public.staff_reimbursement_payments AS srp WHERE srp.staff_id=staff_id AND srp.notes='55611659')<>2 THEN
+  IF (SELECT count(*) FROM public.staff_period_payments AS spp WHERE spp.period_id=target_period_id)<>1 OR (SELECT count(*) FROM public.staff_reimbursement_payments AS srp WHERE srp.staff_id=staff_id AND srp.notes='55611659')<>2 THEN
     RAISE EXCEPTION 'Idempotent retry duplicated rows';
   END IF;
   RAISE NOTICE 'PASS: combined transfer 400000 honoraria + 6000 + 10000 reimbursements, FINALIZED snapshot protected, idempotent retry, transaction rollback';
