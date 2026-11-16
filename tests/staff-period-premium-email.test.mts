@@ -130,21 +130,34 @@ test("Q1 email does not request boleta; monthly email requests a single full bol
       periodWork: s.periodWork,
       monthlyWork: s.monthlyWork,
       monthlyGross: s.monthlyGross,
-      paid: s.paid,
-      remaining: s.remaining,
-      reimbursementsPending: s.reimbursementsPending,
+      monthlyRetention: s.monthlyRetention,
+      paid: i.firstQuincena ? 0 : s.paid,
+      remaining: i.firstQuincena ? 36000 : s.remaining,
+      reimbursementsPending: i.firstQuincena ? 5000 : s.reimbursementsPending,
       company: p.company,
     });
     assert.ok(email.htmlBody.includes("Persona &lt;QA&gt;"));
     assert.ok(!email.htmlBody.includes("Persona <QA>"));
+    assert.match(email.htmlBody, /boombox-email-transparent\.png/);
+    assert.match(email.htmlBody, /alt="BOOMBOX®" width="220" height="56"/);
+    assert.match(email.textBody, /\n\n/);
+    assert.doesNotMatch(email.textBody, /\\n\\n/);
     if (code === "Q1") {
-      assert.match(email.textBody, /no debes emitir ni subir boleta/);
+      assert.match(email.htmlBody, /NO DEBES EMITIR NI SUBIR BOLETA/);
+      assert.match(email.textBody, /no debes emitir ni subir boleta/i);
+      assert.match(email.textBody, /TOTAL PENDIENTE POR TRANSFERIR: \$41\.000/);
       assert.doesNotMatch(email.textBody, /Boleta mensual bruta a emitir/);
       assert.doesNotMatch(email.htmlBody, /Subir boleta mensual/);
     } else {
+      assert.match(email.htmlBody, /<h1[^>]*>SEGUNDA QUINCENA<\/h1>/);
+      assert.match(email.htmlBody, /AHORA SÍ DEBES EMITIR Y SUBIR UNA SOLA BOLETA MENSUAL A ORBIT/);
       assert.match(email.textBody, /64\.897/);
       assert.match(email.textBody, /19\.000/);
-      assert.match(email.textBody, /una sola boleta mensual/);
+      assert.match(email.textBody, /TOTAL PARA EMITIR BOLETA: \$64\.897/);
+      assert.match(email.textBody, /SALDO PENDIENTE DE PAGO: \$19\.000/);
+      assert.match(email.textBody, /Retención aplicada a honorarios: \$9\.897/);
+      assert.match(email.textBody, /Reembolsos pendientes \(no sujetos a boleta\): \$5\.000/);
+      assert.match(email.textBody, /una sola boleta mensual/i);
     }
   }
 });

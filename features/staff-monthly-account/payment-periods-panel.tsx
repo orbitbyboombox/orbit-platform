@@ -10,6 +10,7 @@ import { requestIndividualStaffBoletaAction } from "./actions";
 import {
   previewStaffPeriodCloseEmailAction,
   retryStaffPeriodCloseEmailAction,
+  sendStaffPeriodCloseEmailTestAction,
   closeStaffPaymentPeriodAction,
   closeStaffPaymentPeriodBatchAction,
   configureStaffPaymentPeriodsAction,
@@ -484,6 +485,21 @@ export function StaffPaymentPeriodsPanel({
                       >
                         PREVISUALIZAR CORREO
                       </Button>
+                      {period.status === "FINALIZED" &&
+                      (period.period_code === "Q1" ||
+                        period.period_code === "Q2") ? (
+                        <Button
+                          variant="outline"
+                          disabled={pending}
+                          onClick={() =>
+                            run(() =>
+                              sendStaffPeriodCloseEmailTestAction(period.id),
+                            )
+                          }
+                        >
+                          ENVIAR PRUEBA SOLO A MATÍAS
+                        </Button>
+                      ) : null}
                       {period.status === "DRAFT" ? (
                         <Button
                           disabled={pending}

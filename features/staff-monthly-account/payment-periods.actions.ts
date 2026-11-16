@@ -4,6 +4,7 @@ import {
   loadPeriodDocumentPayload,
   periodCloseEmailPreview,
   deliverStaffPeriodCloseEmail,
+  sendStaffPeriodCloseEmailTest,
 } from "./period-communication.service";
 import { createHash, randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
@@ -377,6 +378,19 @@ export async function previewStaffPeriodCloseEmailAction(periodId: string) {
     return {
       ok: true as const,
       email: periodCloseEmailPreview(await loadPeriodDocumentPayload(periodId)),
+    };
+  } catch (error) {
+    return { ok: false as const, message: messageOf(error) };
+  }
+}
+
+export async function sendStaffPeriodCloseEmailTestAction(periodId: string) {
+  try {
+    await adminContext();
+    const result = await sendStaffPeriodCloseEmailTest(periodId);
+    return {
+      ok: true as const,
+      message: `Prueba enviada únicamente a ${result.recipient}. Gmail ID: ${result.messageId}`,
     };
   } catch (error) {
     return { ok: false as const, message: messageOf(error) };

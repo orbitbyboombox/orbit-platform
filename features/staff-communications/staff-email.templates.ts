@@ -80,6 +80,9 @@ const money = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value);
 
+const STAFF_EMAIL_LOGO_URL =
+  "https://app.bbox.cl/branding/boombox-email-transparent.png";
+
 function premiumFrame(input: {
   appUrl: string;
   preheader: string;
@@ -88,9 +91,16 @@ function premiumFrame(input: {
   content: string;
   ctaLabel: string;
   ctaHref: string;
+  showOfficialWhiteLogo?: boolean;
 }) {
-  // Render the brand as HTML text: remote images can be blocked or broken in Gmail iOS.
-  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0;background:#efede8"><div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">${escapeHtml(input.preheader)}</div><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background:#efede8"><tr><td align="center" style="padding:24px 10px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:640px;background:#ffffff;border:1px solid #ded8ce;border-radius:18px;overflow:hidden"><tr><td style="height:5px;background:#f78900;font-size:0;line-height:0">&nbsp;</td></tr><tr><td style="padding:25px 28px;background:#101113;color:#ffffff"><div role="img" aria-label="BOOMBOX" style="font:900 29px/1 Arial,sans-serif;letter-spacing:-1px;color:#ffffff">BOOMBOX<span style="font-size:11px;vertical-align:top">&reg;</span></div><p style="margin:22px 0 0;font:700 11px Arial,sans-serif;letter-spacing:.18em;color:#f78900">${escapeHtml(input.eyebrow.toUpperCase())}</p><h1 style="margin:9px 0 0;font:700 27px/1.18 Arial,sans-serif;color:#ffffff">${escapeHtml(input.title)}</h1></td></tr><tr><td style="padding:30px 28px 32px;font:15px/1.65 Arial,sans-serif;color:#202124">${input.content}<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:25px"><tr><td style="border-radius:11px;background:#f78900"><a href="${escapeHtml(input.ctaHref)}" style="display:inline-block;padding:13px 19px;font:700 14px Arial,sans-serif;color:#111214;text-decoration:none">${escapeHtml(input.ctaLabel)}</a></td></tr></table><p style="margin:30px 0 0;padding-top:18px;border-top:1px solid #ece8e1;font:12px/1.6 Arial,sans-serif;color:#726e67">BOOMBOX · Comunicación emitida mediante ORBIT<br>PRODUCCIONES BOOMBOX COMPANY SPA</p></td></tr></table></td></tr></table></body></html>`;
+  // The finance notices use the official hosted white wordmark; other
+  // existing staff emails keep their established text logo.
+  const logo = input.showOfficialWhiteLogo
+    ? `<table role="presentation" align="center" width="220" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:220px;margin:0 auto"><tr><td align="center"><img src="${STAFF_EMAIL_LOGO_URL}" alt="BOOMBOX®" width="220" height="56" style="display:block;width:220px;max-width:100%;height:auto;border:0;margin:0 auto"></td></tr></table>`
+    : '<div role="img" aria-label="BOOMBOX" style="font:900 29px/1 Arial,sans-serif;letter-spacing:-1px;color:#ffffff">BOOMBOX<span style="font-size:11px;vertical-align:top">&reg;</span></div>';
+  const headerAlign = input.showOfficialWhiteLogo ? "center" : "left";
+  const headerTextAlign = input.showOfficialWhiteLogo ? "text-align:center;" : "";
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0;background:#efede8"><div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">${escapeHtml(input.preheader)}</div><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background:#efede8"><tr><td align="center" style="padding:24px 10px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:640px;background:#ffffff;border:1px solid #ded8ce;border-radius:18px;overflow:hidden"><tr><td style="height:5px;background:#f78900;font-size:0;line-height:0">&nbsp;</td></tr><tr><td align="${headerAlign}" bgcolor="#101113" style="padding:25px 28px;background:#101113;color:#ffffff"><div style="${headerTextAlign}">${logo}<p style="margin:22px 0 0;font:700 11px Arial,sans-serif;letter-spacing:.18em;color:#f78900">${escapeHtml(input.eyebrow.toUpperCase())}</p><h1 style="margin:9px 0 0;font:700 27px/1.18 Arial,sans-serif;color:#ffffff">${escapeHtml(input.title)}</h1></div></td></tr><tr><td style="padding:30px 28px 32px;font:15px/1.65 Arial,sans-serif;color:#202124">${input.content}<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:25px"><tr><td style="border-radius:11px;background:#f78900"><a href="${escapeHtml(input.ctaHref)}" style="display:inline-block;padding:13px 19px;font:700 14px Arial,sans-serif;color:#111214;text-decoration:none">${escapeHtml(input.ctaLabel)}</a></td></tr></table><p style="margin:30px 0 0;padding-top:18px;border-top:1px solid #ece8e1;font:12px/1.6 Arial,sans-serif;color:#726e67">BOOMBOX · Comunicación emitida mediante ORBIT<br>PRODUCCIONES BOOMBOX COMPANY SPA</p></td></tr></table></td></tr></table></body></html>`;
 }
 
 export function buildStaffD1ReminderEmail(input: {
@@ -293,6 +303,7 @@ export function buildStaffPeriodClosedEmail(input: {
   periodWork: number;
   monthlyWork: number;
   monthlyGross: number;
+  monthlyRetention?: number;
   paid: number;
   remaining: number;
   reimbursementsPending: number;
@@ -301,7 +312,7 @@ export function buildStaffPeriodClosedEmail(input: {
   const portal = `${input.appUrl.replace(/\/$/, "")}/staff-portal`;
   const first = input.firstQuincena;
   const label = first ? "PRIMERA QUINCENA" : "SEGUNDA QUINCENA";
-  const title = first ? "Liquidación de primera quincena" : "Cierre de segunda quincena";
+  const title = label;
   const details = first
     ? [
         ["Honorarios del período", money(input.periodWork)],
@@ -311,17 +322,18 @@ export function buildStaffPeriodClosedEmail(input: {
       ]
     : [
         ["Honorarios líquidos del mes", money(input.monthlyWork)],
+        ["Retención aplicada a honorarios", money(input.monthlyRetention ?? 0)],
         ["Honorarios ya pagados", money(input.paid)],
-        ["Saldo pendiente de honorarios", money(input.remaining)],
+        ["SALDO PENDIENTE DE PAGO", money(input.remaining)],
         ["Reembolsos pendientes (no sujetos a boleta)", money(input.reimbursementsPending)],
       ];
   const totalTransfer = input.remaining + input.reimbursementsPending;
   const boletaInstruction = first
-    ? "NO debes emitir ni subir boleta en esta primera quincena. Al cierre del mes recibirás la información para emitir una única boleta mensual."
-    : "Debes emitir y subir UNA SOLA boleta por el 100% de los honorarios brutos del mes, aunque hayas trabajado solamente en la primera quincena. Los pagos anteriores no disminuyen el monto de la boleta.";
+    ? "NO DEBES EMITIR NI SUBIR BOLETA A ORBIT durante esta primera quincena. Al cierre del mes recibirás el total de honorarios del mes para emitir una única boleta mensual."
+    : "AHORA SÍ DEBES EMITIR Y SUBIR UNA SOLA BOLETA MENSUAL A ORBIT por el 100% de los honorarios brutos del mes, aunque hayas trabajado solamente en la primera quincena. Los pagos anteriores se descuentan del saldo pendiente, no del monto de la boleta.";
   const paymentNotice = first
     ? "El pago se realizará dentro de los 3 primeros días hábiles posteriores al cierre, sujeto a las validaciones correspondientes. Este aviso no confirma una transferencia."
-    : "El saldo pendiente de pago es distinto del total bruto de la boleta. Los reembolsos se presentan por separado y no forman parte de ella.";
+    : "El saldo pendiente de pago refleja los pagos y anticipos registrados y las retenciones aplicables; es distinto del total bruto de la boleta. Los reembolsos se presentan por separado y no forman parte de ella.";
   const subject = `BOOMBOX® | ${label} — ${first ? "Liquidación disponible" : "Cierre mensual y boleta"}`;
   const textBody = [
     `Hola ${input.firstName},`,
@@ -330,7 +342,8 @@ export function buildStaffPeriodClosedEmail(input: {
     ...details.map(([name, value]) => `${name}: ${value}`),
     first
       ? `TOTAL PENDIENTE POR TRANSFERIR: ${money(totalTransfer)}`
-      : `TOTAL BRUTO PARA EMITIR BOLETA: ${money(input.monthlyGross)}`,
+      : `TOTAL PARA EMITIR BOLETA: ${money(input.monthlyGross)}`,
+    ...(!first ? [`SALDO PENDIENTE DE PAGO: ${money(input.remaining)}`] : []),
     boletaInstruction,
     paymentNotice,
     ...(first ? [] : [
@@ -340,7 +353,7 @@ export function buildStaffPeriodClosedEmail(input: {
       "Glosa: HONORARIOS SERVICIOS EVENTOS",
     ]),
     `Portal Staff: ${portal}`,
-  ].join("\\n\\n");
+  ].join("\n\n");
   const row = (name: string, value: string) =>
     `<tr><td style="padding:11px 12px;border-bottom:1px solid #ece8e1;font:13px/1.45 Arial,sans-serif;color:#56534f">${escapeHtml(name)}</td><td align="right" style="padding:11px 12px;border-bottom:1px solid #ece8e1;font:700 14px/1.45 Arial,sans-serif;color:#111214;white-space:nowrap">${escapeHtml(value)}</td></tr>`;
   const content = `
@@ -351,12 +364,11 @@ export function buildStaffPeriodClosedEmail(input: {
       ${details.map(([name, value]) => row(name, value)).join("")}
     </table>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:16px;background:#101113;border-left:5px solid #f78900;border-radius:8px"><tr><td style="padding:17px 16px">
-      <p style="margin:0 0 6px;font:700 11px Arial,sans-serif;letter-spacing:.08em;color:#f78900">${first ? "TOTAL PENDIENTE POR TRANSFERIR" : "TOTAL BRUTO PARA EMITIR BOLETA"}</p>
+      <p style="margin:0 0 6px;font:700 11px Arial,sans-serif;letter-spacing:.08em;color:#f78900">${first ? "TOTAL PENDIENTE POR TRANSFERIR" : "TOTAL PARA EMITIR BOLETA"}</p>
       <p style="margin:0;font:700 26px/1.25 Arial,sans-serif;color:#ffffff">${escapeHtml(money(first ? totalTransfer : input.monthlyGross))}</p>
       <p style="margin:7px 0 0;font:12px/1.5 Arial,sans-serif;color:#d6d3cf">${first ? "Incluye honorarios pendientes y reembolsos, mostrados por separado arriba." : "Corresponde al 100% de honorarios brutos mensuales; no incluye reembolsos ni se reduce por anticipos."}</p>
     </td></tr></table>
-    <p style="margin:23px 0 8px;font:700 13px Arial,sans-serif;color:#b35b00">INSTRUCCIONES DE BOLETA</p>
-    <p style="margin:0 0 14px;font:15px/1.6 Arial,sans-serif">${escapeHtml(boletaInstruction)}</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:23px;background:${first ? "#fff4e5" : "#f6f3ee"};border-left:5px solid #f78900;border-radius:8px"><tr><td style="padding:16px;font:700 14px/1.6 Arial,sans-serif;color:#202124"><p style="margin:0 0 7px;font:700 11px Arial,sans-serif;letter-spacing:.08em;color:#b35b00">${first ? "PRIMERA QUINCENA · SIN BOLETA" : "SEGUNDA QUINCENA · BOLETA MENSUAL"}</p>${escapeHtml(boletaInstruction)}</td></tr></table>
     <p style="margin:0 0 14px;font:13px/1.6 Arial,sans-serif;color:#56534f">${escapeHtml(paymentNotice)}</p>
     ${first ? "" : `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f6f3ee;border-radius:8px"><tr><td style="padding:16px;font:13px/1.7 Arial,sans-serif;color:#242424"><strong>DATOS PARA EMITIR</strong><p style="margin:8px 0 0">Razón social: ${escapeHtml(input.company.legalName)}<br>RUT: ${escapeHtml(input.company.taxId)}<br>Dirección: ${escapeHtml(input.company.address)} · ${escapeHtml(input.company.city)}<br>Glosa: HONORARIOS SERVICIOS EVENTOS</p></td></tr></table>`}
   `;
@@ -366,11 +378,12 @@ export function buildStaffPeriodClosedEmail(input: {
     htmlBody: premiumFrame({
       appUrl: input.appUrl,
       preheader: first ? "Tu liquidación de primera quincena está disponible." : "Cierre mensual: revisa tu liquidación y emite una sola boleta.",
-      eyebrow: "BOOMBOX® · Administración y Finanzas",
+      eyebrow: "FINANZAS · STAFF",
       title,
       content,
-      ctaLabel: first ? "Ver liquidación en ORBIT" : "Subir boleta mensual en ORBIT",
+      ctaLabel: first ? "VER MI LIQUIDACIÓN EN ORBIT" : "SUBIR BOLETA MENSUAL A ORBIT",
       ctaHref: portal,
+      showOfficialWhiteLogo: true,
     }),
   };
 }
