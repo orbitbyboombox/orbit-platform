@@ -10,6 +10,7 @@ import { requestIndividualStaffBoletaAction } from "./actions";
 import {
   previewStaffPeriodCloseEmailAction,
   retryStaffPeriodCloseEmailAction,
+  resendStaffPeriodCloseEmailAction,
   sendStaffPeriodCloseEmailTestAction,
   closeStaffPaymentPeriodAction,
   closeStaffPaymentPeriodBatchAction,
@@ -63,6 +64,7 @@ export function StaffPaymentPeriodsPanel({
     htmlBody: string;
   } | null>(null);
   const [closing, setClosing] = useState<StaffPaymentPeriod | null>(null);
+  const [resending, setResending] = useState<{ period: StaffPaymentPeriod; name: string; recipient: string } | null>(null);
   const router = useRouter();
   const load = useCallback(async () => {
     const result = await getStaffPaymentPeriodsAction(month);
@@ -462,6 +464,15 @@ export function StaffPaymentPeriodsPanel({
                       </div>
                     )}
                     <div className="flex flex-wrap gap-2">
+                      {period.status === "FINALIZED" && delivery?.status === "SENT" && delivery.recipient ? (
+                        <Button
+                          variant="outline"
+                          disabled={pending}
+                          onClick={() => setResending({ period, name: member?.name ?? "Trabajador", recipient: delivery.recipient! })}
+                        >
+                          REENVIAR EMAIL OPERADOR
+                        </Button>
+                      ) : null}
                       <Button
                         variant="outline"
                         disabled={pending}
@@ -698,6 +709,28 @@ export function StaffPaymentPeriodsPanel({
             }}
           >
             Confirmar cierre y enviar PDF
+          </Button>
+        </MobileDialog>
+      ) : null}
+      {resending ? (
+        <MobileDialog
+          title="Reenviar correo de liquidación"
+          description={`${resending.name} · ${periodLabel(resending.period.period_code)}`}
+          onClose={() => !pending && setResending(null)}
+        >
+          <p className="text-sm">
+            Se enviará nuevamente el correo premium y su PDF a {resending.recipient}, solo a este operador. El período seguirá cerrado y no se modificarán pagos ni reembolsos.
+          </p>
+          <Button
+            className="mt-4"
+            disabled={pending}
+            onClick={() => {
+              const id = resending.period.id;
+              setResending(null);
+              run(() => resendStaffPeriodCloseEmailAction(id));
+            }}
+          >
+            Confirmar reenvío al operador
           </Button>
         </MobileDialog>
       ) : null}

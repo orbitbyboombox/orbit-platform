@@ -4,6 +4,7 @@ import {
   loadPeriodDocumentPayload,
   periodCloseEmailPreview,
   deliverStaffPeriodCloseEmail,
+  resendStaffPeriodCloseEmail,
   sendStaffPeriodCloseEmailTest,
 } from "./period-communication.service";
 import { createHash, randomUUID } from "node:crypto";
@@ -367,6 +368,19 @@ export async function retryStaffPeriodCloseEmailAction(periodId: string) {
     const delivery = await deliverStaffPeriodCloseEmail(periodId);
     refreshPeriods();
     return { ok: true, message: delivery.message };
+  } catch (error) {
+    return { ok: false, message: messageOf(error) };
+  }
+}
+
+export async function resendStaffPeriodCloseEmailAction(periodId: string) {
+  try {
+    await adminContext();
+    const result = await resendStaffPeriodCloseEmail(periodId);
+    refreshPeriods();
+    return result.sent
+      ? { ok: true, message: result.message }
+      : { ok: false, message: result.message };
   } catch (error) {
     return { ok: false, message: messageOf(error) };
   }

@@ -1,6 +1,6 @@
 import "server-only";
 import { executePeriodDelivery } from "./period-delivery.protocol";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { GoogleGmailApiProvider } from "@/features/connectors/google-gmail/provider/google-gmail-live.provider";
 import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-workspace/application/google-workspace.repository";
@@ -378,3 +378,120 @@ export async function sendStaffPeriodCloseEmailTest(periodId: string) {
   });
   return { messageId: sent.messageId, recipient: "matias.maira.larrain@gmail.com" };
 }
+
+/** Explicit Founder resend for a finalized period; records audit metadata and never touches payment rows. */
+export async function resendStaffPeriodCloseEmail(periodId: string) {
+  const notice = await getPeriodCloseNotice(periodId);
+  if (!notice) throw new Error("No existe un correo de cierre registrado para este período.");
+  if (notice.metadata.email_status !== "SENT")
+    throw new Error("Solo se puede reenviar un correo que Gmail haya aceptado anteriormente.");
+  if (!notice.metadata.payload?.staff?.email)
+    throw new Error("El trabajador no tiene un correo registrado.");
+  if (["SENDING", "UNKNOWN"].includes(String(notice.metadata.resend_status ?? "")))
+    throw new Error("El reenvío anterior está en proceso o por conciliar. Revisa el historial antes de intentar otra vez.");
+
+  const admin = createAdminClient();
+  const attemptId = randomUUID();
+  const startedAt = new Date().toISOString();
+  const history = Array.isArray(notice.metadata.resend_history)
+    ? [...(notice.metadata.resend_history as Array<Record<string, unknown>>)]
+    : [];
+  const pendingMetadata = {
+    ...notice.metadata,
+    resend_status: "SENDING",
+    resend_attempt_id: attemptId,
+    resend_history: [...history, {
+      attempt_id: attemptId,
+      status: "SENDING",
+      recipient: notice.metadata.payload.staff.email,
+      at: startedAt,
+    }],
+  };
+  let claim = admin
+    .from("internal_notifications")
+    .update({ metadata: notificationState(pendingMetadata) })
+    .eq("id", notice.id)
+    .eq("metadata->>email_status", "SENT");
+  claim = notice.metadata.resend_status == null
+    ? claim.is("metadata->>resend_status", null)
+    : claim.eq("metadata->>resend_status", String(notice.metadata.resend_status));
+  const claimed = await claim.select("id");
+  if (claimed.error) throw claimed.error;
+  if (!claimed.data?.length)
+    throw new Error("Ya hay otro reenvío en curso. No se envió una copia duplicada.");
+
+  let transmitting = false;
+  try {
+    const payload = notice.metadata.payload;
+    const email = periodCloseEmailPreview(payload);
+    const pdf = await renderPeriodCloseDocument(notice.metadata);
+    const fileName = `Liquidacion-BOOMBOX-${String(payload.account.accounting_month).slice(0, 7)}-${payload.period.period_code}.pdf`;
+    const token = await loadGoogleWorkspaceAccessToken();
+    transmitting = true;
+    const sent = await new GoogleGmailApiProvider(token).send({
+      to: payload.staff.email,
+      subject: email.subject,
+      textBody: email.textBody,
+      htmlBody: email.htmlBody,
+      driveFileIds: [],
+      attachments: [{
+        filename: fileName,
+        mimeType: "application/pdf",
+        content: new Uint8Array(pdf),
+      }],
+      idempotencyKey: `staff-period-resend:${periodId}:${attemptId}`,
+      maxSendAttempts: 1,
+    });
+    const sentAt = new Date().toISOString();
+    const finalMetadata = {
+      ...pendingMetadata,
+      resend_status: "READY",
+      resend_history: [...(pendingMetadata.resend_history as Array<Record<string, unknown>>), {
+        attempt_id: attemptId,
+        status: "SENT",
+        message_id: sent.messageId,
+        thread_id: sent.threadId,
+        recipient: payload.staff.email,
+        at: sentAt,
+      }],
+    };
+    const saved = await admin
+      .from("internal_notifications")
+      .update({ metadata: notificationState(finalMetadata) })
+      .eq("id", notice.id)
+      .eq("metadata->>resend_attempt_id", attemptId)
+      .select("id");
+    if (saved.error) throw saved.error;
+    if (!saved.data?.length)
+      throw new Error("Gmail aceptó el correo, pero el historial quedó por conciliar. No reintentes.");
+    return {
+      sent: true,
+      message: `Correo y PDF reenviados a ${payload.staff.email}. El período y los pagos no se modificaron. Gmail ID: ${sent.messageId}`,
+    };
+  } catch (error) {
+    const finalStatus = transmitting ? "UNKNOWN" : "READY";
+    const finalMetadata = {
+      ...pendingMetadata,
+      resend_status: finalStatus,
+      last_resend_error: error instanceof Error ? error.message : "Error de reenvío",
+      resend_history: [...(pendingMetadata.resend_history as Array<Record<string, unknown>>), {
+        attempt_id: attemptId,
+        status: finalStatus,
+        error: error instanceof Error ? error.message : "Error de reenvío",
+        at: new Date().toISOString(),
+      }],
+    };
+    await admin
+      .from("internal_notifications")
+      .update({ metadata: notificationState(finalMetadata) })
+      .eq("id", notice.id)
+      .eq("metadata->>resend_attempt_id", attemptId);
+    return {
+      sent: false,
+      message: transmitting
+        ? "Resultado de Gmail por conciliar; no reintentes para evitar duplicados."
+        : "No se envió el correo. La preparación falló; puedes revisar y volver a intentar.",
+    };
+  }
+}
+
