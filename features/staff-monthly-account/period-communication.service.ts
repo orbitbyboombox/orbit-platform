@@ -344,16 +344,22 @@ export function periodCloseEmailPreview(payload: PeriodDocumentPayload) {
 /** Sends a visual QA copy to the account owner without changing payroll state. */
 export async function sendStaffPeriodCloseEmailTest(periodId: string) {
   const payload = await loadPeriodDocumentPayload(periodId);
-  if (payload.period.status !== "FINALIZED")
-    throw new Error("La prueba requiere una liquidación ya cerrada.");
   if (payload.period.period_code !== "Q1" && payload.period.period_code !== "Q2")
     throw new Error("La prueba está habilitada solo para ambas quincenas.");
+  const openSecondFortnightPreview =
+    payload.period.period_code === "Q2" && payload.period.status === "DRAFT";
+  if (payload.period.status !== "FINALIZED" && !openSecondFortnightPreview)
+    throw new Error(
+      "La prueba requiere una quincena cerrada o la vista previa abierta de la segunda quincena.",
+    );
 
   const email = periodCloseEmailPreview(payload);
   const input = periodDocumentInput(payload);
   const pdf = await createStaffMonthlySettlementPdf(input);
-  const qaNote = "PRUEBA VISUAL ORBIT — Este correo se envió solo a Matías; no registra ni modifica pagos.\n\n";
-  const htmlNote = `<p style="margin:0 0 18px;padding:12px 14px;border:1px solid #e7a23d;border-radius:8px;background:#fff7e8;color:#593600;font:700 12px/1.5 Arial,sans-serif">PRUEBA VISUAL ORBIT — Enviada solo a Matías. No registra ni modifica pagos.</p>`;
+  const qaNote = openSecondFortnightPreview
+    ? "PRUEBA VISUAL ORBIT — Enviada solo a Matías. Vista previa de la segunda quincena abierta; no confirma un cierre ni modifica pagos.\n\n"
+    : "PRUEBA VISUAL ORBIT — Este correo se envió solo a Matías; no registra ni modifica pagos.\n\n";
+  const htmlNote = `<p style="margin:0 0 18px;padding:12px 14px;border:1px solid #e7a23d;border-radius:8px;background:#fff7e8;color:#593600;font:700 12px/1.5 Arial,sans-serif">${openSecondFortnightPreview ? "PRUEBA VISUAL ORBIT — Enviada solo a Matías. Vista previa de la segunda quincena abierta; no confirma un cierre ni modifica pagos." : "PRUEBA VISUAL ORBIT — Enviada solo a Matías. No registra ni modifica pagos."}</p>`;
   const htmlBody = email.htmlBody.replace(
     '<td style="padding:30px 28px 32px;font:15px/1.65 Arial,sans-serif;color:#202124">',
     '<td style="padding:30px 28px 32px;font:15px/1.65 Arial,sans-serif;color:#202124">' + htmlNote,

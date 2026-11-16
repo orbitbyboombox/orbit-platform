@@ -485,8 +485,10 @@ export function StaffPaymentPeriodsPanel({
                       >
                         PREVISUALIZAR CORREO
                       </Button>
-                      {period.status === "FINALIZED" &&
-                      (period.period_code === "Q1" ||
+                      {(period.status === "FINALIZED" &&
+                        (period.period_code === "Q1" ||
+                          period.period_code === "Q2")) ||
+                      (period.status === "DRAFT" &&
                         period.period_code === "Q2") ? (
                         <Button
                           variant="outline"

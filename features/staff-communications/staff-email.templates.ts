@@ -81,7 +81,7 @@ const money = (value: number) =>
   }).format(value);
 
 const STAFF_EMAIL_LOGO_URL =
-  "https://app.bbox.cl/branding/boombox-email-white-wordmark-3x.png";
+  "https://app.bbox.cl/branding/boombox-logo-official-white-email.png";
 
 function premiumFrame(input: {
   appUrl: string;
@@ -93,10 +93,10 @@ function premiumFrame(input: {
   ctaHref: string;
   showOfficialWhiteLogo?: boolean;
 }) {
-  // The finance notices use the official hosted white wordmark; other
+  // The finance notices use the approved white BOOMBOX® master; other
   // existing staff emails keep their established text logo.
   const logo = input.showOfficialWhiteLogo
-    ? `<table role="presentation" align="center" width="220" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:220px;margin:0 auto"><tr><td align="center"><img src="${STAFF_EMAIL_LOGO_URL}" alt="BOOMBOX®" width="220" height="27" style="display:block;width:220px;max-width:100%;height:auto;border:0;margin:0 auto"></td></tr></table>`
+    ? `<table role="presentation" align="center" width="220" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:220px;margin:0 auto"><tr><td align="center"><img src="${STAFF_EMAIL_LOGO_URL}" alt="BOOMBOX®" width="220" height="50" style="display:block;width:220px;max-width:100%;height:auto;border:0;margin:0 auto"></td></tr></table>`
     : '<div role="img" aria-label="BOOMBOX" style="font:900 29px/1 Arial,sans-serif;letter-spacing:-1px;color:#ffffff">BOOMBOX<span style="font-size:11px;vertical-align:top">&reg;</span></div>';
   const headerAlign = input.showOfficialWhiteLogo ? "center" : "left";
   const headerTextAlign = input.showOfficialWhiteLogo ? "text-align:center;" : "";
