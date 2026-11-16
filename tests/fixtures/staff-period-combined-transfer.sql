@@ -54,7 +54,9 @@ BEGIN
   IF settlement_id IS NULL THEN RAISE EXCEPTION 'Assignment payment was not materialized'; END IF;
   UPDATE public.event_staff_payments
   SET contracted_hours=4, contracted_minutes=240, operator_payment=400000,
-      automatic_operator_payment=400000, status='CONFIRMED', updated_by=actor
+      automatic_operator_payment=24000, override_operator_payment=400000,
+      override_reason='PR239 synthetic agreed amount', override_by=actor,
+      override_at=now(), status='CONFIRMED', updated_by=actor
   WHERE id=settlement_id;
   INSERT INTO public.staff_monthly_accounts(id,staff_id,accounting_month,expected_amount,boleta_status,payment_status,work_net,boleta_net,withholding_rate,withholding_amount,final_transfer_amount,settlement_status)
   VALUES(account_id,staff_id,'2026-11-01',400000,'APPROVED','READY_TO_PAY',400000,400000,15.25,0,400000,'DRAFT');
