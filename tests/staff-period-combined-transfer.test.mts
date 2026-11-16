@@ -10,6 +10,10 @@ const postCloseMigration = readFileSync(
   "supabase/migrations/20261116203000_staff_period_transfer_after_close.sql",
   "utf8",
 );
+const guardMigration = readFileSync(
+  "supabase/migrations/20261116210000_staff_payment_guard_allows_reconciliation_version.sql",
+  "utf8",
+);
 const action = readFileSync(
   "features/staff-monthly-account/payment-periods.actions.ts",
   "utf8",
@@ -59,4 +63,13 @@ test("post-close transfer re-enters the narrow payment guard for reimbursements"
   assert.match(postCloseMigration, /La referencia bancaria ya fue registrada/);
   assert.doesNotMatch(postCloseMigration, /update public\.staff_payment_periods/);
   assert.doesNotMatch(postCloseMigration, /final_transfer_amount/);
+});
+
+test("post-close settlement sync allows only the realization fields and version", () => {
+  assert.match(guardMigration, /touch_versioned_row runs before this guard/);
+  assert.match(guardMigration, /'paid_amount','paid_at','settlement_status','updated_at','updated_by','version'/);
+  assert.match(guardMigration, /El bloque Staff está cerrado y sus conceptos o movimientos están protegidos/);
+  assert.doesNotMatch(guardMigration, /update public\.staff_payment_periods/);
+  assert.doesNotMatch(guardMigration, /final_transfer_amount/);
+  assert.doesNotMatch(guardMigration, /withholding_amount/);
 });
