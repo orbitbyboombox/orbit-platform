@@ -27,6 +27,7 @@ DECLARE
   reimbursement_count integer;
   movement_count integer;
   withholding numeric;
+  target_assignment_id uuid := assignment_id;
 BEGIN
   INSERT INTO auth.users(id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data)
   VALUES(actor,'authenticated','authenticated','pr239-admin@example.invalid',crypt('unused',gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}','{}')
@@ -47,7 +48,7 @@ BEGIN
   VALUES(assignment_id,project_id,staff_id,'OPERATOR','CONFIRMED','PR239 fixture',actor,actor);
   SELECT id INTO settlement_id
   FROM public.event_staff_payments AS ep
-  WHERE ep.assignment_id=assignment_id AND ep.deleted_at IS NULL
+  WHERE ep.assignment_id=target_assignment_id AND ep.deleted_at IS NULL
   ORDER BY ep.created_at DESC
   LIMIT 1;
   IF settlement_id IS NULL THEN RAISE EXCEPTION 'Assignment payment was not materialized'; END IF;
