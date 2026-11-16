@@ -63,8 +63,8 @@ BEGIN
   INSERT INTO public.staff_payment_periods(id,account_id,period_code,starts_on,ends_on,status)
   VALUES(period_id,account_id,'Q1','2026-11-01','2026-11-14','DRAFT');
   INSERT INTO public.expenses(id,project_id,category,occurred_on,subtotal,vat,total,currency,receipt_path,status,responsible_staff_id,event_staff_settlement_id,idempotency_key,approval_reason,created_by,updated_by,approved_by,approved_at)
-  VALUES(expense_food,project_id,'OTHER_OPERATIONAL','2026-11-10',6000,0,6000,'CLP','pr239/food.pdf','APPROVED',staff_id,settlement_id,'pr239-expense-food','fixture',actor,actor,actor,now()),
-        (expense_video,project_id,'OTHER_OPERATIONAL','2026-11-10',10000,0,10000,'CLP','pr239/video.pdf','APPROVED',staff_id,settlement_id,'pr239-expense-video','fixture',actor,actor,actor,now());
+  VALUES(expense_food,project_id,'OTHER_OPERATIONAL','2026-11-10',6000,0,6000,'CLP','pr239/food.pdf','APPROVED',staff_id,settlement_id,'pr239-expense-food',jsonb_build_object('associationType','EVENT','associationId',project_id::text)::text,actor,actor,actor,now()),
+        (expense_video,project_id,'OTHER_OPERATIONAL','2026-11-10',10000,0,10000,'CLP','pr239/video.pdf','APPROVED',staff_id,settlement_id,'pr239-expense-video',jsonb_build_object('associationType','EVENT','associationId',project_id::text)::text,actor,actor,actor,now());
   INSERT INTO public.staff_expense_submissions(id,staff_id,project_id,category,amount,occurred_on,receipt_path,status,reimbursement,materialized_expense_id,idempotency_key)
   VALUES(submission_food,staff_id,project_id,'FOOD',6000,'2026-11-10','pr239/food.pdf','APPROVED',true,expense_food,'pr239-submission-food'),
         (submission_video,staff_id,project_id,'OTHER',10000,'2026-11-10','pr239/video.pdf','APPROVED',true,expense_video,'pr239-submission-video');
