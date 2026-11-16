@@ -42,18 +42,25 @@ export async function attachExternalTaxDocumentAction(formData: FormData) {
     const documentId = crypto.randomUUID();
     const extension = file.name.split(".").pop()?.toLowerCase() || "bin";
     const storagePath = `${projectId}/tax-documents/${documentId}.${extension}`;
+    const relatedCustomer = Array.isArray(project.customers) ? project.customers[0] : project.customers;
+    const drive = await uploadReservationDocumentToDrive({ client: admin, projectId, customerName: relatedCustomer.full_name, eventDate: project.event_date, kind: "INVOICE", preserveExistingStructure: true, name: file.name, mimeType: file.type, bytes });
     const upload = await admin.storage.from("orbit-documents").upload(storagePath, bytes, { contentType: file.type, upsert: false });
     if (upload.error) throw upload.error;
-    const relatedCustomer = Array.isArray(project.customers) ? project.customers[0] : project.customers;
-    const drive = await uploadReservationDocumentToDrive({ client: admin, projectId, customerName: relatedCustomer.full_name, eventDate: project.event_date, kind: "INVOICE", name: file.name, mimeType: file.type, bytes });
     const { data: id, error } = await client.rpc("register_external_tax_document", { p_document_id: documentId, p_project_id: projectId, p_invoice_id: invoiceId, p_tax_type: taxType, p_folio: folio, p_issue_date: issueDate, p_customer_name: customerName, p_customer_tax_id: customerTaxId, p_net_amount: net, p_tax_amount: tax, p_total_amount: total, p_observation: observation, p_storage_path: storagePath, p_checksum: checksum, p_drive_file_id: drive.id, p_original_filename: file.name, p_mime_type: file.type, p_idempotency_key: idempotencyKey });
-    if (error) throw error;
+    if (error) {
+      await admin.storage.from("orbit-documents").remove([storagePath]);
+      throw error;
+    }
+    if (String(id) !== documentId) await admin.storage.from("orbit-documents").remove([storagePath]);
     revalidatePath(`/projects/${projectId}`);
     revalidatePath("/customers");
     revalidatePath("/events");
     revalidatePath("/finance/receivables");
     return { ok: true as const, id: String(id), duplicate: false };
   } catch (error) {
-    return { ok: false as const, error: error instanceof Error ? error.message : "No fue posible adjuntar el documento SII." };
+    const message = error instanceof Error ? error.message : "No fue posible adjuntar el documento SII.";
+    if (/Google Drive.*\\(404\\)/.test(message)) return { ok: false as const, error: "La carpeta Drive no está disponible o la conexión de ORBIT no tiene acceso. Revisa el vínculo y los permisos; no se creó otra carpeta." };
+    if (/Google Drive.*\\(403\\)/.test(message)) return { ok: false as const, error: "Google Drive rechazó el acceso. Revisa los permisos de la conexión Workspace de ORBIT." };
+    return { ok: false as const, error: message };
   }
 }
