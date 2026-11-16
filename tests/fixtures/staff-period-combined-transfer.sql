@@ -10,7 +10,7 @@ DECLARE
   customer_id uuid := 'f2390000-0000-4000-8000-000000000002';
   project_id uuid := 'f2390000-0000-4000-8000-000000000003';
   assignment_id uuid := 'f2390000-0000-4000-8000-000000000004';
-  staff_id uuid := 'f2390000-0000-4000-8000-000000000005';
+  target_staff_id uuid := 'f2390000-0000-4000-8000-000000000005';
   settlement_id uuid := 'f2390000-0000-4000-8000-000000000006';
   account_id uuid := 'f2390000-0000-4000-8000-000000000007';
   schedule_id uuid := account_id;
@@ -43,9 +43,9 @@ BEGIN
   INSERT INTO public.project_services(project_id,service_code,duration_hours,extras)
   VALUES(project_id,'PHOTOBOOTH',4,'{}');
   INSERT INTO public.staff(id,first_name,last_name,email,role,capabilities,status,portal_enabled,created_by)
-  VALUES(staff_id,'PR239','Synthetic','pr239-staff@example.invalid','OPERATOR',ARRAY['OPERATOR'],'ACTIVE',true,actor);
+  VALUES(target_staff_id,'PR239','Synthetic','pr239-staff@example.invalid','OPERATOR',ARRAY['OPERATOR'],'ACTIVE',true,actor);
   INSERT INTO public.assignments(id,project_id,staff_id,assignment_type,status,reason,created_by,updated_by)
-  VALUES(assignment_id,project_id,staff_id,'OPERATOR','COMPLETED','PR239 fixture',actor,actor);
+  VALUES(assignment_id,project_id,target_staff_id,'OPERATOR','COMPLETED','PR239 fixture',actor,actor);
   SELECT id INTO settlement_id
   FROM public.event_staff_payments AS ep
   WHERE ep.assignment_id=target_assignment_id AND ep.deleted_at IS NULL
@@ -59,17 +59,17 @@ BEGIN
       override_at=now(), status='CONFIRMED', updated_by=actor
   WHERE id=settlement_id;
   INSERT INTO public.staff_monthly_accounts(id,staff_id,accounting_month,expected_amount,boleta_status,payment_status,work_net,boleta_net,withholding_rate,withholding_amount,final_transfer_amount,settlement_status)
-  VALUES(account_id,staff_id,'2026-11-01',400000,'APPROVED','READY_TO_PAY',400000,400000,15.25,0,400000,'FINALIZED');
+  VALUES(account_id,target_staff_id,'2026-11-01',400000,'APPROVED','READY_TO_PAY',400000,400000,15.25,0,400000,'FINALIZED');
   INSERT INTO public.staff_payment_schedules(account_id,modality,monthly_boleta_validation,validated_by,validated_at,created_by)
   VALUES(schedule_id,'QUINCENAL','pr239-validacion',actor,now(),actor);
   INSERT INTO public.staff_payment_periods(id,account_id,period_code,starts_on,ends_on,status)
   VALUES(target_period_id,account_id,'Q1','2026-11-01','2026-11-14','DRAFT');
   INSERT INTO public.expenses(id,project_id,category,expense_scope,occurred_on,subtotal,vat,total,currency,receipt_path,status,responsible_staff_id,event_staff_settlement_id,idempotency_key,approval_reason,created_by,updated_by,approved_by,approved_at)
-  VALUES(expense_food,project_id,'OTHER_OPERATIONAL','STAFF_REIMBURSEMENT','2026-11-10',6000,0,6000,'CLP','pr239/food.pdf','APPROVED',staff_id,settlement_id,'pr239-expense-food',jsonb_build_object('associationType','STAFF','associationId',staff_id::text)::text,actor,actor,actor,now()),
-        (expense_video,project_id,'OTHER_OPERATIONAL','STAFF_REIMBURSEMENT','2026-11-10',10000,0,10000,'CLP','pr239/video.pdf','APPROVED',staff_id,settlement_id,'pr239-expense-video',jsonb_build_object('associationType','STAFF','associationId',staff_id::text)::text,actor,actor,actor,now());
+  VALUES(expense_food,project_id,'OTHER_OPERATIONAL','STAFF_REIMBURSEMENT','2026-11-10',6000,0,6000,'CLP','pr239/food.pdf','APPROVED',target_staff_id,settlement_id,'pr239-expense-food',jsonb_build_object('associationType','STAFF','associationId',target_staff_id::text)::text,actor,actor,actor,now()),
+        (expense_video,project_id,'OTHER_OPERATIONAL','STAFF_REIMBURSEMENT','2026-11-10',10000,0,10000,'CLP','pr239/video.pdf','APPROVED',target_staff_id,settlement_id,'pr239-expense-video',jsonb_build_object('associationType','STAFF','associationId',target_staff_id::text)::text,actor,actor,actor,now());
   INSERT INTO public.staff_expense_submissions(id,staff_id,project_id,category,amount,occurred_on,receipt_path,status,reimbursement,materialized_expense_id,idempotency_key)
-  VALUES(submission_food,staff_id,project_id,'FOOD',6000,'2026-11-10','pr239/food.pdf','APPROVED',true,expense_food,'pr239-submission-food'),
-        (submission_video,staff_id,project_id,'OTHER',10000,'2026-11-10','pr239/video.pdf','APPROVED',true,expense_video,'pr239-submission-video');
+  VALUES(submission_food,target_staff_id,project_id,'FOOD',6000,'2026-11-10','pr239/food.pdf','APPROVED',true,expense_food,'pr239-submission-food'),
+        (submission_video,target_staff_id,project_id,'OTHER',10000,'2026-11-10','pr239/video.pdf','APPROVED',true,expense_video,'pr239-submission-video');
 
   SELECT public.staff_payment_period_calculation(target_period_id) INTO first;
   RAISE NOTICE 'PR239 fixture pre-finalize payment=% total_internal=% operator=% override=% automatic=% status=% accounting=% calc=%',
@@ -98,7 +98,9 @@ BEGIN
   SELECT count(*) INTO payment_count
   FROM public.staff_period_payments AS spp
   WHERE spp.period_id=target_period_id;
-  SELECT count(*) INTO reimbursement_count FROM public.staff_reimbursement_payments WHERE staff_id=staff_id AND notes='55611659';
+  SELECT count(*) INTO reimbursement_count
+  FROM public.staff_reimbursement_payments AS srp
+  WHERE srp.staff_id=target_staff_id AND srp.notes='55611659';
   SELECT count(*) INTO movement_count
   FROM public.event_staff_settlement_movements AS esm
   WHERE esm.settlement_id=settlement_id AND esm.movement_type='PAYMENT';
@@ -106,7 +108,7 @@ BEGIN
 
   retry := public.register_staff_period_transfer(target_period_id,416000,'2026-11-16','BCI','55611659','pr239-transfer-55611659','orbit-documents','staff/pr239/transfer.pdf','transfer.pdf','application/pdf');
   IF coalesce((retry->>'idempotent')::boolean,false) IS DISTINCT FROM true THEN RAISE EXCEPTION 'Retry was not idempotent: %',retry; END IF;
-  IF (SELECT count(*) FROM public.staff_period_payments AS spp WHERE spp.period_id=target_period_id)<>1 OR (SELECT count(*) FROM public.staff_reimbursement_payments AS srp WHERE srp.staff_id=staff_id AND srp.notes='55611659')<>2 THEN
+  IF (SELECT count(*) FROM public.staff_period_payments AS spp WHERE spp.period_id=target_period_id)<>1 OR (SELECT count(*) FROM public.staff_reimbursement_payments AS srp WHERE srp.staff_id=target_staff_id AND srp.notes='55611659')<>2 THEN
     RAISE EXCEPTION 'Idempotent retry duplicated rows';
   END IF;
   RAISE NOTICE 'PASS: combined transfer 400000 honoraria + 6000 + 10000 reimbursements, FINALIZED snapshot protected, idempotent retry, transaction rollback';
