@@ -10,14 +10,16 @@ test("backup control is administrator-only and idempotent", async () => {
   assert.match(migration, /enable row level security/);
   assert.match(migration, /orbit_backup_runs_one_active/);
   assert.match(action, /CEO.*ADMINISTRATOR/);
-  assert.match(action, /BACKUP-ORBIT-2\.1/);
+  assert.match(action, /BACKUP-ORBIT-2\\.1/);
 });
 
-test("retention validates the newest folder before moving expired copies to trash", async () => {
+test("retention verifies the uploaded Drive folder and expires only copies older than 30 days", async () => {
   const script = await read("scripts/rotate-drive-backups.mjs");
-  assert.match(script, /newestFiles/);
+  assert.match(script, /result\\.uploaded\\.length !== 7/);
+  assert.match(script, /Current Drive backup failed post-upload inventory check/);
   assert.match(script, /trashed: true/);
-  assert.match(script, /30 \* 24 \* 60 \* 60 \* 1000/);
+  assert.match(script, /30 \\* 24 \\* 60 \\* 60 \\* 1000/);
+  assert.match(script, /folder\\.id === current\\.id/);
 });
 
 test("daily workflow is read-only, encrypted and records its run", async () => {
