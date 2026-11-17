@@ -200,11 +200,29 @@ export class GoogleCalendarLive {
         // Reconcile through the guarded update path rather than reporting a false PASS.
         if (existing.currentPayloadHash && existing.lastSyncedPayloadHash
           && existing.currentPayloadHash !== existing.lastSyncedPayloadHash) {
+          // The remote event is already read back and its operational times verified.
+          // Repair the local marker only when its full generated presentation matches,
+          // and Google supplies concurrency metadata. Never overwrite a manual edit.
+          if (remote.description === payload.description && remote.summary === payload.title
+            && remote.etag && remote.updated) {
+            const canonicalHash = fingerprint(input);
+            const record = await this.repository.save({
+              ...existing,
+              status: "SYNCHRONIZED",
+              sourceFingerprint: canonicalHash,
+              currentPayloadHash: canonicalHash,
+              lastSyncedPayloadHash: canonicalHash,
+              lastSynchronization: remote.updated,
+              errorCode: undefined,
+              errorMessage: undefined,
+            });
+            return { ok: true, record, operation: "UNCHANGED" };
+          }
           const record = await this.repository.save({
             ...existing,
             status: "UPDATE_REQUIRED",
             errorCode: "REMOTE_EVENT_CHANGED",
-            errorMessage: "ORBIT registra hashes de Calendar distintos; requiere reconciliación verificada.",
+            errorMessage: "Hashes distintos y Calendar no coincide exactamente con ORBIT; revisión requerida.",
           });
           return { ok: false, record, error: {
             code: "REMOTE_EVENT_CHANGED",
