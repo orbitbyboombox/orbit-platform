@@ -55,10 +55,10 @@ test("calendar description follows the approved order and omits disabled extras"
   const description = buildCalendarDescription(input, "ORB-2026-145073");
   const lines = description.split("\n");
   assert.equal(lines[0], "CITACIÓN OPERADORES BOOMBOX: viernes 20/11/2026 a las 23:00.");
-  assert.equal(lines[1], "SERVICIO CLIENTE: sábado 21/11/2026 de 00:00 a 03:00 (3 horas).");
-  assert.equal(lines[2], "Servicio: CLASSIC");
-  assert.equal(lines[3], "Duración contratada: 3 horas");
-  assert.equal(lines[4], "Extras incluidos: Imanes, Transporte");
+  assert.equal(lines[2], "SERVICIO CLIENTE: sábado 21/11/2026 de 00:00 a 03:00 (3 horas).");
+  assert.equal(lines[4], "Servicio: CLASSIC");
+  assert.equal(lines[6], "Duración contratada: 3 horas");
+  assert.equal(lines[8], "Extras incluidos: Imanes, Transporte");
   assert.equal(lines.at(-1), "ORBIT Event ID: ORB-2026-145073");
   assert.doesNotMatch(description, /NO QR|NO SCRAPBOOK|QR: NO|SCRAPBOOK: NO/);
 });
