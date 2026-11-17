@@ -96,7 +96,7 @@ jobs:
           if not user or password is None or not source.path:
               raise SystemExit("Supabase database URL format is invalid")
           auth = quote(user, safe="") + ".uiwlcmbrowtmqwhnsnxz:" + quote(password, safe="")
-          value = f"postgresql://{auth}@aws-0-us-west-2.pooler.supabase.com:5432{source.path}"
+          value = f"postgresql://{auth}@aws-1-us-west-2.pooler.supabase.com:5432{source.path}"
           if source.query:
               value += "?" + source.query
           with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as output:
