@@ -409,6 +409,19 @@ export function StaffPaymentPeriodsPanel({
                       {formatDisplayDate(period.ends_on)} ·{" "}
                       {period.status === "FINALIZED" ? "CERRADO" : "ABIERTO"}
                     </p>
+                    <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                      <p className="text-xs text-muted">Honorarios pagados</p>
+                      <p className="text-xl font-bold tabular-nums">{money(paid)}</p>
+                      <p className={remaining > 0 ? "text-sm font-semibold text-brand" : "text-sm font-semibold text-emerald-600"}>
+                        {remaining > 0 ? `Saldo de honorarios: ${money(remaining)}` : "Honorarios sin saldo pendiente"}
+                      </p>
+                      {calc ? <p className="mt-1 text-xs text-muted">Reembolsos del período: {money(Number(calc.reimbursementsTotal))} · Se gestionan por separado</p> : null}
+                    </div>
+                    {payments.some(row => !data.paymentConfirmations.some(item => item.payment_id === row.id)) ? (
+                      <div className="text-xs text-muted">Hay comprobantes pendientes de notificación. Abre Historial de pagos para enviarlos.</div>
+                    ) : null}
+                    <details className="rounded-lg border border-border/60 px-3 py-1">
+                      <summary className="min-h-11 cursor-pointer py-3 font-semibold">Más opciones · Liquidaciones y correos</summary>
                     {calc ? (
                       <p>
                         Honorarios {money(Number(calc.workNet))} · Adelantos{" "}
@@ -562,6 +575,7 @@ export function StaffPaymentPeriodsPanel({
                         </>
                       )}
                     </div>
+                    </details>
                     {payments.length ? (
                       <details>
                         <summary className="min-h-11 cursor-pointer py-3 font-semibold">
