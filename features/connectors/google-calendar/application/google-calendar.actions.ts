@@ -23,7 +23,10 @@ export async function acceptReviewedRemoteCalendarStateAction(projectId: string)
     const prepared = await prepareConfirmedReservationCalendar(client, projectId);
     const orbitEventId = prepared.project.orbit_event_id;
     if (!RECONCILABLE_ORBIT_EVENT_IDS.has(orbitEventId)) throw new Error("Este evento no está habilitado para la reconciliación solicitada.");
-    if (!prepared.eligible || !prepared.existing) throw new Error("El evento no tiene una reserva confirmada, elegibilidad operacional o vinculación Calendar existente.");
+    // This action only acknowledges an already-linked, explicitly approved remote event.
+    // It does not create or modify Calendar, so commercial reservation/contract eligibility
+    // must not block the narrowly allowlisted reconciliation.
+    if (!prepared.existing) throw new Error("No existe una vinculación Calendar activa para aceptar el estado remoto.");
     const connection = await loadGoogleWorkspaceConnection();
     if (connection.connectionStatus !== "CONNECTED" || connection.health !== "HEALTHY" || !connection.grantedServices.some(({ id, granted }) => id === "CALENDAR" && granted)) throw new Error("La conexión autenticada de Google Calendar no está disponible.");
     const calendarId = await loadGoogleWorkspaceCalendarId();

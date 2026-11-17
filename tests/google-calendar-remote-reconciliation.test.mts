@@ -49,6 +49,25 @@ test("reconciliation fails closed for stale/missing ETags, identity, time, descr
   ]) assert.throws(() => verifyApprovedRemoteEvent(input, expected, changed));
 });
 
+test("approved description comparison treats included-extra labels as their equivalent service extras", () => {
+  const productionInput: CalendarOperationalEventInput = {
+    ...input,
+    extras: ["Imanes · Beneficio BOOMBOX · Incluido $0", "QR", "Scrapbook", "Transporte"],
+  };
+  const productionExpected: GoogleCalendarEventPayload = {
+    ...expected,
+    description: buildCalendarDescription(productionInput, input.orbitEventId!),
+  };
+  const approvedRemote = {
+    ...remote,
+    description: productionExpected.description.replace(
+      /Extras incluidos:[^\n]*/,
+      "Extras incluidos: Imanes, QR, SCRAPBOOK, Transporte",
+    ),
+  };
+  assert.doesNotThrow(() => verifyApprovedRemoteEvent(productionInput, productionExpected, approvedRemote));
+});
+
 test("a changed remote payload produces a different official fingerprint", () => {
   assert.notEqual(fingerprintReviewedCalendarEvent(input, remote), fingerprintReviewedCalendarEvent(input, { ...remote, description: `${remote.description}\nnota` }));
 });
