@@ -1,5 +1,5 @@
 import type { GoogleWorkspaceConnection } from "@/features/connectors/google-workspace";
-import type { GoogleCalendarLiveProvider } from "../provider/google-calendar-live.provider";
+import { GoogleCalendarPreconditionFailed, type GoogleCalendarLiveProvider } from "../provider/google-calendar-live.provider";
 import type { GoogleCalendarSyncRepository } from "../repository/google-calendar-sync.repository";
 import type {
   CalendarOperationalEventInput,
@@ -56,7 +56,8 @@ function fingerprint(input: CalendarOperationalEventInput): string {
   const start = `${input.serviceStartDate}T${input.serviceStart}`;
   const end = `${input.serviceEndDate ?? input.eventDate}T${input.serviceEnd}`;
   const staffCall = input.operatorCallTime.includes("·") ? `${input.operatorCallTime.split("·")[0].trim()}T${input.operatorCallTime.split("·")[1].trim()}` : null;
-  return hashCanonicalCalendarFingerprint({ orbitEventId: input.orbitEventId, serviceStartAt: start, serviceEndAt: end, staffCallAt: staffCall, staffCallSource: input.operatorCallTime ? "CANONICAL" : null, location: input.customerAddress });
+  const payload = mapOperationalEventToCalendar(input);
+  return hashCanonicalCalendarFingerprint({ orbitEventId: input.orbitEventId, serviceStartAt: start, serviceEndAt: end, staffCallAt: staffCall, staffCallSource: input.operatorCallTime ? "CANONICAL" : null, location: input.customerAddress, title: payload.title, description: payload.description });
 }
 
 function pendingRecord(input: CalendarOperationalEventInput): GoogleCalendarSyncRecord {
@@ -107,24 +108,33 @@ export class GoogleCalendarLive {
     private readonly repository: GoogleCalendarSyncRepository,
   ) {}
 
-  private async preserveNewerRemoteEdit(existing: GoogleCalendarSyncRecord) {
-    if (!existing.googleEventId) return null;
+  private async prepareConditionalUpdate(existing: GoogleCalendarSyncRecord) {
+    if (!existing.googleEventId) {
+      return { ok: false as const, record: existing, error: { code: "EVENT_NOT_FOUND" as const, message: "El evento sincronizado no existe.", retryable: false } };
+    }
+    // This single read supplies the ETag for the atomic write. If the event changes
+    // after this read, Google rejects PATCH with 412 and the write is not applied.
     const remote = await this.provider.getEvent(existing.googleEventId);
-    if (!hasRemoteCalendarConflict(existing.lastSynchronization, remote.updated)) return null;
-    const record = await this.repository.save({
-      ...existing,
-      status: "UPDATE_REQUIRED",
-      errorMessage: "Google Calendar changed after the last ORBIT synchronization.",
-    });
-    return {
-      ok: false as const,
-      record,
-      error: {
-        code: "REMOTE_EVENT_CHANGED" as const,
-        message: "El evento de Google Calendar tiene una edición más reciente; requiere revisión antes de sincronizar.",
-        retryable: false,
-      },
-    };
+    if (!remote.etag || hasRemoteCalendarConflict(existing.lastSynchronization, remote.updated)) {
+      const record = await this.repository.save({
+        ...existing,
+        status: "UPDATE_REQUIRED",
+        errorCode: "REMOTE_EVENT_CHANGED",
+        errorMessage: !remote.etag
+          ? "Google Calendar no devolvió ETag; actualización detenida por seguridad."
+          : "Google Calendar cambió después de la última sincronización ORBIT.",
+      });
+      return {
+        ok: false as const,
+        record,
+        error: {
+          code: "REMOTE_EVENT_CHANGED" as const,
+          message: record.errorMessage ?? "El evento de Google Calendar requiere revisión antes de sincronizar.",
+          retryable: false,
+        },
+      };
+    }
+    return { ok: true as const, remote };
   }
 
   async synchronize(
@@ -146,15 +156,20 @@ export class GoogleCalendarLive {
     const existing = await this.repository.findByOrbitEventId(baseRecord.orbitEventId);
     console.info("[calendar-time-sync]", { stage: "CALENDAR_TIME_SYNC_EXISTING_EVENT", project_id: input.planId, external_event_id: existing?.googleEventId ?? null });
     const payload = mapOperationalEventToCalendar(input);
+    if (existing?.googleEventId && (!existing.calendarId || (this.provider.calendarId && existing.calendarId !== this.provider.calendarId))) {
+      const record = await this.repository.save({ ...existing, status: "UPDATE_REQUIRED", errorCode: "CALENDAR_DESTINATION_UNVERIFIED", errorMessage: "Destino de Google Calendar ausente o distinto; sincronización detenida para evitar mover o duplicar eventos." });
+      return { ok: false, record, error: { code: "CALENDAR_DESTINATION_UNVERIFIED", message: record.errorMessage ?? "Destino de Calendar requiere validación.", retryable: false } };
+    }
     try {
       if (operation === "CANCEL" || operation === "RESTORE") {
         if (!existing?.googleEventId) return { ok: false, record: baseRecord, error: { code: "EVENT_NOT_FOUND", message: "El evento sincronizado no existe.", retryable: false } };
-        if (operation === "RESTORE") { const conflict = await this.preserveNewerRemoteEdit(existing); if (conflict) return conflict; }
+        const guard = await this.prepareConditionalUpdate(existing);
+        if (!guard.ok) return guard;
         const reference = operation === "CANCEL"
-          ? await this.provider.cancelEvent(existing.googleEventId)
-          : await this.provider.restoreEvent(existing.googleEventId, payload);
+          ? await this.provider.cancelEvent(existing.googleEventId, guard.remote.etag!)
+          : await this.provider.restoreEvent(existing.googleEventId, payload, guard.remote.etag!);
         if (operation === "RESTORE") await verifyRemoteStart(this.provider, reference.googleEventId, input);
-        const record = await this.repository.save({ ...existing, status: operation === "CANCEL" ? "CANCELLED" : "SYNCHRONIZED", googleEventUrl: reference.googleEventUrl, sourceFingerprint: fingerprint(input), lastSynchronization: reference.updatedAt ?? new Date().toISOString(), errorMessage: undefined });
+        const record = await this.repository.save({ ...existing, status: operation === "CANCEL" ? "CANCELLED" : "SYNCHRONIZED", googleEventUrl: reference.googleEventUrl, calendarId: this.provider.calendarId, sourceFingerprint: fingerprint(input), currentPayloadHash: fingerprint(input), lastSyncedPayloadHash: fingerprint(input), lastSynchronization: reference.updatedAt ?? new Date().toISOString(), errorMessage: undefined });
         return { ok: true, record, operation: operation === "CANCEL" ? "CANCELLED" : "RESTORED" };
       }
 
@@ -164,22 +179,26 @@ export class GoogleCalendarLive {
         console.info("[calendar-time-sync]", { stage: "CALENDAR_TIME_SYNC_VERIFY", project_id: input.planId, external_event_id: reference.googleEventId });
         await verifyRemoteStart(this.provider, reference.googleEventId, input);
         console.info("[calendar-time-sync]", { stage: "CALENDAR_TIME_SYNC_PERSIST", project_id: input.planId, external_event_id: reference.googleEventId, status: "SYNCHRONIZED" });
-        const record = await this.repository.save({ ...baseRecord, status: "SYNCHRONIZED", googleEventId: reference.googleEventId, googleEventUrl: reference.googleEventUrl, lastSynchronization: reference.updatedAt ?? new Date().toISOString() });
+        const record = await this.repository.save({ ...baseRecord, status: "SYNCHRONIZED", googleEventId: reference.googleEventId, googleEventUrl: reference.googleEventUrl, calendarId: this.provider.calendarId, lastSynchronization: reference.updatedAt ?? new Date().toISOString(), currentPayloadHash: fingerprint(input), lastSyncedPayloadHash: fingerprint(input) });
         return { ok: true, record, operation: "CREATED" };
       }
       if (existing.sourceFingerprint === fingerprint(input) && existing.status === "SYNCHRONIZED") {
         return { ok: true, record: existing, operation: "UNCHANGED" };
       }
-      const conflict = await this.preserveNewerRemoteEdit(existing);
-      if (conflict) return conflict;
-      console.info("[calendar-time-sync]", { stage: "CALENDAR_TIME_SYNC_UPDATE", project_id: input.planId, external_event_id: existing.googleEventId, requested_event_time: input.calendarStartTime });
-      const reference = await this.provider.updateEvent(existing.googleEventId, payload);
+      const guard = await this.prepareConditionalUpdate(existing);
+      if (!guard.ok) return guard;
+      console.info("[calendar-time-sync]", { stage: "CALENDAR_TIME_SYNC_UPDATE", project_id: input.planId, external_event_id: existing.googleEventId, requested_event_time: input.calendarStartTime, etag_guarded: true });
+      const reference = await this.provider.updateEvent(existing.googleEventId, payload, guard.remote.etag!);
       console.info("[calendar-time-sync]", { stage: "CALENDAR_TIME_SYNC_VERIFY", project_id: input.planId, external_event_id: reference.googleEventId });
       await verifyRemoteStart(this.provider, reference.googleEventId, input);
       console.info("[calendar-time-sync]", { stage: "CALENDAR_TIME_SYNC_PERSIST", project_id: input.planId, external_event_id: reference.googleEventId, status: "SYNCHRONIZED" });
-      const record = await this.repository.save({ ...existing, status: "SYNCHRONIZED", googleEventUrl: reference.googleEventUrl, sourceFingerprint: fingerprint(input), lastSynchronization: reference.updatedAt ?? new Date().toISOString(), errorMessage: undefined });
+      const record = await this.repository.save({ ...existing, status: "SYNCHRONIZED", googleEventUrl: reference.googleEventUrl, sourceFingerprint: fingerprint(input), currentPayloadHash: fingerprint(input), lastSyncedPayloadHash: fingerprint(input), lastSynchronization: reference.updatedAt ?? new Date().toISOString(), errorMessage: undefined });
       return { ok: true, record, operation: "UPDATED" };
     } catch (error) {
+      if (error instanceof GoogleCalendarPreconditionFailed) {
+        const record = await this.repository.save({ ...(existing ?? baseRecord), status: "UPDATE_REQUIRED", errorCode: "REMOTE_EVENT_CHANGED", errorMessage: "Google Calendar rechazó el If-Match (HTTP 412); se conservó la edición remota y ORBIT requiere revisión." });
+        return { ok: false, record, error: { code: "REMOTE_EVENT_CHANGED", message: record.errorMessage ?? "Conflicto ETag en Google Calendar.", retryable: false } };
+      }
       console.error("[calendar-time-sync]", { stage: "CALENDAR_TIME_SYNC_VERIFY", project_id: input.planId, external_event_id: existing?.googleEventId ?? null, requested_event_time: input.calendarStartTime, resolved_start_at: `${input.calendarStartDate}T${input.calendarStartTime}`, timezone: "America/Santiago", code: error instanceof Error && error.message.startsWith("CALENDAR_REMOTE_VERIFY_FAILED") ? "CALENDAR_REMOTE_VERIFY_FAILED" : "PROVIDER_ERROR", message: error instanceof Error ? error.message : String(error) });
       const record = await this.repository.save({ ...(existing ?? baseRecord), status: "ERROR", errorMessage: "Google Calendar no pudo completar la operación." });
       return { ok: false, record, error: { code: "PROVIDER_ERROR", message: record.errorMessage ?? "Error de proveedor.", retryable: true } };
