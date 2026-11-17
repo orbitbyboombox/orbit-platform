@@ -195,6 +195,11 @@ export class GoogleCalendarLive {
         // A local fingerprint match does not prove the remote operational block is correct.
         // Verify Google Calendar before declaring this event unchanged.
         await verifyRemoteStart(this.provider, existing.googleEventId, input);
+        const remote = await this.provider.getEvent(existing.googleEventId);
+        if (remote.description !== payload.description || remote.summary !== payload.title) {
+          const record = await this.repository.save({ ...existing, status: "UPDATE_REQUIRED", errorCode: "REMOTE_EVENT_CHANGED", errorMessage: "El título o formato de Google Calendar difiere del formato canónico ORBIT; revisar antes de actualizar." });
+          return { ok: false, record, error: { code: "REMOTE_EVENT_CHANGED", message: record.errorMessage ?? "Formato de Calendar pendiente de reconciliar.", retryable: false } };
+        }
         return { ok: true, record: existing, operation: "UNCHANGED" };
       }
       const guard = await this.prepareConditionalUpdate(existing);
