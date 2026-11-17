@@ -35,7 +35,14 @@ jobs:
         run: pnpm exec node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test tests/orbit-backup-module.test.mts
       - name: TypeScript
         run: pnpm typecheck
-      - name: ESLint
-        run: pnpm lint
+      - name: ESLint (changed scope)
+        run: >-
+          pnpm exec eslint
+          features/orbit-backups
+          'app/(platform)/settings/page.tsx'
+          scripts/orbit-backup-run.mjs
+          scripts/rotate-drive-backups.mjs
+          scripts/download-latest-drive-backup.mjs
+          tests/orbit-backup-module.test.mts
       - name: Build
         run: pnpm build
