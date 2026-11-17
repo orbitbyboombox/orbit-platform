@@ -196,6 +196,22 @@ export class GoogleCalendarLive {
         // Verify Google Calendar before declaring this event unchanged.
         await verifyRemoteStart(this.provider, existing.googleEventId, input);
         const remote = await this.provider.getEvent(existing.googleEventId);
+        // A matching in-memory fingerprint must not conceal a persisted divergence.
+        // Reconcile through the guarded update path rather than reporting a false PASS.
+        if (existing.currentPayloadHash && existing.lastSyncedPayloadHash
+          && existing.currentPayloadHash !== existing.lastSyncedPayloadHash) {
+          const record = await this.repository.save({
+            ...existing,
+            status: "UPDATE_REQUIRED",
+            errorCode: "REMOTE_EVENT_CHANGED",
+            errorMessage: "ORBIT registra hashes de Calendar distintos; requiere reconciliación verificada.",
+          });
+          return { ok: false, record, error: {
+            code: "REMOTE_EVENT_CHANGED",
+            message: record.errorMessage ?? "Hashes de Calendar no reconciliados.",
+            retryable: false,
+          } };
+        }
         if (remote.description !== payload.description || remote.summary !== payload.title) {
           // Only repair stale presentation when the remote event has not been edited
           // since ORBIT last synchronized it. Never overwrite a newer manual edit.
@@ -216,22 +232,6 @@ export class GoogleCalendarLive {
             errorMessage: undefined,
           });
           return { ok: true, record, operation: "UPDATED" };
-        }
-        // A matching in-memory fingerprint must not conceal a persisted divergence.
-        // Reconcile through the guarded update path rather than reporting a false PASS.
-        if (existing.currentPayloadHash && existing.lastSyncedPayloadHash
-          && existing.currentPayloadHash !== existing.lastSyncedPayloadHash) {
-          const record = await this.repository.save({
-            ...existing,
-            status: "UPDATE_REQUIRED",
-            errorCode: "REMOTE_EVENT_CHANGED",
-            errorMessage: "ORBIT registra hashes de Calendar distintos; requiere reconciliación verificada.",
-          });
-          return { ok: false, record, error: {
-            code: "REMOTE_EVENT_CHANGED",
-            message: record.errorMessage ?? "Hashes de Calendar no reconciliados.",
-            retryable: false,
-          } };
         }
         return { ok: true, record: existing, operation: "UNCHANGED" };
       }
