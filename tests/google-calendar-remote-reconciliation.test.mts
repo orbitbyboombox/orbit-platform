@@ -26,7 +26,7 @@ const expected: GoogleCalendarEventPayload = {
 };
 const remote: GoogleCalendarRemoteEvent = {
   id: "calendar-event", htmlLink: "https://calendar.google.com/event", summary: expected.title,
-  description: expected.description.replace("22:30.", "22:30 (1 hora antes del servicio)."), location: expected.location,
+  description: expected.description.replace("22:30.", "22:30 (1 hora antes del\nservicio)."), location: expected.location,
   status: "confirmed", etag: '"etag-1"', updated: "2026-11-16T14:00:00.000Z",
   start: { dateTime: "2027-01-16T01:30:00Z", timeZone: "America/Santiago" },
   end: { dateTime: "2027-01-16T05:30:00Z", timeZone: "America/Santiago" },
@@ -44,7 +44,7 @@ test("reconciliation fails closed for stale/missing ETags, identity, time, descr
     { ...remote, etag: undefined },
     { ...remote, summary: "Another client | CLASSIC | Matrimonio" },
     { ...remote, end: { dateTime: "2027-01-16T06:30:00Z", timeZone: "America/Santiago" } },
-    { ...remote, description: `${remote.description}\nA newer unreviewed note` },
+    { ...remote, description: remote.description!.replace("Ruta 5 Norte Km 30", "Otra dirección") },
     { ...remote, status: "cancelled" },
   ]) assert.throws(() => verifyApprovedRemoteEvent(input, expected, changed));
 });
