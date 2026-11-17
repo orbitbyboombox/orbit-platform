@@ -57,8 +57,8 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install PostgreSQL client
-        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Prepare PostgreSQL 17 client
+        run: docker pull postgres:17
 
       - name: Install application dependencies
         run: corepack enable && pnpm install --frozen-lockfile --ignore-scripts
@@ -107,8 +107,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          pg_dump --dbname="$SUPABASE_DB_URL" --no-owner --no-acl --schema=public --schema=auth --schema=storage --format=plain --file="$RUNNER_TEMP/orbit-backup/database-schema.sql"
-          pg_dump --dbname="$SUPABASE_DB_URL" --no-owner --no-acl --data-only --schema=public --schema=auth --schema=storage --format=plain --file="$RUNNER_TEMP/orbit-backup/database-data.sql"
+          docker run --rm --network host -v "$RUNNER_TEMP/orbit-backup:/backup" -e SUPABASE_DB_URL postgres:17 sh -c 'pg_dump --dbname="$SUPABASE_DB_URL" --no-owner --no-acl --schema=public --schema=auth --schema=storage --format=plain --file=/backup/database-schema.sql'
+          docker run --rm --network host -v "$RUNNER_TEMP/orbit-backup:/backup" -e SUPABASE_DB_URL postgres:17 sh -c 'pg_dump --dbname="$SUPABASE_DB_URL" --no-owner --no-acl --data-only --schema=public --schema=auth --schema=storage --format=plain --file=/backup/database-data.sql'
           git archive --format=tar "$GITHUB_SHA" | gzip -9 > "$RUNNER_TEMP/orbit-backup/source-code.tar.gz"
 
       - name: Export Storage objects and checksums
