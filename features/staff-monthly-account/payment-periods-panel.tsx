@@ -18,6 +18,7 @@ import {
   getStaffPaymentPeriodsAction,
   previewStaffPaymentPeriodAction,
   registerStaffPeriodPaymentAction,
+  sendStaffPaymentConfirmationAction,
 } from "./payment-periods.actions";
 import {
   periodLabel,
@@ -580,6 +581,9 @@ export function StaffPaymentPeriodsPanel({
                               >
                                 Comprobante
                               </a>
+                              <Button disabled={pending} type="button" onClick={() => run(() => sendStaffPaymentConfirmationAction(row.id, true))}>
+                                ENVIAR PRUEBA DE CONFIRMACIÓN A MATÍAS
+                              </Button>
                             </li>
                           ))}
                         </ul>
