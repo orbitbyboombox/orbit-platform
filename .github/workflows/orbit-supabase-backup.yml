@@ -34,6 +34,19 @@ jobs:
     runs-on: ubuntu-24.04
     environment: orbit-backup-production
     timeout-minutes: 120
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: orbit-restore-only
+          POSTGRES_DB: orbit_restore
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d orbit_restore"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
     env:
       SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
       SUPABASE_URL: ${{ vars.SUPABASE_URL }}
@@ -153,7 +166,35 @@ jobs:
           ln -s "$RUNNER_TEMP/orbit-drive-deps/node_modules/googleapis" node_modules/googleapis
           node scripts/upload-drive-backup.mjs "$RUNNER_TEMP/orbit-backup" > "$RUNNER_TEMP/orbit-backup/drive-upload-result.json"
 
+      - name: Download uploaded backup from Drive for isolated recovery validation
+        run: node scripts/download-latest-drive-backup.mjs "$RUNNER_TEMP/orbit-restore"
+
+      - name: Verify Drive readback, hashes, source, and Storage contents
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/orbit-restore"
+          umask 077
+          for source in database-schema.sql database-data.sql storage.tar.gz storage-manifest.json source-code.tar.gz backup-manifest.json sha256sums.txt; do
+            printf '%s' "$BACKUP_ENCRYPTION_PASSPHRASE" | openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -pass stdin -in "$work/$source.enc" -out "$work/$source"
+          done
+          (cd "$work" && sha256sum -c sha256sums.txt)
+          tar -tzf "$work/source-code.tar.gz" >/dev/null
+          mkdir -p "$work/restored-storage"
+          tar -xzf "$work/storage.tar.gz" -C "$work/restored-storage"
+          node scripts/validate-storage-restore.mjs "$work/storage-manifest.json" "$work/restored-storage"
+
+      - name: Restore PostgreSQL and Auth into isolated PostgreSQL 17 service
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --network host -e PGPASSWORD=orbit-restore-only postgres:17 sh -c 'psql -h 127.0.0.1 -U postgres -d orbit_restore -v ON_ERROR_STOP=1 -c "DO $\u0024$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '''anon''') THEN CREATE ROLE anon NOLOGIN; END IF; IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '''authenticated''') THEN CREATE ROLE authenticated NOLOGIN; END IF; IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '''service_role''') THEN CREATE ROLE service_role NOLOGIN; END IF; IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '''supabase_auth_admin''') THEN CREATE ROLE supabase_auth_admin NOLOGIN; END IF; IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '''supabase_storage_admin''') THEN CREATE ROLE supabase_storage_admin NOLOGIN; END IF; IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '''authenticator''') THEN CREATE ROLE authenticator NOLOGIN; END IF; END $\u0024$;"'
+          docker run --rm --network host -v "$RUNNER_TEMP/orbit-restore:/restore:ro" -e PGPASSWORD=orbit-restore-only postgres:17 sh -c 'psql -h 127.0.0.1 -U postgres -d orbit_restore -v ON_ERROR_STOP=1 -f /restore/database-schema.sql && psql -h 127.0.0.1 -U postgres -d orbit_restore -v ON_ERROR_STOP=1 -f /restore/database-data.sql'
+          docker run --rm --network host -e PGPASSWORD=orbit-restore-only postgres:17 sh -c 'psql -h 127.0.0.1 -U postgres -d orbit_restore -v ON_ERROR_STOP=1 -c "SELECT count(*) AS auth_users_restored FROM auth.users;" -c "SELECT count(*) AS storage_objects_restored FROM storage.objects;" -c "SELECT count(*) AS staff_rows_restored FROM public.staff;"'
+
       - name: Rotate verified Drive backups older than 30 days
+        env:
+          BACKUP_RESULT_FILE: ${{ runner.temp }}/orbit-backup/drive-upload-result.json
         run: node scripts/rotate-drive-backups.mjs
 
       - name: Record backup success
