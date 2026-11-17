@@ -18,6 +18,7 @@ import {
   getStaffPaymentPeriodsAction,
   previewStaffPaymentPeriodAction,
   registerStaffPeriodPaymentAction,
+  sendStaffPaymentConfirmationAction,
 } from "./payment-periods.actions";
 import {
   periodLabel,
@@ -580,6 +581,19 @@ export function StaffPaymentPeriodsPanel({
                               >
                                 Comprobante
                               </a>
+                              {(() => {
+                                const confirmation = data.paymentConfirmations.find(item => item.payment_id === row.id);
+                                return confirmation ? (
+                                  <span className="ml-2 text-xs font-semibold" title={confirmation.gmail_message_id ?? confirmation.status}>
+                                    {confirmation.status === "SENT" ? "COMPROBANTE ENVIADO" : `ENVÍO ${confirmation.status} — REVISAR`}
+                                  </span>
+                                ) : (
+                                  <Button variant="outline" disabled={pending} className="ml-2" onClick={() => {
+                                    if (!window.confirm("¿Enviar ahora la confirmación premium y el comprobante bancario desde ORBIT BOOMBOX al correo del operador? Esta acción no modifica el pago.")) return;
+                                    run(() => sendStaffPaymentConfirmationAction(row.id, false));
+                                  }}>ENVIAR COMPROBANTE DE PAGO</Button>
+                                );
+                              })()}
                             </li>
                           ))}
                         </ul>

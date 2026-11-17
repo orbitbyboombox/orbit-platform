@@ -65,6 +65,7 @@ export async function getStaffPaymentPeriodsAction(month: string) {
     if (!ids.length)
       return {
         ok: true as const,
+        paymentConfirmations: [] as {payment_id:string;status:string;gmail_message_id:string|null}[],
         deliveries: [] as {
           periodId: string;
           status: string;
@@ -126,8 +127,11 @@ export async function getStaffPaymentPeriodsAction(month: string) {
         error: String(meta.last_error ?? ""),
       };
     });
+    const confirmationRows = await createAdminClient().from("staff_payment_confirmation_outbox").select("payment_id,status,gmail_message_id").in("payment_id", (payments.data ?? []).map(row => row.id).length ? (payments.data ?? []).map(row => row.id) : ["00000000-0000-0000-0000-000000000000"]);
+    if (confirmationRows.error) throw confirmationRows.error;
     return {
       ok: true as const,
+      paymentConfirmations: confirmationRows.data ?? [],
       deliveries,
       summary: (summary.data ?? []) as FirstFortnightSummary[],
       accounts: accounts.data ?? [],
@@ -508,9 +512,9 @@ export async function closeStaffPaymentPeriodBatchAction(month: string, code: "Q
 export async function sendStaffPaymentConfirmationAction(paymentId: string, testOnly: boolean = true) {
   try {
     await adminContext();
-    if (!testOnly) throw new Error("Envío real bloqueado hasta QA y aprobación explícita.");
-    const result = await sendStaffPaymentConfirmation(paymentId, true);
-    return {ok:true as const,message:`Prueba enviada únicamente a ${result.recipient}. Gmail ID: ${result.messageId}`};
+    const result = await sendStaffPaymentConfirmation(paymentId, testOnly);
+    if (!testOnly) refreshPeriods();
+    return {ok:true as const,message:`${testOnly ? "Prueba" : "Confirmación de pago"} enviada a ${result.recipient} desde ORBIT BOOMBOX. Gmail ID: ${result.messageId}`};
   } catch(error) {
     return {ok:false as const,message:messageOf(error)};
   }
