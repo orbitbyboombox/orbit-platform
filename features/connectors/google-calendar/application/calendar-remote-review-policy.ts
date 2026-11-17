@@ -17,8 +17,14 @@ function extrasLine(description: string) {
   return [...new Set(match.slice(match.indexOf(":") + 1).split(",").map(normalizeExtra).filter(Boolean))].sort();
 }
 
-function descriptionWithoutExtrasAndCitation(value: string) {
-  return value.split("\n").filter((line) => !/^\s*extras incluidos:/i.test(line.trim())).join("\n");
+function descriptionField(description: string, label: string) {
+  const lines = description.split("\n").map((line) => line.trim());
+  const lineIndex = lines.findIndex((line) => line.toLocaleLowerCase("es-CL").startsWith(`${label.toLocaleLowerCase("es-CL")}:`));
+  if (lineIndex < 0) return null;
+  const line = lines[lineIndex];
+  const value = line.slice(line.indexOf(":") + 1).trim();
+  if (label === "CITACIÓN OPERADORES BOOMBOX" && /antes del$/i.test(value) && lines[lineIndex + 1]) return `${value} ${lines[lineIndex + 1]}`;
+  return label === "Google Maps" && !value ? (lines[lineIndex + 1] ?? "").trim() : value;
 }
 
 function localParts(value: string, timeZone = "America/Santiago") {
@@ -60,7 +66,19 @@ export function verifyApprovedRemoteEvent(input: CalendarOperationalEventInput, 
   const expectedEnd = `${input.serviceEndDate ?? input.eventDate}T${input.serviceEnd}`;
   if (`${start.date}T${start.time}` !== expectedStart) throw new Error(`Citación remota ${start.date} ${start.time} no coincide con ORBIT ${expectedStart}.`);
   if (`${end.date}T${end.time}` !== expectedEnd) throw new Error(`Término remoto ${end.date} ${end.time} no coincide con ORBIT ${expectedEnd}.`);
-  if (withoutOptionalCitationNote(descriptionWithoutExtrasAndCitation(remote.description ?? "")) !== withoutOptionalCitationNote(descriptionWithoutExtrasAndCitation(expected.description))) throw new Error("La descripción remota contiene diferencias fuera de la citación y los extras equivalentes; requiere revisión manual.");
+  const remoteCitation = descriptionField(remote.description ?? "", "CITACIÓN OPERADORES BOOMBOX");
+  const expectedCitation = descriptionField(expected.description, "CITACIÓN OPERADORES BOOMBOX");
+  if (remoteCitation === null || expectedCitation === null || withoutOptionalCitationNote(remoteCitation) !== withoutOptionalCitationNote(expectedCitation)) throw new Error("La citación escrita en la descripción no coincide con el bloque horario validado.");
+  const remoteServiceWindow = descriptionField(remote.description ?? "", "SERVICIO CLIENTE");
+  const expectedServiceWindow = descriptionField(expected.description, "SERVICIO CLIENTE");
+  if (remoteServiceWindow === null || expectedServiceWindow === null || normalize(remoteServiceWindow) !== normalize(expectedServiceWindow)) throw new Error("El horario o duración del servicio en la descripción no coincide con ORBIT.");
+  for (const label of ["Servicio", "Duración contratada", "Cliente", "Dirección", "Teléfono cliente", "Contacto producción", "Google Maps", "ORBIT Event ID"]) {
+    const remoteValue = descriptionField(remote.description ?? "", label);
+    const expectedValue = descriptionField(expected.description, label);
+    const remoteNormalized = label === "Teléfono cliente" ? (remoteValue ?? "").replace(/\D/g, "") : normalize(remoteValue ?? "");
+    const expectedNormalized = label === "Teléfono cliente" ? (expectedValue ?? "").replace(/\D/g, "") : normalize(expectedValue ?? "");
+    if (remoteValue === null || expectedValue === null || remoteNormalized !== expectedNormalized) throw new Error(`El campo «${label}» de la descripción remota no coincide con ORBIT.`);
+  }
   if (JSON.stringify(extrasLine(remote.description ?? "")) !== JSON.stringify(extrasLine(expected.description))) throw new Error("Los extras de la descripción remota no coinciden con los extras canónicos de ORBIT.");
   if (!remote.description?.includes(`ORBIT Event ID: ${input.orbitEventId}`)) throw new Error("La descripción remota no contiene el ORBIT Event ID vinculado.");
   return { start, end, remoteHash: fingerprintReviewedCalendarEvent(input, remote) };
