@@ -23,7 +23,7 @@ function descriptionField(description: string, label: string) {
   if (lineIndex < 0) return null;
   const line = lines[lineIndex];
   const value = line.slice(line.indexOf(":") + 1).trim();
-  if (label === "CITACIÓN OPERADORES BOOMBOX" && /antes del$/i.test(value) && lines[lineIndex + 1]) return `${value} ${lines[lineIndex + 1]}`;
+  if (label === "CITACIÓN OPERADORES BOOMBOX" && /(?:antes del|del)$/i.test(value) && lines[lineIndex + 1]) return `${value} ${lines[lineIndex + 1]}`;
   return label === "Google Maps" && !value ? (lines[lineIndex + 1] ?? "").trim() : value;
 }
 
