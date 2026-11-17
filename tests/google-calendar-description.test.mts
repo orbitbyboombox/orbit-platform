@@ -54,7 +54,7 @@ const input = {
 test("calendar description follows the approved order and omits disabled extras", () => {
   const description = buildCalendarDescription(input, "ORB-2026-145073");
   const lines = description.split("\n");
-  assert.equal(lines[0], "CITACIÓN OPERADORES BOOMBOX: viernes 20/11/2026 a las 23:00 (1 hora antes del servicio).");
+  assert.equal(lines[0], "CITACIÓN OPERADORES BOOMBOX: viernes 20/11/2026 a las 23:00.");
   assert.equal(lines[1], "SERVICIO CLIENTE: sábado 21/11/2026 de 00:00 a 03:00 (3 horas).");
   assert.equal(lines[2], "Servicio: CLASSIC");
   assert.equal(lines[3], "Duración contratada: 3 horas");
@@ -73,4 +73,16 @@ test("calendar description formats a service that crosses midnight", () => {
     contractedHours: 3,
   }, "ORB-2026-145074");
   assert.match(description, /SERVICIO CLIENTE: viernes 20\/11\/2026 a las 23:00 hasta sábado 21\/11\/2026 a las 02:00 \(3 horas\)\./);
+});
+
+
+test("explicit staff citation is displayed without claiming a fixed one-hour lead", () => {
+  const description = buildCalendarDescription({
+    ...input,
+    calendarStartTime: "22:30",
+    operatorCallTime: "2026-11-20 · 22:30",
+  }, "ORB-2026-145073");
+  assert.match(description, /CITACIÓN OPERADORES BOOMBOX: viernes 20\/11\/2026 a las 22:30\./);
+  assert.doesNotMatch(description, /1 hora antes/);
+  assert.match(description, /SERVICIO CLIENTE: sábado 21\/11\/2026 de 00:00 a 03:00/);
 });
