@@ -183,6 +183,9 @@ export class GoogleCalendarLive {
         return { ok: true, record, operation: "CREATED" };
       }
       if (existing.sourceFingerprint === fingerprint(input) && existing.status === "SYNCHRONIZED") {
+        // A local fingerprint match does not prove the remote operational block is correct.
+        // Verify Google Calendar before declaring this event unchanged.
+        await verifyRemoteStart(this.provider, existing.googleEventId, input);
         return { ok: true, record: existing, operation: "UNCHANGED" };
       }
       const guard = await this.prepareConditionalUpdate(existing);
