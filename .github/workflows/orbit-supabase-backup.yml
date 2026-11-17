@@ -88,11 +88,11 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           import os
-          from urllib.parse import quote, urlsplit
+          from urllib.parse import quote, unquote, urlsplit
           from pathlib import Path
           source = urlsplit(os.environ["SOURCE_DB_URL"])
-          user = source.username
-          password = source.password
+          user = unquote(source.username or "")
+          password = unquote(source.password or "")
           if not user or password is None or not source.path:
               raise SystemExit("Supabase database URL format is invalid")
           auth = quote(user, safe="") + ".uiwlcmbrowtmqwhnsnxz:" + quote(password, safe="")
@@ -100,7 +100,7 @@ jobs:
           if source.query:
               value += "?" + source.query
           with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as output:
-              output.write("SUPABASE_DB_URL=" + value + "\\n")
+              output.write("SUPABASE_DB_URL=" + value + "\n")
           PY
 
       - name: Export database schema and data
