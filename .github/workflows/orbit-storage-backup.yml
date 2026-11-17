@@ -7,6 +7,10 @@ on:
         description: "Type STORAGE-BACKUP-ORBIT-2.1 to confirm a Storage-only backup"
         required: true
         type: string
+      backup_run_id:
+        description: "Internal audit id created by the admin panel"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -27,6 +31,7 @@ jobs:
       BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
       GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON }}
       GOOGLE_DRIVE_PARENT_FOLDER_ID: ${{ vars.GOOGLE_DRIVE_PARENT_FOLDER_ID }}
+      BACKUP_RUN_ID: ${{ inputs.backup_run_id }}
 
     steps:
       - name: Checkout exact backup source
@@ -42,6 +47,9 @@ jobs:
 
       - name: Install application dependencies
         run: corepack enable && pnpm install --frozen-lockfile
+
+      - name: Register backup run
+        run: node scripts/orbit-backup-run.mjs ensure "${BACKUP_RUN_ID:-}"
 
       - name: Validate protected Storage-only configuration
         shell: bash
@@ -88,7 +96,21 @@ jobs:
       - name: Upload encrypted Storage backup and verify Drive readback
         run: |
           npm install --no-save --no-package-lock googleapis@144.0.0
-          node scripts/upload-drive-backup.mjs "$RUNNER_TEMP/orbit-storage-backup"
+          node scripts/upload-drive-backup.mjs "$RUNNER_TEMP/orbit-storage-backup" > "$RUNNER_TEMP/orbit-storage-backup/drive-upload-result.json"
+
+      - name: Rotate verified Drive backups older than 30 days
+        run: node scripts/rotate-drive-backups.mjs
+
+      - name: Record backup success
+        if: ${{ success() }}
+        env:
+          BACKUP_RESULT_FILE: ${{ runner.temp }}/orbit-storage-backup/drive-upload-result.json
+        run: node scripts/orbit-backup-run.mjs complete
+
+      - name: Record backup failure
+        if: ${{ failure() }}
+        continue-on-error: true
+        run: node scripts/orbit-backup-run.mjs error
 
       - name: Cleanup temporary Storage backup material
         if: always()

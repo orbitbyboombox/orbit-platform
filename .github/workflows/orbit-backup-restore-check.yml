@@ -1,0 +1,70 @@
+name: ORBIT isolated backup restore check
+
+on:
+  schedule:
+    - cron: "0 5 * * 0"
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type RESTORE-CHECK-ORBIT-2.1 to confirm an isolated restore"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  restore:
+    if: ${{ github.event_name == 'schedule' || inputs.confirmation == 'RESTORE-CHECK-ORBIT-2.1' }}
+    runs-on: ubuntu-24.04
+    environment: orbit-backup-production
+    timeout-minutes: 120
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: orbit-restore-only
+          POSTGRES_DB: orbit_restore
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d orbit_restore"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+      GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON }}
+      GOOGLE_DRIVE_PARENT_FOLDER_ID: ${{ vars.GOOGLE_DRIVE_PARENT_FOLDER_ID }}
+      PGPASSWORD: orbit-restore-only
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Download google client
+        run: npm install --no-save --no-package-lock googleapis@144.0.0
+      - name: Download latest encrypted backup
+        run: node scripts/download-latest-drive-backup.mjs "$RUNNER_TEMP/orbit-restore"
+      - name: Verify checksums and decrypt
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/orbit-restore"
+          for source in database-schema.sql database-data.sql storage.tar.gz storage-manifest.json backup-manifest.json sha256sums.txt; do
+            printf '%s' "$BACKUP_ENCRYPTION_PASSPHRASE" | openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -pass stdin -in "$work/$source.enc" -out "$work/$source"
+          done
+          (cd "$work" && sha256sum -c sha256sums.txt)
+          tar -tzf "$work/storage.tar.gz" >/dev/null
+          node --input-type=module -e 'const m=JSON.parse(await (await import("node:fs/promises")).readFile(process.argv[1],"utf8")); const n=m.buckets.reduce((s,b)=>s+b.objects.length,0); if(!n) throw new Error("Storage manifest is empty"); console.log(`Storage objects verified: ${n}`)' "$work/storage-manifest.json"
+      - name: Restore PostgreSQL schema and data in isolated service
+        run: |
+          set -euo pipefail
+          psql -h 127.0.0.1 -U postgres -d orbit_restore -v ON_ERROR_STOP=1 -f "$RUNNER_TEMP/orbit-restore/database-schema.sql"
+          psql -h 127.0.0.1 -U postgres -d orbit_restore -v ON_ERROR_STOP=1 -f "$RUNNER_TEMP/orbit-restore/database-data.sql"
+          psql -h 127.0.0.1 -U postgres -d orbit_restore -v ON_ERROR_STOP=1 -c 'select 1 as isolated_restore_ok;'

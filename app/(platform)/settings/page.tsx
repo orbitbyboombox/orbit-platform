@@ -47,6 +47,7 @@ import { BankSettings } from "@/features/finance/banking/bank-settings";
 import { CommercialSettings } from "@/features/commercial-hub";
 import { loadNOVALatestCertification, usesNOVAGoogleCore } from "@/features/connectors/google-workspace/application/google-nova-core";
 import { ProductionCertificationStatus } from "@/features/certification/production-certification-status";
+import { OrbitBackupsCenter, loadOrbitBackupRuns } from "@/features/orbit-backups";
 
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ section?: string; category?: string; returnTo?: string }> }) {
   const query = await searchParams;
@@ -69,6 +70,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     { data: crmDiagnostics, error: crmDiagnosticsError },
     { data: commercialTemplates, error: commercialTemplatesError },
     { data: commercialDocuments, error: commercialDocumentsError },
+    backupRuns,
   ] = await Promise.all([
     loadCommunicationHubProjection(client),
     loadMasterData(client),
@@ -118,6 +120,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       .from("commercial_documents")
       .select("id,name,category,version,filename,status,uploaded_at")
       .order("uploaded_at", { ascending: false }),
+    loadOrbitBackupRuns(client).catch(() => []),
   ]);
   if (
     diagnosticsError ||
@@ -214,6 +217,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           key: "CERTIFICATION_CENTER",
           label: "Certificación del sistema",
           content: <ProductionCertificationStatus run={latestCertification} />,
+        },
+        {
+          key: "ORBIT_BACKUPS",
+          label: "RESPALDOS ORBIT",
+          content: <OrbitBackupsCenter runs={backupRuns} />,
         },
         {
           key: "COMPANY_SETTINGS",
