@@ -8,6 +8,7 @@ import {
   sendStaffPeriodCloseEmailTest,
 } from "./period-communication.service";
 import { createHash, randomUUID } from "node:crypto";
+import { sendStaffPaymentConfirmation } from "./payment-confirmation.service";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerActionClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -293,11 +294,27 @@ export async function registerStaffPeriodPaymentAction(form: FormData) {
     } catch {
       /* Receipt is durable in Storage and can use the existing Drive retry flow. */
     }
+    // Notify only after the transfer RPC commits. Email failure never reverses the payment.
+    // Historical/idempotent retries above return early and cannot send a second email.
+    let notification = "Confirmación de pago pendiente de envío.";
+    try {
+      const committed = await client.from("staff_period_payments")
+        .select("id").eq("idempotency_key", key).single();
+      if (committed.error || !committed.data) throw committed.error ?? new Error("Pago no encontrado tras confirmar.");
+      // Production sending stays explicitly gated until QA of all payment categories.
+      if (process.env.STAFF_PAYMENT_CONFIRMATION_ENABLED === "true") {
+        const sent = await sendStaffPaymentConfirmation(committed.data.id);
+        notification = sent.sent ? "Confirmación aceptada por Gmail." : notification;
+      }
+    } catch (notifyError) {
+      console.error("staff_payment_confirmation_delivery_failed", {periodId, error:messageOf(notifyError)});
+      notification = "Pago registrado; confirmación de correo pendiente de revisión.";
+    }
     refreshPeriods();
     return {
       ok: true,
       message:
-        "Transferencia registrada una sola vez: honorarios y reembolsos conciliados con el mismo comprobante.",
+        "Transferencia registrada una sola vez: honorarios y reembolsos conciliados con el mismo comprobante. " + notification,
     };
   } catch (error) {
     console.error("staff_period_transfer_failed", {
@@ -484,5 +501,17 @@ export async function closeStaffPaymentPeriodBatchAction(month: string, code: "Q
     return { ok: true, message: `Cierre ${code === "Q1" ? "primera quincena" : code === "Q2" ? "segunda quincena" : "mensual"} completado: ${closed} períodos nuevos; ${selected.length - closed} ya cerrados. Los pagos siguen independientes.`, closed, total: selected.length };
   } catch (error) {
     return { ok: false, message: messageOf(error) };
+  }
+}
+
+/** Admin-only manual payment confirmation; separate from the settlement email. */
+export async function sendStaffPaymentConfirmationAction(paymentId: string, testOnly: boolean = true) {
+  try {
+    await adminContext();
+    if (!testOnly) throw new Error("Envío real bloqueado hasta QA y aprobación explícita.");
+    const result = await sendStaffPaymentConfirmation(paymentId, true);
+    return {ok:true as const,message:`Prueba enviada únicamente a ${result.recipient}. Gmail ID: ${result.messageId}`};
+  } catch(error) {
+    return {ok:false as const,message:messageOf(error)};
   }
 }

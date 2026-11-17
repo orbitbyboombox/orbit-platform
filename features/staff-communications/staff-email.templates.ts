@@ -387,3 +387,39 @@ export function buildStaffPeriodClosedEmail(input: {
     }),
   };
 }
+
+/** Reuses the approved Staff premium frame for a committed bank payment. */
+export function buildStaffPaymentPaidEmail(input: {
+  firstName: string; periodLabel: string; paidOn: string; reference: string;
+  honoraria: number; reimbursements: number; total: number;
+}) {
+  const amounts = [input.honoraria, input.reimbursements, input.total];
+  if (amounts.some((n) => !Number.isSafeInteger(n) || n < 0) ||
+      input.honoraria + input.reimbursements !== input.total || input.total <= 0)
+    throw new Error("Montos de confirmación inconsistentes.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.paidOn) || !input.reference.trim())
+    throw new Error("Faltan fecha o referencia del pago.");
+  const details: Array<[string,string]> = [
+    ["Período", input.periodLabel], ["Fecha de transferencia", chileDate(input.paidOn)],
+    ["Referencia", input.reference], ["Honorarios", money(input.honoraria)],
+    ["Reembolsos", money(input.reimbursements)], ["TOTAL TRANSFERIDO", money(input.total)]
+  ];
+  const rows = details.map(([label,value]) =>
+    `<tr><td style="padding:10px 12px;border-bottom:1px solid #ece8e1;color:#56534f">${escapeHtml(label)}</td><td align="right" style="padding:10px 12px;border-bottom:1px solid #ece8e1;font-weight:700">${escapeHtml(value)}</td></tr>`
+  ).join("");
+  const textBody = [`Hola ${input.firstName},`, "BOOMBOX confirma que tu transferencia fue registrada.",
+    ...details.map(([k,v])=>`${k}: ${v}`),
+    "Adjuntamos el comprobante bancario de esta transferencia.",
+    "BOOMBOX® · Comunicación emitida mediante ORBIT"].join("\n");
+  const htmlBody = premiumFrame({
+    appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "https://app.bbox.cl",
+    preheader: "Confirmación de transferencia BOOMBOX",
+    eyebrow: "FINANZAS STAFF",
+    title: "Tu pago fue realizado",
+    content: `<p>Hola <strong>${escapeHtml(input.firstName)}</strong>,</p><p>Confirmamos que BOOMBOX registró tu transferencia.</p><table role="presentation" width="100%" style="border-collapse:collapse">${rows}</table><p>Adjuntamos el comprobante bancario correspondiente.</p>`,
+    ctaLabel: "IR A MI PORTAL STAFF",
+    ctaHref: (process.env.NEXT_PUBLIC_APP_URL ?? "https://app.bbox.cl") + "/staff-portal",
+    showOfficialWhiteLogo: true
+  });
+  return {subject: "BOOMBOX® | Confirmación de pago",textBody,htmlBody};
+}
