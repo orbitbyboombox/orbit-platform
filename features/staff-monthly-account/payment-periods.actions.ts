@@ -294,11 +294,27 @@ export async function registerStaffPeriodPaymentAction(form: FormData) {
     } catch {
       /* Receipt is durable in Storage and can use the existing Drive retry flow. */
     }
+    // Notify only after the transfer RPC commits. Email failure never reverses the payment.
+    // Historical/idempotent retries above return early and cannot send a second email.
+    let notification = "Confirmación de pago pendiente de envío.";
+    try {
+      const committed = await client.from("staff_period_payments")
+        .select("id").eq("idempotency_key", key).single();
+      if (committed.error || !committed.data) throw committed.error ?? new Error("Pago no encontrado tras confirmar.");
+      // Production sending stays explicitly gated until QA of all payment categories.
+      if (process.env.STAFF_PAYMENT_CONFIRMATION_ENABLED === "true") {
+        const sent = await sendStaffPaymentConfirmation(committed.data.id);
+        notification = sent.sent ? "Confirmación aceptada por Gmail." : notification;
+      }
+    } catch (notifyError) {
+      console.error("staff_payment_confirmation_delivery_failed", {periodId, error:messageOf(notifyError)});
+      notification = "Pago registrado; confirmación de correo pendiente de revisión.";
+    }
     refreshPeriods();
     return {
       ok: true,
       message:
-        "Transferencia registrada una sola vez: honorarios y reembolsos conciliados con el mismo comprobante.",
+        "Transferencia registrada una sola vez: honorarios y reembolsos conciliados con el mismo comprobante. " + notification,
     };
   } catch (error) {
     console.error("staff_period_transfer_failed", {
