@@ -76,8 +76,9 @@ test("event-level and block-level requirements remain separate and deletes are d
 
 test("Calendar keeps one event and includes operational blocks in its canonical description", () => {
   const calendarLive = readFileSync("features/connectors/google-calendar/application/google-calendar-live.ts", "utf8");
-  assert.match(calendarLive, /PLANIFICACIÓN OPERACIONAL/);
-  assert.match(calendarLive, /operationalBlocks/);
+  const calendarDescription = readFileSync("features/connectors/google-calendar/application/google-calendar-description.ts", "utf8");
+  assert.match(calendarDescription, /PLANIFICACIÓN OPERACIONAL/);
+  assert.match(calendarDescription, /operationalBlocks/);
   assert.match(calendarLive, /buildCalendarDescription/);
 });
 

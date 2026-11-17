@@ -11,6 +11,7 @@ const resyncService = readFileSync("features/connectors/google-calendar/applicat
 const propagation = readFileSync("features/projects/operations/canonical-event-propagation.service.ts", "utf8");
 const revisionMigration = readFileSync("supabase/migrations/20260929153000_canonical_event_revision_propagation.sql", "utf8");
 const middleware = readFileSync("middleware.ts", "utf8");
+const calendarResyncRoute = readFileSync("app/api/cron/google-calendar-resync/route.ts", "utf8");
 
 test("documents and profitability use full-width desktop sections with readable metric labels", () => {
   assert.match(workspace, /className="2xl:col-span-2"[\s\S]*title="Documentos y estado comercial"/);
@@ -19,12 +20,13 @@ test("documents and profitability use full-width desktop sections with readable 
   assert.doesNotMatch(workspace, /\[&_dd\]:whitespace-nowrap/);
 });
 
-test("confirmed project time is the canonical Calendar start and keeps the existing event", () => {
+test("confirmed project time is canonical and Calendar starts at the operator citation without replacing the event", () => {
   assert.match(calendarService, /const serviceStart=\{date:project\.event_date,time:legacyStart\}/);
-  assert.match(calendarService, /calendarStart=serviceStart/);
+  assert.match(calendarService, /calendarStaffCall=chileDateTime\(canonicalState\.staffCallAt\)/);
+  assert.match(calendarService, /calendarStart=calendarStaffCall/);
   assert.match(calendarService, /findByOrbitEventId\(project\.orbit_event_id\)/);
   assert.match(calendarLive, /existing\.googleEventId/);
-  assert.match(calendarLive, /updateEvent\(existing\.googleEventId, payload\)/);
+  assert.match(calendarLive, /updateEvent\(existing\.googleEventId, payload, guard\.remote\.etag/);
 });
 
 test("Calendar reads the remote event after mutation and verifies Chile time", () => {
@@ -44,7 +46,8 @@ test("confirmed event time synchronizes immediately and leaves the cron as recov
   assert.match(resyncService, /if \(row\.status === "SYNCHRONIZED"\)/);
   assert.match(resyncService, /claim_calendar_sync_for_resync/);
   assert.match(resyncService, /policy: "EXISTING_LEGACY_UPDATE"/);
-  assert.match(middleware, /\/api\/cron\/google-calendar-resync/);
+  assert.match(calendarResyncRoute, /CRON_SECRET/);
+  assert.match(calendarResyncRoute, /syncStaleGoogleCalendarEvents/);
 });
 
 test("canonical event revision is monotonic and visible to Calendar consumers", () => {
