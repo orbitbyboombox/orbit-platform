@@ -49,7 +49,7 @@ export function buildCalendarDescription(input: CalendarOperationalEventInput, o
   const blockLines = blocks.length ? ["", "PLANIFICACIÓN OPERACIONAL", ...blocks.map((block) => `- ${block.name}: ${block.startAt}–${block.endAt}`)] : [];
 
   return [
-    `CITACIÓN OPERADORES BOOMBOX: ${formatDate(input.calendarStartDate)} a las ${input.calendarStartTime} (1 hora antes del servicio).`,
+    `CITACIÓN OPERADORES BOOMBOX: ${formatDate(input.calendarStartDate)} a las ${input.calendarStartTime}.`,
     `SERVICIO CLIENTE: ${serviceWindow} (${input.contractedHours} horas).`,
     `Servicio: ${input.service}`,
     `Duración contratada: ${input.contractedHours} horas`,
