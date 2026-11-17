@@ -16,7 +16,7 @@ export interface GoogleCalendarLiveProvider {
 export interface GoogleCalendarRemoteEvent {
   id: string;
   htmlLink: string;
-  start?: { dateTime?: string; date?: string; timeZone?: string }; updated?: string; etag?: string;
+  start?: { dateTime?: string; date?: string; timeZone?: string }; end?: { dateTime?: string; date?: string; timeZone?: string }; updated?: string; etag?: string;
 }
 
 export class GoogleCalendarPreconditionFailed extends Error {
