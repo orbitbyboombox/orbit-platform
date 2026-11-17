@@ -13,6 +13,7 @@ import type {
 import { hashCanonicalCalendarFingerprint } from "./canonical-calendar-fingerprint";
 import { buildCalendarDescription, buildGoogleMapsLink } from "./google-calendar-description";
 import { hasRemoteCalendarConflict } from "./calendar-sync-conflict";
+import { fingerprintReviewedCalendarEvent, isApprovedRemoteBaselineCurrent } from "./calendar-remote-review-policy";
 
 export const GOOGLE_CALENDAR_EVENT_COLORS: Readonly<Record<CalendarOperationalEventType, GoogleCalendarEventColor>> = {
   WEDDING: { eventType: "WEDDING", label: "Matrimonio", googleColorId: "5" },
@@ -52,12 +53,16 @@ export function mapOperationalEventToCalendar(input: CalendarOperationalEventInp
   };
 }
 
-function fingerprint(input: CalendarOperationalEventInput): string {
+export function fingerprintCalendarOperationalInput(input: CalendarOperationalEventInput): string {
   const start = `${input.serviceStartDate}T${input.serviceStart}`;
   const end = `${input.serviceEndDate ?? input.eventDate}T${input.serviceEnd}`;
   const staffCall = input.operatorCallTime.includes("·") ? `${input.operatorCallTime.split("·")[0].trim()}T${input.operatorCallTime.split("·")[1].trim()}` : null;
   const payload = mapOperationalEventToCalendar(input);
   return hashCanonicalCalendarFingerprint({ orbitEventId: input.orbitEventId, serviceStartAt: start, serviceEndAt: end, staffCallAt: staffCall, staffCallSource: input.operatorCallTime ? "CANONICAL" : null, location: input.customerAddress, title: payload.title, description: payload.description });
+}
+
+function fingerprint(input: CalendarOperationalEventInput): string {
+  return fingerprintCalendarOperationalInput(input);
 }
 
 function pendingRecord(input: CalendarOperationalEventInput): GoogleCalendarSyncRecord {
@@ -170,6 +175,13 @@ export class GoogleCalendarLive {
       return { ok: false, record, error: { code: "CALENDAR_DESTINATION_UNVERIFIED", message: record.errorMessage ?? "Destino de Calendar requiere validación.", retryable: false } };
     }
     try {
+      if (existing?.googleEventId && existing.approvedRemoteEtag && existing.approvedRemoteSourceHash === fingerprint(input)) {
+        const approvedRemote = await this.provider.getEvent(existing.googleEventId);
+        const approvedRemoteMatches = isApprovedRemoteBaselineCurrent(existing, fingerprint(input), fingerprintReviewedCalendarEvent(input, approvedRemote), approvedRemote.etag);
+        if (approvedRemoteMatches) return { ok: true, record: existing, operation: "UNCHANGED" };
+        const record = await this.repository.save({ ...existing, status: "UPDATE_REQUIRED", errorCode: "REMOTE_EVENT_CHANGED", errorMessage: "Google Calendar cambió después de aceptar la versión revisada; se conservó el evento remoto." });
+        return { ok: false, record, error: { code: "REMOTE_EVENT_CHANGED", message: record.errorMessage ?? "La versión remota aprobada cambió; requiere revisión.", retryable: false } };
+      }
       if (operation === "CANCEL" || operation === "RESTORE") {
         if (!existing?.googleEventId) return { ok: false, record: baseRecord, error: { code: "EVENT_NOT_FOUND", message: "El evento sincronizado no existe.", retryable: false } };
         const guard = await this.prepareConditionalUpdate(existing);
@@ -302,12 +314,14 @@ export function getCommandCenterCalendarStatus(record: GoogleCalendarSyncRecord)
 }
 
 export function getOperationsBoardCalendarHealth(record: GoogleCalendarSyncRecord) {
-  if (record.currentPayloadHash && record.lastSyncedPayloadHash && record.currentPayloadHash !== record.lastSyncedPayloadHash) return "ATTENTION_REQUIRED";
+  const acceptedRemote = Boolean(record.approvedRemoteEtag && record.approvedRemoteSourceHash === record.currentPayloadHash && record.approvedRemotePayloadHash === record.lastSyncedPayloadHash);
+  if (!acceptedRemote && record.currentPayloadHash && record.lastSyncedPayloadHash && record.currentPayloadHash !== record.lastSyncedPayloadHash) return "ATTENTION_REQUIRED";
   return record.status === "ERROR" || record.status === "FAILED" ? "ERROR" : record.status === "UPDATE_REQUIRED" || record.status === "STALE" ? "ATTENTION_REQUIRED" : record.status === "SYNCHRONIZED" ? "HEALTHY" : "PENDING";
 }
 
 export function getCalendarSyncLabel(record: GoogleCalendarSyncRecord): string {
-  if (record.currentPayloadHash && record.lastSyncedPayloadHash && record.currentPayloadHash !== record.lastSyncedPayloadHash) return "Cambios pendientes de sincronizar con Google Calendar";
+  const acceptedRemote = Boolean(record.approvedRemoteEtag && record.approvedRemoteSourceHash === record.currentPayloadHash && record.approvedRemotePayloadHash === record.lastSyncedPayloadHash);
+  if (!acceptedRemote && record.currentPayloadHash && record.lastSyncedPayloadHash && record.currentPayloadHash !== record.lastSyncedPayloadHash) return "Cambios pendientes de sincronizar con Google Calendar";
   if (record.status === "SYNCING") return "Actualizando Google Calendar";
   if (record.status === "FAILED" || record.status === "ERROR") return "Error de sincronización";
   if (record.status === "STALE" || record.status === "PENDING" || record.status === "UPDATE_REQUIRED") return "Cambios pendientes de sincronizar con Google Calendar";

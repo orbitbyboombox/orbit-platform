@@ -89,6 +89,7 @@ import {
 import { saveFounderWorkspaceAction } from "@/features/founder-workspace/actions";
 import { confirmEventTimeAction } from "@/features/projects/actions/event-time.actions";
 import { synchronizeProjectCalendarAction } from "@/features/connectors/google-calendar";
+import { acceptReviewedRemoteCalendarStateAction } from "@/features/connectors/google-calendar/application/google-calendar.actions";
 import type {
   EventModuleKey,
   FounderWorkspacePreferences,
@@ -480,6 +481,8 @@ export function ProjectWorkspaceExperience(
   const [printMessage, setPrintMessage] = useState("");
   const [portalFeedback, setPortalFeedback] = useState("");
   const [customerDeleteFeedback, setCustomerDeleteFeedback] = useState("");
+  const [remoteReconcileFeedback, setRemoteReconcileFeedback] = useState("");
+  const [remoteReconcilePending, setRemoteReconcilePending] = useState(false);
   const [eventTimeDraft, setEventTimeDraft] = useState(props.eventTime?.slice(0, 5) || "22:00");
   const [eventTimeFeedback, setEventTimeFeedback] = useState("");
   const [eventTimePending, startEventTimeTransition] = useTransition();
@@ -1857,6 +1860,20 @@ export function ProjectWorkspaceExperience(
           </Section>}
 
           {activeTab === "COMMUNICATIONS" && <PreEventReminderControl projectId={props.projectKey ?? ""} />}
+
+          {activeTab === "COMMUNICATIONS" && ["ORB-2026-162036", "ORB-2026-438017", "ORB-2027-919683"].includes(event.orbitEventId) && event.google.calendarStatus === "UPDATE_REQUIRED" && (
+            <Section eyebrow="Revisión protegida" icon={<CalendarClock className="size-5" />} id="calendar-remote-review" title="Cambio detectado en Google Calendar">
+              <p className="text-sm leading-6 text-muted">Lee nuevamente el evento y su ETag, valida la identidad, la descripción y los horarios con ORBIT, y acepta el estado remoto aprobado sin modificar Google Calendar. Si Calendar cambia durante la revisión, la operación se detiene.</p>
+              <button className="mt-4 rounded-lg border px-4 py-2 text-sm font-semibold hover:border-brand disabled:opacity-50" disabled={remoteReconcilePending} onClick={() => {
+                setRemoteReconcilePending(true);
+                void acceptReviewedRemoteCalendarStateAction(props.projectKey ?? "").then((result) => {
+                  setRemoteReconcileFeedback(result.ok ? `Reconciliación registrada: ${result.operation}. Calendar no fue modificado.` : result.error);
+                  if (result.ok) router.refresh();
+                }).finally(() => setRemoteReconcilePending(false));
+              }} type="button">{remoteReconcilePending ? "Verificando evento y ETag…" : "Aceptar cambios remotos aprobados"}</button>
+              {remoteReconcileFeedback ? <p aria-live="polite" className="mt-3 text-sm text-muted">{remoteReconcileFeedback}</p> : null}
+            </Section>
+          )}
 
           {activeTab === "COMMUNICATIONS" && <DigitalPhotoDeliveryControl projectId={props.projectKey ?? ""} />}
 
