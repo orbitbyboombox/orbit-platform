@@ -16,6 +16,8 @@ export interface GoogleCalendarLiveProvider {
 export interface GoogleCalendarRemoteEvent {
   id: string;
   htmlLink: string;
+  summary?: string;
+  description?: string;
   start?: { dateTime?: string; date?: string; timeZone?: string }; end?: { dateTime?: string; date?: string; timeZone?: string }; updated?: string; etag?: string;
 }
 
