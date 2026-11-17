@@ -4,6 +4,22 @@ import type { GoogleCalendarRemoteEvent } from "../provider/google-calendar-live
 
 const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLocaleLowerCase("es-CL");
 const withoutOptionalCitationNote = (value: string) => normalize(value).replace(/(\d{2}:\d{2})\.?\s*\(1 hora antes del servicio\)\.?/g, "$1.");
+const normalizeExtra = (value: string) => {
+  const normalized = normalize(value).replace(/\bincluido\b/g, "");
+  const known = ["qr", "imanes", "scrapbook", "transporte", "fondo"];
+  const match = known.find((label) => normalized.includes(label));
+  return match ?? normalized.replace(/\s+/g, " ").trim();
+};
+
+function extrasLine(description: string) {
+  const match = description.split("\n").map((line) => line.trim()).find((line) => /^extras incluidos:/i.test(line));
+  if (!match) return [];
+  return [...new Set(match.slice(match.indexOf(":") + 1).split(",").map(normalizeExtra).filter(Boolean))].sort();
+}
+
+function descriptionWithoutExtrasAndCitation(value: string) {
+  return value.split("\n").filter((line) => !/^\s*extras incluidos:/i.test(line.trim())).join("\n");
+}
 
 function localParts(value: string, timeZone = "America/Santiago") {
   const parts = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(value));
@@ -44,7 +60,8 @@ export function verifyApprovedRemoteEvent(input: CalendarOperationalEventInput, 
   const expectedEnd = `${input.serviceEndDate ?? input.eventDate}T${input.serviceEnd}`;
   if (`${start.date}T${start.time}` !== expectedStart) throw new Error(`Citación remota ${start.date} ${start.time} no coincide con ORBIT ${expectedStart}.`);
   if (`${end.date}T${end.time}` !== expectedEnd) throw new Error(`Término remoto ${end.date} ${end.time} no coincide con ORBIT ${expectedEnd}.`);
-  if (withoutOptionalCitationNote(remote.description ?? "") !== withoutOptionalCitationNote(expected.description)) throw new Error("La descripción remota contiene diferencias fuera de la nota opcional de citación; requiere revisión manual.");
+  if (withoutOptionalCitationNote(descriptionWithoutExtrasAndCitation(remote.description ?? "")) !== withoutOptionalCitationNote(descriptionWithoutExtrasAndCitation(expected.description))) throw new Error("La descripción remota contiene diferencias fuera de la citación y los extras equivalentes; requiere revisión manual.");
+  if (JSON.stringify(extrasLine(remote.description ?? "")) !== JSON.stringify(extrasLine(expected.description))) throw new Error("Los extras de la descripción remota no coinciden con los extras canónicos de ORBIT.");
   if (!remote.description?.includes(`ORBIT Event ID: ${input.orbitEventId}`)) throw new Error("La descripción remota no contiene el ORBIT Event ID vinculado.");
   return { start, end, remoteHash: fingerprintReviewedCalendarEvent(input, remote) };
 }
