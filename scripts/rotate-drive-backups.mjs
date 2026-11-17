@@ -1,9 +1,9 @@
 import { google } from "googleapis";
 
-const credentials = JSON.parse(process.env.GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON ?? "");
+
 const parentId = process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID;
-if (!parentId) throw new Error("Drive backup parent folder is missing");
-const auth = new google.auth.GoogleAuth({ credentials, scopes: ["https://www.googleapis.com/auth/drive"] });
+if (!parentId || !process.env.GOOGLE_APPLICATION_CREDENTIALS) throw new Error("Federated Drive backup configuration is incomplete");
+const auth = new google.auth.GoogleAuth({ scopes: ["https://www.googleapis.com/auth/drive"] });
 const drive = google.drive({ version: "v3", auth });
 const q = `'${parentId}' in parents and trashed = false and mimeType = 'application/vnd.google-apps.folder'`;
 const listed = await drive.files.list({ q, fields: "files(id,name,createdTime,trashed)", orderBy: "createdTime desc", pageSize: 100, supportsAllDrives: true, includeItemsFromAllDrives: true });
