@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { GoogleGmailApiProvider } from "@/features/connectors/google-gmail/provider/google-gmail-live.provider";
 import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-workspace/application/google-workspace.repository";
-import { buildStaffPaymentConfirmationEmail } from "./payment-confirmation.template";
+import { buildStaffPaymentPaidEmail } from "@/features/staff-communications/staff-email.templates";
 import { periodLabel } from "./payment-periods.model";
 
 /** Does not create or change payments. Sends only a committed payment with its stored receipt. */
@@ -28,7 +28,7 @@ export async function sendStaffPaymentConfirmation(paymentId: string, testOnly =
   const reimbursement = (refunds.data ?? []).reduce((sum, row) => sum + Number(row.amount), 0);
   const honoraria = Number(p.amount);
   const total = honoraria + reimbursement;
-  const email = buildStaffPaymentConfirmationEmail({
+  const email = buildStaffPaymentPaidEmail({
     firstName: staff.data.first_name,
     periodLabel: periodLabel(period.data.period_code),
     paidOn: p.paid_on,
