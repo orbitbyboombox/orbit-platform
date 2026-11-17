@@ -197,8 +197,25 @@ export class GoogleCalendarLive {
         await verifyRemoteStart(this.provider, existing.googleEventId, input);
         const remote = await this.provider.getEvent(existing.googleEventId);
         if (remote.description !== payload.description || remote.summary !== payload.title) {
-          const record = await this.repository.save({ ...existing, status: "UPDATE_REQUIRED", errorCode: "REMOTE_EVENT_CHANGED", errorMessage: "El título o formato de Google Calendar difiere del formato canónico ORBIT; revisar antes de actualizar." });
-          return { ok: false, record, error: { code: "REMOTE_EVENT_CHANGED", message: record.errorMessage ?? "Formato de Calendar pendiente de reconciliar.", retryable: false } };
+          // Only repair stale presentation when the remote event has not been edited
+          // since ORBIT last synchronized it. Never overwrite a newer manual edit.
+          const guard = await this.prepareConditionalUpdate(existing);
+          if (!guard.ok) return guard;
+          const reference = await this.provider.updateEvent(existing.googleEventId, payload, guard.remote.etag!);
+          await verifyRemoteStart(this.provider, reference.googleEventId, input);
+          const updatedFingerprint = fingerprint(input);
+          const record = await this.repository.save({
+            ...existing,
+            status: "SYNCHRONIZED",
+            googleEventUrl: reference.googleEventUrl,
+            sourceFingerprint: updatedFingerprint,
+            currentPayloadHash: updatedFingerprint,
+            lastSyncedPayloadHash: updatedFingerprint,
+            lastSynchronization: reference.updatedAt ?? new Date().toISOString(),
+            errorCode: undefined,
+            errorMessage: undefined,
+          });
+          return { ok: true, record, operation: "UPDATED" };
         }
         return { ok: true, record: existing, operation: "UNCHANGED" };
       }
