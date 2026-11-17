@@ -8,6 +8,7 @@ import {
   sendStaffPeriodCloseEmailTest,
 } from "./period-communication.service";
 import { createHash, randomUUID } from "node:crypto";
+import { sendStaffPaymentConfirmation } from "./payment-confirmation.service";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerActionClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -484,5 +485,17 @@ export async function closeStaffPaymentPeriodBatchAction(month: string, code: "Q
     return { ok: true, message: `Cierre ${code === "Q1" ? "primera quincena" : code === "Q2" ? "segunda quincena" : "mensual"} completado: ${closed} períodos nuevos; ${selected.length - closed} ya cerrados. Los pagos siguen independientes.`, closed, total: selected.length };
   } catch (error) {
     return { ok: false, message: messageOf(error) };
+  }
+}
+
+/** Admin-only manual payment confirmation; separate from the settlement email. */
+export async function sendStaffPaymentConfirmationAction(paymentId: string, testOnly: boolean = true) {
+  try {
+    await adminContext();
+    if (!testOnly) throw new Error("Envío real bloqueado hasta QA y aprobación explícita.");
+    const result = await sendStaffPaymentConfirmation(paymentId, true);
+    return {ok:true as const,message:`Prueba enviada únicamente a ${result.recipient}. Gmail ID: ${result.messageId}`};
+  } catch(error) {
+    return {ok:false as const,message:messageOf(error)};
   }
 }
