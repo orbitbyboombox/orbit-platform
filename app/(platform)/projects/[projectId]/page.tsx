@@ -656,6 +656,7 @@ export default async function ProjectWorkspacePage({
     event_date: project.event.date,
     event_time: project.event.time,
     event_time_mode: rawProject?.event_time_mode ?? project.event.timeMode,
+    duration_hours: Math.max(1, ...(serviceRows ?? []).map((service) => Number(service.duration_hours ?? 0))),
     location: project.event.location,
     city: project.event.city,
     operations,
@@ -1030,8 +1031,11 @@ export default async function ProjectWorkspacePage({
       : typeof operations.notes === "string"
         ? operations.notes.match(/Dirección evento:\s*([^\n]+)/i)?.[1]?.trim() ?? ""
         : "",
-    serviceStartAt: operationalContract?.service_start_at ?? null,
-    serviceEndAt: operationalContract?.service_end_at ?? null,
+    // A confirmed project time is authoritative for Event 360°. The operational
+    // contract may retain an earlier estimate, so never render that stale window
+    // over the confirmed event schedule.
+    serviceStartAt: canonicalEventState.serviceStartAt,
+    serviceEndAt: canonicalEventState.serviceEndAt,
     collectionEmailStatus,
     customer: {
       phone: customer?.phone ?? project.client.phone,
