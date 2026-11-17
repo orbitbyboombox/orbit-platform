@@ -1,6 +1,5 @@
+export { buildCalendarDescription, buildGoogleMapsLink } from "./application/google-calendar-description";
 export {
-  buildCalendarDescription,
-  buildGoogleMapsLink,
   generateOrbitEventId,
   getCommandCenterCalendarStatus,
   getOperationsBoardCalendarHealth,
@@ -9,8 +8,8 @@ export {
   mapOperationalEventToCalendar,
 } from "./application/google-calendar-live";
 export { synchronizeProjectCalendarAction, retryCalendarSyncAction } from "./application/google-calendar.actions";
-export { GoogleCalendarApiProvider } from "./provider/google-calendar-live.provider";
-export type { GoogleCalendarLiveProvider } from "./provider/google-calendar-live.provider";
+export { GoogleCalendarApiProvider, GoogleCalendarPreconditionFailed } from "./provider/google-calendar-live.provider";
+export type { GoogleCalendarLiveProvider, GoogleCalendarRemoteEvent } from "./provider/google-calendar-live.provider";
 export { SupabaseGoogleCalendarSyncRepository } from "./repository/google-calendar-sync.repository";
 export type { GoogleCalendarSyncRepository } from "./repository/google-calendar-sync.repository";
 export type * from "./types/google-calendar-live.types";
