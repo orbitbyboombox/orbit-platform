@@ -217,6 +217,22 @@ export class GoogleCalendarLive {
           });
           return { ok: true, record, operation: "UPDATED" };
         }
+        // A matching in-memory fingerprint must not conceal a persisted divergence.
+        // Reconcile through the guarded update path rather than reporting a false PASS.
+        if (existing.currentPayloadHash && existing.lastSyncedPayloadHash
+          && existing.currentPayloadHash !== existing.lastSyncedPayloadHash) {
+          const record = await this.repository.save({
+            ...existing,
+            status: "UPDATE_REQUIRED",
+            errorCode: "REMOTE_EVENT_CHANGED",
+            errorMessage: "ORBIT registra hashes de Calendar distintos; requiere reconciliación verificada.",
+          });
+          return { ok: false, record, error: {
+            code: "REMOTE_EVENT_CHANGED",
+            message: record.errorMessage ?? "Hashes de Calendar no reconciliados.",
+            retryable: false,
+          } };
+        }
         return { ok: true, record: existing, operation: "UNCHANGED" };
       }
       const guard = await this.prepareConditionalUpdate(existing);
