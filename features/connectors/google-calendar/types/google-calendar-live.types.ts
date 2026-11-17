@@ -92,6 +92,12 @@ export interface GoogleCalendarSyncRecord {
   nextRetryAt?: string;
   syncStartedAt?: string;
   errorCode?: string;
+  approvedRemotePayloadHash?: string;
+  approvedRemoteSourceHash?: string;
+  approvedRemoteEtag?: string;
+  approvedRemoteSnapshot?: Record<string, unknown>;
+  approvedRemoteAt?: string;
+  approvedRemoteBy?: string;
 }
 
 export type GoogleCalendarLiveErrorCode = "PLAN_NOT_APPROVED" | "WORKSPACE_UNAVAILABLE" | "CALENDAR_SCOPE_MISSING" | "EVENT_NOT_FOUND" | "REMOTE_EVENT_CHANGED" | "CALENDAR_DESTINATION_UNVERIFIED" | "PROVIDER_ERROR";
