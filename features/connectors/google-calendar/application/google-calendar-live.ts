@@ -81,11 +81,12 @@ async function verifyRemoteStart(
 ) {
   const remote = await provider.getEvent(googleEventId);
   const remoteDateTime = remote.start?.dateTime;
+  const remoteEndDateTime = remote.end?.dateTime;
   const remoteTimeZone = remote.start?.timeZone;
-  if (!remoteDateTime || remoteTimeZone !== "America/Santiago") {
+  if (!remoteDateTime || !remoteEndDateTime || remoteTimeZone !== "America/Santiago") {
     throw new Error(`CALENDAR_REMOTE_VERIFY_FAILED: expected ${expectedCalendarStart(input)} America/Santiago, received ${remoteDateTime ?? "missing"} ${remoteTimeZone ?? "missing"}`);
   }
-  const parts = new Intl.DateTimeFormat("en-CA", {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Santiago",
     year: "numeric",
     month: "2-digit",
@@ -93,9 +94,17 @@ async function verifyRemoteStart(
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",
-  }).formatToParts(new Date(remoteDateTime));
+  });
+  const parts = formatter.formatToParts(new Date(remoteDateTime));
   const values = Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
   const actual = `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}`;
+  const endParts = formatter.formatToParts(new Date(remoteEndDateTime));
+  const endValues = Object.fromEntries(endParts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+  const actualEnd = `${endValues.year}-${endValues.month}-${endValues.day}T${endValues.hour}:${endValues.minute}`;
+  const expectedEnd = `${input.serviceEndDate ?? input.eventDate}T${input.serviceEnd}`;
+  if (actualEnd !== expectedEnd) {
+    throw new Error(`CALENDAR_REMOTE_VERIFY_FAILED: expected end ${expectedEnd} America/Santiago, received ${actualEnd}`);
+  }
   if (actual !== expectedCalendarStart(input)) {
     throw new Error(`CALENDAR_REMOTE_VERIFY_FAILED: expected ${expectedCalendarStart(input)} America/Santiago, received ${actual} ${remoteTimeZone}`);
   }
