@@ -6,9 +6,11 @@ export type CanonicalCalendarFingerprintInput = {
   staffCallSource: string | null | undefined;
   location: string | null | undefined;
   extras?: readonly string[];
+  title?: string | null;
+  description?: string | null;
 };
 
-export const CALENDAR_CANONICAL_SCHEMA_VERSION = "v3";
+export const CALENDAR_CANONICAL_SCHEMA_VERSION = "v4";
 
 function iso(value: string | Date | null | undefined): string | null {
   if (value == null || value === "") return null;
@@ -26,6 +28,8 @@ export function buildCanonicalCalendarFingerprint(input: CanonicalCalendarFinger
     staffCallSource: input.staffCallSource == null ? null : String(input.staffCallSource).trim() || null,
     location: input.location == null ? null : String(input.location).trim() || null,
     extras: [...(input.extras ?? [])].map((value) => String(value).trim()).filter(Boolean).sort(),
+    title: input.title == null ? null : String(input.title).trim(),
+    description: input.description == null ? null : String(input.description).trim(),
   });
 }
 
