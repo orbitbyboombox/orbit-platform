@@ -508,9 +508,9 @@ export async function closeStaffPaymentPeriodBatchAction(month: string, code: "Q
 export async function sendStaffPaymentConfirmationAction(paymentId: string, testOnly: boolean = true) {
   try {
     await adminContext();
-    if (!testOnly) throw new Error("Envío real bloqueado hasta QA y aprobación explícita.");
-    const result = await sendStaffPaymentConfirmation(paymentId, true);
-    return {ok:true as const,message:`Prueba enviada únicamente a ${result.recipient}. Gmail ID: ${result.messageId}`};
+    const result = await sendStaffPaymentConfirmation(paymentId, testOnly);
+    if (!testOnly) refreshPeriods();
+    return {ok:true as const,message:`${testOnly ? "Prueba" : "Confirmación de pago"} enviada a ${result.recipient} desde ORBIT BOOMBOX. Gmail ID: ${result.messageId}`};
   } catch(error) {
     return {ok:false as const,message:messageOf(error)};
   }
