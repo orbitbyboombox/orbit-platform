@@ -72,6 +72,7 @@ export interface GoogleCalendarEventPayload {
 export interface GoogleCalendarEventReference {
   googleEventId: string;
   googleEventUrl: string;
+  updatedAt?: string;
 }
 
 export interface GoogleCalendarSyncRecord {
@@ -92,7 +93,7 @@ export interface GoogleCalendarSyncRecord {
   errorCode?: string;
 }
 
-export type GoogleCalendarLiveErrorCode = "PLAN_NOT_APPROVED" | "WORKSPACE_UNAVAILABLE" | "CALENDAR_SCOPE_MISSING" | "EVENT_NOT_FOUND" | "PROVIDER_ERROR";
+export type GoogleCalendarLiveErrorCode = "PLAN_NOT_APPROVED" | "WORKSPACE_UNAVAILABLE" | "CALENDAR_SCOPE_MISSING" | "EVENT_NOT_FOUND" | "REMOTE_EVENT_CHANGED" | "PROVIDER_ERROR";
 
 export interface GoogleCalendarLiveError {
   code: GoogleCalendarLiveErrorCode;
