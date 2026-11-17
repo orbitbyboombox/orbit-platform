@@ -11,7 +11,7 @@ import type {
   GoogleCalendarSyncRecord,
 } from "../types/google-calendar-live.types";
 import { hashCanonicalCalendarFingerprint } from "./canonical-calendar-fingerprint";
-import { formatCanonicalOperationalExtrasForCalendar } from "@/features/operations/canonical-operational-extras";
+import { buildCalendarDescription, buildGoogleMapsLink } from "./google-calendar-description";
 
 export const GOOGLE_CALENDAR_EVENT_COLORS: Readonly<Record<CalendarOperationalEventType, GoogleCalendarEventColor>> = {
   WEDDING: { eventType: "WEDDING", label: "Matrimonio", googleColorId: "5" },
@@ -27,29 +27,6 @@ export function generateOrbitEventId(eventDate: string, sequence: number): strin
     throw new Error("Invalid ORBIT event identifier input");
   }
   return `ORB-${year}-${sequence.toString().padStart(6, "0")}`;
-}
-
-export function buildGoogleMapsLink(address: string): string {
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
-}
-
-export function buildCalendarDescription(input: CalendarOperationalEventInput, orbitEventId: string): string {
-  const blocks = input.operationalBlocks ?? [];
-  const blockLines = blocks.length ? ["", "PLANIFICACIÓN OPERACIONAL", ...blocks.map((block) => `- ${block.name}: ${block.startAt}–${block.endAt}`)] : [];
-  return [
-    `Servicio: ${input.service}`,
-    `Duración: ${input.contractedHours} horas`,
-    `EXTRAS: ${input.operationalExtras?.calendarLines.join(" · ") ?? formatCanonicalOperationalExtrasForCalendar({ serviceExtras: input.extras })}`,
-    `Cliente: ${input.customerName}`,
-    `Citación Staff: ${input.operatorCallTime}`,
-    `Horario servicio: ${input.serviceStartDate} · ${input.serviceStart}–${input.serviceEnd}`,
-    `Dirección: ${input.customerAddress}`,
-    `Teléfonos cliente: ${input.customerPhone}`,
-    `Contacto producción: ${input.operationalContact ?? input.operator}`,
-    `Google Maps: ${buildGoogleMapsLink(input.customerAddress)}`,
-    `ORBIT Event ID: ${orbitEventId}`,
-    ...blockLines,
-  ].join("\n");
 }
 
 export function mapOperationalEventToCalendar(input: CalendarOperationalEventInput): GoogleCalendarEventPayload {
