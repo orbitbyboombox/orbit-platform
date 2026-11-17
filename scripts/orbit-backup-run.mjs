@@ -14,6 +14,7 @@ function requireOutput(name, result) {
 }
 async function request(path, options = {}) {
   const response = await fetch(`${url}/rest/v1/${path}`, { ...options, headers: { ...headers, ...(options.headers ?? {}) } });
+  if (response.status === 404) return response;
   if (!response.ok) throw new Error(`Supabase backup audit write failed (${response.status})`);
   return response;
 }
@@ -21,7 +22,8 @@ async function request(path, options = {}) {
 if (mode === "ensure") {
   const id = value || randomUUID();
   if (!/^[0-9a-f-]{36}$/i.test(id)) throw new Error("Invalid backup run id");
-  await request("orbit_backup_runs", { method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify({ id, status: "EN_PROCESO", started_at: new Date().toISOString() }) });
+  const registration = await request("orbit_backup_runs", { method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify({ id, status: "EN_PROCESO", started_at: new Date().toISOString() }) });
+  if (registration.status === 404) console.warn("Backup audit table is not installed in this production schema; GitHub Actions remains the run record.");
   await writeOutput("backup_run_id", id);
   if (process.env.GITHUB_ENV) await import("node:fs/promises").then(({ appendFile }) => appendFile(process.env.GITHUB_ENV, `BACKUP_RUN_ID=${id}\n`));
   process.exit(0);
@@ -42,7 +44,8 @@ if (mode === "error") {
   patch.drive_folder_id = result.folderId || null;
   patch.sha256_manifest = createHash("sha256").update(JSON.stringify(uploaded.map(({ name, size, sha256 }) => ({ name, size, sha256 })))).digest("hex");
 }
-await request(`orbit_backup_runs?id=eq.${encodeURIComponent(id)}`, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify(patch) });
+const update = await request(`orbit_backup_runs?id=eq.${encodeURIComponent(id)}`, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify(patch) });
+if (update.status === 404) { console.warn("Backup audit table is not installed in this production schema; GitHub Actions remains the run record."); process.exit(0); }
 if (mode === "error") {
   await request("internal_notifications", {
     method: "POST",
