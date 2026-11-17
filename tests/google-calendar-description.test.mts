@@ -2,6 +2,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { buildCalendarDescription } from "../features/connectors/google-calendar/application/google-calendar-description.ts";
 import type { CalendarOperationalEventInput } from "../features/connectors/google-calendar/types/google-calendar-live.types.ts";
+import { chileDateTime, chileLocalToIso, resolveCanonicalStaffCallAt } from "../features/operations/event-operational-window.ts";
+
+test("citation for a Saturday midnight service is Friday at 23:00 in Santiago", () => {
+  const serviceStartAt = chileLocalToIso("2026-11-21T00:00:00");
+  const call = resolveCanonicalStaffCallAt({ serviceStartAt });
+  assert.deepEqual(chileDateTime(call.staffCallAt), { date: "2026-11-20", time: "23:00" });
+});
+
 
 const input = {
   orbitEventId: "ORB-2026-145073",
