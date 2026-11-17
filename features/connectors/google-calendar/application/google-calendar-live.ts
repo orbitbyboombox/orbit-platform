@@ -235,6 +235,29 @@ export class GoogleCalendarLive {
         }
         return { ok: true, record: existing, operation: "UNCHANGED" };
       }
+      // Reconcile a stale local sync marker without rewriting a remote event when
+      // the remote event already matches the canonical ORBIT payload exactly.
+      // This is a real readback check, not an unconditional hash reset.
+      if (existing.currentPayloadHash && existing.lastSyncedPayloadHash
+        && existing.currentPayloadHash !== existing.lastSyncedPayloadHash) {
+        const remote = await this.provider.getEvent(existing.googleEventId);
+        await verifyRemoteStart(this.provider, existing.googleEventId, input);
+        if (remote.description === payload.description && remote.summary === payload.title
+          && remote.etag && remote.updated) {
+          const canonicalHash = fingerprint(input);
+          const record = await this.repository.save({
+            ...existing,
+            status: "SYNCHRONIZED",
+            sourceFingerprint: canonicalHash,
+            currentPayloadHash: canonicalHash,
+            lastSyncedPayloadHash: canonicalHash,
+            lastSynchronization: remote.updated,
+            errorCode: undefined,
+            errorMessage: undefined,
+          });
+          return { ok: true, record, operation: "UNCHANGED" };
+        }
+      }
       const guard = await this.prepareConditionalUpdate(existing);
       if (!guard.ok) return guard;
       console.info("[calendar-time-sync]", { stage: "CALENDAR_TIME_SYNC_UPDATE", project_id: input.planId, external_event_id: existing.googleEventId, requested_event_time: input.calendarStartTime, etag_guarded: true });
