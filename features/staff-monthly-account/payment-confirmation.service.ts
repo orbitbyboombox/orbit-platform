@@ -62,15 +62,16 @@ export async function sendStaffPaymentConfirmation(paymentId: string, testOnly =
   const attemptId = randomUUID();
   const claimed = await admin.from("staff_payment_confirmation_outbox")
     .update({status:"SENDING",attempt_id:attemptId,updated_at:new Date().toISOString()})
-    .eq("payment_id",p.id).in("status",["PENDING","FAILED"]).select("id").maybeSingle();
+    .eq("payment_id",p.id).eq("status","PENDING").select("id").maybeSingle();
   if (claimed.error) throw claimed.error;
   if (!claimed.data) throw new Error("Confirmación ya enviada, en curso o con resultado incierto. Revisa el historial.");
   const attempt = await admin.from("staff_payment_confirmation_attempts").insert({outbox_id:claimed.data.id,attempt_id:attemptId,recipient,status:"SENDING"});
   if (attempt.error) throw attempt.error;
   let transmitting = false;
   try {
+    const token = await loadGoogleWorkspaceAccessToken();
     transmitting = true;
-    const sent = await new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken()).send({
+    const sent = await new GoogleGmailApiProvider(token).send({
       to: recipient, subject: email.subject, textBody: email.textBody, htmlBody: email.htmlBody,
       driveFileIds: [], attachments: [{filename:document.data.file_name,mimeType:document.data.mime_type,content:bytes}],
       idempotencyKey: "staff-payment-confirmation-" + p.id,
