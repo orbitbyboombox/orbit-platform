@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
 
-const read = (path: string) => readFile(new URL(\`../\${path}\`, import.meta.url), "utf8");
+const read = (path: string) => readFile(new URL("../" + path, import.meta.url), "utf8");
 
 test("backup control is administrator-only and idempotent", async () => {
   const migration = await read("supabase/migrations/20261117120000_orbit_backup_control.sql");
