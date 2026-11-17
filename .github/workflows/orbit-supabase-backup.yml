@@ -80,6 +80,29 @@ jobs:
           test -n "$GOOGLE_SERVICE_ACCOUNT"
           test -n "$GOOGLE_DRIVE_PARENT_FOLDER_ID"
 
+      - name: Prepare Supabase session pooler connection
+        shell: bash
+        env:
+          SOURCE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          from urllib.parse import quote, urlsplit
+          from pathlib import Path
+          source = urlsplit(os.environ["SOURCE_DB_URL"])
+          user = source.username
+          password = source.password
+          if not user or password is None or not source.path:
+              raise SystemExit("Supabase database URL format is invalid")
+          auth = quote(user, safe="") + ".uiwlcmbrowtmqwhnsnxz:" + quote(password, safe="")
+          value = f"postgresql://{auth}@aws-0-us-west-2.pooler.supabase.com:5432{source.path}"
+          if source.query:
+              value += "?" + source.query
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as output:
+              output.write("SUPABASE_DB_URL=" + value + "\\n")
+          PY
+
       - name: Export database schema and data
         shell: bash
         run: |
