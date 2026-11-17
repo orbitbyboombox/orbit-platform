@@ -148,7 +148,9 @@ jobs:
 
       - name: Upload encrypted backup to restricted Drive folder
         run: |
-          npm install --no-save --no-package-lock googleapis@144.0.0
+          mkdir -p "$RUNNER_TEMP/orbit-drive-deps"
+          npm install --prefix "$RUNNER_TEMP/orbit-drive-deps" --no-package-lock googleapis@144.0.0
+          ln -s "$RUNNER_TEMP/orbit-drive-deps/node_modules/googleapis" node_modules/googleapis
           node scripts/upload-drive-backup.mjs "$RUNNER_TEMP/orbit-backup" > "$RUNNER_TEMP/orbit-backup/drive-upload-result.json"
 
       - name: Rotate verified Drive backups older than 30 days
