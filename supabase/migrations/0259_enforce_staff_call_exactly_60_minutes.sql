@@ -186,7 +186,7 @@ select p.id, p.orbit_event_id, 'STAFF_CALL_RECALCULATED', 'Citación Staff norma
        'Citación anterior: ' || coalesce(a.staff_call_at::text, 'sin dato') ||
        ' (' || coalesce(a.staff_call_source, 'sin origen') || '); citación canónica: ' ||
        fp.call_at::text || ' (exactamente 60 minutos antes del servicio).',
-       'ORBIT System', 'Staff scheduling', 'STAFF_CALL_RECALCULATED', 'Assignment', a.id::text,
+       'ORBIT System', 'Staff', 'STAFF_CALL_RECALCULATED', 'Assignment', a.id::text,
        'Se recalculó automáticamente la citación desde el inicio canónico del servicio; no se alteró el horario comercial.',
        'staff-call-60:0259:assignment:' || a.id::text
 from public.assignments a
@@ -229,7 +229,7 @@ select id, orbit_event_id, 'STAFF_CALL_RECALCULATED', 'Horario operacional y cit
        '; citación ' || coalesce(old_call::text, 'sin dato') || '. Después: servicio ' ||
        coalesce(target_start::text, 'sin inicio') || '–' || coalesce(target_end::text, 'sin término') ||
        '; citación ' || coalesce(call_at::text, 'sin dato') || '. Se conservó la duración contratada.',
-       'ORBIT System', 'Staff scheduling', 'STAFF_CALL_RECALCULATED', 'OperationalContract', project_id::text,
+       'ORBIT System', 'Staff', 'STAFF_CALL_RECALCULATED', 'OperationalContract', project_id::text,
        'Se alineó el horario operacional a la fecha/hora confirmada de ORBIT conservando la duración; citación exacta: 60 minutos antes.',
        'staff-call-60:0259:contract:' || project_id::text
 from normalized_contracts
