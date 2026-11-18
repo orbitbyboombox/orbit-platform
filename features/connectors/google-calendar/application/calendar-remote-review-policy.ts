@@ -57,6 +57,17 @@ export function isApprovedRemoteBaselineCurrent(record: {
     && record.lastSyncedPayloadHash === remoteHash && record.approvedRemoteEtag === etag);
 }
 
+export function extractVerifiedRemoteCitation(description: string | null | undefined, start: { date: string; time: string }) {
+  const citationSection = (description ?? "").split(/\r?\n\s*\r?\n/)
+    .find((section) => /^\s*CITACIÓN OPERADORES BOOMBOX\s*:/i.test(section));
+  const remoteCitation = citationSection?.replace(/\s+/g, " ").trim() ?? null;
+  const citationDate = numericDate(start.date);
+  if (remoteCitation === null || !normalize(remoteCitation).includes(normalize(citationDate)) || !remoteCitation.includes(start.time)) {
+    throw new Error(`La citación escrita no coincide: esperada ${citationDate} ${start.time}; encontrada ${JSON.stringify(remoteCitation)}; bloque remoto ${start.date} ${start.time}.`);
+  }
+  return remoteCitation;
+}
+
 export function verifyApprovedRemoteEvent(input: CalendarOperationalEventInput, expected: GoogleCalendarEventPayload, remote: GoogleCalendarRemoteEvent) {
   if (!remote.etag || !remote.updated) throw new Error("Google Calendar no devolvió ETag y updated; no se puede aceptar el estado remoto.");
   if (remote.status !== "confirmed") throw new Error("El evento de Google Calendar no está confirmado.");
@@ -69,15 +80,7 @@ export function verifyApprovedRemoteEvent(input: CalendarOperationalEventInput, 
   const expectedEnd = `${input.serviceEndDate ?? input.eventDate}T${input.serviceEnd}`;
   if (`${start.date}T${start.time}` !== expectedStart) throw new Error(`Citación remota ${start.date} ${start.time} no coincide con ORBIT ${expectedStart}.`);
   if (`${end.date}T${end.time}` !== expectedEnd) throw new Error(`Término remoto ${end.date} ${end.time} no coincide con ORBIT ${expectedEnd}.`);
-  // Calendar can wrap long description lines. Read the complete citation section,
-  // rather than assuming its date and time always fit on the first physical line.
-  const citationSection = (remote.description ?? "").split(/\\r?\\n\\s*\\r?\\n/)
-    .find(section => /^\\s*CITACIÓN OPERADORES BOOMBOX\\s*:/i.test(section));
-  const remoteCitation = citationSection?.replace(/\\s+/g, " ").trim() ?? null;
-  const citationDate = numericDate(start.date);
-  if (remoteCitation === null || !normalize(remoteCitation).includes(normalize(citationDate)) || !remoteCitation.includes(start.time)) {
-    throw new Error(`La citación escrita no coincide: esperada ${citationDate} ${start.time}; encontrada ${JSON.stringify(remoteCitation)}; bloque remoto ${start.date} ${start.time}.`);
-  }
+  extractVerifiedRemoteCitation(remote.description, start);
   const remoteServiceWindow = descriptionField(remote.description ?? "", "SERVICIO CLIENTE");
   const expectedServiceEndDate = input.serviceEndDate ?? input.eventDate;
   if (remoteServiceWindow === null
