@@ -69,9 +69,14 @@ export function verifyApprovedRemoteEvent(input: CalendarOperationalEventInput, 
   const expectedEnd = `${input.serviceEndDate ?? input.eventDate}T${input.serviceEnd}`;
   if (`${start.date}T${start.time}` !== expectedStart) throw new Error(`Citación remota ${start.date} ${start.time} no coincide con ORBIT ${expectedStart}.`);
   if (`${end.date}T${end.time}` !== expectedEnd) throw new Error(`Término remoto ${end.date} ${end.time} no coincide con ORBIT ${expectedEnd}.`);
-  const remoteCitation = descriptionField(remote.description ?? "", "CITACIÓN OPERADORES BOOMBOX");
-  if (remoteCitation === null || !normalize(remoteCitation).includes(normalize(numericDate(input.calendarStartDate))) || !remoteCitation.includes(input.calendarStartTime)) {
-    throw new Error(`La citación escrita no coincide: esperada ${numericDate(input.calendarStartDate)} ${input.calendarStartTime}; encontrada ${JSON.stringify(remoteCitation)}; bloque remoto ${start.date} ${start.time}.`);
+  // Calendar can wrap long description lines. Read the complete citation section,
+  // rather than assuming its date and time always fit on the first physical line.
+  const citationSection = (remote.description ?? "").split(/\\r?\\n\\s*\\r?\\n/)
+    .find(section => /^\\s*CITACIÓN OPERADORES BOOMBOX\\s*:/i.test(section));
+  const remoteCitation = citationSection?.replace(/\\s+/g, " ").trim() ?? null;
+  const citationDate = numericDate(start.date);
+  if (remoteCitation === null || !normalize(remoteCitation).includes(normalize(citationDate)) || !remoteCitation.includes(start.time)) {
+    throw new Error(`La citación escrita no coincide: esperada ${citationDate} ${start.time}; encontrada ${JSON.stringify(remoteCitation)}; bloque remoto ${start.date} ${start.time}.`);
   }
   const remoteServiceWindow = descriptionField(remote.description ?? "", "SERVICIO CLIENTE");
   const expectedServiceEndDate = input.serviceEndDate ?? input.eventDate;
