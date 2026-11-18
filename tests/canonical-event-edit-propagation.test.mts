@@ -13,14 +13,15 @@ const eventCenter=read("features/crm/event-center.tsx");
 const staffPortal=read("features/portal-authentication/staff-portal.tsx");
 const staffCalendar=read("app/api/staff-portal/events/[projectId]/calendar/route.ts");
 
-test("operational call must be in the 24 hours before service",()=>{
-  assert.equal(isValidOperationalCall("2026-08-28T15:00:00-04:00","2026-08-28T17:00:00-04:00"),true);
+test("operational call must be exactly 60 minutes before service",()=>{
+  assert.equal(isValidOperationalCall("2026-08-28T16:00:00-04:00","2026-08-28T17:00:00-04:00"),true);
+  assert.equal(isValidOperationalCall("2026-08-28T15:00:00-04:00","2026-08-28T17:00:00-04:00"),false);
   assert.equal(isValidOperationalCall("2026-09-28T15:00:00-04:00","2026-08-28T17:00:00-04:00"),false);
 });
-test("invalid future call cannot make Calendar start after service end",()=>{
+test("stale arrival and assignment calls cannot replace the canonical sixty-minute call",()=>{
   const value=resolveEventOperationalWindow({assignmentStaffCalls:[],staffArrivalAt:"2026-09-28T15:00:00-04:00",serviceStartAt:"2026-08-28T17:00:00-04:00",serviceEndAt:"2026-08-28T21:00:00-04:00"});
-  assert.equal(value.operationalStartAt,"2026-08-28T17:00:00-04:00");
-  assert.equal(value.source,"SERVICE_START");
+  assert.equal(value.operationalStartAt,"2026-08-28T20:00:00.000Z");
+  assert.equal(value.source,"STAFF_CALL");
 });
 test("atomic writer rejects invalid calls and clears derived assignment calls",()=>{
   assert.match(migration,/staff_call>service_start/);

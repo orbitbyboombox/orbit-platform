@@ -1,0 +1,27 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+
+const action = readFileSync("features/connectors/google-calendar/application/google-calendar.actions.ts", "utf8");
+const migration = readFileSync("supabase/migrations/0259_enforce_staff_call_exactly_60_minutes.sql", "utf8");
+
+test("global Calendar reconciliation is future-only and reuses the persisted event ID", () => {
+  assert.match(action, /\.gte\("event_date", todayChile\)/);
+  assert.match(action, /expectedEventId/);
+  assert.match(action, /actualEventId !== expectedEventId/);
+  assert.match(action, /provider\.findEventsByOrbitEventId\(orbitEventId\)/);
+  assert.match(action, /duplicateMatches\.length !== 1/);
+  assert.match(action, /verifiedMapping\?\.nova_calendar_id !== calendarId/);
+  assert.match(action, /result\.operation === "CREATED"/);
+  assert.match(action, /EXISTING_LEGACY_UPDATE/);
+});
+
+test("Staff citation migration is exact minus 60 and excludes historical records", () => {
+  assert.match(migration, /p_service_start_at - interval '60 minutes'/);
+  assert.match(migration, /p\.event_date >= \(now\(\) at time zone 'America\/Santiago'\)::date/);
+  assert.match(migration, /new\.event_date < \(now\(\) at time zone 'America\/Santiago'\)::date then return new/);
+  assert.match(migration, /staff_call_at = fp\.call_at/);
+  assert.match(migration, /STAFF_CALL_RECALCULATED/);
+  assert.match(migration, /correlation_id/);
+  assert.doesNotMatch(migration, /DELETE\s+FROM\s+public\.(projects|assignments|calendar_sync)/i);
+});
