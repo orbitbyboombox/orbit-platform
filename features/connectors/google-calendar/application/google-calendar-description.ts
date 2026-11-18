@@ -34,8 +34,13 @@ function extraNames(input: CalendarOperationalEventInput): string[] {
   return [...new Set(names)];
 }
 
+function cleanCalendarField(value: string | null | undefined): string {
+  return (value ?? "").replace(/<\/?[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
+}
+
 export function buildGoogleMapsLink(address: string): string {
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+  const cleaned = cleanCalendarField(address);
+  return cleaned ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleaned)}` : "Pendiente de dirección";
 }
 
 export function buildCalendarDescription(input: CalendarOperationalEventInput, orbitEventId: string): string {
@@ -53,18 +58,18 @@ export function buildCalendarDescription(input: CalendarOperationalEventInput, o
     "",
     `SERVICIO CLIENTE: ${serviceWindow} (${input.contractedHours} horas).`,
     "",
-    `Servicio: ${input.service}`,
+    `Servicio: ${cleanCalendarField(input.service)}`,
     "",
     `Duración contratada: ${input.contractedHours} horas`,
     "",
-    ...(includedExtras.length ? [`Extras incluidos: ${includedExtras.join(", ")}`, ""] : []),
-    `Cliente: ${input.customerName}`,
+    ...(includedExtras.length ? [`Extras incluidos: ${includedExtras.map(cleanCalendarField).join(", ")}`, ""] : []),
+    `Cliente: ${cleanCalendarField(input.customerName)}`,
     "",
-    `Dirección: ${input.customerAddress}`,
+    `Dirección: ${cleanCalendarField(input.customerAddress) || "Pendiente de registrar"}`,
     "",
-    `Teléfono cliente: ${input.customerPhone}`,
+    `Teléfono cliente: ${cleanCalendarField(input.customerPhone) || "Pendiente"}`,
     "",
-    `Contacto producción: ${input.operationalContact ?? input.operator}`,
+    `Contacto producción: ${cleanCalendarField(input.operationalContact ?? input.operator) || "Por confirmar"}`,
     "",
     `Google Maps: ${buildGoogleMapsLink(input.customerAddress)}`,
     "",
