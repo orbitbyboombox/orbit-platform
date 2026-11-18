@@ -107,15 +107,15 @@ export function EventCenter({
     );
     if (view !== "COMPLETED") return matches;
     return [...matches].sort((a, b) => {
-      const aTime = new Date(`${a.date ?? "1970-01-01"}T${a.time?.slice(0, 5) || "00:00"}:00`).getTime();
-      const bTime = new Date(`${b.date ?? "1970-01-01"}T${b.time?.slice(0, 5) || "00:00"}:00`).getTime();
+      const aTime = new Date(a.staffCallAt ?? `${a.date ?? "1970-01-01"}T00:00`).getTime();
+      const bTime = new Date(b.staffCallAt ?? `${b.date ?? "1970-01-01"}T00:00`).getTime();
       return completedSort === "NEWEST" ? bTime - aTime : aTime - bTime;
     });
   }, [completedSort, events, query, view]);
 
   const openEditor = (event: CrmOperationalEvent) => {
     const operationalDate = event.serviceStartAt?.slice(0, 10) ?? event.date ?? "";
-    const canonicalDate = event.date ?? operationalDate;
+    const canonicalDate = operationalDate;
     setEditing(event);
     setEditDate(canonicalDate);
     setEditTime(event.time?.slice(0, 5) ?? "");
