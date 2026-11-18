@@ -25,3 +25,12 @@ test("Staff citation migration is exact minus 60 and excludes historical records
   assert.match(migration, /correlation_id/);
   assert.doesNotMatch(migration, /DELETE\s+FROM\s+public\.(projects|assignments|calendar_sync)/i);
 });
+
+const remoteReview = readFileSync("features/connectors/google-calendar/application/calendar-remote-review-policy.ts", "utf8");
+
+test("remote citation validation tolerates wrapped lines and uses verified remote block", () => {
+  assert.match(remoteReview, /const citationSection =/);
+  assert.match(remoteReview, /split\(\/\\\\r\?\\\\n/);
+  assert.match(remoteReview, /const citationDate = numericDate\(start\.date\)/);
+  assert.match(remoteReview, /remoteCitation\.includes\(start\.time\)/);
+});
