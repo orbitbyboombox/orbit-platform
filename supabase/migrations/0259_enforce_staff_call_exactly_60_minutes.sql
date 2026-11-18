@@ -125,14 +125,34 @@ set search_path = public, pg_temp
 as $$
 declare
   call_at timestamptz;
+  service_start timestamptz;
+  service_end timestamptz;
+  service_hours numeric;
 begin
   if new.deleted_at is not null then return new; end if;
   if new.event_date < (now() at time zone 'America/Santiago')::date then return new; end if;
   call_at := public.canonical_staff_call_at_for_project(new.id);
   if call_at is null then return new; end if;
+  if upper(coalesce(new.event_time_mode, '')) = 'CONFIRMED' and new.event_time is not null then
+    service_start := (new.event_date + new.event_time) at time zone 'America/Santiago';
+    select max(duration_hours) into service_hours
+    from public.project_services where project_id = new.id;
+    if service_hours is null then
+      select extract(epoch from (c.service_end_at - c.service_start_at)) / 3600
+        into service_hours
+      from public.project_operational_contracts c where c.project_id = new.id;
+    end if;
+    if service_hours > 0 then service_end := service_start + service_hours * interval '1 hour'; end if;
+  end if;
   update public.project_operational_contracts
-  set staff_arrival_at = call_at, updated_at = now()
-  where project_id = new.id and staff_arrival_at is distinct from call_at;
+  set staff_arrival_at = call_at,
+      service_start_at = coalesce(service_start, service_start_at),
+      service_end_at = coalesce(service_end, service_end_at),
+      updated_at = now()
+  where project_id = new.id
+    and (staff_arrival_at is distinct from call_at
+         or service_start_at is distinct from coalesce(service_start, service_start_at)
+         or service_end_at is distinct from coalesce(service_end, service_end_at));
   update public.assignments
   set staff_call_at = call_at,
       staff_call_source = 'DEFAULT_60_MINUTES',
@@ -179,24 +199,42 @@ where fp.call_at is not null and a.deleted_at is null
        or a.arrival_time is distinct from (fp.call_at at time zone 'America/Santiago')::time)
 on conflict(correlation_id, action, entity_type, entity_id) do nothing;
 
+with contract_targets as (
+  select p.id, p.orbit_event_id, c.project_id,
+         c.service_start_at as old_start, c.service_end_at as old_end,
+         c.staff_arrival_at as old_call,
+         public.canonical_staff_call_at_for_project(p.id) as call_at,
+         case when upper(coalesce(p.event_time_mode, '')) = 'CONFIRMED' and p.event_time is not null
+           then (p.event_date + p.event_time) at time zone 'America/Santiago'
+           else c.service_start_at end as target_start,
+         coalesce((select max(ps.duration_hours) from public.project_services ps where ps.project_id = p.id),
+                  extract(epoch from (c.service_end_at - c.service_start_at)) / 3600) as service_hours
+  from public.project_operational_contracts c
+  join public.projects p on p.id = c.project_id
+  where p.deleted_at is null
+    and p.event_date >= (now() at time zone 'America/Santiago')::date
+    and p.status not in ('CANCELLED', 'CANCELED', 'ARCHIVED', 'DELETED')
+), normalized_contracts as (
+  select *,
+         case when target_start is not null and service_hours > 0
+           then target_start + service_hours * interval '1 hour' else old_end end as target_end
+  from contract_targets
+)
 insert into public.timeline_events(
   project_id, orbit_event_id, event_type, title, description, actor_label, source,
   action, entity_type, entity_id, human_message, correlation_id
 )
-select p.id, p.orbit_event_id, 'STAFF_CALL_RECALCULATED', 'Citación Staff normalizada',
-       'Citación de contrato anterior: ' || coalesce(c.staff_arrival_at::text, 'sin dato') ||
-       '; citación canónica: ' || public.canonical_staff_call_at_for_project(p.id)::text ||
-       ' (exactamente 60 minutos antes del servicio).',
-       'ORBIT System', 'Staff scheduling', 'STAFF_CALL_RECALCULATED', 'OperationalContract', c.project_id::text,
-       'Se recalculó la citación del contrato operacional; el inicio, término y duración del servicio no se alteraron.',
-       'staff-call-60:0259:contract:' || c.project_id::text
-from public.project_operational_contracts c
-join public.projects p on p.id = c.project_id
-where p.deleted_at is null
-  and p.event_date >= (now() at time zone 'America/Santiago')::date
-  and p.status not in ('CANCELLED', 'CANCELED', 'ARCHIVED', 'DELETED')
-  and public.canonical_staff_call_at_for_project(p.id) is not null
-  and c.staff_arrival_at is distinct from public.canonical_staff_call_at_for_project(p.id)
+select id, orbit_event_id, 'STAFF_CALL_RECALCULATED', 'Horario operacional y citación normalizados',
+       'Antes: servicio ' || coalesce(old_start::text, 'sin inicio') || '–' || coalesce(old_end::text, 'sin término') ||
+       '; citación ' || coalesce(old_call::text, 'sin dato') || '. Después: servicio ' ||
+       coalesce(target_start::text, 'sin inicio') || '–' || coalesce(target_end::text, 'sin término') ||
+       '; citación ' || coalesce(call_at::text, 'sin dato') || '. Se conservó la duración contratada.',
+       'ORBIT System', 'Staff scheduling', 'STAFF_CALL_RECALCULATED', 'OperationalContract', project_id::text,
+       'Se alineó el horario operacional a la fecha/hora confirmada de ORBIT conservando la duración; citación exacta: 60 minutos antes.',
+       'staff-call-60:0259:contract:' || project_id::text
+from normalized_contracts
+where call_at is not null
+  and (old_call is distinct from call_at or old_start is distinct from target_start or old_end is distinct from target_end)
 on conflict(correlation_id, action, entity_type, entity_id) do nothing;
 
 -- Backfill only active, non-historical assignments. Historical records remain intact.
@@ -218,14 +256,35 @@ where a.project_id = fp.id and fp.call_at is not null
   and (a.staff_call_at is distinct from fp.call_at or a.staff_call_source is distinct from 'DEFAULT_60_MINUTES'
        or a.arrival_time is distinct from (fp.call_at at time zone 'America/Santiago')::time);
 
+with contract_targets as (
+  select p.id, c.project_id,
+         public.canonical_staff_call_at_for_project(p.id) as call_at,
+         case when upper(coalesce(p.event_time_mode, '')) = 'CONFIRMED' and p.event_time is not null
+           then (p.event_date + p.event_time) at time zone 'America/Santiago'
+           else c.service_start_at end as target_start,
+         coalesce((select max(ps.duration_hours) from public.project_services ps where ps.project_id = p.id),
+                  extract(epoch from (c.service_end_at - c.service_start_at)) / 3600) as service_hours,
+         c.service_end_at as old_end
+  from public.project_operational_contracts c
+  join public.projects p on p.id = c.project_id
+  where p.deleted_at is null
+    and p.event_date >= (now() at time zone 'America/Santiago')::date
+    and p.status not in ('CANCELLED', 'CANCELED', 'ARCHIVED', 'DELETED')
+), normalized_contracts as (
+  select *, case when target_start is not null and service_hours > 0
+    then target_start + service_hours * interval '1 hour' else old_end end as target_end
+  from contract_targets
+)
 update public.project_operational_contracts c
-set staff_arrival_at = public.canonical_staff_call_at_for_project(c.project_id), updated_at = now()
-from public.projects p
-where p.id = c.project_id and p.deleted_at is null
-  and p.event_date >= (now() at time zone 'America/Santiago')::date
-  and p.status not in ('CANCELLED', 'CANCELED', 'ARCHIVED', 'DELETED')
-  and public.canonical_staff_call_at_for_project(c.project_id) is not null
-  and c.staff_arrival_at is distinct from public.canonical_staff_call_at_for_project(c.project_id);
+set staff_arrival_at = t.call_at,
+    service_start_at = coalesce(t.target_start, c.service_start_at),
+    service_end_at = coalesce(t.target_end, c.service_end_at),
+    updated_at = now()
+from normalized_contracts t
+where c.project_id = t.project_id and t.call_at is not null
+  and (c.staff_arrival_at is distinct from t.call_at
+       or c.service_start_at is distinct from coalesce(t.target_start, c.service_start_at)
+       or c.service_end_at is distinct from coalesce(t.target_end, c.service_end_at));
 
 revoke all on function public.canonical_staff_call_at_for_project(uuid) from public, anon;
 revoke all on function public.enforce_assignment_staff_call_60_minutes() from public, anon;
