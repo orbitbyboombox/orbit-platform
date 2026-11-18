@@ -2,7 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CrmOperationalEvent } from "./types";
 import { chileDateTime } from "@/features/operations/event-operational-window";
-import { buildCanonicalOrbitEventState } from "@/features/operations/canonical-orbit-event-state";
+import { buildCanonicalOrbitEventStateFromRecord } from "@/features/operations/canonical-orbit-event-state";
 
 type EventRow = {
   id: string;
@@ -15,6 +15,7 @@ type EventRow = {
   projects: {
     name: string;
     event_time: string | null;
+    event_time_mode: string | null;
     location: string | null;
     city: string | null;
     operations: Record<string, unknown> | null;
@@ -24,6 +25,7 @@ type EventRow = {
   } | Array<{
     name: string;
     event_time: string | null;
+    event_time_mode: string | null;
     location: string | null;
     city: string | null;
     operations: Record<string, unknown> | null;
@@ -34,7 +36,7 @@ type EventRow = {
 };
 
 export async function loadCrmOperationalEvents(client: SupabaseClient): Promise<CrmOperationalEvent[]> {
-  const { data: rawEvents, error } = await client.from("crm_events").select("id,customer_id,project_id,orbit_event_id,event_type,event_date,status,projects!inner(name,event_time,location,city,operations,deleted_at,project_services(service_code,duration_hours),quotations(transport_total,created_at))").order("event_date", { ascending: true });
+  const { data: rawEvents, error } = await client.from("crm_events").select("id,customer_id,project_id,orbit_event_id,event_type,event_date,status,projects!inner(name,event_time,event_time_mode,location,city,operations,deleted_at,project_services(service_code,duration_hours),quotations(transport_total,created_at))").order("event_date", { ascending: true });
   if (error) throw error;
   const events = (rawEvents ?? []) as unknown as EventRow[];
   const active = events.filter((event)=>{const project=Array.isArray(event.projects)?event.projects[0]:event.projects;return project&&!project.deleted_at;});
@@ -60,6 +62,6 @@ export async function loadCrmOperationalEvents(client: SupabaseClient): Promise<
   }
   const contractMap=new Map((contracts??[]).map(contract=>[contract.project_id,contract]));
   const unique=new Map<string,CrmOperationalEvent>();
-  for(const event of active){if(unique.has(event.project_id))continue;const project=Array.isArray(event.projects)?event.projects[0]:event.projects;if(!project||!event.event_date)continue;const service=project.project_services?.[0];const extras=Array.isArray(service?.extras)?service.extras.map(item=>typeof item==='string'?item:typeof item==='object'&&item!==null?String((item as {label?:unknown;name?:unknown}).label??(item as {label?:unknown;name?:unknown}).name??''):String(item??'')).filter(Boolean):[];const quotation=[...(project.quotations??[])].sort((a,b)=>b.created_at.localeCompare(a.created_at))[0];const customer=customerMap.get(event.customer_id),contract=contractMap.get(event.project_id),operationalContact=[contract?.contact_first_name,contract?.contact_last_name].filter(Boolean).join(' ');const legacyStart=`${event.event_date}T${project.event_time?.slice(0,5)??"00:00"}:00-04:00`,legacyEnd=new Date(new Date(legacyStart).getTime()+Number(service?.duration_hours??0)*3600000).toISOString(),serviceStartAt=contract?.service_start_at??legacyStart,eventAssignments=assignmentsByProject.get(event.project_id)??[],canonical=buildCanonicalOrbitEventState({projectId:event.project_id,orbitEventId:event.orbit_event_id,eventDate:event.event_date,eventTime:project.event_time,durationHours:service?.duration_hours,serviceStartAt,serviceEndAt:contract?.service_end_at??legacyEnd,location:project.location,city:project.city,assignments:eventAssignments}),serviceStart=chileDateTime(canonical.serviceStartAt),serviceEnd=chileDateTime(canonical.serviceEndAt),staffCall=chileDateTime(canonical.staffCallAt);const operations=project.operations??{};const notes=typeof operations.notes==='string'?operations.notes:'';const noteAddress=notes.match(/Dirección evento:\s*([^\n]+)/i)?.[1]?.trim()??'';unique.set(event.project_id,{id:event.id,projectId:event.project_id,orbitEventId:event.orbit_event_id,type:event.event_type,date:event.event_date,time:serviceStart.time,status:event.status,dataClassification:String(operations.dataClassification??"PRODUCTION").toUpperCase(),name:project.name,location:project.location,municipality:project.city,eventAddress:typeof operations.eventAddress==='string'?operations.eventAddress:noteAddress,service:service?.service_code??"",duration:service?.duration_hours??null,extras,operationalContact,operationalPhone:contract?.contact_phone??"",transport:Number(quotation?.transport_total??0),customerId:event.customer_id,customerName:customer?.full_name??"Cliente sin nombre",company:customer?.company??"",operator:operatorMap.get(event.project_id)??"Sin asignar",serviceStartAt:`${serviceStart.date}T${serviceStart.time}`,serviceEndAt:`${serviceEnd.date}T${serviceEnd.time}`,staffCallAt:`${staffCall.date}T${staffCall.time}`});}
+  for(const event of active){if(unique.has(event.project_id))continue;const project=Array.isArray(event.projects)?event.projects[0]:event.projects;if(!project||!event.event_date)continue;const service=project.project_services?.[0];const extras=Array.isArray(service?.extras)?service.extras.map(item=>typeof item==='string'?item:typeof item==='object'&&item!==null?String((item as {label?:unknown;name?:unknown}).label??(item as {label?:unknown;name?:unknown}).name??''):String(item??'')).filter(Boolean):[];const quotation=[...(project.quotations??[])].sort((a,b)=>b.created_at.localeCompare(a.created_at))[0];const customer=customerMap.get(event.customer_id),contract=contractMap.get(event.project_id),operationalContact=[contract?.contact_first_name,contract?.contact_last_name].filter(Boolean).join(' '),eventAssignments=assignmentsByProject.get(event.project_id)??[],canonical=buildCanonicalOrbitEventStateFromRecord({id:event.project_id,orbit_event_id:event.orbit_event_id,event_date:event.event_date,event_time:project.event_time,event_time_mode:project.event_time_mode,location:project.location,city:project.city,operations:project.operations,assignments:eventAssignments,duration_hours:service?.duration_hours,project_operational_contracts:contract}),serviceStart=chileDateTime(canonical.serviceStartAt),serviceEnd=chileDateTime(canonical.serviceEndAt),staffCall=chileDateTime(canonical.staffCallAt);const operations=project.operations??{};const notes=typeof operations.notes==='string'?operations.notes:'';const noteAddress=notes.match(/Dirección evento:\s*([^\n]+)/i)?.[1]?.trim()??'';unique.set(event.project_id,{id:event.id,projectId:event.project_id,orbitEventId:event.orbit_event_id,type:event.event_type,date:staffCall.date,time:serviceStart.time,status:event.status,dataClassification:String(operations.dataClassification??"PRODUCTION").toUpperCase(),name:project.name,location:project.location,municipality:project.city,eventAddress:typeof operations.eventAddress==='string'?operations.eventAddress:noteAddress,service:service?.service_code??"",duration:service?.duration_hours??null,extras,operationalContact,operationalPhone:contract?.contact_phone??"",transport:Number(quotation?.transport_total??0),customerId:event.customer_id,customerName:customer?.full_name??"Cliente sin nombre",company:customer?.company??"",operator:operatorMap.get(event.project_id)??"Sin asignar",serviceStartAt:`${serviceStart.date}T${serviceStart.time}`,serviceEndAt:`${serviceEnd.date}T${serviceEnd.time}`,staffCallAt:`${staffCall.date}T${staffCall.time}`});}
   return [...unique.values()];
 }

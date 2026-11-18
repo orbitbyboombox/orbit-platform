@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { buildCanonicalOrbitEventStateFromRecord } from "../features/operations/canonical-orbit-event-state.ts";
 import { chileDateTime, chileLocalToIso } from "../features/operations/event-operational-window.ts";
 
-test("uses explicit founder citation instead of the default one-hour lead", () => {
+test("ignores legacy founder citation and always uses exactly one hour before service", () => {
   const state = buildCanonicalOrbitEventStateFromRecord({
     id: "project-override",
     orbit_event_id: "ORB-2026-162036",
@@ -18,10 +18,10 @@ test("uses explicit founder citation instead of the default one-hour lead", () =
       staff_call_at: chileLocalToIso("2026-11-20T17:00:00"),
     }],
   });
-  assert.deepEqual(chileDateTime(state.staffCallAt), { date: "2026-11-20", time: "17:00" });
+  assert.deepEqual(chileDateTime(state.staffCallAt), { date: "2026-11-20", time: "17:30" });
   assert.deepEqual(chileDateTime(state.serviceStartAt), { date: "2026-11-20", time: "18:30" });
   assert.deepEqual(chileDateTime(state.serviceEndAt), { date: "2026-11-20", time: "20:30" });
-  assert.equal(state.staffCallSource, "FOUNDER_OVERRIDE");
+  assert.equal(state.staffCallSource, "DEFAULT_60_MINUTES");
 });
 
 test("preserves canonical operational contract times when service is not confirmed", () => {

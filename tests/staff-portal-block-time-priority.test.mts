@@ -5,9 +5,10 @@ import test from "node:test";
 const dashboard = await readFile("features/portal-authentication/staff-portal-dashboard.tsx", "utf8");
 
 test("Staff Portal prioritizes assigned operational block times", () => {
-  assert.match(dashboard, /const assignedBlocks = event\.roles\.includes\("OPERATOR"\) \? event\.operationalBlocks : \[\];/);
+  assert.match(dashboard, /const assignedBlocks=event\.operationalBlocks/);
   assert.match(dashboard, /time: primaryBlock \? staffBlockTime\(primaryBlock\.startAt\) : event\.start/);
   assert.match(dashboard, /endTime: primaryBlock \? staffBlockTime\(primaryBlock\.endAt\) : event\.finish/);
+  assert.match(dashboard, /CITACIÓN STAFF: \{staffCallLabel\(event\.staffCallAt\)\}/);
   assert.match(dashboard, /TU TURNO:/);
   assert.match(dashboard, /EVENTO TOTAL/);
 });

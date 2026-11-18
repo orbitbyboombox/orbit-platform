@@ -85,6 +85,11 @@ async function verifyRemoteStart(
   input: CalendarOperationalEventInput,
 ) {
   const remote = await provider.getEvent(googleEventId);
+  const expectedPayload = mapOperationalEventToCalendar(input);
+  if (remote.id !== googleEventId || remote.summary !== expectedPayload.title || remote.description !== expectedPayload.description
+    || (remote.location ?? "") !== (expectedPayload.location ?? "")) {
+    throw new Error(`CALENDAR_REMOTE_VERIFY_FAILED: title, description, location o ID no coincide con el contenido canónico de ORBIT para ${googleEventId}`);
+  }
   const remoteDateTime = remote.start?.dateTime;
   const remoteEndDateTime = remote.end?.dateTime;
   const remoteTimeZone = remote.start?.timeZone;
@@ -301,6 +306,10 @@ export class GoogleCalendarLive {
       if (error instanceof GoogleCalendarPreconditionFailed) {
         const record = await this.repository.save({ ...(existing ?? baseRecord), status: "UPDATE_REQUIRED", errorCode: "REMOTE_EVENT_CHANGED", errorMessage: "Google Calendar rechazó el If-Match (HTTP 412); se conservó la edición remota y ORBIT requiere revisión." });
         return { ok: false, record, error: { code: "REMOTE_EVENT_CHANGED", message: record.errorMessage ?? "Conflicto ETag en Google Calendar.", retryable: false } };
+      }
+      if (error instanceof Error && error.message.startsWith("CALENDAR_REMOTE_VERIFY_FAILED")) {
+        const record = await this.repository.save({ ...(existing ?? baseRecord), status: "UPDATE_REQUIRED", errorCode: "REMOTE_EVENT_CHANGED", errorMessage: error.message });
+        return { ok: false, record, error: { code: "REMOTE_EVENT_CHANGED", message: record.errorMessage ?? "La lectura posterior de Google Calendar no coincide con ORBIT.", retryable: false } };
       }
       console.error("[calendar-time-sync]", { stage: "CALENDAR_TIME_SYNC_VERIFY", project_id: input.planId, external_event_id: existing?.googleEventId ?? null, requested_event_time: input.calendarStartTime, resolved_start_at: `${input.calendarStartDate}T${input.calendarStartTime}`, timezone: "America/Santiago", code: error instanceof Error && error.message.startsWith("CALENDAR_REMOTE_VERIFY_FAILED") ? "CALENDAR_REMOTE_VERIFY_FAILED" : "PROVIDER_ERROR", message: error instanceof Error ? error.message : String(error) });
       const record = await this.repository.save({ ...(existing ?? baseRecord), status: "ERROR", errorMessage: "Google Calendar no pudo completar la operación." });

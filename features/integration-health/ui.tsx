@@ -1,7 +1,8 @@
 "use client";
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Activity, RefreshCw, ShieldCheck } from "lucide-react";
+import { reconcileFutureGoogleCalendarAction } from "@/features/connectors/google-calendar/application/google-calendar.actions";
 import type { IntegrationHealthSnapshot, IntegrationSignal } from "./types";
 const colors: Record<IntegrationSignal["status"], string> = {
   PASS: "text-success bg-success/10 border-success/25",
@@ -52,6 +53,8 @@ export function IntegrationHealthCenter({
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
+  const [reconciling, setReconciling] = useState(false);
+  const [reconciliation, setReconciliation] = useState<Awaited<ReturnType<typeof reconcileFutureGoogleCalendarAction>> | null>(null);
   return (
     <div className="space-y-6 pb-12">
       <header className="rounded-[2rem] border bg-card p-6 sm:p-8">
@@ -155,6 +158,32 @@ export function IntegrationHealthCenter({
         <Card title="Google" signals={snapshot.google} />
         <Card title="ORBIT Production" signals={snapshot.orbit} />
       </div>
+      <section className="rounded-[1.5rem] border bg-card p-5 sm:p-7">
+        <h2 className="text-lg font-semibold">Google Calendar · eventos activos futuros</h2>
+        <p className="mt-1 text-sm text-muted">
+          Revisa y reconcilia eventos vinculados usando su ID existente y ETag. Los eventos históricos y las entradas legadas quedan fuera.
+        </p>
+        <button
+          className="mt-4 inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-medium hover:bg-background disabled:opacity-60"
+          disabled={pending || reconciling}
+          onClick={() => {
+            setReconciling(true);
+            start(async () => {
+              setReconciliation(await reconcileFutureGoogleCalendarAction());
+              setReconciling(false);
+              router.refresh();
+            });
+          }}
+        >
+          <RefreshCw className={`size-4 ${pending || reconciling ? "animate-spin" : ""}`} />
+          {pending || reconciling ? "Reconciliando…" : "Reconciliar eventos futuros"}
+        </button>
+        {reconciliation && (
+          <pre className="mt-4 overflow-x-auto rounded-xl border bg-background p-4 text-xs" role="status">
+            {JSON.stringify(reconciliation, null, 2)}
+          </pre>
+        )}
+      </section>
     </div>
   );
 }

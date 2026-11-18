@@ -28,7 +28,7 @@ export function CrmCalendar({ initialEvents }: { initialEvents: CrmOperationalEv
   const monthDays = useMemo(() => { const first = new Date(cursor.getFullYear(), cursor.getMonth(), 1); const start = startOfWeek(first); return Array.from({ length: 42 }, (_, index) => addDays(start, index)); }, [cursor]);
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, index) => addDays(startOfWeek(cursor), index)), [cursor]);
   const visibleDays = view === "MONTH" ? monthDays : view === "WEEK" ? weekDays : [cursor];
-  const eventsFor = (day: Date) => events.filter(event => event.date === iso(day)).sort((a, b) => String(a.time).localeCompare(String(b.time)));
+  const eventsFor = (day: Date) => events.filter(event => event.date === iso(day)).sort((a, b) => String(a.staffCallAt ?? `${a.date}T${a.time}`).localeCompare(String(b.staffCallAt ?? `${b.date}T${b.time}`)));
   const move = (amount: number) => { const next = new Date(cursor); next.setMonth(next.getMonth() + (view === "MONTH" ? amount : 0)); if (view === "WEEK") next.setDate(next.getDate() + amount * 7); if (view === "DAY") next.setDate(next.getDate() + amount); setCursor(next); setSelectedDay(iso(next)); };
   const today = () => { const next = new Date(); setCursor(view === "MONTH" ? new Date(next.getFullYear(), next.getMonth(), 1) : next); setSelectedDay(iso(next)); };
   const heading = view === "MONTH" ? cursor.toLocaleDateString("es-CL", { month: "long", year: "numeric" }) : view === "WEEK" ? `${iso(weekDays[0])} – ${iso(weekDays[6])}` : cursor.toLocaleDateString("es-CL", { dateStyle: "long" });

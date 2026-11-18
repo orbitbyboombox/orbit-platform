@@ -23,6 +23,7 @@ import {
 import { prepareAcceptedQuotationRevisionAction } from "@/features/quotation-engine/quotation.actions";
 import { shiftEventScheduleDate } from "./event-schedule";
 import { FOUNDER_FORCE_DELETE_CONFIRMATION, TEST_FULL_PURGE_CONFIRMATION } from "@/features/founder-force-delete/policy";
+import { calculateStaffCallAt, chileDateTime, chileLocalToIso } from "@/features/operations/event-operational-window";
 
 type View =
   | "TODAY"
@@ -89,6 +90,7 @@ export function EventCenter({
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [deleteError, setDeleteError] = useState("");
   const [editDate, setEditDate] = useState("");
+  const [editTime, setEditTime] = useState("");
   const [serviceEndAt, setServiceEndAt] = useState("");
   const [staffCallAt, setStaffCallAt] = useState("");
   const [error, setError] = useState("");
@@ -105,23 +107,23 @@ export function EventCenter({
     );
     if (view !== "COMPLETED") return matches;
     return [...matches].sort((a, b) => {
-      const aTime = new Date(`${a.date ?? "1970-01-01"}T${a.time?.slice(0, 5) || "00:00"}:00`).getTime();
-      const bTime = new Date(`${b.date ?? "1970-01-01"}T${b.time?.slice(0, 5) || "00:00"}:00`).getTime();
+      const aTime = new Date(a.staffCallAt ?? `${a.date ?? "1970-01-01"}T00:00`).getTime();
+      const bTime = new Date(b.staffCallAt ?? `${b.date ?? "1970-01-01"}T00:00`).getTime();
       return completedSort === "NEWEST" ? bTime - aTime : aTime - bTime;
     });
   }, [completedSort, events, query, view]);
 
   const openEditor = (event: CrmOperationalEvent) => {
     const operationalDate = event.serviceStartAt?.slice(0, 10) ?? event.date ?? "";
-    const canonicalDate = event.date ?? operationalDate;
+    const canonicalDate = operationalDate;
     setEditing(event);
     setEditDate(canonicalDate);
+    setEditTime(event.time?.slice(0, 5) ?? "");
     setServiceEndAt(
       shiftEventScheduleDate(event.serviceEndAt, operationalDate, canonicalDate),
     );
-    setStaffCallAt(
-      shiftEventScheduleDate(event.staffCallAt, operationalDate, canonicalDate),
-    );
+    const call = chileDateTime(calculateStaffCallAt(chileLocalToIso(`${canonicalDate}T${event.time?.slice(0, 5) ?? "00:00"}:00`)));
+    setStaffCallAt(`${call.date}T${call.time}`);
     setError("");
     setFeedback("");
   };
@@ -134,18 +136,25 @@ export function EventCenter({
     const canonicalDate = event.date ?? operationalDate;
     setEditing(event);
     setEditDate(canonicalDate);
+    setEditTime(event.time?.slice(0, 5) ?? "");
     setServiceEndAt(shiftEventScheduleDate(event.serviceEndAt, operationalDate, canonicalDate));
-    setStaffCallAt(shiftEventScheduleDate(event.staffCallAt, operationalDate, canonicalDate));
+    const call = chileDateTime(calculateStaffCallAt(chileLocalToIso(`${canonicalDate}T${event.time?.slice(0, 5) ?? "00:00"}:00`)));
+    setStaffCallAt(`${call.date}T${call.time}`);
     router.replace("/events", { scroll: false });
   }, [initialEvents, router]);
   const changeDate = (nextDate: string) => {
     setServiceEndAt((value) =>
       shiftEventScheduleDate(value, editDate, nextDate),
     );
-    setStaffCallAt((value) =>
-      shiftEventScheduleDate(value, editDate, nextDate),
-    );
+    const call = chileDateTime(calculateStaffCallAt(chileLocalToIso(`${nextDate}T${editTime || "00:00"}:00`)));
+    setStaffCallAt(`${call.date}T${call.time}`);
     setEditDate(nextDate);
+  };
+  const changeTime = (nextTime: string) => {
+    setEditTime(nextTime);
+    if (!editDate || !nextTime) return;
+    const call = chileDateTime(calculateStaffCallAt(chileLocalToIso(`${editDate}T${nextTime}:00`)));
+    setStaffCallAt(`${call.date}T${call.time}`);
   };
   const lifecycle = (
     event: CrmOperationalEvent,
@@ -243,7 +252,6 @@ export function EventCenter({
         date: String(form.get("date")),
         time: String(form.get("time")),
         serviceEndAt: String(form.get("serviceEndAt")),
-        staffCallAt: String(form.get("staffCallAt")),
         type: String(form.get("type")),
         location: String(form.get("location")),
         eventAddress: String(form.get("eventAddress")),
@@ -462,7 +470,7 @@ export function EventCenter({
               />
             </label>
             {[
-              ["time", "Hora", editing.time?.slice(0, 5) ?? "", "time"],
+              ["time", "Hora", editTime, "time"],
               ["type", "Tipo", editing.type, "text"],
               ["location", "Lugar", editing.location ?? "", "text"],
               ["eventAddress", "Dirección", editing.eventAddress, "text"],
@@ -490,6 +498,7 @@ export function EventCenter({
                   className="h-11 w-full rounded-xl border bg-background px-3"
                   defaultValue={value}
                   name={name}
+                  onChange={name === "time" ? (event) => changeTime(event.target.value) : undefined}
                   type={type}
                 />
               </label>
@@ -507,16 +516,10 @@ export function EventCenter({
                 value={serviceEndAt}
               />
             </label>
-            <label className="text-sm">
-              <span className="mb-1.5 block text-muted">Citación Staff</span>
-              <input
-                className="h-11 w-full rounded-xl border bg-background px-3"
-                name="staffCallAt"
-                onChange={(event) => setStaffCallAt(event.target.value)}
-                type="datetime-local"
-                value={staffCallAt}
-              />
-            </label>
+            <div className="text-sm">
+              <span className="mb-1.5 block text-muted">Citación Staff (automática)</span>
+              <p className="h-11 content-center rounded-xl border bg-background px-3">{staffCallAt.replace("T", " ")} · 60 minutos antes del servicio</p>
+            </div>
             <section className="sm:col-span-2 rounded-xl border p-4 space-y-3">
               <p className="font-semibold text-sm">Propuesta de revisión comercial (cotización aceptada)</p>
               <p className="text-xs text-muted">Genera un PDF nuevo sin reemplazar el aceptado ni enviar correos. Primero guarda los cambios del evento; vuelve a abrir este editor y prepara la propuesta. Esta acción no modifica el valor de la cotización aceptada.</p>

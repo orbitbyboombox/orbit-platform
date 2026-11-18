@@ -434,7 +434,6 @@ export async function updateCrmEventAction(input: {
   date: string;
   time: string;
   serviceEndAt?: string;
-  staffCallAt?: string;
   type: string;
   location: string;
   eventAddress?: string;
@@ -458,7 +457,6 @@ export async function updateCrmEventAction(input: {
           ? {
               serviceStartLocal: `${input.date}T${input.time}`,
               serviceEndLocal: input.serviceEndAt,
-              staffCallLocal: input.staffCallAt || "",
             }
           : {}),
         type: input.type,

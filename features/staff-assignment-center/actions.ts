@@ -7,7 +7,7 @@ import { synchronizeConfirmedReservationCalendar } from "@/features/connectors/g
 import { deliverAssignmentCancellationBoundary } from "@/features/operations/staff-assignment-cancellation.service";
 import { requestEvidence } from "@/features/portal-authentication/portal-auth.service";
 import {deliverStaffAssignmentNotification} from "@/features/operations/staff-assignment-notification.service";
-import {calculateStaffCallAt, chileLocalToIso} from "@/features/operations/event-operational-window";
+import {calculateStaffCallAt, chileDateTime, chileLocalToIso} from "@/features/operations/event-operational-window";
 import { invalidateCalendarSyncForProject } from "@/features/connectors/google-calendar/application/google-calendar-resync.service";
 import {
   EXCLUDED_OPERATOR_MOBILITY_STAFF_IDS,
@@ -23,7 +23,6 @@ export type StaffAssignmentMutation = {
   staffId: string;
   role: string;
   arrivalTime: string;
-  staffCallAt?: string;
   startTime: string;
   finishTime: string;
   vehicleId: string;
@@ -64,7 +63,7 @@ async function context(projectId: string) {
   const { data: project, error } = await client
     .from("projects")
     .select(
-      "id,customer_id,orbit_event_id,name,event_date,event_time,city,location,project_services(duration_hours),event_operational_blocks(id,start_at,end_at,name)",
+      "id,customer_id,orbit_event_id,name,event_date,event_time,event_time_mode,operations,city,location,project_services(duration_hours),project_operational_contracts(service_start_at),event_operational_blocks(id,start_at,end_at,name)",
     )
     .eq("id", projectId)
     .is("deleted_at", null)
@@ -169,10 +168,25 @@ export async function saveStaffAssignmentAction(
       const total = (h * 60 + m + minutes + 1440) % 1440;
       return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
     };
-    const automaticArrival =
-      ["OPERATOR", "SUPERVISOR"].includes(input.role) && ctx.project.event_date && eventStart
-        ? calculateStaffCallAt(chileLocalToIso(`${ctx.project.event_date}T${eventStart}:00`))
-        : null;
+    const contract = Array.isArray(ctx.project.project_operational_contracts)
+      ? ctx.project.project_operational_contracts[0]
+      : ctx.project.project_operational_contracts;
+    const operations = ctx.project.operations && typeof ctx.project.operations === "object"
+      ? ctx.project.operations as Record<string, unknown>
+      : {};
+    const confirmedStart = String(ctx.project.event_time_mode ?? "").toUpperCase() === "CONFIRMED" && ctx.project.event_time;
+    const canonicalServiceStart = confirmedStart
+      ? chileLocalToIso(`${ctx.project.event_date}T${String(ctx.project.event_time).slice(0, 5)}:00`)
+      : typeof contract?.service_start_at === "string"
+        ? contract.service_start_at
+        : typeof operations.service_start_at === "string"
+          ? operations.service_start_at
+          : ctx.project.event_date && ctx.project.event_time
+            ? chileLocalToIso(`${ctx.project.event_date}T${String(ctx.project.event_time).slice(0, 5)}:00`)
+            : null;
+    if (!canonicalServiceStart) throw new Error("El inicio canónico del servicio no está definido; no se puede asignar Staff con una citación incorrecta.");
+    const automaticArrival = calculateStaffCallAt(canonicalServiceStart);
+    const automaticArrivalLocal = chileDateTime(automaticArrival);
     const automaticFinish = clock(eventStart, duration * 60);
     // Keep metadata attached to an assignment (including its official roster block)
     // when the Founder edits or replaces the person assigned to it.
@@ -201,9 +215,9 @@ export async function saveStaffAssignmentAction(
       staff_id: input.staffId,
       assignment_type: input.role,
       status: "ASSIGNED",
-      arrival_time: value(input.arrivalTime) ?? (automaticArrival ? clock(eventStart, -60) : null),
-      staff_call_at:value(input.staffCallAt??"")||automaticArrival,
-      staff_call_source:value(input.staffCallAt??"")?"FOUNDER_OVERRIDE":(automaticArrival?"DEFAULT_60_MINUTES":null),
+      arrival_time: automaticArrivalLocal.time,
+      staff_call_at:automaticArrival,
+      staff_call_source:"DEFAULT_60_MINUTES",
       start_time: ["OPERATOR", "SUPERVISOR"].includes(input.role) && selectedBlock ? eventStart : value(input.startTime) ?? value(eventStart),
       finish_time: ["OPERATOR", "SUPERVISOR"].includes(input.role) && selectedBlock ? blockEnd : value(input.finishTime) ?? automaticFinish,
       assigned_vehicle: value(input.vehicleId),

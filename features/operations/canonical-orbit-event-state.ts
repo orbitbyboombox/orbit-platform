@@ -60,7 +60,6 @@ export function buildCanonicalOrbitEventStateFromRecord(record: {
 }
 
 export function canonicalStaffCallGuard(state: Pick<CanonicalOrbitEventState, "serviceStartAt" | "staffCallAt" | "staffCallSource">): "OK" | "STAFF_CALL_INCONSISTENT" {
-  if (state.staffCallSource === "FOUNDER_OVERRIDE") return "OK";
   const expected = resolveCanonicalStaffCallAt({ serviceStartAt: state.serviceStartAt }).staffCallAt;
   return new Date(expected).getTime() === new Date(state.staffCallAt).getTime() ? "OK" : "STAFF_CALL_INCONSISTENT";
 }
@@ -82,9 +81,6 @@ export function buildCanonicalOrbitEventState(input: {
   const serviceStartAt = input.serviceStartAt ?? chileLocalToIso(`${input.eventDate}T${(input.eventTime ?? "00:00").slice(0, 5)}:00`);
   const serviceEndAt = input.serviceEndAt ?? new Date(new Date(serviceStartAt).getTime() + durationHours * 3600000).toISOString();
   const activeAssignments = (input.assignments ?? []).filter((assignment) => !["CANCELLED", "REJECTED"].includes(String(assignment.status ?? "").toUpperCase()));
-  const call = resolveCanonicalStaffCallAt({
-    serviceStartAt,
-    overrides: activeAssignments.map((assignment) => ({ value: assignment.staff_call_at, source: assignment.staff_call_source })),
-  });
+  const call = resolveCanonicalStaffCallAt({ serviceStartAt });
   return { projectId: input.projectId, orbitEventId: input.orbitEventId ?? null, eventDate: input.eventDate, serviceStartAt, serviceEndAt, durationHours, staffCallAt: call.staffCallAt, staffCallSource: call.source, location: input.location ?? null, city: input.city ?? null, publicationStatus: input.publicationStatus ?? null, activeAssignments };
 }
