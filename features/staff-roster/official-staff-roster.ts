@@ -9,6 +9,9 @@ import { GoogleGmailApiProvider } from "@/features/connectors/google-gmail/provi
 
 import { buildRosterGroups } from "./official-roster-members";
 
+// Preserve the official BOOMBOX event lead from roster V1.
+export const OFFICIAL_ROSTER_RESPONSIBLE = { name: "Matías Maira", rut: "16.357.402-0", phone: "+56 9 7306 9315" } as const;
+
 export type RosterTotemRow = { position:string; location:string; reference:string; box:string; block:string; operator:string };
 export type RosterComposer = { totemRows: RosterTotemRow[]; projectId: string; orbitEventId: string; eventName: string; eventDate: string; eventTime: string; location: string; city: string; customerName: string; recipient: string; fingerprint: string; groups: ReturnType<typeof buildRosterGroups>["groups"]; responsible: { name: string; rut: string } | null; missing: string[]; canGenerate: boolean };
 
@@ -57,6 +60,8 @@ export async function loadOfficialRoster(projectId: string): Promise<RosterCompo
       responsible = { name: contactName, rut: rut && isValidChileanRut(rut) ? formatChileanRut(rut) : "" };
     }
   }
+  // A confirmed operational contact may be external; do not erase the official BOOMBOX lead.
+  if (!responsible) responsible = { name: OFFICIAL_ROSTER_RESPONSIBLE.name, rut: OFFICIAL_ROSTER_RESPONSIBLE.rut };
   const operations = p.data.operations && typeof p.data.operations === "object" ? p.data.operations as Record<string,unknown> : {};
   const layout = operations.totemLayout as {enabled?:boolean;positions?:Array<{label:string;location:string;reference:string;assetId:string|null;blocks:Array<{blockId:string;assignmentId:string|null}>}>}|undefined;
   const blockNames = new Map((blockResult.data??[]).map(block=>[block.id,block.name??"Bloque"]));
