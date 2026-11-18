@@ -3,7 +3,6 @@ import type { CalendarOperationalEventInput, GoogleCalendarEventPayload } from "
 import type { GoogleCalendarRemoteEvent } from "../provider/google-calendar-live.provider.ts";
 
 const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLocaleLowerCase("es-CL");
-const withoutOptionalCitationNote = (value: string) => normalize(value).replace(/(\d{2}:\d{2})\.?\s*\(1 hora antes del servicio\)\.?/g, "$1.");
 const normalizeExtra = (value: string) => {
   const normalized = normalize(value).replace(/\bincluido\b/g, "");
   const known = ["qr", "imanes", "scrapbook", "transporte", "fondo"];
@@ -23,8 +22,12 @@ function descriptionField(description: string, label: string) {
   if (lineIndex < 0) return null;
   const line = lines[lineIndex];
   const value = line.slice(line.indexOf(":") + 1).trim();
-  if (label === "CITACIÓN OPERADORES BOOMBOX" && /(?:antes del|del)$/i.test(value) && lines[lineIndex + 1]) return `${value} ${lines[lineIndex + 1]}`;
   return label === "Google Maps" && !value ? (lines[lineIndex + 1] ?? "").trim() : value;
+}
+
+function numericDate(date: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : date;
 }
 
 function localParts(value: string, timeZone = "America/Santiago") {
@@ -67,11 +70,15 @@ export function verifyApprovedRemoteEvent(input: CalendarOperationalEventInput, 
   if (`${start.date}T${start.time}` !== expectedStart) throw new Error(`Citación remota ${start.date} ${start.time} no coincide con ORBIT ${expectedStart}.`);
   if (`${end.date}T${end.time}` !== expectedEnd) throw new Error(`Término remoto ${end.date} ${end.time} no coincide con ORBIT ${expectedEnd}.`);
   const remoteCitation = descriptionField(remote.description ?? "", "CITACIÓN OPERADORES BOOMBOX");
-  const expectedCitation = descriptionField(expected.description, "CITACIÓN OPERADORES BOOMBOX");
-  if (remoteCitation === null || expectedCitation === null || withoutOptionalCitationNote(remoteCitation) !== withoutOptionalCitationNote(expectedCitation)) throw new Error("La citación escrita en la descripción no coincide con el bloque horario validado.");
+  if (remoteCitation === null || !normalize(remoteCitation).includes(normalize(numericDate(input.calendarStartDate))) || !remoteCitation.includes(input.calendarStartTime)) throw new Error("La citación escrita en la descripción no coincide con la fecha y hora del bloque validado.");
   const remoteServiceWindow = descriptionField(remote.description ?? "", "SERVICIO CLIENTE");
-  const expectedServiceWindow = descriptionField(expected.description, "SERVICIO CLIENTE");
-  if (remoteServiceWindow === null || expectedServiceWindow === null || normalize(remoteServiceWindow) !== normalize(expectedServiceWindow)) throw new Error("El horario o duración del servicio en la descripción no coincide con ORBIT.");
+  const expectedServiceEndDate = input.serviceEndDate ?? input.eventDate;
+  if (remoteServiceWindow === null
+    || !normalize(remoteServiceWindow).includes(normalize(numericDate(input.serviceStartDate)))
+    || !remoteServiceWindow.includes(input.serviceStart)
+    || !normalize(remoteServiceWindow).includes(normalize(numericDate(expectedServiceEndDate)))
+    || !remoteServiceWindow.includes(input.serviceEnd)
+    || !normalize(remoteServiceWindow).includes(normalize(`(${input.contractedHours} horas)`))) throw new Error("El horario o duración del servicio en la descripción no coincide con ORBIT.");
   for (const label of ["Servicio", "Duración contratada", "Cliente", "Dirección", "Teléfono cliente", "Contacto producción", "Google Maps", "ORBIT Event ID"]) {
     const remoteValue = descriptionField(remote.description ?? "", label);
     const expectedValue = descriptionField(expected.description, label);
