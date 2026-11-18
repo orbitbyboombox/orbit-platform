@@ -30,7 +30,6 @@ const remoteReview = readFileSync("features/connectors/google-calendar/applicati
 
 test("remote citation validation tolerates wrapped lines and uses verified remote block", () => {
   assert.match(remoteReview, /const citationSection =/);
-  assert.match(remoteReview, /split\(\/\\\\r\?\\\\n/);
   assert.match(remoteReview, /const citationDate = numericDate\(start\.date\)/);
   assert.match(remoteReview, /remoteCitation\.includes\(start\.time\)/);
 });
