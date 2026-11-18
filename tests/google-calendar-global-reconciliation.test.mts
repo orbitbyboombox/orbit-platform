@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { extractVerifiedRemoteCitation } from "../features/connectors/google-calendar/application/calendar-remote-review-policy.ts";
 
 const action = readFileSync("features/connectors/google-calendar/application/google-calendar.actions.ts", "utf8");
 const migration = readFileSync("supabase/migrations/0259_enforce_staff_call_exactly_60_minutes.sql", "utf8");
@@ -32,4 +33,11 @@ test("remote citation validation tolerates wrapped lines and uses verified remot
   assert.match(remoteReview, /const citationSection =/);
   assert.match(remoteReview, /const citationDate = numericDate\(start\.date\)/);
   assert.match(remoteReview, /remoteCitation\.includes\(start\.time\)/);
+});
+
+test("remote citation parser handles real Calendar line wrapping and verifies its date and time", () => {
+  const description = "CITACIÓN OPERADORES BOOMBOX: viernes 20/11/2026 a las 17:30 (1 hora antes del\\nservicio).\\n\\nSERVICIO CLIENTE: sábado 21/11/2026 de 00:00 a 03:00 (3 horas).";
+  const citation = extractVerifiedRemoteCitation(description, { date: "2026-11-20", time: "17:30" });
+  assert.match(citation, /viernes 20\\/11\\/2026 a las 17:30/);
+  assert.throws(() => extractVerifiedRemoteCitation(description, { date: "2026-11-20", time: "23:30" }), /esperada 20\\/11\\/2026 23:30; encontrada/);
 });
