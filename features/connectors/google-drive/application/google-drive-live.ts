@@ -18,6 +18,20 @@ export class GoogleDriveLive {
       for (const planned of plan) {
         const existing = await this.repository.findByPath(planned.path);
         if (existing) {
+          // Never silently reuse a stale or relocated Drive ID. A cached row is not
+          // proof that its folder still exists beneath the expected parent.
+          if (this.provider.getFolderParents && existing.driveFolderId) {
+            const actualParents = await this.provider.getFolderParents(existing.driveFolderId);
+            const expectedParent = planned.parentPath
+              ? await this.repository.findByPath(planned.parentPath)
+              : null;
+            if (planned.parentPath && !expectedParent?.driveFolderId) {
+              throw new Error(`DRIVE_PARENT_UNRESOLVED: ${planned.parentPath}`);
+            }
+            if (planned.parentPath && !actualParents.includes(expectedParent!.driveFolderId!)) {
+              throw new Error(`DRIVE_PARENT_MISMATCH: ${planned.path}. Reconcile the verified Drive folder before uploading.`);
+            }
+          }
           const updated = { ...existing, status: "UPDATED" as const, lastUpdatedAt: synchronizedAt };
           await this.repository.save(updated); synchronized.push(updated); continue;
         }
