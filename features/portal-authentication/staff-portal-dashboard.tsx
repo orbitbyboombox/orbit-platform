@@ -336,9 +336,13 @@ export function StaffPortalDashboard({
   // Use the canonical finance rows when an event card omitted its assigned honoraria.
   // Never create or alter a payment: this is a read-only display fallback.
   const visibleEvents = useMemo(() => events.map((event) => {
-    const financeRows = eventStaffPayments.filter((row) => row.projectId === event.id);
-    const assignedPayments = event.assignedPayments.length
-      ? event.assignedPayments
+    // The event can contain assignments belonging to other staff members.
+    // Display only the responsibilities assigned to the logged-in staff member.
+    const personalRoles = new Set(event.roles);
+    const ownPayments = event.assignedPayments.filter((row) => personalRoles.has(row.role));
+    const financeRows = eventStaffPayments.filter((row) => row.projectId === event.id && personalRoles.has(row.role));
+    const assignedPayments = ownPayments.length
+      ? ownPayments
       : financeRows.map((row) => ({
           id: row.id,
           role: row.role,
@@ -461,7 +465,7 @@ function StaffWeeklyEventList({events, onSelect}:{events:StaffPortalEvent[];onSe
       {event.operationalBlocks.map(block => <div key={`${block.id}:${block.role}`} className="flex items-center justify-between gap-3"><span>{ROLE[block.role] ?? block.role} · {block.name}</span><span className="text-xs text-muted">{staffBlockTime(block.startAt)}–{staffBlockTime(block.endAt)}</span></div>)}
       {event.roles.filter(role => !["OPERATOR","SUPERVISOR"].includes(role)).map(role => <div key={role}>{ROLE[role] ?? role}</div>)}
       <p className="text-xs text-muted">El monto de cada cargo se muestra aquí y en el detalle del evento; Finanzas conserva el historial y estado de pago.</p>
-    </div>{event.assignedPayments.length ? <div className="rounded-xl border border-brand/30 bg-brand/5 px-3 py-2 text-sm"><p className="font-semibold text-brand">Honorarios asignados: {money(event.assignedPayments.reduce((sum,p)=>sum+p.amount,0))}</p><p className="text-xs text-muted">{event.assignedPayments.length} cargo(s)/turno(s) · ver detalle al abrir el evento</p></div> : <p className="text-xs text-muted">Honorarios pendientes de asignación en Finanzas Staff.</p>}<div className="rounded-xl border bg-card p-3 text-sm space-y-1" aria-label="Información para aceptar o rechazar asignación">
+    </div>{event.assignedPayments.length ? <div className="rounded-xl border border-brand/30 bg-brand/5 px-3 py-2 text-sm"><p className="font-semibold text-brand">Honorarios asignados: {money(event.assignedPayments.reduce((sum,p)=>sum+p.amount,0))}</p><p className="text-xs text-muted">{event.assignedPayments.length} cargo(s) tuyos: {event.assignedPayments.map(p => ROLE[p.role] ?? p.role).join(" + ")} · ver detalle al abrir el evento</p></div> : <p className="text-xs text-muted">Honorarios pendientes de asignación en Finanzas Staff.</p>}<div className="rounded-xl border bg-card p-3 text-sm space-y-1" aria-label="Información para aceptar o rechazar asignación">
       <p className="font-semibold">{event.eventType} · {event.service}</p>
       <p><strong>Fecha:</strong> {event.date} · <strong>Horario evento:</strong> {event.start}–{event.finish}</p>
       <p><strong>Lugar:</strong> {event.venue || "Por confirmar"}</p>
