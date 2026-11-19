@@ -20,9 +20,9 @@ export async function synchronizeConfirmedReservationDrive(input:{client:Supabas
   ]);
   if(projectError)throw projectError;
   const customer=Array.isArray(project.customers)?project.customers[0]:project.customers;if(!customer)throw new Error("La reserva no tiene un cliente asociado.");
-  const plan=buildCustomerFolderPlan(customer.full_name,project.event_date,company.driveRootFolder);const eventFolderPlan=plan[2];const repository=new SupabaseGoogleDriveFolderRepository(input.client,project.id);const synchronizedAt=new Date().toISOString();const provider=new GoogleDriveApiProvider(await loadGoogleWorkspaceAccessToken());const drive=new GoogleDriveLive(await loadGoogleWorkspaceConnection(),provider,repository);
+  const plan=buildCustomerFolderPlan(customer.full_name,project.event_date,company.driveRootFolder);const eventFolderPlan=plan[3];const repository=new SupabaseGoogleDriveFolderRepository(input.client,project.id);const synchronizedAt=new Date().toISOString();const provider=new GoogleDriveApiProvider(await loadGoogleWorkspaceAccessToken());const drive=new GoogleDriveLive(await loadGoogleWorkspaceConnection(),provider,repository);
   await synchronizeWithRetry(drive,buildRootFolderPlan(company.driveRootFolder),synchronizedAt);
-  await synchronizeWithRetry(drive,plan.slice(0,2),synchronizedAt);
+  await synchronizeWithRetry(drive,plan.slice(0,3),synchronizedAt);
   const operations=project.operations&&typeof project.operations==="object"?project.operations as Record<string,unknown>:{};const linkedDrive=operations.googleDrive&&typeof operations.googleDrive==="object"?operations.googleDrive as Record<string,unknown>:{};
   const{data:storedFolders,error:storedError}=await input.client.from("drive_sync").select("destination_key,external_folder_id,last_synced_at,status").eq("project_id",project.id).not("external_folder_id","is",null);if(storedError)throw storedError;
   const linkedFolderId=typeof linkedDrive.folderId==="string"?linkedDrive.folderId:null;const previousEvent=(storedFolders??[]).find(row=>row.external_folder_id===linkedFolderId)??(storedFolders??[]).find(row=>row.destination_key.split("/").length===4);const reused=Boolean(previousEvent?.external_folder_id);
