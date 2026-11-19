@@ -339,6 +339,7 @@ export function StaffPortalDashboard({
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="font-semibold">{event.customer}</p>
+                  <p className="mt-1 text-sm font-semibold text-brand">Sector: {event.district} · {event.roles.map(role => ROLE[role] ?? role).join(" + ")}</p>
                   <p className="mt-1 text-sm text-muted">
                     {event.eventType} · {event.service}
                   </p>
