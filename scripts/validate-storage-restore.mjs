@@ -5,12 +5,19 @@ import { resolve } from "node:path";
 const [manifestPath, storageRoot] = process.argv.slice(2);
 if (!manifestPath || !storageRoot) throw new Error("Usage: validate-storage-restore.mjs <manifest> <restored-storage-root>");
 const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-const expectedCounts = { "orbit-documents": 430, "orbit-signatures": 43, "orbit-expenses": 21, "orbit-academy": 2, "orbit-branding": 1 };
+const expectedCounts = manifest.expectedCounts;
+if (!expectedCounts || typeof expectedCounts !== "object" || Array.isArray(expectedCounts) || !Object.keys(expectedCounts).length) throw new Error("Storage restore manifest is missing bucket counts");
+for (const [name, count] of Object.entries(expectedCounts)) if (!Number.isSafeInteger(count) || count < 0) throw new Error(`Invalid Storage count for ${name}`);
 const expectedTotal = Object.values(expectedCounts).reduce((sum, count) => sum + count, 0);
 const counts = Object.fromEntries(Object.keys(expectedCounts).map((name) => [name, 0]));
+const seen = new Set();
 let total = 0;
 for (const bucket of manifest.buckets ?? []) {
+  if (!Object.hasOwn(expectedCounts, bucket.name)) throw new Error(`Unexpected Storage bucket in manifest: ${bucket.name}`);
   for (const object of bucket.objects ?? []) {
+    const key = `${bucket.name}/${object.path}`;
+    if (seen.has(key)) throw new Error(`Duplicate Storage object in manifest: ${key}`);
+    seen.add(key);
     const parts = object.path.split("/");
     if (!object.path || parts.some((part) => !part || part === "." || part === ".." || part.includes("\\") || part.includes("\0"))) throw new Error(`Unsafe object path in restore manifest: ${bucket.name}`);
     const filePath = resolve(storageRoot, bucket.name, ...parts);
@@ -23,5 +30,5 @@ for (const bucket of manifest.buckets ?? []) {
   }
 }
 for (const [name, expected] of Object.entries(expectedCounts)) if (counts[name] !== expected) throw new Error(`Storage restore count mismatch for ${name}: expected ${expected}, got ${counts[name]}`);
-if (total < expectedTotal) throw new Error(`Storage restore is incomplete: expected at least ${expectedTotal}, got ${total}`);
+if (total !== expectedTotal || total === 0) throw new Error(`Storage restore is incomplete: expected ${expectedTotal}, got ${total}`);
 console.log(JSON.stringify({ verifiedObjects: total, expectedBuckets: counts, sha256: "PASS" }));
