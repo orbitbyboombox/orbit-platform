@@ -12,7 +12,7 @@ const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!url || !key) throw new Error("Storage credentials are required as protected environment variables");
 
 const supabase = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-const manifest = { generatedAt: new Date().toISOString(), buckets: [] };
+const manifest = { generatedAt: new Date().toISOString(), expectedCounts: {}, buckets: [] };
 const { data: buckets, error: bucketError } = await supabase.storage.listBuckets();
 if (bucketError) throw bucketError;
 
@@ -51,6 +51,7 @@ async function listObjects(bucketName) {
 
 for (const bucket of buckets ?? []) {
   const listedBefore = await listObjects(bucket.name);
+  manifest.expectedCounts[bucket.name] = listedBefore.length;
   const entries = [];
   for (const item of listedBefore) {
     const { data: blob, error: downloadError } = await withRetry(() => supabase.storage.from(bucket.name).download(item.path), `Storage download ${bucket.name}/${item.path}`);
@@ -66,4 +67,7 @@ for (const bucket of buckets ?? []) {
   manifest.buckets.push({ name: bucket.name, public: bucket.public, objects: entries });
 }
 
+const expectedTotal = Object.values(manifest.expectedCounts).reduce((sum, count) => sum + count, 0);
+const actualTotal = manifest.buckets.reduce((sum, bucket) => sum + bucket.objects.length, 0);
+if (actualTotal === 0 || actualTotal !== expectedTotal) throw new Error(`Unexpected or empty Storage inventory: expected ${expectedTotal}, found ${actualTotal}`);
 await writeFile(manifestPath, JSON.stringify(manifest, null, 2), { mode: 0o600 });

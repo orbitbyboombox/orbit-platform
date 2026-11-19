@@ -1,0 +1,48 @@
+name: ORBIT admin backup module validation
+
+on:
+  pull_request:
+    paths:
+      - "features/orbit-backups/**"
+      - "scripts/orbit-backup-run.mjs"
+      - "scripts/rotate-drive-backups.mjs"
+      - "scripts/download-latest-drive-backup.mjs"
+      - "supabase/migrations/20261117120000_orbit_backup_control.sql"
+      - ".github/workflows/orbit-*-backup*.yml"
+      - "app/(platform)/settings/page.tsx"
+      - "tests/orbit-backup-module.test.mts"
+  push:
+    branches: [feat/orbit-admin-backups-v218-20261117]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Focused backup tests
+        run: pnpm exec node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test tests/orbit-backup-module.test.mts
+      - name: TypeScript
+        run: pnpm typecheck
+      - name: ESLint (changed scope)
+        run: >-
+          pnpm exec eslint
+          features/orbit-backups
+          'app/(platform)/settings/page.tsx'
+          scripts/orbit-backup-run.mjs
+          scripts/rotate-drive-backups.mjs
+          scripts/download-latest-drive-backup.mjs
+          tests/orbit-backup-module.test.mts
+      - name: Build
+        run: pnpm build
