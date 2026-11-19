@@ -18,6 +18,9 @@ export class GoogleDriveLive {
       for (const planned of plan) {
         const existing = await this.repository.findByPath(planned.path);
         if (existing) {
+          if (!existing.driveFolderId) {
+            throw new Error(`DRIVE_FOLDER_ID_MISSING: ${planned.path}`);
+          }
           // Never silently reuse a stale or relocated Drive ID. A cached row is not
           // proof that its folder still exists beneath the expected parent.
           if (this.provider.getFolderParents && existing.driveFolderId) {
