@@ -39,8 +39,12 @@ export class GoogleDriveLive {
           await this.repository.save(updated); synchronized.push(updated); continue;
         }
         const parent = planned.parentPath ? await this.repository.findByPath(planned.parentPath) : null;
-        const created = await this.provider.createFolder({ name: planned.name, parentFolderId: parent?.driveFolderId });
-        const record = { ...planned, driveFolderId: created.id, status: "CREATED" as const, lastUpdatedAt: synchronizedAt };
+        if (planned.parentPath && !parent?.driveFolderId) {
+          throw new Error(`DRIVE_PARENT_UNRESOLVED: ${planned.parentPath}`);
+        }
+        const located = await this.provider.findFolder({ name: planned.name, parentFolderId: parent?.driveFolderId });
+        const created = located ?? await this.provider.createFolder({ name: planned.name, parentFolderId: parent?.driveFolderId });
+        const record = { ...planned, driveFolderId: created.id, status: (located ? "UPDATED" : "CREATED") as "UPDATED" | "CREATED", lastUpdatedAt: synchronizedAt };
         await this.repository.save(record); synchronized.push(record);
       }
       return { ok: true, folders: synchronized };
