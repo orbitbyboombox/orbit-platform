@@ -333,14 +333,30 @@ export function StaffPortalDashboard({
   capabilities: string[];
   logoutAction: (formData: FormData) => void | Promise<void>;
 }) {
+  // Use the canonical finance rows when an event card omitted its assigned honoraria.
+  // Never create or alter a payment: this is a read-only display fallback.
+  const visibleEvents = events.map((event) => {
+    const financeRows = eventStaffPayments.filter((row) => row.projectId === event.id);
+    const assignedPayments = event.assignedPayments.length
+      ? event.assignedPayments
+      : financeRows.map((row) => ({
+          id: row.id,
+          role: row.role,
+          blockName: row.blockName,
+          amount: row.finalAmount,
+          settlementStatus: row.settlementStatus,
+          isPaid: row.isPaid,
+        }));
+    return { ...event, assignedPayments };
+  });
   const [selected, setSelected] = useState<StaffPortalEvent | null>(null);
   const [module, setModule] = useState<StaffModule | null>(null);
   const [hour, setHour] = useState<number | null>(null);
   useEffect(() => {
     if (initialEventId) {
-      setSelected(events.find((event) => event.id === initialEventId) ?? null);
+      setSelected(visibleEvents.find((event) => event.id === initialEventId) ?? null);
     }
-  }, [events, initialEventId]);
+  }, [visibleEvents, initialEventId]);
   useEffect(() => {
     const value = new Intl.DateTimeFormat("en-GB", {
       hour: "numeric",
@@ -352,15 +368,15 @@ export function StaffPortalDashboard({
   const today = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Santiago",
   }).format(new Date());
-  const todayEvents = events.filter((event) => event.date === today),
+  const todayEvents = visibleEvents.filter((event) => event.date === today),
     availabilityWindow = next15DayRange(),
-    windowEvents = events.filter(
+    windowEvents = visibleEvents.filter(
       (event) => event.date >= availabilityWindow.start && event.date <= availabilityWindow.end,
     ),
     windowAvailableEvents = availableEvents.filter(
       (event) => event.date >= availabilityWindow.start && event.date <= availabilityWindow.end,
     ),
-    confirmed = events.filter(
+    confirmed = visibleEvents.filter(
       (event) =>
         !pendingAcceptance(event.status) &&
         !participationCompleted(event),
@@ -382,12 +398,12 @@ export function StaffPortalDashboard({
         <p className="mt-2 max-w-2xl text-muted">Revisa tu operación, montaje y finanzas de los próximos 15 días.</p>
         {module === null ? <div className="mt-5 flex flex-wrap gap-2">{[[`${windowEvents.length} evento${windowEvents.length === 1 ? "" : "s"}`, "próximos 15 días"], [`${routes.length} ruta${routes.length === 1 ? "" : "s"}`, "asignadas"], [`${payment.pending > 0 ? 1 : 0} pago`, "pendiente"]].map(([value,label]) => <span className="rounded-full border border-white/10 bg-background/50 px-3 py-1.5 text-xs font-medium text-muted" key={`${value}-${label}`}><strong className="text-foreground">{value}</strong> · {label}</span>)}</div> : null}
       </header>
-      {module === null ? <StaffHome module={setModule} events={events.filter((event) => event.date >= today).sort((a,b) => `${a.date}${a.start}`.localeCompare(`${b.date}${b.start}`))} availableEvents={windowAvailableEvents} requests={requests} windowEvents={windowEvents.length} todayEvents={todayEvents.length} routes={routes.length} pendingExpenses={pendingExpenses} pendingPayments={payment.pending > 0 ? 1 : 0} canMount={canMount} onSelect={setSelected} /> : null}
+      {module === null ? <StaffHome module={setModule} events={visibleEvents.filter((event) => event.date >= today).sort((a,b) => `${a.date}${a.start}`.localeCompare(`${b.date}${b.start}`))} availableEvents={windowAvailableEvents} requests={requests} windowEvents={windowEvents.length} todayEvents={todayEvents.length} routes={routes.length} pendingExpenses={pendingExpenses} pendingPayments={payment.pending > 0 ? 1 : 0} canMount={canMount} onSelect={setSelected} /> : null}
       {module !== null ? <StaffModuleNav active={module} onChange={setModule} canMount={canMount} /> : null}
-      {module === "OPERADORES" ? <OperatorsModule events={events} availableEvents={windowAvailableEvents} requests={requests} window={availabilityWindow} confirmed={confirmed.length} onSelect={setSelected} /> : null}
+      {module === "OPERADORES" ? <OperatorsModule events={visibleEvents} availableEvents={windowAvailableEvents} requests={requests} window={availabilityWindow} confirmed={confirmed.length} onSelect={setSelected} /> : null}
       {module === "MONTAJE" && canMount ? <MontageModule routes={routes} /> : null}
-      {module === "FINANZAS" ? <FinanceModule events={events} expenseSubmissions={expenseSubmissions} monthlyAccounts={monthlyAccounts} eventStaffPayments={eventStaffPayments} payment={payment} notifications={notifications} currentMonth={currentMonth} /> : null}
-      {module === "PAPEL" ? <StaffPaperPrinterPanel events={events} /> : null}
+      {module === "FINANZAS" ? <FinanceModule events={visibleEvents} expenseSubmissions={expenseSubmissions} monthlyAccounts={monthlyAccounts} eventStaffPayments={eventStaffPayments} payment={payment} notifications={notifications} currentMonth={currentMonth} /> : null}
+      {module === "PAPEL" ? <StaffPaperPrinterPanel events={visibleEvents} /> : null}
       {selected ? (
         <EventDetail event={selected} close={() => setSelected(null)} />
       ) : null}
