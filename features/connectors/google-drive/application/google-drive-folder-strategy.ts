@@ -1,7 +1,7 @@
 import type { GoogleDriveDestination, GoogleDriveDestinationRequest, GoogleDriveFolderPlanItem } from "../types/google-drive-live.types";
 
 export const DEFAULT_GOOGLE_DRIVE_ROOT = "ORBIT";
-export const GOOGLE_DRIVE_ROOT_FOLDERS = ["CLIENTES", "CONTABILIDAD", "STAFF", "OPERACIONES", "ACTIVOS", "DOCUMENTACIÓN", "REPORTES", "SISTEMA"] as const;
+export const GOOGLE_DRIVE_ROOT_FOLDERS = ["CLIENTES", "01_CLIENTES", "CONTABILIDAD", "STAFF", "OPERACIONES", "ACTIVOS", "DOCUMENTACIÓN", "REPORTES", "SISTEMA"] as const;
 export const CUSTOMER_FOLDERS = ["01_Contrato", "02_Comprobantes", "03_Cotizaciones", "04_Diseños", "05_Fotografías", "06_Videos", "07_Facturación", "08_Honorarios", "09_Documentos"] as const;
 
 const MONTHS = ["01 ENERO", "02 FEBRERO", "03 MARZO", "04 ABRIL", "05 MAYO", "06 JUNIO", "07 JULIO", "08 AGOSTO", "09 SEPTIEMBRE", "10 OCTUBRE", "11 NOVIEMBRE", "12 DICIEMBRE"] as const;
