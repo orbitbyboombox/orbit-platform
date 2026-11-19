@@ -193,7 +193,7 @@ jobs:
           docker run --rm --network host -e PGPASSWORD=orbit-restore-only postgres:17 sh -c 'psql -h 127.0.0.1 -U postgres -d orbit_restore -v ON_ERROR_STOP=1 -c "SELECT count(*) AS auth_users_restored FROM auth.users;" -c "SELECT count(*) AS storage_objects_restored FROM storage.objects;" -c "SELECT count(*) AS staff_rows_restored FROM public.staff;"'
 
       # Official backup certification 2026-11-19: preserve all prior backups.
-      # Retention is intentionally suspended pending isolated restore verification.
+      # rotate-drive-backups is intentionally suspended pending isolated restore verification.
 
       - name: Record backup success
         if: ${{ success() }}
