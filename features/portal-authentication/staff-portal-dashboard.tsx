@@ -2,7 +2,7 @@
 import {formatDisplayDate} from "@/lib/display-date";
 
 import Link from "next/link";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import {
   CalendarDays,
   ChevronDown,
@@ -335,7 +335,7 @@ export function StaffPortalDashboard({
 }) {
   // Use the canonical finance rows when an event card omitted its assigned honoraria.
   // Never create or alter a payment: this is a read-only display fallback.
-  const visibleEvents = events.map((event) => {
+  const visibleEvents = useMemo(() => events.map((event) => {
     const financeRows = eventStaffPayments.filter((row) => row.projectId === event.id);
     const assignedPayments = event.assignedPayments.length
       ? event.assignedPayments
@@ -348,7 +348,7 @@ export function StaffPortalDashboard({
           isPaid: row.isPaid,
         }));
     return { ...event, assignedPayments };
-  });
+  }), [events, eventStaffPayments]);
   const [selected, setSelected] = useState<StaffPortalEvent | null>(null);
   const [module, setModule] = useState<StaffModule | null>(null);
   const [hour, setHour] = useState<number | null>(null);
