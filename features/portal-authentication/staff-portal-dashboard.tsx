@@ -341,16 +341,21 @@ export function StaffPortalDashboard({
     const personalRoles = new Set(event.roles);
     const ownPayments = event.assignedPayments.filter((row) => personalRoles.has(row.role));
     const financeRows = eventStaffPayments.filter((row) => row.projectId === event.id && personalRoles.has(row.role));
-    const assignedPayments = ownPayments.length
-      ? ownPayments
-      : financeRows.map((row) => ({
+    // Combine sources by role, rather than treating a partial card list as complete.
+    // Finance rows fill missing roles; existing event-card rows remain authoritative.
+    const assignedPayments = [...ownPayments];
+    for (const row of financeRows) {
+      if (!assignedPayments.some((payment) => payment.role === row.role && payment.blockName === row.blockName)) {
+        assignedPayments.push({
           id: row.id,
           role: row.role,
           blockName: row.blockName,
           amount: row.finalAmount,
           settlementStatus: row.settlementStatus,
           isPaid: row.isPaid,
-        }));
+        });
+      }
+    }
     return { ...event, assignedPayments };
   }), [events, eventStaffPayments]);
   const [selected, setSelected] = useState<StaffPortalEvent | null>(null);
