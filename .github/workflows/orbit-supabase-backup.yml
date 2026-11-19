@@ -192,10 +192,8 @@ jobs:
           docker run --rm --network host -v "$RUNNER_TEMP/orbit-restore:/restore:ro" -e PGPASSWORD=orbit-restore-only postgres:17 sh -c 'psql -h 127.0.0.1 -U postgres -d orbit_restore -v ON_ERROR_STOP=1 -f /restore/database-schema.sql && psql -h 127.0.0.1 -U postgres -d orbit_restore -v ON_ERROR_STOP=1 -f /restore/database-data.sql'
           docker run --rm --network host -e PGPASSWORD=orbit-restore-only postgres:17 sh -c 'psql -h 127.0.0.1 -U postgres -d orbit_restore -v ON_ERROR_STOP=1 -c "SELECT count(*) AS auth_users_restored FROM auth.users;" -c "SELECT count(*) AS storage_objects_restored FROM storage.objects;" -c "SELECT count(*) AS staff_rows_restored FROM public.staff;"'
 
-      - name: Rotate verified Drive backups older than 30 days
-        env:
-          BACKUP_RESULT_FILE: ${{ runner.temp }}/orbit-backup/drive-upload-result.json
-        run: node scripts/rotate-drive-backups.mjs
+      # Official backup certification 2026-11-19: preserve all prior backups.
+      # Retention is intentionally suspended pending isolated restore verification.
 
       - name: Record backup success
         if: ${{ success() }}
