@@ -6,6 +6,7 @@ import { getOfficialRosterPreviewAction, saveOfficialRosterBlockAction, download
 import type { RosterComposer } from "./official-staff-roster";
 
 export function OfficialStaffRosterControl({projectId}:{projectId:string}) {
+  const [includeCases, setIncludeCases] = useState(false);
   const [composer,setComposer]=useState<RosterComposer|null>(null);
   const [blocks,setBlocks]=useState<Record<string,string>>({});
   const [loading,setLoading]=useState(true);
@@ -35,10 +36,11 @@ export function OfficialStaffRosterControl({projectId}:{projectId:string}) {
       setFeedback("Bloque guardado.");
     });
   };
+
   const download=()=>{
     if(pending||!composer?.canGenerate)return;
     startTransition(async()=>{
-      const result=await downloadOfficialRosterAction(projectId);
+      const result=await downloadOfficialRosterAction(projectId, includeCases);
       if(!result.ok){setFeedback(result.error);return;}
       const raw=atob(result.base64);
       const bytes=new Uint8Array(raw.length);
@@ -46,6 +48,7 @@ export function OfficialStaffRosterControl({projectId}:{projectId:string}) {
       const url=URL.createObjectURL(new Blob([bytes as unknown as BlobPart],{type:"application/pdf"}));
       const anchor=document.createElement("a");
       anchor.href=url;anchor.download=result.filename;anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+      setIncludeCases(false);
       setFeedback("PDF descargado.");
     });
   };
@@ -61,8 +64,9 @@ export function OfficialStaffRosterControl({projectId}:{projectId:string}) {
     setSendState("sending");
     const requestId=crypto.randomUUID();
     startTransition(async()=>{
-      const result=await sendOfficialRosterAction({projectId,requestId,fingerprint:composer.fingerprint,to});
+      const result=await sendOfficialRosterAction({projectId,requestId,fingerprint:composer.fingerprint,to,includeCases});
       if(!result.ok){setSendState("error");setFeedback(result.error);return;}
+      setIncludeCases(false);
       setSendState("sent");setFeedback(result.message);
       await refresh();
     });
@@ -87,6 +91,16 @@ export function OfficialStaffRosterControl({projectId}:{projectId:string}) {
         </div>)}
         {!composer.members.length&&<p className="rounded-xl border p-4 text-sm text-muted">Aún no hay staff asignado al evento.</p>}
       </div>
+      {composer.totemRows.length > 0 && <details className="mt-4 rounded-xl border p-4 text-sm">
+        <summary>Distribución Multicaja · uso interno</summary>
+        <ul className="mt-2 space-y-1">{composer.totemRows.map((row, index) => (
+          <li key={index}>{row.position} · {row.box} · {row.block} · {row.operator} · {row.location} · {row.reference}</li>
+        ))}</ul>
+      </details>}
+      {composer.totemRows.length > 0 && <label className="mt-4 flex items-center gap-2 text-sm">
+        <input type="checkbox" checked={includeCases} disabled={pending} onChange={event => setIncludeCases(event.target.checked)}/>
+        Autorizo incluir la distribución de cajas en este PDF
+      </label>}
       {!!composer.missing.length&&<div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950"><strong>Completa esto antes de generar o enviar:</strong><ul className="mt-2 list-disc pl-5">{composer.missing.map((item,index)=><li key={index}>{item}</li>)}</ul></div>}
       <div className="mt-4 flex flex-wrap gap-2">
         <Button disabled={pending||!composer.canGenerate||hasUnsavedBlocks} onClick={download}><FileDown className="size-4"/>Descargar PDF oficial</Button>
