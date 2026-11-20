@@ -12,12 +12,12 @@ import { GoogleGmailApiProvider } from "@/features/connectors/google-gmail/provi
 import { buildRosterGroups } from "./official-roster-members";
 
 // Preserve the official BOOMBOX event lead from roster V1.
-import { readRosterVehicles, type RosterVehicles } from "./official-roster-vehicles";
+import { OFFICIAL_ROSTER_PLATES } from "./official-roster-vehicles";
 
 export const OFFICIAL_ROSTER_RESPONSIBLE = { name: "Matías Maira", rut: "16.357.402-0", phone: "+56 9 7306 9315" } as const;
 
 export type RosterTotemRow = { position:string; location:string; reference:string; box:string; block:string; operator:string };
-export type RosterComposer = { vehicles: RosterVehicles; totemRows: RosterTotemRow[]; projectId: string; orbitEventId: string; eventName: string; eventDate: string; eventTime: string; location: string; city: string; customerName: string; recipient: string; fingerprint: string; groups: ReturnType<typeof buildRosterGroups>["groups"]; responsible: { name: string; rut: string } | null; missing: string[]; canGenerate: boolean };
+export type RosterComposer = { totemRows: RosterTotemRow[]; projectId: string; orbitEventId: string; eventName: string; eventDate: string; eventTime: string; location: string; city: string; customerName: string; recipient: string; fingerprint: string; groups: ReturnType<typeof buildRosterGroups>["groups"]; responsible: { name: string; rut: string } | null; missing: string[]; canGenerate: boolean };
 
 const blockValue = (value: unknown) => typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, 50) : "";
 export function rosterDate(value: string) {
@@ -84,7 +84,7 @@ export async function loadOfficialRoster(projectId: string): Promise<RosterCompo
     if (!member.name || !member.rut) missing.push("Revisa el nombre y el RUT de " + (member.name || "un integrante") + ".");
   }
   const name = p.data.name || p.data.orbit_event_id || "Evento BOOMBOX";
-  const roster = { vehicles: readRosterVehicles(operations.officialRosterVehicles), totemRows, projectId, orbitEventId:p.data.orbit_event_id ?? "", eventName:name, eventDate:p.data.event_date ?? "", eventTime:p.data.event_time ?? "", location:p.data.location ?? "", city:p.data.city ?? "", customerName:customer?.full_name ?? "", recipient:contract?.contact_email ?? customer?.email ?? "", groups, responsible, missing, canGenerate:members.length>0 || responsible!==null };
+  const roster = { totemRows, projectId, orbitEventId:p.data.orbit_event_id ?? "", eventName:name, eventDate:p.data.event_date ?? "", eventTime:p.data.event_time ?? "", location:p.data.location ?? "", city:p.data.city ?? "", customerName:customer?.full_name ?? "", recipient:contract?.contact_email ?? customer?.email ?? "", groups, responsible, missing, canGenerate:members.length>0 || responsible!==null };
   const fingerprint = createHash("sha256").update(JSON.stringify(roster)).digest("hex");
   return { ...roster, fingerprint };
 }
@@ -196,18 +196,16 @@ export async function makeOfficialRosterPdf(composer:RosterComposer, includeCase
     page.drawText("Sin asignar", { x: left, y, size: 9, font: regular, color: muted });
     y -= 13;
   }
-  const { assembly, disassembly } = composer.vehicles;
-  if (assembly.length || disassembly.length) {
-    ensure(92);
-    y -= 23;
-    page.drawText("Vehículos autorizados para montaje y desmontaje", { x: left, y, size: 10, font: bold, color: ink });
-    y -= 17;
-    for (const [phase, plates] of [["Montaje", assembly], ["Desmontaje", disassembly]] as const) {
-      if (!plates.length) continue;
-      page.drawText(phase + " · " + plates.join(" / "), { x: left, y, size: 9, font: regular, color: ink });
-      y -= 14;
-    }
-  }
+  ensure(72);
+  y -= 23;
+  page.drawText("Vehículos autorizados para montaje y desmontaje", { x: left, y, size: 10, font: bold, color: ink });
+  y -= 17;
+  page.drawText(OFFICIAL_ROSTER_PLATES.join(" / "), { x: left, y, size: 9, font: bold, color: ink });
+  y -= 15;
+  page.drawText("Cualquiera de estos vehículos oficiales de BOOMBOX® puede ingresar para montaje o desmontaje.", {
+    x: left, y, size: 8.5, font: regular, color: muted,
+  });
+  y -= 14;
   if (includeCases && composer.totemRows.length) {
     const totemHeader = () => {
       y -= 20;

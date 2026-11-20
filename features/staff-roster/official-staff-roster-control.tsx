@@ -5,12 +5,10 @@ import Link from "next/link";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { FileDown, Mail, RefreshCw, Send, UsersRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getOfficialRosterPreviewAction, downloadOfficialRosterAction, sendOfficialRosterAction, saveOfficialRosterVehiclesAction } from "./official-staff-roster.actions";
-import { OFFICIAL_ROSTER_PLATES, type RosterVehicles } from "./official-roster-vehicles";
+import { getOfficialRosterPreviewAction, downloadOfficialRosterAction, sendOfficialRosterAction } from "./official-staff-roster.actions";
 import type { RosterComposer } from "./official-staff-roster";
 
 export function OfficialStaffRosterControl({projectId}:{projectId:string}) {
-  const [vehicles, setVehicles] = useState<RosterVehicles>({ assembly: [], disassembly: [] });
   const [includeCases, setIncludeCases] = useState(false);
   const [composer,setComposer]=useState<RosterComposer|null>(null);
   const [loading,setLoading]=useState(true);
@@ -28,12 +26,10 @@ export function OfficialStaffRosterControl({projectId}:{projectId:string}) {
     setLoading(false);
     if(!result.ok){setComposer(null);setFeedback(result.error);return;}
     setComposer(result.composer);
-    setVehicles(result.composer.vehicles);
     setFeedback("");
   },[projectId]);
   useEffect(()=>{void refresh();},[refresh]);
 
-  const hasUnsavedVehicles = !!composer && JSON.stringify(vehicles) !== JSON.stringify(composer.vehicles);
 
   const download=()=>{
     if(pending||!composer?.canGenerate)return;
@@ -107,40 +103,14 @@ export function OfficialStaffRosterControl({projectId}:{projectId:string}) {
           {expandedSections.includes("multicaja") && <div className="grid gap-2 border-t p-3">{composer.totemRows.map((row,index) => <div key={index} className="grid gap-1 rounded-lg border p-3 text-sm sm:grid-cols-4"><span className="font-medium">{row.position} · {row.box}</span><span>{row.block}</span><span>{row.operator}</span><span className="text-muted">{row.location} · {row.reference}</span></div>)}</div>}
         </section>}
       </div>
-      <fieldset className="mt-4 space-y-3 rounded-xl border p-4" disabled={pending}>
-        <legend className="px-1 font-semibold">Vehículos autorizados</legend>
-        {(["assembly", "disassembly"] as const).map(phase => (
-          <div key={phase} className="flex flex-wrap items-center gap-3 text-sm">
-            <strong>{phase === "assembly" ? "Montaje" : "Desmontaje"}</strong>
-            {OFFICIAL_ROSTER_PLATES.map(plate => (
-              <label key={plate} className="flex items-center gap-1">
-                <input type="checkbox" checked={vehicles[phase].includes(plate)} onChange={event => {
-                  const checked = event.target.checked;
-                  setVehicles(previous => ({
-                    ...previous,
-                    [phase]: checked ? [...previous[phase], plate] : previous[phase].filter(value => value !== plate),
-                  }));
-                }}/>
-                {plate}
-              </label>
-            ))}
-          </div>
-        ))}
-        <Button type="button" variant="outline" disabled={!hasUnsavedVehicles} onClick={() => startTransition(async () => {
-          const result = await saveOfficialRosterVehiclesAction(projectId, vehicles);
-          if (!result.ok) { setFeedback(result.error); return; }
-          await refresh();
-          setFeedback("Vehículos autorizados guardados.");
-        })}>Guardar vehículos</Button>
-      </fieldset>
       {composer.totemRows.length > 0 && <label className="mt-4 flex items-center gap-2 text-sm">
         <input type="checkbox" checked={includeCases} disabled={pending} onChange={event => setIncludeCases(event.target.checked)}/>
         Autorizo incluir la distribución de cajas en este PDF
       </label>}
       {!!composer.missing.length&&<div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950"><strong>Datos de la nómina por revisar</strong><ul className="mt-2 list-disc pl-5">{composer.missing.map((item,index)=><li key={index}>{item}</li>)}</ul></div>}
       <div className="mt-4 flex flex-wrap gap-2">
-        <Button disabled={pending||hasUnsavedVehicles||!composer.canGenerate} onClick={download}><FileDown className="size-4"/>Descargar PDF oficial</Button>
-        <Button variant="outline" disabled={pending||hasUnsavedVehicles||!composer.canGenerate} onClick={openMail}><Mail className="size-4"/>Enviar por correo</Button>
+        <Button disabled={pending||!composer.canGenerate} onClick={download}><FileDown className="size-4"/>Descargar PDF oficial</Button>
+        <Button variant="outline" disabled={pending||!composer.canGenerate} onClick={openMail}><Mail className="size-4"/>Enviar por correo</Button>
       </div>
     </>}
     {mailOpen&&composer&&<div className="fixed inset-0 z-[100] grid place-items-center bg-black/50 p-3" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget&&sendState!=="sending")setMailOpen(false);}}>
