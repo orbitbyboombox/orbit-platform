@@ -384,6 +384,8 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
   const [createdQuote, setCreatedQuote] = useState<{ id: string; number: string; total: number } | null>(null);
   const [preview, setPreview] = useState(false);
   const [message, setMessage] = useState("");
+  const [changeReason, setChangeReason] = useState(initialDraft?.changeReason ?? "");
+  const [requiresChangeReason, setRequiresChangeReason] = useState(false);
   const [pending, start] = useTransition();
   const [capacityResult, setCapacityResult] = useState<CapacityResult | null>(null);
   const [capacityLoading, setCapacityLoading] = useState(false);
@@ -465,8 +467,14 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
     () => calculateFormalQuote(lines, globalDiscountType, globalDiscountValue, depositPercent),
     [lines, globalDiscountType, globalDiscountValue, depositPercent],
   );
+  const priceDiffersFromOfficial = initialDraft?.officialPrice != null && Math.abs(totals.total - initialDraft.officialPrice) >= 1;
+  const showChangeReason = Boolean(persistedQuoteId) && (priceDiffersFromOfficial || requiresChangeReason);
   const create = () => {
     if (saveInFlightRef.current) return;
+    if (showChangeReason && !changeReason.trim()) {
+      setMessage("Para modificar el precio de una cotización enviada, indica el motivo de negociación.");
+      return;
+    }
     saveInFlightRef.current = true;
     start(async () => {
       try {
@@ -484,6 +492,7 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
         const draft: FormalQuoteDraft = {
           quoteId: persistedQuoteId,
           requestId: saveRequestIdRef.current,
+          changeReason: changeReason.trim(),
           existingCustomerId: selected?.id ?? null,
           saveTemporaryCustomer: saveCustomer,
           ...source,
@@ -509,6 +518,7 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
           return;
         }
         const result = await createFormalQuoteAction(draft);
+        if (!result.ok && result.error.includes("motivo de negociación")) setRequiresChangeReason(true);
         setMessage(
           result.ok
             ? `${result.operation === "UPDATED" ? "✓ Cotización actualizada correctamente" : "✓ Cotización guardada correctamente"}: ${result.number} por ${money.format(result.total)}.`
@@ -814,6 +824,18 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
             </Field>
           </div>
         </div>
+        {showChangeReason && (
+          <Field label="Motivo de negociación (obligatorio para cambiar el precio)">
+            <textarea
+              aria-label="Motivo de negociación"
+              className="w-full min-h-24 rounded-xl border bg-background p-3"
+              placeholder="Explica el motivo del cambio de precio…"
+              value={changeReason}
+              onChange={(event) => setChangeReason(event.target.value)}
+            />
+            <p className="mt-1 text-xs text-muted">Se conservará el historial de la cotización. Si no modificaste el precio, revisa el total frente al precio oficial antes de guardar.</p>
+          </Field>
+        )}
         <aside className="sticky bottom-3 z-10 rounded-2xl border bg-card/95 p-5 shadow-xl backdrop-blur lg:static lg:shadow-none">
           <dl className="space-y-3 text-sm">
             {[
