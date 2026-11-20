@@ -61,16 +61,26 @@ export async function makeOfficialRosterPdf(composer:RosterComposer) {
   const ink=rgb(.11,.12,.14), muted=rgb(.42,.44,.47), line=rgb(.87,.88,.89), orange=rgb(.96,.43,.05), pale=rgb(.97,.97,.97);
   const width=595.28, height=841.89, left=43, right=552;
   let page=pdf.addPage([width,height]), y=0;
-  const truncate=(value:string,maxWidth:number,font:typeof regular,fontSize:number)=>{
-    let result=plain(value);
-    while(result && font.widthOfTextAtSize(result,fontSize)>maxWidth)result=result.slice(0,-1);
-    return result===plain(value)?result:result.slice(0,-1)+"…";
+  const wrap = (value: string, maxWidth: number, font: typeof regular, fontSize: number) => {
+    const lines: string[] = [];
+    let line = "";
+    const normalized = plain(value).normalize("NFC").replace(/\s+/g, " ");
+    for (const character of normalized) {
+      if (font.widthOfTextAtSize(line + character, fontSize) > maxWidth) {
+        const split = line.lastIndexOf(" ");
+        lines.push(split > 0 ? line.slice(0, split) : line);
+        line = split > 0 ? line.slice(split + 1) : "";
+      }
+      line = (line + character).trimStart();
+    }
+    lines.push(line);
+    return lines;
   };
   const header=()=>{
     page.drawText("BOOMBOX",{x:left,y:height-61,size:25,font:bold,color:ink});
     page.drawText("®",{x:183,y:height-51,size:10,font:regular,color:ink});
     page.drawText("NÓMINA OFICIAL",{x:left,y:height-91,size:11,font:bold,color:orange});
-    page.drawText(truncate(composer.orbitEventId||"",190,regular,9),{x:362,y:height-88,size:9,font:regular,color:muted});
+    page.drawText(wrap(composer.orbitEventId,190,regular,9)[0],{x:362,y:height-88,size:9,font:regular,color:muted});
     page.drawLine({start:{x:left,y:height-105},end:{x:right,y:height-105},thickness:1,color:line});
     y=height-132;
   };
@@ -80,17 +90,21 @@ export async function makeOfficialRosterPdf(composer:RosterComposer) {
   const details:[string,string][]=[["EVENTO",composer.eventName],["FECHA",rosterDate(composer.eventDate)],["HORARIO",composer.eventTime||"Por confirmar"],["LUGAR",[composer.location,composer.city].filter(Boolean).join(" · ")||"Por confirmar"]];
   for(const [label,value] of details){
     page.drawText(label,{x:left,y,size:8,font:bold,color:muted});
-    page.drawText(truncate(value,389,regular,10),{x:143,y,size:10,font:regular,color:ink});
-    y-=23;
+    const lines = wrap(value, 389, regular, 10);
+    lines.forEach((line, index) => page.drawText(line, { x: 143, y: y - index * 13, size: 10, font: regular, color: ink }));
+    y -= 23 + (lines.length - 1) * 13;
   }
   y-=23;
-  page.drawText("PERSONAL ASIGNADO",{x:left,y,size:10,font:bold,color:ink});
-  y-=23;
-  page.drawRectangle({x:left,y:y-7,width:right-left,height:26,color:pale});
-  page.drawText("NOMBRE",{x:left+11,y,size:8,font:bold,color:muted});
-  page.drawText("RUT",{x:265,y,size:8,font:bold,color:muted});
-  page.drawText("FUNCIÓN",{x:380,y,size:8,font:bold,color:muted});
-  y-=27;
+  const tableHeader = () => {
+    page.drawText("PERSONAL ASIGNADO", { x: left, y, size: 10, font: bold, color: ink });
+    y -= 23;
+    page.drawRectangle({ x: left, y: y - 7, width: right - left, height: 26, color: pale });
+    for (const [label, x] of [["NOMBRE", left + 11], ["RUT", 265], ["FUNCIÓN", 380]] as const) {
+      page.drawText(label, { x, y, size: 8, font: bold, color: muted });
+    }
+    y -= 27;
+  };
+  tableHeader();
   const people=new Map<string,{name:string;rut:string;roles:string[]}>();
   for(const member of composer.members){
     const key=member.staffId||member.rut||member.name;
@@ -100,23 +114,26 @@ export async function makeOfficialRosterPdf(composer:RosterComposer) {
     else people.set(key,{name:member.name,rut:member.rut,roles:[role]});
   }
   for(const person of people.values()){
-    const roles=person.roles.join(" / ");
-    const roleLines=roles.length>38?[roles.slice(0,38),roles.slice(38)]:[roles];
-    const rowHeight=Math.max(29,roleLines.length*13+12);
-    ensure(rowHeight+10);
-    page.drawText(truncate(person.name,202,bold,9),{x:left+11,y,size:9,font:bold,color:ink});
-    page.drawText(truncate(formatChileanRut(person.rut),105,regular,9),{x:265,y,size:9,font:regular,color:ink});
-    roleLines.forEach((v,i)=>page.drawText(truncate(v,165,regular,8.5),{x:380,y:y-i*13,size:8.5,font:regular,color:muted}));
+    const nameLines = wrap(person.name, 202, bold, 9);
+    const roleLines = wrap(person.roles.join(" / "), 165, regular, 8.5);
+    const rowHeight = Math.max(29, Math.max(nameLines.length, roleLines.length) * 13 + 12);
+    if (y - rowHeight - 10 < 65) {
+      next();
+      tableHeader();
+    }
+    nameLines.forEach((line, index) => page.drawText(line, { x: left + 11, y: y - index * 13, size: 9, font: bold, color: ink }));
+    page.drawText(formatChileanRut(person.rut), { x: 265, y, size: 9, font: regular, color: ink });
+    roleLines.forEach((line, index) => page.drawText(line, { x: 380, y: y - index * 13, size: 8.5, font: regular, color: muted }));
     y-=rowHeight;
     page.drawLine({start:{x:left,y:y+10},end:{x:right,y:y+10},thickness:.5,color:line});
   }
-  ensure(74);
+  ensure(87);
   y-=25;
   page.drawLine({start:{x:left,y},end:{x:right,y},thickness:1,color:line});
   y-=21;
   page.drawText("RESPONSABLE DEL EVENTO",{x:left,y,size:8,font:bold,color:muted});
   y-=17;
-  page.drawText(OFFICIAL_ROSTER_RESPONSIBLE.name+" · "+OFFICIAL_ROSTER_RESPONSIBLE.phone,{x:left,y,size:9,font:regular,color:ink});
+  page.drawText(OFFICIAL_ROSTER_RESPONSIBLE.name+" · RUT "+OFFICIAL_ROSTER_RESPONSIBLE.rut+" · "+OFFICIAL_ROSTER_RESPONSIBLE.phone,{x:left,y,size:9,font:regular,color:ink});
   for(const [index,p] of pdf.getPages().entries()){
     p.drawLine({start:{x:left,y:44},end:{x:right,y:44},thickness:.5,color:line});
     p.drawText("BOOMBOX® · Documento oficial del evento",{x:left,y:28,size:7,font:regular,color:muted});
