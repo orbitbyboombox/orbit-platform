@@ -103,47 +103,139 @@ export async function saveOfficialRosterBlock(input:{projectId:string;assignment
 export async function makeOfficialRosterPdf(composer:RosterComposer, includeCases = false) {
   if (!composer.canGenerate) throw new Error(composer.missing.join(" "));
   const pdf=await PDFDocument.create(), regular=await pdf.embedFont(StandardFonts.Helvetica), bold=await pdf.embedFont(StandardFonts.HelveticaBold);
-  const dark=rgb(.08,.08,.09), orange=rgb(.96,.43,.05), muted=rgb(.4,.41,.44), white=rgb(1,1,1), rule=rgb(.86,.86,.87);
-  const logo = await pdf.embedPng(await readFile(join(process.cwd(),"public/branding/boombox-logo-official-white-email.png")));
-  const logoDimensions = logo.scale(125/logo.width);
-  const size:[number,number]=[595.28,841.89]; let page=pdf.addPage(size), y=0;
-  const header=()=>{const top=page.getHeight();page.drawRectangle({x:0,y:top-124,width:size[0],height:124,color:dark});page.drawImage(logo,{x:42,y:top-55,width:logoDimensions.width,height:logoDimensions.height});page.drawText("NÓMINA OFICIAL DEL EQUIPO",{x:42,y:top-77,size:13,font:bold,color:orange});page.drawText(plain(composer.orbitEventId||composer.eventName).slice(0,70),{x:42,y:top-101,size:9,font:regular,color:rgb(.84,.84,.86)});y=top-154;};
-  const next=()=>{page=pdf.addPage(size);header();}; const ensure=(h:number)=>{if(y-h<70)next();}; header();
+  const logo = await pdf.embedPng(await readFile(join(process.cwd(), "public/branding/boombox-logo-official-white-email.png")));
+  const logoSize = logo.scale(145 / logo.width);
+  const ink=rgb(.11,.12,.14), muted=rgb(.42,.44,.47), line=rgb(.87,.88,.89), orange=rgb(.96,.43,.05), pale=rgb(.97,.97,.97);
+  const width=595.28, height=841.89, left=43, right=552;
+  let page=pdf.addPage([width,height]), y=0;
+  const wrap = (value: string, maxWidth: number, font: typeof regular, fontSize: number) => {
+    const lines: string[] = [];
+    let line = "";
+    const normalized = plain(value).normalize("NFC").replace(/\s+/g, " ");
+    for (const character of normalized) {
+      if (font.widthOfTextAtSize(line + character, fontSize) > maxWidth) {
+        const split = line.lastIndexOf(" ");
+        lines.push(split > 0 ? line.slice(0, split) : line);
+        line = split > 0 ? line.slice(split + 1) : "";
+      }
+      line = (line + character).trimStart();
+    }
+    lines.push(line);
+    return lines;
+  };
+  const header=()=>{
+    page.drawRectangle({ x: 0, y: height - 76, width, height: 76, color: rgb(.06, .067, .075) });
+    page.drawImage(logo, { x: left, y: height - (76 + logoSize.height) / 2, ...logoSize });
+    page.drawText("NÓMINA OFICIAL",{x:left,y:height-100,size:11,font:bold,color:orange});
+    page.drawText(wrap(composer.orbitEventId,190,regular,9)[0],{x:362,y:height-100,size:9,font:regular,color:muted});
+    page.drawLine({start:{x:left,y:height-112},end:{x:right,y:height-112},thickness:1,color:line});
+    y=height-132;
+  };
+  const next=()=>{page=pdf.addPage([width,height]);header();};
+  const ensure=(space:number)=>{if(y-space<65)next();};
+  header();
   const isCCU = composer.orbitEventId === "ORB-2026-268105";
   const details:[string,string][]=[["EVENTO",composer.eventName],["FECHA",rosterDate(composer.eventDate)],["HORARIO",isCCU?"AM 09:00 a 13:30 hrs / PM 15:00 a 19:30 hrs":composer.eventTime?.slice(0,5)||"Por confirmar"],...(isCCU?[["CITACIÓN","AM 08:00 hrs / PM 14:00 hrs"] as [string,string]]:[]),["LUGAR",[composer.location,composer.city].filter(Boolean).join(" · ")||"Por confirmar"]];
-  for(const d of details){page.drawText(d[0],{x:42,y,size:7,font:bold,color:muted});page.drawText(plain(d[1]).slice(0,78),{x:145,y,size:9,font:regular,color:dark});y-=17;} y-=9;
-  const drawGroup = (title: string, rows: { name: string; rut: string; label: string }[]) => {
-    const drawTitle = () => {
-      page.drawRectangle({x:42,y:y-6,width:511,height:23,color:dark});
-      page.drawText(title.toUpperCase(),{x:52,y:y+1,size:9,font:bold,color:orange});
-      y-=25;
-    };
-    ensure(44);
-    drawTitle();
-    if (!rows.length) {
-      page.drawText("Sin asignar",{x:52,y,size:8.5,font:regular,color:muted});
-      y-=16;
+  for(const [label,value] of details){
+    page.drawText(label,{x:left,y,size:8,font:bold,color:muted});
+    const lines = wrap(value, 389, regular, 10);
+    lines.forEach((line, index) => page.drawText(line, { x: 143, y: y - index * 13, size: 10, font: regular, color: ink }));
+    y -= 23 + (lines.length - 1) * 13;
+  }
+  y-=23;
+  const tableHeader = () => {
+    page.drawText("PERSONAL ASIGNADO", { x: left, y, size: 10, font: bold, color: ink });
+    y -= 23;
+    page.drawRectangle({ x: left, y: y - 7, width: right - left, height: 26, color: pale });
+    for (const [label, x] of [["NOMBRE", left + 11], ["RUT", 265], ["FUNCIÓN", 380]] as const) {
+      page.drawText(label, { x, y, size: 8, font: bold, color: muted });
     }
-    for (const row of rows) {
-      const height = Math.max(16,11*Math.ceil(bold.widthOfTextAtSize(plain(row.name),8.5)/200)+5);
-      if (y-height<70) { next(); drawTitle(); }
-      page.drawText(plain(row.name || "Nombre pendiente"),{x:52,y,size:8.5,font:bold,color:dark,maxWidth:218,lineHeight:11});
-      page.drawText(row.rut ? formatChileanRut(row.rut) : "RUT pendiente",{x:280,y,size:8.5,font:regular,color:dark});
-      page.drawText(row.label,{x:420,y,size:8,font:regular,color:muted});
-      y-=height;
-    }
-    y-=8;
+    y -= 27;
   };
-  for (const group of composer.groups) {
-    drawGroup(group.title, group.members.map(member => ({ ...member, label: group.label })));
+  tableHeader();
+  const people=new Map<string,{name:string;rut:string;roles:string[]}>();
+  const rosterRows = composer.groups.flatMap(group =>
+    group.members.map(member => ({ ...member, role: group.label })),
+  );
+  for (const member of rosterRows) {
+    const key = member.staffId || member.rut || member.name;
+    const role = member.role;
+    const previous=people.get(key);
+    if(previous){if(!previous.roles.includes(role))previous.roles.push(role);}
+    else people.set(key,{name:member.name,rut:member.rut,roles:[role]});
   }
-  drawGroup("Encargado del evento", composer.responsible ? [{ ...composer.responsible, label: "Encargado" }] : []);
-  ensure(54);page.drawRectangle({x:42,y:y-6,width:511,height:23,color:dark});page.drawText("VEHÍCULOS AUTORIZADOS PARA MONTAJE Y DESMONTAJE",{x:52,y:y+1,size:8,font:bold,color:orange});y-=29;page.drawText(OFFICIAL_ROSTER_PLATES.join("  ·  "),{x:52,y,size:10,font:bold,color:dark});y-=27;
-  if(includeCases && composer.totemRows.length){ensure(52);page.drawRectangle({x:42,y:y-6,width:511,height:23,color:dark});page.drawText("DISTRIBUCIÓN MULTICAJA",{x:52,y:y+1,size:9,font:bold,color:orange});y-=31;
-    for(const row of composer.totemRows){ensure(30);page.drawText(plain(row.position+" · "+row.box).slice(0,42),{x:48,y,size:7.5,font:bold,color:dark});page.drawText(plain(row.block+" · "+row.operator).slice(0,48),{x:235,y,size:7.2,font:regular,color:dark});y-=12;page.drawText(plain(row.location+" · "+row.reference).slice(0,100),{x:60,y,size:7,font:regular,color:muted});y-=13;}
-    y-=8;
+  for(const person of people.values()){
+    const nameLines = wrap(person.name, 202, bold, 9);
+    const roleLines = wrap(person.roles.join(" / "), 165, regular, 8.5);
+    const rowHeight = Math.max(29, Math.max(nameLines.length, roleLines.length) * 13 + 12);
+    if (y - rowHeight - 10 < 65) {
+      next();
+      tableHeader();
+    }
+    nameLines.forEach((line, index) => page.drawText(line, { x: left + 11, y: y - index * 13, size: 9, font: bold, color: ink }));
+    page.drawText(formatChileanRut(person.rut), { x: 265, y, size: 9, font: regular, color: ink });
+    roleLines.forEach((line, index) => page.drawText(line, { x: 380, y: y - index * 13, size: 8.5, font: regular, color: muted }));
+    y-=rowHeight;
+    page.drawLine({start:{x:left,y:y+10},end:{x:right,y:y+10},thickness:.5,color:line});
   }
-  for(const [i,p] of pdf.getPages().entries()){p.drawLine({start:{x:42,y:42},end:{x:553,y:42},thickness:.5,color:rule});p.drawText("BOOMBOX · Nómina oficial del evento",{x:42,y:26,size:7,font:regular,color:muted});p.drawText((i+1)+" / "+pdf.getPageCount(),{x:530,y:26,size:7,font:regular,color:muted});}
+  ensure(87);
+  y-=25;
+  page.drawLine({start:{x:left,y},end:{x:right,y},thickness:1,color:line});
+  y-=21;
+  page.drawText("RESPONSABLE DEL EVENTO",{x:left,y,size:8,font:bold,color:muted});
+  y-=17;
+  if (composer.responsible) {
+    const { name, rut } = composer.responsible;
+    const identity = rut ? name + " · RUT " + formatChileanRut(rut) : name;
+    for (const line of wrap(identity, right - left, regular, 9)) {
+      page.drawText(line, { x: left, y, size: 9, font: regular, color: ink });
+      y -= 13;
+    }
+  } else {
+    page.drawText("Sin asignar", { x: left, y, size: 9, font: regular, color: muted });
+    y -= 13;
+  }
+  ensure(72);
+  y -= 23;
+  page.drawText("Vehículos autorizados para montaje y desmontaje", { x: left, y, size: 10, font: bold, color: ink });
+  y -= 17;
+  page.drawText(OFFICIAL_ROSTER_PLATES.join(" / "), { x: left, y, size: 9, font: bold, color: ink });
+  y -= 15;
+  page.drawText("Cualquiera de estos vehículos oficiales de BOOMBOX® puede ingresar para montaje o desmontaje.", {
+    x: left, y, size: 8.5, font: regular, color: muted,
+  });
+  y -= 14;
+  if (includeCases && composer.totemRows.length) {
+    const totemHeader = () => {
+      y -= 20;
+      page.drawText("DISTRIBUCIÓN MULTICAJA", { x: left, y, size: 10, font: bold, color: ink });
+      y -= 19;
+    };
+    if (y - 85 < 65) next();
+    totemHeader();
+    for (const row of composer.totemRows) {
+      const label = wrap(row.position + " · " + row.box + " · " + row.block + " · " + row.operator, right - left, bold, 8);
+      const location = wrap(row.location + " · " + row.reference, right - left, regular, 8);
+      if (y - (label.length + location.length) * 12 - 10 < 65) {
+        next();
+        totemHeader();
+      }
+      for (const line of label) {
+        page.drawText(line, { x: left, y, size: 8, font: bold, color: ink });
+        y -= 12;
+      }
+      for (const line of location) {
+        page.drawText(line, { x: left, y, size: 8, font: regular, color: muted });
+        y -= 12;
+      }
+      y -= 9;
+    }
+  }
+  for(const [index,p] of pdf.getPages().entries()){
+    p.drawLine({start:{x:left,y:44},end:{x:right,y:44},thickness:.5,color:line});
+    p.drawText("BOOMBOX® · Documento oficial del evento",{x:left,y:28,size:7,font:regular,color:muted});
+    p.drawText((index+1)+" / "+pdf.getPageCount(),{x:529,y:28,size:7,font:regular,color:muted});
+  }
   return {bytes:await pdf.save(),filename:"Nomina-Oficial-"+safeFilename(composer.eventName)+".pdf"};
 }
 
