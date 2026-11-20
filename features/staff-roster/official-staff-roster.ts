@@ -1,4 +1,6 @@
 import "server-only";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -58,6 +60,8 @@ export async function saveOfficialRosterBlock(input:{projectId:string;assignment
 export async function makeOfficialRosterPdf(composer:RosterComposer) {
   if (!composer.canGenerate) throw new Error(composer.missing.join(" "));
   const pdf=await PDFDocument.create(), regular=await pdf.embedFont(StandardFonts.Helvetica), bold=await pdf.embedFont(StandardFonts.HelveticaBold);
+  const logo = await pdf.embedPng(await readFile(join(process.cwd(), "public/branding/boombox-logo-official-white-email.png")));
+  const logoSize = logo.scale(145 / logo.width);
   const ink=rgb(.11,.12,.14), muted=rgb(.42,.44,.47), line=rgb(.87,.88,.89), orange=rgb(.96,.43,.05), pale=rgb(.97,.97,.97);
   const width=595.28, height=841.89, left=43, right=552;
   let page=pdf.addPage([width,height]), y=0;
@@ -77,11 +81,11 @@ export async function makeOfficialRosterPdf(composer:RosterComposer) {
     return lines;
   };
   const header=()=>{
-    page.drawText("BOOMBOX",{x:left,y:height-61,size:25,font:bold,color:ink});
-    page.drawText("®",{x:183,y:height-51,size:10,font:regular,color:ink});
-    page.drawText("NÓMINA OFICIAL",{x:left,y:height-91,size:11,font:bold,color:orange});
-    page.drawText(wrap(composer.orbitEventId,190,regular,9)[0],{x:362,y:height-88,size:9,font:regular,color:muted});
-    page.drawLine({start:{x:left,y:height-105},end:{x:right,y:height-105},thickness:1,color:line});
+    page.drawRectangle({ x: 0, y: height - 76, width, height: 76, color: rgb(.06, .067, .075) });
+    page.drawImage(logo, { x: left, y: height - (76 + logoSize.height) / 2, ...logoSize });
+    page.drawText("NÓMINA OFICIAL",{x:left,y:height-100,size:11,font:bold,color:orange});
+    page.drawText(wrap(composer.orbitEventId,190,regular,9)[0],{x:362,y:height-100,size:9,font:regular,color:muted});
+    page.drawLine({start:{x:left,y:height-112},end:{x:right,y:height-112},thickness:1,color:line});
     y=height-132;
   };
   const next=()=>{page=pdf.addPage([width,height]);header();};
@@ -154,7 +158,7 @@ export async function sendOfficialRoster(input:{projectId:string;actorId:string;
   const subject="Nómina oficial BOOMBOX · "+rosterDate(composer.eventDate);
   const escapeHtml=(value:string)=>plain(value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
   const eventName=escapeHtml(composer.eventName), eventDate=escapeHtml(rosterDate(composer.eventDate));
-  const htmlBody='<div style="margin:0;padding:28px 14px;background:#f5f5f5;font-family:Arial,Helvetica,sans-serif;color:#202124"><div style="max-width:620px;margin:0 auto;background:#ffffff;border:1px solid #e9e9e9"><div style="padding:32px 36px 20px;border-bottom:1px solid #e8e8e8"><div style="font-size:25px;font-weight:800;letter-spacing:1.5px;color:#171719">BOOMBOX®</div><div style="margin-top:6px;font-size:10px;letter-spacing:1.8px;color:#777">PRODUCCIÓN DE EVENTOS</div></div><div style="padding:29px 36px 35px"><div style="font-size:18px;font-weight:700">Nómina oficial · '+eventName+'</div><div style="margin-top:7px;color:#777;font-size:13px">'+eventDate+'</div><div style="height:2px;width:32px;background:#f56e0a;margin:24px 0"></div><p style="font-size:14px;line-height:1.7;margin:0 0 18px">Estimada/o '+escapeHtml(composer.customerName||"equipo")+':</p><p style="font-size:14px;line-height:1.8;margin:0 0 18px">Adjuntamos la nómina oficial del equipo BOOMBOX® asignado a tu evento, con sus funciones y datos de identificación.</p><p style="font-size:14px;line-height:1.7;margin:0 0 22px">Quedamos atentos ante cualquier requerimiento.</p><p style="font-size:14px;line-height:1.7;margin:0">Saludos cordiales,<br><strong>Equipo BOOMBOX®</strong></p></div><div style="border-top:1px solid #e8e8e8;padding:16px 36px;color:#888;font-size:11px">BOOMBOX® · Producción de eventos</div></div></div>';
+  const htmlBody='<div style="margin:0;padding:28px 14px;background:#f5f5f5;font-family:Arial,Helvetica,sans-serif;color:#202124"><div style="max-width:620px;margin:0 auto;background:#ffffff;border:1px solid #e9e9e9"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse"><tr><td bgcolor="#101113" style="background:#101113;color:#ffffff;padding:26px 36px"><img src="https://app.bbox.cl/branding/boombox-logo-official-white-email.png" width="176" height="40" alt="BOOMBOX®" style="display:block;width:176px;max-width:100%;height:auto;color:#ffffff;font-size:22px;font-weight:bold"><div style="margin-top:10px;font-size:10px;letter-spacing:1.8px;color:#e0e0e0">PRODUCCIÓN DE EVENTOS</div></td></tr></table><div style="padding:29px 36px 35px"><div style="font-size:18px;font-weight:700">Nómina oficial · '+eventName+'</div><div style="margin-top:7px;color:#777;font-size:13px">'+eventDate+'</div><div style="height:2px;width:32px;background:#f56e0a;margin:24px 0"></div><p style="font-size:14px;line-height:1.7;margin:0 0 18px">Estimada/o '+escapeHtml(composer.customerName||"equipo")+':</p><p style="font-size:14px;line-height:1.8;margin:0 0 18px">Adjuntamos la nómina oficial del equipo BOOMBOX® asignado a tu evento, con sus funciones y datos de identificación.</p><p style="font-size:14px;line-height:1.7;margin:0 0 22px">Quedamos atentos ante cualquier requerimiento.</p><p style="font-size:14px;line-height:1.7;margin:0">Saludos cordiales,<br><strong>Equipo BOOMBOX®</strong></p></div><div style="border-top:1px solid #e8e8e8;padding:16px 36px;color:#888;font-size:11px">BOOMBOX® · Producción de eventos</div></div></div>';
   const textBody=["Nómina oficial · "+composer.eventName,rosterDate(composer.eventDate),"","Estimada/o "+(composer.customerName||"equipo")+":","","Adjuntamos la nómina oficial del equipo BOOMBOX® asignado a tu evento, con sus funciones y datos de identificación.","","Quedamos atentos ante cualquier requerimiento.","","Saludos cordiales,","Equipo BOOMBOX®"].join(String.fromCharCode(10));
   const {bytes,filename}=await makeOfficialRosterPdf(composer);
   const {data:record,error:insertError}=await admin.from("communications").insert({customer_id:(await admin.from("projects").select("customer_id").eq("id",input.projectId).single()).data?.customer_id,project_id:input.projectId,channel:"GMAIL",direction:"OUTBOUND",communication_type:"OFFICIAL_STAFF_ROSTER",thread_key:key,request_key:key,subject,body:textBody,status:"QUEUED",to_recipient:to,cc_recipients:[],occurred_at:new Date().toISOString(),created_by:input.actorId,sent_by:input.actorId,context_snapshot:{rendererVersion:"OFFICIAL_STAFF_ROSTER_PREMIUM_V2",fingerprint:composer.fingerprint,staffCount:composer.members.length,responsible:OFFICIAL_ROSTER_RESPONSIBLE}}).select("id").single();
