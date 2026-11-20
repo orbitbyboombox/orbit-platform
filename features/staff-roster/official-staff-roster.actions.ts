@@ -1,11 +1,11 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { isAdministrativeRole } from "@/lib/auth/roles";
-import { createSupabaseServerActionClient } from "@/lib/supabase/server";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { loadOfficialRoster, makeOfficialRosterPdf, saveOfficialRosterBlock, sendOfficialRoster } from "./official-staff-roster";
 
 async function actor() {
-  const client=await createSupabaseServerActionClient();
+  const client=await createSupabaseServerClient();
   const {data,error}=await client.auth.getUser();
   if(error||!data.user)throw error??new Error("Sesión requerida.");
   const {data:profile,error:profileError}=await client.from("profiles").select("role").eq("id",data.user.id).single();
@@ -27,16 +27,16 @@ export async function saveOfficialRosterBlockAction(input:{projectId:string;assi
     return {ok:true as const};
   } catch(error) { return {ok:false as const,error:message(error)}; }
 }
-export async function downloadOfficialRosterAction(projectId:string) {
+export async function downloadOfficialRosterAction(projectId:string, includeCases = false) {
   try {
     await actor();
     const composer=await loadOfficialRoster(projectId);
     if(!composer.canGenerate)return {ok:false as const,error:composer.missing.join(" "),missing:composer.missing};
-    const pdf=await makeOfficialRosterPdf(composer);
+    const pdf=await makeOfficialRosterPdf(composer, includeCases === true);
     return {ok:true as const,filename:pdf.filename,base64:Buffer.from(pdf.bytes).toString("base64")};
   } catch(error) { return {ok:false as const,error:message(error)}; }
 }
-export async function sendOfficialRosterAction(input:{projectId:string;requestId:string;fingerprint:string;to:string}) {
+export async function sendOfficialRosterAction(input:{projectId:string;requestId:string;fingerprint:string;to:string;includeCases?:boolean}) {
   try {
     const actorId=await actor();
     const result=await sendOfficialRoster({...input,actorId});
