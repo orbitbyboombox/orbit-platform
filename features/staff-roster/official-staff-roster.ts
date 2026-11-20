@@ -100,44 +100,127 @@ export async function saveOfficialRosterBlock(input:{projectId:string;assignment
 export async function makeOfficialRosterPdf(composer:RosterComposer) {
   if (!composer.canGenerate) throw new Error(composer.missing.join(" "));
   const pdf=await PDFDocument.create(), regular=await pdf.embedFont(StandardFonts.Helvetica), bold=await pdf.embedFont(StandardFonts.HelveticaBold);
-  const dark=rgb(.08,.08,.09), orange=rgb(.96,.43,.05), muted=rgb(.4,.41,.44), white=rgb(1,1,1), rule=rgb(.86,.86,.87);
-  const size:[number,number]=[595.28,841.89]; let page=pdf.addPage(size), y=0;
-  const header=()=>{const top=page.getHeight();page.drawRectangle({x:0,y:top-124,width:size[0],height:124,color:dark});page.drawText("BOOMBOX®",{x:42,y:top-47,size:25,font:bold,color:white});page.drawText("NÓMINA OFICIAL DEL EQUIPO",{x:42,y:top-77,size:13,font:bold,color:orange});page.drawText(plain(composer.orbitEventId||composer.eventName).slice(0,70),{x:42,y:top-101,size:9,font:regular,color:rgb(.84,.84,.86)});y=top-154;};
-  const next=()=>{page=pdf.addPage(size);header();}; const ensure=(h:number)=>{if(y-h<70)next();}; header();
+  const ink=rgb(.11,.12,.14), muted=rgb(.42,.44,.47), line=rgb(.87,.88,.89), orange=rgb(.96,.43,.05), pale=rgb(.97,.97,.97);
+  const width=595.28, height=841.89, left=43, right=552;
+  let page=pdf.addPage([width,height]), y=0;
+  const wrap = (value: string, maxWidth: number, font: typeof regular, fontSize: number) => {
+    const lines: string[] = [];
+    let line = "";
+    const normalized = plain(value).normalize("NFC").replace(/\s+/g, " ");
+    for (const character of normalized) {
+      if (font.widthOfTextAtSize(line + character, fontSize) > maxWidth) {
+        const split = line.lastIndexOf(" ");
+        lines.push(split > 0 ? line.slice(0, split) : line);
+        line = split > 0 ? line.slice(split + 1) : "";
+      }
+      line = (line + character).trimStart();
+    }
+    lines.push(line);
+    return lines;
+  };
+  const header=()=>{
+    page.drawText("BOOMBOX",{x:left,y:height-61,size:25,font:bold,color:ink});
+    page.drawText("®",{x:183,y:height-51,size:10,font:regular,color:ink});
+    page.drawText("NÓMINA OFICIAL",{x:left,y:height-91,size:11,font:bold,color:orange});
+    page.drawText(wrap(composer.orbitEventId,190,regular,9)[0],{x:362,y:height-88,size:9,font:regular,color:muted});
+    page.drawLine({start:{x:left,y:height-105},end:{x:right,y:height-105},thickness:1,color:line});
+    y=height-132;
+  };
+  const next=()=>{page=pdf.addPage([width,height]);header();};
+  const ensure=(space:number)=>{if(y-space<65)next();};
+  header();
   const isCCU = composer.orbitEventId === "ORB-2026-268105";
   const details:[string,string][]=[["EVENTO",composer.eventName],["FECHA",rosterDate(composer.eventDate)],["HORARIO",isCCU?"AM 09:00 a 13:30 hrs / PM 15:00 a 19:30 hrs":composer.eventTime?.slice(0,5)||"Por confirmar"],...(isCCU?[["CITACIÓN","AM 08:00 hrs / PM 14:00 hrs"] as [string,string]]:[]),["LUGAR",[composer.location,composer.city].filter(Boolean).join(" · ")||"Por confirmar"]];
-  for(const d of details){page.drawText(d[0],{x:42,y,size:7,font:bold,color:muted});page.drawText(plain(d[1]).slice(0,78),{x:145,y,size:9,font:regular,color:dark});y-=17;} y-=9;
-  const drawGroup = (title: string, rows: { name: string; rut: string; label: string }[]) => {
-    const drawTitle = () => {
-      page.drawRectangle({x:42,y:y-6,width:511,height:23,color:dark});
-      page.drawText(title.toUpperCase(),{x:52,y:y+1,size:9,font:bold,color:orange});
-      y-=25;
-    };
-    ensure(44);
-    drawTitle();
-    if (!rows.length) {
-      page.drawText("Sin asignar",{x:52,y,size:8.5,font:regular,color:muted});
-      y-=16;
+  for(const [label,value] of details){
+    page.drawText(label,{x:left,y,size:8,font:bold,color:muted});
+    const lines = wrap(value, 389, regular, 10);
+    lines.forEach((line, index) => page.drawText(line, { x: 143, y: y - index * 13, size: 10, font: regular, color: ink }));
+    y -= 23 + (lines.length - 1) * 13;
+  }
+  y-=23;
+  const tableHeader = () => {
+    page.drawText("PERSONAL ASIGNADO", { x: left, y, size: 10, font: bold, color: ink });
+    y -= 23;
+    page.drawRectangle({ x: left, y: y - 7, width: right - left, height: 26, color: pale });
+    for (const [label, x] of [["NOMBRE", left + 11], ["RUT", 265], ["FUNCIÓN", 380]] as const) {
+      page.drawText(label, { x, y, size: 8, font: bold, color: muted });
     }
-    for (const row of rows) {
-      const height = Math.max(16,11*Math.ceil(bold.widthOfTextAtSize(plain(row.name),8.5)/200)+5);
-      if (y-height<70) { next(); drawTitle(); }
-      page.drawText(plain(row.name || "Nombre pendiente"),{x:52,y,size:8.5,font:bold,color:dark,maxWidth:218,lineHeight:11});
-      page.drawText(row.rut ? formatChileanRut(row.rut) : "RUT pendiente",{x:280,y,size:8.5,font:regular,color:dark});
-      page.drawText(row.label,{x:420,y,size:8,font:regular,color:muted});
-      y-=height;
-    }
-    y-=8;
+    y -= 27;
   };
-  for (const group of composer.groups) {
-    drawGroup(group.title, group.members.map(member => ({ ...member, label: group.label })));
+  tableHeader();
+  const people=new Map<string,{name:string;rut:string;roles:string[]}>();
+  const rosterRows = composer.groups.flatMap(group =>
+    group.members.map(member => ({ ...member, role: group.label })),
+  );
+  for (const member of rosterRows) {
+    const key = member.staffId || member.rut || member.name;
+    const role = member.role;
+    const previous=people.get(key);
+    if(previous){if(!previous.roles.includes(role))previous.roles.push(role);}
+    else people.set(key,{name:member.name,rut:member.rut,roles:[role]});
   }
-  drawGroup("Encargado del evento", composer.responsible ? [{ ...composer.responsible, label: "Encargado" }] : []);
-  if(composer.totemRows.length){ensure(52);page.drawRectangle({x:42,y:y-6,width:511,height:23,color:dark});page.drawText("DISTRIBUCIÓN MULTICAJA",{x:52,y:y+1,size:9,font:bold,color:orange});y-=31;
-    for(const row of composer.totemRows){ensure(30);page.drawText(plain(row.position+" · "+row.box).slice(0,42),{x:48,y,size:7.5,font:bold,color:dark});page.drawText(plain(row.block+" · "+row.operator).slice(0,48),{x:235,y,size:7.2,font:regular,color:dark});y-=12;page.drawText(plain(row.location+" · "+row.reference).slice(0,100),{x:60,y,size:7,font:regular,color:muted});y-=13;}
-    y-=8;
+  for(const person of people.values()){
+    const nameLines = wrap(person.name, 202, bold, 9);
+    const roleLines = wrap(person.roles.join(" / "), 165, regular, 8.5);
+    const rowHeight = Math.max(29, Math.max(nameLines.length, roleLines.length) * 13 + 12);
+    if (y - rowHeight - 10 < 65) {
+      next();
+      tableHeader();
+    }
+    nameLines.forEach((line, index) => page.drawText(line, { x: left + 11, y: y - index * 13, size: 9, font: bold, color: ink }));
+    page.drawText(formatChileanRut(person.rut), { x: 265, y, size: 9, font: regular, color: ink });
+    roleLines.forEach((line, index) => page.drawText(line, { x: 380, y: y - index * 13, size: 8.5, font: regular, color: muted }));
+    y-=rowHeight;
+    page.drawLine({start:{x:left,y:y+10},end:{x:right,y:y+10},thickness:.5,color:line});
   }
-  for(const [i,p] of pdf.getPages().entries()){p.drawLine({start:{x:42,y:42},end:{x:553,y:42},thickness:.5,color:rule});p.drawText("BOOMBOX · Nómina oficial del evento",{x:42,y:26,size:7,font:regular,color:muted});p.drawText((i+1)+" / "+pdf.getPageCount(),{x:530,y:26,size:7,font:regular,color:muted});}
+  ensure(87);
+  y-=25;
+  page.drawLine({start:{x:left,y},end:{x:right,y},thickness:1,color:line});
+  y-=21;
+  page.drawText("RESPONSABLE DEL EVENTO",{x:left,y,size:8,font:bold,color:muted});
+  y-=17;
+  if (composer.responsible) {
+    const { name, rut } = composer.responsible;
+    const identity = rut ? name + " · RUT " + formatChileanRut(rut) : name;
+    for (const line of wrap(identity, right - left, regular, 9)) {
+      page.drawText(line, { x: left, y, size: 9, font: regular, color: ink });
+      y -= 13;
+    }
+  } else {
+    page.drawText("Sin asignar", { x: left, y, size: 9, font: regular, color: muted });
+    y -= 13;
+  }
+  if (composer.totemRows.length) {
+    const totemHeader = () => {
+      y -= 20;
+      page.drawText("DISTRIBUCIÓN MULTICAJA", { x: left, y, size: 10, font: bold, color: ink });
+      y -= 19;
+    };
+    if (y - 85 < 65) next();
+    totemHeader();
+    for (const row of composer.totemRows) {
+      const label = wrap(row.position + " · " + row.box + " · " + row.block + " · " + row.operator, right - left, bold, 8);
+      const location = wrap(row.location + " · " + row.reference, right - left, regular, 8);
+      if (y - (label.length + location.length) * 12 - 10 < 65) {
+        next();
+        totemHeader();
+      }
+      for (const line of label) {
+        page.drawText(line, { x: left, y, size: 8, font: bold, color: ink });
+        y -= 12;
+      }
+      for (const line of location) {
+        page.drawText(line, { x: left, y, size: 8, font: regular, color: muted });
+        y -= 12;
+      }
+      y -= 9;
+    }
+  }
+  for(const [index,p] of pdf.getPages().entries()){
+    p.drawLine({start:{x:left,y:44},end:{x:right,y:44},thickness:.5,color:line});
+    p.drawText("BOOMBOX® · Documento oficial del evento",{x:left,y:28,size:7,font:regular,color:muted});
+    p.drawText((index+1)+" / "+pdf.getPageCount(),{x:529,y:28,size:7,font:regular,color:muted});
+  }
   return {bytes:await pdf.save(),filename:"Nomina-Oficial-"+safeFilename(composer.eventName)+".pdf"};
 }
 
@@ -151,9 +234,10 @@ export async function sendOfficialRoster(input:{projectId:string;actorId:string;
   if(readError)throw readError;
   if(already?.status==="SENT")return {status:"SENT" as const,recipient:already.to_recipient??to,deduplicated:true};
   const subject="Nómina oficial BOOMBOX · "+rosterDate(composer.eventDate);
-  const greeting=plain(composer.customerName||"equipo").replace(/[&<>"]/g,"");
-  const htmlBody='<main style="font-family:Arial,sans-serif;color:#171719;line-height:1.65"><header style="background:#171719;padding:26px 30px;color:#fff"><b style="font-size:21px;letter-spacing:2px">BOOMBOX</b><div style="margin-top:8px;color:#f56e0a;font-size:12px;font-weight:700">NÓMINA OFICIAL DEL EQUIPO</div></header><section style="padding:26px 30px"><p>Hola '+greeting+',</p><p>Junto con saludar, adjuntamos la nómina oficial del equipo BOOMBOX que participará en <b>'+plain(composer.eventName).replace(/[&<>"]/g,"")+'</b> el <b>'+rosterDate(composer.eventDate)+'</b>.</p><p>El documento presenta al equipo agrupado por función, con sus datos de identificación y, cuando corresponde, la distribución de CASE y ubicaciones.</p><p>Quedamos atentos.<br><b>Equipo BOOMBOX</b></p></section></main>';
-  const textBody="Hola "+(composer.customerName||"equipo")+",\n\nAdjuntamos la nómina oficial del equipo BOOMBOX para "+composer.eventName+", el "+rosterDate(composer.eventDate)+".\n\nEl PDF presenta al equipo agrupado por función.\n\nEquipo BOOMBOX";
+  const escapeHtml=(value:string)=>plain(value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+  const eventName=escapeHtml(composer.eventName), eventDate=escapeHtml(rosterDate(composer.eventDate));
+  const htmlBody='<div style="margin:0;padding:28px 14px;background:#f5f5f5;font-family:Arial,Helvetica,sans-serif;color:#202124"><div style="max-width:620px;margin:0 auto;background:#ffffff;border:1px solid #e9e9e9"><div style="padding:32px 36px 20px;border-bottom:1px solid #e8e8e8"><div style="font-size:25px;font-weight:800;letter-spacing:1.5px;color:#171719">BOOMBOX®</div><div style="margin-top:6px;font-size:10px;letter-spacing:1.8px;color:#777">PRODUCCIÓN DE EVENTOS</div></div><div style="padding:29px 36px 35px"><div style="font-size:18px;font-weight:700">Nómina oficial · '+eventName+'</div><div style="margin-top:7px;color:#777;font-size:13px">'+eventDate+'</div><div style="height:2px;width:32px;background:#f56e0a;margin:24px 0"></div><p style="font-size:14px;line-height:1.7;margin:0 0 18px">Estimada/o '+escapeHtml(composer.customerName||"equipo")+':</p><p style="font-size:14px;line-height:1.8;margin:0 0 18px">Adjuntamos la nómina oficial del equipo BOOMBOX® asignado a tu evento, con sus funciones y datos de identificación.</p><p style="font-size:14px;line-height:1.7;margin:0 0 22px">Quedamos atentos ante cualquier requerimiento.</p><p style="font-size:14px;line-height:1.7;margin:0">Saludos cordiales,<br><strong>Equipo BOOMBOX®</strong></p></div><div style="border-top:1px solid #e8e8e8;padding:16px 36px;color:#888;font-size:11px">BOOMBOX® · Producción de eventos</div></div></div>';
+  const textBody=["Nómina oficial · "+composer.eventName,rosterDate(composer.eventDate),"","Estimada/o "+(composer.customerName||"equipo")+":","","Adjuntamos la nómina oficial del equipo BOOMBOX® asignado a tu evento, con sus funciones y datos de identificación.","","Quedamos atentos ante cualquier requerimiento.","","Saludos cordiales,","Equipo BOOMBOX®"].join(String.fromCharCode(10));
   const {bytes,filename}=await makeOfficialRosterPdf(composer);
   const {data:record,error:insertError}=await admin.from("communications").insert({customer_id:(await admin.from("projects").select("customer_id").eq("id",input.projectId).single()).data?.customer_id,project_id:input.projectId,channel:"GMAIL",direction:"OUTBOUND",communication_type:"OFFICIAL_STAFF_ROSTER",thread_key:key,request_key:key,subject,body:textBody,status:"QUEUED",to_recipient:to,cc_recipients:[],occurred_at:new Date().toISOString(),created_by:input.actorId,sent_by:input.actorId,context_snapshot:{rendererVersion:"OFFICIAL_STAFF_ROSTER_V2",fingerprint:composer.fingerprint,staffCount:new Set(composer.groups.flatMap(group=>group.members.map(member=>member.staffId))).size}}).select("id").single();
   if(insertError)throw insertError;
