@@ -9,6 +9,7 @@ import { getOfficialRosterPreviewAction, downloadOfficialRosterAction, sendOffic
 import type { RosterComposer } from "./official-staff-roster";
 
 export function OfficialStaffRosterControl({projectId}:{projectId:string}) {
+  const [includeCases,setIncludeCases]=useState(false);
   const [composer,setComposer]=useState<RosterComposer|null>(null);
   const [loading,setLoading]=useState(true);
   const [pending,startTransition]=useTransition();
@@ -32,7 +33,7 @@ export function OfficialStaffRosterControl({projectId}:{projectId:string}) {
   const download=()=>{
     if(pending||!composer?.canGenerate)return;
     startTransition(async()=>{
-      const result=await downloadOfficialRosterAction(projectId);
+      const result=await downloadOfficialRosterAction(projectId,includeCases);
       if(!result.ok){setFeedback(result.error);return;}
       const raw=atob(result.base64);
       const bytes=new Uint8Array(raw.length);
@@ -40,6 +41,7 @@ export function OfficialStaffRosterControl({projectId}:{projectId:string}) {
       const url=URL.createObjectURL(new Blob([bytes as unknown as BlobPart],{type:"application/pdf"}));
       const anchor=document.createElement("a");
       anchor.href=url;anchor.download=result.filename;anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+      setIncludeCases(false);
       setFeedback("PDF descargado.");
     });
   };
@@ -54,8 +56,9 @@ export function OfficialStaffRosterControl({projectId}:{projectId:string}) {
     setSendState("sending");
     const requestId=crypto.randomUUID();
     startTransition(async()=>{
-      const result=await sendOfficialRosterAction({projectId,requestId,fingerprint:composer.fingerprint,to});
+      const result=await sendOfficialRosterAction({projectId,requestId,fingerprint:composer.fingerprint,to,includeCases});
       if(!result.ok){setSendState("error");setFeedback(result.error);return;}
+      setIncludeCases(false);
       setSendState("sent");setFeedback(result.message);
       await refresh();
     });
@@ -93,12 +96,13 @@ export function OfficialStaffRosterControl({projectId}:{projectId:string}) {
         </section>
         {!!composer.totemRows?.length && <section className="overflow-hidden rounded-xl border">
           <button type="button" aria-expanded={expandedSections.includes("multicaja")} onClick={() => toggleSection("multicaja")} className="flex w-full items-center justify-between gap-3 p-4 text-left hover:bg-muted/20">
-            <span><strong className="block">Distribución Multicaja · PDF oficial</strong><span className="text-xs text-muted">{composer.totemRows.length} asignaciones por posición y bloque</span></span>
+            <span><strong className="block">Distribución Multicaja · uso interno</strong><span className="text-xs text-muted">{composer.totemRows.length} asignaciones por posición y bloque</span></span>
             <span className="text-sm text-brand">{expandedSections.includes("multicaja") ? "Cerrar −" : "Ver distribución +"}</span>
           </button>
           {expandedSections.includes("multicaja") && <div className="grid gap-2 border-t p-3">{composer.totemRows.map((row,index) => <div key={index} className="grid gap-1 rounded-lg border p-3 text-sm sm:grid-cols-4"><span className="font-medium">{row.position} · {row.box}</span><span>{row.block}</span><span>{row.operator}</span><span className="text-muted">{row.location} · {row.reference}</span></div>)}</div>}
         </section>}
       </div>
+      {!!composer.totemRows?.length && <label className="mt-4 flex items-center gap-2 text-sm"><input type="checkbox" checked={includeCases} disabled={pending} onChange={event=>setIncludeCases(event.target.checked)}/>Autorizo incluir excepcionalmente la distribución de cajas en el PDF y correo</label>}
       {!!composer.missing.length&&<div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950"><strong>Datos de la nómina por revisar</strong><ul className="mt-2 list-disc pl-5">{composer.missing.map((item,index)=><li key={index}>{item}</li>)}</ul></div>}
       <div className="mt-4 flex flex-wrap gap-2">
         <Button disabled={pending||!composer.canGenerate} onClick={download}><FileDown className="size-4"/>Descargar PDF oficial</Button>
@@ -112,7 +116,7 @@ export function OfficialStaffRosterControl({projectId}:{projectId:string}) {
         <div className="mt-3 rounded-xl border bg-muted/10 p-4 text-sm">
           <p><strong>Asunto:</strong> Nómina oficial BOOMBOX · {composer.eventName}</p>
           <p className="mt-2"><strong>Mensaje:</strong> Hola {composer.customerName||"equipo"}, adjuntamos la nómina oficial del equipo BOOMBOX para {composer.eventName}, el {formatDisplayDate(composer.eventDate)}. El PDF presenta al equipo agrupado por función.</p>
-          <p className="mt-3 text-xs text-muted">Adjunto: nómina oficial en PDF. El envío quedará registrado en el historial del evento.</p>
+          <p className="mt-3 text-xs text-muted">Adjunto: nómina oficial en PDF con las patentes BOOMBOX® autorizadas. Las cajas permanecen internas salvo autorización expresa. El envío quedará registrado en el historial del evento.</p>
         </div>
         {sendState==="sent"&&<p role="status" className="mt-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">{feedback}</p>}
         {sendState==="error"&&<p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-900">{feedback}</p>}
