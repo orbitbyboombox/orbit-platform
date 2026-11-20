@@ -331,6 +331,7 @@ export async function createFormalQuoteAction(input: FormalQuoteDraft) {
           grandTotal: prepared.calculation.total,
           validityDays: input.validityDays,
           depositPercent: input.depositPercent,
+          changeReason: input.changeReason?.trim() || "",
           globalDiscountType: input.globalDiscountType,
           globalDiscountValue: input.globalDiscountValue,
         },
@@ -392,9 +393,11 @@ export async function createFormalQuoteAction(input: FormalQuoteDraft) {
     });
     return fail(
       error,
-      input.quoteId
-        ? "No fue posible actualizar la cotización. Intenta nuevamente."
-        : "No fue posible guardar la cotización. Intenta nuevamente.",
+      technical?.code === "22023" && technical?.message?.includes("motivo de negociación")
+        ? "El precio difiere del precio oficial. Ingresa un motivo de negociación para guardar el cambio."
+        : input.quoteId
+          ? "No fue posible actualizar la cotización. Intenta nuevamente."
+          : "No fue posible guardar la cotización. Intenta nuevamente.",
     );
   }
 }
