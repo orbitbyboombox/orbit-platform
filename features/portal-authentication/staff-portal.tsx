@@ -54,13 +54,13 @@ export async function StaffPortal({staffId,initialEventId}:{staffId:string;initi
   admin.from("staff").select("first_name,last_name,capabilities,portal_password_change_required").eq("id",staffId).single(),
   admin.from("assignments").select("id,project_id,assignment_type,status,resources,assigned_vehicle,staff_call_at,staff_call_source,block_id,event_operational_blocks(id,name,start_at,end_at),projects!inner(id,name,orbit_event_id,project_type,event_date,event_time,event_time_mode,location,city,operations,customers(full_name,phone),project_services(service_code,duration_hours,extras),event_post_reservation_extras(name,status),quotations(transport_total,quotation_items(item_type,label,description)))").eq("staff_id",staffId).is("deleted_at",null).not("status","in",'(CANCELLED,REJECTED)').gte("projects.event_date",expenseStart).lte("projects.event_date",end).order("created_at",{ascending:false}),
   admin.from("staff_settlement_financials").select("project_id,final_amount,paid_amount,sii_receipt_status,accounting_month").eq("staff_id",staffId).eq("accounting_month",`${month}-01`),
-  admin.from("event_staff_payments").select("id,project_id,assignment_id,tasks,total_internal_payment,paid_amount,paid_at,settlement_status,accounting_month,deleted_at,operator_payment,assembly_payment,disassembly_payment,override_operator_payment,override_assembly_payment,override_disassembly_payment,projects!inner(name,event_date,event_time,customers(full_name),project_services(service_code,duration_hours))").eq("staff_id",staffId).is("deleted_at",null).order("accounting_month",{ascending:false}),
+  admin.from("event_staff_payments").select("id,project_id,assignment_id,staff_id,tasks,total_internal_payment,paid_amount,paid_at,settlement_status,accounting_month,deleted_at,operator_payment,assembly_payment,disassembly_payment,override_operator_payment,override_assembly_payment,override_disassembly_payment,projects!inner(name,event_date,event_time,customers(full_name),project_services(service_code,duration_hours))").eq("staff_id",staffId).is("deleted_at",null).order("accounting_month",{ascending:false}),
   admin.from("event_staff_settlement_adjustments").select("settlement_id,reason,amount,comment,created_at").order("created_at",{ascending:true}),
   admin.from("documents").select("id,project_id,document_type,operational_for_staff").eq("operational_for_staff",true).is("deleted_at",null),
   admin.from("staff_event_checkins").select("project_id,status").eq("staff_id",staffId),
   admin.from("internal_notifications").select("id,title,message,created_at").eq("staff_id",staffId).in("category",["OPERATIONS","STAFF"]).order("created_at",{ascending:false}).limit(12),
   admin.from("staff_available_event_projection").select("project_id,orbit_event_id,project_type,event_date,event_time,event_time_mode,city,access_instructions,services").gte("event_date",start).lte("event_date",availabilityEnd),
-  admin.from("assignments").select("id,staff_id,project_id,assignment_type,status,block_id,event_operational_blocks(id,name,start_at,end_at)").is("deleted_at",null).not("status","in",'(CANCELLED,REJECTED)'),
+  admin.from("assignments").select("id,staff_id,project_id,assignment_type,status,deleted_at,block_id,event_operational_blocks(id,name,start_at,end_at)").is("deleted_at",null).not("status","in",'(CANCELLED,REJECTED)'),
   admin.from("staff_assignment_requests").select("id,project_id,responsibility,status,requested_at,projects(name,customers(full_name))").eq("staff_id",staffId).order("requested_at",{ascending:false}).limit(30),
   admin.from("timeline_events").select("project_id,description").eq("staff_id",staffId).eq("action","STAFF_CHECKLIST_ITEM_COMPLETED"),
   admin.from("event_vehicle_assignments").select("project_id,operational_assets(asset_code,metadata)").eq("status","ASSIGNED").is("deleted_at",null),
@@ -170,10 +170,28 @@ export async function StaffPortal({staffId,initialEventId}:{staffId:string;initi
     list.push({ reason: String(row.reason ?? "AJUSTE"), amount: Number(row.amount ?? 0), comment: String(row.comment ?? "") });
     adjustmentsBySettlement.set(row.settlement_id, list);
   }
-  const eventStaffPayments: StaffEventPayment[] = (eventStaffPaymentsResult.data ?? []).map((row) => mapStaffEventPayment(row as Record<string, unknown>, assignmentById, adjustmentsBySettlement, start));
-  // Use the same canonical ledger as Finanzas; do not recompute or multiply shift rates.
+  // A cancelled, deleted, missing, or different-person assignment must never
+  // generate a new pending honorarium in the Staff portal. Preserve settled
+  // historical rows in the finance ledger for auditability, but do not attach
+  // them to an active event card unless the assignment is still valid.
+  const isActiveOwnAssignment = (row: { assignment_id?: string | null; staff_id?: string | null }) => {
+    const assignment = assignmentById.get(String(row.assignment_id ?? ""));
+    return Boolean(assignment &&
+      String(assignment.staff_id) === staffId &&
+      !assignment.deleted_at &&
+      !["CANCELLED", "REJECTED"].includes(String(assignment.status)));
+  };
+  const canonicalPaymentRows = (eventStaffPaymentsResult.data ?? []).filter(row => {
+    const settled = String(row.settlement_status) === "PAID" ||
+      Number(row.paid_amount ?? 0) > 0 || Boolean(row.paid_at);
+    return isActiveOwnAssignment(row) || settled;
+  });
+  const eventStaffPayments: StaffEventPayment[] = canonicalPaymentRows.map((row) => mapStaffEventPayment(row as Record<string, unknown>, assignmentById, adjustmentsBySettlement, start));
+  const activePaymentIds = new Set(canonicalPaymentRows.filter(isActiveOwnAssignment).map(row => String(row.id)));
+  // Use the canonical finance ledger; only active, matching assignments can
+  // populate an operational event card. Never recompute or multiply rates.
   for (const event of events) {
-    event.assignedPayments = eventStaffPayments.filter(payment => payment.projectId === event.id).map(payment => ({
+    event.assignedPayments = eventStaffPayments.filter(payment => payment.projectId === event.id && activePaymentIds.has(payment.id)).map(payment => ({
       id: payment.id, role: payment.role, blockName: payment.blockName,
       amount: payment.finalAmount, settlementStatus: payment.settlementStatus, isPaid: payment.isPaid,
     }));
