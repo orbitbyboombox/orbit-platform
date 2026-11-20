@@ -9,12 +9,12 @@ import { normalizeEmailRecipients } from "@/lib/email/recipients";
 import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import { GoogleGmailApiProvider } from "@/features/connectors/google-gmail/provider/google-gmail-live.provider";
 
-import { readRosterVehicles, type RosterVehicles } from "./official-roster-vehicles";
+import { OFFICIAL_ROSTER_PLATES } from "./official-roster-vehicles";
 
 export const OFFICIAL_ROSTER_RESPONSIBLE = { name: "Matías Maira", rut: "16.357.402-0", phone: "+56 9 7306 9315" } as const;
 export type RosterMember = { assignmentId: string; staffId: string; name: string; rut: string; role: string; roleLabel: string; block: string; status: string };
 export type RosterTotemRow = { position:string; location:string; reference:string; box:string; block:string; operator:string };
-export type RosterComposer = { totemRows: RosterTotemRow[]; vehicles: RosterVehicles; projectId: string; orbitEventId: string; eventName: string; eventDate: string; eventTime: string; location: string; city: string; customerName: string; recipient: string; fingerprint: string; members: RosterMember[]; missing: string[]; canGenerate: boolean };
+export type RosterComposer = { totemRows: RosterTotemRow[]; projectId: string; orbitEventId: string; eventName: string; eventDate: string; eventTime: string; location: string; city: string; customerName: string; recipient: string; fingerprint: string; members: RosterMember[]; missing: string[]; canGenerate: boolean };
 
 const roleNames: Record<string,string> = { OPERATOR: "Operador", SUPERVISOR: "Supervisor", ASSEMBLY: "Montaje", DISASSEMBLY: "Desmontaje" };
 const blockValue = (value: unknown) => typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, 50) : "";
@@ -41,7 +41,6 @@ export async function loadOfficialRoster(projectId: string): Promise<RosterCompo
     .map(x => { const s = Array.isArray(x.staff) ? x.staff[0] : x.staff; return { assignmentId:x.id, staffId:x.staff_id, name:[s?.first_name,s?.last_name].filter(Boolean).join(" "), rut:s?.rut ?? "", role:x.assignment_type, roleLabel:roleNames[x.assignment_type] ?? x.assignment_type, block:blockValue(x.resources?.officialRosterBlock), status:x.status }; })
     .sort((x,y) => x.block.localeCompare(y.block,"es") || x.roleLabel.localeCompare(y.roleLabel,"es") || x.name.localeCompare(y.name,"es"));
   const operations = p.data.operations ?? {};
-  const vehicles = readRosterVehicles(operations.officialRosterVehicles);
   const layout = operations.totemLayout as { enabled?: boolean; positions?: Array<{ label: string; location: string; reference: string; assetId: string | null; blocks: Array<{blockId: string; assignmentId: string | null}> }> } | undefined;
   let totemRows: RosterTotemRow[] = [];
   if (layout?.enabled && Array.isArray(layout.positions) && layout.positions.length) {
@@ -67,8 +66,8 @@ export async function loadOfficialRoster(projectId: string): Promise<RosterCompo
   if (!members.length) missing.push("No hay integrantes asignados.");
   for (const m of members) { if (!m.block) missing.push("Asigna un bloque a " + (m.name || "un integrante") + "."); if (!isValidChileanRut(m.rut)) missing.push("Revisa el RUT de " + (m.name || "un integrante") + "."); }
   const name = p.data.name || p.data.orbit_event_id || "Evento BOOMBOX";
-  const fingerprint = createHash("sha256").update(JSON.stringify({vehicles,totemRows,event:p.data.orbit_event_id,name,date:p.data.event_date,members:members.map(({assignmentId,staffId,rut,role,block,status})=>({assignmentId,staffId,rut,role,block,status}))})).digest("hex");
-  return { vehicles, totemRows, projectId, orbitEventId:p.data.orbit_event_id ?? "", eventName:name, eventDate:p.data.event_date ?? "", eventTime:p.data.event_time ?? "", location:p.data.location ?? "", city:p.data.city ?? "", customerName:customer?.full_name ?? "", recipient:contract?.contact_email ?? customer?.email ?? "", fingerprint, members, missing, canGenerate:missing.length===0 };
+  const fingerprint = createHash("sha256").update(JSON.stringify({totemRows,event:p.data.orbit_event_id,name,date:p.data.event_date,members:members.map(({assignmentId,staffId,rut,role,block,status})=>({assignmentId,staffId,rut,role,block,status}))})).digest("hex");
+  return { totemRows, projectId, orbitEventId:p.data.orbit_event_id ?? "", eventName:name, eventDate:p.data.event_date ?? "", eventTime:p.data.event_time ?? "", location:p.data.location ?? "", city:p.data.city ?? "", customerName:customer?.full_name ?? "", recipient:contract?.contact_email ?? customer?.email ?? "", fingerprint, members, missing, canGenerate:missing.length===0 };
 }
 
 export async function saveOfficialRosterBlock(input:{projectId:string;assignmentId:string;block:string;actorId:string}) {
@@ -165,18 +164,16 @@ export async function makeOfficialRosterPdf(composer:RosterComposer, includeCase
   y-=17;
   page.drawText(OFFICIAL_ROSTER_RESPONSIBLE.name+" · RUT "+OFFICIAL_ROSTER_RESPONSIBLE.rut+" · "+OFFICIAL_ROSTER_RESPONSIBLE.phone,{x:left,y,size:9,font:regular,color:ink});
   y -= 13;
-  const { assembly, disassembly } = composer.vehicles;
-  if (assembly.length || disassembly.length) {
-    ensure(92);
-    y -= 23;
-    page.drawText("Vehículos autorizados para montaje y desmontaje", { x: left, y, size: 10, font: bold, color: ink });
-    y -= 17;
-    for (const [phase, plates] of [["Montaje", assembly], ["Desmontaje", disassembly]] as const) {
-      if (!plates.length) continue;
-      page.drawText(phase + " · " + plates.join(" / "), { x: left, y, size: 9, font: regular, color: ink });
-      y -= 14;
-    }
-  }
+  ensure(72);
+  y -= 23;
+  page.drawText("Vehículos autorizados para montaje y desmontaje", { x: left, y, size: 10, font: bold, color: ink });
+  y -= 17;
+  page.drawText(OFFICIAL_ROSTER_PLATES.join(" / "), { x: left, y, size: 9, font: bold, color: ink });
+  y -= 15;
+  page.drawText("Cualquiera de estos vehículos oficiales de BOOMBOX® puede ingresar para montaje o desmontaje.", {
+    x: left, y, size: 8.5, font: regular, color: muted,
+  });
+  y -= 14;
   if (includeCases && composer.totemRows.length) {
     for (const row of composer.totemRows) {
       const lines = wrap([row.position, row.box, row.block, row.operator, row.location, row.reference].join(" · "), right - left, regular, 8);
