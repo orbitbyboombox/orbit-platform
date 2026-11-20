@@ -250,7 +250,7 @@ const STAFF_EXPENSE_LABELS: Record<string,string> = {
   TRANSPORT:"Transporte", FUEL:"Combustible", ACCOMMODATION:"Alojamiento",
 };
 const staffExpenseLabel = (code:string) => STAFF_EXPENSE_LABELS[code] ?? code.replaceAll("_"," ").toLowerCase();
-const staffRoleLabel = (role:string) => role.split(/\\s*\\+\\s*/).map(code=>ROLE[code.trim()] ?? code.trim()).join(" + ");
+const staffRoleLabel = (role:string) => role.split(/\s*\+\s*/).map(code=>ROLE[code.trim()] ?? code.trim()).join(" + ");
 const executionActions = (roles: string[]) => [
   { code: "ON_THE_WAY", label: "En camino" },
   { code: "ARRIVED", label: "Llegué" },
