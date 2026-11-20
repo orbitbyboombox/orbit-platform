@@ -224,7 +224,7 @@ const STAFF_SERVICE_LABELS: Record<string, string> = {
   MELIPILLA_PROVINCE: "Traslado Melipilla",
   TALAGANTE_PROVINCE: "Traslado Talagante",
 };
-const staffServiceLabel = (value: string) => value.split(/(\\s*[+·]\\s*)/).map(part => {
+const staffServiceLabel = (value: string) => value.split(/(\s*[+·]\s*)/).map(part => {
   const code = part.trim();
   return STAFF_SERVICE_LABELS[code] ?? (code.endsWith("_PROVINCE") ? `Traslado ${code.replace("_PROVINCE", "").replaceAll("_", " ").toLowerCase()}` : part);
 }).join("");
