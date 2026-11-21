@@ -9,6 +9,7 @@ import {
 import { WhatsAppInbox } from "@/features/communication-hub/components/whatsapp-inbox";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { loadSalesPipeline, SalesPipeline } from "@/features/sales-pipeline";
+import { WebQuoteInbox } from "@/features/web-quotes/inbox";
 
 export default async function LeadsPage() {
   const client = await createSupabaseServerClient();
@@ -20,6 +21,7 @@ export default async function LeadsPage() {
 
   return (
     <>
+      <WebQuoteInbox />
       <CommercialHub data={commercial} />
       <div className="mx-auto w-full max-w-[1480px] px-4 pb-10 sm:px-6 lg:px-8">
         <CommunicationHub
