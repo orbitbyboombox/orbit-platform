@@ -11,6 +11,7 @@ import {
   finalizeMonthlyStaffAccountAction,
   registerMonthlyStaffPaymentAction,
   registerStaffAdvanceAction,
+  registerStaffNextPeriodAdvanceAction,
   reviewMonthlyBoletaAction,
   submitMonthlyBoletaAction,
 } from "./actions";
@@ -53,6 +54,7 @@ export function StaffMonthlyAccountPanel({
     } | null>(null),
     [viewerOpen, setViewerOpen] = useState(false);
   const [advanceFor, setAdvanceFor] = useState<{ settlementId: string; event: string; projectId: string } | null>(null);
+  const [nextPeriodFor, setNextPeriodFor] = useState<{ settlementId: string; event: string; projectId: string; eventDate: string } | null>(null);
   const completionLock = useRef(false);
   const [advanceSelection, setAdvanceSelection] = useState("");
   const [advanceMethod, setAdvanceMethod] = useState("TRANSFERENCIA");
@@ -305,6 +307,14 @@ export function StaffMonthlyAccountPanel({
               <button className="inline-flex min-h-11 items-center rounded-xl border px-3 font-semibold text-brand" disabled={!advanceSelection} onClick={() => { const item = [...account.calculation.details, ...account.calculation.blockingEvents].find((entry) => entry.settlementId === advanceSelection); if (item) setAdvanceFor({ settlementId: item.settlementId, event: item.event, projectId: item.projectId }); }} type="button">+ REGISTRAR ADELANTO</button>
             </div>
           ) : null}
+          {account.calculation.details.filter((item) => (item.workPending ?? Math.max(item.workNet - item.advances, 0)) > 0 && !item.periodTransfer).map((item) => (
+            <button
+              className="inline-flex min-h-11 items-center rounded-xl border border-brand/50 px-3 font-semibold text-brand"
+              key={`transfer-${item.settlementId}`}
+              onClick={() => setNextPeriodFor({ settlementId: item.settlementId, event: item.event, projectId: item.projectId, eventDate: item.eventDate })}
+              type="button"
+            >ANTICIPAR Y PASAR AL MES SIGUIENTE · {item.event}</button>
+          ))}
         </section>
       ) : null}
       <div className="mt-4 rounded-2xl border-2 border-brand bg-brand/5 p-4">
@@ -425,6 +435,35 @@ export function StaffMonthlyAccountPanel({
             <label className="text-sm">Comprobante de pago *<input accept="application/pdf,image/jpeg,image/png,image/webp" className="mt-1 block w-full text-sm" name="receipt" required type="file" /></label>
             <label className="text-sm">Boleta de honorarios (opcional)<input accept="application/pdf,image/jpeg,image/png,image/webp" className="mt-1 block w-full text-sm" name="boleta" type="file" /></label>
             <Button aria-busy={pending} disabled={pending} type="submit">{pending ? "Registrando…" : "Registrar adelanto"}</Button>
+          </form>
+        </MobileDialog>
+      ) : null}
+      {nextPeriodFor ? (
+        <MobileDialog
+          eyebrow="Liquidación Staff"
+          title="Anticipar pago y liquidar el mes siguiente"
+          description={`${nextPeriodFor.event} · evento del ${nextPeriodFor.eventDate}. Octubre no se reabre ni se modifica.`}
+          onClose={() => !pending && setNextPeriodFor(null)}
+          size="lg"
+        >
+          <form
+            action={(form) => start(async () => {
+              form.set("settlementId", nextPeriodFor.settlementId);
+              form.set("staffId", account.staffId);
+              const result = await registerStaffNextPeriodAdvanceAction(form);
+              setMessage(result.message);
+              if (result.ok) { setNextPeriodFor(null); router.refresh(); }
+            })}
+            className="grid gap-3"
+          >
+            <label className="text-sm">Mes destino *<input className="mt-1 min-h-11 w-full rounded-xl border px-3" name="targetMonth" defaultValue={(() => { const date = new Date(`${account.month.slice(0, 7)}-01T12:00:00Z`); date.setUTCMonth(date.getUTCMonth() + 1); return date.toISOString().slice(0, 7); })()} required type="month" /></label>
+            <label className="text-sm">Monto anticipado *<input className="mt-1 min-h-11 w-full rounded-xl border px-3" min="1" name="amount" required type="number" /></label>
+            <label className="text-sm">Fecha de transferencia *<input className="mt-1 min-h-11 w-full rounded-xl border px-3" name="date" required type="date" /></label>
+            <label className="text-sm">Medio de pago *<select className="mt-1 min-h-11 w-full rounded-xl border px-3" name="method" required><option value="TRANSFERENCIA">Transferencia</option><option value="EFECTIVO">Efectivo</option></select></label>
+            <label className="text-sm">Motivo y referencia *<textarea className="mt-1 min-h-20 w-full rounded-xl border px-3" name="reason" required /></label>
+            <label className="text-sm">Comprobante de pago *<input accept="application/pdf,image/jpeg,image/png,image/webp" className="mt-1 block w-full text-sm" name="receipt" required type="file" /></label>
+            <p className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-sm">El evento conserva su fecha original. El monto se registrará como anticipo, y la boleta se solicitará en el mes destino. No se altera octubre ni se registra una segunda transferencia.</p>
+            <Button aria-busy={pending} disabled={pending} type="submit">{pending ? "Registrando…" : "Confirmar anticipo y traspaso"}</Button>
           </form>
         </MobileDialog>
       ) : null}
