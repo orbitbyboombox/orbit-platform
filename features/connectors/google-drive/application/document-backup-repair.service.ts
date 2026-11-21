@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadCompanySettings } from "@/features/company-settings";
 import { buildCustomerFolderPlan } from "../application/google-drive-folder-strategy";
+import { buildStaffExpenseFolderParts } from "../application/staff-expense-drive-folder-strategy";
 import { loadGoogleWorkspaceAccessToken } from "../../google-workspace/application/google-workspace.repository";
 import { GoogleDriveApiProvider, type GoogleDriveLiveProvider } from "../provider/google-drive-live.provider";
 
@@ -29,12 +30,12 @@ type RepairDocument = {
   file_size: number | null;
   drive_file_id: string | null;
   project: { name: string | null; event_date: string | null } | null;
+  staffExpense: { status: string | null; occurred_on: string | null; staff_name: string | null } | null;
 };
 
 const DOCUMENT_FOLDER: Record<string, string> = {
   COMMERCIAL_DOCUMENT: "03_Cotizaciones",
   PAYMENT_RECEIPT: "02_Comprobantes",
-  STAFF_EXPENSE_RECEIPT: "02_Comprobantes",
 };
 
 const baseName = (path: string) => path.split("/").at(-1) || "documento";
@@ -54,15 +55,51 @@ function asProject(value: unknown): { name: string | null; event_date: string | 
   return { name: typeof project.name === "string" ? project.name : null, event_date: typeof project.event_date === "string" ? project.event_date : null };
 }
 
+function asStaffExpense(value: unknown): RepairDocument["staffExpense"] {
+  const row = Array.isArray(value) ? value[0] : value;
+  if (!row || typeof row !== "object") return null;
+  const expense = row as Record<string, unknown>;
+  const staffValue = Array.isArray(expense.staff) ? expense.staff[0] : expense.staff;
+  const staff = staffValue && typeof staffValue === "object" ? staffValue as Record<string, unknown> : null;
+  const firstName = typeof staff?.first_name === "string" ? staff.first_name.trim() : "";
+  const lastName = typeof staff?.last_name === "string" ? staff.last_name.trim() : "";
+  return {
+    status: typeof expense.status === "string" ? expense.status : null,
+    occurred_on: typeof expense.occurred_on === "string" ? expense.occurred_on : null,
+    staff_name: [firstName, lastName].filter(Boolean).join(" ") || null,
+  };
+}
+
 async function loadPendingDocuments(client: SupabaseClient, documentIds?: readonly string[]): Promise<RepairDocument[]> {
-  let query = client.from("documents").select("id,project_id,document_type,storage_bucket,storage_path,checksum,original_filename,mime_type,file_size,drive_file_id,projects(name,event_date)").is("drive_file_id", null).is("deleted_at", null);
+  let query = client.from("documents").select("id,project_id,document_type,storage_bucket,storage_path,checksum,original_filename,mime_type,file_size,drive_file_id,projects(name,event_date),staff_expense_submissions(status,occurred_on,staff(first_name,last_name))").is("drive_file_id", null).is("deleted_at", null);
   if (documentIds?.length) query = query.in("id", [...new Set(documentIds)]);
   const { data, error } = await query;
   if (error) throw error;
-  return (data ?? []).map((row) => ({ ...row, project: asProject((row as Record<string, unknown>).projects) })) as unknown as RepairDocument[];
+  return (data ?? []).map((row) => {
+    const value = row as Record<string, unknown>;
+    return { ...row, project: asProject(value.projects), staffExpense: asStaffExpense(value.staff_expense_submissions) };
+  }) as unknown as RepairDocument[];
 }
 
 async function loadCanonicalFolderId(client: SupabaseClient, provider: GoogleDriveLiveProvider, document: RepairDocument, rootName: string): Promise<string> {
+  if (document.document_type === "STAFF_EXPENSE_RECEIPT") {
+    const expense = document.staffExpense;
+    if (expense?.status !== "APPROVED") throw new Error("El comprobante Staff no está aprobado para respaldo.");
+    if (!expense.staff_name || !expense.occurred_on) throw new Error("El comprobante Staff no tiene operador o fecha occurred_on canónicos.");
+    const root = /^[A-Za-z0-9_-]{20,}$/.test(rootName.trim())
+      ? { id: rootName.trim() }
+      : await provider.findFolder({ name: rootName.trim() });
+    if (!root) throw new Error(`No existe la carpeta raíz de Drive: ${rootName}`);
+    let parentId = root.id;
+    for (const name of buildStaffExpenseFolderParts(expense.staff_name, expense.occurred_on)) {
+      const folder = await provider.findFolder({ name, parentFolderId: parentId });
+      if (!folder) throw new Error(`No existe carpeta canónica de gastos Staff: ${name}`);
+      parentId = folder.id;
+    }
+    const parents = await provider.getFolderParents?.(parentId);
+    if (parents && parents.length === 0) throw new Error("La carpeta canónica de gastos Staff no es accesible.");
+    return parentId;
+  }
   const project = document.project;
   if (!project?.name || !project.event_date) throw new Error("Proyecto sin nombre o fecha canónica.");
   const subfolder = DOCUMENT_FOLDER[document.document_type];
@@ -101,44 +138,69 @@ async function downloadAndVerify(client: SupabaseClient, document: RepairDocumen
   return { bytes, mimeType, filename };
 }
 
-function md5(bytes: Uint8Array) {
-  return createHash("md5").update(bytes).digest("base64");
+async function persistSyncFailure(client: SupabaseClient, documentId: string, reason: string) {
+  const safeReason = reason.slice(0, 1000);
+  const { error } = await client.from("documents").update({
+    drive_sync_status: "ERROR",
+    drive_sync_error: safeReason,
+    drive_synced_at: null,
+  }).eq("id", documentId).is("drive_file_id", null);
+  if (error) throw error;
 }
 
-async function findExactFile(provider: GoogleDriveLiveProvider, folderId: string, filename: string, bytes: Uint8Array, documentId: string) {
+async function findExactFile(provider: GoogleDriveLiveProvider, folderId: string, filename: string, documentId: string) {
+  const canonicalName = `ORBIT_${documentId}_${filename}`;
   const files = provider.findFilesByName
-    ? await provider.findFilesByName({ name: filename, parentFolderId: folderId })
-    : await provider.findFileByName({ name: filename, parentFolderId: folderId }).then((file) => file ? [file] : []);
-  return files.find((file) => file.appProperties?.orbitDocumentId === documentId || (file.md5Checksum === md5(bytes) && Number(file.size) === bytes.byteLength)) ?? null;
+    ? await provider.findFilesByName({ name: canonicalName, parentFolderId: folderId })
+    : await provider.findFileByName({ name: canonicalName, parentFolderId: folderId }).then((file) => file ? [file] : []);
+  return files.find((file) => file.appProperties?.orbitDocumentId === documentId) ?? null;
 }
 
 async function syncOne(client: SupabaseClient, provider: GoogleDriveLiveProvider, rootName: string, document: RepairDocument): Promise<DocumentBackupRepairResult> {
   try {
     const folderId = await loadCanonicalFolderId(client, provider, document, rootName);
     const source = await downloadAndVerify(client, document);
-    const exact = await findExactFile(provider, folderId, source.filename, source.bytes, document.id);
+    const exact = await findExactFile(provider, folderId, source.filename, document.id);
     const file = exact ?? await provider.uploadFile({
-      name: exact ? source.filename : `ORBIT_${document.id}_${source.filename}`,
+      name: `ORBIT_${document.id}_${source.filename}`,
       mimeType: source.mimeType,
       bytes: source.bytes,
       parentFolderId: folderId,
       appProperties: { orbitDocumentId: document.id, orbitStorageChecksum: document.checksum! },
     });
+    const readback = await findExactFile(provider, folderId, source.filename, document.id);
+    if (!readback || readback.id !== file.id) throw new Error("Drive readback did not confirm the uploaded document.");
+    if (readback.size !== undefined && Number(readback.size) !== source.bytes.byteLength) throw new Error("Drive readback size mismatch.");
     const { data: updated, error } = await client.from("documents").update({ drive_file_id: file.id, drive_folder_id: folderId, drive_sync_status: "SYNCED", drive_sync_error: null, drive_synced_at: new Date().toISOString() }).eq("id", document.id).is("drive_file_id", null).select("id").maybeSingle();
     if (error) throw error;
     if (!updated && !document.drive_file_id) throw new Error("Documento cambió durante la sincronización; no se sobrescribió.");
     return { documentId: document.id, projectId: document.project_id, status: "SYNCED", driveFileId: file.id, driveFolderId: folderId };
   } catch (error) {
-    return { documentId: document.id, projectId: document.project_id, status: "REQUIRES_REVIEW", reason: error instanceof Error ? error.message : "No fue posible sincronizar el documento." };
+    const reason = error instanceof Error ? error.message : "No fue posible sincronizar el documento.";
+    try {
+      await persistSyncFailure(client, document.id, reason);
+    } catch (persistError) {
+      const persistenceReason = persistError instanceof Error ? persistError.message : "No fue posible registrar estado de sincronización.";
+      return { documentId: document.id, projectId: document.project_id, status: "ERROR", reason: `${reason.slice(0, 700)} | Error al registrar estado: ${persistenceReason.slice(0, 250)}` };
+    }
+    return { documentId: document.id, projectId: document.project_id, status: "ERROR", reason };
   }
 }
 
 export async function repairPendingDocumentBackups(input: { client: SupabaseClient; documentIds?: readonly string[]; provider?: GoogleDriveLiveProvider; rootName?: string; dryRun?: boolean }): Promise<DocumentBackupRepairResult[]> {
   const [documents, company] = await Promise.all([loadPendingDocuments(input.client, input.documentIds), input.rootName ? Promise.resolve(null) : loadCompanySettings(input.client)]);
-  const provider = input.provider ?? new GoogleDriveApiProvider(await loadGoogleWorkspaceAccessToken());
   const rootName = input.rootName ?? company?.driveRootFolder ?? "BOOMBOX ORBIT";
   if (input.dryRun) {
     return documents.map((document) => ({ documentId: document.id, projectId: document.project_id, status: "REQUIRES_REVIEW", reason: "Dry-run: no se modificó Drive ni la base de datos." }));
   }
-  return Promise.all(documents.map((document) => syncOne(input.client, provider, rootName, document)));
+  const provider = input.provider ?? new GoogleDriveApiProvider(await loadGoogleWorkspaceAccessToken());
+  // Bound simultaneous private Storage downloads and Drive uploads to avoid
+  // exhausting provider quotas or memory during a full reconciliation.
+  const results: DocumentBackupRepairResult[] = [];
+  const batchSize = 3;
+  for (let index = 0; index < documents.length; index += batchSize) {
+    const batch = documents.slice(index, index + batchSize);
+    results.push(...await Promise.all(batch.map((document) => syncOne(input.client, provider, rootName, document))));
+  }
+  return results;
 }
