@@ -1,10 +1,10 @@
 import type { GoogleDriveDestination, GoogleDriveDestinationRequest, GoogleDriveFolderPlanItem } from "../types/google-drive-live.types";
 
 export const DEFAULT_GOOGLE_DRIVE_ROOT = "ORBIT";
-export const GOOGLE_DRIVE_ROOT_FOLDERS = ["CLIENTES", "CONTABILIDAD", "STAFF", "OPERACIONES", "ACTIVOS", "DOCUMENTACIÓN", "REPORTES", "SISTEMA"] as const;
+export const GOOGLE_DRIVE_ROOT_FOLDERS = ["CLIENTES", "01_CLIENTES", "CONTABILIDAD", "STAFF", "OPERACIONES", "ACTIVOS", "DOCUMENTACIÓN", "REPORTES", "SISTEMA"] as const;
 export const CUSTOMER_FOLDERS = ["01_Contrato", "02_Comprobantes", "03_Cotizaciones", "04_Diseños", "05_Fotografías", "06_Videos", "07_Facturación", "08_Honorarios", "09_Documentos"] as const;
 
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"] as const;
+const MONTHS = ["01 ENERO", "02 FEBRERO", "03 MARZO", "04 ABRIL", "05 MAYO", "06 JUNIO", "07 JULIO", "08 AGOSTO", "09 SEPTIEMBRE", "10 OCTUBRE", "11 NOVIEMBRE", "12 DICIEMBRE"] as const;
 const SPANISH_MONTHS = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"] as const;
 
 function folder(name: string, parentPath: string | null): GoogleDriveFolderPlanItem {
@@ -32,10 +32,11 @@ export function buildRootFolderPlan(rootName=DEFAULT_GOOGLE_DRIVE_ROOT): readonl
 
 export function buildCustomerFolderPlan(customerName: string, eventDate: string,rootName=DEFAULT_GOOGLE_DRIVE_ROOT): readonly GoogleDriveFolderPlanItem[] {
   const { year, month, displayDate } = dateParts(eventDate, "La fecha del evento");
-  const yearFolder = folder(year, rootName);
+  const clientsFolder = folder("01_CLIENTES", rootName);
+  const yearFolder = folder(year, clientsFolder.path);
   const monthFolder = folder(month, yearFolder.path);
   const customerFolder = folder(`${displayDate} - ${cleanName(customerName)}`, monthFolder.path);
-  return [yearFolder, monthFolder, customerFolder, ...CUSTOMER_FOLDERS.map((name) => folder(name, customerFolder.path))];
+  return [clientsFolder, yearFolder, monthFolder, customerFolder, ...CUSTOMER_FOLDERS.map((name) => folder(name, customerFolder.path))];
 }
 
 export function buildCancelledReservationFolderPlan(eventDate:string,rootName=DEFAULT_GOOGLE_DRIVE_ROOT):readonly GoogleDriveFolderPlanItem[]{
@@ -63,7 +64,7 @@ export function resolveAutomaticDestination(request: GoogleDriveDestinationReque
   if (kind in customerMap) {
     if (!context.customerName || !context.eventDate) throw new Error("El destino del cliente requiere nombre y fecha del evento.");
     const plan = buildCustomerFolderPlan(context.customerName, context.eventDate,rootName);
-    return { kind, folderPath: `${plan[2].path}/${customerMap[kind as keyof typeof customerMap]}` };
+    return { kind, folderPath: `${plan[3].path}/${customerMap[kind as keyof typeof customerMap]}` };
   }
   const accountingMap = { ACCOUNTING_FUEL: "Combustible", ACCOUNTING_PURCHASE: "Compras", ACCOUNTING_MAINTENANCE: "Mantenciones", ACCOUNTING_INVOICE: "Facturas", ACCOUNTING_RECEIPT: "Boletas" } as const;
   if (kind in accountingMap) {
