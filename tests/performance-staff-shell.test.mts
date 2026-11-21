@@ -12,6 +12,7 @@ test("staff audit history query is indexed and the platform shell does not recon
   assert.match(migration, /audit_events_staff_entity_time_idx/);
   assert.match(migration, /where entity_type = 'staff'/i);
   assert.doesNotMatch(layout, /synchronizeModuleCatalog\(client,user\.id\)/);
-  assert.match(actionCenter, /The shell only needs a badge count/);
+  assert.match(layout, /loadFounderActionCount/);
+  assert.doesNotMatch(layout, /loadFounderActionCenter\(/);
   assert.match(actionCenter, /count:\s*"exact"/);
 });

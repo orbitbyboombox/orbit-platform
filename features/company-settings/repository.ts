@@ -1,3 +1,4 @@
+import { cache } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -24,8 +25,8 @@ export const loadCompanySettingsCached = unstable_cache(
  * real configuration is loaded at runtime where the protected environment is
  * present.
  */
-export async function loadCompanySettingsForLayout(): Promise<CompanySettings> {
+export const loadCompanySettingsForLayout = cache(async (): Promise<CompanySettings> => {
   const adminKey = process.env.SUPABASE_SECRET_KEY?.trim() || process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (!adminKey) return DEFAULT_COMPANY_SETTINGS;
   return loadCompanySettingsCached();
-}
+});
