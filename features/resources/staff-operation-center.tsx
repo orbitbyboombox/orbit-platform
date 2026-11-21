@@ -54,6 +54,7 @@ export interface StaffPortalAccess {
 }
 const skillOptions: readonly { value: StaffSkill; label: string }[] = [
   { value: "OPERATOR", label: "Operador" },
+  { value: "SUPERVISOR", label: "Supervisor" },
   { value: "ASSEMBLY", label: "Montaje" },
   { value: "DISASSEMBLY", label: "Desmontaje" },
 ];
@@ -251,7 +252,7 @@ export function StaffOperationCenter({
               Centro Operacional de Staff
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
-              Operador, Montaje y Desmontaje: responsabilidades combinables que
+              Operador, Supervisor, Montaje y Desmontaje: responsabilidades combinables que
               generan pagos automáticamente.
             </p>
           </div>

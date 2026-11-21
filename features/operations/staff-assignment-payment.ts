@@ -7,15 +7,36 @@ export function officialStaffAssignmentPayment(
   transportationBonus = 0,
 ) {
   const rate = new Map(rates.map((item) => [item.code, Number(item.amount)]));
+  const hoursCode = Number.isInteger(hours)
+    ? `OPERATOR_${hours}_HOURS`
+    : `OPERATOR_${String(hours).replace('.', '_')}_HOURS`;
   const rolePayment =
     (responsibility === "OPERATOR" || responsibility === "SUPERVISOR")
-      ? (rate.get(`OPERATOR_${hours}_HOURS`) ?? 0)
+      ? (rate.get(hoursCode) ?? 0)
       : responsibility === "ASSEMBLY"
         ? (rate.get("ASSEMBLY") ?? 0)
         : responsibility === "DISASSEMBLY"
           ? (rate.get("DISASSEMBLY") ?? 0)
           : (rate.get("ASSEMBLY_DISASSEMBLY") ?? 0);
   return rolePayment + Math.max(0, transportationBonus);
+}
+
+export const STAFF_RATE_EFFECTIVE_DATE = "2026-11-01";
+
+export function staffAssignmentPaymentForEvent(
+  rates: readonly OfficialStaffRate[],
+  hours: number,
+  responsibility: string,
+  eventLocalDate: string,
+  transportationBonus = 0,
+): number {
+  return effectiveStaffAssignmentPayment(
+    rates,
+    hours,
+    responsibility,
+    eventLocalDate,
+    transportationBonus,
+  );
 }
 
 /**
@@ -35,7 +56,7 @@ export function effectiveStaffAssignmentPayment(
       new Date(eventLocalDate + "T12:00:00Z").toISOString().slice(0, 10) !== eventLocalDate) {
     throw new Error("Invalid event date: expected YYYY-MM-DD");
   }
-  if (eventLocalDate < "2026-11-01") {
+  if (eventLocalDate < STAFF_RATE_EFFECTIVE_DATE) {
     return officialStaffAssignmentPayment(rates, hours, responsibility, transportationBonus);
   }
   let payment: number;
