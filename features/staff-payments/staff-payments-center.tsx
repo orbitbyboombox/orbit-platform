@@ -10,6 +10,7 @@ import {StaffMonthlyAccountPanel}from"@/features/staff-monthly-account/staff-mon
 import {generateMonthlyStaffAccountsAction,prepareStaffMonthCloseAction}from"@/features/staff-monthly-account/actions";
 import {registerMonthlyStaffPaymentAction}from"@/features/staff-monthly-account/actions";
 import type{StaffMonthlyAccount}from"@/features/staff-monthly-account/model";
+import { StaffComplementarySettlementsPanel, type ComplementaryCandidate, type ComplementarySettlement } from "@/features/staff-complementary-settlements/staff-complementary-settlements-panel";
 
 export type StaffPaymentEvent = {
   id: string;
@@ -63,11 +64,15 @@ export function StaffPaymentsCenter({
   staff,
   events,
   months,
+  complementarySettlements = [],
+  complementaryCandidates = [],
   initialReviewAccountId,
 }: {
   staff: StaffPaymentMember[];
   events: StaffPaymentEvent[];
   months: StaffPaymentMonth[];
+  complementarySettlements?: ComplementarySettlement[];
+  complementaryCandidates?: ComplementaryCandidate[];
   initialReviewAccountId?: string;
 }) {
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
@@ -161,6 +166,7 @@ export function StaffPaymentsCenter({
           </label>
         </div>
       </header>
+      <StaffComplementarySettlementsPanel candidates={complementaryCandidates} settlements={complementarySettlements} />
       <section className="rounded-2xl border p-4 sm:p-5">
         <h3 className="font-semibold">Solicitar boleta por operador</h3>
         <p className="mt-1 text-sm text-muted">Cierra cada liquidación por separado. Los operadores pendientes, como Sebastián, no se modifican.</p>

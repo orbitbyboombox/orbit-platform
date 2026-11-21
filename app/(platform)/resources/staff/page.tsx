@@ -28,6 +28,7 @@ import type {
 } from "@/features/staff-documents/staff-document-model";
 import {mapStaffMonthlyAccount,STAFF_MONTHLY_ACCOUNT_SELECT} from "@/features/staff-monthly-account/model";
 import { getCanonicalOrbitEventStates } from "@/features/operations/canonical-event-state";
+import type { ComplementaryCandidate, ComplementarySettlement } from "@/features/staff-complementary-settlements/staff-complementary-settlements-panel";
 
 export default async function StaffManagementPage({searchParams}:{searchParams:Promise<{reviewOnboarding?:string;reviewAccount?:string}>}) {
   const {reviewOnboarding,reviewAccount}=await searchParams;
@@ -454,6 +455,20 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
       ];
     },
   );
+  const { data: complementaryRows, error: complementaryError } = await client
+    .from("staff_complementary_settlements")
+    .select("id,staff_id,settlement_id,event_date,net_amount,status,boleta_issue_date")
+    .order("event_date", { ascending: false });
+  if (complementaryError && complementaryError.code !== "42P01") throw complementaryError;
+  const paymentEventById = new Map(paymentEvents.map((event) => [event.id, event]));
+  const complementarySettlements: ComplementarySettlement[] = (complementaryRows ?? []).flatMap((row) => {
+    const event = paymentEventById.get(row.settlement_id);
+    if (!event) return [];
+    return [{ id: row.id, staffId: row.staff_id, settlementId: row.settlement_id, eventName: event.eventName, eventDate: row.event_date, amount: Number(row.net_amount), status: row.status, boletaIssueDate: row.boleta_issue_date }];
+  });
+  const complementaryCandidates: ComplementaryCandidate[] = paymentEvents
+    .filter((event) => !complementarySettlements.some((item) => item.settlementId === event.id))
+    .map((event) => ({ id: event.id, eventName: event.eventName, eventDate: event.eventDate, amount: event.originalNet + event.adjustmentTotal }));
   const monthlyRecords: StaffPaymentMonth[] = (monthlyAccounts??[]).map(row=>{const account=mapStaffMonthlyAccount(row);return{id:account.id,staffId:account.staffId,month:account.month,tax:account.withholdingAmount,advances:account.advancesTotal,paid:account.paidAmount,status:account.paymentStatus,documents:[],account}});
   const lastLoginByStaff = new Map<string, string>();
   for (const entry of history ?? []) {
@@ -613,6 +628,8 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
           staff={paymentStaff}
           events={paymentEvents}
           months={monthlyRecords}
+          complementarySettlements={complementarySettlements}
+          complementaryCandidates={complementaryCandidates}
           initialReviewAccountId={reviewAccount}
         />
       }
