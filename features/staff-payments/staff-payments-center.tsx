@@ -113,9 +113,8 @@ export function StaffPaymentsCenter({
             reimbursements,
             finalAmount,
             paid,
-            outstanding: eventRows.reduce(
-              (sum, item) =>
-                sum + Math.max(0, item.finalAmount - item.paidAmount),
+            outstanding: months.find(item => item.staffId === member.id && item.month.startsWith(month))?.account?.finalTransferAmount ?? eventRows.reduce(
+              (sum, item) => sum + Math.max(0, item.finalAmount - item.paidAmount),
               0,
             ),
             account: months.find(item=>item.staffId===member.id&&item.month.startsWith(month))?.account,
