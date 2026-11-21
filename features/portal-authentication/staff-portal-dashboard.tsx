@@ -32,6 +32,7 @@ import { StaffBoxOperationsPanel } from "./staff-box-operations-panel";
 import { LogisticsEventRow, ScaledLogisticsEventRow, type StaffLogisticsEvent } from "@/features/resources/staff-logistics-view";
 import { defaultSectorForCommune } from "@/features/resources/logistics-commune-catalog";
 import { type CanonicalOperationalExtras, type OperationalExtraCategory } from "@/features/operations/canonical-operational-extras";
+import { StaffComplementaryBoletaPanel, type StaffPortalComplementarySettlement } from "./staff-complementary-boleta-panel";
 
 export type StaffPortalEvent = {
   id: string;
@@ -295,6 +296,7 @@ export function StaffPortalDashboard({
   expenseSubmissions,
   monthlyAccounts,
   eventStaffPayments,
+  complementarySettlements,
   mustChangePassword,
   initialEventId,
   capabilities,
@@ -315,6 +317,7 @@ export function StaffPortalDashboard({
   expenseSubmissions: StaffExpenseSubmission[];
   monthlyAccounts: StaffMonthlyAccount[];
   eventStaffPayments: StaffEventPayment[];
+  complementarySettlements: StaffPortalComplementarySettlement[];
   mustChangePassword: boolean;
   initialEventId?: string;
   capabilities: string[];
@@ -374,6 +377,7 @@ export function StaffPortalDashboard({
       {module === "OPERADORES" ? <OperatorsModule events={events} weeklyAvailableEvents={weeklyAvailableEvents} requests={requests} week={week} confirmed={confirmed.length} onSelect={setSelected} /> : null}
       {module === "MONTAJE" && canMount ? <MontageModule routes={routes} /> : null}
       {module === "FINANZAS" ? <FinanceModule events={events} expenseSubmissions={expenseSubmissions} monthlyAccounts={monthlyAccounts} eventStaffPayments={eventStaffPayments} payment={payment} notifications={notifications} currentMonth={currentMonth} /> : null}
+      {module === "FINANZAS" ? <StaffComplementaryBoletaPanel settlements={complementarySettlements} /> : null}
       {module === "PAPEL" ? <StaffPaperPrinterPanel events={events} /> : null}
       {selected ? (
         <EventDetail event={selected} close={() => setSelected(null)} />
