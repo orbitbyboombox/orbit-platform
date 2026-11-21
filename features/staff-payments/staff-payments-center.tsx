@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { MobileDialog } from "@/components/ui/mobile-dialog";
 import { closeStaffMonthAction, previewStaffMonthCloseAction, reopenStaffMonthAction } from "./actions";
 import {StaffMonthlyAccountPanel}from"@/features/staff-monthly-account/staff-monthly-account-panel";
+import { BoletaSosPanel } from "@/features/staff-monthly-account/boleta-sos-panel";
 import {generateMonthlyStaffAccountsAction,prepareStaffMonthCloseAction}from"@/features/staff-monthly-account/actions";
 import {registerMonthlyStaffPaymentAction}from"@/features/staff-monthly-account/actions";
 import type{StaffMonthlyAccount}from"@/features/staff-monthly-account/model";
@@ -249,6 +250,7 @@ export function StaffPaymentsCenter({
             </summary>
             <div className="mt-4 space-y-3">
               {row.account&&<StaffMonthlyAccountPanel account={row.account} mode="FOUNDER" onBack={()=>setOpenStaffId(null)}/>}
+              {row.account&&<BoletaSosPanel account={row.account} operatorName={row.member.name}/>}
               {row.eventRows.map((item) => (
                 <EventRow item={item} key={item.id} />
               ))}
