@@ -65,28 +65,66 @@ function state(history: CommunicationRow[]): DigitalPhotoDeliveryStatus {
       : "PENDING";
 }
 
+const DIGITAL_PHOTO_READ_TIMEOUT_MS = 8_000;
+
+async function timedDigitalPhotoRead<T>(
+  step: "project" | "communications",
+  operation: () => PromiseLike<T>,
+): Promise<T> {
+  const startedAt = performance.now();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const result = await Promise.race([
+      Promise.resolve().then(operation),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`Digital photo preview timed out: ${step}`)),
+          DIGITAL_PHOTO_READ_TIMEOUT_MS,
+        );
+      }),
+    ]);
+    console.info(JSON.stringify({
+      event: "digital_photo_delivery.preview_step",
+      step,
+      durationMs: Math.round(performance.now() - startedAt),
+      ok: true,
+    }));
+    return result;
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: "digital_photo_delivery.preview_step_failed",
+      step,
+      durationMs: Math.round(performance.now() - startedAt),
+      errorCode: error instanceof Error ? error.name : "UNKNOWN",
+    }));
+    throw error;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export async function loadDigitalPhotoDeliveryComposer(
   projectId: string,
 ): Promise<DigitalPhotoDeliveryComposer> {
   const admin = createAdminClient();
   const [{ data: project, error: projectError }, { data: rows, error: historyError }] =
     await Promise.all([
-      admin
+      timedDigitalPhotoRead("project", () => admin
         .from("projects")
         .select(
           "id,customer_id,orbit_event_id,event_date,digital_photo_delivery_url,customers!inner(full_name,email,secondary_email)",
         )
         .eq("id", projectId)
         .is("deleted_at", null)
-        .single(),
-      admin
+        .single()),
+      timedDigitalPhotoRead("communications", () => admin
         .from("communications")
         .select(
           "id,status,to_recipient,cc_recipients,occurred_at,sent_at,external_message_id,failure_reason,original_communication_id,delivery_reference",
         )
         .eq("project_id", projectId)
         .eq("communication_type", "DIGITAL_PHOTO_DELIVERY")
-        .order("occurred_at", { ascending: false }),
+        .order("occurred_at", { ascending: false })),
     ]);
   if (projectError) throw projectError;
   if (historyError) throw historyError;
