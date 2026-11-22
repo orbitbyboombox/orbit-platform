@@ -59,13 +59,32 @@ export function DigitalPhotoDeliveryControl({ projectId }: { projectId: string }
 
   const refresh = () =>
     startTransition(async () => {
-      const result = await getDigitalPhotoDeliveryPreviewAction(projectId);
-      if (!result.ok) {
-        setFeedback(result.error);
-        return;
+      // A stalled Server Action must not leave this card loading indefinitely.
+      // This timeout is read-only: it never triggers an email send.
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        const result = await Promise.race([
+          getDigitalPhotoDeliveryPreviewAction(projectId),
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(
+              () => reject(new Error("La vista previa de fotos digitales está tardando demasiado. Intenta nuevamente; no se envió ningún correo.")),
+              15_000,
+            );
+          }),
+        ]);
+        if (!result.ok) {
+          setFeedback(result.error);
+          return;
+        }
+        setComposer(result.preview);
+        setFeedback("");
+      } catch (error) {
+        setFeedback(
+          error instanceof Error ? error.message : "No fue posible cargar las fotos digitales.",
+        );
+      } finally {
+        if (timer) clearTimeout(timer);
       }
-      setComposer(result.preview);
-      setFeedback("");
     });
 
   useEffect(() => {
