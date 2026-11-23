@@ -17,7 +17,7 @@ const SERVICE_LABELS: Readonly<Record<string, string>> = {
   INSTABOX: "Cabina Instabox",
   VIDEO_LOUNGE: "Video Lounge",
   SCRAPBOOK: "Libro de recuerdos (SCRAPBOOK)",
-  BRANDING: "Personalización",
+  BRANDING: "BRANDING",
   UNLIMITED_MAGNETS: "Imanes ilimitados",
   SANTIAGO_PROVINCE: "Traslado Santiago",
   CHACABUCO_PROVINCE: "Traslado Chacabuco",
