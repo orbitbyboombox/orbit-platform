@@ -18,6 +18,7 @@ import {
   MailWarning,
 } from "lucide-react";
 import Link from "next/link";
+import { formatServiceDisplayList, staffAssignmentDisplayName } from "@/lib/orbit-display-labels";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
@@ -785,10 +786,10 @@ export function FounderWorkspaceExperience({
             <span className="min-w-0">
               <strong className="block truncate text-sm">{event.title}</strong>
               <span className="mt-1 block truncate text-xs text-muted">
-                {event.service}
+                {formatServiceDisplayList(event.service)}
               </span>
               <span className="mt-1 block truncate text-[11px] text-muted">
-                {event.location || "Ubicación pendiente"} · {event.staff}
+                {event.location || "Ubicación pendiente"} · {staffAssignmentDisplayName(event.staff)}
               </span>
             </span>
             <span className="self-start rounded-lg bg-info-soft px-2 py-1 text-[9px] font-semibold uppercase text-info">
@@ -1109,7 +1110,7 @@ function PendingStaffApprovals({
         <div>
           <PanelTitle
             id="pending-staff-approvals-title"
-            label="Aprobaciones de Staff pendientes"
+            label="Aprobaciones de personal pendientes"
           />
           <p className="mt-2 text-xs text-muted">
             Aprobar ejecuta la asignación canónica completa sin abrir Staff ni
