@@ -102,6 +102,7 @@ import {
 import { EventOperationalReadiness, type OperationalReadinessData } from "@/features/operations/event-operational-readiness";
 import { EventLogisticsCenter, type EventLogisticsData } from "@/features/operations/event-logistics-center";
 import { requiresPhotoStripDesign } from "@/features/business-core/catalog/service.catalog";
+import { serviceDisplayName } from "@/lib/orbit-display-labels";
 import { PhotoStripDesignCenter } from "@/features/photo-strip-design";
 import { EventDigitalPhotoTemplateCenter } from "@/features/event-digital-photo-template";
 import { CapacityStatusPanel, type CapacityResult } from "@/features/capacity/capacity-status-panel";
@@ -617,8 +618,8 @@ export function ProjectWorkspaceExperience(
     if (
       !window.confirm(
         action === "PERMANENT_DELETE"
-          ? `ELIMINAR EVENTO Y SUS DATOS OPERACIONALES\n\nCliente: ${props.clientName}\nORB: ${event.orbitEventId}\nFecha: ${props.eventDateIso ?? "sin fecha"}\nServicio: ${event.services.map((service) => service.code).join(", ") || "sin servicio"}\n\nSe eliminará la operación del evento (reservas, Staff, bloques e integraciones). La cotización y el historial comercial se conservarán como registro histórico. ¿Continuar?`
-          : `¿Confirmas ${labels[action]} el Evento?\n\nCliente: ${props.clientName}\nORB: ${event.orbitEventId}\nFecha: ${props.eventDateIso ?? "sin fecha"}\nServicio: ${event.services.map((service) => service.code).join(", ") || "sin servicio"}`,
+          ? `ELIMINAR EVENTO Y SUS DATOS OPERACIONALES\n\nCliente: ${props.clientName}\nORB: ${event.orbitEventId}\nFecha: ${props.eventDateIso ?? "sin fecha"}\nServicio: ${event.services.map((service) => serviceDisplayName(service.code)).join(", ") || "sin servicio"}\n\nSe eliminará la operación del evento (reservas, Staff, bloques e integraciones). La cotización y el historial comercial se conservarán como registro histórico. ¿Continuar?`
+          : `¿Confirmas ${labels[action]} el Evento?\n\nCliente: ${props.clientName}\nORB: ${event.orbitEventId}\nFecha: ${props.eventDateIso ?? "sin fecha"}\nServicio: ${event.services.map((service) => serviceDisplayName(service.code)).join(", ") || "sin servicio"}`,
       )
     )
       return;
@@ -757,7 +758,7 @@ export function ProjectWorkspaceExperience(
                   <dd className="mt-1 break-words text-sm font-medium">{[event.eventAddress, event.customer.city].filter(Boolean).join(" · ") || "Por confirmar"}</dd>
                   <a className="mt-1 inline-flex text-sm font-semibold text-brand hover:underline" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery || props.location)}`} rel="noreferrer" target="_blank">Abrir en Google Maps</a>
                 </div>
-                <EventDetail label="Servicio contratado" value={event.services.map((service) => service.code).join(" · ") || "Por confirmar"} />
+                <EventDetail label="Servicio contratado" value={event.services.map((service) => serviceDisplayName(service.code)).join(" · ") || "Por confirmar"} />
                 <EventDetail label="Extras incluidos" value={props.eventEquipmentExtras.extras.join(" · ") || "Sin extras incluidos"} />
                 <EventDetail label="Contacto · teléfono" value={`${props.clientName} · ${event.customer.phone || "Teléfono sin registrar"}`} />
                 <div className="min-w-0">
@@ -991,7 +992,7 @@ export function ProjectWorkspaceExperience(
                         key={service.code}
                       >
                         <div className="flex items-center justify-between gap-3">
-                          <p className="font-semibold">{service.code}</p>
+                          <p className="font-semibold">{serviceDisplayName(service.code)}</p>
                           <StatusBadge
                             label={service.duration}
                             variant="info"
@@ -999,7 +1000,7 @@ export function ProjectWorkspaceExperience(
                         </div>
                         <p className="mt-3 text-sm text-muted">
                           {service.extras.length
-                            ? service.extras.join(" · ")
+                            ? service.extras.map(serviceDisplayName).join(" · ")
                             : "Sin extras registrados"}
                         </p>
                       </article>

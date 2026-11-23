@@ -1,6 +1,7 @@
 "use client";
 
 import { CalendarDays, Clock3, MapPin, Sparkles, UserRound } from "lucide-react";
+import { serviceDisplayName } from "@/lib/orbit-display-labels";
 
 type PortalData = NonNullable<Awaited<ReturnType<typeof import("./customer-portal.service").loadCustomerPortal>>>;
 type Project = PortalData["project"] & { operations: Record<string, unknown>; project_services: Array<{ service_code: string; duration_hours: number | null }>; event_post_reservation_extras?: Array<{ name: string; amount: number; status: string }> };
@@ -21,9 +22,9 @@ export function CustomerEventExperience({ data }: { data: PortalData }) {
       <Detail icon={CalendarDays} label="Fecha" value={formatDate(project.event_date)}/>
       <Detail icon={MapPin} label="Lugar del evento" value={project.location || "Por confirmar"}/>
       <Detail icon={MapPin} label="Dirección" value={address}/>
-      <Detail icon={Sparkles} label="Servicio" value={services.map((item) => item.service_code).join(" + ") || "Por confirmar"}/>
+      <Detail icon={Sparkles} label="Servicio" value={services.map((item) => serviceDisplayName(item.service_code)).join(" + ") || "Por confirmar"}/>
       <Detail icon={Clock3} label="Horas" value={services.map((item) => item.duration_hours ? `${item.duration_hours} horas` : null).filter(Boolean).join(" · ") || "Por confirmar"}/>
-      <Detail icon={Sparkles} label="Extras agregados" value={extras.join(" · ") || "Sin extras"}/>
+      <Detail icon={Sparkles} label="Extras agregados" value={extras.map(serviceDisplayName).join(" · ") || "Sin extras"}/>
       <Detail icon={UserRound} label="Encargado de tu evento" value={contact}/>
     </dl>
   </section>;
