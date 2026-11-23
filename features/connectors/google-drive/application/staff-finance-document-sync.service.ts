@@ -1,5 +1,7 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
+
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadCompanySettings } from "@/features/company-settings";
 import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-workspace/application/google-workspace.repository";
@@ -46,8 +48,23 @@ async function folder(provider: GoogleDriveLiveProvider, rootId: string, parts: 
 }
 
 async function uploadOnce(provider: GoogleDriveLiveProvider, parentFolderId: string, document: DocumentLink, name: string, bytes: Uint8Array) {
-  const existing = await provider.findFileByName({ name, parentFolderId });
-  return existing ?? provider.uploadFile({ name, mimeType: document.mimeType || mimeFrom(name), bytes, parentFolderId });
+  // Un nombre idéntico no demuestra identidad: Drive permite distintos archivos con el mismo nombre.
+  const checksum = createHash("md5").update(bytes).digest("hex");
+  const matches = provider.findFilesByName
+    ? await provider.findFilesByName({ name, parentFolderId })
+    : await provider.findFileByName({ name, parentFolderId }).then((file) => file ? [file] : []);
+  const exact = matches.find((file) =>
+    file.md5Checksum?.toLowerCase() === checksum && Number(file.size) === bytes.byteLength
+  );
+  if (exact) return exact;
+  // Ante una colisión no reutilizar un documento ajeno: subir el original como nuevo archivo.
+  return provider.uploadFile({
+    name,
+    mimeType: document.mimeType || mimeFrom(name),
+    bytes,
+    parentFolderId,
+    appProperties: { orbitSha256: createHash("sha256").update(bytes).digest("hex") },
+  });
 }
 
 async function download(client: SupabaseClient, document: DocumentLink) {
