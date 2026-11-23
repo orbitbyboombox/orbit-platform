@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { formatServiceDisplayList } from "@/lib/orbit-display-labels";
 import { reviewStaffRequestAction, setStaffEventPublicationAction } from "@/features/operations/operations-planning.actions";
 
 export type StaffOperationsEvent = {
@@ -108,7 +109,7 @@ export function StaffOperationsView({
         </p>
         <h2 className="mt-2 text-2xl font-semibold">Control de publicación Staff</h2>
         <p className="mt-2 text-sm text-muted">
-          Prepara y revisa cada Evento internamente. El Portal Staff sólo lo muestra después de una activación explícita.
+          Prepara y revisa cada Evento internamente. El portal del personal solo lo muestra después de una activación explícita.
         </p>
       </header>
       <div className="grid gap-5 xl:grid-cols-[1.3fr_.7fr]">
@@ -124,7 +125,7 @@ export function StaffOperationsView({
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <p className="font-semibold">{event.date} · {event.customer}</p>
-                      <p className="mt-1 text-sm text-muted">{event.service}</p>
+                      <p className="mt-1 text-sm text-muted">{formatServiceDisplayList(event.service)}</p>
                     </div>
                     <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${presentation.style}`}>
                       {presentation.label}
