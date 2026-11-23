@@ -147,5 +147,10 @@ export async function repairPendingDocumentBackups(input: { client: SupabaseClie
   if (input.dryRun) {
     return documents.map((document) => ({ documentId: document.id, projectId: document.project_id, status: "REQUIRES_REVIEW", reason: "Dry-run: no se modificó Drive ni la base de datos." }));
   }
-  return Promise.all(documents.map((document) => syncOne(input.client, provider, rootName, document)));
+  // Secuencial: evita ráfagas de escrituras en Drive y permite rastrear el resultado por ID.
+  const results: DocumentBackupRepairResult[] = [];
+  for (const document of documents) {
+    results.push(await syncOne(input.client, provider, rootName, document));
+  }
+  return results;
 }
