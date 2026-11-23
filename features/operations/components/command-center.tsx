@@ -423,7 +423,7 @@ export function CommandCenter({
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">
-              Staff Intelligence
+              Información del personal
             </p>
             <h2 className="mt-2 text-lg font-semibold">Equipo operacional</h2>
           </div>
@@ -501,7 +501,7 @@ export function CommandCenter({
         <Metric
           href={dashboardHref("/resources/staff#today-staff")}
           icon={UserCheck}
-          label="Staff disponible"
+          label="Personal disponible"
           module="STAFF"
           tone="success"
           value={availableOperators}
