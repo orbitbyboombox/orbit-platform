@@ -1,7 +1,7 @@
 import type { GoogleDriveDestination, GoogleDriveDestinationRequest, GoogleDriveFolderPlanItem } from "../types/google-drive-live.types";
 
 export const DEFAULT_GOOGLE_DRIVE_ROOT = "ORBIT";
-export const GOOGLE_DRIVE_ROOT_FOLDERS = ["CLIENTES", "CONTABILIDAD", "STAFF", "OPERACIONES", "ACTIVOS", "DOCUMENTACIÓN", "REPORTES", "SISTEMA"] as const;
+export const GOOGLE_DRIVE_ROOT_FOLDERS = ["01_CLIENTES", "CONTABILIDAD", "STAFF", "OPERACIONES", "ACTIVOS", "DOCUMENTACIÓN", "REPORTES", "SISTEMA"] as const;
 export const CUSTOMER_FOLDERS = ["01_Contrato", "02_Comprobantes", "03_Cotizaciones", "04_Diseños", "05_Fotografías", "06_Videos", "07_Facturación", "08_Honorarios", "09_Documentos"] as const;
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"] as const;
@@ -31,9 +31,10 @@ export function buildRootFolderPlan(rootName=DEFAULT_GOOGLE_DRIVE_ROOT): readonl
 }
 
 export function buildCustomerFolderPlan(customerName: string, eventDate: string,rootName=DEFAULT_GOOGLE_DRIVE_ROOT): readonly GoogleDriveFolderPlanItem[] {
-  const { year, month, displayDate } = dateParts(eventDate, "La fecha del evento");
-  const yearFolder = folder(year, rootName);
-  const monthFolder = folder(month, yearFolder.path);
+  const { year, displayDate } = dateParts(eventDate, "La fecha del evento");
+  const monthNumber = Number(eventDate.slice(5, 7));
+  const yearFolder = folder(year, `${rootName}/01_CLIENTES`);
+  const monthFolder = folder(`${eventDate.slice(5, 7)} ${SPANISH_MONTHS[monthNumber - 1].toLocaleUpperCase("es-CL")}`, yearFolder.path);
   const customerFolder = folder(`${displayDate} - ${cleanName(customerName)}`, monthFolder.path);
   return [yearFolder, monthFolder, customerFolder, ...CUSTOMER_FOLDERS.map((name) => folder(name, customerFolder.path))];
 }
