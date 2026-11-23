@@ -106,10 +106,17 @@ function md5(bytes: Uint8Array) {
 }
 
 async function findExactFile(provider: GoogleDriveLiveProvider, folderId: string, filename: string, bytes: Uint8Array, documentId: string) {
-  const files = provider.findFilesByName
-    ? await provider.findFilesByName({ name: filename, parentFolderId: folderId })
-    : await provider.findFileByName({ name: filename, parentFolderId: folderId }).then((file) => file ? [file] : []);
-  return files.find((file) => file.md5Checksum?.toLowerCase() === md5(bytes) && Number(file.size) === bytes.byteLength && (!file.appProperties?.orbitDocumentId || file.appProperties.orbitDocumentId === documentId)) ?? null;
+  // Buscar también el nombre determinístico usado por ORBIT tras un intento previo.
+  // Si Drive recibió el upload pero falló el update en Supabase, se reutiliza el mismo ID.
+  const names = [filename, `ORBIT_${documentId}_${filename}`];
+  const results = await Promise.all(names.map(async (name) => provider.findFilesByName
+    ? provider.findFilesByName({ name, parentFolderId: folderId })
+    : provider.findFileByName({ name, parentFolderId: folderId }).then((file) => file ? [file] : [])));
+  return results.flat().find((file) =>
+    file.md5Checksum?.toLowerCase() === md5(bytes) &&
+    Number(file.size) === bytes.byteLength &&
+    (!file.appProperties?.orbitDocumentId || file.appProperties.orbitDocumentId === documentId)
+  ) ?? null;
 }
 
 async function syncOne(client: SupabaseClient, provider: GoogleDriveLiveProvider, rootName: string, document: RepairDocument): Promise<DocumentBackupRepairResult> {
@@ -140,5 +147,10 @@ export async function repairPendingDocumentBackups(input: { client: SupabaseClie
   if (input.dryRun) {
     return documents.map((document) => ({ documentId: document.id, projectId: document.project_id, status: "REQUIRES_REVIEW", reason: "Dry-run: no se modificó Drive ni la base de datos." }));
   }
-  return Promise.all(documents.map((document) => syncOne(input.client, provider, rootName, document)));
+  // Secuencial: evita ráfagas de escrituras en Drive y permite rastrear el resultado por ID.
+  const results: DocumentBackupRepairResult[] = [];
+  for (const document of documents) {
+    results.push(await syncOne(input.client, provider, rootName, document));
+  }
+  return results;
 }
