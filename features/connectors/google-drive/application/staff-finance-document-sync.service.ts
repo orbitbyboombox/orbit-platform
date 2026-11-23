@@ -1,5 +1,7 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
+
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadCompanySettings } from "@/features/company-settings";
 import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-workspace/application/google-workspace.repository";
@@ -46,8 +48,23 @@ async function folder(provider: GoogleDriveLiveProvider, rootId: string, parts: 
 }
 
 async function uploadOnce(provider: GoogleDriveLiveProvider, parentFolderId: string, document: DocumentLink, name: string, bytes: Uint8Array) {
-  const existing = await provider.findFileByName({ name, parentFolderId });
-  return existing ?? provider.uploadFile({ name, mimeType: document.mimeType || mimeFrom(name), bytes, parentFolderId });
+  // Un nombre idéntico no demuestra identidad: Drive permite distintos archivos con el mismo nombre.
+  const checksum = createHash("md5").update(bytes).digest("hex");
+  const matches = provider.findFilesByName
+    ? await provider.findFilesByName({ name, parentFolderId })
+    : await provider.findFileByName({ name, parentFolderId }).then((file) => file ? [file] : []);
+  const exact = matches.find((file) =>
+    file.md5Checksum?.toLowerCase() === checksum && Number(file.size) === bytes.byteLength
+  );
+  if (exact) return exact;
+  // Ante una colisión no reutilizar un documento ajeno: subir el original como nuevo archivo.
+  return provider.uploadFile({
+    name,
+    mimeType: document.mimeType || mimeFrom(name),
+    bytes,
+    parentFolderId,
+    appProperties: { orbitSha256: createHash("sha256").update(bytes).digest("hex") },
+  });
 }
 
 async function download(client: SupabaseClient, document: DocumentLink) {
@@ -90,9 +107,9 @@ export async function syncStaffFinanceDocuments(input: { client: SupabaseClient;
   const getProject = async (id: string) => { const cached = projectCache.get(id); if (cached) return cached; const { data, error } = await input.client.from("projects").select("name,event_date").eq("id", id).single(); if (error) throw error; const value = { name: clean(data.name || "Evento sin nombre"), date: String(data.event_date) }; projectCache.set(id, value); return value; };
   const resolveEventFolder = async (staffId: string, projectId: string, date: string) => {
     const staffName = await getStaff(staffId); const project = await getProject(projectId); const { year, month } = monthParts(date);
-    return folder(provider, rootFolderId, ["STAFF", "OPERADORES", staffName, "04_REEMBOLSOS", year, month, `${clean(project.name)} - ${project.date}`]);
+    return folder(provider, rootFolderId, ["02_STAFF", "OPERADORES", staffName, "04_REEMBOLSOS", year, month, `${clean(project.name)} - ${project.date}`]);
   };
-  const resolveBaseFolder = async (staffId: string, date: string, leaf: string) => { const staffName = await getStaff(staffId); const { year, month } = monthParts(date); return folder(provider, rootFolderId, ["STAFF", "OPERADORES", staffName, leaf, year, month]); };
+  const resolveBaseFolder = async (staffId: string, date: string, leaf: string) => { const staffName = await getStaff(staffId); const { year, month } = monthParts(date); return folder(provider, rootFolderId, ["02_STAFF", "OPERADORES", staffName, leaf, year, month]); };
   const setStatus = async (table: "documents" | "staff_onboarding_documents", id: string, driveFileId: string | null, driveFolderId: string | null, error?: string) => markDocument(input.client, table, id, { drive_file_id: driveFileId, drive_folder_id: driveFolderId, drive_sync_status: driveFileId ? "SYNCED" : "ERROR", drive_sync_error: error ?? null, drive_synced_at: driveFileId ? new Date().toISOString() : null });
 
   const { data: expenses, error: expenseError } = await input.client.from("staff_expense_submissions").select("id,staff_id,project_id,amount,occurred_on,receipt_path,document_id").not("receipt_path", "is", null).gte("occurred_on", from).lt("occurred_on", to);

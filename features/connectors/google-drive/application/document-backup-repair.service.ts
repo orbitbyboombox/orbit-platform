@@ -102,14 +102,14 @@ async function downloadAndVerify(client: SupabaseClient, document: RepairDocumen
 }
 
 function md5(bytes: Uint8Array) {
-  return createHash("md5").update(bytes).digest("base64");
+  return createHash("md5").update(bytes).digest("hex");
 }
 
 async function findExactFile(provider: GoogleDriveLiveProvider, folderId: string, filename: string, bytes: Uint8Array, documentId: string) {
   const files = provider.findFilesByName
     ? await provider.findFilesByName({ name: filename, parentFolderId: folderId })
     : await provider.findFileByName({ name: filename, parentFolderId: folderId }).then((file) => file ? [file] : []);
-  return files.find((file) => file.appProperties?.orbitDocumentId === documentId || (file.md5Checksum === md5(bytes) && Number(file.size) === bytes.byteLength)) ?? null;
+  return files.find((file) => file.md5Checksum?.toLowerCase() === md5(bytes) && Number(file.size) === bytes.byteLength && (!file.appProperties?.orbitDocumentId || file.appProperties.orbitDocumentId === documentId)) ?? null;
 }
 
 async function syncOne(client: SupabaseClient, provider: GoogleDriveLiveProvider, rootName: string, document: RepairDocument): Promise<DocumentBackupRepairResult> {
@@ -118,7 +118,7 @@ async function syncOne(client: SupabaseClient, provider: GoogleDriveLiveProvider
     const source = await downloadAndVerify(client, document);
     const exact = await findExactFile(provider, folderId, source.filename, source.bytes, document.id);
     const file = exact ?? await provider.uploadFile({
-      name: exact ? source.filename : `ORBIT_${document.id}_${source.filename}`,
+      name: `ORBIT_${document.id}_${source.filename}`,
       mimeType: source.mimeType,
       bytes: source.bytes,
       parentFolderId: folderId,
