@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { serviceDisplayName } from "@/lib/orbit-display-labels";
 import { SmartCard } from "@/components/cards/smart-card";
 import { OrbitCopilot } from "@/components/copilot/orbit-copilot";
 import { WorkspaceLayout } from "@/components/layout/workspace-layout";
@@ -34,8 +35,8 @@ const COUNTDOWN_VARIANT: Record<CountdownVisualState, "success" | "warning" | "d
 };
 
 const executiveServices = [
-  { label: "Workspace", status: "Operativo", icon: Check, variant: "success" as const },
-  { label: "Calendar", status: "Conexión pendiente", icon: CalendarDays, variant: "warning" as const },
+  { label: "Espacio de trabajo", status: "Operativo", icon: Check, variant: "success" as const },
+  { label: "Calendario", status: "Conexión pendiente", icon: CalendarDays, variant: "warning" as const },
   { label: "Drive", status: "Conexión pendiente", icon: Cloud, variant: "warning" as const },
   { label: "Gmail", status: "Conexión pendiente", icon: Mail, variant: "warning" as const },
   { label: "BIANCA", status: "Disponible", icon: Sparkles, variant: "success" as const },
@@ -46,7 +47,7 @@ export function HomeExperience({ projects }: { projects: readonly Project[] }) {
   const [expenseCaptureOpen, setExpenseCaptureOpen] = useState(false);
   const timeContext = ORBIT_TIME_ENGINE.getCurrentContext("Matías");
   const openProject = (id = "evento-lumen") => router.push(`/projects/${id}`);
-  const agendaEvents = projects.filter((project) => project.event.date).map((project) => ({ id: project.id, client: project.client.name, type: project.type, service: project.services.length ? project.services.join(" · ") : "Servicio por confirmar", date: project.event.date, time: project.event.time, location: [project.event.location, project.event.city].filter(Boolean).join(", ") || "Ubicación por confirmar", status: project.stage ?? project.status }));
+  const agendaEvents = projects.filter((project) => project.event.date).map((project) => ({ id: project.id, client: project.client.name, type: project.type, service: project.services.length ? project.services.map(serviceDisplayName).join(" · ") : "Servicio por confirmar", date: project.event.date, time: project.event.time, location: [project.event.location, project.event.city].filter(Boolean).join(", ") || "Ubicación por confirmar", status: project.stage ?? project.status }));
   const nextEvent = agendaEvents.find((event) => ORBIT_TIME_ENGINE.getCountdown({ eventDate: event.date }).state === "FUTURE") ?? agendaEvents[0] ?? { id: "", client: "Sin eventos confirmados", type: "", service: "Cuando exista un evento confirmado aparecerá aquí.", date: new Date().toISOString().slice(0, 10), time: "—", location: "Sin ubicación", status: "Sin eventos" };
   const hasEvents = agendaEvents.length > 0;
   const nextEventIntelligence = ORBIT_TIME_ENGINE.getEventIntelligence({ eventDate: nextEvent.date });

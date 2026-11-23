@@ -14,6 +14,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { MobileDialog } from "@/components/ui/mobile-dialog";
 import { OrbitLoader } from "@/components/ui/orbit-loader";
+import { formatServiceDisplayList, serviceDisplayName } from "@/lib/orbit-display-labels";
 import type { CrmOperationalEvent } from "./types";
 import {
   duplicateCrmEventAction,
@@ -228,7 +229,7 @@ export function EventCenter({
     });
   };
   const duplicate = (event: CrmOperationalEvent) => {
-    const copyStaff = window.confirm("¿Copiar Staff como asignación pendiente?");
+    const copyStaff = window.confirm("¿Copiar personal como asignación pendiente?");
     const reason = window.prompt("Motivo de duplicación:")?.trim();
     if (!reason) return;
     start(async () => {
@@ -379,7 +380,7 @@ export function EventCenter({
                       <span className={`size-1.5 shrink-0 rounded-full ${status.dot}`} />{status.label}
                     </span>
                     <span className="min-w-0 truncate rounded-full border border-white/15 bg-white/[.06] px-1 py-0.5 text-center text-[8px] text-white/70">
-                      {event.service || "Servicio"}
+                      {formatServiceDisplayList(event.service || "Servicio")}
                     </span>
                     <Link aria-label={`Abrir evento ${event.customerName}`} className="grid size-7 place-items-center text-white/75" href={`/projects/${event.projectId}`}>
                       <span aria-hidden="true" className="text-xl leading-none">›</span>
@@ -401,9 +402,9 @@ export function EventCenter({
                   <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-xs text-emerald-300">{event.status}</span>
                 </div>
                 <p className="mt-2 break-words text-sm leading-snug text-white/60">{event.company || "Cliente particular"} · {event.date ? new Date(`${event.date}T12:00:00Z`).toLocaleDateString("es-CL") : "Sin fecha"} · {event.time?.slice(0, 5) || "Sin hora"}</p>
-                <p className="mt-1 break-words text-sm font-semibold leading-snug text-white/80">{event.service || "Servicio por confirmar"}{event.duration ? ` · ${event.duration}h` : ""} · {event.time?.slice(0, 5) || "Sin hora"}–{event.serviceEndAt?.slice(11, 16) || "—"}</p>
+                <p className="mt-1 break-words text-sm font-semibold leading-snug text-white/80">{formatServiceDisplayList(event.service || "Servicio por confirmar")}{event.duration ? ` · ${event.duration}h` : ""} · {event.time?.slice(0, 5) || "Sin hora"}–{event.serviceEndAt?.slice(11, 16) || "—"}</p>
                 <p className="mt-1 break-words text-xs leading-snug text-white/60">{event.location || "Lugar por confirmar"} · {event.municipality || "Comuna por confirmar"}</p>
-                <p className="mt-1 break-words text-xs leading-snug text-white/45">Citación {event.staffCallAt?.slice(11, 16) || "por confirmar"} · {event.extras.length ? event.extras.join(" + ") : "Sin extras"} · Operador: {event.operator}</p>
+                <p className="mt-1 break-words text-xs leading-snug text-white/45">Citación {event.staffCallAt?.slice(11, 16) || "por confirmar"} · {event.extras.length ? event.extras.map(serviceDisplayName).join(" + ") : "Sin extras"} · Operador: {event.operator}</p>
               </div>
               <div className="flex min-w-0 items-center justify-end gap-2">
                 <Link aria-label={`Abrir evento ${event.customerName}`} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-brand px-3.5 text-xs font-bold text-black transition hover:brightness-110" href={`/projects/${event.projectId}`}><ExternalLink className="size-4" />ABRIR EVENTO</Link>
@@ -517,7 +518,7 @@ export function EventCenter({
               />
             </label>
             <div className="text-sm">
-              <span className="mb-1.5 block text-muted">Citación Staff (automática)</span>
+              <span className="mb-1.5 block text-muted">Citación del operador (automática)</span>
               <p className="h-11 content-center rounded-xl border bg-background px-3">{staffCallAt.replace("T", " ")} · 60 minutos antes del servicio</p>
             </div>
             <section className="sm:col-span-2 rounded-xl border p-4 space-y-3">

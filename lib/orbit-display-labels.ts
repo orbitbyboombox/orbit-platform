@@ -17,6 +17,14 @@ const SERVICE_LABELS: Readonly<Record<string, string>> = {
   INSTABOX: "Cabina Instabox",
   VIDEO_LOUNGE: "Video Lounge",
   SCRAPBOOK: "Libro de recuerdos (SCRAPBOOK)",
+  BRANDING: "Personalización",
+  UNLIMITED_MAGNETS: "Imanes ilimitados",
+  SANTIAGO_PROVINCE: "Traslado Santiago",
+  CHACABUCO_PROVINCE: "Traslado Chacabuco",
+  CORDILLERA_PROVINCE: "Traslado Cordillera",
+  MAIPO_PROVINCE: "Traslado Maipo",
+  MELIPILLA_PROVINCE: "Traslado Melipilla",
+  TALAGANTE_PROVINCE: "Traslado Talagante",
 };
 
 const SERVICE_ALIASES: Readonly<Record<string, string>> = {
@@ -53,4 +61,20 @@ const ROLE_LABELS: Readonly<Record<string, string>> = {
 /** Etiquetas de funciones; una persona puede tener más de una función. */
 export function staffRoleDisplayName(value: string): string {
   return ROLE_LABELS[value.trim().toUpperCase()] ?? value.trim();
+}
+
+/** Convierte resúmenes compuestos sin cambiar el texto original almacenado. */
+export function formatServiceDisplayList(value: string): string {
+  return value.split(/(\s*\+\s*|\s*·\s*)/).map((part) => {
+    if (/^\s*(?:\+|·)\s*$/.test(part)) return part;
+    return serviceDisplayName(part);
+  }).join("");
+}
+
+/** Cambia únicamente el texto visible del estado de asignación. */
+export function staffAssignmentDisplayName(value: string): string {
+  const trimmed = value.trim();
+  return /^(?:staff pendiente|staff pending|staff por asignar)$/i.test(trimmed)
+    ? "Personal pendiente de asignar"
+    : trimmed;
 }
