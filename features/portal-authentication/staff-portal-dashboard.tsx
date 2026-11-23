@@ -1,5 +1,6 @@
 "use client";
 import {formatDisplayDate} from "@/lib/display-date";
+import { serviceDisplayName, staffRoleDisplayName } from "@/lib/orbit-display-labels";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
@@ -226,7 +227,8 @@ const STAFF_SERVICE_LABELS: Record<string, string> = {
 };
 const staffServiceLabel = (value: string) => value.split(/(\s*[+·]\s*)/).map(part => {
   const code = part.trim();
-  return STAFF_SERVICE_LABELS[code] ?? (code.endsWith("_PROVINCE") ? `Traslado ${code.replace("_PROVINCE", "").replaceAll("_", " ").toLowerCase()}` : part);
+  const translated = serviceDisplayName(code);
+  return translated !== code ? translated : (STAFF_SERVICE_LABELS[code] ?? (code.endsWith("_PROVINCE") ? `Traslado ${code.replace("_PROVINCE", "").replaceAll("_", " ").toLowerCase()}` : part));
 }).join("");
 const staffEventTypeLabel = (value: string) => ({
   CORPORATE: "Evento empresa",
@@ -237,13 +239,9 @@ const staffEventTypeLabel = (value: string) => ({
   Birthday: "Cumpleaños",
 }[value] ?? value);
 
-const ROLE: Record<string, string> = {
-  OPERATOR: "Operador",
-  SUPERVISOR: "Supervisor",
-  ASSEMBLY: "Montaje",
-  DISASSEMBLY: "Desmontaje",
-  ASSEMBLY_DISASSEMBLY: "Montaje + Desmontaje",
-};
+const ROLE: Record<string, string> = Object.fromEntries(
+  ["OPERATOR", "SUPERVISOR", "ASSEMBLY", "DISASSEMBLY", "ASSEMBLY_DISASSEMBLY"].map((code) => [code, staffRoleDisplayName(code)]),
+);
 const STAFF_EXPENSE_LABELS: Record<string,string> = {
   FOOD:"Alimentación", UBER_TRANSPORT:"Uber / transporte", PARKING:"Estacionamiento",
   TOLLS:"Peajes", MOBILITY:"Movilización", OTHER:"Otros gastos",
@@ -488,7 +486,7 @@ function staffLogisticsRow(event: StaffPortalEvent): StaffLogisticsEvent {
     time: primaryBlock ? staffBlockTime(primaryBlock.startAt) : event.start,
     endTime: primaryBlock ? staffBlockTime(primaryBlock.endAt) : event.finish,
     customer: event.customer,
-    service: primaryBlock ? `${staffServiceLabel(event.service)} · ${primaryBlock.name}` : event.service,
+    service: primaryBlock ? `${staffServiceLabel(event.service)} · ${primaryBlock.name}` : staffServiceLabel(event.service),
     duration: primaryBlock ? staffBlockHours(primaryBlock.startAt, primaryBlock.endAt) : event.duration,
     location: event.venue || event.address, commune: event.district, status: event.status,
     operator: assignedBlocks.length ? assignedBlocks.map(block => `${ROLE[block.role] ?? block.role} · ${block.name}`).join(" + ") : event.roles.map(role => ROLE[role] ?? role).join(" + ") || "Sin asignar", staffCallAt: event.staffCallAt || "",
