@@ -41,7 +41,7 @@ export function buildCustomerFolderPlan(customerName: string, eventDate: string,
 
 export function buildCancelledReservationFolderPlan(eventDate:string,rootName=DEFAULT_GOOGLE_DRIVE_ROOT):readonly GoogleDriveFolderPlanItem[]{
   const match=/^(\d{4})-(\d{2})-(\d{2})$/.exec(eventDate);if(!match)throw new Error("La fecha del evento debe usar el formato YYYY-MM-DD.");
-  const archive=folder("Reservas Canceladas",rootName);const year=folder(match[1],archive.path);const month=folder(SPANISH_MONTHS[Number(match[2])-1],year.path);return[archive,year,month];
+  const archive=folder("Reservas Canceladas",`${rootName}/01_CLIENTES`);const year=folder(match[1],archive.path);const month=folder(SPANISH_MONTHS[Number(match[2])-1],year.path);return[archive,year,month];
 }
 
 export function buildAccountingFolderPlan(documentDate: string, category: string,rootName=DEFAULT_GOOGLE_DRIVE_ROOT): readonly GoogleDriveFolderPlanItem[] {
