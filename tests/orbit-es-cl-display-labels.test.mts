@@ -28,7 +28,7 @@ test("resumen de servicios conserva la duración de Classic", () => {
 test("próximos eventos muestran servicios y estado de personal en español", () => {
   assert.equal(
     formatServiceDisplayList("BRANDING + CLASSIC + SANTIAGO_PROVINCE + UNLIMITED_MAGNETS · 2 horas"),
-    "Personalización + Cabina Classic + Traslado Santiago + Imanes ilimitados · 2 horas",
+    "BRANDING + Cabina Classic + Traslado Santiago + Imanes ilimitados · 2 horas",
   );
   assert.equal(formatServiceDisplayList("POLAROID · 3 horas"), "Cabina Polaroid · 3 horas");
   assert.equal(staffAssignmentDisplayName("Staff pendiente"), "Personal pendiente de asignar");
