@@ -211,7 +211,7 @@ const money = (value: number | null | undefined) => value === null || value === 
     }).format(value);
 const honorarium = (value: number | null | undefined) => value && value > 0 ? money(value) : "Honorario pendiente de definir";
 const STAFF_SERVICE_LABELS: Record<string, string> = {
-  BRANDING: "Personalización",
+  BRANDING: "BRANDING",
   CLASSIC: "Cabina Classic",
   POLAROID: "Cabina Polaroid",
   BLACK_STUDIO: "Black Studio",
