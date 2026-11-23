@@ -1,7 +1,7 @@
 import type { GoogleDriveDestination, GoogleDriveDestinationRequest, GoogleDriveFolderPlanItem } from "../types/google-drive-live.types";
 
 export const DEFAULT_GOOGLE_DRIVE_ROOT = "ORBIT";
-export const GOOGLE_DRIVE_ROOT_FOLDERS = ["01_CLIENTES", "CONTABILIDAD", "STAFF", "OPERACIONES", "ACTIVOS", "DOCUMENTACIÓN", "REPORTES", "SISTEMA"] as const;
+export const GOOGLE_DRIVE_ROOT_FOLDERS = ["01_CLIENTES", "02_STAFF", "03_CONTABILIDAD", "04_OPERACIONES", "05_ACTIVOS_Y_RECURSOS", "06_DOCUMENTACION_EMPRESA", "REPORTES", "SISTEMA"] as const;
 export const CUSTOMER_FOLDERS = ["01_Contrato", "02_Comprobantes", "03_Cotizaciones", "04_Diseños", "05_Fotografías", "06_Videos", "07_Facturación", "08_Honorarios", "09_Documentos"] as const;
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"] as const;
@@ -22,9 +22,9 @@ export function buildRootFolderPlan(rootName=DEFAULT_GOOGLE_DRIVE_ROOT): readonl
   const root = folder(rootName, null);
   const topLevel = GOOGLE_DRIVE_ROOT_FOLDERS.map((name) => folder(name, root.path));
   const staticChildren: Record<string, readonly string[]> = {
-    OPERACIONES: ["Montajes", "Desmontajes", "Fotografías", "Checklists", "Incidencias", "Rutas"],
-    ACTIVOS: ["Vehículos", "Black Boxes", "Booths", "Maintenance"],
-    DOCUMENTACIÓN: ["Templates", "Manuals", "Catalogues", "Branding"],
+    "04_OPERACIONES": ["Montajes", "Desmontajes", "Fotografías", "Checklists", "Incidencias", "Rutas"],
+    "05_ACTIVOS_Y_RECURSOS": ["Vehículos", "Black Boxes", "Booths", "Maintenance"],
+    "06_DOCUMENTACION_EMPRESA": ["Templates", "Manuals", "Catalogues", "Branding"],
     REPORTES: ["Operational Reports", "Financial Reports", "Business Reports"],
   };
   return [root, ...topLevel, ...topLevel.flatMap((parent) => (staticChildren[parent.name] ?? []).map((name) => folder(name, parent.path)))];
@@ -46,14 +46,14 @@ export function buildCancelledReservationFolderPlan(eventDate:string,rootName=DE
 
 export function buildAccountingFolderPlan(documentDate: string, category: string,rootName=DEFAULT_GOOGLE_DRIVE_ROOT): readonly GoogleDriveFolderPlanItem[] {
   const { year, month } = dateParts(documentDate, "La fecha del documento");
-  const accounting = `${rootName}/CONTABILIDAD`;
+  const accounting = `${rootName}/03_CONTABILIDAD`;
   const yearFolder = folder(year, accounting);
   const monthFolder = folder(month, yearFolder.path);
   return [yearFolder, monthFolder, folder(category, monthFolder.path)];
 }
 
 export function buildStaffFolderPlan(staffMemberName: string,rootName=DEFAULT_GOOGLE_DRIVE_ROOT): readonly GoogleDriveFolderPlanItem[] {
-  const staffRoot = `${rootName}/STAFF`;
+  const staffRoot = `${rootName}/02_STAFF`;
   const staffMember = folder(cleanName(staffMemberName), staffRoot);
   return [staffMember, ...["01 Documentos", "02 Capacitaciones", "03 Licencias", "04 Evaluaciones", "05 Historial"].map((name) => folder(name, staffMember.path))];
 }
@@ -75,12 +75,12 @@ export function resolveAutomaticDestination(request: GoogleDriveDestinationReque
   const operatorMap = { OPERATOR_DOCUMENT: "01 Documentos", OPERATOR_TRAINING: "02 Capacitaciones", OPERATOR_LICENSE: "03 Licencias", OPERATOR_HISTORY: "05 Historial" } as const;
   if (kind in operatorMap) {
     if (!context.staffMemberName) throw new Error("El destino del operador requiere el nombre del colaborador.");
-    return { kind, folderPath: `${rootName}/STAFF/${cleanName(context.staffMemberName)}/${operatorMap[kind as keyof typeof operatorMap]}` };
+    return { kind, folderPath: `${rootName}/02_STAFF/${cleanName(context.staffMemberName)}/${operatorMap[kind as keyof typeof operatorMap]}` };
   }
   const fixed: Record<string, string> = {
-    OPERATION_MOUNTING: "OPERACIONES/Montajes", OPERATION_DISMANTLING: "OPERACIONES/Desmontajes", OPERATION_PHOTO: "OPERACIONES/Fotografías", OPERATION_CHECKLIST: "OPERACIONES/Checklists", OPERATION_INCIDENT: "OPERACIONES/Incidencias", OPERATION_ROUTE: "OPERACIONES/Rutas",
-    ASSET_VEHICLE: "ACTIVOS/Vehículos", ASSET_BLACK_BOX: "ACTIVOS/Black Boxes", ASSET_BOOTH: "ACTIVOS/Booths", ASSET_MAINTENANCE: "ACTIVOS/Maintenance",
-    DOCUMENT_TEMPLATE: "DOCUMENTACIÓN/Templates", DOCUMENT_MANUAL: "DOCUMENTACIÓN/Manuals", DOCUMENT_CATALOGUE: "DOCUMENTACIÓN/Catalogues", DOCUMENT_BRANDING: "DOCUMENTACIÓN/Branding",
+    OPERATION_MOUNTING: "04_OPERACIONES/Montajes", OPERATION_DISMANTLING: "04_OPERACIONES/Desmontajes", OPERATION_PHOTO: "04_OPERACIONES/Fotografías", OPERATION_CHECKLIST: "04_OPERACIONES/Checklists", OPERATION_INCIDENT: "04_OPERACIONES/Incidencias", OPERATION_ROUTE: "04_OPERACIONES/Rutas",
+    ASSET_VEHICLE: "05_ACTIVOS_Y_RECURSOS/Vehículos", ASSET_BLACK_BOX: "05_ACTIVOS_Y_RECURSOS/Black Boxes", ASSET_BOOTH: "05_ACTIVOS_Y_RECURSOS/Booths", ASSET_MAINTENANCE: "05_ACTIVOS_Y_RECURSOS/Maintenance",
+    DOCUMENT_TEMPLATE: "06_DOCUMENTACION_EMPRESA/Templates", DOCUMENT_MANUAL: "06_DOCUMENTACION_EMPRESA/Manuals", DOCUMENT_CATALOGUE: "06_DOCUMENTACION_EMPRESA/Catalogues", DOCUMENT_BRANDING: "06_DOCUMENTACION_EMPRESA/Branding",
     REPORT_OPERATIONAL: "REPORTES/Operational Reports", REPORT_FINANCIAL: "REPORTES/Financial Reports", REPORT_BUSINESS: "REPORTES/Business Reports", SYSTEM_FILE: "SISTEMA",
   };
   return { kind, folderPath: `${rootName}/${fixed[kind]}` };
