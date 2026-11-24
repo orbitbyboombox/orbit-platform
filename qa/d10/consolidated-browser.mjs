@@ -32,7 +32,7 @@ await check('Founder login', async () => {
 await check('Customer collections view and amounts', async () => {
   await page.goto(`${base}/finance/collections`, { waitUntil: 'networkidle' });
   await page.getByRole('button', { name: 'COBRANZA POR CLIENTE' }).click();
-  await page.getByTestId('consolidated-customer-collections').getByText('GLOW PRO COMPANY').waitFor();
+  await page.getByTestId('consolidated-customer-collections').getByText('GLOW PRO COMPANY', { exact: true }).waitFor();
   const section = page.getByTestId('consolidated-customer-collections');
   await section.getByText('$2.618.000').first().waitFor();
   await section.getByText('2 eventos').waitFor();
