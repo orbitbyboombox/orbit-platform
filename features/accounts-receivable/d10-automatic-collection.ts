@@ -4,13 +4,13 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { loadCompanySettingsCached } from "@/features/company-settings";
 import { loadGoogleWorkspaceAccessToken, loadGoogleWorkspaceConnection } from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import { GoogleGmailApiProvider, InMemoryGoogleGmailLiveProvider } from "@/features/connectors/google-gmail/provider/google-gmail-live.provider";
-import { normalizeEmailRecipients } from "@/lib/email/recipients";
 import { resolveCollectionBankDetails } from "./collection-bank-details";
 import { buildCollectionEmailDraft, buildCollectionEmailHtml } from "./collection-email.template";
 import { resolveCollectionEventDetail } from "./collection-event-detail";
 import { selectD10CollectibleInvoices, summarizeD10Invoices, type D10Invoice } from "./d10-invoice-summary";
 import { resolveD10CollectionEligibility } from "./d10-collection-policy";
 import { deliverClaimedD10 } from "./d10-delivery";
+import { resolveCollectionRecipients } from "./collection-recipients";
 
 // Supabase relation payloads are runtime-shaped joins; the selected fields are narrowed at access.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -151,7 +151,7 @@ async function sendAutomaticCollection(
   const { project, customer, eventDate, today, invoices, outstandingBalance } = input;
   const representative = [...invoices].sort((a, b) => String(a.due_date).localeCompare(String(b.due_date)))[0];
   if (!representative?.due_date) return "SKIPPED";
-  const recipients = normalizeEmailRecipients({ to: String(customer.email ?? ""), cc: String(customer.secondary_email ?? "") });
+  const recipients = resolveCollectionRecipients({ commercialEmail: customer.email, commercialCc: customer.secondary_email, metadata: customer.metadata });
   const detail = resolveCollectionEventDetail({
     eventDate: project.event_date,
     location: project.location,
@@ -289,7 +289,7 @@ export async function sendAutomaticCollectionD10(reference = new Date(), options
   const targetDate = addDays(today, 10);
   const { data: projects, error: projectError } = await admin
     .from("projects")
-    .select("id,customer_id,orbit_event_id,name,project_type,status,event_date,location,city,operations,customers(full_name,email,secondary_email),project_services(service_code,duration_hours),project_operational_contracts(service_start_at,service_end_at)")
+    .select("id,customer_id,orbit_event_id,name,project_type,status,event_date,location,city,operations,customers(full_name,email,secondary_email,metadata),project_services(service_code,duration_hours),project_operational_contracts(service_start_at,service_end_at)")
     .eq("event_date", targetDate)
     .is("deleted_at", null)
     .not("status", "in", "(CANCELLED,CANCELED,ARCHIVED,DELETED)");
