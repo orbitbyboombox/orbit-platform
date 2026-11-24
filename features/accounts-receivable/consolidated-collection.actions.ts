@@ -9,7 +9,7 @@ import { GoogleGmailApiProvider, InMemoryGoogleGmailLiveProvider } from "@/featu
 import { resolveCollectionBankDetails } from "./collection-bank-details";
 import { loadAccountsReceivable } from "./repository";
 import { buildConsolidatedCollectionHtml, buildConsolidatedCollectionText } from "./consolidated-collection.template";
-import { consolidatedCollectionFingerprint, groupReceivablesByCustomer } from "./consolidated-collection";
+import { consolidatedCollectionFingerprint, groupReceivablesByCustomer, isSpWeddingCustomer } from "./consolidated-collection";
 import { resolveCollectionRecipients } from "./collection-recipients";
 
 type Result = { ok: true; communicationId: string; recipient: string; sentAt: string; deduplicated?: boolean; warning?: string } | { ok: false; error: string };
@@ -20,6 +20,7 @@ const CONSOLIDATED_COLLECTION_QA_RECIPIENT = "matias.maira.larrain@gmail.com";
 const fail = (error: unknown): Result => ({ ok: false, error: error instanceof Error ? error.message : "No fue posible enviar la cobranza consolidada." });
 const failTestSend = (error: unknown): TestSendResult => ({ ok: false, error: error instanceof Error ? error.message : "No fue posible enviar el correo de prueba." });
 const failPreview = (error: unknown): PreviewResult => ({ ok: false, error: error instanceof Error ? error.message : "No fue posible generar la vista previa." });
+const collectionSubject = (customerId: string, overdueTotal: number) => isSpWeddingCustomer(customerId) ? "Cobranza consolidada · Eventos pendientes de pago — BOOMBOX®" : overdueTotal > 0 ? "Cobranza consolidada · saldo vencido pendiente — BOOMBOX" : "Cobranza consolidada · saldo pendiente — BOOMBOX";
 
 export async function previewConsolidatedCollectionAction(formData: FormData): Promise<PreviewResult> {
   try {
@@ -52,7 +53,7 @@ export async function previewConsolidatedCollectionAction(formData: FormData): P
     const company = await loadCompanySettings(client);
     const bankDetails = resolveCollectionBankDetails(company);
     const body = buildConsolidatedCollectionText({ ...selected, bankDetails });
-    const subject = selected.overdueTotal > 0 ? "Cobranza consolidada · saldo vencido pendiente — BOOMBOX" : "Cobranza consolidada · saldo pendiente — BOOMBOX";
+    const subject = collectionSubject(customerId, selected.overdueTotal);
     return { ok: true, recipient: recipients.to, subject, html: buildConsolidatedCollectionHtml({ ...selected, bankDetails }, subject), totalOutstanding: selected.totalOutstanding };
   } catch (error) { return failPreview(error); }
 }
@@ -96,7 +97,7 @@ export async function sendConsolidatedCollectionTestAction(formData: FormData): 
     const company = await loadCompanySettings(client);
     const bankDetails = resolveCollectionBankDetails(company);
     const body = buildConsolidatedCollectionText({ ...selected, bankDetails });
-    const subject = selected.overdueTotal > 0 ? "Cobranza consolidada · saldo vencido pendiente — BOOMBOX" : "Cobranza consolidada · saldo pendiente — BOOMBOX";
+    const subject = collectionSubject(customerId, selected.overdueTotal);
     const workspace = await loadGoogleWorkspaceConnection();
     const senderEmail = workspace.workspaceAccount?.trim();
     if (!senderEmail) throw new Error("No se pudo identificar la cuenta remitente oficial de Google Workspace.");
@@ -163,7 +164,7 @@ export async function sendConsolidatedCollectionAction(formData: FormData): Prom
     const company = await loadCompanySettings(client);
     const bankDetails = resolveCollectionBankDetails(company);
     const body = buildConsolidatedCollectionText({ ...selected, bankDetails });
-    const subject = selected.overdueTotal > 0 ? "Cobranza consolidada · saldo vencido pendiente — BOOMBOX" : "Cobranza consolidada · saldo pendiente — BOOMBOX";
+    const subject = collectionSubject(customerId, selected.overdueTotal);
     const requestKey = `consolidated-collection:${customerId}:${requestId}`;
     const { data: claims, error: claimError } = await client.rpc("prepare_consolidated_collection", {
       p_customer_id: customerId,
