@@ -8,6 +8,7 @@ import { formatChileanRut, normalizeChileanRut } from "@/lib/chile/rut";
 import { formatPhoneE164 } from "@/lib/phone/e164";
 import { groupByOwnerId } from "./relations";
 import { commercialQuoteHref } from "@/features/commercial-hub/quote-detail";
+import { collectionRecipientFields } from "@/features/accounts-receivable/collection-recipients";
 
 type CustomerRow = {
   id: string;
@@ -58,6 +59,7 @@ export async function loadCrmCustomers(
       phone: formatPhoneE164(row.phone_e164 ?? row.phone),
       email: text(row.email),
       secondaryEmail: text(row.secondary_email),
+      ...collectionRecipientFields(row.metadata),
       address: text(row.address),
       city: text(row.city),
       version: row.version,
@@ -431,6 +433,7 @@ export async function loadCrmCustomerProfile(
     phone: formatPhoneE164(row.phone_e164 ?? row.phone),
     email: text(row.email),
     secondaryEmail: text(row.secondary_email),
+    ...collectionRecipientFields(row.metadata),
     address: text(row.address),
     city: text(row.city),
     version: row.version,
