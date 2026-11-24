@@ -38,7 +38,11 @@ await check('Customer collections view and amounts', async () => {
   await section.getByText('2 eventos').waitFor();
   await section.getByText('SP Wedding Planner Limitada', { exact: true }).waitFor();
   await section.getByText(/RUT no informado/).first().waitFor();
-  await section.getByText('Total seleccionado: $1.800.000').waitFor();
+  const glowCard = section.locator('article').filter({ hasText: 'GLOW PRO COMPANY' });
+  const selectedSummary = glowCard.getByText(/Total seleccionado:/);
+  await selectedSummary.waitFor();
+  const selectedSummaryText = await selectedSummary.innerText();
+  if (!selectedSummaryText.includes('$1.800.000')) throw new Error(`Unexpected default selected total: ${selectedSummaryText}`);
   await section.getByText(/^\d+ días$/).waitFor();
   await page.screenshot({ path: `${evidence}/customer-collections-mobile.png`, fullPage: true });
 });
