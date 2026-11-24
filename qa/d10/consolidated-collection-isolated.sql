@@ -1,11 +1,11 @@
 begin;
 
 -- Synthetic identities only; this script is executed against disposable local Supabase.
-\set admin_id '''00000000-0000-4000-8000-000000000001'''
-\set staff_id '''00000000-0000-4000-8000-000000000002'''
-\set customer_id '''00000000-0000-4000-8000-000000000003'''
-\set project_id '''00000000-0000-4000-8000-000000000004'''
-\set request_key '''qa-consolidated-collection-001'''
+\set admin_id 00000000-0000-4000-8000-000000000001
+\set staff_id 00000000-0000-4000-8000-000000000002
+\set customer_id 00000000-0000-4000-8000-000000000003
+\set project_id 00000000-0000-4000-8000-000000000004
+\set request_key qa-consolidated-collection-001
 
 insert into auth.users(id,aud,role,email,encrypted_password,email_confirmed_at,created_at,updated_at)
 values
