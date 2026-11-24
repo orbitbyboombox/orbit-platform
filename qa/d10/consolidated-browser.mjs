@@ -37,7 +37,7 @@ await check('Customer collections view and amounts', async () => {
   await section.getByText('$2.618.000').first().waitFor();
   await section.getByText('2 eventos').waitFor();
   await section.getByText('SP Wedding Planner Limitada', { exact: true }).waitFor();
-  await section.getByText('RUT no informado').waitFor();
+  await section.getByText('RUT no informado', { exact: true }).first().waitFor();
   await section.getByText('Total seleccionado: $1.800.000').waitFor();
   await section.getByText(/^\d+ días$/).waitFor();
   await page.screenshot({ path: `${evidence}/customer-collections-mobile.png`, fullPage: true });
