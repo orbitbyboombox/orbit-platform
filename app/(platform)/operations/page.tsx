@@ -68,6 +68,7 @@ export default async function OperationsPage() {
   const { data: auth, error: authError } = await client.auth.getUser();
   if (authError || !auth.user)
     throw authError ?? new Error("Sesión requerida.");
+  const operationsDataLoadStartedAt = performance.now();
   const financialTruthPromise = loadFinancialTruth(client);
   const financeDashboardPromise = loadFinanceDashboardReadModel(
     client,
@@ -248,6 +249,12 @@ export default async function OperationsPage() {
       .from("event_logistics_summary")
       .select("project_id,logistics_mode,logistics_status,trip_count"),
   ]);
+  // Observabilidad de cola de lectura inicial: solo registra duración
+  // si supera el umbral, sin datos de clientes, secretos ni respuestas SQL.
+  const operationsDataLoadMs = Math.round(performance.now() - operationsDataLoadStartedAt);
+  if (operationsDataLoadMs > 1500) {
+    console.info("[ORBIT_PERF] operations_initial_read_ms", { durationMs: operationsDataLoadMs });
+  }
   // Start acknowledgement reads immediately after fetching alert IDs, instead of
   // waiting for all dashboard maps, readiness and planning calculations.
   const cancellationAlertIds = (cancellationAlertsResult.data ?? []).map((alert) => alert.id);
@@ -601,16 +608,19 @@ export default async function OperationsPage() {
   const activeAssignments = assignments.filter(
     (item) => !["CANCELLED", "REJECTED", "COMPLETED"].includes(item.status),
   );
+  // Conteo en una sola pasada: evita reexaminar todas las asignaciones
+  // por cada integrante y especialidad; se conserva el desempate original.
+  const completedCountBySkillAndStaff = new Map<string, number>();
+  for (const item of assignments) {
+    if (item.status !== "COMPLETED" || !item.staffId) continue;
+    const key = `${item.type}:${item.staffId}`;
+    completedCountBySkillAndStaff.set(key, (completedCountBySkillAndStaff.get(key) ?? 0) + 1);
+  }
   const countBySkill = (skill: string) =>
     staff
       .map((member) => ({
         member,
-        count: assignments.filter(
-          (item) =>
-            item.staffId === member.id &&
-            item.type === skill &&
-            item.status === "COMPLETED",
-        ).length,
+        count: completedCountBySkillAndStaff.get(`${skill}:${member.id}`) ?? 0,
       }))
       .sort((a, b) => b.count - a.count)[0];
   const topOperator = countBySkill("OPERATOR"),
