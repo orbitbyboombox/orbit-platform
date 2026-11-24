@@ -42,6 +42,16 @@ jobs:
         run: |
           set -euo pipefail
           bash qa/pr183/bootstrap.sh >/tmp/d10-supabase-bootstrap.log 2>&1
+      - name: Validate consolidated collections migration in isolation
+        run: |
+          set -euo pipefail
+          docker exec -i supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            < supabase/migrations/20261124120000_consolidated_customer_collections.sql \
+            >/tmp/d10-consolidated-migration.log 2>&1
+          docker exec -i supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            < qa/d10/consolidated-collection-isolated.sql \
+            >/tmp/d10-consolidated-qa.log 2>&1
+          echo 'PASS: isolated migration, Founder authorization, unauthorized rejection, idempotency, and synthetic recipient validation'
       - name: Show isolated bootstrap diagnostics
         if: ${{ failure() }}
         run: |
@@ -55,7 +65,7 @@ jobs:
               -e 's/(Publishable|Access Key|Secret Key)[^│]*/\1 [REDACTED]/Ig' \
               -e 's/(Secret)[[:space:]]+[^│]*/\1 [REDACTED]/Ig'
           }
-          for file in /tmp/d10-supabase-bootstrap.log /tmp/d10-supabase-reset.log; do
+          for file in /tmp/d10-supabase-bootstrap.log /tmp/d10-supabase-reset.log /tmp/d10-consolidated-migration.log /tmp/d10-consolidated-qa.log; do
             if [ -f "$file" ]; then
               echo "--- ${file} (sanitized, last 240 lines) ---"
               tail -240 "$file" | sanitize | tee "/tmp/$(basename "$file").sanitized.log"
@@ -69,7 +79,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: d10-isolated-sanitized-diagnostics
-          path: /tmp/d10-supabase-*.sanitized.log
+          path: /tmp/d10-*.sanitized.log
           if-no-files-found: warn
       - name: Seed synthetic D-10 data
         run: |
