@@ -120,10 +120,13 @@ export async function createCrmCustomerAction(input: {
                   email: input.primaryContactEmail.trim().toLowerCase(),
                 }
               : null,
-          collectionRecipients: {
-            to: normalizeOptionalEmail(input.collectionEmail, "email de cobranza") ?? "",
-            cc: normalizeOptionalEmail(input.collectionCcEmail, "CC de cobranza") ?? "",
-          },
+          collectionRecipients:
+            input.collectionEmail.trim() || input.collectionCcEmail.trim()
+              ? {
+                  to: normalizeOptionalEmail(input.collectionEmail, "email de cobranza") ?? "",
+                  cc: normalizeOptionalEmail(input.collectionCcEmail, "CC de cobranza") ?? "",
+                }
+              : current.metadata?.collectionRecipients,
         },
         created_by: user.id,
         updated_by: user.id,
