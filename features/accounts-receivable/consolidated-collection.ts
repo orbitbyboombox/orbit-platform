@@ -12,6 +12,8 @@ export type ConsolidatedCollection = {
   customerCompany: string | null;
   customerEmail: string | null;
   customerSecondaryEmail: string | null;
+  customerCollectionEmail: string | null;
+  customerCollectionCcEmail: string | null;
   customerRut: string | null;
   lines: readonly ConsolidatedCollectionLine[];
   overdueTotal: number;
@@ -86,6 +88,8 @@ export function groupReceivablesByCustomer(
       customerCompany: rows[0].customerCompany,
       customerEmail: rows[0].customerEmail,
       customerSecondaryEmail: rows[0].customerSecondaryEmail,
+      customerCollectionEmail: rows[0].customerCollectionEmail ?? null,
+      customerCollectionCcEmail: rows[0].customerCollectionCcEmail ?? null,
       customerRut: getCustomerRut(rows[0]),
       lines,
       overdueTotal: lines.filter((line) => line.overdue).reduce((sum, line) => sum + line.invoice.outstandingBalance, 0),
