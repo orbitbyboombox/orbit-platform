@@ -134,3 +134,10 @@ export async function verifyHistoricalDocumentIntegrityAction(documentId: string
   if (!/^[a-f0-9-]{36}$/.test(documentId)) throw new Error("Identificador documental inválido.");
   return verifyHistoricalDocumentIntegrity(documentId);
 }
+
+/** Restitución explícita del último documento 2016 sin generar carpetas adicionales. */
+export async function restoreHistoricalMissingDriveDocumentAction() {
+  await requireDocumentRepairAdministrator();
+  const { restoreHistoricalMissingDriveDocument } = await import("../application/historical-integrity-verification.service");
+  return restoreHistoricalMissingDriveDocument();
+}
