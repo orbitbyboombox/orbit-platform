@@ -48,7 +48,7 @@ export async function previewConsolidatedCollectionAction(formData: FormData): P
     const bankDetails = resolveCollectionBankDetails(company);
     const body = buildConsolidatedCollectionText({ ...selected, bankDetails });
     const subject = selected.overdueTotal > 0 ? "Cobranza consolidada · saldo vencido pendiente — BOOMBOX" : "Cobranza consolidada · saldo pendiente — BOOMBOX";
-    return { ok: true, recipient: group.customerEmail, subject, html: buildConsolidatedCollectionHtml({ ...selected, bankDetails }, body, subject), totalOutstanding: selected.totalOutstanding };
+    return { ok: true, recipient: group.customerEmail, subject, html: buildConsolidatedCollectionHtml({ ...selected, bankDetails }, subject), totalOutstanding: selected.totalOutstanding };
   } catch (error) { return failPreview(error); }
 }
 
@@ -119,12 +119,12 @@ export async function sendConsolidatedCollectionAction(formData: FormData): Prom
     try {
       const mock = process.env.VERCEL_ENV === "preview" && process.env.CONSOLIDATED_COLLECTION_QA_EMAIL_MOCK === "true";
       if (mock) {
-        sent = await new InMemoryGoogleGmailLiveProvider().send({ to: group.customerEmail, cc: group.customerSecondaryEmail ? [group.customerSecondaryEmail] : [], bcc: [], from: '"BOOMBOX QA" <qa@synthetic.invalid>', subject, textBody: body, htmlBody: buildConsolidatedCollectionHtml({ ...selected, bankDetails }, body, subject), driveFileIds: [], attachments: [] });
+        sent = await new InMemoryGoogleGmailLiveProvider().send({ to: group.customerEmail, cc: group.customerSecondaryEmail ? [group.customerSecondaryEmail] : [], bcc: [], from: '"BOOMBOX QA" <qa@synthetic.invalid>', subject, textBody: body, htmlBody: buildConsolidatedCollectionHtml({ ...selected, bankDetails }, subject), driveFileIds: [], attachments: [] });
       } else {
         const workspace = await loadGoogleWorkspaceConnection();
         const senderEmail = workspace.workspaceAccount?.trim();
         if (!senderEmail) throw new Error("No se pudo identificar la cuenta remitente de Google Workspace.");
-        sent = await new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken()).send({ to: group.customerEmail, cc: group.customerSecondaryEmail ? [group.customerSecondaryEmail] : [], bcc: [], from: `"BOOMBOX Cabinas Fotográficas" <${senderEmail}>`, subject, textBody: body, htmlBody: buildConsolidatedCollectionHtml({ ...selected, bankDetails }, body, subject), driveFileIds: [], attachments: [] });
+        sent = await new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken()).send({ to: group.customerEmail, cc: group.customerSecondaryEmail ? [group.customerSecondaryEmail] : [], bcc: [], from: `"BOOMBOX Cabinas Fotográficas" <${senderEmail}>`, subject, textBody: body, htmlBody: buildConsolidatedCollectionHtml({ ...selected, bankDetails }, subject), driveFileIds: [], attachments: [] });
       }
     } catch (providerError) {
       await client.from("communications").update({ status: "FAILED", failure_reason: providerError instanceof Error ? providerError.message.slice(0, 500) : "Error de envío" }).in("id", rows.map((row) => row.communication_id));
