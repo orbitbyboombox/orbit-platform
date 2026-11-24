@@ -45,7 +45,7 @@ await check('Synthetic premium send and event history', async () => {
   await section.locator('input[type="checkbox"]').check();
   await section.getByRole('button', { name: 'REVISAR Y ENVIAR COBRANZA GLOBAL' }).click();
   await page.getByRole('status').getByText('Cobranza enviada').waitFor({ timeout: 15000 });
-  await page.getByText('matias.maira.larrain@gmail.com').waitFor();
+  await page.getByRole('status').getByText(/matias\.maira\.larrain@gmail\.com/).waitFor();
   await page.getByText('Historial real de cobranzas').waitFor();
   await page.screenshot({ path: `${evidence}/customer-collections-sent.png`, fullPage: true });
 });
