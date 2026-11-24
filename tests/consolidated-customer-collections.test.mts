@@ -126,6 +126,27 @@ test("manual consolidated action does not become an automatic cron sender", () =
   assert.doesNotMatch(action, /cron|schedule|setInterval/i);
 });
 
+test("QA send uses the official renderer, a fixed recipient and no customer collection history", () => {
+  const action = readFileSync("features/accounts-receivable/consolidated-collection.actions.ts", "utf8");
+  const testActionStart = action.indexOf("export async function sendConsolidatedCollectionTestAction");
+  const customerActionStart = action.indexOf("export async function sendConsolidatedCollectionAction");
+  assert.ok(testActionStart >= 0 && customerActionStart > testActionStart);
+  const testAction = action.slice(testActionStart, customerActionStart);
+  assert.match(testAction, /isAdministrativeRole/);
+  assert.match(testAction, /CONSOLIDATED_COLLECTION_QA_RECIPIENT/);
+  assert.match(testAction, /to: CONSOLIDATED_COLLECTION_QA_RECIPIENT/);
+  assert.match(testAction, /cc: \[\]/);
+  assert.match(testAction, /bcc: \[\]/);
+  assert.ok(testAction.includes("loadAccountsReceivable(client, { refreshNotifications: false })"));
+  assert.match(testAction, /buildConsolidatedCollectionText/);
+  assert.match(testAction, /buildConsolidatedCollectionHtml/);
+  assert.doesNotMatch(testAction, /from\("communications"\)|timeline_events|revalidatePath/);
+
+  const center = readFileSync("features/accounts-receivable/consolidated-collection-center.tsx", "utf8");
+  assert.match(center, /ENVIAR PRUEBA A MATÍAS/);
+  assert.match(center, /sin registrarse como cobranza/);
+});
+
 test("previous individual and D-10 communications do not permanently block a new consolidated attempt", () => {
   const action = readFileSync("features/accounts-receivable/consolidated-collection.actions.ts", "utf8");
   assert.doesNotMatch(action, /ya tiene una cobranza individual, D-10 o automática/);
