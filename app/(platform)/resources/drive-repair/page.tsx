@@ -35,6 +35,9 @@ export default async function DriveRepairPage({ searchParams }: { searchParams: 
     .not("drive_file_id", "is", null)
     .contains("metadata", { drive_link_audit: { result: "LINK_VERIFIED" } })
     .order("created_at", { ascending: true }).limit(201);
+  const { data: legacyMissing } = await admin.from("documents")
+    .select("id").eq("id", "8bc80c7b-e54e-40c7-a2f9-b31bfa8c211f")
+    .eq("drive_sync_status", "ERROR").eq("drive_file_id", "1swH2XGbN0ELPMNGNmNJMYyyAsI7V1Nnu").maybeSingle();
   const params = await searchParams;
   let resultText = "";
   if (params.result) {
@@ -61,7 +64,7 @@ export default async function DriveRepairPage({ searchParams }: { searchParams: 
       ? <p role="alert">No se pudo consultar la integridad histórica: {historicalError.message}</p>
       : (historicalDocuments?.length ?? 0) > 200
         ? <p role="alert">Hay más de 200 documentos. Ejecuta la conciliación en lotes pequeños.</p>
-        : <DriveHistoricalIntegrity documents={historicalDocuments ?? []}/>}
+        : <DriveHistoricalIntegrity documents={historicalDocuments ?? []} legacyMissing={Boolean(legacyMissing)}/>}
     {(params.error || resultText) && <pre className="overflow-auto rounded-2xl border bg-background p-4 text-xs">{params.error ? `ERROR: ${params.error}` : resultText}</pre>}
   </main>;
 }
