@@ -36,7 +36,7 @@ await check('Customer collections view and amounts', async () => {
   const section = page.getByTestId('consolidated-customer-collections');
   await section.getByText('$2.618.000').first().waitFor();
   await section.getByText('1 evento').waitFor();
-  await section.getByText(/\d+ días vencido/).waitFor();
+  await section.getByText(/^\d+ días$/).waitFor();
   await page.screenshot({ path: `${evidence}/customer-collections-mobile.png`, fullPage: true });
 });
 
