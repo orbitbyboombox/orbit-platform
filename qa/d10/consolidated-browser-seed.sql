@@ -25,9 +25,9 @@ on conflict (id) do update set customer_id=excluded.customer_id,name=excluded.na
 
 insert into public.invoices(invoice_number,customer_id,project_id,orbit_event_id,customer_type,status,issue_date,due_date,payment_term,amount,paid_amount,created_by,updated_by,financial_record_state,record_origin)
 values
-  ('QA-GLOW-001',:'glow_id'::uuid,:'glow_project_old'::uuid,'ORB-QA-GLOW-001','CORPORATE','PENDING',current_date - 30,current_date - 22,'DAYS_30',1800000,0,:'qa_admin_id'::uuid,:'qa_admin_id'::uuid,'ACTIVE','PRODUCTION'),
-  ('QA-GLOW-002',:'glow_id'::uuid,:'glow_project_new'::uuid,'ORB-QA-GLOW-002','CORPORATE','PENDING',current_date - 5,current_date + 8,'DAYS_30',818000,0,:'qa_admin_id'::uuid,:'qa_admin_id'::uuid,'ACTIVE','PRODUCTION'),
-  ('QA-SP-001',:'sp_id'::uuid,:'sp_project'::uuid,'ORB-QA-SP-001','CORPORATE','PENDING',current_date - 20,current_date - 17,'DAYS_45',1155000,0,:'qa_admin_id'::uuid,:'qa_admin_id'::uuid,'ACTIVE','PRODUCTION')
+  ('QA-GLOW-001',:'glow_id'::uuid,:'glow_project_old'::uuid,'ORB-QA-GLOW-001','CORPORATE','PENDING','2020-01-01','2020-01-01','DAYS_30',1800000,0,:'qa_admin_id'::uuid,:'qa_admin_id'::uuid,'ACTIVE','PRODUCTION'),
+  ('QA-GLOW-002',:'glow_id'::uuid,:'glow_project_new'::uuid,'ORB-QA-GLOW-002','CORPORATE','PENDING',current_date - 5,'2099-01-01','DAYS_30',818000,0,:'qa_admin_id'::uuid,:'qa_admin_id'::uuid,'ACTIVE','PRODUCTION'),
+  ('QA-SP-001',:'sp_id'::uuid,:'sp_project'::uuid,'ORB-QA-SP-001','CORPORATE','PENDING','2020-01-01','2020-01-01','DAYS_45',1155000,0,:'qa_admin_id'::uuid,:'qa_admin_id'::uuid,'ACTIVE','PRODUCTION')
 on conflict (invoice_number) do update set customer_id=excluded.customer_id,project_id=excluded.project_id,status='PENDING',amount=excluded.amount,paid_amount=0,due_date=excluded.due_date,financial_record_state='ACTIVE';
 
 select 'browser fixture ready' as status;
