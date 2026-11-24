@@ -70,9 +70,17 @@ jobs:
           pnpm build >/tmp/d10-browser-build.log 2>&1
           SUPABASE_URL="$API_URL" SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
             SUPABASE_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY" \
-            pnpm start >/tmp/d10-browser-app.log 2>&1 &
+            PORT=3000 pnpm start -- -p 3000 >/tmp/d10-browser-app.log 2>&1 &
           echo $! > /tmp/d10-browser-app.pid
-          for attempt in $(seq 1 60); do curl --silent --fail http://127.0.0.1:3000/ >/dev/null && exit 0; sleep 2; done
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/ >/dev/null; then exit 0; fi
+            if ! kill -0 "$(cat /tmp/d10-browser-app.pid)" 2>/dev/null; then
+              echo 'Next process exited before readiness:'
+              cat /tmp/d10-browser-app.log || true
+              exit 1
+            fi
+            sleep 2
+          done
           tail -120 /tmp/d10-browser-app.log
           exit 1
       - name: Playwright authenticated mobile QA against local app
