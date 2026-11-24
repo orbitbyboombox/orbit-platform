@@ -3,6 +3,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadGoogleWorkspaceAccessToken, loadLegacyOwnerDriveRepairToken } from "../../google-workspace/application/google-workspace.repository";
+import { GoogleDriveApiProvider } from "../provider/google-drive-live.provider";
 
 const SOURCE_LIMIT_BYTES = 8 * 1024 * 1024;
 const SHA256 = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
@@ -75,4 +76,91 @@ export async function verifyHistoricalDocumentIntegrity(documentId: string): Pro
     .eq("drive_sync_status", "PENDING").eq("checksum", row.checksum).select("id").maybeSingle();
   if (updateError || !updated) return { documentId, status: "REQUIRES_REVIEW", reason: "Conflicto de actualización; no se modificó el documento." };
   return { documentId, status: "SYNCED" };
+}
+
+
+const ARCHIVE_ID = "10t9rNuR2fJOUMKcTrW6pUPbYuLqxbUlz";
+const DRIVE_ROOT_ID = "1EFHCbHnYYXGlHY4CF0ZUWmInVRnmcfcM";
+const LEGACY_DOCUMENT_ID = "8bc80c7b-e54e-40c7-a2f9-b31bfa8c211f";
+const OLD_DRIVE_FILE_ID = "1swH2XGbN0ELPMNGNmNJMYyyAsI7V1Nnu";
+
+/**
+ * Una sola restauración histórica: guardar el original intacto en el archivo
+ * de conciliación ya existente, nunca duplicar árbol de reservas canceladas.
+ */
+export async function restoreHistoricalMissingDriveDocument() {
+  const client = createAdminClient();
+  const { data: document, error } = await client.from("documents")
+    .select("id,project_id,document_type,storage_bucket,storage_path,checksum,drive_file_id,drive_sync_status,metadata")
+    .eq("id", LEGACY_DOCUMENT_ID).eq("drive_sync_status", "ERROR").is("deleted_at", null)
+    .single<{
+      id: string; project_id: string; document_type: string; storage_bucket: string; storage_path: string;
+      checksum: string; drive_file_id: string; drive_sync_status: string; metadata: Record<string, unknown> | null;
+    }>();
+  if (error || !document || document.drive_file_id !== OLD_DRIVE_FILE_ID
+    || document.document_type !== "COMMERCIAL_DOCUMENT" || document.storage_bucket !== "orbit-documents"
+    || document.storage_path !== "3e7372d0-1f31-4c46-b711-3a080f81124e/b231384d-960f-4fda-a708-98a1a6fc3fef/documento-con-factura.pdf"
+    || document.checksum !== "398b80c5a367f4882dc84b984649ffc015ccad0dddc62dced5ab47e95b0ec4e9")
+    throw new Error("El registro histórico cambió; se detuvo la recuperación.");
+
+  const { data: source, error: sourceError } = await client.storage.from(document.storage_bucket).download(document.storage_path);
+  if (sourceError || !source) throw new Error("El archivo histórico no está disponible en Supabase.");
+  const bytes = new Uint8Array(await source.arrayBuffer());
+  const sha = SHA256(bytes);
+  if (sha !== document.checksum) throw new Error("Checksum SHA-256 del original no coincide: sin cambios ni nuevo upload.");
+  if (bytes.byteLength > SOURCE_LIMIT_BYTES || bytes.byteLength < 5
+    || [37,80,68,70,45].some((value, i) => bytes[i] !== value))
+    throw new Error("El archivo original no es un PDF válido para esta recuperación.");
+
+  let token = await loadGoogleWorkspaceAccessToken();
+  let provider = new GoogleDriveApiProvider(token);
+  try {
+    const parents = await provider.getFolderParents(ARCHIVE_ID);
+    if (parents.length !== 1 || parents[0] !== DRIVE_ROOT_ID)
+      throw new Error("La carpeta de conciliación ya no está bajo la raíz BOOMBOX ORBIT.");
+  } catch (error) {
+    if (!/404|403|not found/i.test(String(error))) throw error;
+    token = await loadLegacyOwnerDriveRepairToken("matias@boom-box.cl");
+    provider = new GoogleDriveApiProvider(token);
+    const parents = await provider.getFolderParents(ARCHIVE_ID);
+    if (parents.length !== 1 || parents[0] !== DRIVE_ROOT_ID)
+      throw new Error("La carpeta de conciliación no corresponde a la raíz BOOMBOX ORBIT.");
+  }
+
+  const filename = `ORBIT_${LEGACY_DOCUMENT_ID}_2016-10-17_Abigail-Vega_documento-con-factura.pdf`;
+  const candidates = await provider.findFilesByName({ name: filename, parentFolderId: ARCHIVE_ID });
+  if (candidates.some((file) => !file.md5Checksum
+    || file.md5Checksum.toLowerCase() !== createHash("md5").update(bytes).digest("hex")
+    || Number(file.size) !== bytes.byteLength))
+    throw new Error("Hay un archivo con el mismo nombre y contenido distinto en el archivo histórico.");
+  if (candidates.length > 1) throw new Error("Archivo histórico duplicado en Drive; revisión manual requerida.");
+  const fileId = candidates[0]?.id ?? (await provider.uploadFile({
+    name: filename, mimeType: "application/pdf", bytes,
+    parentFolderId: ARCHIVE_ID,
+    appProperties: { orbitDocumentId: document.id, orbitStorageChecksum: sha, orbitOriginalDriveId: OLD_DRIVE_FILE_ID },
+  })).id;
+
+  const archiveBytes = await driveFileBytes(fileId, token);
+  if (SHA256(archiveBytes) !== sha || archiveBytes.byteLength !== bytes.byteLength)
+    throw new Error("El archivo subido a Drive no superó la comprobación SHA-256; no se cambió el enlace.");
+
+  const now = new Date().toISOString();
+  const metadata = {
+    ...(document.metadata ?? {}),
+    drive_link_audit: {
+      previous_drive_file_id: OLD_DRIVE_FILE_ID,
+      result: "CONTENT_VERIFIED",
+      method: "ARCHIVE_RESTORE_SHA256_STORAGE_DRIVE",
+      content_verified: true, verified_sha256: sha,
+      verified_size: bytes.byteLength,
+      archive_folder_id: ARCHIVE_ID, verified_at: now,
+    },
+  };
+  const { data: updated, error: updateError } = await client.from("documents").update({
+    drive_file_id: fileId, drive_folder_id: ARCHIVE_ID, drive_sync_status: "SYNCED",
+    drive_synced_at: now, drive_sync_error: null, metadata,
+  }).eq("id", document.id).eq("drive_file_id", OLD_DRIVE_FILE_ID)
+    .eq("drive_sync_status", "ERROR").eq("checksum", document.checksum).select("id").maybeSingle();
+  if (updateError || !updated) throw new Error("Se validó el archivo, pero el registro cambió; no se modificó el vínculo.");
+  return { documentId: document.id, status: "SYNCED" as const, driveFileId: fileId };
 }
