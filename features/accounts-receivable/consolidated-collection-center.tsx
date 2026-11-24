@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { Mail, ShieldAlert } from "lucide-react";
 import type { ReceivableInvoice } from "./types";
-import { consolidatedCollectionFingerprint, groupReceivablesByCustomer, type ConsolidatedCollection } from "./consolidated-collection";
+import { consolidatedCollectionFingerprint, groupReceivablesByCustomer, isSpWeddingCustomer, type ConsolidatedCollection } from "./consolidated-collection";
 import { previewConsolidatedCollectionAction, sendConsolidatedCollectionAction, sendConsolidatedCollectionTestAction } from "./consolidated-collection.actions";
 
 const money = (value: number) => new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(value);
@@ -29,7 +29,7 @@ export function ConsolidatedCollectionCenter({ invoices }: { invoices: readonly 
       let changed = false;
       for (const group of groups) {
         if (group.customerId in next) continue;
-        next[group.customerId] = group.lines.filter((line) => line.overdue).map((line) => line.invoice.id);
+        next[group.customerId] = isSpWeddingCustomer(group.customerId) ? group.lines.map((line) => line.invoice.id) : group.lines.filter((line) => line.overdue).map((line) => line.invoice.id);
         changed = true;
       }
       return changed ? next : current;
