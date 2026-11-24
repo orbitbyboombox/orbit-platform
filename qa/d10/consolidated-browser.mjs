@@ -53,7 +53,7 @@ await check('Synthetic premium send and event history', async () => {
 await page.reload({ waitUntil: 'networkidle' });
 await check('Reloaded history is visible and idempotent', async () => {
   await page.getByText('Historial real de cobranzas').waitFor();
-  await page.getByText('ENVIADO').waitFor();
+  await page.getByText('ENVIADO', { exact: true }).waitFor();
   const rows = await page.locator('[data-collection-email-id]').count();
   if (rows !== 1) throw new Error(`Expected exactly one consolidated history row, got ${rows}`);
 });
