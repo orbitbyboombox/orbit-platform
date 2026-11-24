@@ -15,6 +15,7 @@ import { isReadOnlyVisualPreview } from "@/lib/supabase/environment-guard";
 import { actualPaidAmount, daysUntilDue, effectiveReceivableStatus, scheduleDueDate } from "./canonical-financial-state";
 import { defaultD10Date } from "./d10-manual-collection";
 import { collectionDeliveryLabel } from "./collection-email-status";
+import { collectionRecipientFields } from "./collection-recipients";
 
 function relation<T>(value: T | T[] | null | undefined): T | null {
   return Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
@@ -207,6 +208,8 @@ export async function loadAccountsReceivable(
         customerCompany: customer?.company ?? null,
         customerEmail: customer?.email ?? null,
         customerSecondaryEmail: customer?.secondary_email ?? null,
+        customerCollectionEmail: collectionRecipientFields(customer?.metadata).collectionEmail || null,
+        customerCollectionCcEmail: collectionRecipientFields(customer?.metadata).collectionCcEmail || null,
         customerRut: typeof customer?.metadata?.rut === "string" ? customer.metadata.rut : typeof customer?.metadata?.RUT === "string" ? customer.metadata.RUT : null,
         customerPhone: customer?.phone ?? null,
         projectId: row.project_id,
@@ -274,6 +277,8 @@ export async function loadAccountsReceivable(
         customerCompany: customer?.company ?? null,
         customerEmail: customer?.email ?? null,
         customerSecondaryEmail: customer?.secondary_email ?? null,
+        customerCollectionEmail: collectionRecipientFields(customer?.metadata).collectionEmail || null,
+        customerCollectionCcEmail: collectionRecipientFields(customer?.metadata).collectionCcEmail || null,
         customerRut: typeof customer?.metadata?.rut === "string" ? customer.metadata.rut : typeof customer?.metadata?.RUT === "string" ? customer.metadata.RUT : null,
         customerPhone: customer?.phone ?? null,
         projectId: row.project_id,
