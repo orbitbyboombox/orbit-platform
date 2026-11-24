@@ -15,6 +15,7 @@ import {
 import type { ReceivableInvoice } from "./types";
 import { normalizeEmailRecipients } from "@/lib/email/recipients";
 import { resolveCollectionEventDetail } from "./collection-event-detail";
+import { resolveCollectionRecipients } from "./collection-recipients";
 
 export type CollectionEmailSendSuccess = {
   ok: true;
@@ -65,7 +66,7 @@ async function loadCollectionTarget(
   const { data, error } = await client
     .from("accounts_receivable_projection")
     .select(
-      "id,invoice_number,customer_id,project_id,orbit_event_id,amount,paid_amount,outstanding_balance,due_date,days_remaining,status,customers(full_name,email,secondary_email,phone),projects(name,event_date,location,city,operations,project_services(service_code,duration_hours),project_operational_contracts(service_start_at,service_end_at))",
+      "id,invoice_number,customer_id,project_id,orbit_event_id,amount,paid_amount,outstanding_balance,due_date,days_remaining,status,customers(full_name,email,secondary_email,phone,metadata),projects(name,event_date,location,city,operations,project_services(service_code,duration_hours),project_operational_contracts(service_start_at,service_end_at))",
     )
     .eq("id", invoiceId)
     .single();
@@ -128,11 +129,12 @@ export async function sendCollectionEmailAction(
       throw new Error("Esta cuenta no tiene saldo activo para cobrar.");
     }
 
+    const defaultRecipients = resolveCollectionRecipients({ commercialEmail: customer.email, commercialCc: customer.secondary_email, metadata: customer.metadata });
     const draft = buildCollectionEmailDraft({
       invoiceNumber: data.invoice_number,
       customerName: customer.full_name ?? "Cliente",
       customerEmail: customer.email ?? null,
-      customerSecondaryEmail: customer.secondary_email ?? null,
+      customerSecondaryEmail: defaultRecipients.cc[0] ?? null,
       projectName: project?.name ?? "BOOMBOX",
       amount: Number(data.amount),
       outstandingBalance: Number(data.outstanding_balance),
@@ -174,7 +176,7 @@ export async function sendCollectionEmailAction(
     const subject = normalizeText(formData.get("subject"), draft.subject);
     const body = normalizeText(formData.get("body"), draft.body);
     const recipients = normalizeEmailRecipients({
-      to: String(formData.get("recipient") ?? "").trim(),
+      to: String(formData.get("recipient") ?? defaultRecipients.to).trim(),
       cc: String(formData.get("cc") ?? ""),
     });
     const purchaseOrder = String(formData.get("purchaseOrder") ?? "").trim().slice(0, 100);
