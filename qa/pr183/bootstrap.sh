@@ -48,6 +48,13 @@ if grant not in source:
 # after reset so PostgreSQL does not reject the function plus GRANT batch.
 path.write_text(source.replace('\n' + grant, '', 1))
 print('Separated the historical 0050 GRANT for the isolated runner; repository file unchanged.')
+path = Path('supabase/migrations/0054_crm_customer_first_foundation.sql')
+source = path.read_text()
+marker = '\nrevoke all on function public.audit_crm_integrity() from public,anon;'
+if marker not in source:
+    raise SystemExit('Expected 0054 post-function permission block was not found')
+path.write_text(source.split(marker, 1)[0] + '\n')
+print('Separated the historical 0054 permission/audit block for the isolated runner; repository file unchanged.')
 path = Path('supabase/migrations/20261009223000_paper_initial_inventory_and_wcm.sql')
 source = path.read_text()
 start = source.index('do $$\n')

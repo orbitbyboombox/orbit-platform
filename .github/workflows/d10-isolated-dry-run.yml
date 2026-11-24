@@ -46,6 +46,9 @@ jobs:
           docker exec supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 -c \
             'grant execute on function public.create_manual_reservation_atomic(jsonb) to authenticated;' \
             >>/tmp/d10-supabase-reset.log 2>&1
+          docker exec supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 -c \
+            'grant execute on function public.audit_crm_integrity() to authenticated; grant execute on function public.merge_crm_customers(uuid,uuid,text) to authenticated;' \
+            >>/tmp/d10-supabase-reset.log 2>&1
       - name: Show isolated bootstrap diagnostics
         if: ${{ failure() }}
         run: |
