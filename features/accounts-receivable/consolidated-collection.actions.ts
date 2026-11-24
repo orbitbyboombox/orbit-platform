@@ -12,8 +12,45 @@ import { buildConsolidatedCollectionHtml, buildConsolidatedCollectionText } from
 import { consolidatedCollectionFingerprint, groupReceivablesByCustomer } from "./consolidated-collection";
 
 type Result = { ok: true; communicationId: string; recipient: string; sentAt: string; deduplicated?: boolean; warning?: string } | { ok: false; error: string };
+export type PreviewResult = { ok: true; recipient: string; subject: string; html: string; totalOutstanding: number } | { ok: false; error: string };
 
 const fail = (error: unknown): Result => ({ ok: false, error: error instanceof Error ? error.message : "No fue posible enviar la cobranza consolidada." });
+const failPreview = (error: unknown): PreviewResult => ({ ok: false, error: error instanceof Error ? error.message : "No fue posible generar la vista previa." });
+
+export async function previewConsolidatedCollectionAction(formData: FormData): Promise<PreviewResult> {
+  try {
+    const client = await createSupabaseServerActionClient();
+    const { data: auth, error: authError } = await client.auth.getUser();
+    if (authError || !auth.user) throw authError ?? new Error("Sesión requerida.");
+    const { data: profile, error: profileError } = await client.from("profiles").select("role").eq("id", auth.user.id).single();
+    if (profileError) throw profileError;
+    if (!isAdministrativeRole(profile?.role)) throw new Error("Solo Founder o Administración puede revisar cobranzas.");
+    const customerId = String(formData.get("customerId") ?? "").trim();
+    const selectedIds = [...new Set(formData.getAll("invoiceIds").map(String).map((id) => id.trim()).filter(Boolean))];
+    if (!customerId || !selectedIds.length) throw new Error("Selecciona al menos un evento.");
+    const dataset = await loadAccountsReceivable(client);
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(new Date());
+    const group = groupReceivablesByCustomer(dataset.invoices, today).find((item) => item.customerId === customerId);
+    if (!group) throw new Error("El cliente ya no tiene saldos activos.");
+    const selectedLines = group.lines.filter((line) => selectedIds.includes(line.invoice.id));
+    if (selectedLines.length !== selectedIds.length) throw new Error("Uno de los eventos seleccionados cambió o ya no tiene saldo.");
+    if (group.reviewRequired) throw new Error("La identidad del cliente requiere revisión: RUT contradictorio o destinatario no verificado.");
+    if (!group.customerEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(group.customerEmail.trim())) throw new Error("El cliente no tiene un destinatario verificado.");
+    const oldestOverdue = selectedLines.find((line) => line.overdue);
+    const selected = { ...group, lines: selectedLines, overdueTotal: selectedLines.filter((line) => line.overdue).reduce((sum, line) => sum + line.invoice.outstandingBalance, 0), upcomingTotal: selectedLines.filter((line) => !line.overdue).reduce((sum, line) => sum + line.invoice.outstandingBalance, 0), totalOutstanding: selectedLines.reduce((sum, line) => sum + line.invoice.outstandingBalance, 0), oldestDueDate: oldestOverdue?.invoice.dueDate ?? null, oldestOverdueDays: oldestOverdue?.overdueDays ?? 0, oldestTermDays: oldestOverdue?.invoice.canonicalPaymentTermDays ?? null };
+    const fingerprint = consolidatedCollectionFingerprint(selected, selectedIds);
+    if (String(formData.get("expectedFingerprint") ?? "") !== fingerprint) throw new Error("Los saldos cambiaron. Recarga la cobranza consolidada antes de continuar.");
+    const projectIds = selectedLines.map((line) => line.invoice.projectId);
+    const { data: existingCollections, error: existingError } = await client.from("communications").select("project_id,communication_type,status").in("project_id", projectIds).in("communication_type", ["COLLECTION_EMAIL", "COLLECTION_D10", "COLLECTION_OVERDUE_AUTOMATIC"]).in("status", ["SENT", "PENDING"]);
+    if (existingError) throw existingError;
+    if ((existingCollections ?? []).length) throw new Error("Uno de los eventos ya tiene una cobranza individual, D-10 o automática enviada/en proceso.");
+    const company = await loadCompanySettings(client);
+    const bankDetails = resolveCollectionBankDetails(company);
+    const body = buildConsolidatedCollectionText({ ...selected, bankDetails });
+    const subject = selected.overdueTotal > 0 ? "Cobranza consolidada · saldo vencido pendiente — BOOMBOX" : "Cobranza consolidada · saldo pendiente — BOOMBOX";
+    return { ok: true, recipient: group.customerEmail, subject, html: buildConsolidatedCollectionHtml({ ...selected, bankDetails }, body, subject), totalOutstanding: selected.totalOutstanding };
+  } catch (error) { return failPreview(error); }
+}
 
 export async function sendConsolidatedCollectionAction(formData: FormData): Promise<Result> {
   try {
@@ -37,7 +74,7 @@ export async function sendConsolidatedCollectionAction(formData: FormData): Prom
     const selectedLines = group.lines.filter((line) => selectedIds.includes(line.invoice.id));
     if (selectedLines.length !== selectedIds.length) throw new Error("Uno de los eventos seleccionados cambió o ya no tiene saldo.");
     if (group.reviewRequired) throw new Error("La identidad tributaria del cliente requiere revisión antes de consolidar la cobranza.");
-    if (!group.customerEmail) throw new Error("El cliente no tiene correo registrado.");
+    if (!group.customerEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(group.customerEmail.trim())) throw new Error("El cliente no tiene un destinatario verificado.");
     const oldestOverdue = selectedLines.find((line) => line.overdue);
     const selected = { ...group, lines: selectedLines, overdueTotal: selectedLines.filter((line) => line.overdue).reduce((sum, line) => sum + line.invoice.outstandingBalance, 0), upcomingTotal: selectedLines.filter((line) => !line.overdue).reduce((sum, line) => sum + line.invoice.outstandingBalance, 0), totalOutstanding: selectedLines.reduce((sum, line) => sum + line.invoice.outstandingBalance, 0), oldestDueDate: oldestOverdue?.invoice.dueDate ?? null, oldestOverdueDays: oldestOverdue?.overdueDays ?? 0, oldestTermDays: oldestOverdue?.invoice.canonicalPaymentTermDays ?? null };
     const fingerprint = consolidatedCollectionFingerprint(selected, selectedIds);

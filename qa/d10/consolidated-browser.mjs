@@ -32,18 +32,31 @@ await check('Founder login', async () => {
 await check('Customer collections view and amounts', async () => {
   await page.goto(`${base}/finance/collections`, { waitUntil: 'networkidle' });
   await page.getByRole('button', { name: 'COBRANZA POR CLIENTE' }).click();
-  await page.getByTestId('consolidated-customer-collections').getByText('QA Customer').waitFor();
+  await page.getByTestId('consolidated-customer-collections').getByText('GLOW PRO COMPANY', { exact: true }).waitFor();
   const section = page.getByTestId('consolidated-customer-collections');
   await section.getByText('$2.618.000').first().waitFor();
-  await section.getByText('1 evento').waitFor();
-  await section.getByText(/^\d+ días$/).waitFor();
+  await section.getByText('2 eventos').waitFor();
+  await section.getByText('SP Wedding Planner Limitada', { exact: true }).waitFor();
+  await section.getByText(/RUT no informado/).first().waitFor();
+  const glowCard = section.locator('article').filter({ hasText: 'GLOW PRO COMPANY' });
+  const selectedSummary = glowCard.getByText(/Total seleccionado:/);
+  await selectedSummary.waitFor();
+  const selectedSummaryText = await selectedSummary.innerText();
+  if (!selectedSummaryText.includes('$1.800.000')) throw new Error(`Unexpected default selected total: ${selectedSummaryText}`);
+  await section.getByText(/^\d+ días$/).first().waitFor();
   await page.screenshot({ path: `${evidence}/customer-collections-mobile.png`, fullPage: true });
 });
 
 await check('Synthetic premium send and event history', async () => {
   const section = page.getByTestId('consolidated-customer-collections');
-  await section.locator('input[type="checkbox"]').check();
-  await section.getByRole('button', { name: 'REVISAR Y ENVIAR COBRANZA GLOBAL' }).click();
+  const glow = section.locator('article').filter({ hasText: 'GLOW PRO COMPANY' });
+  const glowChecks = glow.locator('input[type="checkbox"]');
+  if (await glowChecks.nth(1).isChecked()) throw new Error('Upcoming event must not be selected by default');
+  await glowChecks.nth(0).check();
+  await glow.getByRole('button', { name: 'REVISAR Y ENVIAR COBRANZA GLOBAL' }).click();
+  await page.getByRole('dialog').getByText('Vista previa real del correo').waitFor();
+  await page.getByRole('dialog').locator('iframe[title="Vista previa del correo premium"]').waitFor();
+  await page.getByRole('dialog').getByRole('button', { name: 'CONFIRMAR Y ENVIAR' }).click();
   await page.getByRole('status').getByText('Cobranza enviada').waitFor({ timeout: 15000 });
   await page.getByRole('status').getByText(/matias\.maira\.larrain@gmail\.com/).waitFor();
   await page.getByText('Historial real de cobranzas').waitFor();

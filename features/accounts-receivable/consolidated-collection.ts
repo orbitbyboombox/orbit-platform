@@ -47,6 +47,10 @@ export function getCustomerRut(invoice: ReceivableInvoice): string | null {
   return value?.trim() || null;
 }
 
+export function hasVerifiedRecipient(email: string | null): boolean {
+  return Boolean(email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()));
+}
+
 export function groupReceivablesByCustomer(
   invoices: readonly ReceivableInvoice[],
   today: string,
@@ -84,7 +88,7 @@ export function groupReceivablesByCustomer(
       oldestOverdueDays: oldest?.overdueDays ?? 0,
       oldestTermDays: oldest?.invoice.canonicalPaymentTermDays ?? null,
       hasMixedTerms: terms.size > 1,
-      reviewRequired: customerRuts.size > 1 || (customerRuts.size === 0 && rows.length > 1),
+      reviewRequired: customerRuts.size > 1 || (customerRuts.size === 0 && !hasVerifiedRecipient(rows[0].customerEmail)),
     } satisfies ConsolidatedCollection;
   }).sort((a, b) => b.overdueTotal - a.overdueTotal || a.customerName.localeCompare(b.customerName));
 }
