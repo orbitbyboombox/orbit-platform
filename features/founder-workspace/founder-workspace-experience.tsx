@@ -550,22 +550,10 @@ export function FounderWorkspaceExperience({
   const orderedQuickActions = activeDashboardLayout.quickActionOrder
     .map((id) => quickActions.find((item) => item.id === id))
     .filter((item): item is (typeof quickActions)[number] => Boolean(item));
-  const financialReviewActions: FounderActionItem[] = finance.risks.map(
-    (risk) => ({
-      id: `finance-risk:${risk.key}`,
-      type: "FINANCE_RISK",
-      title: risk.label,
-      detail: `${risk.count} pendiente${risk.count === 1 ? "" : "s"} · ${money(risk.amount)}`,
-      href: risk.href,
-      createdAt: finance.generatedAt,
-      priority: risk.severity === "danger" ? "P1" : "P2",
-      category: "FINANCE",
-      read: false,
-      cta: "VER DETALLES",
-    }),
-  );
-  const attentionActions = [...founderActions, ...financialReviewActions].filter(
-    (item) => !dismissedFounderActionIds.has(item.id),
+  const attentionActions = founderActions.filter(
+    (item) =>
+      ["STAFF_EXPENSE_REVIEW_REQUIRED", "STAFF_BOLETA_REVIEW_REQUIRED"].includes(item.type) &&
+      !dismissedFounderActionIds.has(item.id),
   );
   const totalAttentionCount = attentionActions.length + staffApprovalItems.length;
   const [visibleActionCount, setVisibleActionCount] = useState(8);
@@ -703,7 +691,7 @@ export function FounderWorkspaceExperience({
             className="mt-1 text-xl font-semibold"
             id="founder-action-center-title"
           >
-            Pendientes por revisar
+            Pendientes de Staff
           </h2>
           <p className="mt-2 text-xs text-muted">Abrir para revisar cada pendiente en su elemento exacto.</p>
         </div>
@@ -733,10 +721,10 @@ export function FounderWorkspaceExperience({
         className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-brand"
         href="/notifications"
       >
-        Ver todos los pendientes <ArrowRight className="size-3.5" />
+        Ver todas las notificaciones <ArrowRight className="size-3.5" />
       </Link>
       {!totalAttentionCount ? (
-        <Empty label="No hay decisiones pendientes del Founder." />
+        <Empty label="No hay solicitudes, boletas ni gastos de Staff pendientes." />
       ) : null}
     </details>
   );
@@ -1014,7 +1002,7 @@ export function FounderWorkspaceExperience({
           },
           {
             key: "DASHBOARD_ACTION_CENTER",
-            label: "Pendientes por revisar",
+            label: "Pendientes de Staff",
             content: actionCenter,
             requiredVisible: true,
           },
