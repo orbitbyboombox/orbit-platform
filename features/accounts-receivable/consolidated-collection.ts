@@ -70,7 +70,10 @@ export function groupReceivablesByCustomer(
     groups.set(invoice.customerId, current);
   }
   return [...groups.entries()].map(([customerId, rows]) => {
-    const sorted = [...rows].sort((a, b) => (a.dueDate ?? "9999").localeCompare(b.dueDate ?? "9999"));
+    const sorted = [...rows].sort((a, b) => {
+      const eventOrder = (a.eventDate ?? "9999-99-99").localeCompare(b.eventDate ?? "9999-99-99");
+      return eventOrder || (a.dueDate ?? "9999-99-99").localeCompare(b.dueDate ?? "9999-99-99") || a.projectName.localeCompare(b.projectName);
+    });
     const lines = sorted.map((invoice) => ({
       invoice,
       overdueDays: daysLate(invoice.dueDate, today),
