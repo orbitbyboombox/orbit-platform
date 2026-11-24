@@ -36,7 +36,7 @@ await check('Customer collections view and amounts', async () => {
   const section = page.getByTestId('consolidated-customer-collections');
   await section.getByText('$2.618.000').first().waitFor();
   await section.getByText('2 eventos').waitFor();
-  await section.getByText('SP Wedding Planner Limitada').waitFor();
+  await section.getByText('SP Wedding Planner Limitada', { exact: true }).waitFor();
   await section.getByText('RUT no informado').waitFor();
   await section.getByText('Total seleccionado: $1.800.000').waitFor();
   await section.getByText(/^\d+ días$/).waitFor();
