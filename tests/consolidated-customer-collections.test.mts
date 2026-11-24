@@ -85,6 +85,15 @@ test("premium collection mail uses the company greeting and a compact, separated
   assert.equal((html.match(/Evento Restaurant KO/g) ?? []).length, 1);
   assert.match(html, /https:\/\/app\.bbox\.cl\/branding\/boombox-logo-official-white-email\.png/);
   assert.match(html, /DEPARTAMENTO DE FINANZAS/);
+  assert.match(html, /DATOS BANCARIOS/);
+  assert.match(html, /PRODUCCIONES BOOMBOX COMPANY SPA/);
+  assert.match(html, /RUT 76\.123\.456-7/);
+  assert.match(html, /Banco de Prueba/);
+  assert.match(html, /Cuenta Corriente/);
+  assert.match(html, /123456789/);
+  assert.match(html, /Correo para comprobantes/);
+  assert.match(html, /mailto:pagos@boom-box\.cl/);
+  assert.doesNotMatch(html, /DATOS BANCARIOS PARA TRANSFERENCIA/);
   assert.match(html, /22 DÍAS VENCIDOS/);
   assert.doesNotMatch(html, /ACUERDO A 0 DÍAS|ORBIT-INTERNAL|BBOX360|traslado/);
   assert.match(html, /Eventos vencidos/);

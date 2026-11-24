@@ -63,11 +63,11 @@ function overdueLabel(input: ConsolidatedCollectionEmail) {
 function bankDetailsText(details: CollectionBankDetails) {
   return [
     ["Titular", details.companyLabel],
+    ["RUT", details.rut],
     ["Banco", details.bankName],
     ["Tipo de cuenta", details.accountType],
     ["N.º de cuenta", details.accountNumber],
-    ["RUT", details.rut],
-    ["Email", details.email],
+    ["Correo para comprobantes", details.email],
   ].filter(([, value]) => value.trim()).map(([label, value]) => `${label}: ${value}`).join("\n");
 }
 
@@ -91,7 +91,7 @@ export function buildConsolidatedCollectionText(input: ConsolidatedCollectionEma
     "",
     "Agradecemos regularizar el saldo pendiente a la brevedad y enviarnos el comprobante de transferencia.",
     "",
-    "Datos bancarios para transferencia:",
+    "DATOS BANCARIOS",
     bankDetailsText(input.bankDetails),
     "",
     "BOOMBOX®",
@@ -111,14 +111,15 @@ function section(title: string, lines: readonly ConsolidatedCollectionLine[]) {
 
 function bankRows(details: CollectionBankDetails) {
   const rows: Array<[string, string]> = [
-    ["Titular", details.companyLabel],
     ["Banco", details.bankName],
     ["Tipo de cuenta", details.accountType],
     ["N.º de cuenta", details.accountNumber],
-    ["RUT", details.rut],
-    ["Email", details.email],
   ];
-  return rows.filter(([, value]) => value.trim()).map(([label, value]) => `<tr><td style="padding:5px 0;font-size:12px;line-height:1.45;color:#717171;vertical-align:top;width:38%">${esc(label)}</td><td style="padding:5px 0;font-size:12px;line-height:1.45;color:#242424;word-break:break-word">${esc(value)}</td></tr>`).join("");
+  return rows.filter(([, value]) => value.trim()).map(([label, value]) => `<tr><td width="38%" style="width:38%;padding:7px 10px;font-size:12px;line-height:1.45;color:#717171;vertical-align:top;border-bottom:1px solid #e8e8e8">${esc(label)}</td><td width="62%" align="right" style="width:62%;padding:7px 10px;font-size:12px;line-height:1.45;color:#242424;text-align:right;vertical-align:top;word-break:break-word;border-bottom:1px solid #e8e8e8">${esc(value)}</td></tr>`).join("");
+}
+
+function bankDetailsBlock(details: CollectionBankDetails) {
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;margin:0;border-collapse:collapse;table-layout:fixed;background:#fafafa;border:1px solid #e8e8e8"><tr><td align="center" bgcolor="#111111" style="padding:12px 16px;background:#111111;color:#ffffff;text-align:center;font-size:12px;line-height:1.4;font-weight:700;letter-spacing:1.2px">DATOS BANCARIOS</td></tr><tr><td align="center" style="padding:15px 14px 12px;text-align:center"><div style="font-size:14px;line-height:1.45;font-weight:700;color:#202020;word-break:break-word">${esc(details.companyLabel)}</div><div style="margin-top:3px;font-size:12px;line-height:1.45;color:#666">RUT ${esc(details.rut)}</div></td></tr><tr><td style="padding:0 10px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;table-layout:fixed"><tbody>${bankRows(details)}</tbody></table></td></tr><tr><td align="center" style="padding:12px 14px 15px;text-align:center;border-top:1px solid #e8e8e8"><div style="font-size:11px;line-height:1.4;color:#717171">Correo para comprobantes</div><a href="mailto:${esc(details.email)}" style="display:inline-block;margin-top:3px;font-size:12px;line-height:1.45;color:#242424;text-align:center;word-break:break-word;text-decoration:none">${esc(details.email)}</a></td></tr></table>`;
 }
 
 export function buildConsolidatedCollectionHtml(input: ConsolidatedCollectionEmail, subject: string) {
@@ -139,5 +140,5 @@ export function buildConsolidatedCollectionHtml(input: ConsolidatedCollectionEma
     ? `<p style="margin:12px 0 0;text-align:right;font-size:12px;line-height:1.5;color:#6d6d6d">Deuda total seleccionada: <strong style="color:#222">${esc(money(input.totalOutstanding))} CLP</strong></p>`
     : "";
 
-  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(subject)}</title><style>@media only screen and (max-width:520px){.email-shell{padding:12px 8px!important}.email-body{padding:23px 19px!important}.email-logo{width:190px!important;height:auto!important}}</style></head><body style="margin:0;padding:0;background:#f2f2f2;font-family:Arial,Helvetica,sans-serif;color:#191919"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;background:#f2f2f2"><tr><td class="email-shell" align="center" style="padding:28px 12px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;max-width:620px;border-collapse:collapse;background:#ffffff"><tr><td align="center" bgcolor="#101113" style="padding:25px 20px 22px;background:#101113;border-bottom:3px solid #f28e2b"><img class="email-logo" src="https://app.bbox.cl/branding/boombox-logo-official-white-email.png" width="220" height="50" alt="BOOMBOX®" style="display:block;width:220px;max-width:100%;height:auto;margin:0 auto"><div style="margin-top:11px;color:#f28e2b;font-size:11px;line-height:1.4;font-weight:700;letter-spacing:1.7px">DEPARTAMENTO DE FINANZAS</div></td></tr><tr><td class="email-body" style="padding:29px 32px 28px"><p style="margin:0 0 15px;font-size:16px;line-height:1.45;font-weight:700;color:#17191f">${esc(greeting(input))}</p><p style="margin:0;font-size:14px;line-height:1.7;color:#454545">Junto con saludar, les compartimos el detalle consolidado de los pagos pendientes de regularización con BOOMBOX®.</p>${overdueBlock}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;margin-top:7px;border-collapse:collapse;table-layout:fixed"><tbody>${section("Eventos vencidos", overdueLines)}${section("Eventos por vencer", upcomingLines)}</tbody></table>${totalBlock}${upcomingTotal}${combinedTotal}<p style="margin:23px 0 18px;font-size:14px;line-height:1.65;color:#454545">Agradecemos regularizar el saldo pendiente a la brevedad y enviarnos el comprobante de transferencia.</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fafafa;border:1px solid #e8e8e8"><tr><td style="padding:15px 15px 12px;font-size:11px;line-height:1.4;font-weight:700;letter-spacing:1.1px;color:#222">DATOS BANCARIOS PARA TRANSFERENCIA</td></tr>${bankRows(input.bankDetails)}<tr><td colspan="2" style="height:8px;font-size:1px;line-height:1px">&nbsp;</td></tr></table></td></tr><tr><td style="padding:17px 25px 20px;border-top:1px solid #ededed;text-align:center"><div style="font-size:14px;line-height:1.5;font-weight:700;color:#202020">BOOMBOX®</div><div style="font-size:12px;line-height:1.5;color:#686868">Departamento de Finanzas</div><a href="https://www.boom-box.cl" style="font-size:12px;line-height:1.5;color:#e77e1b;text-decoration:none">www.boom-box.cl</a></td></tr></table></td></tr></table></body></html>`;
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(subject)}</title><style>@media only screen and (max-width:520px){.email-shell{padding:12px 8px!important}.email-body{padding:23px 19px!important}.email-logo{width:190px!important;height:auto!important}}</style></head><body style="margin:0;padding:0;background:#f2f2f2;font-family:Arial,Helvetica,sans-serif;color:#191919"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;background:#f2f2f2"><tr><td class="email-shell" align="center" style="padding:28px 12px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;max-width:620px;border-collapse:collapse;background:#ffffff"><tr><td align="center" bgcolor="#101113" style="padding:25px 20px 22px;background:#101113;border-bottom:3px solid #f28e2b"><img class="email-logo" src="https://app.bbox.cl/branding/boombox-logo-official-white-email.png" width="220" height="50" alt="BOOMBOX®" style="display:block;width:220px;max-width:100%;height:auto;margin:0 auto"><div style="margin-top:11px;color:#f28e2b;font-size:11px;line-height:1.4;font-weight:700;letter-spacing:1.7px">DEPARTAMENTO DE FINANZAS</div></td></tr><tr><td class="email-body" style="padding:29px 32px 28px"><p style="margin:0 0 15px;font-size:16px;line-height:1.45;font-weight:700;color:#17191f">${esc(greeting(input))}</p><p style="margin:0;font-size:14px;line-height:1.7;color:#454545">Junto con saludar, les compartimos el detalle consolidado de los pagos pendientes de regularización con BOOMBOX®.</p>${overdueBlock}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;margin-top:7px;border-collapse:collapse;table-layout:fixed"><tbody>${section("Eventos vencidos", overdueLines)}${section("Eventos por vencer", upcomingLines)}</tbody></table>${totalBlock}${upcomingTotal}${combinedTotal}<p style="margin:23px 0 18px;font-size:14px;line-height:1.65;color:#454545">Agradecemos regularizar el saldo pendiente a la brevedad y enviarnos el comprobante de transferencia.</p>${bankDetailsBlock(input.bankDetails)}</td></tr><tr><td style="padding:17px 25px 20px;border-top:1px solid #ededed;text-align:center"><div style="font-size:14px;line-height:1.5;font-weight:700;color:#202020">BOOMBOX®</div><div style="font-size:12px;line-height:1.5;color:#686868">Departamento de Finanzas</div><a href="https://www.boom-box.cl" style="font-size:12px;line-height:1.5;color:#e77e1b;text-decoration:none">www.boom-box.cl</a></td></tr></table></td></tr></table></body></html>`;
 }
