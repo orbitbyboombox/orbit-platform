@@ -1,0 +1,113 @@
+name: D-10 consolidated collections browser QA
+
+on:
+  push:
+    paths:
+      - 'app/**'
+      - 'features/accounts-receivable/**'
+      - 'features/authentication/**'
+      - 'lib/supabase/**'
+      - 'qa/d10/**'
+      - '.github/workflows/d10-consolidated-browser-qa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser-qa:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      ORBIT_ENVIRONMENT: local
+      VERCEL_ENV: preview
+      CONSOLIDATED_COLLECTION_QA_EMAIL_MOCK: 'true'
+      QA_ADMIN_PASSWORD: 'Orbit-QA-286-Only-2026!'
+      PLAYWRIGHT_BROWSERS_PATH: /opt/orbit-browsers
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22.13.0'
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.67.1
+      - name: Install dependencies and browser
+        run: |
+          npm install --global pnpm@10.28.0
+          pnpm install --frozen-lockfile --ignore-scripts
+          pnpm add --save-dev --ignore-scripts playwright@1.56.1
+          sudo mkdir -p "$PLAYWRIGHT_BROWSERS_PATH"
+          sudo chown "$USER" "$PLAYWRIGHT_BROWSERS_PATH"
+          pnpm exec playwright install --with-deps chromium
+          chmod -R a+rX "$PLAYWRIGHT_BROWSERS_PATH"
+          echo '127.0.0.1 orbit-qa-local.supabase.co' | sudo tee -a /etc/hosts
+      - name: Bootstrap disposable local Supabase and migration
+        run: |
+          set -euo pipefail
+          bash qa/pr183/bootstrap.sh >/tmp/d10-browser-bootstrap.log 2>&1
+          eval "$(supabase status -o env)"
+          echo "API_URL=$API_URL" >> "$GITHUB_ENV"
+          echo "SUPABASE_PUBLISHABLE_KEY=$ANON_KEY" >> "$GITHUB_ENV"
+          echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY" >> "$GITHUB_ENV"
+          curl --fail --silent --show-error -X POST "$API_URL/auth/v1/admin/users" \
+            -H "apikey: $SERVICE_ROLE_KEY" -H "Authorization: Bearer $SERVICE_ROLE_KEY" \
+            -H 'Content-Type: application/json' \
+            --data '{"email":"qa-admin@example.invalid","password":"Orbit-QA-286-Only-2026!","email_confirm":true,"user_metadata":{"qa":true}}' \
+            > /tmp/d10-qa-user.json
+          QA_ADMIN_ID=$(node -e "const fs=require('fs'); const u=JSON.parse(fs.readFileSync('/tmp/d10-qa-user.json')); if(!u.id) throw new Error('synthetic auth user was not created'); process.stdout.write(u.id)")
+          echo "QA_ADMIN_ID=$QA_ADMIN_ID" >> "$GITHUB_ENV"
+          docker exec -i supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            -v qa_admin_id="$QA_ADMIN_ID" < supabase/migrations/20261124120000_consolidated_customer_collections.sql
+          docker exec -i supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            -v qa_admin_id="$QA_ADMIN_ID" < qa/d10/consolidated-browser-seed.sql
+      - name: Build and launch isolated application
+        run: |
+          set -euo pipefail
+          if ! SUPABASE_URL="$API_URL" SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
+            SUPABASE_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY" pnpm build >/tmp/d10-browser-build.log 2>&1; then
+            echo 'Next build failed:'
+            tail -200 /tmp/d10-browser-build.log
+            exit 1
+          fi
+          SUPABASE_URL="$API_URL" SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
+            SUPABASE_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY" \
+            PORT=3000 pnpm exec next start -p 3000 >/tmp/d10-browser-app.log 2>&1 &
+          echo $! > /tmp/d10-browser-app.pid
+          sleep 5
+          echo '--- app startup log ---'
+          cat /tmp/d10-browser-app.log || true
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/ >/dev/null; then exit 0; fi
+            if ! kill -0 "$(cat /tmp/d10-browser-app.pid)" 2>/dev/null; then
+              echo 'Next process exited before readiness:'
+              cat /tmp/d10-browser-app.log || true
+              exit 1
+            fi
+            sleep 2
+          done
+          echo '--- build log ---'
+          tail -120 /tmp/d10-browser-build.log || true
+          tail -120 /tmp/d10-browser-app.log
+          exit 1
+      - name: Playwright authenticated mobile QA against local app
+        env:
+          QA_BASE_URL: http://127.0.0.1:3000
+          QA_EVIDENCE_DIR: ${{ runner.temp }}/d10-browser-evidence
+        run: node qa/d10/consolidated-browser.mjs
+      - name: Upload sanitized browser evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: d10-consolidated-browser-qa-${{ github.run_id }}
+          path: ${{ runner.temp }}/d10-browser-evidence
+          retention-days: 7
+          if-no-files-found: warn
+      - name: Stop disposable stack
+        if: always()
+        run: |
+          kill "$(cat /tmp/d10-browser-app.pid 2>/dev/null)" 2>/dev/null || true
+          supabase stop --no-backup || true

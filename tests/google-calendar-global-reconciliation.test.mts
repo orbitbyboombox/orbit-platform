@@ -38,6 +38,6 @@ test("remote citation validation tolerates wrapped lines and uses verified remot
 test("remote citation parser handles real Calendar line wrapping and verifies its date and time", () => {
   const description = "CITACIÓN OPERADORES BOOMBOX: viernes 20/11/2026 a las 17:30 (1 hora antes del\\nservicio).\\n\\nSERVICIO CLIENTE: sábado 21/11/2026 de 00:00 a 03:00 (3 horas).";
   const citation = extractVerifiedRemoteCitation(description, { date: "2026-11-20", time: "17:30" });
-  assert.match(citation, /viernes 20\\/11\\/2026 a las 17:30/);
-  assert.throws(() => extractVerifiedRemoteCitation(description, { date: "2026-11-20", time: "23:30" }), /esperada 20\\/11\\/2026 23:30; encontrada/);
+  assert.match(citation, /viernes 20\/11\/2026 a las 17:30/);
+  assert.throws(() => extractVerifiedRemoteCitation(description, { date: "2026-11-20", time: "23:30" }), /esperada 20\/11\/2026 23:30; encontrada/);
 });

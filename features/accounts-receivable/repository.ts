@@ -78,13 +78,13 @@ export async function loadAccountsReceivable(
     client
       .from("accounts_receivable_projection")
       .select(
-        "id,invoice_number,customer_id,project_id,orbit_event_id,customer_type,status,effective_status,amount,paid_amount,outstanding_balance,issue_date,due_date,payment_term,custom_term_days,purchase_order,days_remaining,aging_bucket,version,payment_history,issued_by,created_by,customers(full_name,company,email,secondary_email,phone),projects(name,project_type,event_date,location,city,operations,finance,project_services(service_code,duration_hours),project_operational_contracts(service_start_at,service_end_at),agreements(id,status,signed_pdf_path))",
+        "id,invoice_number,customer_id,project_id,orbit_event_id,customer_type,status,effective_status,amount,paid_amount,outstanding_balance,issue_date,due_date,payment_term,custom_term_days,purchase_order,days_remaining,aging_bucket,version,payment_history,issued_by,created_by,customers(full_name,company,email,secondary_email,phone,metadata),projects(name,project_type,event_date,location,city,operations,finance,project_services(service_code,duration_hours),project_operational_contracts(service_start_at,service_end_at),agreements(id,status,signed_pdf_path))",
       )
       .order("due_date", { ascending: true, nullsFirst: false }),
     client
       .from("accounts_receivable_history")
       .select(
-        "id,invoice_number,customer_id,project_id,orbit_event_id,customer_type,status,effective_status,financial_record_state,record_origin,amount,paid_amount,outstanding_balance,issue_date,due_date,payment_term,custom_term_days,purchase_order,days_remaining,aging_bucket,version,issued_by,created_by,customers(full_name,company,email,secondary_email,phone),projects(name,project_type,event_date,location,city,operations,finance,project_services(service_code,duration_hours),project_operational_contracts(service_start_at,service_end_at),agreements(id,status,signed_pdf_path))",
+        "id,invoice_number,customer_id,project_id,orbit_event_id,customer_type,status,effective_status,financial_record_state,record_origin,amount,paid_amount,outstanding_balance,issue_date,due_date,payment_term,custom_term_days,purchase_order,days_remaining,aging_bucket,version,issued_by,created_by,customers(full_name,company,email,secondary_email,phone,metadata),projects(name,project_type,event_date,location,city,operations,finance,project_services(service_code,duration_hours),project_operational_contracts(service_start_at,service_end_at),agreements(id,status,signed_pdf_path))",
       )
       .order("created_at", { ascending: false }),
     client
@@ -111,7 +111,7 @@ export async function loadAccountsReceivable(
       .order("created_at", { ascending: false }),
     client.from("invoice_payments").select("id,invoice_id,amount,paid_at,method,reason,created_at").is("deleted_at",null).gt("amount",0).order("paid_at",{ascending:false}),
     client.from("profiles").select("id,display_name"),
-    client.from("communications").select("id,project_id,communication_type,channel,subject,status,occurred_at,sent_at,to_recipient,created_by,sent_by,failure_reason,external_message_id,context_snapshot").in("communication_type",["PAYMENT_REMINDER","COLLECTION_EMAIL","COLLECTION_D10","COLLECTION_OVERDUE_AUTOMATIC","COLLECTION_WHATSAPP_OPENED","COLLECTION_EMAIL_OPENED","COLLECTION_PHONE_OPENED"]).order("occurred_at",{ascending:false}),
+    client.from("communications").select("id,project_id,communication_type,channel,subject,status,occurred_at,sent_at,to_recipient,created_by,sent_by,failure_reason,external_message_id,context_snapshot").in("communication_type",["PAYMENT_REMINDER","COLLECTION_EMAIL","COLLECTION_D10","COLLECTION_OVERDUE_AUTOMATIC","COLLECTION_EMAIL_CONSOLIDATED","COLLECTION_WHATSAPP_OPENED","COLLECTION_EMAIL_OPENED","COLLECTION_PHONE_OPENED"]).order("occurred_at",{ascending:false}),
     client.from("financial_event_records").select("project_id,payment_schedule"),
     client.from("d10_manual_collection_schedules").select("project_id,scheduled_for"),
     client.from("internal_notifications").select("project_id,notification_type,metadata").in("notification_type",["COLLECTION_D10","COLLECTION_OVERDUE_AUTOMATIC"]),
@@ -146,7 +146,7 @@ export async function loadAccountsReceivable(
       .filter((id): id is string => typeof id === "string"),
   );
   const collectionEmailHistory: CollectionEmailHistoryRecord[] = (collectionActionsResult.data ?? [])
-    .filter((row) => ["PAYMENT_REMINDER", "COLLECTION_EMAIL", "COLLECTION_D10", "COLLECTION_OVERDUE_AUTOMATIC"].includes(row.communication_type))
+    .filter((row) => ["PAYMENT_REMINDER", "COLLECTION_EMAIL", "COLLECTION_D10", "COLLECTION_OVERDUE_AUTOMATIC", "COLLECTION_EMAIL_CONSOLIDATED"].includes(row.communication_type))
     .filter((row) => ["SENT", "PENDING", "FAILED"].includes(String(row.status).toUpperCase()))
     .map((row) => {
       const project = projectRows.get(row.project_id ?? "") as Record<string, any> | undefined;
@@ -204,6 +204,7 @@ export async function loadAccountsReceivable(
         customerCompany: customer?.company ?? null,
         customerEmail: customer?.email ?? null,
         customerSecondaryEmail: customer?.secondary_email ?? null,
+        customerRut: typeof customer?.metadata?.rut === "string" ? customer.metadata.rut : typeof customer?.metadata?.RUT === "string" ? customer.metadata.RUT : null,
         customerPhone: customer?.phone ?? null,
         projectId: row.project_id,
         projectName: project?.name ?? "Evento",
@@ -270,6 +271,7 @@ export async function loadAccountsReceivable(
         customerCompany: customer?.company ?? null,
         customerEmail: customer?.email ?? null,
         customerSecondaryEmail: customer?.secondary_email ?? null,
+        customerRut: typeof customer?.metadata?.rut === "string" ? customer.metadata.rut : typeof customer?.metadata?.RUT === "string" ? customer.metadata.RUT : null,
         customerPhone: customer?.phone ?? null,
         projectId: row.project_id,
         projectName: project?.name ?? "Evento",
