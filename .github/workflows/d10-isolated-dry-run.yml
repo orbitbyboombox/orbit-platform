@@ -50,7 +50,9 @@ jobs:
             sed -E \
               -e 's/(SUPABASE_[A-Z0-9_]+|GMAIL_[A-Z0-9_]+|GOOGLE_[A-Z0-9_]+|CRON_SECRET)[=:][^[:space:]]+/\1=[REDACTED]/g' \
               -e 's/(Authorization: Bearer )[A-Za-z0-9._~-]+/\1[REDACTED]/g' \
-              -e 's/(postgres(ql)?:\/\/)[^[:space:]]+/\1[REDACTED]/g'
+              -e 's/(postgres(ql)?:\/\/)[^[:space:]]+/\1[REDACTED]/g' \
+              -e 's/sb_(publishable|secret)_[A-Za-z0-9_-]+/sb_\1_[REDACTED]/g' \
+              -e 's/(Publishable|Secret|Access Key|Secret Key)([[:space:]]+[^[:space:]│]+)/\1 [REDACTED]/Ig'
           }
           for file in /tmp/d10-supabase-bootstrap.log /tmp/d10-supabase-reset.log; do
             if [ -f "$file" ]; then

@@ -95,16 +95,17 @@ echo 'Applied isolated migration-version normalization before Supabase start: 01
 # A failed run can leave only the isolated database container behind;
 # remove that runner-local residue before binding the fixed local port.
 docker rm -f supabase_db_orbit_pr183_isolated >/dev/null 2>&1 || true
-isolated_migrations="$(mktemp -d /tmp/pr183-migrations.XXXXXX)"
-mv supabase/migrations "$isolated_migrations/"
+isolated_migrations="$PWD/.pr183-isolated-migrations"
+test ! -e "$isolated_migrations"
+mv supabase/migrations "$isolated_migrations"
 mkdir supabase/migrations
 restore_migrations() {
   rmdir supabase/migrations 2>/dev/null || true
-  mv "$isolated_migrations/migrations" supabase/migrations
+  mv "$isolated_migrations" supabase/migrations
 }
 trap restore_migrations EXIT
 supabase start --exclude studio,imgproxy,edge-runtime,logflare,vector,supavisor
-for migration in "$isolated_migrations/migrations"/*.sql; do
+for migration in "$isolated_migrations"/*.sql; do
   echo "Applying isolated migration $(basename "$migration")..."
   docker exec -i supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 < "$migration"
 done
