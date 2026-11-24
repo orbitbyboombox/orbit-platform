@@ -6,6 +6,7 @@ import { buildCollectionEmailDraft, buildCollectionEmailHtml } from "./collectio
 import { loadGoogleWorkspaceAccessToken, loadGoogleWorkspaceConnection } from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import { GoogleGmailApiProvider, InMemoryGoogleGmailLiveProvider } from "@/features/connectors/google-gmail/provider/google-gmail-live.provider";
 import { deliverClaimedD10 } from "./d10-delivery";
+import { resolveCollectionRecipients } from "./collection-recipients";
 
 type Invoice = { id:string; project_id:string|null; customer_id:string|null; invoice_number:string|null; amount:number|null; paid_amount:number|null; outstanding_balance:number|null; due_date:string|null; status:string|null; effective_status:string|null; deleted_at:string|null; archived_at:string|null; cancelled_at:string|null };
 type Row = Record<string, any>;
@@ -29,7 +30,7 @@ export async function sendOverdueCollections(reference=new Date(), opts:{dryRun?
   const eligible=(raw??[] as Invoice[]).filter((i:Invoice)=>i.project_id && i.customer_id && i.due_date && !i.deleted_at && !i.archived_at && !i.cancelled_at && !blocked.has(String(i.effective_status??i.status??"").toUpperCase()) && Number.isFinite(Number(i.outstanding_balance)) && Number(i.outstanding_balance)>0);
   const ids=[...new Set(eligible.map((i:Invoice)=>i.project_id!))];
   if(!ids.length) return {sent:0,failed:0,pending:0,candidates:0};
-  const {data:projects,error:projectError}=await admin.from("projects").select("id,customer_id,name,status,event_date,location,city,customers(full_name,email,secondary_email)").in("id",ids).is("deleted_at",null);
+  const {data:projects,error:projectError}=await admin.from("projects").select("id,customer_id,name,status,event_date,location,city,customers(full_name,email,secondary_email,metadata)").in("id",ids).is("deleted_at",null);
   if(projectError) throw projectError;
   const projectMap=new Map((projects??[]).map((p:Row)=>[p.id,p]));
   const grouped=new Map<string,Invoice[]>();
@@ -43,7 +44,8 @@ export async function sendOverdueCollections(reference=new Date(), opts:{dryRun?
   for(const invoices of grouped.values()) {
     const project=projectMap.get(invoices[0].project_id!)!;
     const customer=first(project.customers);
-    const recipient=String(customer?.email??"").trim();
+    const recipients=resolveCollectionRecipients({ commercialEmail: customer?.email, commercialCc: customer?.secondary_email, metadata: customer?.metadata });
+    const recipient=recipients.to;
     const balance=invoices.reduce((s,i)=>s+Number(i.outstanding_balance),0);
     if(!recipient || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient) || !Number.isFinite(balance) || balance<=0){skipped++;continue;}
     const key="automatic-collection-overdue:"+project.id+":"+today;
@@ -58,7 +60,7 @@ export async function sendOverdueCollections(reference=new Date(), opts:{dryRun?
     const dueDate=[...invoices].sort((a,b)=>String(a.due_date).localeCompare(String(b.due_date)))[0].due_date!;
     const draft=buildCollectionEmailDraft({
       invoiceNumber:invoices.map(i=>i.invoice_number).filter(Boolean).join(", ")||"Pendiente",
-      customerName:String(customer.full_name??"Cliente"),customerEmail:recipient,customerSecondaryEmail:customer.secondary_email??null,
+      customerName:String(customer.full_name??"Cliente"),customerEmail:recipient,customerSecondaryEmail:recipients.cc[0]??null,
       projectName:String(project.name??"BOOMBOX"),amount:invoices.reduce((s,i)=>s+Number(i.amount??0),0),
       outstandingBalance:balance,dueDate,eventDate:project.event_date??undefined,eventLocation:project.location??undefined,
       service:undefined,eventDuration:undefined,daysRemaining:-1,status:"OVERDUE",collectionActions:[],
@@ -74,7 +76,7 @@ export async function sendOverdueCollections(reference=new Date(), opts:{dryRun?
     if(!currentProject || currentProject.deleted_at || !isPreviousWeekEvent(currentProject.event_date,today) || blocked.has(String(currentProject.status??"").toUpperCase())){skipped++;continue;}
     const refreshedBalance=latestRows.reduce((sum,i)=>sum+Number(i.outstanding_balance),0);
     if(refreshedBalance!==balance){skipped++;continue;}
-    const payload={customer_id:invoices[0].customer_id,project_id:project.id,channel:"GMAIL",direction:"OUTBOUND",communication_type:"COLLECTION_OVERDUE_AUTOMATIC",request_key:key,thread_key:key,subject:draft.subject,body:draft.body,status:"PENDING",to_recipient:recipient,cc_recipients:[],occurred_at:new Date().toISOString(),sent_at:null,external_message_id:null,failure_reason:null,context_snapshot:{automatic:true,trigger:"OVERDUE_WED_13",sendMode:"AUTOMATIC",date:today,outstandingBalance:balance,invoiceIds:invoices.map(i=>i.id),recipient}};
+    const payload={customer_id:invoices[0].customer_id,project_id:project.id,channel:"GMAIL",direction:"OUTBOUND",communication_type:"COLLECTION_OVERDUE_AUTOMATIC",request_key:key,thread_key:key,subject:draft.subject,body:draft.body,status:"PENDING",to_recipient:recipient,cc_recipients:recipients.cc,occurred_at:new Date().toISOString(),sent_at:null,external_message_id:null,failure_reason:null,context_snapshot:{automatic:true,trigger:"OVERDUE_WED_13",sendMode:"AUTOMATIC",date:today,outstandingBalance:balance,invoiceIds:invoices.map(i=>i.id),recipient}};
     const {data:claim,error:claimError}=await admin.from("communications").insert(payload).select("id").maybeSingle();
     if(claimError?.code==="23505"){skipped++;continue;}
     if(claimError) throw claimError;
@@ -95,7 +97,7 @@ export async function sendOverdueCollections(reference=new Date(), opts:{dryRun?
     const result=await deliverClaimedD10({
       claim:async()=>true,
       sendOnce:async()=>{
-        const msg={to:recipient,cc:[],bcc:["matias.maira.larrain@gmail.com"],subject:draft.subject,textBody:draft.body,htmlBody:buildCollectionEmailHtml(draft),driveFileIds:[],idempotencyKey:key,maxSendAttempts:1};
+        const msg={to:recipient,cc:recipients.cc,bcc:["matias.maira.larrain@gmail.com"],subject:draft.subject,textBody:draft.body,htmlBody:buildCollectionEmailHtml(draft),driveFileIds:[],idempotencyKey:key,maxSendAttempts:1};
         if(process.env.VERCEL_ENV==="preview" && process.env.D10_QA_EMAIL_MOCK==="true") return new InMemoryGoogleGmailLiveProvider().send({...msg,bcc:[],from:'"BOOMBOX QA" <qa@synthetic.invalid>'});
         if(process.env.VERCEL_ENV==="preview") throw new Error("Preview email sending blocked: enable D10_QA_EMAIL_MOCK for synthetic QA");
         const workspace=await loadGoogleWorkspaceConnection();
