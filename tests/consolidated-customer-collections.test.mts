@@ -24,6 +24,16 @@ test("groups active balances by customer and separates overdue/upcoming amounts"
   assert.equal(group.oldestTermDays, 30);
 });
 
+test("uses overdue as the primary amount while retaining future debt", () => {
+  const overdue = invoice({ id: "overdue", dueDate: "2026-11-01", outstandingBalance: 2_618_000 });
+  const future = invoice({ id: "future", dueDate: "2099-01-01", outstandingBalance: 833_000 });
+  const [group] = groupReceivablesByCustomer([overdue, future], "2026-11-24");
+  assert.equal(group.overdueTotal, 2_618_000);
+  assert.equal(group.upcomingTotal, 833_000);
+  assert.equal(group.totalOutstanding, 3_451_000);
+  assert.equal(group.oldestOverdueDays, 23);
+});
+
 test("fingerprint changes when a selected effective balance changes", () => {
   const a = invoice({ id: "a", projectId: "p-a", outstandingBalance: 100 });
   const b = invoice({ id: "b", projectId: "p-b", outstandingBalance: 200 });
@@ -63,4 +73,18 @@ test("manual consolidated action does not become an automatic cron sender", () =
   assert.match(action, /sendConsolidatedCollectionAction/);
   assert.match(action, /prepare_consolidated_collection/);
   assert.doesNotMatch(action, /cron|schedule|setInterval/i);
+});
+
+test("previous individual and D-10 communications do not permanently block a new consolidated attempt", () => {
+  const action = readFileSync("features/accounts-receivable/consolidated-collection.actions.ts", "utf8");
+  assert.doesNotMatch(action, /ya tiene una cobranza individual, D-10 o automática/);
+  assert.match(action, /COLLECTION_EMAIL_CONSOLIDATED/);
+  assert.match(action, /status\", \"PENDING/);
+});
+
+test("concurrent consolidated attempts are serialized per customer", () => {
+  const migration = readFileSync("supabase/migrations/20261124150000_consolidated_collection_retry_guard.sql", "utf8");
+  assert.match(migration, /pg_advisory_xact_lock/);
+  assert.match(migration, /status = 'PENDING'/);
+  assert.match(migration, /revoke all on function/);
 });

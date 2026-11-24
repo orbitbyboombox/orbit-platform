@@ -34,7 +34,10 @@ await check('Customer collections view and amounts', async () => {
   await page.getByRole('button', { name: 'COBRANZA POR CLIENTE' }).click();
   await page.getByTestId('consolidated-customer-collections').getByText('GLOW PRO COMPANY', { exact: true }).waitFor();
   const section = page.getByTestId('consolidated-customer-collections');
+  await section.getByText('Contacto: Mariana Valenzuela', { exact: true }).waitFor();
   await section.getByText('$2.618.000').first().waitFor();
+  await section.getByText('$833.000').first().waitFor();
+  await section.getByText('$3.451.000').first().waitFor();
   await section.getByText('2 eventos').waitFor();
   await section.getByText('SP Wedding Planner Limitada', { exact: true }).waitFor();
   await section.getByText(/RUT no informado/).first().waitFor();
@@ -42,8 +45,8 @@ await check('Customer collections view and amounts', async () => {
   const selectedSummary = glowCard.getByText(/Total seleccionado:/);
   await selectedSummary.waitFor();
   const selectedSummaryText = await selectedSummary.innerText();
-  if (!selectedSummaryText.includes('$1.800.000')) throw new Error(`Unexpected default selected total: ${selectedSummaryText}`);
-  await section.getByText(/^\d+ días$/).first().waitFor();
+  if (!selectedSummaryText.includes('$2.618.000')) throw new Error(`Unexpected default selected total: ${selectedSummaryText}`);
+  await section.getByText('22 días', { exact: true }).waitFor();
   await page.screenshot({ path: `${evidence}/customer-collections-mobile.png`, fullPage: true });
 });
 

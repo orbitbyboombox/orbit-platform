@@ -22,6 +22,7 @@ export type ConsolidatedCollection = {
   oldestTermDays: number | null;
   hasMixedTerms: boolean;
   reviewRequired: boolean;
+  lastCollectionSentAt: string | null;
 };
 
 const civilDay = (value: string | null, timeZone = "America/Santiago") => {
@@ -73,6 +74,12 @@ export function groupReceivablesByCustomer(
     const terms = new Set(rows.map((row) => `${row.canonicalPaymentTerm}:${row.canonicalPaymentTermDays}`));
     const oldest = lines.find((line) => line.overdue);
     const customerRuts = new Set(rows.map(getCustomerRut).filter(Boolean));
+    const lastCollectionSentAt = rows
+      .flatMap((row) => row.collectionActions)
+      .filter((action) => action.status === "SENT" && ["PAYMENT_REMINDER", "COLLECTION_EMAIL", "COLLECTION_D10", "COLLECTION_OVERDUE_AUTOMATIC", "COLLECTION_EMAIL_CONSOLIDATED"].includes(action.type))
+      .map((action) => action.sentAt ?? action.occurredAt)
+      .filter((value): value is string => Boolean(value))
+      .sort((a, b) => b.localeCompare(a))[0] ?? null;
     return {
       customerId,
       customerName: rows[0].customerName,
@@ -89,6 +96,7 @@ export function groupReceivablesByCustomer(
       oldestTermDays: oldest?.invoice.canonicalPaymentTermDays ?? null,
       hasMixedTerms: terms.size > 1,
       reviewRequired: customerRuts.size > 1 || (customerRuts.size === 0 && !hasVerifiedRecipient(rows[0].customerEmail)),
+      lastCollectionSentAt,
     } satisfies ConsolidatedCollection;
   }).sort((a, b) => b.overdueTotal - a.overdueTotal || a.customerName.localeCompare(b.customerName));
 }

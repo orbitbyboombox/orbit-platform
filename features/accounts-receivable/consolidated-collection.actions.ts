@@ -41,9 +41,9 @@ export async function previewConsolidatedCollectionAction(formData: FormData): P
     const fingerprint = consolidatedCollectionFingerprint(selected, selectedIds);
     if (String(formData.get("expectedFingerprint") ?? "") !== fingerprint) throw new Error("Los saldos cambiaron. Recarga la cobranza consolidada antes de continuar.");
     const projectIds = selectedLines.map((line) => line.invoice.projectId);
-    const { data: existingCollections, error: existingError } = await client.from("communications").select("project_id,communication_type,status").in("project_id", projectIds).in("communication_type", ["COLLECTION_EMAIL", "COLLECTION_D10", "COLLECTION_OVERDUE_AUTOMATIC"]).in("status", ["SENT", "PENDING"]);
+    const { data: existingCollections, error: existingError } = await client.from("communications").select("project_id,status").in("project_id", projectIds).eq("communication_type", "COLLECTION_EMAIL_CONSOLIDATED").eq("status", "PENDING");
     if (existingError) throw existingError;
-    if ((existingCollections ?? []).length) throw new Error("Uno de los eventos ya tiene una cobranza individual, D-10 o automática enviada/en proceso.");
+    if ((existingCollections ?? []).length) throw new Error("Uno de los eventos ya tiene una cobranza consolidada en proceso. Revisa el historial antes de intentar nuevamente.");
     const company = await loadCompanySettings(client);
     const bankDetails = resolveCollectionBankDetails(company);
     const body = buildConsolidatedCollectionText({ ...selected, bankDetails });
@@ -83,13 +83,13 @@ export async function sendConsolidatedCollectionAction(formData: FormData): Prom
     const projectIds = selectedLines.map((line) => line.invoice.projectId);
     const { data: existingCollections, error: existingError } = await client
       .from("communications")
-      .select("project_id,communication_type,status")
+      .select("project_id,status")
       .in("project_id", projectIds)
-      .in("communication_type", ["COLLECTION_EMAIL", "COLLECTION_D10", "COLLECTION_OVERDUE_AUTOMATIC"])
-      .in("status", ["SENT", "PENDING"]);
+      .eq("communication_type", "COLLECTION_EMAIL_CONSOLIDATED")
+      .eq("status", "PENDING");
     if (existingError) throw existingError;
     if ((existingCollections ?? []).length) {
-      throw new Error("Uno de los eventos ya tiene una cobranza individual, D-10 o automática enviada/en proceso. Revisa el historial antes de consolidar.");
+      throw new Error("Uno de los eventos ya tiene una cobranza consolidada en proceso. Revisa el historial antes de intentar nuevamente.");
     }
 
     const company = await loadCompanySettings(client);
