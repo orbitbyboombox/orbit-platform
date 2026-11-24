@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isAdministrativeRole } from "@/lib/auth/roles";
 import { repairPendingDocumentBackupsAction } from "@/features/connectors/google-drive/actions/document-backup-repair.actions";
 import { DriveRepairBatch } from "./drive-repair-batch";
+import { DriveHistoricalIntegrity } from "./drive-historical-integrity";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 async function repairFromForm(formData: FormData) {
@@ -29,6 +30,14 @@ export default async function DriveRepairPage({ searchParams }: { searchParams: 
   if (!isAdministrativeRole(profile?.role)) redirect("/resources");
   const admin = createAdminClient();
   const { data: pendingDocuments, error: pendingError } = await admin.from("documents").select("id").is("deleted_at", null).is("drive_file_id", null).in("document_type", ["PAYMENT_RECEIPT", "COMMERCIAL_DOCUMENT", "STAFF_EXPENSE_RECEIPT"]).order("id", { ascending: true }).limit(26);
+  const { data: historicalDocuments, error: historicalError } = await admin.from("documents")
+    .select("id").is("deleted_at", null).eq("drive_sync_status", "PENDING")
+    .not("drive_file_id", "is", null)
+    .contains("metadata", { drive_link_audit: { result: "LINK_VERIFIED" } })
+    .order("created_at", { ascending: true }).limit(201);
+  const { data: legacyMissing } = await admin.from("documents")
+    .select("id").eq("id", "8bc80c7b-e54e-40c7-a2f9-b31bfa8c211f")
+    .eq("drive_sync_status", "ERROR").eq("drive_file_id", "1swH2XGbN0ELPMNGNmNJMYyyAsI7V1Nnu").maybeSingle();
   const params = await searchParams;
   let resultText = "";
   if (params.result) {
@@ -51,6 +60,11 @@ export default async function DriveRepairPage({ searchParams }: { searchParams: 
       : pendingDocuments && pendingDocuments.length > 25
         ? <div role="alert" className="rounded-xl border p-4 text-sm">Hay más de 25 documentos pendientes; requiere revisión por lotes.</div>
         : <DriveRepairBatch documents={pendingDocuments ?? []} />}
+    {historicalError
+      ? <p role="alert">No se pudo consultar la integridad histórica: {historicalError.message}</p>
+      : (historicalDocuments?.length ?? 0) > 200
+        ? <p role="alert">Hay más de 200 documentos. Ejecuta la conciliación en lotes pequeños.</p>
+        : <DriveHistoricalIntegrity documents={historicalDocuments ?? []} legacyMissing={Boolean(legacyMissing)}/>}
     {(params.error || resultText) && <pre className="overflow-auto rounded-2xl border bg-background p-4 text-xs">{params.error ? `ERROR: ${params.error}` : resultText}</pre>}
   </main>;
 }

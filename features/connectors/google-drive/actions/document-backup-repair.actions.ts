@@ -126,3 +126,18 @@ export async function approveOscarReceiptIntegrityAction(approvedSha256: string)
   const result = await repairPendingDocumentBackups({ client, documentIds: [OSCAR_DOCUMENT_ID] });
   return result[0] ?? { documentId: OSCAR_DOCUMENT_ID, status: "REQUIRES_REVIEW" as const, reason: "La reparación no devolvió resultado." };
 }
+
+/** Verificación histórico-documental, administrada y por lotes pequeños. */
+export async function verifyHistoricalDocumentIntegrityAction(documentId: string) {
+  await requireDocumentRepairAdministrator();
+  const { verifyHistoricalDocumentIntegrity } = await import("../application/historical-integrity-verification.service");
+  if (!/^[a-f0-9-]{36}$/.test(documentId)) throw new Error("Identificador documental inválido.");
+  return verifyHistoricalDocumentIntegrity(documentId);
+}
+
+/** Restitución explícita del último documento 2016 sin generar carpetas adicionales. */
+export async function restoreHistoricalMissingDriveDocumentAction() {
+  await requireDocumentRepairAdministrator();
+  const { restoreHistoricalMissingDriveDocument } = await import("../application/historical-integrity-verification.service");
+  return restoreHistoricalMissingDriveDocument();
+}
