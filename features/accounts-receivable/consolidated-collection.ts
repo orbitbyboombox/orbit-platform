@@ -1,5 +1,8 @@
 import type { ReceivableInvoice } from "./types";
 
+export const SP_WEDDING_CUSTOMER_ID = "5d42d1a2-5d0c-4116-9135-3f4a56a55232";
+export const isSpWeddingCustomer = (customerId: string | null | undefined) => customerId === SP_WEDDING_CUSTOMER_ID;
+
 export type ConsolidatedCollectionLine = {
   invoice: ReceivableInvoice;
   overdueDays: number;
