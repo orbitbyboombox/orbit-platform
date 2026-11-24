@@ -43,7 +43,7 @@ await check('Customer collections view and amounts', async () => {
   await selectedSummary.waitFor();
   const selectedSummaryText = await selectedSummary.innerText();
   if (!selectedSummaryText.includes('$1.800.000')) throw new Error(`Unexpected default selected total: ${selectedSummaryText}`);
-  await section.getByText(/^\d+ días$/).waitFor();
+  await section.getByText(/^\d+ días$/).first().waitFor();
   await page.screenshot({ path: `${evidence}/customer-collections-mobile.png`, fullPage: true });
 });
 
