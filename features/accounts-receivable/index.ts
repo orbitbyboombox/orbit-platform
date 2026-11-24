@@ -8,3 +8,7 @@ export * from "./collection-email-composer";
 export * from "./collection-center";
 export * from "./accounts-receivable-center";
 export * from "./event-payment-manager";
+export * from "./consolidated-collection";
+export * from "./consolidated-collection.template";
+export * from "./consolidated-collection.actions";
+export * from "./consolidated-collection-center";

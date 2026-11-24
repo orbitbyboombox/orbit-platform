@@ -10,6 +10,7 @@ import type { ReceivableDataset, ReceivableInvoice } from "./types";
 import { isD10ManualCollectionDue } from "./d10-manual-collection";
 import { setD10CollectionDateAction } from "./d10-manual-collection.actions";
 import { resolveCollectionEmailStatus } from "./collection-email-status";
+import { ConsolidatedCollectionCenter } from "./consolidated-collection-center";
 
 const money = (value: number) =>
   new Intl.NumberFormat("es-CL", {
@@ -93,6 +94,7 @@ export function CollectionCenter({
   initialFilter?: CollectionFilter;
 }) {
   const [filter, setFilter] = useState<CollectionFilter>(initialFilter);
+  const [viewMode, setViewMode] = useState<"EVENT" | "CUSTOMER">("EVENT");
   const [query, setQuery] = useState("");
   const today = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Santiago",
@@ -205,6 +207,16 @@ export function CollectionCenter({
         <Stat label="VENCIDO" value={money(summaryOverdue)} detail="Saldo con plazo vencido" />
         <Stat label="CLIENTES A CONTACTAR" value={String(summaryContacts)} detail="Clientes únicos con saldo" />
       </section>
+
+      <section className="rounded-2xl border bg-card p-3 sm:p-4" aria-label="Modalidad de cobranza">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="mr-2 text-xs font-semibold uppercase tracking-[.16em] text-brand">Modalidad</span>
+          <button type="button" onClick={() => setViewMode("EVENT")} className={`rounded-full border px-3 py-2 text-xs font-semibold ${viewMode === "EVENT" ? "border-brand/30 bg-brand/10 text-brand" : "text-muted"}`}>COBRANZA POR EVENTO</button>
+          <button type="button" onClick={() => setViewMode("CUSTOMER")} className={`rounded-full border px-3 py-2 text-xs font-semibold ${viewMode === "CUSTOMER" ? "border-brand/30 bg-brand/10 text-brand" : "text-muted"}`}>COBRANZA POR CLIENTE</button>
+        </div>
+      </section>
+
+      {viewMode === "CUSTOMER" ? <ConsolidatedCollectionCenter invoices={dataset.invoices} /> : null}
 
       <section className="rounded-2xl border bg-card p-5 sm:p-6">
         <div className="grid gap-4 xl:grid-cols-[1.2fr_.8fr]">
