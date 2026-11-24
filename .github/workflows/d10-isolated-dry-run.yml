@@ -43,6 +43,9 @@ jobs:
           set -euo pipefail
           bash qa/pr183/bootstrap.sh >/tmp/d10-supabase-bootstrap.log 2>&1
           supabase db reset --local --no-seed >/tmp/d10-supabase-reset.log 2>&1
+          docker exec supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 -c \
+            'grant execute on function public.create_manual_reservation_atomic(jsonb) to authenticated;' \
+            >>/tmp/d10-supabase-reset.log 2>&1
       - name: Show isolated bootstrap diagnostics
         if: ${{ failure() }}
         run: |

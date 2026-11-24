@@ -38,6 +38,16 @@ if malformed not in source:
     raise SystemExit('Expected isolated-only malformed migration prefix was not found')
 path.write_text(source.replace(malformed, '\ncreate or replace function public.calculate_staff_monthly_settlement(', 1))
 print('Removed one malformed patch prefix from isolated migration copy; repository file unchanged.')
+path = Path('supabase/migrations/0050_manual_reservation_atomic_core.sql')
+source = path.read_text()
+grant = 'grant execute on function public.create_manual_reservation_atomic(jsonb) to authenticated;'
+if grant not in source:
+    raise SystemExit('Expected 0050 function grant was not found')
+# The isolated migration runner prepares each migration as one statement.
+# Keep the historical function body unchanged, but apply its GRANT separately
+# after reset so PostgreSQL does not reject the function plus GRANT batch.
+path.write_text(source.replace('\n' + grant, '', 1))
+print('Separated the historical 0050 GRANT for the isolated runner; repository file unchanged.')
 path = Path('supabase/migrations/20261009223000_paper_initial_inventory_and_wcm.sql')
 source = path.read_text()
 start = source.index('do $$\n')
