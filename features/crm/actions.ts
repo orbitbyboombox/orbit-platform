@@ -48,6 +48,8 @@ export async function createCrmCustomerAction(input: {
   phone: string;
   email: string;
   secondaryEmail: string;
+  collectionEmail: string;
+  collectionCcEmail: string;
   address: string;
   businessActivity: string;
   billingAddress: string;
@@ -118,6 +120,10 @@ export async function createCrmCustomerAction(input: {
                   email: input.primaryContactEmail.trim().toLowerCase(),
                 }
               : null,
+          collectionRecipients: {
+            to: normalizeOptionalEmail(input.collectionEmail, "email de cobranza") ?? "",
+            cc: normalizeOptionalEmail(input.collectionCcEmail, "CC de cobranza") ?? "",
+          },
         },
         created_by: user.id,
         updated_by: user.id,
@@ -143,6 +149,8 @@ export async function updateCrmCustomerAction(input: {
   phone: string;
   email: string;
   secondaryEmail: string;
+  collectionEmail: string;
+  collectionCcEmail: string;
   address: string;
   commercialNotes: string;
   contacts: Array<{ name: string; email: string; phone: string }>;
@@ -214,6 +222,10 @@ export async function updateCrmCustomerAction(input: {
                   email: input.primaryContactEmail.trim().toLowerCase(),
                 }
               : null,
+          collectionRecipients: {
+            to: normalizeOptionalEmail(input.collectionEmail, "email de cobranza") ?? "",
+            cc: normalizeOptionalEmail(input.collectionCcEmail, "CC de cobranza") ?? "",
+          },
           commercialNotes: input.commercialNotes,
           contacts: input.contacts,
         },
