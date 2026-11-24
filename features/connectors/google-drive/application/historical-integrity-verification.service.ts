@@ -58,15 +58,27 @@ export async function verifyHistoricalDocumentIntegrity(documentId: string): Pro
   } catch (error) {
     return { documentId, status: "REQUIRES_REVIEW", reason: error instanceof Error ? error.message : "Falló la lectura de Drive." };
   }
-  if (src.sha256 !== dst.sha256 || src.size !== dst.size || src.sha256 !== row.checksum)
-    return { documentId, status: "REQUIRES_REVIEW", reason: `Diferencia de integridad: original SHA-256 ${src.sha256.slice(0,12)}…, Drive ${dst.sha256.slice(0,12)}…, registro ${row.checksum.slice(0,12)}…; sin cambios.` };
+  if (src.sha256 !== dst.sha256 || src.size !== dst.size)
+    return { documentId, status: "REQUIRES_REVIEW",
+      reason: `Las copias son diferentes: Storage SHA-256 ${src.sha256.slice(0,12)}…, Drive SHA-256 ${dst.sha256.slice(0,12)}…. No se modifica el documento.` };
+  // Algunos registros históricos contienen OPERATIONAL-FINGERPRINT:v1 (huella de
+  // migración), no un SHA-256. Conservar el valor histórico y registrar por
+  // separado el digest criptográfico real de dos copias binarias idénticas.
+  const historicalChecksumMatches = src.sha256 === row.checksum;
+  const historicalChecksumType = row.checksum.startsWith("OPERATIONAL-FINGERPRINT:v1|")
+    ? "OPERATIONAL_FINGERPRINT_V1" : /^[a-f0-9]{64}$/i.test(row.checksum)
+      ? "SHA256_HISTORICO" : "OTHER_HISTORICAL_VALUE";
   const now = new Date().toISOString();
   const meta = {
     ...(row.metadata ?? {}),
     drive_link_audit: {
       ...link, result: "CONTENT_VERIFIED", content_verified: true,
       verified_sha256: src.sha256, verified_size: src.size,
-      verified_at: now, method: "BINARY_SHA256_STORAGE_DRIVE_DATABASE",
+      verified_at: now, method: "BINARY_SHA256_STORAGE_EQUALS_DRIVE",
+      historical_checksum: row.checksum,
+      historical_checksum_type: historicalChecksumType,
+      historical_checksum_matches_bytes: historicalChecksumMatches,
+      historical_checksum_preserved: true,
     },
   };
   const { data: updated, error: updateError } = await client.from("documents").update({
