@@ -120,13 +120,10 @@ export async function createCrmCustomerAction(input: {
                   email: input.primaryContactEmail.trim().toLowerCase(),
                 }
               : null,
-          collectionRecipients:
-            input.collectionEmail.trim() || input.collectionCcEmail.trim()
-              ? {
-                  to: normalizeOptionalEmail(input.collectionEmail, "email de cobranza") ?? "",
-                  cc: normalizeOptionalEmail(input.collectionCcEmail, "CC de cobranza") ?? "",
-                }
-              : current.metadata?.collectionRecipients,
+          collectionRecipients: {
+            to: normalizeOptionalEmail(input.collectionEmail, "email de cobranza") ?? "",
+            cc: normalizeOptionalEmail(input.collectionCcEmail, "CC de cobranza") ?? "",
+          },
         },
         created_by: user.id,
         updated_by: user.id,
@@ -225,10 +222,13 @@ export async function updateCrmCustomerAction(input: {
                   email: input.primaryContactEmail.trim().toLowerCase(),
                 }
               : null,
-          collectionRecipients: {
-            to: normalizeOptionalEmail(input.collectionEmail, "email de cobranza") ?? "",
-            cc: normalizeOptionalEmail(input.collectionCcEmail, "CC de cobranza") ?? "",
-          },
+          collectionRecipients:
+            input.collectionEmail.trim() || input.collectionCcEmail.trim()
+              ? {
+                  to: normalizeOptionalEmail(input.collectionEmail, "email de cobranza") ?? "",
+                  cc: normalizeOptionalEmail(input.collectionCcEmail, "CC de cobranza") ?? "",
+                }
+              : current.metadata?.collectionRecipients,
           commercialNotes: input.commercialNotes,
           contacts: input.contacts,
         },
