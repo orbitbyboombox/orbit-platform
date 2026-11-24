@@ -43,6 +43,7 @@ const mimeFromName = (value: string) => {
   const lower = value.toLowerCase();
   if (lower.endsWith(".pdf")) return "application/pdf";
   if (lower.endsWith(".png")) return "image/png";
+  if (lower.endsWith(".webp")) return "image/webp";
   if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
   return "application/octet-stream";
 };
@@ -82,8 +83,17 @@ async function loadCanonicalFolderId(client: SupabaseClient, provider: GoogleDri
   if (data.length !== 1) throw new Error(`Mapeo Drive ambiguo para ${expectedDocumentPath}.`);
   const folderId = String(data[0].external_folder_id);
   if (!folderId) throw new Error("Mapeo Drive sin folder id.");
-  const parents = await provider.getFolderParents?.(folderId);
-  if (parents && parents.length === 0) throw new Error("La carpeta Drive canónica no es accesible.");
+  let parents: string[] | undefined;
+  try {
+    parents = await provider.getFolderParents?.(folderId);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/\b404\b|notfound|file not found/i.test(message)) {
+      throw new Error(`La carpeta canónica ${folderId} existe en el registro de ORBIT, pero la conexión Google Workspace de ORBIT no puede acceder a ella (404). Verificar permisos o reconectar la cuenta de Drive que usa ORBIT; no se creó una carpeta alternativa.`);
+    }
+    throw error;
+  }
+  if (parents && parents.length === 0) throw new Error(`La carpeta ${folderId} no tiene una ubicación padre verificable. No se creó carpeta alternativa.`);
   return folderId;
 }
 
