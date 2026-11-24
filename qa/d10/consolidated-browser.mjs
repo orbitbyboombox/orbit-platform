@@ -34,7 +34,7 @@ await check('Customer collections view and amounts', async () => {
   await page.getByRole('button', { name: 'COBRANZA POR CLIENTE' }).click();
   await page.getByTestId('consolidated-customer-collections').getByText('QA Customer').waitFor();
   const section = page.getByTestId('consolidated-customer-collections');
-  await section.getByText('$2.618.000').waitFor();
+  await section.getByText('$2.618.000').first().waitFor();
   await section.getByText('1 evento').waitFor();
   await section.getByText(/\d+ días vencido/).waitFor();
   await page.screenshot({ path: `${evidence}/customer-collections-mobile.png`, fullPage: true });
