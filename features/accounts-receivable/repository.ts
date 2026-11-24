@@ -59,8 +59,11 @@ function eventDetail(project: {
 }
 export async function loadAccountsReceivable(
   client: SupabaseClient,
+  options: { refreshNotifications?: boolean } = {},
 ): Promise<ReceivableDataset> {
-  if (!isReadOnlyVisualPreview()) await client.rpc("refresh_receivable_notifications");
+  if (options.refreshNotifications !== false && !isReadOnlyVisualPreview()) {
+    await client.rpc("refresh_receivable_notifications");
+  }
   const [
     invoicesResult,
     historyResult,
