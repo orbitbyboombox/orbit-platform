@@ -1,7 +1,9 @@
 import type { CollectionBankDetails } from "./collection-bank-details";
 import type { ConsolidatedCollectionLine } from "./consolidated-collection";
+import { isSpWeddingCustomer } from "./consolidated-collection";
 
 type ConsolidatedCollectionEmail = {
+  customerId: string;
   customerName: string;
   customerCompany: string | null;
   lines: readonly ConsolidatedCollectionLine[];
@@ -72,6 +74,10 @@ function bankDetailsText(details: CollectionBankDetails) {
 }
 
 export function buildConsolidatedCollectionText(input: ConsolidatedCollectionEmail) {
+  if (isSpWeddingCustomer(input.customerId)) {
+    const eventLines = input.lines.map(({ invoice }) => [invoice.projectName, `Vencimiento: ${date(invoice.dueDate)}`, `Saldo pendiente: ${money(invoice.outstandingBalance)}`].join("\n")).join("\n\n────────────────────\n\n");
+    return [greeting(input), "", "Junto con saludar, les compartimos el detalle de los eventos pendientes de pago.", "", "EVENTOS PENDIENTES DE PAGO", "", eventLines, "", `TOTAL PENDIENTE A PAGAR: ${money(input.totalOutstanding)} CLP`, "", "Agradecemos gestionar el pago correspondiente a los servicios realizados.", "", "DATOS BANCARIOS", bankDetailsText(input.bankDetails), "", "BOOMBOX®", "Departamento de Finanzas", "www.boom-box.cl"].join("\n");
+  }
   const overdueLines = input.lines.filter(({ overdue }) => overdue);
   const upcomingLines = input.lines.filter(({ overdue }) => !overdue);
   const eventLines = (lines: readonly ConsolidatedCollectionLine[]) => lines.map(({ invoice }) => [
@@ -124,6 +130,10 @@ function bankDetailsBlock(details: CollectionBankDetails) {
 
 export function buildConsolidatedCollectionHtml(input: ConsolidatedCollectionEmail, subject: string) {
   void subject;
+  if (isSpWeddingCustomer(input.customerId)) {
+    const rows = eventRows(input.lines);
+    return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0;background:#f2f2f2;font-family:Arial,Helvetica,sans-serif;color:#191919"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#f2f2f2"><tr><td align="center" style="padding:28px 12px"><table role="presentation" width="100%" style="max-width:620px;border-collapse:collapse;background:#fff"><tr><td align="center" bgcolor="#101113" style="padding:25px 20px 22px;background:#101113;border-bottom:3px solid #f28e2b"><img src="https://app.bbox.cl/branding/boombox-logo-official-white-email.png" width="220" alt="BOOMBOX®" style="display:block;width:220px;max-width:100%;height:auto"><div style="margin-top:11px;color:#f28e2b;font-size:11px;font-weight:700;letter-spacing:1.7px">DEPARTAMENTO DE FINANZAS</div></td></tr><tr><td style="padding:29px 32px 28px"><p style="font-size:16px;font-weight:700">${esc(greeting(input))}</p><p style="font-size:14px;line-height:1.7;color:#454545">Junto con saludar, les compartimos el detalle de los eventos pendientes de pago.</p><table role="presentation" width="100%" style="border-collapse:collapse"><tbody><tr><td style="padding:22px 0 4px;font-size:11px;font-weight:700;letter-spacing:1.5px;color:#707070">EVENTOS PENDIENTES DE PAGO</td></tr>${rows}</tbody></table><table role="presentation" width="100%" style="margin-top:21px;border-collapse:collapse"><tr><td bgcolor="#111111" style="padding:18px 17px;background:#111;color:#fff"><div style="font-size:11px;letter-spacing:1.2px;color:#f28e2b;font-weight:700">TOTAL PENDIENTE A PAGAR</div><div style="margin-top:5px;font-size:25px;font-weight:700">${esc(money(input.totalOutstanding))} <span style="font-size:13px;font-weight:400">CLP</span></div></td></tr></table><p style="margin:23px 0 18px;font-size:14px;line-height:1.65;color:#454545">Agradecemos gestionar el pago correspondiente a los servicios realizados.</p>${bankDetailsBlock(input.bankDetails)}</td></tr><tr><td style="padding:17px 25px 20px;border-top:1px solid #ededed;text-align:center"><b>BOOMBOX®</b><div style="font-size:12px;color:#686868">Departamento de Finanzas</div><a href="https://www.boom-box.cl" style="font-size:12px;color:#e77e1b">www.boom-box.cl</a></td></tr></table></td></tr></table></body></html>`;
+  }
   const overdueLines = input.lines.filter(({ overdue }) => overdue);
   const upcomingLines = input.lines.filter(({ overdue }) => !overdue);
   const label = overdueLabel(input);
