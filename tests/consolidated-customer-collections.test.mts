@@ -33,6 +33,14 @@ test("fingerprint changes when a selected effective balance changes", () => {
   assert.notEqual(original, consolidatedCollectionFingerprint(changed, ["a", "b"]));
 });
 
+test("groups same customer without RUT when a verified recipient exists", () => {
+  const first = invoice({ id: "no-rut-a", customerCompany: "GLOW PRO COMPANY", customerRut: null, dueDate: "2026-11-01", customerEmail: "qa@example.invalid" });
+  const second = invoice({ id: "no-rut-b", customerCompany: "GLOW PRO COMPANY", customerRut: null, dueDate: "2026-12-01", customerEmail: "qa@example.invalid" });
+  const [group] = groupReceivablesByCustomer([first, second], "2026-11-23");
+  assert.equal(group.reviewRequired, false);
+  assert.equal(group.lines.length, 2);
+});
+
 test("premium template shows canonical bank details and dynamic contractual overdue label", () => {
   const template = readFileSync("features/accounts-receivable/consolidated-collection.template.ts", "utf8");
   assert.match(template, /DÍAS VENCIDOS DEL ACUERDO A/);
