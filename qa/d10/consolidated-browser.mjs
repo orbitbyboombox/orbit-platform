@@ -38,10 +38,11 @@ await check('Customer collections view and amounts', async () => {
   await section.getByText('$2.618.000').first().waitFor();
   await section.getByText('$833.000').first().waitFor();
   await section.getByText('$3.451.000').first().waitFor();
-  await section.getByText('2 eventos').waitFor();
+  const glowCard = section.locator('article').filter({ hasText: 'GLOW PRO COMPANY' });
+  const glowText = await glowCard.innerText();
+  if (!glowText.includes('2 eventos')) throw new Error(`Unexpected GLOW event count: ${glowText}`);
   await section.getByText('SP Wedding Planner Limitada', { exact: true }).waitFor();
   await section.getByText(/RUT no informado/).first().waitFor();
-  const glowCard = section.locator('article').filter({ hasText: 'GLOW PRO COMPANY' });
   const selectedSummary = glowCard.getByText(/Total seleccionado:/);
   await selectedSummary.waitFor();
   const selectedSummaryText = await selectedSummary.innerText();
