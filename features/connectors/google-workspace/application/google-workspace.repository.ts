@@ -168,3 +168,37 @@ async function appendGoogleTimeline(action: string, humanMessage: string, actorI
   });
   if (error) throw error;
 }
+
+
+/**
+ * Recuperación documental excepcional: token de la cuenta propietaria ya autorizada.
+ * No cambia la conexión NOVA ni permite acceder a una cuenta diferente.
+ * Solo debe invocarse desde una operación administrativa sobre documentos verificados.
+ */
+export async function loadLegacyOwnerDriveRepairToken(expectedAccount: string): Promise<string> {
+  const admin = createAdminClient();
+  const { data, error } = await admin.from("google_workspace_connections")
+    .select("workspace_account,connection_status,refresh_token,scopes")
+    .eq("singleton_key", "PRIMARY").maybeSingle<{
+      workspace_account: string;
+      connection_status: string;
+      refresh_token: string | null;
+      scopes: string[];
+    }>();
+  if (error) throw error;
+  if (!data || data.connection_status !== "CONNECTED"
+    || data.workspace_account.toLowerCase() !== expectedAccount.toLowerCase()
+    || !data.scopes.some((scope) => scope === "https://www.googleapis.com/auth/drive")
+    || !data.refresh_token) {
+    throw new Error("La autorización anterior de Google no corresponde a la cuenta propietaria con acceso Drive.");
+  }
+  const refreshed = await new GoogleWorkspaceOAuthProvider(getGoogleWorkspaceEnvironment()).refresh(data.refresh_token);
+  if (!refreshed.ok) {
+    throw new Error("La autorización anterior del propietario expiró: se requiere reconectar Google Workspace.");
+  }
+  if (refreshed.session.account.toLowerCase() !== expectedAccount.toLowerCase()
+    || !refreshed.session.tokens.scopes.some((scope) => scope === "https://www.googleapis.com/auth/drive")) {
+    throw new Error("Google devolvió una cuenta o permisos distintos de los autorizados para recuperar este documento.");
+  }
+  return refreshed.session.tokens.accessToken;
+}
