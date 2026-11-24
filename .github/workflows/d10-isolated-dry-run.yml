@@ -56,11 +56,19 @@ jobs:
           for file in /tmp/d10-supabase-bootstrap.log /tmp/d10-supabase-reset.log; do
             if [ -f "$file" ]; then
               echo "--- ${file} (sanitized, last 240 lines) ---"
-              tail -240 "$file" | sanitize
+              tail -240 "$file" | sanitize | tee "/tmp/$(basename "$file").sanitized.log"
             else
               echo "--- ${file}: file not created ---"
+              printf '%s\n' "${file}: file not created" > "/tmp/$(basename "$file").sanitized.log"
             fi
           done
+      - name: Upload sanitized isolated diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: d10-isolated-sanitized-diagnostics
+          path: /tmp/d10-supabase-*.sanitized.log
+          if-no-files-found: warn
       - name: Seed synthetic D-10 data
         run: |
           set -euo pipefail
