@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadCompanySettings } from "@/features/company-settings";
 import { buildCustomerFolderPlan } from "../application/google-drive-folder-strategy";
-import { loadGoogleWorkspaceAccessToken } from "../../google-workspace/application/google-workspace.repository";
+import { loadGoogleWorkspaceAccessToken, loadLegacyOwnerDriveRepairToken } from "../../google-workspace/application/google-workspace.repository";
 import { GoogleDriveApiProvider, type GoogleDriveLiveProvider } from "../provider/google-drive-live.provider";
 
 type RepairStatus = "SYNCED" | "REQUIRES_REVIEW" | "ERROR";
@@ -30,6 +30,12 @@ type RepairDocument = {
   drive_file_id: string | null;
   project: { name: string | null; event_date: string | null } | null;
 };
+
+// Recuperación excepcional de un documento cuyo propietario y carpeta han sido verificados.
+const OWNER_REPAIR_DOCUMENT_ID = "95b5aca1-9d7a-402e-9410-49525fcdbb8e";
+const OWNER_REPAIR_ACCOUNT = "matias@boom-box.cl";
+const OWNER_REPAIR_FOLDER_ID = "1SAxEv_v8_WbXuWst2HDc-0m8n1kazkRE";
+const OWNER_REPAIR_EVENT_FOLDER_ID = "1npmNGaTjuPFXVhm4hiGbs43ecVLf7Qd6";
 
 const DOCUMENT_FOLDER: Record<string, string> = {
   COMMERCIAL_DOCUMENT: "03_Cotizaciones",
@@ -160,7 +166,36 @@ export async function repairPendingDocumentBackups(input: { client: SupabaseClie
   // Secuencial: evita ráfagas de escrituras en Drive y permite rastrear el resultado por ID.
   const results: DocumentBackupRepairResult[] = [];
   for (const document of documents) {
-    results.push(await syncOne(input.client, provider, rootName, document));
+    let result = await syncOne(input.client, provider, rootName, document);
+    // Recuperación excepcional: la carpeta del último comprobante existe, pero NOVA
+    // devuelve 404 para ese ID. Verificar la cuenta propietaria y la jerarquía exacta
+    // antes de utilizar la autorización Drive anterior de esa MISMA cuenta.
+    if (!input.provider
+      && document.id === OWNER_REPAIR_DOCUMENT_ID
+      && result.status === "REQUIRES_REVIEW"
+      && result.reason?.includes("no puede acceder a ella (404)")) {
+      try {
+        const token = await loadLegacyOwnerDriveRepairToken(OWNER_REPAIR_ACCOUNT);
+        const ownerProvider = new GoogleDriveApiProvider(token);
+        const { data: mapped, error: mappingError } = await input.client
+          .from("drive_sync").select("external_folder_id")
+          .eq("project_id", document.project_id).eq("destination_key",
+            `BOOMBOX ORBIT/01_CLIENTES/2027/04 ABRIL/03-04-2027 - Oscar Ríos - ORB-2027-663451/02_Comprobantes`)
+          .single();
+        if (mappingError || mapped?.external_folder_id !== OWNER_REPAIR_FOLDER_ID) {
+          throw new Error("La carpeta oficial del comprobante cambió; no se utilizó una ruta alternativa.");
+        }
+        const parents = await ownerProvider.getFolderParents(OWNER_REPAIR_FOLDER_ID);
+        if (parents.length !== 1 || parents[0] !== OWNER_REPAIR_EVENT_FOLDER_ID) {
+          throw new Error("La carpeta del propietario no coincide con el evento original; no se subió el archivo.");
+        }
+        result = await syncOne(input.client, ownerProvider, rootName, document);
+      } catch (error) {
+        result = { documentId: document.id, projectId: document.project_id, status: "REQUIRES_REVIEW",
+          reason: error instanceof Error ? error.message : "No se pudo verificar la autorización de la cuenta propietaria." };
+      }
+    }
+    results.push(result);
   }
   return results;
 }
