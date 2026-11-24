@@ -67,7 +67,8 @@ jobs:
       - name: Build and launch isolated application
         run: |
           set -euo pipefail
-          if ! pnpm build >/tmp/d10-browser-build.log 2>&1; then
+          if ! SUPABASE_URL="$API_URL" SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
+            SUPABASE_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY" pnpm build >/tmp/d10-browser-build.log 2>&1; then
             echo 'Next build failed:'
             tail -200 /tmp/d10-browser-build.log
             exit 1
