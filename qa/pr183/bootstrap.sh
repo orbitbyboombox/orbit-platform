@@ -98,7 +98,12 @@ docker rm -f supabase_db_orbit_pr183_isolated >/dev/null 2>&1 || true
 for migration in supabase/migrations/*.sql; do
   mv "$migration" "$migration.disabled"
 done
+late_migration="supabase/migrations/9999_0259_enforce_staff_call_exactly_60_minutes.sql.disabled"
+mv supabase/migrations/0259_enforce_staff_call_exactly_60_minutes.sql.disabled "$late_migration"
 restore_migrations() {
+  if [ -e "$late_migration" ]; then
+    mv "$late_migration" supabase/migrations/0259_enforce_staff_call_exactly_60_minutes.sql.disabled
+  fi
   for migration in supabase/migrations/*.sql.disabled; do
     [ -e "$migration" ] || continue
     mv "$migration" "${migration%.disabled}"
