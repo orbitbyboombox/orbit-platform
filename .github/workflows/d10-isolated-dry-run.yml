@@ -43,6 +43,24 @@ jobs:
           set -euo pipefail
           bash qa/pr183/bootstrap.sh >/tmp/d10-supabase-bootstrap.log 2>&1
           supabase db reset --local --no-seed >/tmp/d10-supabase-reset.log 2>&1
+      - name: Show isolated bootstrap diagnostics
+        if: ${{ failure() }}
+        run: |
+          set +e
+          sanitize() {
+            sed -E \
+              -e 's/(SUPABASE_[A-Z0-9_]+|GMAIL_[A-Z0-9_]+|GOOGLE_[A-Z0-9_]+|CRON_SECRET)[=:][^[:space:]]+/\1=[REDACTED]/g' \
+              -e 's/(Authorization: Bearer )[A-Za-z0-9._~-]+/\1[REDACTED]/g' \
+              -e 's/(postgres(ql)?:\/\/)[^[:space:]]+/\1[REDACTED]/g'
+          }
+          for file in /tmp/d10-supabase-bootstrap.log /tmp/d10-supabase-reset.log; do
+            if [ -f "$file" ]; then
+              echo "--- ${file} (sanitized, last 240 lines) ---"
+              tail -240 "$file" | sanitize
+            else
+              echo "--- ${file}: file not created ---"
+            fi
+          done
       - name: Seed synthetic D-10 data
         run: |
           set -euo pipefail
