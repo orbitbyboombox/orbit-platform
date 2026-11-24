@@ -21,8 +21,23 @@ begin
   if p_customer_id is null or coalesce(array_length(p_project_ids, 1), 0) = 0 or nullif(trim(p_request_key), '') is null then
     raise exception 'La cobranza consolidada requiere cliente, eventos y clave de idempotencia.';
   end if;
-  if exists (select 1 from public.projects p where p.id = any(p_project_ids) and (p.customer_id <> p_customer_id or p.deleted_at is not null)) then
-    raise exception 'La selección contiene un evento que no pertenece al cliente o está archivado.';
+  if exists (
+    select 1
+    from unnest(p_project_ids) requested(project_id)
+    left join public.projects p on p.id = requested.project_id
+    where p.id is null or p.customer_id <> p_customer_id or p.deleted_at is not null
+  ) then
+    raise exception 'La selección contiene un evento inexistente, ajeno al cliente o archivado.';
+  end if;
+  if exists (
+    select 1
+    from unnest(p_project_ids) requested(project_id)
+    left join public.accounts_receivable_projection ar on ar.project_id = requested.project_id
+    where ar.project_id is null
+      or coalesce(ar.outstanding_balance, 0) <= 0
+      or upper(coalesce(ar.effective_status, ar.status, '')) in ('PAID', 'CANCELLED')
+  ) then
+    raise exception 'Uno de los eventos ya no tiene saldo cobrable vigente.';
   end if;
   foreach v_project_id in array p_project_ids loop
     select c.id, c.status into v_id, v_status
