@@ -6,6 +6,8 @@ export interface CrmCustomerSummary {
   phone: string;
   email: string;
   secondaryEmail: string;
+  collectionEmail: string;
+  collectionCcEmail: string;
   address: string;
   city: string;
   version: number;
