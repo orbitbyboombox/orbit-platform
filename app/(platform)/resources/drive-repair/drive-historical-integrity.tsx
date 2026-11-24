@@ -1,17 +1,29 @@
 "use client";
 
 import { useState } from "react";
-import { verifyHistoricalDocumentIntegrityAction } from "@/features/connectors/google-drive/actions/document-backup-repair.actions";
+import { verifyHistoricalDocumentIntegrityAction, restoreHistoricalMissingDriveDocumentAction } from "@/features/connectors/google-drive/actions/document-backup-repair.actions";
 
 type Doc = { id: string };
 type Result = { documentId: string; status: "SYNCED" | "REQUIRES_REVIEW"; reason?: string };
 
-export function DriveHistoricalIntegrity({ documents }: { documents: Doc[] }) {
+export function DriveHistoricalIntegrity({ documents, legacyMissing }: { documents: Doc[]; legacyMissing: boolean }) {
   const [running, setRunning] = useState(false);
   const [processed, setProcessed] = useState(0);
   const [outcomes, setOutcomes] = useState<Result[]>([]);
   const [done, setDone] = useState(false);
   const [activeId, setActiveId] = useState("");
+  const [restoringLegacy, setRestoringLegacy] = useState(false);
+  const [legacyOutcome, setLegacyOutcome] = useState("");
+  async function restoreLegacy() {
+    if (restoringLegacy || running) return;
+    setRestoringLegacy(true);
+    setLegacyOutcome("");
+    try {
+      const result = await restoreHistoricalMissingDriveDocumentAction();
+      setLegacyOutcome(result.status === "SYNCED" ? "Documento 2016 recuperado, SHA-256 confirmado y nuevo vínculo registrado." : "La restauración requiere revisión.");
+    } catch (error) { setLegacyOutcome(error instanceof Error ? error.message : "No fue posible restaurar el documento histórico."); }
+    finally { setRestoringLegacy(false); }
+  }
 
   async function run() {
     if (running || !documents.length) return;
@@ -51,6 +63,12 @@ export function DriveHistoricalIntegrity({ documents }: { documents: Doc[] }) {
       <p>{processed} procesados: <strong>{synced}</strong> íntegros y sincronizados; <strong>{exceptions.length}</strong> requieren revisión.</p>
       {activeId && <p className="text-muted">Documento: {activeId}</p>}
       {done && <p className="text-muted">Actualiza esta página para ver los nuevos estados.</p>}
+    </div>}
+    {legacyMissing && <div className="space-y-2 rounded-xl border p-4 text-sm">
+      <h3 className="font-semibold">Documento histórico 2016 · enlace 404</h3>
+      <p>Restauración excepcional en la carpeta ya existente 09_HISTORICO_POR_CONCILIAR. Conserva la referencia al enlace antiguo y compara los bytes originales con la copia nueva por SHA-256; no crea una segunda estructura ni sobrescribe archivos.</p>
+      <button type="button" disabled={running || restoringLegacy} onClick={restoreLegacy} className="rounded-xl border px-4 py-2 font-semibold disabled:opacity-50">{restoringLegacy ? "Verificando y restaurando…" : "Recuperar documento histórico 2016"}</button>
+      {legacyOutcome && <p role="status" className="break-words">{legacyOutcome}</p>}
     </div>}
     {exceptions.length > 0 && <div className="rounded-xl border p-3 text-sm">
       <h3 className="font-semibold">Excepciones — sin cambios al original</h3>
