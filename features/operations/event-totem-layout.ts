@@ -37,6 +37,59 @@ export type TotemOperatorAssignment = {
   assignmentType: string;
 };
 
+export type TotemAssignmentOption = TotemOperatorAssignment & { label: string };
+
+/**
+ * Prepare the administrative draft without changing persistence. Existing
+ * assignments always win; only empty positions/turns are filled with the
+ * already-confirmed service operators in stable order.
+ */
+export function prepareTotemDraft(
+  layout: EventTotemLayout,
+  blocks: readonly { id: string }[],
+  assignments: readonly TotemAssignmentOption[],
+  requiredCaseCount: number,
+): EventTotemLayout {
+  const count = Math.max(1, Math.min(30, requiredCaseCount || layout.positions.length));
+  const positions = Array.from({ length: count }, (_, index) => layout.positions[index] ?? ({
+    id: `totem-${index + 1}`,
+    label: `Tótem ${index + 1}`,
+    location: "",
+    reference: "",
+    assetId: null,
+    blocks: [],
+  }));
+  const operatorsByBlock = new Map<string, TotemAssignmentOption[]>();
+  for (const assignment of assignments.filter(item => item.assignmentType === "OPERATOR")) {
+    for (const block of blocks) {
+      // An event-level operator is unambiguous only when the event has one
+      // operational block. Multi-block events keep the operator selectable so
+      // the administrator can choose the correct shift without duplication.
+      if (assignment.blockId === block.id || (assignment.blockId === null && blocks.length === 1)) {
+        const current = operatorsByBlock.get(block.id) ?? [];
+        if (!current.some(item => item.id === assignment.id)) current.push(assignment);
+        operatorsByBlock.set(block.id, current);
+      }
+    }
+  }
+  const usedByBlock = new Map<string, Set<string>>();
+  return {
+    ...layout,
+    positions: positions.map((position, index) => ({
+      ...position,
+      blocks: blocks.map(block => {
+        const existing = position.blocks.find(item => item.blockId === block.id);
+        if (existing?.assignmentId) return existing;
+        const used = usedByBlock.get(block.id) ?? new Set<string>();
+        const candidate = (operatorsByBlock.get(block.id) ?? []).find(item => !used.has(item.id));
+        if (candidate) used.add(candidate.id);
+        usedByBlock.set(block.id, used);
+        return { blockId: block.id, assignmentId: candidate?.id ?? null };
+      }),
+    })),
+  };
+}
+
 /** Return controlled blockers for finalization; drafts may remain incomplete. */
 export function getTotemFinalizationWarnings(
   layout: EventTotemLayout,

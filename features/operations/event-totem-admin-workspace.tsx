@@ -7,17 +7,18 @@ import { EventTotemRosterPrint } from "./event-totem-roster-print";
 
 type Option = { id: string; label: string };
 /** The printable annex always uses the last successfully saved layout, never unsaved edits. */
-export function EventTotemAdminWorkspace({ eventName, initialLayout, boxes, blocks, assignments, onSave }: {
+export function EventTotemAdminWorkspace({ eventName, initialLayout, boxes, blocks, assignments, requiredCaseCount, onSave }: {
   eventName: string;
   initialLayout: EventTotemLayout;
-  boxes: Option[];
+  boxes: Array<Option & { stock?: number }>;
   blocks: Option[];
   assignments: Array<Option & { blockId: string | null }>;
-  onSave: (layout: EventTotemLayout) => Promise<unknown>;
+  requiredCaseCount: number;
+  onSave: (layout: EventTotemLayout, finalize?: boolean) => Promise<unknown>;
 }) {
   const [persistedLayout, setPersistedLayout] = useState(initialLayout);
   return <div className="space-y-6">
-    <div className="print:hidden"><EventTotemLayoutEditor initialLayout={initialLayout} boxes={boxes} blocks={blocks} assignments={assignments} onSave={onSave} onSaved={setPersistedLayout} /></div>
+    <div className="print:hidden"><EventTotemLayoutEditor initialLayout={initialLayout} requiredCaseCount={requiredCaseCount} boxes={boxes} blocks={blocks} assignments={assignments} onSave={onSave} onSaved={setPersistedLayout} /></div>
     <EventTotemRosterPrint eventName={eventName} layout={persistedLayout} blocks={blocks.map(item => ({ id: item.id, name: item.label }))} boxes={boxes} assignments={assignments} />
   </div>;
 }
