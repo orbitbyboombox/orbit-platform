@@ -12,28 +12,26 @@ export async function saveEventTotemLayoutAction(projectId: string, layout: Even
   if (authError || !auth.user) throw new Error("Authentication required");
   const { data: profile, error: profileError } = await client.from("profiles").select("role").eq("id", auth.user.id).single();
   if (profileError || profile?.role !== "CEO") throw new Error("Admin authorization required");
-  const [{ data: project, error: projectError }, { data: blocks, error: blocksError }, { data: assignments, error: assignmentsError }, { data: assets, error: assetsError }] = await Promise.all([
-    client.from("projects").select("id,operations").eq("id", projectId).is("deleted_at", null).single(),
+  const [{ data: blocks, error: blocksError }, { data: assignments, error: assignmentsError }, { data: assets, error: assetsError }] = await Promise.all([
     client.from("event_operational_blocks").select("id").eq("project_id", projectId),
-    client.from("assignments").select("id,block_id,assignment_type").eq("project_id", projectId).is("deleted_at", null),
+    client.from("assignments").select("id,block_id,assignment_type,status").eq("project_id", projectId).is("deleted_at", null).in("status", ["ASSIGNED", "PENDING_CONFIRMATION", "ACCEPTED", "CONFIRMED"]),
     client.from("operational_assets").select("id").eq("asset_type", "CASE"),
   ]);
-  if (projectError || !project || blocksError || assignmentsError || assetsError) throw new Error("Unable to load event assignment references");
+  if (blocksError || assignmentsError || assetsError) throw new Error("Unable to load event assignment references");
   const errors = validateTotemLayout(layout, {
     assetIds: new Set((assets ?? []).map(item => item.id)),
     blockIds: new Set((blocks ?? []).map(item => item.id)),
-    assignmentBlockIds: new Map((assignments ?? []).filter(item => item.block_id && item.assignment_type === "OPERATOR").map(item => [item.id, item.block_id!])),
+    assignmentBlockIds: new Map((assignments ?? []).filter(item => item.assignment_type === "OPERATOR").map(item => [item.id, item.block_id])),
   });
   if (errors.length) throw new Error(errors.join("; "));
-  const operations = project.operations && typeof project.operations === "object" && !Array.isArray(project.operations) ? project.operations : {};
-  // Optimistic compare prevents overwriting edits to other operational fields made since this read.
-  const { data: saved, error: saveError } = await client.from("projects")
-    .update({ operations: { ...operations, totemLayout: layout } })
-    .eq("id", projectId).filter("operations", "eq", JSON.stringify(operations)).select("id").maybeSingle();
-  if (saveError) throw new Error("Could not save layout");
-  if (!saved) throw new Error("Event was changed by someone else. Reload before saving.");
+  const { data: saved, error: saveError } = await client.rpc("save_event_multicase_configuration", { p_project_id: projectId, p_layout: layout });
+  if (saveError) throw new Error(saveError.message || "Could not save Multicaja configuration");
   revalidatePath("/admin");
   revalidatePath("/admin/totems");
   revalidatePath(`/admin/totems/${projectId}`);
-  return { ok: true };
+  revalidatePath(`/projects/${projectId}`);
+  revalidatePath("/operations");
+  revalidatePath("/staff-portal");
+  revalidatePath("/resources/boxes");
+  return { ok: true, layout: (saved as { layout?: EventTotemLayout } | null)?.layout ?? layout };
 }

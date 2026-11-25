@@ -12,7 +12,7 @@ export function EventTotemAdminWorkspace({ eventName, initialLayout, boxes, bloc
   initialLayout: EventTotemLayout;
   boxes: Option[];
   blocks: Option[];
-  assignments: Array<Option & { blockId: string }>;
+  assignments: Array<Option & { blockId: string | null }>;
   onSave: (layout: EventTotemLayout) => Promise<unknown>;
 }) {
   const [persistedLayout, setPersistedLayout] = useState(initialLayout);

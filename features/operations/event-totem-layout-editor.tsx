@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { emptyTotemLayout, validateTotemLayout, type EventTotemLayout } from "./event-totem-layout";
 
 type Option = { id: string; label: string };
@@ -17,10 +18,11 @@ export function EventTotemLayoutEditor({
   initialLayout?: EventTotemLayout;
   boxes: Option[];
   blocks: Option[];
-  assignments: Array<Option & { blockId: string }>;
+  assignments: Array<Option & { blockId: string | null }>;
   onSave: (layout: EventTotemLayout) => Promise<unknown>;
   onSaved?: (layout: EventTotemLayout) => void;
 }) {
+  const router = useRouter();
   const [layout, setLayout] = useState<EventTotemLayout>(() => initialLayout ?? emptyTotemLayout());
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -42,6 +44,7 @@ export function EventTotemLayoutEditor({
     <header className="space-y-2"><p className="text-xs font-semibold uppercase tracking-widest text-blue-400">Operaciones · BOOMBOX</p><h2 className="text-xl font-semibold">Distribución Multicaja</h2><p className="text-sm opacity-70">Una reserva, varias cajas y operadores por bloque. Abre solo el tótem que necesites editar.</p></header>
     {layout.enabled && <div className="grid grid-cols-3 gap-2">{[["Tótems",layout.positions.length],["CASE asignadas",assignedBoxes],["Turnos pendientes",pendingOperators]].map(([label,value]) => <div key={label} className="rounded-xl border bg-white/[.03] p-3"><p className="text-xs opacity-65">{label}</p><p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p></div>)}</div>}
     <label className="flex items-center gap-2"><input type="checkbox" checked={layout.enabled} onChange={event => setLayout(previous => ({ ...previous, enabled: event.target.checked }))} /> Activar multicaja para este evento</label>
+    {layout.enabled && blocks.length === 0 && layout.positions.length === 1 && <p className="rounded-lg border p-3 text-sm opacity-80">Evento con una caja y un único operador activo: al guardar, ORBIT lo vinculará al bloque interno del horario de servicio confirmado. Si hay más de un operador, primero define los bloques para evitar asignaciones arbitrarias.</p>}
     {layout.enabled && <label className="flex items-center gap-3 text-sm">Cantidad de posiciones
       <select aria-label="Cantidad de posiciones" className="rounded border p-2" value={layout.positions.length} onChange={event => {
         const count = Number(event.target.value);
@@ -62,12 +65,12 @@ export function EventTotemLayoutEditor({
         <label className="text-sm">Ubicación en el parque<input className="mt-1 w-full rounded border p-2" value={position.location} maxLength={250} placeholder="Ej. Entrada norte" onChange={event => change(index, { location: event.target.value })} /></label>
         <label className="text-sm">Referencia<input className="mt-1 w-full rounded border p-2" value={position.reference} maxLength={250} placeholder="Ej. Junto a escenario" onChange={event => change(index, { reference: event.target.value })} /></label>
       </div>
-      <div className="grid gap-2 sm:grid-cols-2">{blocks.map(block => <label key={block.id} className="text-sm">{block.label}<select className="mt-1 w-full rounded border p-2" value={position.blocks.find(item => item.blockId === block.id)?.assignmentId ?? ""} onChange={event => change(index, { blocks: [...position.blocks.filter(item => item.blockId !== block.id), { blockId: block.id, assignmentId: event.target.value || null }] })}><option value="">Operador pendiente</option>{assignments.filter(assignment => assignment.blockId === block.id).map(assignment => <option key={assignment.id} value={assignment.id}>{assignment.label}</option>)}</select></label>)}</div>
+      <div className="grid gap-2 sm:grid-cols-2">{blocks.map(block => <label key={block.id} className="text-sm">{block.label}<select className="mt-1 w-full rounded border p-2" value={position.blocks.find(item => item.blockId === block.id)?.assignmentId ?? ""} onChange={event => change(index, { blocks: [...position.blocks.filter(item => item.blockId !== block.id), { blockId: block.id, assignmentId: event.target.value || null }] })}><option value="">Operador pendiente</option>{assignments.filter(assignment => assignment.blockId === block.id || assignment.blockId === null).map(assignment => <option key={assignment.id} value={assignment.id}>{assignment.label}{assignment.blockId === null ? " · Vincular al bloque" : ""}</option>)}</select></label>)}</div>
       <button type="button" className="text-sm underline disabled:opacity-40" disabled={layout.positions.length <= 1} onClick={() => { setLayout(previous => ({ ...previous, positions: previous.positions.filter(item => item.id !== position.id) })); setMessage(""); }}>Quitar posición</button>
     </div>}</div>)}
     <button type="button" disabled={!canAdd} className="rounded border px-3 py-2 disabled:opacity-50" onClick={() => { const id = crypto.randomUUID(); setLayout(previous => ({ ...previous, positions: [...previous.positions, { id, label: `Tótem ${previous.positions.length + 1}`, location: "", reference: "", assetId: null, blocks: [] }] })); setOpenPositions(previous => [...previous, id]); }}>Agregar tótem</button></div>}
     {errors.length > 0 && <div role="alert" className="text-sm text-red-600">{errors.join("; ")}</div>}
     {message && <p role="status" className="text-sm">{message}</p>}
-    <button type="button" disabled={saving || errors.length > 0} className="rounded bg-blue-700 px-4 py-2 text-white disabled:opacity-50" onClick={async () => { setSaving(true); setMessage(""); try { await onSave(layout); onSaved?.(layout); setMessage("Distribución guardada"); } catch { setMessage("No se pudo guardar la distribución"); } finally { setSaving(false); } }}>{saving ? "Guardando..." : "Guardar distribución"}</button>
+    <button type="button" disabled={saving || errors.length > 0} className="rounded bg-blue-700 px-4 py-2 text-white disabled:opacity-50" onClick={async () => { setSaving(true); setMessage(""); try { const result = await onSave(layout) as { layout?: EventTotemLayout }; const savedLayout = result?.layout ?? layout; onSaved?.(savedLayout); setLayout(savedLayout); router.refresh(); setMessage("Distribución guardada"); } catch (error) { setMessage(error instanceof Error ? error.message : "No se pudo guardar la distribución"); } finally { setSaving(false); } }}>{saving ? "Guardando..." : "Guardar distribución"}</button>
   </section>;
 }
