@@ -31,6 +31,17 @@ export async function saveEventTotemLayoutAction(projectId: string, layout: Even
   layout = { ...layout, finalized: finalize };
   const { data: saved, error: saveError } = await client.rpc("save_event_multicase_configuration", { p_project_id: projectId, p_layout: layout });
   if (saveError) throw new Error(saveError.message || "Could not save Multicaja configuration");
+  const [{ data: refreshedBlocks }, { data: refreshedAssignments }] = await Promise.all([
+    client.from("event_operational_blocks").select("id,name").eq("project_id", projectId),
+    client.from("assignments").select("id,block_id,assignment_type,status,staff(first_name,last_name)").eq("project_id", projectId).is("deleted_at", null).in("status", ["ASSIGNED", "PENDING_CONFIRMATION", "ACCEPTED", "CONFIRMED"]),
+  ]);
+  const blockOptions = (refreshedBlocks ?? []).map(item => ({ id: item.id, label: item.name ?? "Bloque" }));
+  const assignmentOptions = (refreshedAssignments ?? []).filter(item => item.assignment_type === "OPERATOR").map(item => {
+    const staff = item.staff as unknown as { first_name: string; last_name: string } | { first_name: string; last_name: string }[] | null;
+    const person = Array.isArray(staff) ? staff[0] : staff;
+    const state = item.status === "CONFIRMED" ? "Confirmado" : item.status === "ACCEPTED" ? "Aceptado" : "Pendiente";
+    return { id: item.id, blockId: item.block_id, label: `${[person?.first_name, person?.last_name].filter(Boolean).join(" ") || "Operador"} · ${state}` };
+  });
   revalidatePath("/admin");
   revalidatePath("/admin/totems");
   revalidatePath(`/admin/totems/${projectId}`);
@@ -38,5 +49,5 @@ export async function saveEventTotemLayoutAction(projectId: string, layout: Even
   revalidatePath("/operations");
   revalidatePath("/staff-portal");
   revalidatePath("/resources/boxes");
-  return { ok: true, layout: (saved as { layout?: EventTotemLayout } | null)?.layout ?? layout };
+  return { ok: true, layout: (saved as { layout?: EventTotemLayout } | null)?.layout ?? layout, blocks: blockOptions, assignments: assignmentOptions };
 }
