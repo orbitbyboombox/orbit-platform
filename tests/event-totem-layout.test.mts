@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { emptyTotemLayout, totemsForStaff, validateTotemLayout, visibleTotemsForStaff } from "../features/operations/event-totem-layout.ts";
+import { emptyTotemLayout, getTotemFinalizationWarnings, totemsForStaff, validateTotemLayout, visibleTotemsForStaff } from "../features/operations/event-totem-layout.ts";
 
 test("CCU starts with seven unassigned physical positions and disabled feature", () => {
   const layout = emptyTotemLayout();
@@ -70,4 +70,28 @@ test("supervisor can see all positions but an unassigned operator cannot", () =>
   layout.enabled = true;
   assert.equal(visibleTotemsForStaff(layout, new Set(), true).length, 7);
   assert.equal(visibleTotemsForStaff(layout, new Set(), false).length, 0);
+});
+
+test("partial drafts can save with boxes first or operators first, while finalization remains blocked", () => {
+  const boxesFirst = emptyTotemLayout(2);
+  boxesFirst.enabled = true;
+  boxesFirst.positions[0].assetId = "box-1";
+  assert.deepEqual(validateTotemLayout(boxesFirst, { assetIds: new Set(["box-1"]), blockIds: new Set(), assignmentBlockIds: new Map() }), []);
+  assert.ok(getTotemFinalizationWarnings(boxesFirst, [{ id: "op-1", blockId: null, assignmentType: "OPERATOR" }, { id: "op-2", blockId: null, assignmentType: "OPERATOR" }], new Set()).length > 0);
+
+  const operatorsFirst = emptyTotemLayout(1);
+  operatorsFirst.enabled = true;
+  operatorsFirst.positions[0].blocks = [{ blockId: "service", assignmentId: "op-1" }];
+  assert.deepEqual(validateTotemLayout(operatorsFirst, { assetIds: new Set(), blockIds: new Set(["service"]), assignmentBlockIds: new Map([["op-1", null]]) }), []);
+  assert.ok(getTotemFinalizationWarnings(operatorsFirst, [{ id: "op-1", blockId: null, assignmentType: "OPERATOR" }], new Set(["service"])).length > 0);
+});
+
+test("assembly and disassembly roles do not count as box operators", () => {
+  const layout = emptyTotemLayout(1);
+  layout.enabled = true;
+  layout.positions[0].assetId = "box-1";
+  assert.ok(getTotemFinalizationWarnings(layout, [
+    { id: "assembly", blockId: null, assignmentType: "ASSEMBLY" },
+    { id: "disassembly", blockId: null, assignmentType: "DISASSEMBLY" },
+  ], new Set()).some(warning => warning.includes("operadores de servicio")));
 });
