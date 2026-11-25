@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { emptyTotemLayout, getTotemFinalizationWarnings, totemsForStaff, validateTotemLayout, visibleTotemsForStaff } from "../features/operations/event-totem-layout.ts";
+import { emptyTotemLayout, getTotemFinalizationWarnings, prepareTotemDraft, totemsForStaff, validateTotemLayout, visibleTotemsForStaff } from "../features/operations/event-totem-layout.ts";
 
 test("CCU starts with seven unassigned physical positions and disabled feature", () => {
   const layout = emptyTotemLayout();
@@ -94,4 +94,16 @@ test("assembly and disassembly roles do not count as box operators", () => {
     { id: "assembly", blockId: null, assignmentType: "ASSEMBLY" },
     { id: "disassembly", blockId: null, assignmentType: "DISASSEMBLY" },
   ], new Set()).some(warning => warning.includes("operadores de servicio")));
+});
+
+test("draft preparation creates the contracted number of positions and reuses confirmed operators", () => {
+  for (const count of [1, 2, 3, 4, 7]) {
+    const draft = prepareTotemDraft(emptyTotemLayout(1), [{ id: "block-1" }], [
+      { id: "operator-1", label: "Operador 1 · Confirmado", blockId: "block-1", assignmentType: "OPERATOR" },
+      { id: "operator-2", label: "Operador 2 · Aceptado", blockId: "block-1", assignmentType: "OPERATOR" },
+    ], count);
+    assert.equal(draft.positions.length, count);
+    assert.equal(draft.positions[0].blocks[0]?.assignmentId, "operator-1");
+    if (count > 1) assert.equal(draft.positions[1].blocks[0]?.assignmentId, "operator-2");
+  }
 });
