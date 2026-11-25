@@ -64,6 +64,7 @@ export type StaffPortalEvent = {
   venueInfo: StaffVenueInfo;
   totemPositions?: Array<{label:string;location:string;reference:string;assetId:string|null}>;
   roles: string[];
+  roleUnits?: Record<string, number>;
   net: number;
   status: string;
   vehicle: string;
@@ -501,7 +502,7 @@ function StaffWeeklyEventList({events, onSelect}:{events:StaffPortalEvent[];onSe
     const sector = defaultSectorForCommune(row.commune);
     return <div className="min-w-0" key={event.id}><div className="hidden lg:block"><LogisticsEventRow event={row} sector={sector} onSelect={() => onSelect(event)} selected={false} /></div><div className="lg:hidden"><ScaledLogisticsEventRow event={row} sector={sector} onSelect={() => onSelect(event)} selected={false} /></div><div className="rounded-xl border bg-card/80 px-3 py-2 text-sm space-y-1" aria-label="Tus cargos y turnos">
       {event.operationalBlocks.map(block => <div key={`${block.id}:${block.role}`} className="flex items-center justify-between gap-3"><span>{ROLE[block.role] ?? block.role} · {block.name}</span><span className="text-xs text-muted">{staffBlockTime(block.startAt)}–{staffBlockTime(block.endAt)}</span></div>)}
-      {event.roles.filter(role => !["OPERATOR","SUPERVISOR"].includes(role)).map(role => <div key={role}>{ROLE[role] ?? role}</div>)}
+      {event.roles.filter(role => !["OPERATOR","SUPERVISOR"].includes(role)).map(role => <div key={role}>{ROLE[role] ?? role}{event.roleUnits?.[role] ? ` · ${event.roleUnits[role]} tótem(s)` : ""}</div>)}
       <p className="text-xs text-muted">El monto de cada cargo se muestra aquí y en el detalle del evento; Finanzas conserva el historial y estado de pago.</p>
     </div>{event.assignedPayments.length ? <div className="rounded-xl border border-brand/30 bg-brand/5 px-3 py-2 text-sm"><p className="font-semibold text-brand">Honorarios asignados: {money(event.assignedPayments.reduce((sum,p)=>sum+p.amount,0))}</p><p className="text-xs text-muted">{event.assignedPayments.length} cargo(s) tuyos: {event.assignedPayments.map(p => ROLE[p.role] ?? p.role).join(" + ")} · ver detalle al abrir el evento</p></div> : <p className="text-xs text-muted">Honorarios pendientes de asignación en Finanzas Staff.</p>}<div className="rounded-xl border bg-card p-3 text-sm space-y-1" aria-label="Información para aceptar o rechazar asignación">
       <p className="font-semibold">{staffEventTypeLabel(event.eventType)} · {staffServiceLabel(event.service)}</p>

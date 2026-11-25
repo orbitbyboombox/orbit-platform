@@ -182,7 +182,7 @@ export default async function ProjectWorkspacePage({
     client
       .from("assignments")
       .select(
-        "id,project_id,block_id,staff_id,assignment_type,status,created_at,staff_call_at,arrival_time,start_time,finish_time,assigned_vehicle,observations,resources,staff(first_name,last_name),operational_assets(asset_code),event_operational_blocks(id,name,start_at,end_at)",
+        "id,project_id,block_id,staff_id,assignment_type,status,created_at,staff_call_at,arrival_time,start_time,finish_time,assigned_vehicle,observations,resources,coverage_units,staff(first_name,last_name),operational_assets(asset_code),event_operational_blocks(id,name,start_at,end_at)",
       )
       .eq("project_id", projectId)
       .is("deleted_at", null),
@@ -554,6 +554,7 @@ export default async function ProjectWorkspacePage({
     assigned_vehicle: string | null;
     observations: string | null;
     resources: Record<string, unknown> | null;
+    coverage_units: number | null;
     staff: { first_name: string; last_name: string };
     operational_assets: { asset_code: string } | null;
     event_operational_blocks: { id: string; name: string; start_at: string; end_at: string } | { id: string; name: string; start_at: string; end_at: string }[] | null;
@@ -1729,6 +1730,7 @@ export default async function ProjectWorkspacePage({
           vehicleId: item.assigned_vehicle ?? "",
           vehicleName: item.operational_assets?.asset_code ?? "",
           observations: item.observations ?? "",
+          coverageUnits: Number(item.coverage_units ?? 1),
           mobilityAmount: (() => {
             const payment = (payroll ?? []).find(
               (candidate) => candidate.assignment_id === item.id,

@@ -60,6 +60,7 @@ export type OperationalAssignment = {
   vehicleId: string;
   vehicleName: string;
   observations: string;
+  coverageUnits?: number;
   mobilityAmount?: number;
   packageStatus?: Record<string, string>;
   createdAt?: string;
@@ -1551,6 +1552,7 @@ function AssignmentDialog({
               observations: String(data.get("observations") ?? ""),
               applyMobility: mobilityChecked,
               mobilityDecision,
+              coverageUnits: Number(data.get("coverageUnits") ?? 1),
             });
           }}
         >
@@ -1614,6 +1616,18 @@ function AssignmentDialog({
               <span>
                 Aplicar movilización adicional · sugerido {money(mobilitySuggestion)}
               </span>
+            </label>
+          ) : null}
+          {role === "ASSEMBLY" || role === "DISASSEMBLY" ? (
+            <label className="grid gap-1 text-sm sm:col-span-2">
+              <span className="font-medium">Unidades cubiertas (tótems)</span>
+              <span className="text-xs text-muted">Asigna todos los tótems a esta persona o distribúyelos entre trabajadores. La suma no puede superar lo contratado.</span>
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="outline" aria-label="Quitar unidad" onClick={(event) => { const input = event.currentTarget.parentElement?.querySelector("input"); if (input) input.value = String(Math.max(1, Number(input.value || 1) - 1)); }}>−</Button>
+                <input className="min-h-10 w-20 rounded-lg border bg-background px-3 text-center" name="coverageUnits" type="number" min={1} max={99} defaultValue={String(item?.coverageUnits ?? 1)} />
+                <Button type="button" variant="outline" aria-label="Agregar unidad" onClick={(event) => { const input = event.currentTarget.parentElement?.querySelector("input"); if (input) input.value = String(Math.min(99, Number(input.value || 1) + 1)); }}>+</Button>
+                <span className="text-xs text-muted">{role === "ASSEMBLY" ? "Montaje" : "Desmontaje"}</span>
+              </div>
             </label>
           ) : null}
           <label className="text-sm font-medium sm:col-span-2">

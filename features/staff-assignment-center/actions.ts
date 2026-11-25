@@ -30,6 +30,7 @@ export type StaffAssignmentMutation = {
   applyMobility?: boolean;
   mobilityDecision?: "APPLY" | "CLEAR" | "UNCHANGED";
   replaceId?: string;
+  coverageUnits?: number;
 };
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -222,7 +223,7 @@ export async function saveStaffAssignmentAction(
       finish_time: ["OPERATOR", "SUPERVISOR"].includes(input.role) && selectedBlock ? blockEnd : value(input.finishTime) ?? automaticFinish,
       assigned_vehicle: value(input.vehicleId),
       observations: value(input.observations),
-      resources: { ...existingResources, vehicle: value(input.vehicleId) },
+      resources: { ...existingResources, vehicle: value(input.vehicleId), coverageUnits: input.role === "ASSEMBLY" || input.role === "DISASSEMBLY" ? Math.max(1, Math.trunc(Number(input.coverageUnits ?? 1))) : 1 },
       reason: value(input.observations) ?? "Asignación operacional",
       updated_by: ctx.user.id,
     };
@@ -266,6 +267,14 @@ export async function saveStaffAssignmentAction(
     if (saveError) throw new Error(saveError.message);
     const result = saved as { id: string; replay: boolean };
     const assignmentId = result.id;
+    if (input.role === "ASSEMBLY" || input.role === "DISASSEMBLY") {
+      const { error: coverageError } = await ctx.client.rpc("set_staff_assignment_coverage", {
+        p_assignment_id: assignmentId,
+        p_coverage_units: Math.max(1, Math.trunc(Number(input.coverageUnits ?? 1))),
+        p_allow_overbook: false,
+      });
+      if (coverageError) throw new Error(coverageError.message);
+    }
     if (!result.replay) {
       await timeline(
         ctx,
