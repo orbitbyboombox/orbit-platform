@@ -11,12 +11,15 @@ export type TotemPosition = {
 export type EventTotemLayout = {
   enabled: boolean;
   positions: TotemPosition[];
+  /** True only after every active service operator has a physical CASE. */
+  finalized?: boolean;
 };
 
 export function emptyTotemLayout(count = 7): EventTotemLayout {
   if (!Number.isInteger(count) || count < 1 || count > 30) throw new Error("Invalid totem count");
   return {
     enabled: false,
+    finalized: false,
     positions: Array.from({ length: count }, (_, i) => ({
       id: `totem-${i + 1}`,
       label: `Tótem ${i + 1}`,
@@ -26,6 +29,51 @@ export function emptyTotemLayout(count = 7): EventTotemLayout {
       blocks: [],
     })),
   };
+}
+
+export type TotemOperatorAssignment = {
+  id: string;
+  blockId: string | null;
+  assignmentType: string;
+};
+
+/** Return controlled blockers for finalization; drafts may remain incomplete. */
+export function getTotemFinalizationWarnings(
+  layout: EventTotemLayout,
+  assignments: readonly TotemOperatorAssignment[],
+  blockIds: ReadonlySet<string>,
+  requiredCaseCount?: number,
+): string[] {
+  const warnings: string[] = [];
+  if (!layout.enabled) return ["Activa Multicaja antes de finalizar."];
+  const operators = assignments.filter(item => item.assignmentType === "OPERATOR");
+  const positions = layout.positions.filter(position => position.assetId);
+  if (!positions.length) warnings.push("Asigna al menos una caja antes de finalizar.");
+  if (requiredCaseCount !== undefined && positions.length < requiredCaseCount) {
+    warnings.push(`Faltan cajas: ${positions.length}/${requiredCaseCount} asignadas.`);
+  }
+  if (!operators.length) warnings.push("Falta asignar operadores de servicio.");
+
+  const singleOperatorSingleBox = blockIds.size === 0 && positions.length === 1 && operators.length === 1;
+  if (singleOperatorSingleBox) return warnings;
+
+  for (const operator of operators) {
+    const mapped = positions.some(position => position.blocks.some(shift =>
+      shift.assignmentId === operator.id &&
+      (operator.blockId === null || operator.blockId === shift.blockId) &&
+      blockIds.has(shift.blockId),
+    ));
+    if (!mapped) warnings.push("Hay operadores de servicio pendientes de vincular a una caja y bloque.");
+  }
+  for (const position of positions) {
+    const mapped = position.blocks.some(shift =>
+      shift.assignmentId !== null &&
+      blockIds.has(shift.blockId) &&
+      operators.some(operator => operator.id === shift.assignmentId && (operator.blockId === null || operator.blockId === shift.blockId)),
+    );
+    if (!mapped) warnings.push(`${position.label}: asigna un operador de servicio a esta caja.`);
+  }
+  return [...new Set(warnings)];
 }
 
 /** Validate layout against the existing event's actual asset, block and staff assignment IDs. */

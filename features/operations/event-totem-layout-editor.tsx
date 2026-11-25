@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { emptyTotemLayout, validateTotemLayout, type EventTotemLayout } from "./event-totem-layout";
+import { emptyTotemLayout, getTotemFinalizationWarnings, validateTotemLayout, type EventTotemLayout } from "./event-totem-layout";
 
 type Option = { id: string; label: string };
 
@@ -19,7 +19,7 @@ export function EventTotemLayoutEditor({
   boxes: Option[];
   blocks: Option[];
   assignments: Array<Option & { blockId: string | null }>;
-  onSave: (layout: EventTotemLayout) => Promise<unknown>;
+  onSave: (layout: EventTotemLayout, finalize?: boolean) => Promise<unknown>;
   onSaved?: (layout: EventTotemLayout) => void;
 }) {
   const router = useRouter();
@@ -35,6 +35,7 @@ export function EventTotemLayoutEditor({
     assignmentBlockIds: new Map(assignments.map(assignment => [assignment.id, assignment.blockId])),
   };
   const errors = validateTotemLayout(layout, context);
+  const finalizationWarnings = getTotemFinalizationWarnings(layout, assignments.map(item => ({ id: item.id, blockId: item.blockId, assignmentType: "OPERATOR" })), new Set(blocks.map(block => block.id)));
   const canAdd = layout.positions.length < 30;
   const change = (index: number, patch: Partial<EventTotemLayout["positions"][number]>) => {
     setLayout(previous => ({ ...previous, positions: previous.positions.map((position, i) => i === index ? { ...position, ...patch } : position) }));
@@ -70,7 +71,10 @@ export function EventTotemLayoutEditor({
     </div>}</div>)}
     <button type="button" disabled={!canAdd} className="rounded border px-3 py-2 disabled:opacity-50" onClick={() => { const id = crypto.randomUUID(); setLayout(previous => ({ ...previous, positions: [...previous.positions, { id, label: `Tótem ${previous.positions.length + 1}`, location: "", reference: "", assetId: null, blocks: [] }] })); setOpenPositions(previous => [...previous, id]); }}>Agregar tótem</button></div>}
     {errors.length > 0 && <div role="alert" className="text-sm text-red-600">{errors.join("; ")}</div>}
+    {layout.enabled && finalizationWarnings.length > 0 && <div role="status" className="rounded-lg border border-amber-500/50 bg-amber-500/10 p-3 text-sm"><strong>Distribución pendiente</strong><ul className="list-disc pl-5">{finalizationWarnings.map(warning => <li key={warning}>{warning}</li>)}</ul></div>}
+    {layout.enabled && finalizationWarnings.length > 0 && <div role="status" className="rounded-lg border border-amber-500/50 bg-amber-500/10 p-3 text-sm"><strong>Distribución pendiente</strong><ul className="list-disc pl-5">{finalizationWarnings.map(warning => <li key={warning}>{warning}</li>)}</ul></div>}
     {message && <p role="status" className="text-sm">{message}</p>}
-    <button type="button" disabled={saving || errors.length > 0} className="rounded bg-blue-700 px-4 py-2 text-white disabled:opacity-50" onClick={async () => { setSaving(true); setMessage(""); try { const result = await onSave(layout) as { layout?: EventTotemLayout }; const savedLayout = result?.layout ?? layout; onSaved?.(savedLayout); setLayout(savedLayout); router.refresh(); setMessage("Distribución guardada"); } catch (error) { setMessage(error instanceof Error ? error.message : "No se pudo guardar la distribución"); } finally { setSaving(false); } }}>{saving ? "Guardando..." : "Guardar distribución"}</button>
+    <button type="button" disabled={saving || errors.length > 0} className="rounded border px-4 py-2 disabled:opacity-50" onClick={async () => { setSaving(true); setMessage(""); try { const draft = { ...layout, finalized: false }; const result = await onSave(draft, false) as { layout?: EventTotemLayout }; const savedLayout = result?.layout ?? draft; onSaved?.(savedLayout); setLayout(savedLayout); router.refresh(); setMessage("Borrador guardado"); } catch (error) { setMessage(error instanceof Error ? error.message : "No se pudo guardar el borrador"); } finally { setSaving(false); } }}>{saving ? "Guardando..." : "Guardar borrador"}</button>
+    <button type="button" disabled={saving || errors.length > 0 || finalizationWarnings.length > 0} className="rounded bg-blue-700 px-4 py-2 text-white disabled:opacity-50" onClick={async () => { setSaving(true); setMessage(""); try { const finalized = { ...layout, finalized: true }; const result = await onSave(finalized, true) as { layout?: EventTotemLayout }; const savedLayout = result?.layout ?? finalized; onSaved?.(savedLayout); setLayout(savedLayout); router.refresh(); setMessage("Distribución finalizada"); } catch (error) { setMessage(error instanceof Error ? error.message : "No se pudo finalizar la distribución"); } finally { setSaving(false); } }}>{saving ? "Guardando..." : "Finalizar distribución"}</button>
   </section>;
 }
