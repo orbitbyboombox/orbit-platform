@@ -42,7 +42,13 @@ async function staffContext(projectId: string, allowedRoles?: string[]) {
   const highestOperatorSequence = operatorSequences.length ? Math.max(...operatorSequences) : null;
   const canFinalizeEvent = roles.includes("DISASSEMBLY")
     || ownOperatorAssignments.some((row) => !row.block_id || sequenceByBlock.get(row.block_id) === highestOperatorSequence);
-  return { admin, staffId: session.staff_id, portalSessionId: session.id, roles, canFinalizeEvent, ownOperatorAssignments, sequenceByBlock };
+  return { admin, staffId: session.staff_id, portalSessionId: session.id, roles, canFinalizeEvent, ownOperatorAssignments, ownAssignments: data ?? [], sequenceByBlock };
+}
+
+function assertOwnAssignment(ownAssignments: Array<{ id: string }>, assignmentId: string) {
+  if (!assignmentId || !ownAssignments.some((assignment) => assignment.id === assignmentId)) {
+    throw new Error("Esta asignación no pertenece a tu sesión Staff.");
+  }
 }
 
 export async function loadStaffBoxOperationsAction(projectId: string): Promise<{ ok: true; assignment: StaffBoxAssignment; roles: string[] } | { ok: false; message: string }> {
@@ -59,10 +65,21 @@ export async function loadStaffBoxOperationsAction(projectId: string): Promise<{
       const block = ownBlocks.get(row.block_id);
       return block ? [{ assignmentId: row.id, blockId: block.id, blockName: block.name, sequence: Number(block.sequence), startAt: block.start_at, endAt: block.end_at, status: row.status }] : [];
     }).sort((a, b) => a.sequence - b.sequence);
-    const { data: rows, error } = await admin.from("asset_assignments").select("id,asset_id,assignment_status,assigned_at,returned_at,operational_assets!inner(id,asset_code,status,asset_type)").eq("project_id", projectId).is("deleted_at", null).in("operational_assets.asset_type", ["BOX", "CASE"]).in("operational_assets.asset_code", ["CASE-01", "CASE-02", "CASE-03", "CASE-04", "CASE-05", "CASE-06", "CASE-07", "CASE-08", "CASE-09"]);
+    const { data: project, error: projectError } = await admin.from("projects").select("operations").eq("id", projectId).single();
+    if (projectError) throw projectError;
+    type LayoutShift = { blockId?: string; assignmentId?: string };
+    type LayoutPosition = { assetId?: string; blocks?: LayoutShift[] };
+    const positions = ((project?.operations as { totemLayout?: { positions?: LayoutPosition[] } } | null)?.totemLayout?.positions ?? []);
+    const ownById = new Map(ownOperatorAssignments.map((assignment) => [assignment.id, assignment]));
+    const ownAssetIds = new Set<string>();
+    for (const position of positions) {
+      if (!position.assetId || !Array.isArray(position.blocks)) continue;
+      if (position.blocks.some((shift) => shift.assignmentId && ownById.has(shift.assignmentId))) ownAssetIds.add(position.assetId);
+    }
+    const { data: rows, error } = await admin.from("asset_assignments").select("id,asset_id,assignment_status,assigned_at,returned_at,operational_assets!inner(id,asset_code,status,asset_type)").eq("project_id", projectId).is("deleted_at", null).in("operational_assets.asset_type", ["BOX", "CASE"]).in("operational_assets.asset_code", ["CASE-01", "CASE-02", "CASE-03", "CASE-04", "CASE-05", "CASE-06", "CASE-07", "CASE-08", "CASE-09"]).in("asset_id", [...ownAssetIds]);
     if (error) throw error;
     const row = canonicalBoxAssignment(rows ?? []);
-    if (!row) return { ok: true, roles, assignment: { id: "", boxId: "", boxCode: "", boxStatus: "", assignmentStatus: "", components: [], mediaLotId: null, mediaRemaining: null, format: null, lot: null, paper: null, canFinalizeEvent, turns } };
+    if (!row) return { ok: true, roles, assignment: { id: "", boxId: "", boxCode: "Caja pendiente de asignación", boxStatus: "", assignmentStatus: "PENDING", components: [], mediaLotId: null, mediaRemaining: null, format: null, lot: null, paper: null, canFinalizeEvent, turns } };
     const box = Array.isArray(row.operational_assets) ? row.operational_assets[0] : row.operational_assets;
     // This loader is read-only. Pending snapshots must be rebased through an
     // explicit, authorized operational action, never as a side effect of viewing
@@ -89,7 +106,8 @@ export async function loadStaffBoxOperationsAction(projectId: string): Promise<{
 
 export async function finalizeStaffOperationalTurnAction(input: { projectId: string; assignmentId: string; blockId: string }) {
   try {
-    const { admin, staffId, portalSessionId } = await staffContext(input.projectId, ["OPERATOR"]);
+    const { admin, staffId, portalSessionId, ownAssignments } = await staffContext(input.projectId, ["OPERATOR"]);
+    assertOwnAssignment(ownAssignments, input.assignmentId);
     const { data, error } = await admin.rpc("finalize_staff_operational_turn", {
       p_project_id: input.projectId,
       p_assignment_id: input.assignmentId,
@@ -108,7 +126,8 @@ export async function finalizeStaffOperationalTurnAction(input: { projectId: str
 
 export async function recordStaffBoxCheckOutAction(input: { projectId: string; assignmentId: string; components: StaffComponentInput[] }) {
   try {
-    const { admin, staffId, portalSessionId } = await staffContext(input.projectId, ["OPERATOR", "ASSEMBLY"]);
+    const { admin, staffId, portalSessionId, ownAssignments } = await staffContext(input.projectId, ["OPERATOR", "ASSEMBLY"]);
+    assertOwnAssignment(ownAssignments, input.assignmentId);
     const key = `staff-box-checkout:${input.projectId}:${input.assignmentId}`;
     const { data, error } = await admin.rpc("record_staff_box_check_out", { p_project_id: input.projectId, p_asset_assignment_id: input.assignmentId, p_components: input.components, p_idempotency_key: key, p_staff_id: staffId, p_portal_session_id: portalSessionId });
     if (error) throw error;
@@ -119,7 +138,8 @@ export async function recordStaffBoxCheckOutAction(input: { projectId: string; a
 
 export async function recordStaffBoxCheckInAction(input: { projectId: string; assignmentId: string; mediaLotId: string; remaining: number; components: StaffComponentInput[]; note: string; incident: boolean }) {
   try {
-    const { admin, staffId, portalSessionId } = await staffContext(input.projectId, ["OPERATOR"]);
+    const { admin, staffId, portalSessionId, ownAssignments } = await staffContext(input.projectId, ["OPERATOR"]);
+    assertOwnAssignment(ownAssignments, input.assignmentId);
     if (!Number.isFinite(input.remaining) || input.remaining < 0) return { ok: false as const, message: "Ingresa un saldo de retorno válido." };
     const key = `staff-box-checkin:${input.projectId}:${input.assignmentId}`;
     const { data, error } = await admin.rpc("record_staff_box_check_in", { p_project_id: input.projectId, p_asset_assignment_id: input.assignmentId, p_media_lot_id: input.mediaLotId, p_remaining_photo_capacity: input.remaining, p_components: input.components, p_note: input.note.trim() || null, p_incident: input.incident, p_idempotency_key: key, p_staff_id: staffId, p_portal_session_id: portalSessionId });
@@ -131,7 +151,8 @@ export async function recordStaffBoxCheckInAction(input: { projectId: string; as
 
 export async function recordStaffPaperReloadAction(input: { projectId: string; assignmentId: string; quantity: number; note: string }) {
   try {
-    const { admin, staffId, portalSessionId } = await staffContext(input.projectId, ["OPERATOR"]);
+    const { admin, staffId, portalSessionId, ownAssignments } = await staffContext(input.projectId, ["OPERATOR"]);
+    assertOwnAssignment(ownAssignments, input.assignmentId);
     if (!Number.isFinite(input.quantity) || input.quantity <= 0) return { ok: false as const, message: "Ingresa una recarga mayor que cero." };
     const { data, error } = await admin.rpc("record_staff_event_paper_reload", { p_project_id: input.projectId, p_asset_assignment_id: input.assignmentId, p_quantity: input.quantity, p_note: input.note.trim() || null, p_idempotency_key: `staff-paper-reload:${input.projectId}:${input.assignmentId}:${input.quantity}`, p_staff_id: staffId, p_portal_session_id: portalSessionId });
     if (error) throw error;
@@ -142,7 +163,8 @@ export async function recordStaffPaperReloadAction(input: { projectId: string; a
 
 export async function confirmStaffPaperCloseoutAction(input: { projectId: string; assignmentId: string; finalRemaining: number; note: string }) {
   try {
-    const { admin, staffId, portalSessionId } = await staffContext(input.projectId, ["OPERATOR", "DISASSEMBLY"]);
+    const { admin, staffId, portalSessionId, ownAssignments } = await staffContext(input.projectId, ["OPERATOR", "DISASSEMBLY"]);
+    assertOwnAssignment(ownAssignments, input.assignmentId);
     if (!Number.isFinite(input.finalRemaining) || input.finalRemaining < 0) return { ok: false as const, message: "Ingresa un saldo final válido." };
     const { data, error } = await admin.rpc("confirm_staff_event_paper_closeout", { p_project_id: input.projectId, p_asset_assignment_id: input.assignmentId, p_final_remaining: input.finalRemaining, p_note: input.note.trim() || null, p_idempotency_key: `staff-paper-closeout:${input.projectId}:${input.assignmentId}`, p_staff_id: staffId, p_portal_session_id: portalSessionId });
     if (error) return { ok: false as const, message: error.message || "No fue posible confirmar el cierre de papel." };
@@ -245,7 +267,8 @@ export async function loadStaffPaperBlocksAction(projectId: string): Promise<{ o
 
 export async function closeStaffPaperBlockAction(input: { projectId: string; blockId: string; assignmentId: string; opening: number; reloads: number; remaining: number; requestId: string }) {
   try {
-    const { admin, staffId, portalSessionId } = await staffContext(input.projectId, ["OPERATOR"]);
+    const { admin, staffId, portalSessionId, ownAssignments } = await staffContext(input.projectId, ["OPERATOR"]);
+    assertOwnAssignment(ownAssignments, input.assignmentId);
     for (const [value, label] of [[input.opening, "Papel inicial"], [input.reloads, "Recargas"], [input.remaining, "Saldo final"]] as const) {
       if (!Number.isSafeInteger(value) || value < 0) return { ok: false as const, message: `${label} debe ser un entero no negativo.` };
     }
