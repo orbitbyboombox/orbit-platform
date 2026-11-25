@@ -21,6 +21,39 @@ test("one physical box may have different operators in AM and PM", () => {
   assert.equal(totemsForStaff(layout, new Set(["unassigned"])).length, 0);
 });
 
+test("an existing event-level confirmed operator can be linked to its block", () => {
+  const layout = emptyTotemLayout(1);
+  layout.enabled = true;
+  layout.positions[0].assetId = "box-1";
+  layout.positions[0].blocks = [{ blockId: "event", assignmentId: "confirmed-general" }];
+  const context = {
+    assetIds: new Set(["box-1"]),
+    blockIds: new Set(["event"]),
+    assignmentBlockIds: new Map<string, string | null>([["confirmed-general", null]]),
+  };
+  assert.deepEqual(validateTotemLayout(layout, context), []);
+  assert.equal(totemsForStaff(layout, new Set(["confirmed-general"])).length, 1);
+});
+
+test("one confirmed operator cannot be linked to two boxes or a different existing block", () => {
+  const duplicate = emptyTotemLayout(2);
+  duplicate.enabled = true;
+  duplicate.positions[0].assetId = "box-1";
+  duplicate.positions[1].assetId = "box-2";
+  duplicate.positions[0].blocks = [{ blockId: "am", assignmentId: "operator" }];
+  duplicate.positions[1].blocks = [{ blockId: "pm", assignmentId: "operator" }];
+  const context = {
+    assetIds: new Set(["box-1", "box-2"]),
+    blockIds: new Set(["am", "pm"]),
+    assignmentBlockIds: new Map<string, string | null>([["operator", null]]),
+  };
+  assert.ok(validateTotemLayout(duplicate, context).some(error => error.includes("Assignment used twice")));
+  context.assignmentBlockIds.set("operator", "am");
+  duplicate.positions[0].blocks = [];
+  duplicate.positions[1].blocks = [{ blockId: "pm", assignmentId: "operator" }];
+  assert.ok(validateTotemLayout(duplicate, context).some(error => error.includes("does not belong to block")));
+});
+
 test("duplicate boxes and cross-block staff assignments are rejected", () => {
   const layout = emptyTotemLayout(2);
   layout.enabled = true;

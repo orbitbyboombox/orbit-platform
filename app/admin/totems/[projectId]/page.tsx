@@ -18,18 +18,19 @@ export default async function EventTotemsPage({ params }: { params: Promise<{ pr
   const [{ data: project }, { data: blocks }, { data: assignments }, { data: assets }] = await Promise.all([
     db.from("projects").select("id,name,orbit_event_id,operations").eq("id", projectId).is("deleted_at", null).single(),
     db.from("event_operational_blocks").select("id,name").eq("project_id", projectId),
-    db.from("assignments").select("id,block_id,assignment_type,staff(first_name,last_name)").eq("project_id", projectId).is("deleted_at", null),
-    db.from("operational_assets").select("id,asset_code").eq("asset_type", "CASE"),
+    db.from("assignments").select("id,block_id,assignment_type,status,staff(first_name,last_name)").eq("project_id", projectId).is("deleted_at", null).in("status", ["ASSIGNED", "PENDING_CONFIRMATION", "ACCEPTED", "CONFIRMED"]),
+    db.from("operational_assets").select("id,asset_code").eq("asset_type", "CASE").is("deleted_at", null),
   ]);
   if (!project) notFound();
   const operations = project.operations as Record<string, unknown> | null;
   const stored = operations?.totemLayout as EventTotemLayout | undefined;
   const layout = stored && Array.isArray(stored.positions) ? stored : emptyTotemLayout(project.orbit_event_id === "ORB-2026-268105" ? 7 : 1);
   const blockOptions = (blocks ?? []).map(block => ({ id: block.id, label: block.name ?? "Bloque" }));
-  const assignmentOptions = (assignments ?? []).filter(item => item.block_id && item.assignment_type === "OPERATOR").map(item => {
+  const assignmentOptions = (assignments ?? []).filter(item => item.assignment_type === "OPERATOR").map(item => {
     const staff = item.staff as unknown as { first_name: string; last_name: string } | { first_name: string; last_name: string }[] | null;
     const person = Array.isArray(staff) ? staff[0] : staff;
-    return { id: item.id, blockId: item.block_id!, label: [person?.first_name, person?.last_name].filter(Boolean).join(" ") || "Operador" };
+    const state = item.status === "CONFIRMED" ? "Confirmado" : item.status === "ACCEPTED" ? "Aceptado" : "Pendiente";
+    return { id: item.id, blockId: item.block_id, label: `${[person?.first_name, person?.last_name].filter(Boolean).join(" ") || "Operador"} · ${state}` };
   });
   return <main className="mx-auto max-w-5xl space-y-6 p-6">
     <nav className="print:hidden"><Link href="/operations" className="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold hover:bg-white/5">← Volver a ORBIT</Link></nav>

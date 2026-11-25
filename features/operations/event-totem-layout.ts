@@ -32,7 +32,8 @@ export function emptyTotemLayout(count = 7): EventTotemLayout {
 export function validateTotemLayout(layout: EventTotemLayout, context: {
   assetIds: ReadonlySet<string>;
   blockIds: ReadonlySet<string>;
-  assignmentBlockIds: ReadonlyMap<string, string>;
+  /** null means an active event-level operator that the authenticated save can link. */
+  assignmentBlockIds: ReadonlyMap<string, string | null>;
 }): string[] {
   if (!layout || typeof layout !== "object" || typeof layout.enabled !== "boolean") return ["Invalid layout"];
   if (!Array.isArray(layout.positions)) return ["Invalid position count"];
@@ -60,7 +61,8 @@ export function validateTotemLayout(layout: EventTotemLayout, context: {
       if (usedBlocks.has(block.blockId)) errors.push(`Duplicate block for ${position.id}: ${block.blockId}`);
       usedBlocks.add(block.blockId);
       if (block.assignmentId) {
-        if (context.assignmentBlockIds.get(block.assignmentId) !== block.blockId) errors.push(`Assignment does not belong to block: ${block.assignmentId}`);
+        const assignmentBlockId = context.assignmentBlockIds.get(block.assignmentId);
+        if (!context.assignmentBlockIds.has(block.assignmentId) || (assignmentBlockId !== null && assignmentBlockId !== block.blockId)) errors.push(`Assignment does not belong to block: ${block.assignmentId}`);
         if (usedAssignments.has(block.assignmentId)) errors.push(`Assignment used twice: ${block.assignmentId}`);
         usedAssignments.add(block.assignmentId);
       }
