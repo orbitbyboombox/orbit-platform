@@ -70,10 +70,31 @@ def timber(d, caf_xml, caf_key, anchor, total, stamp):
     nodes(dd,(("RE",issuer["rut"]),("TD",d["kind"]),("F",d["folio"]),("FE",d["date"]),("RR",receiver["rut"]),("RSR",receiver["name"][:40]),("MNT",total),("IT1",d["lines"][0]["name"][:40])),None)
     dd.append(caf)
     put(dd,"TSTED",stamp,None)
-    payload = wire(dd).replace(wire(caf),caf_xml,1)
+    # Preserve the CAF bytes and encode accents in the new fields as XML references.
+    payload = wire(dd, "ASCII").replace(wire(caf, "ASCII"), caf_xml, 1)
     signature = sign(caf_key,payload)
     verify(numbers.public_key(),signature,payload)
     return b'<TED version="1.0">'+payload+b'<FRMT algoritmo="SHA1withRSA">'+signature.encode()+b'</FRMT></TED>'
+
+def verify_ted(ted, anchor):
+    root = parse(ted, "ISO-8859-1")
+    if root.tag != "TED" or root.get("version") != "1.0" or [part.tag for part in root] != ["DD", "FRMT"]:
+        raise ValueError("TED inválido")
+    dd, frmt = root
+    caf = dd.find("CAF")
+    if caf is None or frmt.get("algoritmo") != "SHA1withRSA":
+        raise ValueError("Firma TED inválida")
+    start = ted.index(b"<DD>")
+    end = ted.index(b"</DD>", start) + len(b"</DD>")
+    da = caf.find("DA")
+    if (dd.findtext("RE"), dd.findtext("TD")) != (da.findtext("RE"), da.findtext("TD")):
+        raise ValueError("Identidad CAF inválida")
+    if not int(da.findtext("RNG/D")) <= int(dd.findtext("F")) <= int(da.findtext("RNG/H")):
+        raise ValueError("Folio fuera del CAF")
+    verify(anchor, caf.findtext("FRMA"), wire(da))
+    numbers = rsa.RSAPublicNumbers(integer(da.findtext("RSAPK/E")), integer(da.findtext("RSAPK/M")))
+    verify(numbers.public_key(), frmt.text, ted[start:end])
+
 
 def signature(root, target, key, cert, *, enveloped=False):
     if key.public_key().public_numbers() != cert.public_key().public_numbers():
@@ -116,6 +137,15 @@ def verify_generated(raw,cert):
     for sig in signatures:
         info = sig.find(f"{{{DS}}}SignedInfo")
         ref = info.find(f"{{{DS}}}Reference")
+        def algorithm(parent, name):
+            return parent.find(f"{{{DS}}}{name}").get("Algorithm")
+
+        transforms = ref.findall(f"{{{DS}}}Transforms/{{{DS}}}Transform")
+        if (algorithm(info, "CanonicalizationMethod") != C14N
+                or algorithm(info, "SignatureMethod") != DS + "rsa-sha1"
+                or algorithm(ref, "DigestMethod") != DS + "sha1"
+                or [item.get("Algorithm") for item in transforms] != [C14N]):
+            raise ValueError("Perfil XMLDSig inesperado")
         target_id = ref.get("URI","")[1:]
         if ref.get("URI") != "#"+target_id or target_id not in expected_ids:
             raise ValueError("Referencia XML inválida")
@@ -190,7 +220,9 @@ def build(d,*,caf_xml,caf_key,anchor,key,cert,stamp):
     signature(dte,doc,key,cert)
     signature(root,batch,key,cert)
     xml = wire(root,declaration=True)
-    verify_generated(xml,cert)
-    if ted not in xml:
-        raise ValueError("Cambió la serialización del TED")
+    start = xml.index(b'<TED version="1.0">')
+    end = xml.index(b"</TED>", start) + len(b"</TED>")
+    xml = xml[:start] + ted + xml[end:]
+    verify_generated(xml, cert)
+    verify_ted(ted, anchor)
     return xml,ted,{"net":net,"iva":iva,"total":total}

@@ -7,7 +7,7 @@ if(!input||!output) throw new Error("Uso: node direct-sii/pdf417.mjs muestra.jso
 const sample=JSON.parse(await readFile(input,"utf8"));
 if(sample.environment!=="offline"||sample.issuer.rut!=="11111111-1") throw new Error("Solo pruebas sintéticas.");
 const ted=Buffer.from(sample.ted,"base64").toString("latin1");
-if(/[^\x20-\x7e]/u.test(ted)) throw new Error("La impresión de pruebas admite TED ASCII. Falta certificar lectura Latin-1.");
+if (/[^\x20-\x7e]/u.test(ted)) throw new Error("El CAF contiene bytes fuera de ASCII. Verificar con el SII antes de imprimir.");
 if(!ted.startsWith('<TED version="1.0">')) throw new Error("TED inválido");
 const png=await bwip.toBuffer({bcid:"pdf417",text:ted,binarytext:true,scale:5,eclevel:5,padding:4});
 const logos=Object.fromEntries(await Promise.all(["boombox","pixmedia","orbit","nova"].map(async name=>[name,(await readFile(new URL(`../branding/${name}-print.png`,import.meta.url))).toString("base64")])));

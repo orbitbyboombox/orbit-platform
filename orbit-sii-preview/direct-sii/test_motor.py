@@ -34,13 +34,26 @@ def fixture(kind):
     put(caf,"FRMA",sign(anchor,wire(da)),None,algoritmo="SHA1withRSA")
     doc={"kind":kind,"folio":101,"date":"2026-11-25","sender":"11111111-1","resolution_date":"2026-10-01","resolution_number":0,
          "issuer":{"rut":"11111111-1","name":"ORBIT PRUEBAS","activity":"Producción de eventos","activity_code":932909,"address":"Domicilio de prueba","city":"Santiago"},
-         "receiver":{"rut":"66666666-6" if kind==39 else "22222222-2","name":"RECEPTOR DEMO","activity":"Eventos","address":"Domicilio demo","city":"Santiago"},
-         "lines":[{"name":"Servicio de prueba","amount":10000},{"name":"Producción de evento","amount":1000}],"discount":1000}
+         "receiver":{"rut":"66666666-6" if kind==39 else "22222222-2","name":"José Muñoz","activity":"Eventos","address":"Domicilio demo","city":"Santiago"},
+         "lines":[{"name":"Producción en Ñuñoa","amount":10000},{"name":"Producción de evento","amount":1000}],"discount":1000}
     if kind==61: doc["reference"]={"kind":33,"folio":97,"date":"2026-11-23","reason":"Anulación de prueba","total":11900}
     return doc,dict(caf_xml=wire(caf),caf_key=caf_key,key=key,cert=cert,anchor=anchor.public_key(),stamp="2026-11-25T12:01:00")
 
 def schema(kind):
     return os.getenv("ORBIT_XSD_BOLETA" if kind==39 else "ORBIT_XSD_DTE")
+
+def sample_bundle(doc, ted, amounts):
+    reference = {**doc["reference"], "type": doc["reference"]["kind"]} if "reference" in doc else None
+    snapshot = {
+        "type": doc["kind"], "rut": doc["receiver"]["rut"], "client": doc["receiver"]["name"],
+        "event": "Evento sintético", "payment": "Prueba", "discount": doc["discount"],
+        "lines": [{"name": row["name"], "net": row["amount"]} for row in doc["lines"]],
+        "net": amounts["net"], "tax": amounts["iva"], "total": amounts["total"], "reference": reference,
+    }
+    return {"environment": "offline", "ted": b64encode(ted).decode(),
+            "issuer": {"legalName": doc["issuer"]["name"], "rut": doc["issuer"]["rut"]},
+            "document": {"folio": doc["folio"], "issueDate": doc["date"], "snapshot": snapshot}}
+
 
 class Tests(unittest.TestCase):
     def test_documents(self):
@@ -58,14 +71,7 @@ class Tests(unittest.TestCase):
                 self.assertIn(b"enveloped-signature",sign_seed("123456789",args["key"],args["cert"]))
                 out=os.getenv("ORBIT_SYNTHETIC_SAMPLES")
                 if out:
-                    snapshot={"type":kind,"rut":"11111111-1","client":"RECEPTOR DEMO","event":"Evento sintético","payment":"Prueba",
-                              "lines":[{"name":row["name"],"net":row["amount"]} for row in doc["lines"]],"discount":1000,
-                              "net":amounts["net"],"tax":amounts["iva"],"total":amounts["total"],
-                              "reference":doc.get("reference",None)}
-                    if kind==61: snapshot["reference"]["type"]=33
-                    bundle={"environment":"offline","ted":b64encode(ted).decode(),
-                            "issuer":{"legalName":"ORBIT PRUEBAS","rut":"11111111-1"},
-                            "document":{"folio":101,"issueDate":"2026-11-25","snapshot":snapshot}}
+                    bundle = sample_bundle(doc, ted, amounts)
                     Path(out,f"{kind}.json").write_text(json.dumps(bundle))
 
     def test_caf_rejects_wrong_range(self):
