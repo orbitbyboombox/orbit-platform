@@ -1,7 +1,7 @@
 "use client";
 
 import { readCommunicationPreview, withCommunicationActionTimeout } from "./communication-preview";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
@@ -44,7 +44,9 @@ const historyLabel = (status: string) =>
 
 export function DigitalPhotoDeliveryControl({ projectId }: { projectId: string }) {
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const pending = loading || submitting;
   const submissionGate = useRef(false);
   const [composer, setComposer] = useState<DigitalPhotoDeliveryComposer | null>(null);
   const [feedback, setFeedback] = useState("");
@@ -58,22 +60,24 @@ export function DigitalPhotoDeliveryControl({ projectId }: { projectId: string }
   const [confirmingResend, setConfirmingResend] = useState(false);
   const [sendState, setSendState] = useState<SendState>({ status: "idle" });
 
-  const refresh = () =>
-    startTransition(async () => {
-      try {
-        const result = await readCommunicationPreview<DigitalPhotoDeliveryComposer>(projectId, "photos");
-        if (!result.ok) {
-          setFeedback(result.error);
-          return;
-        }
-        setComposer(result.preview);
-        setFeedback("");
-      } catch (error) {
-        setFeedback(
-          error instanceof Error ? error.message : "No fue posible cargar las fotos digitales.",
-        );
+  const refresh = async () => {
+    setLoading(true);
+    try {
+      const result = await readCommunicationPreview<DigitalPhotoDeliveryComposer>(projectId, "photos");
+      if (!result.ok) {
+        setFeedback(result.error);
+        return;
       }
-    });
+      setComposer(result.preview);
+      setFeedback("");
+    } catch (error) {
+      setFeedback(
+        error instanceof Error ? error.message : "No fue posible cargar las fotos digitales.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     refresh();
@@ -93,7 +97,7 @@ export function DigitalPhotoDeliveryControl({ projectId }: { projectId: string }
       ),
     );
     setCc(composer.cc.join("\n"));
-    setRequestId(crypto.randomUUID());
+    setRequestId((current) => current || crypto.randomUUID());
     setConfirmingResend(false);
     setSendState({ status: "idle" });
     submissionGate.current = false;
@@ -111,39 +115,39 @@ export function DigitalPhotoDeliveryControl({ projectId }: { projectId: string }
     );
   };
 
-  const preview = () => {
+  const preview = async () => {
     if (pending || submissionGate.current) return;
     submissionGate.current = true;
-    startTransition(async () => {
-      try {
-        const formData = new FormData();
-        formData.set("projectId", projectId);
-        formData.set("photoUrl", photoUrl);
-        const result = await withCommunicationActionTimeout(
-          saveDigitalPhotoDeliveryPreviewAction(formData),
-          "No se confirmó el guardado del enlace. Actualiza la vista previa e intenta nuevamente.",
-        );
-        if (!result.ok) {
-          setSendState({ status: "error", message: result.error });
-          return;
-        }
-        setComposer(result.preview);
-        setPhotoUrl(result.preview.currentPhotoUrl);
-        setPreviewUrl(result.preview.currentPhotoUrl);
-        setPreviewHtml(result.preview.previewHtml);
-        setSendState({ status: "idle" });
-      } catch (error) {
-        setSendState({
-          status: "error",
-          message: error instanceof Error ? error.message : "No fue posible completar la operación.",
-        });
-      } finally {
-        submissionGate.current = false;
+    setSubmitting(true);
+    try {
+      const formData = new FormData();
+      formData.set("projectId", projectId);
+      formData.set("photoUrl", photoUrl);
+      const result = await withCommunicationActionTimeout(
+        saveDigitalPhotoDeliveryPreviewAction(formData),
+        "No se confirmó el guardado del enlace. Actualiza la vista previa e intenta nuevamente.",
+      );
+      if (!result.ok) {
+        setSendState({ status: "error", message: result.error });
+        return;
       }
-    });
+      setComposer(result.preview);
+      setPhotoUrl(result.preview.currentPhotoUrl);
+      setPreviewUrl(result.preview.currentPhotoUrl);
+      setPreviewHtml(result.preview.previewHtml);
+      setSendState({ status: "idle" });
+    } catch (error) {
+      setSendState({
+        status: "error",
+        message: error instanceof Error ? error.message : "No fue posible completar la operación.",
+      });
+    } finally {
+      submissionGate.current = false;
+      setSubmitting(false);
+    }
   };
 
-  const deliver = (confirmResend: boolean) => {
+  const deliver = async (confirmResend: boolean) => {
     if (
       !composer?.to ||
       deliveryPending ||
@@ -158,46 +162,47 @@ export function DigitalPhotoDeliveryControl({ projectId }: { projectId: string }
     submissionGate.current = true;
     setConfirmingResend(false);
     setSendState({ status: "sending", message: "ENVIANDO..." });
-    startTransition(async () => {
-      try {
-        const formData = new FormData();
-        formData.set("projectId", projectId);
-        formData.set("requestId", requestId || crypto.randomUUID());
-        formData.set("photoUrl", photoUrl);
-        formData.set("cc", cc);
-        formData.set("confirmResend", String(confirmResend));
-        const result = await withCommunicationActionTimeout(
-          sendDigitalPhotoDeliveryAction(formData),
-          "El estado del envío quedó sin confirmar. Revisa el historial antes de reintentar.",
-        );
-        if (!result.ok) {
-          if ("result" in result) setRequestId(crypto.randomUUID());
-          setSendState({
-            status: "error",
-            message: result.error,
-          });
-          refresh();
-          return;
-        }
-        setSendState(result.result.status === "PENDING"
-          ? { status: "pending", message: result.message }
-          : {
-              status: "success",
-              message: result.message,
-              recipient: result.result.recipient,
-              cc: result.result.ccRecipients,
-            });
-        router.refresh();
-        refresh();
-      } catch (error) {
+    setSubmitting(true);
+    try {
+      const formData = new FormData();
+      formData.set("projectId", projectId);
+      formData.set("requestId", requestId || crypto.randomUUID());
+      formData.set("photoUrl", photoUrl);
+      formData.set("cc", cc);
+      formData.set("confirmResend", String(confirmResend));
+      const result = await withCommunicationActionTimeout(
+        sendDigitalPhotoDeliveryAction(formData),
+        "El estado del envío quedó sin confirmar. Revisa el historial antes de reintentar.",
+      );
+      if (!result.ok) {
+        if ("result" in result) setRequestId(crypto.randomUUID());
         setSendState({
           status: "error",
-          message: error instanceof Error ? error.message : "No fue posible completar la operación.",
+          message: result.error,
         });
-      } finally {
-        submissionGate.current = false;
+        refresh();
+        return;
       }
-    });
+      setSendState(result.result.status === "PENDING"
+        ? { status: "pending", message: result.message }
+        : {
+            status: "success",
+            message: result.message,
+            recipient: result.result.recipient,
+            cc: result.result.ccRecipients,
+          });
+      if (result.result.status === "SENT") setRequestId("");
+      router.refresh();
+      refresh();
+    } catch (error) {
+      setSendState({
+        status: "error",
+        message: error instanceof Error ? error.message : "No fue posible completar la operación.",
+      });
+    } finally {
+      submissionGate.current = false;
+      setSubmitting(false);
+    }
   };
 
   const requestDelivery = () => {

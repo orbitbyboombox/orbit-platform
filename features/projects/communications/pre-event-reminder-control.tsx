@@ -1,7 +1,7 @@
 "use client";
 
 import { readCommunicationPreview, withCommunicationActionTimeout } from "./communication-preview";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
@@ -65,7 +65,9 @@ const timingLabel = (days: number) =>
 
 export function PreEventReminderControl({ projectId }: { projectId: string }) {
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const pending = loading || submitting;
   const submissionGate = useRef(false);
   const [composer, setComposer] = useState<PreEventReminderComposer | null>(null);
   const [feedback, setFeedback] = useState("");
@@ -78,34 +80,36 @@ export function PreEventReminderControl({ projectId }: { projectId: string }) {
   const [confirmingResend, setConfirmingResend] = useState(false);
   const [sendState, setSendState] = useState<SendState>({ status: "idle" });
 
-  const refresh = (openComposer = false) =>
-    startTransition(async () => {
-      try {
-        const result = await readCommunicationPreview<PreEventReminderComposer>(projectId, "reminder");
-        if (!result.ok) {
-          setFeedback(result.error);
-          return;
-        }
-        setComposer(result.preview);
-        setFeedback("");
-        if (openComposer) {
-          setTo(result.preview.to);
-          setCc(result.preview.cc.join("\n"));
-          setSubject(result.preview.subject);
-          setRequestId(crypto.randomUUID());
-          setConfirmingResend(false);
-          setSendState({ status: "idle" });
-          submissionGate.current = false;
-          setOpen(true);
-        }
-      } catch (error) {
-        setFeedback(
-          error instanceof Error
-            ? error.message
-            : "No fue posible cargar la vista previa. Intenta nuevamente.",
-        );
+  const refresh = async (openComposer = false) => {
+    setLoading(true);
+    try {
+      const result = await readCommunicationPreview<PreEventReminderComposer>(projectId, "reminder");
+      if (!result.ok) {
+        setFeedback(result.error);
+        return;
       }
-    });
+      setComposer(result.preview);
+      setFeedback("");
+      if (openComposer) {
+        setTo(result.preview.to);
+        setCc(result.preview.cc.join("\n"));
+        setSubject(result.preview.subject);
+        setRequestId((current) => current || crypto.randomUUID());
+        setConfirmingResend(false);
+        setSendState({ status: "idle" });
+        submissionGate.current = false;
+        setOpen(true);
+      }
+    } catch (error) {
+      setFeedback(
+        error instanceof Error
+          ? error.message
+          : "No fue posible cargar la vista previa. Intenta nuevamente.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     refresh();
@@ -113,49 +117,51 @@ export function PreEventReminderControl({ projectId }: { projectId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
-  const deliver = (confirmResend: boolean) => {
+  const deliver = async (confirmResend: boolean) => {
     if (!composer || pending || submissionGate.current || sendState.status === "success") {
       return;
     }
     submissionGate.current = true;
     setConfirmingResend(false);
     setSendState({ status: "sending", message: `Enviando a ${to}…` });
-    startTransition(async () => {
-      try {
-        const formData = new FormData();
-        formData.set("projectId", projectId);
-        formData.set("requestId", requestId || crypto.randomUUID());
-        formData.set("expectedFingerprint", composer.fingerprint);
-        formData.set("to", to);
-        formData.set("cc", cc);
-        formData.set("subject", subject);
-        formData.set("confirmResend", String(confirmResend));
-        const result = await withCommunicationActionTimeout(
-          sendPreEventReminderAction(formData),
-          "El envío está tardando demasiado. El estado quedó sin confirmar; revisa el historial antes de reintentar.",
-        );
-        if (!result.ok) {
-          setSendState({ status: "error", message: result.error });
-          return;
-        }
-        setSendState(
-          result.result.status === "PENDING"
-            ? { status: "pending", message: result.message }
-            : { status: "success", message: result.message, cc: result.result.ccRecipients },
-        );
-        router.refresh();
-        refresh();
-      } catch (error) {
-        setSendState({
-          status: "error",
-          message: error instanceof Error
-            ? error.message
-            : "No se pudo completar el envío. Revisa el historial antes de intentar nuevamente.",
-        });
-      } finally {
-        submissionGate.current = false;
+    setSubmitting(true);
+    try {
+      const formData = new FormData();
+      formData.set("projectId", projectId);
+      formData.set("requestId", requestId || crypto.randomUUID());
+      formData.set("expectedFingerprint", composer.fingerprint);
+      formData.set("to", to);
+      formData.set("cc", cc);
+      formData.set("subject", subject);
+      formData.set("confirmResend", String(confirmResend));
+      const result = await withCommunicationActionTimeout(
+        sendPreEventReminderAction(formData),
+        "El envío está tardando demasiado. El estado quedó sin confirmar; revisa el historial antes de reintentar.",
+      );
+      if (!result.ok) {
+        if ("result" in result) setRequestId("");
+        setSendState({ status: "error", message: result.error });
+        return;
       }
-    });
+      setSendState(
+        result.result.status === "PENDING"
+          ? { status: "pending", message: result.message }
+          : { status: "success", message: result.message, cc: result.result.ccRecipients },
+      );
+      if (result.result.status === "SENT") setRequestId("");
+      router.refresh();
+      refresh();
+    } catch (error) {
+      setSendState({
+        status: "error",
+        message: error instanceof Error
+          ? error.message
+          : "No se pudo completar el envío. Revisa el historial antes de intentar nuevamente.",
+      });
+    } finally {
+      submissionGate.current = false;
+      setSubmitting(false);
+    }
   };
 
   const requestDelivery = () => {
