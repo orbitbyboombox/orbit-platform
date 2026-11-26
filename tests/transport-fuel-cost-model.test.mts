@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const migration = readFileSync("supabase/migrations/0169_transport_fuel_cost_model.sql", "utf8");
+const fixedTransportMigration = readFileSync("supabase/migrations/20261125223000_fixed_event_transport_cost.sql", "utf8");
 const overrideEngine = readFileSync("supabase/migrations/0046_real_cost_override_engine.sql", "utf8");
 const reports = readFileSync("app/(platform)/reports/page.tsx", "utf8");
 const accountantExport = readFileSync("features/accountant-export/data.ts", "utf8");
@@ -17,9 +18,11 @@ test("1. real transport 20000 plus no fuel totals 20000", () => {
   assert.match(migration, /coalesce\(real_transport,public\.default_real_transport_cost\(\)\)/);
 });
 
-test("2. real transport can be explicitly overridden to zero", () => {
-  assert.equal(mobilization(0), 0);
-  assert.match(migration, /select edited_value into real_transport[\s\S]*category='TRANSPORT'/);
+test("2. the latest migration fixes transport at CLP 20,000 and excludes duplicate transport expenses", () => {
+  assert.match(fixedTransportMigration, /select 20000::numeric/);
+  assert.match(fixedTransportMigration, /transport_value:=public\.default_real_transport_cost\(\)/);
+  assert.match(fixedTransportMigration, /category is distinct from 'TRANSPORT'/);
+  assert.doesNotMatch(fixedTransportMigration, /vehicle_route_events/);
 });
 
 test("3. special real transport 30000 is the complete mobilization cost", () => {
@@ -39,12 +42,13 @@ test("5. automatic fuel default is zero and cannot duplicate transport", () => {
   assert.match(costMaster, /Sin valor automático/);
 });
 
-test("6. Founder fuel and transport overrides persist as audited latest values", () => {
-  assert.match(overrideEngine, /allowed constant text\[\][^;]*'FUEL','TRANSPORT'/);
+test("6. Founder fuel overrides stay auditable and fixed transport is read-only", () => {
+  assert.match(overrideEngine, /allowed constant text\[\][^;]*'FUEL'/);
+  assert.match(fixedTransportMigration, /check \(category <> 'TRANSPORT'\)/);
   assert.match(overrideEngine, /insert into public\.financial_cost_overrides/);
   assert.match(overrideEngine, /order by created_at desc limit 1/);
   assert.match(overridePanel, /Combustible adicional/);
-  assert.match(overridePanel, /Costo real transporte/);
+  assert.match(overridePanel, /Traslado interno fijo/);
 });
 
 test("7. financial_event_records receives one reconciled canonical total", () => {

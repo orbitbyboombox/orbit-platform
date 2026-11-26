@@ -67,7 +67,7 @@ test("transport labels are explicit across the surfaced UI", () => {
   assert.match(eventProfitabilityPanel, /Traslado cobrado al cliente/);
   assert.match(eventProfitabilityPanel, /Costo estimado transporte/);
   assert.match(eventProfitabilityPanel, /Costo real transporte/);
-  assert.match(realCostOverridePanel, /Costo real transporte/);
+  assert.match(realCostOverridePanel, /Traslado interno fijo/);
   assert.match(customerEventOperations, /Traslado cobrado al cliente/);
   assert.match(customerOperationsRepository, /Costo real transporte/);
   assert.match(projectWorkspaceExperience, /Traslado cobrado al cliente/);
