@@ -59,3 +59,21 @@ test("sandbox SQL claims each operation once and rejects stale workers",()=>{
   assert.match(sql,/d.claim=\(p_data->>'claim'\)::uuid and d.status='PROCESANDO'/);
   assert.doesNotMatch(sql,/public\.(invoices|invoice_payments|financial_event_records|documents|receivable_movements)\b/);
 });
+
+test("the corporate PDF paginates service rows at print size and matches the simulated XML",async()=>{
+  const {PDFDocument}=await import("pdf-lib");
+  const d=await preview(fixtures[0].id,33);
+  const options={issuer:{legalName:"Emisor demo",rut:"QA-EMISOR"}};
+  const adapter=new SimulatedTaxProvider(options);
+  const document={folio:33,issueDate:"2026-11-25",snapshot:{...d,lines:Array.from({length:24},(_,i)=>({name:"Servicio de prueba "+(i+1),net:1000})),discount:0,net:24000,tax:4560,total:28560}};
+  const result=await adapter.lookup(document);
+  const pdf=await PDFDocument.load(result.artifacts.pdf);
+  assert.equal(pdf.getPageCount(),3);
+  assert.ok(Math.abs(pdf.getPage(0).getWidth()*25.4/72-215)<0.01);
+  const xml=new TextDecoder().decode(result.artifacts.xml);
+  assert.match(xml,/folio="33" fecha="2026-11-25"/);
+  assert.match(xml,/Emisor rut="QA-EMISOR"/);
+  assert.match(xml,/<Total>28560<\/Total>/);
+  assert.equal((xml.match(/<Linea>/g)??[]).length,24);
+  assert.doesNotMatch(xml,/<TED|<Signature/);
+});

@@ -2,13 +2,13 @@ import { fixtures, preview, InputError } from "../lib/domain.mjs";
 import { SimulatedTaxProvider } from "../lib/simulator.mjs";
 import { createRuntime } from "../lib/server.mjs";
 
-const adapter=new SimulatedTaxProvider();
+import { renderTaxPdf } from "../lib/tax-pdf.mjs";
 const idPattern=/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
 
 function present(row) {
   return {id:row.id, eventId:row.event_id,type:row.type,folio:row.folio,status:row.status,snapshot:row.snapshot,date:row.created_at,leaseUntil:row.lease_until};
 }
-async function settle(runtime, document, scenario, reconcile=false) {
+async function settle(runtime, adapter, document, scenario, reconcile=false) {
   const {gateway,encrypt}=runtime;
   let result;
   try {
@@ -22,7 +22,10 @@ async function settle(runtime, document, scenario, reconcile=false) {
   }));
 }
 
-export default async function handler(req,res,env) {
+export default async function handler(req,res,env,logos={}) {
+  const settings=env ?? process.env;
+  const options={issuer:settings.QA_ISSUER_PROFILE,logos};
+  const adapter=new SimulatedTaxProvider(options);
   const runtime=createRuntime(env ?? process.env);
   const {ready,validPassword,sessionCookie,authenticated,gateway,decrypt}=runtime;
   res.setHeader("Cache-Control","private, no-store");
@@ -56,19 +59,22 @@ export default async function handler(req,res,env) {
     if(body.action==="resume") {
       if(!idPattern.test(body.id)) throw new InputError("Documento inválido.");
       const {acquired,document}=await gateway("resume",{id:body.id});
-      return res.json({document:acquired ? await settle(runtime,document,"ok",true) : present(document)});
+      return res.json({document:acquired ? await settle(runtime,adapter,document,"ok",true) : present(document)});
     }
     if(!["preview","issue"].includes(body.action)) throw new InputError("Operación inválida.");
     if(body.type===61 && !idPattern.test(body.original)) throw new InputError("Selecciona el documento original.");
     const original=body.type===61 ? present(await gateway("get",{id:body.original})) : null;
     const draft=await preview(body.eventId,body.type,original,body.reason);
-    if(body.action==="preview") return res.json({draft});
+    if(body.action==="preview"){
+      const pdf=await renderTaxPdf({snapshot:draft,folio:"POR ASIGNAR",created_at:new Date().toISOString()},options);
+      return res.json({draft,pdf:btoa(Array.from(pdf,byte=>String.fromCharCode(byte)).join(""))});
+    }
     if(body.hash!==draft.hash) throw new InputError("Vuelve a revisar la vista previa antes de aprobar.");
     const operation=draft.reference ? "credito:"+draft.reference.id : "venta:"+draft.eventId;
     const scenario=["ok","timeout","error"].includes(body.scenario) ? body.scenario : "ok";
     const {acquired,document}=await gateway("claim",{operation,eventId:draft.eventId,type:draft.type,snapshot:draft});
     if(!acquired && document.snapshot.hash!==draft.hash) return res.status(409).json({error:"La operación ya tiene un documento con otra versión."});
-    return res.json({document:acquired ? await settle(runtime,document,scenario) : present(document),duplicate:!acquired});
+    return res.json({document:acquired ? await settle(runtime,adapter,document,scenario) : present(document),duplicate:!acquired});
   } catch(error) {
     if(error instanceof InputError) return res.status(400).json({error:error.message});
     return res.status(503).json({error:"No se confirmó la operación. Actualiza el historial antes de reintentar."});

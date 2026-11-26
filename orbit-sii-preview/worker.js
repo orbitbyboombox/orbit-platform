@@ -2,13 +2,15 @@ import handler from "./api/tributario.js";
 import html from "./index.html";
 import css from "./styles.css";
 import js from "./ui.js?text";
+import boombox from "./branding/boombox-print.png";
+import orbit from "./branding/orbit-print.png";
 
 const assets={"/":[html,"text/html"],"/index.html":[html,"text/html"],"/styles.css":[css,"text/css"],"/ui.js":[js,"text/javascript"]};
 const security={
   "X-Content-Type-Options":"nosniff",
   "X-Robots-Tag":"noindex, nofollow",
   "Referrer-Policy":"no-referrer",
-  "Content-Security-Policy":"default-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+  "Content-Security-Policy":"default-src 'self'; frame-src blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
 };
 
 export default {
@@ -33,6 +35,6 @@ export default {
       json(value){headers.set("Content-Type","application/json; charset=utf-8");return new Response(JSON.stringify(value),{status,headers});},
       send(value){return new Response(value,{status,headers});}
     };
-    return handler({method:request.method,body,headers:Object.fromEntries(request.headers),query:Object.fromEntries(url.searchParams)},response,env);
+    return handler({method:request.method,body,headers:Object.fromEntries(request.headers),query:Object.fromEntries(url.searchParams)},response,env,{boombox,orbit});
   }
 };

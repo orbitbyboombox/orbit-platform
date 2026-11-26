@@ -1,6 +1,6 @@
 const $ = (selector) => document.querySelector(selector);
 const login=$("#login"), workspace=$("#workspace"), notice=$("#notice"), draftForm=$("#draft-form"), issueForm=$("#issue-form");
-const state={events:[],documents:[],draft:null};
+const state={events:[],documents:[],draft:null,previewUrl:null};
 const currency=new Intl.NumberFormat("es-CL",{style:"currency",currency:"CLP"});
 const money=(value)=>currency.format(value);
 const label={ACEPTADO:"Aceptado",PENDIENTE:"Pendiente de conciliación",ERROR_REINTENTABLE:"Error recuperable",PROCESANDO:"Procesando",APROBADO:"Aprobación registrada",CONCILIACION_SOLICITADA:"Conciliación solicitada",DESCARGADO:"Archivo descargado"};
@@ -16,17 +16,20 @@ function inform(message){notice.textContent=message;}
 function access(active){login.hidden=active;workspace.hidden=!active;$("#logout").hidden=!active;}
 function clearDraft(){
   state.draft=null;
+  if(state.previewUrl){URL.revokeObjectURL(state.previewUrl);state.previewUrl=null;}
   $("#draft").innerHTML='<p class="empty">Selecciona un evento y genera la vista previa para revisar el detalle, los impuestos y el total.</p>';
   issueForm.hidden=true;
 }
 function renderDraft(){
-  const d=state.draft;
-  const line=(name,value,classes="")=>`<div class="line ${classes}"><span>${html(name)}</span><strong>${money(value)}</strong></div>`;
-  $("#draft").innerHTML=`<article class="paper"><p class="label">BOOMBOX® · VISTA PREVIA SIN VALIDEZ TRIBUTARIA</p>
-    <h3>${html(d.label)} · ${d.type}</h3><p>${html(d.eventId)} · ${html(d.event)}</p><p>${html(d.client)} · ${html(d.rut)}</p>
-    <p>${html(d.payment)}</p><div class="amounts">${d.lines.map(i=>line(i.name,i.net)).join("")}</div>
-    ${d.reference ? `<p>Referencia QA · Tipo ${d.reference.type}, folio ${d.reference.folio}</p><p>${html(d.reference.reason)}</p>` : ""}
-    <div class="amounts">${line("Descuento",d.discount)}${line("Neto",d.net)}${line("IVA · 19%",d.tax)}${line("Total",d.total,"total")}</div></article>`;
+  $("#draft").replaceChildren();
+  const frame=document.createElement("iframe");
+  frame.className="tax-preview";
+  frame.title="Vista previa del PDF tributario simulado";
+  frame.src=state.previewUrl;
+  const total=document.createElement("p");
+  total.className="preview-total";
+  total.textContent="Total del documento: "+money(state.draft.total);
+  $("#draft").append(frame,total);
   issueForm.hidden=false;
 }
 function renderEvent(resetType=false){
@@ -105,7 +108,7 @@ $("#login-form").addEventListener("submit",e=>{
 $("#logout").addEventListener("click",e=>void act(e.currentTarget,async()=>{await api({action:"logout"});clearDraft();access(false);}));
 draftForm.addEventListener("input",e=>{if(e.target.name==="event"||e.target.name==="type")renderEvent(e.target.name==="event");clearDraft();});
 draftForm.addEventListener("submit",e=>{
-  e.preventDefault();void act(e.submitter,async()=>{const requested=operationInput();const {draft}=await api({action:"preview",...requested});if(JSON.stringify(requested)!==JSON.stringify(operationInput()))return;state.draft=draft;renderDraft();});
+  e.preventDefault();void act(e.submitter,async()=>{const requested=operationInput();const {draft,pdf}=await api({action:"preview",...requested});if(JSON.stringify(requested)!==JSON.stringify(operationInput()))return;clearDraft();state.draft=draft;state.previewUrl=URL.createObjectURL(new Blob([Uint8Array.from(atob(pdf),char=>char.charCodeAt(0))],{type:"application/pdf"}));renderDraft();});
 });
 issueForm.addEventListener("submit",e=>{
   e.preventDefault();if(!state.draft)return;const hash=state.draft.hash,scenario=issueForm.elements.scenario.value,input=operationInput();
