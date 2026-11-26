@@ -69,12 +69,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   page.drawText("BOOMBOX®", { x: 42, y: 748, size: 29, font: bold, color: black });
   page.drawText("Experiencias que conectan", { x: 66, y: 730, size: 9, font: bold, color: black });
   page.drawLine({ start: { x: 205, y: 728 }, end: { x: 205, y: 797 }, thickness: 1, color: line });
-  page.drawText("PRODUCCIONES BOOM BOX COMPANY SPA", { x: 215, y: 785, size: 8.2, font: bold, color: black });
-  page.drawText("RUT: 76.565.272-3", { x: 215, y: 772, size: 8.5, font: regular, color: black });
-  page.drawText("Giro: Producción de todo tipo de eventos, transporte de", { x: 215, y: 759, size: 8.2, font: regular, color: black });
-  page.drawText("carga por carretera", { x: 215, y: 747, size: 8.2, font: regular, color: black });
-  page.drawText("Puerta Oriente 361, of. 310 C, torre C, Colina", { x: 215, y: 735, size: 8.2, font: regular, color: black });
-  page.drawText("contacto@bbox.cl · www.bbox.cl", { x: 215, y: 723, size: 8.2, font: regular, color: black });
+  page.drawText("PRODUCCIONES BOOM BOX", { x: 215, y: 785, size: 7.6, font: bold, color: black });
+  page.drawText("COMPANY SPA", { x: 215, y: 774, size: 7.6, font: bold, color: black });
+  page.drawText("RUT: 76.565.272-3", { x: 215, y: 762, size: 7.4, font: regular, color: black });
+  page.drawText("Giro: Producción de eventos y transporte", { x: 215, y: 750, size: 7.4, font: regular, color: black });
+  page.drawText("de carga por carretera", { x: 215, y: 738, size: 7.4, font: regular, color: black });
+  page.drawText("Puerta Oriente 361, of. 310 C, Colina", { x: 215, y: 726, size: 7.4, font: regular, color: black });
+  page.drawText("contacto@bbox.cl · www.bbox.cl", { x: 215, y: 714, size: 7.4, font: regular, color: black });
 
   page.drawRectangle({ x: 390, y: 735, width: 165, height: 63, borderColor: red, borderWidth: 1.8, color: white });
   page.drawText("R.U.T.: 76.565.272-3", { x: 402, y: 782, size: 8.8, font: bold, color: red });
