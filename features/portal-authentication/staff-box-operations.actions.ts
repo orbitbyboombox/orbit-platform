@@ -10,8 +10,8 @@ export type StaffBoxComponent = { id: string; code: string; type: string; status
 export type StaffPaperStatus = "PENDING" | "READY_TO_CLOSE" | "CONFIRMED" | "OVERRIDDEN";
 export type StaffPaperSnapshot = { id: string; paperRequired: boolean; openingBalance: number; reloads: number; finalRemaining: number | null; eventUsage: number | null; status: StaffPaperStatus; format: string | null; variant: "NORMAL_4X6" | "PRECUT_4X6" | null; lot: string | null; reminderSentAt: string | null; confirmedBy: string | null; confirmedAt: string | null; masterVersionBefore: number | null; masterVersionAfter: number | null };
 export type StaffOperationalTurn = { assignmentId: string; blockId: string; blockName: string; sequence: number; startAt: string; endAt: string; status: string };
-export type StaffBoxAssignment = { id: string; boxId: string; boxCode: string; boxStatus: string; assignmentStatus: string; components: StaffBoxComponent[]; mediaLotId: string | null; mediaRemaining: number | null; format: string | null; lot: string | null; paper: StaffPaperSnapshot | null; canFinalizeEvent: boolean; turns: StaffOperationalTurn[] };
-export type StaffPaperBlock = { projectId: string; boxId: string; boxCode: string; blockId: string; blockName: string; blockSequence: number; assignmentId: string; opening: number; reloads: number; remaining: number | null; used: number | null; status: "PENDING" | "CLOSED"; closedAt: string | null };
+export type StaffBoxAssignment = { id: string; boxId: string; boxCode: string; boxStatus: string; assignmentStatus: string; components: StaffBoxComponent[]; mediaLotId: string | null; mediaRemaining: number | null; format: string | null; lot: string | null; paper: StaffPaperSnapshot | null; canFinalizeEvent: boolean; usesBlockCloseouts: boolean; turns: StaffOperationalTurn[] };
+export type StaffPaperBlock = { projectId: string; boxId: string; boxCode: string; blockId: string; blockName: string; blockSequence: number; assignmentId: string; opening: number; reloads: number; remaining: number | null; used: number | null; blockedReason: string | null; status: "PENDING" | "CLOSED"; closedAt: string | null };
 type StaffComponentInput = { componentId: string; status: string; notes?: string; incident?: boolean };
 
 async function staffContext(projectId: string, allowedRoles?: string[]) {
@@ -42,7 +42,7 @@ async function staffContext(projectId: string, allowedRoles?: string[]) {
   const highestOperatorSequence = operatorSequences.length ? Math.max(...operatorSequences) : null;
   const canFinalizeEvent = roles.includes("DISASSEMBLY")
     || ownOperatorAssignments.some((row) => !row.block_id || sequenceByBlock.get(row.block_id) === highestOperatorSequence);
-  return { admin, staffId: session.staff_id, portalSessionId: session.id, roles, canFinalizeEvent, ownOperatorAssignments, ownAssignments: data ?? [], sequenceByBlock };
+  return { admin, staffId: session.staff_id, portalSessionId: session.id, roles, canFinalizeEvent, ownOperatorAssignments, soleOperator: operatorAssignments.length === 1 && ownOperatorAssignments.length === 1 };
 }
 
 function assertOwnAssignment(ownAssignments: Array<{ id: string }>, assignmentId: string) {
@@ -51,9 +51,49 @@ function assertOwnAssignment(ownAssignments: Array<{ id: string }>, assignmentId
   }
 }
 
+async function loadOwnBoxAssignments(
+  projectId: string,
+  { admin, ownOperatorAssignments, soleOperator }: Awaited<ReturnType<typeof staffContext>>,
+) {
+  const { data: project, error: projectError } = await admin.from("projects").select("operations").eq("id", projectId).single();
+  if (projectError) throw projectError;
+  type LayoutShift = { blockId?: string; assignmentId?: string };
+  type LayoutPosition = { assetId?: string; blocks?: LayoutShift[] };
+  const positions = (project?.operations as { totemLayout?: { positions?: LayoutPosition[] } } | null)?.totemLayout?.positions;
+  const ownById = new Map(ownOperatorAssignments.map((assignment) => [assignment.id, assignment]));
+  const ownAssetIds = new Set<string>();
+  for (const position of Array.isArray(positions) ? positions : []) {
+    if (!position.assetId || !Array.isArray(position.blocks)) continue;
+    if (position.blocks.some((shift) => shift.assignmentId && ownById.get(shift.assignmentId)?.block_id === shift.blockId)) ownAssetIds.add(position.assetId);
+  }
+  const hasLayout = Array.isArray(positions) && positions.some((position) => position.assetId);
+  const query = admin.from("asset_assignments")
+    .select("id,asset_id,assignment_status,assigned_at,returned_at,operational_assets!inner(id,asset_code,status,asset_type)")
+    .eq("project_id", projectId).is("deleted_at", null)
+    .in("operational_assets.asset_type", ["BOX", "CASE"]);
+  if (!hasLayout && soleOperator) {
+    const { data, error } = await query.eq("assignment_status", "ASSIGNED").limit(2);
+    if (error) throw error;
+    return data?.length === 1 ? data : [];
+  }
+  if (!ownAssetIds.size) return [];
+  const { data, error } = await query.in("asset_id", [...ownAssetIds]);
+  if (error) throw error;
+  return data ?? [];
+}
+
+async function requireOwnBoxAssignment(
+  projectId: string,
+  assignmentId: string,
+  context: Awaited<ReturnType<typeof staffContext>>,
+) {
+  assertOwnAssignment(await loadOwnBoxAssignments(projectId, context), assignmentId);
+}
+
 export async function loadStaffBoxOperationsAction(projectId: string): Promise<{ ok: true; assignment: StaffBoxAssignment; roles: string[] } | { ok: false; message: string }> {
   try {
-    const { admin, roles, canFinalizeEvent, ownOperatorAssignments } = await staffContext(projectId);
+    const context = await staffContext(projectId);
+    const { admin, roles, canFinalizeEvent, ownOperatorAssignments } = context;
     const blockIds = ownOperatorAssignments.map((row) => row.block_id).filter((id): id is string => Boolean(id));
     const { data: blockRows, error: ownBlockError } = blockIds.length
       ? await admin.from("event_operational_blocks").select("id,name,sequence,start_at,end_at").in("id", blockIds)
@@ -65,21 +105,14 @@ export async function loadStaffBoxOperationsAction(projectId: string): Promise<{
       const block = ownBlocks.get(row.block_id);
       return block ? [{ assignmentId: row.id, blockId: block.id, blockName: block.name, sequence: Number(block.sequence), startAt: block.start_at, endAt: block.end_at, status: row.status }] : [];
     }).sort((a, b) => a.sequence - b.sequence);
-    const { data: project, error: projectError } = await admin.from("projects").select("operations").eq("id", projectId).single();
-    if (projectError) throw projectError;
-    type LayoutShift = { blockId?: string; assignmentId?: string };
-    type LayoutPosition = { assetId?: string; blocks?: LayoutShift[] };
-    const positions = ((project?.operations as { totemLayout?: { positions?: LayoutPosition[] } } | null)?.totemLayout?.positions ?? []);
-    const ownById = new Map(ownOperatorAssignments.map((assignment) => [assignment.id, assignment]));
-    const ownAssetIds = new Set<string>();
-    for (const position of positions) {
-      if (!position.assetId || !Array.isArray(position.blocks)) continue;
-      if (position.blocks.some((shift) => shift.assignmentId && ownById.has(shift.assignmentId))) ownAssetIds.add(position.assetId);
-    }
-    const { data: rows, error } = await admin.from("asset_assignments").select("id,asset_id,assignment_status,assigned_at,returned_at,operational_assets!inner(id,asset_code,status,asset_type)").eq("project_id", projectId).is("deleted_at", null).in("operational_assets.asset_type", ["BOX", "CASE"]).in("operational_assets.asset_code", ["CASE-01", "CASE-02", "CASE-03", "CASE-04", "CASE-05", "CASE-06", "CASE-07", "CASE-08", "CASE-09"]).in("asset_id", [...ownAssetIds]);
-    if (error) throw error;
+    const [rows, { count, error: countError }] = await Promise.all([
+      loadOwnBoxAssignments(projectId, context),
+      admin.from("event_operational_blocks").select("id", { count: "exact", head: true }).eq("project_id", projectId),
+    ]);
+    if (countError) throw countError;
+    const usesBlockCloseouts = turns.length > 0 && (count ?? 0) > 1;
     const row = canonicalBoxAssignment(rows ?? []);
-    if (!row) return { ok: true, roles, assignment: { id: "", boxId: "", boxCode: "Caja pendiente de asignación", boxStatus: "", assignmentStatus: "PENDING", components: [], mediaLotId: null, mediaRemaining: null, format: null, lot: null, paper: null, canFinalizeEvent, turns } };
+    if (!row) return { ok: true, roles, assignment: { id: "", boxId: "", boxCode: "Caja pendiente de asignación", boxStatus: "", assignmentStatus: "PENDING", components: [], mediaLotId: null, mediaRemaining: null, format: null, lot: null, paper: null, canFinalizeEvent, usesBlockCloseouts, turns } };
     const box = Array.isArray(row.operational_assets) ? row.operational_assets[0] : row.operational_assets;
     // This loader is read-only. Pending snapshots must be rebased through an
     // explicit, authorized operational action, never as a side effect of viewing
@@ -100,14 +133,18 @@ export async function loadStaffBoxOperationsAction(projectId: string): Promise<{
       if (reloadError) throw reloadError;
       reloads = (reloadRows ?? []).reduce((sum, reload) => sum + Number(reload.quantity), 0);
     }
-    return { ok: true, roles, assignment: { id: row.id, boxId: row.asset_id, boxCode: box?.asset_code ?? "Caja", boxStatus: box?.status ?? "", assignmentStatus: row.assignment_status, components: (components ?? []).map((component) => ({ id: component.id, code: component.asset_code, type: component.asset_type, status: component.status })), mediaLotId: lot?.id ?? null, mediaRemaining: lot ? Number(lot.remaining_photo_capacity) : null, format: lot?.format_key ?? (snapshot as { black_box_paper_format?: string | null } | null)?.black_box_paper_format ?? null, lot: lot?.lot ?? null, paper: snapshot ? { id: snapshot.id, paperRequired: Boolean(snapshot.paper_required), openingBalance: Number(snapshot.opening_balance), reloads, finalRemaining: snapshot.final_remaining_balance === null ? null : Number(snapshot.final_remaining_balance), eventUsage: snapshot.event_usage === null ? null : Number(snapshot.event_usage), status: snapshot.status as StaffPaperStatus, format: snapshot.format_key ?? (snapshot as { black_box_paper_format?: string | null }).black_box_paper_format ?? null, variant: snapshot.paper_variant === "NORMAL_4X6" || snapshot.paper_variant === "PRECUT_4X6" ? snapshot.paper_variant : null, lot: snapshot.lot, reminderSentAt: snapshot.reminder_sent_at, confirmedBy: snapshot.confirmed_by ?? null, confirmedAt: snapshot.confirmed_at ?? null, masterVersionBefore: snapshot.master_asset_version_before ?? null, masterVersionAfter: snapshot.master_asset_version_after ?? null } : null, canFinalizeEvent, turns } };
+    return { ok: true, roles, assignment: { id: row.id, boxId: row.asset_id, boxCode: box?.asset_code ?? "Caja", boxStatus: box?.status ?? "", assignmentStatus: row.assignment_status, components: (components ?? []).map((component) => ({ id: component.id, code: component.asset_code, type: component.asset_type, status: component.status })), mediaLotId: lot?.id ?? null, mediaRemaining: lot ? Number(lot.remaining_photo_capacity) : null, format: lot?.format_key ?? (snapshot as { black_box_paper_format?: string | null } | null)?.black_box_paper_format ?? null, lot: lot?.lot ?? null, paper: snapshot ? { id: snapshot.id, paperRequired: Boolean(snapshot.paper_required), openingBalance: Number(snapshot.opening_balance), reloads, finalRemaining: snapshot.final_remaining_balance === null ? null : Number(snapshot.final_remaining_balance), eventUsage: snapshot.event_usage === null ? null : Number(snapshot.event_usage), status: snapshot.status as StaffPaperStatus, format: snapshot.format_key ?? (snapshot as { black_box_paper_format?: string | null }).black_box_paper_format ?? null, variant: snapshot.paper_variant === "NORMAL_4X6" || snapshot.paper_variant === "PRECUT_4X6" ? snapshot.paper_variant : null, lot: snapshot.lot, reminderSentAt: snapshot.reminder_sent_at, confirmedBy: snapshot.confirmed_by ?? null, confirmedAt: snapshot.confirmed_at ?? null, masterVersionBefore: snapshot.master_asset_version_before ?? null, masterVersionAfter: snapshot.master_asset_version_after ?? null } : null, canFinalizeEvent, usesBlockCloseouts, turns } };
   } catch (error) { return { ok: false, message: error instanceof Error ? error.message : "No fue posible cargar la Caja asignada." }; }
 }
 
 export async function finalizeStaffOperationalTurnAction(input: { projectId: string; assignmentId: string; blockId: string }) {
   try {
-    const { admin, staffId, portalSessionId, ownAssignments } = await staffContext(input.projectId, ["OPERATOR"]);
-    assertOwnAssignment(ownAssignments, input.assignmentId);
+    const { admin, staffId, portalSessionId, ownOperatorAssignments } = await staffContext(input.projectId, ["OPERATOR"]);
+    assertOwnAssignment(ownOperatorAssignments.filter((assignment) => assignment.block_id === input.blockId), input.assignmentId);
+    const { count, error: countError } = await admin.from("event_operational_blocks")
+      .select("id", { count: "exact", head: true }).eq("project_id", input.projectId);
+    if (countError) return { ok: false as const, message: countError.message };
+    if ((count ?? 0) <= 1) return { ok: false as const, message: "Registra el cierre desde la ficha de tu caja." };
     const { data, error } = await admin.rpc("finalize_staff_operational_turn", {
       p_project_id: input.projectId,
       p_assignment_id: input.assignmentId,
@@ -126,8 +163,9 @@ export async function finalizeStaffOperationalTurnAction(input: { projectId: str
 
 export async function recordStaffBoxCheckOutAction(input: { projectId: string; assignmentId: string; components: StaffComponentInput[] }) {
   try {
-    const { admin, staffId, portalSessionId, ownAssignments } = await staffContext(input.projectId, ["OPERATOR", "ASSEMBLY"]);
-    assertOwnAssignment(ownAssignments, input.assignmentId);
+    const context = await staffContext(input.projectId, ["OPERATOR", "ASSEMBLY"]);
+    const { admin, staffId, portalSessionId } = context;
+    await requireOwnBoxAssignment(input.projectId, input.assignmentId, context);
     const key = `staff-box-checkout:${input.projectId}:${input.assignmentId}`;
     const { data, error } = await admin.rpc("record_staff_box_check_out", { p_project_id: input.projectId, p_asset_assignment_id: input.assignmentId, p_components: input.components, p_idempotency_key: key, p_staff_id: staffId, p_portal_session_id: portalSessionId });
     if (error) throw error;
@@ -138,8 +176,9 @@ export async function recordStaffBoxCheckOutAction(input: { projectId: string; a
 
 export async function recordStaffBoxCheckInAction(input: { projectId: string; assignmentId: string; mediaLotId: string; remaining: number; components: StaffComponentInput[]; note: string; incident: boolean }) {
   try {
-    const { admin, staffId, portalSessionId, ownAssignments } = await staffContext(input.projectId, ["OPERATOR"]);
-    assertOwnAssignment(ownAssignments, input.assignmentId);
+    const context = await staffContext(input.projectId, ["OPERATOR"]);
+    const { admin, staffId, portalSessionId } = context;
+    await requireOwnBoxAssignment(input.projectId, input.assignmentId, context);
     if (!Number.isFinite(input.remaining) || input.remaining < 0) return { ok: false as const, message: "Ingresa un saldo de retorno válido." };
     const key = `staff-box-checkin:${input.projectId}:${input.assignmentId}`;
     const { data, error } = await admin.rpc("record_staff_box_check_in", { p_project_id: input.projectId, p_asset_assignment_id: input.assignmentId, p_media_lot_id: input.mediaLotId, p_remaining_photo_capacity: input.remaining, p_components: input.components, p_note: input.note.trim() || null, p_incident: input.incident, p_idempotency_key: key, p_staff_id: staffId, p_portal_session_id: portalSessionId });
@@ -151,8 +190,9 @@ export async function recordStaffBoxCheckInAction(input: { projectId: string; as
 
 export async function recordStaffPaperReloadAction(input: { projectId: string; assignmentId: string; quantity: number; note: string }) {
   try {
-    const { admin, staffId, portalSessionId, ownAssignments } = await staffContext(input.projectId, ["OPERATOR"]);
-    assertOwnAssignment(ownAssignments, input.assignmentId);
+    const context = await staffContext(input.projectId, ["OPERATOR"]);
+    const { admin, staffId, portalSessionId } = context;
+    await requireOwnBoxAssignment(input.projectId, input.assignmentId, context);
     if (!Number.isFinite(input.quantity) || input.quantity <= 0) return { ok: false as const, message: "Ingresa una recarga mayor que cero." };
     const { data, error } = await admin.rpc("record_staff_event_paper_reload", { p_project_id: input.projectId, p_asset_assignment_id: input.assignmentId, p_quantity: input.quantity, p_note: input.note.trim() || null, p_idempotency_key: `staff-paper-reload:${input.projectId}:${input.assignmentId}:${input.quantity}`, p_staff_id: staffId, p_portal_session_id: portalSessionId });
     if (error) throw error;
@@ -163,9 +203,16 @@ export async function recordStaffPaperReloadAction(input: { projectId: string; a
 
 export async function confirmStaffPaperCloseoutAction(input: { projectId: string; assignmentId: string; finalRemaining: number; note: string }) {
   try {
-    const { admin, staffId, portalSessionId, ownAssignments } = await staffContext(input.projectId, ["OPERATOR", "DISASSEMBLY"]);
-    assertOwnAssignment(ownAssignments, input.assignmentId);
-    if (!Number.isFinite(input.finalRemaining) || input.finalRemaining < 0) return { ok: false as const, message: "Ingresa un saldo final válido." };
+    const context = await staffContext(input.projectId, ["OPERATOR"]);
+    const { admin, staffId, portalSessionId } = context;
+    await requireOwnBoxAssignment(input.projectId, input.assignmentId, context);
+    if (context.ownOperatorAssignments.some((assignment) => assignment.block_id)) {
+      const { count, error } = await admin.from("event_operational_blocks")
+        .select("id", { count: "exact", head: true }).eq("project_id", input.projectId);
+      if (error) return { ok: false as const, message: error.message };
+      if ((count ?? 0) > 1) return { ok: false as const, message: "Registra el papel desde el cierre de tu bloque." };
+    }
+    if (!Number.isSafeInteger(input.finalRemaining) || input.finalRemaining < 0) return { ok: false as const, message: "Ingresa un saldo final válido." };
     const { data, error } = await admin.rpc("confirm_staff_event_paper_closeout", { p_project_id: input.projectId, p_asset_assignment_id: input.assignmentId, p_final_remaining: input.finalRemaining, p_note: input.note.trim() || null, p_idempotency_key: `staff-paper-closeout:${input.projectId}:${input.assignmentId}`, p_staff_id: staffId, p_portal_session_id: portalSessionId });
     if (error) return { ok: false as const, message: error.message || "No fue posible confirmar el cierre de papel." };
     revalidatePath("/staff-portal");
@@ -201,6 +248,8 @@ export async function loadStaffPaperBlocksAction(projectId: string): Promise<{ o
     if (projectError) throw projectError;
     if (blockError) throw blockError;
     if (closeoutError) throw closeoutError;
+    // Single-block events use the canonical per-box event closeout.
+    if ((blocks ?? []).length <= 1) return { ok: true, blocks: [] };
     type LayoutShift = { blockId?: string; assignmentId?: string };
     type LayoutPosition = { assetId?: string; blocks?: LayoutShift[] };
     const operations = project?.operations as { totemLayout?: { positions?: LayoutPosition[] } } | null;
@@ -246,17 +295,21 @@ export async function loadStaffPaperBlocksAction(projectId: string): Promise<{ o
       const current = closeoutByKey.get(`${match.blockId}:${match.assignmentId}`);
       const earlier = (closeouts ?? []).filter((row) => row.asset_id === match.assetId && Number(blockById.get(row.block_id)?.sequence ?? Infinity) < Number(block.sequence)).sort((a, b) => Number(blockById.get(b.block_id)?.sequence ?? 0) - Number(blockById.get(a.block_id)?.sequence ?? 0));
       const prior = earlier[0];
-      const isFirstBlock = !(blocks ?? []).some((candidate) => Number(candidate.sequence) < Number(block.sequence));
-      if (!isFirstBlock && !prior && !current) throw new Error(`Primero debe cerrarse el bloque AM de ${asset.asset_code}.`);
+      const isFirstBlock = !positions.some((position) => position.assetId === match.assetId
+        && position.blocks?.some((shift) => shift.assignmentId && shift.blockId
+          && Number(blockById.get(shift.blockId)?.sequence ?? Infinity) < Number(block.sequence)));
       const snapshot = snapshotByAsset.get(match.assetId);
-      if (isFirstBlock && !snapshot) throw new Error(`Falta snapshot de papel para ${asset.asset_code}.`);
+      const blockedReason = current ? null
+        : !isFirstBlock && !prior ? "Debes esperar el cierre del bloque anterior de esta caja."
+        : !snapshot ? "Falta el registro inicial de papel de esta caja."
+        : null;
       result.push({
         projectId, boxId: match.assetId, boxCode: asset.asset_code, blockId: match.blockId,
         blockName: block.name, blockSequence: Number(block.sequence), assignmentId: match.assignmentId,
         opening: current ? Number(current.opening) : Number(prior?.remaining ?? snapshot?.opening_balance ?? 0),
         reloads: current ? Number(current.reloads) : isFirstBlock && snapshot ? (reloadBySnapshot.get(snapshot.id) ?? 0) : 0,
         remaining: current ? Number(current.remaining) : null, used: current ? Number(current.used) : null,
-        status: current ? "CLOSED" : "PENDING", closedAt: current?.closed_at ?? null,
+        blockedReason, status: current ? "CLOSED" : "PENDING", closedAt: current?.closed_at ?? null,
       });
     }
     return { ok: true, blocks: result.sort((a, b) => a.blockSequence - b.blockSequence || a.boxCode.localeCompare(b.boxCode)) };
@@ -267,8 +320,12 @@ export async function loadStaffPaperBlocksAction(projectId: string): Promise<{ o
 
 export async function closeStaffPaperBlockAction(input: { projectId: string; blockId: string; assignmentId: string; opening: number; reloads: number; remaining: number; requestId: string }) {
   try {
-    const { admin, staffId, portalSessionId, ownAssignments } = await staffContext(input.projectId, ["OPERATOR"]);
-    assertOwnAssignment(ownAssignments, input.assignmentId);
+    const { admin, staffId, portalSessionId, ownOperatorAssignments } = await staffContext(input.projectId, ["OPERATOR"]);
+    assertOwnAssignment(ownOperatorAssignments.filter((assignment) => assignment.block_id === input.blockId), input.assignmentId);
+    const { count, error: countError } = await admin.from("event_operational_blocks")
+      .select("id", { count: "exact", head: true }).eq("project_id", input.projectId);
+    if (countError) return { ok: false as const, message: countError.message };
+    if ((count ?? 0) <= 1) return { ok: false as const, message: "Registra el cierre desde la ficha de tu caja." };
     for (const [value, label] of [[input.opening, "Papel inicial"], [input.reloads, "Recargas"], [input.remaining, "Saldo final"]] as const) {
       if (!Number.isSafeInteger(value) || value < 0) return { ok: false as const, message: `${label} debe ser un entero no negativo.` };
     }
@@ -285,7 +342,7 @@ export async function closeStaffPaperBlockAction(input: { projectId: string; blo
       p_staff_id: staffId,
       p_portal_session_id: portalSessionId,
     });
-    if (error) throw error;
+    if (error) return { ok: false as const, message: error.message };
     revalidatePath("/staff-portal");
     return { ok: true as const, data };
   } catch (error) {

@@ -18,7 +18,7 @@ export default async function EventTotemsPage({ params }: { params: Promise<{ pr
   const [{ data: project }, { data: blocks }, { data: assignments }, { data: assets }, { data: requirements }, { data: snapshots }] = await Promise.all([
     db.from("projects").select("id,name,orbit_event_id,operations").eq("id", projectId).is("deleted_at", null).single(),
     db.from("event_operational_blocks").select("id,name").eq("project_id", projectId),
-    db.from("assignments").select("id,block_id,assignment_type,status,staff(first_name,last_name)").eq("project_id", projectId).is("deleted_at", null).in("status", ["ASSIGNED", "PENDING_CONFIRMATION", "ACCEPTED", "CONFIRMED"]),
+    db.from("assignments").select("id,block_id,assignment_type,status,staff(first_name,last_name)").eq("project_id", projectId).is("deleted_at", null).in("status", ["ASSIGNED", "PENDING_CONFIRMATION", "ACCEPTED", "CONFIRMED", "COMPLETED"]),
     db.from("operational_assets").select("id,asset_code").eq("asset_type", "CASE").is("deleted_at", null),
     db.from("event_operational_requirements").select("required_quantity").eq("project_id", projectId).eq("status", "ACTIVE").eq("requirement_type", "PHYSICAL_UNIT").eq("asset_type", "CASE"),
     db.from("event_paper_snapshots").select("box_asset_id,opening_balance").eq("project_id", projectId).eq("paper_required", true),
@@ -31,7 +31,7 @@ export default async function EventTotemsPage({ params }: { params: Promise<{ pr
   const assignmentOptions = (assignments ?? []).filter(item => item.assignment_type === "OPERATOR").map(item => {
     const staff = item.staff as unknown as { first_name: string; last_name: string } | { first_name: string; last_name: string }[] | null;
     const person = Array.isArray(staff) ? staff[0] : staff;
-    const state = item.status === "CONFIRMED" ? "Confirmado" : item.status === "ACCEPTED" ? "Aceptado" : "Pendiente";
+    const state = item.status === "COMPLETED" ? "Finalizado" : item.status === "CONFIRMED" ? "Confirmado" : item.status === "ACCEPTED" ? "Aceptado" : "Pendiente";
     return { id: item.id, blockId: item.block_id, assignmentType: item.assignment_type, label: `${[person?.first_name, person?.last_name].filter(Boolean).join(" ") || "Operador"} · ${state}` };
   });
   const baseLayout = stored && Array.isArray(stored.positions) ? stored : emptyTotemLayout(project.orbit_event_id === "ORB-2026-268105" ? 7 : requiredCaseCount);

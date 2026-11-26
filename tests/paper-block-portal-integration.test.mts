@@ -45,7 +45,7 @@ test("inventory is reconciled only on the final block and is idempotent", () => 
 });
 
 test("portal does not duplicate event reloads into the PM handoff", () => {
-  assert.match(actions, /const isFirstBlock = !\(blocks \?\? \[\]\)\.some/);
+  assert.match(actions, /const isFirstBlock = !positions\.some\(\(position\) => position\.assetId === match\.assetId/);
   assert.match(actions, /isFirstBlock && snapshot/);
 });
 

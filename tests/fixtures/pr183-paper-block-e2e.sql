@@ -68,6 +68,9 @@ BEGIN
     (am_block, project_id, 'AM', 1, date_trunc('minute',now()) + interval '30 days', date_trunc('minute',now()) + interval '30 days 4 hours 30 minutes'),
     (pm_block, project_id, 'PM', 2, date_trunc('minute',now()) + interval '30 days 6 hours', date_trunc('minute',now()) + interval '30 days 10 hours 30 minutes');
 
+  UPDATE public.event_staff_requirements r SET required_quantity=7
+  WHERE r.project_id=fixture_block.project_id AND r.role='OPERATOR';
+
   INSERT INTO public.supplies(
     id, name, purchase_price, vat_included, unit, calculation_method, status,
     catalog_code, current_stock, stock_status, created_by
@@ -240,7 +243,7 @@ BEGIN
 
   SELECT count(*) INTO movements_after FROM public.inventory_movements m
   WHERE m.project_id=fixture_block.project_id AND m.movement_type='EVENT_USAGE';
-  IF movements_after <> 6 THEN RAISE EXCEPTION 'Expected six BOX lot EVENT_USAGE movements, got %', movements_after; END IF;
+  IF movements_after <> 7 THEN RAISE EXCEPTION 'Expected one EVENT_USAGE movement per box, got %', movements_after; END IF;
   SELECT count(*) INTO movements_before FROM public.event_box_paper_block_closeouts c
   WHERE c.project_id=fixture_block.project_id AND c.inventory_reconciled_at IS NOT NULL;
   IF movements_before <> 7 THEN RAISE EXCEPTION 'Expected seven reconciled PM closeouts, got %', movements_before; END IF;
@@ -248,8 +251,13 @@ BEGIN
   WHERE l.box_asset_id=ANY(boxes) AND l.remaining_photo_capacity=850;
   IF movements_before <> 6 THEN RAISE EXCEPTION 'Six BOX lots did not end at 850'; END IF;
   SELECT count(*) INTO movements_before FROM public.operational_assets a
-  WHERE a.id=boxes[7] AND a.asset_type='CASE' AND (a.metadata->>'blackBoxPhotoStock')::integer=850;
+  WHERE a.id=boxes[7] AND a.asset_type='CASE' AND (a.metadata->>'blackBoxPhotoStock')::numeric=850;
   IF movements_before <> 1 THEN RAISE EXCEPTION 'CASE without lot did not reconcile master stock to 850'; END IF;
+
+  SELECT count(*) INTO movements_before FROM public.event_paper_snapshots s
+  WHERE s.project_id=fixture_block.project_id AND s.status='CONFIRMED' AND s.final_remaining_balance=850
+    AND s.event_usage=CASE WHEN s.box_asset_id=boxes[7] THEN 150 ELSE 220 END;
+  IF movements_before <> 7 THEN RAISE EXCEPTION 'Expected seven completed cost snapshots'; END IF;
 
   -- Same request is idempotent; changed payload with same request is rejected.
   result := public.record_staff_paper_block_closeout(

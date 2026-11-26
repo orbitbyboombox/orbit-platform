@@ -45,7 +45,7 @@ export async function loadAdminPaperBlocksAction(projectId: string) {
     admin.from("assignments").select("id,staff_id,block_id,assignment_type,status,staff(first_name,last_name)").eq("project_id", projectId).is("deleted_at", null),
     admin.from("operational_assets").select("id,asset_code").is("deleted_at", null),
     admin.from("event_box_paper_block_closeouts").select("asset_id,block_id,opening,reloads,remaining,used,closed_at").eq("project_id", projectId),
-    admin.from("event_paper_snapshots").select("id,box_asset_id,opening_balance,created_at").eq("project_id", projectId).order("created_at", { ascending: true }),
+    admin.from("event_paper_snapshots").select("id,box_asset_id,asset_assignment_id,opening_balance,status,final_remaining_balance,created_at").eq("project_id", projectId).order("created_at", { ascending: true }),
   ]);
   for (const error of [projectError, blockError, assignmentError, assetError, closeoutError, snapshotError]) if (error) throw error;
   type Position = { assetId?: string; blocks?: { blockId?: string; assignmentId?: string }[] };
@@ -68,18 +68,21 @@ export async function loadAdminPaperBlocksAction(projectId: string) {
     if (!position.assetId || !block || !assignment || assignment.block_id !== block.id || assignment.assignment_type !== "OPERATOR") return [];
     const current = (closeouts ?? []).find((row) => row.asset_id === position.assetId && row.block_id === block.id);
     const previous = (closeouts ?? []).filter((row) => row.asset_id === position.assetId && Number(blockMap.get(row.block_id)?.sequence ?? Infinity) < Number(block.sequence)).sort((a,b) => Number(blockMap.get(b.block_id)?.sequence ?? 0) - Number(blockMap.get(a.block_id)?.sequence ?? 0))[0];
-    const isFirst = !(blocks ?? []).some((row) => Number(row.sequence) < Number(block.sequence));
+    const isFirst = !(position.blocks ?? []).some((entry) => entry.assignmentId && entry.blockId
+      && Number(blockMap.get(entry.blockId)?.sequence ?? Infinity) < Number(block.sequence));
     const snapshot = snapshotMap.get(position.assetId);
+    const closedSnapshot = (blocks ?? []).length === 1 && snapshot && ["CONFIRMED", "OVERRIDDEN"].includes(snapshot.status) ? snapshot : undefined;
     const staff = assignment.staff as unknown as { first_name?: string; last_name?: string } | { first_name?: string; last_name?: string }[] | null;
     const person = Array.isArray(staff) ? staff[0] : staff;
     return [{
       assetId: position.assetId, boxCode: assetMap.get(position.assetId) ?? "Caja",
       blockId: block.id, blockName: block.name, sequence: Number(block.sequence),
+      assetAssignmentId: (blocks ?? []).length === 1 ? snapshot?.asset_assignment_id ?? null : null,
       assignmentId: assignment.id, operator: [person?.first_name, person?.last_name].filter(Boolean).join(" "),
       opening: Number(current?.opening ?? previous?.remaining ?? snapshot?.opening_balance ?? 0),
       reloads: Number(current?.reloads ?? (isFirst && snapshot ? reloadMap.get(snapshot.id) ?? 0 : 0)),
-      remaining: current?.remaining == null ? null : Number(current.remaining),
-      closed: Boolean(current), canClose: isFirst ? Boolean(snapshot) : Boolean(previous),
+      remaining: current?.remaining ?? closedSnapshot?.final_remaining_balance ?? null,
+      closed: Boolean(current ?? closedSnapshot), canClose: isFirst ? Boolean(snapshot) : Boolean(previous),
     }];
   })).sort((a,b) => a.boxCode.localeCompare(b.boxCode) || a.sequence - b.sequence);
 }
