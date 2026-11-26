@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, ReceiptText } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -22,9 +22,12 @@ export interface NavigationListProps {
 export function NavigationList({ onNavigate, compact, hiddenNavigation = [], iconOnly = false }: NavigationListProps) {
   const pathname = usePathname();
   const {isEnabled}=useModuleManager();
+  const items = process.env.NEXT_PUBLIC_ORBIT_TRIBUTARY_PREVIEW === "true" && !hiddenNavigation.includes("FINANCE")
+    ? [...navigationItems,{key:"FINANCE" as const,label:"Finanzas Tributarias",href:"/finance/tributary",icon:ReceiptText,module:"FINANCE" as const}]
+    : navigationItems;
   return (
     <nav aria-label="Navegación principal" className="space-y-1">
-      {navigationItems.filter(item=>!hiddenNavigation.includes(item.key)&&(item.href==="/settings"||isEnabled(item.module))).map(({ label, href, icon: Icon }) => {
+      {items.filter(item=>!hiddenNavigation.includes(item.key)&&(item.href==="/settings"||isEnabled(item.module))).map(({ label, href, icon: Icon }) => {
         const isActive = href === "/" ? pathname === href : pathname.startsWith(href);
         return <Link
           aria-current={isActive ? "page" : undefined}
@@ -64,3 +67,4 @@ export function Sidebar({ navigationOrder, hiddenNavigation }: Pick<NavigationLi
     </aside>
   );
 }
+

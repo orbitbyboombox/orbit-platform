@@ -1,3 +1,4 @@
+import { TributaryLink } from "@/features/tributary/link";
 import {
   CollectionCenter,
   loadAccountsReceivable,
@@ -33,10 +34,14 @@ export default async function CollectionCenterPage({
     : "PENDING";
 
   return (
+    <>
+      <TributaryLink />
     <CollectionCenter
       bankDetails={resolveCollectionBankDetails(company)}
       dataset={dataset}
       initialFilter={initialFilter}
     />
+    </>
   );
 }
+

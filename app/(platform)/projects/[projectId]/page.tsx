@@ -1,3 +1,4 @@
+import { TributaryLink } from "@/features/tributary/link";
 import { mapIncidentObservation } from "@/features/resources/incident-observation";
 import { notFound, redirect } from "next/navigation";
 import { ProjectHealth, ProjectType } from "@/features/projects/domain";
@@ -1870,6 +1871,8 @@ export default async function ProjectWorkspacePage({
   ]);
   const incidentMetadata = new Map((incidentMetadataResult.data ?? []).map(row => [row.entity_id, (row.metadata ?? {}) as Record<string, unknown>]));
   return (
+    <>
+      <TributaryLink project={projectId}/>
     <ProjectWorkspaceExperience
       customerId={rawProject?.customer_id ?? ""}
       reconciliationId={query.reconciliation}
@@ -1933,6 +1936,7 @@ export default async function ProjectWorkspacePage({
         metadata: item.metadata ?? undefined,
       }))}
     />
+    </>
   );
 }
 
@@ -2002,3 +2006,4 @@ function mergeExperienceKnowledge(rows: readonly Record<string, unknown>[]) {
     ];
   });
 }
+

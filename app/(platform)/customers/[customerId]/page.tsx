@@ -1,3 +1,4 @@
+import { TributaryLink } from "@/features/tributary/link";
 import { notFound } from "next/navigation";
 import { CustomerProfile, loadCrmCustomerProfile } from "@/features/crm";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -10,5 +11,6 @@ export default async function CustomerProfilePage({
   const client = await createSupabaseServerClient();
   const customer = await loadCrmCustomerProfile(client, customerId);
   if (!customer) notFound();
-  return <CustomerProfile customer={customer} />;
+  return <><TributaryLink customer={customerId}/><CustomerProfile customer={customer} /></>;
 }
+

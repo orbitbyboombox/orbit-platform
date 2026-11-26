@@ -17,10 +17,13 @@ const tabs = [
 
 export function FinanceTabs() {
   const pathname = usePathname();
+  const visibleTabs = process.env.NEXT_PUBLIC_ORBIT_TRIBUTARY_PREVIEW === "true"
+    ? [...tabs, ["/finance/tributary", "Tributaria"] as const]
+    : tabs;
   return (
     <nav aria-label="Secciones de Finanzas" className="-mx-1 overflow-x-auto pb-1">
       <div className="flex min-w-max gap-1 rounded-2xl border bg-card/70 p-1">
-        {tabs.map(([href, label]) => {
+        {visibleTabs.map(([href, label]) => {
           const active = href === "/finance" ? pathname === href : pathname.startsWith(href);
           return <Link aria-current={active ? "page" : undefined} className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition ${active ? "bg-brand text-brand-foreground shadow-sm" : "text-muted hover:bg-background hover:text-foreground"}`} href={href} key={href}>{label}</Link>;
         })}
@@ -28,3 +31,4 @@ export function FinanceTabs() {
     </nav>
   );
 }
+
