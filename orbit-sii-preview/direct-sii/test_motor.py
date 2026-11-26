@@ -35,7 +35,7 @@ def fixture(kind):
     doc={"kind":kind,"folio":101,"date":"2026-11-25","sender":"11111111-1","resolution_date":"2026-10-01","resolution_number":0,
          "issuer":{"rut":"11111111-1","name":"ORBIT PRUEBAS","activity":"Producción de eventos","activity_code":932909,"address":"Domicilio de prueba","city":"Santiago"},
          "receiver":{"rut":"66666666-6" if kind==39 else "22222222-2","name":"RECEPTOR DEMO","activity":"Eventos","address":"Domicilio demo","city":"Santiago"},
-         "lines":[{"name":"Producción de prueba","amount":10000},{"name":"Segundo concepto","amount":1000}],"discount":1000}
+         "lines":[{"name":"Servicio de prueba","amount":10000},{"name":"Producción de evento","amount":1000}],"discount":1000}
     if kind==61: doc["reference"]={"kind":33,"folio":97,"date":"2026-11-23","reason":"Anulación de prueba","total":11900}
     return doc,dict(caf_xml=wire(caf),caf_key=caf_key,key=key,cert=cert,anchor=anchor.public_key(),stamp="2026-11-25T12:01:00")
 

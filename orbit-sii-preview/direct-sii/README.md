@@ -30,7 +30,7 @@ python -m unittest discover -s direct-sii -v
 node direct-sii/pdf417.mjs /tmp/orbit-sii-samples/33.json /tmp/orbit-sii-samples/33.pdf
 ```
 
-Repetir el render para 39 y 61. El script acepta exclusivamente el emisor sintético del fixture y la plantilla marca los PDF sin validez. La verificación de lectura con un escáner y las muestras impresas oficiales siguen pendientes.
+Repetir el render para 39 y 61. El script acepta exclusivamente el emisor sintético del fixture y la plantilla marca los PDF sin validez. La lectura digital se verifica con fixtures ASCII. La lectura física, codificación Latin-1 no ASCII y las muestras oficiales siguen pendientes.
 
 ## Iniciar la certificación
 
