@@ -32,7 +32,7 @@ export async function attachExternalTaxDocumentAction(formData: FormData) {
     if (!(file instanceof File) || !file.size) throw new Error("Adjunta el documento SII.");
     if (file.size > 20 * 1024 * 1024 || !["application/pdf", "image/jpeg", "image/png"].includes(file.type)) throw new Error("Usa PDF, JPG o PNG de hasta 20 MB.");
     const admin = createAdminClient();
-    const { data: project, error: projectError } = await admin.from("projects").select("id,event_date,customers!inner(full_name)").eq("id", projectId).is("deleted_at", null).single();
+    const { data: project, error: projectError } = await admin.from("projects").select("id,event_date,customers!inner(id,full_name)").eq("id", projectId).is("deleted_at", null).single();
     if (projectError) throw projectError;
     const bytes = new Uint8Array(await file.arrayBuffer());
     const checksum = createHash("sha256").update(bytes).digest("hex");
