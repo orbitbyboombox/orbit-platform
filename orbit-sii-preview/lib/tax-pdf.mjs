@@ -2,7 +2,7 @@ import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { sampleIssuer } from "./issuer.mjs";
 
 export const money = amount => "$"+String(amount).replace(/\B(?=(\d{3})+(?!\d))/g,".");
-export const titles = {33:"FACTURA ELECTRÓNICA",39:"BOLETA ELECTRÓNICA",56:"NOTA DE DÉBITO ELECTRÓNICA",61:"NOTA DE CRÉDITO ELECTRÓNICA"};
+export const titles = {33:"FACTURA ELECTRÓNICA",39:"BOLETA ELECTRÓNICA",52:"GUÍA DE DESPACHO ELECTRÓNICA",56:"NOTA DE DÉBITO ELECTRÓNICA",61:"NOTA DE CRÉDITO ELECTRÓNICA"};
 const ink=rgb(.07,.07,.07), white=rgb(1,1,1), red=rgb(.78,0,.09), gray=rgb(.32,.32,.32);
 const mm=x=>x*72/25.4;
 const W=mm(215), H=mm(280), L=mm(6), R=W-L, CW=R-L;
@@ -55,7 +55,14 @@ export async function renderTaxPdf(doc, {issuer:configuredIssuer, logos={}, synt
   const fieldHeight=(entries,width)=>entries.reduce((height,[,value])=>
     height+Math.max(1,wrap(value,plain,8.5,width).length)*10.5,135);
   const end=Math.max(203,fieldHeight(contractFields,274)+4,fieldHeight(operationFields,CW-460)+17);
-  const tableCapacity=563-(end+35);
+  const dispatchRows=d.type===52&&d.transport ? [
+    "Traslado sin venta · Viaje "+d.transport.trip,
+    "Patente: "+d.transport.plate+" · Chofer: "+d.transport.driverName+" · RUT: "+d.transport.driverRut,
+    "Transportista: "+d.transport.carrierRut+" · Origen: "+d.transport.origin,
+    "Destino: "+d.transport.address+", "+d.transport.city,
+  ].flatMap(row=>wrap(row,plain,8,CW-20)) : [];
+  const dispatchHeight=dispatchRows.length ? 12+dispatchRows.length*10 : 0;
+  const tableCapacity=563-(end+35+dispatchHeight);
   if(tableCapacity<180)throw new Error("Datos del receptor exceden el espacio de la plantilla.");
   const groups=[];
   let group=[], taken=0;
@@ -123,7 +130,11 @@ export async function renderTaxPdf(doc, {issuer:configuredIssuer, logos={}, synt
     if(doc.copy)text(doc.copy,R-71,end-15,{size:8.5,font:bold});
     text("Sin validez tributaria",L+361,end-15,{size:8.5,font:bold});
     const edges=[L,L+31,L+93,R-157,R-81,R];
-    const top=end+14, body=top+21, bottom=563;
+    if(dispatchHeight){
+      rect(L,end+7,CW,dispatchHeight,undefined,ink,.8);
+      dispatchRows.forEach((line,i)=>text(line,L+10,end+12+i*10,{size:8}));
+    }
+    const top=end+14+dispatchHeight, body=top+21, bottom=563;
     rect(L,top,CW,21,ink);
     ["N°","Cantidad","Descripción","Precio U.","Total"].forEach((name,i)=>
       text(name,edges[i],top+5,{font:bold,color:white,align:"center",width:edges[i+1]-edges[i]}));
@@ -137,8 +148,8 @@ export async function renderTaxPdf(doc, {issuer:configuredIssuer, logos={}, synt
       }
       row.text.forEach((line,i)=>text(line,edges[2]+7,y+4+i*11,{size:9}));
       if(!row.continuation){
-        text(row.textOnly ? "" : money(row.unitPrice??row.net),edges[3],y+4,{align:"right",width:edges[4]-edges[3]-7,size:9});
-        text(money(row.net),edges[4],y+4,{align:"right",width:edges[5]-edges[4]-7,size:9});
+        text(row.textOnly || d.type===52 ? "" : money(row.unitPrice??row.net),edges[3],y+4,{align:"right",width:edges[4]-edges[3]-7,size:9});
+        text(d.type===52 ? "" : money(row.net),edges[4],y+4,{align:"right",width:edges[5]-edges[4]-7,size:9});
       }
       y+=row.height;
       rule(L,y,R,y,gray,.35);
@@ -163,7 +174,7 @@ export async function renderTaxPdf(doc, {issuer:configuredIssuer, logos={}, synt
       }
       const sx=R-204, sw=198;
       const discountLabel=d.globalDiscountPct ? `Desc. afecto ${d.globalDiscountPct}%` : "Descuento";
-      const totals=[...(d.discount?[[discountLabel,d.discount]]:[]),["Neto $",d.net],
+      const totals=d.type===52 ? [["Total $",0]] : [...(d.discount?[[discountLabel,d.discount]]:[]),["Neto $",d.net],
         ...(d.exempt?[["Exento $",d.exempt]]:[]),["19% IVA $",d.tax],["Total $",d.total]];
       totals.forEach(([name,value],i)=>{
         const total=name==="Total $", rowHeight=18, top=648+i*rowHeight;

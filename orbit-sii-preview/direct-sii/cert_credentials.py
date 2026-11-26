@@ -28,7 +28,7 @@ def private_bytes(path):
         return data
 
 
-def inspect(folder, password):
+def inspect(folder, password, *, include_dispatch=False):
     info = folder.lstat()
     if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
         raise ValueError("Usar un directorio de secretos privado (0700)")
@@ -47,7 +47,7 @@ def inspect(folder, password):
         raise ValueError("Ancla del SII inesperada")
     anchor = serialization.load_pem_public_key(anchor_bytes)
     result = {}
-    for kind, required in COUNTS.items():
+    for kind, required in ({**COUNTS, 52: 1} if include_dispatch else COUNTS).items():
         source = private_bytes(folder / f"caf-{kind}.xml")
         if sha256(source).hexdigest() != manifest["caf_sha256"][str(kind)]:
             raise ValueError(f"CAF {kind} no corresponde a la descarga de certificación registrada")
@@ -73,10 +73,11 @@ def inspect(folder, password):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("secrets", type=Path)
+    parser.add_argument("--include-dispatch", action="store_true", help="Valida también un CAF 52 separado del set básico")
     args = parser.parse_args()
     with open("/dev/tty", "r+") as tty:
         secret = getpass("Contraseña PFX: ", stream=tty).encode()
     try:
-        print(json.dumps(inspect(args.secrets, secret), indent=2))
+        print(json.dumps(inspect(args.secrets, secret, include_dispatch=args.include_dispatch), indent=2))
     except Exception:
         raise SystemExit("Prevalidación rechazada. Revisar permisos, integridad, vigencia y procedencia en Maullín.") from None

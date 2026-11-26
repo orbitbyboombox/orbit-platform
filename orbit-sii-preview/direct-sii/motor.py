@@ -187,13 +187,34 @@ def calculate(d):
     return rows, amounts, discount
 
 
+def no_sale_dispatch(d):
+    transport = d.get("transport") or {}
+    required = ("plate", "carrier_rut", "driver_rut", "driver_name", "address", "city")
+    if (transport.get("movement") != 6 or any(not isinstance(transport.get(key), str)
+            or not transport[key].strip() for key in required)):
+        raise ValueError("La guía de traslado sin venta requiere transporte y destino completos")
+    if d.get("discount") or d.get("global_discount_pct") or d.get("reference"):
+        raise ValueError("La guía sin venta no admite descuentos ni referencias en este flujo")
+    rows = []
+    for line in d["lines"]:
+        quantity = line.get("quantity")
+        if (not isinstance(line.get("name"), str) or not line["name"].strip()
+                or type(quantity) is not int or quantity < 1 or line.get("amount", 0) != 0
+                or line.get("discount_pct") or line.get("exempt")):
+            raise ValueError("Detalle de equipamiento de guía inválido")
+        rows.append({"name": line["name"], "quantity": quantity, "line_total": 0})
+    if not rows:
+        raise ValueError("La guía requiere equipamiento")
+    return rows, {"net": 0, "iva": 0, "total": 0}, 0
+
+
 def build(d,*,caf_xml,caf_key,anchor,key,cert,stamp):
     kind,folio,day = d["kind"],d["folio"],d["date"]
     issuer,receiver,lines = d["issuer"],d["receiver"],d["lines"]
     date.fromisoformat(day)
-    if kind not in {33,39,56,61} or type(folio) is not int or folio<1 or day>stamp[:10]:
+    if kind not in {33,39,52,56,61} or type(folio) is not int or folio<1 or day>stamp[:10]:
         raise ValueError("Datos del DTE inválidos")
-    rows, totals, discount = calculate(d)
+    rows, totals, discount = no_sale_dispatch(d) if kind == 52 else calculate(d)
     net, iva, total = (totals[field] for field in ("net", "iva", "total"))
     ref = d.get("reference")
     if kind in {56, 61}:
@@ -225,6 +246,8 @@ def build(d,*,caf_xml,caf_key,anchor,key,cert,stamp):
     nodes(identity,(("TipoDTE",kind),("Folio",folio),("FchEmis",day)))
     if kind==39:
         nodes(identity,(("IndServicio",3),("IndMntNeto",2)))
+    if kind==52:
+        nodes(identity,(("TipoDespacho",3),("IndTraslado",6)))
     if kind==33:
         put(identity,"FmaPago",d.get("payment_form",1))
     em = put(head,"Emisor")
@@ -243,8 +266,14 @@ def build(d,*,caf_xml,caf_key,anchor,key,cert,stamp):
     for tag, field in (("DirRecep", "address"), ("CmnaRecep", "city")):
         if receiver.get(field):
             put(re, tag, receiver[field])
+    if kind == 52:
+        data = d["transport"]
+        transport = put(head,"Transporte")
+        nodes(transport,(("Patente",data["plate"]),("RUTTrans",data["carrier_rut"])))
+        nodes(put(transport,"Chofer"),(("RUTChofer",data["driver_rut"]),("NombreChofer",data["driver_name"])))
+        nodes(transport,(("DirDest",data["address"]),("CmnaDest",data["city"])))
     amounts = put(head,"Totales")
-    if net or not totals.get("exempt"):
+    if kind != 52 and (net or not totals.get("exempt")):
         put(amounts,"MntNeto",net)
     if totals.get("exempt"):
         put(amounts,"MntExe",totals["exempt"])
@@ -260,7 +289,9 @@ def build(d,*,caf_xml,caf_key,anchor,key,cert,stamp):
             put(detail,"IndExe",1)
         put(detail,"NmbItem",row["name"])
         if "quantity" in row:
-            nodes(detail,(("QtyItem",row["quantity"]),("PrcItem",row["amount"])))
+            put(detail,"QtyItem",row["quantity"])
+            if kind != 52:
+                put(detail,"PrcItem",row["amount"])
         if row.get("discount_pct"):
             nodes(detail,(("DescuentoPct",row["discount_pct"]),("DescuentoMonto",row["discount_value"])))
         put(detail,"MontoItem",row["line_total"])
