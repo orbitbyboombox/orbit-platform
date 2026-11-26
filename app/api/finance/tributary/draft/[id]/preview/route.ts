@@ -74,14 +74,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
   page.drawLine({ start: { x: 42, y: 636 }, end: { x: 553, y: 636 }, thickness: 0.8, color: light });
   page.drawText("RECEPTOR", { x: 42, y: 619, size: 8, font: bold, color: gray });
-  page.drawText("Señor(es): " + text(snapshot.customer?.name ?? customer?.full_name ?? customer?.company), { x: 42, y: 603, size: 10, font, color: black });
-  page.drawText("RUT: " + text(snapshot.customer?.rut ?? customer?.rut, "Dato pendiente"), { x: 42, y: 588, size: 9, font, color: black });
-  page.drawText("Giro: " + text(snapshot.customer?.giro, "Dato pendiente"), { x: 42, y: 574, size: 9, font, color: gray });
-  page.drawText("Dirección: " + text(snapshot.customer?.address ?? customer?.address), { x: 300, y: 603, size: 9, font, color: black });
-  page.drawText("Comuna: " + text(snapshot.customer?.city ?? customer?.city), { x: 300, y: 588, size: 9, font, color: black });
-  page.drawText("Condición de pago: " + text(snapshot.condition, "Crédito"), { x: 300, y: 574, size: 9, font, color: gray });
-  page.drawText("Evento: " + text(snapshot.event?.name ?? project?.name), { x: 42, y: 554, size: 9, font, color: black });
-  page.drawText("Fecha emisión: " + new Date(String(draft.created_at)).toLocaleDateString("es-CL"), { x: 300, y: 554, size: 9, font, color: black });
+  page.drawText("Señor(es): " + text(snapshot.customer?.name ?? customer?.full_name ?? customer?.company), { x: 42, y: 603, size: 10, font: regular, color: black });
+  page.drawText("RUT: " + text(snapshot.customer?.rut ?? customer?.rut, "Dato pendiente"), { x: 42, y: 588, size: 9, font: regular, color: black });
+  page.drawText("Giro: " + text(snapshot.customer?.giro, "Dato pendiente"), { x: 42, y: 574, size: 9, font: regular, color: gray });
+  page.drawText("Dirección: " + text(snapshot.customer?.address ?? customer?.address), { x: 300, y: 603, size: 9, font: regular, color: black });
+  page.drawText("Comuna: " + text(snapshot.customer?.city ?? customer?.city), { x: 300, y: 588, size: 9, font: regular, color: black });
+  page.drawText("Condición de pago: " + text(snapshot.condition, "Crédito"), { x: 300, y: 574, size: 9, font: regular, color: gray });
+  page.drawText("Evento: " + text(snapshot.event?.name ?? project?.name), { x: 42, y: 554, size: 9, font: regular, color: black });
+  page.drawText("Fecha emisión: " + new Date(String(draft.created_at)).toLocaleDateString("es-CL"), { x: 300, y: 554, size: 9, font: regular, color: black });
 
   const tableTop = 520;
   page.drawRectangle({ x: 42, y: tableTop - 22, width: 511, height: 22, color: black });
@@ -94,11 +94,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   lines.slice(0, 14).forEach((line, index) => {
     const quantity = Number(line.quantity ?? 1);
     const unit = Number(line.unitPrice ?? 0);
-    page.drawText(String(index + 1), { x: 50, y, size: 8, font, color: black });
-    page.drawText(String(quantity), { x: 77, y, size: 8, font, color: black });
-    page.drawText(text(line.description, "Servicio BOOMBOX").slice(0, 42), { x: 145, y, size: 8, font, color: black });
-    page.drawText(money(unit).replace("CLP", "").trim(), { x: 410, y, size: 8, font, color: black });
-    page.drawText(money(quantity * unit).replace("CLP", "").trim(), { x: 505, y, size: 8, font, color: black });
+    page.drawText(String(index + 1), { x: 50, y, size: 8, font: regular, color: black });
+    page.drawText(String(quantity), { x: 77, y, size: 8, font: regular, color: black });
+    page.drawText(text(line.description, "Servicio BOOMBOX").slice(0, 42), { x: 145, y, size: 8, font: regular, color: black });
+    page.drawText(money(unit).replace("CLP", "").trim(), { x: 410, y, size: 8, font: regular, color: black });
+    page.drawText(money(quantity * unit).replace("CLP", "").trim(), { x: 505, y, size: 8, font: regular, color: black });
     page.drawLine({ start: { x: 42, y: y - 6 }, end: { x: 553, y: y - 6 }, thickness: 0.35, color: light });
     y -= 22;
   });
@@ -108,12 +108,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   page.drawText("BOOMBOX®   ORBIT   PIXMEDIA", { x: 42, y: 108, size: 9, font: bold, color: black });
   page.drawText("TIMBRE ELECTRÓNICO", { x: 42, y: 82, size: 8, font: bold, color: gray });
   page.drawText("Omitido durante pruebas PRE-SII", { x: 42, y: 68, size: 8, font: regular, color: gray });
-  page.drawText("Neto", { x: 375, y: totalY + 50, size: 9, font, color: gray });
-  page.drawText(money(net), { x: 472, y: totalY + 50, size: 9, font, color: black });
-  page.drawText("Exento", { x: 375, y: totalY + 34, size: 9, font, color: gray });
-  page.drawText(money(exempt), { x: 472, y: totalY + 34, size: 9, font, color: black });
-  page.drawText("IVA (19%)", { x: 375, y: totalY + 18, size: 9, font, color: gray });
-  page.drawText(money(vat), { x: 472, y: totalY + 18, size: 9, font, color: black });
+  page.drawText("Neto", { x: 375, y: totalY + 50, size: 9, font: regular, color: gray });
+  page.drawText(money(net), { x: 472, y: totalY + 50, size: 9, font: regular, color: black });
+  page.drawText("Exento", { x: 375, y: totalY + 34, size: 9, font: regular, color: gray });
+  page.drawText(money(exempt), { x: 472, y: totalY + 34, size: 9, font: regular, color: black });
+  page.drawText("IVA (19%)", { x: 375, y: totalY + 18, size: 9, font: regular, color: gray });
+  page.drawText(money(vat), { x: 472, y: totalY + 18, size: 9, font: regular, color: black });
   page.drawText("TOTAL", { x: 375, y: totalY - 2, size: 11, font: bold, color: black });
   page.drawText(money(total), { x: 472, y: totalY - 2, size: 12, font: bold, color: orange });
   page.drawRectangle({ x: 0, y: 0, width: 595.28, height: 24, color: black });
