@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 const tabs = [
   ["/finance", "Resumen"],
@@ -16,7 +16,7 @@ const tabs = [
 ] as const;
 
 export function FinanceTabs() {
-  const pathname = usePathname();
+  const pathname = usePathname();\n  const router = useRouter();
   return (
     <nav aria-label="Secciones de Finanzas" className="-mx-1 overflow-x-auto pb-1">
       <div className="flex min-w-max gap-1 rounded-2xl border bg-card/70 p-1">
