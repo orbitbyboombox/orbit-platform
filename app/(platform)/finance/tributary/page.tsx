@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import Link from "next/link";
 import { TributaryDraftManager } from "@/features/finance/components/tributary-draft-manager";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
