@@ -55,7 +55,7 @@ export async function attachExternalTaxDocumentAction(formData: FormData) {
     if (String(id) !== documentId) await admin.storage.from("orbit-documents").remove([storagePath]);
     const documentKey = String(id);
     await admin.from("tributary_customer_document_links").upsert({ document_id: documentKey, customer_id: relatedCustomerId, project_id: projectId, drive_file_id: drive.id, link_type: "CENTRAL_DOCUMENT" }, { onConflict: "document_id,customer_id,link_type", ignoreDuplicates: true });
-    await admin.from("tributary_drive_sync_items").upsert({ document_id: documentKey, project_id: projectId, customer_id: project.customers.id ?? project.customers[0]?.id, artifact_kind: "PDF", idempotency_key: `document:${documentKey}:PDF`, status: "SYNCED", attempt_count: 1, drive_file_id: drive.id, checksum, synced_at: new Date().toISOString(), updated_at: new Date().toISOString() }, { onConflict: "idempotency_key" });
+    await admin.from("tributary_drive_sync_items").upsert({ document_id: documentKey, project_id: projectId, customer_id: relatedCustomerId, artifact_kind: "PDF", idempotency_key: `document:${documentKey}:PDF`, status: "SYNCED", attempt_count: 1, drive_file_id: drive.id, checksum, synced_at: new Date().toISOString(), updated_at: new Date().toISOString() }, { onConflict: "idempotency_key" });
     revalidatePath(`/projects/${projectId}`);
     revalidatePath("/customers");
     revalidatePath("/events");
