@@ -18,13 +18,19 @@ async function requireAdmin() {
 export async function createTributaryDraftAction(input: { projectId: string; dteType: DteType; quotationId?: string; amount?: number }) {
   try {
     const { admin, actorId } = await requireAdmin();
-    const { data: project, error } = await admin.from("projects").select("id,customer_id,orbit_event_id,project_type").eq("id", input.projectId).is("deleted_at", null).single();
+    const { data: project, error } = await admin.from("projects").select("id,customer_id,orbit_event_id,project_type,name,event_date,location,city,customers(id,full_name,company,rut,address,city,email,metadata)").eq("id", input.projectId).is("deleted_at", null).single();
     if (error || !project) throw new Error("Evento no encontrado.");
     let amount = Number.isFinite(input.amount) && Number(input.amount) >= 0 ? Number(input.amount) : 0;
+    let quotationSnapshot: Record<string, unknown> | null = null;
     if (input.quotationId) {
-      const { data: quote } = await admin.from("quotations").select("id,grand_total,customer_id").eq("id", input.quotationId).maybeSingle();
+      const { data: quote } = await admin.from("quotations").select("id,grand_total,customer_id,quote_number,notes,items,accepted_at").eq("id", input.quotationId).maybeSingle();
       if (quote?.grand_total != null) amount = Number(quote.grand_total);
+      if (quote) quotationSnapshot = quote as Record<string, unknown>;
     }
+    const netAmount = Math.round(amount / 1.19);
+    const vatAmount = Math.max(0, amount - netAmount);
+    const relationCustomer = Array.isArray((project as any).customers) ? (project as any).customers[0] : (project as any).customers;
+    const customerSnapshot = relationCustomer ? { name: relationCustomer.full_name, company: relationCustomer.company, rut: relationCustomer.rut, address: relationCustomer.address, city: relationCustomer.city, email: relationCustomer.email, giro: relationCustomer.metadata?.giro ?? null } : null;
     const key = `PRE-SII|${input.dteType}|${input.projectId}|${input.quotationId ?? "none"}`;
     const { data: existing } = await admin.from("invoices").select("id,status,invoice_number").eq("tributary_draft_key", key).is("deleted_at", null).maybeSingle();
     if (existing) return { ok: true as const, id: existing.id, duplicate: true, status: existing.status };
@@ -34,7 +40,15 @@ export async function createTributaryDraftAction(input: { projectId: string; dte
       customer_type: String(project.project_type).toLowerCase().includes("corporate") ? "CORPORATE" : "PRIVATE", status: "DRAFT", payment_term: "CASH", currency: "CLP",
       amount, paid_amount: 0, version: 1, financial_record_state: "ACTIVE", record_origin: "PRE_SII",
       tributary_document_type: input.dteType, tributary_draft_key: key,
-      tributary_snapshot: { source: "ORBIT", dteType: input.dteType, projectId: input.projectId, quotationId: input.quotationId ?? null, amount, mode: "SIMULATION" },
+      tributary_snapshot: {
+        source: "ORBIT", mode: "SIMULATION", dteType: input.dteType, projectId: input.projectId,
+        quotationId: input.quotationId ?? null, amount,
+        customer: customerSnapshot,
+        event: { name: project.name, eventDate: project.event_date, location: project.location, city: project.city, orbitEventId: project.orbit_event_id },
+        condition: "Crédito", quotation: quotationSnapshot,
+        lines: [{ description: project.name || "Servicio BOOMBOX", quantity: 1, unitPrice: netAmount, exempt: false }],
+        totals: { net: netAmount, exempt: 0, vat: vatAmount, total: amount }
+      },
       created_by: actorId, updated_by: actorId
     }).select("id,status,invoice_number").single();
     if (insertError) throw insertError;
