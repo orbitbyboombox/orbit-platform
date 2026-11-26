@@ -2,7 +2,7 @@ import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { sampleIssuer } from "./issuer.mjs";
 
 export const money = amount => "$"+String(amount).replace(/\B(?=(\d{3})+(?!\d))/g,".");
-export const titles = {33:"FACTURA ELECTRÓNICA",39:"BOLETA ELECTRÓNICA",61:"NOTA DE CRÉDITO ELECTRÓNICA"};
+export const titles = {33:"FACTURA ELECTRÓNICA",39:"BOLETA ELECTRÓNICA",56:"NOTA DE DÉBITO ELECTRÓNICA",61:"NOTA DE CRÉDITO ELECTRÓNICA"};
 const ink=rgb(.07,.07,.07), white=rgb(1,1,1), red=rgb(.78,0,.09), gray=rgb(.32,.32,.32);
 const mm=x=>x*72/25.4;
 const W=mm(215), H=mm(280), L=mm(6), R=W-L, CW=R-L;
@@ -37,7 +37,10 @@ export async function renderTaxPdf(doc, {issuer:configuredIssuer, logos={}, synt
   const stampImage=syntheticStamp ? await pdf.embedPng(decode(syntheticStamp)) : null;
   const descWidth=CW-264;
   const items=d.lines.flatMap((line,index)=>{
-    const lines=wrap(line.name,plain,10,descWidth);
+    const labels = [line.name];
+    if (line.exempt) labels.push("Ítem exento");
+    if (line.discountPct) labels.push(`Descuento de línea ${line.discountPct}% (${money(line.discountValue)})`);
+    const lines=labels.flatMap(label=>wrap(label,plain,9,descWidth));
     const chunks=[];
     for(let offset=0;offset<Math.max(1,lines.length);offset+=14){
       chunks.push({...line,index,continuation:offset>0,text:lines.slice(offset,offset+14)});
@@ -117,6 +120,7 @@ export async function renderTaxPdf(doc, {issuer:configuredIssuer, logos={}, synt
     fields(contractFields,L+11,L+72,274);
     fields(operationFields,L+361,L+452,CW-460);
     rect(L,128,CW,end-128,undefined,ink,.85);
+    if(doc.copy)text(doc.copy,R-71,end-15,{size:8.5,font:bold});
     text("Sin validez tributaria",L+361,end-15,{size:8.5,font:bold});
     const edges=[L,L+31,L+93,R-157,R-81,R];
     const top=end+14, body=top+21, bottom=563;
@@ -129,11 +133,11 @@ export async function renderTaxPdf(doc, {issuer:configuredIssuer, logos={}, synt
     for(const row of rows){
       if(!row.continuation){
         text(row.index+1,edges[0],y+4,{align:"center",width:31,size:9});
-        text(row.quantity??1,edges[1],y+4,{align:"center",width:62,size:9});
+        text(row.textOnly ? "" : row.quantity??1,edges[1],y+4,{align:"center",width:62,size:9});
       }
       row.text.forEach((line,i)=>text(line,edges[2]+7,y+4+i*11,{size:9}));
       if(!row.continuation){
-        text(money(row.unitPrice??row.net),edges[3],y+4,{align:"right",width:edges[4]-edges[3]-7,size:9});
+        text(row.textOnly ? "" : money(row.unitPrice??row.net),edges[3],y+4,{align:"right",width:edges[4]-edges[3]-7,size:9});
         text(money(row.net),edges[4],y+4,{align:"right",width:edges[5]-edges[4]-7,size:9});
       }
       y+=row.height;
@@ -158,15 +162,22 @@ export async function renderTaxPdf(doc, {issuer:configuredIssuer, logos={}, synt
         text("Omitido en esta muestra",stampX,702,{align:"center",width:stampW,size:8});
       }
       const sx=R-204, sw=198;
-      const totals=[...(d.discount?[["Descuento",d.discount]]:[]),["Neto $",d.net],["19% IVA $",d.tax],["Total $",d.total]];
+      const discountLabel=d.globalDiscountPct ? `Desc. afecto ${d.globalDiscountPct}%` : "Descuento";
+      const totals=[...(d.discount?[[discountLabel,d.discount]]:[]),["Neto $",d.net],
+        ...(d.exempt?[["Exento $",d.exempt]]:[]),["19% IVA $",d.tax],["Total $",d.total]];
       totals.forEach(([name,value],i)=>{
-        const total=name==="Total $", top=651+i*22;
-        rect(sx,top,sw,22,white,ink,.75);
-        rule(sx+92,top,sx+92,top+22);
-        const style={font:total?bold:plain,size:total?13:10,align:"right"};
+        const total=name==="Total $", rowHeight=18, top=648+i*rowHeight;
+        rect(sx,top,sw,rowHeight,white,ink,.75);
+        rule(sx+92,top,sx+92,top+rowHeight);
+        const style={font:total?bold:plain,size:total?11:9,align:"right"};
         text(name,sx+4,top+4,{...style,width:80});
         text(money(value),sx+97,top+4,{...style,width:92});
       });
+      if(doc.copy==="CEDIBLE"){
+        text("Nombre: __________________    RUT: ____________    Fecha: ________    Recinto: ____________    Firma: ____________",L+5,765,{size:7.5});
+        text("El acuse de recibo acredita la recepción de mercaderías o servicios conforme al art. 4°, letra b), y art. 5°, letra c), de la Ley 19.983.",
+          L+5,778,{size:7.2});
+      }
     }
   });
   return pdf.save();

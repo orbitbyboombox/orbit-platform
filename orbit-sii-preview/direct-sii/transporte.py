@@ -101,7 +101,7 @@ class SiiDirect:
         return {"track":track,"code":value(response,"ESTADO"),"raw":response}
 
     def document_status(self,kind,sender,issuer,recipient,folio,day,total,token):
-        if kind not in (33,61): raise ValueError("Usar consulta REST para boletas")
+        if kind not in (33,56,61): raise ValueError("Usar consulta REST para boletas")
         cookie(token)
         values=[*rut(sender),*rut(issuer),*rut(recipient),kind,folio,date.fromisoformat(day).strftime("%d%m%Y"),total,token]
         fields=("RutConsultante","DvConsultante","RutCompania","DvCompania","RutReceptor","DvReceptor","TipoDte","FolioDte","FechaEmisionDte","MontoDte","Token")

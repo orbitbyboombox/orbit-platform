@@ -126,12 +126,12 @@ def sign_seed(seed,key,cert):
     signature(root,root,key,cert,enveloped=True)
     return wire(root,"UTF-8",True)
 
-def verify_generated(raw,cert):
+def verify_generated(raw,cert, *, expected_count=2):
     root = parse(raw)
     targets = root.xpath("//*[@ID]")
     ids = {node.get("ID"):node for node in targets}
     signatures = root.findall(f".//{{{DS}}}Signature")
-    if len(ids)!=2 or len(targets)!=2 or len(signatures)!=2:
+    if any(count != expected_count for count in (len(ids), len(targets), len(signatures))):
         raise ValueError("Sobre o firmas incompletos")
     expected_ids = set(ids)
     for sig in signatures:
@@ -157,24 +157,59 @@ def verify_generated(raw,cert):
             raise ValueError("Digest XML no coincide")
         verify(cert.public_key(),sig.findtext(f"{{{DS}}}SignatureValue"),canon(info))
 
+def percentage(amount, rate):
+    return (amount * rate + 50) // 100
+
+
+def calculate(d):
+    rows = []
+    for line in d["lines"]:
+        qty, price, rate = line.get("quantity", 1), line["amount"], line.get("discount_pct", 0)
+        if any(type(value) is not int for value in (qty, price, rate)) or qty <= 0 or price <= 0 or not 0 <= rate < 100:
+            raise ValueError("Cantidad, precio o descuento de línea inválido")
+        gross = qty * price
+        discount = percentage(gross, rate)
+        rows.append({**line, "quantity": qty, "discount_pct": rate, "discount_value": discount,
+                     "line_total": gross - discount})
+    taxable = sum(row["line_total"] for row in rows if not row.get("exempt"))
+    exempt = sum(row["line_total"] for row in rows if row.get("exempt"))
+    rate, fixed = d.get("global_discount_pct", 0), d.get("discount", 0)
+    if any(type(value) is not int for value in (rate, fixed)) or not 0 <= rate < 100 or fixed < 0 or (rate and fixed):
+        raise ValueError("Descuento global inválido")
+    discount = percentage(taxable, rate) if rate else fixed
+    if discount and discount >= taxable:
+        raise ValueError("Descuento global supera el monto afecto")
+    net = taxable - discount
+    iva = percentage(net, 19)
+    amounts = {"net": net, "iva": iva, "total": net + exempt + iva}
+    if exempt:
+        amounts["exempt"] = exempt
+    return rows, amounts, discount
+
+
 def build(d,*,caf_xml,caf_key,anchor,key,cert,stamp):
     kind,folio,day = d["kind"],d["folio"],d["date"]
     issuer,receiver,lines = d["issuer"],d["receiver"],d["lines"]
     date.fromisoformat(day)
-    if kind not in {33,39,61} or type(folio) is not int or folio<1 or day>stamp[:10] or not lines or not all(type(x["amount"]) is int and x["amount"]>0 for x in lines):
+    if kind not in {33,39,56,61} or type(folio) is not int or folio<1 or day>stamp[:10]:
         raise ValueError("Datos del DTE inválidos")
-    gross = sum(row["amount"] for row in lines)
-    discount = d.get("discount",0)
-    if type(discount) is not int or not 0<=discount<gross:
-        raise ValueError("Descuento inválido")
-    net = gross-discount
-    iva = (net*19+50)//100
-    total = net+iva
+    rows, totals, discount = calculate(d)
+    net, iva, total = (totals[field] for field in ("net", "iva", "total"))
     ref = d.get("reference")
-    if kind==61 and (not ref or ref["kind"] not in {33,39} or ref["total"]!=total or not 0<ref["folio"] or ref["date"]>day):
-        raise ValueError("El tipo 61 requiere anulación total referenciada")
-    if kind!=61 and ref:
-        raise ValueError("Referencia fuera del alcance inicial")
+    if kind in {56, 61}:
+        ref_kinds = {61} if kind == 56 else {33,39}
+        if not ref or ref["kind"] not in ref_kinds or ref["folio"] < 1 or ref["date"] > day:
+            raise ValueError("Referencia de nota inválida")
+        code = ref.get("code", 1)
+        if (code not in {1,2,3} or (kind == 56 and code != 1) or
+                (code == 1 and ref["total"] != total) or
+                (code == 2 and rows) or
+                (code == 3 and not 0 < total <= ref["total"])):
+            raise ValueError("Montos o detalle inconsistentes con el código de referencia")
+    elif ref or not rows:
+        raise ValueError("Referencia o detalle inválido")
+    if not rows:
+        d = {**d, "lines": [{"name": ref["reason"]}]}
     root_name = "EnvioBOLETA" if kind==39 else "EnvioDTE"
     xsi = "http://www.w3.org/2001/XMLSchema-instance"
     root = E.Element(E.QName(SII,root_name),nsmap={None:SII,"xsi":xsi},version="1.0")
@@ -209,16 +244,36 @@ def build(d,*,caf_xml,caf_key,anchor,key,cert,stamp):
         if receiver.get(field):
             put(re, tag, receiver[field])
     amounts = put(head,"Totales")
-    put(amounts,"MntNeto",net)
-    if kind!=39:
+    if net or not totals.get("exempt"):
+        put(amounts,"MntNeto",net)
+    if totals.get("exempt"):
+        put(amounts,"MntExe",totals["exempt"])
+    if net and kind!=39:
         put(amounts,"TasaIVA",19)
-    nodes(amounts,(("IVA",iva),("MntTotal",total)))
-    for i,row in enumerate(lines,1):
-        nodes(put(doc,"Detalle"),(("NroLinDet",i),("NmbItem",row["name"]),("QtyItem",1),("PrcItem",row["amount"]),("MontoItem",row["amount"])))
+    if net:
+        put(amounts,"IVA",iva)
+    put(amounts,"MntTotal",total)
+    for i,row in enumerate(rows or [{"name": ref["reason"], "line_total": 0}],1):
+        detail = put(doc,"Detalle")
+        put(detail,"NroLinDet",i)
+        if row.get("exempt"):
+            put(detail,"IndExe",1)
+        put(detail,"NmbItem",row["name"])
+        if "quantity" in row:
+            nodes(detail,(("QtyItem",row["quantity"]),("PrcItem",row["amount"])))
+        if row.get("discount_pct"):
+            nodes(detail,(("DescuentoPct",row["discount_pct"]),("DescuentoMonto",row["discount_value"])))
+        put(detail,"MontoItem",row["line_total"])
     if discount:
-        nodes(put(doc,"DscRcgGlobal"),(("NroLinDR",1),("TpoMov","D"),("TpoValor","$"),("ValorDR",discount)))
+        rate = d.get("global_discount_pct")
+        nodes(put(doc,"DscRcgGlobal"),(("NroLinDR",1),("TpoMov","D"),("TpoValor","%" if rate else "$"),("ValorDR",rate or discount)))
+    ref_index = 1
+    if d.get("test_case"):
+        nodes(put(doc,"Referencia"),(("NroLinRef",1),("TpoDocRef","SET"),("FolioRef",folio),
+                                     ("FchRef",day),("RazonRef","CASO "+d["test_case"])))
+        ref_index = 2
     if ref:
-        nodes(put(doc,"Referencia"),(("NroLinRef",1),("TpoDocRef",ref["kind"]),("FolioRef",ref["folio"]),("FchRef",ref["date"]),("CodRef",1),("RazonRef",ref["reason"])))
+        nodes(put(doc,"Referencia"),(("NroLinRef",ref_index),("TpoDocRef",ref["kind"]),("FolioRef",ref["folio"]),("FchRef",ref["date"]),("CodRef",ref.get("code",1)),("RazonRef",ref["reason"])))
     ted = timber(d,caf_xml,caf_key,anchor,total,stamp)
     doc.append(parse(b'<holder xmlns="'+SII.encode()+b'">'+ted+b'</holder>',"ISO-8859-1")[0])
     put(doc,"TmstFirma",stamp)
@@ -230,4 +285,4 @@ def build(d,*,caf_xml,caf_key,anchor,key,cert,stamp):
     xml = xml[:start] + ted + xml[end:]
     verify_generated(xml, cert)
     verify_ted(ted, anchor)
-    return xml,ted,{"net":net,"iva":iva,"total":total}
+    return xml,ted,totals

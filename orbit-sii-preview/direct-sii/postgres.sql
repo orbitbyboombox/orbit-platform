@@ -15,7 +15,7 @@ CREATE TABLE issuer (
 CREATE TABLE caf (
     id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     issuer text NOT NULL REFERENCES issuer(rut),
-    kind smallint NOT NULL CHECK (kind IN (33, 39, 61)),
+    kind smallint NOT NULL CHECK (kind IN (33, 39, 56, 61)),
     first_folio integer NOT NULL CHECK (first_folio > 0),
     last_folio integer NOT NULL CHECK (last_folio >= first_folio AND last_folio < 2147483647),
     next_folio integer NOT NULL CHECK (next_folio BETWEEN first_folio AND last_folio + 1),
@@ -42,7 +42,7 @@ CREATE TRIGGER reject_caf_overlap BEFORE INSERT OR UPDATE OF issuer,kind,first_f
 CREATE TABLE document (
     id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     issuer text NOT NULL REFERENCES issuer(rut),
-    kind smallint NOT NULL CHECK (kind IN (33, 39, 61)),
+    kind smallint NOT NULL CHECK (kind IN (33, 39, 56, 61)),
     folio integer NOT NULL CHECK (folio > 0),
     caf_id bigint NOT NULL REFERENCES caf(id),
     operation text NOT NULL,

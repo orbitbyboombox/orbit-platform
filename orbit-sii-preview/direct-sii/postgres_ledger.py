@@ -183,7 +183,7 @@ class PostgresLedger:
                 COALESCE(c.available,0) <= i.alert_folios AS folios_alert,
                 (SELECT count(*) FROM orbit_sii_cert.document d WHERE d.issuer=i.rut
                 AND d.kind=t.kind AND d.state='UNKNOWN') AS uncertain
-                FROM orbit_sii_cert.issuer i CROSS JOIN (VALUES (33),(39),(61)) t(kind)
+                FROM orbit_sii_cert.issuer i CROSS JOIN (VALUES (33),(39),(56),(61)) t(kind)
                 LEFT JOIN LATERAL (SELECT sum(last_folio-next_folio+1) AS available
                     FROM orbit_sii_cert.caf WHERE issuer=i.rut AND kind=t.kind AND enabled
                     AND valid_on <= (now() AT TIME ZONE 'America/Santiago')::date
