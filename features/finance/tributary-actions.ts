@@ -18,7 +18,7 @@ async function requireAdmin() {
 export async function createTributaryDraftAction(input: { projectId: string; dteType: DteType; quotationId?: string; amount?: number }) {
   try {
     const { admin, actorId } = await requireAdmin();
-    const { data: project, error } = await admin.from("projects").select("id,customer_id,orbit_event_id,customer_type").eq("id", input.projectId).is("deleted_at", null).single();
+    const { data: project, error } = await admin.from("projects").select("id,customer_id,orbit_event_id,project_type").eq("id", input.projectId).is("deleted_at", null).single();
     if (error || !project) throw new Error("Evento no encontrado.");
     let amount = Number.isFinite(input.amount) && Number(input.amount) >= 0 ? Number(input.amount) : 0;
     if (input.quotationId) {
@@ -31,7 +31,7 @@ export async function createTributaryDraftAction(input: { projectId: string; dte
     const { data: row, error: insertError } = await admin.from("invoices").insert({
       invoice_number: `PRE-SII-${input.dteType}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
       customer_id: project.customer_id, project_id: project.id, orbit_event_id: project.orbit_event_id,
-      customer_type: project.customer_type, status: "DRAFT", payment_term: "CASH", currency: "CLP",
+      customer_type: String(project.project_type).toLowerCase().includes("corporate") ? "CORPORATE" : "PRIVATE", status: "DRAFT", payment_term: "CASH", currency: "CLP",
       amount, paid_amount: 0, version: 1, financial_record_state: "ACTIVE", record_origin: "PRE_SII",
       tributary_document_type: input.dteType, tributary_draft_key: key,
       tributary_snapshot: { source: "ORBIT", dteType: input.dteType, projectId: input.projectId, quotationId: input.quotationId ?? null, amount, mode: "SIMULATION" },
