@@ -43,6 +43,7 @@ export async function attachExternalTaxDocumentAction(formData: FormData) {
     const extension = file.name.split(".").pop()?.toLowerCase() || "bin";
     const storagePath = `${projectId}/tax-documents/${documentId}.${extension}`;
     const relatedCustomer = Array.isArray(project.customers) ? project.customers[0] : project.customers;
+    const relatedCustomerId = relatedCustomer?.id ?? null;
     const drive = await uploadReservationDocumentToDrive({ client: admin, projectId, customerName: relatedCustomer.full_name, eventDate: project.event_date, kind: "INVOICE", preserveExistingStructure: true, name: file.name, mimeType: file.type, bytes });
     const upload = await admin.storage.from("orbit-documents").upload(storagePath, bytes, { contentType: file.type, upsert: false });
     if (upload.error) throw upload.error;
@@ -53,7 +54,7 @@ export async function attachExternalTaxDocumentAction(formData: FormData) {
     }
     if (String(id) !== documentId) await admin.storage.from("orbit-documents").remove([storagePath]);
     const documentKey = String(id);
-    await admin.from("tributary_customer_document_links").upsert({ document_id: documentKey, customer_id: project.customers.id ?? project.customers[0]?.id, project_id: projectId, drive_file_id: drive.id, link_type: "CENTRAL_DOCUMENT" }, { onConflict: "document_id,customer_id,link_type", ignoreDuplicates: true });
+    await admin.from("tributary_customer_document_links").upsert({ document_id: documentKey, customer_id: relatedCustomerId, project_id: projectId, drive_file_id: drive.id, link_type: "CENTRAL_DOCUMENT" }, { onConflict: "document_id,customer_id,link_type", ignoreDuplicates: true });
     await admin.from("tributary_drive_sync_items").upsert({ document_id: documentKey, project_id: projectId, customer_id: project.customers.id ?? project.customers[0]?.id, artifact_kind: "PDF", idempotency_key: `document:${documentKey}:PDF`, status: "SYNCED", attempt_count: 1, drive_file_id: drive.id, checksum, synced_at: new Date().toISOString(), updated_at: new Date().toISOString() }, { onConflict: "idempotency_key" });
     revalidatePath(`/projects/${projectId}`);
     revalidatePath("/customers");
