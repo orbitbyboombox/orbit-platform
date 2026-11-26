@@ -51,7 +51,6 @@ export default async function TributaryCenterPage({ searchParams }: { searchPara
 
       <TributaryDraftManager drafts={(drafts ?? []) as any} projectId={projectId} customerId={customerId} />
 
-      <TributaryDraftManager drafts={(drafts ?? []) as any} projectId={projectId} customerId={customerId} />
 
       {prepare ? (() => {
         const selected = sections.find((section) => section.key === prepare);
