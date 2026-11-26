@@ -106,14 +106,14 @@ export function FinancePremiumCenter({ month, position }: { month: Metric[]; pos
   const metric = (label: string) => month.find((item) => item.label === label) ?? position.find((item) => item.label === label);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-4 sm:space-y-8">
       <header>
         <p className="text-xs font-semibold uppercase tracking-[.24em]" style={{ color: "#F58B22" }}>ORBIT · v2.1.8</p>
-        <h1 className="mt-3 text-4xl font-semibold tracking-tight text-white">Finanzas</h1>
-        <p className="mt-2 text-base" style={{ color: "#9AA1AC" }}>Centro de administración financiera</p>
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:mt-3 sm:text-4xl">Finanzas</h1>
+        <p className="mt-1 text-sm sm:mt-2 sm:text-base" style={{ color: "#9AA1AC" }}>Centro de administración financiera</p>
       </header>
 
-      <section aria-label="Módulos principales de Finanzas" className="grid gap-4 sm:grid-cols-2">
+      <section aria-label="Módulos principales de Finanzas" className="grid grid-cols-2 gap-2 sm:gap-4">
         {sections.map((section) => {
           const Icon = section.icon;
           const isSelected = selected === section.key;
@@ -123,39 +123,39 @@ export function FinancePremiumCenter({ month, position }: { month: Metric[]; pos
               type="button"
               onClick={() => setSelected(isSelected ? null : section.key)}
               aria-expanded={isSelected}
-              className="group rounded-3xl border p-6 text-left transition-all duration-200 hover:-translate-y-0.5"
+              className="group min-h-[108px] rounded-2xl border p-3 text-left transition-all duration-200 hover:-translate-y-0.5 sm:min-h-0 sm:rounded-3xl sm:p-6"
               style={{
                 background: isSelected ? "#302218" : "#171A20",
                 borderColor: isSelected ? "#F58B22" : "#30343B",
                 boxShadow: isSelected ? "0 0 0 1px rgba(245,139,34,.25)" : "none",
               }}
             >
-              <div className="flex items-start justify-between gap-5">
-                <span className="flex size-11 items-center justify-center rounded-2xl" style={{ color: "#F58B22", background: "rgba(245,139,34,.12)" }}>
-                  <Icon className="size-5" aria-hidden />
+              <div className="flex items-start justify-between gap-2 sm:gap-5">
+                <span className="flex size-8 items-center justify-center rounded-xl sm:size-11 sm:rounded-2xl" style={{ color: "#F58B22", background: "rgba(245,139,34,.12)" }}>
+                  <Icon className="size-4 sm:size-5" aria-hidden />
                 </span>
-                <ChevronRight className={`size-5 transition-transform ${isSelected ? "rotate-90" : "group-hover:translate-x-0.5"}`} style={{ color: "#F58B22" }} aria-hidden />
+                <ChevronRight className={`size-4 transition-transform sm:size-5 ${isSelected ? "rotate-90" : "group-hover:translate-x-0.5"}`} style={{ color: "#F58B22" }} aria-hidden />
               </div>
-              <h2 className="mt-7 text-2xl font-semibold text-white">{section.title}</h2>
-              <p className="mt-1 text-sm" style={{ color: "#9AA1AC" }}>{section.description}</p>
+              <h2 className="mt-3 text-base font-semibold leading-tight text-white sm:mt-7 sm:text-2xl">{section.title}</h2>
+              <p className="mt-1 text-[11px] leading-tight sm:text-sm" style={{ color: "#9AA1AC" }}>{section.description}</p>
             </button>
           );
         })}
       </section>
 
       {active && (
-        <section aria-label={`Accesos de ${active.title}`} className="rounded-3xl border p-5 sm:p-7" style={{ background: "#171A20", borderColor: "#30343B" }}>
+        <section aria-label={`Accesos de ${active.title}`} className="rounded-2xl border p-3 sm:rounded-3xl sm:p-7" style={{ background: "#171A20", borderColor: "#30343B" }}>
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[.18em]" style={{ color: "#F58B22" }}>Accesos internos</p>
-              <h2 className="mt-2 text-2xl font-semibold text-white">{active.title} · {active.description}</h2>
+              <h2 className="mt-1 text-lg font-semibold leading-tight text-white sm:mt-2 sm:text-2xl">{active.title} · {active.description}</h2>
             </div>
             <button type="button" onClick={() => setSelected(null)} className="text-sm hover:underline" style={{ color: "#9AA1AC" }}>Cerrar</button>
           </div>
-          <div className="mt-5 grid gap-2 sm:grid-cols-2">
+          <div className="mt-3 grid gap-2 sm:mt-5 sm:grid-cols-2">
             {active.accesses.map((access) => (
-              <Link key={access.label} href={access.href} className="flex items-center justify-between gap-4 rounded-2xl border px-4 py-3 transition hover:border-[#F58B22]" style={{ borderColor: "#30343B", background: "#0C0E12" }}>
-                <span><strong className="block text-sm text-white">{access.label}</strong><small style={{ color: "#9AA1AC" }}>{access.description}</small></span>
+              <Link key={access.label} href={access.href} className="flex min-h-[48px] items-center justify-between gap-2 rounded-xl border px-3 py-2 transition hover:border-[#F58B22] sm:gap-4 sm:rounded-2xl sm:px-4 sm:py-3" style={{ borderColor: "#30343B", background: "#0C0E12" }}>
+                <span><strong className="block text-xs text-white sm:text-sm">{access.label}</strong><small style={{ color: "#9AA1AC" }}>{access.description}</small></span>
                 <ChevronRight className="size-4 shrink-0" style={{ color: "#F58B22" }} aria-hidden />
               </Link>
             ))}
@@ -164,7 +164,7 @@ export function FinancePremiumCenter({ month, position }: { month: Metric[]; pos
       )}
 
       {!selected && (
-        <section aria-label="Resumen financiero ejecutivo" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <section aria-label="Resumen financiero ejecutivo" className="grid grid-cols-2 gap-2 sm:gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {[
             { label: "Ingresos del mes", item: metric("Ventas del mes"), Icon: ReceiptText },
             { label: "Gastos del mes", item: metric("Egresos pagados del mes"), Icon: WalletCards },
@@ -173,16 +173,16 @@ export function FinancePremiumCenter({ month, position }: { month: Metric[]; pos
           ].map(({ label, item, Icon }) => {
             const typed = item;
             const ChartIcon = Icon;
-            return <Link key={label} href={typed?.href ?? "/finance"} className="rounded-2xl border p-5 transition hover:border-[#F58B22]" style={{ background: "#171A20", borderColor: "#30343B" }}>
-              <div className="flex items-center justify-between"><span className="text-sm" style={{ color: "#9AA1AC" }}>{label}</span><ChartIcon className="size-4" style={{ color: "#F58B22" }} aria-hidden /></div>
-              <p className="mt-4 text-2xl font-semibold text-white">{formatMetric(typed)}</p>
-              <p className="mt-2 text-xs" style={{ color: "#9AA1AC" }}>{typed?.detail ?? "Sin datos disponibles"}</p>
+            return <Link key={label} href={typed?.href ?? "/finance"} className="rounded-xl border p-3 transition hover:border-[#F58B22] sm:rounded-2xl sm:p-5" style={{ background: "#171A20", borderColor: "#30343B" }}>
+              <div className="flex items-center justify-between"><span className="text-[11px] leading-tight sm:text-sm" style={{ color: "#9AA1AC" }}>{label}</span><ChartIcon className="size-4" style={{ color: "#F58B22" }} aria-hidden /></div>
+              <p className="mt-2 text-lg font-semibold text-white sm:mt-4 sm:text-2xl">{formatMetric(typed)}</p>
+              <p className="mt-1 text-[10px] leading-tight sm:mt-2 sm:text-xs" style={{ color: "#9AA1AC" }}>{typed?.detail ?? "Sin datos disponibles"}</p>
             </Link>;
           })}
         </section>
       )}
 
-      <div className="flex items-center gap-2 text-xs" style={{ color: "#9AA1AC" }}>
+      <div className="flex items-center gap-2 text-[11px] sm:text-xs" style={{ color: "#9AA1AC" }}>
         <span className="size-1.5 rounded-full" style={{ background: "#F58B22" }} />
         Emisión tributaria real bloqueada · SII pendiente de certificación oficial
       </div>
