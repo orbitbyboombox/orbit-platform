@@ -125,13 +125,18 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     rowY -= 22;
   });
 
-  page.drawText("Powered by", { x: 78, y: 151, size: 8.5, font: regular, color: black });
-  page.drawLine({ start: { x: 141, y: 147 }, end: { x: 141, y: 164 }, thickness: 0.7, color: line });
-  page.drawText("BOOMBOX®", { x: 157, y: 148, size: 13, font: bold, color: black });
-  page.drawLine({ start: { x: 244, y: 147 }, end: { x: 244, y: 164 }, thickness: 0.7, color: line });
-  page.drawText("ORBIT", { x: 260, y: 149, size: 11, font: bold, color: black });
-  page.drawLine({ start: { x: 355, y: 147 }, end: { x: 355, y: 164 }, thickness: 0.7, color: line });
-  page.drawText("PIXMEDIA", { x: 372, y: 149, size: 12, font: bold, color: black });
+  let partnerStrip;
+  try { partnerStrip = await pdf.embedPng(await readFile(join(process.cwd(), "public/branding/boombox-partner-strip-classic.png"))); } catch { partnerStrip = null; }
+  if (partnerStrip) page.drawImage(partnerStrip, { x: 78, y: 136, width: 440, height: 57 });
+  else {
+    page.drawText("Powered by", { x: 78, y: 151, size: 8.5, font: regular, color: black });
+    page.drawLine({ start: { x: 141, y: 147 }, end: { x: 141, y: 164 }, thickness: 0.7, color: line });
+    page.drawText("BOOMBOX®", { x: 157, y: 148, size: 13, font: bold, color: black });
+    page.drawLine({ start: { x: 244, y: 147 }, end: { x: 244, y: 164 }, thickness: 0.7, color: line });
+    page.drawText("ORBIT", { x: 260, y: 149, size: 11, font: bold, color: black });
+    page.drawLine({ start: { x: 355, y: 147 }, end: { x: 355, y: 164 }, thickness: 0.7, color: line });
+    page.drawText("PIXMEDIA", { x: 372, y: 149, size: 12, font: bold, color: black });
+  }
 
   page.drawRectangle({ x: 55, y: 58, width: 190, height: 66, color: black });
   for (let i = 0; i < 44; i++) {
