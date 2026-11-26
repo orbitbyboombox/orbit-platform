@@ -1,0 +1,28 @@
+alter table public.invoices
+  add column if not exists tributary_document_type text,
+  add column if not exists tributary_draft_key text,
+  add column if not exists tributary_snapshot jsonb not null default '{}'::jsonb;
+alter table public.invoices drop constraint if exists invoices_tributary_document_type_check;
+alter table public.invoices add constraint invoices_tributary_document_type_check check (tributary_document_type is null or tributary_document_type in ('33','39','52','56','61'));
+create unique index if not exists invoices_tributary_draft_key_uq on public.invoices(tributary_draft_key) where tributary_draft_key is not null and deleted_at is null;
+create table if not exists public.tributary_draft_revisions (id uuid primary key default gen_random_uuid(),draft_id uuid not null references public.invoices(id) on delete cascade,action text not null,before_state jsonb,after_state jsonb,actor_id uuid,created_at timestamptz not null default now());
+create index if not exists tributary_draft_revisions_draft_idx on public.tributary_draft_revisions(draft_id,created_at desc);
+create table if not exists public.tributary_drive_sync_items (id uuid primary key default gen_random_uuid(),draft_id uuid references public.invoices(id) on delete set null,document_id uuid references public.documents(id) on delete set null,project_id uuid references public.projects(id) on delete set null,customer_id uuid references public.customers(id) on delete set null,artifact_kind text not null check (artifact_kind in ('PDF','XML','ACUSE')),idempotency_key text not null unique,status text not null default 'PENDING' check (status in ('PENDING','SYNCING','SYNCED','RETRY','FAILED','SKIPPED')),attempt_count integer not null default 0,drive_file_id text,drive_folder_id text,checksum text,last_error text,synced_at timestamptz,created_at timestamptz not null default now(),updated_at timestamptz not null default now());
+create index if not exists tributary_drive_sync_items_project_idx on public.tributary_drive_sync_items(project_id,status);
+create table if not exists public.tributary_customer_document_links (id uuid primary key default gen_random_uuid(),document_id uuid not null references public.documents(id) on delete cascade,customer_id uuid not null references public.customers(id) on delete cascade,project_id uuid references public.projects(id) on delete set null,drive_file_id text,link_type text not null default 'CENTRAL_DOCUMENT',created_at timestamptz not null default now(),unique(document_id,customer_id,link_type));
+create or replace function public.record_tributary_draft_revision() returns trigger language plpgsql security definer set search_path=public as $$ begin if coalesce(new.record_origin,'')='PRE_SII' or coalesce(old.record_origin,'')='PRE_SII' then insert into public.tributary_draft_revisions(draft_id,action,before_state,after_state,actor_id) values(coalesce(new.id,old.id),tg_op,case when tg_op='INSERT' then null else to_jsonb(old) end,case when tg_op='DELETE' then null else to_jsonb(new) end,auth.uid()); end if; return coalesce(new,old); end $$;
+drop trigger if exists invoices_tributary_revision_audit on public.invoices;
+create trigger invoices_tributary_revision_audit after insert or update or delete on public.invoices for each row execute function public.record_tributary_draft_revision();
+create or replace view public.tributary_internal_ledger as
+select i.id as source_id,'VENTA'::text as source_type,i.project_id,i.customer_id,i.tributary_document_type as document_type,i.invoice_number as reference,i.issue_date as occurred_on,round(i.amount*100/119)::numeric as net_amount,round(i.amount*19/119)::numeric as vat_amount,0::numeric as exempt_amount,i.amount as total_amount,case when i.status in ('PAID','PARTIALLY_PAID') then 'PAGADO' else i.status end as payment_status,i.record_origin from public.invoices i where i.deleted_at is null and i.record_origin='PRE_SII'
+union all select d.id,'DOCUMENTO_SII',d.project_id,d.customer_id,d.external_tax_document_type,d.external_folio,d.external_issue_date,coalesce(d.external_net_amount,0),coalesce(d.external_tax_amount,0),0,coalesce(d.external_total_amount,0),coalesce(d.external_document_status,'ADJUNTADO'),'EXTERNAL_SII' from public.documents d where d.deleted_at is null and d.external_folio is not null
+union all select e.id,'COMPRA',e.project_id,null,e.document_type,e.document_number,e.occurred_on,coalesce(e.subtotal,0),coalesce(e.vat,0),case when coalesce(e.vat,0)=0 then e.total else 0 end,e.total,e.status,'EXPENSE' from public.expenses e where e.deleted_at is null;
+alter table public.tributary_draft_revisions enable row level security;
+alter table public.tributary_drive_sync_items enable row level security;
+alter table public.tributary_customer_document_links enable row level security;
+drop policy if exists tributary_draft_revisions_admin on public.tributary_draft_revisions;
+create policy tributary_draft_revisions_admin on public.tributary_draft_revisions for all using (public.can_administer()) with check (public.can_administer());
+drop policy if exists tributary_drive_sync_items_admin on public.tributary_drive_sync_items;
+create policy tributary_drive_sync_items_admin on public.tributary_drive_sync_items for all using (public.can_administer()) with check (public.can_administer());
+drop policy if exists tributary_customer_document_links_admin on public.tributary_customer_document_links;
+create policy tributary_customer_document_links_admin on public.tributary_customer_document_links for all using (public.can_administer()) with check (public.can_administer());
