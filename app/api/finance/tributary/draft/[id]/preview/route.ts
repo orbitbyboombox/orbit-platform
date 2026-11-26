@@ -45,10 +45,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const snapshot = (draft.tributary_snapshot ?? {}) as Snapshot;
   const dteType = clean(draft.tributary_document_type ?? snapshot.dteType, "33");
   const labels: Record<string, string> = { "33": "FACTURA ELECTRÓNICA", "39": "BOLETA ELECTRÓNICA", "52": "GUÍA DE DESPACHO ELECTRÓNICA", "56": "NOTA DE DÉBITO ELECTRÓNICA", "61": "NOTA DE CRÉDITO ELECTRÓNICA" };
-  const total = Number(snapshot.totals?.total ?? draft.amount ?? 0);
-  const net = Number(snapshot.totals?.net ?? Math.round(total / 1.19));
-  const vat = Number(snapshot.totals?.vat ?? Math.max(0, total - net));
-  const exempt = Number(snapshot.totals?.exempt ?? 0);
+  const { net, exempt, vat, total } = snapshot.totals ?? {};
+  const validAmount = (value: unknown): value is number => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+  if (!validAmount(net) || !validAmount(exempt) || !validAmount(vat) || !validAmount(total)
+    || net + exempt + vat !== total || total !== Number(draft.amount)) {
+    return new NextResponse("Desglose tributario pendiente. Revisa y guarda las líneas del borrador antes de exportar.", { status: 422 });
+  }
   const lines = snapshot.lines?.length ? snapshot.lines : [{ description: project?.name ?? "Servicio BOOMBOX", quantity: 1, unitPrice: net, exempt: false, lineTotal: net }];
   const recipientName = snapshot.customer?.company || snapshot.customer?.name || customer?.company || customer?.full_name;
   if (lines.length > 14) return new NextResponse("La plantilla admite hasta 14 líneas por borrador.", { status: 422 });
