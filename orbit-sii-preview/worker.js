@@ -4,6 +4,8 @@ import css from "./styles.css";
 import js from "./ui.js?text";
 import boombox from "./branding/boombox-print.png";
 import orbit from "./branding/orbit-print.png";
+import pixmedia from "./branding/pixmedia-print.png";
+import nova from "./branding/nova-print.png";
 
 const assets={"/":[html,"text/html"],"/index.html":[html,"text/html"],"/styles.css":[css,"text/css"],"/ui.js":[js,"text/javascript"]};
 const security={
@@ -35,6 +37,6 @@ export default {
       json(value){headers.set("Content-Type","application/json; charset=utf-8");return new Response(JSON.stringify(value),{status,headers});},
       send(value){return new Response(value,{status,headers});}
     };
-    return handler({method:request.method,body,headers:Object.fromEntries(request.headers),query:Object.fromEntries(url.searchParams)},response,env,{boombox,orbit});
+    return handler({method:request.method,body,headers:Object.fromEntries(request.headers),query:Object.fromEntries(url.searchParams)},response,env,{boombox,pixmedia,orbit,nova});
   }
 };
