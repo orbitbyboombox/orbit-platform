@@ -77,15 +77,18 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   page.drawText("PRODUCCIONES BOOM BOX", { x: 215, y: 785, size: 7.6, font: bold, color: black });
   page.drawText("COMPANY SPA", { x: 215, y: 774, size: 7.6, font: bold, color: black });
   page.drawText("RUT: 76.565.272-3", { x: 215, y: 762, size: 7.4, font: regular, color: black });
-  page.drawText("Giro: Producción de eventos y transporte", { x: 215, y: 750, size: 7.4, font: regular, color: black });
-  page.drawText("de carga por carretera", { x: 215, y: 738, size: 7.4, font: regular, color: black });
+  page.drawText("Giro: Producción de eventos y publicidad", { x: 215, y: 750, size: 7.4, font: regular, color: black });
   page.drawText("Puerta Oriente 361, of. 310 C, Colina", { x: 215, y: 726, size: 7.4, font: regular, color: black });
   page.drawText("contacto@bbox.cl · www.bbox.cl", { x: 215, y: 714, size: 7.4, font: regular, color: black });
 
   page.drawRectangle({ x: 390, y: 735, width: 165, height: 63, borderColor: red, borderWidth: 1.8, color: white });
   page.drawText("R.U.T.: 76.565.272-3", { x: 402, y: 782, size: 8.8, font: bold, color: red });
   page.drawText(labels[dteType] ?? "DOCUMENTO TRIBUTARIO", { x: 402, y: 765, size: 8.2, font: bold, color: red });
-  page.drawText("N° " + clean(draft.invoice_number), { x: 452, y: 744, size: 10.5, font: bold, color: red });
+  const folioLabel = "N° " + clean(draft.invoice_number);
+  const folioWidthAtDefaultSize = bold.widthOfTextAtSize(folioLabel, 10.5);
+  const folioSize = 10.5 * Math.min(1, 141 / folioWidthAtDefaultSize);
+  const folioX = 390 + (165 - bold.widthOfTextAtSize(folioLabel, folioSize)) / 2;
+  page.drawText(folioLabel, { x: folioX, y: 744, size: folioSize, font: bold, color: red });
   page.drawText("S.I.I. - Santiago Norte", { x: 431, y: 721, size: 8.8, font: bold, color: red });
 
   border(35, 590, 525, 100, 0.9);
@@ -127,8 +130,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
   let partnerStrip;
   try { partnerStrip = await pdf.embedPng(await readFile(join(process.cwd(), "public/branding/boombox-partner-strip-classic.png"))); } catch { partnerStrip = null; }
-  if (partnerStrip) page.drawImage(partnerStrip, { x: 78, y: 136, width: 440, height: 57 });
-  else {
+  if (partnerStrip) {
+    const strip = partnerStrip.scaleToFit(440, 26);
+    page.drawImage(partnerStrip, {
+      x: (595 - strip.width) / 2,
+      y: 162 - strip.height / 2,
+      ...strip,
+    });
+  } else {
     page.drawText("Powered by", { x: 78, y: 151, size: 8.5, font: regular, color: black });
     page.drawLine({ start: { x: 141, y: 147 }, end: { x: 141, y: 164 }, thickness: 0.7, color: line });
     page.drawText("BOOMBOX®", { x: 157, y: 148, size: 13, font: bold, color: black });
