@@ -7,15 +7,14 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 const money = (value: number) =>
   new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(Math.max(0, Math.round(value)));
 
-const text = (value: unknown, fallback = "—") =>
+const clean = (value: unknown, fallback = "—") =>
   String(value ?? fallback).replace(/[^\x20-\x7EÀ-ÿ]/g, " ").trim() || fallback;
 
 type Snapshot = {
   dteType?: string;
-  customer?: { name?: string; company?: string; rut?: string; giro?: string; address?: string; city?: string; email?: string };
+  customer?: { name?: string; company?: string; rut?: string; giro?: string; address?: string; city?: string; email?: string; phone?: string };
   event?: { name?: string; eventDate?: string; location?: string; city?: string; orbitEventId?: string };
   condition?: string;
-  notes?: string;
   lines?: Array<{ description?: string; quantity?: number; unitPrice?: number; exempt?: boolean }>;
   totals?: { net?: number; exempt?: number; vat?: number; total?: number };
 };
@@ -28,7 +27,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!profile || !["CEO", "ADMINISTRATOR"].includes(profile.role)) return new NextResponse("Permiso administrativo requerido.", { status: 403 });
 
   const { id } = await params;
-  const { data: draft, error } = await session.from("invoices").select("id,invoice_number,tributary_document_type,amount,status,project_id,tributary_snapshot,created_at").eq("id", id).eq("record_origin", "PRE_SII").is("deleted_at", null).single();
+  const { data: draft, error } = await session.from("invoices").select("id,invoice_number,tributary_document_type,amount,project_id,tributary_snapshot,created_at").eq("id", id).eq("record_origin", "PRE_SII").is("deleted_at", null).single();
   if (error || !draft) return new NextResponse("Borrador no encontrado.", { status: 404 });
 
   const { data: project } = draft.project_id
@@ -39,8 +38,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     : { data: null };
 
   const snapshot = (draft.tributary_snapshot ?? {}) as Snapshot;
-  const dteType = text(draft.tributary_document_type ?? snapshot.dteType, "33");
-  const dteLabel: Record<string, string> = { "33": "FACTURA ELECTRÓNICA", "39": "BOLETA ELECTRÓNICA", "52": "GUÍA DE DESPACHO ELECTRÓNICA", "56": "NOTA DE DÉBITO ELECTRÓNICA", "61": "NOTA DE CRÉDITO ELECTRÓNICA" };
+  const dteType = clean(draft.tributary_document_type ?? snapshot.dteType, "33");
+  const labels: Record<string, string> = { "33": "FACTURA ELECTRÓNICA", "39": "BOLETA ELECTRÓNICA", "52": "GUÍA DE DESPACHO ELECTRÓNICA", "56": "NOTA DE DÉBITO ELECTRÓNICA", "61": "NOTA DE CRÉDITO ELECTRÓNICA" };
   const total = Number(snapshot.totals?.total ?? draft.amount ?? 0);
   const net = Number(snapshot.totals?.net ?? Math.round(total / 1.19));
   const vat = Number(snapshot.totals?.vat ?? Math.max(0, total - net));
@@ -51,74 +50,105 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const page = pdf.addPage([595.28, 841.89]);
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-  const black = rgb(0.05, 0.06, 0.07);
-  const orange = rgb(0.96, 0.45, 0.08);
-  const red = rgb(0.72, 0.08, 0.08);
-  const gray = rgb(0.38, 0.4, 0.43);
-  const light = rgb(0.9, 0.9, 0.9);
+  const black = rgb(0.04, 0.04, 0.04);
+  const red = rgb(0.72, 0.08, 0.10);
+  const gray = rgb(0.25, 0.25, 0.25);
+  const line = rgb(0.16, 0.16, 0.16);
+  const white = rgb(1, 1, 1);
 
-  let boombox;
-  try { boombox = await pdf.embedPng(await readFile(join(process.cwd(), "public/branding/boombox-official-logo.png"))); } catch { boombox = null; }
-  if (boombox) page.drawImage(boombox, { x: 42, y: 745, width: 142, height: 38 });
-  else page.drawText("BOOMBOX", { x: 42, y: 758, size: 22, font: bold, color: black });
-  page.drawText("Experiencias que conectan", { x: 42, y: 728, size: 9, font: regular, color: gray });
-  page.drawText("PRODUCCIONES BOOM BOX COMPANY SPA", { x: 42, y: 708, size: 9, font: bold, color: black });
-  page.drawText("RUT 76.565.272-3 · www.bbox.cl · contacto@bbox.cl", { x: 42, y: 694, size: 8, font: regular, color: gray });
-  page.drawText("Giro: Otras actividades de esparcimiento y recreativas N.C.P.", { x: 42, y: 681, size: 8, font: regular, color: gray });
+  const border = (x: number, y: number, width: number, height: number, thickness = 0.8) =>
+    page.drawRectangle({ x, y, width, height, borderColor: line, borderWidth: thickness, color: white });
+  const labelValue = (label: string, value: unknown, x: number, y: number, valueX: number, size = 8.4) => {
+    page.drawText(label, { x, y, size, font: bold, color: black });
+    page.drawText(": " + clean(value), { x: valueX, y, size, font: regular, color: black });
+  };
 
-  page.drawRectangle({ x: 388, y: 708, width: 165, height: 77, borderColor: red, borderWidth: 2, color: rgb(1, 1, 1) });
-  page.drawText("R.U.T.: 76.565.272-3", { x: 402, y: 765, size: 9, font: bold, color: red });
-  page.drawText(dteLabel[dteType] ?? "DOCUMENTO TRIBUTARIO", { x: 402, y: 748, size: 8, font: bold, color: red });
-  page.drawText("N° " + text(draft.invoice_number), { x: 402, y: 730, size: 10, font: bold, color: red });
-  page.drawText("DOCUMENTO SIMULADO · SIN VALIDEZ TRIBUTARIA", { x: 42, y: 654, size: 8, font: bold, color: red });
+  page.drawRectangle({ x: 20, y: 20, width: 555, height: 802, borderColor: line, borderWidth: 0.9, color: white });
 
-  page.drawLine({ start: { x: 42, y: 636 }, end: { x: 553, y: 636 }, thickness: 0.8, color: light });
-  page.drawText("RECEPTOR", { x: 42, y: 619, size: 8, font: bold, color: gray });
-  page.drawText("Señor(es): " + text(snapshot.customer?.name ?? customer?.full_name ?? customer?.company), { x: 42, y: 603, size: 10, font: regular, color: black });
-  page.drawText("RUT: " + text(snapshot.customer?.rut ?? customer?.rut, "Dato pendiente"), { x: 42, y: 588, size: 9, font: regular, color: black });
-  page.drawText("Giro: " + text(snapshot.customer?.giro, "Dato pendiente"), { x: 42, y: 574, size: 9, font: regular, color: gray });
-  page.drawText("Dirección: " + text(snapshot.customer?.address ?? customer?.address), { x: 300, y: 603, size: 9, font: regular, color: black });
-  page.drawText("Comuna: " + text(snapshot.customer?.city ?? customer?.city), { x: 300, y: 588, size: 9, font: regular, color: black });
-  page.drawText("Condición de pago: " + text(snapshot.condition, "Crédito"), { x: 300, y: 574, size: 9, font: regular, color: gray });
-  page.drawText("Evento: " + text(snapshot.event?.name ?? project?.name), { x: 42, y: 554, size: 9, font: regular, color: black });
-  page.drawText("Fecha emisión: " + new Date(String(draft.created_at)).toLocaleDateString("es-CL"), { x: 300, y: 554, size: 9, font: regular, color: black });
+  let logo;
+  try { logo = await pdf.embedPng(await readFile(join(process.cwd(), "public/branding/boombox-official-logo.png"))); } catch { logo = null; }
+  if (logo) page.drawImage(logo, { x: 42, y: 746, width: 150, height: 42 });
+  else page.drawText("BOOMBOX®", { x: 42, y: 757, size: 25, font: bold, color: black });
+  page.drawText("Experiencias que conectan", { x: 66, y: 730, size: 9, font: bold, color: black });
+  page.drawLine({ start: { x: 205, y: 728 }, end: { x: 205, y: 797 }, thickness: 1, color: line });
+  page.drawText("PRODUCCIONES BOOM BOX COMPANY SPA", { x: 215, y: 785, size: 9.2, font: bold, color: black });
+  page.drawText("RUT: 76.565.272-3", { x: 215, y: 772, size: 8.5, font: regular, color: black });
+  page.drawText("Giro: Producción de todo tipo de eventos, transporte de", { x: 215, y: 759, size: 8.2, font: regular, color: black });
+  page.drawText("carga por carretera", { x: 215, y: 747, size: 8.2, font: regular, color: black });
+  page.drawText("Puerta Oriente 361, of. 310 C, torre C, Colina", { x: 215, y: 735, size: 8.2, font: regular, color: black });
+  page.drawText("contacto@bbox.cl · www.bbox.cl", { x: 215, y: 723, size: 8.2, font: regular, color: black });
 
-  const tableTop = 520;
-  page.drawRectangle({ x: 42, y: tableTop - 22, width: 511, height: 22, color: black });
-  page.drawText("N°", { x: 50, y: tableTop - 15, size: 8, font: bold, color: rgb(1, 1, 1) });
-  page.drawText("CANTIDAD", { x: 77, y: tableTop - 15, size: 8, font: bold, color: rgb(1, 1, 1) });
-  page.drawText("DESCRIPCIÓN", { x: 145, y: tableTop - 15, size: 8, font: bold, color: rgb(1, 1, 1) });
-  page.drawText("P. UNITARIO", { x: 410, y: tableTop - 15, size: 8, font: bold, color: rgb(1, 1, 1) });
-  page.drawText("TOTAL", { x: 505, y: tableTop - 15, size: 8, font: bold, color: rgb(1, 1, 1) });
-  let y = tableTop - 42;
-  lines.slice(0, 14).forEach((line, index) => {
-    const quantity = Number(line.quantity ?? 1);
-    const unit = Number(line.unitPrice ?? 0);
-    page.drawText(String(index + 1), { x: 50, y, size: 8, font: regular, color: black });
-    page.drawText(String(quantity), { x: 77, y, size: 8, font: regular, color: black });
-    page.drawText(text(line.description, "Servicio BOOMBOX").slice(0, 42), { x: 145, y, size: 8, font: regular, color: black });
-    page.drawText(money(unit).replace("CLP", "").trim(), { x: 410, y, size: 8, font: regular, color: black });
-    page.drawText(money(quantity * unit).replace("CLP", "").trim(), { x: 505, y, size: 8, font: regular, color: black });
-    page.drawLine({ start: { x: 42, y: y - 6 }, end: { x: 553, y: y - 6 }, thickness: 0.35, color: light });
-    y -= 22;
+  page.drawRectangle({ x: 390, y: 735, width: 165, height: 63, borderColor: red, borderWidth: 1.8, color: white });
+  page.drawText("R.U.T.: 76.565.272-3", { x: 402, y: 782, size: 8.8, font: bold, color: red });
+  page.drawText(labels[dteType] ?? "DOCUMENTO TRIBUTARIO", { x: 402, y: 765, size: 8.2, font: bold, color: red });
+  page.drawText("N° " + clean(draft.invoice_number), { x: 452, y: 744, size: 10.5, font: bold, color: red });
+  page.drawText("S.I.I. - Santiago Norte", { x: 431, y: 721, size: 8.8, font: bold, color: red });
+
+  border(35, 590, 525, 100, 0.9);
+  labelValue("Señor(es)", snapshot.customer?.name ?? customer?.full_name ?? customer?.company, 48, 672, 103);
+  labelValue("RUT", snapshot.customer?.rut ?? customer?.rut, 48, 658, 103);
+  labelValue("Dirección", snapshot.customer?.address ?? customer?.address, 48, 644, 103);
+  labelValue("Comuna", snapshot.customer?.city ?? customer?.city, 48, 630, 103);
+  labelValue("Giro", snapshot.customer?.giro ?? customer?.metadata?.giro, 48, 616, 103);
+  labelValue("Fono", snapshot.customer?.phone, 48, 602, 103);
+  labelValue("Fecha emisión", new Date(String(draft.created_at)).toLocaleDateString("es-CL"), 365, 672, 454);
+  labelValue("Condición de pago", snapshot.condition ?? "Prueba", 365, 658, 454);
+  labelValue("Atención", snapshot.event?.name ?? project?.name, 365, 644, 454);
+  labelValue("Vendedor", "ORBIT", 365, 630, 454);
+  page.drawText("Sin validez tributaria", { x: 365, y: 602, size: 8.6, font: bold, color: black });
+  if (dteType === "33") page.drawText("CEDIBLE", { x: 510, y: 602, size: 8.6, font: bold, color: black });
+
+  const tableX = 35, tableY = 180, tableW = 525, tableH = 390, headerH = 24;
+  border(tableX, tableY, tableW, tableH, 0.9);
+  page.drawRectangle({ x: tableX, y: tableY + tableH - headerH, width: tableW, height: headerH, color: black });
+  const cols = [35, 70, 130, 410, 490, 560];
+  for (const x of cols.slice(1, -1)) page.drawLine({ start: { x, y: tableY }, end: { x, y: tableY + tableH }, thickness: 0.55, color: line });
+  page.drawText("N°", { x: 45, y: tableY + tableH - 16, size: 8.5, font: bold, color: white });
+  page.drawText("Cantidad", { x: 82, y: tableY + tableH - 16, size: 8.5, font: bold, color: white });
+  page.drawText("Descripción", { x: 242, y: tableY + tableH - 16, size: 8.5, font: bold, color: white });
+  page.drawText("Precio U.", { x: 430, y: tableY + tableH - 16, size: 8.5, font: bold, color: white });
+  page.drawText("Total", { x: 515, y: tableY + tableH - 16, size: 8.5, font: bold, color: white });
+  let rowY = tableY + tableH - headerH - 18;
+  lines.slice(0, 14).forEach((item, index) => {
+    const quantity = Number(item.quantity ?? 1);
+    const unit = Number(item.unitPrice ?? 0);
+    page.drawText(String(index + 1), { x: 47, y: rowY, size: 8.2, font: regular, color: black });
+    page.drawText(String(quantity), { x: 86, y: rowY, size: 8.2, font: regular, color: black });
+    page.drawText(clean(item.description, "Servicio BOOMBOX").slice(0, 46), { x: 138, y: rowY, size: 8.2, font: regular, color: black });
+    page.drawText(money(unit).replace("CLP", "").trim(), { x: 425, y: rowY, size: 8.2, font: regular, color: black });
+    page.drawText(money(quantity * unit).replace("CLP", "").trim(), { x: 502, y: rowY, size: 8.2, font: regular, color: black });
+    page.drawLine({ start: { x: tableX, y: rowY - 6 }, end: { x: tableX + tableW, y: rowY - 6 }, thickness: 0.35, color: line });
+    rowY -= 22;
   });
 
-  const totalY = Math.max(180, y - 12);
-  page.drawText("Powered by", { x: 42, y: 125, size: 8, font: regular, color: gray });
-  page.drawText("BOOMBOX®   ORBIT   PIXMEDIA", { x: 42, y: 108, size: 9, font: bold, color: black });
-  page.drawText("TIMBRE ELECTRÓNICO", { x: 42, y: 82, size: 8, font: bold, color: gray });
-  page.drawText("Omitido durante pruebas PRE-SII", { x: 42, y: 68, size: 8, font: regular, color: gray });
-  page.drawText("Neto", { x: 375, y: totalY + 50, size: 9, font: regular, color: gray });
-  page.drawText(money(net), { x: 472, y: totalY + 50, size: 9, font: regular, color: black });
-  page.drawText("Exento", { x: 375, y: totalY + 34, size: 9, font: regular, color: gray });
-  page.drawText(money(exempt), { x: 472, y: totalY + 34, size: 9, font: regular, color: black });
-  page.drawText("IVA (19%)", { x: 375, y: totalY + 18, size: 9, font: regular, color: gray });
-  page.drawText(money(vat), { x: 472, y: totalY + 18, size: 9, font: regular, color: black });
-  page.drawText("TOTAL", { x: 375, y: totalY - 2, size: 11, font: bold, color: black });
-  page.drawText(money(total), { x: 472, y: totalY - 2, size: 12, font: bold, color: orange });
-  page.drawRectangle({ x: 0, y: 0, width: 595.28, height: 24, color: black });
-  page.drawRectangle({ x: 0, y: 24, width: 595.28, height: 4, color: orange });
+  page.drawText("Powered by", { x: 78, y: 151, size: 8.5, font: regular, color: black });
+  page.drawLine({ start: { x: 141, y: 147 }, end: { x: 141, y: 164 }, thickness: 0.7, color: line });
+  page.drawText("BOOMBOX®", { x: 157, y: 148, size: 13, font: bold, color: black });
+  page.drawLine({ start: { x: 244, y: 147 }, end: { x: 244, y: 164 }, thickness: 0.7, color: line });
+  page.drawText("ORBIT", { x: 260, y: 149, size: 11, font: bold, color: black });
+  page.drawLine({ start: { x: 355, y: 147 }, end: { x: 355, y: 164 }, thickness: 0.7, color: line });
+  page.drawText("PIXMEDIA", { x: 372, y: 149, size: 12, font: bold, color: black });
+
+  page.drawRectangle({ x: 55, y: 58, width: 190, height: 66, color: black });
+  for (let i = 0; i < 44; i++) {
+    const xx = 60 + ((i * 17) % 180);
+    page.drawRectangle({ x: xx, y: 63, width: (i % 3) + 1, height: 56, color: white });
+  }
+  page.drawText("Timbre electrónico SII · Muestra", { x: 83, y: 45, size: 8.3, font: bold, color: black });
+  page.drawText("Nombre: __________________   RUT: __________   Fecha: _________   Recinto: __________   Firma: __________", { x: 35, y: 32, size: 5.7, font: regular, color: black });
+  page.drawText("El acuse de recibo acredita la recepción de mercaderías o servicios conforme a la Ley 19.983.", { x: 35, y: 23, size: 5.7, font: regular, color: black });
+
+  border(380, 62, 175, 82, 0.8);
+  page.drawLine({ start: { x: 380, y: 117 }, end: { x: 555, y: 117 }, thickness: 0.6, color: line });
+  page.drawLine({ start: { x: 380, y: 90 }, end: { x: 555, y: 90 }, thickness: 0.6, color: line });
+  page.drawLine({ start: { x: 468, y: 62 }, end: { x: 468, y: 144 }, thickness: 0.6, color: line });
+  page.drawText("Neto $", { x: 425, y: 126, size: 8.8, font: regular, color: black });
+  page.drawText(money(net), { x: 486, y: 126, size: 8.8, font: regular, color: black });
+  page.drawText("19% IVA $", { x: 413, y: 99, size: 8.8, font: regular, color: black });
+  page.drawText(money(vat), { x: 486, y: 99, size: 8.8, font: regular, color: black });
+  page.drawText("Total $", { x: 424, y: 72, size: 10.5, font: bold, color: black });
+  page.drawText(money(total), { x: 486, y: 72, size: 10.5, font: bold, color: black });
 
   const bytes = await pdf.save();
-  return new NextResponse(bytes as BodyInit, { status: 200, headers: { "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="BOOMBOX-PRE-SII-${dteType}-${text(draft.invoice_number)}.pdf"`, "Cache-Control": "no-store" } });
+  return new NextResponse(bytes as BodyInit, { status: 200, headers: { "Content-Type": "application/pdf", "Content-Disposition": \`inline; filename="BOOMBOX-PRE-SII-\${dteType}-\${clean(draft.invoice_number)}.pdf"\`, "Cache-Control": "no-store" } });
 }
