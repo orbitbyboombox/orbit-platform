@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { TributaryDraftManager } from "@/features/finance/components/tributary-draft-manager";
-import { TributaryDraftManager } from "@/features/finance/components/tributary-draft-manager";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const sections = [
@@ -33,7 +32,7 @@ export default async function TributaryCenterPage({ searchParams }: { searchPara
     .order("created_at", { ascending: false })
     .limit(100);
 
-  const { data: drafts } = await client.from("invoices").select("id,invoice_number,status,amount,tributary_document_type,project_id,updated_at,approved_at").eq("record_origin", "PRE_SII").is("deleted_at", null).order("updated_at", { ascending: false }).limit(100);\n  const { data: ledger } = await client.from("tributary_internal_ledger").select("source_type,document_type,reference,occurred_on,net_amount,exempt_amount,vat_amount,total_amount,payment_status,record_origin").order("occurred_on", { ascending: false }).limit(100);\n  const { data: drafts } = await client.from("invoices").select("id,invoice_number,status,amount,tributary_document_type,project_id,updated_at,approved_at").eq("record_origin", "PRE_SII").is("deleted_at", null).order("updated_at", { ascending: false }).limit(100);
+  const { data: drafts } = await client.from("invoices").select("id,invoice_number,status,amount,tributary_document_type,project_id,updated_at,approved_at").eq("record_origin", "PRE_SII").is("deleted_at", null).order("updated_at", { ascending: false }).limit(100);
   const { data: ledger } = await client.from("tributary_internal_ledger").select("source_type,document_type,reference,occurred_on,net_amount,exempt_amount,vat_amount,total_amount,payment_status,record_origin").order("occurred_on", { ascending: false }).limit(100);
   const rows = documents ?? [];
   return (
@@ -49,7 +48,9 @@ export default async function TributaryCenterPage({ searchParams }: { searchPara
         </div>
       </header>
 
-      <TributaryDraftManager drafts={(drafts ?? []) as any} projectId={projectId} customerId={customerId} />\n\n      <TributaryDraftManager drafts={(drafts ?? []) as any} projectId={projectId} customerId={customerId} />
+      <TributaryDraftManager drafts={(drafts ?? []) as any} projectId={projectId} customerId={customerId} />
+
+      <TributaryDraftManager drafts={(drafts ?? []) as any} projectId={projectId} customerId={customerId} />
 
       {prepare ? (() => {
         const selected = sections.find((section) => section.key === prepare);
