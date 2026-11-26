@@ -82,13 +82,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   page.drawText("contacto@bbox.cl · www.bbox.cl", { x: 215, y: 726, size: 7.4, font: regular, color: black });
 
   page.drawRectangle({ x: 390, y: 735, width: 165, height: 63, borderColor: red, borderWidth: 1.8, color: white });
-  page.drawText("R.U.T.: 76.565.272-3", { x: 402, y: 782, size: 8.8, font: bold, color: red });
-  page.drawText(labels[dteType] ?? "DOCUMENTO TRIBUTARIO", { x: 402, y: 765, size: 8.2, font: bold, color: red });
-  const folioLabel = "N° " + clean(draft.invoice_number);
-  const folioWidthAtDefaultSize = bold.widthOfTextAtSize(folioLabel, 10.5);
-  const folioSize = 10.5 * Math.min(1, 141 / folioWidthAtDefaultSize);
-  const folioX = 390 + (165 - bold.widthOfTextAtSize(folioLabel, folioSize)) / 2;
-  page.drawText(folioLabel, { x: folioX, y: 744, size: folioSize, font: bold, color: red });
+  const drawCenteredTaxLine = (value: string, y: number, preferredSize: number) => {
+    const size = preferredSize * Math.min(1, 141 / bold.widthOfTextAtSize(value, preferredSize));
+    const x = 390 + (165 - bold.widthOfTextAtSize(value, size)) / 2;
+    page.drawText(value, { x, y, size, font: bold, color: red });
+  };
+  drawCenteredTaxLine("R.U.T.: 76.565.272-3", 781, 8.8);
+  drawCenteredTaxLine(labels[dteType] ?? "DOCUMENTO TRIBUTARIO", 763, 8.2);
+  drawCenteredTaxLine("N° " + clean(draft.invoice_number), 745, 10.5);
   page.drawText("S.I.I. - Santiago Norte", { x: 431, y: 721, size: 8.8, font: bold, color: red });
 
   border(35, 590, 525, 100, 0.9);
@@ -128,23 +129,27 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     rowY -= 22;
   });
 
+  const descriptionCenter = (cols[2] + cols[3]) / 2;
   let partnerStrip;
   try { partnerStrip = await pdf.embedPng(await readFile(join(process.cwd(), "public/branding/boombox-partner-strip-classic.png"))); } catch { partnerStrip = null; }
   if (partnerStrip) {
     const strip = partnerStrip.scaleToFit(440, 32);
     page.drawImage(partnerStrip, {
-      x: (595 - strip.width) / 2,
+      // The visible marks span 33–906 in the 1000 px artwork.
+      x: descriptionCenter - strip.width * 0.4695,
       y: 162 - strip.height / 2,
       ...strip,
     });
   } else {
-    page.drawText("Powered by", { x: 78, y: 151, size: 8.5, font: regular, color: black });
-    page.drawLine({ start: { x: 141, y: 147 }, end: { x: 141, y: 164 }, thickness: 0.7, color: line });
-    page.drawText("BOOMBOX®", { x: 157, y: 148, size: 13, font: bold, color: black });
-    page.drawLine({ start: { x: 244, y: 147 }, end: { x: 244, y: 164 }, thickness: 0.7, color: line });
-    page.drawText("ORBIT", { x: 260, y: 149, size: 11, font: bold, color: black });
-    page.drawLine({ start: { x: 355, y: 147 }, end: { x: 355, y: 164 }, thickness: 0.7, color: line });
-    page.drawText("PIXMEDIA", { x: 372, y: 149, size: 12, font: bold, color: black });
+    const fallbackEnd = 372 + bold.widthOfTextAtSize("PIXMEDIA", 12);
+    const offset = descriptionCenter - (78 + fallbackEnd) / 2;
+    page.drawText("Powered by", { x: 78 + offset, y: 151, size: 8.5, font: regular, color: black });
+    page.drawLine({ start: { x: 141 + offset, y: 147 }, end: { x: 141 + offset, y: 164 }, thickness: 0.7, color: line });
+    page.drawText("BOOMBOX®", { x: 157 + offset, y: 148, size: 13, font: bold, color: black });
+    page.drawLine({ start: { x: 244 + offset, y: 147 }, end: { x: 244 + offset, y: 164 }, thickness: 0.7, color: line });
+    page.drawText("ORBIT", { x: 260 + offset, y: 149, size: 11, font: bold, color: black });
+    page.drawLine({ start: { x: 355 + offset, y: 147 }, end: { x: 355 + offset, y: 164 }, thickness: 0.7, color: line });
+    page.drawText("PIXMEDIA", { x: 372 + offset, y: 149, size: 12, font: bold, color: black });
   }
 
   page.drawRectangle({ x: 55, y: 58, width: 190, height: 66, color: black });
