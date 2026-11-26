@@ -15,11 +15,16 @@ type Snapshot = {
   customer?: { name?: string; company?: string; rut?: string; giro?: string; address?: string; city?: string; email?: string; phone?: string };
   event?: { name?: string; eventDate?: string; location?: string; city?: string; orbitEventId?: string };
   condition?: string;
-  lines?: Array<{ description?: string; quantity?: number; unitPrice?: number; exempt?: boolean }>;
+  notes?: string;
+  reference?: { type?: string; folio?: string; date?: string; reason?: string };
+  dispatch?: { transferReason?: string };
+  lines?: Array<{ description?: string; quantity?: number; unitPrice?: number; exempt?: boolean; lineTotal?: number }>;
   totals?: { net?: number; exempt?: number; vat?: number; total?: number };
 };
 
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+const xmlText = (value: unknown) => String(value ?? "").replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await createSupabaseServerClient();
   const { data: auth } = await session.auth.getUser();
   if (!auth.user) return new NextResponse("Sesión requerida.", { status: 401 });
@@ -40,11 +45,36 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const snapshot = (draft.tributary_snapshot ?? {}) as Snapshot;
   const dteType = clean(draft.tributary_document_type ?? snapshot.dteType, "33");
   const labels: Record<string, string> = { "33": "FACTURA ELECTRÓNICA", "39": "BOLETA ELECTRÓNICA", "52": "GUÍA DE DESPACHO ELECTRÓNICA", "56": "NOTA DE DÉBITO ELECTRÓNICA", "61": "NOTA DE CRÉDITO ELECTRÓNICA" };
-  const total = Number(snapshot.totals?.total ?? draft.amount ?? 0);
-  const net = Number(snapshot.totals?.net ?? Math.round(total / 1.19));
-  const vat = Number(snapshot.totals?.vat ?? Math.max(0, total - net));
-  const exempt = Number(snapshot.totals?.exempt ?? 0);
-  const lines = snapshot.lines?.length ? snapshot.lines : [{ description: project?.name ?? "Servicio BOOMBOX", quantity: 1, unitPrice: net, exempt: false }];
+  const { net, exempt, vat, total } = snapshot.totals ?? {};
+  const validAmount = (value: unknown): value is number => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+  if (!validAmount(net) || !validAmount(exempt) || !validAmount(vat) || !validAmount(total)
+    || net + exempt + vat !== total || total !== Number(draft.amount)) {
+    return new NextResponse("Desglose tributario pendiente. Revisa y guarda las líneas del borrador antes de exportar.", { status: 422 });
+  }
+  const lines = snapshot.lines?.length ? snapshot.lines : [{ description: project?.name ?? "Servicio BOOMBOX", quantity: 1, unitPrice: net, exempt: false, lineTotal: net }];
+  const recipientName = snapshot.customer?.company || snapshot.customer?.name || customer?.company || customer?.full_name;
+  if (lines.length > 14) return new NextResponse("La plantilla admite hasta 14 líneas por borrador.", { status: 422 });
+  if (new URL(request.url).searchParams.get("format") === "xml") {
+    const element = (name: string, value: unknown) => `<${name}>${xmlText(value)}</${name}>`;
+    const details = lines.map(item => "<Linea>" + [
+      element("Descripcion", item.description), element("Cantidad", item.quantity ?? 1),
+      element("PrecioUnitario", item.unitPrice ?? 0), element("Exento", item.exempt === true),
+      element("Importe", item.lineTotal ?? Number(item.quantity ?? 1) * Number(item.unitPrice ?? 0)),
+    ].join("") + "</Linea>").join("");
+    const xml = '<?xml version="1.0" encoding="UTF-8"?>\n<BorradorPreSII>'
+      + element("Validez", "Sin validez tributaria") + element("Tipo", dteType) + element("Identificador", draft.invoice_number)
+      + "<Receptor>" + element("RUT", snapshot.customer?.rut ?? customer?.rut)
+      + element("RazonSocial", recipientName)
+      + element("Direccion", snapshot.customer?.address ?? customer?.address) + element("Comuna", snapshot.customer?.city ?? customer?.city)
+      + element("Giro", snapshot.customer?.giro ?? customer?.metadata?.giro) + "</Receptor><Detalle>" + details + "</Detalle>"
+      + "<Totales>" + element("Neto", net) + element("Exento", exempt) + element("IVA", vat) + element("Total", total)
+      + "</Totales>" + element("Observaciones", snapshot.notes)
+      + (snapshot.reference ? "<Referencia>" + element("Tipo", snapshot.reference.type) + element("Folio", snapshot.reference.folio)
+        + element("Fecha", snapshot.reference.date) + element("Motivo", snapshot.reference.reason) + "</Referencia>" : "")
+      + (snapshot.dispatch ? element("MotivoTraslado", snapshot.dispatch.transferReason) : "")
+      + "</BorradorPreSII>";
+    return new NextResponse(xml, { headers: { "Content-Type": "application/xml; charset=utf-8", "Cache-Control": "no-store" } });
+  }
 
   const pdf = await PDFDocument.create();
   const page = pdf.addPage([595.28, 841.89]);
@@ -93,7 +123,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   page.drawText("S.I.I. - Santiago Norte", { x: 431, y: 721, size: 8.8, font: bold, color: red });
 
   border(35, 590, 525, 100, 0.9);
-  labelValue("Señor(es)", snapshot.customer?.name ?? customer?.full_name ?? customer?.company, 48, 672, 103);
+  labelValue("Señor(es)", recipientName, 48, 672, 103);
   labelValue("RUT", snapshot.customer?.rut ?? customer?.rut, 48, 658, 103);
   labelValue("Dirección", snapshot.customer?.address ?? customer?.address, 48, 644, 103);
   labelValue("Comuna", snapshot.customer?.city ?? customer?.city, 48, 630, 103);
@@ -124,7 +154,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     page.drawText(String(quantity), { x: 86, y: rowY, size: 8.2, font: regular, color: black });
     page.drawText(clean(item.description, "Servicio BOOMBOX").slice(0, 46), { x: 138, y: rowY, size: 8.2, font: regular, color: black });
     page.drawText(money(unit).replace("CLP", "").trim(), { x: 425, y: rowY, size: 8.2, font: regular, color: black });
-    page.drawText(money(quantity * unit).replace("CLP", "").trim(), { x: 502, y: rowY, size: 8.2, font: regular, color: black });
+    page.drawText(money(item.lineTotal ?? quantity * unit).replace("CLP", "").trim(), { x: 502, y: rowY, size: 8.2, font: regular, color: black });
     page.drawLine({ start: { x: tableX, y: rowY - 6 }, end: { x: tableX + tableW, y: rowY - 6 }, thickness: 0.35, color: line });
     rowY -= 22;
   });
@@ -165,8 +195,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   page.drawLine({ start: { x: 380, y: 117 }, end: { x: 555, y: 117 }, thickness: 0.6, color: line });
   page.drawLine({ start: { x: 380, y: 90 }, end: { x: 555, y: 90 }, thickness: 0.6, color: line });
   page.drawLine({ start: { x: 468, y: 62 }, end: { x: 468, y: 144 }, thickness: 0.6, color: line });
-  page.drawText("Neto $", { x: 425, y: 126, size: 8.8, font: regular, color: black });
-  page.drawText(money(net), { x: 486, y: 126, size: 8.8, font: regular, color: black });
+  page.drawText(exempt ? "Neto / exento" : "Neto $", { x: 425, y: 126, size: 8.8, font: regular, color: black });
+  page.drawText(exempt ? `${money(net)} / ${money(exempt)}` : money(net), { x: 486, y: 126, size: exempt ? 6.5 : 8.8, font: regular, color: black });
   page.drawText("19% IVA $", { x: 413, y: 99, size: 8.8, font: regular, color: black });
   page.drawText(money(vat), { x: 486, y: 99, size: 8.8, font: regular, color: black });
   page.drawText("Total $", { x: 424, y: 72, size: 10.5, font: bold, color: black });
