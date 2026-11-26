@@ -1,5 +1,6 @@
 "use client";
 
+import { readCommunicationPreview, withCommunicationActionTimeout } from "./communication-preview";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -20,7 +21,6 @@ import {
 } from "@/features/connectors/google-gmail/application/pre-event-reminder.template";
 import type { PreEventReminderComposer } from "@/features/connectors/google-gmail/application/pre-event-reminder.service";
 import {
-  getPreEventReminderPreviewAction,
   sendPreEventReminderAction,
 } from "./pre-event-reminder.actions";
 
@@ -63,27 +63,6 @@ const timingLabel = (days: number) =>
         ? `Evento en ${days} días`
         : `Evento hace ${Math.abs(days)} días`;
 
-const PRE_EVENT_ACTION_TIMEOUT_MS = 15_000;
-
-function withPreEventActionTimeout<T>(promise: Promise<T>, message: string) {
-  return new Promise<T>((resolve, reject) => {
-    const timer = window.setTimeout(
-      () => reject(new Error(message)),
-      PRE_EVENT_ACTION_TIMEOUT_MS,
-    );
-    promise.then(
-      (value) => {
-        window.clearTimeout(timer);
-        resolve(value);
-      },
-      (error) => {
-        window.clearTimeout(timer);
-        reject(error);
-      },
-    );
-  });
-}
-
 export function PreEventReminderControl({ projectId }: { projectId: string }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -102,10 +81,7 @@ export function PreEventReminderControl({ projectId }: { projectId: string }) {
   const refresh = (openComposer = false) =>
     startTransition(async () => {
       try {
-        const result = await withPreEventActionTimeout(
-          getPreEventReminderPreviewAction(projectId),
-          "La vista previa está tardando demasiado. Intenta nuevamente; no se envió ningún correo.",
-        );
+        const result = await readCommunicationPreview<PreEventReminderComposer>(projectId, "reminder");
         if (!result.ok) {
           setFeedback(result.error);
           return;
@@ -154,7 +130,7 @@ export function PreEventReminderControl({ projectId }: { projectId: string }) {
         formData.set("cc", cc);
         formData.set("subject", subject);
         formData.set("confirmResend", String(confirmResend));
-        const result = await withPreEventActionTimeout(
+        const result = await withCommunicationActionTimeout(
           sendPreEventReminderAction(formData),
           "El envío está tardando demasiado. El estado quedó sin confirmar; revisa el historial antes de reintentar.",
         );
@@ -247,7 +223,7 @@ export function PreEventReminderControl({ projectId }: { projectId: string }) {
         </dl>
       ) : null}
       <div className="mt-5 flex flex-col gap-2 sm:flex-row">
-        <Button disabled={!composer || pending} onClick={() => refresh(true)} type="button">
+        <Button disabled={pending} onClick={() => refresh(true)} type="button">
           {pending ? <OrbitLoader variant="button" /> : <Send className="size-4" />}
           {actionLabel}
         </Button>

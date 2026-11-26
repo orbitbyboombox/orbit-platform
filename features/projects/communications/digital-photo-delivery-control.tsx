@@ -1,5 +1,6 @@
 "use client";
 
+import { readCommunicationPreview, withCommunicationActionTimeout } from "./communication-preview";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -17,7 +18,6 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { renderDigitalPhotoDeliveryPreviewHtml } from "@/features/connectors/google-gmail/application/digital-photo-delivery.template";
 import type { DigitalPhotoDeliveryComposer } from "@/features/connectors/google-gmail/application/digital-photo-delivery.service";
 import {
-  getDigitalPhotoDeliveryPreviewAction,
   saveDigitalPhotoDeliveryPreviewAction,
   sendDigitalPhotoDeliveryAction,
 } from "./digital-photo-delivery.actions";
@@ -25,6 +25,7 @@ import {
 type SendState =
   | { status: "idle" }
   | { status: "sending"; message: string }
+  | { status: "pending"; message: string }
   | { status: "success"; message: string; recipient: string; cc: string[] }
   | { status: "error"; message: string };
 
@@ -59,19 +60,8 @@ export function DigitalPhotoDeliveryControl({ projectId }: { projectId: string }
 
   const refresh = () =>
     startTransition(async () => {
-      // A stalled Server Action must not leave this card loading indefinitely.
-      // This timeout is read-only: it never triggers an email send.
-      let timer: ReturnType<typeof setTimeout> | undefined;
       try {
-        const result = await Promise.race([
-          getDigitalPhotoDeliveryPreviewAction(projectId),
-          new Promise<never>((_, reject) => {
-            timer = setTimeout(
-              () => reject(new Error("La vista previa de fotos digitales está tardando demasiado. Intenta nuevamente; no se envió ningún correo.")),
-              15_000,
-            );
-          }),
-        ]);
+        const result = await readCommunicationPreview<DigitalPhotoDeliveryComposer>(projectId, "photos");
         if (!result.ok) {
           setFeedback(result.error);
           return;
@@ -82,8 +72,6 @@ export function DigitalPhotoDeliveryControl({ projectId }: { projectId: string }
         setFeedback(
           error instanceof Error ? error.message : "No fue posible cargar las fotos digitales.",
         );
-      } finally {
-        if (timer) clearTimeout(timer);
       }
     });
 
@@ -127,26 +115,40 @@ export function DigitalPhotoDeliveryControl({ projectId }: { projectId: string }
     if (pending || submissionGate.current) return;
     submissionGate.current = true;
     startTransition(async () => {
-      const formData = new FormData();
-      formData.set("projectId", projectId);
-      formData.set("photoUrl", photoUrl);
-      const result = await saveDigitalPhotoDeliveryPreviewAction(formData);
-      submissionGate.current = false;
-      if (!result.ok) {
-        setSendState({ status: "error", message: result.error });
-        return;
+      try {
+        const formData = new FormData();
+        formData.set("projectId", projectId);
+        formData.set("photoUrl", photoUrl);
+        const result = await withCommunicationActionTimeout(
+          saveDigitalPhotoDeliveryPreviewAction(formData),
+          "No se confirmó el guardado del enlace. Actualiza la vista previa e intenta nuevamente.",
+        );
+        if (!result.ok) {
+          setSendState({ status: "error", message: result.error });
+          return;
+        }
+        setComposer(result.preview);
+        setPhotoUrl(result.preview.currentPhotoUrl);
+        setPreviewUrl(result.preview.currentPhotoUrl);
+        setPreviewHtml(result.preview.previewHtml);
+        setSendState({ status: "idle" });
+      } catch (error) {
+        setSendState({
+          status: "error",
+          message: error instanceof Error ? error.message : "No fue posible completar la operación.",
+        });
+      } finally {
+        submissionGate.current = false;
       }
-      setComposer(result.preview);
-      setPhotoUrl(result.preview.currentPhotoUrl);
-      setPreviewUrl(result.preview.currentPhotoUrl);
-      setPreviewHtml(result.preview.previewHtml);
-      setSendState({ status: "idle" });
     });
   };
 
   const deliver = (confirmResend: boolean) => {
     if (
-      !composer ||
+      !composer?.to ||
+      deliveryPending ||
+      sendState.status === "pending" ||
+      sendState.status === "success" ||
       pending ||
       submissionGate.current ||
       !previewHtml ||
@@ -157,31 +159,44 @@ export function DigitalPhotoDeliveryControl({ projectId }: { projectId: string }
     setConfirmingResend(false);
     setSendState({ status: "sending", message: "ENVIANDO..." });
     startTransition(async () => {
-      const formData = new FormData();
-      formData.set("projectId", projectId);
-      formData.set("requestId", requestId || crypto.randomUUID());
-      formData.set("photoUrl", photoUrl);
-      formData.set("cc", cc);
-      formData.set("confirmResend", String(confirmResend));
-      const result = await sendDigitalPhotoDeliveryAction(formData);
-      submissionGate.current = false;
-      if (!result.ok) {
-        setRequestId(crypto.randomUUID());
+      try {
+        const formData = new FormData();
+        formData.set("projectId", projectId);
+        formData.set("requestId", requestId || crypto.randomUUID());
+        formData.set("photoUrl", photoUrl);
+        formData.set("cc", cc);
+        formData.set("confirmResend", String(confirmResend));
+        const result = await withCommunicationActionTimeout(
+          sendDigitalPhotoDeliveryAction(formData),
+          "El estado del envío quedó sin confirmar. Revisa el historial antes de reintentar.",
+        );
+        if (!result.ok) {
+          if ("result" in result) setRequestId(crypto.randomUUID());
+          setSendState({
+            status: "error",
+            message: result.error,
+          });
+          refresh();
+          return;
+        }
+        setSendState(result.result.status === "PENDING"
+          ? { status: "pending", message: result.message }
+          : {
+              status: "success",
+              message: result.message,
+              recipient: result.result.recipient,
+              cc: result.result.ccRecipients,
+            });
+        router.refresh();
+        refresh();
+      } catch (error) {
         setSendState({
           status: "error",
-          message: result.error,
+          message: error instanceof Error ? error.message : "No fue posible completar la operación.",
         });
-        refresh();
-        return;
+      } finally {
+        submissionGate.current = false;
       }
-      setSendState({
-        status: "success",
-        message: result.message,
-        recipient: result.result.recipient,
-        cc: result.result.ccRecipients,
-      });
-      router.refresh();
-      refresh();
     });
   };
 
@@ -196,6 +211,7 @@ export function DigitalPhotoDeliveryControl({ projectId }: { projectId: string }
   const actionLabel = composer?.hasSuccessfulSend
     ? "REENVIAR FOTOS DIGITALES"
     : "ENVIAR FOTOS DIGITALES";
+  const deliveryPending = composer?.history.some((item) => item.status === "PENDING" || item.status === "QUEUED");
   const badgeVariant =
     composer?.status === "SENT"
       ? "success"
@@ -228,7 +244,7 @@ export function DigitalPhotoDeliveryControl({ projectId }: { projectId: string }
         />
       </div>
       <dl className="mt-5 grid gap-3 sm:grid-cols-3">
-        <Detail label="Destinatario" value={composer?.to ?? "Cargando…"} />
+        <Detail label="Destinatario" value={composer?.to || (pending ? "Cargando…" : "Por ingresar")} />
         <Detail
           label="CC"
           value={composer?.cc.length ? composer.cc.join(", ") : "Sin CC"}
@@ -255,7 +271,7 @@ export function DigitalPhotoDeliveryControl({ projectId }: { projectId: string }
         )}
       </div>
       <div className="mt-5 flex flex-col gap-2 sm:flex-row">
-        <Button disabled={!composer || pending} onClick={launch} type="button">
+        <Button disabled={pending} onClick={composer ? launch : refresh} type="button">
           {pending ? <OrbitLoader variant="button" /> : <Send className="size-4" />}
           {actionLabel}
         </Button>
@@ -426,7 +442,7 @@ export function DigitalPhotoDeliveryControl({ projectId }: { projectId: string }
             ) : null}
             <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
               <p className="break-words text-xs text-muted">
-                {sendState.status === "success"
+                {sendState.status === "success" || sendState.status === "pending"
                   ? sendState.message
                   : `Se enviará a ${composer.to}${cc.trim() ? ` · CC: ${cc.split(/[\n,;]+/).map((value) => value.trim()).filter(Boolean).join(", ")}` : ""}.`}
               </p>
@@ -439,6 +455,9 @@ export function DigitalPhotoDeliveryControl({ projectId }: { projectId: string }
                     pending ||
                     sendState.status === "success" ||
                     confirmingResend ||
+                    !composer.to ||
+                    deliveryPending ||
+                    sendState.status === "pending" ||
                     !previewHtml ||
                     !photoUrl.trim() ||
                     previewUrl !== photoUrl.trim()

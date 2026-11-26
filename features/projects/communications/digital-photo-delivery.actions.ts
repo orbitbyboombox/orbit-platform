@@ -80,7 +80,9 @@ export async function sendDigitalPhotoDeliveryAction(formData: FormData) {
       return {
         ok: true as const,
         result,
-        message: "El proveedor confirmó el envío. El historial está sincronizando.",
+        message: result.providerMessageId
+          ? "El proveedor confirmó el envío. El historial está sincronizando."
+          : "Gmail aún no confirma el resultado. Revisa el historial antes de reenviar.",
       };
     }
     return {
@@ -99,7 +101,7 @@ export async function sendDigitalPhotoDeliveryAction(formData: FormData) {
     );
     return {
       ok: false as const,
-      error: "No fue posible enviar las fotos digitales.",
+      error: message(error),
     };
   }
 }

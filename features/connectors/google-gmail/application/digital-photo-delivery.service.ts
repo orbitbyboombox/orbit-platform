@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizeEmailRecipients } from "@/lib/email/recipients";
 import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import type { GoogleGmailLiveProvider } from "../provider/google-gmail-live.provider";
-import { GoogleGmailApiProvider } from "../provider/google-gmail-live.provider";
+import { GoogleGmailApiProvider, GoogleGmailDeliveryOutcomeUnknownError } from "../provider/google-gmail-live.provider";
 import {
   DIGITAL_PHOTO_SUBJECT,
   digitalPhotoDeliveryText,
@@ -131,8 +131,7 @@ export async function loadDigitalPhotoDeliveryComposer(
   const customer = Array.isArray(project.customers)
     ? project.customers[0]
     : project.customers;
-  if (!customer?.email)
-    throw new Error("El cliente no tiene correo principal registrado.");
+  const recipient = customer?.email?.trim() ?? "";
   if (!project.event_date)
     throw new Error("El Evento no tiene una fecha canónica registrada.");
   const history = (rows ?? []) as CommunicationRow[];
@@ -144,7 +143,7 @@ export async function loadDigitalPhotoDeliveryComposer(
     customerId: project.customer_id,
     customerName: customer.full_name || "Cliente",
     eventDate: project.event_date,
-    to: customer.email,
+    to: recipient,
     cc: customer.secondary_email ? [customer.secondary_email] : [],
     subject: DIGITAL_PHOTO_SUBJECT,
     currentPhotoUrl,
@@ -161,7 +160,7 @@ export async function loadDigitalPhotoDeliveryComposer(
     history: history.map((item) => ({
       id: item.id,
       status: item.status,
-      to: item.to_recipient ?? customer.email,
+      to: item.to_recipient ?? recipient,
       cc: item.cc_recipients ?? [],
       sentAt: item.sent_at ?? item.occurred_at,
       providerMessageId: item.external_message_id,
@@ -231,6 +230,7 @@ export async function sendDigitalPhotoDelivery(
       photoUrl,
     });
   }
+  if (!composer.to) throw new Error("El cliente no tiene correo principal registrado.");
   const recipients = normalizeEmailRecipients({
     to: composer.to,
     cc: input.cc ?? composer.cc,
@@ -265,6 +265,9 @@ export async function sendDigitalPhotoDelivery(
   }
   if (composer.hasSuccessfulSend && !input.confirmResend) {
     throw new Error(`¿Enviar nuevamente las fotos digitales a ${composer.to}?`);
+  }
+  if (composer.history.some((item) => item.status === "PENDING" || item.status === "QUEUED")) {
+    throw new Error("Existe un envío sin resultado confirmado. Revisa el historial antes de volver a enviar.");
   }
   const firstSuccessful = composer.history
     .filter((item) => item.status === "SENT")
@@ -426,6 +429,22 @@ export async function sendDigitalPhotoDelivery(
       deduplicated: false,
     };
   } catch (error) {
+    if (error instanceof GoogleGmailDeliveryOutcomeUnknownError) {
+      const { error: updateError } = await admin
+        .from("communications")
+        .update({ status: "PENDING", failure_reason: error.message.slice(0, 2_000) })
+        .eq("id", communication.id);
+      if (updateError) throw updateError;
+      return {
+        status: "PENDING",
+        recipient: recipients.to,
+        ccRecipients: recipients.cc,
+        sentAt: queuedAt,
+        communicationId: communication.id,
+        providerMessageId: null,
+        deduplicated: false,
+      };
+    }
     if (!providerAccepted) {
       const failureReason =
         error instanceof Error ? error.message.slice(0, 2_000) : String(error).slice(0, 2_000);

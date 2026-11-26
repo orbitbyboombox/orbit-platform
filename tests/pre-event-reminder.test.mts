@@ -162,8 +162,9 @@ test("manual action recovers visibly when the Server Action has no response", ()
   assert.match(control, /submissionGate\.current = false/);
   assert.match(control, /setSendState\(\{\s*status: "error"/);
   assert.match(control, /finally \{/);
-  assert.match(control, /PRE_EVENT_ACTION_TIMEOUT_MS = 15_000/);
-  assert.match(control, /La vista previa está tardando demasiado/);
+  const previewClient = read("../features/projects/communications/communication-preview.ts");
+  assert.match(previewClient, /15_000/);
+  assert.match(previewClient, /La vista previa está tardando demasiado/);
   assert.match(control, /El envío está tardando demasiado/);
 });
 

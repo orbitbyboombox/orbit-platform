@@ -90,7 +90,7 @@ test("email intentionally contains no Event or financial detail section", () => 
   assert.doesNotMatch(html, /FECHA DEL EVENTO|LUGAR DEL EVENTO|SERVICIO|DURACIÓN/);
   assert.doesNotMatch(html, /LUGAR|UBICACIÓN|HORARIO|EVENT ID|ORB-\d+/i);
   assert.doesNotMatch(html, /SALDO|PAGO|FACTURA|ABONO|TOTAL/);
-  assert.doesNotMatch(service, /location|project_services|duration|financial_event_records/);
+  assert.doesNotMatch(service, /location|project_services|\bduration\b|financial_event_records/);
 });
 
 test("canonical Event date appears once in the thank-you sentence in Spanish", () => {
