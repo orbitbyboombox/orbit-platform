@@ -3,8 +3,8 @@ import { AppShell } from "@/components/layout/app-shell";
 import { loadFounderActionCount } from "@/features/founder-action-center";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isInvalidSessionError, isMissingSessionError } from "@/lib/supabase/auth-errors";
-import { loadModuleStatesCached } from "@/features/module-manager/repository";
-import { loadFounderWorkspaceCached } from "@/features/founder-workspace/repository";
+import { loadModuleStates, loadModuleStatesCached } from "@/features/module-manager/repository";
+import { loadFounderWorkspace, loadFounderWorkspaceCached } from "@/features/founder-workspace/repository";
 import { LegacyModalScrollGuard } from "@/components/ui/legacy-modal-scroll-guard";
 import { isMetaReviewerRole } from "@/lib/auth/roles";
 
@@ -18,7 +18,15 @@ export default async function PlatformLayout({ children }: { children: React.Rea
   if(isMetaReviewerRole(profile.role))return <>{children}</>;
   // Module definitions are provisioned by the module-management workflow;
   // avoid an upsert on every route navigation in the global shell.
-  const [founderActionCount,modules,workspace]=await Promise.all([loadFounderActionCount(user.id),loadModuleStatesCached(),loadFounderWorkspaceCached(user.id)]);
+  const isolatedRef = process.env.ORBIT_TRIBUTARY_ISOLATED_PROJECT_REF;
+  const useIsolatedSession = process.env.VERCEL_ENV === "preview"
+    && process.env.ORBIT_ENVIRONMENT === "preview"
+    && process.env.ORBIT_TRIBUTARY_PREVIEW === "true"
+    && isolatedRef === "yfslijqyybcakrmbwhfm"
+    && process.env.SUPABASE_URL === `https://${isolatedRef}.supabase.co`;
+  const [founderActionCount,modules,workspace]=await (useIsolatedSession
+    ? Promise.all([0,loadModuleStates(client),loadFounderWorkspace(client,user.id)])
+    : Promise.all([loadFounderActionCount(user.id),loadModuleStatesCached(),loadFounderWorkspaceCached(user.id)]));
   const resilientSyncEnabled = Boolean(process.env.RESILIENT_SYNC_ENABLED) && process.env.RESILIENT_SYNC_ENABLED !== "false";
   return <AppShell actionableNotifications={founderActionCount} modules={modules} resilientSyncEnabled={resilientSyncEnabled} userEmail={user.email} userId={user.id} userName={profile.display_name||"Founder"} userRole={profile.role==="CEO"?"Founder":"Administrador"} workspace={workspace}><LegacyModalScrollGuard/>{children}</AppShell>;
 }
