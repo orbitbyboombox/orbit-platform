@@ -16,7 +16,8 @@ const tabs = [
 ] as const;
 
 export function FinanceTabs() {
-  const pathname = usePathname();\n  const router = useRouter();
+  const pathname = usePathname();
+  const router = useRouter();
   return (
     <>
       <div className="flex items-center gap-2 overflow-x-auto pb-1 md:hidden" aria-label="Navegación rápida">
