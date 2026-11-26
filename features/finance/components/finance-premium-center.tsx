@@ -170,6 +170,7 @@ export function FinancePremiumCenter({ month, position }: { month: Metric[]; pos
             { label: "Rentabilidad", item: metric("Margen operativo") ?? metric("Margen de Eventos"), Icon: TrendingUp },
           ].map(({ label, item, Icon }) => {
             const typed = item;
+            const ChartIcon = Icon;
             return <Link key={label} href={typed?.href ?? "/finance"} className="rounded-2xl border p-5 transition hover:border-[#F58B22]" style={{ background: "#171A20", borderColor: "#30343B" }}>
               <div className="flex items-center justify-between"><span className="text-sm" style={{ color: "#9AA1AC" }}>{label}</span><ChartIcon className="size-4" style={{ color: "#F58B22" }} aria-hidden /></div>
               <p className="mt-4 text-2xl font-semibold text-white">{formatMetric(typed)}</p>
