@@ -65,13 +65,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
   page.drawRectangle({ x: 20, y: 20, width: 555, height: 802, borderColor: line, borderWidth: 0.9, color: white });
 
-  let logo;
-  try { logo = await pdf.embedPng(await readFile(join(process.cwd(), "public/branding/boombox-official-logo.png"))); } catch { logo = null; }
-  if (logo) page.drawImage(logo, { x: 42, y: 746, width: 150, height: 42 });
-  else page.drawText("BOOMBOX®", { x: 42, y: 757, size: 25, font: bold, color: black });
+  // Renderizar el logotipo corporativo en negro para mantener legibilidad en la plantilla clásica.
+  page.drawText("BOOMBOX®", { x: 42, y: 748, size: 29, font: bold, color: black });
   page.drawText("Experiencias que conectan", { x: 66, y: 730, size: 9, font: bold, color: black });
   page.drawLine({ start: { x: 205, y: 728 }, end: { x: 205, y: 797 }, thickness: 1, color: line });
-  page.drawText("PRODUCCIONES BOOM BOX COMPANY SPA", { x: 215, y: 785, size: 9.2, font: bold, color: black });
+  page.drawText("PRODUCCIONES BOOM BOX COMPANY SPA", { x: 215, y: 785, size: 8.2, font: bold, color: black });
   page.drawText("RUT: 76.565.272-3", { x: 215, y: 772, size: 8.5, font: regular, color: black });
   page.drawText("Giro: Producción de todo tipo de eventos, transporte de", { x: 215, y: 759, size: 8.2, font: regular, color: black });
   page.drawText("carga por carretera", { x: 215, y: 747, size: 8.2, font: regular, color: black });
