@@ -21,8 +21,8 @@ const archiveFolders = [
   "08_RESPALDOS_Y_ACUSES_SII",
 ];
 
-export default async function TributaryCenterPage({ searchParams }: { searchParams: Promise<{ prepare?: string }> }) {
-  const { prepare } = await searchParams;
+export default async function TributaryCenterPage({ searchParams }: { searchParams: Promise<{ prepare?: string; project?: string; customer?: string }> }) {
+  const { prepare, project: projectId, customer: customerId } = await searchParams;
   const client = await createSupabaseServerClient();
   const { data: documents } = await client
     .from("documents")
