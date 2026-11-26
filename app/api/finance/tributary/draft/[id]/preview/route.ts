@@ -150,5 +150,4 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   page.drawText(money(total), { x: 486, y: 72, size: 10.5, font: bold, color: black });
 
   const bytes = await pdf.save();
-  return new NextResponse(bytes as BodyInit, { status: 200, headers: { "Content-Type": "application/pdf", "Content-Disposition": \`inline; filename="BOOMBOX-PRE-SII-\${dteType}-\${clean(draft.invoice_number)}.pdf"\`, "Cache-Control": "no-store" } });
   return new NextResponse(bytes as BodyInit, { status: 200, headers: { "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="BOOMBOX-PRE-SII-${dteType}-${clean(draft.invoice_number)}.pdf"`, "Cache-Control": "no-store" } });
