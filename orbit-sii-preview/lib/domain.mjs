@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 
 export const fixtures = [
   { id:"QA-EVT-001", name:"Gala de empresa", client:"Empresa Demo A", rut:"76.000.000-0 · ficticio", kind:"Empresa", date:"2026-12-05", payment:"Crédito 30 días", documentType:33,
@@ -10,7 +9,7 @@ export const fixtures = [
 ];
 export const names = {33:"Factura electrónica",39:"Boleta electrónica",61:"Nota de crédito"};
 export class InputError extends Error {}
-export function preview(eventId, type, original, reason = "") {
+export async function preview(eventId, type, original, reason = "") {
   const event = fixtures.find((item) => item.id === eventId);
   if (!event || !names[type]) throw new InputError("Selecciona un evento y documento válidos.");
   if (!Number.isInteger(type)) throw new InputError("Tipo tributario inválido.");
@@ -31,5 +30,7 @@ export function preview(eventId, type, original, reason = "") {
     type, label:names[type], lines:sale.lines, subtotal, discount:sale.discount, net, tax, total,
     reference: type === 61 ? {id:original.id, type:original.type, folio:original.folio, reason:creditReason} : null
   };
-  return { ...snapshot, hash:createHash("sha256").update(JSON.stringify(snapshot)).digest("hex") };
+  const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(snapshot)));
+  const hash = Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return { ...snapshot, hash };
 }

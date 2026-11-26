@@ -35,7 +35,7 @@ async function artifacts(document) {
     const chunks=safeReason.match(/.{1,74}/g)??[];
     chunks.forEach((chunk,index)=>line(chunk,y-46-16*index));
   }
-  return {xml:Buffer.from(xml),pdf:Buffer.from(await pdf.save())};
+  return {xml:new TextEncoder().encode(xml),pdf:await pdf.save()};
 }
 
 export class SimulatedTaxProvider {
