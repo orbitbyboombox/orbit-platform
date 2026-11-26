@@ -43,6 +43,7 @@ const sections: Array<{
       { label: "Registro de compras y ventas", href: "/finance/tributary/compras", description: "Registro de compras y control" },
       { label: "Archivo tributario", href: "/finance/tributary/archivo", description: "Historial y documentos" },
       { label: "Configuración SII", href: "/settings#tributary", description: "Certificados y CAF · emisión bloqueada" },
+      { label: "Preparar borrador tributario", href: "/finance/tributary?prepare=facturas&source=finance", description: "Datos canónicos · sin emisión ni folio" },
     ],
   },
   {
@@ -57,6 +58,7 @@ const sections: Array<{
       { label: "Pagos recibidos", href: "/finance/receivables?status=paid", description: "Payment Ledger canónico" },
       { label: "Cobranza consolidada", href: "/finance/collections", description: "Gestión por cliente" },
       { label: "Rentabilidad", href: "/projects?view=profitability", description: "Resultado por evento" },
+      { label: "Preparar documento tributario", href: "/finance/tributary?prepare=facturas&source=ventas", description: "Borrador vinculado a venta y cliente · PRE-SII" },
     ],
   },
   {
