@@ -1,0 +1,73 @@
+import Link from "next/link";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+
+const sections = [
+  { key: "facturas", title: "Facturas electrónicas", dte: "DTE 33", folder: "01_FACTURAS", description: "Preparar y revisar facturas vinculadas a eventos y clientes." },
+  { key: "boletas", title: "Boletas electrónicas", dte: "DTE 39", folder: "02_BOLETAS", description: "Preparar boletas de servicios con datos del cliente." },
+  { key: "guias", title: "Guías de despacho", dte: "DTE 52", folder: "03_GUIAS_DE_DESPACHO", description: "Vincular traslado, equipamiento, vehículo y responsable." },
+  { key: "notas-credito", title: "Notas de crédito", dte: "DTE 61", folder: "04_NOTAS_DE_CREDITO", description: "Corregir, devolver o anular un documento de prueba." },
+  { key: "notas-debito", title: "Notas de débito", dte: "DTE 56", folder: "05_NOTAS_DE_DEBITO", description: "Ajustar documentos relacionados en ambiente de prueba." },
+] as const;
+
+const archiveFolders = [
+  "01_FACTURAS",
+  "02_BOLETAS",
+  "03_GUIAS_DE_DESPACHO",
+  "04_NOTAS_DE_CREDITO",
+  "05_NOTAS_DE_DEBITO",
+  "06_REGISTRO_COMPRAS",
+  "07_REGISTRO_VENTAS",
+  "08_RESPALDOS_Y_ACUSES_SII",
+];
+
+export default async function TributaryCenterPage() {
+  const client = await createSupabaseServerClient();
+  const { data: documents } = await client
+    .from("documents")
+    .select("id,project_id,external_tax_document_type,external_folio,external_issue_date,created_at")
+    .is("deleted_at", null)
+    .not("external_folio", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+  const rows = documents ?? [];
+  return (
+    <main className="space-y-7" aria-label="Centro SII">
+      <header className="rounded-3xl border bg-card p-6 sm:p-8">
+        <p className="text-xs font-semibold uppercase tracking-[.2em] text-brand">Finanzas · SII</p>
+        <h1 className="mt-2 text-3xl font-semibold">Centro tributario</h1>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">Administración interna de documentos, registros y respaldos. La emisión oficial permanece bloqueada hasta la certificación del SII.</p>
+        <div className="mt-4 flex flex-wrap gap-2 text-xs">
+          <span className="rounded-full border border-warning/40 bg-warning/10 px-3 py-1 text-warning">PRE-SII · Solo preparación</span>
+          <span className="rounded-full border px-3 py-1 text-muted">Folio informado: 1104</span>
+          <span className="rounded-full border px-3 py-1 text-muted">Inicio objetivo: 2000 · sujeto a autorización</span>
+        </div>
+      </header>
+
+      <section aria-label="Documentos tributarios" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {sections.map((section) => (
+          <Link key={section.key} href={`/finance/tributary/${section.key}`} className="rounded-2xl border bg-card p-5 transition hover:border-brand/60">
+            <div className="flex items-start justify-between gap-3"><span className="text-xs font-semibold uppercase tracking-[.16em] text-brand">{section.dte}</span><span className="text-xs text-muted">{section.folder}</span></div>
+            <h2 className="mt-4 text-lg font-semibold">{section.title}</h2>
+            <p className="mt-2 text-sm text-muted">{section.description}</p>
+            <span className="mt-4 inline-flex text-sm font-semibold text-brand">Abrir módulo →</span>
+          </Link>
+        ))}
+        <Link href="/finance/tributary/compras" className="rounded-2xl border bg-card p-5 transition hover:border-brand/60"><span className="text-xs font-semibold uppercase tracking-[.16em] text-brand">LIBRO</span><h2 className="mt-4 text-lg font-semibold">Registro de compras</h2><p className="mt-2 text-sm text-muted">Proveedores, respaldos y crédito fiscal sujeto a revisión.</p><span className="mt-4 inline-flex text-sm font-semibold text-brand">Abrir registro →</span></Link>
+        <Link href="/finance/tributary/ventas" className="rounded-2xl border bg-card p-5 transition hover:border-brand/60"><span className="text-xs font-semibold uppercase tracking-[.16em] text-brand">LIBRO</span><h2 className="mt-4 text-lg font-semibold">Registro de ventas</h2><p className="mt-2 text-sm text-muted">DTE, eventos, saldos y conciliación interna.</p><span className="mt-4 inline-flex text-sm font-semibold text-brand">Abrir registro →</span></Link>
+        <Link href="/finance/tributary/archivo" className="rounded-2xl border bg-card p-5 transition hover:border-brand/60"><span className="text-xs font-semibold uppercase tracking-[.16em] text-brand">ARCHIVO</span><h2 className="mt-4 text-lg font-semibold">Archivo tributario</h2><p className="mt-2 text-sm text-muted">Historial central y estructura anual/mensual preparada.</p><span className="mt-4 inline-flex text-sm font-semibold text-brand">Abrir archivo →</span></Link>
+      </section>
+
+      <section className="rounded-2xl border bg-card p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Historial oficial existente</p><h2 className="mt-1 text-xl font-semibold">Documentos vinculados</h2></div><span className="text-sm text-muted">{rows.length} registro{rows.length === 1 ? "" : "s"}</span></div>
+        {rows.length ? <ul className="mt-4 divide-y">{rows.map((row) => <li key={row.id} className="flex flex-wrap items-center justify-between gap-3 py-3"><span><strong className="block">{row.external_tax_document_type ?? "DTE"}</strong><small className="text-muted">Folio {row.external_folio} · {row.external_issue_date ?? "Fecha pendiente"}</small></span><Link className="text-sm font-semibold text-brand hover:underline" href={`/api/projects/${row.project_id}/documents/${row.id}`}>Abrir documento</Link></li>)}</ul> : <p className="mt-4 text-sm text-muted">No hay documentos oficiales cargados. Las simulaciones de certificación permanecen separadas.</p>}
+      </section>
+
+      <section className="rounded-2xl border bg-card p-5">
+        <div className="flex items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Google Drive · estructura preparada</p><h2 className="mt-1 text-xl font-semibold">FINANZAS SII</h2></div><span className="rounded-full border border-warning/40 bg-warning/10 px-3 py-1 text-xs text-warning">Sin escritura automática PRE-SII</span></div>
+        <p className="mt-2 text-sm text-muted">La estructura se utilizará para PDF, XML y acuses cuando exista emisión oficial. No se almacenan PFX, contraseñas ni claves CAF.</p>
+        <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{archiveFolders.map((folder) => <div key={folder} className="rounded-xl border bg-background/40 px-3 py-2 text-xs text-muted">{folder}<span className="mt-1 block text-[11px] text-brand">AÑO / MES</span></div>)}</div>
+      </section>
+    </main>
+  );
+}
