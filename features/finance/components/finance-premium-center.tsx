@@ -164,14 +164,13 @@ export function FinancePremiumCenter({ month, position }: { month: Metric[]; pos
       {!selected && (
         <section aria-label="Resumen financiero ejecutivo" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {[
-            ["Ingresos del mes", metric("Ventas del mes"), ReceiptText],
-            ["Gastos del mes", metric("Egresos pagados del mes"), WalletCards],
-            ["Por cobrar", metric("Por cobrar total"), FileText],
-            ["Rentabilidad", metric("Margen operativo") ?? metric("Margen de Eventos"), TrendingUp],
-          ].map(([label, item, Icon]) => {
-            const typed = item as Metric | undefined;
-            const ChartIcon = Icon as typeof ReceiptText;
-            return <Link key={String(label)} href={typed?.href ?? "/finance"} className="rounded-2xl border p-5 transition hover:border-[#F58B22]" style={{ background: "#171A20", borderColor: "#30343B" }}>
+            { label: "Ingresos del mes", item: metric("Ventas del mes"), Icon: ReceiptText },
+            { label: "Gastos del mes", item: metric("Egresos pagados del mes"), Icon: WalletCards },
+            { label: "Por cobrar", item: metric("Por cobrar total"), Icon: FileText },
+            { label: "Rentabilidad", item: metric("Margen operativo") ?? metric("Margen de Eventos"), Icon: TrendingUp },
+          ].map(({ label, item, Icon }) => {
+            const typed = item;
+            return <Link key={label} href={typed?.href ?? "/finance"} className="rounded-2xl border p-5 transition hover:border-[#F58B22]" style={{ background: "#171A20", borderColor: "#30343B" }}>
               <div className="flex items-center justify-between"><span className="text-sm" style={{ color: "#9AA1AC" }}>{label}</span><ChartIcon className="size-4" style={{ color: "#F58B22" }} aria-hidden /></div>
               <p className="mt-4 text-2xl font-semibold text-white">{formatMetric(typed)}</p>
               <p className="mt-2 text-xs" style={{ color: "#9AA1AC" }}>{typed?.detail ?? "Sin datos disponibles"}</p>
