@@ -32,7 +32,9 @@ export default async function TributaryCenterPage({ searchParams }: { searchPara
     .order("created_at", { ascending: false })
     .limit(100);
 
-  const { data: drafts } = await client.from("invoices").select("id,invoice_number,status,amount,tributary_document_type,project_id,updated_at,approved_at").eq("record_origin", "PRE_SII").is("deleted_at", null).order("updated_at", { ascending: false }).limit(100);\n  const { data: ledger } = await client.from("tributary_internal_ledger").select("source_type,document_type,reference,occurred_on,net_amount,exempt_amount,vat_amount,total_amount,payment_status,record_origin").order("occurred_on", { ascending: false }).limit(100);\n  const rows = documents ?? [];
+  const { data: drafts } = await client.from("invoices").select("id,invoice_number,status,amount,tributary_document_type,project_id,updated_at,approved_at").eq("record_origin", "PRE_SII").is("deleted_at", null).order("updated_at", { ascending: false }).limit(100);
+  const { data: ledger } = await client.from("tributary_internal_ledger").select("source_type,document_type,reference,occurred_on,net_amount,exempt_amount,vat_amount,total_amount,payment_status,record_origin").order("occurred_on", { ascending: false }).limit(100);
+  const rows = documents ?? [];
   return (
     <main className="space-y-7" aria-label="Centro SII">
       <header className="rounded-3xl border bg-card p-6 sm:p-8">
@@ -46,7 +48,9 @@ export default async function TributaryCenterPage({ searchParams }: { searchPara
         </div>
       </header>
 
-      <TributaryDraftManager drafts={(drafts ?? []) as any} projectId={projectId} customerId={customerId} />\n\n      {prepare ? (() => {
+      <TributaryDraftManager drafts={(drafts ?? []) as any} projectId={projectId} customerId={customerId} />
+
+      {prepare ? (() => {
         const selected = sections.find((section) => section.key === prepare);
         return selected ? <section className="rounded-2xl border border-brand/40 bg-brand/5 p-5" aria-label="Borrador tributario">
           <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Borrador preparado · sin emisión</p>
