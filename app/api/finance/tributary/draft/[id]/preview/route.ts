@@ -65,9 +65,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
   page.drawRectangle({ x: 20, y: 20, width: 555, height: 802, borderColor: line, borderWidth: 0.9, color: white });
 
-  // Renderizar el logotipo corporativo en negro para mantener legibilidad en la plantilla clásica.
-  page.drawText("BOOMBOX®", { x: 42, y: 748, size: 29, font: bold, color: black });
-  page.drawText("Experiencias que conectan", { x: 66, y: 730, size: 9, font: bold, color: black });
+  // Logotipo negro clásico aprobado, con eslogan integrado en el arte original.
+  let classicLogo;
+  try { classicLogo = await pdf.embedPng(await readFile(join(process.cwd(), "public/branding/boombox-logo-classic-black.png"))); } catch { classicLogo = null; }
+  if (classicLogo) page.drawImage(classicLogo, { x: 42, y: 735, width: 150, height: 58 });
+  else {
+    page.drawText("BOOMBOX®", { x: 42, y: 748, size: 29, font: bold, color: black });
+    page.drawText("Experiencias que conectan", { x: 66, y: 730, size: 9, font: bold, color: black });
+  }
   page.drawLine({ start: { x: 205, y: 728 }, end: { x: 205, y: 797 }, thickness: 1, color: line });
   page.drawText("PRODUCCIONES BOOM BOX", { x: 215, y: 785, size: 7.6, font: bold, color: black });
   page.drawText("COMPANY SPA", { x: 215, y: 774, size: 7.6, font: bold, color: black });
