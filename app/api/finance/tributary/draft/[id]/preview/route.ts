@@ -151,3 +151,4 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
   const bytes = await pdf.save();
   return new NextResponse(bytes as BodyInit, { status: 200, headers: { "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="BOOMBOX-PRE-SII-${dteType}-${clean(draft.invoice_number)}.pdf"`, "Cache-Control": "no-store" } });
+}
