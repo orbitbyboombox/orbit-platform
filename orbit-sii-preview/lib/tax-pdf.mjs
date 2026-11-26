@@ -26,7 +26,7 @@ function wrap(value,font,size,width) {
   return lines;
 }
 
-export async function renderTaxPdf(doc, {issuer:configuredIssuer, logos={}}={}) {
+export async function renderTaxPdf(doc, {issuer:configuredIssuer, logos={}, syntheticStamp}={}) {
   const d=doc.snapshot;
   if(!titles[d.type]) throw new Error("Tipo tributario no soportado.");
   const issuer=sampleIssuer(configuredIssuer);
@@ -34,6 +34,7 @@ export async function renderTaxPdf(doc, {issuer:configuredIssuer, logos={}}={}) 
   pdf.setTitle(titles[d.type]+" · Muestra BOOMBOX");
   const plain=await pdf.embedFont(StandardFonts.Helvetica), bold=await pdf.embedFont(StandardFonts.HelveticaBold);
   const marks=Object.fromEntries(await Promise.all(Object.entries(logos).filter(([,v])=>v).map(async ([key,value])=>[key,await pdf.embedPng(decode(value))])));
+  const stampImage=syntheticStamp ? await pdf.embedPng(decode(syntheticStamp)) : null;
   const descWidth=264;
   const items=d.lines.flatMap((line,index)=>{
     const lines=wrap(line.name,plain,10,descWidth);
@@ -120,8 +121,13 @@ export async function renderTaxPdf(doc, {issuer:configuredIssuer, logos={}}={}) 
     if(pageIndex===groups.length-1){
       const stampX=mm(20), stampY=641, stampW=mm(73),stampH=mm(31);
       rect(stampX,stampY,stampW,stampH,white,gray,.6);
-      text("TIMBRE ELECTRÓNICO",stampX,stampY+26,{align:"center",width:stampW,font:bold});
-      text("Omitido en esta muestra",stampX,stampY+44,{align:"center",width:stampW,size:9,color:gray});
+      if(stampImage){
+        logo(stampImage,stampX+4,stampY+4,stampW-8,stampH-23);
+        text("PDF417 SINTÉTICO · SIN VALIDEZ",stampX,stampY+stampH-15,{align:"center",width:stampW,size:9,font:bold});
+      }else{
+        text("TIMBRE ELECTRÓNICO",stampX,stampY+26,{align:"center",width:stampW,font:bold});
+        text("Omitido en esta muestra",stampX,stampY+44,{align:"center",width:stampW,size:9,color:gray});
+      }
       const sx=L+305, sw=R-sx;
       const totals=[...(d.discount?[["Descuento",d.discount]]:[]),["Neto",d.net],["IVA (19%)",d.tax],["Total",d.total]];
       totals.forEach(([name,value],i)=>{
