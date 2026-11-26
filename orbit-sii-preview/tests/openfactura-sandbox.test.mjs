@@ -25,3 +25,20 @@ test("si falla el transporte o faltan artefactos, conserva resultado indetermina
   const incomplete=new OpenFacturaSandbox({apiKey:"demo",fetcher:async()=>Response.json({FOLIO:101})});
   assert.equal((await incomplete.submit({operationKey,dte})).state,"PENDIENTE_CONCILIACION");
 });
+
+test("OF-06 recupera el token de la operación original para consultar sin emitir otra vez",async()=>{
+  const token="b".repeat(64);
+  let posts=0;
+  const adapter=new OpenFacturaSandbox({apiKey:"demo",fetcher:async(url,options)=>{
+    if(options.method==="POST"){
+      posts++;
+      return Response.json({error:{code:"OF-06",token}},{status:400});
+    }
+    assert.equal(url,"https://dev-api.haulmer.com/v2/dte/document/"+token+"/json");
+    return Response.json({token,FchRecepSII:null});
+  }});
+  const repeated=await adapter.submit({operationKey,dte});
+  assert.deepEqual(repeated,{state:"PENDIENTE_CONCILIACION",code:"OF-06",token});
+  assert.equal((await adapter.lookup(repeated.token)).state,"RESPUESTA_SANDBOX");
+  assert.equal(posts,1);
+});

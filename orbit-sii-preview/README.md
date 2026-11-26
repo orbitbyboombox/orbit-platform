@@ -10,3 +10,9 @@ El adaptador de demostración implementa `submit` y `lookup`. El gateway reserva
 - Worker de despliegue: agrupar `worker.js` como ESM con los loaders de texto para HTML, CSS y JS de la interfaz. El servidor acepta `QA_ADMIN_PASSWORD`, `QA_GATEWAY_SECRET` y `QA_SUPABASE_ANON_KEY` solo como secretos de entorno.
 - El archivo `database/sandbox.sql` está destinado al proyecto de pruebas. El hash SHA-256 del secreto de gateway se registra por separado en la tabla privada del laboratorio, sin almacenar la clave en Git.
 - La interfaz comercial del laboratorio usa los mismos conceptos de cotización, cliente, evento, traslado, descuento, neto e IVA de ORBIT. La futura conexión al Event 360° real requiere un repositorio de lectura de cotizaciones y la autorización del piloto.
+
+## OpenFactura, ambiente de desarrollo
+
+`OpenFacturaSandbox` se ejecuta por separado. Proporciónale la API key pública de pruebas y un DTE de las empresas demo de la colección oficial. La URL de desarrollo y la lista de emisores demo están fijadas en el adaptador. Emplea un identificador duradero por operación. Una respuesta OF-06 se concilia consultando el token original, sin crear otra intención. La ventana del proveedor es de 24 horas. La unicidad local debe persistir más allá de esa ventana y un resultado ambiguo exige conciliación antes de cualquier reenvío.
+
+Los estados del sandbox describen el proveedor. La recepción ante SII requiere evidencia independiente y nunca se infiere por la existencia de PDF, folio o timbre. El módulo web conserva el simulador y los datos fiscales de prueba. La activación real requiere selección y autorización del proveedor, expediente tributario y pruebas en certificación.

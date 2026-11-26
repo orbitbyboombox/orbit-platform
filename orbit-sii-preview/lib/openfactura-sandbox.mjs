@@ -41,6 +41,14 @@ export class OpenFacturaSandbox {
         headers:{...options.headers,apikey:this.apiKey}
       });
       if(response.ok) return {state:"RESPUESTA_SANDBOX",data:await response.json()};
+      if(response.status===400 || response.status===409){
+        const payload=await response.json().catch(()=>null);
+        const error=payload?.error;
+        if(error?.code==="OF-06"){
+          const token=typeof error.token==="string" && /^[a-f0-9]{64}$/i.test(error.token) ? error.token : undefined;
+          return {state:"PENDIENTE_CONCILIACION",code:"OF-06",token};
+        }
+      }
       if([400,401,403,422].includes(response.status)) return {state:"RECHAZADO_SANDBOX",httpStatus:response.status};
       return {state:"PENDIENTE_CONCILIACION",httpStatus:response.status};
     } catch {
