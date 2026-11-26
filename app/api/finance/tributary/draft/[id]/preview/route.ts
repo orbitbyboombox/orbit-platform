@@ -125,7 +125,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   page.drawLine({ start: { x: 141, y: 147 }, end: { x: 141, y: 164 }, thickness: 0.7, color: line });
   page.drawText("BOOMBOX®", { x: 157, y: 148, size: 13, font: bold, color: black });
   page.drawLine({ start: { x: 244, y: 147 }, end: { x: 244, y: 164 }, thickness: 0.7, color: line });
-  page.drawText("◉ R B I T", { x: 260, y: 149, size: 11, font: bold, color: black });
+  page.drawText("ORBIT", { x: 260, y: 149, size: 11, font: bold, color: black });
   page.drawLine({ start: { x: 355, y: 147 }, end: { x: 355, y: 164 }, thickness: 0.7, color: line });
   page.drawText("PIXMEDIA", { x: 372, y: 149, size: 12, font: bold, color: black });
 
