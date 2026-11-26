@@ -78,8 +78,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   page.drawText("COMPANY SPA", { x: 215, y: 774, size: 7.6, font: bold, color: black });
   page.drawText("RUT: 76.565.272-3", { x: 215, y: 762, size: 7.4, font: regular, color: black });
   page.drawText("Giro: Producción de eventos y publicidad", { x: 215, y: 750, size: 7.4, font: regular, color: black });
-  page.drawText("Puerta Oriente 361, of. 310 C, Colina", { x: 215, y: 726, size: 7.4, font: regular, color: black });
-  page.drawText("contacto@bbox.cl · www.bbox.cl", { x: 215, y: 714, size: 7.4, font: regular, color: black });
+  page.drawText("Puerta Oriente 361, of. 310 C, Colina", { x: 215, y: 738, size: 7.4, font: regular, color: black });
+  page.drawText("contacto@bbox.cl · www.bbox.cl", { x: 215, y: 726, size: 7.4, font: regular, color: black });
 
   page.drawRectangle({ x: 390, y: 735, width: 165, height: 63, borderColor: red, borderWidth: 1.8, color: white });
   page.drawText("R.U.T.: 76.565.272-3", { x: 402, y: 782, size: 8.8, font: bold, color: red });
@@ -131,7 +131,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   let partnerStrip;
   try { partnerStrip = await pdf.embedPng(await readFile(join(process.cwd(), "public/branding/boombox-partner-strip-classic.png"))); } catch { partnerStrip = null; }
   if (partnerStrip) {
-    const strip = partnerStrip.scaleToFit(440, 26);
+    const strip = partnerStrip.scaleToFit(440, 32);
     page.drawImage(partnerStrip, {
       x: (595 - strip.width) / 2,
       y: 162 - strip.height / 2,
