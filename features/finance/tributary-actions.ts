@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { calculateTributaryDraft, type TributaryLine, type TributaryDiscount } from "./tributary-calculation";
 
 type DteType = "33" | "39" | "52" | "56" | "61";
 
@@ -22,7 +23,7 @@ export async function createTributaryDraftAction(input: { projectId: string; dte
     if (error || !project) throw new Error("Evento no encontrado.");
     let amount = Number.isFinite(input.amount) && Number(input.amount) >= 0 ? Number(input.amount) : 0;
     const quoteQuery = admin.from("quotations")
-      .select("id,quotation_number,grand_total,tax_total,discount_total")
+      .select("id,quotation_number,grand_total,tax_total,global_discount_type,global_discount_value")
       .eq("project_id", project.id).eq("customer_id", project.customer_id)
       .is("deleted_at", null).not("accepted_version_id", "is", null);
     const { data: quote, error: quoteError } = await (input.quotationId
@@ -32,34 +33,35 @@ export async function createTributaryDraftAction(input: { projectId: string; dte
       throw new Error("No se pudo recuperar la cotización aceptada del evento.");
     }
 
-    let lines: { description: string; quantity: number; unitPrice: number; exempt: boolean }[] = [];
+    let lines: TributaryLine[] = [];
+    let globalDiscount: TributaryDiscount | undefined;
     if (quote) {
       const { data: items, error: itemError } = await admin.from("quotation_items")
-        .select("description,label,quantity,final_unit_price,unit_price,final_total,total")
+        .select("description,label,quantity,quoted_price,final_unit_price,unit_price,discount_type,discount_value,metadata")
         .eq("quotation_id", quote.id).order("display_order");
       if (itemError || !items?.length) throw new Error("La cotización aceptada no tiene líneas disponibles.");
       amount = Number(quote.grand_total);
       lines = items.map((item) => {
         const description = item.description?.trim() || item.label?.trim();
         const quantity = Number(item.quantity);
-        const unitPrice = Number(item.final_unit_price ?? item.unit_price);
-        const lineTotal = Number(item.final_total ?? item.total);
-        if (!description || !Number.isFinite(quantity) || quantity <= 0
-          || !Number.isFinite(unitPrice) || unitPrice < 0
-          || Math.round(quantity * unitPrice) !== lineTotal) {
-          throw new Error("Una línea requiere conciliación para importar su precio y descuento.");
-        }
-        return { description, quantity, unitPrice, exempt: false };
+        const unitPrice = Number(item.quoted_price ?? item.final_unit_price ?? item.unit_price);
+        const discountType = item.discount_type;
+        const discount: TributaryDiscount | undefined = discountType === "CLP" || discountType === "PERCENT"
+          ? { type: discountType, value: Number(item.discount_value) } : undefined;
+        return { description: description ?? "", quantity, unitPrice, exempt: item.metadata?.exempt === true, discount };
       });
-      const lineNet = lines.reduce((sum, line) => sum + Math.round(line.quantity * line.unitPrice), 0);
-      if (Number(quote.discount_total) !== 0 || Math.round(lineNet * 0.19) !== Number(quote.tax_total)
-        || lineNet + Number(quote.tax_total) !== amount) {
+      if (quote.global_discount_type === "CLP" || quote.global_discount_type === "PERCENT") {
+        globalDiscount = { type: quote.global_discount_type, value: Number(quote.global_discount_value) };
+      }
+      const { totals } = calculateTributaryDraft(lines, globalDiscount);
+      if (totals.vat !== Number(quote.tax_total) || totals.total !== amount) {
         throw new Error("La cotización requiere importar el desglose de descuentos o impuestos antes de crear el borrador.");
       }
     }
 
-    const vatAmount = quote ? Number(quote.tax_total) : amount - Math.round(amount / 1.19);
-    const netAmount = amount - vatAmount;
+    if (!quote) lines = [{ description: project.name || "Servicio BOOMBOX", quantity: 1, unitPrice: Math.round(amount / 1.19), exempt: false }];
+    const calculated = calculateTributaryDraft(lines, globalDiscount);
+    amount = calculated.totals.total;
     const relationCustomer = Array.isArray((project as any).customers) ? (project as any).customers[0] : (project as any).customers;
     const customerSnapshot = relationCustomer ? { name: relationCustomer.full_name, company: relationCustomer.company, rut: relationCustomer.rut, address: relationCustomer.address, city: relationCustomer.city, email: relationCustomer.email, giro: relationCustomer.metadata?.giro ?? null } : null;
     const key = `PRE-SII|${input.dteType}|${input.projectId}|${quote?.id ?? "none"}`;
@@ -77,8 +79,8 @@ export async function createTributaryDraftAction(input: { projectId: string; dte
         customer: customerSnapshot,
         event: { name: project.name, eventDate: project.event_date, location: project.location, city: project.city, orbitEventId: project.orbit_event_id },
         condition: "Crédito", quotation: quote,
-        lines: quote ? lines : [{ description: project.name || "Servicio BOOMBOX", quantity: 1, unitPrice: netAmount, exempt: false }],
-        totals: { net: netAmount, exempt: 0, vat: vatAmount, total: amount }
+        globalDiscount: globalDiscount ?? null,
+        ...calculated,
       },
       created_by: actorId, updated_by: actorId
     }).select("id,status,invoice_number").single();
@@ -90,13 +92,25 @@ export async function createTributaryDraftAction(input: { projectId: string; dte
   }
 }
 
-export async function updateTributaryDraftAction(input: { draftId: string; amount: number; notes?: string; paymentTerm?: string; customTermDays?: number | null }) {
+export async function updateTributaryDraftAction(input: {
+  draftId: string; revision: string; lines: TributaryLine[]; globalDiscount?: TributaryDiscount;
+  customer: Record<string, string>; reference?: Record<string, string>; dispatch?: Record<string, string>; notes?: string;
+}) {
   try {
     const { admin, actorId } = await requireAdmin();
-    const { data: draft } = await admin.from("invoices").select("id,status").eq("id", input.draftId).eq("record_origin", "PRE_SII").is("deleted_at", null).single();
-    if (!draft || draft.status !== "DRAFT") throw new Error("El borrador no está editable.");
-    const { error } = await admin.from("invoices").update({ amount: Math.max(0, Number(input.amount) || 0), notes: input.notes ?? null, payment_term: input.paymentTerm ?? "CASH", custom_term_days: input.customTermDays ?? null, updated_by: actorId }).eq("id", input.draftId);
+    const { data: draft } = await admin.from("invoices").select("id,status,tributary_snapshot,updated_at").eq("id", input.draftId).eq("record_origin", "PRE_SII").is("deleted_at", null).single();
+    if (!draft || draft.status !== "DRAFT" || draft.updated_at !== input.revision) throw new Error("El borrador cambió. Recarga antes de editar.");
+    if (!Array.isArray(input.lines) || !input.lines.length || input.lines.length > 14) throw new Error("Agrega entre 1 y 14 líneas para la plantilla actual.");
+    const { lines, totals } = calculateTributaryDraft(input.lines, input.globalDiscount);
+    const tributary_snapshot = {
+      ...draft.tributary_snapshot, lines, totals, amount: totals.total, globalDiscount: input.globalDiscount ?? null,
+      customer: { ...draft.tributary_snapshot?.customer, ...input.customer },
+      reference: input.reference ?? null, dispatch: input.dispatch ?? null, notes: input.notes ?? "",
+    };
+    const { data: saved, error } = await admin.from("invoices").update({ amount: totals.total, notes: input.notes ?? null, tributary_snapshot, updated_by: actorId })
+      .eq("id", draft.id).eq("record_origin", "PRE_SII").eq("status", "DRAFT").eq("updated_at", input.revision).is("deleted_at", null).select("id").maybeSingle();
     if (error) throw error;
+    if (!saved) throw new Error("El borrador cambió mientras se guardaba.");
     revalidatePath("/finance/tributary");
     return { ok: true as const };
   } catch (error) {
