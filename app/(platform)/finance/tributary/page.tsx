@@ -20,7 +20,8 @@ const archiveFolders = [
   "08_RESPALDOS_Y_ACUSES_SII",
 ];
 
-export default async function TributaryCenterPage() {
+export default async function TributaryCenterPage({ searchParams }: { searchParams: Promise<{ prepare?: string }> }) {
+  const { prepare } = await searchParams;
   const client = await createSupabaseServerClient();
   const { data: documents } = await client
     .from("documents")
@@ -43,6 +44,16 @@ export default async function TributaryCenterPage() {
           <span className="rounded-full border px-3 py-1 text-muted">Inicio objetivo: 2000 · sujeto a autorización</span>
         </div>
       </header>
+
+      {prepare ? (() => {
+        const selected = sections.find((section) => section.key === prepare);
+        return selected ? <section className="rounded-2xl border border-brand/40 bg-brand/5 p-5" aria-label="Borrador tributario">
+          <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Borrador preparado · sin emisión</p>
+          <h2 className="mt-2 text-xl font-semibold">{selected.title} · {selected.dte}</h2>
+          <p className="mt-2 text-sm text-muted">Revisa los datos comerciales del evento o cliente antes de aprobar. Esta acción no consume folio, no modifica saldos y no envía información al SII.</p>
+          <div className="mt-4 flex flex-wrap gap-2"><Link href="/projects" className="rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-brand-foreground">Elegir evento</Link><Link href="/customers" className="rounded-xl border px-4 py-2 text-sm font-semibold">Elegir cliente</Link><Link href="/finance/tributary" className="rounded-xl border px-4 py-2 text-sm">Cerrar</Link></div>
+        </section> : null;
+      })() : null}
 
       <section aria-label="Documentos tributarios" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {sections.map((section) => (
