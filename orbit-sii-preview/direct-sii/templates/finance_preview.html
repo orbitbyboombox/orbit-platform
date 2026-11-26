@@ -1,0 +1,91 @@
+<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Finanzas Tributarias · ORBIT</title>
+<style>
+:root{color:#1c1c1c;background:#f5f4f2;font:15px system-ui,sans-serif;line-height:1.55}
+*{box-sizing:border-box}body{margin:0}header{background:#151515;color:white;border-bottom:4px solid #f87531}
+header div,main{margin:auto;max-width:1160px;padding:20px 24px}header strong{font-size:22px;letter-spacing:.05em}
+header small{color:#fda876;margin-left:13px}h1{font-size:clamp(32px,5vw,52px);letter-spacing:-.06em;margin:8px 0}h2{margin:0 0 15px;font-size:22px;letter-spacing:-.04em}
+section,article{padding:22px;background:white;border:1px solid #e2dfda;border-radius:10px;margin:14px 0}
+nav,a{color:#8e320d}nav{display:flex;gap:20px;flex-wrap:wrap}table{width:100%;border-collapse:collapse}td,th{padding:10px;text-align:left;border-bottom:1px solid #eee}
+button,input,select{font:inherit;padding:8px 11px;border:1px solid #d2ccc5;border-radius:5px}
+button{background:#161616;color:white;border:0;cursor:pointer}button:hover{background:#803510}
+form.inline{display:inline-block;margin:2px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(265px,1fr));gap:14px}
+.grid article{margin:0}.scroll{overflow:auto}.badge{background:#f6e8da;padding:4px 9px;border-radius:5px;white-space:nowrap}
+.premium{background:#101010;color:#fff;padding:23px;border-bottom:4px solid #f87531}.premium strong{font-size:28px}.muted{color:#6c6660}
+code{overflow-wrap:anywhere}
+</style>
+<header><div><strong>ORBIT</strong><small>BOOMBOX® · Precertificación</small></div></header>
+<main>
+{% if receipt_mode %}
+<h1>Consulta de boletas</h1>
+<section>
+{% if token %}<p>Código de acceso para la boleta de prueba</p><p><code>{{token}}</code></p>{% endif %}
+{% if missing %}<p role="alert">No se encontró una boleta disponible para ese código.</p>{% endif %}
+<form action="{{url_for('receipt')}}" method="post">
+<label for="code">Código de consulta</label>
+<input id="code" name="code" value="{{token|default('')}}" required maxlength="43" autocomplete="off">
+<button>Descargar boleta PDF</button></form>
+</section>
+{% elif mail %}
+<h1>Vista previa del correo</h1>
+<article><div class="premium"><strong>BOOMBOX®</strong><br>Experiencias que conectan</div>
+<p><b>Para</b> {{mail.recipient}}</p><p><b>Asunto</b> {{mail.subject}}</p>
+<p>Hola, tu documento tributario de prueba está disponible para revisión.</p>
+<a href="{{url_for('download',identifier=mail.document,extension='pdf')}}">Descargar PDF de prueba</a>
+<p class="muted">Vista previa interna · Envío deshabilitado</p></article>
+{% else %}
+<h1>Finanzas Tributarias</h1>
+<p class="muted">Datos de laboratorio · Folios sintéticos · Emisión simulada</p>
+<nav><a href="{{url_for('dashboard')}}">Todos los eventos</a><a href="#documentos">Documentos</a>
+<a href="#control">Certificados y CAF</a><a href="#historial">Historial y auditoría</a><a href="{{url_for('receipt')}}">Consulta de boletas</a></nav>
+<section><h2>Event 360° y cobranzas</h2><div class="grid">
+{% for code, event in events.items() %}<article>
+<p><a href="{{url_for('dashboard',event=code)}}"><strong>{{event.name}}</strong></a></p>
+<p>{{event.customer}} · {{event.payment}}</p><p>Saldo tributario simulado <b>${{ '{:,}'.format(balances[code]).replace(',', '.') }}</b></p>
+<form action="{{url_for('create_document')}}" method="post">
+<input type="hidden" name="csrf" value="{{csrf}}"><input type="hidden" name="event" value="{{code}}">
+<label>Tipo <select name="kind"><option value="33">Factura 33</option><option value="39">Boleta 39</option></select></label>
+<button>Crear borrador</button></form>
+</article>{% endfor %}</div></section>
+<section id="documentos"><h2>Documentos{% if selected %} · {{selected}}{% endif %}</h2>
+<div class="scroll"><table><thead><tr><th>Evento</th><th>Documento</th><th>Folio</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>
+{% for doc in docs %}<tr><td>{{doc.event}}</td><td>{{types[doc.kind]}} {{doc.kind}}</td><td>{{doc.folio or 'Por asignar'}}</td>
+<td><span class="badge">{{doc.state}}</span></td><td>
+{% if doc.state in ('BORRADOR','APROBADO') %}
+<a href="{{url_for('preview',identifier=doc.id)}}">Vista previa PDF</a>
+<form class="inline" action="{{url_for('transition',identifier=doc.id,operation='approve' if doc.state=='BORRADOR' else 'issue')}}" method="post">
+<input type="hidden" name="csrf" value="{{csrf}}"><button>{{'Aprobar' if doc.state=='BORRADOR' else 'Emitir simulación'}}</button></form>
+{% else %}
+<a href="{{url_for('download',identifier=doc.id,extension='pdf')}}">PDF</a> · <a href="{{url_for('download',identifier=doc.id,extension='xml')}}">XML</a>
+{% endif %}
+{% if doc.state=='ACEPTADO' %}
+{% for action, label in [('mail','Preparar correo'),('receipt','Generar código boleta')] if action!='receipt' or doc.kind==39 %}
+<form class="inline" action="{{url_for('transition',identifier=doc.id,operation=action)}}" method="post">
+<input type="hidden" name="csrf" value="{{csrf}}"><button>{{label}}</button></form>
+{% endfor %}
+{% if doc.kind in (33,39,61) %}<form class="inline" action="{{url_for('create_document')}}" method="post">
+<input type="hidden" name="csrf" value="{{csrf}}"><input type="hidden" name="event" value="{{doc.event}}">
+<input type="hidden" name="parent" value="{{doc.id}}"><input type="hidden" name="kind" value="{{56 if doc.kind==61 else 61}}">
+<button>{{'Nota de débito 56' if doc.kind==61 else 'Nota de crédito 61'}}</button></form>{% endif %}
+{% endif %}
+</td></tr>{% else %}<tr><td colspan="5">Crea un borrador desde un evento de prueba.</td></tr>{% endfor %}
+</tbody></table></div>
+<form action="{{url_for('reconcile_now')}}" method="post"><input type="hidden" name="csrf" value="{{csrf}}"><p><button>Conciliar simulaciones pendientes</button></p></form>
+</section>
+<section id="control"><h2>Certificados y CAF</h2>
+<p><b>Certificado de laboratorio</b> · Se genera para firmar cada simulación. PFX oficial pendiente de instalación privada.</p>
+<p>Vigencia sintética hasta 01/01/2027 UTC. <b>{{"Certificado de prueba vencido" if certificate_days < 0 else "Vence en " ~ certificate_days ~ " días"}}</b>{% if 0 <= certificate_days <= 30 %} · Alerta de renovación{% endif %}</p>
+<div class="scroll"><table><thead><tr><th>Tipo</th><th>Ambiente</th><th>Siguiente</th><th>Disponibles</th><th>Control</th></tr></thead><tbody>
+{% for s in series %}<tr><td>{{types[s.kind]}} {{s.kind}}</td><td>Laboratorio</td><td>{{s.next if s.available else '—'}}</td><td>{{s.available}}</td>
+<td>{{'CAF agotado' if s.available==0 else 'Folios bajos' if s.available<=2 else 'Disponible'}}</td></tr>{% endfor %}</tbody></table></div>
+<p><b>Facturas vigentes</b> · Último folio informado 1104. Inicio propuesto 2000, pendiente de rango autorizado y conciliación.</p>
+</section>
+<section id="historial"><h2>Historial y auditoría</h2>
+<p>Registros históricos de prueba inventariados <b>{{imported}}</b>.</p>
+<form action="{{url_for('history_import')}}" method="post" enctype="multipart/form-data">
+<input type="hidden" name="csrf" value="{{csrf}}"><label>Inventario JSON de prueba <input type="file" name="inventory" accept="application/json" required></label><button>Importar inventario</button></form>
+<div class="scroll"><table><thead><tr><th>Fecha UTC</th><th>Operador</th><th>Documento</th><th>Acción</th></tr></thead><tbody>
+{% for entry in history %}<tr><td>{{entry.at}}</td><td>{{entry.actor}}</td><td>{{entry.document or '—'}}</td><td>{{entry.action}}</td></tr>{% endfor %}</tbody></table></div>
+</section>
+{% endif %}
+</main></html>
