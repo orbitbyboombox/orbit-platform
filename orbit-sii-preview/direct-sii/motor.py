@@ -202,7 +202,12 @@ def build(d,*,caf_xml,caf_key,anchor,key,cert,stamp):
     re = put(head,"Receptor")
     nodes(re,(("RUTRecep",receiver["rut"]),("RznSocRecep",receiver["name"])))
     if kind!=39:
-        nodes(re,(("GiroRecep",receiver["activity"]),("DirRecep",receiver["address"]),("CmnaRecep",receiver["city"])))
+        put(re, "GiroRecep", receiver["activity"])
+    if receiver.get("phone"):
+        put(re, "Contacto", receiver["phone"])
+    for tag, field in (("DirRecep", "address"), ("CmnaRecep", "city")):
+        if receiver.get(field):
+            put(re, tag, receiver[field])
     amounts = put(head,"Totales")
     put(amounts,"MntNeto",net)
     if kind!=39:

@@ -16,7 +16,7 @@ from motor import E, wire, nodes, put, b64int, sign, build, parse, validate, ver
 from registro import Ledger
 from transporte import SiiDirect
 
-def fixture(kind):
+def fixture(kind, *, issuer_rut="11111111-1"):
     anchor=rsa.generate_private_key(public_exponent=65537,key_size=2048)
     caf_key=rsa.generate_private_key(public_exponent=65537,key_size=1024)
     key=rsa.generate_private_key(public_exponent=65537,key_size=2048)
@@ -25,15 +25,15 @@ def fixture(kind):
           .not_valid_before(datetime(2026,1,1,tzinfo=timezone.utc)).not_valid_after(datetime(2027,1,1,tzinfo=timezone.utc)).sign(key,hashes.SHA256()))
     caf=E.Element("CAF",version="1.0")
     da=put(caf,"DA",ns=None)
-    nodes(da,(("RE","11111111-1"),("RS","ORBIT PRUEBAS"),("TD",kind)),None)
+    nodes(da,(("RE",issuer_rut),("RS","ORBIT PRUEBAS"),("TD",kind)),None)
     nodes(put(da,"RNG",ns=None),(("D",101),("H",109)),None)
     put(da,"FA","2026-10-01",None)
     p=caf_key.public_key().public_numbers()
     nodes(put(da,"RSAPK",ns=None),(("M",b64int(p.n)),("E",b64int(p.e))),None)
     put(da,"IDK",100,None)
     put(caf,"FRMA",sign(anchor,wire(da)),None,algoritmo="SHA1withRSA")
-    doc={"kind":kind,"folio":101,"date":"2026-11-25","sender":"11111111-1","resolution_date":"2026-10-01","resolution_number":0,
-         "issuer":{"rut":"11111111-1","name":"ORBIT PRUEBAS","activity":"Producción de eventos","activity_code":932909,"address":"Domicilio de prueba","city":"Santiago"},
+    doc={"kind":kind,"folio":101,"date":"2026-11-25","sender":issuer_rut,"resolution_date":"2026-10-01","resolution_number":0,
+         "issuer":{"rut":issuer_rut,"name":"ORBIT PRUEBAS","activity":"Producción de eventos","activity_code":932909,"address":"Domicilio de prueba","city":"Santiago"},
          "receiver":{"rut":"66666666-6" if kind==39 else "22222222-2","name":"José Muñoz","activity":"Eventos","address":"Domicilio demo","city":"Santiago"},
          "lines":[{"name":"Producción en Ñuñoa","amount":10000},{"name":"Producción de evento","amount":1000}],"discount":1000}
     if kind==61: doc["reference"]={"kind":33,"folio":97,"date":"2026-11-23","reason":"Anulación de prueba","total":11900}
@@ -46,7 +46,10 @@ def sample_bundle(doc, ted, amounts):
     reference = {**doc["reference"], "type": doc["reference"]["kind"]} if "reference" in doc else None
     snapshot = {
         "type": doc["kind"], "rut": doc["receiver"]["rut"], "client": doc["receiver"]["name"],
-        "event": "Evento sintético", "payment": "Prueba", "discount": doc["discount"],
+        "event": "Evento sintético", "payment": doc.get("payment_label", "Prueba"), "discount": doc["discount"],
+        "address": doc["receiver"].get("address"), "city": doc["receiver"].get("city"),
+        "activity": doc["receiver"].get("activity") if doc["kind"] != 39 else None, "phone": doc["receiver"].get("phone"),
+        "attention": doc["receiver"].get("attention"),
         "lines": [{"name": row["name"], "net": row["amount"]} for row in doc["lines"]],
         "net": amounts["net"], "tax": amounts["iva"], "total": amounts["total"], "reference": reference,
     }
