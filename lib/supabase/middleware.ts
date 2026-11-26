@@ -7,7 +7,12 @@ export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request: { headers: new Headers(request.headers) } });
   const url = process.env.SUPABASE_URL;
   const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY;
-  if (!url || !publishableKey) return NextResponse.redirect(new URL("/login", request.url));
+  if (!url || !publishableKey) {
+    return new NextResponse("El entorno no tiene configurado el acceso a ORBIT.", {
+      status: 503,
+      headers: { "Cache-Control": "no-store", "Content-Type": "text/plain; charset=utf-8" },
+    });
+  }
   const cookieDefaults={httpOnly:true,path:"/",maxAge:60*60*24*365,sameSite:"lax" as const,secure:process.env.NODE_ENV==="production"};
   const supabase = createServerClient(url,publishableKey,{cookieOptions:cookieDefaults,cookies:{getAll:()=>request.cookies.getAll(),setAll:(items)=>{items.forEach(({name,value})=>request.cookies.set(name,value));response=NextResponse.next({request:{headers:new Headers(request.headers)}});items.forEach(({name,value,options})=>response.cookies.set(name,value,{...cookieDefaults,...options}))}}});
   const { data: { user },error } = await supabase.auth.getUser();
