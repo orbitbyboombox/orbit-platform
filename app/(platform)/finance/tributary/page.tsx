@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { TributaryDraftManager } from "@/features/finance/components/tributary-draft-manager";
+import { TributaryDraftManager } from "@/features/finance/components/tributary-draft-manager";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const sections = [
@@ -21,8 +22,8 @@ const archiveFolders = [
   "08_RESPALDOS_Y_ACUSES_SII",
 ];
 
-export default async function TributaryCenterPage({ searchParams }: { searchParams: Promise<{ prepare?: string }> }) {
-  const { prepare } = await searchParams;
+export default async function TributaryCenterPage({ searchParams }: { searchParams: Promise<{ prepare?: string; project?: string; customer?: string }> }) {
+  const { prepare, project: projectId, customer: customerId } = await searchParams;
   const client = await createSupabaseServerClient();
   const { data: documents } = await client
     .from("documents")
@@ -32,7 +33,9 @@ export default async function TributaryCenterPage({ searchParams }: { searchPara
     .order("created_at", { ascending: false })
     .limit(100);
 
-  const { data: drafts } = await client.from("invoices").select("id,invoice_number,status,amount,tributary_document_type,project_id,updated_at,approved_at").eq("record_origin", "PRE_SII").is("deleted_at", null).order("updated_at", { ascending: false }).limit(100);\n  const { data: ledger } = await client.from("tributary_internal_ledger").select("source_type,document_type,reference,occurred_on,net_amount,exempt_amount,vat_amount,total_amount,payment_status,record_origin").order("occurred_on", { ascending: false }).limit(100);\n  const rows = documents ?? [];
+  const { data: drafts } = await client.from("invoices").select("id,invoice_number,status,amount,tributary_document_type,project_id,updated_at,approved_at").eq("record_origin", "PRE_SII").is("deleted_at", null).order("updated_at", { ascending: false }).limit(100);\n  const { data: ledger } = await client.from("tributary_internal_ledger").select("source_type,document_type,reference,occurred_on,net_amount,exempt_amount,vat_amount,total_amount,payment_status,record_origin").order("occurred_on", { ascending: false }).limit(100);\n  const { data: drafts } = await client.from("invoices").select("id,invoice_number,status,amount,tributary_document_type,project_id,updated_at,approved_at").eq("record_origin", "PRE_SII").is("deleted_at", null).order("updated_at", { ascending: false }).limit(100);
+  const { data: ledger } = await client.from("tributary_internal_ledger").select("source_type,document_type,reference,occurred_on,net_amount,exempt_amount,vat_amount,total_amount,payment_status,record_origin").order("occurred_on", { ascending: false }).limit(100);
+  const rows = documents ?? [];
   return (
     <main className="space-y-7" aria-label="Centro SII">
       <header className="rounded-3xl border bg-card p-6 sm:p-8">
@@ -46,7 +49,9 @@ export default async function TributaryCenterPage({ searchParams }: { searchPara
         </div>
       </header>
 
-      <TributaryDraftManager drafts={(drafts ?? []) as any} projectId={projectId} customerId={customerId} />\n\n      {prepare ? (() => {
+      <TributaryDraftManager drafts={(drafts ?? []) as any} projectId={projectId} customerId={customerId} />\n\n      <TributaryDraftManager drafts={(drafts ?? []) as any} projectId={projectId} customerId={customerId} />
+
+      {prepare ? (() => {
         const selected = sections.find((section) => section.key === prepare);
         return selected ? <section className="rounded-2xl border border-brand/40 bg-brand/5 p-5" aria-label="Borrador tributario">
           <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Borrador preparado · sin emisión</p>
@@ -73,6 +78,11 @@ export default async function TributaryCenterPage({ searchParams }: { searchPara
       <section className="rounded-2xl border bg-card p-5">
         <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Historial oficial existente</p><h2 className="mt-1 text-xl font-semibold">Documentos vinculados</h2></div><span className="text-sm text-muted">{rows.length} registro{rows.length === 1 ? "" : "s"}</span></div>
         {rows.length ? <ul className="mt-4 divide-y">{rows.map((row) => <li key={row.id} className="flex flex-wrap items-center justify-between gap-3 py-3"><span><strong className="block">{row.external_tax_document_type ?? "DTE"}</strong><small className="text-muted">Folio {row.external_folio} · {row.external_issue_date ?? "Fecha pendiente"}</small></span><Link className="text-sm font-semibold text-brand hover:underline" href={`/api/projects/${row.project_id}/documents/${row.id}`}>Abrir documento</Link></li>)}</ul> : <p className="mt-4 text-sm text-muted">No hay documentos oficiales cargados. Las simulaciones de certificación permanecen separadas.</p>}
+      </section>
+
+      <section className="rounded-2xl border bg-card p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Libro interno · compras y ventas</p><h2 className="mt-1 text-xl font-semibold">IVA y conciliación financiera</h2><p className="mt-2 text-sm text-muted">Control interno PRE-SII: neto, exento, IVA crédito/débito y total. No reemplaza el registro oficial del SII.</p></div><a className="rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-brand-foreground" href="/api/finance/tributary/export">Exportar CSV para contador</a></div>
+        <div className="mt-4 overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="border-b text-xs uppercase tracking-wide text-muted"><th className="px-2 py-2">Tipo</th><th className="px-2 py-2">Referencia</th><th className="px-2 py-2">Fecha</th><th className="px-2 py-2 text-right">Neto</th><th className="px-2 py-2 text-right">IVA</th><th className="px-2 py-2 text-right">Total</th><th className="px-2 py-2">Estado</th></tr></thead><tbody>{(ledger ?? []).slice(0,12).map((row:any)=><tr className="border-b last:border-0" key={String(row.source_type)+String(row.reference)+String(row.occurred_on)}><td className="px-2 py-2">{row.source_type}</td><td className="px-2 py-2">{row.reference ?? "—"}</td><td className="px-2 py-2">{row.occurred_on ?? "—"}</td><td className="px-2 py-2 text-right">{new Intl.NumberFormat("es-CL").format(Number(row.net_amount ?? 0))}</td><td className="px-2 py-2 text-right">{new Intl.NumberFormat("es-CL").format(Number(row.vat_amount ?? 0))}</td><td className="px-2 py-2 text-right">{new Intl.NumberFormat("es-CL").format(Number(row.total_amount ?? 0))}</td><td className="px-2 py-2">{row.payment_status ?? "—"}</td></tr>)}</tbody></table>{!(ledger ?? []).length&&<p className="mt-4 text-sm text-muted">Sin movimientos internos todavía.</p>}</div>
       </section>
 
       <section className="rounded-2xl border bg-card p-5">
