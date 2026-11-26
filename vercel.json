@@ -40,5 +40,5 @@
       "schedule": "0 16,17 * * 3"
     }
   ],
-  "ignoreCommand": "if [ \"$VERCEL_PROJECT_ID\" = \"prj_Pa06wrQEaZMuEdbkVC5cCmmi6dGN\" ]; then exit 1; else echo \"Skipping legacy Vercel project $VERCEL_PROJECT_ID\"; exit 0; fi"
+  "ignoreCommand": "if [ \"$VERCEL_PROJECT_ID\" = \"prj_Pa06wrQEaZMuEdbkVC5cCmmi6dGN\" ] || { [ \"$VERCEL_PROJECT_ID\" = \"prj_ihorysDPKlCQkk4VMVEQzizbm5u3\" ] && [ \"$VERCEL_ENV\" = \"preview\" ] && [ \"$VERCEL_GIT_COMMIT_REF\" = \"fix/pre-sii-quotation-source\" ]; }; then exit 1; else echo \"Skipping legacy Vercel project $VERCEL_PROJECT_ID\"; exit 0; fi"
 }
