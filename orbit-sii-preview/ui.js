@@ -56,13 +56,41 @@ function renderHistory(){
       `<button class="quiet" data-resume="${html(d.id)}">Conciliar</button>`
     }</div></td></tr>`).join("")}</tbody></table></div>`;
 }
+function selectView(tab){
+  const finance=tab==="finance";
+  $("#finance-view").hidden=!finance;
+  $("#event-view").hidden=finance;
+  $("#finance-tab").setAttribute("aria-pressed",String(finance));
+  $("#event-tab").setAttribute("aria-pressed",String(!finance));
+}
+function renderEventView(){
+  $("#event-list").innerHTML=state.events.map(event=>{
+    const docs=state.documents.filter(d=>d.eventId===event.id);
+    return `<article class="panel"><p class="eyebrow">${html(event.id)}</p><h2>${html(event.name)}</h2>
+      <div class="event-facts"><strong>${html(event.client)}</strong><span>${html(event.date)} · ${html(event.kind)}</span><span>${html(event.payment)}</span>
+      <span>Venta acordada ${money(event.agreedTotal)}</span></div>
+      <ul>${event.lines.map(line=>`<li>${html(line.name)} · ${money(line.net)}</li>`).join("")}
+      ${event.discount ? `<li>Descuento · ${money(event.discount)}</li>` : ""}</ul>
+      <div class="event-facts"><strong>Documentos tributarios QA</strong>
+      ${docs.length ? docs.map(d=>`<span>${html(d.snapshot.label)} · Folio ${d.folio} · ${html(label[d.status])}</span>`).join("") : "<span>Sin emisión simulada</span>"}</div>
+      <button type="button" class="quiet" data-event-open="${html(event.id)}">Abrir facturación del evento</button></article>`;
+  }).join("");
+}
+$("#finance-tab").addEventListener("click",()=>selectView("finance"));
+$("#event-tab").addEventListener("click",()=>selectView("events"));
+$("#event-list").addEventListener("click",e=>{
+  const button=e.target.closest("[data-event-open]");
+  if(!button)return;
+  draftForm.elements.event.value=button.dataset.eventOpen;
+  clearDraft();renderEvent(true);selectView("finance");draftForm.elements.event.focus();
+});
 async function load(){
   const {events,documents}=await api();
   const selected=draftForm.elements.event.value;
   state.events=events;state.documents=documents;
   draftForm.elements.event.replaceChildren(...events.map(e=>new Option(e.name,e.id)));
   if(events.some(e=>e.id===selected))draftForm.elements.event.value=selected;
-  renderEvent(!selected);renderHistory();access(true);
+  renderEvent(!selected);renderHistory();renderEventView();access(true);
 }
 async function act(button,work){
   button.disabled=true;inform("");

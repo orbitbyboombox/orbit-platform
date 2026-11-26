@@ -20,6 +20,15 @@
       </form>
     </section>
     <section id="workspace" hidden>
+      <nav class="module-nav" aria-label="Módulos de prueba">
+        <button id="finance-tab" class="quiet" type="button" aria-pressed="true">Finanzas · Facturación</button>
+        <button id="event-tab" class="quiet" type="button" aria-pressed="false">Event 360°</button>
+      </nav>
+      <section id="event-view" hidden>
+        <div class="hero"><div><p class="eyebrow">Operaciones</p><h1>Event 360°</h1><p>Consulta el contexto comercial y el estado tributario de los eventos de prueba.</p></div></div>
+        <div id="event-list" class="event-grid"></div>
+      </section>
+      <div id="finance-view">
       <div class="hero"><div><p class="eyebrow">Finanzas <span>›</span> Facturación electrónica</p><h1>Facturación electrónica</h1><p>Prepara y revisa documentos de eventos ficticios. Cada emisión queda registrada en el historial.</p></div>
         <div class="hero-note"><strong>Simulación tributaria</strong><span>Documentos sin validez fiscal. Sin conexión al SII.</span></div></div>
       <div class="metrics" id="metrics" aria-label="Resumen de documentos"></div>
@@ -45,6 +54,7 @@
         <div class="section-title"><div><p class="eyebrow">Control tributario</p><h2>Historial de emisión</h2></div><button id="reload" class="quiet">Actualizar</button></div>
         <div id="history"></div>
       </section>
+      </div>
       <dialog id="audit-dialog"><div class="section-title"><h2>Auditoría de documento</h2><button id="close-audit" class="quiet" type="button">Cerrar</button></div><div id="audit"></div></dialog>
     </section>
     <div id="notice" role="status" aria-live="polite"></div>
