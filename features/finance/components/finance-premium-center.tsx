@@ -57,6 +57,7 @@ const sections: Array<{
       { label: "Pagos recibidos", href: "/finance/receivables?status=paid", description: "Payment Ledger canónico" },
       { label: "Cobranza consolidada", href: "/finance/collections", description: "Gestión por cliente" },
       { label: "Rentabilidad", href: "/projects?view=profitability", description: "Resultado por evento" },
+      { label: "Preparar documento tributario", href: "/finance/tributary?prepare=facturas&source=ventas", description: "Borrador vinculado a venta y cliente · PRE-SII" },
     ],
   },
   {
