@@ -1,0 +1,7 @@
+create or replace view public.tributary_internal_ledger as
+select i.id as source_id,'VENTA'::text as source_type,i.project_id,i.customer_id,i.tributary_document_type as document_type,i.invoice_number as reference,i.issue_date as occurred_on,coalesce((i.tributary_snapshot #>> '{totals,net}')::numeric, round(i.amount*100/119)) as net_amount,
+coalesce((i.tributary_snapshot #>> '{totals,vat}')::numeric, round(i.amount*19/119)) as vat_amount,
+coalesce((i.tributary_snapshot #>> '{totals,exempt}')::numeric, 0) as exempt_amount,
+coalesce((i.tributary_snapshot #>> '{totals,total}')::numeric, i.amount) as total_amount,case when i.status in ('PAID','PARTIALLY_PAID') then 'PAGADO' else i.status end as payment_status,i.record_origin from public.invoices i where i.deleted_at is null and i.record_origin='PRE_SII'
+union all select d.id,'DOCUMENTO_SII',d.project_id,d.customer_id,d.external_tax_document_type,d.external_folio,d.external_issue_date,coalesce(d.external_net_amount,0),coalesce(d.external_tax_amount,0),0,coalesce(d.external_total_amount,0),coalesce(d.external_document_status,'ADJUNTADO'),'EXTERNAL_SII' from public.documents d where d.deleted_at is null and d.external_folio is not null
+union all select e.id,'COMPRA',e.project_id,null,e.document_type,e.document_number,e.occurred_on,coalesce(e.subtotal,0),coalesce(e.vat,0),case when coalesce(e.vat,0)=0 then e.total else 0 end,e.total,e.status,'EXPENSE' from public.expenses e where e.deleted_at is null;
