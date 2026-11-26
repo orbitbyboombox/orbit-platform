@@ -3,7 +3,7 @@
 import {revalidatePath} from "next/cache";
 import {createSupabaseServerActionClient} from "@/lib/supabase/server";
 
-const categories=["OPERATOR","ASSEMBLY","DISASSEMBLY","FUEL","TRANSPORT","PARKING","TOLLS","MEALS","HOTEL","SCRAPBOOK","MAGNETS","OTHER_OPERATIONAL"] as const;
+const categories=["OPERATOR","ASSEMBLY","DISASSEMBLY","FUEL","PARKING","TOLLS","MEALS","HOTEL","SCRAPBOOK","MAGNETS","OTHER_OPERATIONAL"] as const;
 
 export async function saveRealCostsAction(data:FormData):Promise<{ok:boolean;message:string}>{
   try{

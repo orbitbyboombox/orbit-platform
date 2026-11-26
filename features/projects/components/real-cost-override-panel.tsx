@@ -59,7 +59,9 @@ export function RealCostOverridePanel({
   const [feedback, setFeedback] = useState("");
 
   const editedDelta = data.items.reduce(
-    (sum, item) => sum + (values[item.category] ?? 0) - item.real,
+    (sum, item) => item.category === "TRANSPORT"
+      ? sum
+      : sum + (values[item.category] ?? item.real) - item.real,
     0,
   );
   const realTotal = (data.canonicalTotal ?? data.realTotal) + editedDelta;
@@ -130,12 +132,13 @@ export function RealCostOverridePanel({
                 <td className="px-2 py-3 text-muted">Cost Master</td>
               </tr>
               {data.items.map((item) => {
-                const value = values[item.category] ?? 0;
+                const fixedTransport = item.category === "TRANSPORT";
+                const value = fixedTransport ? item.real : values[item.category] ?? item.real;
                 return (
                   <tr className="border-b last:border-0" key={item.category}>
                     <td className="px-2 py-3 font-medium">
-                      {item.category === "TRANSPORT"
-                        ? "Costo real transporte"
+                      {fixedTransport
+                        ? "Traslado interno fijo"
                         : item.category === "FUEL"
                           ? "Combustible adicional"
                           : item.label}
@@ -144,20 +147,26 @@ export function RealCostOverridePanel({
                       {money.format(item.estimated)}
                     </td>
                     <td className="px-2 py-2">
-                      <input
-                        className="min-h-11 w-full rounded-lg border bg-background px-3 text-right font-medium outline-none focus:border-brand"
-                        min="0"
-                        name={item.category}
-                        onChange={(event) =>
-                          setValues((current) => ({
-                            ...current,
-                            [item.category]: Number(event.target.value),
-                          }))
-                        }
-                        step="1"
-                        type="number"
-                        value={value}
-                      />
+                      {fixedTransport ? (
+                        <span className="block text-right font-medium">
+                          {money.format(value)} <LockKeyhole className="ml-1 inline size-3.5 text-muted" />
+                        </span>
+                      ) : (
+                        <input
+                          className="min-h-11 w-full rounded-lg border bg-background px-3 text-right font-medium outline-none focus:border-brand"
+                          min="0"
+                          name={item.category}
+                          onChange={(event) =>
+                            setValues((current) => ({
+                              ...current,
+                              [item.category]: Number(event.target.value),
+                            }))
+                          }
+                          step="1"
+                          type="number"
+                          value={value}
+                        />
+                      )}
                     </td>
                     <td
                       className={`px-2 py-3 text-right font-medium ${
@@ -171,7 +180,7 @@ export function RealCostOverridePanel({
                       {money.format(value - item.estimated)}
                     </td>
                     <td className="max-w-48 px-2 py-3 text-xs text-muted">
-                      {item.reason ?? "Sin ajustes"}
+                      {fixedTransport ? "Una vez por evento" : item.reason ?? "Sin ajustes"}
                       {item.updatedAt ? (
                         <span className="block">
                           {new Intl.DateTimeFormat("es-CL", {

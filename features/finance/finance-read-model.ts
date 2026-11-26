@@ -226,7 +226,7 @@ export async function loadFinanceDashboardReadModel(
     month: [
       moneyMetric("Ventas del mes", monthlyRevenue, "Financial Truth confirmado por fecha de Evento.", "/projects?period=month"),
       moneyMetric("Cobrado del mes", collectionsMonth, "Impacto de caja canónico del Payment Ledger.", "/finance/receivables?period=month"),
-      moneyMetric("Costos directos de Eventos", monthlyCosts, "Costo real de Eventos confirmados del mes.", "/projects?period=month&view=profitability"),
+      moneyMetric("Costos directos de Eventos", monthlyCosts, "Costo real de eventos confirmados del mes, con un traslado interno fijo por evento.", "/projects?period=month&view=profitability"),
       moneyMetric("Gastos fijos comprometidos", fixedMonthlyExpenses, "Overhead mensual vigente; no reduce caja hasta su pago.", "/finance/expenses"),
       moneyMetric("Resultado de Eventos", performance.eventResult, "Ventas menos costos directos.", "/projects?period=month&view=profitability", performance.eventResult >= 0 ? "success" : "danger"),
       moneyMetric("Resultado operativo", performance.operatingResult, "Resultado de Eventos menos overhead mensual.", "/finance/expenses", performance.operatingResult >= 0 ? "success" : "danger"),
