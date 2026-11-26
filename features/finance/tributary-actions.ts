@@ -107,10 +107,44 @@ export async function updateTributaryDraftAction(input: { draftId: string; amoun
 export async function approveTributaryDraftAction(input: { draftId: string; reason?: string }) {
   try {
     const { admin, actorId } = await requireAdmin();
-    const { data: draft } = await admin.from("invoices").select("id,status").eq("id", input.draftId).eq("record_origin", "PRE_SII").is("deleted_at", null).single();
+    const { data: draft } = await admin.from("invoices").select("id,status,amount,tributary_document_type,tributary_snapshot,updated_at").eq("id", input.draftId).eq("record_origin", "PRE_SII").is("deleted_at", null).single();
     if (!draft || draft.status !== "DRAFT") throw new Error("Sólo se pueden aprobar borradores en estado DRAFT.");
-    const { error } = await admin.from("invoices").update({ status: "PENDING", approved_by: actorId, approved_at: new Date().toISOString(), approval_reason: input.reason ?? "Aprobación interna PRE-SII", updated_by: actorId }).eq("id", input.draftId);
+    const snapshot = draft.tributary_snapshot;
+    const customer = snapshot?.customer;
+    const type = String(draft.tributary_document_type);
+    const missing: string[] = [];
+    if (!["33", "39", "52", "56", "61"].includes(type)) missing.push("Tipo de documento");
+    if (type !== "39" || customer?.rut) {
+      const rut = String(customer?.rut ?? "").replace(/[.\s-]/g, "").toUpperCase();
+      const match = /^(\d{1,8})([\dK])$/.exec(rut);
+      const sum = match ? [...match[1]].reverse().reduce((total, digit, i) => total + Number(digit) * (2 + i % 6), 0) : 0;
+      const check = (11 - (sum % 11)) % 11;
+      if (!match || Number(match[1]) === 0 || match[2] !== (check === 10 ? "K" : String(check))) missing.push("RUT válido");
+    }
+    if (type !== "39") {
+      for (const [value, label] of [[customer?.company, "Razón social"], [customer?.address, "Dirección"], [customer?.city, "Comuna"], [customer?.giro, "Giro"]]) {
+        if (typeof value !== "string" || !value.trim()) missing.push(label);
+      }
+    }
+    if (type === "56" || type === "61") {
+      const reference = snapshot?.reference;
+      if (!reference?.type || !reference?.folio || !reference?.date || !reference?.reason) missing.push("Referencia al documento original");
+    }
+    if (type === "52" && !snapshot?.dispatch?.transferReason) missing.push("Motivo del traslado");
+    if (!Array.isArray(snapshot?.lines) || !snapshot.lines.length
+      || snapshot.lines.some((line: { description?: string; quantity?: number; unitPrice?: number }) =>
+        typeof line.description !== "string" || !line.description.trim()
+        || !Number.isFinite(line.quantity) || Number(line.quantity) <= 0
+        || !Number.isFinite(line.unitPrice) || Number(line.unitPrice) < 0)) missing.push("Detalle de servicios válido");
+    const totals = snapshot?.totals;
+    if (!totals || ![totals.net, totals.exempt, totals.vat, totals.total].every((n) => Number.isSafeInteger(n) && n >= 0)
+      || totals.net + totals.exempt + totals.vat !== totals.total
+      || totals.total !== Number(draft.amount)) missing.push("Montos conciliados");
+    if (missing.length) throw new Error("Completa antes de aprobar: " + missing.join(", ") + ".");
+
+    const { data: approved, error } = await admin.from("invoices").update({ status: "PENDING", approved_by: actorId, approved_at: new Date().toISOString(), approval_reason: input.reason ?? "Aprobación interna PRE-SII", updated_by: actorId }).eq("id", input.draftId).eq("record_origin", "PRE_SII").eq("status", "DRAFT").eq("updated_at", draft.updated_at).is("deleted_at", null).select("id").maybeSingle();
     if (error) throw error;
+    if (!approved) throw new Error("El borrador cambió durante la aprobación. Vuelve a cargarlo.");
     revalidatePath("/finance/tributary");
     return { ok: true as const };
   } catch (error) {
