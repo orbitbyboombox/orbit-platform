@@ -56,6 +56,7 @@ export function SiiRcvPreview({ saved, initialBook = "Compras", categoryPeriod, 
   const [confirmed, setConfirmed] = useState(false);
   const [notice, setNotice] = useState("");
   const [storedPeriod, setStoredPeriod] = useState("");
+  const [storedKind, setStoredKind] = useState<Register["kind"]>(initialBook);
   const [saving, startSaving] = useTransition();
   const documents = registers[kind]?.documents ?? saved[kind];
   function saveReview() {
@@ -67,7 +68,7 @@ export function SiiRcvPreview({ saved, initialBook = "Compras", categoryPeriod, 
       const result = await storeRcvForReview(form);
       setNotice(result.message);
       setConfirmed(false);
-      if (result.saved) { setStoredPeriod(result.period ?? ""); setSource(null); setRegisters({}); }
+      if (result.saved) { setStoredKind(source.kind); setStoredPeriod(result.period ?? ""); setSource(null); setRegisters({}); }
     });
   }
   const results = documents.filter(doc =>
@@ -126,7 +127,7 @@ export function SiiRcvPreview({ saved, initialBook = "Compras", categoryPeriod, 
       </div>
       {mode === "import" && <label id="importar-sii" className="block scroll-mt-20 text-sm font-semibold">
         Importar / actualizar CSV del SII
-        <input className="mt-2 block w-full text-sm" type="file" accept=".csv,text/csv" onChange={loadFile} />
+        <input className="mt-2 block w-full text-sm" type="file" accept=".csv,text/csv" disabled={saving} onChange={loadFile} />
       </label>}
       {error && <p role="alert" className="text-sm text-danger">{error}</p>}
       {source && source.kind === kind && <div className="space-y-2 rounded-xl border p-3">
@@ -141,10 +142,10 @@ export function SiiRcvPreview({ saved, initialBook = "Compras", categoryPeriod, 
         </button>
       </div>}
       {notice && <p role="status" className="text-sm">{notice}</p>}
-      {storedPeriod && <a className="inline-flex min-h-11 items-center text-sm font-semibold text-brand" href={`?period=${storedPeriod}&libro=${kind.toLowerCase()}#libros`}>Consultar período {storedPeriod}</a>}
+      {storedPeriod && <a className="inline-flex min-h-11 items-center text-sm font-semibold text-brand" href={`?period=${storedPeriod}&libro=${storedKind.toLowerCase()}#libros`}>Consultar período {storedPeriod}</a>}
       {mode === "import" && <div className="flex flex-wrap gap-2" aria-label="Registro">
         {(["Compras", "Ventas"] as const).map(label => (
-          <button key={label} type="button" aria-pressed={kind === label} onClick={() => { setKind(label); setType(""); setMonth(""); setPage(1); setCategory(""); setMatch(""); }}
+          <button key={label} type="button" aria-pressed={kind === label} disabled={saving || (!!source && source.kind !== label)} onClick={() => { setKind(label); setType(""); setMonth(""); setPage(1); setCategory(""); setMatch(""); }}
             className="min-h-11 rounded-xl border px-4 text-sm font-semibold aria-pressed:border-brand aria-pressed:text-brand">
             {label} · {registers[label]?.documents.length ?? saved[label].length}
           </button>
