@@ -25,3 +25,34 @@ export async function loadRcvReport(period: string): Promise<RcvReportRow[]> {
   if (error || count === null || count > rows.length) throw new Error("El registro SII del período no se pudo recuperar completo.");
   return rows;
 }
+
+export function summarizeRcvAmounts(rows: RcvReportRow[]) {
+  const fields = ["net", "exempt", "vat", "nonRecoverableVat", "total"] as const;
+  return (["Compras", "Ventas"] as const).map(register => {
+    const documents = rows.filter(row => row.register === register);
+    const ordinary = documents.filter(row => !["56", "61"].includes(row.snapshot.code));
+    const totals = fields.map(field => {
+      const known = ordinary.flatMap(row => row.snapshot[field] ?? []);
+      return { field, amount: known.length ? known.reduce((sum, value) => sum + value, 0) : null,
+        missing: ordinary.length - known.length };
+    });
+    return { register, totals, adjustments: documents.length - ordinary.length };
+  });
+}
+
+export async function loadStaffPeriodAmounts(period: string) {
+  const { start, end } = periodBounds(period);
+  const { data, error, count } = await createAdminClient().from("staff_period_payments")
+    .select("amount,withholding_amount", { count: "exact" })
+    .gte("tax_period", start).lt("tax_period", end).order("id");
+  if (error || count === null || count > (data?.length ?? 0)) throw new Error("No se pudo obtener el total de pagos Staff.");
+  let paid = 0, withheld = 0, withAmount = 0;
+  for (const row of data ?? []) {
+    paid += Number(row.amount);
+    if (row.withholding_amount != null) {
+      withheld += Number(row.withholding_amount);
+      withAmount++;
+    }
+  }
+  return { paid, withheld: withAmount ? withheld : null, missing: (count ?? 0) - withAmount };
+}
