@@ -97,7 +97,7 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
         </div>)}
       </section>}
       {(activeModule === "home" || activeModule === "honorarios") && <section className="rounded-xl border bg-card p-4">
-        <h2 className="font-semibold">Flujo de caja · pagos Staff registrados</h2>
+        <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">Pagos Staff por período tributario</h2><Link href="/finance/staff" className="text-sm font-semibold text-brand">Abrir Finanzas Staff →</Link></div>
         {staffAmounts ? <dl className="mt-3 grid grid-cols-2 gap-3">
           <div><dt className="text-sm text-muted">Pagado</dt><dd>{clp.format(staffAmounts.paid)}</dd></div>
           <div><dt className="text-sm text-muted">Retenciones registradas</dt><dd>{staffAmounts.withheld === null ? "Sin informar" : clp.format(staffAmounts.withheld)}</dd></div>
