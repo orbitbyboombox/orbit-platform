@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - integration/finance-canonical-v218-20261127
+  pull_request:
+    branches:
+      - release/finance-staff-v217-20261115
   workflow_dispatch:
 
 permissions:
