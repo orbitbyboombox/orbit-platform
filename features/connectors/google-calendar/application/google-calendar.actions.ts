@@ -6,7 +6,7 @@ import {usesNOVAGoogleCore} from "@/features/connectors/google-workspace/applica
 import type {GoogleCalendarSyncOperation} from "../types/google-calendar-live.types";
 import {syncStaleGoogleCalendarEvents} from "./google-calendar-resync.service";
 import { prepareConfirmedReservationCalendar } from "./google-calendar-sync.service";
-import { acceptReviewedRemoteCalendarEvent, RECONCILABLE_ORBIT_EVENT_IDS } from "./google-calendar-remote-reconciliation";
+import { acceptReviewedRemoteCalendarEvent, RECONCILABLE_ORBIT_EVENT_IDS, updateCanonicalCalendarEvent } from "./google-calendar-remote-reconciliation";
 import { GoogleCalendarApiProvider } from "../provider/google-calendar-live.provider";
 import { loadGoogleWorkspaceAccessToken, loadGoogleWorkspaceCalendarId, loadGoogleWorkspaceConnection } from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import { mapOperationalEventToCalendar } from "./google-calendar-live";
@@ -14,6 +14,34 @@ import { chileDateTime } from "@/features/operations/event-operational-window";
 
 type Result={ok:true;operation:string}|{ok:false;error:string};
 export type CalendarReconciliationSummary={audited:number;matched:number;updated:number;failed:number;duplicates:number;missingRemote:number;created:number;mappingsBackfilled:number;remoteAccepted:number};
+
+export async function updateCanonicalGoogleCalendarAction(projectId: string): Promise<Result> {
+  try {
+    const client = await createSupabaseServerClient();
+    const { data: auth, error: authError } = await client.auth.getUser();
+    if (authError || !auth.user) throw authError ?? new Error("Inicia sesión para actualizar Calendar.");
+    const { data: profile, error: profileError } = await client.from("profiles").select("role").eq("id", auth.user.id).single();
+    if (profileError) throw profileError;
+    if (!profile || !["CEO", "ADMINISTRATOR"].includes(profile.role)) throw new Error("Solo Founder/Admin puede actualizar Calendar desde ORBIT.");
+    const prepared = await prepareConfirmedReservationCalendar(client, projectId);
+    const connection = await loadGoogleWorkspaceConnection();
+    if (connection.connectionStatus !== "CONNECTED" || connection.health !== "HEALTHY" || !connection.grantedServices.some(({ id, granted }) => id === "CALENDAR" && granted)) throw new Error("La conexión autenticada de Google Calendar no está disponible.");
+    const calendarId = await loadGoogleWorkspaceCalendarId();
+    const provider = new GoogleCalendarApiProvider(await loadGoogleWorkspaceAccessToken(), calendarId);
+    const updated = await updateCanonicalCalendarEvent({ client, provider, input: prepared.calendarInput, actorId: auth.user.id, expectedCalendarId: calendarId });
+    await client.from("timeline_events").insert({
+      project_id: prepared.project.id, event_type: "CALENDAR_CANONICAL_UPDATED", title: "Google Calendar actualizado desde ORBIT",
+      description: "Se aplicó el estado operativo canónico de ORBIT al evento remoto existente mediante ETag.", orbit_event_id: prepared.project.orbit_event_id,
+      actor_id: auth.user.id, actor_label: "Founder / Administración", source: "Google Calendar", action: "CALENDAR_CANONICAL_UPDATED",
+      entity_type: "CalendarSync", entity_id: updated.googleEventId, human_message: "Calendar coincide con ORBIT tras lectura posterior.",
+      correlation_id: `calendar-canonical:${prepared.project.orbit_event_id}:${updated.etag}`, created_by: auth.user.id,
+    });
+    revalidatePath(`/projects/${projectId}`); revalidatePath("/calendar"); revalidatePath("/operations");
+    return { ok: true, operation: updated.result };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "No fue posible actualizar Calendar desde ORBIT." };
+  }
+}
 export async function acceptReviewedRemoteCalendarStateAction(projectId: string): Promise<Result> {
   try {
     const client = await createSupabaseServerClient();
@@ -52,7 +80,7 @@ export async function acceptReviewedRemoteCalendarStateAction(projectId: string)
     return { ok: false, error: error instanceof Error ? error.message : "No fue posible reconciliar el evento remoto." };
   }
 }
-export async function synchronizeProjectCalendarAction(projectId:string,operation:GoogleCalendarSyncOperation="UPSERT"):Promise<Result>{try{const client=await createSupabaseServerClient();const{data:auth,error:authError}=await client.auth.getUser();if(authError||!auth.user)throw authError??new Error("Inicia sesión para sincronizar el calendario.");const result=await synchronizeConfirmedReservationCalendar({client,projectId,actorId:auth.user.id,operation,policy:"NEW"});if(!result)throw new Error("No existe un evento de Calendar para esta reserva.");revalidatePath(`/projects/${projectId}`);return{ok:true,operation:result.operation};}catch(error){return{ok:false,error:error instanceof Error?error.message:"No fue posible sincronizar Google Calendar."}}}
+export async function synchronizeProjectCalendarAction(projectId:string,operation:GoogleCalendarSyncOperation="UPSERT"):Promise<Result>{try{const client=await createSupabaseServerClient();const{data:auth,error:authError}=await client.auth.getUser();if(authError||!auth.user)throw authError??new Error("Inicia sesión para sincronizar el calendario.");if(operation==="UPSERT"){const{data:sync,error:syncError}=await client.from("calendar_sync").select("status").eq("project_id",projectId).maybeSingle();if(syncError)throw syncError;if(sync?.status==="UPDATE_REQUIRED"){const prepared=await prepareConfirmedReservationCalendar(client,projectId);const connection=await loadGoogleWorkspaceConnection();if(connection.connectionStatus!=="CONNECTED"||connection.health!=="HEALTHY"||!connection.grantedServices.some(({id,granted})=>id==="CALENDAR"&&granted))throw new Error("La conexión autenticada de Google Calendar no está disponible.");const calendarId=await loadGoogleWorkspaceCalendarId();const updated=await updateCanonicalCalendarEvent({client,provider:new GoogleCalendarApiProvider(await loadGoogleWorkspaceAccessToken(),calendarId),input:prepared.calendarInput,actorId:auth.user.id,expectedCalendarId:calendarId});revalidatePath(`/projects/${projectId}`);revalidatePath("/calendar");return{ok:true,operation:updated.result};}}const result=await synchronizeConfirmedReservationCalendar({client,projectId,actorId:auth.user.id,operation,policy:"NEW"});if(!result)throw new Error("No existe un evento de Calendar para esta reserva.");revalidatePath(`/projects/${projectId}`);return{ok:true,operation:result.operation};}catch(error){return{ok:false,error:error instanceof Error?error.message:"No fue posible sincronizar Google Calendar."}}}
 
 export async function retryCalendarSyncAction(projectId: string): Promise<Result> {
   try {
@@ -179,8 +207,11 @@ export async function reconcileFutureGoogleCalendarAction(): Promise<CalendarRec
           || (usesNOVAGoogleCore() && verifiedMapping?.nova_calendar_id !== calendarId)) {
           throw new Error(`El ID o calendario persistido de ${orbitEventId} cambió o no coincide; no se actualizará Google Calendar.`);
         }
-        const result = await synchronizeConfirmedReservationCalendar({ client, projectId: row.id, actorId: auth.user.id, policy: "EXISTING_LEGACY_UPDATE" });
-        if (!result) { summary.missingRemote++; continue; }
+        const canonicalResult = sync?.status === "UPDATE_REQUIRED"
+          ? await updateCanonicalCalendarEvent({ client, provider, input: (await prepareConfirmedReservationCalendar(client, row.id)).calendarInput, actorId: auth.user.id, expectedCalendarId: calendarId })
+          : await synchronizeConfirmedReservationCalendar({ client, projectId: row.id, actorId: auth.user.id, policy: "EXISTING_LEGACY_UPDATE" });
+        if (!canonicalResult) { summary.missingRemote++; continue; }
+        const result = "operation" in canonicalResult ? canonicalResult : { operation: "UPDATED" as const, googleEventId: canonicalResult.googleEventId };
         if (result.operation === "CREATED") {
           summary.created++;
           throw new Error(`La sincronización creó un evento nuevo para ${orbitEventId}; el ID original se debe conservar.`);
