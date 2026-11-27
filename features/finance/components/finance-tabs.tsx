@@ -32,7 +32,7 @@ export function FinanceTabs() {
         <Link href="/operations" className="shrink-0 rounded-xl border px-3 py-2 text-xs font-semibold text-muted transition hover:border-brand hover:text-foreground">Inicio</Link>
       </div>
       <nav aria-label="Secciones de Finanzas" className="-mx-1 max-w-full overflow-x-auto pb-1 overscroll-x-contain">
-      <div className="flex min-w-max gap-1 rounded-2xl border bg-card/70 p-1">
+      <div className="flex min-w-max gap-1 rounded-2xl border border-white/10 bg-[#1C1F26]/90 p-1 shadow-[0_12px_34px_rgba(0,0,0,.16)]">
         {tabs.map(([href, label]) => {
           const active = href === "/finance" ? pathname === href : pathname.startsWith(href);
           return <Link aria-current={active ? "page" : undefined} className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition ${active ? "bg-brand text-brand-foreground shadow-sm" : "text-muted hover:bg-background hover:text-foreground"}`} href={withPeriod(href)} key={href}>{label}</Link>;
