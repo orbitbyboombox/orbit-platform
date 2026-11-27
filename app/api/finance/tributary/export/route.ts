@@ -40,7 +40,14 @@ export async function GET(request: Request) {
   const { data, error, count } = await query;
   if (error || count === null) return new NextResponse("No se pudo verificar el registro completo del período.", { status: 503 });
   const headers = ["tipo","documento","referencia","fecha","neto","exento","iva","total","estado_pago","origen"];
-  const rows = data ?? [];
+  const rows = format === "zip" ? (data ?? []).map(row => {
+    // The internal expense view repeats the total in net and exempt when VAT is zero.
+    // Leave the fiscal breakdown blank until the expense has a documented classification.
+    const duplicatedBreakdown = row.record_origin === "EXPENSE" && !row.document_type
+      && Number(row.vat_amount) === 0 && Number(row.total_amount) > 0
+      && Number(row.net_amount) === Number(row.total_amount) && Number(row.exempt_amount) === Number(row.total_amount);
+    return duplicatedBreakdown ? { ...row, net_amount: null, exempt_amount: null } : row;
+  }) : data ?? [];
   if (count !== rows.length) return new NextResponse("El resultado excede el límite de exportación. Usa un período menor.", { status: 422 });
   type Row = (typeof rows)[number];
   const values = (r: Row) => [r.source_type,r.document_type,r.reference,r.occurred_on,r.net_amount,r.exempt_amount,r.vat_amount,r.total_amount,r.payment_status,r.record_origin];
@@ -100,6 +107,7 @@ export async function GET(request: Request) {
     zip.file("LEEME.txt", [
       `ORBIT · Registro interno del período ${period}`,
       `Compras: ${purchases.length} · Ventas documentadas: ${sales.length} · Filas por revisar: ${pending.length}`,
+      "Compras contiene egresos internos. Los egresos sin clasificación documental que duplicaban el total en neto y exento se exportan con ambos campos vacíos y se mantienen en Por revisar.",
       "La columna IVA contiene el monto registrado por documento. No determina derecho a crédito fiscal ni saldo oficial SII.",
       "Staff: liquidaciones y pagos por período tributario, en hojas separadas. No sumar ambas fuentes como un solo pago.",
       "Consulta Respaldos para identificar incluidos, faltantes y omitidos. Las referencias Drive conservan los permisos de acceso existentes.",
