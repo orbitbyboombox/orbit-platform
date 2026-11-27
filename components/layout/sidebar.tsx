@@ -49,7 +49,7 @@ export function NavigationList({ onNavigate, compact, hiddenNavigation = [], ico
 export function Sidebar({ navigationOrder, hiddenNavigation }: Pick<NavigationListProps,"navigationOrder"|"hiddenNavigation">) {
   const [collapsed, setCollapsed] = useState(false);
   return (
-    <aside className={cn("peer fixed inset-y-0 left-0 z-30 hidden h-dvh min-h-0 w-20 overflow-hidden border-r border-border/70 bg-[#090c11]/97 shadow-[14px_0_48px_rgba(0,0,0,.2)] backdrop-blur-xl transition-[width] duration-200 md:flex md:flex-col", collapsed ? "lg:w-20" : "lg:w-[15.25rem]")} data-collapsed={collapsed}>
+    <aside className={cn("peer fixed inset-y-0 left-0 z-30 hidden h-dvh min-h-0 w-20 overflow-hidden border-r border-white/10 bg-[#101114]/97 shadow-[14px_0_48px_rgba(0,0,0,.28)] backdrop-blur-xl transition-[width] duration-200 md:flex md:flex-col", collapsed ? "lg:w-20" : "lg:w-[15.25rem]")} data-collapsed={collapsed}>
       <div className="relative flex h-[5.75rem] items-center justify-center border-b border-border/70 px-3">
       <Link aria-label="Ir al Dashboard" className="flex h-full w-full items-center justify-center px-1 lg:px-2" href="/operations">
         <BrandLogo className={cn("w-full max-w-[11rem]", collapsed ? "hidden" : "hidden lg:block")} surface="dark" />
