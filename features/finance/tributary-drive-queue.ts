@@ -1,5 +1,7 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
+
 import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createTributaryDriveArchive } from "./tributary-drive-archive";
@@ -12,11 +14,9 @@ export async function processTributaryDriveQueue() {
   const archive = createTributaryDriveArchive(await loadGoogleWorkspaceAccessToken());
   const cutoff = new Date(Date.now() - LEASE_MS).toISOString();
   const { data: rows, error } = await admin.from("tributary_drive_sync_items")
-    .select("id,document_id,project_id,customer_id,artifact_kind,attempt_count,status,updated_at,drive_file_id,drive_folder_id")
-    .not("document_id", "is", null)
+    .select("id,document_id,project_id,customer_id,artifact_kind,idempotency_key,attempt_count,status,updated_at,drive_file_id,drive_folder_id")
     .is("draft_id", null)
-    .like("idempotency_key", "document:%:central:PDF")
-    .or(`status.eq.PENDING,and(status.in.(RETRY,SYNCING),updated_at.lt.${cutoff})`)
+    .or(`and(or(idempotency_key.like.document:%:central:PDF,idempotency_key.like.rcv-import:%:CSV),or(status.eq.PENDING,and(status.in.(RETRY,SYNCING),updated_at.lt.${cutoff})))`)
     .order("updated_at").limit(2);
   if (error) throw error;
 
@@ -32,28 +32,50 @@ export async function processTributaryDriveQueue() {
     if (!claimed) continue;
 
     try {
-      const { data: doc, error: docError } = await admin.from("documents")
-        .select("id,document_type,external_issue_date,external_tax_document_type,drive_file_id,project_id,customer_id,mime_type")
-        .eq("id", row.document_id!).is("deleted_at", null).maybeSingle();
-      if (docError) throw docError;
-      if (!doc || doc.document_type !== "EXTERNAL_TAX_DOCUMENT" || !doc.external_issue_date
-        || !doc.external_tax_document_type || !doc.drive_file_id || !doc.project_id || !doc.customer_id
-        || doc.project_id !== row.project_id || doc.customer_id !== row.customer_id
-        || row.artifact_kind !== "PDF" || doc.mime_type !== "application/pdf") {
-        throw new Error("El respaldo externo no cumple los requisitos de archivo automático.");
+      const csv = row.artifact_kind === "CSV";
+      let folder: string;
+      let sync: (id: string) => Promise<string>;
+      if (csv) {
+        const id = /^rcv-import:([0-9a-f-]{36}):CSV$/.exec(row.idempotency_key)?.[1];
+        if (!id) throw new Error("Referencia de importación inválida.");
+        const { data, error } = await admin.from("sii_rcv_imports" as never)
+          .select("register,period,source_name,source_bytes,source_hash")
+          .eq("id", id).eq("company_rut", "765652723").maybeSingle();
+        if (error) throw error;
+        const original = data as { register: string; period: string; source_name: string; source_bytes: string; source_hash: string } | null;
+        if (!original || !["Compras", "Ventas"].includes(original.register)
+          || !/^RCV_[a-z0-9_.-]+\.csv$/i.test(original.source_name)
+          || !/^\\x(?:[0-9a-f]{2})+$/i.test(original.source_bytes)) throw new Error("Origen CSV no verificable.");
+        const bytes = Buffer.from(original.source_bytes.slice(2), "hex");
+        const checksum = createHash("sha256").update(bytes).digest("hex");
+        if (checksum !== original.source_hash) throw new Error("El original CSV no coincide con su huella de importación.");
+        folder = await archive.resolveFolder(original.period, original.register, "CSV");
+        sync = id => archive.archiveCsv({ id, parentId: folder, name: original.source_name, bytes, checksum });
+      } else {
+        if (!row.document_id || row.artifact_kind !== "PDF") throw new Error("Referencia documental inválida.");
+        const { data: doc, error: docError } = await admin.from("documents")
+          .select("id,document_type,external_issue_date,external_tax_document_type,drive_file_id,project_id,customer_id,mime_type")
+          .eq("id", row.document_id).is("deleted_at", null).maybeSingle();
+        if (docError) throw docError;
+        if (!doc || doc.document_type !== "EXTERNAL_TAX_DOCUMENT" || !doc.external_issue_date
+          || !doc.external_tax_document_type || !doc.drive_file_id || !doc.project_id || !doc.customer_id
+          || doc.project_id !== row.project_id || doc.customer_id !== row.customer_id || doc.mime_type !== "application/pdf") {
+          throw new Error("El respaldo externo no cumple los requisitos de archivo automático.");
+        }
+        const targetId = doc.drive_file_id;
+        folder = await archive.resolveFolder(doc.external_issue_date, doc.external_tax_document_type, "PDF");
+        sync = id => archive.archiveShortcut({ id, parentId: folder, targetId, name: `ORBIT-${doc.id}.pdf` });
       }
-
-      const folder = await archive.resolveFolder(doc.external_issue_date, doc.external_tax_document_type, "PDF");
       if (row.drive_folder_id && row.drive_folder_id !== folder) throw new Error("El destino de Drive cambió durante el reintento.");
-      const shortcutId = row.drive_file_id ?? await archive.reserveId();
+      const driveId = row.drive_file_id ?? await archive.reserveId(csv ? "files" : "shortcuts");
       const { data: reserved, error: reserveError } = await admin.from("tributary_drive_sync_items")
-        .update({ drive_file_id: shortcutId, drive_folder_id: folder })
+        .update({ drive_file_id: driveId, drive_folder_id: folder })
         .eq("id", row.id).eq("status", "SYNCING").eq("updated_at", owner)
         .select("id").maybeSingle();
       if (reserveError) throw reserveError;
       if (!reserved) continue;
 
-      await archive.archiveShortcut({ id: shortcutId, parentId: folder, targetId: doc.drive_file_id, name: `ORBIT-${doc.id}.pdf` });
+      await sync(driveId);
       const { error: completionError } = await admin.from("tributary_drive_sync_items")
         .update({ status: "SYNCED", synced_at: new Date().toISOString(), last_error: null, updated_at: new Date().toISOString() })
         .eq("id", row.id).eq("status", "SYNCING").eq("updated_at", owner);
