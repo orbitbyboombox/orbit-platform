@@ -14,6 +14,8 @@ export function PdfViewer({ title, src, download, fallback, onClose, explicitRet
   const router = useRouter();
   const frame = useRef<HTMLIFrameElement>(null);
   const [message, setMessage] = useState("");
+  const [loadedSource, setLoadedSource] = useState<string | null>(null);
+  const ready = loadedSource === src;
 
   function close() {
     if (onClose) { onClose(); return; }
@@ -25,6 +27,8 @@ export function PdfViewer({ title, src, download, fallback, onClose, explicitRet
   }
 
   function print() {
+    if (!ready) return;
+    setMessage("Si no se abre el diálogo de impresión, descarga el PDF original e imprímelo desde tu lector de PDF.");
     try {
       const pdf = frame.current?.contentWindow;
       if (!pdf) throw new Error();
@@ -41,9 +45,10 @@ export function PdfViewer({ title, src, download, fallback, onClose, explicitRet
       <h1 className="hidden min-w-0 flex-1 truncate text-sm font-semibold sm:block">{title}</h1>
       <button className="min-h-11 rounded-lg border px-3 text-sm" type="button" onClick={close}>Cerrar visor</button>
       <a className="flex min-h-11 items-center justify-center rounded-lg border px-3 text-sm" href={download} download>Descargar</a>
-      <button className="min-h-11 rounded-lg border px-3 text-sm" type="button" onClick={print}>Imprimir</button>
+      <button className="min-h-11 rounded-lg border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50" type="button" onClick={print} disabled={!ready}>Imprimir</button>
     </header>
+    {!ready && <p role="status" className="px-3 py-2 text-sm text-muted">Cargando documento. Puedes descargar el original mientras se abre el visor.</p>}
     {message && <p role="status" className="px-3 py-2 text-sm">{message}</p>}
-    <iframe ref={frame} className="block min-h-[70dvh] w-full min-w-0 flex-1 border-0 bg-white" src={src} title={title} />
+    <iframe key={src} ref={frame} onLoad={() => setLoadedSource(src)} className="block min-h-[70dvh] w-full min-w-0 flex-1 border-0 bg-white" src={src} title={title} />
   </main>;
 }
