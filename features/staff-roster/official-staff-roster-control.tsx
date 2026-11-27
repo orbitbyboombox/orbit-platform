@@ -5,8 +5,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { FileDown, Mail, RefreshCw, Send, UsersRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getOfficialRosterPreviewAction, downloadOfficialRosterAction, sendOfficialRosterAction } from "./official-staff-roster.actions";
-import type { RosterComposer } from "./official-staff-roster";
+import { createManualRosterMemberAction, deleteManualRosterMemberAction, getOfficialRosterPreviewAction, downloadOfficialRosterAction, sendOfficialRosterAction, updateManualRosterMemberAction } from "./official-staff-roster.actions";
+import type { ManualRosterMember, RosterComposer } from "./official-staff-roster";
 
 export function OfficialStaffRosterControl({projectId}:{projectId:string}) {
   const [includeCases,setIncludeCases]=useState(false);
@@ -19,6 +19,8 @@ export function OfficialStaffRosterControl({projectId}:{projectId:string}) {
   const toggleSection=(key:string)=>setExpandedSections(previous=>previous.includes(key)?previous.filter(item=>item!==key):[...previous,key]);
   const [to,setTo]=useState("");
   const [sendState,setSendState]=useState<"idle"|"sending"|"sent"|"error">("idle");
+  const [manualDraft,setManualDraft]=useState({fullName:"",rut:"",cargo:""});
+  const [manualEditId,setManualEditId]=useState<string|null>(null);
 
   const refresh=useCallback(async()=>{
     setLoading(true);
@@ -63,6 +65,19 @@ export function OfficialStaffRosterControl({projectId}:{projectId:string}) {
       await refresh();
     });
   };
+  const resetManual=()=>{setManualDraft({fullName:"",rut:"",cargo:""});setManualEditId(null);};
+  const saveManual=()=>{
+    if(!manualDraft.fullName.trim()||!manualDraft.rut.trim()||!manualDraft.cargo.trim()||pending)return;
+    startTransition(async()=>{
+      const result=manualEditId
+        ? await updateManualRosterMemberAction({id:manualEditId,projectId, ...manualDraft})
+        : await createManualRosterMemberAction({projectId, ...manualDraft});
+      if(!result.ok){setFeedback(result.error);return;}
+      resetManual();setFeedback(manualEditId?"Integrante manual actualizado.":"Integrante manual agregado.");await refresh();
+    });
+  };
+  const editManual=(member:ManualRosterMember)=>{setManualEditId(member.id);setManualDraft({fullName:member.fullName,rut:member.rut,cargo:member.cargo});};
+  const removeManual=(id:string)=>{if(pending)return;startTransition(async()=>{const result=await deleteManualRosterMemberAction({id,projectId});if(!result.ok){setFeedback(result.error);return;}if(manualEditId===id)resetManual();setFeedback("Integrante manual eliminado de la nómina.");await refresh();});};
 
   return <section className="mt-5 rounded-2xl border border-brand/20 bg-background p-4 sm:p-5" aria-labelledby="official-roster-title">
     <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -93,6 +108,16 @@ export function OfficialStaffRosterControl({projectId}:{projectId:string}) {
         <section className="rounded-xl border p-4">
           <strong>Encargado del evento</strong>
           <p className="text-sm text-muted">{composer.responsible ? `${composer.responsible.name} · ${composer.responsible.rut || "RUT pendiente"}` : "Sin asignar"}</p>
+        </section>
+        <section className="rounded-xl border border-brand/20 bg-brand/5 p-4" aria-labelledby="manual-roster-title">
+          <div className="flex flex-wrap items-start justify-between gap-3"><div><strong id="manual-roster-title">Integrantes manuales de nómina</strong><p className="mt-1 text-xs text-muted">Solo aparecen en la nómina oficial. No crean asignaciones, pagos, gastos ni liquidaciones.</p></div><span className="text-xs font-semibold text-brand">{composer.manualMembers.length} registrados</span></div>
+          {composer.manualMembers.length ? <div className="mt-3 space-y-2">{composer.manualMembers.map(member=><div className="flex flex-col gap-2 rounded-lg border bg-background p-3 sm:flex-row sm:items-center sm:justify-between" key={member.id}><div><p className="font-medium">{member.fullName}</p><p className="text-xs text-muted">{member.rut} · {member.cargo}</p></div><div className="flex gap-2"><Button variant="outline" disabled={pending} onClick={()=>editManual(member)}>Editar</Button><Button variant="outline" disabled={pending} onClick={()=>removeManual(member.id)}>Eliminar</Button></div></div>)}</div> : <p className="mt-3 text-sm text-muted">No hay integrantes manuales.</p>}
+          <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_150px_minmax(0,1fr)_auto] sm:items-end">
+            <label className="grid gap-1 text-xs font-semibold text-muted">Nombre completo<input className="min-h-10 rounded-lg border bg-background px-3 text-sm font-normal" value={manualDraft.fullName} onChange={event=>setManualDraft({...manualDraft,fullName:event.target.value})} maxLength={120} /></label>
+            <label className="grid gap-1 text-xs font-semibold text-muted">RUT<input className="min-h-10 rounded-lg border bg-background px-3 text-sm font-normal" value={manualDraft.rut} onChange={event=>setManualDraft({...manualDraft,rut:event.target.value})} maxLength={20} /></label>
+            <label className="grid gap-1 text-xs font-semibold text-muted">Cargo<input className="min-h-10 rounded-lg border bg-background px-3 text-sm font-normal" value={manualDraft.cargo} onChange={event=>setManualDraft({...manualDraft,cargo:event.target.value})} maxLength={80} /></label>
+            <div className="flex gap-2"><Button disabled={pending||!manualDraft.fullName.trim()||!manualDraft.rut.trim()||!manualDraft.cargo.trim()} onClick={saveManual}>{manualEditId?"Guardar cambios":"Agregar integrante"}</Button>{manualEditId&&<Button variant="outline" disabled={pending} onClick={resetManual}>Cancelar</Button>}</div>
+          </div>
         </section>
         {!!composer.totemRows?.length && <section className="overflow-hidden rounded-xl border">
           <button type="button" aria-expanded={expandedSections.includes("multicaja")} onClick={() => toggleSection("multicaja")} className="flex w-full items-center justify-between gap-3 p-4 text-left hover:bg-muted/20">

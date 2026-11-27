@@ -1,0 +1,52 @@
+name: Staff roster Linux validation
+
+on:
+  push:
+    branches:
+      - fix/staff-official-roster-manual-20261127
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: orbit_roster_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d orbit_roster_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.0'
+      - run: npm install --global pnpm@10.28.0
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+      - run: pnpm typecheck
+      - run: pnpm exec eslint features/staff-roster app/'(platform)'/projects/'[projectId]'/page.tsx
+      - run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test tests/official-roster.test.mts tests/official-roster-manual-members.test.mts
+      - name: Validate manual roster migration in isolated PostgreSQL
+        env:
+          PGPASSWORD: postgres
+        run: >-
+          psql --host 127.0.0.1 --port 5432 --username postgres
+          --dbname orbit_roster_test --set ON_ERROR_STOP=1
+          --file tests/fixtures/official-roster-manual-members.sql
+      - run: pnpm build

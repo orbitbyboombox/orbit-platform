@@ -17,7 +17,8 @@ import { OFFICIAL_ROSTER_PLATES } from "./official-roster-vehicles";
 export const OFFICIAL_ROSTER_RESPONSIBLE = { name: "Matías Maira", rut: "16.357.402-0", phone: "+56 9 7306 9315" } as const;
 
 export type RosterTotemRow = { position:string; location:string; reference:string; box:string; block:string; operator:string };
-export type RosterComposer = { totemRows: RosterTotemRow[]; projectId: string; orbitEventId: string; eventName: string; eventDate: string; eventTime: string; staffArrivalAt: string | null; serviceStartAt: string | null; serviceEndAt: string | null; location: string; address?: string; city: string; customerName: string; recipient: string; fingerprint: string; groups: ReturnType<typeof buildRosterGroups>["groups"]; responsible: { name: string; rut: string } | null; missing: string[]; canGenerate: boolean };
+export type ManualRosterMember = { id: string; fullName: string; rut: string; cargo: string };
+export type RosterComposer = { totemRows: RosterTotemRow[]; projectId: string; orbitEventId: string; eventName: string; eventDate: string; eventTime: string; staffArrivalAt: string | null; serviceStartAt: string | null; serviceEndAt: string | null; location: string; address?: string; city: string; customerName: string; recipient: string; fingerprint: string; groups: ReturnType<typeof buildRosterGroups>["groups"]; manualMembers: ManualRosterMember[]; responsible: { name: string; rut: string } | null; missing: string[]; canGenerate: boolean };
 
 const blockValue = (value: unknown) => typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, 50) : "";
 export function rosterDate(value: string) {
@@ -39,19 +40,30 @@ const rosterEnd = (start: string | null, end: string | null) => {
 };
 const safeFilename = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9_-]+/g, "-").slice(0, 60) || "evento";
 const plain = (value: string) => value.replace(/[\u0000-\u001f]/g, " ").trim();
+async function readOfficialRosterLogo() {
+  try {
+    return await readFile(join(process.cwd(), "public/branding/boombox-logo-official-white-email.png"));
+  } catch {
+    const response = await fetch("https://app.bbox.cl/branding/boombox-logo-official-white-email.png", { cache: "no-store" });
+    if (!response.ok) throw new Error("No se pudo cargar el logotipo oficial de BOOMBOX.");
+    return Buffer.from(await response.arrayBuffer());
+  }
+}
 
 export async function loadOfficialRoster(projectId: string): Promise<RosterComposer> {
   const admin = createAdminClient();
-  const [p, a, blockResult, assetResult] = await Promise.all([
+  const [p, a, blockResult, assetResult, manualResult] = await Promise.all([
     admin.from("projects").select("id,orbit_event_id,name,event_date,event_time,location,city,operations,customer_id,customers!inner(full_name,email,secondary_email),project_operational_contracts(contact_email,contact_status,contact_first_name,contact_last_name,contact_phone,staff_arrival_at,service_start_at,service_end_at)").eq("id", projectId).is("deleted_at", null).single(),
     admin.from("assignments").select("id,staff_id,assignment_type,status,staff(first_name,last_name,rut)").eq("project_id", projectId).is("deleted_at", null).order("id"),
     admin.from("event_operational_blocks").select("id,name").eq("project_id", projectId),
     admin.from("operational_assets").select("id,asset_code").eq("asset_type", "CASE"),
+    admin.from("event_manual_roster_members").select("id,full_name,rut,cargo").eq("project_id", projectId).is("deleted_at", null).order("created_at"),
   ]);
   if (p.error) throw p.error;
   if (a.error) throw a.error;
   if (blockResult.error) throw blockResult.error;
   if (assetResult.error) throw assetResult.error;
+  if (manualResult.error) throw manualResult.error;
   const customer = Array.isArray(p.data.customers) ? p.data.customers[0] : p.data.customers;
   const contract = Array.isArray(p.data.project_operational_contracts) ? p.data.project_operational_contracts[0] : p.data.project_operational_contracts;
   const { groups, operators } = buildRosterGroups(a.data ?? []);
@@ -95,8 +107,9 @@ export async function loadOfficialRoster(projectId: string): Promise<RosterCompo
   for (const member of new Map(members.map(row => [row.staffId, row])).values()) {
     if (!member.name || !member.rut) missing.push("Revisa el nombre y el RUT de " + (member.name || "un integrante") + ".");
   }
+  const manualMembers: ManualRosterMember[] = (manualResult.data ?? []).map(row => ({ id: row.id, fullName: row.full_name, rut: row.rut, cargo: row.cargo }));
   const name = p.data.name || p.data.orbit_event_id || "Evento BOOMBOX";
-  const roster = { totemRows, projectId, orbitEventId:p.data.orbit_event_id ?? "", eventName:name, eventDate:p.data.event_date ?? "", eventTime:p.data.event_time ?? "", staffArrivalAt:contract?.staff_arrival_at ?? null, serviceStartAt:contract?.service_start_at ?? null, serviceEndAt:contract?.service_end_at ?? null, location:p.data.location ?? "", address:readEventAddress(operations), city:p.data.city ?? "", customerName:customer?.full_name ?? "", recipient:contract?.contact_email ?? customer?.email ?? "", groups, responsible, missing, canGenerate:members.length>0 || responsible!==null };
+  const roster = { totemRows, projectId, orbitEventId:p.data.orbit_event_id ?? "", eventName:name, eventDate:p.data.event_date ?? "", eventTime:p.data.event_time ?? "", staffArrivalAt:contract?.staff_arrival_at ?? null, serviceStartAt:contract?.service_start_at ?? null, serviceEndAt:contract?.service_end_at ?? null, location:p.data.location ?? "", address:readEventAddress(operations), city:p.data.city ?? "", customerName:customer?.full_name ?? "", recipient:contract?.contact_email ?? customer?.email ?? "", groups, manualMembers, responsible, missing, canGenerate:members.length>0 || manualMembers.length>0 || responsible!==null };
   const fingerprint = createHash("sha256").update(JSON.stringify(roster)).digest("hex");
   return { ...roster, fingerprint };
 }
@@ -113,10 +126,42 @@ export async function saveOfficialRosterBlock(input:{projectId:string;assignment
   if(!updated)throw new Error("No se pudo guardar el bloque de esta asignación.");
 }
 
+function validateManualMember(input: { fullName: string; rut: string; cargo: string }) {
+  const fullName = blockValue(input.fullName).slice(0, 120);
+  const cargo = blockValue(input.cargo).slice(0, 80);
+  if (fullName.length < 2) throw new Error("Ingresa el nombre completo.");
+  if (!isValidChileanRut(input.rut)) throw new Error("Ingresa un RUT chileno válido.");
+  if (cargo.length < 2) throw new Error("Ingresa el cargo.");
+  return { fullName, rut: formatChileanRut(input.rut), cargo };
+}
+
+export async function createManualRosterMember(input: { projectId: string; fullName: string; rut: string; cargo: string; actorId: string }) {
+  const row = validateManualMember(input);
+  const admin = createAdminClient();
+  const { data, error } = await admin.from("event_manual_roster_members").insert({ project_id: input.projectId, full_name: row.fullName, rut: row.rut, cargo: row.cargo, created_by: input.actorId, updated_by: input.actorId }).select("id,full_name,rut,cargo").single();
+  if (error) throw error;
+  return { id: data.id, fullName: data.full_name, rut: data.rut, cargo: data.cargo } as ManualRosterMember;
+}
+
+export async function updateManualRosterMember(input: { id: string; projectId: string; fullName: string; rut: string; cargo: string; actorId: string }) {
+  const row = validateManualMember(input);
+  const admin = createAdminClient();
+  const { data, error } = await admin.from("event_manual_roster_members").update({ full_name: row.fullName, rut: row.rut, cargo: row.cargo, updated_by: input.actorId, updated_at: new Date().toISOString() }).eq("id", input.id).eq("project_id", input.projectId).is("deleted_at", null).select("id,full_name,rut,cargo").single();
+  if (error) throw error;
+  return { id: data.id, fullName: data.full_name, rut: data.rut, cargo: data.cargo } as ManualRosterMember;
+}
+
+export async function deleteManualRosterMember(input: { id: string; projectId: string; actorId: string }) {
+  const admin = createAdminClient();
+  const { data, error } = await admin.from("event_manual_roster_members").update({ deleted_at: new Date().toISOString(), updated_by: input.actorId, updated_at: new Date().toISOString() }).eq("id", input.id).eq("project_id", input.projectId).is("deleted_at", null).select("id").single();
+  if (error) throw error;
+  if (!data) throw new Error("El integrante manual ya no está disponible.");
+}
+
 export async function makeOfficialRosterPdf(composer:RosterComposer, includeCases = false) {
   if (!composer.canGenerate) throw new Error(composer.missing.join(" "));
   const pdf=await PDFDocument.create(), regular=await pdf.embedFont(StandardFonts.Helvetica), bold=await pdf.embedFont(StandardFonts.HelveticaBold);
-  const logo = await pdf.embedPng(await readFile(join(process.cwd(), "public/branding/boombox-logo-official-white-email.png")));
+  const logo = await pdf.embedPng(await readOfficialRosterLogo());
   const logoSize = logo.scale(145 / logo.width);
   const ink=rgb(.11,.12,.14), muted=rgb(.42,.44,.47), line=rgb(.87,.88,.89), orange=rgb(.96,.43,.05), pale=rgb(.97,.97,.97);
   const width=595.28, height=841.89, left=43, right=552;
@@ -190,6 +235,29 @@ export async function makeOfficialRosterPdf(composer:RosterComposer, includeCase
     roleLines.forEach((line, index) => page.drawText(line, { x: 380, y: y - index * 13, size: 8.5, font: regular, color: muted }));
     y-=rowHeight;
     page.drawLine({start:{x:left,y:y+10},end:{x:right,y:y+10},thickness:.5,color:line});
+  }
+  if (composer.manualMembers.length) {
+    ensure(80);
+    y -= 20;
+    page.drawText("INTEGRANTES MANUALES", { x: left, y, size: 10, font: bold, color: ink });
+    y -= 23;
+    const manualGroups = new Map<string, ManualRosterMember[]>();
+    for (const member of composer.manualMembers) manualGroups.set(member.cargo, [...(manualGroups.get(member.cargo) ?? []), member]);
+    for (const [cargo, members] of manualGroups) {
+      const heading = wrap(cargo, right - left, bold, 9);
+      if (y - heading.length * 13 - 40 < 65) { next(); page.drawText("INTEGRANTES MANUALES", { x: left, y, size: 10, font: bold, color: ink }); y -= 23; }
+      page.drawText(heading[0], { x: left, y, size: 9, font: bold, color: muted });
+      y -= 17;
+      for (const member of members) {
+        const nameLines = wrap(member.fullName, 250, regular, 9);
+        const rowHeight = Math.max(22, nameLines.length * 12 + 8);
+        if (y - rowHeight < 65) { next(); page.drawText("INTEGRANTES MANUALES", { x: left, y, size: 10, font: bold, color: ink }); y -= 23; }
+        nameLines.forEach((line, index) => page.drawText(line, { x: left, y: y - index * 12, size: 9, font: regular, color: ink }));
+        page.drawText(formatChileanRut(member.rut), { x: 300, y, size: 9, font: regular, color: ink });
+        y -= rowHeight;
+      }
+      y -= 6;
+    }
   }
   ensure(87);
   y-=25;
