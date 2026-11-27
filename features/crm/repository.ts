@@ -1,3 +1,4 @@
+import { readEventAddress } from "@/lib/event-location";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   CrmCustomerProfile,
@@ -303,10 +304,7 @@ export async function loadCrmCustomerProfile(
       status: item.status,
       name: project?.name ?? "Evento BOOMBOX",
       location: project?.location ?? null,
-      eventAddress:
-        typeof project.operations?.eventAddress === "string"
-          ? project.operations.eventAddress
-          : null,
+      eventAddress: readEventAddress(project.operations) || null,
       municipality: project?.city ?? null,
       service: service?.service_code ?? "",
       duration: service?.duration_hours ?? null,

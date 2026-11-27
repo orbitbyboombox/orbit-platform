@@ -1,3 +1,4 @@
+import { readEventAddress } from "@/lib/event-location";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   CustomerMutationInput,
@@ -163,7 +164,8 @@ export class SupabaseCustomerRepository implements CustomerRepository {
         time: project.event_time?.slice(0, 5) ?? "",
         timeMode: project.event_time_mode ?? "ESTIMATED",
         location: project.location ?? "Por confirmar",
-        city: project.city ?? customer.city ?? "",
+        address: readEventAddress(project.operations),
+        city: project.city ?? "",
         specialVenue: asString(project.operations.specialVenue, "") || undefined,
       },
       services: (servicesResult.data ?? []).map((service: ServiceRow) => service.service_code).filter(Boolean),
@@ -266,7 +268,8 @@ export class SupabaseCustomerRepository implements CustomerRepository {
             time: row.event_time?.slice(0, 5) ?? "",
             timeMode: row.event_time_mode ?? "ESTIMATED",
             location: row.location ?? "Por confirmar",
-            city: row.city ?? customer.city ?? "",
+            address: readEventAddress(row.operations),
+            city: row.city ?? "",
             specialVenue: asString(row.operations.specialVenue, "") || undefined,
           },
           services: serviceMap.get(row.id) ?? [],

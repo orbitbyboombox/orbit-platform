@@ -1,3 +1,4 @@
+import { readEventAddress } from "@/lib/event-location";
 import "server-only";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -16,7 +17,7 @@ import { OFFICIAL_ROSTER_PLATES } from "./official-roster-vehicles";
 export const OFFICIAL_ROSTER_RESPONSIBLE = { name: "Matías Maira", rut: "16.357.402-0", phone: "+56 9 7306 9315" } as const;
 
 export type RosterTotemRow = { position:string; location:string; reference:string; box:string; block:string; operator:string };
-export type RosterComposer = { totemRows: RosterTotemRow[]; projectId: string; orbitEventId: string; eventName: string; eventDate: string; eventTime: string; staffArrivalAt: string | null; serviceStartAt: string | null; serviceEndAt: string | null; location: string; city: string; customerName: string; recipient: string; fingerprint: string; groups: ReturnType<typeof buildRosterGroups>["groups"]; responsible: { name: string; rut: string } | null; missing: string[]; canGenerate: boolean };
+export type RosterComposer = { totemRows: RosterTotemRow[]; projectId: string; orbitEventId: string; eventName: string; eventDate: string; eventTime: string; staffArrivalAt: string | null; serviceStartAt: string | null; serviceEndAt: string | null; location: string; address?: string; city: string; customerName: string; recipient: string; fingerprint: string; groups: ReturnType<typeof buildRosterGroups>["groups"]; responsible: { name: string; rut: string } | null; missing: string[]; canGenerate: boolean };
 
 const blockValue = (value: unknown) => typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, 50) : "";
 export function rosterDate(value: string) {
@@ -95,7 +96,7 @@ export async function loadOfficialRoster(projectId: string): Promise<RosterCompo
     if (!member.name || !member.rut) missing.push("Revisa el nombre y el RUT de " + (member.name || "un integrante") + ".");
   }
   const name = p.data.name || p.data.orbit_event_id || "Evento BOOMBOX";
-  const roster = { totemRows, projectId, orbitEventId:p.data.orbit_event_id ?? "", eventName:name, eventDate:p.data.event_date ?? "", eventTime:p.data.event_time ?? "", staffArrivalAt:contract?.staff_arrival_at ?? null, serviceStartAt:contract?.service_start_at ?? null, serviceEndAt:contract?.service_end_at ?? null, location:p.data.location ?? "", city:p.data.city ?? "", customerName:customer?.full_name ?? "", recipient:contract?.contact_email ?? customer?.email ?? "", groups, responsible, missing, canGenerate:members.length>0 || responsible!==null };
+  const roster = { totemRows, projectId, orbitEventId:p.data.orbit_event_id ?? "", eventName:name, eventDate:p.data.event_date ?? "", eventTime:p.data.event_time ?? "", staffArrivalAt:contract?.staff_arrival_at ?? null, serviceStartAt:contract?.service_start_at ?? null, serviceEndAt:contract?.service_end_at ?? null, location:p.data.location ?? "", address:readEventAddress(operations), city:p.data.city ?? "", customerName:customer?.full_name ?? "", recipient:contract?.contact_email ?? customer?.email ?? "", groups, responsible, missing, canGenerate:members.length>0 || responsible!==null };
   const fingerprint = createHash("sha256").update(JSON.stringify(roster)).digest("hex");
   return { ...roster, fingerprint };
 }
@@ -147,7 +148,7 @@ export async function makeOfficialRosterPdf(composer:RosterComposer, includeCase
   const ensure=(space:number)=>{if(y-space<65)next();};
   header();
   const isCCU = composer.orbitEventId === "ORB-2026-268105";
-  const details:[string,string][]=[["EVENTO",composer.eventName],["FECHA",rosterDate(composer.eventDate)],["CITACIÓN STAFF",isCCU?"AM 08:00 hrs / PM 14:00 hrs":rosterClock(composer.staffArrivalAt)],["INICIO SERVICIO",isCCU?"AM 09:00 hrs / PM 15:00 hrs":rosterClock(composer.serviceStartAt)],["FIN SERVICIO",isCCU?"AM 13:30 hrs / PM 19:30 hrs":rosterEnd(composer.serviceStartAt,composer.serviceEndAt)],["LUGAR",[composer.location,composer.city].filter(Boolean).join(" · ")||"Por confirmar"]];
+  const details:[string,string][]=[["EVENTO",composer.eventName],["FECHA",rosterDate(composer.eventDate)],["CITACIÓN STAFF",isCCU?"AM 08:00 hrs / PM 14:00 hrs":rosterClock(composer.staffArrivalAt)],["INICIO SERVICIO",isCCU?"AM 09:00 hrs / PM 15:00 hrs":rosterClock(composer.serviceStartAt)],["FIN SERVICIO",isCCU?"AM 13:30 hrs / PM 19:30 hrs":rosterEnd(composer.serviceStartAt,composer.serviceEndAt)],["LUGAR",composer.location||"Por confirmar"],["DIRECCIÓN",[composer.address,composer.city].filter(Boolean).join(" · ")||"Por confirmar"]];
   for(const [label,value] of details){
     page.drawText(label,{x:left,y,size:8,font:bold,color:muted});
     const lines = wrap(value, 389, regular, 10);

@@ -1,5 +1,6 @@
 "use client";
 
+import { eventMapsUrl } from "@/lib/event-location";
 import {
   Check,
   ChevronLeft,
@@ -512,6 +513,7 @@ export function NewProjectDrawer({
     Partial<Record<ProjectService, ServiceConfiguration>>
   >({});
   const [eventAddress, setEventAddress] = useState("");
+  const eventMap = eventMapsUrl(eventAddress, draft.event.city, draft.event.location);
   const [operationalContact, setOperationalContact] = useState("");
   const [operationalPhone, setOperationalPhone] = useState("+");
   const [mainContact, setMainContact] = useState("");
@@ -1137,8 +1139,8 @@ export function NewProjectDrawer({
         : step === 2
           ? Boolean(
               draft.type &&
-                draft.event.location &&
-                eventAddress &&
+                draft.event.location.trim() &&
+                eventAddress.trim() &&
                 draft.event.city &&
                 draft.event.date &&
                 draft.event.time &&
@@ -1269,6 +1271,8 @@ export function NewProjectDrawer({
           },
           event: {
             ...draft.event,
+            location: draft.event.location.trim(),
+            address: eventAddress.trim(),
             durationHours: maximumHours,
             extras: [
               ...Array.from(
@@ -1829,10 +1833,11 @@ export function NewProjectDrawer({
                 <div className="grid gap-5 sm:grid-cols-2">
                   <VenueLocationPicker municipalities={municipalities} municipality={draft.event.city} specialVenue={draft.event.specialVenue ?? ""} onMunicipalityChange={(value) => event("city", value)} onSpecialVenueChange={(value) => event("specialVenue", value)} onVenueChange={(value) => event("location", value)} venue={draft.event.location} venues={venues} />
                   <Field
-                    label="Dirección del evento"
+                    label="Dirección del evento (calle y numeración)"
                     onChange={(e) => setEventAddress(e.target.value)}
                     value={eventAddress}
                   />
+                  {eventMap && <a className="text-sm font-semibold text-brand" href={eventMap} target="_blank" rel="noreferrer">Abrir en Google Maps</a>}
                   <Field
                     label="Fecha del evento"
                     onChange={(e) => event("date", e.target.value)}

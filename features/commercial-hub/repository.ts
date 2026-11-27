@@ -1,3 +1,4 @@
+import { readQuoteLocation } from "@/lib/event-location";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CommercialHubData } from "./types";
 import { normalizeEmailNewlines } from "./presentation";
@@ -176,7 +177,8 @@ export async function loadCommercialHubData(
             eventName: event.name ?? "",
             eventDate: event.date ?? "",
             eventTime: event.time ?? "",
-            eventLocation: event.location ?? "",
+            eventLocation: readQuoteLocation(event).address,
+            eventVenue: readQuoteLocation(event).venue,
             eventCity: event.city ?? "",
             validityDays: Number(row.validity_days),
             depositPercent: Number(row.deposit_percent),

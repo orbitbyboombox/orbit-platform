@@ -76,6 +76,7 @@ export interface Project {
     timeMode?: "ESTIMATED" | "CONFIRMED";
     timeWindow?: "MORNING" | "AFTERNOON" | "EVENING" | "UNKNOWN";
     location: string;
+    address?: string;
     city: string;
     specialVenue?: string;
     durationHours?: number;

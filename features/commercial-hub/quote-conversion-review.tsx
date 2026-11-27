@@ -135,7 +135,8 @@ export function QuoteConversionReviewDialog({
             <ImportedField label="Fecha del evento" name="eventDate" required type="date" value={review.event.date} />
             <ImportedField label="Hora de inicio" name="eventTime" required type="time" value={review.event.time} />
             <ImportedField label="Duración (horas)" min="0.5" name="durationHours" required step="0.5" type="number" value={review.event.durationHours?.toString() ?? ""} />
-            <ImportedField label="Lugar / dirección" name="eventLocation" required value={review.event.location} />
+            <ImportedField label="Lugar o recinto" name="eventLocation" required value={review.event.location} />
+            <ImportedField label="Dirección (calle y numeración)" name="eventAddress" required value={review.event.address ?? ""} />
             <ImportedField label="Comuna / ciudad" name="eventCity" required value={review.event.city} />
           </div>
           <p className="mt-3 text-xs text-muted">

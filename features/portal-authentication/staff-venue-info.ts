@@ -1,3 +1,5 @@
+import { readEventAddress } from "../../lib/event-location.ts";
+
 export type StaffVenueInfo = {
   name: string;
   reference: string;
@@ -43,10 +45,5 @@ export function resolveStaffVenueInfo(input: {
 export function resolveStaffEventAddress(input: {
   operations: VenueOperations;
 }): string {
-  const operations = input.operations ?? {};
-  const canonical = text(operations.eventAddress) || text(operations.event_address);
-  if (canonical) return canonical;
-  const notes = text(operations.notes);
-  const legacy = notes.match(/(?:^|\n)\s*Direcci[oó]n\s+(?:del\s+)?evento\s*:\s*([^\r\n]+)/i);
-  return legacy?.[1]?.trim() || "Dirección por confirmar";
+  return readEventAddress(input.operations) || "Dirección por confirmar";
 }

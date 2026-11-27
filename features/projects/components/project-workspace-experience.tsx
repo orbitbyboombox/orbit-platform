@@ -1,4 +1,5 @@
 "use client";
+import { eventMapsUrl } from "@/lib/event-location";
 import { EventDriveSyncButton } from "./event-drive-sync-button";
 import { EventIncidentObservations } from "@/features/resources/event-incident-observations";
 import type { IncidentObservation } from "@/features/resources/incident-observation";
@@ -128,6 +129,7 @@ type Event360Data = {
   status: string;
   venue: string;
   eventAddress: string;
+  eventCity?: string;
   serviceStartAt: string | null;
   serviceEndAt: string | null;
   collectionEmailStatus: {
@@ -511,7 +513,7 @@ export function ProjectWorkspaceExperience(
     if (/^\d{2}:\d{2}/.test(value)) return value.slice(0, 5);
     return new Intl.DateTimeFormat("es-CL", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "America/Santiago" }).format(new Date(value));
   };
-  const mapQuery = [event.eventAddress, event.venue, event.customer.city, "Chile"].filter(Boolean).join(", ");
+  const eventMap = eventMapsUrl(event.eventAddress, event.eventCity, event.venue);
   const photoStripEligible = requiresPhotoStripDesign(event.services.map((service) => service.code));
   const photoStripDocuments = event.documents
     .filter((document) => document.type === "PHOTO_STRIP_DESIGN")
@@ -756,8 +758,8 @@ export function ProjectWorkspaceExperience(
                 <EventDetail label="Recinto" value={event.venue || props.location || "Por confirmar"} />
                 <div className="min-w-0">
                   <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted">Dirección · comuna</dt>
-                  <dd className="mt-1 break-words text-sm font-medium">{[event.eventAddress, event.customer.city].filter(Boolean).join(" · ") || "Por confirmar"}</dd>
-                  <a className="mt-1 inline-flex text-sm font-semibold text-brand hover:underline" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery || props.location)}`} rel="noreferrer" target="_blank">Abrir en Google Maps</a>
+                  <dd className="mt-1 break-words text-sm font-medium">{[event.eventAddress, event.eventCity].filter(Boolean).join(" · ") || "Por confirmar"}</dd>
+                  {eventMap && <a className="mt-1 inline-flex text-sm font-semibold text-brand hover:underline" href={eventMap} rel="noreferrer" target="_blank">Abrir en Google Maps</a>}
                 </div>
                 <EventDetail label="Servicio contratado" value={event.services.map((service) => serviceDisplayName(service.code)).join(" · ") || "Por confirmar"} />
                 <EventDetail label="Extras incluidos" value={props.eventEquipmentExtras.extras.join(" · ") || "Sin extras incluidos"} />

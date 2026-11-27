@@ -1,5 +1,6 @@
 "use server";
 
+import { readEventAddress } from "@/lib/event-location";
 import { createHash, randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -41,7 +42,7 @@ export async function approveQuotationAction(quotationId:string, reason="Aprobad
     if(authError||!auth.user) throw authError??new Error("Inicia sesión para aprobar la cotización.");
     const admin=createAdminClient();
     const company=await loadCompanySettings(admin);
-    const {data,error}=await admin.from("quotations").select("*,quotation_items(item_type,label,quantity,final_total),customers!inner(full_name,email),projects!inner(name,event_date,location,city)").eq("id",quotationId).single();
+    const {data,error}=await admin.from("quotations").select("*,quotation_items(item_type,label,quantity,final_total),customers!inner(full_name,email),projects!inner(name,event_date,location,city,operations)").eq("id",quotationId).single();
     if(error) throw error;
     if(data.status==="ACCEPTED"&&data.drive_file_id&&data.gmail_draft_id) return {ok:true,message:"La cotización ya está aprobada y preparada."};
     if(!["DRAFT","SENT","ACCEPTED"].includes(data.status)) throw new Error("La cotización no se puede aprobar en su estado actual.");
@@ -52,7 +53,7 @@ export async function approveQuotationAction(quotationId:string, reason="Aprobad
     const visibleSubtotal=customerItems.reduce((sum,item)=>sum+Number(item.final_total),0);
     const finalTotal=Number(data.final_customer_price??data.grand_total);
     const visibleTaxes=Math.max(0,finalTotal-visibleSubtotal-visibleTransport);
-    const pdf=await createQuotationPdf({quotationNumber:data.quotation_number,issueDate:data.issue_date,expirationDate:data.expiration_date,customer:data.customers.full_name,project:data.projects.name,eventDate:data.projects.event_date,location:[data.projects.location,data.projects.city].filter(Boolean).join(", ")||"Por confirmar",subtotal:visibleSubtotal,transport:visibleTransport,taxes:visibleTaxes,total:finalTotal,items:customerItems.map((item)=>({label:item.label,quantity:Number(item.quantity),total:Number(item.final_total)})),branding:{productName:company.productName,productVersion:company.productVersion,brandName:company.brandName,developedBy:company.developedBy,poweredBy:company.poweredBy,footer:company.quotationFooter,currency:company.currency,locale:company.locale}});
+    const pdf=await createQuotationPdf({quotationNumber:data.quotation_number,issueDate:data.issue_date,expirationDate:data.expiration_date,customer:data.customers.full_name,project:data.projects.name,eventDate:data.projects.event_date,location:[data.projects.location,readEventAddress(data.projects.operations),data.projects.city].filter(Boolean).join(", ")||"Por confirmar",subtotal:visibleSubtotal,transport:visibleTransport,taxes:visibleTaxes,total:finalTotal,items:customerItems.map((item)=>({label:item.label,quantity:Number(item.quantity),total:Number(item.final_total)})),branding:{productName:company.productName,productVersion:company.productVersion,brandName:company.brandName,developedBy:company.developedBy,poweredBy:company.poweredBy,footer:company.quotationFooter,currency:company.currency,locale:company.locale}});
     const pdfPath=`${data.project_id}/quotations/${data.quotation_number}.pdf`; const checksum=createHash("sha256").update(pdf).digest("hex");
     const storageResult=await admin.storage.from("orbit-documents").upload(pdfPath,pdf,{contentType:"application/pdf",upsert:true}); if(storageResult.error) throw storageResult.error;
     const timestamp=new Date().toISOString();
@@ -99,7 +100,7 @@ export async function prepareAcceptedQuotationRevisionAction(input: {
 
     const admin = createAdminClient();
     const { data: quotation, error } = await admin.from("quotations")
-      .select("id,quotation_number,status,project_id,customer_id,issue_date,expiration_date,accepted_version_id,customers!inner(full_name),projects!inner(name,event_date,location,city)")
+      .select("id,quotation_number,status,project_id,customer_id,issue_date,expiration_date,accepted_version_id,customers!inner(full_name),projects!inner(name,event_date,location,city,operations)")
       .eq("project_id", input.projectId).eq("status", "ACCEPTED").order("updated_at", { ascending: false }).limit(1).single();
     if (error || !quotation) throw error ?? new Error("Cotización no encontrada.");
     if (quotation.status !== "ACCEPTED" || !quotation.accepted_version_id)

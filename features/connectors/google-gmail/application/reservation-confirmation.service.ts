@@ -1,3 +1,4 @@
+import { readEventAddress } from "@/lib/event-location";
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -178,6 +179,7 @@ export async function loadReservationConfirmationComposer(
     eventDate: project.event_date,
     eventTime: project.event_time,
     venue: project.location,
+    address: readEventAddress(operations),
     city: project.city,
     serviceCodes: (project.project_services ?? []).map((item) => item.service_code),
     commercialItems,
