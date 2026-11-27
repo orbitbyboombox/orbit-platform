@@ -29,7 +29,7 @@ test("Dashboard obtiene overhead desde reglas y no lo resta de caja", () => {
 test("cobrado mensual y acumulado usan cash impact canónico", () => {
   assert.match(model, /invoicePaymentCashImpact/);
   assert.match(model, /collectionsMonth = sum\(monthPayments, \(row\) => row\.cashImpact\)/);
-  assert.match(model, /const collectedAll = sum\(canonicalPayments, \(row\) => row\.cashImpact\)/);
+  assert.match(model, /const customerCollected = sum\(canonicalPayments, \(row\) => row\.cashImpact\)/);
 });
 
 test("UI separa desempeño mensual de posición global", () => {

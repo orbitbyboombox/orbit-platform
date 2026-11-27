@@ -25,6 +25,20 @@ test("los indicadores secundarios se agrupan sin duplicar cálculos financieros"
   assert.match(page, /cash={data\.cash}/);
 });
 
+test("caja separa cobro operacional de garantías de arriendo", () => {
+  const model = read("features/finance/finance-read-model.ts");
+  const center = read("features/finance/components/finance-premium-center.tsx");
+  assert.match(model, /officeGuaranteeIncome/);
+  assert.match(model, /nonOperatingIncome: officeGuaranteeIncome/);
+  assert.match(center, /Garantías de arriendo · no operacional/);
+  assert.match(center, /Cobrado operacional/);
+});
+
+test("el KPI de gastos identifica que representa egresos pagados", () => {
+  const center = read("features/finance/components/finance-premium-center.tsx");
+  assert.match(center, /label: "Egresos pagados del mes"/);
+});
+
 test("el dashboard acepta mes o año y usa el rango canónico", () => {
   const page = read("app/(platform)/finance/page.tsx");
   const model = read("features/finance/finance-read-model.ts");
