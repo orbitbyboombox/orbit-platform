@@ -13,7 +13,7 @@ export async function processTributaryDriveQueue() {
   const admin = createAdminClient();
   const cutoff = new Date(Date.now() - LEASE_MS).toISOString();
   const { data: rows, error } = await admin.from("tributary_drive_sync_items")
-    .select("id,document_id,project_id,customer_id,artifact_kind,idempotency_key,attempt_count,status,updated_at,drive_file_id,drive_folder_id")
+    .select("id,document_id,project_id,customer_id,artifact_kind,idempotency_key,attempt_count,status,updated_at,drive_file_id,drive_folder_id,checksum")
     .is("draft_id", null)
     .or(`and(or(idempotency_key.like.document:%:central:PDF,idempotency_key.like.rcv-import:%:CSV),or(status.eq.PENDING,and(status.in.(RETRY,SYNCING),updated_at.lt.${cutoff})))`)
     .order("updated_at").limit(2);
@@ -59,17 +59,18 @@ export async function processTributaryDriveQueue() {
           || !/^\\x(?:[0-9a-f]{2})+$/i.test(original.source_bytes)) throw new Error("Origen CSV no verificable.");
         const bytes = Buffer.from(original.source_bytes.slice(2), "hex");
         const checksum = createHash("sha256").update(bytes).digest("hex");
-        if (checksum !== original.source_hash) throw new Error("El original CSV no coincide con su huella de importación.");
+        if (checksum !== original.source_hash || checksum !== row.checksum) throw new Error("El original CSV no coincide con su huella de importación.");
         folder = await archive.resolveFolder(original.period, original.register, "CSV");
         sync = id => archive.archiveCsv({ id, parentId: folder, name: original.source_name, bytes, checksum });
       } else {
-        if (!row.document_id || row.artifact_kind !== "PDF") throw new Error("Referencia documental inválida.");
+        if (!row.document_id || row.artifact_kind !== "PDF" || row.idempotency_key !== `document:${row.document_id}:central:PDF`) throw new Error("Referencia documental inválida.");
         const { data: doc, error: docError } = await admin.from("documents")
-          .select("id,document_type,external_issue_date,external_tax_document_type,drive_file_id,project_id,customer_id,mime_type")
+          .select("id,document_type,external_issue_date,external_tax_document_type,drive_file_id,project_id,customer_id,mime_type,checksum")
           .eq("id", row.document_id).is("deleted_at", null).maybeSingle();
         if (docError) throw docError;
         if (!doc || doc.document_type !== "EXTERNAL_TAX_DOCUMENT" || !doc.external_issue_date
           || !doc.external_tax_document_type || !doc.drive_file_id || !doc.project_id || !doc.customer_id
+          || (row.checksum != null && doc.checksum !== row.checksum)
           || doc.project_id !== row.project_id || doc.customer_id !== row.customer_id || doc.mime_type !== "application/pdf") {
           throw new Error("El respaldo externo no cumple los requisitos de archivo automático.");
         }
