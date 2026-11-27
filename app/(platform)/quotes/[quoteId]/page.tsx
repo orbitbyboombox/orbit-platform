@@ -16,7 +16,7 @@ export default async function CommercialQuotePage({
   const quote = await loadCommercialQuoteDetail(client, quoteId);
   if (!quote) notFound();
   const hubData = quote.draft
-    ? await loadCommercialHubData(client)
+    ? await loadCommercialHubData(client, false)
     : undefined;
   return <CommercialQuoteDetailExperience hubData={hubData} quote={quote} />;
 }

@@ -21,9 +21,18 @@ test("Phase C.6 keeps the PDF event language in admin and Staff surfaces", () =>
   assert.doesNotMatch(staff, /<Small label="Pago neto"/);
   assert.doesNotMatch(admin, /Fórmula C\.5/);
   assert.match(admin, /sm:grid-cols-3/);
-  assert.match(admin, /\[operationOpen, setOperationOpen\] = useState\(false\)/);
-  assert.match(admin, /ABRIR OPERACIÓN DEL EVENTO/);
-  assert.match(admin, /CERRAR OPERACIÓN DEL EVENTO/);
+  // 33ca26c9 keeps the live route on one contextual workspace. The retained
+  // replica still starts collapsed and expands exactly the selected detail.
+  const route = read("app/(platform)/projects/[projectId]/page.tsx");
+  const workspace = read("features/projects/components/project-workspace-experience.tsx");
+  assert.match(route, /<ProjectWorkspaceExperience/);
+  assert.doesNotMatch(route, /<EventUiReplica/);
+  assert.match(workspace, /aria-label="Navegación contextual del evento"/);
+  assert.match(admin, /detailOpen, setDetailOpen\] = useState[\s\S]*?overview: false, client: false, staff: false, service: false, paper: false, equipment: false, finance: false/);
+  assert.match(admin, /aria-label="Menú principal EVENT 360°"/);
+  assert.match(admin, /aria-pressed=\{Boolean\(detailOpen\[key\]\)\}/);
+  assert.match(admin, /Object\.values\(detailOpen\)\.some\(Boolean\)/);
+  assert.match(admin, /setDetailOpen\(\{ overview: false, client: false, staff: false, service: false, paper: false, equipment: false, finance: false \}\)[\s\S]*?CERRAR DETALLE/);
   assert.match(admin, /function AccordionSection/);
   assert.match(admin, /title="Event 360° \/ Resumen general" summary=\{`\$\{display\(status/);
   assert.match(admin, /detailOpen\.overview/);

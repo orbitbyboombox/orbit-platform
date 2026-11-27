@@ -21,7 +21,7 @@ type Canonical={kind:"onboarding"|"expense";id:string;status:string};
 const project=(records:Canonical[])=>new Map(records.filter(record=>record.status===(record.kind==="onboarding"?"SUBMITTED":"PENDING_REVIEW")).map(record=>[`${record.kind}:${record.id}`,record]));
 
 test("new onboarding projects an actionable Founder alert",()=>{assert.match(migration,/STAFF_ONBOARDING_REVIEW_REQUIRED/);assert.match(migration,/where i\.status='SUBMITTED'/)});
-test("Founder dashboard renders a prominent pending action center",()=>{assert.match(dashboard,/Pendientes por revisar/);assert.match(dashboard,/attentionActions\.length/)});
+test("Founder dashboard renders the approved Staff-only pending action center",()=>{assert.match(dashboard,/Pendientes de Staff/);assert.match(dashboard,/attentionActions\.length/);assert.match(dashboard,/STAFF_EXPENSE_REVIEW_REQUIRED", "STAFF_BOLETA_REVIEW_REQUIRED"\]\.includes\(item.type\)/)});
 test("header count derives from unresolved Founder actions",()=>{assert.match(layout,/loadFounderActionCount/);assert.doesNotMatch(layout,/loadNotificationUnreadCount/)});
 test("opening an onboarding alert does not resolve canonical state",()=>{assert.match(notifications,/Leer una tarea no la resuelve/);assert.doesNotMatch(onboarding,/status:\s*"APPROVED"/)});
 test("approving onboarding resolves projection through canonical status trigger",()=>{assert.match(migration,/after insert or update of status,submitted_at,submitted_data/);assert.match(migration,/i\.status='SUBMITTED'/)});
@@ -29,7 +29,7 @@ test("rejecting onboarding resolves the same canonical projection",()=>{assert.m
 test("Staff expense persists through the single certified RPC",()=>{assert.match(expenseAction,/rpc\("create_staff_expense_submission"/);assert.equal((expenseAction.match(/create_staff_expense_submission/g)??[]).length,1)});
 test("Staff sees explicit success only after persistence",()=>{assert.match(expenseAction,/✓ Gasto enviado correctamente\. Tu gasto quedó enviado para revisión\./);assert.match(expenseAction,/if \(error\)/)});
 test("expense creates an actionable Founder pending state",()=>{assert.match(migration,/STAFF_EXPENSE_REVIEW_REQUIRED/);assert.match(migration,/where s\.status='PENDING_REVIEW'/)});
-test("Founder dashboard actionable count updates after expense submission",()=>{assert.match(expenseAction,/revalidatePath\("\/", "layout"\)/);assert.match(repository,/count: items\.length/)});
+test("Founder dashboard actionable count updates after expense submission",()=>{assert.match(expenseAction,/revalidatePath\("\/", "layout"\)/);assert.match(repository,/count: visibleItems\.length, items: visibleItems/);assert.match(repository,/visibleItems = items\.filter\(item => !reviewedIds\.has\(item\.id\)\)/)});
 test("expense alert navigates to the exact review record",()=>{assert.match(migration,/reviewExpense='\|\|s\.id\|\|'#expense-'/);assert.match(expensePage,/reviewExpense/);assert.match(expenseReview,/expense-\$\{focusId\}/)});
 test("expense approval resolves alert",()=>{assert.match(migration,/after insert or update of status,reviewed_at/);assert.match(expenseReviewAction,/review_staff_expense_submission/)});
 test("expense rejection resolves alert without deleting history",()=>{assert.match(migration,/s\.status='PENDING_REVIEW'/);assert.doesNotMatch(migration,/delete from public\.staff_expense_submissions/)});

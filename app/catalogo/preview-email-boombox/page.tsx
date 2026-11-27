@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 export const dynamic = "force-static";
 
 const signatureUrl =
@@ -205,8 +207,10 @@ export default function BoomboxEmailPreviewPage() {
         <div className="accent" />
         <header className="header">
           <div className="logo-frame">
-            <img
+            <Image
               className="logo"
+              width={1672}
+              height={941}
               src="/branding/boombox-official-logo.png"
               alt="BOOMBOX®"
             />
@@ -259,7 +263,7 @@ export default function BoomboxEmailPreviewPage() {
           <p>Un abrazo,</p>
 
           <div className="signature">
-            <img src={signatureUrl} alt="Firma Matías Maira BOOMBOX" />
+            <Image src={signatureUrl} alt="Firma Matías Maira BOOMBOX" width={520} height={160} unoptimized />
           </div>
 
           <footer className="footer">

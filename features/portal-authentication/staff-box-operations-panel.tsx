@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import {
   finalizeStaffOperationalTurnAction,
   finalizeStaffPaperCloseoutAction,
@@ -24,18 +24,21 @@ export function StaffBoxOperationsPanel({ projectId, readOnlyPaperCloseout = fal
   const [componentStates, setComponentStates] = useState<Record<string, string>>({});
   const [remaining, setRemaining] = useState("");
   const [reload, setReload] = useState("");
-  const load = () => startTransition(async () => {
+  const load = useCallback(() => startTransition(async () => {
     const result = await loadStaffBoxOperationsAction(projectId);
     if (result.ok) setState({ assignment: result.assignment, roles: result.roles });
     else setMessage(result.message);
-  });
-  useEffect(() => { load(); }, [projectId]);
+  }), [projectId, startTransition]);
+  useEffect(() => { load(); }, [load]);
   const components = state?.assignment.components ?? [];
   const turns = state?.assignment.turns ?? [];
-  const payload = useMemo(() => components.map((component) => ({ componentId: component.id, status: componentStates[component.id] ?? "OK", incident: (componentStates[component.id] ?? "OK") !== "OK" })), [components, componentStates]);
+  const payload = components.map((component) => {
+    const status = componentStates[component.id] ?? "OK";
+    return { componentId: component.id, status, incident: status !== "OK" };
+  });
   if (!state?.assignment.id) return paperOnly ? <section className="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/5 p-4" aria-label="Caja no asignada"><OperationalTurns projectId={projectId} turns={turns} onComplete={load} /><p className="text-xs font-semibold uppercase tracking-[.16em] text-amber-600">CAJA NO ASIGNADA</p><p className="mt-2 text-sm text-muted">Este evento todavía no tiene Caja asignada. Contacta a Operaciones.</p></section> : null;
   const canCheckout = state.roles.some((role) => ["OPERATOR", "ASSEMBLY"].includes(role));
-  const canCheckin = state.roles.some((role) => ["OPERATOR", "DISASSEMBLY"].includes(role));
+  const canCheckin = state.roles.some((role) => role === "OPERATOR");
   const paper = state.assignment.paper;
   const paperReady = !paper?.paperRequired || paper.status === "CONFIRMED" || paper.status === "OVERRIDDEN";
 

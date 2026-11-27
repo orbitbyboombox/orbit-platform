@@ -285,7 +285,6 @@ export async function sendOfficeLeaseReceiptEmailAction(form: FormData): Promise
     const obligationValue = paymentResult.data.office_lease_obligations;
     const obligation = Array.isArray(obligationValue) ? obligationValue[0] : obligationValue;
     if (!obligation?.period) throw new Error("No fue posible resolver el mes del arriendo.");
-    const settings = mapSettings(settingsResult.data);
     const admin = createAdminClient();
     const receiptDownload = await admin.storage.from("orbit-documents").download(documentResult.data.storage_path);
     if (receiptDownload.error) throw receiptDownload.error;
@@ -332,10 +331,9 @@ export async function sendOfficeLeaseReminderAction(form: FormData): Promise<Off
     if (!obligationId || !recipientName || !subject || !message) throw new Error("Completa los datos del recordatorio.");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) throw new Error("Ingresa un correo válido.");
     if (subject.length > 180 || message.length > 4000) throw new Error("El asunto o mensaje es demasiado largo.");
-    const [obligationResult, financialResult, company] = await Promise.all([
+    const [obligationResult, financialResult] = await Promise.all([
       client.from("office_lease_obligations").select("id,period,due_date,amount_due").eq("id", obligationId).single(),
       client.from("office_lease_monthly_financials").select("outstanding_amount").eq("obligation_id", obligationId).maybeSingle(),
-      loadCompanySettings(client),
     ]);
     if (obligationResult.error) throw obligationResult.error;
     if (financialResult.error) throw financialResult.error;

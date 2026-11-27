@@ -413,8 +413,7 @@ export function StaffPaymentsCenter({
               {formatDisplayMonth(month)} · {closeState?.status ?? "OPEN"}
             </h3>
             <p className="mt-1 text-sm text-muted">
-              Al cerrar, ORBIT congela las liquidaciones, genera cada PDF y
-              solicita la boleta por correo.
+              Usa el selector por período para cerrar las liquidaciones. El cierre global está deshabilitado.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -443,11 +442,7 @@ export function StaffPaymentsCenter({
               </Button>
             </form>
             <Button
-              disabled={
-                closing ||
-                closeState?.status === "CLOSED" ||
-                closeState?.status === "PAID"
-              }
+              disabled
               loading={closeOperation === "CLOSE"}
               loadingLabel="Cerrando mes…"
               onClick={() =>

@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHash, randomBytes } from "node:crypto";
 import { GoogleGmailApiProvider } from "@/features/connectors/google-gmail/provider/google-gmail-live.provider";
+import { renderBoomboxCommercialEmail } from "@/features/connectors/google-gmail/application/boombox-commercial-email.html";
 import {
   loadGoogleWorkspaceAccessToken,
   loadGoogleWorkspaceConnection,
@@ -23,7 +24,17 @@ export async function createAutomaticBookingInvitation(email: string, actorId: s
   const url = `${appOrigin()}/booking/${token}`;
   try {
     const subject = "✨ Completa tu Reserva BOOMBOX";
-    const htmlBody = `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;padding:32px;background:#111;color:#fff;border-radius:20px"><p style="color:#f28e2b;font-weight:700;letter-spacing:.14em">BOOMBOX</p><h1>Tu experiencia comienza aquí.</h1><p>Completa los datos de tu evento, elige tu servicio, revisa el contrato y confirma tu reserva desde un único proceso seguro.</p><p style="margin:28px 0"><a href="${url}" style="display:inline-block;background:#f28e2b;color:#111;padding:14px 22px;border-radius:12px;font-weight:700;text-decoration:none">Completar mi reserva</a></p><p style="color:#aaa;font-size:13px">Este enlace es personal, vence en 7 días y funciona una sola vez.</p></div>`;
+    const htmlBody = renderBoomboxCommercialEmail({
+      preheader: "Completa los datos de tu Reserva BOOMBOX desde tu enlace seguro.",
+      eyebrow: "",
+      title: "¡Bienvenido a BOOMBOX!",
+      headerLabel: "EVENTOS QUE CONECTAN",
+      stackedHeader: true,
+      contentHtml: "<p>Tu experiencia comienza aquí.</p><p>Una vez dentro podrás:</p><ul><li>Completar los datos de tu evento</li><li>Elegir tus servicios</li><li>Revisar tu contrato</li><li>Confirmar tu reserva</li></ul>",
+      website: "https://www.bbox.cl",
+      primaryAction: { href: url, label: "COMPLETAR MI RESERVA" },
+      contentAfterActionsHtml: '<p style="font-size:13px;color:#d1d1d1">Este enlace es personal, vence en 7 días y funciona una sola vez.</p>',
+    });
     const workspace = await loadGoogleWorkspaceConnection();
     const senderEmail = workspace.workspaceAccount?.trim();
     if (!senderEmail) throw new Error("Google Workspace no tiene una cuenta remitente configurada.");

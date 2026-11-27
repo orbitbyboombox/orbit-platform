@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { loadCompanySettingsForLayout } from "@/features/company-settings/repository";
 import { resolveCollectionBankDetails } from "@/features/accounts-receivable/collection-bank-details";
 import { BankDetailsCopyCard } from "./bank-details-copy-card";
@@ -12,10 +13,12 @@ export default async function BankDetailsPage() {
     <main className="min-h-screen bg-[#08090b] px-4 py-8 text-white sm:py-12">
       <section className="mx-auto max-w-xl overflow-hidden rounded-3xl border border-white/10 bg-[#0e1013] shadow-2xl">
         <div className="border-t-[6px] border-[#F78900] bg-[#111214] px-6 py-8 text-center sm:px-8">
-          <img
+          <Image
             alt="BOOMBOX"
             className="mx-auto h-auto w-[220px] max-w-full"
-            src="https://app.bbox.cl/branding/boombox-official-logo.png"
+            width={1672}
+            height={941}
+            src="/branding/boombox-official-logo.png"
           />
           <p className="mt-4 text-[10px] font-bold uppercase tracking-[0.2em] text-[#F78900]">
             DATOS PARA TRANSFERENCIA

@@ -45,6 +45,7 @@ const acceptedSnapshot = {
       date: "2026-11-20",
       time: "19:00",
       location: "Centro de Eventos",
+      address: "Av. Uno 123",
       city: "Las Condes",
       durationHours: 4,
       shellType: "WHITE",
@@ -77,7 +78,7 @@ test("3 company and RUT transfer", () => { assert.equal(review.customer.company,
 test("4 contact transfers", () => assert.equal(review.customer.contact, "Ana Productora"));
 test("5 event date transfers", () => assert.equal(review.event.date, "2026-11-20"));
 test("6 schedule transfers", () => { assert.equal(review.event.time, "19:00"); assert.equal(review.event.durationHours, 4); });
-test("7 venue address and commune transfer", () => { assert.equal(review.event.location, "Centro de Eventos"); assert.equal(review.event.city, "Las Condes"); });
+test("7 venue address and commune transfer", () => { assert.equal(review.event.location, "Centro de Eventos"); assert.equal(review.event.address, "Av. Uno 123"); assert.equal(review.event.city, "Las Condes"); });
 test("8 accepted services items and quantities transfer", () => { assert.equal(review.items[0].code, "CLASSIC"); assert.equal(review.items[0].quantity, 2); });
 test("9 accepted financial values remain exact", () => assert.deepEqual(review.financial, { subtotal:500000,discount:50000,net:450000,tax:85500,total:535500,depositPercent:40,deposit:214200,balance:321300,customerTransportCharge:100000,paymentCondition:"FIFTY_FIFTY",paymentTermDays:0 }));
 test("10 customer transport charge remains revenue", () => { assert.equal(review.financial.customerTransportCharge, 100000); assert.match(actions, /negotiatedTransport: acceptedTransport/); });
@@ -99,7 +100,7 @@ test("13 double click uses one quote conversion transaction", () => { assert.mat
 test("14 browser retry resumes one reservation transaction", () => { assert.match(actions, /reservationTransactionId: claim\.transactionId/); assert.match(actions, /reservationResumed/); });
 test("15 concurrent Founder sessions cannot duplicate the conversion", () => { assert.match(migration, /quotation_id uuid not null unique/); assert.match(migration, /project_id uuid not null unique/); });
 test("16 accepted quote snapshot is immutable", () => { assert.match(migration, /accepted_snapshot jsonb not null/); assert.match(migration, /project_commercial_origins_immutable/); assert.match(migration, /snapshot aceptado de la cotización es inmutable/); });
-test("17 accepted quote PDF is visible from Event and immutable route data", () => { const route=source("app/api/commercial/quotes/[quoteId]/pdf/route.ts");const document=source("features/commercial-hub/formal-quote-document.ts");assert.match(eventHub, /VER PDF/);assert.match(route,/loadFormalQuoteDocument/);assert.match(document, /accepted_snapshot/); });
+test("17 accepted quote PDF is visible from Event and immutable route data", () => { const route=source("app/api/commercial/quotes/[quoteId]/pdf/route.ts");const document=source("features/commercial-hub/formal-quote-document.ts");assert.match(eventHub, /href=\{original.href\}[^>]*>VER COTIZACIÓN ORIGINAL/);assert.match(route,/loadFormalQuoteDocument/);assert.match(document, /accepted_snapshot/); });
 test("18 OC upload accepts protected supported formats", () => { assert.match(ocActions, /application\/pdf/); assert.match(ocActions, /image\/jpeg/); assert.match(ocActions, /image\/png/); assert.match(ocActions, /orbit-documents/); });
 test("19 OC persists after reload from canonical documents", () => { assert.match(source("app/(platform)/projects/[projectId]/page.tsx"), /purchase_order_number/); assert.match(eventHub, /CUSTOMER_PURCHASE_ORDER/); });
 test("20 OC access is authenticated and project-scoped", () => { const route=source("app/api/projects/[projectId]/documents/[documentId]/route.ts"); assert.match(route, /auth\.getUser/); assert.match(route, /\.eq\("project_id", projectId\)/); assert.match(route, /Cache-Control": "private, no-store/); });

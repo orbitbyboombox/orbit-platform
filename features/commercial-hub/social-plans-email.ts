@@ -1,3 +1,4 @@
+import type { CommercialCategory } from "./types.ts";
 import { renderPremiumQuotationEmail } from "../connectors/google-gmail/application/boombox-premium-quotation-email.html.ts";
 
 const escapeHtml = (value: string) =>
@@ -34,6 +35,7 @@ const renderParagraph = (paragraph: string, index: number) => {
 };
 
 export type SocialPlansEmailInput = {
+  category?: Exclude<CommercialCategory, "COMPANIES_QUOTE">;
   body: string;
   contact: string;
   website: string;
@@ -47,11 +49,14 @@ export type SocialPlansEmailInput = {
 export function buildSocialPlansEmail(input: SocialPlansEmailInput) {
   const person = input.contact.trim().toLocaleLowerCase("es-CL").replace(/(^|[\s\u0027-])([\p{L}])/gu, (_, prefix: string, letter: string) => prefix + letter.toLocaleUpperCase("es-CL"));
   const greeting = person ? `Hola ${person},` : "Hola,";
-  const intro = /matrimonio/i.test(input.body)
+  const wedding = input.category ? input.category === "WEDDINGS" : /matrimonio/i.test(input.body);
+  const birthday = input.category ? input.category === "BIRTHDAYS" : /cumpleaños/i.test(input.body);
+  const graduation = input.category ? input.category === "GRADUATIONS" : /graduaci[oó]n/i.test(input.body);
+  const intro = wedding
     ? "Gracias por considerar a BOOMBOX para uno de los días más importantes de sus vidas. Preparamos una propuesta especial para que cada recuerdo de su matrimonio sea inolvidable."
-    : /cumpleaños/i.test(input.body)
+    : birthday
       ? "¡Cada cumpleaños merece celebrarse en grande! Preparamos experiencias fotográficas para compartir, reír y guardar los mejores recuerdos de tu celebración."
-      : /graduaci[oó]n/i.test(input.body)
+      : graduation
         ? "Después de tanto esfuerzo, llegó el momento de celebrar. Queremos acompañarte con una experiencia fotográfica que capture la alegría de tu graduación."
         : "Gracias por pensar en BOOMBOX. Queremos que tu evento se transforme en una experiencia memorable para ti y tus invitados.";
   const beforeAction = [greeting, intro];

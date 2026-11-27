@@ -5,7 +5,7 @@ import test from "node:test";
 const root = new URL("../", import.meta.url);
 const founder = readFileSync(new URL("features/founder-workspace/founder-workspace-experience.tsx", root), "utf8");
 const financeReadModel = readFileSync(new URL("features/finance/finance-read-model.ts", root), "utf8");
-const valueComponent = founder.match(/export function FounderKpiValue[\s\S]*?function StatusPill/)?.[0] ?? "";
+const valueComponent = founder.match(/export function FounderKpiValue[\s\S]*?function OrderableItem/)?.[0] ?? "";
 
 test("Founder KPIs use one reusable container-aware value component", () => {
   assert.match(founder, /<FounderKpiValue>\{formatMetric\(metric\)\}<\/FounderKpiValue>/);

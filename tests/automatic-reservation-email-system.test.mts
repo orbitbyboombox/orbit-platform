@@ -135,7 +135,7 @@ test("Founder backup uses the premium BOOMBOX family", () => {
   assert.match(rendered.htmlBody, /NUEVA RESERVA CONFIRMADA/);
   assert.match(rendered.htmlBody, /ESTADO OPERACIONAL/);
   assert.match(rendered.htmlBody, /ABRIR EVENTO EN ORBIT/);
-  assert.match(rendered.htmlBody, /COMUNICACIÓN EMITIDA MEDIANTE ORBIT SOFTWARE DESARROLLADO POR BOOMBOX®/);
+  assert.match(rendered.htmlBody, /BOOMBOX · Comunicación emitida mediante ORBIT<\/span><br>ORBIT · Software desarrollado por BOOMBOX/);
   assert.match(rendered.textBody, /Fecha del evento: 15 de enero de 2027/);
   assert.match(rendered.textBody, /Pago recibido: \$270\.000/);
   assert.match(rendered.textBody, /Saldo: \$270\.000/);
@@ -209,7 +209,7 @@ test("browser CRLF edits retain Photo 2 structured rows, orange hierarchy and CT
     assert.match(htmlBody, new RegExp(`color:#e67800[^>]*>${section}</h2>`));
   assert.doesNotMatch(htmlBody, /<p[^>]*>Servicio<br>/);
   assert.equal((htmlBody.match(/ABRIR EVENTO EN ORBIT/g) ?? []).length, 1);
-  assert.match(htmlBody, /<td[^>]*background:#f78900[^>]*><a href="https:\/\/orbit\.boom-box\.cl\/portal"/);
+  assert.match(htmlBody, /<td[^>]*background-color:#f78900[^>]*><a[^>]*href="https:\/\/orbit\.boom-box\.cl\/portal"/);
 });
 
 test("canonical total is prominent and is not degraded to a loose labeled block", () => {

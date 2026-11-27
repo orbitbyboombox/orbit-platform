@@ -94,12 +94,14 @@ test("event location combines useful canonical fields and omits missing data", (
 test("upcoming collection template includes complete event detail", () => {
   const draft = buildCollectionEmailDraft(invoice(), bankDetails);
   assert.equal(draft.templateKey, "UPCOMING");
-  assert.match(draft.body, /FECHA\n14 de septiembre de 2026/);
-  assert.match(draft.body, /LUGAR\nCentro de Eventos Las Condes · Santiago/);
-  assert.match(draft.body, /SERVICIO\nClassic \+ Imanes ilimitados/);
-  assert.match(draft.body, /DURACIÓN\n3 horas/);
-  assert.doesNotMatch(draft.body, /Valor total/);
-  assert.match(draft.body, /SALDO PENDIENTE\n\$345\.100/);
+  assert.match(draft.body, /El vencimiento está programado/);
+  const html = buildCollectionEmailHtml(draft);
+  assert.match(html, /14 de septiembre de 2026/);
+  assert.match(html, /Centro de Eventos Las Condes · Santiago/);
+  assert.match(html, /Classic \+ Imanes ilimitados/);
+  assert.match(html, /3 horas/);
+  assert.doesNotMatch(html, /Valor total/);
+  assert.match(html, /Saldo pendiente[^]*\$345\.100/);
 });
 
 test("overdue collection template keeps the same canonical event block", () => {
@@ -108,10 +110,11 @@ test("overdue collection template keeps the same canonical event block", () => {
     bankDetails,
   );
   assert.equal(draft.templateKey, "OVERDUE");
-  assert.match(draft.body, /Te escribimos para recordarte el saldo pendiente de tu evento\./);
-  assert.match(draft.body, /FECHA\n14 de septiembre de 2026/);
-  assert.match(draft.body, /SALDO PENDIENTE\n\$345\.100/);
-  assert.match(draft.body, /BANCO\nBCI/);
+  assert.match(draft.body, /el plazo acordado ya se cumplió/);
+  const html = buildCollectionEmailHtml(draft);
+  assert.match(html, /14 de septiembre de 2026/);
+  assert.match(html, /Saldo pendiente[^]*\$345\.100/);
+  assert.match(html, /Banco[^]*BCI/);
 });
 
 test("missing venue is omitted without placeholder or null leakage", () => {
@@ -119,7 +122,8 @@ test("missing venue is omitted without placeholder or null leakage", () => {
     invoice({ eventLocation: null }),
     bankDetails,
   );
-  assert.doesNotMatch(draft.body, /^LUGAR$/m);
+  const html = buildCollectionEmailHtml(draft);
+  assert.doesNotMatch(html, />Lugar</);
   assert.doesNotMatch(draft.body, /null|undefined/i);
 });
 
@@ -139,10 +143,13 @@ test("separate receivables keep event and balance data isolated", () => {
     }),
     bankDetails,
   );
-  assert.match(first.body, /Las Condes/);
-  assert.doesNotMatch(first.body, /Viña del Mar|\$800\.000/);
-  assert.match(second.body, /Viña del Mar|\$800\.000/);
-  assert.doesNotMatch(second.body, /Las Condes|\$345\.100/);
+  const firstHtml = buildCollectionEmailHtml(first);
+  const secondHtml = buildCollectionEmailHtml(second);
+  assert.match(firstHtml, /Las Condes/);
+  assert.doesNotMatch(firstHtml, /Viña del Mar|\$800\.000/);
+  assert.match(secondHtml, /Viña del Mar/);
+  assert.match(secondHtml, /\$800\.000/);
+  assert.doesNotMatch(secondHtml, /Las Condes|\$345\.100/);
 });
 
 test("draft fingerprint detects stale balances or event details before send", () => {
@@ -193,7 +200,8 @@ test("composer shows complete mobile-safe collection summary and preserves CC", 
 
 test("communication history snapshots body while Payment Ledger remains read-only", () => {
   assert.match(action, /communication_type: "COLLECTION_EMAIL"/);
-  assert.match(action, /subject,\s*body,\s*status: "PENDING"/);
+  assert.match(action, /subject,\s*body: fullBody,\s*status: "PENDING"/);
+  assert.match(action, /textBody: fullBody,\s*htmlBody: buildCollectionEmailHtml\(draft, fullBody, subject\)/);
   assert.match(action, /cc_recipients: recipients\.cc/);
   assert.doesNotMatch(action, /from\("invoice_payments"\)/);
   assert.doesNotMatch(action, /from\("payment_ledger"\)/i);
@@ -204,15 +212,15 @@ test("communication history snapshots body while Payment Ledger remains read-onl
 test("collection HTML matches Photo 3 hierarchy without duplicated canonical data", () => {
   const draft = buildCollectionEmailDraft(invoice(), bankDetails);
   const html = buildCollectionEmailHtml(draft);
-  const intro = html.slice(html.indexOf("Hola Jenniffer"), html.indexOf("Detalle del evento"));
+  const intro = html.slice(html.indexOf("Hola, "), html.indexOf("Detalle del evento"));
+  const details = html.slice(html.indexOf("Detalle del evento"));
 
   assert.match(html, />BOOMBOX</);
   assert.match(html, />Cobranza comercial</);
-  assert.equal(
-    intro.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(),
-    "Hola Jenniffer Chavez, Te escribimos para recordarte el saldo pendiente de tu evento.",
-  );
-  assert.doesNotMatch(intro, /14 de septiembre|Las Condes|Classic|3 horas|\$345\.100|25 de septiembre|BCI|52093409/);
+  assert.match(intro, /^Hola, <strong[^>]*>Jenniffer<\/strong>!/);
+  assert.match(intro, /pago pendiente/);
+  assert.match(intro, /25 de septiembre de 2026/);
+  assert.doesNotMatch(intro, /14 de septiembre|Las Condes|Classic|3 horas|\$345\.100|BCI|52093409/);
   for (const value of [
     "14 de septiembre de 2026",
     "Centro de Eventos Las Condes · Santiago",
@@ -224,7 +232,7 @@ test("collection HTML matches Photo 3 hierarchy without duplicated canonical dat
     "Cuenta Corriente",
     "52093409",
     "76.565.272-3",
-  ]) assert.equal(html.split(value).length - 1, 1, `${value} must render exactly once`);
+  ]) assert.equal(details.split(value).length - 1, 1, `${value} must render exactly once in the structured summary`);
   assert.match(html, /Detalle del evento/);
   assert.match(html, /Saldo pendiente/);
   assert.match(html, /Datos para transferencia/);
@@ -233,7 +241,7 @@ test("collection HTML matches Photo 3 hierarchy without duplicated canonical dat
   assert.match(html, /BOOMBOX · Comunicación emitida mediante ORBIT/);
   assert.match(html, /ORBIT · Software desarrollado por BOOMBOX/);
   assert.match(html, />www\.bbox\.cl</);
-  assert.doesNotMatch(html, /Si el pago ya fue efectuado|Muchas gracias|responder este correo|Valor total/);
+  assert.doesNotMatch(html, /Si el pago ya fue efectuado|responder este correo|Valor total/);
 });
 
 test("collection HTML is contained on desktop and wraps Photo 3 cells on mobile", () => {

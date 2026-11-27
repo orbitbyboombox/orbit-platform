@@ -4,14 +4,17 @@ import test from "node:test";
 
 const dashboard = readFileSync("features/portal-authentication/staff-portal-dashboard.tsx", "utf8");
 const portal = readFileSync("features/portal-authentication/staff-portal.tsx", "utf8");
+const cardList = dashboard.slice(dashboard.indexOf("function AvailableEvents("), dashboard.indexOf("function MultiRoleEventPreview("));
+const activePreview = dashboard.slice(dashboard.indexOf("function MultiRoleEventPreview("), dashboard.indexOf("function Small("));
 
 test("available Staff cards expose operational details before requesting a role", () => {
   for (const label of ["Recinto", "Dirección", "Horario", "Hora de citación", "Caja asignada", "Responsabilidades", "Honorarios"]) {
-    assert.match(dashboard, new RegExp(label));
+    assert.match(cardList, new RegExp(label));
   }
-  assert.match(dashboard, /TOMAR RESPONSABILIDAD · Ver detalle/);
-  assert.match(dashboard, /event\.callout/);
-  assert.match(dashboard, /event\.box/);
+  assert.match(cardList, /TOMAR RESPONSABILIDAD · Ver detalle/);
+  assert.match(cardList, /<MultiRoleEventPreview event=\{selected\}/);
+  assert.match(cardList, /event\.callout/);
+  assert.match(cardList, /event\.box/);
 });
 
 test("available details are read from canonical operational records and official rates", () => {
@@ -34,12 +37,14 @@ test("available event honoraria are isolated from commercial quote totals", () =
   assert.doesNotMatch(availableSection, /quotation_total|grand_total|final_customer_price|transport_total/);
   assert.match(portal, /const officialRates=new Map\(\(costMasterResult\.data/);
   assert.match(availableSection, /resolveStaffRateForEvent/);
-  assert.match(dashboard, /Este monto corresponde exclusivamente a tu responsabilidad/);
+  assert.match(activePreview, /Este monto corresponde exclusivamente a tu responsabilidad/);
+  assert.match(activePreview, /honorarium\(amount\(role\)\)/);
+  assert.doesNotMatch(activePreview, /clientPhone|productionPhone|quotation_total|grand_total|final_customer_price|transport_total/);
 });
 
 test("free events still render official Staff honoraria and not client pricing", () => {
   assert.match(dashboard, /Honorarios:/);
   assert.match(dashboard, /TUS CARGOS Y HONORARIOS/);
-  assert.match(dashboard, /Honorario oficial de la asignación/);
+  assert.match(activePreview, /Honorario oficial de la asignación/);
   assert.match(dashboard, /Honorario pendiente de definir/);
 });

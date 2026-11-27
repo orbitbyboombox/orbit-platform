@@ -50,8 +50,23 @@ export async function loadNotificationInbox(userId: string): Promise<Notificatio
     const actionRequired = actionIds.has(item.id);
     return { id: item.id, category: item.category as NotificationCategory, priority: item.priority as NotificationPriority, type: item.notification_type, title: item.title, message: item.message, status: item.status, createdAt: item.created_at, actionRequired, read: Boolean(state?.read_at), archived: actionRequired ? false : Boolean(state?.archived_at || state?.dismissed_at), relatedHref: item.related_href ?? undefined, project: project?.name, customer: customer?.full_name, staff: staff ? `${staff.first_name} ${staff.last_name}` : undefined };
   });
-  const derived = actionCenter.items.filter((item) => item.type === "OVERDUE_INVOICE_GROUP").map((item) => ({ id: item.id, category: item.category as NotificationCategory, priority: "NORMAL" as NotificationPriority, type: item.type, title: item.title, message: item.detail, createdAt: item.createdAt, actionRequired: true, read: true, archived: false, derived: true, relatedHref: item.href }));
-  const combined = [...d10Derived, ...derived, ...notifications];
+  const overdueInvoices = actionCenter.items
+    .filter((item) => item.type === "INVOICE_OVERDUE")
+    .map((item) => ({
+      id: item.id,
+      category: item.category as NotificationCategory,
+      priority: "NORMAL" as NotificationPriority,
+      type: item.type,
+      title: item.title,
+      message: item.detail,
+      createdAt: item.createdAt,
+      actionRequired: true,
+      read: true,
+      archived: false,
+      derived: true,
+      relatedHref: item.href,
+    }));
+  const combined = [...d10Derived, ...overdueInvoices, ...notifications];
   return { notifications: combined, unreadCount: combined.filter((item) => !item.read && !item.archived).length, actionableCount: actionCenter.count, retentionDays: settings?.retention_days ?? 30, generatedAt: new Date().toISOString(), externalCleanupResiduals };
 }
 

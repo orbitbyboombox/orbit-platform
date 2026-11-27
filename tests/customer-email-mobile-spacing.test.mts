@@ -14,7 +14,8 @@ test("all customer email families have explicit mobile spacing guards", () => {
   assert.match(shared, /orbit-body p\{margin-bottom:14px!important\}/);
   assert.match(shared, /orbit-body \.orbit-signature p\{margin:0!important\}/);
   assert.match(shared, /orbit-action-link/);
-  assert.match(d10, /max-width:520px/);
+  assert.match(d10, /@media only screen and \(max-width:480px\)/);
+  assert.match(d10, /orbit-summary-cell\{display:block!important;width:100%!important/);
   assert.match(d10, /orbit-pad p\{line-height:1\.72!important\}/);
   assert.match(collection, /max-width:520px/);
   assert.match(collection, /orbit-detail-cell\{display:block!important;width:100%!important/);

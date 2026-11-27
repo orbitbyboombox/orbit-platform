@@ -220,7 +220,7 @@ test("Empresa email uses the dedicated reservation confirmation structure", () =
   assert.match(rendered.body, /^Horario\n14:00$/m);
   assert.match(
     rendered.body,
-    /^Lugar\nPatio de la Sala de Arte, Av Vitacura 2680, Las Condes$/m,
+    /^Lugar\nPatio de la Sala de Arte, Av Vitacura 2680\n\nComuna\nLas Condes$/m,
   );
 });
 
@@ -335,7 +335,9 @@ test("Empresa CTA is branded, mobile friendly and targets safe portal login", ()
   assert.match(html, />ABRIR EVENTO EN ORBIT<\/a>/);
   assert.match(html, /href="https:\/\/orbit\.boom-box\.cl\/portal"/);
   assert.match(html, /background:#f78900/);
-  assert.match(html, /min-width:260px/);
+  assert.match(html, /\.orbit-action\{width:100%!important;max-width:100%!important/);
+  assert.match(html, /padding:15px 24px/);
+  assert.doesNotMatch(html, /min-width:260px/);
   assert.doesNotMatch(html, /\/projects\/|\/p\/|token=|access_token|[0-9a-f]{8}-[0-9a-f-]{27}/i);
 });
 

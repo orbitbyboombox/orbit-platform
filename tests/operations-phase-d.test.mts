@@ -41,11 +41,20 @@ test("Portal Staff execution is role-aware and shares arrival", () => {
   assert.match(portal, /participationCompleted/);
 });
 
-test("availability stays private before canonical confirmation", () => {
+test("available roles expose their operational venue without exposing the customer's identity or contacts", () => {
+  // 246d9906 publishes operational venue information to eligible Staff.
+  // b74ff531 keeps the address and the venue separate in that projection.
   assert.match(staffProjection, /staff_available_event_projection/);
-  assert.match(staffProjection, /customer:\s*"Evento BOOMBOX"/);
-  assert.match(staffProjection, /clientPhone:\s*"Disponible después de confirmación"/);
-  assert.match(staffProjection, /address:\s*"Disponible después de confirmación"/);
+  const available = staffProjection.slice(staffProjection.indexOf("const availableEvents"), staffProjection.indexOf("const staffRouteRoles"));
+  assert.match(available, /if\(visibility\.state!=="AVAILABLE"\)return\[\]/);
+  assert.match(available, /customer:\s*"Evento BOOMBOX"/);
+  for (const field of ["clientPhone", "productionContact", "productionPhone"]) {
+    assert.match(available, new RegExp(`${field}:\\s*"Disponible después de confirmación"`));
+  }
+  assert.doesNotMatch(available, /customers|full_name|contact_phone/);
+  assert.match(available, /const address=resolveStaffEventAddress\(\{ operations: detailOperations \}\)/);
+  assert.match(available, /const venue=resolveStaffVenueInfo\(\{ operations: detailOperations, location: detail\?\.location \}\)\.name/);
+  assert.match(available, /,address,district:[^}]+,venue,/);
 });
 
 test("published Staff visibility is explicit and does not require a role row", () => {

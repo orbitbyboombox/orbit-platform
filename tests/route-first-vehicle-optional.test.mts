@@ -22,6 +22,8 @@ test("route staff assignment is canonical for publication and portal visibility"
 
 test("Admin UI presents vehicle as optional and requires staff before sharing", () => {
   assert.match(view, /Vehículo por confirmar/);
-  assert.match(view, /Asigna al menos una persona para publicar/);
+  assert.match(view, /No hay Staff confirmado para los eventos de este día/);
+  assert.match(view, /disabled=\{!routeEvents\.length \|\| !draft\.staffIds\.length \|\| draft\.status === "PUBLISHED"\} onClick=\{saveAndPublish\}/);
+  assert.match(view, /if \(!draft \|\| !draft\.eventIds\.length \|\| !draft\.staffIds\.length\) return/);
   assert.match(view, /draft\.staffIds\.length/);
 });

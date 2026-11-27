@@ -133,7 +133,7 @@ test("admin payroll sheet exposes every requested canonical column", () => {
     assert.match(paymentCenter, new RegExp(label));
   assert.match(paymentCenter, /account\.finalTransferAmount/);
   assert.match(paymentCenter, /account\.advancesTotal/);
-  assert.match(settlementPdf, /detail\.event\|\|detail\.service/);
+  assert.match(settlementPdf, /detail\.event\s*\|\|\s*detail\.service/);
 });
 
 test("monthly close loaders are scoped to the action that is actually running", () => {
@@ -144,7 +144,7 @@ test("monthly close loaders are scoped to the action that is actually running", 
 });
 
 test("Founder dashboard uses one accordion and exact review links", () => {
-  assert.match(dashboard, /<details[\s\S]*Pendientes por revisar/);
+  assert.match(dashboard, /<details[\s\S]*id="founder-action-center-title"[\s\S]*Pendientes de Staff[\s\S]*<\/details>/);
   assert.doesNotMatch(dashboard, /compactSummary/);
   assert.match(actionCenter, /\/finance\/receivables\?invoice=/);
   assert.match(visibility, /reviewExpense=/);

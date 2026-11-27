@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { buildCommercialQuoteDetail } from "../features/commercial-hub/quote-detail.ts";
 import { prepareFormalQuotePersistence } from "../features/commercial-hub/quote-persistence.ts";
 import { buildQuoteConversionReview, resolveQuoteConversionPaymentTerms } from "../features/commercial-hub/quote-conversion.ts";
 import { isCompanyCreditPaymentCategory, resolveReceivablePaymentCategory } from "../features/accounts-receivable/payment-term-classification.ts";
@@ -89,9 +90,29 @@ test("reparación es idempotente en notas", () => assert.match(migration, /like 
 test("Brysa queda restaurada exactamente tras detectar el UUID stale", () => { assert.match(brysaRestore, /14505331-aa33-49a8-8d18-59de68444195/); assert.match(brysaRestore, /payment_term='CASH'/); assert.match(brysaRestore, /due_date='2026-09-19'/); assert.doesNotMatch(brysaRestore, /invoice_payments|receivable_movements/); });
 test("clientes protegidos nunca se borran ni recrean", () => { assert.doesNotMatch(migration, /delete from public\.customers|insert into public\.customers/); assert.doesNotMatch(driveSync, /delete.*customers/i); });
 test("Drive consulta padres físicos, no sólo metadata local", () => { assert.match(driveProvider, /getFolderParents/); assert.match(driveSync, /actualParents/); });
-test("Drive mueve con el mismo Folder ID", () => { assert.match(driveSync, /id:previousEvent\.external_folder_id/); assert.match(driveSync, /previousParentFolderId:physicalPreviousParents/); });
+test("Drive renombra por ID y rechaza un padre físico distinto del mes canónico", () => {
+  assert.match(driveSync, /actualParents\.length !== 1 \|\| actualParents\[0\] !== parent\.driveFolderId/);
+  assert.match(driveSync, /updateFolder\(\{ id: previousEvent\.external_folder_id, name: eventFolderPlan\.name \}\)/);
+  assert.match(driveSync, /conflicting\.id !== previousEvent\.external_folder_id/);
+});
 test("Drive limpia last_error después de reconciliar", () => assert.match(driveSync, /last_error:null/));
 test("matriz expone estado Calendar", () => assert.match(migration, /calendar_status/));
 test("matriz expone estado Drive", () => assert.match(migration, /drive_status/));
 test("no se envían comunicaciones por esta corrección interna", () => assert.doesNotMatch(migration, /send|email|communication/i));
-test("persistencia reload conserva condición y plazo", () => { const repository=read("features/commercial-hub/repository.ts"); assert.match(repository,/commercial\.paymentCondition/); assert.match(repository,/commercial\.paymentTermDays/); });
+test("persistencia reload conserva condición y plazo", () => {
+  const persisted = prepareFormalQuotePersistence(draft(45));
+  const detail = buildCommercialQuoteDetail({
+    id: "q",
+    status: "DRAFT",
+    customer_snapshot: persisted.customerSnapshot,
+    commercial_snapshot: persisted.commercialSnapshot,
+    deposit_percent: 0,
+  });
+  assert.equal(detail.draft?.paymentCondition, "CORPORATE_CREDIT");
+  assert.equal(detail.draft?.paymentTermDays, 45);
+
+  const repository = read("features/commercial-hub/repository.ts");
+  const route = read("app/(platform)/quotes/[quoteId]/page.tsx");
+  assert.match(repository, /return buildCommercialQuoteDetail\(/);
+  assert.match(route, /await loadCommercialQuoteDetail\(client, quoteId\)/);
+});

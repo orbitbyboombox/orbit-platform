@@ -8,7 +8,7 @@ const ui = readFileSync("features/resources/admin-paper-closeout-dialog.tsx", "u
 
 test("legacy no-lot CASE closeout writes one auditable EVENT_USAGE movement", () => {
   assert.match(migration, /alter column supply_id drop not null/i);
-  assert.match(migration, /supply_id is null[\s\S]*movement_type = 'EVENT_USAGE'[\s\S]*media_lot_id is null[\s\S]*box_asset_id is not null[\s\S]*project_id is not null/i);
+  assert.match(migration, /add constraint inventory_movements_legacy_case_usage_check check\s*\(\s*supply_id is not null\s+or\s*\(\s*movement_type = 'EVENT_USAGE'\s+and media_lot_id is null\s+and box_asset_id is not null\s+and project_id is not null\s*\)\s*\)/i);
   assert.match(migration, /if delta_usage > 0 then[\s\S]*insert into public\.inventory_movements/i);
   assert.match(migration, /quantity_before, quantity_delta, quantity_after, idempotency_key/i);
   assert.match(migration, /hashtextextended\(correlation, 0\)/i);

@@ -4,6 +4,8 @@ import {formatDisplayDate} from "@/lib/display-date";
 import { serviceDisplayName, staffRoleDisplayName } from "@/lib/orbit-display-labels";
 
 import Link from "next/link";
+import Image from "next/image";
+import { PendingSubmitButton } from "@/components/ui/pending-submit-button";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import {
   CalendarDays,
@@ -21,7 +23,6 @@ import {
   acceptStaffAssignmentAction,
   cancelStaffAssignmentAction,
   changeStaffPasswordAction,
-  declineStaffResponsibilityAction,
   recordStaffCheckInAction,
   rejectAssignedStaffAssignmentAction,
   requestStaffResponsibilitiesAction,
@@ -458,13 +459,13 @@ export function StaffPortalDashboard({
 function StaffPortalHeader({onFinance,onPaper,logoutAction}:{onFinance:()=>void;onPaper:()=>void;logoutAction:(formData:FormData)=>void|Promise<void>}) {
   return <header className="flex min-w-0 flex-col gap-3 rounded-2xl border bg-card/80 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4" aria-label="Navegación principal del Portal Staff">
     <Link className="inline-flex w-fit shrink-0 items-center rounded-xl p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand" href="/staff-portal" aria-label="Ir al inicio del Portal Staff">
-      <img className="h-9 w-auto max-w-[170px] object-contain sm:h-10" src="/branding/boombox-official-logo.png" alt="BOOMBOX" />
+      <Image className="h-9 w-auto max-w-[170px] object-contain sm:h-10" src="/branding/boombox-official-logo.png" alt="BOOMBOX" width={1672} height={941} sizes="72px" />
     </Link>
     <div className="flex min-w-0 flex-wrap items-center gap-2 sm:justify-end">
       <button className="min-h-10 rounded-xl bg-brand px-3 text-xs font-semibold text-brand-foreground sm:px-4 sm:text-sm" onClick={onFinance}>SUBE TU GASTO</button>
       <button className="min-h-10 rounded-xl border border-brand/40 px-3 text-xs font-semibold text-brand hover:bg-brand/10 sm:px-4 sm:text-sm" onClick={onPaper}>PAPEL IMPRESORA</button>
       <Link className="inline-flex min-h-10 items-center rounded-xl border px-3 text-xs font-semibold text-muted hover:text-foreground sm:px-4 sm:text-sm" href="/staff-portal/academy">BOOMBOX ACADEMY</Link>
-      <form action={logoutAction}><button className="min-h-10 rounded-xl border border-white/15 px-3 text-xs font-semibold text-muted hover:border-brand/50 hover:text-foreground sm:px-4 sm:text-sm" type="submit">CERRAR SESIÓN</button></form>
+      <form action={logoutAction}><PendingSubmitButton className="h-auto min-h-10 rounded-xl border border-white/15 px-3 text-xs font-semibold text-muted hover:border-brand/50 hover:text-foreground sm:px-4 sm:text-sm" pendingLabel="Cerrando sesión…" variant="ghost">CERRAR SESIÓN</PendingSubmitButton></form>
     </div>
   </header>;
 }
@@ -932,20 +933,6 @@ function AvailableEvents({
   );
 }
 
-function AvailableEventPreview({event,requests,pending,close,request,setMessage}:{event:AvailableStaffEvent;requests:StaffRequest[];pending:boolean;close:()=>void;request:(projectId:string,role:string)=>void;setMessage:(message:string)=>void}) {
-  const [role,setRole]=useState(event.available[0]??"");
-  const [declining,setDeclining]=useState(false);
-  const [reason,setReason]=useState("ILLNESS");
-  const [detail,setDetail]=useState("");
-  const [declinePending,startDecline]=useTransition();
-  const destination = eventLocationQuery(event.address, event.district, event.venue);
-  const maps = destination ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}` : undefined;
-  const roleNet=role==="OPERATOR"||role==="SUPERVISOR"?event.payments.operator:role==="ASSEMBLY"?event.payments.assembly:role==="DISASSEMBLY"?event.payments.disassembly:event.payments.combined;
-  const estimatedTotal=roleNet!==null&&event.payments.transportationBonus!==null?roleNet+event.payments.transportationBonus:null;
-  const alreadyRequested=requests.some(item=>item.projectId===event.id&&item.responsibility===role&&item.status==="PENDING");
-  const decline=()=>startDecline(async()=>{const form=new FormData();form.set("projectId",event.id);form.set("responsibility",role);form.set("reason",reason);form.set("detail",detail);const result=await declineStaffResponsibilityAction(form);setMessage(result.message);if(result.ok)close()});
-  return <MobileDialog description="Revisa exactamente qué Evento, responsabilidad y pago estás aceptando." eyebrow="Antes de aceptar" onClose={close} size="xl" title="Resumen operacional completo" variant="fullscreen-mobile"><article><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><Small label="Servicio" value={staffServiceLabel(event.service)}/><Small label="Cliente" value={event.customer}/><Small label="Fecha" value={event.date}/><Small label="Horario" value={`${event.start}–${event.finish}`}/><Small label="Duración" value={`${event.duration} horas`}/><Small label="Comuna" value={event.district}/><Small label="Dirección" value={event.address}/><Small label="Contacto cliente" value={event.clientPhone}/><Small label="Producción" value={`${event.productionContact} · ${event.productionPhone}`}/><Small label="Vehículo" value={event.vehicle}/><Small label="Equipamiento" value={event.equipment.join(" · ")||"No asignado"}/><Small label="ORBIT Event ID" value={event.orbitEventId}/></div><a className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold text-brand" href={maps} rel="noreferrer" target="_blank"><Navigation className="size-4"/>Google Maps</a><section className="mt-6 rounded-2xl border border-brand/30 bg-brand/5 p-4"><h4 className="font-semibold">Honorario oficial de la asignación</h4><p className="mt-1 text-sm text-muted">Este monto corresponde exclusivamente a tu responsabilidad y proviene de Finanzas Staff. El precio del evento no se muestra aquí.</p><div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><Small label="Operador" value={honorarium(event.payments.operator)}/><Small label="Montaje" value={honorarium(event.payments.assembly)}/><Small label="Desmontaje" value={honorarium(event.payments.disassembly)}/><Small label="Montaje + Desmontaje" value={honorarium(event.payments.combined)}/><Small label="Bono transporte" value={honorarium(event.payments.transportationBonus)}/><Small label="Total de esta responsabilidad" value={honorarium(estimatedTotal)}/></div></section><section className="mt-6 rounded-2xl border p-4"><label className="grid gap-2 text-sm font-medium">Responsabilidad<select className="min-h-11 rounded-xl border bg-background px-3" value={role} onChange={e=>setRole(e.target.value)}>{event.available.map(value=><option key={value} value={value}>{ROLE[value]??value}</option>)}</select></label><div className="mt-4 flex flex-wrap gap-2"><button className="min-h-11 rounded-xl bg-brand px-4 text-sm font-semibold text-brand-foreground disabled:opacity-50" aria-busy={pending} disabled={pending||alreadyRequested||!role} onClick={()=>request(event.id,role)}>{alreadyRequested?"Solicitud pendiente":pending?"Enviando…":"TOMAR RESPONSABILIDAD"}</button><button className="min-h-11 rounded-xl border px-4 py-2 text-sm font-semibold text-danger" aria-busy={pending} disabled={pending} onClick={()=>setDeclining(value=>!value)}>Rechazar</button></div>{declining?<div className="mt-4 grid gap-3 border-t pt-4"><label className="grid gap-2 text-sm font-medium">Motivo<select className="min-h-11 rounded-xl border bg-background px-3" value={reason} onChange={e=>setReason(e.target.value)}><option value="ILLNESS">Enfermedad</option><option value="EMERGENCY">Emergencia</option><option value="UNAVAILABLE">No disponible</option><option value="DISTANCE">Distancia</option><option value="OTHER">Otro</option></select></label><label className="grid gap-2 text-sm font-medium">Detalle<textarea className="min-h-24 rounded-xl border bg-background p-3" required={reason==="OTHER"} value={detail} onChange={e=>setDetail(e.target.value)}/></label><button className="min-h-11 rounded-xl bg-red-600 px-4 text-sm font-semibold text-white disabled:opacity-50" disabled={declinePending||(reason==="OTHER"&&!detail.trim())} onClick={decline}>{declinePending?"Notificando…":"Confirmar rechazo"}</button></div>:null}</section></article></MobileDialog>
-}
 function MultiRoleEventPreview({event,requests,pending,close,request}:{event:AvailableStaffEvent;requests:StaffRequest[];pending:boolean;close:()=>void;request:(projectId:string,roles:string[])=>void}) {
   const [roles,setRoles]=useState<string[]>([]);
   const pendingRoles=new Set(requests.filter(item=>item.projectId===event.id&&item.status==="PENDING").map(item=>item.responsibility));
@@ -955,24 +942,7 @@ function MultiRoleEventPreview({event,requests,pending,close,request}:{event:Ava
     ? event.payments.combined===null?null:event.payments.combined + (roles.includes("OPERATOR")||roles.includes("SUPERVISOR") ? event.payments.operator??0 : 0)
     : roles.reduce<number|null>((sum,role)=>{const value=amount(role);return sum===null||value===null?null:sum+value},0);
   const total=roleTotal===null||event.payments.transportationBonus===null?null:roleTotal+event.payments.transportationBonus;
-  return <MobileDialog description="Selecciona una o varias responsabilidades disponibles." eyebrow="Antes de aceptar" onClose={close} size="xl" title="Resumen operacional completo" variant="fullscreen-mobile"><article><div className="grid gap-3 sm:grid-cols-2"><Small label="Servicio" value={staffServiceLabel(event.service)}/><Small label="Fecha" value={event.date}/><Small label="Horario" value={`${event.start}–${event.finish}`}/><Small label="Comuna" value={event.district}/><Small label="ORBIT Event ID" value={event.orbitEventId}/></div><section className="mt-6 rounded-2xl border border-brand/30 bg-brand/5 p-4"><h4 className="font-semibold">Responsabilidades disponibles</h4><div className="mt-3 grid gap-2">{selectableRoles.map(role=>{const checked=roles.includes(role),requested=pendingRoles.has(role);return <label className={`flex min-h-11 items-center justify-between rounded-xl border px-3 ${requested?"opacity-60":""}`} key={role}><span><input className="mr-3 size-4" type="checkbox" checked={checked} aria-busy={pending} disabled={pending||requested} onChange={e=>setRoles(current=>e.target.checked?[...current,role]:current.filter(value=>value!==role))}/>{ROLE[role]??role}</span><span>{requested?"Solicitado":money(amount(role))}</span></label>})}</div><p className="mt-3 text-sm font-semibold">Total estimado: {money(total)}</p></section><div className="mt-5 flex flex-wrap gap-2"><button className="min-h-11 rounded-xl bg-brand px-4 text-sm font-semibold text-brand-foreground disabled:opacity-50" aria-busy={pending} disabled={pending||roles.length===0} onClick={()=>request(event.id,roles)}>{pending?"Enviando…":"Aceptar responsabilidades"}</button><button className="min-h-11 rounded-xl border px-4 text-sm font-semibold" aria-busy={pending} disabled={pending} onClick={close}>Cerrar</button></div></article></MobileDialog>;
-}
-function Metric({
-  label,
-  value,
-  icon: Icon,
-}: {
-  label: string;
-  value: string;
-  icon: typeof CalendarDays;
-}) {
-  return (
-    <article className="rounded-2xl border bg-card p-5">
-      <Icon className="size-5 text-brand" />
-      <p className="mt-4 text-3xl font-semibold">{value}</p>
-      <p className="mt-1 text-sm text-muted">{label}</p>
-    </article>
-  );
+  return <MobileDialog description="Selecciona una o varias responsabilidades disponibles." eyebrow="Antes de aceptar" onClose={close} size="xl" title="Resumen operacional completo" variant="fullscreen-mobile"><article><div className="grid gap-3 sm:grid-cols-2"><Small label="Servicio" value={staffServiceLabel(event.service)}/><Small label="Fecha" value={event.date}/><Small label="Horario" value={`${event.start}–${event.finish}`}/><Small label="Comuna" value={event.district}/><Small label="ORBIT Event ID" value={event.orbitEventId}/></div><section className="mt-6 rounded-2xl border border-brand/30 bg-brand/5 p-4"><h4 className="font-semibold">Responsabilidades disponibles</h4><p className="mt-2 text-sm text-muted">Honorario oficial de la asignación. Este monto corresponde exclusivamente a tu responsabilidad.</p><div className="mt-3 grid gap-2">{selectableRoles.map(role=>{const checked=roles.includes(role),requested=pendingRoles.has(role);return <label className={`flex min-h-11 items-center justify-between rounded-xl border px-3 ${requested?"opacity-60":""}`} key={role}><span><input className="mr-3 size-4" type="checkbox" checked={checked} aria-busy={pending} disabled={pending||requested} onChange={e=>setRoles(current=>e.target.checked?[...current,role]:current.filter(value=>value!==role))}/>{ROLE[role]??role}</span><span>{requested?"Solicitado":honorarium(amount(role))}</span></label>})}</div><p className="mt-3 text-sm font-semibold">Total estimado: {money(total)}</p></section><div className="mt-5 flex flex-wrap gap-2"><button className="min-h-11 rounded-xl bg-brand px-4 text-sm font-semibold text-brand-foreground disabled:opacity-50" aria-busy={pending} disabled={pending||roles.length===0} onClick={()=>request(event.id,roles)}>{pending?"Enviando…":"Aceptar responsabilidades"}</button><button className="min-h-11 rounded-xl border px-4 text-sm font-semibold" aria-busy={pending} disabled={pending} onClick={close}>Cerrar</button></div></article></MobileDialog>;
 }
 function Small({ label, value }: { label: string; value: string }) {
   return (

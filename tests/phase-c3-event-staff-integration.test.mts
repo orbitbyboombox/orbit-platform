@@ -19,7 +19,13 @@ test("C.3 keeps canonical Box assignment and overlap boundaries", () => {
 test("Staff checkout/checkin is authenticated, role-scoped and idempotent", () => {
   assert.match(staffAction, /loadPortalSession\("STAFF"\)/);
   assert.match(staffAction, /OPERATOR.*ASSEMBLY/);
-  assert.match(staffAction, /OPERATOR.*DISASSEMBLY/);
+  const checkin = staffAction.slice(
+    staffAction.indexOf("export async function recordStaffBoxCheckInAction"),
+    staffAction.indexOf("export async function recordStaffPaperReloadAction"),
+  );
+  assert.match(checkin, /staffContext\(input\.projectId, \["OPERATOR"\]\)/);
+  assert.match(checkin, /await requireOwnBoxAssignment\(input\.projectId, input\.assignmentId, context\);[\s\S]*admin\.rpc\("record_staff_box_check_in"/);
+  assert.match(staffAction, /ownById\.get\(shift\.assignmentId\)\?\.block_id === shift\.blockId/);
   assert.match(staffAction, /staff-box-checkout/);
   assert.match(staffAction, /staff-box-checkin/);
   assert.match(migration, /idempotency_key/);

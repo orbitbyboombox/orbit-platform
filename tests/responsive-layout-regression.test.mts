@@ -40,11 +40,20 @@ test("dense KPI panels defer wide column counts until large viewports", async ()
   const files = await Promise.all([
     source("features/accounts-payable/accounts-payable-center.tsx"),
     source("features/accounts-receivable/accounts-receivable-center.tsx"),
-    source("features/staff-payments/staff-payments-center.tsx"),
   ]);
 
   for (const file of files) {
     assert.match(file, /min-w-0/);
     assert.match(file, /2xl:grid-cols-7/);
   }
+});
+
+test("the compact Staff summary stays at two columns on mobile and shows all four metrics", async () => {
+  const file = await source("features/staff-payments/staff-payments-center.tsx");
+  // Staff's approved monthly layout uses a separate four-metric summary (39a75db9, #236).
+  const summary = file.match(/aria-label="Resumen financiero canónico">([\s\S]*?)<details/);
+  assert.ok(summary);
+  assert.match(summary[1], /grid grid-cols-2 gap-2 sm:grid-cols-4/);
+  const metrics = [...summary[1].matchAll(/<Metric label="([^"]+)"/g)].map((match) => match[1]);
+  assert.deepEqual(metrics, ["Honorarios pendientes", "Próximos trabajos", "Reembolsos pendientes", "Pagado"]);
 });

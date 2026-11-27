@@ -19,6 +19,7 @@ test("commercial catalog emails expose a separate transport action without chang
   assert.match(email, /secondaryAction: input\.transportUrl/);
   assert.match(email, /CONOCER VALOR DE TRASLADO/);
   assert.match(actions, /\/traslados\?type=/);
-  assert.match(actions, /secondaryAction: \{ href: transportUrl, label: transportLabel \}/);
+  assert.match(actions, /buildSocialPlansEmail\(\{[^}]*catalogUrl: publicUrl,\s*transportUrl,\s*transportLabel,/);
+  assert.match(email, /\{ href: input\.transportUrl, label: input\.transportLabel/);
   assert.match(actions, /transportLabel/);
 });

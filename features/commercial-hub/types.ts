@@ -54,6 +54,7 @@ export interface CommercialHubData {
   templates: CommercialTemplate[];
   documents: CommercialDocument[];
   recentQuotes: RecentCommercialQuote[];
+  quoteHistory?: { page: number; filter: string; hasNext: boolean };
   recentSends: Array<{ id: string; recipient: string; ccRecipients: string[]; category: string; subject: string; status: string; sentAt: string; providerMessageId: string | null; providerThreadId?: string | null; providerAccount?: string | null; quotationId: string | null; projectId: string | null; customerId: string | null }>;
 }
 

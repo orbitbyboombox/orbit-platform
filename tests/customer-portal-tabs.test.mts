@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
+import ts from "typescript";
 
 const home = readFileSync("features/customer-portal/customer-portal-home.tsx", "utf8");
 const middleware = readFileSync("middleware.ts", "utf8");
@@ -26,14 +27,39 @@ test("customer portal renders content conditionally instead of mounting every pa
   assert.match(home, /activeSection === "contact" \? <Panel id="contact"/);
 });
 
-test("demo route bypass is exact and limited to Vercel Preview", () => {
-  assert.match(middleware, /process\.env\.VERCEL_ENV === "preview"/);
-  assert.match(middleware, /pathname === "\/preview\/customer-portal-demo"/);
-  assert.match(middleware, /if \(isCustomerPortalDemoPreview\) \{[\s\S]*?return NextResponse\.next\(\);/);
-  assert.match(middleware, /if \(pathname === "\/preview\/customer-portal-demo"\) \{[\s\S]*?status: 404/);
-  assert.ok(
-    middleware.indexOf("if (isCustomerPortalDemoPreview)") <
-      middleware.indexOf("if (pathname === \"/preview/customer-portal-demo\")"),
-  );
-  assert.doesNotMatch(middleware, /startsWith\("\/preview\/customer-portal-demo/);
+test("retired customer portal demo and its descendants never bypass session enforcement", async () => {
+  const demo = "/preview/customer-portal-demo";
+  assert.equal(existsSync("app/preview/customer-portal-demo"), false);
+  const checkedPaths: string[] = [];
+  const sessionResponse = new Response(null, { status: 307 });
+  const exports = {} as { middleware: (request: { nextUrl: URL }) => Promise<Response> };
+  const { outputText } = ts.transpileModule(middleware, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+  });
+  new Function("require", "exports", outputText)((name: string) => {
+    switch (name) {
+      case "next/server":
+        return { NextResponse: { next: () => new Response() } };
+      case "@/lib/supabase/middleware":
+        return { updateSession: (request: { nextUrl: URL }) => {
+          checkedPaths.push(request.nextUrl.pathname);
+          return sessionResponse;
+        } };
+      default:
+        throw new Error(`Unexpected module: ${name}`);
+    }
+  }, exports);
+  const previous = process.env.VERCEL_ENV;
+  try {
+    for (const environment of ["preview", "production"]) {
+      process.env.VERCEL_ENV = environment;
+      for (const path of [demo, `${demo}/other`, `${demo}-lookalike`]) {
+        assert.equal(await exports.middleware({ nextUrl: new URL(path, "https://orbit.example") }), sessionResponse);
+      }
+    }
+  } finally {
+    if (previous === undefined) delete process.env.VERCEL_ENV;
+    else process.env.VERCEL_ENV = previous;
+  }
+  assert.deepEqual(checkedPaths, [demo, `${demo}/other`, `${demo}-lookalike`, demo, `${demo}/other`, `${demo}-lookalike`]);
 });

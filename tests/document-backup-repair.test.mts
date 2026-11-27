@@ -5,8 +5,8 @@ import { InMemoryGoogleDriveLiveProvider } from "../features/connectors/google-d
 
 test("document repair derives a deterministic canonical event path", () => {
   const plan = buildCustomerFolderPlan("The Match Spa", "2026-09-17", "BOOMBOX ORBIT");
-  assert.equal(plan[2].path, "BOOMBOX ORBIT/2026/September/17-09-2026 - The Match Spa");
-  assert.equal(plan.find((item) => item.name === "02_Comprobantes")?.path, "BOOMBOX ORBIT/2026/September/17-09-2026 - The Match Spa/02_Comprobantes");
+  assert.equal(plan[2].path, "BOOMBOX ORBIT/01_CLIENTES/2026/09 SEPTIEMBRE/17-09-2026 - The Match Spa");
+  assert.equal(plan.find((item) => item.name === "02_Comprobantes")?.path, "BOOMBOX ORBIT/01_CLIENTES/2026/09 SEPTIEMBRE/17-09-2026 - The Match Spa/02_Comprobantes");
 });
 
 test("drive provider preserves the document identity metadata used for idempotent reconciliation", async () => {

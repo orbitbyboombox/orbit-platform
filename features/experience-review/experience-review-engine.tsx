@@ -9,7 +9,6 @@ import { completeExperienceReviewAction } from "./actions";
 import type { ExistingExperienceReview, ExperienceKnowledgeItem } from "./types";
 
 const ratings=[{value:"EXCELLENT",label:"Excelente"},{value:"GOOD",label:"Buena"},{value:"AVERAGE",label:"Promedio"},{value:"POOR",label:"Deficiente"}];
-const steps=["Calificación","Cliente","Operación","Equipamiento","Staff","Lugar","Cliente","Aprendizajes","Evidencia","Archivar"];
 
 export function ExperienceReviewEngine({projectId,existing,knowledge,staff}:{projectId:string;existing?:ExistingExperienceReview;knowledge:readonly ExperienceKnowledgeItem[];staff:{operator?:string;assembly?:string;disassembly?:string}}){
   const router=useRouter(); const [step,setStep]=useState(1); const [pending,startTransition]=useTransition(); const [feedback,setFeedback]=useState(""); const [complete,setComplete]=useState(Boolean(existing));

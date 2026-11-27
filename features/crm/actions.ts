@@ -436,7 +436,7 @@ export async function transitionCrmEventAction(input: {
     ? await testFullPurgeEventAction(input.projectId, input.reason, input.confirmation ?? "")
     : input.action === "PERMANENT_DELETE"
     ? await founderForceDeleteEventAction(input.projectId, input.reason, input.confirmation ?? "")
-    : await transitionReservationLifecycleAction(input.projectId, input.action, input.reason, input.confirmation, input.deleteOrphanCustomer ?? false);
+    : await transitionReservationLifecycleAction(input.projectId, input.action, input.reason, input.confirmation);
   revalidatePath(`/customers/${input.customerId}`);
   revalidatePath("/customers");
   revalidatePath("/events");

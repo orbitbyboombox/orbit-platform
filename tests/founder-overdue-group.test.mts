@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import ts from "typescript";
+import type { NotificationInbox } from "../features/notification-center/types";
 import {
   overdueGroupDetail,
   summarizeOverdueReceivables,
@@ -78,8 +80,8 @@ test("each overdue action opens its exact receivable", () => {
 });
 
 test("badge counts actionable cards rather than invoice rows", () => {
-  assert.match(repository, /return \{ count: items\.length, items \}/);
-  assert.match(dashboard, /founderActions\.length/);
+  assert.match(repository, /return \{ count: visibleItems\.length, items: visibleItems \}/);
+  assert.match(dashboard, /totalAttentionCount = attentionActions\.length \+ staffApprovalItems\.length/);
 });
 
 test("manual approvals remain individual and P1", () => {
@@ -93,9 +95,51 @@ test("financial group is P2 and informational work can be P3", () => {
   assert.match(repository, /return value === "HIGH" \? "P2" : "P3"/);
 });
 
-test("derived financial state cannot be manually archived or resolved", () => {
-  assert.match(notificationRepository, /derived:true/);
-  assert.match(readFileSync("features/notification-center/notification-center.tsx", "utf8"), /!item\.derived/);
+test("overdue invoices appear once in the inbox as read-only actions linked to the exact receivable", async () => {
+  const invoiceId = "invoice-1";
+  const relatedHref = `/finance/receivables?invoice=${invoiceId}`;
+  const state = { data: [], error: null };
+  const query = {
+    select() { return this; },
+    neq() { return this; },
+    order() { return this; },
+    limit() { return this; },
+    eq() { return this; },
+    gt() { return this; },
+    maybeSingle() { return Promise.resolve(state); },
+    then(resolve: (result: typeof state) => void) { return Promise.resolve(state).then(resolve); },
+  };
+  const dependencies: Record<string, unknown> = {
+    "server-only": {},
+    "@/lib/supabase/environment-guard": { isReadOnlyVisualPreview: () => true },
+    "@/lib/supabase/admin": { createAdminClient: () => ({ from: () => query }) },
+    "@/features/founder-action-center": {
+      loadFounderActionCenter: async () => ({
+        count: 2,
+        items: [
+          { id: `founder-action:invoice:${invoiceId}`, type: "INVOICE_OVERDUE", href: relatedHref, category: "PAYMENTS" },
+          { id: "staff-expense", type: "STAFF_EXPENSE_REVIEW_REQUIRED" },
+        ],
+      }),
+    },
+    "@/features/accounts-receivable/d10-manual-collection": {},
+  };
+  const routeExports = {} as { loadNotificationInbox: (userId: string) => Promise<NotificationInbox> };
+  const { outputText } = ts.transpileModule(notificationRepository, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  });
+  new Function("require", "exports", outputText)((name: string) => {
+    assert.ok(name in dependencies, `Unexpected dependency: ${name}`);
+    return dependencies[name];
+  }, routeExports);
+  const inbox = await routeExports.loadNotificationInbox("founder");
+  assert.equal(inbox.notifications.length, 1);
+  assert.equal(inbox.notifications[0]?.id, `founder-action:invoice:${invoiceId}`);
+  assert.equal(inbox.notifications[0]?.relatedHref, relatedHref);
+  assert.equal(inbox.notifications[0]?.derived, true);
+  assert.equal(inbox.notifications[0]?.actionRequired, true);
+  assert.equal(inbox.notifications[0]?.archived, false);
+  assert.match(readFileSync("features/notification-center/notification-center.tsx", "utf8"), /!item\.actionRequired && !item\.derived/);
 });
 
 test("mobile accordion wraps and keeps a reachable CTA", () => {

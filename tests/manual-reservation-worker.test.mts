@@ -10,6 +10,7 @@ test("worker is durable, protected, and scheduled without sending customer email
   const worker = read("features/projects/operations/manual-reservation-integrations-worker.service.ts");
   const route = read("app/api/cron/manual-reservation-integrations/route.ts");
   const config = read("vercel.json");
+  const middleware = read("middleware.ts");
 
   assert.match(worker, /reservation_method.*MANUAL/);
   assert.match(worker, /integration_next_attempt_at/);
@@ -17,7 +18,10 @@ test("worker is durable, protected, and scheduled without sending customer email
   assert.match(worker, /internalWorker:\s*true/);
   assert.match(worker, /customerEmailSuppressed:\s*true/);
   assert.match(route, /CRON_SECRET/);
-  assert.match(route, /Bearer/);
+  assert.match(route, /if \(!secret \|\| request\.headers\.get\("authorization"\) !== `Bearer \$\{secret\}`\)/);
+  assert.ok(route.indexOf("status: 401") < route.indexOf("processPendingManualReservationIntegrations(createAdminClient())"));
+  assert.match(middleware, /request\.method === "GET" && request\.nextUrl\.pathname === "\/api\/cron\/manual-reservation-integrations"/);
+  assert.doesNotMatch(middleware, /pathname\.startsWith\("\/api\/cron\/"/);
   assert.match(config, /manual-reservation-integrations/);
   assert.match(config, /\*\/5 \* \* \* \*/);
 });
@@ -48,7 +52,9 @@ test("completed transactions with pending customer email remain pending and are 
   assert.match(action, /transaction\.status === "COMPLETED"/);
   assert.match(action, /sendCustomerCommunication:\s*false/);
   assert.match(action, /Customer Email/);
-  assert.match(worker, /\.in\("status", \["CREATED", "PROCESSING", "FAILED"\]\)/);
+  assert.match(worker, /\.in\("status", \["PROCESSING", "FAILED"\]\)/);
+  assert.doesNotMatch(worker, /\.in\("status", \[[^\]]*"(?:CREATED|COMPLETED)"/);
+  assert.match(worker, /transaction\.status === "FAILED" && !Object\.keys\(transaction\.integration_stage_state \?\? \{\}\)\.length/);
   assert.match(drawer, /Confirmación cliente pendiente de envío/);
   assert.doesNotMatch(drawer, /Customer Email.*enviado/);
 });

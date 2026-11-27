@@ -11,10 +11,13 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { loadSalesPipeline, SalesPipeline } from "@/features/sales-pipeline";
 import { whatsappDeliveryEnabled } from "@/features/connectors/whatsapp-cloud/meta-whatsapp-cloud";
 
-export default async function LeadsPage() {
+export default async function LeadsPage({ searchParams }: {
+  searchParams: Promise<{ quotePage?: string; quoteFilter?: string }>;
+}) {
+  const { quotePage, quoteFilter } = await searchParams;
   const client = await createSupabaseServerClient();
   const [commercial, communication, pipeline] = await Promise.all([
-    loadCommercialHubData(client),
+    loadCommercialHubData(client, { page: quotePage, filter: quoteFilter }),
     loadCommunicationHubProjection(client),
     loadSalesPipeline(),
   ]);

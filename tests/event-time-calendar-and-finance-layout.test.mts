@@ -10,7 +10,6 @@ const eventTimeAction = readFileSync("features/projects/actions/event-time.actio
 const resyncService = readFileSync("features/connectors/google-calendar/application/google-calendar-resync.service.ts", "utf8");
 const propagation = readFileSync("features/projects/operations/canonical-event-propagation.service.ts", "utf8");
 const revisionMigration = readFileSync("supabase/migrations/20260929153000_canonical_event_revision_propagation.sql", "utf8");
-const middleware = readFileSync("middleware.ts", "utf8");
 const calendarResyncRoute = readFileSync("app/api/cron/google-calendar-resync/route.ts", "utf8");
 
 test("documents and profitability use full-width desktop sections with readable metric labels", () => {

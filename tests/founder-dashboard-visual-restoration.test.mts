@@ -15,13 +15,15 @@ const page = readFileSync(
 test("the approved Founder Command Center structure is the rendered dashboard", () => {
   assert.match(dashboard, /Founder Command Center/);
   assert.match(dashboard, /grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6/);
-  assert.match(dashboard, /Pendientes por revisar/);
+  assert.match(dashboard, /Pendientes de Staff/);
   assert.doesNotMatch(dashboard, /Centro operacional · Hoy/);
   assert.doesNotMatch(dashboard, /Alertas y pendientes/);
   assert.match(dashboard, /DASHBOARD_ACTION_CENTER/);
-  assert.match(dashboard, /financialReviewActions/);
-  assert.match(dashboard, /type: "FINANCE_RISK"/);
-  assert.match(dashboard, /detail: `\$\{risk\.count\} pendiente/);
+  // 9f3b2b1c approved Staff-only attention. Finance remains in its own panel.
+  assert.match(dashboard, /STAFF_EXPENSE_REVIEW_REQUIRED", "STAFF_BOLETA_REVIEW_REQUIRED"\]\.includes\(item.type\)/);
+  assert.match(dashboard, /totalAttentionCount = attentionActions\.length \+ staffApprovalItems\.length/);
+  assert.doesNotMatch(dashboard, /financialReviewActions|type: "FINANCE_RISK"/);
+  assert.match(dashboard, /<FinancialAlertCenter/);
   assert.match(dashboard, /Próximos eventos/);
   assert.match(dashboard, /Actividad reciente/);
 });

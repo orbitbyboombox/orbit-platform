@@ -468,6 +468,7 @@ export const DEFAULT_WORKSPACE: FounderWorkspacePreferences = {
     "EVENTS",
     "CUSTOMERS",
     "STAFF",
+    "STAFF_TRAINING",
     "RESOURCES",
     "BOXES",
     "FINANCE",
