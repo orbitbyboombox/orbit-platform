@@ -79,7 +79,7 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
       {activeModule === "home" && rows === null && <p role="alert">No se pudo cargar el resumen tributario.</p>}
       {period.length === 7 && !periodEvents.error && <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-card px-4 py-3 text-sm"><span>{closed ? "Período cerrado" : "Período abierto para revisión"}</span>{ownerZero && <span className="text-xs text-muted">0 boletas informadas · pendiente de conciliación oficial</span>}</div>}
       {activeModule === "home" && rows && <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {[[ "Compras", saved.Compras.length ], [ "Ventas", saved.Ventas.length ], [ "Diferencias por revisar", rows.filter(row => row.has_difference).length ]].map(([label, value]) =>
+        {[[ "Compras", saved.Compras.length ], [ "Ventas", saved.Ventas.length ], [ "Diferencias de importación", rows.filter(row => row.has_difference).length ], [ "Pendientes de conciliación interna", rows.filter(row => row.evidence?.match_status !== "MATCHED").length ]].map(([label, value]) =>
           <div key={label} className="rounded-xl border bg-card p-3"><p className="text-sm text-muted">{label}</p><strong className="text-xl">{value}</strong></div>
         )}
       </div>}
