@@ -20,6 +20,7 @@ export interface GoogleDriveLiveProvider {
   findFilesByName?(input: { name: string; parentFolderId?: string }): Promise<GoogleDriveFoundFile[]>;
   createFolder(input: { name: string; parentFolderId?: string }): Promise<GoogleDriveCreatedFolder>;
   getFolderParents?(id: string): Promise<string[]>;
+  readFolder?(id: string): Promise<GoogleDriveCreatedFolder & { parents: string[] }>;
   updateFolder(input: { id: string; name: string; parentFolderId?: string; previousParentFolderId?: string }): Promise<GoogleDriveCreatedFolder>;
   uploadFile(input: { name: string; mimeType: string; bytes: Uint8Array; parentFolderId?: string; appProperties?: Record<string, string> }): Promise<GoogleDriveUploadedFile>;
   listChildren?(parentId: string): Promise<Array<{ id: string; mimeType?: string }>>;
@@ -142,13 +143,21 @@ export class GoogleDriveApiProvider implements GoogleDriveLiveProvider {
     } while (true);
   }
 
+  async readFolder(id: string): Promise<GoogleDriveCreatedFolder & { parents: string[] }> {
+    const url = new URL(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}`);
+    url.searchParams.set("fields", "id,name,mimeType,trashed,parents");
+    url.searchParams.set("supportsAllDrives", "true");
+    const response = await fetch(url, { headers: { Authorization: `Bearer ${this.accessToken}` } });
+    if (!response.ok) throw new Error(`Google Drive folder lookup failed (${response.status})`);
+    const item = await response.json() as GoogleDriveCreatedFolder & { parents?: string[]; mimeType?: string; trashed?: boolean };
+    if (item.id !== id || item.trashed || item.mimeType !== "application/vnd.google-apps.folder") {
+      throw new Error("La referencia Drive está eliminada o no corresponde a una carpeta.");
+    }
+    return { id: item.id, name: item.name, parents: item.parents ?? [] };
+  }
+
   async getFolderParents(id: string): Promise<string[]> {
-    const response = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?fields=parents`, {
-      headers: { Authorization: `Bearer ${this.accessToken}` },
-    });
-    if (!response.ok) throw new Error(`Google Drive parent lookup failed (${response.status}): ${await response.text()}`);
-    const body = await response.json() as { parents?: string[] };
-    return body.parents ?? [];
+    return (await this.readFolder(id)).parents;
   }
 
   async createFolder(input: { name: string; parentFolderId?: string }): Promise<GoogleDriveCreatedFolder> {

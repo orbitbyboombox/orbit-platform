@@ -69,3 +69,32 @@ test("document recovery verifies the original and links only an unchanged pendin
   assert.ok(recovery.indexOf("checksum !== document.checksum") < recovery.indexOf("await archiveVerifiedDriveFile("));
   assert.match(recovery, /\.eq\("storage_path", document.storage_path\)\.is\("deleted_at", null\)\.is\("drive_file_id", null\)/);
 });
+
+test("Drive file lookup checks every page before treating a name as unique", async (t) => {
+  const { GoogleDriveApiProvider } = await import("../features/connectors/google-drive/provider/google-drive-live.provider.ts");
+  const calls: string[] = [];
+  t.mock.method(globalThis, "fetch", async (url: URL) => {
+    calls.push(url.searchParams.get("pageToken") ?? "");
+    return Response.json(calls.length === 1
+      ? { files: [{ id: "one", name: "design.pdf" }], nextPageToken: "second" }
+      : { files: [{ id: "two", name: "design.pdf" }] });
+  });
+  const result = await new GoogleDriveApiProvider("test-only").findFilesByName({ name: "design.pdf", parentFolderId: "event" });
+  assert.deepEqual(calls, ["", "second"]);
+  assert.deepEqual(result.map(item => item.id), ["one", "two"]);
+});
+
+test("Drive rejects a stored folder ID that resolves to a trashed item", async (t) => {
+  const { GoogleDriveApiProvider } = await import("../features/connectors/google-drive/provider/google-drive-live.provider.ts");
+  t.mock.method(globalThis, "fetch", async () => Response.json({
+    id: "old", name: "historical", mimeType: "application/vnd.google-apps.folder", trashed: true,
+  }));
+  await assert.rejects(() => new GoogleDriveApiProvider("test-only").readFolder("old"), /referencia Drive/);
+});
+
+test("the lease is unavailable to public callers and only its owner may release it", () => {
+  const migration = source("supabase/migrations/20261127162000_drive_reconciliation_leases.sql");
+  assert.match(migration, /where leases.expires_at <= clock_timestamp\(\)/);
+  assert.match(migration, /scope = p_scope and owner_token = p_owner/);
+  assert.match(migration, /revoke all on function public.claim_drive_reconciliation_lease\(text, uuid\) from public, anon, authenticated/);
+});

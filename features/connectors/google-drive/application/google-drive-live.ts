@@ -17,11 +17,21 @@ export class GoogleDriveLive {
     try {
       for (const planned of plan) {
         const existing = await this.repository.findByPath(planned.path);
+        const parent = planned.parentPath ? await this.repository.findByPath(planned.parentPath) : null;
+        if (planned.parentPath && !parent?.driveFolderId) {
+          throw new Error(`Falta verificar la carpeta superior de «${planned.name}».`);
+        }
         if (existing) {
+          if (!existing.driveFolderId) throw new Error(`La referencia de «${planned.name}» no tiene ID en Drive.`);
+          if (this.provider.readFolder) {
+            const actual = await this.provider.readFolder(existing.driveFolderId);
+            if (actual.name !== planned.name || (parent?.driveFolderId && !actual.parents.includes(parent.driveFolderId))) {
+              throw new Error(`La carpeta «${planned.name}» tiene otro nombre o ubicación en Drive.`);
+            }
+          }
           const updated = { ...existing, status: "UPDATED" as const, lastUpdatedAt: synchronizedAt };
           await this.repository.save(updated); synchronized.push(updated); continue;
         }
-        const parent = planned.parentPath ? await this.repository.findByPath(planned.parentPath) : null;
         const created = await this.provider.createFolder({ name: planned.name, parentFolderId: parent?.driveFolderId });
         const record = { ...planned, driveFolderId: created.id, status: "CREATED" as const, lastUpdatedAt: synchronizedAt };
         await this.repository.save(record); synchronized.push(record);
