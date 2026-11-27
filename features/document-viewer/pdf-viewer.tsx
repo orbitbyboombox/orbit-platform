@@ -15,7 +15,7 @@ export function PdfViewer({ title, src, download, fallback, onClose, explicitRet
   const frame = useRef<HTMLIFrameElement>(null);
   const [message, setMessage] = useState("");
   const [loadState, setLoadState] = useState<"loading" | "ready" | "fallback">("loading");
-  const ready = loadState !== "loading";
+  const ready = loadState === "ready";
 
   useEffect(() => {
     setLoadState("loading");
@@ -57,7 +57,7 @@ export function PdfViewer({ title, src, download, fallback, onClose, explicitRet
       <a className="flex min-h-11 items-center justify-center rounded-lg border px-3 text-sm" href={download} download>Descargar</a>
       <button className="min-h-11 rounded-lg border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50" type="button" onClick={print} disabled={!ready}>Imprimir</button>
     </header>
-    {!ready && <p role="status" className="px-3 py-2 text-sm text-muted">Cargando documento. Puedes abrir o descargar el original mientras se abre el visor.</p>}
+    {loadState === "loading" && <p role="status" className="px-3 py-2 text-sm text-muted">Cargando documento. Puedes abrir o descargar el original mientras se abre el visor.</p>}
     {message && <p role="status" className="px-3 py-2 text-sm">{message}</p>}
     <div className="flex flex-wrap gap-2 px-3 py-2">
       <a className="rounded-lg border px-3 py-2 text-sm font-semibold text-brand" href={src} target="_blank" rel="noopener noreferrer">Abrir PDF original</a>

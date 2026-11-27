@@ -245,7 +245,7 @@ export async function loadFinanceDashboardReadModel(
       moneyMetric("Profit de hoy", todayProfit, "Ventas menos costo real de Eventos de hoy.", "/projects?date=today&view=profitability", todayProfit >= 0 ? "success" : "danger"),
     ],
     month: [
-      moneyMetric("Ventas del mes", monthlyRevenue, "Financial Truth confirmado por fecha de Evento.", "/projects?period=month"),
+      moneyMetric("Ventas del mes", monthlyRevenue, "Financial Truth: ingreso neto sin IVA para rentabilidad; no reemplaza la facturación AR.", "/projects?period=month"),
       moneyMetric("Cobrado del mes", collectionsMonth, "Impacto de caja canónico del Payment Ledger.", "/finance/receivables?period=month"),
       moneyMetric("Costos directos de Eventos", monthlyCosts, "Costo real de eventos confirmados del mes, con un traslado interno fijo por evento.", "/projects?period=month&view=profitability"),
       moneyMetric("Gastos fijos comprometidos", fixedMonthlyExpenses, "Overhead mensual vigente; no reduce caja hasta su pago.", "/finance/expenses"),
@@ -257,7 +257,7 @@ export async function loadFinanceDashboardReadModel(
       moneyMetric("Egresos pagados del mes", expensesMonth, "Gastos y combustible materializados durante el mes.", "/finance/expenses?period=month"),
     ],
     position: [
-      moneyMetric("Cobrado acumulado", collectedAll, "Caja canónica: cobranzas y arriendo; las garantías se identifican aparte.", "/finance/receivables?status=paid"),
+      moneyMetric("Caja cobrada acumulada", collectedAll, "Cobranzas de clientes y arriendo; garantías no operacionales identificadas aparte.", "/finance/cash-flow"),
       moneyMetric("Por cobrar total", outstanding, "Saldo global de cuentas activas.", "/finance/receivables", outstanding > 0 ? "warning" : "default"),
       moneyMetric("Saldos Clientes / Eventos", receivableDataset.metrics.paymentCategorySummary.ordinary, "Pendiente ordinario sin crédito empresarial.", "/finance/receivables?category=ordinary"),
       moneyMetric("Crédito Empresas", receivableDataset.metrics.companyCredits, "Saldo corporativo, con o sin plazo definido.", "/finance/receivables?category=company-credit"),
