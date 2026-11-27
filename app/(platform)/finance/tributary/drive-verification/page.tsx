@@ -4,6 +4,8 @@ import { getGoogleWorkspaceAdministrator } from "@/features/connectors/google-wo
 import { loadLegacyOwnerDriveRepairToken } from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import { createRefreshingDriveTransport, createTributaryDriveArchive } from "@/features/finance/tributary-drive-archive";
 
+import { processTributaryDriveQueue } from "@/features/finance/tributary-drive-queue";
+
 export const maxDuration = 300;
 
 const owner = "matias@boom-box.cl";
@@ -103,6 +105,14 @@ async function verifyDrive() {
   redirect(`${route}?resultado=${status}`);
 }
 
+async function archivePending() {
+  "use server";
+  if (!await getGoogleWorkspaceAdministrator()) notFound();
+  const result = await processTributaryDriveQueue().catch(() => null);
+  if (!result) redirect(`${route}?resultado=queue-error`);
+  redirect(`${route}?resultado=queue&selected=${result.selected}&archived=${result.archived}`);
+}
+
 const messages: Record<string, string> = {
   passed: "Prueba aprobada: CSV y PDF íntegros en FINANZAS SII, dos reintentos con los mismos IDs y archivos retirados a la papelera.",
   identity: "No se pudo verificar la cuenta efectiva del token en Google Drive.",
@@ -123,18 +133,24 @@ const messages: Record<string, string> = {
   root: "El destino de Drive no coincide con la raíz FINANZAS SII verificada.",
   upload: "Drive no confirmó el destino o la huella de uno de los archivos sintéticos.",
   replay: "Drive no confirmó los dos reintentos idempotentes.",
+  "queue-error": "No se pudo ejecutar la cola tributaria.",
   cleanup: "La prueba requiere revisar la retirada de sus archivos sintéticos.",
 };
 
-export default async function DriveVerificationPage({ searchParams }: { searchParams: Promise<{ resultado?: string }> }) {
+export default async function DriveVerificationPage({ searchParams }: { searchParams: Promise<{ resultado?: string; selected?: string; archived?: string }> }) {
   if (!await getGoogleWorkspaceAdministrator()) notFound();
-  const { resultado } = await searchParams;
+  const { resultado, selected, archived } = await searchParams;
   return <main className="mx-auto max-w-xl space-y-4 rounded-2xl border bg-card p-5">
     <h1 className="text-xl font-semibold">Verificación aislada de Drive tributario</h1>
     <p className="text-sm text-muted">Usa la conexión existente de ORBIT y dos archivos sintéticos. La prueba retira sus archivos al terminar.</p>
     {resultado && messages[resultado] && <p role="status">{messages[resultado]}</p>}
     <form action={verifyDrive}>
       <button type="submit" className="min-h-11 rounded-xl border px-4 text-sm font-semibold">Comprobar archivo aislado</button>
+    </form>
+    {resultado === "queue" && /^\d+$/.test(selected ?? "") && /^\d+$/.test(archived ?? "")
+      && <p role="status">Seleccionados {selected}. Archivados {archived}.</p>}
+    <form action={archivePending}>
+      <button type="submit" className="min-h-11 rounded-xl border px-4 text-sm font-semibold">Archivar pendientes verificados</button>
     </form>
   </main>;
 }
