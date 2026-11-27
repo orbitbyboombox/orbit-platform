@@ -121,7 +121,7 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
           {period.length === 7 && !closed && !periodEvents.error && <SiiReceivedFeeForm period={period} />}
         </>}
       </section>
-      {rows === null ? <p role="alert">El registro guardado no se pudo cargar.</p> : <SiiRcvPreview key={`${period}-${selected.libro ?? ""}`} saved={saved} initialBook={selected.libro === "ventas" ? "Ventas" : "Compras"} /> }
+      {rows === null ? <p role="alert">El registro guardado no se pudo cargar.</p> : <SiiRcvPreview key={`${period}-${selected.libro ?? ""}`} saved={saved} categoryPeriod={period.length === 7 && !closed && !periodEvents.error ? period : undefined} initialBook={selected.libro === "ventas" ? "Ventas" : "Compras"} /> }
     </main>
   );
 }

@@ -101,3 +101,24 @@ export async function storeReceivedFee(form: FormData) {
   revalidatePath("/finance/tributary/accounting");
   return { message: "Boleta guardada para revisión. No se generó ningún movimiento financiero." };
 }
+
+export async function assignRcvPurchaseCategory(form: FormData) {
+  const client = await createSupabaseServerClient();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) return { message: "Sesión requerida." };
+  const { data: profile } = await client.from("profiles").select("role").eq("id", user.id).single();
+  if (!profile || !["CEO", "ADMINISTRATOR"].includes(profile.role)) return { message: "Acceso restringido." };
+  const period = String(form.get("period") ?? "");
+  const key = String(form.get("key") ?? "");
+  const category = String(form.get("category") ?? "");
+  const reason = String(form.get("reason") ?? "").trim();
+  if (!/^[1-9]\d{3}-(0[1-9]|1[0-2])$/.test(period) || !/^Compras\|[0-9K]+\|\d+\|\d+$/.test(key) || key.length > 80
+    || !["FUEL","SUPPLIES","MAINTENANCE","TRANSPORT","SERVICES","PAYROLL","ADMINISTRATION","OTHER"].includes(category)
+    || !reason || reason.length > 500) return { message: "Selecciona una categoría e indica el motivo." };
+  const { error } = await createAdminClient().rpc("sii_rcv_assign_purchase_category" as never, {
+    p_company: company, p_key: key, p_period: `${period}-01`, p_category: category, p_reason: reason, p_actor: user.id,
+  } as never);
+  if (error) return { message: "No se pudo guardar la categoría. Verifica que el documento pertenezca al período y que esté abierto." };
+  revalidatePath("/finance/tributary/accounting");
+  return { message: "Categoría guardada en el libro de compras." };
+}

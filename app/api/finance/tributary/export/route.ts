@@ -72,10 +72,10 @@ export async function GET(request: Request) {
       const [rcv, fees] = await Promise.all([loadRcvReport(period), loadReceivedFees(period)]);
       const rcvSheets = (["Compras", "Ventas"] as const).map(register => ({
         title: `RCV SII ${register}`,
-        headers: ["tipo", "folio", "fecha", "rut", "razon_social", "neto", "exento", "iva_informado", "iva_no_recuperable", "impuestos_adicionales", "total", "revision"],
-        rows: rcv.filter(item => item.register === register).map(({ snapshot: d, has_difference }) => [
+        headers: ["tipo", "folio", "fecha", "rut", "razon_social", "neto", "exento", "iva_informado", "iva_no_recuperable", "impuestos_adicionales", "total", "categoria_gasto", "revision"],
+        rows: rcv.filter(item => item.register === register).map(({ snapshot: d, has_difference, expense_category }) => [
           d.type, d.folio, d.issued, d.rut, d.company, d.net, d.exempt, d.vat, d.nonRecoverableVat,
-          d.otherTaxes.join(" + "), d.total, has_difference ? "Diferencia pendiente" : "Importado para revisión",
+          d.otherTaxes.join(" + "), d.total, expense_category ?? "", has_difference ? "Diferencia pendiente" : "Importado para revisión",
         ]),
       }));
       const feeSheet = {

@@ -1,14 +1,41 @@
 "use client";
 
 import { useState, useTransition, type ChangeEvent } from "react";
-import { storeRcvForReview } from "../sii-rcv-actions";
+import { assignRcvPurchaseCategory, storeRcvForReview } from "../sii-rcv-actions";
 import { normalizeRcv, parseSiiRcv, readSiiRcvFilename } from "../sii-rcv";
 
 type Register = ReturnType<typeof parseSiiRcv>;
 const formatMoney = new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP" });
 const amount = (value: number | null) => value === null ? "Sin informar" : formatMoney.format(value);
 
-export function SiiRcvPreview({ saved, initialBook = "Compras" }: { saved: Record<Register["kind"], Register["documents"]>; initialBook?: Register["kind"] }) {
+const categories = {
+  FUEL: "Combustible", SUPPLIES: "Insumos", MAINTENANCE: "Mantención", TRANSPORT: "Transporte",
+  SERVICES: "Servicios", PAYROLL: "Personal", ADMINISTRATION: "Administración", OTHER: "Otro",
+};
+function PurchaseCategoryForm({ period, doc }: { period: string; doc: Register["documents"][number] }) {
+  const [notice, setNotice] = useState("");
+  const [pending, startTransition] = useTransition();
+  return <form className="mt-3 grid min-w-0 gap-2 border-t pt-3" action={form => startTransition(async () => {
+    try { setNotice((await assignRcvPurchaseCategory(form)).message); }
+    catch { setNotice("No se pudo guardar la categoría."); }
+  })}>
+    <input type="hidden" name="period" value={period} />
+    <input type="hidden" name="key" value={doc.key} />
+    <label className="text-sm">Categoría
+      <select name="category" required defaultValue={doc.expenseCategory ?? ""} className="mt-1 block w-full rounded-lg border bg-background p-2">
+        <option value="">Selecciona una categoría</option>
+        {Object.entries(categories).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+      </select>
+    </label>
+    <label className="text-sm">Motivo de la corrección
+      <input name="reason" required maxLength={500} className="mt-1 block w-full rounded-lg border bg-background p-2" />
+    </label>
+    <button disabled={pending} className="min-h-11 rounded-lg border px-3 text-sm" type="submit">Guardar categoría</button>
+    {notice && <p role="status" className="text-sm">{notice}</p>}
+  </form>;
+}
+
+export function SiiRcvPreview({ saved, initialBook = "Compras", categoryPeriod }: { saved: Record<Register["kind"], Register["documents"]>; initialBook?: Register["kind"]; categoryPeriod?: string }) {
   const [registers, setRegisters] = useState<Partial<Record<Register["kind"], Register>>>({});
   const [kind, setKind] = useState<Register["kind"]>(initialBook);
   const [query, setQuery] = useState("");
@@ -119,7 +146,7 @@ export function SiiRcvPreview({ saved, initialBook = "Compras" }: { saved: Recor
             {doc.duplicate && <p className="mt-2 text-sm text-danger">Identificador repetido. Requiere revisión.</p>}
             <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
               {Object.entries({
-                ...(kind === "Compras" && { "Categoría de gasto": doc.expenseCategory ? doc.expenseCategory.replaceAll("_", " ").toLocaleLowerCase("es-CL") : "Por revisar" }),
+                ...(kind === "Compras" && { "Categoría de gasto": doc.expenseCategory ? categories[doc.expenseCategory as keyof typeof categories] ?? doc.expenseCategory.replaceAll("_", " ").toLocaleLowerCase("es-CL") : "Por revisar" }),
                 "RUT": doc.rut, "Fecha de emisión": doc.issued, "Neto": amount(doc.net), "Exento": amount(doc.exempt),
                 [kind === "Compras" ? "IVA recuperable informado por el SII" : "IVA informado por el SII"]: amount(doc.vat),
                 "IVA no recuperable": amount(doc.nonRecoverableVat),
@@ -127,6 +154,7 @@ export function SiiRcvPreview({ saved, initialBook = "Compras" }: { saved: Recor
                 "Total": amount(doc.total),
               }).map(([label, value]) => <div key={label}><dt className="text-muted">{label}</dt><dd>{value}</dd></div>)}
             </dl>
+            {kind === "Compras" && categoryPeriod && !registers.Compras && <PurchaseCategoryForm period={categoryPeriod} doc={doc} />}
           </details>
         ))}
       </>}
