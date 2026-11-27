@@ -70,35 +70,37 @@ async function synchronizeReservationFolders(input: ReservationDriveInput): Prom
     const ambiguousLegacy = await provider.findFolder({ name: eventFolderPlan.name, parentFolderId: month.driveFolderId });
     if (ambiguousLegacy) throw new Error("Hay una carpeta histórica con ese nombre. Confirma su identidad antes de crear o vincular.");
   }
-  if (!previousEvent || previousEvent.destination_key.endsWith(` - ${project.orbit_event_id}`)) {
-    const oldPath = eventFolderPlan.path;
-    const suffix = ` - ${project.orbit_event_id}`;
-    eventFolderPlan.name += suffix;
-    eventFolderPlan.path += suffix;
-    for (const child of plan.slice(3)) {
-      child.path = `${eventFolderPlan.path}${child.path.slice(oldPath.length)}`;
-      child.parentPath = eventFolderPlan.path;
-    }
+  const oldPath = eventFolderPlan.path;
+  const suffix = ` - ${project.orbit_event_id}`;
+  eventFolderPlan.name += suffix;
+  eventFolderPlan.path += suffix;
+  for (const child of plan.slice(3)) {
+    child.path = `${eventFolderPlan.path}${child.path.slice(oldPath.length)}`;
+    child.parentPath = eventFolderPlan.path;
   }
   if (previousEvent?.external_folder_id) {
     const parent = await repository.findByPath(eventFolderPlan.parentPath!);
     if (!parent?.driveFolderId || parent.driveFolderId === previousEvent.external_folder_id) {
       throw new Error("No fue posible verificar la carpeta del mes y la del evento en Drive.");
     }
-    const actualParents = await provider.getFolderParents(previousEvent.external_folder_id);
+    const actualFolder = await provider.readFolder(previousEvent.external_folder_id);
+    const actualParents = actualFolder.parents;
     if (actualParents.length !== 1 || actualParents[0] !== parent.driveFolderId) {
       throw new Error("La carpeta del evento tiene otro padre en Drive. Se requiere revisar su ubicación.");
     }
-    if (previousEvent.destination_key !== eventFolderPlan.path) {
+    if (previousEvent.destination_key !== eventFolderPlan.path || actualFolder.name !== eventFolderPlan.name) {
       const conflicting = await provider.findFolder({ name: eventFolderPlan.name, parentFolderId: parent.driveFolderId });
       if (conflicting && conflicting.id !== previousEvent.external_folder_id) {
         throw new Error("Ya existe otra carpeta con el nombre de destino en Drive.");
       }
-      await provider.updateFolder({ id: previousEvent.external_folder_id, name: eventFolderPlan.name });
+      if (actualFolder.name !== eventFolderPlan.name) {
+        await provider.updateFolder({ id: previousEvent.external_folder_id, name: eventFolderPlan.name });
+      }
       const oldPath = previousEvent.destination_key;
       for (const row of storedFolders ?? []) {
         if (row.destination_key !== oldPath && !row.destination_key.startsWith(`${oldPath}/`)) continue;
         const destination = `${eventFolderPlan.path}${row.destination_key.slice(oldPath.length)}`;
+        if (destination === row.destination_key) continue;
         const { error: updatePathError } = await input.client.from("drive_sync")
           .update({ destination_key: destination, status: "UPDATED", last_synced_at: synchronizedAt, last_error: null })
           .eq("project_id", project.id).eq("destination_key", row.destination_key);
