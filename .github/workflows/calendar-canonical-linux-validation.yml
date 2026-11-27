@@ -101,7 +101,10 @@ jobs:
           # function replacements are unrelated to Calendar and are omitted.
           path = Path('supabase/migrations/0054_crm_customer_first_foundation.sql')
           source = path.read_text(); marker = 'create or replace function public.audit_crm_integrity()'
-          if marker in source: path.write_text(source[:source.index(marker)] + 'commit;\n')
+          if marker in source:
+              start = source.index(marker)
+              end = source.index('create or replace function public.merge_crm_customers', start)
+              path.write_text(source[:start] + source[start:end] + 'commit;\n')
           for name in ('0055_manual_reservation_crm_lookup.sql', '0056_reservation_execution_diagnostics.sql'):
               path = Path('supabase/migrations') / name
               if path.exists(): path.unlink()
