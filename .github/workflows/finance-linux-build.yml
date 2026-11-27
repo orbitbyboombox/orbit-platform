@@ -1,0 +1,37 @@
+name: Finance SII candidate Linux build
+
+on:
+  push:
+    branches:
+      - feat/finance-sii-v218-consolidation-20261127
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Setup Node 22.13
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.0'
+      - name: Install pnpm
+        run: npm install --global pnpm@10.28.0
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Verify checked-out SHA
+        run: test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Build Next.js
+        run: pnpm build
