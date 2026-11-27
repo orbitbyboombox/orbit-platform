@@ -35,7 +35,7 @@ export function SiiRcvPreview({ saved }: { saved: Record<Register["kind"], Regis
     (!month || doc.issued.startsWith(month))
     && (!type || doc.type === type)
     && normalizeRcv([doc.company, doc.rut, doc.folio, doc.issued, doc.total, amount(doc.total)].join(" ")).includes(normalizeRcv(query)),
-  );
+  ).sort((left, right) => right.issued.localeCompare(left.issued) || left.company.localeCompare(right.company, "es") || left.folio.localeCompare(right.folio, "es", { numeric: true }));
 
   async function loadFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.currentTarget.files?.[0];
@@ -113,6 +113,7 @@ export function SiiRcvPreview({ saved }: { saved: Record<Register["kind"], Regis
             {doc.duplicate && <p className="mt-2 text-sm text-danger">Identificador repetido. Requiere revisión.</p>}
             <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
               {Object.entries({
+                ...(kind === "Compras" && { "Categoría de gasto": doc.expenseCategory ? doc.expenseCategory.replaceAll("_", " ").toLocaleLowerCase("es-CL") : "Por revisar" }),
                 "RUT": doc.rut, "Fecha de emisión": doc.issued, "Neto": amount(doc.net), "Exento": amount(doc.exempt),
                 [kind === "Compras" ? "IVA recuperable informado por el SII" : "IVA informado por el SII"]: amount(doc.vat),
                 "IVA no recuperable": amount(doc.nonRecoverableVat),
