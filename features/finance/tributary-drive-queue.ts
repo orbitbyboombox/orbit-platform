@@ -15,6 +15,7 @@ export async function processTributaryDriveQueue() {
     .select("id,document_id,project_id,customer_id,artifact_kind,attempt_count,status,updated_at,drive_file_id,drive_folder_id")
     .not("document_id", "is", null)
     .is("draft_id", null)
+    .like("idempotency_key", "document:%:central:PDF")
     .or(`status.eq.PENDING,and(status.in.(RETRY,SYNCING),updated_at.lt.${cutoff})`)
     .order("updated_at").limit(2);
   if (error) throw error;
