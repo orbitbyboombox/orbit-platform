@@ -62,3 +62,42 @@ export async function recordRcvPeriodEvent(form: FormData) {
   if (error) throw new Error("No se pudo registrar el cambio de estado.");
   revalidatePath("/finance/tributary/accounting");
 }
+
+export async function storeReceivedFee(form: FormData) {
+  const client = await createSupabaseServerClient();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) return { message: "Sesión requerida." };
+  const { data: profile } = await client.from("profiles").select("role").eq("id", user.id).single();
+  if (!profile || !["CEO", "ADMINISTRATOR"].includes(profile.role)) return { message: "Acceso restringido." };
+  const value = (field: string) => String(form.get(field) ?? "").trim();
+  const period = value("period"), issued = value("issued"), name = value("name");
+  const rut = value("rut").replace(/[.\-\s]/g, "").toUpperCase();
+  const folio = value("folio").replace(/^0+(?=\d)/, "");
+  const gross = value("gross"), withheld = value("withheld");
+  if (!/^[1-9]\d{3}-(0[1-9]|1[0-2])$/.test(period)
+    || !/^\d{4}-\d{2}-\d{2}$/.test(issued) || !Number.isFinite(Date.parse(issued))
+    || new Date(issued).toISOString().slice(0, 10) !== issued
+    || !name || name.length > 150 || !/^[0-9]{7,8}[0-9K]$/.test(rut) || !/^[1-9]\d{0,17}$/.test(folio)
+    || !/^[1-9]\d{0,11}$/.test(gross) || !/^\d{1,12}$/.test(withheld) || Number(withheld) > Number(gross)) {
+    return { message: "Revisa el período, RUT, folio e importes." };
+  }
+  const sum = [...rut.slice(0, -1)].reverse().reduce((total, digit, index) => total + Number(digit) * (2 + index % 6), 0);
+  const verifier = (11 - sum % 11) % 11;
+  if (rut.at(-1) !== (verifier === 10 ? "K" : String(verifier))) return { message: "El dígito verificador del RUT no coincide." };
+  const file = form.get("pdf");
+  let pdf: string | null = null;
+  if (file instanceof File && file.size) {
+    if (file.size > 750_000 || file.type !== "application/pdf") return { message: "Adjunta un PDF de hasta 750 KB." };
+    const bytes = Buffer.from(await file.arrayBuffer());
+    if (bytes.subarray(0, 5).toString() !== "%PDF-") return { message: "El respaldo no es un PDF válido." };
+    pdf = "\\x" + bytes.toString("hex");
+  }
+  const { error } = await createAdminClient().from("sii_received_fees" as never).insert({
+    company_rut: company, issuer_rut: rut, issuer_name: name, folio, issued_on: issued, period: `${period}-01`,
+    gross: Number(gross), withheld: Number(withheld), document_pdf: pdf, created_by: user.id,
+  } as never);
+  if (error?.code === "23505") return { message: "Ya existe una boleta de ese emisor y folio." };
+  if (error) return { message: "No se pudo guardar la boleta. Revisa si el período está abierto." };
+  revalidatePath("/finance/tributary/accounting");
+  return { message: "Boleta guardada para revisión. No se generó ningún movimiento financiero." };
+}
