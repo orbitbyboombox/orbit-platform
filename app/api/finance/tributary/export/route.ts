@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import ExcelJS from "exceljs";
 import JSZip from "jszip";
+import { loadRcvReport } from "@/features/finance/sii-rcv-report";
 import { loadMonthlyAccountingStaff, readMonthlyAccountingAttachments } from "@/features/finance/monthly-accounting-staff";
 
 export async function GET(request: Request) {
@@ -67,7 +68,16 @@ export async function GET(request: Request) {
       const staff = await loadMonthlyAccountingStaff(period);
       const sourceIds = (selected: Row[]) => selected.flatMap(row => "source_id" in row && typeof row.source_id === "string" ? [row.source_id] : []);
       const backups = await readMonthlyAccountingAttachments(staff.attachments, sourceIds(purchases), sourceIds(sales), staff.missingBoletas, staff.missingReceipts);
-      const extra = [...staff.sheets, { title: "Respaldos", headers: ["grupo", "identificador", "estado", "archivo", "referencia_drive"], rows: backups.manifest }];
+      const rcv = await loadRcvReport(period);
+      const rcvSheets = (["Compras", "Ventas"] as const).map(register => ({
+        title: `RCV SII ${register}`,
+        headers: ["tipo", "folio", "fecha", "rut", "razon_social", "neto", "exento", "iva_informado", "iva_no_recuperable", "impuestos_adicionales", "total", "revision"],
+        rows: rcv.filter(item => item.register === register).map(({ snapshot: d, has_difference }) => [
+          d.type, d.folio, d.issued, d.rut, d.company, d.net, d.exempt, d.vat, d.nonRecoverableVat,
+          d.otherTaxes.join(" + "), d.total, has_difference ? "Diferencia pendiente" : "Importado para revisión",
+        ]),
+      }));
+      const extra = [...staff.sheets, ...rcvSheets, { title: "Respaldos", headers: ["grupo", "identificador", "estado", "archivo", "referencia_drive"], rows: backups.manifest }];
       for (const { title, headers, rows } of extra) {
         const sheet = workbook.addWorksheet(title);
         sheet.addRow(headers);
@@ -85,7 +95,7 @@ export async function GET(request: Request) {
       "La columna IVA contiene el monto registrado por documento. No determina derecho a crédito fiscal ni saldo oficial SII.",
       "Staff: liquidaciones y pagos por período tributario, en hojas separadas. No sumar ambas fuentes como un solo pago.",
       "Consulta Respaldos para identificar incluidos, faltantes y omitidos. Las referencias Drive conservan los permisos de acceso existentes.",
-      "No incluye simulaciones ni genera XML oficiales. La conciliación con el SII queda pendiente.",
+      "Las hojas RCV SII contienen documentos importados para revisión. No sumar a los registros internos ni usar como conciliación oficial.",
     ].join("\n"));
     const output = await zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
     if (output.length > 4_000_000) return new NextResponse("El paquete supera el límite de descarga. Los registros CSV siguen disponibles por período.", { status: 413 });
