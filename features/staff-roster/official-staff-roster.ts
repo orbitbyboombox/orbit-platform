@@ -17,7 +17,7 @@ import { OFFICIAL_ROSTER_PLATES } from "./official-roster-vehicles";
 export const OFFICIAL_ROSTER_RESPONSIBLE = { name: "Matías Maira", rut: "16.357.402-0", phone: "+56 9 7306 9315" } as const;
 
 export type RosterTotemRow = { position:string; location:string; reference:string; box:string; block:string; operator:string };
-export type ManualRosterMember = { id: string; fullName: string; rut: string; cargo: string };
+export type ManualRosterMember = { id: string; fullName: string; rut: string; cargo: string; payrollClassification: "UNPAID_SUPPORT" };
 export type RosterComposer = { totemRows: RosterTotemRow[]; projectId: string; orbitEventId: string; eventName: string; eventDate: string; eventTime: string; staffArrivalAt: string | null; serviceStartAt: string | null; serviceEndAt: string | null; location: string; address?: string; city: string; customerName: string; recipient: string; fingerprint: string; groups: ReturnType<typeof buildRosterGroups>["groups"]; manualMembers: ManualRosterMember[]; responsible: { name: string; rut: string } | null; missing: string[]; canGenerate: boolean };
 
 const blockValue = (value: unknown) => typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, 50) : "";
@@ -57,7 +57,7 @@ export async function loadOfficialRoster(projectId: string): Promise<RosterCompo
     admin.from("assignments").select("id,staff_id,assignment_type,status,staff(first_name,last_name,rut)").eq("project_id", projectId).is("deleted_at", null).order("id"),
     admin.from("event_operational_blocks").select("id,name").eq("project_id", projectId),
     admin.from("operational_assets").select("id,asset_code").eq("asset_type", "CASE"),
-    admin.from("event_manual_roster_members").select("id,full_name,rut,cargo").eq("project_id", projectId).is("deleted_at", null).order("created_at"),
+    admin.from("event_manual_roster_members").select("id,full_name,rut,cargo,payroll_classification").eq("project_id", projectId).is("deleted_at", null).order("created_at"),
   ]);
   if (p.error) throw p.error;
   if (a.error) throw a.error;
@@ -107,7 +107,7 @@ export async function loadOfficialRoster(projectId: string): Promise<RosterCompo
   for (const member of new Map(members.map(row => [row.staffId, row])).values()) {
     if (!member.name || !member.rut) missing.push("Revisa el nombre y el RUT de " + (member.name || "un integrante") + ".");
   }
-  const manualMembers: ManualRosterMember[] = (manualResult.data ?? []).map(row => ({ id: row.id, fullName: row.full_name, rut: row.rut, cargo: row.cargo }));
+  const manualMembers: ManualRosterMember[] = (manualResult.data ?? []).map(row => ({ id: row.id, fullName: row.full_name, rut: row.rut, cargo: row.cargo, payrollClassification: row.payroll_classification as "UNPAID_SUPPORT" }));
   const name = p.data.name || p.data.orbit_event_id || "Evento BOOMBOX";
   const roster = { totemRows, projectId, orbitEventId:p.data.orbit_event_id ?? "", eventName:name, eventDate:p.data.event_date ?? "", eventTime:p.data.event_time ?? "", staffArrivalAt:contract?.staff_arrival_at ?? null, serviceStartAt:contract?.service_start_at ?? null, serviceEndAt:contract?.service_end_at ?? null, location:p.data.location ?? "", address:readEventAddress(operations), city:p.data.city ?? "", customerName:customer?.full_name ?? "", recipient:contract?.contact_email ?? customer?.email ?? "", groups, manualMembers, responsible, missing, canGenerate:members.length>0 || manualMembers.length>0 || responsible!==null };
   const fingerprint = createHash("sha256").update(JSON.stringify(roster)).digest("hex");
@@ -135,20 +135,47 @@ function validateManualMember(input: { fullName: string; rut: string; cargo: str
   return { fullName, rut: formatChileanRut(input.rut), cargo };
 }
 
+const rosterIdentityRut = (rut: string) => rut.replace(/[^0-9Kk]/g, "").toUpperCase();
+const rosterIdentityName = (name: string) => name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().replace(/\s+/g, " ").toLocaleLowerCase("es");
+
+async function assertManualMemberIsNotAssigned(projectId: string, rut: string, excludedManualId?: string) {
+  const admin = createAdminClient();
+  const [{ data: assignments, error: assignmentsError }, { data: manual, error: manualError }] = await Promise.all([
+    admin.from("assignments").select("staff_id,status").eq("project_id", projectId).is("deleted_at", null),
+    admin.from("event_manual_roster_members").select("id,rut").eq("project_id", projectId).is("deleted_at", null),
+  ]);
+  if (assignmentsError) throw assignmentsError;
+  if (manualError) throw manualError;
+  const activeStaffIds = new Set((assignments ?? []).filter(row => !["CANCELLED", "REJECTED", "DELETED"].includes(row.status.toUpperCase())).map(row => row.staff_id));
+  const key = rosterIdentityRut(rut);
+  const { data: staff, error: staffError } = activeStaffIds.size
+    ? await admin.from("staff").select("id,rut").in("id", [...activeStaffIds])
+    : { data: [], error: null };
+  if (staffError) throw staffError;
+  if ((staff ?? []).some(row => rosterIdentityRut(row.rut ?? "") === key)) {
+    throw new Error("Este RUT ya pertenece a una persona asignada al evento. Edita su función en Staff para evitar duplicidades.");
+  }
+  if ((manual ?? []).some(row => row.id !== excludedManualId && rosterIdentityRut(row.rut) === key)) {
+    throw new Error("Este RUT ya está registrado en la nómina manual del evento.");
+  }
+}
+
 export async function createManualRosterMember(input: { projectId: string; fullName: string; rut: string; cargo: string; actorId: string }) {
   const row = validateManualMember(input);
+  await assertManualMemberIsNotAssigned(input.projectId, row.rut);
   const admin = createAdminClient();
-  const { data, error } = await admin.from("event_manual_roster_members").insert({ project_id: input.projectId, full_name: row.fullName, rut: row.rut, cargo: row.cargo, created_by: input.actorId, updated_by: input.actorId }).select("id,full_name,rut,cargo").single();
+  const { data, error } = await admin.from("event_manual_roster_members").insert({ project_id: input.projectId, full_name: row.fullName, rut: row.rut, cargo: row.cargo, payroll_classification: "UNPAID_SUPPORT", created_by: input.actorId, updated_by: input.actorId }).select("id,full_name,rut,cargo,payroll_classification").single();
   if (error) throw error;
-  return { id: data.id, fullName: data.full_name, rut: data.rut, cargo: data.cargo } as ManualRosterMember;
+  return { id: data.id, fullName: data.full_name, rut: data.rut, cargo: data.cargo, payrollClassification: "UNPAID_SUPPORT" } as ManualRosterMember;
 }
 
 export async function updateManualRosterMember(input: { id: string; projectId: string; fullName: string; rut: string; cargo: string; actorId: string }) {
   const row = validateManualMember(input);
+  await assertManualMemberIsNotAssigned(input.projectId, row.rut, input.id);
   const admin = createAdminClient();
-  const { data, error } = await admin.from("event_manual_roster_members").update({ full_name: row.fullName, rut: row.rut, cargo: row.cargo, updated_by: input.actorId, updated_at: new Date().toISOString() }).eq("id", input.id).eq("project_id", input.projectId).is("deleted_at", null).select("id,full_name,rut,cargo").single();
+  const { data, error } = await admin.from("event_manual_roster_members").update({ full_name: row.fullName, rut: row.rut, cargo: row.cargo, payroll_classification: "UNPAID_SUPPORT", updated_by: input.actorId, updated_at: new Date().toISOString() }).eq("id", input.id).eq("project_id", input.projectId).is("deleted_at", null).select("id,full_name,rut,cargo,payroll_classification").single();
   if (error) throw error;
-  return { id: data.id, fullName: data.full_name, rut: data.rut, cargo: data.cargo } as ManualRosterMember;
+  return { id: data.id, fullName: data.full_name, rut: data.rut, cargo: data.cargo, payrollClassification: "UNPAID_SUPPORT" } as ManualRosterMember;
 }
 
 export async function deleteManualRosterMember(input: { id: string; projectId: string; actorId: string }) {
@@ -202,7 +229,7 @@ export async function makeOfficialRosterPdf(composer:RosterComposer, includeCase
   }
   y-=23;
   const tableHeader = () => {
-    page.drawText("PERSONAL ASIGNADO", { x: left, y, size: 10, font: bold, color: ink });
+    page.drawText("NÓMINA DEL EVENTO", { x: left, y, size: 10, font: bold, color: ink });
     y -= 23;
     page.drawRectangle({ x: left, y: y - 7, width: right - left, height: 26, color: pale });
     for (const [label, x] of [["NOMBRE", left + 11], ["RUT", 265], ["FUNCIÓN", 380]] as const) {
@@ -216,13 +243,27 @@ export async function makeOfficialRosterPdf(composer:RosterComposer, includeCase
     group.members.map(member => ({ ...member, role: group.label })),
   );
   for (const member of rosterRows) {
-    const key = member.staffId || member.rut || member.name;
+    const key = rosterIdentityRut(member.rut) ? "rut:" + rosterIdentityRut(member.rut) : "staff:" + member.staffId;
     const role = member.role;
     const previous=people.get(key);
     if(previous){if(!previous.roles.includes(role))previous.roles.push(role);}
     else people.set(key,{name:member.name,rut:member.rut,roles:[role]});
   }
-  for(const person of people.values()){
+  for (const member of composer.manualMembers) {
+    const rutKey = rosterIdentityRut(member.rut);
+    const key = rutKey ? "rut:" + rutKey : "name:" + rosterIdentityName(member.fullName);
+    const existing = people.get(key);
+    const role = member.cargo;
+    if (existing) {
+      if (!existing.roles.some(value => value.toLocaleLowerCase("es") === role.toLocaleLowerCase("es"))) existing.roles.push(role);
+      if (!existing.name) existing.name = member.fullName;
+      if (!existing.rut) existing.rut = member.rut;
+    } else {
+      people.set(key, { name: member.fullName, rut: member.rut, roles: [role] });
+    }
+  }
+  const unifiedPeople = [...people.values()].sort((a, b) => a.name.localeCompare(b.name, "es"));
+  for(const person of unifiedPeople){
     const nameLines = wrap(person.name, 202, bold, 9);
     const roleLines = wrap(person.roles.join(" / "), 165, regular, 8.5);
     const rowHeight = Math.max(29, Math.max(nameLines.length, roleLines.length) * 13 + 12);
@@ -235,29 +276,6 @@ export async function makeOfficialRosterPdf(composer:RosterComposer, includeCase
     roleLines.forEach((line, index) => page.drawText(line, { x: 380, y: y - index * 13, size: 8.5, font: regular, color: muted }));
     y-=rowHeight;
     page.drawLine({start:{x:left,y:y+10},end:{x:right,y:y+10},thickness:.5,color:line});
-  }
-  if (composer.manualMembers.length) {
-    ensure(80);
-    y -= 20;
-    page.drawText("INTEGRANTES MANUALES", { x: left, y, size: 10, font: bold, color: ink });
-    y -= 23;
-    const manualGroups = new Map<string, ManualRosterMember[]>();
-    for (const member of composer.manualMembers) manualGroups.set(member.cargo, [...(manualGroups.get(member.cargo) ?? []), member]);
-    for (const [cargo, members] of manualGroups) {
-      const heading = wrap(cargo, right - left, bold, 9);
-      if (y - heading.length * 13 - 40 < 65) { next(); page.drawText("INTEGRANTES MANUALES", { x: left, y, size: 10, font: bold, color: ink }); y -= 23; }
-      page.drawText(heading[0], { x: left, y, size: 9, font: bold, color: muted });
-      y -= 17;
-      for (const member of members) {
-        const nameLines = wrap(member.fullName, 250, regular, 9);
-        const rowHeight = Math.max(22, nameLines.length * 12 + 8);
-        if (y - rowHeight < 65) { next(); page.drawText("INTEGRANTES MANUALES", { x: left, y, size: 10, font: bold, color: ink }); y -= 23; }
-        nameLines.forEach((line, index) => page.drawText(line, { x: left, y: y - index * 12, size: 9, font: regular, color: ink }));
-        page.drawText(formatChileanRut(member.rut), { x: 300, y, size: 9, font: regular, color: ink });
-        y -= rowHeight;
-      }
-      y -= 6;
-    }
   }
   ensure(87);
   y-=25;
@@ -338,7 +356,10 @@ export async function sendOfficialRoster(input:{projectId:string;actorId:string;
   const textBody=["NÓMINA OFICIAL STAFF",rosterDate(composer.eventDate),"",...scheduleText,"","Estimada/o "+(composer.customerName||"equipo")+":","","Adjuntamos la nómina oficial del equipo BOOMBOX® asignado a tu evento, con sus funciones y datos de identificación.","","Quedamos atentos ante cualquier requerimiento.","","Saludos cordiales,","Equipo BOOMBOX®"].join(String.fromCharCode(10));
   const emailHtml = htmlBody.replace('<p style="font-size:14px;line-height:1.8;margin:0 0 18px">Adjuntamos', scheduleHtml+'<p style="font-size:14px;line-height:1.8;margin:0 0 18px">Adjuntamos');
   const {bytes,filename}=await makeOfficialRosterPdf(composer,input.includeCases===true);
-  const {data:record,error:insertError}=await admin.from("communications").insert({customer_id:(await admin.from("projects").select("customer_id").eq("id",input.projectId).single()).data?.customer_id,project_id:input.projectId,channel:"GMAIL",direction:"OUTBOUND",communication_type:"OFFICIAL_STAFF_ROSTER",thread_key:key,request_key:key,subject,body:textBody,status:"QUEUED",to_recipient:to,cc_recipients:[],occurred_at:new Date().toISOString(),created_by:input.actorId,sent_by:input.actorId,context_snapshot:{rendererVersion:"OFFICIAL_STAFF_ROSTER_V2",fingerprint:composer.fingerprint,staffCount:new Set(composer.groups.flatMap(group=>group.members.map(member=>member.staffId))).size}}).select("id").single();
+  const rosterIdentitySet = new Set<string>();
+  for (const member of composer.groups.flatMap(group => group.members)) rosterIdentitySet.add(rosterIdentityRut(member.rut) ? "rut:" + rosterIdentityRut(member.rut) : "staff:" + member.staffId);
+  for (const member of composer.manualMembers) rosterIdentitySet.add(rosterIdentityRut(member.rut) ? "rut:" + rosterIdentityRut(member.rut) : "name:" + rosterIdentityName(member.fullName));
+  const {data:record,error:insertError}=await admin.from("communications").insert({customer_id:(await admin.from("projects").select("customer_id").eq("id",input.projectId).single()).data?.customer_id,project_id:input.projectId,channel:"GMAIL",direction:"OUTBOUND",communication_type:"OFFICIAL_STAFF_ROSTER",thread_key:key,request_key:key,subject,body:textBody,status:"QUEUED",to_recipient:to,cc_recipients:[],occurred_at:new Date().toISOString(),created_by:input.actorId,sent_by:input.actorId,context_snapshot:{rendererVersion:"OFFICIAL_STAFF_ROSTER_V3",fingerprint:composer.fingerprint,staffCount:rosterIdentitySet.size,unpaidSupportCount:composer.manualMembers.length}}).select("id").single();
   if(insertError)throw insertError;
   try{
     const provider=new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken());
