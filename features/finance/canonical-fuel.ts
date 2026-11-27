@@ -1,5 +1,8 @@
 export type CanonicalFuelCandidate = {
   id: string;
+  fuelDate?: string;
+  totalAmount?: number | string | null;
+  assetId?: string | null;
   receiptPath: string | null;
   gasStation: string | null;
   routeId: string | null;
