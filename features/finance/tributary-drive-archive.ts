@@ -60,27 +60,28 @@ export function createTributaryDriveArchive(token: string, transport: typeof fet
       if (!id || !allowedId.test(id)) throw new Error("Drive no entregó un identificador válido.");
       return id;
     },
-    async archiveCsv(input: { id: string; parentId: string; name: string; bytes: Uint8Array; checksum: string }) {
+    async archiveCsv(input: { id: string; parentId: string; name: string; bytes: Uint8Array; checksum: string; mimeType?: "text/csv" | "application/pdf" }) {
       if (![input.id, input.parentId].every(id => allowedId.test(id))) throw new Error("Identificador de Drive inválido.");
+      const mimeType = input.mimeType ?? "text/csv";
       const fields = "id,name,mimeType,trashed,parents,sha256Checksum";
       const query = { fields, supportsAllDrives: "true" };
       const url = new URL("https://www.googleapis.com/upload/drive/v3/files");
       url.search = new URLSearchParams({ ...query, uploadType: "multipart" }).toString();
       const boundary = `orbit-${crypto.randomUUID()}`;
-      const metadata = JSON.stringify({ id: input.id, parents: [input.parentId], name: input.name, mimeType: "text/csv" });
+      const metadata = JSON.stringify({ id: input.id, parents: [input.parentId], name: input.name, mimeType });
       const response = await transport(url, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": `multipart/related; boundary=${boundary}` },
         body: new Blob([
           `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n`,
-          `--${boundary}\r\nContent-Type: text/csv\r\n\r\n`, Uint8Array.from(input.bytes),
+          `--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`, Uint8Array.from(input.bytes),
           `\r\n--${boundary}--\r\n`,
         ]),
         signal: AbortSignal.timeout(10000),
       });
       const file = response.status === 409 ? await request<DriveFile>(`files/${input.id}`, query)
         : response.ok ? await response.json() as DriveFile : null;
-      if (!file || file.id !== input.id || file.trashed || file.mimeType !== "text/csv" || file.name !== input.name
+      if (!file || file.id !== input.id || file.trashed || file.mimeType !== mimeType || file.name !== input.name
         || file.parents?.length !== 1 || file.parents[0] !== input.parentId || file.sha256Checksum !== input.checksum) {
         throw new Error("No se pudo comprobar el respaldo CSV en Drive.");
       }
