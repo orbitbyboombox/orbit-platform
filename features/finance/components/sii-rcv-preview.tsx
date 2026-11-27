@@ -188,6 +188,7 @@ export function SiiRcvPreview({ saved, initialBook = "Compras", categoryPeriod, 
             {doc.evidence && <div className="mt-3 space-y-2 border-t pt-3 text-sm">
               <p><strong>Finanzas:</strong> {doc.evidence.match_status === "MATCHED" ? "Coincidencia interna"
                 : doc.evidence.match_status === "AMBIGUOUS" ? "Coincidencias múltiples · revisar" : "Sin coincidencia exacta"}</p>
+              <p className="text-muted">{doc.evidence.pdf_id ? "PDF original vinculado" : "PDF original no disponible"} · {doc.evidence.xml_id ? "XML original vinculado" : "XML original no disponible"}</p>
               {doc.evidence.paid !== null && <p>Pagado registrado: {amount(doc.evidence.paid)} · Saldo interno: {amount(doc.evidence.balance)}</p>}
               {doc.evidence.project_id && <div className="flex flex-wrap gap-3">
                 <a className="text-brand" href={`/projects/${doc.evidence.project_id}?eventTab=FINANCE`}>Event 360°</a>

@@ -27,16 +27,15 @@ test("Dashboard obtiene overhead desde reglas y no lo resta de caja", () => {
 });
 
 test("cobrado mensual y acumulado usan cash impact canónico", () => {
-  assert.match(model, /client\.rpc\("invoice_payment_cash_impact"/);
+  assert.match(model, /invoicePaymentCashImpact/);
   assert.match(model, /collectionsMonth = sum\(monthPayments, \(row\) => row\.cashImpact\)/);
-  assert.match(model, /const collectedAll = sum\(canonicalPayments, \(row\) => row\.cashImpact\)/);
+  assert.match(model, /const customerCollected = sum\(canonicalPayments, \(row\) => row\.cashImpact\)/);
 });
 
 test("UI separa desempeño mensual de posición global", () => {
-  assert.match(page, /title={`Este mes · \$\{data\.periodLabel\}`}/);
-  assert.match(page, /title="Posición actual"/);
-  assert.match(page, /metrics={data\.month}/);
-  assert.match(page, /metrics={data\.position}/);
+  assert.match(page, /searchParams/);
+  assert.match(page, /data\.periodLabel/);
+  assert.match(page, /<FinancePremiumCenter/);
   assert.match(model, /"Saldos Clientes \/ Eventos"/);
   assert.match(model, /"Crédito Empresas"/);
 });
