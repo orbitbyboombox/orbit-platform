@@ -167,10 +167,12 @@ export async function approveTributaryDraftAction(input: { draftId: string; reas
 export async function retryTributaryDriveSyncAction(input: { syncId: string }) {
   try {
     const { admin } = await requireAdmin();
-    const { data: row } = await admin.from("tributary_drive_sync_items").select("id,attempt_count").eq("id", input.syncId).single();
-    if (!row) throw new Error("Sincronización no encontrada.");
-    const { error } = await admin.from("tributary_drive_sync_items").update({ status: "RETRY", attempt_count: Number(row.attempt_count ?? 0) + 1, last_error: null, updated_at: new Date().toISOString() }).eq("id", input.syncId);
+    const { data: queued, error } = await admin.from("tributary_drive_sync_items")
+      .update({ status: "PENDING", attempt_count: 0, last_error: null, updated_at: new Date().toISOString() })
+      .eq("id", input.syncId).like("idempotency_key", "document:%:central:PDF").in("status", ["FAILED", "RETRY"])
+      .select("id").maybeSingle();
     if (error) throw error;
+    if (!queued) throw new Error("El archivo no tiene un reintento pendiente.");
     revalidatePath("/finance/tributary");
     return { ok: true as const };
   } catch (error) {
