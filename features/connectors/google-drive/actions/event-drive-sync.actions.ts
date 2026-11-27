@@ -14,12 +14,12 @@ export async function reconcileEventDriveAction(projectId: string) {
     if (!profile || !["CEO", "ADMINISTRATOR"].includes(profile.role)) {
       throw new Error("Solo Founder o Administración puede sincronizar Drive.");
     }
-    const eventFolder = await synchronizeConfirmedReservationDrive({ client, projectId, actorId: user.id });
+    const eventFolder = await synchronizeConfirmedReservationDrive({ client, projectId, actorId: user.id }, true);
     const result = await recoverPendingEventDocuments({ client, projectId, eventFolder });
     revalidatePath(`/projects/${projectId}`);
     return {
       ok: result.pending === 0,
-      message: `Carpeta verificada. Documentos sincronizados: ${result.synced} (${result.reused} reutilizados). Pendientes: ${result.pending}.${result.linkedPending ? ` Referencias existentes por revisar: ${result.linkedPending}.` : ""}`,
+      message: `Carpeta verificada. Documentos sincronizados: ${result.synced} (${result.reused} reutilizados). Pendientes sin vínculo: ${result.pending - result.linkedPending}.${result.linkedPending ? ` Referencias existentes por revisar: ${result.linkedPending}.` : ""}`,
       failures: result.failures,
     };
   } catch (error) {

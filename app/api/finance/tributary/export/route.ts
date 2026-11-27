@@ -5,6 +5,7 @@ import JSZip from "jszip";
 import { loadReceivedFees, receivedFeeReview } from "@/features/finance/sii-received-fees";
 import { loadRcvReport, rcvEvidenceLabel } from "@/features/finance/sii-rcv-report";
 import { loadMonthlyAccountingStaff, readMonthlyAccountingAttachments } from "@/features/finance/monthly-accounting-staff";
+import { loadAccountantRcvOriginals } from "@/features/finance/accountant-rcv-originals";
 
 export async function GET(request: Request) {
   const client = await createSupabaseServerClient();
@@ -76,7 +77,8 @@ export async function GET(request: Request) {
       const staff = await loadMonthlyAccountingStaff(period);
       const sourceIds = (selected: Row[]) => selected.flatMap(row => "source_id" in row && typeof row.source_id === "string" ? [row.source_id] : []);
       const backups = await readMonthlyAccountingAttachments(staff.attachments, sourceIds(purchases), sourceIds(sales), staff.missingBoletas, staff.missingReceipts);
-      const [rcv, fees] = await Promise.all([loadRcvReport(period), loadReceivedFees(period)]);
+      const [rcv, fees, originals] = await Promise.all([loadRcvReport(period), loadReceivedFees(period), loadAccountantRcvOriginals(period)]);
+      for (const [path, bytes] of originals) zip.file(path, bytes);
       const rcvSheets = (["Compras", "Ventas"] as const).map(register => ({
         title: `RCV SII ${register}`,
         headers: ["tipo", "folio", "fecha", "rut", "razon_social", "neto", "exento", "iva_informado", "iva_no_recuperable", "impuestos_adicionales", "total", "categoria_gasto", "revision", "coincidencia_interna", "pagado_interno", "saldo_interno", "evento_orbit"],
@@ -111,6 +113,7 @@ export async function GET(request: Request) {
       "La columna IVA contiene el monto registrado por documento. No determina derecho a crédito fiscal ni saldo oficial SII.",
       "Staff: liquidaciones y pagos por período tributario, en hojas separadas. No sumar ambas fuentes como un solo pago.",
       "Consulta Respaldos para identificar incluidos, faltantes y omitidos. Las referencias Drive conservan los permisos de acceso existentes.",
+      "RCV-originales contiene las importaciones verificadas del SII, si existen. Las carpetas por huella SHA-256 distinguen versiones del mismo archivo.",
       "Las hojas RCV SII contienen documentos importados para revisión. No sumar a los registros internos ni usar como conciliación oficial.",
     ].join("\n"));
     const output = await zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });

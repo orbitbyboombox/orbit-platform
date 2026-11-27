@@ -28,6 +28,10 @@ export async function attachExternalTaxDocumentAction(formData: FormData) {
     const total = Number(formData.get("totalAmount"));
     const file = formData.get("file");
     if (!allowedTypes.has(taxType) || !folio || !issueDate || !customerName || !customerTaxId) throw new Error("Completa los datos tributarios obligatorios.");
+    if (!/^[1-9]\d{3}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])$/.test(issueDate)
+      || !Number.isFinite(Date.parse(issueDate)) || new Date(issueDate).toISOString().slice(0, 10) !== issueDate) {
+      throw new Error("Indica la fecha de emisión del documento con el año de cuatro dígitos.");
+    }
     if (![net, tax, total].every(Number.isFinite) || net < 0 || tax < 0 || total < 0 || net + tax !== total) throw new Error("Neto + IVA debe coincidir con el total.");
     if (!(file instanceof File) || !file.size) throw new Error("Adjunta el documento SII.");
     if (file.size > 20 * 1024 * 1024 || !["application/pdf", "image/jpeg", "image/png"].includes(file.type)) throw new Error("Usa PDF, JPG o PNG de hasta 20 MB.");

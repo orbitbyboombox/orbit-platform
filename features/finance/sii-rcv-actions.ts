@@ -61,6 +61,7 @@ export async function recordRcvPeriodEvent(form: FormData) {
   } as never);
   if (error) throw new Error("No se pudo registrar el cambio de estado.");
   revalidatePath("/finance/tributary/accounting");
+  revalidatePath("/finance/tributary/accountant-delivery");
 }
 
 export async function storeReceivedFee(form: FormData) {

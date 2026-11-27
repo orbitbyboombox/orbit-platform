@@ -7,7 +7,8 @@ export async function GET(request: Request) {
   if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const result = await syncStaleGoogleCalendarEvents({ client: createAdminClient(), actorId: "00000000-0000-0000-0000-000000000000", batchSize: 25 });
-    return NextResponse.json({ ok: true, ...result });
+    console.info("[calendar-resync] authenticated run", result);
+    return NextResponse.json({ ok: result.failed === 0, ...result });
   } catch (error) {
     return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : "Calendar resync failed" }, { status: 500 });
   }

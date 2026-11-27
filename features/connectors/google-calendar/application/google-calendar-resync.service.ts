@@ -64,7 +64,7 @@ export async function syncStaleGoogleCalendarEvents(input: { client: SupabaseCli
     if (claimError || claimed !== true) { summary.skipped++; continue; }
     summary.claimed++;
     try {
-      const result = await synchronizeConfirmedReservationCalendar({ client: input.client, projectId: row.project_id, actorId: input.actorId, policy: "EXISTING_LEGACY_UPDATE" });
+      const result = await synchronizeConfirmedReservationCalendar({ client: input.client, projectId: row.project_id, actorId: input.actorId, policy: "EXISTING_LEGACY_UPDATE", requireExistingMapping: true });
       if (!result) throw new Error("CALENDAR_MAPPING_MISSING");
       const { data: current } = await input.client.from("calendar_sync").select("current_payload_hash").eq("id", row.id).maybeSingle();
       const { data: revision } = await input.client.from("projects").select("event_revision").eq("id", row.project_id).maybeSingle();

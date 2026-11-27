@@ -495,15 +495,17 @@ export function ProjectWorkspaceExperience(
   );
   const [activeTab, setActiveTab] = useState<EventAdminTab>(initialEventAdminTab);
   const [, startWorkspaceTransition] = useTransition();
+  const [calendarSyncFeedback, setCalendarSyncFeedback] = useState("");
   const syncCalendarFromQuickAction = () =>
     startWorkspaceTransition(async () => {
+      setCalendarSyncFeedback("Verificando Google Calendar…");
       const result = await synchronizeProjectCalendarAction(
         props.projectKey ?? "",
         "UPSERT",
       );
-      setCustomerDeleteFeedback(
+      setCalendarSyncFeedback(
         result.ok
-          ? `Google Calendar: ${result.operation.toLowerCase()}.`
+          ? `Google Calendar: ${({CREATED:"evento creado",UPDATED:"evento actualizado",UNCHANGED:"evento verificado, sin cambios",CANCELLED:"evento cancelado",RESTORED:"evento restaurado"})[result.operation]}.`
           : result.error,
       );
     });
@@ -1891,6 +1893,7 @@ export function ProjectWorkspaceExperience(
             )}
           </Section>}
 
+          {activeTab === "COMMUNICATIONS" && calendarSyncFeedback && <p role="status" className="text-sm">{calendarSyncFeedback}</p>}
           {activeTab === "COMMUNICATIONS" && <PreEventReminderControl projectId={props.projectKey ?? ""} />}
 
           {activeTab === "COMMUNICATIONS" && ["ORB-2026-162036", "ORB-2026-438017", "ORB-2027-919683"].includes(event.orbitEventId) && event.google.calendarStatus === "UPDATE_REQUIRED" && (

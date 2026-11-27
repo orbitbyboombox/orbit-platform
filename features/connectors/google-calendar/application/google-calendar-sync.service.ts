@@ -20,10 +20,11 @@ const line=(notes:string,label:string)=>notes.split("\n").find(value=>value.trim
 const calendarStage=(stage:string,context:Record<string,unknown>)=>console.info("[calendar-time-sync]",{stage,...context});
 void resolveCanonicalStaffCallAt;
 
-export async function synchronizeConfirmedReservationCalendar(input:{client:SupabaseClient;projectId:string;actorId:string;operation?:GoogleCalendarSyncOperation;policy?:CalendarSyncPolicy}):Promise<CalendarResult|null>{
+export async function synchronizeConfirmedReservationCalendar(input:{client:SupabaseClient;projectId:string;actorId:string;operation?:GoogleCalendarSyncOperation;policy?:CalendarSyncPolicy;requireExistingMapping?:boolean}):Promise<CalendarResult|null>{
   const prepared = await prepareConfirmedReservationCalendar(input.client, input.projectId);
   const { project, calendarInput, existing, eligible, reservationConfirmed } = prepared;
   const policy=input.policy??"NEW";
+  if (input.requireExistingMapping && !existing?.googleEventId) return null;
   if(!eligible&&policy==="NEW")throw new Error(reservationConfirmed?"CALENDAR_BLOCKED: EVENT_DATA_INCOMPLETE":"CALENDAR_BLOCKED: RESERVATION_NOT_CONFIRMED");
   if(!eligible&&policy==="EXISTING_LEGACY_UPDATE"&&!existing)return null;
   const cancelled=["CANCELLED","CANCELED","CANCELADO","CANCELADA"].includes(project.status.toUpperCase());const operation=input.operation??(cancelled?"CANCEL":existing?.status==="CANCELLED"?"RESTORE":"UPSERT");if(operation==="CANCEL"&&!existing?.googleEventId)return null;
@@ -52,7 +53,7 @@ export async function prepareConfirmedReservationCalendar(client: SupabaseClient
     client.from("crm_reservations").select("status").eq("project_id",projectId),
     client.from("event_operational_blocks").select("name,start_at,end_at,sequence").eq("project_id",projectId).order("sequence"),
   ]);
-  if(error)throw error;if(vehicleError)throw vehicleError;if(operationalError)throw operationalError;if(reservationsError)throw reservationsError;if(operationalBlocksError && !["42P01","PGRST205"].includes(operationalBlocksError.code ?? ""))throw operationalBlocksError;const project=data as unknown as ProjectRecord;calendarStage("CALENDAR_TIME_SYNC_RESOLVE",{project_id:project.id,requested_event_time:project.event_time,timezone:"America/Santiago"});
+  if(error)throw error;if(data?.status==="DELETED"||data?.status==="ARCHIVED")throw new Error("Calendar no sincroniza eventos eliminados o archivados.");if(vehicleError)throw vehicleError;if(operationalError)throw operationalError;if(reservationsError)throw reservationsError;if(operationalBlocksError && !["42P01","PGRST205"].includes(operationalBlocksError.code ?? ""))throw operationalBlocksError;const project=data as unknown as ProjectRecord;calendarStage("CALENDAR_TIME_SYNC_RESOLVE",{project_id:project.id,requested_event_time:project.event_time,timezone:"America/Santiago"});
   const customer=relation<{full_name:string;phone:string|null;email:string|null;metadata:unknown}>(project.customers);if(!customer)throw new Error("La reserva no tiene un cliente asociado.");
   const notes=typeof project.operations?.notes==="string"?project.operations.notes:"";const duration=Math.max(1,...project.project_services.map(service=>Number(service.duration_hours??0)));const legacyStart=String(project.event_time??"18:00").slice(0,5);const serviceStart={date:project.event_date,time:legacyStart};
   const eventType:CalendarOperationalEventType=/WEDDING|MATRIMONIO/i.test(project.project_type)?"WEDDING":/CORPORATE|EMPRESA/i.test(project.project_type)?"CORPORATE":/BIRTHDAY|CUMPLE/i.test(project.project_type)?"BIRTHDAY":/GRAD/i.test(project.project_type)?"GRADUATION":"INTERNAL";
