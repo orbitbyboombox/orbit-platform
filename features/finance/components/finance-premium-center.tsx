@@ -104,7 +104,12 @@ function formatMetric(metric?: Metric) {
   return new Intl.NumberFormat("es-CL").format(metric.value);
 }
 
-export function FinancePremiumCenter({ month, position }: { month: Metric[]; position: Metric[] }) {
+const withPeriod = (href: string, period: string) => {
+  if (!period || href.startsWith("#")) return href;
+  return `${href}${href.includes("?") ? "&" : "?"}period=${encodeURIComponent(period)}`;
+};
+
+export function FinancePremiumCenter({ month, position, period, periodLabel }: { month: Metric[]; position: Metric[]; period: string; periodLabel: string }) {
   const [selected, setSelected] = useState<SectionKey | null>(null);
   const active = useMemo(() => sections.find((section) => section.key === selected), [selected]);
   const metric = (label: string) => month.find((item) => item.label === label) ?? position.find((item) => item.label === label);
@@ -115,6 +120,11 @@ export function FinancePremiumCenter({ month, position }: { month: Metric[]; pos
         <p className="text-xs font-semibold uppercase tracking-[.24em]" style={{ color: "#F58B22" }}>ORBIT · v2.1.8</p>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:mt-3 sm:text-4xl">Finanzas</h1>
         <p className="mt-1 text-sm sm:mt-2 sm:text-base" style={{ color: "#9AA1AC" }}>Centro de administración financiera</p>
+        <nav aria-label="Período financiero" className="mt-4 flex flex-wrap items-center gap-2 text-xs">
+          <span style={{ color: "#9AA1AC" }}>Período: <strong className="text-white">{periodLabel}</strong></span>
+          <Link href="/finance" className="rounded-lg border px-2.5 py-1.5 text-white hover:border-[#F58B22]">Mes actual</Link>
+          <Link href={`/finance?period=${encodeURIComponent(period.slice(0, 4))}`} className="rounded-lg border px-2.5 py-1.5 text-white hover:border-[#F58B22]">Año {period.slice(0, 4)}</Link>
+        </nav>
       </header>
 
       <section aria-label="Módulos principales de Finanzas" className="grid grid-cols-2 gap-2 sm:gap-4">
@@ -158,7 +168,7 @@ export function FinancePremiumCenter({ month, position }: { month: Metric[]; pos
           </div>
           <div className="mt-3 grid gap-2 sm:mt-5 sm:grid-cols-2">
             {active.accesses.map((access) => (
-              <Link key={access.label} href={access.href} className="flex min-h-[48px] items-center justify-between gap-2 rounded-xl border px-3 py-2 transition hover:border-[#F58B22] sm:gap-4 sm:rounded-2xl sm:px-4 sm:py-3" style={{ borderColor: "#30343B", background: "#0C0E12" }}>
+              <Link key={access.label} href={withPeriod(access.href, period)} className="flex min-h-[48px] items-center justify-between gap-2 rounded-xl border px-3 py-2 transition hover:border-[#F58B22] sm:gap-4 sm:rounded-2xl sm:px-4 sm:py-3" style={{ borderColor: "#30343B", background: "#0C0E12" }}>
                 <span><strong className="block text-xs text-white sm:text-sm">{access.label}</strong><small style={{ color: "#9AA1AC" }}>{access.description}</small></span>
                 <ChevronRight className="size-4 shrink-0" style={{ color: "#F58B22" }} aria-hidden />
               </Link>
@@ -177,7 +187,7 @@ export function FinancePremiumCenter({ month, position }: { month: Metric[]; pos
           ].map(({ label, item, Icon }) => {
             const typed = item;
             const ChartIcon = Icon;
-            return <Link key={label} href={typed?.href ?? "/finance"} className="rounded-xl border p-3 transition hover:border-[#F58B22] sm:rounded-2xl sm:p-5" style={{ background: "#171A20", borderColor: "#30343B" }}>
+            return <Link key={label} href={withPeriod(typed?.href ?? "/finance", period)} className="rounded-xl border p-3 transition hover:border-[#F58B22] sm:rounded-2xl sm:p-5" style={{ background: "#171A20", borderColor: "#30343B" }}>
               <div className="flex items-center justify-between"><span className="text-[11px] leading-tight sm:text-sm" style={{ color: "#9AA1AC" }}>{label}</span><ChartIcon className="size-4" style={{ color: "#F58B22" }} aria-hidden /></div>
               <p className="mt-2 text-lg font-semibold text-white sm:mt-4 sm:text-2xl">{formatMetric(typed)}</p>
               <p className="mt-1 text-[10px] leading-tight sm:mt-2 sm:text-xs" style={{ color: "#9AA1AC" }}>{typed?.detail ?? "Sin datos disponibles"}</p>

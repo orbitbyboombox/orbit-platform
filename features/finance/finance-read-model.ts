@@ -28,6 +28,7 @@ export type FinanceRisk = {
 
 export type FinanceDashboardReadModel = {
   generatedAt: string;
+  period: string;
   periodLabel: string;
   cash: {
     total: number;
@@ -62,6 +63,19 @@ const accountKey = (value: unknown,accounts:readonly CashAccount[]): string | nu
   return null;
 };
 const monthName = new Intl.DateTimeFormat("es-CL", { month: "long", year: "numeric", timeZone: "America/Santiago" });
+const yearName = new Intl.DateTimeFormat("es-CL", { year: "numeric", timeZone: "America/Santiago" });
+const formatPeriodDate = (value: string) => new Intl.DateTimeFormat("es-CL", { month: "long", year: "numeric", timeZone: "America/Santiago" }).format(new Date(`${value}T12:00:00Z`));
+const lastDayOfMonth = (year: number, month: number) => new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
+const resolvePeriod = (requested: string | undefined, today: string) => {
+  const fallback = today.slice(0, 7);
+  const value = requested && (/^\d{4}$/.test(requested) || /^\d{4}-\d{2}$/.test(requested)) ? requested : fallback;
+  if (/^\d{4}$/.test(value)) {
+    return { key: value, from: `${value}-01-01`, to: `${value}-12-31`, label: yearName.format(new Date(`${value}-07-01T12:00:00Z`)), months: 12 };
+  }
+  const [year, month] = value.split("-").map(Number);
+  return { key: value, from: `${value}-01`, to: lastDayOfMonth(year, month), label: formatPeriodDate(`${value}-01`), months: 1 };
+};
+const accountingMonthInRange = (value: string | null | undefined, from: string, to: string) => value ? inRange(`${value.slice(0, 7)}-01`, from, to) : false;
 const moneyMetric = (label: string, value: number, detail: string, href: string, tone?: FinanceMetric["tone"]): FinanceMetric => ({ label, value, detail, href, format: "money", tone });
 const financialRisk = (risk: FinanceRisk): FinanceRisk => risk;
 /** Mirrors the immutable public.invoice_payment_cash_impact SQL function. */
@@ -77,11 +91,12 @@ export async function loadFinanceDashboardReadModel(
   financialTruthSource?:
     | Awaited<ReturnType<typeof loadFinancialTruth>>
     | Promise<Awaited<ReturnType<typeof loadFinancialTruth>>>,
+  requestedPeriod?: string,
 ): Promise<FinanceDashboardReadModel> {
   const now = new Date();
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(now);
-  const month = today.slice(0, 7);
-  const monthStart = `${month}-01`;
+  const selectedPeriod = resolvePeriod(requestedPeriod, today);
+  const monthStart = selectedPeriod.from;
   const next30Date = new Date(`${today}T12:00:00Z`);
   next30Date.setUTCDate(next30Date.getUTCDate() + 30);
   const next30 = next30Date.toISOString().slice(0, 10);
@@ -109,7 +124,7 @@ export async function loadFinanceDashboardReadModel(
   const activeTruth = truth.filter((row) => row.status === "CONFIRMED");
   const activeProjectIds = new Set(activeTruth.map((row) => row.projectId));
   const todayTruth = activeTruth.filter((row) => row.eventDate === today);
-  const monthTruth = activeTruth.filter((row) => row.eventDate?.startsWith(month));
+  const monthTruth = activeTruth.filter((row) => inRange(row.eventDate, selectedPeriod.from, selectedPeriod.to));
   const receivables = receivablesResult.data ?? [];
   const payments = paymentsResult.data ?? [];
   // Exact equivalent of public.invoice_payment_cash_impact (immutable SQL CASE):
@@ -158,18 +173,18 @@ export async function loadFinanceDashboardReadModel(
   fuel.forEach((row) => registerCash(null, -number(row.totalAmount)));
 
   const todayPayments = canonicalPayments.filter((row) => dateOnly(row.paid_at) === today);
-  const monthPayments = canonicalPayments.filter((row) => dateOnly(row.paid_at).startsWith(month));
+  const monthPayments = canonicalPayments.filter((row) => inRange(row.paid_at, selectedPeriod.from, selectedPeriod.to));
   const todayExpenses = paidExpenses.filter((row) => row.occurred_on === today);
-  const monthExpenses = paidExpenses.filter((row) => row.occurred_on?.startsWith(month));
+  const monthExpenses = paidExpenses.filter((row) => inRange(row.occurred_on, selectedPeriod.from, selectedPeriod.to));
   const todayStaff = staffCashMovements.filter((row) => row.movement_date === today);
   const todayFuel = fuel.filter((row) => row.fuelDate === today);
-  const monthFuel = fuel.filter((row) => row.fuelDate?.startsWith(month));
-  const monthlyPayroll = settlements.filter((row) => row.accounting_month?.startsWith(month));
+  const monthFuel = fuel.filter((row) => inRange(row.fuelDate, selectedPeriod.from, selectedPeriod.to));
+  const monthlyPayroll = settlements.filter((row) => accountingMonthInRange(row.accounting_month, selectedPeriod.from, selectedPeriod.to));
   const outstanding = sum(receivables.filter((row) => !["PAID", "CANCELLED"].includes(row.effective_status)), (row) => number(row.outstanding_balance));
   const monthlyRevenue = sum(monthTruth, (row) => row.revenue);
   const monthlyCosts = sum(monthTruth, (row) => row.realCost);
   const fixedRules: FixedExpenseRule[] = (fixedRulesResult.data ?? []).map((row) => ({ id: row.id, name: row.name, category: row.category, amount: number(row.amount), currency: row.currency as "CLP" | "USD", frequency: row.frequency, active: row.active, nextDueDate: row.next_due_date, metadata: (row.metadata ?? {}) as Record<string, unknown> }));
-  const fixedMonthlyExpenses = summarizeFixedMonthlyExpenses(fixedRules, now).monthlyTotal;
+  const fixedMonthlyExpenses = summarizeFixedMonthlyExpenses(fixedRules, now).monthlyTotal * selectedPeriod.months;
   const performance = calculateMonthlyFinancePerformance({ revenue: monthlyRevenue, directEventCosts: monthlyCosts, fixedMonthlyExpenses });
   const todayRevenue = sum(todayTruth, (row) => row.revenue);
   const todayCost = sum(todayTruth, (row) => row.realCost);
@@ -207,7 +222,8 @@ export async function loadFinanceDashboardReadModel(
   const payrollTotal = sum(monthlyPayroll, (row) => number(row.payroll_net));
   return {
     generatedAt: now.toISOString(),
-    periodLabel: monthName.format(now),
+    period: selectedPeriod.key,
+    periodLabel: selectedPeriod.key === today.slice(0, 7) ? monthName.format(now) : selectedPeriod.label,
     cash: {
       total: availableCash,
       unassigned: unassignedCash,
