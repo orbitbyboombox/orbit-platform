@@ -15,7 +15,7 @@ import { resolveCommercialBreakdown } from "./commercial-breakdown";
 import { loadCompanySettings } from "@/features/company-settings";
 import { createCustomerProjectAction } from "@/features/projects/actions/customer.actions";
 import type { ProjectDraft } from "@/features/projects/types/project";
-import { QUICK_SEND_CTA_LABEL, commercialSignatureMode, emailParagraphs, formalQuoteSubject, normalizeEmailNewlines, quickSendBodyParagraphs, quoteDisplayFilename, quoteStorageKey, resolveQuickSendBody, withoutDuplicateSignature } from "./presentation";
+import { commercialSignatureMode, emailParagraphs, formalQuoteSubject, normalizeEmailNewlines, quickSendBodyParagraphs, quoteDisplayFilename, quoteStorageKey, resolveQuickSendBody, withoutDuplicateSignature } from "./presentation";
 import { catalogCategoryForQuickSend, catalogPublicUrl, isCommercialCatalogCategory } from "./catalogs";
 import { normalizeQuoteOperationalConditions } from "./operational-conditions";
 import { normalizeEmailRecipients, normalizeOptionalEmail } from "@/lib/email/recipients";

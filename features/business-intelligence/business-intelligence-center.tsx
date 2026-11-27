@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { BarChart3, BriefcaseBusiness, CalendarRange, Download, FileSpreadsheet, FileText, Gauge, Package, Star, TrendingUp, UsersRound, WalletCards } from "lucide-react";
+import { BriefcaseBusiness, Download, FileSpreadsheet, FileText, Gauge, Package, Star, TrendingUp, UsersRound, WalletCards } from "lucide-react";
 import { WorkspaceLayout } from "@/components/layout/workspace-layout";
 import { ActionButton } from "@/components/ui/action-button";
 import { StatusBadge } from "@/components/ui/status-badge";

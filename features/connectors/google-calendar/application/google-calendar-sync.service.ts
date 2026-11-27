@@ -7,7 +7,7 @@ import {GoogleCalendarApiProvider} from "../provider/google-calendar-live.provid
 import {SupabaseGoogleCalendarSyncRepository} from "../repository/google-calendar-sync.repository";
 import {loadGoogleWorkspaceAccessToken,loadGoogleWorkspaceCalendarId,loadGoogleWorkspaceConnection} from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import type {CalendarOperationalEventInput,CalendarOperationalEventType,GoogleCalendarSyncOperation} from "../types/google-calendar-live.types";
-import {chileDateTime,resolveCanonicalStaffCallAt,resolveEventOperationalWindow} from "@/features/operations/event-operational-window";
+import { chileDateTime, resolveCanonicalStaffCallAt } from "@/features/operations/event-operational-window";
 import {deleteCalendarEventForProject} from "./google-calendar-delete.service";
 import {buildCanonicalOrbitEventStateFromRecord} from "@/features/operations/canonical-orbit-event-state";
 import {buildCanonicalOperationalExtras} from "@/features/operations/canonical-operational-extras";

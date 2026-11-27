@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { emptyTotemLayout, getTotemFinalizationWarnings, validateTotemLayout, type EventTotemLayout, type TotemAssignmentOption } from "./event-totem-layout";
+import { emptyTotemLayout, getTotemFinalizationWarnings, validateTotemLayout, type EventTotemLayout } from "./event-totem-layout";
 
 type Option = { id: string; label: string };
 

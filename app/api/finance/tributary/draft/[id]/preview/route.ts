@@ -84,7 +84,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
   const black = rgb(0.04, 0.04, 0.04);
   const red = rgb(0.72, 0.08, 0.10);
-  const gray = rgb(0.25, 0.25, 0.25);
   const line = rgb(0.16, 0.16, 0.16);
   const white = rgb(1, 1, 1);
 

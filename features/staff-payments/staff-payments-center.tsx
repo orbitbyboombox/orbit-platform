@@ -359,7 +359,6 @@ export function StaffPaymentsCenter({
   const totalBoletaGross = accountsForMonth.reduce((sum, a) => sum + a.boletaGross, 0);
   const totalBoletaNet = accountsForMonth.reduce((sum, a) => sum + a.boletaNet, 0);
   const totalWithholding = accountsForMonth.reduce((sum, a) => sum + a.withholdingAmount, 0);
-  const totalReimbursements = accountsForMonth.reduce((sum, a) => sum + a.reimbursementsTotal, 0);
   const advancesPaid = accountsForMonth.reduce((sum, a) => sum + a.advancesTotal, 0);
   const finalPaid = accountsForMonth.reduce((sum, a) => sum + Math.max(0, (a.calculation.workPaid ?? 0) - a.advancesTotal) + a.paidAmount, 0);
   const reimbursementsPaid = accountsForMonth.reduce((sum, a) => sum + a.reimbursementsPaidTotal, 0);

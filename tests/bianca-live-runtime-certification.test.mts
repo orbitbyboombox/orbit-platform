@@ -9,7 +9,6 @@ import {
   markBiancaLiveRuntimeDelivered,
   markBiancaLiveRuntimeMetaSent,
   markStalledBiancaRuntimeOutboxes,
-  updateBiancaLiveRuntimeCertification,
 } from "../features/connectors/whatsapp-cloud/bianca-live-runtime-certification.ts";
 
 type Row = Record<string, unknown>;

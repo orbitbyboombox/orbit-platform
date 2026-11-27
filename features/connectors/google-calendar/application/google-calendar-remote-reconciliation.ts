@@ -1,9 +1,8 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { GoogleWorkspaceConnection } from "@/features/connectors/google-workspace";
 import { mapOperationalEventToCalendar, fingerprintCalendarOperationalInput } from "./google-calendar-live";
 import type { CalendarOperationalEventInput } from "../types/google-calendar-live.types";
-import type { GoogleCalendarApiProvider, GoogleCalendarRemoteEvent } from "../provider/google-calendar-live.provider";
+import type { GoogleCalendarApiProvider } from "../provider/google-calendar-live.provider";
 import { fingerprintReviewedCalendarEvent, verifyApprovedRemoteEvent } from "./calendar-remote-review-policy";
 
 export const RECONCILABLE_ORBIT_EVENT_IDS = new Set([

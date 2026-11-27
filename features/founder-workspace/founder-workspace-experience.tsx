@@ -14,8 +14,6 @@ import {
   ArrowUp,
   GripVertical,
   ChevronDown,
-  MailCheck,
-  MailWarning,
 } from "lucide-react";
 import Link from "next/link";
 import { formatServiceDisplayList, staffAssignmentDisplayName } from "@/lib/orbit-display-labels";
