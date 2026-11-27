@@ -23,7 +23,6 @@ const documentKinds = new Map<string, GoogleDriveDocumentKind>([
   ["EXTERNAL_TAX_DOCUMENT", "INVOICE"],
   ["INVOICE", "INVOICE"],
   ["PAYMENT_RECEIPT", "PAYMENT_PROOF"],
-  ["STAFF_EXPENSE_RECEIPT", "PAYMENT_PROOF"],
   ["PHOTOGRAPH", "PHOTO"],
   ["PHOTO", "PHOTO"],
   ["VIDEO", "VIDEO"],
@@ -74,12 +73,12 @@ export async function recoverPendingEventDocuments(input: {
 
   const { count: linkedPending, error: linkedError } = await client.from("documents")
     .select("id", { count: "exact", head: true })
-    .eq("project_id", projectId).is("deleted_at", null).not("drive_file_id", "is", null)
+    .eq("project_id", projectId).neq("document_type", "STAFF_EXPENSE_RECEIPT").is("deleted_at", null).not("drive_file_id", "is", null)
     .in("drive_sync_status", ["PENDING", "ERROR"]);
   if (linkedError) throw linkedError;
   const { data, count, error } = await client.from("documents")
     .select("id,document_type,storage_bucket,storage_path,checksum,file_size,original_filename,mime_type,metadata,version", { count: "exact" })
-    .eq("project_id", projectId).is("deleted_at", null).is("drive_file_id", null)
+    .eq("project_id", projectId).neq("document_type", "STAFF_EXPENSE_RECEIPT").is("deleted_at", null).is("drive_file_id", null)
     .order("id").limit(20);
   if (error) throw error;
   const documents = (data ?? []) as RecoverableDocument[];

@@ -44,7 +44,10 @@ export async function archivePendingStaffExpenses(client: SupabaseClient, month:
       privateFolder(STAFF_ARCHIVE, STAFF_CATEGORY, "ARCHIVO_DOCUMENTAL"),
       privateFolder(OPERATORS, STAFF_ARCHIVE, "OPERADORES"),
     ]);
-    const [year] = month.split("-");
+    const [year, monthNumber] = month.split("-");
+    const monthName = new Intl.DateTimeFormat("es-CL", { month: "long", timeZone: "UTC" })
+      .format(new Date(`${month}-01T12:00:00Z`)).toLocaleUpperCase("es-CL");
+    const monthFolder = `${monthNumber}_${monthName}`;
     const destinationByStaff = new Map<string, string>();
     for (const document of documents) {
       const source = sources.get(document.id);
@@ -61,7 +64,7 @@ export async function archivePendingStaffExpenses(client: SupabaseClient, month:
           const staffFolder = await provider.findFolder({ name: folderName, parentFolderId: OPERATORS });
           if (!staffFolder) throw new Error("No hay una carpeta privada inequívoca para el operador.");
           destination = await privateFolder(staffFolder.id, OPERATORS, folderName);
-          for (const name of ["06_GASTOS_REEMBOLSOS", year, month]) {
+          for (const name of ["06_GASTOS_REEMBOLSOS", year, monthFolder]) {
             const parent = destination;
             const leaf = await provider.findFolder({ name, parentFolderId: parent }) ?? await provider.createFolder({ name, parentFolderId: parent });
             destination = await privateFolder(leaf.id, parent, name);
