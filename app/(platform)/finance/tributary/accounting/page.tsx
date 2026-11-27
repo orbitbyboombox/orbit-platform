@@ -8,15 +8,19 @@ import { recordRcvPeriodEvent } from "@/features/finance/sii-rcv-actions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export default async function AccountingPage({ searchParams }: { searchParams: Promise<{ period?: string }> }) {
+export default async function AccountingPage({ searchParams }: { searchParams: Promise<{ period?: string; year?: string; month?: string; libro?: string }> }) {
   const client = await createSupabaseServerClient();
   const { data: { user } } = await client.auth.getUser();
   if (!user) notFound();
   const { data: profile } = await client.from("profiles").select("role").eq("id", user.id).single();
   if (!profile || !["CEO", "ADMINISTRATOR"].includes(profile.role)) notFound();
 
-  const input = (await searchParams).period ?? "2026-11";
-  const period = /^[1-9]\d{3}(?:-(?:0[1-9]|1[0-2]))?$/.test(input) ? input : "2026-11";
+  const selected = await searchParams;
+  const today = new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Santiago", year: "numeric", month: "2-digit" }).format(new Date());
+  const input = selected.year && /^[1-9]\d{3}$/.test(selected.year)
+    ? selected.year + (selected.month && /^(0[1-9]|1[0-2])$/.test(selected.month) ? "-" + selected.month : "")
+    : selected.period ?? today;
+  const period = /^[1-9]\d{3}(?:-(?:0[1-9]|1[0-2]))?$/.test(input) ? input : today;
   const [rows, periodEvents, staffAmounts, fees] = await Promise.all([
     loadRcvReport(period).catch(() => null),
 
@@ -41,12 +45,27 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
     <main className="mx-auto max-w-6xl space-y-5">
       <Link href="/finance/tributary" className="text-sm font-semibold text-brand">Volver al Centro tributario</Link>
       <h1 className="text-3xl font-semibold">Contabilidad Premium</h1>
-      <form className="flex flex-wrap items-end gap-3 rounded-xl border p-3" method="get">
-        <label className="text-sm">Período · AAAA o AAAA-MM
-          <input name="period" defaultValue={period} pattern="[0-9]{4}(-[0-9]{2})?" required className="mt-1 block w-full rounded-lg border bg-background p-2" />
+      <form className="grid items-end gap-3 rounded-xl border p-3 sm:grid-cols-3" method="get">
+        {selected.libro && <input type="hidden" name="libro" value={selected.libro} />}
+        <label className="text-sm">Año
+          <input name="year" defaultValue={period.slice(0,4)} pattern="[1-9][0-9]{3}" inputMode="numeric" required className="mt-1 block w-full rounded-lg border bg-background p-2" />
         </label>
-        <button className="min-h-10 rounded-lg border px-4 text-sm">Consultar</button>
+        <label className="text-sm">Mes
+          <select name="month" defaultValue={period.slice(5)} className="mt-1 block w-full rounded-lg border bg-background p-2">
+            <option value="">Todo el año</option>
+            {Array.from({ length: 12 }, (_, index) => <option key={index} value={String(index + 1).padStart(2,"0")}>
+              {new Intl.DateTimeFormat("es-CL", { month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(2026,index,1)))}
+            </option>)}
+          </select>
+        </label>
+        <button className="min-h-11 rounded-lg border px-4 text-sm">Consultar período</button>
       </form>
+      <nav aria-label="Contabilidad" className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+        <Link href={`?period=${period}&libro=compras#libros`} className="rounded-xl border p-3 text-sm font-semibold text-brand">Libro de Compras</Link>
+        <Link href={`?period=${period}&libro=ventas#libros`} className="rounded-xl border p-3 text-sm font-semibold text-brand">Libro de Ventas</Link>
+        <a href="#honorarios" className="rounded-xl border p-3 text-sm font-semibold text-brand">Boletas de Honorarios</a>
+        <a href="#importar-sii" className="rounded-xl border p-3 text-sm font-semibold text-brand">Importar / actualizar CSV del SII</a>
+      </nav>
       {rows && <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {[[ "Compras", saved.Compras.length ], [ "Ventas", saved.Ventas.length ], [ "Diferencias por revisar", rows.filter(row => row.has_difference).length ]].map(([label, value]) =>
           <div key={label} className="rounded-xl border bg-card p-3"><p className="text-sm text-muted">{label}</p><strong className="text-xl">{value}</strong></div>
@@ -87,7 +106,7 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
           {!closed && !ownerZero && <button name="action" value="OWNER_ZERO_FEES" className="min-h-10 rounded-lg border px-3 text-sm">Registrar 0 boletas informadas</button>}
         </form>
       </section>}
-      <section className="min-w-0 space-y-3 rounded-xl border bg-card p-4">
+      <section id="honorarios" className="min-w-0 scroll-mt-20 space-y-3 rounded-xl border bg-card p-4">
         <h2 className="font-semibold">Boletas de honorarios recibidas</h2>
         <p className="text-sm text-muted">Documentos registrados para revisión. El cruce con Staff compara la liquidación del período por RUT y no genera pagos.</p>
         {fees === null ? <p role="alert">No se pudieron consultar las boletas.</p> : <>
@@ -101,7 +120,7 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
           {period.length === 7 && !closed && !periodEvents.error && <SiiReceivedFeeForm period={period} />}
         </>}
       </section>
-      {rows === null ? <p role="alert">El registro guardado no se pudo cargar.</p> : <SiiRcvPreview saved={saved} /> }
+      {rows === null ? <p role="alert">El registro guardado no se pudo cargar.</p> : <SiiRcvPreview key={`${period}-${selected.libro ?? ""}`} saved={saved} initialBook={selected.libro === "ventas" ? "Ventas" : "Compras"} /> }
     </main>
   );
 }
