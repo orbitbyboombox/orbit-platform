@@ -25,6 +25,15 @@ export async function processTributaryDriveQueue() {
   let archived = 0;
   for (const row of rows ?? []) {
     const owner = new Date().toISOString();
+    // An interrupted final attempt must not start an unbounded new upload.
+    // Preserve its reserved Drive ID for administrative recovery.
+    if (row.attempt_count >= MAX_ATTEMPTS) {
+      const { error: exhaustedError } = await admin.from("tributary_drive_sync_items")
+        .update({ status: "FAILED", last_error: "Límite de intentos alcanzado; verificar el ID reservado antes de reintentar.", updated_at: owner })
+        .eq("id", row.id).eq("status", row.status).eq("updated_at", row.updated_at);
+      if (exhaustedError) throw exhaustedError;
+      continue;
+    }
     const attempts = row.attempt_count + 1;
     const { data: claimed, error: claimError } = await admin.from("tributary_drive_sync_items")
       .update({ status: "SYNCING", updated_at: owner, attempt_count: attempts })
