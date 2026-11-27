@@ -45,7 +45,7 @@ export async function resolveReservationDocumentFolder(input: ReservationDocumen
   const destination = resolveAutomaticDestination({ kind: input.kind, context: { customerName: input.customerName, eventDate: input.eventDate } }, company.driveRootFolder);
   const leaf = destination.folderPath.split("/").at(-1);
   if (!leaf) throw new Error("No fue posible resolver el tipo de carpeta documental.");
-  const { provider } = await loadReservationDriveProvider();
+  const { provider } = await loadReservationDriveProvider({ folderIds: [eventFolder.folderId], discover: true });
   const folder = await provider.findFolder({ name: leaf, parentFolderId: eventFolder.folderId });
   if (!folder) throw new Error("No fue posible verificar la carpeta documental de este evento en Google Drive.");
   return { folderId: folder.id, folderPath: `${eventFolder.folderPath}/${leaf}`, provider };
