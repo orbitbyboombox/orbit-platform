@@ -23,7 +23,7 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
     : selected.period ?? today;
   const period = /^[1-9]\d{3}(?:-(?:0[1-9]|1[0-2]))?$/.test(input) ? input : today;
   const module = selected.libro === "compras" || selected.libro === "ventas" ? selected.libro : ["honorarios", "importar", "cierre"].includes(selected.module ?? "") ? selected.module : "home";
-  const showRcv = module === "home" || module === "compras" || module === "ventas" || module === "importar";
+  const showRcv = module === "home" || module === "compras" || module === "ventas";
   const [rows, periodEvents, staffAmounts, fees] = await Promise.all([
     showRcv ? loadRcvReport(period).catch(() => null) : Promise.resolve([]),
 
@@ -72,6 +72,8 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
           {id:"cierre",label:"Cierre contable",href:`?period=${period}&module=cierre`},
         ].map(item => <Link key={item.id} href={item.href} aria-current={module===item.id?"page":undefined} className={`flex min-h-14 items-center rounded-xl border bg-card p-3 text-sm font-semibold transition hover:border-brand/60 ${module===item.id?"border-brand text-brand":"text-muted"}`}>{item.label}</Link>)}
       </nav>
+      {module === "home" && rows === null && <p role="alert">No se pudo cargar el resumen tributario.</p>}
+      {period.length === 7 && !periodEvents.error && <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-card px-4 py-3 text-sm"><span>{closed ? "Período cerrado" : "Período abierto para revisión"}</span>{ownerZero && <span className="text-xs text-muted">0 boletas informadas · pendiente de conciliación oficial</span>}</div>}
       {module === "home" && rows && <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {[[ "Compras", saved.Compras.length ], [ "Ventas", saved.Ventas.length ], [ "Diferencias por revisar", rows.filter(row => row.has_difference).length ]].map(([label, value]) =>
           <div key={label} className="rounded-xl border bg-card p-3"><p className="text-sm text-muted">{label}</p><strong className="text-xl">{value}</strong></div>
@@ -112,6 +114,7 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
           {!closed && !ownerZero && <button name="action" value="OWNER_ZERO_FEES" className="min-h-10 rounded-lg border px-3 text-sm">Registrar 0 boletas informadas</button>}
         </form>
       </section>}
+      {module === "cierre" && periodEvents.error && <p role="alert">No se pudo consultar el estado del período.</p>}
       {module === "cierre" && period.length !== 7 && <p className="rounded-xl border p-4 text-sm text-muted">Selecciona un mes específico para gestionar su cierre.</p>}
       {module === "honorarios" && <section id="honorarios" className="min-w-0 scroll-mt-20 space-y-3 rounded-xl border bg-card p-4">
         <h2 className="font-semibold">Boletas de honorarios recibidas</h2>
@@ -127,7 +130,7 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
           {period.length === 7 && !closed && !periodEvents.error && <SiiReceivedFeeForm period={period} />}
         </>}
       </section>}
-      {showRcv && module !== "home" && (rows === null ? <p role="alert">El registro guardado no se pudo cargar.</p> : <SiiRcvPreview key={`${period}-${selected.libro ?? ""}`} saved={saved} categoryPeriod={period.length === 7 && !closed && !periodEvents.error ? period : undefined} initialBook={selected.libro === "ventas" ? "Ventas" : "Compras"} mode={module === "importar" ? "import" : "book"} /> )}
+      {(module === "importar" || (showRcv && module !== "home")) && (rows === null ? <p role="alert">El registro guardado no se pudo cargar.</p> : <SiiRcvPreview key={`${period}-${module}`} saved={saved} categoryPeriod={period.length === 7 && !closed && !periodEvents.error ? period : undefined} initialBook={selected.libro === "ventas" ? "Ventas" : "Compras"} mode={module === "importar" ? "import" : "book"} /> )}
     </main>
   );
 }
