@@ -39,6 +39,12 @@ test("el KPI de gastos identifica que representa egresos pagados", () => {
   assert.match(center, /label: "Egresos pagados del mes"/);
 });
 
+test("ventas y AR explicitan alcances financieros distintos", () => {
+  const model = read("features/finance/finance-read-model.ts");
+  assert.match(model, /ingreso neto sin IVA para rentabilidad; no reemplaza la facturación AR/);
+  assert.match(model, /Caja cobrada acumulada/);
+});
+
 test("el dashboard acepta mes o año y usa el rango canónico", () => {
   const page = read("app/(platform)/finance/page.tsx");
   const model = read("features/finance/finance-read-model.ts");
