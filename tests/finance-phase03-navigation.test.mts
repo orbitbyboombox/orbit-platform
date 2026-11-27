@@ -15,6 +15,16 @@ test("el centro financiero conserva período al navegar a sus módulos", () => {
   assert.match(tabs, /withPeriod\(href\)/);
 });
 
+test("los indicadores secundarios se agrupan sin duplicar cálculos financieros", () => {
+  const center = read("features/finance/components/finance-premium-center.tsx");
+  const page = read("app/(platform)/finance/page.tsx");
+  for (const label of ["Caja registrada y cuentas", "Cobranza y obligaciones", "Proyección a 30 días", "Resultado operativo y Staff", "Alertas y riesgos financieros"]) assert.match(center, new RegExp(label));
+  assert.match(center, /cash\.accounts/);
+  assert.match(center, /risks\.map/);
+  assert.match(page, /forecast={data\.forecast}/);
+  assert.match(page, /cash={data\.cash}/);
+});
+
 test("el dashboard acepta mes o año y usa el rango canónico", () => {
   const page = read("app/(platform)/finance/page.tsx");
   const model = read("features/finance/finance-read-model.ts");

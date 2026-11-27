@@ -7,5 +7,5 @@ export default async function FinancePage({ searchParams }: { searchParams?: Pro
   const params = await searchParams;
   const data = await loadFinanceDashboardReadModel(client, undefined, params?.period);
 
-  return <FinancePremiumCenter month={data.month} position={data.position} period={data.period} periodLabel={data.periodLabel} />;
+  return <FinancePremiumCenter month={data.month} position={data.position} forecast={data.forecast} risks={data.risks} cash={data.cash} period={data.period} periodLabel={data.periodLabel} />;
 }
