@@ -61,7 +61,7 @@ export function Header({ userEmail, userName, userRole, actionableNotifications,
   }, [menuOpen]);
   return (
     <>
-      <header className="sticky top-0 z-20 flex h-[4.5rem] items-center gap-2 border-b border-border/70 bg-background/86 px-3 shadow-[0_10px_32px_rgba(0,0,0,.08)] backdrop-blur-xl sm:gap-3 sm:px-4 md:px-6 lg:px-8">
+      <header className="sticky top-0 z-20 flex h-[4.5rem] items-center gap-2 border-b border-white/10 bg-[#101114]/90 px-3 shadow-[0_10px_32px_rgba(0,0,0,.2)] backdrop-blur-xl sm:gap-3 sm:px-4 md:px-6 lg:px-8">
         <Button
           aria-expanded={menuOpen}
           aria-label={menuOpen ? "Cerrar navegación" : "Abrir navegación"}
