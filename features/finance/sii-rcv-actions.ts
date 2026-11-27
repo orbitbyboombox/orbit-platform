@@ -44,3 +44,21 @@ export async function storeRcvForReview(form: FormData) {
     return { message: error instanceof Error ? error.message : "No se pudo revisar el archivo." };
   }
 }
+
+export async function recordRcvPeriodEvent(form: FormData) {
+  const client = await createSupabaseServerClient();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) throw new Error("Sesión requerida.");
+  const { data: profile } = await client.from("profiles").select("role").eq("id", user.id).single();
+  if (!profile || !["CEO", "ADMINISTRATOR"].includes(profile.role)) throw new Error("Acceso restringido.");
+  const period = String(form.get("period") ?? "");
+  const action = String(form.get("action") ?? "");
+  const reason = String(form.get("reason") ?? "").trim();
+  if (!/^[1-9]\d{3}-(?:0[1-9]|1[0-2])$/.test(period) || !reason || reason.length > 500
+    || !["CLOSED", "REOPENED", "OWNER_ZERO_FEES"].includes(action)) throw new Error("Selecciona un mes e indica un motivo válido.");
+  const { error } = await createAdminClient().rpc("sii_rcv_record_period_event" as never, {
+    p_company: company, p_period: `${period}-01`, p_action: action, p_reason: reason, p_actor: user.id,
+  } as never);
+  if (error) throw new Error("No se pudo registrar el cambio de estado.");
+  revalidatePath("/finance/tributary/accounting");
+}
