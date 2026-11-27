@@ -89,7 +89,11 @@ export function createTributaryDriveArchive(token: string, transport: typeof fet
     },
     async archiveShortcut(input: { id: string; parentId: string; targetId: string; name: string }) {
       if (![input.id, input.parentId, input.targetId].every(id => allowedId.test(id))) throw new Error("Identificador de Drive inválido.");
-      const fields = "id,mimeType,trashed,parents,shortcutDetails(targetId)";
+      const target = await request<DriveFile>(`files/${input.targetId}`, { fields: "id,mimeType,trashed,sha256Checksum", supportsAllDrives: "true" });
+      if (target.id !== input.targetId || target.mimeType !== "application/pdf" || target.trashed) {
+        throw new Error("El PDF original no está disponible o no corresponde al tipo esperado.");
+      }
+      const fields = "id,name,mimeType,trashed,parents,shortcutDetails(targetId)";
       const query = { fields, supportsAllDrives: "true" };
       let file: DriveFile;
       try {
@@ -100,7 +104,7 @@ export function createTributaryDriveArchive(token: string, transport: typeof fet
         if (!(error instanceof Error) || error.message !== "Drive respondió HTTP 409.") throw error;
         file = await request<DriveFile>(`files/${input.id}`, query);
       }
-      if (file.id !== input.id || file.mimeType !== SHORTCUT || file.trashed
+      if (file.id !== input.id || file.name !== input.name || file.mimeType !== SHORTCUT || file.trashed
         || file.parents?.length !== 1 || file.parents[0] !== input.parentId
         || file.shortcutDetails?.targetId !== input.targetId) {
         throw new Error("El vínculo almacenado en Drive no coincide con el documento y destino esperados.");
