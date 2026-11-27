@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import ExcelJS from "exceljs";
 import JSZip from "jszip";
+import { loadMonthlyAccountingStaff, readMonthlyAccountingAttachments } from "@/features/finance/monthly-accounting-staff";
 
 export async function GET(request: Request) {
   const client = await createSupabaseServerClient();
@@ -19,7 +20,12 @@ export async function GET(request: Request) {
   if (format === "zip" && (simulation || !year || !month)) {
     return new NextResponse("El paquete del contador requiere año y mes del registro interno.", { status: 400 });
   }
-  let query = client.from(simulation ? "tributary_simulation_export" : "tributary_internal_ledger").select("source_type,document_type,reference,occurred_on,net_amount,exempt_amount,vat_amount,total_amount,payment_status,record_origin", { count: "exact" }).order("occurred_on", { ascending: true });
+  const baseFields = "source_type,document_type,reference,occurred_on,net_amount,exempt_amount,vat_amount,total_amount,payment_status,record_origin";
+  const countOptions = { count: "exact" } as const;
+  const selected = format === "zip"
+    ? client.from("tributary_internal_ledger").select(`source_id,${baseFields}`, countOptions)
+    : client.from(simulation ? "tributary_simulation_export" : "tributary_internal_ledger").select(baseFields, countOptions);
+  let query = selected.order("occurred_on", { ascending: true });
   if (!simulation) query = query.in("record_origin", ["EXTERNAL_SII", "EXPENSE"]);
   if (year !== null) {
     const firstMonth = month === null ? 1 : Number(month);
@@ -57,14 +63,32 @@ export async function GET(request: Request) {
       sheet.addRow(headers);
       for (const row of selected) sheet.addRow(values(row));
     }
+    try {
+      const staff = await loadMonthlyAccountingStaff(period);
+      const sourceIds = (selected: Row[]) => selected.flatMap(row => "source_id" in row && typeof row.source_id === "string" ? [row.source_id] : []);
+      const backups = await readMonthlyAccountingAttachments(staff.attachments, sourceIds(purchases), sourceIds(sales));
+      const extra = [...staff.sheets, { title: "Respaldos", headers: ["grupo", "identificador", "estado", "archivo"], rows: backups.manifest }];
+      for (const { title, headers, rows } of extra) {
+        const sheet = workbook.addWorksheet(title);
+        sheet.addRow(headers);
+        for (const row of rows) sheet.addRow(row);
+        zip.file(`${title.toLowerCase().replaceAll(" ", "-")}.csv`, "\uFEFF" + [headers, ...rows].map(row => row.map(esc).join(";")).join("\n"));
+      }
+      for (const { path, bytes } of backups.files) zip.file(path, bytes);
+    } catch {
+      return new NextResponse("No se pudo completar el paquete de respaldos del período. Reintenta antes de enviarlo al contador.", { status: 503 });
+    }
     zip.file("registro-interno.xlsx", new Uint8Array(await workbook.xlsx.writeBuffer()));
     zip.file("LEEME.txt", [
       `ORBIT · Registro interno del período ${period}`,
       `Compras: ${purchases.length} · Ventas documentadas: ${sales.length} · Filas por revisar: ${pending.length}`,
       "La columna IVA contiene el monto registrado por documento. No determina derecho a crédito fiscal ni saldo oficial SII.",
-      "No incluye simulaciones, boletas Staff, comprobantes adjuntos ni XML oficiales.",
+      "Staff: liquidaciones y pagos por período tributario, en hojas separadas. No sumar ambas fuentes como un solo pago.",
+      "Consulta Respaldos para identificar incluidos, faltantes y omitidos. El ZIP incluye solamente documentos ya asociados y permitidos.",
+      "No incluye simulaciones ni genera XML oficiales. La conciliación con el SII queda pendiente.",
     ].join("\n"));
     const output = await zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
+    if (output.length > 4_000_000) return new NextResponse("El paquete supera el límite de descarga. Los registros CSV siguen disponibles por período.", { status: 413 });
     return new NextResponse(output as BodyInit, { headers: { "Content-Type": "application/zip", "Content-Disposition": `attachment; filename="orbit-contador-${period}.zip"`, "Cache-Control": "no-store" } });
   }
   if (format === "xls") {
