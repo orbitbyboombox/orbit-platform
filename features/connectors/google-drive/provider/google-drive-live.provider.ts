@@ -214,9 +214,9 @@ export class GoogleDriveApiProvider implements GoogleDriveLiveProvider {
     return response.json() as Promise<GoogleDriveCreatedFolder>;
   }
 
-  async uploadFile(input: { name: string; mimeType: string; bytes: Uint8Array; parentFolderId?: string; appProperties?: Record<string, string> }): Promise<GoogleDriveUploadedFile> {
+  async uploadFile(input: { name: string; mimeType: string; bytes: Uint8Array; parentFolderId?: string; appProperties?: Record<string, string>; reservedId?: string }): Promise<GoogleDriveUploadedFile> {
     const boundary = `orbit-${crypto.randomUUID()}`;
-    const metadata = JSON.stringify({ name: input.name, parents: input.parentFolderId ? [input.parentFolderId] : undefined, appProperties: input.appProperties });
+    const metadata = JSON.stringify({ id: input.reservedId, name: input.name, parents: input.parentFolderId ? [input.parentFolderId] : undefined, appProperties: input.appProperties });
     const body = new Blob([
       `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n--${boundary}\r\nContent-Type: ${input.mimeType}\r\n\r\n`,
       input.bytes as BlobPart,
