@@ -523,3 +523,20 @@ aside[aria-label="Nueva reserva"] aside {
 .orbit-sync-items{display:grid;gap:8px;margin-top:14px}.orbit-sync-items article{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px;border-top:1px solid #2a2f38;padding:11px 2px}.orbit-sync-items article div:first-child{display:flex;flex-direction:column;min-width:0}.orbit-sync-items article strong{font-size:13px}.orbit-sync-items article span,.orbit-sync-items article small{font-size:10px;color:#9ca3af}.orbit-sync-items article>span{font-weight:800;color:#ffb14f}.orbit-sync-conflict{grid-column:1/-1!important;display:flex!important;flex-flow:row wrap!important;align-items:center;gap:8px}.orbit-sync-conflict p{width:100%;font-size:12px}.orbit-sync-conflict button,.orbit-sync-center>footer button{min-height:44px;border:1px solid #f78900;border-radius:10px;background:transparent;color:#fff;padding:0 13px;font-size:10px;font-weight:900}.orbit-sync-center>footer{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}.orbit-sync-center>footer button:last-child{background:#f78900;color:#080808}.orbit-sync-center button:disabled{cursor:not-allowed;opacity:.45}.orbit-sync-empty{padding:18px;text-align:center;color:#65d49a;font-size:12px;font-weight:900;letter-spacing:.08em}
 @keyframes orbit-sync-pulse{50%{opacity:.35}}
 @media(max-width:700px){.orbit-sync-indicator{max-width:160px;padding:6px 8px}.orbit-sync-indicator span{white-space:normal;line-height:1.15}.orbit-sync-indicator b{display:none}.orbit-sync-center{max-height:92vh;padding:14px}.orbit-sync-areas{grid-template-columns:1fr}.orbit-sync-center>footer{position:sticky;bottom:-14px;margin-inline:-14px;padding:12px 14px;background:#111318}.orbit-sync-center>footer button{flex:1}.orbit-sync-reconnect{top:76px;flex-direction:column;align-items:stretch}.orbit-sync-reconnect button{width:100%}}
+
+/* Premium workspace only: preserve public portals and print styles. */
+@media screen {
+  .orbit-premium-shell {
+  --background: #101114;
+  --foreground: #F5F5F7;
+  --card: #1C1F26;
+  --border: #30343d;
+  --muted: #9da3ae;
+  --accent: #252a33;
+  --accent-foreground: #F5F5F7;
+  --brand: #F28E2B;
+    --shell-surface: #1C1F26;
+    --shell-surface-deep: #15181e;
+    --shell-highlight: rgb(242 142 43 / .14);
+  }
+}
