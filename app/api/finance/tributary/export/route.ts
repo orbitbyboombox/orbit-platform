@@ -9,9 +9,19 @@ export async function GET(request: Request) {
   if (!profile || !["CEO", "ADMINISTRATOR"].includes(profile.role)) return new NextResponse("No autorizado", { status: 403 });
   const { searchParams } = new URL(request.url);
   const year = searchParams.get("year"); const month = searchParams.get("month"); const format = searchParams.get("format") ?? "csv";
+  if ((year !== null && !/^[1-9]\d{3}$/.test(year))
+    || (month !== null && (year === null || !/^(?:0?[1-9]|1[0-2])$/.test(month)))) {
+    return new NextResponse("Período inválido. Indica un año y, opcionalmente, un mes del 1 al 12.", { status: 400 });
+  }
   let query = client.from(searchParams.get("scope") === "simulation" ? "tributary_simulation_export" : "tributary_internal_ledger").select("source_type,document_type,reference,occurred_on,net_amount,exempt_amount,vat_amount,total_amount,payment_status,record_origin").order("occurred_on", { ascending: true });
-  if (year) query = query.gte("occurred_on", `${year}-01-01`).lt("occurred_on", `${Number(year)+1}-01-01`);
-  if (month && year) query = query.gte("occurred_on", `${year}-${String(month).padStart(2,"0")}-01`).lt("occurred_on", `${year}-${String(Number(month)+1).padStart(2,"0")}-01`);
+  if (year !== null) {
+    const firstMonth = month === null ? 1 : Number(month);
+    const nextYear = month === null || firstMonth === 12 ? Number(year) + 1 : Number(year);
+    const nextMonth = nextYear === Number(year) ? firstMonth + 1 : 1;
+    const start = `${year}-${String(firstMonth).padStart(2, "0")}-01`;
+    const end = `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`;
+    query = query.gte("occurred_on", start).lt("occurred_on", end);
+  }
   const { data, error } = await query;
   if (error) return new NextResponse(error.message, { status: 500 });
   const headers = ["tipo","documento","referencia","fecha","neto","exento","iva","total","estado_pago","origen"];
