@@ -900,7 +900,7 @@ export function ProjectWorkspaceExperience(
                     Preparar documento
                   </Link>
                   {moduleVisible("DOCUMENTS") && (
-                    <Button type="button" variant="outline" onClick={() => selectTab("DOCUMENTS")}>Ver documentos y respaldos</Button>
+                    <button className="min-h-11 rounded-xl border px-4 text-sm font-semibold" type="button" onClick={() => selectTab("DOCUMENTS")}>Ver documentos y respaldos</button>
                   )}
                 </div>
               </Section>
