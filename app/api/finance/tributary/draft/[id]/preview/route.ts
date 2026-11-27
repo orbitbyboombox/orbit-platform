@@ -32,7 +32,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!profile || !["CEO", "ADMINISTRATOR"].includes(profile.role)) return new NextResponse("Permiso administrativo requerido.", { status: 403 });
 
   const { id } = await params;
-  const { data: draft, error } = await session.from("invoices").select("id,invoice_number,tributary_document_type,amount,project_id,tributary_snapshot,created_at").eq("id", id).eq("record_origin", "PRE_SII").is("deleted_at", null).single();
+  const { data: simulation, error: simulationError } = await session.from("tributary_simulations").select("id,invoice_number,tributary_document_type,amount,project_id,tributary_snapshot,created_at").eq("id", id).is("deleted_at", null).maybeSingle();
+  if (simulationError) return new NextResponse("No se pudo consultar la simulación.", { status: 503 });
+  const { data: draft, error } = simulation ? { data: simulation, error: null } : await session.from("invoices").select("id,invoice_number,tributary_document_type,amount,project_id,tributary_snapshot,created_at").eq("id", id).eq("record_origin", "PRE_SII").is("deleted_at", null).single();
   if (error || !draft) return new NextResponse("Borrador no encontrado.", { status: 404 });
 
   const { data: project } = draft.project_id

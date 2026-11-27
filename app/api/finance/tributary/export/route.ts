@@ -9,7 +9,7 @@ export async function GET(request: Request) {
   if (!profile || !["CEO", "ADMINISTRATOR"].includes(profile.role)) return new NextResponse("No autorizado", { status: 403 });
   const { searchParams } = new URL(request.url);
   const year = searchParams.get("year"); const month = searchParams.get("month"); const format = searchParams.get("format") ?? "csv";
-  let query = client.from("tributary_internal_ledger").select("source_type,document_type,reference,occurred_on,net_amount,exempt_amount,vat_amount,total_amount,payment_status,record_origin").order("occurred_on", { ascending: true });
+  let query = client.from(searchParams.get("scope") === "simulation" ? "tributary_simulation_export" : "tributary_internal_ledger").select("source_type,document_type,reference,occurred_on,net_amount,exempt_amount,vat_amount,total_amount,payment_status,record_origin").order("occurred_on", { ascending: true });
   if (year) query = query.gte("occurred_on", `${year}-01-01`).lt("occurred_on", `${Number(year)+1}-01-01`);
   if (month && year) query = query.gte("occurred_on", `${year}-${String(month).padStart(2,"0")}-01`).lt("occurred_on", `${year}-${String(Number(month)+1).padStart(2,"0")}-01`);
   const { data, error } = await query;
