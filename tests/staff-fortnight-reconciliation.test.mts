@@ -65,7 +65,7 @@ await db.exec('drop function public.ensure_staff_monthly_account(uuid,date); dro
 await db.exec(readFileSync('tests/fixtures/ensure-staff-monthly-account-v6.sql','utf8'));
 await db.exec(readFileSync('supabase/migrations/20261111005940_staff_fortnight_reconciliation.sql','utf8'));
 type Settlement = { workNet: number; details: { hours: number; roles: string[]; blockName: string }[] };
-const q = async <Row = Record<string, unknown>>(sql: string) => (await db.query<Row>(sql)).rows;
+const q = async <Row = Record<string, unknown>,>(sql: string) => (await db.query<Row>(sql)).rows;
 let calc=(await q<{ c: Settlement }>("select calculate_staff_monthly_settlement_legacy('20000000-0000-0000-0000-000000000001','2026-11-01') c"))[0].c;
 assert.equal(calc.workNet,32500);assert.equal(calc.details[0].hours,4.5);assert.deepEqual(calc.details[0].roles,['SUPERVISOR']);assert.equal(calc.details[0].blockName,'AM');
 assert.equal(Number((await q('select work_net from staff_monthly_accounts'))[0].work_net),32500);

@@ -64,7 +64,7 @@ create function public.register_staff_monthly_payment(uuid,date,numeric,text,tex
       metadata: { email_status: string; payload?: unknown };
       correlation_id: string;
     };
-    const query = <Row = Record<string, unknown>>(sql: string, params: unknown[] = []) =>
+    const query = <Row = Record<string, unknown>,>(sql: string, params: unknown[] = []) =>
       db.query<Row>(sql, params);
     const fail = async (sql: string, match: RegExp, params: unknown[] = []) => {
       await assert.rejects(() => query(sql, params), match);
