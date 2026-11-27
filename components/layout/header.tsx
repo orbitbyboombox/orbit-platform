@@ -61,11 +61,11 @@ export function Header({ userEmail, userName, userRole, actionableNotifications,
   }, [menuOpen]);
   return (
     <>
-      <header className="sticky top-0 z-20 flex h-[4.5rem] items-center gap-2 border-b border-border/70 bg-background/86 px-3 shadow-[0_10px_32px_rgba(0,0,0,.08)] backdrop-blur-xl sm:gap-3 sm:px-4 md:px-6 lg:px-8">
+      <header className="sticky top-0 z-20 flex h-[4.5rem] min-w-0 items-center gap-1 border-b border-white/10 bg-[#101114]/90 px-2 sm:gap-2 sm:px-3 shadow-[0_10px_32px_rgba(0,0,0,.2)] backdrop-blur-xl sm:gap-3 sm:px-4 md:px-6 lg:px-8">
         <Button
           aria-expanded={menuOpen}
           aria-label={menuOpen ? "Cerrar navegación" : "Abrir navegación"}
-          className="md:hidden"
+          className="shrink-0 rounded-xl border border-white/10 bg-[var(--shell-surface)] md:hidden"
           onClick={() => setMenuOpen((open) => !open)}
           size="icon"
           variant="ghost"
@@ -74,7 +74,7 @@ export function Header({ userEmail, userName, userRole, actionableNotifications,
         </Button>
         <Link
           aria-label="Ir al Dashboard"
-          className="flex h-9 w-24 shrink-0 items-center px-1 sm:w-28 lg:hidden"
+          className="flex h-9 w-[clamp(3.5rem,20vw,6rem)] shrink-0 items-center px-1 sm:w-28 lg:hidden"
           href="/operations"
         >
           <BrandLogo className="w-full" surface="dark" />
@@ -95,7 +95,7 @@ export function Header({ userEmail, userName, userRole, actionableNotifications,
         {isEnabled("OPERATIONS") && <Button
           aria-label={`${actionableNotifications} pendientes por revisar`}
           asChild
-          className="relative"
+          className="relative shrink-0"
           size="icon"
           variant="ghost"
         >
@@ -120,7 +120,7 @@ export function Header({ userEmail, userName, userRole, actionableNotifications,
           </Link>
         </Button>
         <span className="mx-1 hidden h-7 w-px bg-border lg:block" aria-hidden="true" />
-        <button aria-expanded={userMenuOpen} aria-label="Abrir menú del Founder" className="rounded-full" onClick={() => setUserMenuOpen((open) => !open)}>
+        <button aria-expanded={userMenuOpen} aria-label="Abrir menú del Founder" className="shrink-0 rounded-full ring-1 ring-white/15 focus-visible:ring-2 focus-visible:ring-brand" onClick={() => setUserMenuOpen((open) => !open)}>
           <Avatar className="size-10" initials={userEmail.slice(0, 2).toUpperCase()} />
         </button>
         <div className="hidden min-w-0 pr-1 text-left lg:block">
@@ -133,7 +133,7 @@ export function Header({ userEmail, userName, userRole, actionableNotifications,
       {menuOpen && (
         <>
           <button aria-label="Cerrar navegación" className="fixed inset-0 z-30 bg-black/45 md:hidden" onClick={() => setMenuOpen(false)} type="button" />
-          <div aria-label="Navegación móvil" className="fixed inset-x-3 top-[4.75rem] z-40 max-h-[calc(100dvh-5.5rem)] overflow-y-auto overscroll-contain rounded-2xl border bg-card/95 p-2 shadow-2xl backdrop-blur-xl md:hidden" role="dialog">
+          <div aria-label="Navegación móvil" className="fixed inset-x-3 top-[4.75rem] z-40 max-h-[calc(100dvh-5.5rem)] overflow-y-auto overscroll-contain rounded-2xl border bg-[var(--shell-surface-deep)] p-3 shadow-2xl backdrop-blur-xl md:hidden" role="dialog">
           <NavigationList hiddenNavigation={hiddenNavigation} navigationOrder={navigationOrder} onNavigate={() => setMenuOpen(false)} />
           </div>
         </>
