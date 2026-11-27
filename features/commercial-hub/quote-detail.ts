@@ -34,6 +34,7 @@ export type CommercialQuoteDetail = {
     date: string;
     time: string;
     location: string;
+    address: string;
     city: string;
   };
   items: Array<{
@@ -296,6 +297,7 @@ export function buildCommercialQuoteDetail(
       date: text(event.date),
       time: text(event.time).slice(0, 5),
       location: text(event.location),
+      address: text(event.address),
       city: text(event.city),
     },
     items: items.map((item) => ({
@@ -359,6 +361,7 @@ export function buildCommercialQuoteDetail(
             eventDate: text(event.date),
             eventTime: text(event.time).slice(0, 5),
             eventLocation: text(event.location),
+            eventAddress: text(event.address),
             eventCity: text(event.city),
             validityDays: Math.max(1, number(row.validity_days, 10)),
             depositPercent,

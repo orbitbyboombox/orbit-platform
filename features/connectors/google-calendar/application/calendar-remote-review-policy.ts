@@ -44,7 +44,7 @@ export function fingerprintReviewedCalendarEvent(input: CalendarOperationalEvent
     serviceStartAt: `${input.serviceStartDate}T${input.serviceStart}:00`,
     serviceEndAt: `${input.serviceEndDate ?? input.eventDate}T${input.serviceEnd}:00`,
     staffCallAt: `${start.date}T${start.time}:00`, staffCallSource: "CANONICAL",
-    location: remote.location ?? input.customerAddress, title: remote.summary, description: remote.description,
+    location: remote.location ?? [input.customerAddress, input.municipality].filter(Boolean).join(", "), title: remote.summary, description: remote.description,
   });
 }
 
@@ -89,7 +89,8 @@ export function verifyApprovedRemoteEvent(input: CalendarOperationalEventInput, 
     || !normalize(remoteServiceWindow).includes(normalize(numericDate(expectedServiceEndDate)))
     || !remoteServiceWindow.includes(input.serviceEnd)
     || !normalize(remoteServiceWindow).includes(normalize(`(${input.contractedHours} horas)`))) throw new Error("El horario o duración del servicio en la descripción no coincide con ORBIT.");
-  for (const label of ["Servicio", "Duración contratada", "Cliente", "Dirección", "Teléfono cliente", "Contacto producción", "Google Maps", "ORBIT Event ID"]) {
+  const locationLabels = [...(input.venue ? ["Lugar"] : []), "Dirección", ...(input.municipality ? ["Comuna"] : [])];
+  for (const label of ["Servicio", "Duración contratada", "Cliente", ...locationLabels, "Teléfono cliente", "Contacto producción", "Google Maps", "ORBIT Event ID"]) {
     const remoteValue = descriptionField(remote.description ?? "", label);
     const expectedValue = descriptionField(expected.description, label);
     const remoteNormalized = label === "Teléfono cliente" ? (remoteValue ?? "").replace(/\D/g, "") : normalize(remoteValue ?? "");

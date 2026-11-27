@@ -135,8 +135,9 @@ export function QuoteConversionReviewDialog({
             <ImportedField label="Fecha del evento" name="eventDate" required type="date" value={review.event.date} />
             <ImportedField label="Hora de inicio" name="eventTime" required type="time" value={review.event.time} />
             <ImportedField label="Duración (horas)" min="0.5" name="durationHours" required step="0.5" type="number" value={review.event.durationHours?.toString() ?? ""} />
-            <ImportedField label="Lugar / dirección" name="eventLocation" required value={review.event.location} />
-            <ImportedField label="Comuna / ciudad" name="eventCity" required value={review.event.city} />
+            <ImportedField editable={!review.event.address} label="Lugar o recinto" name="eventLocation" required value={review.event.location} />
+            <ImportedField label="Dirección del evento" name="eventAddress" required value={review.event.address} />
+            <ImportedField label="Comuna" name="eventCity" required value={review.event.city} />
           </div>
           <p className="mt-3 text-xs text-muted">
             Los datos ya importados permanecen bloqueados en esta revisión. Corrige la cotización antes de aceptarla si el origen comercial es incorrecto.
@@ -236,9 +237,9 @@ export function QuoteConversionReviewDialog({
   );
 }
 
-function ImportedField({ label, name, value, required, ...props }: { label:string; name:string; value:string; type?:string; required?:boolean; min?:string; step?:string }) {
+function ImportedField({ label, name, value, required, editable, ...props }: { editable?:boolean; label:string; name:string; value:string; type?:string; required?:boolean; min?:string; step?:string }) {
   const imported = Boolean(value);
-  return <label className="grid min-w-0 gap-1.5 text-sm"><span className="font-medium">{label}{!imported&&required?<span className="ml-2 text-amber-600">Falta completar</span>:null}</span><input {...props} className="min-h-11 min-w-0 rounded-xl border bg-background px-3 disabled:opacity-80" defaultValue={value} disabled={imported} name={name} required={required}/>{imported?<input name={name} type="hidden" value={value}/>:null}</label>;
+  return <label className="grid min-w-0 gap-1.5 text-sm"><span className="font-medium">{label}{!imported&&required?<span className="ml-2 text-amber-600">Falta completar</span>:null}</span><input {...props} className="min-h-11 min-w-0 rounded-xl border bg-background px-3 disabled:opacity-80" defaultValue={value} disabled={imported && !editable} name={name} required={required}/>{imported && !editable?<input name={name} type="hidden" value={value}/>:null}</label>;
 }
 function ReviewSection({title,children}:{title:string;children:React.ReactNode}){return <section className="min-w-0 space-y-4"><h3 className="text-lg font-semibold">{title}</h3>{children}</section>}
 function formatDate(value:string){if(!value)return"sin fecha registrada";return new Intl.DateTimeFormat("es-CL",{dateStyle:"medium",timeStyle:"short"}).format(new Date(value))}

@@ -232,7 +232,8 @@ export function CommercialQuoteDetailExperience({
             <Datum label="Evento / proyecto" value={quote.event.name} />
             <Datum label="Fecha" value={formatDate(quote.event.date)} />
             <Datum label="Hora" value={quote.event.time} />
-            <Datum label="Lugar / dirección" value={quote.event.location} />
+            <Datum label="Lugar o recinto" value={quote.event.location} />
+            <Datum label="Dirección" value={quote.event.address} />
             <Datum label="Comuna / ciudad" value={quote.event.city} />
             <Datum label="Fecha de emisión" value={formatDate(quote.issueDate)} />
             <Datum

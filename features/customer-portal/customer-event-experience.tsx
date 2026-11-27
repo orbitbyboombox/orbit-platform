@@ -1,5 +1,6 @@
 "use client";
 
+import { buildEventMapsUrl, resolveEventAddress } from "@/lib/event-location";
 import { CalendarDays, Clock3, MapPin, Sparkles, UserRound } from "lucide-react";
 import { serviceDisplayName } from "@/lib/orbit-display-labels";
 
@@ -12,7 +13,8 @@ export function CustomerEventExperience({ data }: { data: PortalData }) {
   const project = data.project as Project;
   const services = project.project_services ?? [];
   const extras = (project.event_post_reservation_extras ?? []).filter((item) => item.status === "ACTIVE").map((item) => item.name);
-  const address = String(project.operations.eventAddress ?? project.city ?? "Por confirmar");
+  const address = resolveEventAddress(project.operations);
+  const mapsUrl = buildEventMapsUrl(address, project.city, project.location);
   const contact = String(project.operations.operationalContact ?? "Equipo BOOMBOX");
 
   return <section className="scroll-mt-6 rounded-3xl border border-border/80 bg-card p-5 sm:p-7 lg:p-9" id="event-summary">
@@ -21,12 +23,14 @@ export function CustomerEventExperience({ data }: { data: PortalData }) {
     <dl className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       <Detail icon={CalendarDays} label="Fecha" value={formatDate(project.event_date)}/>
       <Detail icon={MapPin} label="Lugar del evento" value={project.location || "Por confirmar"}/>
-      <Detail icon={MapPin} label="Dirección" value={address}/>
+      <Detail icon={MapPin} label="Dirección" value={address || "Por confirmar"}/>
+      <Detail icon={MapPin} label="Comuna" value={project.city || "Por confirmar"}/>
       <Detail icon={Sparkles} label="Servicio" value={services.map((item) => serviceDisplayName(item.service_code)).join(" + ") || "Por confirmar"}/>
       <Detail icon={Clock3} label="Horas" value={services.map((item) => item.duration_hours ? `${item.duration_hours} horas` : null).filter(Boolean).join(" · ") || "Por confirmar"}/>
       <Detail icon={Sparkles} label="Extras agregados" value={extras.map(serviceDisplayName).join(" · ") || "Sin extras"}/>
       <Detail icon={UserRound} label="Encargado de tu evento" value={contact}/>
     </dl>
+    {mapsUrl && <a className="mt-4 inline-flex text-sm font-semibold text-brand" href={mapsUrl} target="_blank" rel="noreferrer">Abrir en Google Maps</a>}
   </section>;
 }
 

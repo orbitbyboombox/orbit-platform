@@ -1,3 +1,4 @@
+import { resolveEventAddress } from "@/lib/event-location";
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -195,7 +196,7 @@ export async function loadPreEventReminderComposer(
       withPreEventComposerStep("project", () => admin
       .from("projects")
       .select(
-        "id,customer_id,orbit_event_id,name,project_type,status,event_date,location,city,customers!inner(full_name,email,secondary_email),project_services(service_code,extras),project_operational_contracts(staff_arrival_at,assembly_start_at,service_start_at),event_operational_requirements(code,status),documents(document_type,is_current,workflow_status,deleted_at)",
+        "id,customer_id,orbit_event_id,name,project_type,status,event_date,location,city,operations,customers!inner(full_name,email,secondary_email),project_services(service_code,extras),project_operational_contracts(staff_arrival_at,assembly_start_at,service_start_at),event_operational_requirements(code,status),documents(document_type,is_current,workflow_status,deleted_at)",
       )
       .eq("id", projectId)
       .is("deleted_at", null)
@@ -293,7 +294,7 @@ export async function loadPreEventReminderComposer(
     eventName: project.name || project.orbit_event_id,
     eventDate: project.event_date,
     daysUntilEvent,
-    eventLocation: [project.location, project.city].filter(Boolean).join(" · "),
+    eventLocation: [project.location, resolveEventAddress(project.operations as Record<string, unknown> | null), project.city].filter(Boolean).join(" · "),
     serviceStartAt: operational?.service_start_at ?? null,
     operatorArrivalAt: operational?.staff_arrival_at ?? null,
     assemblyStartAt: operational?.assembly_start_at ?? null,

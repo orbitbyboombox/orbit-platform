@@ -86,3 +86,15 @@ test("explicit staff citation is displayed without claiming a fixed one-hour lea
   assert.doesNotMatch(description, /1 hora antes/);
   assert.match(description, /SERVICIO CLIENTE: sábado 21\/11\/2026 de 00:00 a 03:00/);
 });
+
+
+test("Calendar separates the venue, street address and commune and maps the event address", () => {
+  const description = buildCalendarDescription({
+    ...input, customerAddress: "Calle Ejemplo 123", municipality: "Santiago", venue: "After Office San Francisco",
+  }, "ORB-2026-145073");
+  assert.match(description, /^Lugar: After Office San Francisco$/m);
+  assert.match(description, /^Dirección: Calle Ejemplo 123$/m);
+  assert.match(description, /^Comuna: Santiago$/m);
+  const link = new URL(description.split("\n").find((line) => line.startsWith("Google Maps: "))!.slice(13));
+  assert.equal(link.searchParams.get("query"), "Calle Ejemplo 123, Santiago, After Office San Francisco, Chile");
+});

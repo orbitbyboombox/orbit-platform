@@ -1,3 +1,4 @@
+import { resolveEventAddress } from "@/lib/event-location";
 import { mapIncidentObservation } from "@/features/resources/incident-observation";
 import { notFound, redirect } from "next/navigation";
 import { ProjectHealth, ProjectType } from "@/features/projects/domain";
@@ -1027,11 +1028,8 @@ export default async function ProjectWorkspacePage({
     orbitEventId: rawProject?.orbit_event_id ?? `ORB-${projectId}`,
     status: rawProject?.status ?? project.status,
     venue: project.event.location || "",
-    eventAddress: typeof operations.eventAddress === "string"
-      ? operations.eventAddress
-      : typeof operations.notes === "string"
-        ? operations.notes.match(/Dirección evento:\s*([^\n]+)/i)?.[1]?.trim() ?? ""
-        : "",
+    eventAddress: resolveEventAddress(operations),
+    municipality: project.event.city,
     // A confirmed project time is authoritative for Event 360°. The operational
     // contract may retain an earlier estimate, so never render that stale window
     // over the confirmed event schedule.

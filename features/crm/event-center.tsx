@@ -473,7 +473,7 @@ export function EventCenter({
             {[
               ["time", "Hora", editTime, "time"],
               ["type", "Tipo", editing.type, "text"],
-              ["location", "Lugar", editing.location ?? "", "text"],
+              ["location", "Lugar o recinto", editing.location ?? "", "text"],
               ["eventAddress", "Dirección", editing.eventAddress, "text"],
               [
                 "municipality",

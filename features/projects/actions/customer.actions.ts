@@ -1,5 +1,6 @@
 "use server";
 
+import { resolveEventAddress } from "@/lib/event-location";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -466,7 +467,7 @@ export async function createCustomerProjectAction(
       const priceDifference = finalTotal - subtotal;
       const { data: persistedProject, error: projectError } = await client
         .from("projects")
-        .select("id,customer_id,orbit_event_id")
+        .select("id,customer_id,orbit_event_id,name,event_date,event_time,location,city,operations")
         .eq("id", project.id)
         .single();
       if (projectError) throw projectError;
@@ -481,6 +482,15 @@ export async function createCustomerProjectAction(
       if (quotationLookupError) throw quotationLookupError;
       let quotation = existingQuotation;
       const pricingSnapshot = {
+        event: {
+          name: persistedProject.name,
+          date: persistedProject.event_date,
+          time: persistedProject.event_time?.slice(0, 5),
+          location: persistedProject.location,
+          address: resolveEventAddress(persistedProject.operations),
+          city: persistedProject.city,
+          durationHours: draft.event.durationHours,
+        },
         commercial: {
           servicePrice: adjustment.negotiatedServicePrice,
           extrasTotal: adjustment.negotiatedExtras,
