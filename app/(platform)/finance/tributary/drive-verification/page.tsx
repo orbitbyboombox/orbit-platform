@@ -66,8 +66,14 @@ async function verifyDrive() {
     await archive.archiveShortcut(shortcut);
     if (conflicts !== 2) throw new Error("Drive no confirmó ambos reintentos.");
     status = "passed";
-  } catch {
-    // Do not send provider bodies, account identifiers or credentials to the browser.
+  } catch (error) {
+    // Distinguish destination resolution without publishing provider responses.
+    if (status === "destination" && error instanceof Error) {
+      const http = /^Drive respondió HTTP (401|403|404|429|500|503)\.$/.exec(error.message)?.[1];
+      if (http) status = `drive-${http}`;
+      else if (error.message.startsWith("Destino existente ausente o ambiguo:")) status = "folder";
+      else if (error.message === "La carpeta oficial FINANZAS SII no está disponible.") status = "root";
+    }
   } finally {
     if (transport) {
       const cleanup = await Promise.allSettled(fixtures.map(async id => {
@@ -86,6 +92,14 @@ const messages: Record<string, string> = {
   passed: "Prueba aprobada: CSV y PDF íntegros en FINANZAS SII, dos reintentos con los mismos IDs y archivos retirados a la papelera.",
   workspace: "ORBIT no pudo obtener un token de la conexión Workspace activa.",
   destination: "ORBIT no pudo resolver y verificar las carpetas existentes de noviembre.",
+  "drive-401": "Google Drive rechazó el token devuelto a ORBIT (HTTP 401).",
+  "drive-403": "Google Drive denegó acceso a la identidad conectada de ORBIT (HTTP 403).",
+  "drive-404": "Google Drive no hizo visible el destino a la identidad conectada de ORBIT (HTTP 404).",
+  "drive-429": "Google Drive limitó temporalmente la solicitud (HTTP 429).",
+  "drive-500": "Google Drive no pudo completar la consulta (HTTP 500).",
+  "drive-503": "Google Drive no estuvo disponible (HTTP 503).",
+  folder: "El destino anual, mensual o de tipo documental está ausente o es ambiguo para ORBIT.",
+  root: "El destino de Drive no coincide con la raíz FINANZAS SII verificada.",
   upload: "Drive no confirmó el destino o la huella de uno de los archivos sintéticos.",
   replay: "Drive no confirmó los dos reintentos idempotentes.",
   cleanup: "La prueba requiere revisar la retirada de sus archivos sintéticos.",
