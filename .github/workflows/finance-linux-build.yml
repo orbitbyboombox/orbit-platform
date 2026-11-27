@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - integration/finance-canonical-v218-20261127
+      - feat/orbit-premium-shell-v218
   pull_request:
     branches:
       - release/finance-staff-v217-20261115
