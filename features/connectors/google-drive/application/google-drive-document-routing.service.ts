@@ -3,6 +3,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { withDriveReconciliationLease } from "./drive-reconciliation-lease";
 import { resolveExistingBillingFolder } from "./existing-billing-folder";
+import { loadReservationDriveProvider } from "./reservation-drive-provider";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadCompanySettings } from "@/features/company-settings";
@@ -44,7 +45,7 @@ export async function resolveReservationDocumentFolder(input: ReservationDocumen
   const destination = resolveAutomaticDestination({ kind: input.kind, context: { customerName: input.customerName, eventDate: input.eventDate } }, company.driveRootFolder);
   const leaf = destination.folderPath.split("/").at(-1);
   if (!leaf) throw new Error("No fue posible resolver el tipo de carpeta documental.");
-  const provider = new GoogleDriveApiProvider(await loadGoogleWorkspaceAccessToken());
+  const { provider } = await loadReservationDriveProvider();
   const folder = await provider.findFolder({ name: leaf, parentFolderId: eventFolder.folderId });
   if (!folder) throw new Error("No fue posible verificar la carpeta documental de este evento en Google Drive.");
   return { folderId: folder.id, folderPath: `${eventFolder.folderPath}/${leaf}`, provider };
