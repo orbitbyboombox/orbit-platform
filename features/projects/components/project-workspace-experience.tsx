@@ -878,6 +878,33 @@ export function ProjectWorkspaceExperience(
                 </dl>
               </Section>
             )}
+            {activeTab === "FINANCE" && props.projectKey
+              && ["ACCEPTED", "CONVERTED"].includes(props.commercialHub.quotation?.status ?? "") && (
+              <Section
+                className="2xl:col-span-2"
+                eyebrow="PRE-SII"
+                icon={<FolderOpen className="size-5" />}
+                id="event-tax-documents"
+                title="Facturación del evento"
+              >
+                <p className="text-sm text-muted">
+                  {event.documents.some(doc => doc.taxType && doc.folio && !doc.href)
+                    ? "Documento tributario registrado con respaldo no disponible."
+                    : event.documents.some(doc => doc.taxType && doc.folio)
+                      ? "Documento tributario registrado."
+                      : "Pendiente de facturar · sin documento tributario registrado en ORBIT."}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-3">
+                  <Link className="inline-flex min-h-11 items-center rounded-xl bg-brand px-4 text-sm font-semibold text-brand-foreground"
+                    href={`/finance/tributary?prepare=facturas&project=${encodeURIComponent(props.projectKey)}`}>
+                    Preparar documento
+                  </Link>
+                  {moduleVisible("DOCUMENTS") && (
+                    <Button type="button" variant="outline" onClick={() => selectTab("DOCUMENTS")}>Ver documentos y respaldos</Button>
+                  )}
+                </div>
+              </Section>
+            )}
             {activeTab === "FINANCE" && moduleVisible("COMMERCIAL_NEGOTIATION") && (
               <OptionalModule
                 moduleKey="COMMERCIAL_NEGOTIATION"
