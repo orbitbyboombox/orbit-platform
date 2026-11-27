@@ -24,15 +24,25 @@ async function resolveBoomBoxArchive(provider: GoogleDriveApiProvider) {
 export const staffArchivePath=(root:string,staffId:string,name:string)=>`${root}/STAFF/OPERADORES/${staffId} — ${name.trim().replace(/[\\/]+/g,"-")}`;
 export const staffArchiveFileName=(document:{category:string;file_name:string;storage_path:string})=>{const fallback=document.storage_path.split("/").pop()?.trim()||document.file_name.trim()||"document";return document.category==="IDENTIDAD"?fallback:document.file_name.trim()||fallback};
 async function folder(provider:GoogleDriveApiProvider,name:string,parentFolderId?:string){return(await provider.findFolder({name,parentFolderId}))??provider.createFolder({name,parentFolderId})}
-async function resolvePath(provider:GoogleDriveApiProvider,parts:string[],parent?:string){for(const name of parts){parent=(await folder(provider,name,parent)).id}return parent!}
-async function verifyStaffArchiveFile(token:string,id:string,parentId:string,name:string,checksum:string,size:number){
+async function resolvePath(provider:GoogleDriveApiProvider,parts:string[],parent:string){
+  await provider.readPrivateFolder(parent);
+  for(const name of parts){
+    if(!name||!name.trim())throw new Error("Ruta documental de Staff inválida.");
+    const next=await folder(provider,name,parent);
+    const verified=await provider.readPrivateFolder(next.id);
+    if(verified.name!==name||verified.parents.length!==1||verified.parents[0]!==parent)throw new Error("Destino documental de Staff no coincide con la ruta privada esperada.");
+    parent=verified.id;
+  }
+  return parent;
+}
+async function verifyStaffArchiveFile(token:string,id:string,parentId:string,name:string,checksum:string,size:number,mimeType:string){
   const url=new URL(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}`);
   url.searchParams.set("fields","id,name,mimeType,trashed,parents,sha256Checksum,size,shared,permissions(type,role)");
   url.searchParams.set("supportsAllDrives","true");
   const response=await fetch(url,{headers:{Authorization:`Bearer ${token}`},signal:AbortSignal.timeout(10000)});
   if(!response.ok)throw new Error("No se pudo verificar el respaldo de Staff en Drive.");
-  const file=await response.json() as {id?:string;name?:string;trashed?:boolean;parents?:string[];sha256Checksum?:string;size?:string;shared?:boolean;permissions?:{type:string;role:string}[]};
-  if(file.id!==id||file.name!==name||file.trashed!==false||file.parents?.length!==1||file.parents[0]!==parentId||file.sha256Checksum?.toLowerCase()!==checksum||file.size!==String(size)||file.shared!==false||file.permissions?.length!==1||file.permissions[0].type!=="user"||file.permissions[0].role!=="owner"){
+  const file=await response.json() as {id?:string;name?:string;mimeType?:string;trashed?:boolean;parents?:string[];sha256Checksum?:string;size?:string;shared?:boolean;permissions?:{type:string;role:string}[]};
+  if(file.id!==id||file.name!==name||file.mimeType!==mimeType||file.trashed!==false||file.parents?.length!==1||file.parents[0]!==parentId||file.sha256Checksum?.toLowerCase()!==checksum||file.size!==String(size)||file.shared!==false||file.permissions?.length!==1||file.permissions[0].type!=="user"||file.permissions[0].role!=="owner"){
     throw new Error("El respaldo de Staff no coincide con el original, destino o privacidad esperados.");
   }
 }
@@ -49,7 +59,10 @@ const candidates=await provider.findFilesByName({name:fileName,parentFolderId:fo
 if(candidates.length>1)throw new Error("Archivos homónimos en Drive; revisión requerida.");
 const existing=candidates[0];
 const file=existing??await provider.uploadFile({name:fileName,mimeType:doc.mime_type,bytes,parentFolderId:folderId});
-await verifyStaffArchiveFile(token,file.id,folderId,fileName,expectedChecksum,bytes.byteLength);
+await verifyStaffArchiveFile(token,file.id,folderId,fileName,expectedChecksum,bytes.byteLength,doc.mime_type);
+const verifiedCandidates=await provider.findFilesByName({name:fileName,parentFolderId:folderId});
+if(verifiedCandidates.length!==1||verifiedCandidates[0].id!==file.id)throw new Error("El destino cambió durante el respaldo; revisión requerida.");
+await provider.readPrivateFolder(folderId);
 const {data:linked,error:updateError}=await client.from("staff_onboarding_documents").update({drive_file_id:file.id,drive_folder_id:folderId,drive_sync_status:"SYNCED",drive_sync_error:null,drive_synced_at:new Date().toISOString()}).eq("id",doc.id).eq("status","ACTIVE").eq("storage_bucket",doc.storage_bucket).eq("storage_path",doc.storage_path).is("drive_file_id",null).select("id").maybeSingle();
 if(updateError)throw updateError;
 if(!linked)throw new Error("El documento cambió durante el respaldo; no se reemplazó el vínculo.");
