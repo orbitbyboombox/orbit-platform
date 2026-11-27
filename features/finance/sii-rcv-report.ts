@@ -28,11 +28,11 @@ export async function loadRcvReport(period: string): Promise<RcvReportRow[]> {
   ]);
   const rows = (data ?? []) as RcvReportRow[];
   if (error || count === null || count > rows.length) throw new Error("El registro SII del período no se pudo recuperar completo.");
-  if (categories.error || categories.count === null || categories.count > (categories.data?.length ?? 0)) {
+  const categoryRows = (categories.data ?? []) as { document_key: string; category: string }[];
+  if (categories.error || categories.count === null || categories.count > categoryRows.length) {
     throw new Error("No se pudieron consultar las categorías administrativas.");
   }
-  const mapped = new Map(((categories.data ?? []) as { document_key: string; category: string }[])
-    .map(item => [item.document_key, item.category]));
+  const mapped = new Map(categoryRows.map(item => [item.document_key, item.category]));
   return rows.map(row => row.register === "Compras"
     ? { ...row, expense_category: mapped.get(row.snapshot.key) ?? row.expense_category }
     : row);
