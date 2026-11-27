@@ -37,6 +37,7 @@ async function resolvePath(provider:GoogleDriveApiProvider,parts:string[],parent
   }
   return parent;
 }
+class StaffArchiveDifferentSize extends Error {}
 async function verifyStaffArchiveFile(token:string,id:string,parentId:string,name:string,checksum:string,size:number,mimeType:string){
   const url=new URL(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}`);
   url.searchParams.set("fields","id,name,mimeType,trashed,parents,sha256Checksum,size,shared,permissions(type,role)");
@@ -45,9 +46,12 @@ async function verifyStaffArchiveFile(token:string,id:string,parentId:string,nam
   if(response.status===404)return false;
   if(!response.ok)throw new Error("No se pudo verificar el respaldo de Staff en Drive.");
   const file=await response.json() as {id?:string;name?:string;mimeType?:string;trashed?:boolean;parents?:string[];sha256Checksum?:string;size?:string;shared?:boolean;permissions?:{type:string;role:string}[]};
-  if(file.id!==id||file.name!==name||file.mimeType!==mimeType||file.trashed!==false||file.parents?.length!==1||file.parents[0]!==parentId||file.sha256Checksum?.toLowerCase()!==checksum||file.size!==String(size)||file.shared!==false||file.permissions?.length!==1||file.permissions[0].type!=="user"||file.permissions[0].role!=="owner"){
+  if(file.id!==id||file.name!==name||file.mimeType!==mimeType||file.trashed!==false||file.parents?.length!==1||file.parents[0]!==parentId||file.shared!==false||file.permissions?.length!==1||file.permissions[0].type!=="user"||file.permissions[0].role!=="owner"){
     throw new Error("El respaldo de Staff no coincide con el original, destino o privacidad esperados.");
   }
+  if(!file.size||!/^\d+$/.test(file.size))throw new Error("Tamaño de respaldo no verificable.");
+  if(file.size!==String(size))throw new StaffArchiveDifferentSize("El original y el homónimo tienen tamaños distintos.");
+  if(file.sha256Checksum?.toLowerCase()!==checksum)throw new Error("La huella SHA-256 del respaldo no coincide con el original.");
   return true;
 }
 export async function syncStaffDocumentArchive(client: SupabaseClient, documentId: string) {
@@ -74,17 +78,34 @@ if (bytes.byteLength !== blob.size || originalType !== doc.mime_type) {
 const expectedChecksum=createHash("sha256").update(bytes).digest("hex");
 const folderId=await resolvePath(provider,parts.slice(3),archive.id);
 await provider.readPrivateFolder(folderId);
-const fileName=staffArchiveFileName(doc);
+const originalName=staffArchiveFileName(doc);
+const distinctName=originalName.toLowerCase().endsWith(".pdf") ? `${originalName.slice(0,-4)} — ORBIT-${doc.id}.pdf` : `${originalName} — ORBIT-${doc.id}.pdf`;
+let fileName=originalName;
 const verify = (id: string) => verifyStaffArchiveFile(token, id, folderId, fileName, expectedChecksum, bytes.byteLength, doc.mime_type);
 const reservations = "staff_archive_upload_reservations";
 const readReservation = () => client.from(reservations).select("drive_id,folder_id,checksum,file_name").eq("document_id", doc.id).maybeSingle();
 let { data: reservation, error: reservationError } = await readReservation();
 if (reservationError) throw reservationError;
 let existingId: string | undefined;
-if (!reservation) {
+if (reservation) {
+  if (reservation.file_name === distinctName && doc.mime_type === "application/pdf") fileName=distinctName;
+} else {
   const candidates=await provider.findFilesByName({name:fileName,parentFolderId:folderId});
   if(candidates.length>1)throw new Error("Archivos homónimos en Drive; revisión requerida.");
   existingId = candidates[0]?.id;
+  if (existingId && doc.mime_type === "application/pdf") {
+    try {
+      if (!(await verify(existingId))) throw new Error("El homónimo aún no es verificable.");
+    } catch (error) {
+      if (!(error instanceof StaffArchiveDifferentSize)) throw error;
+      // Only a proven different-size PDF in the correct private folder may receive a distinct name.
+      fileName=distinctName;
+      const alternate=await provider.findFilesByName({name:fileName,parentFolderId:folderId});
+      if(alternate.length>1)throw new Error("Nombre alternativo ambiguo; revisión requerida.");
+      existingId=alternate[0]?.id;
+      if(existingId && !(await verify(existingId)))throw new Error("El respaldo alternativo aún no es verificable.");
+    }
+  }
   if (!existingId) {
     const response = await fetch("https://www.googleapis.com/drive/v3/files/generateIds?count=1&space=drive", {
       headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10000),
