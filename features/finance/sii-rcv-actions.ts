@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { parseSiiRcv } from "./sii-rcv";
+import { parseSiiRcv, readSiiRcvFilename } from "./sii-rcv";
 
 const company = "765652723";
 
@@ -18,13 +18,12 @@ export async function storeRcvForReview(form: FormData) {
     return { message: "Confirma la importación y selecciona un archivo de hasta 1 MB." };
   }
   try {
-    const file = /^(RCV_COMPRA_REGISTRO|RCV_VENTA)_([0-9.-]+)_([1-9]\d{3}(?:0[1-9]|1[0-2]))\.csv$/i.exec(source.name);
-    if (!file || file[2].replace(/[^0-9]/g, "") !== company) throw new Error("El nombre del archivo no identifica a BOOMBOX y su período.");
+    const file = readSiiRcvFilename(source.name);
     const bytes = await source.arrayBuffer();
     const register = parseSiiRcv(bytes);
-    if (register.kind !== (file[1].toUpperCase() === "RCV_VENTA" ? "Ventas" : "Compras")) throw new Error("El nombre y el registro del archivo no coinciden.");
+    if (register.kind !== file.kind) throw new Error("El nombre y el registro del archivo no coinciden.");
     if (register.documents.some(doc => doc.duplicate || !doc.knownType)) throw new Error("El archivo contiene documentos repetidos o tipos por revisar.");
-    const period = `${file[3].slice(0,4)}-${file[3].slice(4)}-01`;
+    const period = `${file.period}-01`;
     const documents = register.documents.map(doc => ({
       ...doc,
       folio: doc.folio.replace(/^0+(?=\d)/, ""),
@@ -38,8 +37,9 @@ export async function storeRcvForReview(form: FormData) {
     if (error || !data) return { message: "No se pudo guardar la revisión contable." };
     const result = data as { repeated: boolean; added: number; differences: number };
     revalidatePath("/finance/tributary/accounting");
-    return { message: result.repeated ? "Este archivo ya se guardó. No se duplicaron documentos."
-      : `Documentos nuevos: ${result.added}. Diferencias pendientes de revisión: ${result.differences}.` };
+    return { saved: true, period: file.period, message: result.repeated
+      ? `Archivo ya registrado. Nuevos: 0. Existentes: ${documents.length}. No se duplicaron documentos.`
+      : `Nuevos: ${result.added}. Existentes sin cambios: ${documents.length - result.added - result.differences}. Diferencias por revisar: ${result.differences}.` };
   } catch (error) {
     return { message: error instanceof Error ? error.message : "No se pudo revisar el archivo." };
   }
