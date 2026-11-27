@@ -80,6 +80,12 @@ jobs:
             supabase/migrations/20261006120001_staff_accounting_month_from_event_date.sql
           mv supabase/migrations/20260927170000_staff_reimbursement_zero_defaults.sql \
             supabase/migrations/20260927170001_staff_reimbursement_zero_defaults.sql
+          # 0259 consumes event_time_mode; in the isolated chronological
+          # runner, apply the real production contract that introduces the
+          # column before that consumer. The original migration content is
+          # unchanged and remains idempotent when production applies it.
+          mv supabase/migrations/20260925180000_event_time_phase_a_production_contract.sql \
+            supabase/migrations/0258_event_time_phase_a_production_contract.sql
           python3 - <<'PY'
           from pathlib import Path
           path = Path('supabase/migrations/20261007200500_fix_staff_settlement_record_access.sql')
