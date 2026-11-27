@@ -1,4 +1,5 @@
 "use client";
+import { eventLocationQuery } from "@/lib/event-location";
 import {formatDisplayDate} from "@/lib/display-date";
 import { serviceDisplayName, staffRoleDisplayName } from "@/lib/orbit-display-labels";
 
@@ -937,7 +938,8 @@ function AvailableEventPreview({event,requests,pending,close,request,setMessage}
   const [reason,setReason]=useState("ILLNESS");
   const [detail,setDetail]=useState("");
   const [declinePending,startDecline]=useTransition();
-  const maps=`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${event.address}, ${event.district}`)}`;
+  const destination = eventLocationQuery(event.address, event.district, event.venue);
+  const maps = destination ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}` : undefined;
   const roleNet=role==="OPERATOR"||role==="SUPERVISOR"?event.payments.operator:role==="ASSEMBLY"?event.payments.assembly:role==="DISASSEMBLY"?event.payments.disassembly:event.payments.combined;
   const estimatedTotal=roleNet!==null&&event.payments.transportationBonus!==null?roleNet+event.payments.transportationBonus:null;
   const alreadyRequested=requests.some(item=>item.projectId===event.id&&item.responsibility===role&&item.status==="PENDING");
@@ -1044,11 +1046,12 @@ function EventDetail({
       setMessage(result.message);
       if (result.ok) location.reload();
     });
-  const maps = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${event.address}, ${event.district}`)}`;
+  const destination = eventLocationQuery(event.address, event.district, event.venue);
+  const maps = destination ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}` : undefined;
   const assignedBlocks = event.operationalBlocks;
   const hasAssignedBlocks = assignedBlocks.length > 0;
   const turnLabel = assignedBlocks.map(staffBlockLabel).join(" · ");
-  const googleCalendar = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(`BOOMBOX · ${event.customer}`)}&dates=${event.date.replaceAll("-", "")}T${event.start.replace(":", "")}00/${event.date.replaceAll("-", "")}T${event.finish.replace(":", "")}00&details=${encodeURIComponent(`Servicio: ${staffServiceLabel(event.service)}\n${hasAssignedBlocks ? `Turno Staff: ${turnLabel}\n` : ""}ORBIT Event ID: ${event.orbitEventId}`)}&location=${encodeURIComponent(event.address)}`;
+  const googleCalendar = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(`BOOMBOX · ${event.customer}`)}&dates=${event.date.replaceAll("-", "")}T${event.start.replace(":", "")}00/${event.date.replaceAll("-", "")}T${event.finish.replace(":", "")}00&details=${encodeURIComponent(`Servicio: ${staffServiceLabel(event.service)}\n${hasAssignedBlocks ? `Turno Staff: ${turnLabel}\n` : ""}ORBIT Event ID: ${event.orbitEventId}`)}&location=${encodeURIComponent(eventLocationQuery(event.address, event.district))}`;
   const cancel = () => {
     const data = new FormData();
     data.set("projectId", event.id);

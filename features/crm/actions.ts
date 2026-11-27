@@ -475,11 +475,11 @@ export async function updateCrmEventAction(input: {
             }
           : {}),
         type: input.type,
-        location: input.location,
+        location: input.location.trim(),
         ...(input.eventAddress !== undefined
-          ? { eventAddress: input.eventAddress }
+          ? { eventAddress: input.eventAddress.trim() }
           : {}),
-        municipality: input.municipality,
+        municipality: input.municipality.trim(),
         service: input.service,
         duration: input.duration,
         ...(input.boothQuantity !== undefined

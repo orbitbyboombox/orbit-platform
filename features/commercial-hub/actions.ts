@@ -619,6 +619,7 @@ export async function confirmCommercialQuoteConversionAction(
       date: String(formData.get("eventDate") ?? ""),
       time: String(formData.get("eventTime") ?? ""),
       location: String(formData.get("eventLocation") ?? ""),
+      address: String(formData.get("eventAddress") ?? ""),
       city: String(formData.get("eventCity") ?? ""),
       durationHours: Number(formData.get("durationHours")),
       customerCompany: String(formData.get("customerCompany") ?? ""),
@@ -713,6 +714,7 @@ export async function confirmCommercialQuoteConversionAction(
         date: event.date,
         time: event.time,
         location: event.location,
+        address: event.address,
         city: event.city,
         durationHours: Number(event.durationHours),
         extras: items

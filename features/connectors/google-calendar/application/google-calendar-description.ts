@@ -1,3 +1,4 @@
+import { eventLocationQuery, eventMapsUrl } from "../../../../lib/event-location.ts";
 import type { CalendarOperationalEventInput } from "../types/google-calendar-live.types";
 
 const categoryLabels: Record<string, string> = {
@@ -38,9 +39,9 @@ function cleanCalendarField(value: string | null | undefined): string {
   return (value ?? "").replace(/<\/?[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
 }
 
-export function buildGoogleMapsLink(address: string): string {
+export function buildGoogleMapsLink(address: string, commune?: string | null, venue?: string | null): string {
   const cleaned = cleanCalendarField(address);
-  return cleaned ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleaned)}` : "Pendiente de dirección";
+  return eventMapsUrl(cleaned, cleanCalendarField(commune), cleanCalendarField(venue)) || "Pendiente de dirección";
 }
 
 export function buildCalendarDescription(input: CalendarOperationalEventInput, orbitEventId: string): string {
@@ -65,13 +66,14 @@ export function buildCalendarDescription(input: CalendarOperationalEventInput, o
     ...(includedExtras.length ? [`Extras incluidos: ${includedExtras.map(cleanCalendarField).join(", ")}`, ""] : []),
     `Cliente: ${cleanCalendarField(input.customerName)}`,
     "",
-    `Dirección: ${cleanCalendarField(input.customerAddress) || "Pendiente de registrar"}`,
+    `Lugar: ${cleanCalendarField(input.venue) || "Por confirmar"}`,
+    `Dirección: ${eventLocationQuery(cleanCalendarField(input.customerAddress), cleanCalendarField(input.municipality)) || "Pendiente de registrar"}`,
     "",
     `Teléfono cliente: ${cleanCalendarField(input.customerPhone) || "Pendiente"}`,
     "",
     `Contacto producción: ${cleanCalendarField(input.operationalContact ?? input.operator) || "Por confirmar"}`,
     "",
-    `Google Maps: ${buildGoogleMapsLink(input.customerAddress)}`,
+    `Google Maps: ${buildGoogleMapsLink(input.customerAddress, input.municipality, input.venue)}`,
     "",
     `ORBIT Event ID: ${orbitEventId}`,
     ...blockLines,

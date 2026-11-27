@@ -1,4 +1,5 @@
 "use client";
+import { eventMapsUrl } from "@/lib/event-location";
 import {
   ArrowLeft,
   Building2,
@@ -378,8 +379,10 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
   const [eventName, setEventName] = useState(initialDraft?.eventName ?? "");
   const [eventDate, setEventDate] = useState(initialDraft?.eventDate ?? "");
   const [eventTime, setEventTime] = useState(initialDraft?.eventTime ?? "");
+  const [eventVenue, setEventVenue] = useState(initialDraft?.eventVenue ?? "");
   const [eventLocation, setEventLocation] = useState(initialDraft?.eventLocation ?? "");
   const [eventCity, setEventCity] = useState(initialDraft?.eventCity ?? "");
+  const eventMap = eventMapsUrl(eventLocation, eventCity, eventVenue);
   const [attachCatalog, setAttachCatalog] = useState(initialDraft?.attachCatalog ?? false);
   const [createdQuote, setCreatedQuote] = useState<{ id: string; number: string; total: number } | null>(null);
   const [preview, setPreview] = useState(false);
@@ -499,6 +502,7 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
           eventName,
           eventDate,
           eventTime,
+          eventVenue,
           eventLocation,
           eventCity,
           validityDays,
@@ -651,8 +655,10 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
             <input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} />
           </Field>
           <Field label="Hora del evento (opcional)"><input type="time" value={eventTime} onChange={(e) => setEventTime(e.target.value)} /></Field>
-          <Field label="Dirección del evento (opcional)"><input value={eventLocation} onChange={(e) => setEventLocation(e.target.value)} /></Field>
-          <Field label="Comuna / Ciudad (opcional)"><input value={eventCity} onChange={(e) => setEventCity(e.target.value)} /></Field>
+          <Field label="Lugar o recinto"><input value={eventVenue} onChange={(e) => setEventVenue(e.target.value)} /></Field>
+          <Field label="Dirección del evento (calle y numeración)"><input value={eventLocation} onChange={(e) => setEventLocation(e.target.value)} /></Field>
+          {eventMap && <a className="text-sm font-semibold text-brand" href={eventMap} target="_blank" rel="noreferrer">Abrir en Google Maps</a>}
+          <Field label="Comuna (opcional)"><input value={eventCity} onChange={(e) => setEventCity(e.target.value)} /></Field>
         </div>
         <div className="mt-5" data-capacity-section>
           <CapacityStatusPanel result={capacityResult} loading={capacityLoading} missingInputs={capacityMissingInputs} progressiveState={capacityState} missingMessage={progressiveAvailabilityMessage(capacityState)} />

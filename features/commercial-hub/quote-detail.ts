@@ -1,3 +1,4 @@
+import { readQuoteLocation } from "../../lib/event-location.ts";
 import type { FormalQuoteDraft, QuoteLineDraft } from "./types";
 
 export type CommercialQuoteHistoryEntry = {
@@ -34,6 +35,7 @@ export type CommercialQuoteDetail = {
     date: string;
     time: string;
     location: string;
+    address: string;
     city: string;
   };
   items: Array<{
@@ -295,7 +297,8 @@ export function buildCommercialQuoteDetail(
       name: text(event.name),
       date: text(event.date),
       time: text(event.time).slice(0, 5),
-      location: text(event.location),
+      location: readQuoteLocation(event).venue,
+      address: readQuoteLocation(event).address,
       city: text(event.city),
     },
     items: items.map((item) => ({
@@ -358,7 +361,8 @@ export function buildCommercialQuoteDetail(
             eventName: text(event.name),
             eventDate: text(event.date),
             eventTime: text(event.time).slice(0, 5),
-            eventLocation: text(event.location),
+            eventLocation: readQuoteLocation(event).address,
+            eventVenue: readQuoteLocation(event).venue,
             eventCity: text(event.city),
             validityDays: Math.max(1, number(row.validity_days, 10)),
             depositPercent,
