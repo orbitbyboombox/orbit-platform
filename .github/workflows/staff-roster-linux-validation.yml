@@ -1,0 +1,32 @@
+name: Staff roster Linux validation
+
+on:
+  push:
+    branches:
+      - fix/staff-official-roster-manual-20261127
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.0'
+      - run: npm install --global pnpm@10.28.0
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+      - run: pnpm typecheck
+      - run: pnpm exec eslint features/staff-roster app/'(platform)'/projects/'[projectId]'/page.tsx
+      - run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test tests/official-roster.test.mts tests/official-roster-manual-members.test.mts
+      - run: pnpm build
