@@ -169,7 +169,7 @@ export async function retryTributaryDriveSyncAction(input: { syncId: string }) {
     const { admin } = await requireAdmin();
     const { data: queued, error } = await admin.from("tributary_drive_sync_items")
       .update({ status: "PENDING", attempt_count: 0, last_error: null, updated_at: new Date().toISOString() })
-      .eq("id", input.syncId).like("idempotency_key", "document:%:central:PDF").in("status", ["FAILED", "RETRY"])
+      .eq("id", input.syncId).or("idempotency_key.like.document:%:central:PDF,idempotency_key.like.rcv-import:%:CSV").in("status", ["FAILED", "RETRY"])
       .select("id").maybeSingle();
     if (error) throw error;
     if (!queued) throw new Error("El archivo no tiene un reintento pendiente.");
