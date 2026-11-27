@@ -4,7 +4,7 @@ import {
   type ProductionAssignment,
 } from "@/features/operations/components";
 import type { Project, ProjectStatus } from "@/features/projects/types/project";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServerClient, getSupabaseRenderUser } from "@/lib/supabase/server";
 import { isReadOnlyVisualPreview } from "@/lib/supabase/environment-guard";
 import { loadFinancialTruth } from "@/features/business-engine";
 import { loadFinanceDashboardReadModel } from "@/features/finance/finance-read-model";
@@ -65,7 +65,7 @@ type PlanningRequest = {
 
 export default async function OperationsPage() {
   const client = await createSupabaseServerClient();
-  const { data: auth, error: authError } = await client.auth.getUser();
+  const { data: auth, error: authError } = await getSupabaseRenderUser();
   if (authError || !auth.user)
     throw authError ?? new Error("Sesión requerida.");
   const operationsDataLoadStartedAt = performance.now();

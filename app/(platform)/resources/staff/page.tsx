@@ -103,6 +103,10 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
     { data: staffExpenseDocuments, error: staffExpenseDocumentsError },
     { data: monthlyAccounts, error: monthlyAccountsError },
     { data: reimbursementPayments, error: reimbursementPaymentsError },
+    { data: logisticsRoutes, error: logisticsRoutesError },
+    { data: paymentRows, error: paymentError },
+    { data: financialEvents, error: financialEventsError },
+    { data: associatedExpenses, error: associatedExpenseError },
   ] = await Promise.all([
     client
       .from("staff")
@@ -123,6 +127,7 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
       .select("id,staff_id,event_type,human_message,occurred_at")
       .not("staff_id", "is", null)
       .order("occurred_at", { ascending: false })
+      .order("id", { ascending: false })
       .limit(500),
     client
       .from("audit_events")
@@ -172,48 +177,12 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
       .order("submitted_at", { ascending: false }),
     client.from("staff_monthly_accounts").select(STAFF_MONTHLY_ACCOUNT_SELECT).order("accounting_month",{ascending:false}),
     client.from("staff_reimbursement_payments").select("id,expense_id,staff_expense_submission_id,settlement_id,amount,paid_on,receipt_document_id"),
-  ]);
-  if (staffError) throw staffError;
-  if (assignmentError) throw assignmentError;
-  if (historyError) throw historyError;
-  if (auditError) throw auditError;
-  if (vehicleError) throw vehicleError;
-  if (projectError) throw projectError;
-  if (publicationError) throw publicationError;
-  if (requestError) throw requestError;
-  if (onboardingError) throw onboardingError;
-  if (staffDocumentsError) throw staffDocumentsError;
-  if (staffExpenseDocumentsError) throw staffExpenseDocumentsError;
-  if (monthlyAccountsError) throw monthlyAccountsError;
-  if (reimbursementPaymentsError) throw reimbursementPaymentsError;
-  const { data: logisticsRoutes, error: logisticsRoutesError } = await client
-    .from("vehicle_routes")
-    .select("id,asset_id,route_date,driver_staff_id,route_type,publication_status,publication_version,vehicle_route_events(project_id,sequence),route_staff_assignments(staff_id,status)")
-    .is("deleted_at", null)
-    .neq("status", "CANCELLED")
-    .order("route_date", { ascending: true });
-  if (logisticsRoutesError) throw logisticsRoutesError;
-  const { data: expenseDocumentMetadata, error: expenseDocumentMetadataError } =
-    await client
-      .from("documents")
-      .select("id,original_filename,created_at")
-      .in(
-        "id",
-        (staffExpenseDocuments ?? [])
-          .map((item) => item.document_id)
-          .filter((value): value is string => Boolean(value))
-          .concat("00000000-0000-0000-0000-000000000000"),
-      )
-      .is("deleted_at", null);
-  if (expenseDocumentMetadataError) throw expenseDocumentMetadataError;
-  const expenseDocumentMetadataById = new Map(
-    (expenseDocumentMetadata ?? []).map((item) => [item.id, item]),
-  );
-  const [
-    { data: paymentRows, error: paymentError },
-    { data: financialEvents, error: financialEventsError },
-    { data: associatedExpenses, error: associatedExpenseError },
-  ] = await Promise.all([
+    client
+      .from("vehicle_routes")
+      .select("id,asset_id,route_date,driver_staff_id,route_type,publication_status,publication_version,vehicle_route_events(project_id,sequence),route_staff_assignments(staff_id,status)")
+      .is("deleted_at", null)
+      .neq("status", "CANCELLED")
+      .order("route_date", { ascending: true }),
     client
       .from("event_staff_payments")
       .select(
@@ -233,6 +202,36 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
       .is("deleted_at", null)
       .order("occurred_on", { ascending: false }),
   ]);
+  if (staffError) throw staffError;
+  if (assignmentError) throw assignmentError;
+  if (historyError) throw historyError;
+  if (auditError) throw auditError;
+  if (vehicleError) throw vehicleError;
+  if (projectError) throw projectError;
+  if (publicationError) throw publicationError;
+  if (requestError) throw requestError;
+  if (onboardingError) throw onboardingError;
+  if (staffDocumentsError) throw staffDocumentsError;
+  if (staffExpenseDocumentsError) throw staffExpenseDocumentsError;
+  if (monthlyAccountsError) throw monthlyAccountsError;
+  if (reimbursementPaymentsError) throw reimbursementPaymentsError;
+  if (logisticsRoutesError) throw logisticsRoutesError;
+  const { data: expenseDocumentMetadata, error: expenseDocumentMetadataError } =
+    await client
+      .from("documents")
+      .select("id,original_filename,created_at")
+      .in(
+        "id",
+        (staffExpenseDocuments ?? [])
+          .map((item) => item.document_id)
+          .filter((value): value is string => Boolean(value))
+          .concat("00000000-0000-0000-0000-000000000000"),
+      )
+      .is("deleted_at", null);
+  if (expenseDocumentMetadataError) throw expenseDocumentMetadataError;
+  const expenseDocumentMetadataById = new Map(
+    (expenseDocumentMetadata ?? []).map((item) => [item.id, item]),
+  );
   if (paymentError) throw paymentError;
   if (financialEventsError) throw financialEventsError;
   if (associatedExpenseError) throw associatedExpenseError;

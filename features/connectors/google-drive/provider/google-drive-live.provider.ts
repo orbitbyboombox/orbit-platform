@@ -156,6 +156,24 @@ export class GoogleDriveApiProvider implements GoogleDriveLiveProvider {
     return { id: item.id, name: item.name, parents: item.parents ?? [] };
   }
 
+  async readPrivateFolder(id: string): Promise<GoogleDriveCreatedFolder & { parents: string[] }> {
+    const url = new URL(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}`);
+    url.searchParams.set("fields", "id,name,mimeType,trashed,parents,shared,permissions(type,role)");
+    url.searchParams.set("supportsAllDrives", "true");
+    const response = await fetch(url, { headers: { Authorization: `Bearer ${this.accessToken}` } });
+    if (!response.ok) throw new Error(`No se pudo comprobar la privacidad de la carpeta (HTTP ${response.status}).`);
+    const item = await response.json() as GoogleDriveCreatedFolder & {
+      parents?: string[]; mimeType?: string; trashed?: boolean; shared?: boolean;
+      permissions?: { type: string; role: string }[];
+    };
+    if (item.id !== id || item.trashed || item.mimeType !== "application/vnd.google-apps.folder" ||
+        item.shared !== false || item.permissions?.length !== 1 ||
+        item.permissions[0].type !== "user" || item.permissions[0].role !== "owner") {
+      throw new Error("El destino de Staff no es privado. No se subió el comprobante.");
+    }
+    return { id: item.id, name: item.name, parents: item.parents ?? [] };
+  }
+
   async getFolderParents(id: string): Promise<string[]> {
     return (await this.readFolder(id)).parents;
   }

@@ -7,7 +7,7 @@ import {
   SupabaseCustomerRepository,
   SupabaseTimelineRepository,
 } from "@/features/projects/infrastructure";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServerClient, getSupabaseRenderUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { calculateAndPersistRealEventCost } from "@/features/profit-engine";
 import { loadFounderWorkspace } from "@/features/founder-workspace";
@@ -60,7 +60,7 @@ export default async function ProjectWorkspacePage({
 }: ProjectWorkspacePageProps) {
   const [{ projectId }, query] = await Promise.all([params, searchParams]);
   const client = await createSupabaseServerClient();
-  const { data: auth, error: authError } = await client.auth.getUser();
+  const { data: auth, error: authError } = await getSupabaseRenderUser();
   if (authError || !auth.user) redirect("/api/auth/session-expired");
   // financial_event_records is intentionally server/admin-only. Keep the
   // authenticated client for user-scoped reads and use the trusted server
@@ -83,12 +83,6 @@ export default async function ProjectWorkspacePage({
   }
   if (!project) notFound();
   const realCost = await calculateAndPersistRealEventCost(adminReadClient, projectId);
-  const timeline =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-      projectId,
-    )
-      ? await new SupabaseTimelineRepository(client).findByProject(projectId)
-      : [];
   const [
     { data: rawProject },
     { data: reservation },
@@ -117,6 +111,16 @@ export default async function ProjectWorkspacePage({
     { data: operationalRequirements },
     { data: postReservationExtras },
     { data: catalogExtras },
+    timeline,
+    { data: commercialOrigin, error: commercialOriginError },
+    { data: operationalBlockRows, error: operationalBlocksError },
+    paperSnapshotResult,
+    { data: staffRoleRequirements, error: staffRoleRequirementError },
+    logisticsSummaryResult,
+    logisticsTripsResult,
+    logisticsExpensesResult,
+    logisticsVehiclesResult,
+    { data: capacityResult },
   ] = await Promise.all([
     client
       .from("projects")
@@ -290,30 +294,46 @@ export default async function ProjectWorkspacePage({
       .eq("pricing_status", "DEFINED")
       .is("deleted_at", null)
       .order("display_order"),
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      projectId,
+    )
+      ? new SupabaseTimelineRepository(client).findByProject(projectId)
+      : [],
+    client
+      .from("project_commercial_origins")
+      .select("quotation_id,quotation_number,quotation_version,accepted_at,accepted_snapshot")
+      .eq("project_id", projectId)
+      .maybeSingle(),
+    client
+      .from("event_operational_blocks")
+      .select("id,project_id,name,sequence,start_at,end_at,status,notes")
+      .eq("project_id", projectId)
+      .order("sequence"),
+    adminReadClient
+      .from("event_paper_snapshots")
+      .select("id,opening_balance,final_remaining_balance,event_usage,status,format_key,paper_variant,black_box_asset_code,box_asset_id,printer_asset_id,confirmed_by,confirmed_at,created_at")
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    client
+      .from("event_staff_requirements")
+      .select("role,required_quantity,published,block_id")
+      .eq("project_id", projectId)
+      .order("role"),
+    client.from("event_logistics_summary").select("logistics_mode,logistics_status,trip_count,vehicle_count,fuel_cost,toll_cost,parking_cost,other_cost,real_logistics_cost").eq("project_id",projectId).maybeSingle(),
+    client.from("vehicle_trips").select("id,asset_id,driver_staff_id,driver_name,trip_type,sequence,origin,destination,planned_start_at,planned_end_at,distance,status,meeting_point,instructions,operational_assets(asset_code,vehicle_profiles(model)),staff(first_name,last_name)").eq("project_id",projectId).is("deleted_at",null).neq("status","CANCELLED").order("sequence"),
+    client.from("expenses").select("id,vehicle_trip_id,category,total,status,receipt_path,approval_reason").eq("project_id",projectId).not("vehicle_trip_id","is",null).is("deleted_at",null).neq("status","CANCELLED").order("occurred_on"),
+    client.from("vehicle_profiles").select("asset_id,nickname,model,height_m,operational_status,operational_assets!inner(asset_code,status,deleted_at)").is("operational_assets.deleted_at",null).order("model"),
+    client.rpc("get_event_capacity", { p_project_id: projectId }),
   ]);
-  const { data: commercialOrigin, error: commercialOriginError } = await client
-    .from("project_commercial_origins")
-    .select("quotation_id,quotation_number,quotation_version,accepted_at,accepted_snapshot")
-    .eq("project_id", projectId)
-    .maybeSingle();
   if (commercialOriginError) throw commercialOriginError;
-  const { data: operationalBlockRows, error: operationalBlocksError } = await client
-    .from("event_operational_blocks")
-    .select("id,project_id,name,sequence,start_at,end_at,status,notes")
-    .eq("project_id", projectId)
-    .order("sequence");
   // The migration is additive and intentionally staged for Founder Review.
   // Until it is applied, legacy Events must continue to render normally.
   if (operationalBlocksError && !["42P01", "PGRST205"].includes(operationalBlocksError.code ?? "")) {
     throw operationalBlocksError;
   }
-  let { data: paperSnapshot, error: paperSnapshotError } = await adminReadClient
-    .from("event_paper_snapshots")
-    .select("id,opening_balance,final_remaining_balance,event_usage,status,format_key,paper_variant,black_box_asset_code,box_asset_id,printer_asset_id,confirmed_by,confirmed_at,created_at")
-    .eq("project_id", projectId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  let { data: paperSnapshot, error: paperSnapshotError } = paperSnapshotResult;
   if (paperSnapshotError && ["42703", "PGRST204"].includes(paperSnapshotError.code ?? "")) {
     const fallback = await adminReadClient
       .from("event_paper_snapshots")
@@ -328,24 +348,7 @@ export default async function ProjectWorkspacePage({
   if (paperSnapshotError && !["42P01", "PGRST205"].includes(paperSnapshotError.code ?? "")) {
     throw paperSnapshotError;
   }
-  const { data: staffRoleRequirements, error: staffRoleRequirementError } =
-    await client
-      .from("event_staff_requirements")
-      .select("role,required_quantity,published,block_id")
-      .eq("project_id", projectId)
-      .order("role");
   if (staffRoleRequirementError) throw staffRoleRequirementError;
-  const [
-    logisticsSummaryResult,
-    logisticsTripsResult,
-    logisticsExpensesResult,
-    logisticsVehiclesResult,
-  ] = await Promise.all([
-    client.from("event_logistics_summary").select("logistics_mode,logistics_status,trip_count,vehicle_count,fuel_cost,toll_cost,parking_cost,other_cost,real_logistics_cost").eq("project_id",projectId).maybeSingle(),
-    client.from("vehicle_trips").select("id,asset_id,driver_staff_id,driver_name,trip_type,sequence,origin,destination,planned_start_at,planned_end_at,distance,status,meeting_point,instructions,operational_assets(asset_code,vehicle_profiles(model)),staff(first_name,last_name)").eq("project_id",projectId).is("deleted_at",null).neq("status","CANCELLED").order("sequence"),
-    client.from("expenses").select("id,vehicle_trip_id,category,total,status,receipt_path,approval_reason").eq("project_id",projectId).not("vehicle_trip_id","is",null).is("deleted_at",null).neq("status","CANCELLED").order("occurred_on"),
-    client.from("vehicle_profiles").select("asset_id,nickname,model,height_m,operational_status,operational_assets!inner(asset_code,status,deleted_at)").is("operational_assets.deleted_at",null).order("model"),
-  ]);
   if (paymentItemsError && !["42P01", "PGRST205"].includes(paymentItemsError.code ?? "")) {
     throw paymentItemsError;
   }
@@ -358,7 +361,6 @@ export default async function ProjectWorkspacePage({
     if(error)throw error;return[requirement.id,(data??[]) as AssetAvailabilityRow[]] as const;
   }));
   const availabilityByRequirement=new Map(availabilityResults);
-  const { data: capacityResult } = await client.rpc("get_event_capacity", { p_project_id: projectId });
   const capacityProjection = (() => {
     const result = (capacityResult ?? null) as (import("@/features/capacity/capacity-status-panel").CapacityResult & { requiredResources?: { CASE?: number; BBOX360?: number } }) | null;
     if (!result) return null;

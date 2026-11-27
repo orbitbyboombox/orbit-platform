@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getGoogleWorkspaceAdministrator } from "@/features/connectors/google-workspace/application/google-workspace.authorization.guard";
+import { archivePendingStaffExpenses } from "@/features/connectors/google-drive/application/staff-expense-receipt-archive";
 import { syncStaffFinanceDocuments } from "@/features/connectors/google-drive/application/staff-finance-document-sync.service";
 
 export async function GET() {
@@ -28,7 +29,10 @@ export async function POST(request: NextRequest) {
   const user = await getGoogleWorkspaceAdministrator();
   if (!user) return NextResponse.json({ ok: false, error: "No autorizado." }, { status: 401 });
   try {
-    const body = (await request.json().catch(() => ({}))) as { from?: string; to?: string };
+    const body = (await request.json().catch(() => ({}))) as { from?: string; to?: string; pendingExpenseMonth?: string };
+    if (typeof body.pendingExpenseMonth === "string") {
+      return NextResponse.json({ ok: true, ...await archivePendingStaffExpenses(createAdminClient(), body.pendingExpenseMonth) });
+    }
     const result = await syncStaffFinanceDocuments({ client: createAdminClient(), from: body.from, to: body.to });
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {
