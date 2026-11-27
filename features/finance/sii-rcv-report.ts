@@ -20,10 +20,22 @@ export async function loadRcvReport(period: string): Promise<RcvReportRow[]> {
   const request = createAdminClient().rpc("sii_rcv_period_documents" as never, {
     p_company: siiCompanyRut, p_start: start, p_end: end,
   } as never, { count: "exact" });
-  const { data, count, error } = await request;
+  const [{ data, count, error }, categories] = await Promise.all([
+    request,
+    createAdminClient().rpc("sii_rcv_purchase_category_report" as never, {
+      p_company: siiCompanyRut, p_start: start, p_end: end,
+    } as never, { count: "exact" }),
+  ]);
   const rows = (data ?? []) as RcvReportRow[];
   if (error || count === null || count > rows.length) throw new Error("El registro SII del período no se pudo recuperar completo.");
-  return rows;
+  if (categories.error || categories.count === null || categories.count > (categories.data?.length ?? 0)) {
+    throw new Error("No se pudieron consultar las categorías administrativas.");
+  }
+  const mapped = new Map(((categories.data ?? []) as { document_key: string; category: string }[])
+    .map(item => [item.document_key, item.category]));
+  return rows.map(row => row.register === "Compras"
+    ? { ...row, expense_category: mapped.get(row.snapshot.key) ?? row.expense_category }
+    : row);
 }
 
 export function summarizeRcvAmounts(rows: RcvReportRow[]) {
