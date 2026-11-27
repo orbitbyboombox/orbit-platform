@@ -5,8 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { customerPurchaseOrderDriveFileName } from "@/features/commercial-documents/customer-purchase-order.model";
 import { eventDigitalPhotoTemplateDriveFileName } from "@/features/event-digital-photo-template/model";
 import { photoStripDriveFileName } from "@/features/photo-strip-design/model";
-import { loadGoogleWorkspaceAccessToken } from "../../google-workspace/application/google-workspace.repository";
-import { GoogleDriveApiProvider } from "../provider/google-drive-live.provider";
+import { loadReservationDriveProvider } from "./reservation-drive-provider";
 import { archiveVerifiedDriveFile } from "./google-drive-document-routing.service";
 import { resolveAutomaticDestination } from "./google-drive-folder-strategy";
 import type { GoogleDriveDocumentKind } from "../types/google-drive-live.types";
@@ -86,7 +85,7 @@ export async function recoverPendingEventDocuments(input: {
   const documents = (data ?? []) as RecoverableDocument[];
   const failures: Array<{ documentId: string; type: string; reason: string }> = [];
   if (!documents.length) return { synced: 0, reused: 0, pending: (count ?? 0) + (linkedPending ?? 0), linkedPending: linkedPending ?? 0, failures };
-  const provider = new GoogleDriveApiProvider(await loadGoogleWorkspaceAccessToken());
+  const { provider } = await loadReservationDriveProvider();
   let synced = 0;
   let reused = 0;
   for (const document of documents) {
