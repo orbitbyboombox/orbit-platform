@@ -9,8 +9,8 @@ const telemetry = fs.readFileSync("app/api/client-errors/route.ts", "utf8");
 const reservationDrawer = fs.readFileSync("features/projects/components/new-project-drawer.tsx", "utf8");
 
 test("resilient sync service worker is public and not redirected to auth", () => {
-  assert.match(middleware, /orbit-resilient-sync-sw\.js/);
-  assert.match(middleware, /api\/client-errors/);
+  assert.match(middleware, /pathname === "\/orbit-resilient-sync-sw\.js"\) return NextResponse\.next\(\)/);
+  assert.ok(fs.existsSync("public/orbit-resilient-sync-sw.js"));
 });
 
 test("error boundaries report sanitized telemetry and offer recovery", () => {
