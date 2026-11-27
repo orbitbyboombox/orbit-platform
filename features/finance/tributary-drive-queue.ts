@@ -74,9 +74,13 @@ export async function processTributaryDriveQueue() {
           || doc.project_id !== row.project_id || doc.customer_id !== row.customer_id || doc.mime_type !== "application/pdf") {
           throw new Error("El respaldo externo no cumple los requisitos de archivo automático.");
         }
+        const expectedChecksum = doc.checksum;
+        if (!expectedChecksum || !/^[a-f0-9]{64}$/i.test(expectedChecksum)) {
+          throw new Error("El PDF original no tiene una huella SHA-256 verificable.");
+        }
         const targetId = doc.drive_file_id;
         folder = await archive.resolveFolder(doc.external_issue_date, doc.external_tax_document_type, "PDF");
-        sync = id => archive.archiveShortcut({ id, parentId: folder, targetId, name: `ORBIT-${doc.id}.pdf` });
+        sync = id => archive.archiveShortcut({ id, parentId: folder, targetId, name: `ORBIT-${doc.id}.pdf`, expectedChecksum });
       }
       if (row.drive_folder_id && row.drive_folder_id !== folder) throw new Error("El destino de Drive cambió durante el reintento.");
       const driveId = row.drive_file_id ?? await archive.reserveId(csv ? "files" : "shortcuts");
