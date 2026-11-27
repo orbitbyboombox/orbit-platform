@@ -9,7 +9,7 @@ import { recordRcvPeriodEvent } from "@/features/finance/sii-rcv-actions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export default async function AccountingPage({ searchParams }: { searchParams: Promise<{ period?: string; year?: string; month?: string; libro?: string; module?: string }> }) {
+export default async function AccountingPage({ searchParams }: { searchParams: Promise<{ period?: string; year?: string; month?: string; libro?: string; module?: string; page?: string; issued?: string; type?: string; category?: string; match?: string; document?: string }> }) {
   const client = await createSupabaseServerClient();
   const { data: { user } } = await client.auth.getUser();
   if (!user) notFound();
@@ -135,7 +135,7 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
           {period.length === 7 && !closed && !periodEvents.error && <SiiReceivedFeeForm period={period} />}
         </>}
       </section>}
-      {(activeModule === "importar" || (showRcv && activeModule !== "home")) && (rows === null ? <p role="alert">El registro guardado no se pudo cargar.</p> : <SiiRcvPreview key={`${period}-${activeModule}`} saved={saved} categoryPeriod={period.length === 7 && !closed && !periodEvents.error ? period : undefined} initialBook={selected.libro === "ventas" ? "Ventas" : "Compras"} mode={activeModule === "importar" ? "import" : "book"} /> )}
+      {(activeModule === "importar" || (showRcv && activeModule !== "home")) && (rows === null ? <p role="alert">El registro guardado no se pudo cargar.</p> : <SiiRcvPreview key={`${period}-${activeModule}`} bookPeriod={period} initialPage={/^[1-9]\d{0,3}$/.test(selected.page ?? "") ? Number(selected.page) : 1} initialMonth={/^\d{4}-(0[1-9]|1[0-2])$/.test(selected.issued ?? "") ? selected.issued : ""} initialType={typeof selected.type === "string" ? selected.type.slice(0,120) : ""} initialCategory={typeof selected.category === "string" ? selected.category.slice(0,40) : ""} initialMatch={["MATCHED","PENDING","AMBIGUOUS"].includes(selected.match ?? "") ? selected.match : ""} initialDocument={/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(selected.document ?? "") ? selected.document : ""} saved={saved} categoryPeriod={period.length === 7 && !closed && !periodEvents.error ? period : undefined} initialBook={selected.libro === "ventas" ? "Ventas" : "Compras"} mode={activeModule === "importar" ? "import" : "book"} /> )}
     </main>
   );
 }
