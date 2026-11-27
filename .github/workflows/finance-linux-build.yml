@@ -1,0 +1,50 @@
+name: Finance candidate Linux build
+
+on:
+  push:
+    branches:
+      - integration/finance-canonical-v218-20261127
+  pull_request:
+    branches:
+      - release/finance-staff-v217-20261115
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Ubuntu Node 22.13 build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Setup Node 22.13
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.0'
+
+      - name: Install pnpm
+        run: npm install --global pnpm@10.28.0
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Verify checked-out SHA
+        run: |
+          expected_sha="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "$expected_sha"
+          echo "BUILD_SHA=$expected_sha"
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build Next.js
+        run: pnpm build
