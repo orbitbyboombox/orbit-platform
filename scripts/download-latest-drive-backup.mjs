@@ -11,7 +11,8 @@ await mkdir(output, { recursive: true });
 const auth = new google.auth.GoogleAuth({ scopes: ["https://www.googleapis.com/auth/drive.readonly"] });
 const drive = google.drive({ version: "v3", auth });
 const folders = await drive.files.list({ q: `'${parentId}' in parents and trashed = false and mimeType = 'application/vnd.google-apps.folder'`, fields: "nextPageToken,files(id,name,createdTime)", orderBy: "createdTime desc", pageSize: 100, supportsAllDrives: true, includeItemsFromAllDrives: true, corpora: "allDrives" });
-const folder = (folders.data.files ?? []).find((item) => /^ORBIT Supabase backup /.test(item.name ?? ""));
+const requestedId = process.env.ORBIT_RESTORE_FOLDER_ID;
+const folder = (folders.data.files ?? []).find((item) => /^ORBIT Supabase backup /.test(item.name ?? "") && (!requestedId || item.id === requestedId));
 if (!folder?.id) throw new Error("No backup folder available for isolated restore");
 const files = await drive.files.list({ q: `'${folder.id}' in parents and trashed = false`, fields: "nextPageToken,files(id,name,size)", pageSize: 100, supportsAllDrives: true, includeItemsFromAllDrives: true, corpora: "allDrives" });
 for (const file of files.data.files ?? []) {

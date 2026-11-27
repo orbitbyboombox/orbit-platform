@@ -1,18 +1,14 @@
 name: ORBIT Supabase backup
 
 on:
-  schedule:
-    - cron: "0 4 * * *"
-  push:
-    branches:
-      - feat/orbit-admin-backups-v218-20261117
-    paths:
-      - ".github/workflows/orbit-supabase-backup.yml"
-      - "scripts/**"
   workflow_dispatch:
     inputs:
       confirmation:
         description: "Type BACKUP-ORBIT-2.1 to confirm a production read-only backup"
+        required: true
+        type: string
+      restore_folder_id:
+        description: "Exact encrypted Drive backup folder ID to verify without writing a new backup"
         required: true
         type: string
       backup_run_id:
@@ -30,7 +26,7 @@ concurrency:
 
 jobs:
   backup:
-    if: ${{ github.event_name == 'push' || github.event_name == 'schedule' || inputs.confirmation == 'BACKUP-ORBIT-2.1' }}
+    if: ${{ inputs.confirmation == 'BACKUP-ORBIT-2.1' && inputs.restore_folder_id != '' }}
     runs-on: ubuntu-24.04
     environment: orbit-backup-production
     timeout-minutes: 120
@@ -48,15 +44,11 @@ jobs:
           --health-timeout 5s
           --health-retries 12
     env:
-      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
       GOOGLE_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
       GOOGLE_SERVICE_ACCOUNT: ${{ vars.GOOGLE_SERVICE_ACCOUNT }}
       BACKUP_KIND: full
       GOOGLE_DRIVE_PARENT_FOLDER_ID: "0AGRNujUa7zHEUk9PVA"
-      BACKUP_RUN_ID: ${{ inputs.backup_run_id }}
 
     steps:
       - name: Checkout exact backup source
@@ -76,81 +68,6 @@ jobs:
       - name: Install application dependencies
         run: corepack enable && pnpm install --frozen-lockfile --ignore-scripts
 
-      - name: Register backup run
-        run: node scripts/orbit-backup-run.mjs ensure "${BACKUP_RUN_ID:-}"
-
-      - name: Prepare temporary workspace
-        shell: bash
-        run: |
-          set -euo pipefail
-          umask 077
-          mkdir -p "$RUNNER_TEMP/orbit-backup/storage"
-          test -n "$SUPABASE_DB_URL"
-          test -n "$SUPABASE_URL"
-          test -n "$SUPABASE_SERVICE_ROLE_KEY"
-          test -n "$BACKUP_ENCRYPTION_PASSPHRASE"
-          test -n "$GOOGLE_WORKLOAD_IDENTITY_PROVIDER"
-          test -n "$GOOGLE_SERVICE_ACCOUNT"
-          test -n "$GOOGLE_DRIVE_PARENT_FOLDER_ID"
-
-      - name: Prepare Supabase session pooler connection
-        shell: bash
-        env:
-          SOURCE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import os
-          from urllib.parse import quote, unquote, urlsplit
-          from pathlib import Path
-          source = urlsplit(os.environ["SOURCE_DB_URL"])
-          user = unquote(source.username or "")
-          password = unquote(source.password or "")
-          if not user or password is None or not source.path:
-              raise SystemExit("Supabase database URL format is invalid")
-          auth = quote(user, safe="") + ".uiwlcmbrowtmqwhnsnxz:" + quote(password, safe="")
-          value = f"postgresql://{auth}@aws-1-us-west-2.pooler.supabase.com:5432{source.path}"
-          if source.query:
-              value += "?" + source.query
-          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as output:
-              output.write("SUPABASE_DB_URL=" + value + "\n")
-          PY
-
-      - name: Export database schema and data
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker run --rm --network host -v "$RUNNER_TEMP/orbit-backup:/backup" -e SUPABASE_DB_URL postgres:17 sh -c 'pg_dump --dbname="$SUPABASE_DB_URL" --no-owner --no-acl --schema=public --schema=auth --schema=storage --format=plain --file=/backup/database-schema.sql'
-          docker run --rm --network host -v "$RUNNER_TEMP/orbit-backup:/backup" -e SUPABASE_DB_URL postgres:17 sh -c 'pg_dump --dbname="$SUPABASE_DB_URL" --no-owner --no-acl --data-only --schema=public --schema=auth --schema=storage --format=plain --file=/backup/database-data.sql'
-          git archive --format=tar "$GITHUB_SHA" | gzip -9 > "$RUNNER_TEMP/orbit-backup/source-code.tar.gz"
-
-      - name: Export Storage objects and checksums
-        run: |
-          node scripts/export-supabase-storage.mjs \
-            "$RUNNER_TEMP/orbit-backup/storage" \
-            "$RUNNER_TEMP/orbit-backup/storage-manifest.json"
-
-      - name: Create encrypted archives and manifest
-        shell: bash
-        run: |
-          set -euo pipefail
-          umask 077
-          work="$RUNNER_TEMP/orbit-backup"
-          tar -czf "$work/storage.tar.gz" -C "$work/storage" .
-          for source in database-schema.sql database-data.sql storage.tar.gz storage-manifest.json source-code.tar.gz; do
-            printf '%s' "$BACKUP_ENCRYPTION_PASSPHRASE" | openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt \
-              -pass stdin -in "$work/$source" -out "$work/$source.enc"
-          done
-          rm -f "$work/database-schema.sql" "$work/database-data.sql" "$work/storage.tar.gz"
-          node scripts/write-backup-manifest.mjs "$work" "$GITHUB_SHA"
-          printf '%s' "$BACKUP_ENCRYPTION_PASSPHRASE" | openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt \
-            -pass stdin -in "$work/backup-manifest.json" -out "$work/backup-manifest.json.enc"
-          rm -f "$work/backup-manifest.json" "$work/storage-manifest.json"
-          sha256sum "$work"/*.enc > "$work/sha256sums.txt"
-          printf '%s' "$BACKUP_ENCRYPTION_PASSPHRASE" | openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt \
-            -pass stdin -in "$work/sha256sums.txt" -out "$work/sha256sums.txt.enc"
-          rm -f "$work/sha256sums.txt"
-
       - name: Authenticate to Google Drive using GitHub OIDC
         uses: google-github-actions/auth@v3
         with:
@@ -159,14 +76,15 @@ jobs:
           create_credentials_file: true
           export_environment_variables: true
 
-      - name: Upload encrypted backup to restricted Drive folder
+      - name: Install Drive client
         run: |
           mkdir -p "$RUNNER_TEMP/orbit-drive-deps"
           npm install --prefix "$RUNNER_TEMP/orbit-drive-deps" --no-package-lock googleapis@144.0.0
           ln -s "$RUNNER_TEMP/orbit-drive-deps/node_modules/googleapis" node_modules/googleapis
-          node scripts/upload-drive-backup.mjs "$RUNNER_TEMP/orbit-backup" > "$RUNNER_TEMP/orbit-backup/drive-upload-result.json"
 
       - name: Download uploaded backup from Drive for isolated recovery validation
+        env:
+          ORBIT_RESTORE_FOLDER_ID: ${{ inputs.restore_folder_id }}
         run: node scripts/download-latest-drive-backup.mjs "$RUNNER_TEMP/orbit-restore"
 
       - name: Verify Drive readback, hashes, source, and Storage contents
@@ -188,23 +106,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          docker run --rm --network host -e PGPASSWORD=orbit-restore-only postgres:17 sh -c 'psql -h 127.0.0.1 -U postgres -d orbit_restore -v ON_ERROR_STOP=1 -c "CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN; CREATE ROLE service_role NOLOGIN; CREATE ROLE supabase_auth_admin NOLOGIN; CREATE ROLE supabase_storage_admin NOLOGIN; CREATE ROLE authenticator NOLOGIN; DROP SCHEMA IF EXISTS public CASCADE; CREATE EXTENSION IF NOT EXISTS btree_gist;"'
+          docker run --rm --network host -e PGPASSWORD=orbit-restore-only postgres:17 sh -c 'psql -h 127.0.0.1 -U postgres -d orbit_restore -v ON_ERROR_STOP=1 -c "CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN; CREATE ROLE service_role NOLOGIN; CREATE ROLE supabase_auth_admin NOLOGIN; CREATE ROLE supabase_storage_admin NOLOGIN; CREATE ROLE authenticator NOLOGIN; DROP SCHEMA IF EXISTS public CASCADE; CREATE EXTENSION IF NOT EXISTS btree_gist WITH SCHEMA pg_catalog;"'
           docker run --rm --network host -v "$RUNNER_TEMP/orbit-restore:/restore:ro" -e PGPASSWORD=orbit-restore-only postgres:17 sh -c 'psql -h 127.0.0.1 -U postgres -d orbit_restore -v ON_ERROR_STOP=1 -f /restore/database-schema.sql && psql -h 127.0.0.1 -U postgres -d orbit_restore -v ON_ERROR_STOP=1 -f /restore/database-data.sql'
           docker run --rm --network host -e PGPASSWORD=orbit-restore-only postgres:17 sh -c 'psql -h 127.0.0.1 -U postgres -d orbit_restore -v ON_ERROR_STOP=1 -c "SELECT count(*) AS auth_users_restored FROM auth.users;" -c "SELECT count(*) AS storage_objects_restored FROM storage.objects;" -c "SELECT count(*) AS staff_rows_restored FROM public.staff;"'
 
       # Official backup certification 2026-11-19: preserve all prior backups.
       # rotate-drive-backups is intentionally suspended pending isolated restore verification.
-
-      - name: Record backup success
-        if: ${{ success() }}
-        env:
-          BACKUP_RESULT_FILE: ${{ runner.temp }}/orbit-backup/drive-upload-result.json
-        run: node scripts/orbit-backup-run.mjs complete
-
-      - name: Record backup failure
-        if: ${{ failure() }}
-        continue-on-error: true
-        run: node scripts/orbit-backup-run.mjs error
 
       - name: Cleanup temporary backup material
         if: always()
