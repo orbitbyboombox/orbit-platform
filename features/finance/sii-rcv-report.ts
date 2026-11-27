@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { parseSiiRcv } from "./sii-rcv";
 
 type Document = ReturnType<typeof parseSiiRcv>["documents"][number];
-export type RcvReportRow = { register: "Compras" | "Ventas"; snapshot: Document; has_difference: boolean };
+export type RcvReportRow = { register: "Compras" | "Ventas"; snapshot: Document; has_difference: boolean; expense_category: string | null };
 export const siiCompanyRut = "765652723";
 
 export function periodBounds(period: string) {
