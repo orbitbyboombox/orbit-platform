@@ -1,3 +1,4 @@
+import { withDriveReconciliationLease } from "@/features/connectors/google-drive/application/drive-reconciliation-lease";
 import"server-only";import{createHash}from"node:crypto";import type{SupabaseClient}from"@supabase/supabase-js";import{loadCompanySettings}from"@/features/company-settings";import{loadGoogleWorkspaceAccessToken}from"@/features/connectors/google-workspace/application/google-workspace.repository";import{GoogleDriveApiProvider}from"@/features/connectors/google-drive/provider/google-drive-live.provider";
 const MONTHS=["01_ENERO","02_FEBRERO","03_MARZO","04_ABRIL","05_MAYO","06_JUNIO","07_JULIO","08_AGOSTO","09_SEPTIEMBRE","10_OCTUBRE","11_NOVIEMBRE","12_DICIEMBRE"];
 // Keep the live archive bound to its physical ID during the move under 02_STAFF.
@@ -46,11 +47,27 @@ async function verifyStaffArchiveFile(token:string,id:string,parentId:string,nam
     throw new Error("El respaldo de Staff no coincide con el original, destino o privacidad esperados.");
   }
 }
-export async function syncStaffDocumentArchive(client:SupabaseClient,documentId:string){const[{data:doc,error},{driveRootFolder}]=await Promise.all([client.from("staff_onboarding_documents").select("id,staff_id,category,applicable_month,storage_bucket,storage_path,file_name,mime_type,drive_file_id,staff!inner(first_name,last_name)").eq("id",documentId).eq("status","ACTIVE").single(),loadCompanySettings(client)]);if(error)throw error;if(doc.drive_file_id)return{status:"SKIPPED",driveFileId:doc.drive_file_id};const staff=Array.isArray(doc.staff)?doc.staff[0]:doc.staff,name=`${staff.first_name} ${staff.last_name}`,root=driveRootFolder||"ORBIT",base=[root,"STAFF","OPERADORES",`${doc.staff_id} — ${name}`],category=doc.category==="IDENTIDAD"?"01_DATOS_IDENTIDAD":doc.category==="CONTRATOS"?"02_CONTRATOS":doc.category==="BOLETAS"?"03_BOLETAS_HONORARIOS":doc.category==="LIQUIDACIONES"?"04_LIQUIDACIONES":doc.category==="PAGOS"?"05_COMPROBANTES_PAGO":doc.category==="GASTOS"?"06_GASTOS_REEMBOLSOS":"07_OTROS",month=doc.applicable_month?String(doc.applicable_month).slice(0,7):null,parts=[...base,category,...(month?[month.slice(0,4),MONTHS[Number(month.slice(5,7))-1]]:[])],token=await loadGoogleWorkspaceAccessToken(),provider=new GoogleDriveApiProvider(token),archive=root==="BOOMBOX ORBIT"?await resolveBoomBoxArchive(provider):null;
+export async function syncStaffDocumentArchive(client: SupabaseClient, documentId: string) {
+  const { data, error } = await client.from("staff_onboarding_documents").select("drive_file_id")
+    .eq("id", documentId).eq("status", "ACTIVE").single();
+  if (error) throw error;
+  if (data.drive_file_id) return { status: "SKIPPED", driveFileId: data.drive_file_id };
+  return withDriveReconciliationLease("staff-document-archive", () => archiveStaffDocument(client, documentId));
+}
+async function archiveStaffDocument(client:SupabaseClient,documentId:string){const[{data:doc,error},{driveRootFolder}]=await Promise.all([client.from("staff_onboarding_documents").select("id,staff_id,category,applicable_month,storage_bucket,storage_path,file_name,mime_type,drive_file_id,staff!inner(first_name,last_name)").eq("id",documentId).eq("status","ACTIVE").single(),loadCompanySettings(client)]);if(error)throw error;if(doc.drive_file_id)return{status:"SKIPPED",driveFileId:doc.drive_file_id};const staff=Array.isArray(doc.staff)?doc.staff[0]:doc.staff,name=`${staff.first_name} ${staff.last_name}`,root=driveRootFolder||"ORBIT",base=[root,"STAFF","OPERADORES",`${doc.staff_id} — ${name}`],category=doc.category==="IDENTIDAD"?"01_DATOS_IDENTIDAD":doc.category==="CONTRATOS"?"02_CONTRATOS":doc.category==="BOLETAS"?"03_BOLETAS_HONORARIOS":doc.category==="LIQUIDACIONES"?"04_LIQUIDACIONES":doc.category==="PAGOS"?"05_COMPROBANTES_PAGO":doc.category==="GASTOS"?"06_GASTOS_REEMBOLSOS":"07_OTROS",month=doc.applicable_month?String(doc.applicable_month).slice(0,7):null,parts=[...base,category,...(month?[month.slice(0,4),MONTHS[Number(month.slice(5,7))-1]]:[])],token=await loadGoogleWorkspaceAccessToken(),provider=new GoogleDriveApiProvider(token),archive=root==="BOOMBOX ORBIT"?await resolveBoomBoxArchive(provider):null;
 if(!archive)throw new Error("No se pudo verificar la raíz privada de Staff.");
 const {data:blob,error:downloadError}=await client.storage.from(doc.storage_bucket).download(doc.storage_path);
 if(downloadError||!blob||!blob.size)throw new Error("Original Storage no disponible o vacío.");
 const bytes=new Uint8Array(await blob.arrayBuffer());
+const signature = Buffer.from(bytes.subarray(0, 8));
+const originalType = signature.subarray(0, 5).equals(Buffer.from("%PDF-")) ? "application/pdf"
+  : signature.equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) ? "image/png"
+  : signature.subarray(0, 3).equals(Buffer.from([255, 216, 255])) ? "image/jpeg"
+  : signature.subarray(0, 4).equals(Buffer.from("RIFF")) && Buffer.from(bytes.subarray(8, 12)).equals(Buffer.from("WEBP")) ? "image/webp"
+  : null;
+if (bytes.byteLength !== blob.size || originalType !== doc.mime_type) {
+  throw new Error("El tamaño o el tipo binario no coinciden con el original de Staff.");
+}
 const expectedChecksum=createHash("sha256").update(bytes).digest("hex");
 const folderId=await resolvePath(provider,parts.slice(3),archive.id);
 await provider.readPrivateFolder(folderId);
