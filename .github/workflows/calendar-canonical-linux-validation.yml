@@ -108,6 +108,10 @@ jobs:
           for name in ('0055_manual_reservation_crm_lookup.sql', '0056_reservation_execution_diagnostics.sql'):
               path = Path('supabase/migrations') / name
               if path.exists(): path.unlink()
+          # This unrelated legacy email migration only redefines the same
+          # reservation function with the prepared-statement-incompatible body.
+          path = Path('supabase/migrations/0166_secondary_email_cc_support.sql')
+          if path.exists(): path.unlink()
           source = Path('features/portal-authentication/paper-block-storage.sql').read_text()
           Path('supabase/migrations/20261105112900_staff_paper_block_closeouts_schema.sql').write_text(source)
           path = Path('supabase/migrations/20260916104753_office_lease_september_initial_income.sql')
