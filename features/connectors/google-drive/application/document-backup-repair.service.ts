@@ -40,7 +40,6 @@ const OWNER_REPAIR_EVENT_FOLDER_ID = "1npmNGaTjuPFXVhm4hiGbs43ecVLf7Qd6";
 const DOCUMENT_FOLDER: Record<string, string> = {
   COMMERCIAL_DOCUMENT: "03_Cotizaciones",
   PAYMENT_RECEIPT: "02_Comprobantes",
-  STAFF_EXPENSE_RECEIPT: "02_Comprobantes",
 };
 
 const baseName = (path: string) => path.split("/").at(-1) || "documento";
@@ -62,7 +61,7 @@ function asProject(value: unknown): { name: string | null; event_date: string | 
 }
 
 async function loadPendingDocuments(client: SupabaseClient, documentIds?: readonly string[]): Promise<RepairDocument[]> {
-  let query = client.from("documents").select("id,project_id,document_type,storage_bucket,storage_path,checksum,original_filename,mime_type,file_size,drive_file_id,projects(name,event_date)").is("drive_file_id", null).is("deleted_at", null);
+  let query = client.from("documents").select("id,project_id,document_type,storage_bucket,storage_path,checksum,original_filename,mime_type,file_size,drive_file_id,projects(name,event_date)").is("drive_file_id", null).is("deleted_at", null).neq("document_type", "STAFF_EXPENSE_RECEIPT");
   if (documentIds?.length) query = query.in("id", [...new Set(documentIds)]);
   const { data, error } = await query;
   if (error) throw error;

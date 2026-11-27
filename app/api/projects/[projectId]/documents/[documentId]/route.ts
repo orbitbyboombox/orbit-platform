@@ -27,7 +27,8 @@ export async function GET(
       .single();
     if (error || !document)
       return NextResponse.json({ message: "Documento no encontrado." }, { status: 404 });
-    if (document.document_type === "PHOTO_STRIP_DESIGN" && !["CEO", "ADMINISTRATOR"].includes(profile.role))
+    const isRestrictedDocument = ["PHOTO_STRIP_DESIGN", "STAFF_EXPENSE_RECEIPT"].includes(document.document_type);
+    if (isRestrictedDocument && !["CEO", "ADMINISTRATOR"].includes(profile.role))
       return NextResponse.json({ message: "Acceso denegado." }, { status: 403 });
     const downloaded = await client.storage
       .from(document.storage_bucket || "orbit-documents")
