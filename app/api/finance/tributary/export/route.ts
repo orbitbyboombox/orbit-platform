@@ -3,7 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import ExcelJS from "exceljs";
 import JSZip from "jszip";
 import { loadReceivedFees, receivedFeeReview } from "@/features/finance/sii-received-fees";
-import { loadRcvReport } from "@/features/finance/sii-rcv-report";
+import { loadRcvReport, rcvEvidenceLabel } from "@/features/finance/sii-rcv-report";
 import { loadMonthlyAccountingStaff, readMonthlyAccountingAttachments } from "@/features/finance/monthly-accounting-staff";
 
 export async function GET(request: Request) {
@@ -72,10 +72,11 @@ export async function GET(request: Request) {
       const [rcv, fees] = await Promise.all([loadRcvReport(period), loadReceivedFees(period)]);
       const rcvSheets = (["Compras", "Ventas"] as const).map(register => ({
         title: `RCV SII ${register}`,
-        headers: ["tipo", "folio", "fecha", "rut", "razon_social", "neto", "exento", "iva_informado", "iva_no_recuperable", "impuestos_adicionales", "total", "categoria_gasto", "revision"],
-        rows: rcv.filter(item => item.register === register).map(({ snapshot: d, has_difference, expense_category }) => [
+        headers: ["tipo", "folio", "fecha", "rut", "razon_social", "neto", "exento", "iva_informado", "iva_no_recuperable", "impuestos_adicionales", "total", "categoria_gasto", "revision", "coincidencia_interna", "pagado_interno", "saldo_interno", "evento_orbit"],
+        rows: rcv.filter(item => item.register === register).map(({ snapshot: d, has_difference, expense_category, evidence }) => [
           d.type, d.folio, d.issued, d.rut, d.company, d.net, d.exempt, d.vat, d.nonRecoverableVat,
           d.otherTaxes.join(" + "), d.total, expense_category ?? "", has_difference ? "Diferencia pendiente" : "Importado para revisión",
+          rcvEvidenceLabel(evidence), evidence?.paid ?? null, evidence?.balance ?? null, evidence?.project_id ?? "",
         ]),
       }));
       const feeSheet = {
