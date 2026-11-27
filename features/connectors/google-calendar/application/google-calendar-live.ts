@@ -236,7 +236,6 @@ export class GoogleCalendarLive {
       if (existing.sourceFingerprint === fingerprint(input) && existing.status === "SYNCHRONIZED") {
         // A local fingerprint match does not prove the remote operational block is correct.
         // Verify Google Calendar before declaring this event unchanged.
-        await verifyRemoteStart(this.provider, existing.googleEventId, input);
         const remote = await this.provider.getEvent(existing.googleEventId);
         // A matching in-memory fingerprint must not conceal a persisted divergence.
         // Reconcile through the guarded update path rather than reporting a false PASS.
@@ -247,6 +246,7 @@ export class GoogleCalendarLive {
           // and Google supplies concurrency metadata. Never overwrite a manual edit.
           if (remote.description === payload.description && remote.summary === payload.title
             && remote.etag && remote.updated) {
+            await verifyRemoteStart(this.provider, existing.googleEventId, input);
             const canonicalHash = fingerprint(input);
             const record = await this.repository.save({
               ...existing,
@@ -293,6 +293,7 @@ export class GoogleCalendarLive {
           });
           return { ok: true, record, operation: "UPDATED" };
         }
+        await verifyRemoteStart(this.provider, existing.googleEventId, input);
         return { ok: true, record: existing, operation: "UNCHANGED" };
       }
       // Reconcile a stale local sync marker without rewriting a remote event when
