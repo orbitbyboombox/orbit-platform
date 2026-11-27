@@ -51,14 +51,16 @@ test("the Drive provider has no permanent delete operation", () => {
   assert.doesNotMatch(provider, /deleteFile|method:\s*"DELETE"/);
 });
 
-test("Event 360 Drive recovery routes each current event document type", () => {
+test("Event 360 Drive recovery routes event documents and excludes private Staff receipts", () => {
   const recovery = source(prefix + "application/event-document-recovery.service.ts");
   for (const type of [
     "COMMERCIAL_DOCUMENT", "CUSTOMER_PURCHASE_ORDER", "DESIGN", "EVENT_DIGITAL_PHOTO_TEMPLATE",
-    "EXTERNAL_TAX_DOCUMENT", "PAYMENT_RECEIPT", "PHOTO_STRIP_DESIGN", "SIGNED_AGREEMENT", "STAFF_EXPENSE_RECEIPT",
+    "EXTERNAL_TAX_DOCUMENT", "PAYMENT_RECEIPT", "PHOTO_STRIP_DESIGN", "SIGNED_AGREEMENT", "PHOTOGRAPH", "VIDEO",
   ]) {
     assert.match(recovery, new RegExp(`\\["${type}", "`));
   }
+  assert.doesNotMatch(recovery, /\["STAFF_EXPENSE_RECEIPT", "/);
+  assert.equal(recovery.match(/\.neq\("document_type", "STAFF_EXPENSE_RECEIPT"\)/g)?.length, 2);
   assert.match(button, /recoverPendingEventDocuments\(/);
 });
 
