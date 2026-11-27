@@ -8,10 +8,10 @@ const source = readFileSync('app/api/staff-portal/events/[projectId]/print-instr
 const code = ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText;
 const id = '12345678-1234-1234-1234-123456789abc';
 function fixture({staff='one',assigned=true,contract=null,error=false}:{staff?:string|null;assigned?:boolean;contract?:unknown;error?:boolean}={}) {
-  const calls:any[]=[];
-  const admin={from(table:string){const filters:any[]=[];calls.push({table,filters});const chain:any={};for(const method of ['select','eq','is','not','limit','order'])chain[method]=(...args:any[])=>{filters.push([method,...args]);return chain;};chain.maybeSingle=()=>Promise.resolve({data:contract,error:null});chain.then=(resolve:any)=>resolve({data:table==='assignments'?(assigned?[{id:'assignment'}]:[]):[],error:error?{}:null});return chain;}};
-  const exports:any={};
-  new Function('require','exports',code)((name:string)=>name==='next/server'?{NextResponse:{json:(body:any,options:any)=>({body,...options,status:options.status??200})}}:name.includes('admin')?{createAdminClient:()=>admin}:{loadPortalSession:async()=>staff?{staff_id:staff}:null},exports);
+  const calls: { table: string; filters: [string, ...unknown[]][] }[]=[];
+  const admin={from(table:string){const filters: [string, ...unknown[]][]=[];calls.push({table,filters});const chain: Record<string, (...args: never[]) => unknown>={};for(const method of ['select','eq','is','not','limit','order'])chain[method]=(...args:unknown[])=>{filters.push([method,...args]);return chain;};chain.maybeSingle=()=>Promise.resolve({data:contract,error:null});chain.then=(resolve: (result: { data: { id: string }[]; error: object | null }) => unknown)=>resolve({data:table==='assignments'?(assigned?[{id:'assignment'}]:[]):[],error:error?{}:null});return chain;}};
+  const exports = {} as { GET: (request: Request, context: { params: Promise<{ projectId: string }> }) => Promise<{ status: number; body: Record<string, unknown>; headers: Record<string, string> }> };
+  new Function('require','exports',code)((name:string)=>name==='next/server'?{NextResponse:{json:(body: unknown,options: ResponseInit)=>({body,...options,status:options.status??200})}}:name.includes('admin')?{createAdminClient:()=>admin}:{loadPortalSession:async()=>staff?{staff_id:staff}:null},exports);
   return {get:()=>exports.GET(new Request('http://localhost'),{params:Promise.resolve({projectId:id})}),calls};
 }
 test('anonymous and unrelated staff cannot read instructions',async()=>{
@@ -23,9 +23,9 @@ test('each assigned operator gets latest canonical notes, styles and no-store',a
     const note='Línea 1\n'+ 'Texto completo '.repeat(60);
     const f=fixture({staff,contract:{photo_style:style,operator_print_notes:note}});const r=await f.get();
     assert.equal(r.status,200);assert.equal(r.body.photoStyle,style);assert.equal(r.body.operatorNote,note);assert.match(r.headers['Cache-Control'],/no-store/);
-    assert.ok(f.calls[0].filters.some((x:any)=>x[0]==='eq'&&x[1]==='staff_id'&&x[2]===staff));
-    assert.ok(f.calls[0].filters.some((x:any)=>x[0]==='is'&&x[1]==='deleted_at'));
-    assert.ok(f.calls[0].filters.some((x:any)=>x[0]==='not'&&x[1]==='status'&&x[3].includes('REJECTED')));
+    assert.ok(f.calls[0].filters.some((x)=>x[0]==='eq'&&x[1]==='staff_id'&&x[2]===staff));
+    assert.ok(f.calls[0].filters.some((x)=>x[0]==='is'&&x[1]==='deleted_at'));
+    assert.ok(f.calls[0].filters.some((x)=>x[0]==='not'&&x[1]==='status'&&String(x[3]).includes('REJECTED')));
     assert.deepEqual(f.calls.map(x=>x.table),['assignments','project_operational_contracts','event_paper_snapshots']);
   }
 });

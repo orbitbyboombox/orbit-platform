@@ -1,4 +1,4 @@
-import { renderBoomboxCommercialEmail } from "./boombox-commercial-email.html";
+import { renderBoomboxCommercialEmail } from "./boombox-commercial-email.html.ts";
 
 export const TAX_DOCUMENT_DELIVERY_TYPE = "TAX_DOCUMENT_DELIVERY";
 export const TAX_DOCUMENT_DELIVERY_RENDERER_VERSION = "TAX_DOCUMENT_DELIVERY_V1";

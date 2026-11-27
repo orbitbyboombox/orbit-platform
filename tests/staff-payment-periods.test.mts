@@ -1,18 +1,11 @@
+import { PGlite } from "@electric-sql/pglite";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 // Execute the real migration in an isolated PostgreSQL engine. The fixture supplies
 // existing table contracts and a deterministic canonical financial source.
-// ORBIT_PGLITE_MODULE points to a separately installed @electric-sql/pglite module.
-test("payment period migration, ledgers, tax gates and historical protection", async (context) => {
-  if (!process.env.ORBIT_PGLITE_MODULE) {
-    context.skip(
-      "Set ORBIT_PGLITE_MODULE to run isolated PostgreSQL integration QA.",
-    );
-    return;
-  }
-  const { PGlite } = await import(process.env.ORBIT_PGLITE_MODULE);
+test("payment period migration, ledgers, tax gates and historical protection", async () => {
   const db = new PGlite();
   try {
     await db.exec(`
@@ -64,8 +57,15 @@ create function public.register_staff_monthly_payment(uuid,date,numeric,text,tex
       event3 = "30000000-0000-0000-0000-000000000003";
     const settlement1 = "40000000-0000-0000-0000-000000000001";
     const training = "50000000-0000-0000-0000-000000000001";
-    const query = (sql: string, params: unknown[] = []) =>
-      db.query(sql, params);
+    type Preview = { calculation: { workNet: number; eventCount: number }; remaining: number };
+    type Settlement = { workNet: number; workPaid: number; workPending: number };
+    type FirstIntent = {
+      payload: { period: { period_code: string } };
+      metadata: { email_status: string; payload?: unknown };
+      correlation_id: string;
+    };
+    const query = <Row = Record<string, unknown>>(sql: string, params: unknown[] = []) =>
+      db.query<Row>(sql, params);
     const fail = async (sql: string, match: RegExp, params: unknown[] = []) => {
       await assert.rejects(() => query(sql, params), match);
       console.log("PASS expected rejection", match.source);
@@ -151,12 +151,12 @@ insert into staff_training_assignments values('${training}','${event1}','${s1}',
       "insert into company_settings values('PRIMARY','Empresa QA','1-9','Dirección QA','Santiago')",
     );
     let preview = (
-      await query("select preview_staff_payment_period($1) p", [q1.id])
+      await query<{ p: Preview }>("select preview_staff_payment_period($1) p", [q1.id])
     ).rows[0].p;
     assert.equal(preview.calculation.workNet, 36000);
     assert.equal(preview.calculation.eventCount, 2);
     preview = (
-      await query("select preview_staff_payment_period($1) p", [q2.id])
+      await query<{ p: Preview }>("select preview_staff_payment_period($1) p", [q2.id])
     ).rows[0].p;
     assert.equal(preview.calculation.workNet, 19000);
     assert.equal(preview.calculation.eventCount, 1);
@@ -176,7 +176,7 @@ insert into staff_training_assignments values('${training}','${event1}','${s1}',
       1,
     );
     const firstIntent = (
-      await query(
+      await query<FirstIntent>(
         "select o.payload,n.metadata,n.correlation_id from staff_period_email_outbox o join internal_notifications n on n.id=o.notification_id where o.period_id=$1",
         [q1.id],
       )
@@ -242,11 +242,11 @@ insert into staff_training_assignments values('${training}','${event1}','${s1}',
       12000,
     );
     preview = (
-      await query("select preview_staff_payment_period($1) p", [q1.id])
+      await query<{ p: Preview }>("select preview_staff_payment_period($1) p", [q1.id])
     ).rows[0].p;
     assert.equal(preview.remaining, 0);
     const calc = (
-      await query(
+      await query<{ p: Settlement }>(
         `select calculate_staff_monthly_settlement($1,'2026-10-01') p`,
         [s1],
       )
@@ -289,7 +289,7 @@ insert into staff_training_assignments values('${training}','${event1}','${s1}',
     );
     console.log("PASS Q2 consolidation, monthly boleta gate and paid account");
     const grossTotal = (
-      await query(
+      await query<{ gross: number; retained: number }>(
         "select sum(gross_amount)::int gross,sum(withholding_amount)::int retained from staff_period_payments b join staff_payment_periods p on p.id=b.period_id where p.account_id=$1",
         [q1.account_id],
       )

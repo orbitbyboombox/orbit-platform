@@ -62,7 +62,7 @@ export async function createTributaryDraftAction(input: { projectId: string; dte
     if (!quote) lines = [{ description: project.name || "Servicio BOOMBOX", quantity: 1, unitPrice: Math.round(amount / 1.19), exempt: false }];
     const calculated = calculateTributaryDraft(lines, globalDiscount);
     amount = calculated.totals.total;
-    const relationCustomer = Array.isArray((project as any).customers) ? (project as any).customers[0] : (project as any).customers;
+    const relationCustomer = Array.isArray(project.customers) ? project.customers[0] : project.customers;
     const customerSnapshot = relationCustomer ? { name: relationCustomer.full_name, company: relationCustomer.company, rut: relationCustomer.rut, address: relationCustomer.address, city: relationCustomer.city, email: relationCustomer.email, giro: relationCustomer.metadata?.giro ?? null } : null;
     const key = `PRE-SII|${input.dteType}|${input.projectId}|${quote?.id ?? "none"}`;
     const { data: existing } = await admin.from("tributary_simulations").select("id,status,invoice_number").eq("tributary_draft_key", key).is("deleted_at", null).maybeSingle();

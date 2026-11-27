@@ -9,12 +9,10 @@ import { deliverClaimedD10 } from "./d10-delivery";
 import { resolveCollectionRecipients } from "./collection-recipients";
 
 type Invoice = { id:string; project_id:string|null; customer_id:string|null; invoice_number:string|null; amount:number|null; paid_amount:number|null; outstanding_balance:number|null; due_date:string|null; status:string|null; effective_status:string|null; deleted_at:string|null; archived_at:string|null; cancelled_at:string|null };
-type Row = Record<string, any>;
 const day = (d:Date) => new Intl.DateTimeFormat("en-CA",{timeZone:"America/Santiago",year:"numeric",month:"2-digit",day:"2-digit"}).format(d);
 const hour = (d:Date) => Number(new Intl.DateTimeFormat("en-US",{timeZone:"America/Santiago",hour:"2-digit",hourCycle:"h23"}).format(d));
 const weekday = (d:Date) => new Intl.DateTimeFormat("en-US",{timeZone:"America/Santiago",weekday:"short"}).format(d);
 const blocked = new Set(["PAID","CANCELLED","CANCELED","ARCHIVED","DELETED","VOID"]);
-const first = (v:any) => Array.isArray(v)?v[0]:v;
 // At Wednesday 13:00, only events from the preceding Monday-Sunday qualify.
 const isPreviousWeekEvent = (eventDate:string|null|undefined, today:string) => {
   if (!eventDate || !/^\d{4}-\d{2}-\d{2}$/.test(String(eventDate).slice(0,10))) return false;
@@ -32,7 +30,7 @@ export async function sendOverdueCollections(reference=new Date(), opts:{dryRun?
   if(!ids.length) return {sent:0,failed:0,pending:0,candidates:0};
   const {data:projects,error:projectError}=await admin.from("projects").select("id,customer_id,name,status,event_date,location,city,customers(full_name,email,secondary_email,metadata)").in("id",ids).is("deleted_at",null);
   if(projectError) throw projectError;
-  const projectMap=new Map((projects??[]).map((p:Row)=>[p.id,p]));
+  const projectMap=new Map((projects??[]).map((p)=>[p.id,p]));
   const grouped=new Map<string,Invoice[]>();
   for(const invoice of eligible as Invoice[]) {
     const project=projectMap.get(invoice.project_id!);
@@ -43,7 +41,7 @@ export async function sendOverdueCollections(reference=new Date(), opts:{dryRun?
   let sent=0,failed=0,pending=0,skipped=0;
   for(const invoices of grouped.values()) {
     const project=projectMap.get(invoices[0].project_id!)!;
-    const customer=first(project.customers);
+    const customer=Array.isArray(project.customers) ? project.customers[0] : project.customers;
     const recipients=resolveCollectionRecipients({ commercialEmail: customer?.email, commercialCc: customer?.secondary_email, metadata: customer?.metadata });
     const recipient=recipients.to;
     const balance=invoices.reduce((s,i)=>s+Number(i.outstanding_balance),0);
@@ -60,7 +58,7 @@ export async function sendOverdueCollections(reference=new Date(), opts:{dryRun?
     const dueDate=[...invoices].sort((a,b)=>String(a.due_date).localeCompare(String(b.due_date)))[0].due_date!;
     const draft=buildCollectionEmailDraft({
       invoiceNumber:invoices.map(i=>i.invoice_number).filter(Boolean).join(", ")||"Pendiente",
-      customerName:String(customer.full_name??"Cliente"),customerEmail:recipient,customerSecondaryEmail:recipients.cc[0]??null,
+      customerName:String(customer?.full_name??"Cliente"),customerEmail:recipient,customerSecondaryEmail:recipients.cc[0]??null,
       projectName:String(project.name??"BOOMBOX"),amount:invoices.reduce((s,i)=>s+Number(i.amount??0),0),
       outstandingBalance:balance,dueDate,eventDate:project.event_date??undefined,eventLocation:project.location??undefined,
       service:undefined,eventDuration:undefined,daysRemaining:-1,status:"OVERDUE",collectionActions:[],
