@@ -19,12 +19,16 @@ export interface NavigationListProps {
   iconOnly?: boolean;
 }
 
-export function NavigationList({ onNavigate, compact, hiddenNavigation = [], iconOnly = false }: NavigationListProps) {
+export function NavigationList({ onNavigate, compact, navigationOrder = [], hiddenNavigation = [], iconOnly = false }: NavigationListProps) {
   const pathname = usePathname();
   const {isEnabled}=useModuleManager();
+  const orderIndex = new Map(navigationOrder.map((key, index) => [key, index]));
+  const visibleItems = navigationItems.filter(item => !hiddenNavigation.includes(item.key) && (item.href === "/settings" || isEnabled(item.module)))
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => (orderIndex.get(a.item.key) ?? navigationOrder.length + a.index) - (orderIndex.get(b.item.key) ?? navigationOrder.length + b.index));
   return (
     <nav aria-label="Navegación principal" className="space-y-1.5">
-      {navigationItems.filter(item=>!hiddenNavigation.includes(item.key)&&(item.href==="/settings"||isEnabled(item.module))).map(({ label, href, icon: Icon }) => {
+      {visibleItems.map(({ item: { label, href, icon: Icon } }) => {
         const isActive = href === "/" ? pathname === href : pathname.startsWith(href);
         return <Link
           aria-current={isActive ? "page" : undefined}

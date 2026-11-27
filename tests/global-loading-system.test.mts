@@ -12,7 +12,7 @@ test("one shared OrbitLoader provides inline, button, section and fullscreen var
   assert.match(loader,/size\?: "sm" \| "md" \| "lg"/);
   assert.match(loader,/aria-live="polite"/);
   assert.match(loader,/aria-busy="true"/);
-  assert.match(css,/--brand: #F78900/);
+  assert.match(css,/--brand: #F28E2B/);
   assert.match(css,/prefers-reduced-motion: reduce/);
   assert.doesNotMatch(loader,/setTimeout|setInterval/);
 });
