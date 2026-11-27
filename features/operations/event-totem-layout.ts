@@ -75,7 +75,7 @@ export function prepareTotemDraft(
   const usedByBlock = new Map<string, Set<string>>();
   return {
     ...layout,
-    positions: positions.map((position, index) => ({
+    positions: positions.map((position) => ({
       ...position,
       blocks: blocks.map(block => {
         const existing = position.blocks.find(item => item.blockId === block.id);

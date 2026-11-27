@@ -1,5 +1,4 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { WhatsAppAiDecision } from "./whatsapp-ai.responder";
 import { deliverCanonicalCatalogFromWhatsApp, type WhatsAppCatalogDeliveryResult } from "./whatsapp-catalog.delivery";
 import { planBiancaTurn } from "./bianca-commercial-planner";
 import { unsupportedBiancaClaims, type BiancaActionEvidence } from "./bianca-claim-guards";
