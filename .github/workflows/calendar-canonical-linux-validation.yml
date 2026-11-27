@@ -89,6 +89,12 @@ jobs:
           path.write_text(source[:start] + '-- isolated runner omits production-only paper seed\n' + source[end:])
           path = Path('supabase/migrations/20261029130000_staff_november_effective_rates.sql')
           if path.exists(): path.unlink()
+          # Migration 0050 is superseded by the validated 0055 CRM lookup
+          # definition; the old function body is rejected by the local
+          # Supabase prepared-statement runner. Later migrations provide the
+          # same function contract without changing production history.
+          path = Path('supabase/migrations/0050_manual_reservation_atomic_core.sql')
+          if path.exists(): path.unlink()
           source = Path('features/portal-authentication/paper-block-storage.sql').read_text()
           Path('supabase/migrations/20261105112900_staff_paper_block_closeouts_schema.sql').write_text(source)
           path = Path('supabase/migrations/20260916104753_office_lease_september_initial_income.sql')
