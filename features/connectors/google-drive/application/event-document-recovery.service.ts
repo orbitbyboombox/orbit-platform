@@ -85,7 +85,12 @@ export async function recoverPendingEventDocuments(input: {
   const documents = (data ?? []) as RecoverableDocument[];
   const failures: Array<{ documentId: string; type: string; reason: string }> = [];
   if (!documents.length) return { synced: 0, reused: 0, pending: (count ?? 0) + (linkedPending ?? 0), linkedPending: linkedPending ?? 0, failures };
-  const { provider } = await loadReservationDriveProvider();
+  const { data: childMappings, error: childError } = await client.from("drive_sync")
+    .select("external_folder_id").eq("project_id", projectId)
+    .like("destination_key", `${eventFolder.folderPath.replace(/[\\%_]/g, "\\$&")}/%`);
+  if (childError) throw childError;
+  const folderIds = (childMappings ?? []).flatMap(row => typeof row.external_folder_id === "string" ? [row.external_folder_id] : []);
+  const { provider } = await loadReservationDriveProvider({ folderIds: [eventFolder.folderId, ...folderIds] });
   let synced = 0;
   let reused = 0;
   for (const document of documents) {
