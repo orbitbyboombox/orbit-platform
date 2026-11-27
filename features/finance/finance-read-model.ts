@@ -32,6 +32,8 @@ export type FinanceDashboardReadModel = {
   periodLabel: string;
   cash: {
     total: number;
+    operatingCollected: number;
+    nonOperatingIncome: number;
     unassigned: number;
     accounts: { label: string; value: number; href: string }[];
   };
@@ -145,8 +147,12 @@ export async function loadFinanceDashboardReadModel(
     return { ...row, fuelDate: row.fuel_date, totalAmount: row.total_amount, assetId: row.asset_id, receiptPath: row.receipt_path, gasStation: row.gas_station, routeId: row.route_id, routeStatus: route?.status ?? null, routeDeletedAt: route?.deleted_at ?? null, routeNotes: route?.notes ?? null, hasActiveProductionProject: Boolean(row.route_id && productionRouteIds.has(row.route_id)) };
   }), expenseReceipts);
 
-  const officeIncome = (officeIncomeResult.data ?? []).filter((row) => row.office_lease_payments).map((row) => officeLeaseIncomeImpact(row.item_type, row.amount));
-  const collectedAll = sum(canonicalPayments, (row) => row.cashImpact) + sum(officeIncome, (value) => value);
+  const officeIncomeRows = (officeIncomeResult.data ?? []).filter((row) => row.office_lease_payments).map((row) => ({ itemType: row.item_type, value: officeLeaseIncomeImpact(row.item_type, row.amount) }));
+  const officeRentIncome = sum(officeIncomeRows.filter((row) => row.itemType === "RENT"), (row) => row.value);
+  const officeGuaranteeIncome = sum(officeIncomeRows.filter((row) => row.itemType === "SECURITY_DEPOSIT"), (row) => row.value);
+  const customerCollected = sum(canonicalPayments, (row) => row.cashImpact);
+  const operatingCollected = customerCollected + officeRentIncome;
+  const collectedAll = operatingCollected + officeGuaranteeIncome;
   const paidExpenses = expenses.filter((row) => row.status === "PAID");
   const staffCashMovements = staffMovements.map((row) => ({ ...row, signedAmount: signedStaffMovement(row) }));
   staffCashMovements.push(...(trainingPaymentsResult.data ?? []).filter(row => activeProjectIds.has(row.project_id)).map(row => ({
@@ -226,6 +232,8 @@ export async function loadFinanceDashboardReadModel(
     periodLabel: selectedPeriod.key === today.slice(0, 7) ? monthName.format(now) : selectedPeriod.label,
     cash: {
       total: availableCash,
+      operatingCollected,
+      nonOperatingIncome: officeGuaranteeIncome,
       unassigned: unassignedCash,
       accounts: configuredAccounts.map(account => ({ label:account.name, value: cashAccounts.get(account.code) ?? 0, href: `/finance/cash-flow?account=${account.code}` })),
     },
@@ -249,7 +257,7 @@ export async function loadFinanceDashboardReadModel(
       moneyMetric("Egresos pagados del mes", expensesMonth, "Gastos y combustible materializados durante el mes.", "/finance/expenses?period=month"),
     ],
     position: [
-      moneyMetric("Cobrado acumulado", collectedAll, "Impacto de caja canónico acumulado.", "/finance/receivables?status=paid"),
+      moneyMetric("Cobrado acumulado", collectedAll, "Caja canónica: cobranzas y arriendo; las garantías se identifican aparte.", "/finance/receivables?status=paid"),
       moneyMetric("Por cobrar total", outstanding, "Saldo global de cuentas activas.", "/finance/receivables", outstanding > 0 ? "warning" : "default"),
       moneyMetric("Saldos Clientes / Eventos", receivableDataset.metrics.paymentCategorySummary.ordinary, "Pendiente ordinario sin crédito empresarial.", "/finance/receivables?category=ordinary"),
       moneyMetric("Crédito Empresas", receivableDataset.metrics.companyCredits, "Saldo corporativo, con o sin plazo definido.", "/finance/receivables?category=company-credit"),
