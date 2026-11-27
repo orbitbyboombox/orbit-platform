@@ -1,30 +1,62 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SiiRcvPreview } from "@/features/finance/components/sii-rcv-preview";
-import type { parseSiiRcv } from "@/features/finance/sii-rcv";
+import { loadRcvReport, siiCompanyRut } from "@/features/finance/sii-rcv-report";
+import { recordRcvPeriodEvent } from "@/features/finance/sii-rcv-actions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export default async function AccountingPage() {
+export default async function AccountingPage({ searchParams }: { searchParams: Promise<{ period?: string }> }) {
   const client = await createSupabaseServerClient();
   const { data: { user } } = await client.auth.getUser();
   if (!user) notFound();
   const { data: profile } = await client.from("profiles").select("role").eq("id", user.id).single();
   if (!profile || !["CEO", "ADMINISTRATOR"].includes(profile.role)) notFound();
 
-  type Document = ReturnType<typeof parseSiiRcv>["documents"][number];
-  const { data, error } = await createAdminClient().from("sii_rcv_documents" as never)
-    .select("id,snapshot").eq("company_rut", "765652723").order("id").limit(1000);
-  const rows = (data ?? []) as { snapshot: Document }[];
+  const input = (await searchParams).period ?? "2026-11";
+  const period = /^[1-9]\d{3}(?:-(?:0[1-9]|1[0-2]))?$/.test(input) ? input : "2026-11";
+  const [rows, periodEvents] = await Promise.all([
+    loadRcvReport(period).catch(() => null),
+    period.length === 7 ? createAdminClient().from("sii_rcv_period_events" as never).select("action").eq("company_rut", siiCompanyRut)
+      .eq("period", `${period}-01`).order("id", { ascending: false }) : Promise.resolve({ data: [], error: null }),
+  ]);
   const saved = {
-    Compras: rows.map(row => row.snapshot).filter(doc => doc.key.startsWith("Compras|")),
-    Ventas: rows.map(row => row.snapshot).filter(doc => doc.key.startsWith("Ventas|")),
+    Compras: (rows ?? []).filter(row => row.register === "Compras").map(row => row.snapshot),
+    Ventas: (rows ?? []).filter(row => row.register === "Ventas").map(row => row.snapshot),
   };
+  const events = (periodEvents.data ?? []) as { action: string }[];
+  const closed = events.find(event => ["CLOSED", "REOPENED"].includes(event.action))?.action === "CLOSED";
+  const ownerZero = events.some(event => event.action === "OWNER_ZERO_FEES");
   return (
     <main className="mx-auto max-w-6xl space-y-5">
       <Link href="/finance/tributary" className="text-sm font-semibold text-brand">Volver al Centro tributario</Link>
       <h1 className="text-3xl font-semibold">Contabilidad Premium</h1>
-      {error ? <p role="alert">El registro guardado no se pudo cargar.</p> : <SiiRcvPreview saved={saved} />}
+      <form className="flex flex-wrap items-end gap-3 rounded-xl border p-3" method="get">
+        <label className="text-sm">Período · AAAA o AAAA-MM
+          <input name="period" defaultValue={period} pattern="[0-9]{4}(-[0-9]{2})?" required className="mt-1 block w-full rounded-lg border bg-background p-2" />
+        </label>
+        <button className="min-h-10 rounded-lg border px-4 text-sm">Consultar</button>
+      </form>
+      {rows && <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {[[ "Compras", saved.Compras.length ], [ "Ventas", saved.Ventas.length ], [ "Diferencias por revisar", rows.filter(row => row.has_difference).length ]].map(([label, value]) =>
+          <div key={label} className="rounded-xl border bg-card p-3"><p className="text-sm text-muted">{label}</p><strong className="text-xl">{value}</strong></div>
+        )}
+      </div>}
+      {period.length === 7 && !periodEvents.error && <section className="space-y-3 rounded-xl border p-3">
+        <p className="font-semibold">Período {closed ? "cerrado para importaciones" : "abierto para revisión"}</p>
+        {ownerZero && <p className="text-sm">0 boletas de honorarios informadas por el propietario · pendiente de conciliación oficial.</p>}
+        <form action={recordRcvPeriodEvent} className="flex flex-wrap items-end gap-3">
+          <input type="hidden" name="period" value={period} />
+          <label className="text-sm">Motivo
+            <input name="reason" required maxLength={500} className="mt-1 block w-full rounded-lg border bg-background p-2" />
+          </label>
+          <button name="action" value={closed ? "REOPENED" : "CLOSED"} className="min-h-10 rounded-lg border px-3 text-sm">
+            {closed ? "Reabrir período" : "Cerrar período"}
+          </button>
+          {!closed && !ownerZero && <button name="action" value="OWNER_ZERO_FEES" className="min-h-10 rounded-lg border px-3 text-sm">Registrar 0 boletas informadas</button>}
+        </form>
+      </section>}
+      {rows === null ? <p role="alert">El registro guardado no se pudo cargar.</p> : <SiiRcvPreview saved={saved} /> }
     </main>
   );
 }
