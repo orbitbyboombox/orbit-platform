@@ -1,7 +1,7 @@
 "use client";
 
 import type { RcvEvidence } from "../sii-rcv-report";
-import { useState, useTransition, type ChangeEvent } from "react";
+import { useEffect, useState, useTransition, type ChangeEvent } from "react";
 import { assignRcvPurchaseCategory, storeRcvForReview } from "../sii-rcv-actions";
 import { normalizeRcv, parseSiiRcv, readSiiRcvFilename } from "../sii-rcv";
 
@@ -38,15 +38,19 @@ function PurchaseCategoryForm({ period, doc }: { period: string; doc: Register["
   </form>;
 }
 
-export function SiiRcvPreview({ saved, initialBook = "Compras", categoryPeriod, mode = "book" }: { saved: Record<Register["kind"], Register["documents"]>; initialBook?: Register["kind"]; categoryPeriod?: string; mode?: "book" | "import" }) {
+export function SiiRcvPreview({ saved, initialBook = "Compras", categoryPeriod, mode = "book", bookPeriod, initialPage = 1, initialMonth = "", initialType = "", initialCategory = "", initialMatch = "", initialDocument = "" }: { saved: Record<Register["kind"], Register["documents"]>; initialBook?: Register["kind"]; categoryPeriod?: string; mode?: "book" | "import"; bookPeriod?: string; initialPage?: number; initialMonth?: string; initialType?: string; initialCategory?: string; initialMatch?: string; initialDocument?: string }) {
   const [registers, setRegisters] = useState<Partial<Record<Register["kind"], Register>>>({});
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(initialPage);
   const [kind, setKind] = useState<Register["kind"]>(initialBook);
   const [query, setQuery] = useState("");
-  const [month, setMonth] = useState("");
-  const [type, setType] = useState("");
-  const [category, setCategory] = useState("");
-  const [match, setMatch] = useState("");
+  useEffect(() => {
+    if (mode !== "book" || !initialDocument || !bookPeriod) return;
+    try { const key = `orbit:rcv:return:${bookPeriod}:${initialBook}`; const value = sessionStorage.getItem(key); sessionStorage.removeItem(key); if (value !== null) setQuery(value.slice(0, 250)); } catch { /* storage unavailable */ }
+  }, [bookPeriod, initialBook, initialDocument, mode]);
+  const [month, setMonth] = useState(initialMonth);
+  const [type, setType] = useState(initialType);
+  const [category, setCategory] = useState(initialCategory);
+  const [match, setMatch] = useState(initialMatch);
   const [error, setError] = useState("");
   const [source, setSource] = useState<{ file: File; kind: Register["kind"] } | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -78,6 +82,12 @@ export function SiiRcvPreview({ saved, initialBook = "Compras", categoryPeriod, 
   const pageCount = Math.max(1, Math.ceil(results.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const visible = results.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  function viewerReturn(documentId: string) {
+    const params = new URLSearchParams({ period: bookPeriod ?? "", libro: kind.toLowerCase(), page: String(currentPage), document: documentId });
+    for (const [key, value] of Object.entries({ issued: month, type, category, match })) if (value) params.set(key, value);
+    return `/finance/tributary/accounting?${params.toString()}#libros`;
+  }
 
   async function loadFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.currentTarget.files?.[0];
@@ -161,7 +171,7 @@ export function SiiRcvPreview({ saved, initialBook = "Compras", categoryPeriod, 
         <p className="text-sm text-muted" aria-live="polite">{results.length} documentos · mostrando {visible.length}</p>
         {!results.length && <p className="rounded-xl border p-4 text-sm text-muted">No se encontraron documentos con estos filtros.</p>}
         {visible.map((doc, index) => (
-          <details key={`${doc.key}-${index}`} className="rounded-xl border p-3">
+          <details key={`${doc.key}-${index}`} open={doc.evidence?.pdf_id === initialDocument && !!initialDocument ? true : undefined} className="rounded-xl border p-3">
             <summary className="cursor-pointer break-words text-sm"><span className="inline-grid w-[94%] min-w-0 gap-1 align-middle sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_auto] sm:items-center"><span className="min-w-0"><strong className="block break-words">{doc.company || doc.rut}</strong><span className="text-xs text-muted">{doc.type} · Folio {doc.folio}</span></span><span className="text-xs text-muted">{doc.issued}{kind === "Compras" && <span className="block">{doc.expenseCategory ? categories[doc.expenseCategory as keyof typeof categories] ?? doc.expenseCategory : "Por revisar"}</span>}</span><strong className="tabular-nums sm:text-right">{amount(doc.total)}</strong></span></summary>
             {doc.duplicate && <p className="mt-2 text-sm text-danger">Identificador repetido. Requiere revisión.</p>}
             <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
@@ -180,7 +190,7 @@ export function SiiRcvPreview({ saved, initialBook = "Compras", categoryPeriod, 
               {doc.evidence.paid !== null && <p>Pagado registrado: {amount(doc.evidence.paid)} · Saldo interno: {amount(doc.evidence.balance)}</p>}
               {doc.evidence.project_id && <div className="flex flex-wrap gap-3">
                 <a className="text-brand" href={`/projects/${doc.evidence.project_id}?eventTab=FINANCE`}>Event 360°</a>
-                {doc.evidence.pdf_id && <a className="text-brand" href={`/projects/${doc.evidence.project_id}/documents/${doc.evidence.pdf_id}/viewer`}>PDF original</a>}
+                {doc.evidence.pdf_id && <a className="text-brand" href={`/projects/${doc.evidence.project_id}/documents/${doc.evidence.pdf_id}/viewer?returnTo=${encodeURIComponent(viewerReturn(doc.evidence.pdf_id))}`} onClick={() => { try { sessionStorage.setItem(`orbit:rcv:return:${bookPeriod}:${kind}`, query.slice(0,250)); } catch { /* storage unavailable */ } }}>PDF original</a>}
                 {doc.evidence.xml_id && <a className="text-brand" href={`/api/projects/${doc.evidence.project_id}/documents/${doc.evidence.xml_id}?download=1`}>XML original</a>}
               </div>}
             </div>}
