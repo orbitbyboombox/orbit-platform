@@ -96,13 +96,13 @@ export default async function TributaryCenterPage({ searchParams }: { searchPara
           <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Borrador preparado · sin emisión</p>
           <h2 className="mt-2 text-xl font-semibold">{selected.title} · {selected.dte}</h2>
           <p className="mt-2 text-sm text-muted">Revisa los datos comerciales del evento o cliente antes de aprobar. Esta acción no consume folio, no modifica saldos y no envía información al SII.</p>
-          <div className="mt-4 flex flex-wrap gap-2"><Link href="/projects" className="rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-brand-foreground">Elegir evento</Link><Link href="/customers" className="rounded-xl border px-4 py-2 text-sm font-semibold">Elegir cliente</Link><Link href="/finance/tributary" className="rounded-xl border px-4 py-2 text-sm">Cerrar</Link></div>
+          <div className="mt-4 flex flex-wrap gap-2"><Link href="/projects" className="rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-brand-foreground">Elegir evento</Link><Link href="/customers" className="rounded-xl border px-4 py-2 text-sm font-semibold">Elegir cliente</Link><Link href={`/finance/tributary?module=documents&period=${period}`} className="rounded-xl border px-4 py-2 text-sm">Cerrar</Link></div>
         </section> : null;
       })() : null}
 
       <section aria-label="Documentos tributarios" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {sections.map((section) => (
-          <Link key={section.key} href={`/finance/tributary/${section.key}`} className="rounded-2xl border bg-card p-5 transition hover:border-brand/60">
+          <Link key={section.key} href={`/finance/tributary/${section.key}?period=${period}`} className="rounded-2xl border bg-card p-5 transition hover:border-brand/60">
             <div className="flex items-start justify-between gap-3"><span className="text-xs font-semibold uppercase tracking-[.16em] text-brand">{section.dte}</span><span className="sr-only">{section.folder}</span></div>
             <h2 className="mt-4 text-lg font-semibold">{section.title}</h2>
             <p className="mt-2 text-sm text-muted">{section.description}</p>
@@ -127,7 +127,7 @@ export default async function TributaryCenterPage({ searchParams }: { searchPara
         <div className="flex items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Google Drive · estructura preparada</p><h2 className="mt-1 text-xl font-semibold">FINANZAS SII</h2></div><span className="rounded-full border border-warning/40 bg-warning/10 px-3 py-1 text-xs text-warning">Sin escritura automática PRE-SII</span></div>
         <p className="mt-2 text-sm text-muted">La estructura conserva respaldos tributarios. El archivo automático está pendiente de validación. No se almacenan PFX, contraseñas ni claves CAF.</p>
         <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{archiveFolders.map((folder) => <div key={folder} className="rounded-xl border bg-background/40 px-3 py-2 text-xs text-muted">{folder}<span className="mt-1 block text-[11px] text-brand">AÑO / MES</span></div>)}</div>
-        <div className="mt-4 flex flex-wrap gap-3"><Link href="/finance/tributary/archivo" className="rounded-xl border px-4 py-2 text-sm font-semibold text-brand">Abrir archivo tributario</Link><Link href="/finance/tributary/drive-verification" className="rounded-xl border px-4 py-2 text-sm font-semibold text-brand">Diagnóstico Drive</Link></div>
+        <div className="mt-4 flex flex-wrap gap-3"><Link href={`/finance/tributary/archivo?period=${period}`} className="rounded-xl border px-4 py-2 text-sm font-semibold text-brand">Abrir archivo tributario</Link><Link href="/finance/tributary/drive-verification" className="rounded-xl border px-4 py-2 text-sm font-semibold text-brand">Diagnóstico Drive</Link></div>
       </section>}
     </main>
   );
