@@ -1,0 +1,48 @@
+name: Calendar canonical update Linux validation
+
+on:
+  pull_request:
+    branches:
+      - release/finance-staff-v217-20261115
+    paths:
+      - 'features/connectors/google-calendar/**'
+      - 'features/projects/components/production-integration-panel.tsx'
+      - 'supabase/migrations/20261127190000_canonical_calendar_update.sql'
+      - 'tests/canonical-calendar-update.test.mts'
+      - 'tests/google-calendar-remote-reconciliation.test.mts'
+      - '.github/workflows/calendar-canonical-linux-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: calendar-canonical-linux-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.4.1
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: TypeScript
+        run: pnpm exec tsc --noEmit
+      - name: ESLint
+        run: pnpm exec eslint features/connectors/google-calendar/application/google-calendar-remote-reconciliation.ts features/connectors/google-calendar/application/google-calendar.actions.ts features/projects/components/production-integration-panel.tsx tests/canonical-calendar-update.test.mts
+      - name: Focused reconciliation tests
+        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test tests/canonical-calendar-update.test.mts tests/google-calendar-remote-reconciliation.test.mts
+      - name: Next.js build
+        run: pnpm exec next build

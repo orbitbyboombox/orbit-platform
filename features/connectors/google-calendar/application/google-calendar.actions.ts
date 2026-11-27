@@ -181,22 +181,10 @@ export async function reconcileFutureGoogleCalendarAction(): Promise<CalendarRec
           }
           summary.mappingsBackfilled++;
         }
-        if (RECONCILABLE_ORBIT_EVENT_IDS.has(orbitEventId) && sync?.status === "UPDATE_REQUIRED") {
-          const prepared = await prepareConfirmedReservationCalendar(client, row.id);
-          const accepted = await acceptReviewedRemoteCalendarEvent({ client, provider, input: prepared.calendarInput, actorId: auth.user.id, expectedCalendarId: calendarId });
-          if (accepted.result === "ACCEPTED") {
-            const { error: auditError } = await client.from("timeline_events").insert({
-              project_id: row.id, orbit_event_id: orbitEventId, event_type: "CALENDAR_REMOTE_RECONCILED",
-              title: "Google Calendar reconciliado", description: "Se aceptó la versión remota que coincide con la citación y el horario canónicos, usando ETag; no se modificó Calendar.",
-              actor_id: auth.user.id, actor_label: "Founder / Administración", source: "Google Calendar",
-              action: "CALENDAR_REMOTE_RECONCILED", entity_type: "CalendarSync", entity_id: accepted.googleEventId,
-              human_message: "Google Calendar reconciliado con ETag y hash calculado por ORBIT.",
-              correlation_id: `calendar-reconciliation:${orbitEventId}:${accepted.etag}`, created_by: auth.user.id,
-            });
-            if (auditError) throw auditError;
-            summary.remoteAccepted++;
-          }
-        }
+        // UPDATE_REQUIRED is always resolved from ORBIT's canonical state. The
+        // legacy remote-acceptance path is intentionally not used here because
+        // it would acknowledge Calendar's stale values instead of correcting
+        // them with the ETag-protected canonical update.
         const expectedEventId = String(usesNOVAGoogleCore() ? sync?.nova_external_event_id ?? "" : sync?.external_event_id ?? "");
         const { data: verifiedMapping, error: mappingReadError } = await client.from("calendar_sync")
           .select("orbit_event_id,external_event_id,nova_external_event_id,nova_calendar_id")
