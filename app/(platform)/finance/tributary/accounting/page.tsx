@@ -23,7 +23,7 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
     loadStaffPeriodAmounts(period).catch(() => null),
   ]);
   const saved = {
-    Compras: (rows ?? []).filter(row => row.register === "Compras").map(row => row.snapshot),
+    Compras: (rows ?? []).filter(row => row.register === "Compras").map(row => ({ ...row.snapshot, expenseCategory: row.expense_category })),
     Ventas: (rows ?? []).filter(row => row.register === "Ventas").map(row => row.snapshot),
   };
   const events = (periodEvents.data ?? []) as { action: string }[];
