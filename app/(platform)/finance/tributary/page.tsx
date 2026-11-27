@@ -50,6 +50,12 @@ export default async function TributaryCenterPage({ searchParams }: { searchPara
       </header>
 
       <div className="flex flex-wrap gap-3 text-sm"><a href="/api/finance/tributary/export?scope=simulation" className="underline">CSV de simulaciones</a><a href="/api/finance/tributary/export?scope=simulation&format=xls" className="underline">Excel de simulaciones</a></div>
+      <form action="/api/finance/tributary/export" method="get" className="flex flex-wrap items-end gap-3 rounded-xl border p-4" aria-label="Paquete mensual para el contador">
+        <input type="hidden" name="format" value="zip" />
+        <label className="text-sm">Año<input name="year" className="mt-1 block w-24 rounded-lg border bg-background p-2" required type="number" min="1000" max="9999" defaultValue={new Intl.DateTimeFormat("en", { year: "numeric", timeZone: "America/Santiago" }).format(new Date())} /></label>
+        <label className="text-sm">Mes<select name="month" className="mt-1 block max-w-full rounded-lg border bg-background p-2" defaultValue={new Intl.DateTimeFormat("en", { month: "numeric", timeZone: "America/Santiago" }).format(new Date())}>{Array.from({ length: 12 }, (_, index) => <option key={index} value={index + 1}>{new Intl.DateTimeFormat("es-CL", { month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(2026, index, 1)))}</option>)}</select></label>
+        <button type="submit" className="rounded-lg border border-brand/40 px-3 py-2 text-sm text-brand">Descargar paquete mensual ZIP</button>
+      </form>
       <TributaryDraftManager drafts={(drafts ?? []) as any} projectId={projectId} customerId={customerId} />
 
 
